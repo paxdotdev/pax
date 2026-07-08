@@ -14,12 +14,6 @@ Scientist "Hershey Text" SVG font collection:
 - `HersheySans1`
 - `HersheyScript1`
 
-Each font also has a `*Curved.svg` companion generated from the original SVG
-font by converting straight-line glyph runs into lightly smoothed cubic
-Beziers. Regenerate those companions with `generate_curved.py`. The generated
-companions preserve pen lifts and sharp corners where possible, but are fitted
-trial assets rather than authoritative font sources.
-
 - Source: https://gitlab.com/oskay/svg-fonts
 - Retrieved for this repository on 2026-07-07.
 - EMS fonts are derived from SIL Open Font License fonts. The upstream SVG
@@ -28,3 +22,8 @@ trial assets rather than authoritative font sources.
 
 Keep these files as source assets: `Handwriter` parses them into Pax
 `PathElement` data at runtime initialization for the selected text/font pair.
+
+`generate_curved.py` is retained as an experimental local tool for inspecting
+curve-fitting approaches. Its generated `*Curved.svg` outputs are not bundled in
+`pax-std` because cubic-fitted glyph strokes are substantially heavier to render
+with animated path drawing.

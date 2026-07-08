@@ -460,3 +460,16 @@ Recommendations: treat jagged large vector strokes inside web scrollers as a
 potential surface backing-scale issue before blaming the primitive. A focused
 regression should inspect all visible layer/tile canvases and verify that
 scroller-owned vector surfaces honor device DPR unless deliberately clamped.
+
+The static curve-fitted `Handwriter` font comparison rows caused a severe web
+performance cliff when they shared a retained vector surface with active
+`draw_start`/`draw_end` animations. Browser sampling showed the renderer main
+thread saturated in Wasm/JS. A/B measurements isolated the cost: removing the
+comparison rows recovered the example, one original-plus-curved row was still
+slow, one original-plus-original row was near baseline, and keeping a curved row
+while pinning all draw ranges static was smooth.
+
+Solved for the example by dropping the bundled curve-fitted font variants and
+removing the comparison grid. Keep curve fitting as an offline experiment until
+path drawing can vary visible stroke range without rebuilding or restroking
+heavy cubic glyph geometry on every animated frame.

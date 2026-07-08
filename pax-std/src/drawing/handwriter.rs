@@ -60,44 +60,24 @@ pub enum HandwriterFont {
     /// Cursive, airy script.
     #[default]
     EMSAllure,
-    /// Curve-fitted variant of `EMSAllure`.
-    EMSAllureCurved,
     /// Friendly rounded print hand.
     EMSDelight,
-    /// Curve-fitted variant of `EMSDelight`.
-    EMSDelightCurved,
     /// Tall invitation script.
     EMSInvite,
-    /// Curve-fitted variant of `EMSInvite`.
-    EMSInviteCurved,
     /// Flowing connected script.
     EMSLeague,
-    /// Curve-fitted variant of `EMSLeague`.
-    EMSLeagueCurved,
     /// Casual narrow script.
     EMSNeato,
-    /// Curve-fitted variant of `EMSNeato`.
-    EMSNeatoCurved,
     /// Rectilinear plotter hand.
     EMSOsmotron,
-    /// Curve-fitted variant of `EMSOsmotron`.
-    EMSOsmotronCurved,
     /// Highly readable manuscript hand.
     EMSReadability,
-    /// Curve-fitted variant of `EMSReadability`.
-    EMSReadabilityCurved,
     /// Technical drafting hand.
     EMSTech,
-    /// Curve-fitted variant of `EMSTech`.
-    EMSTechCurved,
     /// Classic Hershey sans stroke font.
     HersheySans1,
-    /// Curve-fitted variant of `HersheySans1`.
-    HersheySans1Curved,
     /// Classic Hershey connected script.
     HersheyScript1,
-    /// Curve-fitted variant of `HersheyScript1`.
-    HersheyScript1Curved,
 }
 
 impl Handwriter {
@@ -799,31 +779,15 @@ fn decode_xml_entity(entity: &str) -> Option<char> {
 fn font_source(font: HandwriterFont) -> &'static str {
     match font {
         HandwriterFont::EMSAllure => include_str!("handwriter_fonts/EMSAllure.svg"),
-        HandwriterFont::EMSAllureCurved => include_str!("handwriter_fonts/EMSAllureCurved.svg"),
         HandwriterFont::EMSDelight => include_str!("handwriter_fonts/EMSDelight.svg"),
-        HandwriterFont::EMSDelightCurved => include_str!("handwriter_fonts/EMSDelightCurved.svg"),
         HandwriterFont::EMSInvite => include_str!("handwriter_fonts/EMSInvite.svg"),
-        HandwriterFont::EMSInviteCurved => include_str!("handwriter_fonts/EMSInviteCurved.svg"),
         HandwriterFont::EMSLeague => include_str!("handwriter_fonts/EMSLeague.svg"),
-        HandwriterFont::EMSLeagueCurved => include_str!("handwriter_fonts/EMSLeagueCurved.svg"),
         HandwriterFont::EMSNeato => include_str!("handwriter_fonts/EMSNeato.svg"),
-        HandwriterFont::EMSNeatoCurved => include_str!("handwriter_fonts/EMSNeatoCurved.svg"),
         HandwriterFont::EMSOsmotron => include_str!("handwriter_fonts/EMSOsmotron.svg"),
-        HandwriterFont::EMSOsmotronCurved => include_str!("handwriter_fonts/EMSOsmotronCurved.svg"),
         HandwriterFont::EMSReadability => include_str!("handwriter_fonts/EMSReadability.svg"),
-        HandwriterFont::EMSReadabilityCurved => {
-            include_str!("handwriter_fonts/EMSReadabilityCurved.svg")
-        }
         HandwriterFont::EMSTech => include_str!("handwriter_fonts/EMSTech.svg"),
-        HandwriterFont::EMSTechCurved => include_str!("handwriter_fonts/EMSTechCurved.svg"),
         HandwriterFont::HersheySans1 => include_str!("handwriter_fonts/HersheySans1.svg"),
-        HandwriterFont::HersheySans1Curved => {
-            include_str!("handwriter_fonts/HersheySans1Curved.svg")
-        }
         HandwriterFont::HersheyScript1 => include_str!("handwriter_fonts/HersheyScript1.svg"),
-        HandwriterFont::HersheyScript1Curved => {
-            include_str!("handwriter_fonts/HersheyScript1Curved.svg")
-        }
     }
 }
 
@@ -836,16 +800,6 @@ mod tests {
         let elements = render_handwriter_text("Yeats", HandwriterFont::HersheyScript1, 1.2);
         assert!(elements.len() > 10);
         assert!(matches!(elements.first(), Some(PathElement::Point(_, _))));
-    }
-
-    #[test]
-    fn parses_curve_fitted_font_glyphs() {
-        let elements = render_handwriter_text("Swans", HandwriterFont::EMSLeagueCurved, 1.0);
-        assert!(elements.len() > 10);
-        assert!(matches!(elements.first(), Some(PathElement::Point(_, _))));
-        assert!(elements
-            .iter()
-            .any(|element| matches!(element, PathElement::Cubic(_, _, _, _))));
     }
 
     #[test]
