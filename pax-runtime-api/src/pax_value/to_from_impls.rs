@@ -35,7 +35,9 @@ use crate::SceneLighting;
 use crate::Size;
 use crate::Stroke;
 use crate::StrokeCap;
+use crate::StrokeJoin;
 use crate::Transform2D;
+use crate::UnitValue;
 use crate::Vector3;
 
 // Primitive types
@@ -212,6 +214,23 @@ impl ToPaxValue for Opacity {
     }
 }
 
+impl ToPaxValue for UnitValue {
+    fn to_pax_value(self) -> PaxValue {
+        match self {
+            UnitValue::Unitless(value) => PaxValue::Enum(Box::new((
+                "UnitValue".to_string(),
+                "Unitless".to_string(),
+                vec![value.to_pax_value()],
+            ))),
+            UnitValue::Percent(value) => PaxValue::Enum(Box::new((
+                "UnitValue".to_string(),
+                "Percent".to_string(),
+                vec![value.to_pax_value()],
+            ))),
+        }
+    }
+}
+
 impl ToPaxValue for Stroke {
     fn to_pax_value(self) -> PaxValue {
         PaxValue::Object(
@@ -219,6 +238,7 @@ impl ToPaxValue for Stroke {
                 ("color".to_string(), self.color.get().to_pax_value()),
                 ("width".to_string(), self.width.to_pax_value()),
                 ("cap".to_string(), self.cap.get().to_pax_value()),
+                ("join".to_string(), self.join.get().to_pax_value()),
             ]
             .into_iter()
             .collect(),
@@ -235,6 +255,21 @@ impl ToPaxValue for StrokeCap {
         };
         PaxValue::Enum(Box::new((
             "StrokeCap".to_string(),
+            variant.to_string(),
+            vec![],
+        )))
+    }
+}
+
+impl ToPaxValue for StrokeJoin {
+    fn to_pax_value(self) -> PaxValue {
+        let variant = match self {
+            StrokeJoin::Miter => "Miter",
+            StrokeJoin::Round => "Round",
+            StrokeJoin::Bevel => "Bevel",
+        };
+        PaxValue::Enum(Box::new((
+            "StrokeJoin".to_string(),
             variant.to_string(),
             vec![],
         )))

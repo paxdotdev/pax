@@ -1,0 +1,13 @@
+<Path
+    width=100%
+    height=100%
+    fill=TRANSPARENT
+    stroke={stroke}
+    draw_start={draw_start}
+    draw_end={draw_end}
+    elements={_elements}
+/>
+
+@settings {
+    @mount: on_mount
+}

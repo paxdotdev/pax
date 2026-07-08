@@ -37,6 +37,7 @@ pub mod properties;
 pub mod rendering;
 pub mod store;
 pub mod transform;
+pub mod unit_value;
 pub mod variables;
 
 pub use animation::*;
@@ -53,4 +54,5 @@ pub use properties::Property;
 pub use rendering::*;
 pub use store::*;
 pub use transform::*;
+pub use unit_value::*;
 pub use variables::*;

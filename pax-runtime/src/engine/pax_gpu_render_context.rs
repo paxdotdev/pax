@@ -7,11 +7,12 @@ use kurbo::{BezPath, PathEl, Rect, Shape};
 use pax_gpu::{
     point, Box2D, Image, LightShape as PixelLightShape, Material as PixelMaterial, Path,
     ResourceChurnStats, SceneLight as PixelSceneLight, SceneLighting as PixelSceneLighting,
-    Stroke as PixelStroke, StrokeCap as PixelStrokeCap, Transform2D, WgpuRenderer,
+    Stroke as PixelStroke, StrokeCap as PixelStrokeCap, StrokeJoin as PixelStrokeJoin, Transform2D,
+    WgpuRenderer,
 };
 use pax_runtime_api::{
     Axis, LayerSurfaceScreenshotData, Material, RenderContext, ReplayCanvasLayerUpdate,
-    SceneLighting, ScreenshotData, Stroke, StrokeCap,
+    SceneLighting, ScreenshotData, Stroke, StrokeCap, StrokeJoin,
 };
 use std::{
     cell::{Cell, RefCell},
@@ -1109,6 +1110,11 @@ impl RenderContext for PaxGpuRenderer {
                         StrokeCap::Round => PixelStrokeCap::Round,
                         StrokeCap::Square => PixelStrokeCap::Square,
                     },
+                    join: match stroke.join.get() {
+                        StrokeJoin::Miter => PixelStrokeJoin::Miter,
+                        StrokeJoin::Round => PixelStrokeJoin::Round,
+                        StrokeJoin::Bevel => PixelStrokeJoin::Bevel,
+                    },
                 },
                 opacity as f32,
             );
@@ -1138,6 +1144,11 @@ impl RenderContext for PaxGpuRenderer {
                         StrokeCap::Butt => PixelStrokeCap::Butt,
                         StrokeCap::Round => PixelStrokeCap::Round,
                         StrokeCap::Square => PixelStrokeCap::Square,
+                    },
+                    join: match stroke.join.get() {
+                        StrokeJoin::Miter => PixelStrokeJoin::Miter,
+                        StrokeJoin::Round => PixelStrokeJoin::Round,
+                        StrokeJoin::Bevel => PixelStrokeJoin::Bevel,
                     },
                 },
                 to_pax_gpu_material(material),
@@ -1783,36 +1794,47 @@ pub fn to_pax_gpu_color(color: &pax_runtime_api::Color) -> pax_gpu::Color {
 /// Convert a kurbo path emitted by primitives into a lyon path consumed by `pax-gpu`.
 pub fn convert_kurbo_to_lyon_path(kurbo_path: &BezPath) -> Path {
     let mut builder = Path::builder();
-    let mut closed = false;
+    let mut has_open_subpath = false;
     for el in kurbo_path.elements() {
         match el {
             PathEl::MoveTo(p) => {
-                closed = false;
+                if has_open_subpath {
+                    builder.end(false);
+                }
                 builder.begin(point(p.x as f32, p.y as f32));
+                has_open_subpath = true;
             }
             PathEl::LineTo(p) => {
-                builder.line_to(point(p.x as f32, p.y as f32));
+                if has_open_subpath {
+                    builder.line_to(point(p.x as f32, p.y as f32));
+                }
             }
             PathEl::QuadTo(p1, p2) => {
-                builder.quadratic_bezier_to(
-                    point(p1.x as f32, p1.y as f32),
-                    point(p2.x as f32, p2.y as f32),
-                );
+                if has_open_subpath {
+                    builder.quadratic_bezier_to(
+                        point(p1.x as f32, p1.y as f32),
+                        point(p2.x as f32, p2.y as f32),
+                    );
+                }
             }
             PathEl::CurveTo(p1, p2, p3) => {
-                builder.cubic_bezier_to(
-                    point(p1.x as f32, p1.y as f32),
-                    point(p2.x as f32, p2.y as f32),
-                    point(p3.x as f32, p3.y as f32),
-                );
+                if has_open_subpath {
+                    builder.cubic_bezier_to(
+                        point(p1.x as f32, p1.y as f32),
+                        point(p2.x as f32, p2.y as f32),
+                        point(p3.x as f32, p3.y as f32),
+                    );
+                }
             }
             PathEl::ClosePath => {
-                closed = true;
-                builder.end(true);
+                if has_open_subpath {
+                    builder.end(true);
+                    has_open_subpath = false;
+                }
             }
         }
     }
-    if !closed {
+    if has_open_subpath {
         builder.end(false);
     }
 
@@ -1854,5 +1876,19 @@ mod tests {
         assert!(surface_intersects_coverage_bounds(
             &bounds, 500.0, 500.0, 100.0, 100.0
         ));
+    }
+
+    #[test]
+    fn converts_multiple_kurbo_subpaths_to_lyon_path() {
+        let mut path = BezPath::new();
+        path.move_to((0.0, 0.0));
+        path.line_to((10.0, 0.0));
+        path.move_to((20.0, 0.0));
+        path.line_to((30.0, 0.0));
+        path.close_path();
+
+        let lyon_path = convert_kurbo_to_lyon_path(&path);
+
+        assert_eq!(lyon_path.iter().count(), 6);
     }
 }

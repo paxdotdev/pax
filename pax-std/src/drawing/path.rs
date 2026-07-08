@@ -1,9 +1,9 @@
-use kurbo::{Affine, BezPath};
+use kurbo::{Affine, BezPath, CubicBez, Line, ParamCurve, ParamCurveArclen, PathSeg, QuadBez};
 
 use pax_engine::api::{Fill, PathElement};
 use pax_runtime::api::drawing::stroke_utils::{stroke_width_pixels, stroked_outline_path};
 use pax_runtime::api::{borrow, borrow_mut, use_RefCell};
-use pax_runtime::api::{Layer, Material, RenderContext, Stroke};
+use pax_runtime::api::{Layer, Material, Numeric, RenderContext, Stroke, UnitValue};
 use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
@@ -22,6 +22,7 @@ use std::rc::Rc;
 /// interior of closed contours, while `stroke` paints the path itself; for
 /// open subpaths, the stroke cap controls the exposed endpoints.
 #[pax]
+#[custom(Default)]
 #[engine_import_path("pax_engine")]
 #[primitive("pax_std::drawing::path::PathInstance")]
 pub struct Path {
@@ -33,6 +34,23 @@ pub struct Path {
     pub fill: Property<Fill>,
     /// Light-reactive surface response.
     pub material: Property<Material>,
+    /// Start position of the visible stroke range over the path's total length.
+    pub draw_start: Property<UnitValue>,
+    /// End position of the visible stroke range over the path's total length.
+    pub draw_end: Property<UnitValue>,
+}
+
+impl Default for Path {
+    fn default() -> Self {
+        Self {
+            elements: Default::default(),
+            stroke: Default::default(),
+            fill: Default::default(),
+            material: Default::default(),
+            draw_start: Property::new(UnitValue::Unitless(Numeric::F64(0.0))),
+            draw_end: Property::new(UnitValue::Unitless(Numeric::F64(1.0))),
+        }
+    }
 }
 
 impl Path {
@@ -117,13 +135,15 @@ impl InstanceNode for PathInstance {
         });
 
         let tab = expanded_node.transform_and_bounds.clone();
-        let (elements, stroke, fill, material) =
-            expanded_node.with_properties_unwrapped(|properties: &mut Path| {
+        let (elements, stroke, fill, material, draw_start, draw_end) = expanded_node
+            .with_properties_unwrapped(|properties: &mut Path| {
                 (
                     properties.elements.clone(),
                     properties.stroke.clone(),
                     properties.fill.clone(),
                     properties.material.clone(),
+                    properties.draw_start.clone(),
+                    properties.draw_end.clone(),
                 )
             });
 
@@ -133,6 +153,8 @@ impl InstanceNode for PathInstance {
             stroke.untyped(),
             fill.untyped(),
             material.untyped(),
+            draw_start.untyped(),
+            draw_end.untyped(),
             expanded_node.computed_opacity.untyped(),
         ];
         let cloned_expanded_node = expanded_node.clone();
@@ -169,12 +191,15 @@ impl InstanceNode for PathInstance {
             let local_path = build_local_bez_path(&elements, bounds)?;
             let fill = properties.fill.get();
             let stroke = properties.stroke.get();
+            let draw_start = properties.draw_start.get();
+            let draw_end = properties.draw_end.get();
             let mut coverage = BezPath::new();
             if fill.coverage_alpha_0_1() > f64::EPSILON {
                 coverage.extend(local_path.elements().iter().copied());
             }
             if stroke.color.get().alpha_0_1() > f64::EPSILON {
-                if let Some(stroke_outline) = stroked_outline_path(&local_path, &stroke) {
+                let trimmed_path = trim_bez_path(&local_path, draw_start, draw_end);
+                if let Some(stroke_outline) = stroked_outline_path(&trimmed_path, &stroke) {
                     coverage.extend(stroke_outline.elements().iter().copied());
                 }
             }
@@ -229,6 +254,8 @@ impl InstanceNode for PathInstance {
             let fill = properties.fill.get();
             let stroke = properties.stroke.get();
             let material = properties.material.get();
+            let draw_start = properties.draw_start.get();
+            let draw_end = properties.draw_end.get();
             rc.save(scope.layer_id);
             rc.transform(scope.layer_id, scope.surface_transform);
             rc.clip(scope.layer_id, clip_path.clone());
@@ -240,9 +267,10 @@ impl InstanceNode for PathInstance {
                 opacity,
             );
             if stroke_width_pixels(&stroke) > f64::EPSILON {
+                let trimmed_path = trim_bez_path(&bez_path, draw_start, draw_end);
                 rc.stroke_with_material_and_opacity(
                     scope.layer_id,
-                    bez_path,
+                    trimmed_path,
                     &stroke,
                     &material,
                     opacity,
@@ -322,6 +350,416 @@ fn build_local_bez_path(elements: &[PathElement], bounds: (f64, f64)) -> Option<
     }
 
     Some(bez_path)
+}
+
+const PATH_TRIM_ACCURACY: f64 = 0.1;
+
+#[derive(Clone, Copy)]
+struct TrimSegment {
+    segment: PathSeg,
+    contour_index: usize,
+    closes_contour: bool,
+}
+
+#[derive(Clone, Copy)]
+struct TrimContour {
+    first_segment_index: Option<usize>,
+    last_segment_index: Option<usize>,
+    is_closed: bool,
+}
+
+fn trim_bez_path(path: &BezPath, draw_start: UnitValue, draw_end: UnitValue) -> BezPath {
+    let start = draw_start.to_clamped_unit_float();
+    let end = draw_end.to_clamped_unit_float();
+    if start <= f64::EPSILON && end >= 1.0 - f64::EPSILON {
+        return path.clone();
+    }
+    if start >= end {
+        return BezPath::new();
+    }
+
+    let (segments, contours) = collect_trim_segments(path);
+    let lengths = segments
+        .iter()
+        .map(|record| record.segment.arclen(PATH_TRIM_ACCURACY).max(0.0))
+        .collect::<Vec<_>>();
+    let total_length = lengths.iter().sum::<f64>();
+    if total_length <= f64::EPSILON {
+        return BezPath::new();
+    }
+
+    let trim_start = start * total_length;
+    let trim_end = end * total_length;
+    let mut trimmed = BezPath::new();
+    let mut current_point = None;
+    let mut cursor = 0.0;
+    let mut segment_starts = Vec::with_capacity(lengths.len());
+    let mut segment_ends = Vec::with_capacity(lengths.len());
+
+    for segment_length in &lengths {
+        segment_starts.push(cursor);
+        cursor += segment_length;
+        segment_ends.push(cursor);
+    }
+
+    let mut fully_visible_closed_contours = vec![false; contours.len()];
+    for (contour_index, contour) in contours.iter().enumerate() {
+        if !contour.is_closed {
+            continue;
+        }
+        let (Some(first_segment_index), Some(last_segment_index)) =
+            (contour.first_segment_index, contour.last_segment_index)
+        else {
+            continue;
+        };
+        let contour_start = segment_starts[first_segment_index];
+        let contour_end = segment_ends[last_segment_index];
+        fully_visible_closed_contours[contour_index] =
+            trim_start <= contour_start + f64::EPSILON && trim_end >= contour_end - f64::EPSILON;
+    }
+
+    for (index, (record, segment_length)) in segments.into_iter().zip(lengths).enumerate() {
+        let segment_start = segment_starts[index];
+        let segment_end = segment_ends[index];
+        if segment_length <= f64::EPSILON || segment_end <= trim_start + f64::EPSILON {
+            continue;
+        }
+        if segment_start >= trim_end - f64::EPSILON {
+            break;
+        }
+
+        let local_start = (trim_start - segment_start).clamp(0.0, segment_length);
+        let local_end = (trim_end - segment_start).clamp(0.0, segment_length);
+        if local_start >= local_end {
+            continue;
+        }
+
+        let whole_segment_visible =
+            local_start <= f64::EPSILON && local_end >= segment_length - f64::EPSILON;
+        let visible_segment = if whole_segment_visible {
+            record.segment
+        } else {
+            let t0 = if local_start <= f64::EPSILON {
+                0.0
+            } else {
+                record.segment.inv_arclen(local_start, PATH_TRIM_ACCURACY)
+            };
+            let t1 = if local_end >= segment_length - f64::EPSILON {
+                1.0
+            } else {
+                record.segment.inv_arclen(local_end, PATH_TRIM_ACCURACY)
+            };
+            if t0 >= t1 {
+                continue;
+            }
+            record.segment.subsegment(t0..t1)
+        };
+
+        append_segment(&mut trimmed, &mut current_point, visible_segment);
+        if whole_segment_visible
+            && record.closes_contour
+            && fully_visible_closed_contours[record.contour_index]
+        {
+            trimmed.close_path();
+            current_point = None;
+        }
+    }
+
+    trimmed
+}
+
+fn collect_trim_segments(path: &BezPath) -> (Vec<TrimSegment>, Vec<TrimContour>) {
+    let mut segments = Vec::new();
+    let mut contours = Vec::new();
+    let mut current_contour = None;
+    let mut contour_start = None;
+    let mut current_point = None;
+
+    for element in path.iter() {
+        match element {
+            kurbo::PathEl::MoveTo(point) => {
+                current_contour = Some(contours.len());
+                contours.push(TrimContour {
+                    first_segment_index: None,
+                    last_segment_index: None,
+                    is_closed: false,
+                });
+                contour_start = Some(point);
+                current_point = Some(point);
+            }
+            kurbo::PathEl::LineTo(point) => {
+                let (Some(from), Some(contour_index)) = (current_point, current_contour) else {
+                    continue;
+                };
+                push_trim_segment(
+                    &mut segments,
+                    &mut contours,
+                    contour_index,
+                    PathSeg::Line(Line::new(from, point)),
+                    false,
+                );
+                current_point = Some(point);
+            }
+            kurbo::PathEl::QuadTo(control, point) => {
+                let (Some(from), Some(contour_index)) = (current_point, current_contour) else {
+                    continue;
+                };
+                push_trim_segment(
+                    &mut segments,
+                    &mut contours,
+                    contour_index,
+                    PathSeg::Quad(QuadBez::new(from, control, point)),
+                    false,
+                );
+                current_point = Some(point);
+            }
+            kurbo::PathEl::CurveTo(control_1, control_2, point) => {
+                let (Some(from), Some(contour_index)) = (current_point, current_contour) else {
+                    continue;
+                };
+                push_trim_segment(
+                    &mut segments,
+                    &mut contours,
+                    contour_index,
+                    PathSeg::Cubic(CubicBez::new(from, control_1, control_2, point)),
+                    false,
+                );
+                current_point = Some(point);
+            }
+            kurbo::PathEl::ClosePath => {
+                let (Some(from), Some(start), Some(contour_index)) =
+                    (current_point, contour_start, current_contour)
+                else {
+                    continue;
+                };
+                contours[contour_index].is_closed = true;
+                if same_kurbo_point(from, start) {
+                    if let Some(last_segment_index) = contours[contour_index].last_segment_index {
+                        segments[last_segment_index].closes_contour = true;
+                    }
+                } else {
+                    push_trim_segment(
+                        &mut segments,
+                        &mut contours,
+                        contour_index,
+                        PathSeg::Line(Line::new(from, start)),
+                        true,
+                    );
+                    current_point = Some(start);
+                }
+            }
+        }
+    }
+
+    (segments, contours)
+}
+
+fn push_trim_segment(
+    segments: &mut Vec<TrimSegment>,
+    contours: &mut [TrimContour],
+    contour_index: usize,
+    segment: PathSeg,
+    closes_contour: bool,
+) {
+    let segment_index = segments.len();
+    let contour = &mut contours[contour_index];
+    if contour.first_segment_index.is_none() {
+        contour.first_segment_index = Some(segment_index);
+    }
+    contour.last_segment_index = Some(segment_index);
+    segments.push(TrimSegment {
+        segment,
+        contour_index,
+        closes_contour,
+    });
+}
+
+fn append_segment(path: &mut BezPath, current_point: &mut Option<kurbo::Point>, segment: PathSeg) {
+    let start = segment.start();
+    if current_point
+        .map(|point| !same_kurbo_point(point, start))
+        .unwrap_or(true)
+    {
+        path.move_to(start);
+    }
+    path.push(segment.as_path_el());
+    *current_point = Some(segment.end());
+}
+
+fn same_kurbo_point(a: kurbo::Point, b: kurbo::Point) -> bool {
+    (a.x - b.x).abs() <= f64::EPSILON && (a.y - b.y).abs() <= f64::EPSILON
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use kurbo::PathEl;
+
+    fn unit(value: f64) -> UnitValue {
+        UnitValue::Unitless(Numeric::F64(value))
+    }
+
+    fn point_from_move(element: PathEl) -> kurbo::Point {
+        match element {
+            PathEl::MoveTo(point) => point,
+            _ => panic!("expected MoveTo, got {element:?}"),
+        }
+    }
+
+    fn point_from_line(element: PathEl) -> kurbo::Point {
+        match element {
+            PathEl::LineTo(point) => point,
+            _ => panic!("expected LineTo, got {element:?}"),
+        }
+    }
+
+    fn assert_point_near(actual: kurbo::Point, expected: kurbo::Point) {
+        assert!(
+            (actual.x - expected.x).abs() < 1e-6 && (actual.y - expected.y).abs() < 1e-6,
+            "expected {expected:?}, got {actual:?}"
+        );
+    }
+
+    #[test]
+    fn trim_empty_path_returns_empty_path() {
+        let path = BezPath::new();
+        let trimmed = trim_bez_path(&path, unit(0.0), unit(1.0));
+
+        assert!(trimmed.elements().is_empty());
+    }
+
+    #[test]
+    fn trim_line_partial_range() {
+        let mut path = BezPath::new();
+        path.move_to((0.0, 0.0));
+        path.line_to((100.0, 0.0));
+
+        let trimmed = trim_bez_path(&path, unit(0.25), unit(0.75));
+        let elements = trimmed.elements();
+
+        assert_eq!(elements.len(), 2);
+        assert_point_near(point_from_move(elements[0]), kurbo::Point::new(25.0, 0.0));
+        assert_point_near(point_from_line(elements[1]), kurbo::Point::new(75.0, 0.0));
+    }
+
+    #[test]
+    fn trim_crosses_line_boundaries_without_internal_moves() {
+        let mut path = BezPath::new();
+        path.move_to((0.0, 0.0));
+        path.line_to((50.0, 0.0));
+        path.line_to((100.0, 0.0));
+
+        let trimmed = trim_bez_path(&path, unit(0.25), unit(0.75));
+        let elements = trimmed.elements();
+
+        assert_eq!(elements.len(), 3);
+        assert!(matches!(elements[0], PathEl::MoveTo(_)));
+        assert!(matches!(elements[1], PathEl::LineTo(_)));
+        assert!(matches!(elements[2], PathEl::LineTo(_)));
+        assert_point_near(point_from_move(elements[0]), kurbo::Point::new(25.0, 0.0));
+        assert_point_near(point_from_line(elements[1]), kurbo::Point::new(50.0, 0.0));
+        assert_point_near(point_from_line(elements[2]), kurbo::Point::new(75.0, 0.0));
+    }
+
+    #[test]
+    fn trim_quadratic_and_cubic_segments() {
+        let mut path = BezPath::new();
+        path.move_to((0.0, 0.0));
+        path.quad_to((50.0, 100.0), (100.0, 0.0));
+        path.curve_to((125.0, -50.0), (175.0, 50.0), (200.0, 0.0));
+
+        let trimmed = trim_bez_path(&path, unit(0.1), unit(0.9));
+
+        assert!(trimmed.elements().len() >= 3);
+        assert!(matches!(trimmed.elements()[0], PathEl::MoveTo(_)));
+        assert!(
+            trimmed
+                .segments()
+                .any(|segment| matches!(segment, PathSeg::Quad(_) | PathSeg::Cubic(_))),
+            "expected at least one curved segment after trimming"
+        );
+    }
+
+    #[test]
+    fn close_path_contributes_to_trimmed_length() {
+        let mut path = BezPath::new();
+        path.move_to((0.0, 0.0));
+        path.line_to((100.0, 0.0));
+        path.close_path();
+
+        let trimmed = trim_bez_path(&path, unit(0.75), unit(1.0));
+        let elements = trimmed.elements();
+
+        assert_eq!(elements.len(), 2);
+        assert_point_near(point_from_move(elements[0]), kurbo::Point::new(50.0, 0.0));
+        assert_point_near(point_from_line(elements[1]), kurbo::Point::new(0.0, 0.0));
+    }
+
+    #[test]
+    fn trim_closes_completed_contours_before_path_end() {
+        let mut path = BezPath::new();
+        path.move_to((0.0, 0.0));
+        path.line_to((10.0, 0.0));
+        path.line_to((10.0, 10.0));
+        path.line_to((0.0, 10.0));
+        path.close_path();
+        path.move_to((100.0, 0.0));
+        path.line_to((200.0, 0.0));
+
+        let trimmed = trim_bez_path(&path, unit(0.0), unit(0.5));
+        let elements = trimmed.elements();
+        let close_index = elements
+            .iter()
+            .position(|element| matches!(element, PathEl::ClosePath))
+            .expect("expected completed first contour to be closed");
+
+        assert!(
+            elements
+                .iter()
+                .skip(close_index + 1)
+                .any(|element| matches!(element, PathEl::MoveTo(_))),
+            "expected later partial contour after completed closed contour"
+        );
+    }
+
+    #[test]
+    fn trim_closes_completed_contours_with_explicit_return_to_start() {
+        let mut path = BezPath::new();
+        path.move_to((0.0, 0.0));
+        path.line_to((10.0, 0.0));
+        path.line_to((0.0, 0.0));
+        path.close_path();
+        path.move_to((100.0, 0.0));
+        path.line_to((200.0, 0.0));
+
+        let trimmed = trim_bez_path(&path, unit(0.0), unit(0.3));
+        let elements = trimmed.elements();
+
+        assert!(
+            elements
+                .iter()
+                .any(|element| matches!(element, PathEl::ClosePath)),
+            "expected zero-length ClosePath to be preserved for the completed contour"
+        );
+    }
+
+    #[test]
+    fn trim_clamps_and_empty_when_start_reaches_end() {
+        let mut path = BezPath::new();
+        path.move_to((0.0, 0.0));
+        path.line_to((100.0, 0.0));
+
+        assert_eq!(
+            trim_bez_path(&path, unit(-1.0), unit(2.0)).elements(),
+            path.elements()
+        );
+        assert!(trim_bez_path(&path, unit(0.5), unit(0.5))
+            .elements()
+            .is_empty());
+        assert!(trim_bez_path(&path, unit(0.75), unit(0.25))
+            .elements()
+            .is_empty());
+    }
 }
 
 use pax_engine::{

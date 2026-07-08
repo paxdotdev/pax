@@ -389,6 +389,7 @@ fn stroke(color: Color, width: f64) -> Stroke {
         color: Property::new(color),
         width: Property::new(Size::Pixels(width.into())),
         cap: Property::new(StrokeCap::Round),
+        join: Property::new(StrokeJoin::default()),
     }
 }
 

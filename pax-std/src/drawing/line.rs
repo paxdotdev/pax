@@ -228,13 +228,14 @@ fn path_contains_with_tolerance(path: &BezPath, point: kurbo::Point) -> bool {
 mod tests {
     use super::{line_coverage_path, path_contains_with_tolerance};
     use kurbo::{Point, Shape};
-    use pax_runtime::api::{Property, Size, Stroke, StrokeCap};
+    use pax_runtime::api::{Property, Size, Stroke, StrokeCap, StrokeJoin};
 
     fn test_stroke(width: f64, cap: StrokeCap) -> Stroke {
         Stroke {
             color: Property::new(pax_runtime::api::Color::BLACK),
             width: Property::new(Size::Pixels(width.into())),
             cap: Property::new(cap),
+            join: Property::new(StrokeJoin::default()),
         }
     }
 

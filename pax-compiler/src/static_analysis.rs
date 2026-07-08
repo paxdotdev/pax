@@ -487,6 +487,7 @@ fn ensure_known_type_definition(ctx: &mut ParsingContext, import_path: &str) -> 
         }
         "pax_engine::api::Rotation" => TypeId::build_singleton(import_path, Some("Rotation")),
         "pax_engine::api::Numeric" => TypeId::build_singleton(import_path, Some("Numeric")),
+        "pax_engine::api::UnitValue" => TypeId::build_singleton(import_path, Some("UnitValue")),
         "pax_engine::api::Transform2D" => TypeId::build_singleton(import_path, Some("Transform2D")),
         "kurbo::Point" => TypeId::build_singleton(import_path, Some("Point")),
         other => return Err(eyre!("Unsupported canonical static type `{other}`")),
@@ -1299,6 +1300,7 @@ fn canonical_special_import_path_for_ident(ident: &str) -> Option<&'static str> 
         "ColorChannel" => Some("pax_engine::api::ColorChannel"),
         "Rotation" => Some("pax_engine::api::Rotation"),
         "Numeric" => Some("pax_engine::api::Numeric"),
+        "UnitValue" => Some("pax_engine::api::UnitValue"),
         "Transform2D" => Some("pax_engine::api::Transform2D"),
         "Point" => Some("kurbo::Point"),
         _ => None,
@@ -1349,6 +1351,9 @@ fn canonical_special_import_path_for_path(path: &str) -> Option<&'static str> {
         "pax_engine::api::Numeric" | "pax_runtime::api::Numeric" | "pax_runtime_api::Numeric" => {
             Some("pax_engine::api::Numeric")
         }
+        "pax_engine::api::UnitValue"
+        | "pax_runtime::api::UnitValue"
+        | "pax_runtime_api::UnitValue" => Some("pax_engine::api::UnitValue"),
         "pax_engine::api::Transform2D"
         | "pax_runtime::api::Transform2D"
         | "pax_runtime_api::Transform2D" => Some("pax_engine::api::Transform2D"),
@@ -1955,6 +1960,27 @@ mod tests {
                 "pax_std::media::image::ImageSource",
                 "pax_std::drawing::path::PathCurve",
             ],
+        );
+    }
+
+    #[test]
+    fn unit_value_api_type_is_known_to_static_analysis() {
+        let mut ctx = ParsingContext::default();
+        ensure_known_type_definition(&mut ctx, "pax_engine::api::UnitValue")
+            .expect("UnitValue should be a known API type");
+
+        let unit_value_id =
+            TypeId::build_singleton("pax_engine::api::UnitValue", Some("UnitValue"));
+        assert!(ctx.type_table[&unit_value_id]
+            .property_definitions
+            .is_empty());
+        assert_eq!(
+            canonical_special_import_path_for_ident("UnitValue"),
+            Some("pax_engine::api::UnitValue")
+        );
+        assert_eq!(
+            canonical_special_import_path_for_path("pax_runtime::api::UnitValue"),
+            Some("pax_engine::api::UnitValue")
         );
     }
 

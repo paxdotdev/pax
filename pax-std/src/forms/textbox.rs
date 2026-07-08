@@ -48,11 +48,13 @@ impl Default for Textbox {
                 color: Property::new(Color::rgb(209.into(), 213.into(), 219.into())),
                 width: Property::new(Size::Pixels(1.into())),
                 cap: Property::new(StrokeCap::default()),
+                join: Property::new(StrokeJoin::default()),
             }),
             outline: Property::new(Stroke {
                 color: Property::new(Color::rgb(0.into(), 0.into(), 0.into())),
                 width: Property::new(Size::Pixels(1.into())),
                 cap: Property::new(StrokeCap::default()),
+                join: Property::new(StrokeJoin::default()),
             }),
             placeholder: Property::new("".into()),
             border_radius: Property::new(8.0.into()),

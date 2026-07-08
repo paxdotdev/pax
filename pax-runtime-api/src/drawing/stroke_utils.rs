@@ -3,7 +3,7 @@ use kurbo::{
     Rect, Shape, Stroke as KurboStroke, StrokeOpts as KurboStrokeOpts,
 };
 
-use super::{Stroke, StrokeCap};
+use super::{Stroke, StrokeCap, StrokeJoin};
 
 /// Resolves a stroke width as pixels.
 pub fn stroke_width_pixels(stroke: &Stroke) -> f64 {
@@ -23,7 +23,7 @@ pub fn stroked_outline_path(centerline: &BezPath, stroke: &Stroke) -> Option<Bez
     let outline = kurbo_stroke(
         centerline.elements().iter().copied(),
         &KurboStroke::new(width)
-            .with_join(KurboJoin::Miter)
+            .with_join(to_kurbo_join(stroke.join.get()))
             .with_miter_limit(4.0)
             .with_caps(to_kurbo_cap(stroke.cap.get())),
         &KurboStrokeOpts::default(),
@@ -45,6 +45,14 @@ fn to_kurbo_cap(cap: StrokeCap) -> KurboCap {
         StrokeCap::Butt => KurboCap::Butt,
         StrokeCap::Round => KurboCap::Round,
         StrokeCap::Square => KurboCap::Square,
+    }
+}
+
+fn to_kurbo_join(join: StrokeJoin) -> KurboJoin {
+    match join {
+        StrokeJoin::Miter => KurboJoin::Miter,
+        StrokeJoin::Round => KurboJoin::Round,
+        StrokeJoin::Bevel => KurboJoin::Bevel,
     }
 }
 

@@ -1,7 +1,7 @@
-use pax_runtime_api::{Fill, Stroke, StrokeCap};
+use pax_runtime_api::{Fill, Stroke, StrokeCap, StrokeJoin};
 use piet::{
     kurbo::{self, Affine, Shape},
-    InterpolationMode, LineCap, LinearGradient, RadialGradient, StrokeStyle,
+    InterpolationMode, LineCap, LineJoin, LinearGradient, RadialGradient, StrokeStyle,
 };
 use std::{
     cell::RefCell,
@@ -818,6 +818,11 @@ fn stroke_to_piet_style(stroke: &Stroke) -> StrokeStyle {
         StrokeCap::Butt => LineCap::Butt,
         StrokeCap::Round => LineCap::Round,
         StrokeCap::Square => LineCap::Square,
+    });
+    style.set_line_join(match stroke.join.get() {
+        StrokeJoin::Miter => LineJoin::Miter { limit: 4.0 },
+        StrokeJoin::Round => LineJoin::Round,
+        StrokeJoin::Bevel => LineJoin::Bevel,
     });
     style
 }

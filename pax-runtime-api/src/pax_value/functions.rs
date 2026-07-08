@@ -329,6 +329,8 @@ impl HelperFunctions for String {}
 
 impl HelperFunctions for crate::Numeric {}
 
+impl HelperFunctions for crate::UnitValue {}
+
 impl HelperFunctions for bool {}
 
 impl HelperFunctions for Fill {}
@@ -340,6 +342,8 @@ impl HelperFunctions for crate::ColorChannel {}
 impl HelperFunctions for crate::Stroke {}
 
 impl HelperFunctions for crate::StrokeCap {}
+
+impl HelperFunctions for crate::StrokeJoin {}
 
 impl HelperFunctions for u8 {}
 impl HelperFunctions for u16 {}

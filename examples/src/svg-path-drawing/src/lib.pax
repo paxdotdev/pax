@@ -1,0 +1,279 @@
+<Scroller autosize=true>
+    <Stacker width=100% autosize=true gutter=68px>
+        <Group width=100% height=88px>
+            <Path
+                x=50%
+                width=100%
+                height=100%
+                anchor_x=50%
+                fill=TRANSPARENT
+                stroke={
+                    color: rgba(37, 111, 190, 255)
+                    width: 8px
+                }
+                draw_start=@timeline {
+                    duration: 240f,
+                    loop: true,
+                    0: 0,
+                    45%: 0,
+                    55%: 0,
+                    90%: 1,
+                    100%: 1,
+                }
+                draw_end=@timeline {
+                    duration: 240f,
+                    loop: true,
+                    0: 0,
+                    45%: 1,
+                    100%: 1,
+                }
+                elements=[
+                    PathElement::Point(0%, 62%),
+                    PathElement::Cubic(10%, 10%, 24%, 94%),
+                    PathElement::Point(36%, 45%),
+                    PathElement::Cubic(50%, 0%, 58%, 100%),
+                    PathElement::Point(72%, 44%),
+                    PathElement::Quadratic(88%, 7%),
+                    PathElement::Point(100%, 62%)
+                ]
+            />
+            <Path
+                x=50%
+                width=100%
+                height=100%
+                anchor_x=50%
+                opacity=0.13
+                fill=TRANSPARENT
+                stroke={
+                    color: rgba(37, 111, 190, 255)
+                    width: 8px
+                }
+                elements=[
+                    PathElement::Point(0%, 62%),
+                    PathElement::Cubic(10%, 10%, 24%, 94%),
+                    PathElement::Point(36%, 45%),
+                    PathElement::Cubic(50%, 0%, 58%, 100%),
+                    PathElement::Point(72%, 44%),
+                    PathElement::Quadratic(88%, 7%),
+                    PathElement::Point(100%, 62%)
+                ]
+            />
+        </Group>
+
+        <Group width=100% height=88px>
+            <Path
+                x=50%
+                width=88%
+                height=100%
+                anchor_x=50%
+                fill=TRANSPARENT
+                stroke={
+                    color: rgba(39, 143, 116, 255)
+                    width: 8px
+                }
+                draw_start=@timeline {
+                    duration: 240f,
+                    loop: true,
+                    0: 0%,
+                    82%: 82%,
+                    100%: 100%,
+                }
+                draw_end=@timeline {
+                    duration: 240f,
+                    loop: true,
+                    0: 18%,
+                    82%: 100%,
+                    100%: 100%,
+                }
+                elements=[
+                    PathElement::Point(8%, 50%),
+                    PathElement::Cubic(8%, 14%, 30%, 8%),
+                    PathElement::Point(50%, 18%),
+                    PathElement::Cubic(72%, 28%, 94%, 12%),
+                    PathElement::Point(92%, 54%),
+                    PathElement::Cubic(90%, 88%, 68%, 94%),
+                    PathElement::Point(48%, 82%),
+                    PathElement::Cubic(26%, 70%, 6%, 88%),
+                    PathElement::Point(8%, 50%),
+                    PathElement::Close
+                ]
+            />
+            <Path
+                x=50%
+                width=88%
+                height=100%
+                anchor_x=50%
+                fill=TRANSPARENT
+                stroke={
+                    color: rgba(39, 143, 116, 255)
+                    width: 8px
+                }
+                draw_end=@timeline {
+                    duration: 240f,
+                    loop: true,
+                    0: 0%,
+                    82%: 0%,
+                    100%: 18%,
+                }
+                elements=[
+                    PathElement::Point(8%, 50%),
+                    PathElement::Cubic(8%, 14%, 30%, 8%),
+                    PathElement::Point(50%, 18%),
+                    PathElement::Cubic(72%, 28%, 94%, 12%),
+                    PathElement::Point(92%, 54%),
+                    PathElement::Cubic(90%, 88%, 68%, 94%),
+                    PathElement::Point(48%, 82%),
+                    PathElement::Cubic(26%, 70%, 6%, 88%),
+                    PathElement::Point(8%, 50%),
+                    PathElement::Close
+                ]
+            />
+            <Path
+                x=50%
+                width=88%
+                height=100%
+                anchor_x=50%
+                opacity=0.14
+                fill=TRANSPARENT
+                stroke={
+                    color: rgba(39, 143, 116, 255)
+                    width: 8px
+                }
+                elements=[
+                    PathElement::Point(8%, 50%),
+                    PathElement::Cubic(8%, 14%, 30%, 8%),
+                    PathElement::Point(50%, 18%),
+                    PathElement::Cubic(72%, 28%, 94%, 12%),
+                    PathElement::Point(92%, 54%),
+                    PathElement::Cubic(90%, 88%, 68%, 94%),
+                    PathElement::Point(48%, 82%),
+                    PathElement::Cubic(26%, 70%, 6%, 88%),
+                    PathElement::Point(8%, 50%),
+                    PathElement::Close
+                ]
+            />
+        </Group>
+
+        <Group width=100% height=104px>
+            <SvgSignatureFixture
+                x=50%
+                width=100%
+                height=100%
+                anchor_x=50%
+                draw_start=@timeline {
+                    duration: 240f,
+                    loop: true,
+                    0: 0%,
+                    45%: 0%,
+                    55%: 0%,
+                    90%: 100%,
+                    100%: 100%,
+                }
+                draw_end=@timeline {
+                    duration: 240f,
+                    loop: true,
+                    0: 0%,
+                    45%: 100%,
+                    100%: 100%,
+                }
+            />
+        </Group>
+
+        <Group width=100% height=138px>
+            <Handwriter
+                x=50%
+                width=88%
+                height=100%
+                anchor_x=50%
+                text="wild swans"
+                font=HandwriterFont::EMSLeague
+                line_height=1.0
+                stroke={
+                    color: rgba(226, 153, 35, 255)
+                    width: 8px
+                    cap: StrokeCap::Round
+                    join: StrokeJoin::Round
+                }
+                draw_start=@timeline {
+                    duration: 300f,
+                    loop: true,
+                    0: 0%,
+                    45%: 0%,
+                    55%: 0%,
+                    90%: 100%,
+                    100%: 100%,
+                }
+                draw_end=@timeline {
+                    duration: 300f,
+                    loop: true,
+                    0: 0%,
+                    45%: 100%,
+                    100%: 100%,
+                }
+            />
+        </Group>
+
+        <Group width=100% height=124px>
+            <Handwriter
+                x=50%
+                width=100%
+                height=100%
+                anchor_x=50%
+                text="The silver apples of the moon,\nThe golden apples of the sun."
+                font=HandwriterFont::HersheyScript1
+                line_height=1.15
+                stroke={
+                    color: rgba(91, 68, 155, 255)
+                    width: 3px
+                    cap: StrokeCap::Round
+                    join: StrokeJoin::Round
+                }
+                draw_start=@timeline {
+                    duration: 360f,
+                    loop: true,
+                    0: 0%,
+                    45%: 0%,
+                    55%: 0%,
+                    90%: 100%,
+                    100%: 100%,
+                }
+                draw_end=@timeline {
+                    duration: 360f,
+                    loop: true,
+                    0: 0%,
+                    45%: 100%,
+                    100%: 100%,
+                }
+            />
+        </Group>
+
+        <Group width=100% height=136px>
+            <SvgCellarDoorFixture
+                x=50%
+                width=100%
+                height=100%
+                anchor_x=50%
+                draw_start=@timeline {
+                    duration: 720f,
+                    loop: true,
+                    0: 0,
+                    45%: 0,
+                    55%: 0,
+                    90%: 1,
+                    100%: 1,
+                }
+                draw_end=@timeline {
+                    duration: 720f,
+                    loop: true,
+                    0: 0,
+                    45%: 1,
+                    100%: 1,
+                }
+            />
+        </Group>
+
+        <Group width=100% height=40px />
+    </Stacker>
+</Scroller>
+
+<Rectangle width=100% height=100% fill=rgb(241, 244, 247) />

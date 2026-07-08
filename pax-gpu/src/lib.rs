@@ -24,5 +24,6 @@ pub use render_context::SceneLight;
 pub use render_context::SceneLighting;
 pub use render_context::Stroke;
 pub use render_context::StrokeCap;
+pub use render_context::StrokeJoin;
 pub use render_context::WgpuRenderer;
 pub use render_context::NATIVE_VECTOR_RESOURCE_CACHE_BYTES;

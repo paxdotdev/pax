@@ -9,7 +9,8 @@ use crate::{
     math::{Transform2, Vector2},
     Color, ColorChannel, Depth, Duration, Fill, GradientStop, LayoutRole, LightShape,
     LinearGradient, Material, MaterialParams, Numeric, Opacity, PathElement, PaxValue, Percent,
-    Property, RadialGradient, Rotation, Size, Stroke, StrokeCap, Transform2D, Vector3,
+    Property, RadialGradient, Rotation, Size, Stroke, StrokeCap, StrokeJoin, Transform2D,
+    UnitValue, Vector3,
 };
 
 // Default coercion rules:
@@ -844,16 +845,19 @@ impl CoercionRules for Stroke {
                 color: Property::new(*color),
                 width: Property::new(Size::Pixels(1.into())),
                 cap: Property::new(StrokeCap::default()),
+                join: Property::new(StrokeJoin::default()),
             },
             PaxValue::Object(map) => {
                 let mut color = None;
                 let mut width = None;
                 let mut cap = None;
+                let mut join = None;
                 for (key, value) in map {
                     match key.as_str() {
                         "color" => color = Some(Color::try_coerce(value)?),
                         "width" => width = Some(Size::try_coerce(value)?),
                         "cap" => cap = Some(StrokeCap::try_coerce(value)?),
+                        "join" => join = Some(StrokeJoin::try_coerce(value)?),
                         _ => {}
                     }
                 }
@@ -866,7 +870,13 @@ impl CoercionRules for Stroke {
                         "failed to convert to Stroke: missing `width`".to_string()
                     })?);
                 let cap = Property::new(cap.unwrap_or_default());
-                Stroke { color, width, cap }
+                let join = Property::new(join.unwrap_or_default());
+                Stroke {
+                    color,
+                    width,
+                    cap,
+                    join,
+                }
             }
             PaxValue::Option(o) => {
                 if let Some(o) = *o {
@@ -909,6 +919,39 @@ impl CoercionRules for StrokeCap {
                 }
             }
             _ => Err(format!("failed to coerce StrokeCap")),
+        }
+    }
+}
+
+impl CoercionRules for StrokeJoin {
+    fn try_coerce(value: PaxValue) -> Result<Self, String> {
+        match value {
+            PaxValue::Enum(contents) => {
+                let (_, variant, args) = *contents;
+                if !args.is_empty() {
+                    return Err(format!(
+                        "failed to coerce StrokeJoin: expected no enum args, got {:?}",
+                        args
+                    ));
+                }
+                match variant.as_str() {
+                    "Miter" => Ok(StrokeJoin::Miter),
+                    "Round" => Ok(StrokeJoin::Round),
+                    "Bevel" => Ok(StrokeJoin::Bevel),
+                    _ => Err(format!(
+                        "failed to coerce StrokeJoin: unknown enum variant {:?}",
+                        variant
+                    )),
+                }
+            }
+            PaxValue::Option(o) => {
+                if let Some(o) = *o {
+                    StrokeJoin::try_coerce(o)
+                } else {
+                    Err("failed to coerce StrokeJoin".to_string())
+                }
+            }
+            _ => Err(format!("failed to coerce StrokeJoin")),
         }
     }
 }
@@ -986,6 +1029,39 @@ impl CoercionRules for Opacity {
                 }
             }
             _ => return Err("failed to convert to Opacity".to_string()),
+        })
+    }
+}
+
+impl CoercionRules for UnitValue {
+    fn try_coerce(value: PaxValue) -> Result<Self, String> {
+        Ok(match value {
+            PaxValue::Percent(percent) => UnitValue::Percent(percent.0),
+            PaxValue::Numeric(num) => UnitValue::Unitless(num),
+            PaxValue::Enum(contents) => {
+                let (_, variant, args) = *contents;
+                let mut args = args.into_iter();
+                match variant.as_str() {
+                    "Unitless" | "Numeric" => {
+                        UnitValue::Unitless(Numeric::try_coerce(args.next().unwrap())?)
+                    }
+                    "Percent" => UnitValue::Percent(Numeric::try_coerce(args.next().unwrap())?),
+                    _ => {
+                        return Err(format!(
+                            "failed to convert to UnitValue: unknown variant {:?}",
+                            variant
+                        ))
+                    }
+                }
+            }
+            PaxValue::Option(mut opt) => {
+                if let Some(value) = opt.take() {
+                    UnitValue::try_coerce(value)?
+                } else {
+                    return Err("failed to convert to UnitValue".to_string());
+                }
+            }
+            _ => return Err("failed to convert to UnitValue".to_string()),
         })
     }
 }

@@ -1,0 +1,19 @@
+[package]
+name = "svg-path-drawing"
+version = "0.38.3"
+edition = "2021"
+default-run = "run"
+
+[package.metadata.pax]
+title = "SVG Path Drawing"
+icon = "assets/app-icon.png"
+
+[dependencies]
+pax-kit = { version = "0.38.3", path = "../../../pax-kit" }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "run"
+path = "bin/run.rs"

@@ -1,0 +1,19 @@
+<Path
+    width=100%
+    height=100%
+    fill=TRANSPARENT
+    stroke={
+        color: rgba(198, 83, 89, 255)
+        width: 4px
+    }
+    draw_start={draw_start}
+    draw_end={draw_end}
+    elements={elements}
+/>
+<Image
+    width=100%
+    height=100%
+    source=ImageSource::Url("assets/svg/cellar-door.svg")
+    fit=ImageFit::Fit
+    opacity=0.14
+/>

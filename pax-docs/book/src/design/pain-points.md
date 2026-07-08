@@ -366,3 +366,69 @@ template state instead of only loading the baked cartridge. When examples rely
 on root backgrounds showing through browser-owned scroller layers, verify the
 browser target specifically; opaque canvas fallbacks may need an in-layer
 background or a renderer-level alpha/compositing fix.
+
+## 2026-07-07
+
+While validating path drawing progress with a web example, native `cargo check`
+passed but the generated web cartridge first failed because the new
+template-visible `UnitValue` API type did not implement `HelperFunctions`. Once
+that was fixed, the browser target exposed a separate renderer panic:
+multi-contour paths converted each `MoveTo` to a lyon `begin()` without ending
+the previous subpath, triggering `multiple begin() calls without end()`.
+
+Solved by adding the no-op `HelperFunctions` impl for `UnitValue` and by ending
+an open lyon subpath before beginning another in the kurbo-to-lyon converter.
+The `svg-path-drawing` example now includes multiple closed contours to keep
+this case exercised.
+
+Recommendations: when adding template-visible value types, run at least one
+generated target build, not only the source crate. SVG- and Illustrator-derived
+path work should include multi-contour browser validation because closed
+outline text naturally produces many subpaths.
+
+The same example exposed a path-trim fidelity issue that was invisible in
+native checks: trimming via flattened `PathSeg`s lost `ClosePath` metadata, so
+completed earlier contours in a multi-contour path were stroked as open paths
+until the entire path reached 100%. In outline text this showed up as corners
+and joins that stayed capped and then snapped closed at the very end.
+
+Solved by tracking contour metadata during trim and emitting `ClosePath` as
+soon as a closed contour is fully visible, including the zero-length close case
+that occurs when an SVG has already drawn an explicit return-to-start segment.
+Keep visual browser validation for path drawing examples; stroke joins and caps
+can look wrong even when the path length math and native tests pass.
+
+Adding the `Handwriter` test-bed row exposed a string authoring wrinkle:
+`text="line one\nline two"` arrived at Rust as a literal backslash-plus-`n`
+rather than a newline, so the generated stroke font drew the escape sequence.
+For this component, `Handwriter` treats `\n` as a line break during path
+generation.
+
+Recommendations: clarify string escape semantics in the template-language docs
+or add parser support/tests for common escapes. Component-local tolerance is a
+reasonable stopgap for user-facing text fields, but language-level behavior
+should be explicit.
+
+The Handwriter row also made stroke joins visible in a way ordinary examples
+did not: the SVG stroke font's polylines had acute turns, and the renderer's
+implicit miter joins produced small spikes at cursive letter corners. The
+translucent guide path made those spots look darker because the same angular
+geometry was alpha-composited twice.
+
+Solved by adding explicit `StrokeJoin` support and by using round joins for
+`Handwriter`. Keep miter as the default for compatibility, but use
+`StrokeJoin::Round` for handwriting, sketch, and pen-like paths.
+
+Scaling the EMSTech `Handwriter` row made another glyph-data artifact obvious:
+some bundled SVG stroke fonts encode curves as dense polylines, so larger
+strokes reveal the original segmentation even when joins are rounded.
+
+An attempted `Handwriter.smoothing` pass improved visual quality by converting
+line chains into cubic curves, but it made draw-range animation performance
+unacceptable. A follow-up per-`PathInstance` trim-analysis cache reduced only
+one CPU-side layer and left the larger per-frame tessellation cost intact, so
+both changes were reverted.
+
+Recommendations: revisit handwriting smoothing only alongside a renderer-level
+path-drawing strategy that preserves full stroked geometry and varies the
+visible range without changing submitted path geometry every frame.

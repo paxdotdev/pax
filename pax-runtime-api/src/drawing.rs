@@ -44,11 +44,26 @@ pub enum StrokeCap {
 
 impl Interpolatable for StrokeCap {}
 
+/// Controls how stroke segments are joined at path vertices.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq, Hash)]
+#[serde(crate = "crate::serde")]
+pub enum StrokeJoin {
+    /// Extends outer edges to a point, subject to the renderer's miter limit.
+    #[default]
+    Miter,
+    /// Rounds the outside of each join.
+    Round,
+    /// Cuts joins off with a straight edge.
+    Bevel,
+}
+
+impl Interpolatable for StrokeJoin {}
+
 /// Describes the outline drawn around vector geometry.
 ///
 /// Pax currently renders strokes centered on the underlying path. For open
 /// geometry, `cap` controls how the stroke terminates at the start and end of
-/// the path.
+/// the path, while `join` controls how adjacent segments meet.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(crate = "crate::serde")]
 pub struct Stroke {
@@ -61,6 +76,8 @@ pub struct Stroke {
     pub width: Property<Size>,
     /// The cap style used for exposed endpoints on open paths.
     pub cap: Property<StrokeCap>,
+    /// The join style used where adjacent stroke segments meet.
+    pub join: Property<StrokeJoin>,
 }
 
 impl Default for Stroke {
@@ -69,6 +86,7 @@ impl Default for Stroke {
             color: Default::default(),
             width: Property::new(Size::Pixels(Numeric::F64(0.0))),
             cap: Property::new(StrokeCap::default()),
+            join: Property::new(StrokeJoin::default()),
         }
     }
 }
@@ -78,6 +96,7 @@ impl PartialEq for Stroke {
         self.color.get() == other.color.get()
             && self.width.get() == other.width.get()
             && self.cap.get() == other.cap.get()
+            && self.join.get() == other.join.get()
     }
 }
 
@@ -90,6 +109,11 @@ impl Interpolatable for Stroke {
                 self.cap.get()
             } else {
                 other.cap.get()
+            }),
+            join: Property::new(if t < 1.0 {
+                self.join.get()
+            } else {
+                other.join.get()
             }),
         }
     }
@@ -144,6 +168,7 @@ impl Hash for Stroke {
         self.width.get().hash(state);
         self.color.get().hash(state);
         self.cap.get().hash(state);
+        self.join.get().hash(state);
     }
 }
 

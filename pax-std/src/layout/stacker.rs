@@ -1526,7 +1526,7 @@ mod tests {
         assert_eq!(measurement.height, Some(72.0));
     }
     use pax_engine::api::pax_value::{PaxAny, ToFromPaxAny};
-    use pax_engine::api::{Platform, Property, OS};
+    use pax_engine::api::{Platform, Property, TargetInfo, OS};
     use pax_engine::pax_manifest::cartridge_generation::{
         ComponentTransitionConfig, TRANSITION_PHASE_EXIT,
     };
@@ -1564,6 +1564,7 @@ mod tests {
             browser_allows_nested_scroller_vector_layers: Property::new(true),
             platform: Platform::Unknown,
             os: OS::Unknown,
+            target: TargetInfo::new(Platform::Unknown, OS::Unknown),
             get_elapsed_millis: Rc::new(|| 0),
         }
     }

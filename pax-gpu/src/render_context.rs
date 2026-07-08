@@ -721,7 +721,7 @@ impl<'w> WgpuRenderer<'w> {
         let current_transform = self.current_transform();
         let geometry_signature = hash_vector_path(
             &path,
-            PendingVectorOpKind::Stroke(stroke.weight, stroke.cap),
+            PendingVectorOpKind::Stroke(stroke.weight, stroke.cap, stroke.join),
         );
         let Some(PendingNode {
             kind: PendingNodeKind::Vector(buffers),
@@ -736,7 +736,7 @@ impl<'w> WgpuRenderer<'w> {
             material,
             transform: current_transform,
             opacity,
-            kind: PendingVectorOpKind::Stroke(stroke.weight, stroke.cap),
+            kind: PendingVectorOpKind::Stroke(stroke.weight, stroke.cap, stroke.join),
             geometry_signature,
         });
     }
@@ -1609,7 +1609,7 @@ struct PendingVectorOp {
 #[derive(Clone, Copy)]
 enum PendingVectorOpKind {
     Fill,
-    Stroke(f32, StrokeCap),
+    Stroke(f32, StrokeCap, StrokeJoin),
 }
 
 struct PendingImageNode {
@@ -1849,13 +1849,18 @@ fn tessellate_vector_geometry(
                 log::warn!("{:?}", err);
             }
         }
-        PendingVectorOpKind::Stroke(stroke_width, stroke_cap) => {
+        PendingVectorOpKind::Stroke(stroke_width, stroke_cap, stroke_join) => {
             let options = StrokeOptions::tolerance(tolerance)
                 .with_line_width(stroke_width)
                 .with_line_cap(match stroke_cap {
                     StrokeCap::Butt => lyon::tessellation::LineCap::Butt,
                     StrokeCap::Round => lyon::tessellation::LineCap::Round,
                     StrokeCap::Square => lyon::tessellation::LineCap::Square,
+                })
+                .with_line_join(match stroke_join {
+                    StrokeJoin::Miter => lyon::tessellation::LineJoin::Miter,
+                    StrokeJoin::Round => lyon::tessellation::LineJoin::Round,
+                    StrokeJoin::Bevel => lyon::tessellation::LineJoin::Bevel,
                 });
             let mut geometry_builder =
                 BuffersBuilder::new(&mut geometry, |vertex: StrokeVertex| GpuVertex {
@@ -2040,7 +2045,7 @@ fn compute_vector_node_bounds(ops: &[PendingVectorOp]) -> Box2D {
             continue;
         };
         let mut op_bounds = transform_box(path_bounds, &op.transform);
-        if let PendingVectorOpKind::Stroke(width, _) = op.kind {
+        if let PendingVectorOpKind::Stroke(width, _, _) = op.kind {
             op_bounds = expand_box(op_bounds, width * 0.5);
         }
         bounds = Some(match bounds {
@@ -2457,10 +2462,11 @@ fn hash_vector_path(path: &Path, kind: PendingVectorOpKind) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     match kind {
         PendingVectorOpKind::Fill => 0u8.hash(&mut hasher),
-        PendingVectorOpKind::Stroke(width, cap) => {
+        PendingVectorOpKind::Stroke(width, cap, join) => {
             1u8.hash(&mut hasher);
             width.to_bits().hash(&mut hasher);
             cap.hash(&mut hasher);
+            join.hash(&mut hasher);
         }
     }
     for event in path.iter() {
@@ -2875,12 +2881,21 @@ pub enum StrokeCap {
     Square,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// Stroke join style.
+pub enum StrokeJoin {
+    Miter,
+    Round,
+    Bevel,
+}
+
 #[derive(Debug, Clone)]
 /// Stroke style for a tessellated vector path.
 pub struct Stroke {
     pub fill: Fill,
     pub weight: f32,
     pub cap: StrokeCap,
+    pub join: StrokeJoin,
 }
 
 #[cfg(test)]
