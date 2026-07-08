@@ -441,6 +441,15 @@ pub trait InstanceNode {
         None
     }
 
+    /// Returns coverage used by the occlusion/native-mask/layer-partition pass.
+    ///
+    /// The default uses the same coverage path as masks and hit-style geometry, but primitives
+    /// with render-side animation may return a conservative stable path here so animation-only
+    /// properties do not force the occlusion pass to rebuild expensive geometry every frame.
+    fn resolve_occlusion_path(&self, expanded_node: &ExpandedNode) -> Option<kurbo::BezPath> {
+        self.resolve_coverage_path(expanded_node)
+    }
+
     fn resolve_coverage_opacity(&self, expanded_node: &ExpandedNode) -> f64 {
         expanded_node.computed_opacity.get()
     }

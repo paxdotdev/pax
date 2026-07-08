@@ -14,6 +14,7 @@ pub use lyon::path::Path;
 pub use lyon::path::Winding;
 pub use render_backend::Image;
 pub use render_context::Color;
+pub use render_context::DrawRange;
 pub use render_context::Fill;
 pub use render_context::GradientStop;
 pub use render_context::GradientType;

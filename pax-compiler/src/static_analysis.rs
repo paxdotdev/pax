@@ -488,6 +488,9 @@ fn ensure_known_type_definition(ctx: &mut ParsingContext, import_path: &str) -> 
         "pax_engine::api::Rotation" => TypeId::build_singleton(import_path, Some("Rotation")),
         "pax_engine::api::Numeric" => TypeId::build_singleton(import_path, Some("Numeric")),
         "pax_engine::api::UnitValue" => TypeId::build_singleton(import_path, Some("UnitValue")),
+        "pax_engine::api::PathSmoothing" => {
+            TypeId::build_singleton(import_path, Some("PathSmoothing"))
+        }
         "pax_engine::api::Transform2D" => TypeId::build_singleton(import_path, Some("Transform2D")),
         "kurbo::Point" => TypeId::build_singleton(import_path, Some("Point")),
         other => return Err(eyre!("Unsupported canonical static type `{other}`")),
@@ -1301,6 +1304,7 @@ fn canonical_special_import_path_for_ident(ident: &str) -> Option<&'static str> 
         "Rotation" => Some("pax_engine::api::Rotation"),
         "Numeric" => Some("pax_engine::api::Numeric"),
         "UnitValue" => Some("pax_engine::api::UnitValue"),
+        "PathSmoothing" => Some("pax_engine::api::PathSmoothing"),
         "Transform2D" => Some("pax_engine::api::Transform2D"),
         "Point" => Some("kurbo::Point"),
         _ => None,
@@ -1354,6 +1358,9 @@ fn canonical_special_import_path_for_path(path: &str) -> Option<&'static str> {
         "pax_engine::api::UnitValue"
         | "pax_runtime::api::UnitValue"
         | "pax_runtime_api::UnitValue" => Some("pax_engine::api::UnitValue"),
+        "pax_engine::api::PathSmoothing"
+        | "pax_runtime::api::PathSmoothing"
+        | "pax_runtime_api::PathSmoothing" => Some("pax_engine::api::PathSmoothing"),
         "pax_engine::api::Transform2D"
         | "pax_runtime::api::Transform2D"
         | "pax_runtime_api::Transform2D" => Some("pax_engine::api::Transform2D"),
@@ -1981,6 +1988,27 @@ mod tests {
         assert_eq!(
             canonical_special_import_path_for_path("pax_runtime::api::UnitValue"),
             Some("pax_engine::api::UnitValue")
+        );
+    }
+
+    #[test]
+    fn path_smoothing_api_type_is_known_to_static_analysis() {
+        let mut ctx = ParsingContext::default();
+        ensure_known_type_definition(&mut ctx, "pax_engine::api::PathSmoothing")
+            .expect("PathSmoothing should be a known API type");
+
+        let smoothing_id =
+            TypeId::build_singleton("pax_engine::api::PathSmoothing", Some("PathSmoothing"));
+        assert!(ctx.type_table[&smoothing_id]
+            .property_definitions
+            .is_empty());
+        assert_eq!(
+            canonical_special_import_path_for_ident("PathSmoothing"),
+            Some("pax_engine::api::PathSmoothing")
+        );
+        assert_eq!(
+            canonical_special_import_path_for_path("pax_runtime::api::PathSmoothing"),
+            Some("pax_engine::api::PathSmoothing")
         );
     }
 

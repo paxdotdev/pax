@@ -341,6 +341,8 @@ impl HelperFunctions for crate::ColorChannel {}
 
 impl HelperFunctions for crate::Stroke {}
 
+impl HelperFunctions for crate::PathSmoothing {}
+
 impl HelperFunctions for crate::StrokeCap {}
 
 impl HelperFunctions for crate::StrokeJoin {}

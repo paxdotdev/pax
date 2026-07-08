@@ -16,16 +16,21 @@ use crate::Image;
 use crate::Point2D;
 use crate::Transform2D;
 use crate::Vector2D;
+use lyon::geom::{CubicBezierSegment, QuadraticBezierSegment, Segment};
 use lyon::lyon_tessellation::BuffersBuilder;
 use lyon::lyon_tessellation::FillOptions;
 use lyon::lyon_tessellation::FillTessellator;
 use lyon::lyon_tessellation::FillVertex;
 use lyon::lyon_tessellation::VertexBuffers;
+use lyon::math::Point as LyonPoint;
+use lyon::path::EndpointId;
 use lyon::path::Path;
 use lyon::path::PathEvent;
 use lyon::tessellation::StrokeOptions;
 use lyon::tessellation::StrokeTessellator;
 use lyon::tessellation::StrokeVertex;
+use lyon::tessellation::VertexSource;
+use pax_runtime_api::PathSmoothing;
 
 use crate::point;
 use crate::render_backend::data::GpuColor;
@@ -273,6 +278,7 @@ struct VectorResourceKey {
     tolerance_bits: u32,
     geometry_signatures: Vec<u64>,
     fill_signature: u64,
+    primitive_signature: u64,
     transform_layout_signature: u64,
 }
 
@@ -718,10 +724,68 @@ impl<'w> WgpuRenderer<'w> {
         material: Material,
         opacity: f32,
     ) {
+        self.stroke_path_with_draw_range_and_material_and_opacity(
+            path,
+            stroke,
+            material,
+            opacity,
+            DrawRange::disabled(),
+        );
+    }
+
+    /// Queue a stroked vector path with material response, opacity, and optional smoothing.
+    pub fn stroke_path_with_material_and_opacity_and_smoothing(
+        &mut self,
+        path: Path,
+        stroke: Stroke,
+        material: Material,
+        opacity: f32,
+        smoothing: PathSmoothing,
+    ) {
+        self.stroke_path_with_draw_range_and_material_and_opacity_and_smoothing(
+            path,
+            stroke,
+            material,
+            opacity,
+            DrawRange::disabled(),
+            smoothing,
+        );
+    }
+
+    /// Queue a draw-ranged stroked vector path with material response and an extra opacity multiplier.
+    pub fn stroke_path_with_draw_range_and_material_and_opacity(
+        &mut self,
+        path: Path,
+        stroke: Stroke,
+        material: Material,
+        opacity: f32,
+        draw_range: DrawRange,
+    ) {
+        self.stroke_path_with_draw_range_and_material_and_opacity_and_smoothing(
+            path,
+            stroke,
+            material,
+            opacity,
+            draw_range,
+            PathSmoothing::None,
+        );
+    }
+
+    /// Queue a draw-ranged stroked vector path with material response, opacity, and optional smoothing.
+    pub fn stroke_path_with_draw_range_and_material_and_opacity_and_smoothing(
+        &mut self,
+        path: Path,
+        stroke: Stroke,
+        material: Material,
+        opacity: f32,
+        draw_range: DrawRange,
+        smoothing: PathSmoothing,
+    ) {
         let current_transform = self.current_transform();
         let geometry_signature = hash_vector_path(
             &path,
             PendingVectorOpKind::Stroke(stroke.weight, stroke.cap, stroke.join),
+            smoothing,
         );
         let Some(PendingNode {
             kind: PendingNodeKind::Vector(buffers),
@@ -738,6 +802,8 @@ impl<'w> WgpuRenderer<'w> {
             opacity,
             kind: PendingVectorOpKind::Stroke(stroke.weight, stroke.cap, stroke.join),
             geometry_signature,
+            draw_range,
+            smoothing,
         });
     }
 
@@ -759,8 +825,26 @@ impl<'w> WgpuRenderer<'w> {
         material: Material,
         opacity: f32,
     ) {
+        self.fill_path_with_material_and_opacity_and_smoothing(
+            path,
+            fill,
+            material,
+            opacity,
+            PathSmoothing::None,
+        );
+    }
+
+    /// Queue a filled vector path with material response, opacity, and optional smoothing.
+    pub fn fill_path_with_material_and_opacity_and_smoothing(
+        &mut self,
+        path: Path,
+        fill: Fill,
+        material: Material,
+        opacity: f32,
+        smoothing: PathSmoothing,
+    ) {
         let current_transform = self.current_transform();
-        let geometry_signature = hash_vector_path(&path, PendingVectorOpKind::Fill);
+        let geometry_signature = hash_vector_path(&path, PendingVectorOpKind::Fill, smoothing);
         let Some(PendingNode {
             kind: PendingNodeKind::Vector(buffers),
             ..
@@ -776,6 +860,8 @@ impl<'w> WgpuRenderer<'w> {
             opacity,
             kind: PendingVectorOpKind::Fill,
             geometry_signature,
+            draw_range: DrawRange::disabled(),
+            smoothing,
         });
     }
 
@@ -1115,6 +1201,7 @@ impl<'w> WgpuRenderer<'w> {
                     .map(|op| op.geometry_signature)
                     .collect::<Vec<_>>();
                 let fill_signature = hash_vector_fills(&buffers.ops);
+                let primitive_signature = hash_vector_primitives(&buffers.ops);
                 let transform_signature = hash_vector_transforms(&buffers.ops);
                 let local_transforms = build_local_transform_table(&buffers.ops);
                 let (transform_keys, transform_ids) =
@@ -1124,6 +1211,7 @@ impl<'w> WgpuRenderer<'w> {
                     tolerance_bits: self.tolerance.to_bits(),
                     geometry_signatures: geometry_signatures.clone(),
                     fill_signature,
+                    primitive_signature,
                     transform_layout_signature,
                 };
 
@@ -1136,11 +1224,16 @@ impl<'w> WgpuRenderer<'w> {
                         let reuse_geometry = existing.geometry_signatures == geometry_signatures;
                         let geometry_changed = !reuse_geometry;
                         let fill_changed = existing.fill_signature != fill_signature;
+                        let primitive_changed = existing.primitive_signature != primitive_signature;
                         let transform_changed = existing.transform_signature != transform_signature;
                         let transform_layout_changed =
                             existing.transform_layout_signature != transform_layout_signature;
 
-                        if geometry_changed || fill_changed || transform_changed {
+                        if geometry_changed
+                            || fill_changed
+                            || primitive_changed
+                            || transform_changed
+                        {
                             rebuild_vector_buffers(
                                 self.tolerance,
                                 &buffers.ops,
@@ -1152,7 +1245,11 @@ impl<'w> WgpuRenderer<'w> {
                             );
                         }
 
-                        if geometry_changed || fill_changed || transform_layout_changed {
+                        if geometry_changed
+                            || fill_changed
+                            || primitive_changed
+                            || transform_layout_changed
+                        {
                             existing.retained_primitives = build_retained_primitives(
                                 &existing.buffers.primitives,
                                 &transform_ids,
@@ -1163,12 +1260,15 @@ impl<'w> WgpuRenderer<'w> {
                         existing.clip_stack = buffers.clip_stack;
                         existing.z_index = pending_z_index;
                         existing.resource_dirty.geometry |= geometry_changed;
-                        existing.resource_dirty.primitives |=
-                            geometry_changed || fill_changed || transform_layout_changed;
+                        existing.resource_dirty.primitives |= geometry_changed
+                            || fill_changed
+                            || primitive_changed
+                            || transform_layout_changed;
                         existing.resource_dirty.transforms = false;
                         existing.resource_dirty.fill |= fill_changed;
                         existing.geometry_signatures = geometry_signatures;
                         existing.fill_signature = fill_signature;
+                        existing.primitive_signature = primitive_signature;
                         existing.transform_signature = transform_signature;
                         existing.transform_layout_signature = transform_layout_signature;
                         existing.resource_key = resource_key;
@@ -1204,6 +1304,7 @@ impl<'w> WgpuRenderer<'w> {
                             },
                             geometry_signatures,
                             fill_signature,
+                            primitive_signature,
                             transform_signature,
                             transform_layout_signature,
                             resource_key,
@@ -1239,6 +1340,7 @@ impl<'w> WgpuRenderer<'w> {
                             },
                             geometry_signatures,
                             fill_signature,
+                            primitive_signature,
                             transform_signature,
                             transform_layout_signature,
                             resource_key,
@@ -1604,6 +1706,8 @@ struct PendingVectorOp {
     opacity: f32,
     kind: PendingVectorOpKind,
     geometry_signature: u64,
+    draw_range: DrawRange,
+    smoothing: PathSmoothing,
 }
 
 #[derive(Clone, Copy)]
@@ -1657,6 +1761,7 @@ struct RetainedVectorNode {
     resource_dirty: VectorResourceDirty,
     geometry_signatures: Vec<u64>,
     fill_signature: u64,
+    primitive_signature: u64,
     transform_signature: u64,
     transform_layout_signature: u64,
     resource_key: VectorResourceKey,
@@ -1775,9 +1880,16 @@ fn rebuild_vector_buffers(
                 &mut next_color_id,
                 &mut next_gradient_id,
                 &mut next_material_id,
+                op.draw_range,
             )
         } else {
-            push_primitive_def(buffers, op.fill.clone(), op.material, transform_id)
+            push_primitive_def(
+                buffers,
+                op.fill.clone(),
+                op.material,
+                transform_id,
+                op.draw_range,
+            )
         };
 
         if reuse_geometry {
@@ -1829,11 +1941,292 @@ fn rebuild_vector_buffers(
     }
 }
 
+#[derive(Default)]
+struct StrokeProgressMap {
+    endpoint_corrections: Vec<f32>,
+}
+
+impl StrokeProgressMap {
+    fn correction_for_source(&self, source: VertexSource) -> f32 {
+        let endpoint = match source {
+            VertexSource::Endpoint { id } => id,
+            VertexSource::Edge { from, .. } => from,
+        };
+        self.correction_for_endpoint(endpoint)
+    }
+
+    fn correction_for_endpoint(&self, endpoint: EndpointId) -> f32 {
+        self.endpoint_corrections
+            .get(endpoint.0 as usize)
+            .copied()
+            .unwrap_or(0.0)
+    }
+}
+
+fn stroke_progress_map(path: &Path, tolerance: f32) -> StrokeProgressMap {
+    let mut endpoint_corrections = Vec::new();
+    let mut global_cursor = 0.0f32;
+    let mut lyon_open_cursor = 0.0f32;
+    let mut contour_correction = 0.0f32;
+    let mut contour_length = 0.0f32;
+
+    for event in path.iter() {
+        match event {
+            PathEvent::Begin { at: _ } => {
+                contour_correction = global_cursor - lyon_open_cursor;
+                contour_length = 0.0;
+                endpoint_corrections.push(contour_correction);
+            }
+            PathEvent::Line { from, to } => {
+                contour_length += line_length(from, to);
+                endpoint_corrections.push(contour_correction);
+            }
+            PathEvent::Quadratic { from, ctrl, to } => {
+                contour_length += QuadraticBezierSegment { from, ctrl, to }
+                    .approximate_length(tolerance)
+                    .max(0.0);
+                endpoint_corrections.push(contour_correction);
+            }
+            PathEvent::Cubic {
+                from,
+                ctrl1,
+                ctrl2,
+                to,
+            } => {
+                contour_length += CubicBezierSegment {
+                    from,
+                    ctrl1,
+                    ctrl2,
+                    to,
+                }
+                .approximate_length(tolerance)
+                .max(0.0);
+                endpoint_corrections.push(contour_correction);
+            }
+            PathEvent::End { first, last, close } => {
+                let closed = close;
+                if closed {
+                    contour_length += line_length(last, first);
+                }
+                global_cursor += contour_length;
+                if !closed {
+                    lyon_open_cursor += contour_length;
+                }
+            }
+        }
+    }
+
+    StrokeProgressMap {
+        endpoint_corrections,
+    }
+}
+
+#[derive(Clone, Copy)]
+struct SmoothingParams {
+    angle_cut_degrees: f32,
+    passes: usize,
+}
+
+fn smooth_lyon_path(path: &Path, smoothing: PathSmoothing) -> Path {
+    let Some(params) = smoothing_params(smoothing) else {
+        return path.clone();
+    };
+
+    let mut builder = Path::builder();
+    let mut run = Vec::new();
+
+    for event in path.iter() {
+        match event {
+            PathEvent::Begin { at } => {
+                flush_smoothing_run(&mut builder, &mut run, params);
+                builder.begin(at);
+                run.clear();
+                run.push(at);
+            }
+            PathEvent::Line { to, .. } => {
+                if run.is_empty() {
+                    builder.line_to(to);
+                } else {
+                    push_distinct_smoothing_point(&mut run, to);
+                }
+            }
+            PathEvent::Quadratic { ctrl, to, .. } => {
+                flush_smoothing_run(&mut builder, &mut run, params);
+                builder.quadratic_bezier_to(ctrl, to);
+                run.clear();
+                run.push(to);
+            }
+            PathEvent::Cubic {
+                ctrl1, ctrl2, to, ..
+            } => {
+                flush_smoothing_run(&mut builder, &mut run, params);
+                builder.cubic_bezier_to(ctrl1, ctrl2, to);
+                run.clear();
+                run.push(to);
+            }
+            PathEvent::End { first, last, close } => {
+                if close && smoothing_distance(last, first) > f32::EPSILON {
+                    push_distinct_smoothing_point(&mut run, first);
+                }
+                flush_smoothing_run(&mut builder, &mut run, params);
+                builder.end(close);
+                run.clear();
+            }
+        }
+    }
+
+    flush_smoothing_run(&mut builder, &mut run, params);
+    builder.build()
+}
+
+fn smoothing_params(smoothing: PathSmoothing) -> Option<SmoothingParams> {
+    match smoothing {
+        PathSmoothing::None => None,
+        PathSmoothing::Light => Some(SmoothingParams {
+            angle_cut_degrees: 130.0,
+            passes: 1,
+        }),
+        PathSmoothing::Strong => Some(SmoothingParams {
+            angle_cut_degrees: 95.0,
+            passes: 2,
+        }),
+    }
+}
+
+fn flush_smoothing_run(
+    builder: &mut lyon::path::path::Builder,
+    run: &mut Vec<LyonPoint>,
+    params: SmoothingParams,
+) {
+    let clean = clean_smoothing_points(run);
+    if clean.len() < 2 {
+        run.clear();
+        return;
+    }
+
+    let mut cuts = vec![0usize];
+    for index in 1..clean.len() - 1 {
+        if smoothing_angle_degrees(clean[index - 1], clean[index], clean[index + 1])
+            <= params.angle_cut_degrees
+        {
+            cuts.push(index);
+        }
+    }
+    cuts.push(clean.len() - 1);
+
+    for pair in cuts.windows(2) {
+        let start = pair[0];
+        let end = pair[1];
+        if end <= start {
+            continue;
+        }
+        let subrun = smooth_smoothing_points(&clean[start..=end], params.passes);
+        emit_smoothing_subrun(builder, &subrun);
+    }
+
+    run.clear();
+}
+
+fn emit_smoothing_subrun(builder: &mut lyon::path::path::Builder, points: &[LyonPoint]) {
+    if points.len() < 2 {
+        return;
+    }
+    if points.len() == 2 {
+        builder.line_to(points[1]);
+        return;
+    }
+
+    for index in 0..points.len() - 1 {
+        let p0 = if index == 0 {
+            points[index]
+        } else {
+            points[index - 1]
+        };
+        let p1 = points[index];
+        let p2 = points[index + 1];
+        let p3 = if index + 2 < points.len() {
+            points[index + 2]
+        } else {
+            points[index + 1]
+        };
+
+        let control_1 = p1 + (p2 - p0) * (1.0 / 6.0);
+        let control_2 = p2 - (p3 - p1) * (1.0 / 6.0);
+        builder.cubic_bezier_to(control_1, control_2, p2);
+    }
+}
+
+fn smooth_smoothing_points(points: &[LyonPoint], passes: usize) -> Vec<LyonPoint> {
+    if points.len() < 4 || passes == 0 {
+        return points.to_vec();
+    }
+
+    let mut output = points.to_vec();
+    for _ in 0..passes {
+        let mut next = Vec::with_capacity(output.len());
+        next.push(output[0]);
+        for index in 1..output.len() - 1 {
+            next.push(LyonPoint::new(
+                output[index - 1].x * 0.25 + output[index].x * 0.5 + output[index + 1].x * 0.25,
+                output[index - 1].y * 0.25 + output[index].y * 0.5 + output[index + 1].y * 0.25,
+            ));
+        }
+        next.push(output[output.len() - 1]);
+        output = next;
+    }
+    output
+}
+
+fn clean_smoothing_points(points: &[LyonPoint]) -> Vec<LyonPoint> {
+    let mut clean = Vec::with_capacity(points.len());
+    for point in points {
+        push_distinct_smoothing_point(&mut clean, *point);
+    }
+    clean
+}
+
+fn push_distinct_smoothing_point(points: &mut Vec<LyonPoint>, point: LyonPoint) {
+    if points
+        .last()
+        .map(|last| smoothing_distance(*last, point) > f32::EPSILON)
+        .unwrap_or(true)
+    {
+        points.push(point);
+    }
+}
+
+fn smoothing_angle_degrees(previous: LyonPoint, current: LyonPoint, next: LyonPoint) -> f32 {
+    let vector_1 = previous - current;
+    let vector_2 = next - current;
+    let length_1 = vector_1.length();
+    let length_2 = vector_2.length();
+    if length_1 < f32::EPSILON || length_2 < f32::EPSILON {
+        return 180.0;
+    }
+    let dot = ((vector_1.x * vector_2.x) + (vector_1.y * vector_2.y)) / (length_1 * length_2);
+    dot.clamp(-1.0, 1.0).acos().to_degrees()
+}
+
+fn smoothing_distance(a: LyonPoint, b: LyonPoint) -> f32 {
+    (a - b).length()
+}
+
+fn line_length(from: Point2D, to: Point2D) -> f32 {
+    (to - from).length().max(0.0)
+}
+
 fn tessellate_vector_geometry(
     tolerance: f32,
     op: &PendingVectorOp,
 ) -> VertexBuffers<GpuVertex, u16> {
     let mut geometry = VertexBuffers::new();
+    let smoothed_path;
+    let path = if op.smoothing == PathSmoothing::None {
+        &op.path
+    } else {
+        smoothed_path = smooth_lyon_path(&op.path, op.smoothing);
+        &smoothed_path
+    };
     match op.kind {
         PendingVectorOpKind::Fill => {
             let options = FillOptions::tolerance(tolerance);
@@ -1842,9 +2235,10 @@ fn tessellate_vector_geometry(
                     position: vertex.position().to_array(),
                     normal: [0.0; 2],
                     prim_id: 0,
+                    path_progress: 0.0,
                 });
             if let Err(err) =
-                FillTessellator::new().tessellate_path(&op.path, &options, &mut geometry_builder)
+                FillTessellator::new().tessellate_path(path, &options, &mut geometry_builder)
             {
                 log::warn!("{:?}", err);
             }
@@ -1862,16 +2256,38 @@ fn tessellate_vector_geometry(
                     StrokeJoin::Round => lyon::tessellation::LineJoin::Round,
                     StrokeJoin::Bevel => lyon::tessellation::LineJoin::Bevel,
                 });
-            let mut geometry_builder =
-                BuffersBuilder::new(&mut geometry, |vertex: StrokeVertex| GpuVertex {
-                    position: vertex.position().to_array(),
-                    normal: [0.0; 2],
-                    prim_id: 0,
-                });
-            if let Err(err) =
-                StrokeTessellator::new().tessellate_path(&op.path, &options, &mut geometry_builder)
+            let progress_map = stroke_progress_map(path, tolerance);
+            let max_advancement = std::cell::Cell::new(0.0f32);
             {
-                log::warn!("{:?}", err);
+                let mut geometry_builder =
+                    BuffersBuilder::new(&mut geometry, |vertex: StrokeVertex| {
+                        let advancement = vertex.advancement()
+                            + progress_map.correction_for_source(vertex.source());
+                        let path_progress = if advancement.is_finite() {
+                            max_advancement.set(max_advancement.get().max(advancement));
+                            advancement.max(0.0)
+                        } else {
+                            0.0
+                        };
+                        GpuVertex {
+                            position: vertex.position().to_array(),
+                            normal: vertex.normal().to_array(),
+                            prim_id: 0,
+                            path_progress,
+                        }
+                    });
+                if let Err(err) =
+                    StrokeTessellator::new().tessellate_path(path, &options, &mut geometry_builder)
+                {
+                    log::warn!("{:?}", err);
+                }
+            }
+            let total_advancement = max_advancement.get();
+            if total_advancement > f32::EPSILON {
+                for vertex in &mut geometry.vertices {
+                    vertex.path_progress =
+                        (vertex.path_progress / total_advancement).clamp(0.0, 1.0);
+                }
             }
         }
     }
@@ -2016,6 +2432,17 @@ fn hash_vector_fills(ops: &[PendingVectorOp]) -> u64 {
     for op in ops {
         hash_fill_bits(&op.fill, &mut hasher);
         hash_material_bits(&op.material, &mut hasher);
+    }
+    hasher.finish()
+}
+
+fn hash_vector_primitives(ops: &[PendingVectorOp]) -> u64 {
+    let mut hasher = DefaultHasher::new();
+    ops.len().hash(&mut hasher);
+    for op in ops {
+        for value in op.draw_range.as_gpu_range() {
+            value.to_bits().hash(&mut hasher);
+        }
     }
     hasher.finish()
 }
@@ -2368,6 +2795,7 @@ fn push_primitive_def(
     fill: Fill,
     material: Material,
     transform_id: u32,
+    draw_range: DrawRange,
 ) -> u32 {
     let fill_id;
     let fill_type_flag;
@@ -2419,6 +2847,7 @@ fn push_primitive_def(
         material_id,
         transform_id,
         z_index: 0,
+        draw_range: draw_range.as_gpu_range(),
     };
     let prim_id = buffers.primitives.len() as u32;
     buffers.primitives.push(primitive);
@@ -2432,6 +2861,7 @@ fn push_primitive_with_existing_fill(
     next_color_id: &mut u16,
     next_gradient_id: &mut u16,
     next_material_id: &mut u32,
+    draw_range: DrawRange,
 ) -> u32 {
     let (fill_id, fill_type_flag) = match fill {
         Fill::Solid(_) => {
@@ -2454,12 +2884,14 @@ fn push_primitive_with_existing_fill(
         material_id,
         transform_id,
         z_index: 0,
+        draw_range: draw_range.as_gpu_range(),
     });
     prim_id
 }
 
-fn hash_vector_path(path: &Path, kind: PendingVectorOpKind) -> u64 {
+fn hash_vector_path(path: &Path, kind: PendingVectorOpKind, smoothing: PathSmoothing) -> u64 {
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    smoothing.hash(&mut hasher);
     match kind {
         PendingVectorOpKind::Fill => 0u8.hash(&mut hasher),
         PendingVectorOpKind::Stroke(width, cap, join) => {
@@ -2898,6 +3330,41 @@ pub struct Stroke {
     pub join: StrokeJoin,
 }
 
+#[derive(Debug, Clone, Copy)]
+/// Normalized visible range for a stroked vector path.
+pub struct DrawRange {
+    pub start: f32,
+    pub end: f32,
+    pub enabled: bool,
+}
+
+impl DrawRange {
+    pub fn disabled() -> Self {
+        Self {
+            start: 0.0,
+            end: 1.0,
+            enabled: false,
+        }
+    }
+
+    pub fn enabled(start: f32, end: f32) -> Self {
+        Self {
+            start,
+            end,
+            enabled: true,
+        }
+    }
+
+    fn as_gpu_range(&self) -> [f32; 4] {
+        [
+            self.start.clamp(0.0, 1.0),
+            self.end.clamp(0.0, 1.0),
+            if self.enabled { 1.0 } else { 0.0 },
+            0.0,
+        ]
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -2908,6 +3375,23 @@ mod tests {
         builder.line_to(point(width, 0.0));
         builder.line_to(point(width, height));
         builder.line_to(point(0.0, height));
+        builder.end(true);
+        builder.build()
+    }
+
+    fn two_closed_rects_path(width: f32, height: f32, gap: f32) -> Path {
+        let mut builder = Path::builder();
+        builder.begin(point(0.0, 0.0));
+        builder.line_to(point(width, 0.0));
+        builder.line_to(point(width, height));
+        builder.line_to(point(0.0, height));
+        builder.end(true);
+
+        let x = width + gap;
+        builder.begin(point(x, 0.0));
+        builder.line_to(point(x + width, 0.0));
+        builder.line_to(point(x + width, height));
+        builder.line_to(point(x, height));
         builder.end(true);
         builder.build()
     }
@@ -2938,7 +3422,13 @@ mod tests {
             transform: Transform2D::identity(),
             opacity: 1.0,
             kind: PendingVectorOpKind::Fill,
-            geometry_signature: hash_vector_path(&path, PendingVectorOpKind::Fill),
+            geometry_signature: hash_vector_path(
+                &path,
+                PendingVectorOpKind::Fill,
+                PathSmoothing::None,
+            ),
+            draw_range: DrawRange::disabled(),
+            smoothing: PathSmoothing::None,
         };
         let ops = vec![
             PendingVectorOp {
@@ -2949,6 +3439,8 @@ mod tests {
                 opacity: 1.0,
                 kind: PendingVectorOpKind::Fill,
                 geometry_signature: op.geometry_signature,
+                draw_range: DrawRange::disabled(),
+                smoothing: PathSmoothing::None,
             },
             op,
         ];
@@ -3008,5 +3500,219 @@ mod tests {
             assert_eq!(left.prim_id, right.prim_id);
         }
         assert_eq!(buffers.geometry.indices, second_buffers.geometry.indices);
+    }
+
+    #[test]
+    fn draw_range_changes_do_not_rebuild_stroke_geometry() {
+        let path = rect_path(10.0, 5.0);
+        let kind = PendingVectorOpKind::Stroke(2.0, StrokeCap::Butt, StrokeJoin::Miter);
+        let geometry_signature = hash_vector_path(&path, kind, PathSmoothing::None);
+        let ops = vec![
+            PendingVectorOp {
+                path: path.clone(),
+                fill: Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),
+                material: Material::default(),
+                transform: Transform2D::identity(),
+                opacity: 1.0,
+                kind,
+                geometry_signature,
+                draw_range: DrawRange::enabled(0.0, 0.5),
+                smoothing: PathSmoothing::None,
+            },
+            PendingVectorOp {
+                path,
+                fill: Fill::Solid(Color::rgba(0.0, 1.0, 0.0, 1.0)),
+                material: Material::default(),
+                transform: Transform2D::identity(),
+                opacity: 1.0,
+                kind,
+                geometry_signature,
+                draw_range: DrawRange::enabled(0.25, 0.75),
+                smoothing: PathSmoothing::None,
+            },
+        ];
+        let cache = Rc::new(RefCell::new(VectorGeometryCache::default()));
+        let mut stats = ResourceChurnStats::default();
+        let mut buffers = new_cpu_buffers();
+
+        rebuild_vector_buffers(
+            DEFAULT_TESSELLATION_TOLERANCE,
+            &ops,
+            &mut buffers,
+            false,
+            false,
+            &cache,
+            &mut stats,
+        );
+
+        assert_eq!(stats.vector_geometry_cache_misses, 1);
+        assert_eq!(stats.vector_geometry_cache_hits, 1);
+        assert_eq!(buffers.primitives[0].draw_range, [0.0, 0.5, 1.0, 0.0]);
+        assert_eq!(buffers.primitives[1].draw_range, [0.25, 0.75, 1.0, 0.0]);
+        assert!(buffers
+            .geometry
+            .vertices
+            .iter()
+            .any(|vertex| vertex.path_progress > 0.0 && vertex.path_progress < 1.0));
+    }
+
+    #[test]
+    fn closed_subpaths_keep_compound_path_progress() {
+        let path = two_closed_rects_path(10.0, 5.0, 20.0);
+        let kind = PendingVectorOpKind::Stroke(1.0, StrokeCap::Butt, StrokeJoin::Miter);
+        let op = PendingVectorOp {
+            path: path.clone(),
+            fill: Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),
+            material: Material::default(),
+            transform: Transform2D::identity(),
+            opacity: 1.0,
+            kind,
+            geometry_signature: hash_vector_path(&path, kind, PathSmoothing::None),
+            draw_range: DrawRange::enabled(0.0, 1.0),
+            smoothing: PathSmoothing::None,
+        };
+
+        let geometry = tessellate_vector_geometry(DEFAULT_TESSELLATION_TOLERANCE, &op);
+        let first_rect_progress = geometry
+            .vertices
+            .iter()
+            .filter(|vertex| vertex.position[0] < 20.0)
+            .map(|vertex| vertex.path_progress)
+            .collect::<Vec<_>>();
+        let second_rect_progress = geometry
+            .vertices
+            .iter()
+            .filter(|vertex| vertex.position[0] > 20.0)
+            .map(|vertex| vertex.path_progress)
+            .collect::<Vec<_>>();
+
+        let first_max = first_rect_progress
+            .iter()
+            .copied()
+            .fold(f32::NEG_INFINITY, f32::max);
+        let second_min = second_rect_progress
+            .iter()
+            .copied()
+            .fold(f32::INFINITY, f32::min);
+        let second_max = second_rect_progress
+            .iter()
+            .copied()
+            .fold(f32::NEG_INFINITY, f32::max);
+
+        assert!(!first_rect_progress.is_empty());
+        assert!(!second_rect_progress.is_empty());
+        assert!(first_max <= 0.6, "first closed contour reached {first_max}");
+        assert!(
+            second_min >= 0.4,
+            "second closed contour restarted at {second_min}"
+        );
+        assert!(second_max > 0.9, "compound path did not reach the end");
+    }
+
+    #[test]
+    fn draw_range_changes_refresh_primitives_without_rebuilding_geometry() {
+        let path = rect_path(10.0, 5.0);
+        let kind = PendingVectorOpKind::Stroke(2.0, StrokeCap::Butt, StrokeJoin::Miter);
+        let geometry_signature = hash_vector_path(&path, kind, PathSmoothing::None);
+        let make_ops = |draw_range| {
+            vec![PendingVectorOp {
+                path: path.clone(),
+                fill: Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),
+                material: Material::default(),
+                transform: Transform2D::identity(),
+                opacity: 1.0,
+                kind,
+                geometry_signature,
+                draw_range,
+                smoothing: PathSmoothing::None,
+            }]
+        };
+        let cache = Rc::new(RefCell::new(VectorGeometryCache::default()));
+        let mut stats = ResourceChurnStats::default();
+        let mut buffers = new_cpu_buffers();
+
+        rebuild_vector_buffers(
+            DEFAULT_TESSELLATION_TOLERANCE,
+            &make_ops(DrawRange::enabled(0.0, 0.5)),
+            &mut buffers,
+            false,
+            false,
+            &cache,
+            &mut stats,
+        );
+        let vertices = buffers.geometry.vertices.clone();
+        let indices = buffers.geometry.indices.clone();
+
+        let mut update_stats = ResourceChurnStats::default();
+        rebuild_vector_buffers(
+            DEFAULT_TESSELLATION_TOLERANCE,
+            &make_ops(DrawRange::enabled(0.25, 0.75)),
+            &mut buffers,
+            true,
+            true,
+            &cache,
+            &mut update_stats,
+        );
+
+        assert_eq!(update_stats.vector_geometry_rebuilds, 0);
+        assert_eq!(buffers.geometry.vertices.len(), vertices.len());
+        for (left, right) in buffers.geometry.vertices.iter().zip(vertices.iter()) {
+            assert_eq!(left.position, right.position);
+            assert_eq!(left.normal, right.normal);
+            assert_eq!(left.prim_id, right.prim_id);
+            assert_eq!(left.path_progress, right.path_progress);
+        }
+        assert_eq!(buffers.geometry.indices, indices);
+        assert_eq!(buffers.primitives[0].draw_range, [0.25, 0.75, 1.0, 0.0]);
+    }
+
+    #[test]
+    fn draw_range_changes_are_part_of_primitive_signature() {
+        let path = rect_path(10.0, 5.0);
+        let kind = PendingVectorOpKind::Stroke(2.0, StrokeCap::Butt, StrokeJoin::Miter);
+        let geometry_signature = hash_vector_path(&path, kind, PathSmoothing::None);
+        let make_ops = |draw_range| {
+            vec![PendingVectorOp {
+                path: path.clone(),
+                fill: Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),
+                material: Material::default(),
+                transform: Transform2D::identity(),
+                opacity: 1.0,
+                kind,
+                geometry_signature,
+                draw_range,
+                smoothing: PathSmoothing::None,
+            }]
+        };
+
+        assert_ne!(
+            hash_vector_primitives(&make_ops(DrawRange::enabled(0.0, 0.5))),
+            hash_vector_primitives(&make_ops(DrawRange::enabled(0.25, 0.75)))
+        );
+    }
+
+    #[test]
+    fn smoothing_changes_geometry_signature_not_primitive_signature() {
+        let path = rect_path(10.0, 5.0);
+        let kind = PendingVectorOpKind::Stroke(2.0, StrokeCap::Butt, StrokeJoin::Round);
+        let unsmoothed = hash_vector_path(&path, kind, PathSmoothing::None);
+        let smoothed = hash_vector_path(&path, kind, PathSmoothing::Strong);
+        let make_op = |smoothing, geometry_signature| PendingVectorOp {
+            path: path.clone(),
+            fill: Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),
+            material: Material::default(),
+            transform: Transform2D::identity(),
+            opacity: 1.0,
+            kind,
+            geometry_signature,
+            draw_range: DrawRange::enabled(0.0, 0.5),
+            smoothing,
+        };
+
+        assert_ne!(unsmoothed, smoothed);
+        assert_eq!(
+            hash_vector_primitives(&[make_op(PathSmoothing::None, unsmoothed)]),
+            hash_vector_primitives(&[make_op(PathSmoothing::Strong, smoothed)])
+        );
     }
 }

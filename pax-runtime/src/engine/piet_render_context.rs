@@ -527,6 +527,29 @@ impl<R: piet::RenderContext> api::RenderContext for PietRenderer<R> {
         });
     }
 
+    fn stroke_with_draw_range_and_material_and_opacity(
+        &mut self,
+        layer: usize,
+        path: kurbo::BezPath,
+        stroke: &Stroke,
+        _material: &api::Material,
+        opacity: f64,
+        draw_start: f64,
+        draw_end: f64,
+    ) {
+        let draw_start = draw_start.clamp(0.0, 1.0);
+        let draw_end = draw_end.clamp(0.0, 1.0);
+        if draw_start >= draw_end {
+            return;
+        }
+        let path = if draw_start <= f64::EPSILON && draw_end >= 1.0 - f64::EPSILON {
+            path
+        } else {
+            api::drawing::path_trim::trim_bez_path(&path, draw_start, draw_end)
+        };
+        self.stroke_with_opacity(layer, path, stroke, opacity);
+    }
+
     fn save(&mut self, layer: usize) {
         self.with_layer_context(layer, |context| {
             let _ = context.save();

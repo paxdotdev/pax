@@ -1,8 +1,26 @@
+<Text
+    width=100%
+    height=100%
+    text={_accessibility_text}
+    selectable={selectable}
+    editable=false
+    clip=false
+    wrap=false
+    style={
+        font_size: {_accessibility_font_size}
+        fill: rgba(0, 0, 0, 0)
+        align_vertical: TextAlignVertical::Center
+        align_horizontal: TextAlignHorizontal::Center
+        align_multiline: TextAlignHorizontal::Center
+    }
+/>
+
 <Path
     width=100%
     height=100%
     fill=TRANSPARENT
     stroke={stroke}
+    smoothing={smoothing}
     draw_start={draw_start}
     draw_end={draw_end}
     elements={_elements}

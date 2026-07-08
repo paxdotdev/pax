@@ -8,9 +8,9 @@ use crate::{
     impl_default_coercion_rule,
     math::{Transform2, Vector2},
     Color, ColorChannel, Depth, Duration, Fill, GradientStop, LayoutRole, LightShape,
-    LinearGradient, Material, MaterialParams, Numeric, Opacity, PathElement, PaxValue, Percent,
-    Property, RadialGradient, Rotation, Size, Stroke, StrokeCap, StrokeJoin, Transform2D,
-    UnitValue, Vector3,
+    LinearGradient, Material, MaterialParams, Numeric, Opacity, PathElement, PathSmoothing,
+    PaxValue, Percent, Property, RadialGradient, Rotation, Size, Stroke, StrokeCap, StrokeJoin,
+    Transform2D, UnitValue, Vector3,
 };
 
 // Default coercion rules:
@@ -919,6 +919,39 @@ impl CoercionRules for StrokeCap {
                 }
             }
             _ => Err(format!("failed to coerce StrokeCap")),
+        }
+    }
+}
+
+impl CoercionRules for PathSmoothing {
+    fn try_coerce(value: PaxValue) -> Result<Self, String> {
+        match value {
+            PaxValue::Enum(contents) => {
+                let (_, variant, args) = *contents;
+                if !args.is_empty() {
+                    return Err(format!(
+                        "failed to coerce PathSmoothing: expected no enum args, got {:?}",
+                        args
+                    ));
+                }
+                match variant.as_str() {
+                    "None" => Ok(PathSmoothing::None),
+                    "Light" => Ok(PathSmoothing::Light),
+                    "Strong" => Ok(PathSmoothing::Strong),
+                    _ => Err(format!(
+                        "failed to coerce PathSmoothing: unknown enum variant {:?}",
+                        variant
+                    )),
+                }
+            }
+            PaxValue::Option(o) => {
+                if let Some(o) = *o {
+                    PathSmoothing::try_coerce(o)
+                } else {
+                    Err("failed to coerce PathSmoothing".to_string())
+                }
+            }
+            _ => Err(format!("failed to coerce PathSmoothing")),
         }
     }
 }

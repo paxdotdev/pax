@@ -30,6 +30,19 @@ pub trait RenderContext {
     ) {
         self.fill_with_opacity(layer, path, fill, opacity);
     }
+    /// Fills a path after optional geometry smoothing.
+    fn fill_with_material_and_opacity_and_smoothing(
+        &mut self,
+        layer: usize,
+        path: kurbo::BezPath,
+        fill: &Fill,
+        material: &Material,
+        opacity: f64,
+        smoothing: PathSmoothing,
+    ) {
+        let path = crate::drawing::path_smoothing::smooth_bez_path(&path, smoothing);
+        self.fill_with_material_and_opacity(layer, path, fill, material, opacity);
+    }
     /// Strokes a path at full opacity.
     fn stroke(&mut self, layer: usize, path: kurbo::BezPath, stroke: &Stroke) {
         self.stroke_with_opacity(layer, path, stroke, 1.0);
@@ -52,6 +65,47 @@ pub trait RenderContext {
         opacity: f64,
     ) {
         self.stroke_with_opacity(layer, path, stroke, opacity);
+    }
+    /// Strokes a path after optional geometry smoothing.
+    fn stroke_with_material_and_opacity_and_smoothing(
+        &mut self,
+        layer: usize,
+        path: kurbo::BezPath,
+        stroke: &Stroke,
+        material: &Material,
+        opacity: f64,
+        smoothing: PathSmoothing,
+    ) {
+        let path = crate::drawing::path_smoothing::smooth_bez_path(&path, smoothing);
+        self.stroke_with_material_and_opacity(layer, path, stroke, material, opacity);
+    }
+    /// Strokes a path with a normalized visible range over the path's total length.
+    fn stroke_with_draw_range_and_material_and_opacity(
+        &mut self,
+        layer: usize,
+        path: kurbo::BezPath,
+        stroke: &Stroke,
+        material: &Material,
+        opacity: f64,
+        draw_start: f64,
+        draw_end: f64,
+    );
+    /// Strokes a draw-ranged path after optional geometry smoothing.
+    fn stroke_with_draw_range_and_material_and_opacity_and_smoothing(
+        &mut self,
+        layer: usize,
+        path: kurbo::BezPath,
+        stroke: &Stroke,
+        material: &Material,
+        opacity: f64,
+        draw_start: f64,
+        draw_end: f64,
+        smoothing: PathSmoothing,
+    ) {
+        let path = crate::drawing::path_smoothing::smooth_bez_path(&path, smoothing);
+        self.stroke_with_draw_range_and_material_and_opacity(
+            layer, path, stroke, material, opacity, draw_start, draw_end,
+        );
     }
 
     // Clip/transform

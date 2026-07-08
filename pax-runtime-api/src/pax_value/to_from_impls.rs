@@ -25,6 +25,7 @@ use crate::Material;
 use crate::MaterialParams;
 use crate::Opacity;
 use crate::PathElement;
+use crate::PathSmoothing;
 use crate::Percent;
 use crate::Property;
 use crate::RadialGradient;
@@ -255,6 +256,21 @@ impl ToPaxValue for StrokeCap {
         };
         PaxValue::Enum(Box::new((
             "StrokeCap".to_string(),
+            variant.to_string(),
+            vec![],
+        )))
+    }
+}
+
+impl ToPaxValue for PathSmoothing {
+    fn to_pax_value(self) -> PaxValue {
+        let variant = match self {
+            PathSmoothing::None => "None",
+            PathSmoothing::Light => "Light",
+            PathSmoothing::Strong => "Strong",
+        };
+        PaxValue::Enum(Box::new((
+            "PathSmoothing".to_string(),
             variant.to_string(),
             vec![],
         )))

@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
 use pax_engine::api::{
-    Color, Numeric, PathElement, Property, Size, Stroke, StrokeCap, StrokeJoin, UnitValue,
+    Color, Numeric, PathElement, PathSmoothing, Property, Size, Stroke, StrokeCap, StrokeJoin,
+    UnitValue,
 };
 use pax_engine::*;
 use pax_runtime::api::NodeContext;
@@ -22,6 +23,12 @@ pub struct Handwriter {
     pub font: Property<HandwriterFont>,
     /// Stroke used for the generated path.
     pub stroke: Property<Stroke>,
+    /// Optional curve smoothing applied to generated path geometry.
+    pub smoothing: Property<PathSmoothing>,
+    /// Accessible text label. When empty, `text` is used.
+    pub alt_text: Property<String>,
+    /// Whether the invisible native text layer can be selected.
+    pub selectable: Property<bool>,
     /// Start position of the visible handwriting range.
     pub draw_start: Property<UnitValue>,
     /// End position of the visible handwriting range.
@@ -30,6 +37,10 @@ pub struct Handwriter {
     pub line_height: Property<f64>,
     // Generated path elements consumed by the internal `Path`.
     pub _elements: Property<Vec<PathElement>>,
+    // Native text content used for accessibility and selection.
+    pub _accessibility_text: Property<String>,
+    // Approximate native font size used by the invisible selectable text.
+    pub _accessibility_font_size: Property<Size>,
 }
 
 impl Default for Handwriter {
@@ -45,10 +56,15 @@ impl Default for Handwriter {
                 cap: Property::new(StrokeCap::Round),
                 join: Property::new(StrokeJoin::Round),
             }),
+            smoothing: Property::new(PathSmoothing::None),
+            alt_text: Property::new(String::new()),
+            selectable: Property::new(true),
             draw_start: Property::new(UnitValue::Unitless(Numeric::F64(0.0))),
             draw_end: Property::new(UnitValue::Unitless(Numeric::F64(1.0))),
             line_height: Property::new(1.2),
             _elements: Property::new(Vec::new()),
+            _accessibility_text: Property::new(String::new()),
+            _accessibility_font_size: Property::new(Size::Pixels(Numeric::F64(100.0))),
         }
     }
 }
@@ -84,6 +100,8 @@ impl Handwriter {
     // Wires generated path data reactively from text/font settings.
     pub fn on_mount(&mut self, _ctx: &NodeContext) {
         let text = self.text.clone();
+        let text_for_accessibility = self.text.clone();
+        let alt_text = self.alt_text.clone();
         let font = self.font.clone();
         let line_height = self.line_height.clone();
         let deps = [text.untyped(), font.untyped(), line_height.untyped()];
@@ -91,6 +109,25 @@ impl Handwriter {
             move || render_handwriter_text(&text.get(), font.get(), line_height.get()),
             &deps,
         ));
+        let accessibility_deps = [text_for_accessibility.untyped(), alt_text.untyped()];
+        self._accessibility_text.replace_with(Property::computed(
+            move || {
+                let alt = alt_text.get();
+                if alt.trim().is_empty() {
+                    normalize_text_newlines(&text_for_accessibility.get())
+                } else {
+                    normalize_text_newlines(&alt)
+                }
+            },
+            &accessibility_deps,
+        ));
+        let accessibility_text = self._accessibility_text.clone();
+        let accessibility_size_deps = [accessibility_text.untyped()];
+        self._accessibility_font_size
+            .replace_with(Property::computed(
+                move || accessibility_font_size(&accessibility_text.get()),
+                &accessibility_size_deps,
+            ));
     }
 }
 
@@ -182,6 +219,16 @@ fn transform_glyph_point(point: RawPoint, pen_x: f64, baseline: f64) -> RawPoint
         x: pen_x + point.x,
         y: baseline - point.y,
     }
+}
+
+fn normalize_text_newlines(text: &str) -> String {
+    text.replace("\\n", "\n")
+}
+
+fn accessibility_font_size(text: &str) -> Size {
+    let normalized = normalize_text_newlines(text);
+    let line_count = normalized.lines().count().max(1) as f64;
+    Size::Pixels(Numeric::F64((104.0 / line_count).clamp(18.0, 112.0)))
 }
 
 fn compute_bounds(raw: &[RawElement]) -> Bounds {
@@ -812,5 +859,25 @@ mod tests {
     #[test]
     fn decodes_numeric_xml_entities() {
         assert_eq!(decode_xml_entities("&#x22;&amp;&#62;"), "\"&>");
+    }
+
+    #[test]
+    fn accessibility_text_normalizes_template_newline_escape() {
+        assert_eq!(
+            normalize_text_newlines("one\\ntwo\nthree"),
+            "one\ntwo\nthree"
+        );
+    }
+
+    #[test]
+    fn accessibility_font_size_scales_with_line_count() {
+        assert_eq!(
+            accessibility_font_size("one line"),
+            Size::Pixels(Numeric::F64(104.0))
+        );
+        assert_eq!(
+            accessibility_font_size("one\ntwo"),
+            Size::Pixels(Numeric::F64(52.0))
+        );
     }
 }

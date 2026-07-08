@@ -142,6 +142,7 @@ pub struct Path {
     pub stroke: Property<Stroke>,
     pub fill: Property<Fill>,
     pub material: Property<Material>,
+    pub smoothing: Property<PathSmoothing>,
     pub draw_start: Property<UnitValue>,
     pub draw_end: Property<UnitValue>,
 }
@@ -157,6 +158,41 @@ draw_end = UnitValue::Unitless(Numeric::F64(1.0))
 
 Adding the fields without a custom default would make existing paths render with
 `draw_end = 0.0`, which would be a visual regression.
+
+### Path Smoothing
+
+Add an optional `PathSmoothing` property for paths whose source data represents
+curves as dense polylines:
+
+```rust
+pub enum PathSmoothing {
+    None,
+    Light,
+    Strong,
+}
+```
+
+`None` is the default and must preserve authored geometry exactly. `Light` and
+`Strong` are intentionally coarse quality levels that can be extended later
+without committing to a numeric smoothing parameter too early.
+
+Smoothing should be a geometry-cache input, not a draw-range input. In the WGPU
+renderer, include the smoothing level in the retained geometry signature and
+perform smoothing immediately before tessellation. Do not resmooth every frame
+when only `draw_start` / `draw_end` changes. The draw range should remain
+primitive data so path drawing animation can update without rebuilding smoothed
+geometry.
+
+The occlusion/native-mask pass should also treat `draw_start` and `draw_end` as
+render-only properties by default. It should use a conservative full-footprint
+path for `Path` occlusion instead of recomputing stroke coverage for every
+trimmed frame. This may over-mask native surfaces while a path is only partially
+drawn, but it keeps path drawing animation fast and matches the first-pass
+implementation, which does not provide true progress-sensitive clipping.
+
+`Handwriter` should expose the same `smoothing: Property<PathSmoothing>` and
+forward it to the internal `Path`. This lets authors use the bundled
+single-stroke SVG fonts without choosing separate pre-smoothed font assets.
 
 ## Path Draw Semantics
 
@@ -413,6 +449,48 @@ artwork uses visible strokes and empty fill. A true pen-writing effect needs
 centerline-like paths, while block-text outline drawing needs stroke-only closed
 contours and a single sequential draw domain across compatible paths. The
 path-drawing example should document both authoring conventions explicitly.
+
+## Accessibility
+
+`Path` is vector geometry and does not currently create a native accessibility
+object. A future general a11y API should likely be common across primitives
+rather than path-specific.
+
+`Handwriter` can provide a useful first step because it owns the source text.
+Expose `alt_text: Property<String>` and render an invisible native `Text` node
+under or over the stroked path. When `alt_text` is empty, use `text`. This gives
+screen readers, crawlers, and text-selection machinery real text while the
+visible handwriting remains vector geometry. Also expose
+`selectable: Property<bool>` with the same meaning and default as `Text`, so
+authors can opt out of the invisible selection layer for non-selectable
+handwriting. Alignment does not need to be perfect in the first pass; the key
+foundation is preserving semantic text in the native layer.
+
+The same pattern should not be blindly copied to arbitrary `Path` nodes, because
+most paths do not represent text. For `Path`, prefer a future explicit
+accessibility label/role API that can be implemented consistently across web,
+native Apple, Android, and desktop chassis.
+
+## Filled Shape Reveal
+
+Animating fills with `draw_start` / `draw_end` is not well-defined. Stroke
+drawing follows arc length along a centerline; fill drawing asks how an area is
+painted over time. Closing an open partial contour with a straight edge usually
+looks like mathematical extrusion, not paint.
+
+Promising follow-up approaches:
+
+- Clip or mask the filled shape with a moving brush/stencil driven by path
+  length, so the interior feels painted instead of linearly extruded.
+- Rasterize or tessellate full fill geometry once, then reveal it through a
+  render-side coverage mask.
+- Support author-provided reveal paths separate from fill outlines, especially
+  for Illustrator workflows.
+
+The classic public-domain Tiger SVG is a good stress test for this follow-up:
+it has many filled contours, varied colors, and enough complexity to reveal
+whether the model scales beyond simple glyphs. This should remain separate from
+PAX-967 stroke drawing until a concrete fill-painting semantic is selected.
 
 ## `pax-cli svg-import`
 

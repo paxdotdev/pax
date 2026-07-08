@@ -2,6 +2,8 @@
 
 use super::*;
 
+pub mod path_smoothing;
+pub mod path_trim;
 pub mod stroke_utils;
 
 /// Describes a single element of a vector path, such as a line, a point, or curve segment.
@@ -25,6 +27,33 @@ pub enum PathElement {
 
 impl Interpolatable for PathElement {}
 impl HelperFunctions for PathElement {}
+
+/// Controls optional curve smoothing for path geometry before tessellation.
+///
+/// `PathSmoothing` is intended for authored or imported paths whose source data
+/// approximates curves with many short line segments, such as single-stroke SVG
+/// fonts. Existing paths keep their exact geometry by default.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq, Hash)]
+#[serde(crate = "crate::serde")]
+pub enum PathSmoothing {
+    /// Preserve the authored path exactly.
+    #[default]
+    None,
+    /// Lightly smooth polyline runs while preserving sharp corners.
+    Light,
+    /// More aggressively smooth polyline runs for pen-like paths.
+    Strong,
+}
+
+impl Interpolatable for PathSmoothing {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        if t < 1.0 {
+            *self
+        } else {
+            *other
+        }
+    }
+}
 
 /// Controls how an open stroke terminates at the exposed endpoints of a path.
 ///

@@ -8,6 +8,7 @@ struct Primitive {
     z_index: i32,
     material_id: u32,
     transform_id: u32,
+    draw_range: vec4<f32>,
 };
 
 struct Primitives {
@@ -87,13 +88,15 @@ struct SceneLighting {
 struct GpuVertex {
     @location(0) position: vec2<f32>,
     @location(1) normal: vec2<f32>,
-    @location(2) prim_id: u32, 
+    @location(2) prim_id: u32,
+    @location(3) path_progress: f32,
 };
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
 	@location(0) @interpolate(flat) prim_id: u32,
     @location(1) world_position: vec2<f32>,
+    @location(2) path_progress: f32,
 };
 
 @vertex
@@ -119,6 +122,7 @@ fn vs_main(
 
     out.prim_id = model.prim_id;
     out.world_position = vec2<f32>(t_p_x, t_p_y);
+    out.path_progress = model.path_progress;
     out.clip_position = vec4<f32>(pos, 0.0, 1.0);
     return out;
 }
@@ -128,6 +132,13 @@ fn vs_main(
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
     let primitive = u_primitives.primitives[in.prim_id];
+    if primitive.draw_range.z > 0.5 {
+        let draw_start = clamp(primitive.draw_range.x, 0.0, 1.0);
+        let draw_end = clamp(primitive.draw_range.y, 0.0, 1.0);
+        if draw_start >= draw_end || in.path_progress < draw_start || in.path_progress > draw_end {
+            discard;
+        }
+    }
 
     //color/gradient
     let fill_id_and_type = primitive.fill_id_and_type;

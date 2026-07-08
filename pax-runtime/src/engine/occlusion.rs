@@ -497,7 +497,7 @@ fn update_node_occlusion_recursive(
 
     match layer {
         Layer::Canvas => {
-            if let Some(coverage_path) = borrow!(node.instance_node).resolve_coverage_path(node) {
+            if let Some(coverage_path) = borrow!(node.instance_node).resolve_occlusion_path(node) {
                 let coverage_path = active_scroll_transform * coverage_path;
                 if let Some(bounds) = OcclusionBox::new_from_path(&coverage_path) {
                     let opacity = borrow!(node.instance_node).resolve_coverage_opacity(node);

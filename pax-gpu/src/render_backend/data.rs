@@ -19,6 +19,7 @@ pub(crate) struct GpuPrimitive {
     pub z_index: i32,
     pub material_id: u32,
     pub transform_id: u32,
+    pub draw_range: [f32; 4],
 }
 
 #[repr(C)]
@@ -92,12 +93,13 @@ pub(crate) struct GpuVertex {
     pub position: [f32; 2],
     pub normal: [f32; 2],
     pub prim_id: u32,
+    pub path_progress: f32,
 }
 
 impl GpuVertex {
     pub(crate) fn desc() -> wgpu::VertexBufferLayout<'static> {
-        const ATTRIBS: [wgpu::VertexAttribute; 3] =
-            wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2, 2 => Uint32];
+        const ATTRIBS: [wgpu::VertexAttribute; 4] =
+            wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2, 2 => Uint32, 3 => Float32];
         wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<GpuVertex>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,

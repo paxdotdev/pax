@@ -473,3 +473,32 @@ Solved for the example by dropping the bundled curve-fitted font variants and
 removing the comparison grid. Keep curve fitting as an offline experiment until
 path drawing can vary visible stroke range without rebuilding or restroking
 heavy cubic glyph geometry on every animated frame.
+
+After render-side path trimming landed, the same smoothing idea became viable
+again with a different boundary: smoothing must be a retained geometry input,
+not a per-frame `PathInstance::render` preprocessing step. `PathSmoothing`
+now rides with the vector op into the WGPU renderer, participates in the
+geometry signature, and runs immediately before tessellation. Animated
+`draw_start` / `draw_end` changes remain primitive updates, so smoothed
+handwriting does not resmooth or retessellate on each timeline tick.
+Profiling the macOS chassis then exposed a second boundary: the occlusion pass
+must not rebuild stroked coverage for every draw-range tick either. `Path`
+occlusion should use a conservative full-footprint path by default, with
+progress-sensitive native masking deferred until there is a concrete need.
+
+`Handwriter` also exposed the need for semantic text behind vector handwriting.
+The first pragmatic solution is to keep the visible strokes as `Path` geometry
+while layering an invisible native `Text` node using either `alt_text` or the
+drawn `text`. This is not a complete cross-primitive accessibility system, but
+it gives screen readers, crawlers, and selection machinery a real text object
+for the handwriting case.
+
+That semantic `Text` layer is only an approximation for mouse selection. The
+visible `Handwriter` path normalizes stroke-font geometry to fill its component
+bounds, while native text preserves normal font metrics, so a default 20px
+top-left text layer produces visibly detached selection rectangles. The current
+local fix centers the invisible text and sizes it by line count so selection is
+roughly in the right region. True "select the handwritten strokes" behavior
+would need a deeper text/native bridge, such as bounds-aware native text scaling
+or a platform accessibility/selection overlay that can use the rendered vector
+bounds instead of ordinary font metrics.

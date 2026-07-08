@@ -12,7 +12,7 @@
                     width: 8px
                 }
                 draw_start=@timeline {
-                    duration: 240f,
+                    duration: 4s,
                     loop: true,
                     0: 0,
                     45%: 0,
@@ -21,7 +21,7 @@
                     100%: 1,
                 }
                 draw_end=@timeline {
-                    duration: 240f,
+                    duration: 4s,
                     loop: true,
                     0: 0,
                     45%: 1,
@@ -72,14 +72,14 @@
                     width: 8px
                 }
                 draw_start=@timeline {
-                    duration: 240f,
+                    duration: 4s,
                     loop: true,
                     0: 0%,
                     82%: 82%,
                     100%: 100%,
                 }
                 draw_end=@timeline {
-                    duration: 240f,
+                    duration: 4s,
                     loop: true,
                     0: 18%,
                     82%: 100%,
@@ -109,7 +109,7 @@
                     width: 8px
                 }
                 draw_end=@timeline {
-                    duration: 240f,
+                    duration: 4s,
                     loop: true,
                     0: 0%,
                     82%: 0%,
@@ -161,7 +161,7 @@
                 height=100%
                 anchor_x=50%
                 draw_start=@timeline {
-                    duration: 240f,
+                    duration: 8s,
                     loop: true,
                     0: 0%,
                     45%: 0%,
@@ -170,7 +170,7 @@
                     100%: 100%,
                 }
                 draw_end=@timeline {
-                    duration: 240f,
+                    duration: 8s,
                     loop: true,
                     0: 0%,
                     45%: 100%,
@@ -186,8 +186,9 @@
                 height=100%
                 anchor_x=50%
                 text="wild swans"
-                font=HandwriterFont::EMSOsmotron
+                font=HandwriterFont::EMSLeague
                 line_height=1.0
+                smoothing=PathSmoothing::Strong
                 stroke={
                     color: rgba(226, 153, 35, 255)
                     width: 8px
@@ -195,7 +196,7 @@
                     join: StrokeJoin::Round
                 }
                 draw_start=@timeline {
-                    duration: 300f,
+                    duration: 10s,
                     loop: true,
                     0: 0%,
                     45%: 0%,
@@ -204,7 +205,7 @@
                     100%: 100%,
                 }
                 draw_end=@timeline {
-                    duration: 300f,
+                    duration: 10s,
                     loop: true,
                     0: 0%,
                     45%: 100%,
@@ -229,7 +230,7 @@
                     join: StrokeJoin::Round
                 }
                 draw_start=@timeline {
-                    duration: 360f,
+                    duration: 12s,
                     loop: true,
                     0: 0%,
                     45%: 0%,
@@ -238,7 +239,7 @@
                     100%: 100%,
                 }
                 draw_end=@timeline {
-                    duration: 360f,
+                    duration: 12s,
                     loop: true,
                     0: 0%,
                     45%: 100%,
@@ -254,7 +255,7 @@
                 height=100%
                 anchor_x=50%
                 draw_start=@timeline {
-                    duration: 720f,
+                    duration: 16s,
                     loop: true,
                     0: 0,
                     45%: 0,
@@ -263,7 +264,7 @@
                     100%: 1,
                 }
                 draw_end=@timeline {
-                    duration: 720f,
+                    duration: 16s,
                     loop: true,
                     0: 0,
                     45%: 1,
