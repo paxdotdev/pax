@@ -335,8 +335,6 @@ impl HelperFunctions for bool {}
 
 impl HelperFunctions for Fill {}
 
-impl HelperFunctions for crate::FillReveal {}
-
 impl HelperFunctions for crate::PaxValue {}
 
 impl HelperFunctions for crate::ColorChannel {}

@@ -34,25 +34,6 @@ impl Default for SvgCellarDoorFixture {
     }
 }
 
-#[pax]
-#[custom(Default)]
-#[file("svg_tiger_fixture.pax")]
-pub struct SvgTigerFixture {
-    pub fill_reveal_progress: Property<UnitValue>,
-    pub draw_start: Property<UnitValue>,
-    pub draw_end: Property<UnitValue>,
-}
-
-impl Default for SvgTigerFixture {
-    fn default() -> Self {
-        Self {
-            fill_reveal_progress: Property::new(unit(1.0)),
-            draw_start: Property::new(unit(0.0)),
-            draw_end: Property::new(unit(1.0)),
-        }
-    }
-}
-
 fn unit(value: f64) -> UnitValue {
     UnitValue::Unitless(Numeric::F64(value))
 }

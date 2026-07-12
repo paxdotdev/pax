@@ -16,7 +16,6 @@ pub use render_backend::Image;
 pub use render_context::Color;
 pub use render_context::DrawRange;
 pub use render_context::Fill;
-pub use render_context::FillReveal;
 pub use render_context::GradientStop;
 pub use render_context::GradientType;
 pub use render_context::LightShape;

@@ -9,8 +9,6 @@ struct Primitive {
     material_id: u32,
     transform_id: u32,
     draw_range: vec4<f32>,
-    fill_reveal: vec4<f32>,
-    reveal_bounds: vec4<f32>,
 };
 
 struct Primitives {
@@ -143,90 +141,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             discard;
         }
     }
-    var reveal_alpha = 1.0;
-    let fill_reveal = primitive.fill_reveal;
-    if fill_reveal.w > 0.5 {
-        let progress = clamp(fill_reveal.x, 0.0, 1.0);
-        if progress <= 0.0 {
-            discard;
-        }
-        if progress < 1.0 {
-            let direction = vec2<f32>(cos(fill_reveal.y), sin(fill_reveal.y));
-            let bounds = primitive.reveal_bounds;
-            let p0 = dot(vec2<f32>(bounds.x, bounds.y), direction);
-            let p1 = dot(vec2<f32>(bounds.z, bounds.y), direction);
-            let p2 = dot(vec2<f32>(bounds.z, bounds.w), direction);
-            let p3 = dot(vec2<f32>(bounds.x, bounds.w), direction);
-            let min_projection = min(min(p0, p1), min(p2, p3));
-            let max_projection = max(max(p0, p1), max(p2, p3));
-            let projection_span = max(max_projection - min_projection, 0.0001);
-            let edge = min_projection + projection_span * progress;
-            let projection = dot(in.local_position, direction);
-            if fill_reveal.w < 1.5 {
-                let feather = max(fill_reveal.z, 0.0);
-                if feather <= 0.0001 {
-                    if projection > edge {
-                        discard;
-                    }
-                } else {
-                    reveal_alpha = 1.0 - smoothstep(edge - feather, edge, projection);
-                    if reveal_alpha <= 0.001 {
-                        discard;
-                    }
-                }
-            } else {
-                let brush_width = max(fill_reveal.z, 0.25);
-                let brush_radius = brush_width * 0.5;
-                let off_axis = vec2<f32>(-direction.y, direction.x);
-                let q0 = dot(vec2<f32>(bounds.x, bounds.y), off_axis);
-                let q1 = dot(vec2<f32>(bounds.z, bounds.y), off_axis);
-                let q2 = dot(vec2<f32>(bounds.z, bounds.w), off_axis);
-                let q3 = dot(vec2<f32>(bounds.x, bounds.w), off_axis);
-                let min_off_axis = min(min(q0, q1), min(q2, q3));
-                let max_off_axis = max(max(q0, q1), max(q2, q3));
-                let off_axis_span = max(max_off_axis - min_off_axis, 0.0001);
-
-                let target_period = max(brush_width * 0.9, 0.5);
-                let cycle_count = max(ceil(projection_span / target_period), 1.0);
-                let cycle_width = projection_span / cycle_count;
-                let projection_offset = clamp(projection - min_projection, 0.0, projection_span);
-                let off_axis_offset = clamp(dot(in.local_position, off_axis) - min_off_axis, 0.0, off_axis_span);
-                let cycle_index = min(floor(projection_offset / cycle_width), cycle_count - 1.0);
-                let cycle_x = projection_offset - cycle_width * cycle_index;
-                let brush_point = vec2<f32>(cycle_x, off_axis_offset);
-                let half_cycle = cycle_width * 0.5;
-                let segment_length = max(length(vec2<f32>(half_cycle, off_axis_span)), 0.0001);
-                let cycle_start = cycle_index * segment_length * 2.0;
-                let total_path_length = max(cycle_count * segment_length * 2.0, 0.0001);
-                let painted_length = total_path_length * progress;
-
-                reveal_alpha = max(
-                    segment_reveal_alpha(
-                        brush_point,
-                        vec2<f32>(0.0, 0.0),
-                        vec2<f32>(half_cycle, off_axis_span),
-                        cycle_start,
-                        segment_length,
-                        painted_length,
-                        brush_radius,
-                    ),
-                    segment_reveal_alpha(
-                        brush_point,
-                        vec2<f32>(half_cycle, off_axis_span),
-                        vec2<f32>(cycle_width, 0.0),
-                        cycle_start + segment_length,
-                        segment_length,
-                        painted_length,
-                        brush_radius,
-                    ),
-                );
-                if reveal_alpha <= 0.001 {
-                    discard;
-                }
-            }
-        }
-    }
-
     //color/gradient
     let fill_id_and_type = primitive.fill_id_and_type;
     //clipping rectangle
@@ -239,29 +153,9 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         let p = in.clip_position.xy;
         color = gradient(fill_id, p);
     }
-    color.a *= reveal_alpha;
     color.a *= transforms.transforms[primitive.transform_id].opacity;
     color = apply_lighting(color, materials.materials[primitive.material_id], in.world_position);
     return color;
-}
-
-fn segment_reveal_alpha(
-    p: vec2<f32>,
-    a: vec2<f32>,
-    b: vec2<f32>,
-    segment_start: f32,
-    segment_length: f32,
-    painted_length: f32,
-    brush_radius: f32,
-) -> f32 {
-    let ba = b - a;
-    let t = clamp(dot(p - a, ba) / max(dot(ba, ba), 0.0001), 0.0, 1.0);
-    let distance_to_segment = length(p - (a + ba * t));
-    let distance_to_front = segment_start + segment_length * t - painted_length;
-    if distance_to_front > 0.0 || distance_to_segment > brush_radius {
-        return 0.0;
-    }
-    return 1.0;
 }
 
 fn apply_lighting(color: vec4<f32>, material: Material, world_position: vec2<f32>) -> vec4<f32> {
