@@ -803,6 +803,7 @@ impl<'w> WgpuRenderer<'w> {
             kind: PendingVectorOpKind::Stroke(stroke.weight, stroke.cap, stroke.join),
             geometry_signature,
             draw_range,
+            fill_reveal: FillReveal::disabled(),
             smoothing,
         });
     }
@@ -825,9 +826,10 @@ impl<'w> WgpuRenderer<'w> {
         material: Material,
         opacity: f32,
     ) {
-        self.fill_path_with_material_and_opacity_and_smoothing(
+        self.fill_path_with_reveal_and_material_and_opacity_and_smoothing(
             path,
             fill,
+            FillReveal::disabled(),
             material,
             opacity,
             PathSmoothing::None,
@@ -839,6 +841,26 @@ impl<'w> WgpuRenderer<'w> {
         &mut self,
         path: Path,
         fill: Fill,
+        material: Material,
+        opacity: f32,
+        smoothing: PathSmoothing,
+    ) {
+        self.fill_path_with_reveal_and_material_and_opacity_and_smoothing(
+            path,
+            fill,
+            FillReveal::disabled(),
+            material,
+            opacity,
+            smoothing,
+        );
+    }
+
+    /// Queue a filled vector path with render-side reveal, material response, opacity, and optional smoothing.
+    pub fn fill_path_with_reveal_and_material_and_opacity_and_smoothing(
+        &mut self,
+        path: Path,
+        fill: Fill,
+        fill_reveal: FillReveal,
         material: Material,
         opacity: f32,
         smoothing: PathSmoothing,
@@ -861,6 +883,7 @@ impl<'w> WgpuRenderer<'w> {
             kind: PendingVectorOpKind::Fill,
             geometry_signature,
             draw_range: DrawRange::disabled(),
+            fill_reveal,
             smoothing,
         });
     }
@@ -1707,6 +1730,7 @@ struct PendingVectorOp {
     kind: PendingVectorOpKind,
     geometry_signature: u64,
     draw_range: DrawRange,
+    fill_reveal: FillReveal,
     smoothing: PathSmoothing,
 }
 
@@ -1881,6 +1905,7 @@ fn rebuild_vector_buffers(
                 &mut next_gradient_id,
                 &mut next_material_id,
                 op.draw_range,
+                op.fill_reveal,
             )
         } else {
             push_primitive_def(
@@ -1889,6 +1914,7 @@ fn rebuild_vector_buffers(
                 op.material,
                 transform_id,
                 op.draw_range,
+                op.fill_reveal,
             )
         };
 
@@ -2443,6 +2469,12 @@ fn hash_vector_primitives(ops: &[PendingVectorOp]) -> u64 {
         for value in op.draw_range.as_gpu_range() {
             value.to_bits().hash(&mut hasher);
         }
+        for value in op.fill_reveal.as_gpu_reveal() {
+            value.to_bits().hash(&mut hasher);
+        }
+        for value in op.fill_reveal.as_gpu_bounds() {
+            value.to_bits().hash(&mut hasher);
+        }
     }
     hasher.finish()
 }
@@ -2796,6 +2828,7 @@ fn push_primitive_def(
     material: Material,
     transform_id: u32,
     draw_range: DrawRange,
+    fill_reveal: FillReveal,
 ) -> u32 {
     let fill_id;
     let fill_type_flag;
@@ -2848,6 +2881,8 @@ fn push_primitive_def(
         transform_id,
         z_index: 0,
         draw_range: draw_range.as_gpu_range(),
+        fill_reveal: fill_reveal.as_gpu_reveal(),
+        reveal_bounds: fill_reveal.as_gpu_bounds(),
     };
     let prim_id = buffers.primitives.len() as u32;
     buffers.primitives.push(primitive);
@@ -2862,6 +2897,7 @@ fn push_primitive_with_existing_fill(
     next_gradient_id: &mut u16,
     next_material_id: &mut u32,
     draw_range: DrawRange,
+    fill_reveal: FillReveal,
 ) -> u32 {
     let (fill_id, fill_type_flag) = match fill {
         Fill::Solid(_) => {
@@ -2885,6 +2921,8 @@ fn push_primitive_with_existing_fill(
         transform_id,
         z_index: 0,
         draw_range: draw_range.as_gpu_range(),
+        fill_reveal: fill_reveal.as_gpu_reveal(),
+        reveal_bounds: fill_reveal.as_gpu_bounds(),
     });
     prim_id
 }
@@ -3330,6 +3368,69 @@ pub struct Stroke {
     pub join: StrokeJoin,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+/// Render-side reveal mask for filled vector geometry.
+pub struct FillReveal {
+    pub progress: f32,
+    pub angle_radians: f32,
+    pub size: f32,
+    pub mode: f32,
+    pub bounds: Box2D,
+}
+
+impl FillReveal {
+    pub fn disabled() -> Self {
+        Self {
+            progress: 1.0,
+            angle_radians: 0.0,
+            size: 0.0,
+            mode: 0.0,
+            bounds: Box2D {
+                min: point(0.0, 0.0),
+                max: point(0.0, 0.0),
+            },
+        }
+    }
+
+    pub fn sweep(progress: f32, angle_radians: f32, feather: f32, bounds: Box2D) -> Self {
+        Self {
+            progress,
+            angle_radians,
+            size: feather,
+            mode: 1.0,
+            bounds,
+        }
+    }
+
+    pub fn brush(progress: f32, angle_radians: f32, brush_width: f32, bounds: Box2D) -> Self {
+        Self {
+            progress,
+            angle_radians,
+            size: brush_width,
+            mode: 2.0,
+            bounds,
+        }
+    }
+
+    fn as_gpu_reveal(&self) -> [f32; 4] {
+        [
+            self.progress.clamp(0.0, 1.0),
+            self.angle_radians,
+            self.size.max(0.0),
+            self.mode,
+        ]
+    }
+
+    fn as_gpu_bounds(&self) -> [f32; 4] {
+        [
+            self.bounds.min.x,
+            self.bounds.min.y,
+            self.bounds.max.x,
+            self.bounds.max.y,
+        ]
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 /// Normalized visible range for a stroked vector path.
 pub struct DrawRange {
@@ -3396,6 +3497,13 @@ mod tests {
         builder.build()
     }
 
+    fn rect_bounds(width: f32, height: f32) -> Box2D {
+        Box2D {
+            min: point(0.0, 0.0),
+            max: point(width, height),
+        }
+    }
+
     #[test]
     fn axis_aligned_rect_clip_becomes_scissor() {
         let transform = Transform2D::from_array([2.0, 0.0, 0.0, 3.0, 5.0, 7.0]);
@@ -3428,6 +3536,7 @@ mod tests {
                 PathSmoothing::None,
             ),
             draw_range: DrawRange::disabled(),
+            fill_reveal: FillReveal::disabled(),
             smoothing: PathSmoothing::None,
         };
         let ops = vec![
@@ -3440,6 +3549,7 @@ mod tests {
                 kind: PendingVectorOpKind::Fill,
                 geometry_signature: op.geometry_signature,
                 draw_range: DrawRange::disabled(),
+                fill_reveal: FillReveal::disabled(),
                 smoothing: PathSmoothing::None,
             },
             op,
@@ -3517,6 +3627,7 @@ mod tests {
                 kind,
                 geometry_signature,
                 draw_range: DrawRange::enabled(0.0, 0.5),
+                fill_reveal: FillReveal::disabled(),
                 smoothing: PathSmoothing::None,
             },
             PendingVectorOp {
@@ -3528,6 +3639,7 @@ mod tests {
                 kind,
                 geometry_signature,
                 draw_range: DrawRange::enabled(0.25, 0.75),
+                fill_reveal: FillReveal::disabled(),
                 smoothing: PathSmoothing::None,
             },
         ];
@@ -3569,6 +3681,7 @@ mod tests {
             kind,
             geometry_signature: hash_vector_path(&path, kind, PathSmoothing::None),
             draw_range: DrawRange::enabled(0.0, 1.0),
+            fill_reveal: FillReveal::disabled(),
             smoothing: PathSmoothing::None,
         };
 
@@ -3624,6 +3737,7 @@ mod tests {
                 kind,
                 geometry_signature,
                 draw_range,
+                fill_reveal: FillReveal::disabled(),
                 smoothing: PathSmoothing::None,
             }]
         };
@@ -3681,6 +3795,7 @@ mod tests {
                 kind,
                 geometry_signature,
                 draw_range,
+                fill_reveal: FillReveal::disabled(),
                 smoothing: PathSmoothing::None,
             }]
         };
@@ -3688,6 +3803,131 @@ mod tests {
         assert_ne!(
             hash_vector_primitives(&make_ops(DrawRange::enabled(0.0, 0.5))),
             hash_vector_primitives(&make_ops(DrawRange::enabled(0.25, 0.75)))
+        );
+    }
+
+    #[test]
+    fn fill_reveal_changes_refresh_primitives_without_rebuilding_geometry() {
+        let path = rect_path(10.0, 5.0);
+        let kind = PendingVectorOpKind::Fill;
+        let geometry_signature = hash_vector_path(&path, kind, PathSmoothing::None);
+        let make_ops = |fill_reveal| {
+            vec![PendingVectorOp {
+                path: path.clone(),
+                fill: Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),
+                material: Material::default(),
+                transform: Transform2D::identity(),
+                opacity: 1.0,
+                kind,
+                geometry_signature,
+                draw_range: DrawRange::disabled(),
+                fill_reveal,
+                smoothing: PathSmoothing::None,
+            }]
+        };
+        let cache = Rc::new(RefCell::new(VectorGeometryCache::default()));
+        let mut stats = ResourceChurnStats::default();
+        let mut buffers = new_cpu_buffers();
+
+        rebuild_vector_buffers(
+            DEFAULT_TESSELLATION_TOLERANCE,
+            &make_ops(FillReveal::sweep(0.25, 0.0, 0.0, rect_bounds(10.0, 5.0))),
+            &mut buffers,
+            false,
+            false,
+            &cache,
+            &mut stats,
+        );
+        let vertices = buffers.geometry.vertices.clone();
+        let indices = buffers.geometry.indices.clone();
+
+        let mut update_stats = ResourceChurnStats::default();
+        rebuild_vector_buffers(
+            DEFAULT_TESSELLATION_TOLERANCE,
+            &make_ops(FillReveal::sweep(0.75, 0.0, 2.0, rect_bounds(10.0, 5.0))),
+            &mut buffers,
+            true,
+            true,
+            &cache,
+            &mut update_stats,
+        );
+
+        assert_eq!(update_stats.vector_geometry_rebuilds, 0);
+        assert_eq!(buffers.geometry.vertices.len(), vertices.len());
+        for (left, right) in buffers.geometry.vertices.iter().zip(vertices.iter()) {
+            assert_eq!(left.position, right.position);
+            assert_eq!(left.normal, right.normal);
+            assert_eq!(left.prim_id, right.prim_id);
+            assert_eq!(left.path_progress, right.path_progress);
+        }
+        assert_eq!(buffers.geometry.indices, indices);
+        assert_eq!(buffers.primitives[0].fill_reveal, [0.75, 0.0, 2.0, 1.0]);
+        assert_eq!(buffers.primitives[0].reveal_bounds, [0.0, 0.0, 10.0, 5.0]);
+
+        let mut brush_update_stats = ResourceChurnStats::default();
+        rebuild_vector_buffers(
+            DEFAULT_TESSELLATION_TOLERANCE,
+            &make_ops(FillReveal::brush(0.5, 0.0, 12.0, rect_bounds(10.0, 5.0))),
+            &mut buffers,
+            true,
+            true,
+            &cache,
+            &mut brush_update_stats,
+        );
+
+        assert_eq!(brush_update_stats.vector_geometry_rebuilds, 0);
+        assert_eq!(buffers.geometry.vertices.len(), vertices.len());
+        assert_eq!(buffers.geometry.indices, indices);
+        assert_eq!(buffers.primitives[0].fill_reveal, [0.5, 0.0, 12.0, 2.0]);
+    }
+
+    #[test]
+    fn fill_reveal_changes_are_part_of_primitive_signature() {
+        let path = rect_path(10.0, 5.0);
+        let kind = PendingVectorOpKind::Fill;
+        let geometry_signature = hash_vector_path(&path, kind, PathSmoothing::None);
+        let make_ops = |fill_reveal| {
+            vec![PendingVectorOp {
+                path: path.clone(),
+                fill: Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),
+                material: Material::default(),
+                transform: Transform2D::identity(),
+                opacity: 1.0,
+                kind,
+                geometry_signature,
+                draw_range: DrawRange::disabled(),
+                fill_reveal,
+                smoothing: PathSmoothing::None,
+            }]
+        };
+
+        assert_ne!(
+            hash_vector_primitives(&make_ops(FillReveal::sweep(
+                0.25,
+                0.0,
+                0.0,
+                rect_bounds(10.0, 5.0)
+            ))),
+            hash_vector_primitives(&make_ops(FillReveal::sweep(
+                0.75,
+                0.0,
+                0.0,
+                rect_bounds(10.0, 5.0)
+            )))
+        );
+        assert_ne!(
+            hash_vector_primitives(&make_ops(FillReveal::sweep(
+                0.25,
+                0.0,
+                4.0,
+                rect_bounds(10.0, 5.0)
+            ))),
+            hash_vector_primitives(&make_ops(FillReveal::brush(
+                0.25,
+                0.0,
+                4.0,
+                rect_bounds(10.0, 5.0)
+            )))
         );
     }
 
@@ -3706,6 +3946,7 @@ mod tests {
             kind,
             geometry_signature,
             draw_range: DrawRange::enabled(0.0, 0.5),
+            fill_reveal: FillReveal::disabled(),
             smoothing,
         };
 

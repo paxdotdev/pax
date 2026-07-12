@@ -56,13 +56,16 @@ pax-language = {version = "0.38.3", path="../pax-language"}
 rand = "0.8.4"
 regex = "1"
 reqwest = { version = "0.11.18", features = ["blocking"] }
+roxmltree = "0.21.1"
 rmp-serde = "1.1.2"
 schemars = "0.8.16"
 serde = { version = "1.0.159", features=["derive"] }
 serde_derive = "1.0.159"
 serde_json = { version = "1.0.95", optional = true }
 serde_with = { version= "3.6.1", features = ["json"] }
+sha2 = "0.10.8"
 similar = "2.2.1"
+svgtypes = "0.16.1"
 syn = { version = "1.0", features = ["full", "parsing", "visit"] }
 tera = "1"
 tokio = { version = "1", features = ["full"] }

@@ -19,6 +19,7 @@ pub mod dev_session;
 pub mod helpers;
 pub mod project_metadata;
 pub mod static_analysis;
+pub mod svg_import;
 
 pub mod design_server;
 

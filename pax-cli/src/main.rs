@@ -12,6 +12,7 @@ extern crate pax_language_server;
 mod dev;
 mod docs;
 mod http;
+mod svg_import;
 
 use color_eyre::eyre::eyre;
 use color_eyre::eyre::Report;
@@ -228,6 +229,7 @@ fn main() -> Result<(), Report> {
         )
         .subcommand(docs::command())
         .subcommand(dev::command())
+        .subcommand(svg_import::command())
         .get_matches_from(normalize_cli_args(std::env::args().collect())?);
 
     let is_libdev_mode = resolve_matches_libdev_mode(&matches)?;
@@ -430,6 +432,7 @@ fn perform_nominal_action(
         }
         ("docs", Some(args)) => docs::handle(args),
         ("dev", Some(args)) => dev::handle(args, process_child_ids),
+        ("svg-import", Some(args)) => svg_import::handle(args),
         _ => unreachable!(), // If all subcommands are defined above, anything else is unreachable
     }
 }

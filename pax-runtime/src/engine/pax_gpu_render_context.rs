@@ -5,13 +5,13 @@ use super::layer_surface::{
 };
 use kurbo::{BezPath, PathEl, Rect, Shape};
 use pax_gpu::{
-    point, Box2D, DrawRange as PixelDrawRange, Image, LightShape as PixelLightShape,
-    Material as PixelMaterial, Path, ResourceChurnStats, SceneLight as PixelSceneLight,
-    SceneLighting as PixelSceneLighting, Stroke as PixelStroke, StrokeCap as PixelStrokeCap,
-    StrokeJoin as PixelStrokeJoin, Transform2D, WgpuRenderer,
+    point, Box2D, DrawRange as PixelDrawRange, FillReveal as PixelFillReveal, Image,
+    LightShape as PixelLightShape, Material as PixelMaterial, Path, ResourceChurnStats,
+    SceneLight as PixelSceneLight, SceneLighting as PixelSceneLighting, Stroke as PixelStroke,
+    StrokeCap as PixelStrokeCap, StrokeJoin as PixelStrokeJoin, Transform2D, WgpuRenderer,
 };
 use pax_runtime_api::{
-    Axis, LayerSurfaceScreenshotData, Material, PathSmoothing, RenderContext,
+    Axis, FillReveal, LayerSurfaceScreenshotData, Material, PathSmoothing, RenderContext,
     ReplayCanvasLayerUpdate, SceneLighting, ScreenshotData, Stroke, StrokeCap, StrokeJoin,
 };
 use std::{
@@ -1111,6 +1111,34 @@ impl RenderContext for PaxGpuRenderer {
         });
     }
 
+    fn fill_with_reveal_and_material_and_opacity_and_smoothing(
+        &mut self,
+        layer: usize,
+        path: kurbo::BezPath,
+        fill: &pax_runtime_api::Fill,
+        material: &Material,
+        opacity: f64,
+        fill_reveal: FillReveal,
+        reveal_bounds: kurbo::Rect,
+        smoothing: PathSmoothing,
+    ) {
+        self.with_layer_context(layer, |context| {
+            let bounds = path.bounding_box();
+            let path = convert_kurbo_to_lyon_path(&path);
+            let fill = to_pax_gpu_fill(fill, bounds, context.current_transform());
+            let material = to_pax_gpu_material(material);
+            let fill_reveal = to_pax_gpu_fill_reveal(fill_reveal, reveal_bounds);
+            context.fill_path_with_reveal_and_material_and_opacity_and_smoothing(
+                path,
+                fill,
+                fill_reveal,
+                material,
+                opacity as f32,
+                smoothing,
+            );
+        });
+    }
+
     fn stroke_with_opacity(
         &mut self,
         layer: usize,
@@ -1857,6 +1885,60 @@ fn to_pax_gpu_fill(
             }
         }
     }
+}
+
+fn to_pax_gpu_fill_reveal(fill_reveal: FillReveal, reveal_bounds: kurbo::Rect) -> PixelFillReveal {
+    match fill_reveal {
+        FillReveal::None => PixelFillReveal::disabled(),
+        FillReveal::Sweep(progress, angle, feather) => {
+            let bounds = Box2D {
+                min: point(reveal_bounds.x0 as f32, reveal_bounds.y0 as f32),
+                max: point(reveal_bounds.x1 as f32, reveal_bounds.y1 as f32),
+            };
+            let angle_radians = angle.get_as_radians();
+            let direction = (angle_radians.cos(), angle_radians.sin());
+            let projection_span =
+                sweep_projection_span(reveal_bounds.width(), reveal_bounds.height(), direction);
+            let feather = feather.evaluate((projection_span, 0.0), Axis::X).max(0.0) as f32;
+            PixelFillReveal::sweep(
+                progress.to_clamped_unit_float() as f32,
+                angle_radians as f32,
+                feather,
+                bounds,
+            )
+        }
+        FillReveal::Brush(progress, angle, brush_width) => {
+            let bounds = Box2D {
+                min: point(reveal_bounds.x0 as f32, reveal_bounds.y0 as f32),
+                max: point(reveal_bounds.x1 as f32, reveal_bounds.y1 as f32),
+            };
+            let angle_radians = angle.get_as_radians();
+            let direction = (angle_radians.cos(), angle_radians.sin());
+            let projection_span =
+                sweep_projection_span(reveal_bounds.width(), reveal_bounds.height(), direction);
+            let brush_width = brush_width
+                .evaluate((projection_span, 0.0), Axis::X)
+                .max(0.0) as f32;
+            PixelFillReveal::brush(
+                progress.to_clamped_unit_float() as f32,
+                angle_radians as f32,
+                brush_width,
+                bounds,
+            )
+        }
+    }
+}
+
+fn sweep_projection_span(width: f64, height: f64, direction: (f64, f64)) -> f64 {
+    let corners = [(0.0, 0.0), (width, 0.0), (width, height), (0.0, height)];
+    let mut min_projection = f64::INFINITY;
+    let mut max_projection = f64::NEG_INFINITY;
+    for (x, y) in corners {
+        let projection = x * direction.0 + y * direction.1;
+        min_projection = min_projection.min(projection);
+        max_projection = max_projection.max(projection);
+    }
+    (max_projection - min_projection).max(0.0)
 }
 
 fn to_pax_gpu_material(material: &pax_runtime_api::Material) -> PixelMaterial {

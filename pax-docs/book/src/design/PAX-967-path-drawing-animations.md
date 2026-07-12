@@ -1,7 +1,7 @@
 # PAX-967 Path Drawing Animations
 
 Status: implementation handoff draft
-Last revised: 2026-07-06
+Last revised: 2026-07-08
 
 <!-- summary: API and implementation spec for path drawing / stroke reveal animations and SVG-backed path components. -->
 <!-- tags: animation, drawing, path, stroke, svg, timeline, runtime -->
@@ -71,7 +71,9 @@ authoring surfaces should remain separate.
   deterministic subset useful for Illustrator path data.
 - Motion along a path; that belongs to PAX-943.
 - Revealing arbitrary subtrees or mixed vector/native content in the first pass.
-- A filled-shape wipe/mask API in the first pass.
+- General brush-simulated fill painting in the first pass. A procedural
+  `FillReveal::Brush` experiment is included for evaluation, but it is not yet
+  a complete paint simulation.
 - Morphing between two `Vec<PathElement>` values.
 - New timeline syntax or a new animation controller API.
 - Unprefixed path child tags such as `<Point>` or `<Curve>`. The current
@@ -134,13 +136,14 @@ pub enum UnitValue {
   and return `UnitValue::Unitless(...)`, mirroring the existing `Opacity`
   interpolation pattern.
 
-Then add two properties to `Path`:
+Then add draw-range, smoothing, and fill-reveal properties to `Path`:
 
 ```rust
 pub struct Path {
     pub elements: Property<Vec<PathElement>>,
     pub stroke: Property<Stroke>,
     pub fill: Property<Fill>,
+    pub fill_reveal: Property<FillReveal>,
     pub material: Property<Material>,
     pub smoothing: Property<PathSmoothing>,
     pub draw_start: Property<UnitValue>,
@@ -194,6 +197,41 @@ implementation, which does not provide true progress-sensitive clipping.
 forward it to the internal `Path`. This lets authors use the bundled
 single-stroke SVG fonts without choosing separate pre-smoothed font assets.
 
+### Fill Reveal
+
+Add a separate `FillReveal` semantic for filled artwork. This is deliberately
+not tied to `draw_start` / `draw_end`, because stroke drawing and fill painting
+have different semantics:
+
+```rust
+pub enum FillReveal {
+    None,
+    Sweep(UnitValue, Rotation, Size),
+    Brush(UnitValue, Rotation, Size),
+}
+```
+
+`None` is the default and preserves existing fill behavior. `Sweep(progress,
+angle, feather)` reveals the stable final fill geometry through a directional
+render-side mask. `0deg` sweeps left-to-right across the `Path` component's
+local bounds; `90deg` sweeps bottom-to-top if the renderer uses Pax's existing
+positive-y-down local coordinate convention. `feather` softens the reveal edge
+where the backend supports it.
+
+`Brush(progress, angle, brush_width)` is an experimental procedural brush
+variant. It reveals the same stable final fill geometry, but the WGPU renderer
+uses a dense triangular zig-zag brush path in the path's local bounds instead
+of a single sweep half-plane. `brush_width` controls both the visual stroke
+diameter and the generated zig-zag density. This is intentionally parameter
+light for v0.1; future variants can accept an authored reveal path if the
+procedural brush proves useful.
+
+The WGPU backend should upload/tessellate the full fill geometry once and vary
+only primitive-level reveal data while `progress` animates. Piet/native
+fallbacks may use a hard clipping polygon for both `Sweep` and `Brush`, and may
+ignore feather/brush details at first. This keeps fill reveal useful for
+complex SVG art without redefining partial SVG fill rules.
+
 ## Path Draw Semantics
 
 - `draw_start` and `draw_end` are unit-domain positions over total path length.
@@ -206,7 +244,7 @@ single-stroke SVG fonts without choosing separate pre-smoothed font assets.
 - `draw_start = 0.25, draw_end = 75%` draws the middle half of the path.
 - If `draw_start >= draw_end`, no stroke is drawn.
 - The properties affect stroke rendering and stroke coverage. They do not trim
-  fill in the first pass.
+  fill; use `fill_reveal` for filled-art reveal.
 
 Example:
 
@@ -250,13 +288,15 @@ segments around a closed loop.
 
 ### Fill
 
-The first pass leaves fill unchanged. Authors who want a pen-writing effect
-should use `fill=TRANSPARENT` or duplicate a filled path underneath/above the
-drawn stroke.
+Authors who want a pen-writing effect should use `fill=TRANSPARENT` or
+duplicate a filled path underneath/above the drawn stroke.
 
 Trimming fill along path length is not a well-defined vector operation for
-closed shapes. A future wrapper or mask API is a better place for progressive
-filled-art reveal.
+closed shapes. `fill_reveal` therefore masks the completed filled shape instead
+of constructing a partial filled path. `Sweep` is a practical wipe reveal for
+illustration stress tests and static SVG imports. `Brush` is a procedural
+zig-zag reveal intended to test whether a denser brush trajectory feels less
+like a cheap mask without requiring authors to supply a reveal path.
 
 ### Hit Testing And Occlusion
 
@@ -264,7 +304,9 @@ Stroke coverage should use the trimmed centerline before `stroked_outline_path`
 is computed. Otherwise a visually hidden part of the stroke could still affect
 occlusion or hit testing.
 
-Fill coverage remains based on the full path because fill remains untrimmed.
+Fill coverage remains based on the full path. `fill_reveal` is a render-side
+visual mask and should be treated as render-only for occlusion until Pax has
+true progress-sensitive clipping semantics for native surfaces.
 
 ### Animation
 
@@ -478,19 +520,24 @@ drawing follows arc length along a centerline; fill drawing asks how an area is
 painted over time. Closing an open partial contour with a straight edge usually
 looks like mathematical extrusion, not paint.
 
-Promising follow-up approaches:
+Start with `FillReveal::Sweep`: tessellate or rasterize the complete filled
+shape, then reveal it through a render-side half-plane mask parameterized by
+progress, angle, and feather. This has clear semantics, keeps geometry stable,
+and should animate by updating primitive data rather than rebuilding meshes.
 
-- Clip or mask the filled shape with a moving brush/stencil driven by path
-  length, so the interior feels painted instead of linearly extruded.
-- Rasterize or tessellate full fill geometry once, then reveal it through a
-  render-side coverage mask.
-- Support author-provided reveal paths separate from fill outlines, especially
-  for Illustrator workflows.
+Also include an experimental `FillReveal::Brush(progress, angle, brush_width)`
+mode. For v0.1, the renderer procedurally generates a high-frequency triangular
+zig-zag brush in local path space; `brush_width` controls both coverage radius
+and zig-zag density. This is still a render-side mask over final fill geometry,
+but it tests whether a brush-like coverage boundary is good enough before
+committing to author-provided reveal paths.
 
-The classic public-domain Tiger SVG is a good stress test for this follow-up:
-it has many filled contours, varied colors, and enough complexity to reveal
-whether the model scales beyond simple glyphs. This should remain separate from
-PAX-967 stroke drawing until a concrete fill-painting semantic is selected.
+Use a permissively licensed tiger illustration as the first stress test. Do not
+use the Ghostscript tiger asset in tree because the Commons file is
+AGPL-licensed. The current fixture uses Google Noto Emoji's tiger-face SVG,
+whose image resources are documented as Apache-2.0 in the Noto Emoji repo. The
+fixture should cite its source and license so generated Pax can be safely kept
+in the repo.
 
 ## `pax-cli svg-import`
 
@@ -605,6 +652,11 @@ Pax component with SVG provenance.
     - stroke-only block-text outline tracing with closed contours
     - an inline timeline
     - a slider or property-bound playhead for manual inspection
+11. Add `FillReveal` and `Path.fill_reveal` as a separate filled-art reveal
+    mechanism. The first renderer-backed modes are `Sweep(UnitValue, Rotation,
+    Size)` and experimental `Brush(UnitValue, Rotation, Size)`.
+12. Keep `fill_reveal` in primitive/render data so sweep progress changes do
+    not invalidate tessellated fill geometry.
 
 Because these fields are runtime-visible properties on a primitive, audit
 manifest generation, binary baking, release cartridge generation, and manifest

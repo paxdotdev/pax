@@ -20,6 +20,8 @@ pub(crate) struct GpuPrimitive {
     pub material_id: u32,
     pub transform_id: u32,
     pub draw_range: [f32; 4],
+    pub fill_reveal: [f32; 4],
+    pub reveal_bounds: [f32; 4],
 }
 
 #[repr(C)]

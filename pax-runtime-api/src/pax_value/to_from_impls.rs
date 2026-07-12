@@ -17,6 +17,7 @@ use crate::ColorChannel;
 use crate::Depth;
 use crate::Duration;
 use crate::Fill;
+use crate::FillReveal;
 use crate::GradientStop;
 use crate::LayoutRole;
 use crate::LightShape;
@@ -274,6 +275,36 @@ impl ToPaxValue for PathSmoothing {
             variant.to_string(),
             vec![],
         )))
+    }
+}
+
+impl ToPaxValue for FillReveal {
+    fn to_pax_value(self) -> PaxValue {
+        match self {
+            FillReveal::None => PaxValue::Enum(Box::new((
+                "FillReveal".to_string(),
+                "None".to_string(),
+                vec![],
+            ))),
+            FillReveal::Sweep(progress, angle, feather) => PaxValue::Enum(Box::new((
+                "FillReveal".to_string(),
+                "Sweep".to_string(),
+                vec![
+                    progress.to_pax_value(),
+                    angle.to_pax_value(),
+                    feather.to_pax_value(),
+                ],
+            ))),
+            FillReveal::Brush(progress, angle, brush_width) => PaxValue::Enum(Box::new((
+                "FillReveal".to_string(),
+                "Brush".to_string(),
+                vec![
+                    progress.to_pax_value(),
+                    angle.to_pax_value(),
+                    brush_width.to_pax_value(),
+                ],
+            ))),
+        }
     }
 }
 

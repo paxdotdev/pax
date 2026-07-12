@@ -7,7 +7,7 @@ use std::ops::Range;
 use crate::{
     impl_default_coercion_rule,
     math::{Transform2, Vector2},
-    Color, ColorChannel, Depth, Duration, Fill, GradientStop, LayoutRole, LightShape,
+    Color, ColorChannel, Depth, Duration, Fill, FillReveal, GradientStop, LayoutRole, LightShape,
     LinearGradient, Material, MaterialParams, Numeric, Opacity, PathElement, PathSmoothing,
     PaxValue, Percent, Property, RadialGradient, Rotation, Size, Stroke, StrokeCap, StrokeJoin,
     Transform2D, UnitValue, Vector3,
@@ -952,6 +952,82 @@ impl CoercionRules for PathSmoothing {
                 }
             }
             _ => Err(format!("failed to coerce PathSmoothing")),
+        }
+    }
+}
+
+impl CoercionRules for FillReveal {
+    fn try_coerce(value: PaxValue) -> Result<Self, String> {
+        match value {
+            PaxValue::Enum(contents) => {
+                let (_, variant, args) = *contents;
+                let mut args = args.into_iter();
+                match variant.as_str() {
+                    "None" => {
+                        if args.next().is_some() {
+                            return Err("failed to coerce FillReveal::None: expected no enum args"
+                                .to_string());
+                        }
+                        Ok(FillReveal::None)
+                    }
+                    "Sweep" => {
+                        let progress = args.next().ok_or_else(|| {
+                            "failed to coerce FillReveal::Sweep: missing progress".to_string()
+                        })?;
+                        let angle = args.next().ok_or_else(|| {
+                            "failed to coerce FillReveal::Sweep: missing angle".to_string()
+                        })?;
+                        let feather = args.next().ok_or_else(|| {
+                            "failed to coerce FillReveal::Sweep: missing feather".to_string()
+                        })?;
+                        if args.next().is_some() {
+                            return Err(
+                                "failed to coerce FillReveal::Sweep: expected three enum args"
+                                    .to_string(),
+                            );
+                        }
+                        Ok(FillReveal::Sweep(
+                            UnitValue::try_coerce(progress)?,
+                            Rotation::try_coerce(angle)?,
+                            Size::try_coerce(feather)?,
+                        ))
+                    }
+                    "Brush" => {
+                        let progress = args.next().ok_or_else(|| {
+                            "failed to coerce FillReveal::Brush: missing progress".to_string()
+                        })?;
+                        let angle = args.next().ok_or_else(|| {
+                            "failed to coerce FillReveal::Brush: missing angle".to_string()
+                        })?;
+                        let brush_width = args.next().ok_or_else(|| {
+                            "failed to coerce FillReveal::Brush: missing brush width".to_string()
+                        })?;
+                        if args.next().is_some() {
+                            return Err(
+                                "failed to coerce FillReveal::Brush: expected three enum args"
+                                    .to_string(),
+                            );
+                        }
+                        Ok(FillReveal::Brush(
+                            UnitValue::try_coerce(progress)?,
+                            Rotation::try_coerce(angle)?,
+                            Size::try_coerce(brush_width)?,
+                        ))
+                    }
+                    _ => Err(format!(
+                        "failed to coerce FillReveal: unknown enum variant {:?}",
+                        variant
+                    )),
+                }
+            }
+            PaxValue::Option(o) => {
+                if let Some(o) = *o {
+                    FillReveal::try_coerce(o)
+                } else {
+                    Err("failed to coerce FillReveal".to_string())
+                }
+            }
+            _ => Err("failed to coerce FillReveal".to_string()),
         }
     }
 }

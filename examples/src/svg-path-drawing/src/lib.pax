@@ -273,6 +273,38 @@
             />
         </Group>
 
+        <Group width=100% height=380px>
+            <SvgTigerFixture
+                x=50%
+                width=88%
+                height=100%
+                anchor_x=50%
+                fill_reveal_progress=@timeline {
+                    duration: 12s,
+                    loop: true,
+                    0: 0%,
+                    45%: 100%,
+                    60%: 100%,
+                    100%: 0%,
+                }
+                draw_start=@timeline {
+                    duration: 12s,
+                    loop: true,
+                    0: 0%,
+                    45%: 0%,
+                    60%: 0%,
+                    100%: 100%,
+                }
+                draw_end=@timeline {
+                    duration: 12s,
+                    loop: true,
+                    0: 0%,
+                    45%: 100%,
+                    100%: 100%,
+                }
+            />
+        </Group>
+
         <Group width=100% height=40px />
     </Stacker>
 </Scroller>

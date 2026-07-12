@@ -5,7 +5,7 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 use std::str::FromStr;
-use std::{env, fs, path::PathBuf}; // Necessary for `writeln!` macro to work
+use std::{env, path::PathBuf}; // Necessary for `writeln!` macro to work
 
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{format_ident, quote, ToTokens};
@@ -391,13 +391,12 @@ fn pax_full_component(
     let cartridge_snippet = if let Some(pax_dir) = pax_dir {
         if pax_dir.starts_with(&current_manifest_dir) {
             let cartridge_path = pax_dir.join("cartridge.partial.rs");
-            fs::read_to_string(&cartridge_path).unwrap_or_else(|err| {
-                panic!(
-                    "failed to read generated Pax cartridge snippet at {}: {}",
-                    cartridge_path.display(),
-                    err
-                )
-            })
+            let cartridge_path = cartridge_path.to_str().unwrap_or_else(|| {
+                panic!("non-UTF-8 Pax cartridge path: {}", cartridge_path.display())
+            });
+            format!(
+                "#[allow(dead_code, non_snake_case, non_upper_case_globals, unused_mut, unused_variables, mismatched_lifetime_syntaxes)]\ninclude!({cartridge_path:?});"
+            )
         } else if needs_runtime_cartridge {
             missing_cartridge_snippet(format!(
                 "PAX_DIR ({}) does not point at the active Pax project root ({}). Build Pax apps through pax-cli so the generated cartridge can be injected into #[pax].",
@@ -447,6 +446,7 @@ fn pax_full_component(
 struct Config {
     is_main_component: bool,
     file_path: Option<String>,
+    svg_path: Option<String>,
     inlined_contents: Option<String>,
     custom_values: Option<Vec<String>>,
     engine_import_path: Option<String>,
@@ -459,6 +459,7 @@ fn parse_config(attrs: &mut Vec<syn::Attribute>) -> Config {
     let mut config = Config {
         is_main_component: false,
         file_path: None,
+        svg_path: None,
         inlined_contents: None,
         custom_values: None,
         primitive_instance_import_path: None,
@@ -476,6 +477,16 @@ fn parse_config(attrs: &mut Vec<syn::Attribute>) -> Config {
                     if let Some(nested_meta) = meta_list.nested.first() {
                         if let syn::NestedMeta::Lit(Lit::Str(file_str)) = nested_meta {
                             config.file_path = Some(file_str.value());
+                            return false;
+                        }
+                    }
+                }
+            }
+            Some(s) if s == "svg" => {
+                if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
+                    if let Some(nested_meta) = meta_list.nested.first() {
+                        if let syn::NestedMeta::Lit(Lit::Str(file_str)) = nested_meta {
+                            config.svg_path = Some(file_str.value());
                             return false;
                         }
                     }
@@ -558,23 +569,31 @@ fn validate_config(
     input: &syn::DeriveInput,
     config: &Config,
 ) -> Result<(), proc_macro::TokenStream> {
-    if config.file_path.is_some() && config.inlined_contents.is_some() {
+    let template_source_count = [
+        config.file_path.is_some(),
+        config.svg_path.is_some(),
+        config.inlined_contents.is_some(),
+    ]
+    .into_iter()
+    .filter(|present| *present)
+    .count();
+    if template_source_count > 1 {
         return Err(syn::Error::new_spanned(
             input.ident.clone(),
-            "`#[file(...)]` and `#[inlined(...)]` attributes cannot be used together",
+            "`#[file(...)]`, `#[svg(...)]`, and `#[inlined(...)]` attributes cannot be used together",
         )
         .to_compile_error()
         .into());
     }
-    if config.file_path.is_none() && config.inlined_contents.is_none() && config.is_main_component {
+    if template_source_count == 0 && config.is_main_component {
         return Err(syn::Error::new_spanned(
             input.ident.clone(),
-            "Main (application-root) components must specify either a Pax file or inlined Pax content, e.g. #[file(\"some-file.pax\")] or #[inlined(<SomePax />)]",
+            "Main (application-root) components must specify a Pax template source, e.g. #[file(\"some-file.pax\")], #[svg(\"some-file.svg\")], or #[inlined(<SomePax />)]",
         )
         .to_compile_error()
         .into());
     }
-    if config.is_primitive && (config.file_path.is_some() || config.inlined_contents.is_some()) {
+    if config.is_primitive && template_source_count > 0 {
         const ERR: &str = "Primitives cannot have attached templates. Instead, specify a fully qualified Rust import path pointing to the `impl RenderNode` struct for this primitive.";
         return Err(syn::Error::new_spanned(input.ident.clone(), ERR)
             .to_compile_error()
@@ -614,6 +633,7 @@ pub fn pax(
     }
 
     let is_pax_file = config.file_path.is_some();
+    let is_pax_svg = config.svg_path.is_some();
     let is_pax_inlined = config.inlined_contents.is_some();
 
     let appended_tokens = if is_pax_file {
@@ -641,6 +661,29 @@ pub fn pax(
             Some(include_fix),
             is_custom_interpolatable,
             associated_pax_file,
+            engine_import_path,
+        )
+    } else if is_pax_svg {
+        let file_name = config.svg_path.unwrap();
+
+        let root = env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into());
+
+        let path = if Path::new(&root).join(&file_name).exists() {
+            Path::new(&root).join(&file_name)
+        } else {
+            Path::new(&root).join("src/").join(&file_name)
+        };
+
+        // generate_include to watch for changes in specified file, ensuring macro is re-evaluated when file changes
+        let name = Ident::new(&pascal_identifier, Span::call_site());
+        let include_fix = generate_include(&name, &path);
+        pax_full_component(
+            String::new(),
+            &input,
+            config.is_main_component,
+            Some(include_fix),
+            is_custom_interpolatable,
+            None,
             engine_import_path,
         )
     } else if is_pax_inlined {

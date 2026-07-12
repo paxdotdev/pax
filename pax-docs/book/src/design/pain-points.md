@@ -435,6 +435,26 @@ visible range without changing submitted path geometry every frame.
 
 ## 2026-07-08
 
+While adding a complex filled-SVG stress fixture for PAX-967, the obvious
+"classic tiger" reference was the Ghostscript tiger from Wikimedia Commons.
+That asset is licensed under the AGPL, which is a poor fit for checking into
+Pax examples. A later FreeSVG/OpenClipart tiger-head asset was permissively
+licensed, but it used SVG features the temporary importer did not faithfully
+handle, especially arc conversion and painter-order matching. Google Noto
+Emoji's tiger-face SVG is a better test-bed for this phase: the repo documents
+most image resources as Apache-2.0, the SVG is compact, and its path data is
+close to the subset the prototype translator can preserve.
+
+The same experiment exposed that generated Pax source for complex SVG art can
+be very large. Keeping the original SVG as the source asset and treating
+generated Pax as fixture/debug output is acceptable for this narrow test, but
+the real `#[svg]` import path should avoid making huge generated Pax files the
+normal authoring artifact.
+
+Recommendations: verify SVG fixture licenses before import, keep provenance
+comments near generated fixtures, and prefer compact importer/runtime artifacts
+for complex SVGs so example size does not become a long-term maintenance cost.
+
 While adding a reusable `FontComparisonRow` component to the path-drawing
 example, the component rendered inside fixed-height stacker rows but clipped
 and aligned inconsistently until each call site specified `width=100%` and

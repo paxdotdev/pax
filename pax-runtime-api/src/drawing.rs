@@ -55,6 +55,80 @@ impl Interpolatable for PathSmoothing {
     }
 }
 
+/// Controls how a path fill is revealed over time.
+///
+/// Fill reveal keeps the final fill geometry stable and varies only a render-side
+/// mask. This avoids redefining SVG fill semantics for partially drawn paths.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[serde(crate = "crate::serde")]
+pub enum FillReveal {
+    /// Draw the fill normally.
+    None,
+    /// Reveal the final fill geometry through a directional sweep mask.
+    ///
+    /// Arguments are progress, sweep angle, and feather width. `0deg` sweeps
+    /// left-to-right in the path's local bounds.
+    Sweep(UnitValue, Rotation, Size),
+    /// Reveal the final fill geometry through a procedural zig-zag brush mask.
+    ///
+    /// Arguments are progress, traversal angle, and brush width. `0deg`
+    /// traverses left-to-right in the path's local bounds.
+    Brush(UnitValue, Rotation, Size),
+}
+
+impl Default for FillReveal {
+    fn default() -> Self {
+        Self::None
+    }
+}
+
+impl Hash for FillReveal {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        match self {
+            Self::None => {
+                state.write_u8(0);
+            }
+            Self::Sweep(progress, angle, feather) => {
+                state.write_u8(1);
+                progress.to_unit_float().to_bits().hash(state);
+                angle.get_as_radians().to_bits().hash(state);
+                feather.hash(state);
+            }
+            Self::Brush(progress, angle, brush_width) => {
+                state.write_u8(2);
+                progress.to_unit_float().to_bits().hash(state);
+                angle.get_as_radians().to_bits().hash(state);
+                brush_width.hash(state);
+            }
+        }
+    }
+}
+
+impl Interpolatable for FillReveal {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        match (self, other) {
+            (
+                Self::Sweep(start_progress, start_angle, start_feather),
+                Self::Sweep(end_progress, end_angle, end_feather),
+            ) => Self::Sweep(
+                start_progress.interpolate(end_progress, t),
+                start_angle.interpolate(end_angle, t),
+                start_feather.interpolate(end_feather, t),
+            ),
+            (
+                Self::Brush(start_progress, start_angle, start_brush_width),
+                Self::Brush(end_progress, end_angle, end_brush_width),
+            ) => Self::Brush(
+                start_progress.interpolate(end_progress, t),
+                start_angle.interpolate(end_angle, t),
+                start_brush_width.interpolate(end_brush_width, t),
+            ),
+            _ if t < 1.0 => *self,
+            _ => *other,
+        }
+    }
+}
+
 /// Controls how an open stroke terminates at the exposed endpoints of a path.
 ///
 /// `StrokeCap` affects primitives such as `Line` and open `Path` subpaths.

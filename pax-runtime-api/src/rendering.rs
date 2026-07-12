@@ -30,6 +30,20 @@ pub trait RenderContext {
     ) {
         self.fill_with_opacity(layer, path, fill, opacity);
     }
+    /// Fills a path with a material, explicit opacity multiplier, and render-side fill reveal.
+    fn fill_with_reveal_and_material_and_opacity(
+        &mut self,
+        layer: usize,
+        path: kurbo::BezPath,
+        fill: &Fill,
+        material: &Material,
+        opacity: f64,
+        fill_reveal: FillReveal,
+        reveal_bounds: kurbo::Rect,
+    ) {
+        let _ = (fill_reveal, reveal_bounds);
+        self.fill_with_material_and_opacity(layer, path, fill, material, opacity);
+    }
     /// Fills a path after optional geometry smoothing.
     fn fill_with_material_and_opacity_and_smoothing(
         &mut self,
@@ -42,6 +56,29 @@ pub trait RenderContext {
     ) {
         let path = crate::drawing::path_smoothing::smooth_bez_path(&path, smoothing);
         self.fill_with_material_and_opacity(layer, path, fill, material, opacity);
+    }
+    /// Fills a path after optional geometry smoothing, then applies a render-side fill reveal.
+    fn fill_with_reveal_and_material_and_opacity_and_smoothing(
+        &mut self,
+        layer: usize,
+        path: kurbo::BezPath,
+        fill: &Fill,
+        material: &Material,
+        opacity: f64,
+        fill_reveal: FillReveal,
+        reveal_bounds: kurbo::Rect,
+        smoothing: PathSmoothing,
+    ) {
+        let path = crate::drawing::path_smoothing::smooth_bez_path(&path, smoothing);
+        self.fill_with_reveal_and_material_and_opacity(
+            layer,
+            path,
+            fill,
+            material,
+            opacity,
+            fill_reveal,
+            reveal_bounds,
+        );
     }
     /// Strokes a path at full opacity.
     fn stroke(&mut self, layer: usize, path: kurbo::BezPath, stroke: &Stroke) {

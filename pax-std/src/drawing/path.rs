@@ -1,6 +1,6 @@
 use kurbo::{Affine, BezPath};
 
-use pax_engine::api::{Fill, PathElement};
+use pax_engine::api::{Fill, FillReveal, PathElement};
 use pax_runtime::api::drawing::path_smoothing::smooth_bez_path;
 use pax_runtime::api::drawing::stroke_utils::{stroke_width_pixels, stroked_outline_path};
 use pax_runtime::api::{borrow, borrow_mut, use_RefCell};
@@ -36,6 +36,8 @@ pub struct Path {
     pub stroke: Property<Stroke>,
     /// The fill applied to the interior of closed contours.
     pub fill: Property<Fill>,
+    /// Optional render-side reveal applied to the final fill geometry.
+    pub fill_reveal: Property<FillReveal>,
     /// Light-reactive surface response.
     pub material: Property<Material>,
     /// Optional curve smoothing applied before rendering path geometry.
@@ -52,6 +54,7 @@ impl Default for Path {
             elements: Default::default(),
             stroke: Default::default(),
             fill: Default::default(),
+            fill_reveal: Default::default(),
             material: Default::default(),
             smoothing: Default::default(),
             draw_start: Property::new(UnitValue::Unitless(Numeric::F64(0.0))),
@@ -142,12 +145,13 @@ impl InstanceNode for PathInstance {
         });
 
         let tab = expanded_node.transform_and_bounds.clone();
-        let (elements, stroke, fill, material, smoothing, draw_start, draw_end) = expanded_node
-            .with_properties_unwrapped(|properties: &mut Path| {
+        let (elements, stroke, fill, fill_reveal, material, smoothing, draw_start, draw_end) =
+            expanded_node.with_properties_unwrapped(|properties: &mut Path| {
                 (
                     properties.elements.clone(),
                     properties.stroke.clone(),
                     properties.fill.clone(),
+                    properties.fill_reveal.clone(),
                     properties.material.clone(),
                     properties.smoothing.clone(),
                     properties.draw_start.clone(),
@@ -160,6 +164,7 @@ impl InstanceNode for PathInstance {
             elements.untyped(),
             stroke.untyped(),
             fill.untyped(),
+            fill_reveal.untyped(),
             material.untyped(),
             smoothing.untyped(),
             draw_start.untyped(),
@@ -262,7 +267,10 @@ impl InstanceNode for PathInstance {
     }
 
     fn property_requires_occlusion_recompute(&self, property_name: &str) -> bool {
-        !matches!(property_name, "draw_start" | "draw_end" | "material")
+        !matches!(
+            property_name,
+            "draw_start" | "draw_end" | "fill_reveal" | "material"
+        )
     }
 
     fn render(
@@ -297,6 +305,7 @@ impl InstanceNode for PathInstance {
             //our "save point" before clipping — restored to in the post_render
             let opacity = expanded_node.computed_opacity.get();
             let fill = properties.fill.get();
+            let fill_reveal = properties.fill_reveal.get();
             let stroke = properties.stroke.get();
             let material = properties.material.get();
             let smoothing = properties.smoothing.get();
@@ -308,12 +317,14 @@ impl InstanceNode for PathInstance {
             rc.transform(scope.layer_id, scope.surface_transform);
             rc.clip(scope.layer_id, clip_path.clone());
             if fill.coverage_alpha_0_1() * opacity > f64::EPSILON {
-                rc.fill_with_material_and_opacity_and_smoothing(
+                rc.fill_with_reveal_and_material_and_opacity_and_smoothing(
                     scope.layer_id,
                     bez_path.clone(),
                     &fill,
                     &material,
                     opacity,
+                    fill_reveal,
+                    kurbo::Rect::new(0.0, 0.0, width, height),
                     smoothing,
                 );
             }

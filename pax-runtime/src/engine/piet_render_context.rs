@@ -1,4 +1,4 @@
-use pax_runtime_api::{Fill, Stroke, StrokeCap, StrokeJoin};
+use pax_runtime_api::{Fill, FillReveal, Stroke, StrokeCap, StrokeJoin};
 use piet::{
     kurbo::{self, Affine, Shape},
     InterpolationMode, LineCap, LineJoin, LinearGradient, RadialGradient, StrokeStyle,
@@ -508,6 +508,33 @@ impl<R: piet::RenderContext> api::RenderContext for PietRenderer<R> {
         self.with_layer_context(layer, |context| context.fill(path.clone(), &brush));
     }
 
+    fn fill_with_reveal_and_material_and_opacity(
+        &mut self,
+        layer: usize,
+        path: kurbo::BezPath,
+        fill: &Fill,
+        _material: &api::Material,
+        opacity: f64,
+        fill_reveal: FillReveal,
+        reveal_bounds: kurbo::Rect,
+    ) {
+        let rect = path.bounding_box();
+        let brush = fill_to_piet_brush(&fill.with_alpha_factor(opacity), rect);
+        match reveal_clip_path(fill_reveal, reveal_bounds) {
+            Some(clip_path) => {
+                self.with_layer_context(layer, |context| {
+                    let _ = context.save();
+                    context.clip(clip_path.clone());
+                    context.fill(path.clone(), &brush);
+                    let _ = context.restore();
+                });
+            }
+            None => {
+                self.with_layer_context(layer, |context| context.fill(path.clone(), &brush));
+            }
+        }
+    }
+
     fn stroke_with_opacity(
         &mut self,
         layer: usize,
@@ -833,6 +860,108 @@ fn fill_to_piet_brush(fill: &Fill, rect: kurbo::Rect) -> piet::PaintBrush {
             radial_gradient.into()
         }
     }
+}
+
+fn reveal_clip_path(fill_reveal: FillReveal, bounds: kurbo::Rect) -> Option<kurbo::BezPath> {
+    match fill_reveal {
+        FillReveal::None => None,
+        FillReveal::Sweep(progress, angle, _) | FillReveal::Brush(progress, angle, _) => {
+            let progress = progress.to_clamped_unit_float();
+            if progress <= f64::EPSILON {
+                return Some(kurbo::BezPath::new());
+            }
+            if progress >= 1.0 - f64::EPSILON {
+                return None;
+            }
+            let direction = (angle.get_as_radians().cos(), angle.get_as_radians().sin());
+            let corners = [
+                (bounds.x0, bounds.y0),
+                (bounds.x1, bounds.y0),
+                (bounds.x1, bounds.y1),
+                (bounds.x0, bounds.y1),
+            ];
+            let (min_projection, max_projection) =
+                projection_range(corners.iter().copied(), direction);
+            let edge = min_projection + (max_projection - min_projection) * progress;
+            let clipped = clip_polygon_to_projection(&corners, direction, edge);
+            Some(polygon_to_path(&clipped))
+        }
+    }
+}
+
+fn projection_range(points: impl Iterator<Item = (f64, f64)>, direction: (f64, f64)) -> (f64, f64) {
+    let mut min_projection = f64::INFINITY;
+    let mut max_projection = f64::NEG_INFINITY;
+    for point in points {
+        let projection = project(point, direction);
+        min_projection = min_projection.min(projection);
+        max_projection = max_projection.max(projection);
+    }
+    (min_projection, max_projection)
+}
+
+fn clip_polygon_to_projection(
+    points: &[(f64, f64)],
+    direction: (f64, f64),
+    edge: f64,
+) -> Vec<(f64, f64)> {
+    let mut output = Vec::new();
+    let Some(mut previous) = points.last().copied() else {
+        return output;
+    };
+    let mut previous_inside = project(previous, direction) <= edge;
+
+    for &current in points {
+        let current_inside = project(current, direction) <= edge;
+        if current_inside != previous_inside {
+            output.push(intersect_projection_edge(
+                previous, current, direction, edge,
+            ));
+        }
+        if current_inside {
+            output.push(current);
+        }
+        previous = current;
+        previous_inside = current_inside;
+    }
+
+    output
+}
+
+fn intersect_projection_edge(
+    start: (f64, f64),
+    end: (f64, f64),
+    direction: (f64, f64),
+    edge: f64,
+) -> (f64, f64) {
+    let start_projection = project(start, direction);
+    let end_projection = project(end, direction);
+    let denominator = end_projection - start_projection;
+    if denominator.abs() <= f64::EPSILON {
+        return start;
+    }
+    let t = ((edge - start_projection) / denominator).clamp(0.0, 1.0);
+    (
+        start.0 + (end.0 - start.0) * t,
+        start.1 + (end.1 - start.1) * t,
+    )
+}
+
+fn project(point: (f64, f64), direction: (f64, f64)) -> f64 {
+    point.0 * direction.0 + point.1 * direction.1
+}
+
+fn polygon_to_path(points: &[(f64, f64)]) -> kurbo::BezPath {
+    let mut path = kurbo::BezPath::new();
+    let Some(first) = points.first() else {
+        return path;
+    };
+    path.move_to(*first);
+    for point in &points[1..] {
+        path.line_to(*point);
+    }
+    path.close_path();
+    path
 }
 
 fn stroke_to_piet_style(stroke: &Stroke) -> StrokeStyle {

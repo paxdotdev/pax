@@ -19,6 +19,8 @@ use syn::{
     NestedMeta, PathArguments, Type, UseTree,
 };
 
+use crate::svg_import::import_svg_file;
+
 const DEFAULT_ENGINE_IMPORT_PATH: &str = "pax_kit::pax_engine";
 const PAX_STD_DESIGNTIME_SEED_IDENTIFIERS: &[&str] = &[
     "BlankComponent",
@@ -491,6 +493,7 @@ fn ensure_known_type_definition(ctx: &mut ParsingContext, import_path: &str) -> 
         "pax_engine::api::PathSmoothing" => {
             TypeId::build_singleton(import_path, Some("PathSmoothing"))
         }
+        "pax_engine::api::FillReveal" => TypeId::build_singleton(import_path, Some("FillReveal")),
         "pax_engine::api::Transform2D" => TypeId::build_singleton(import_path, Some("Transform2D")),
         "kurbo::Point" => TypeId::build_singleton(import_path, Some("Point")),
         other => return Err(eyre!("Unsupported canonical static type `{other}`")),
@@ -969,9 +972,22 @@ fn build_item_kind(
     source_file_path: &Path,
     config: &PaxConfig,
 ) -> Result<PaxItemKind> {
-    if config.file_path.is_some() && config.inlined_contents.is_some() {
+    let template_source_count = [
+        config.file_path.is_some(),
+        config.svg_path.is_some(),
+        config.inlined_contents.is_some(),
+    ]
+    .into_iter()
+    .filter(|present| *present)
+    .count();
+    if template_source_count > 1 {
         return Err(eyre!(
-            "`#[file(...)]` and `#[inlined(...)]` cannot be used together"
+            "`#[file(...)]`, `#[svg(...)]`, and `#[inlined(...)]` cannot be used together"
+        ));
+    }
+    if config.is_primitive && template_source_count > 0 {
+        return Err(eyre!(
+            "`#[primitive(...)]` components cannot also use `#[file(...)]`, `#[svg(...)]`, or `#[inlined(...)]`"
         ));
     }
 
@@ -999,9 +1015,25 @@ fn build_item_kind(
         });
     }
 
+    if let Some(svg_path) = &config.svg_path {
+        let resolved_file_path =
+            resolve_template_file_path(&package_context.manifest_dir, svg_path)?;
+        let import = import_svg_file(&resolved_file_path).map_err(|err| {
+            eyre!(
+                "Failed to import SVG template `{}`: {err}",
+                resolved_file_path.display()
+            )
+        })?;
+        return Ok(PaxItemKind::FullComponent {
+            raw_pax: import.pax_source,
+            is_main_component: config.is_main_component,
+            associated_pax_file_path: None,
+        });
+    }
+
     if config.is_main_component {
         return Err(eyre!(
-            "Main component `{}` must have either `#[file(...)]` or `#[inlined(...)]`",
+            "Main component `{}` must have `#[file(...)]`, `#[svg(...)]`, or `#[inlined(...)]`",
             source_file_path.display()
         ));
     }
@@ -1107,6 +1139,13 @@ fn parse_pax_config(attrs: &[Attribute], source_file_contents: &str) -> Result<P
                 if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
                     if let Some(NestedMeta::Lit(Lit::Str(file_str))) = meta_list.nested.first() {
                         config.file_path = Some(file_str.value());
+                    }
+                }
+            }
+            Some(ref ident) if ident == "svg" => {
+                if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
+                    if let Some(NestedMeta::Lit(Lit::Str(file_str))) = meta_list.nested.first() {
+                        config.svg_path = Some(file_str.value());
                     }
                 }
             }
@@ -1305,6 +1344,7 @@ fn canonical_special_import_path_for_ident(ident: &str) -> Option<&'static str> 
         "Numeric" => Some("pax_engine::api::Numeric"),
         "UnitValue" => Some("pax_engine::api::UnitValue"),
         "PathSmoothing" => Some("pax_engine::api::PathSmoothing"),
+        "FillReveal" => Some("pax_engine::api::FillReveal"),
         "Transform2D" => Some("pax_engine::api::Transform2D"),
         "Point" => Some("kurbo::Point"),
         _ => None,
@@ -1361,6 +1401,9 @@ fn canonical_special_import_path_for_path(path: &str) -> Option<&'static str> {
         "pax_engine::api::PathSmoothing"
         | "pax_runtime::api::PathSmoothing"
         | "pax_runtime_api::PathSmoothing" => Some("pax_engine::api::PathSmoothing"),
+        "pax_engine::api::FillReveal"
+        | "pax_runtime::api::FillReveal"
+        | "pax_runtime_api::FillReveal" => Some("pax_engine::api::FillReveal"),
         "pax_engine::api::Transform2D"
         | "pax_runtime::api::Transform2D"
         | "pax_runtime_api::Transform2D" => Some("pax_engine::api::Transform2D"),
@@ -1913,6 +1956,7 @@ struct PackageContext {
 struct PaxConfig {
     is_main_component: bool,
     file_path: Option<String>,
+    svg_path: Option<String>,
     inlined_contents: Option<String>,
     engine_import_path: Option<String>,
     primitive_instance_import_path: Option<String>,
@@ -1922,6 +1966,7 @@ struct PaxConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::TempDir;
 
     #[test]
     fn increment_static_manifest_contains_expected_core_items() {
@@ -2010,6 +2055,171 @@ mod tests {
             canonical_special_import_path_for_path("pax_runtime::api::PathSmoothing"),
             Some("pax_engine::api::PathSmoothing")
         );
+    }
+
+    #[test]
+    fn fill_reveal_api_type_is_known_to_static_analysis() {
+        let mut ctx = ParsingContext::default();
+        ensure_known_type_definition(&mut ctx, "pax_engine::api::FillReveal")
+            .expect("FillReveal should be a known API type");
+
+        let fill_reveal_id =
+            TypeId::build_singleton("pax_engine::api::FillReveal", Some("FillReveal"));
+        assert!(ctx.type_table[&fill_reveal_id]
+            .property_definitions
+            .is_empty());
+        assert_eq!(
+            canonical_special_import_path_for_ident("FillReveal"),
+            Some("pax_engine::api::FillReveal")
+        );
+        assert_eq!(
+            canonical_special_import_path_for_path("pax_runtime::api::FillReveal"),
+            Some("pax_engine::api::FillReveal")
+        );
+    }
+
+    #[test]
+    fn svg_attribute_imports_svg_as_component_template() {
+        let project = svg_fixture_project(
+            r##"
+use pax_kit::*;
+
+#[pax]
+#[main]
+#[inlined(<SvgLogo />)]
+pub struct Example {}
+
+#[pax]
+#[custom(Default)]
+#[svg("assets/logo.svg")]
+pub struct SvgLogo {
+    pub draw_start: Property<UnitValue>,
+    pub draw_end: Property<UnitValue>,
+}
+"##,
+        );
+
+        let manifest = build_manifest(project.path()).expect("svg fixture manifest should build");
+        let component = manifest
+            .components
+            .values()
+            .find(|component| component.type_id.to_string() == "crate::SvgLogo")
+            .expect("SVG-backed component should be present");
+        let template = component
+            .template
+            .as_ref()
+            .expect("SVG-backed component should have a generated template");
+
+        assert_eq!(
+            template.get_file_path(),
+            Some(
+                project
+                    .path()
+                    .join("src/lib.rs")
+                    .canonicalize()
+                    .expect("source path should canonicalize")
+                    .to_string_lossy()
+                    .to_string()
+            )
+        );
+        assert!(template
+            .get_nodes()
+            .iter()
+            .any(|node| node.type_id.to_string() == "pax_std::core::group::Group"));
+        assert!(template
+            .get_nodes()
+            .iter()
+            .any(|node| node.type_id.to_string() == "pax_std::drawing::path::Path"));
+        assert!(template.get_nodes().iter().any(|node| node
+            .raw_comment_string
+            .as_deref()
+            .is_some_and(|comment| comment.contains("source_sha256"))));
+
+        assert_eq!(
+            property_signature(&manifest, "crate::SvgLogo"),
+            vec![
+                (
+                    "draw_end".to_string(),
+                    "pax_engine::api::UnitValue".to_string(),
+                    true
+                ),
+                (
+                    "draw_start".to_string(),
+                    "pax_engine::api::UnitValue".to_string(),
+                    true
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn svg_attribute_is_mutually_exclusive_with_other_template_sources() {
+        let project = svg_fixture_project(
+            r##"
+use pax_kit::*;
+
+#[pax]
+#[main]
+#[inlined(<BadSvg />)]
+pub struct Example {}
+
+#[pax]
+#[svg("assets/logo.svg")]
+#[inlined(<Group />)]
+pub struct BadSvg {}
+"##,
+        );
+
+        let err = match build_manifest(project.path()) {
+            Ok(_) => panic!("manifest should reject mixed sources"),
+            Err(err) => err,
+        };
+        assert!(
+            err.to_string().contains(
+                "`#[file(...)]`, `#[svg(...)]`, and `#[inlined(...)]` cannot be used together"
+            ),
+            "unexpected error: {err:?}"
+        );
+    }
+
+    #[test]
+    fn svg_backed_manifest_round_trips_through_binary_and_program_ir() {
+        let project = svg_fixture_project(
+            r##"
+use pax_kit::*;
+
+#[pax]
+#[main]
+#[inlined(<SvgLogo />)]
+pub struct Example {}
+
+#[pax]
+#[custom(Default)]
+#[svg("assets/logo.svg")]
+pub struct SvgLogo {
+    pub draw_start: Property<UnitValue>,
+    pub draw_end: Property<UnitValue>,
+}
+"##,
+        );
+
+        let manifest = build_manifest(project.path()).expect("svg fixture manifest should build");
+        let bytes = pax_manifest::binary::to_vec(&manifest).expect("manifest should serialize");
+        let decoded =
+            pax_manifest::binary::from_slice(&bytes).expect("manifest should deserialize");
+        assert_eq!(
+            serde_json::to_value(&decoded).expect("decoded manifest should serialize to json"),
+            serde_json::to_value(&manifest).expect("source manifest should serialize to json")
+        );
+
+        let ir = pax_manifest::program_ir::ProgramIR::from_manifest(&manifest);
+        let ir_bytes =
+            pax_manifest::program_ir::binary::to_vec(&ir).expect("program ir should serialize");
+        let ir_decoded = pax_manifest::program_ir::binary::from_slice(&ir_bytes)
+            .expect("program ir should deserialize");
+        assert_eq!(ir_decoded.main_component_type_id, ir.main_component_type_id);
+        assert_eq!(ir_decoded.components.len(), ir.components.len());
+        assert_eq!(ir_decoded.type_table.len(), ir.type_table.len());
     }
 
     #[test]
@@ -2232,6 +2442,46 @@ mod tests {
             .collect::<Vec<_>>();
         signature.sort();
         signature
+    }
+
+    fn svg_fixture_project(lib_rs: &str) -> TempDir {
+        let dir = tempfile::tempdir().expect("temp project should be created");
+        let workspace_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("pax-compiler should have a workspace parent")
+            .to_path_buf();
+        let src_dir = dir.path().join("src");
+        let assets_dir = dir.path().join("assets");
+        fs::create_dir_all(&src_dir).expect("src dir should be created");
+        fs::create_dir_all(&assets_dir).expect("assets dir should be created");
+        fs::write(
+            dir.path().join("Cargo.toml"),
+            format!(
+                r#"[package]
+name = "svg-attribute-fixture"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+pax-kit = {{ path = "{}" }}
+"#,
+                workspace_dir.join("pax-kit").display()
+            ),
+        )
+        .expect("Cargo.toml should be written");
+        fs::write(src_dir.join("lib.rs"), lib_rs).expect("lib.rs should be written");
+        fs::write(
+            assets_dir.join("logo.svg"),
+            r##"<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <path d="M 10 90 C 30 10 70 10 90 90" fill="none" stroke="#123456" stroke-width="4" stroke-linecap="round"/>
+</svg>
+"##,
+        )
+        .expect("svg should be written");
+        dir
     }
 
     fn dummy_scanned_item(import_path: &str, ident: &str) -> ScannedPaxItem {
