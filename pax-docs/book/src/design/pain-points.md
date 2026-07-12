@@ -378,7 +378,7 @@ the previous subpath, triggering `multiple begin() calls without end()`.
 
 Solved by adding the no-op `HelperFunctions` impl for `UnitValue` and by ending
 an open lyon subpath before beginning another in the kurbo-to-lyon converter.
-The `svg-path-drawing` example now includes multiple closed contours to keep
+The `path-drawing` example now includes multiple closed contours to keep
 this case exercised.
 
 Recommendations: when adding template-visible value types, run at least one
