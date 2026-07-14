@@ -255,6 +255,16 @@ impl DesigntimeManager {
         pending_requests.drain(..).collect()
     }
 
+    /// Confirms that the JavaScript host has activated the cartridge for `build_id`.
+    ///
+    /// Until this acknowledgement arrives, designtime manifest and template updates
+    /// are held back so the running cartridge cannot observe a different build's ABI.
+    pub fn acknowledge_reload_app_request(&mut self, build_id: &str) -> anyhow::Result<bool> {
+        self.privileged_agent_connection
+            .borrow_mut()
+            .acknowledge_reload_app_request(build_id)
+    }
+
     pub fn send_userland_source_update(
         &mut self,
         request: UserlandSourceUpdateRequest,

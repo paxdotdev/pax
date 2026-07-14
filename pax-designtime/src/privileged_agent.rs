@@ -15,7 +15,8 @@ use url::Url;
 #[cfg(target_arch = "wasm32")]
 use web_time::Instant;
 
-const WEBSOCKET_RECONNECT_DELAY: Duration = Duration::from_millis(500);
+const WEBSOCKET_RECONNECT_INITIAL_DELAY: Duration = Duration::from_millis(500);
+const WEBSOCKET_RECONNECT_MAX_DELAY: Duration = Duration::from_secs(5);
 
 pub struct WebSocketConnection {
     url: String,
@@ -26,6 +27,9 @@ pub struct WebSocketConnection {
     allow_reconnect: bool,
     connecting: bool,
     next_reconnect_at: Option<Instant>,
+    reconnect_delay: Duration,
+    awaiting_cartridge_build: Option<String>,
+    server_manifest_is_compatible: bool,
 }
 
 impl WebSocketConnection {
@@ -48,6 +52,9 @@ impl WebSocketConnection {
             allow_reconnect: true,
             connecting: true,
             next_reconnect_at: None,
+            reconnect_delay: WEBSOCKET_RECONNECT_INITIAL_DELAY,
+            awaiting_cartridge_build: None,
+            server_manifest_is_compatible: false,
         })
     }
 
@@ -150,6 +157,8 @@ impl WebSocketConnection {
                     self.alive = true;
                     self.connecting = false;
                     self.next_reconnect_at = None;
+                    self.reconnect_delay = WEBSOCKET_RECONNECT_INITIAL_DELAY;
+                    self.server_manifest_is_compatible = false;
                     if let Err(err) = self.send_manifest_load_request() {
                         log::warn!("{} failed to request manifest: {err}", self.label);
                         self.schedule_reconnect();
@@ -169,15 +178,52 @@ impl WebSocketConnection {
                         };
                         match msg {
                             AgentMessage::LoadManifestResponse(resp) => {
+                                if let Some(build_id) = &self.awaiting_cartridge_build {
+                                    log::debug!(
+                                        "{} discarding manifest update until cartridge {} is active",
+                                        self.label,
+                                        build_id
+                                    );
+                                    continue;
+                                }
                                 match rmp_serde::from_slice::<PaxManifest>(&resp.manifest) {
-                                    Ok(manifest) => manager.set_initial_server_manifest(manifest),
-                                    Err(err) => log::warn!(
-                                        "{} received invalid manifest payload: {err}",
-                                        self.label
-                                    ),
+                                    Ok(manifest) => {
+                                        match manager.set_initial_server_manifest(manifest) {
+                                            Ok(()) => self.server_manifest_is_compatible = true,
+                                            Err(err) => {
+                                                self.server_manifest_is_compatible = false;
+                                                log::warn!(
+                                                    "{} rejected design-server manifest: {err}",
+                                                    self.label
+                                                );
+                                            }
+                                        }
+                                    }
+                                    Err(err) => {
+                                        self.server_manifest_is_compatible = false;
+                                        log::warn!(
+                                            "{} received invalid manifest payload: {err}",
+                                            self.label
+                                        );
+                                    }
                                 }
                             }
                             AgentMessage::UpdateTemplateRequest(resp) => {
+                                if let Some(build_id) = &self.awaiting_cartridge_build {
+                                    log::debug!(
+                                        "{} ignoring template update while awaiting cartridge {}",
+                                        self.label,
+                                        build_id
+                                    );
+                                    continue;
+                                }
+                                if !self.server_manifest_is_compatible {
+                                    log::debug!(
+                                        "{} ignoring template update until the server manifest is compatible",
+                                        self.label
+                                    );
+                                    continue;
+                                }
                                 if let Err(err) = manager.replace_template(
                                     resp.type_id,
                                     resp.new_template,
@@ -210,6 +256,11 @@ impl WebSocketConnection {
                                     );
                                 }
                             }
+                            AgentMessage::ReloadAppRequest(request) => {
+                                self.server_manifest_is_compatible = false;
+                                self.awaiting_cartridge_build = Some(request.build_id.clone());
+                                passthrough_messages.push(AgentMessage::ReloadAppRequest(request));
+                            }
                             other => passthrough_messages.push(other),
                         }
                     }
@@ -233,14 +284,29 @@ impl WebSocketConnection {
         Ok(passthrough_messages)
     }
 
+    /// Releases manifest updates after the host has activated the requested cartridge.
+    pub fn acknowledge_reload_app_request(&mut self, build_id: &str) -> Result<bool> {
+        if self.awaiting_cartridge_build.as_deref() != Some(build_id) {
+            return Ok(false);
+        }
+
+        if self.alive {
+            self.send_manifest_load_request()?;
+        }
+        self.awaiting_cartridge_build = None;
+        Ok(true)
+    }
+
     fn sender(&mut self) -> Option<&mut ewebsock::WsSender> {
         self.sender.as_mut()
     }
 
     fn schedule_reconnect(&mut self) {
-        if !self.allow_reconnect {
-            return;
-        }
+        // A restarted design server does not retain the prior process's latest
+        // reload envelope. Let its manifest reach the ABI guard after reconnect;
+        // a surviving server will replay its current build before responding.
+        self.awaiting_cartridge_build = None;
+        self.server_manifest_is_compatible = false;
         self.sender = None;
         self.recver = None;
         self.alive = false;
@@ -250,7 +316,11 @@ impl WebSocketConnection {
             return;
         }
         if self.next_reconnect_at.is_none() {
-            self.next_reconnect_at = Some(Instant::now() + WEBSOCKET_RECONNECT_DELAY);
+            self.next_reconnect_at = Some(Instant::now() + self.reconnect_delay);
+            self.reconnect_delay = self
+                .reconnect_delay
+                .saturating_mul(2)
+                .min(WEBSOCKET_RECONNECT_MAX_DELAY);
         }
     }
 
@@ -268,6 +338,7 @@ impl WebSocketConnection {
             return;
         }
 
+        self.next_reconnect_at = None;
         match connect_socket(&self.url) {
             Ok((sender, recver)) => {
                 self.sender = Some(sender);
@@ -280,7 +351,7 @@ impl WebSocketConnection {
             }
             Err(err) => {
                 log::warn!("{} reconnect failed: {err}", self.label);
-                self.next_reconnect_at = Some(Instant::now() + WEBSOCKET_RECONNECT_DELAY);
+                self.schedule_reconnect();
             }
         }
     }
@@ -342,19 +413,48 @@ fn wake_designtime_loop() {}
 
 #[cfg(test)]
 mod tests {
-    use super::{build_socket_url, WebSocketConnection};
+    use super::{
+        build_socket_url, WebSocketConnection, WEBSOCKET_RECONNECT_INITIAL_DELAY,
+        WEBSOCKET_RECONNECT_MAX_DELAY,
+    };
     use crate::{
-        messages::{AgentMessage, LoadManifestResponse},
+        messages::{AgentMessage, LoadManifestResponse, ReloadAppRequest, UpdateTemplateRequest},
         orm::PaxManifestORM,
     };
     use ewebsock::{WsEvent, WsMessage};
-    use pax_manifest::{PaxManifest, TypeId};
+    use pax_manifest::{ComponentDefinition, ComponentTemplate, PaxManifest, TypeId};
     use std::collections::{BTreeMap, HashMap};
 
     fn empty_manifest() -> PaxManifest {
         PaxManifest {
             components: BTreeMap::new(),
             main_component_type_id: TypeId::build_singleton("TestComponent", Some("TestComponent")),
+            type_table: HashMap::new(),
+            assets_dirs: vec![],
+            engine_import_path: String::new(),
+        }
+    }
+
+    fn basic_manifest(module_path: &str) -> PaxManifest {
+        let type_id = TypeId::build_singleton("TestComponent", Some("TestComponent"));
+        let mut components = BTreeMap::new();
+        components.insert(
+            type_id.clone(),
+            ComponentDefinition {
+                type_id: type_id.clone(),
+                is_main_component: true,
+                is_primitive: false,
+                is_struct_only_component: false,
+                module_path: module_path.to_string(),
+                primitive_instance_import_path: None,
+                template: None,
+                settings: None,
+                timelines: vec![],
+            },
+        );
+        PaxManifest {
+            components,
+            main_component_type_id: type_id,
             type_table: HashMap::new(),
             assets_dirs: vec![],
             engine_import_path: String::new(),
@@ -371,6 +471,9 @@ mod tests {
             allow_reconnect: true,
             connecting: false,
             next_reconnect_at: None,
+            reconnect_delay: WEBSOCKET_RECONNECT_INITIAL_DELAY,
+            awaiting_cartridge_build: None,
+            server_manifest_is_compatible: false,
         }
     }
 
@@ -401,6 +504,7 @@ mod tests {
 
         assert!(messages.is_empty());
         assert!(connection.alive);
+        assert!(!connection.server_manifest_is_compatible);
     }
 
     #[test]
@@ -419,6 +523,7 @@ mod tests {
 
         assert!(messages.is_empty());
         assert!(connection.alive);
+        assert!(!connection.server_manifest_is_compatible);
     }
 
     #[test]
@@ -426,6 +531,7 @@ mod tests {
         let (recver, on_event) = ewebsock::WsReceiver::new();
         let _ = on_event(WsEvent::Closed);
         let mut connection = test_connection(recver);
+        connection.awaiting_cartridge_build = Some("orphaned-build".to_string());
         let mut orm = PaxManifestORM::new(empty_manifest());
 
         let messages = connection.handle_recv(&mut orm).unwrap();
@@ -434,6 +540,8 @@ mod tests {
         assert!(!connection.alive);
         assert!(!connection.connecting);
         assert!(connection.next_reconnect_at.is_some());
+        assert!(connection.awaiting_cartridge_build.is_none());
+        assert!(!connection.server_manifest_is_compatible);
     }
 
     #[test]
@@ -449,5 +557,161 @@ mod tests {
         assert!(!connection.alive);
         assert!(!connection.connecting);
         assert!(connection.next_reconnect_at.is_some());
+    }
+
+    #[test]
+    fn reconnect_attempts_use_capped_backoff() {
+        let (recver, _on_event) = ewebsock::WsReceiver::new();
+        let mut connection = test_connection(recver);
+
+        connection.schedule_reconnect();
+        assert_eq!(
+            connection.reconnect_delay,
+            WEBSOCKET_RECONNECT_INITIAL_DELAY.saturating_mul(2)
+        );
+
+        for _ in 0..8 {
+            connection.next_reconnect_at = None;
+            connection.schedule_reconnect();
+        }
+        assert_eq!(connection.reconnect_delay, WEBSOCKET_RECONNECT_MAX_DELAY);
+    }
+
+    #[test]
+    fn reload_request_freezes_manifest_updates_until_matching_cartridge_is_active() {
+        let (recver, on_event) = ewebsock::WsReceiver::new();
+        let reload = AgentMessage::ReloadAppRequest(ReloadAppRequest {
+            request_id: "reload-1".to_string(),
+            build_id: "build-1".to_string(),
+            artifact_kind: "web-cartridge".to_string(),
+            artifact_location: "/__reloads__/build-1/pax-cartridge".to_string(),
+        });
+        let manifest = AgentMessage::LoadManifestResponse(LoadManifestResponse {
+            manifest: rmp_serde::to_vec(&basic_manifest("new_module_path")).unwrap(),
+        });
+        let _ = on_event(WsEvent::Message(WsMessage::Binary(
+            rmp_serde::to_vec(&reload).unwrap(),
+        )));
+        let _ = on_event(WsEvent::Message(WsMessage::Binary(
+            rmp_serde::to_vec(&manifest).unwrap(),
+        )));
+        let mut connection = test_connection(recver);
+        let mut orm = PaxManifestORM::new(basic_manifest("old_module_path"));
+
+        let messages = connection.handle_recv(&mut orm).unwrap();
+
+        assert!(matches!(
+            messages.as_slice(),
+            [AgentMessage::ReloadAppRequest(request)] if request.build_id == "build-1"
+        ));
+        assert_eq!(
+            connection.awaiting_cartridge_build.as_deref(),
+            Some("build-1")
+        );
+        assert!(!orm.manifest_loaded_from_server.get());
+        assert_eq!(orm.get_manifest_version().get(), 0);
+        assert!(orm.take_reload_queue().is_empty());
+
+        assert!(!connection
+            .acknowledge_reload_app_request("other-build")
+            .unwrap());
+        connection.alive = false;
+        assert!(connection
+            .acknowledge_reload_app_request("build-1")
+            .unwrap());
+        assert!(connection.awaiting_cartridge_build.is_none());
+        assert!(!connection.server_manifest_is_compatible);
+    }
+
+    #[test]
+    fn incompatible_restarted_server_keeps_template_updates_quarantined() {
+        let live_manifest = basic_manifest("old_module_path");
+        let main_type_id = live_manifest.main_component_type_id.clone();
+        let mut incompatible_manifest = basic_manifest("new_module_path");
+        let extra_type_id = TypeId::build_singleton("NewComponent", Some("NewComponent"));
+        incompatible_manifest.components.insert(
+            extra_type_id.clone(),
+            ComponentDefinition {
+                type_id: extra_type_id,
+                is_main_component: false,
+                is_primitive: false,
+                is_struct_only_component: false,
+                module_path: "new_component".to_string(),
+                primitive_instance_import_path: None,
+                template: None,
+                settings: None,
+                timelines: vec![],
+            },
+        );
+
+        let manifest = AgentMessage::LoadManifestResponse(LoadManifestResponse {
+            manifest: rmp_serde::to_vec(&incompatible_manifest).unwrap(),
+        });
+        let template_update =
+            AgentMessage::UpdateTemplateRequest(Box::new(UpdateTemplateRequest {
+                type_id: main_type_id.clone(),
+                new_template: ComponentTemplate::new(main_type_id.clone(), None),
+                settings_block: vec![],
+            }));
+        let (recver, on_event) = ewebsock::WsReceiver::new();
+        let _ = on_event(WsEvent::Message(WsMessage::Binary(
+            rmp_serde::to_vec(&manifest).unwrap(),
+        )));
+        let _ = on_event(WsEvent::Message(WsMessage::Binary(
+            rmp_serde::to_vec(&template_update).unwrap(),
+        )));
+        let mut connection = test_connection(recver);
+        let mut orm = PaxManifestORM::new(live_manifest);
+
+        let messages = connection.handle_recv(&mut orm).unwrap();
+
+        assert!(messages.is_empty());
+        assert!(!connection.server_manifest_is_compatible);
+        assert!(orm
+            .get_manifest()
+            .components
+            .get(&main_type_id)
+            .unwrap()
+            .template
+            .is_none());
+        assert_eq!(orm.get_manifest_version().get(), 0);
+        assert!(orm.take_reload_queue().is_empty());
+    }
+
+    #[test]
+    fn compatible_server_manifest_releases_template_updates() {
+        let live_manifest = basic_manifest("module_path");
+        let main_type_id = live_manifest.main_component_type_id.clone();
+        let manifest = AgentMessage::LoadManifestResponse(LoadManifestResponse {
+            manifest: rmp_serde::to_vec(&live_manifest).unwrap(),
+        });
+        let template_update =
+            AgentMessage::UpdateTemplateRequest(Box::new(UpdateTemplateRequest {
+                type_id: main_type_id.clone(),
+                new_template: ComponentTemplate::new(main_type_id.clone(), None),
+                settings_block: vec![],
+            }));
+        let (recver, on_event) = ewebsock::WsReceiver::new();
+        let _ = on_event(WsEvent::Message(WsMessage::Binary(
+            rmp_serde::to_vec(&manifest).unwrap(),
+        )));
+        let _ = on_event(WsEvent::Message(WsMessage::Binary(
+            rmp_serde::to_vec(&template_update).unwrap(),
+        )));
+        let mut connection = test_connection(recver);
+        let mut orm = PaxManifestORM::new(live_manifest);
+
+        let messages = connection.handle_recv(&mut orm).unwrap();
+
+        assert!(messages.is_empty());
+        assert!(connection.server_manifest_is_compatible);
+        assert!(orm
+            .get_manifest()
+            .components
+            .get(&main_type_id)
+            .unwrap()
+            .template
+            .is_some());
+        assert_eq!(orm.get_manifest_version().get(), 1);
     }
 }

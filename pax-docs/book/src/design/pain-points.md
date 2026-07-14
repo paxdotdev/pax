@@ -513,3 +513,42 @@ roughly in the right region. True "select the handwritten strokes" behavior
 would need a deeper text/native bridge, such as bounds-aware native text scaling
 or a platform accessibility/selection overlay that can use the rendered vector
 bounds instead of ordinary font metrics.
+
+## 2026-07-13
+
+Restarting or losing the design server during a `path-drawing` Rust rebuild
+exposed a split-generation failure: the still-running web cartridge had a
+static component descriptor registry, but it could install the newly built
+server manifest before JavaScript mounted the matching JS/Wasm artifact. A
+missing `FontComparisonRow` then caused a runtime panic, and subsequent calls
+reported wasm-bindgen recursive mutable-borrow errors because the first panic
+had crossed the Wasm boundary.
+
+Solved by gating manifest/template traffic on the web reload build ID, checking
+incoming manifests against the executing cartridge's component/type ABI, and
+publishing each reload directory atomically only after its required JS, Wasm,
+and wasm-bindgen snippets tree exist.
+
+Recommendations: whenever static generated code and dynamic program metadata
+travel through different channels, make their shared generation explicit and
+validate compatibility before mutation. Treat a panic followed by repeated
+wasm-bindgen aliasing diagnostics as one poisoned boundary until proven
+otherwise; the first panic is usually the useful error.
+
+The same session showed that image loading retried non-success HTTP responses
+but not fetch, blob-decode, bitmap-decode, or canvas exceptions. Its async
+microtask also surfaced failures as unhandled promise rejections and could
+finish after its Wasm cartridge had been disposed.
+
+Solved by retrying the complete decode pipeline, catching the host-side promise,
+and checking native-pool ownership before delivering decoded pixels to Wasm.
+
+Recommendations: keep fallible browser I/O outside Wasm mutation boundaries,
+attach resource paths to the final diagnostic, and re-check object generation
+after every await before calling into a disposable runtime instance.
+
+The server-stop browser drill also exposed a fixed 500ms websocket reconnect
+loop. The UI kept animating, but each failed attempt emitted both a low-level
+browser error and a runtime warning. Capped exponential backoff preserves quick
+first recovery while avoiding sustained console and connection churn during a
+longer outage.

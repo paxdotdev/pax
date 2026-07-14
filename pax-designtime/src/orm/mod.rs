@@ -68,6 +68,11 @@ pub trait Command<R: Request> {
 #[derive(Serialize, Deserialize)]
 pub struct PaxManifestORM {
     manifest: PaxManifest,
+    /// Stable identity of the Rust/component ABI compiled into this cartridge.
+    /// Server manifests may update templates, but they must not replace this
+    /// manifest with one that requires a different static descriptor registry.
+    #[serde(default)]
+    cartridge_abi_identity: Vec<u8>,
     undo_stack: Vec<(usize, UndoRedoCommand)>,
     redo_stack: Vec<(usize, UndoRedoCommand)>,
     next_command_id: usize,
@@ -85,6 +90,8 @@ pub struct PaxManifestORM {
 
 impl PaxManifestORM {
     pub fn new(manifest: PaxManifest) -> Self {
+        let cartridge_abi_identity = cartridge_abi_identity(&manifest)
+            .expect("the embedded cartridge manifest should always be serializable");
         let mut last_serialized_version = HashMap::new();
         for component in manifest.components.values() {
             last_serialized_version.insert(component.type_id.clone(), component.clone());
@@ -92,6 +99,7 @@ impl PaxManifestORM {
 
         PaxManifestORM {
             manifest,
+            cartridge_abi_identity,
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
             next_command_id: 0,
@@ -159,7 +167,19 @@ impl PaxManifestORM {
         self.insert_reload(ReloadType::Tree);
     }
 
-    pub fn set_initial_server_manifest(&mut self, manifest: PaxManifest) {
+    pub fn set_initial_server_manifest(&mut self, manifest: PaxManifest) -> Result<()> {
+        validate_runtime_manifest(&manifest)?;
+
+        let incoming_abi_identity = cartridge_abi_identity(&manifest)?;
+        if self.cartridge_abi_identity.is_empty() {
+            self.cartridge_abi_identity = cartridge_abi_identity(&self.manifest)?;
+        }
+        if incoming_abi_identity != self.cartridge_abi_identity {
+            return Err(anyhow!(
+                "design-server manifest requires a different cartridge generation"
+            ));
+        }
+
         if !self.manifest_loaded_from_server.get()
             && self.manifest_version.get() == 0
             && self.reload_queue.is_empty()
@@ -171,10 +191,11 @@ impl PaxManifestORM {
                 self.increment_manifest_version();
                 self.insert_reload(ReloadType::Tree);
             }
-            return;
+            return Ok(());
         }
 
         self.set_manifest(manifest);
+        Ok(())
     }
 
     pub fn get_manifest_version(&self) -> Property<usize> {
@@ -594,6 +615,8 @@ impl PaxManifestORM {
         template: ComponentTemplate,
         settings_block: Vec<SettingsBlockElement>,
     ) -> Result<usize, String> {
+        validate_template_references(&self.manifest, &component_type_id, &template)
+            .map_err(|err| err.to_string())?;
         let command =
             template::ReplaceTemplateRequest::new(component_type_id, template, settings_block);
         let resp = self.execute_command(command)?;
@@ -623,6 +646,10 @@ impl PaxManifestORM {
 }
 
 fn manifests_match(left: &PaxManifest, right: &PaxManifest) -> bool {
+    if !type_tables_match(left, right) {
+        return false;
+    }
+
     let left_identity = (
         &left.components,
         &left.main_component_type_id,
@@ -642,6 +669,94 @@ fn manifests_match(left: &PaxManifest, right: &PaxManifest) -> bool {
         (Ok(left), Ok(right)) => left == right,
         _ => false,
     }
+}
+
+fn type_tables_match(left: &PaxManifest, right: &PaxManifest) -> bool {
+    if left.type_table.len() != right.type_table.len() {
+        return false;
+    }
+
+    left.type_table.iter().all(|(type_id, left_definition)| {
+        let Some(right_definition) = right.type_table.get(type_id) else {
+            return false;
+        };
+        match (
+            rmp_serde::to_vec(left_definition),
+            rmp_serde::to_vec(right_definition),
+        ) {
+            (Ok(left), Ok(right)) => left == right,
+            _ => false,
+        }
+    })
+}
+
+fn cartridge_abi_identity(manifest: &PaxManifest) -> Result<Vec<u8>> {
+    let component_identity = manifest
+        .components
+        .values()
+        .map(|component| {
+            (
+                &component.type_id,
+                component.is_primitive,
+                component.is_struct_only_component,
+                &component.primitive_instance_import_path,
+            )
+        })
+        .collect::<Vec<_>>();
+    let mut type_identity = manifest.type_table.iter().collect::<Vec<_>>();
+    type_identity.sort_by(|(left, _), (right, _)| left.cmp(right));
+
+    rmp_serde::to_vec(&(component_identity, type_identity))
+        .map_err(|err| anyhow!("failed to identify cartridge ABI: {err}"))
+}
+
+fn validate_runtime_manifest(manifest: &PaxManifest) -> Result<()> {
+    if !manifest
+        .components
+        .contains_key(&manifest.main_component_type_id)
+    {
+        return Err(anyhow!(
+            "design-server manifest is missing its main component {}",
+            manifest.main_component_type_id
+        ));
+    }
+
+    for (containing_type_id, component) in &manifest.components {
+        let Some(template) = &component.template else {
+            continue;
+        };
+        validate_template_references(manifest, containing_type_id, template)?;
+    }
+
+    Ok(())
+}
+
+fn validate_template_references(
+    manifest: &PaxManifest,
+    containing_type_id: &TypeId,
+    template: &ComponentTemplate,
+) -> Result<()> {
+    for node in template.get_nodes() {
+        if matches!(
+            node.type_id.get_pax_type(),
+            pax_manifest::PaxType::If
+                | pax_manifest::PaxType::Router
+                | pax_manifest::PaxType::Slot
+                | pax_manifest::PaxType::Repeat
+                | pax_manifest::PaxType::Comment
+        ) {
+            continue;
+        }
+        if !manifest.components.contains_key(&node.type_id) {
+            return Err(anyhow!(
+                "design-server manifest component {} references missing component {}",
+                containing_type_id,
+                node.type_id
+            ));
+        }
+    }
+
+    Ok(())
 }
 
 pub trait Undo {

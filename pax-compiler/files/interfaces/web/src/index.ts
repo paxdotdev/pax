@@ -65,6 +65,12 @@ let teardownHiddenTabPump: (() => void) | null = null;
 let teardownRouteLocationSync: (() => void) | null = null;
 let pendingReloadRequest: ReloadAppRequest | null = null;
 let reloadInProgress = false;
+let reloadInFlightBuildId: string | null = null;
+let reloadRetryBuildId: string | null = null;
+let reloadRetryAttempt = 0;
+let reloadRetryDelayMs = 500;
+let reloadRetryHandle: number | null = null;
+const RELOAD_RETRY_MAX_DELAY_MS = 5_000;
 const perfTraceEnabled = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("pax_scroll_perf");
 let perfTraceSequence = 0;
 
@@ -131,11 +137,23 @@ function ensureInterfaceStylesheet(extensionlessUrl: string) {
     document.head.appendChild(link);
 }
 
-async function loadWasmModule(extensionlessUrl: string): Promise<{ chassis: PaxChassisWeb }> {
+async function loadWasmModule(
+    extensionlessUrl: string,
+    reloadCacheKey?: string,
+): Promise<{ chassis: PaxChassisWeb }> {
     try {
-        const glueCodeModule = await import(`${extensionlessUrl}.js`) as typeof import("./types/pax-cartridge");
+        const glueCodeUrl = new URL(`${extensionlessUrl}.js`, document.baseURI);
+        const wasmUrl = new URL(`${extensionlessUrl}_bg.wasm`, document.baseURI);
+        if (reloadCacheKey != null) {
+            glueCodeUrl.searchParams.set("pax-reload", reloadCacheKey);
+            wasmUrl.searchParams.set("pax-reload", reloadCacheKey);
+        }
+        const glueCodeModule = await import(glueCodeUrl.href) as typeof import("./types/pax-cartridge");
 
-        const wasmBinary = await fetch(`${extensionlessUrl}_bg.wasm`);
+        const wasmBinary = await fetch(wasmUrl.href, reloadCacheKey == null ? undefined : {cache: "no-store"});
+        if (!wasmBinary.ok) {
+            throw new Error(`Failed to fetch WASM binary: HTTP ${wasmBinary.status}`);
+        }
         const wasmArrayBuffer = await wasmBinary.arrayBuffer();
         await glueCodeModule.default({module_or_path: wasmArrayBuffer});
 
@@ -370,6 +388,47 @@ function takeReloadRequests(chassis: PaxChassisWeb): ReloadAppRequest[] {
     return value as ReloadAppRequest[];
 }
 
+function normalizedArtifactLocation(location: string): string {
+    return new URL(location, document.baseURI).href;
+}
+
+function beginReloadAttempt(buildId: string): number {
+    if (reloadRetryBuildId !== buildId) {
+        reloadRetryBuildId = buildId;
+        reloadRetryAttempt = 0;
+        reloadRetryDelayMs = 500;
+    }
+    return reloadRetryAttempt++;
+}
+
+function clearReloadRetry(buildId: string) {
+    if (reloadRetryBuildId !== buildId) {
+        return;
+    }
+    reloadRetryBuildId = null;
+    reloadRetryAttempt = 0;
+    reloadRetryDelayMs = 500;
+    if (reloadRetryHandle != null) {
+        window.clearTimeout(reloadRetryHandle);
+        reloadRetryHandle = null;
+    }
+}
+
+function retryReloadAfterDelay(request: ReloadAppRequest) {
+    if (pendingReloadRequest != null && pendingReloadRequest.build_id !== request.build_id) {
+        clearReloadRetry(request.build_id);
+        return;
+    }
+    pendingReloadRequest = request;
+    const delay = reloadRetryDelayMs;
+    reloadRetryDelayMs = Math.min(reloadRetryDelayMs * 2, RELOAD_RETRY_MAX_DELAY_MS);
+    console.warn(`Retrying Pax cartridge ${request.build_id} in ${delay}ms`);
+    reloadRetryHandle = window.setTimeout(() => {
+        reloadRetryHandle = null;
+        void reloadMountedApp();
+    }, delay);
+}
+
 function processReloadRequests(chassis: PaxChassisWeb) {
     let requests = takeReloadRequests(chassis);
     if (requests.length === 0) {
@@ -380,12 +439,26 @@ function processReloadRequests(chassis: PaxChassisWeb) {
         console.warn("Ignoring unsupported reload artifact kind", request.artifact_kind);
         return;
     }
-    if (pendingReloadRequest?.build_id === request.build_id || currentExtensionlessUrl === request.artifact_location) {
+    if (
+        pendingReloadRequest?.build_id === request.build_id
+        || reloadInFlightBuildId === request.build_id
+    ) {
+        return;
+    }
+    if (
+        currentExtensionlessUrl != null
+        && normalizedArtifactLocation(currentExtensionlessUrl) === normalizedArtifactLocation(request.artifact_location)
+    ) {
+        chassis.acknowledge_reload_app_request(request.build_id);
         return;
     }
     pendingReloadRequest = request;
+    if (reloadRetryHandle != null) {
+        window.clearTimeout(reloadRetryHandle);
+        reloadRetryHandle = null;
+    }
     if (!reloadInProgress) {
-        queueMicrotask(() => reloadMountedApp());
+        queueMicrotask(() => void reloadMountedApp());
     }
 }
 
@@ -400,10 +473,16 @@ async function reloadMountedApp() {
             pendingReloadRequest = null;
             let mount = currentMount;
             if (!mount) {
+                clearReloadRetry(request.build_id);
                 continue;
             }
+            reloadInFlightBuildId = request.build_id;
+            const attempt = beginReloadAttempt(request.build_id);
             try {
-                let { chassis } = await loadWasmModule(request.artifact_location);
+                let { chassis } = await loadWasmModule(
+                    request.artifact_location,
+                    `${request.build_id}-${attempt}`,
+                );
                 // PAX-889 tracks the next hardening step here: keep the last
                 // known good chassis mounted until the replacement cartridge has
                 // attached cleanly, so a failed reload does not blank the tab.
@@ -415,8 +494,18 @@ async function reloadMountedApp() {
                 attachChassis(chassis, mount);
                 renderLoopStarted = true;
                 animationFrameHandle = requestAnimationFrame(() => renderLoop(chassis, mount));
+                clearReloadRetry(request.build_id);
             } catch (error) {
                 console.error(`Failed to reload Pax cartridge ${request.build_id}:`, error);
+                if (pendingReloadRequest == null) {
+                    retryReloadAfterDelay(request);
+                    return;
+                }
+                clearReloadRetry(request.build_id);
+            } finally {
+                if (reloadInFlightBuildId === request.build_id) {
+                    reloadInFlightBuildId = null;
+                }
             }
         }
     } finally {
@@ -611,8 +700,11 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
             let msg = unwrapped_msg["ImageLoad"];
             let patch: ImageLoadPatch = objectManager.getFromPool(IMAGE_LOAD_PATCH);
             patch.fromPatch(msg);
-            queueMicrotask(async () => {
-                await nativePool.imageLoad(patch, chassis);
+            let imagePool = nativePool;
+            queueMicrotask(() => {
+                void imagePool.imageLoad(patch, chassis).catch((error) => {
+                    console.warn(`Failed to load Pax image "${patch.path ?? ""}"`, error);
+                });
             });
         }else if(unwrapped_msg["ScrollerCreate"]) {
             let msg = unwrapped_msg["ScrollerCreate"]

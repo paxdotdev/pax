@@ -475,19 +475,65 @@ fn materialize_web_build_dir(
 }
 
 fn copy_web_reload_artifacts(interface_path: &Path, staged_dir: &Path) -> Result<(), eyre::Report> {
-    fs::create_dir_all(staged_dir)?;
-    for file_name in [
-        "pax-cartridge.js",
-        "pax-cartridge_bg.wasm",
+    const REQUIRED_FILES: [&str; 2] = ["pax-cartridge.js", "pax-cartridge_bg.wasm"];
+    const OPTIONAL_FILES: [&str; 3] = [
         "pax-cartridge.d.ts",
         "pax-cartridge_bg.wasm.d.ts",
         "package.json",
-    ] {
-        let src = interface_path.join(file_name);
-        if src.exists() {
-            fs::copy(&src, staged_dir.join(file_name))?;
+    ];
+
+    let parent = staged_dir
+        .parent()
+        .ok_or_else(|| eyre!("web reload staging path has no parent"))?;
+    let staged_name = staged_dir
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(|| eyre!("web reload staging path has no file name"))?;
+    let pending_dir = parent.join(format!(".{staged_name}.pending"));
+    let _ = fs::remove_dir_all(&pending_dir);
+    fs::create_dir_all(&pending_dir)?;
+
+    let copy_result = (|| -> Result<(), eyre::Report> {
+        for file_name in REQUIRED_FILES {
+            let src = interface_path.join(file_name);
+            let metadata = fs::metadata(&src)
+                .map_err(|err| eyre!("missing required web reload artifact {file_name}: {err}"))?;
+            if !metadata.is_file() || metadata.len() == 0 {
+                return Err(eyre!(
+                    "required web reload artifact {file_name} is empty or not a file"
+                ));
+            }
+            fs::copy(&src, pending_dir.join(file_name))?;
         }
+        for file_name in OPTIONAL_FILES {
+            let src = interface_path.join(file_name);
+            if src.is_file() {
+                fs::copy(&src, pending_dir.join(file_name))?;
+            }
+        }
+        let snippets_src = interface_path.join("snippets");
+        if !snippets_src.is_dir() {
+            return Err(eyre!(
+                "missing required web reload artifact directory snippets"
+            ));
+        }
+        copy_dir_recursively(&snippets_src, &pending_dir.join("snippets"), &[])
+            .map_err(|err| eyre!("failed to copy web reload snippets: {err}"))?;
+        Ok(())
+    })();
+
+    if let Err(err) = copy_result {
+        let _ = fs::remove_dir_all(&pending_dir);
+        return Err(err);
     }
+    if staged_dir.exists() {
+        let _ = fs::remove_dir_all(&pending_dir);
+        return Err(eyre!(
+            "web reload staging destination already exists: {}",
+            staged_dir.display()
+        ));
+    }
+    fs::rename(&pending_dir, staged_dir)?;
     Ok(())
 }
 
@@ -653,4 +699,90 @@ fn cleanup_web_dev_session(
     remove_project_active_session(pax_dir, &dev_session.session_id)?;
     dev_session::remove_registered_session(&dev_session.session_id)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::copy_web_reload_artifacts;
+    use std::fs;
+    use tempfile::tempdir;
+
+    #[test]
+    fn web_reload_artifacts_publish_only_after_required_files_exist() {
+        let dir = tempdir().unwrap();
+        let interface_dir = dir.path().join("interface");
+        let staged_dir = dir.path().join("served/__reloads__/build-1");
+        fs::create_dir_all(&interface_dir).unwrap();
+        fs::write(interface_dir.join("pax-cartridge.js"), b"javascript").unwrap();
+        fs::write(interface_dir.join("pax-cartridge_bg.wasm"), b"wasm").unwrap();
+        fs::create_dir_all(interface_dir.join("snippets/chassis")).unwrap();
+        fs::write(
+            interface_dir.join("snippets/chassis/inline0.js"),
+            b"snippet",
+        )
+        .unwrap();
+
+        copy_web_reload_artifacts(&interface_dir, &staged_dir).unwrap();
+
+        assert_eq!(
+            fs::read(staged_dir.join("pax-cartridge.js")).unwrap(),
+            b"javascript"
+        );
+        assert_eq!(
+            fs::read(staged_dir.join("pax-cartridge_bg.wasm")).unwrap(),
+            b"wasm"
+        );
+        assert_eq!(
+            fs::read(staged_dir.join("snippets/chassis/inline0.js")).unwrap(),
+            b"snippet"
+        );
+        assert!(!staged_dir
+            .parent()
+            .unwrap()
+            .join(".build-1.pending")
+            .exists());
+    }
+
+    #[test]
+    fn missing_required_web_reload_artifact_is_never_published() {
+        let dir = tempdir().unwrap();
+        let interface_dir = dir.path().join("interface");
+        let staged_dir = dir.path().join("served/__reloads__/build-1");
+        fs::create_dir_all(&interface_dir).unwrap();
+        fs::write(interface_dir.join("pax-cartridge.js"), b"javascript").unwrap();
+
+        let err = copy_web_reload_artifacts(&interface_dir, &staged_dir).unwrap_err();
+
+        assert!(err
+            .to_string()
+            .contains("missing required web reload artifact pax-cartridge_bg.wasm"));
+        assert!(!staged_dir.exists());
+        assert!(!staged_dir
+            .parent()
+            .unwrap()
+            .join(".build-1.pending")
+            .exists());
+    }
+
+    #[test]
+    fn missing_web_reload_snippets_are_never_published() {
+        let dir = tempdir().unwrap();
+        let interface_dir = dir.path().join("interface");
+        let staged_dir = dir.path().join("served/__reloads__/build-1");
+        fs::create_dir_all(&interface_dir).unwrap();
+        fs::write(interface_dir.join("pax-cartridge.js"), b"javascript").unwrap();
+        fs::write(interface_dir.join("pax-cartridge_bg.wasm"), b"wasm").unwrap();
+
+        let err = copy_web_reload_artifacts(&interface_dir, &staged_dir).unwrap_err();
+
+        assert!(err
+            .to_string()
+            .contains("missing required web reload artifact directory snippets"));
+        assert!(!staged_dir.exists());
+        assert!(!staged_dir
+            .parent()
+            .unwrap()
+            .join(".build-1.pending")
+            .exists());
+    }
 }

@@ -3420,6 +3420,9 @@ export class NativeElementPool {
     }
     
     async imageLoad(patch: ImageLoadPatch, chassis: PaxChassisWeb) {
+        if (this.chassis !== chassis) {
+            return
+        }
         if (chassis.image_loaded(patch.path ?? "")) {
             return
         }
@@ -3434,6 +3437,11 @@ export class NativeElementPool {
 
         let path = (BASE_PATH + patch.path!).replace("//", "/");
         let image_data = await readImageToByteBuffer(path!)
+        // A cartridge reload may dispose this pool while image decoding is in
+        // flight. Never call back into a freed or superseded Wasm chassis.
+        if (this.chassis !== chassis) {
+            return
+        }
         let message = {
             "Image": {
                 "Data": {

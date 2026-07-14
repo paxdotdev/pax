@@ -81,6 +81,11 @@ export class PaxChassisWeb {
 */
   take_reload_app_requests(): any;
 /**
+* @param {string} build_id
+* @returns {boolean}
+*/
+  acknowledge_reload_app_request(build_id: string): boolean;
+/**
 * @param {string} path
 * @returns {boolean}
 */
@@ -118,6 +123,7 @@ export interface InitOutput {
   readonly paxchassisweb_request_layer_screenshot: (a: number, b: number, c: number) => void;
   readonly paxchassisweb_take_layer_screenshot: (a: number, b: number, c: number) => number;
   readonly paxchassisweb_take_layer_surface_screenshots: (a: number, b: number, c: number) => number;
+  readonly paxchassisweb_acknowledge_reload_app_request: (a: number, b: number, c: number) => number;
   readonly paxchassisweb_image_loaded: (a: number, b: number, c: number) => number;
   readonly slugify: (a: number, b: number, c: number) => void;
   readonly __wbindgen_malloc: (a: number, b: number) => number;

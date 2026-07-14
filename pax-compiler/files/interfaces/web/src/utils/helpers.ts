@@ -1,23 +1,38 @@
 export async function readImageToByteBuffer(imagePath: string): Promise<{ pixels: Uint8ClampedArray, width: number, height: number }> {
     let attempts = 8;
     let delay = 100;
+    let lastError: unknown = new Error("image load did not start");
     while (attempts > 0) {
-        const response = await fetch(imagePath);
-        if (response.ok) {
+        try {
+            const response = await fetch(imagePath);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status} ${response.statusText}`.trim());
+            }
             const blob = await response.blob();
             const img = await createImageBitmap(blob);
-            const canvas = new OffscreenCanvas(img.width + 1000, img.height);
-            const ctx = canvas.getContext('2d');
-            ctx!.drawImage(img, 0, 0, img.width, img.height);
-            const imageData = ctx!.getImageData(0, 0, img.width, img.height);
-            let pixels = imageData.data;
-            return { pixels, width: img.width, height: img.height };
+            try {
+                const canvas = new OffscreenCanvas(img.width, img.height);
+                const ctx = canvas.getContext('2d');
+                if (ctx == null) {
+                    throw new Error("unable to create image decode canvas");
+                }
+                ctx.drawImage(img, 0, 0, img.width, img.height);
+                const imageData = ctx.getImageData(0, 0, img.width, img.height);
+                return { pixels: imageData.data, width: img.width, height: img.height };
+            } finally {
+                img.close();
+            }
+        } catch (error) {
+            lastError = error;
+            attempts--;
+            if (attempts === 0) {
+                break;
+            }
+            await new Promise(resolve => setTimeout(resolve, delay));
+            delay *= 2;
         }
-        await new Promise(resolve => setTimeout(resolve, delay));
-        delay *= 2;
-        attempts--;
     }
-    return Promise.reject('Failed to fetch image after maximum retries.')
+    throw new Error(`Failed to load image "${imagePath}" after maximum retries: ${String(lastError)}`);
 }
 
 export const HIDDEN_TAB_FRAME_FALLBACK_MS = 250;

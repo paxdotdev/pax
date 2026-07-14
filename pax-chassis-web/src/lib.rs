@@ -1314,6 +1314,27 @@ impl PaxChassisWeb {
         }
     }
 
+    /// Confirms that this Wasm instance matches the reload build selected by the host.
+    pub fn acknowledge_reload_app_request(&mut self, build_id: &str) -> bool {
+        #[cfg(feature = "designtime")]
+        {
+            return self
+                .designtime_manager
+                .borrow_mut()
+                .acknowledge_reload_app_request(build_id)
+                .unwrap_or_else(|err| {
+                    log::warn!("failed to acknowledge web cartridge {build_id}: {err}");
+                    false
+                });
+        }
+
+        #[cfg(not(feature = "designtime"))]
+        {
+            let _ = build_id;
+            false
+        }
+    }
+
     pub fn image_loaded(&mut self, path: &str) -> bool {
         self.render_context.image_loaded(path)
     }
