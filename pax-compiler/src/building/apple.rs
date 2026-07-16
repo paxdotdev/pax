@@ -12,8 +12,8 @@ use crate::helpers::{
 };
 use crate::project_metadata::PaxProjectMetadata;
 use crate::{
-    copy_dir_recursively, prepare_cartridge_sources, wait_with_output, BuildTimings, RunContext,
-    RunTarget,
+    copy_dir_recursively, prepare_cartridge_sources, wait_with_output, BuildTimings, HotReloadMode,
+    RunContext, RunTarget,
 };
 
 use color_eyre::eyre;
@@ -21,6 +21,7 @@ use eyre::eyre;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::fs;
+use std::net::{IpAddr, Ipv6Addr};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output};
 use std::sync::{Arc, Mutex};
@@ -44,6 +45,9 @@ const MACOS_MULTIARCH_PACKAGE_ID: &str = "macos-arm64_x86_64";
 const IOS_SIMULATOR_MULTIARCH_PACKAGE_ID: &str = "ios-arm64_x86_64-simulator";
 const IOS_PACKAGE_ID: &str = "ios-arm64";
 const PAX_CARTRIDGE_FRAMEWORK_BINARY: &str = "PaxCartridge";
+const DESIGN_SERVER_ADVERTISE_HOST_ENV: &str = "PAX_DESIGN_SERVER_ADVERTISE_HOST";
+const IOS_LOCAL_NETWORK_USAGE_DESCRIPTION: &str =
+    "Pax uses the local network during development to receive live template updates.";
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum AppleTargetKind {
@@ -354,6 +358,7 @@ fn apple_mobile_target(target: &RunTarget) -> Option<AppleMobileTarget> {
 
 pub struct MacosLogicReloadBuild {
     pub manifest: PaxManifest,
+    pub build_id: String,
     pub dylib_path: PathBuf,
 }
 
@@ -404,6 +409,11 @@ pub fn build_apple_project_with_cartridge(
         resolved_ios_device.as_ref(),
         std::env::consts::ARCH,
     );
+    let release_target_triples: Vec<&str> = target_mappings
+        .iter()
+        .map(|mapping| mapping.rust_target)
+        .collect();
+    crate::validate_release_cargo_feature_boundary(ctx, &release_target_triples)?;
 
     let dylib_file_name = resolve_dylib_file_name(&project_path)?;
 
@@ -736,6 +746,10 @@ Note that the temporary directories mentioned above are subject to overwriting.\
 
     let configuration = if is_release { "Release" } else { "Debug" };
 
+    if apple_mobile_target.is_some() && should_run_designtime {
+        enable_ios_designtime_local_network_access(&pax_dir)?;
+    }
+
     normalize_apple_package_paths(&xcodeproj_path)?;
 
     let build_dest_base = pax_dir
@@ -960,7 +974,7 @@ Note that the temporary directories mentioned above are subject to overwriting.\
     // Start  `run` rather than a `build`
     let target_str: &str = target.into();
     if ctx.should_also_run {
-        if ctx.should_run_designtime && matches!(target, RunTarget::macOS) {
+        if ctx.should_run_designtime {
             println!(
                 "{} 🐇{} Running Pax {}{}...",
                 *PAX_BADGE,
@@ -996,7 +1010,8 @@ Note that the temporary directories mentioned above are subject to overwriting.\
                     &pax_dir,
                     &project_path,
                     &manifest,
-                    session.session_dir.as_ref().unwrap(),
+                    Some(session.session_dir.as_ref().unwrap()),
+                    ctx.hot_reload.unwrap_or_default(),
                     &ready_file,
                     process_child_ids.clone(),
                 )?);
@@ -1020,27 +1035,32 @@ Note that the temporary directories mentioned above are subject to overwriting.\
             // normal macOS activation/focus behavior instead of appearing as a
             // background direct-exec process.
             let mut cmd = Command::new("open");
-            cmd.arg("-W").arg("-n").arg(&executable_dot_app_path);
+            cmd.arg("-W").arg("-n");
             if let Some(session) = &dev_session {
-                cmd.env(
+                add_launchservices_environment(
+                    &mut cmd,
                     "PAX_DEV_SESSION_DIR",
                     session.session_dir.as_ref().unwrap().to_str().unwrap(),
-                )
-                .env(
+                );
+                add_launchservices_environment(
+                    &mut cmd,
                     "PAX_DEV_REGISTRY_FILE",
                     dev_session::global_session_registry_file(&session.session_id)?
                         .to_str()
                         .unwrap(),
-                )
-                .env(
+                );
+                add_launchservices_environment(
+                    &mut cmd,
                     "PAX_DEV_PROJECT_ROOT",
                     session.project_root.as_ref().unwrap().to_str().unwrap(),
-                )
-                .env(
+                );
+                add_launchservices_environment(
+                    &mut cmd,
                     "PAX_DESIGN_SERVER_ADDR",
                     session.design_server_addr.as_ref().unwrap(),
                 );
             }
+            cmd.arg(&executable_dot_app_path);
 
             #[cfg(unix)]
             unsafe {
@@ -1081,13 +1101,7 @@ Note that the temporary directories mentioned above are subject to overwriting.\
                 cleanup_dev_session(&pax_dir, session)?;
             }
             if let Some(server) = designtime_server.as_mut() {
-                let server_pid = server.id() as u64;
-                let _ = server.kill();
-                let _ = server.wait();
-                process_child_ids
-                    .lock()
-                    .unwrap()
-                    .retain(|&id| id != server_pid);
+                stop_designtime_server_process(server, &process_child_ids);
             }
 
             println!("App exited with: {:?}", status);
@@ -1102,24 +1116,78 @@ Note that the temporary directories mentioned above are subject to overwriting.\
                 .as_ref()
                 .ok_or_else(|| eyre!("Missing resolved iOS app identity."))?;
 
-            match device.kind {
-                IosDeviceKind::Simulator => run_on_simulator(
-                    &device.identifier,
-                    &device.name,
-                    &executable_output_dir_path,
-                    &executable_dot_app_path,
-                    &app_identity.bundle_identifier,
-                    &process_child_ids,
-                )?,
-                IosDeviceKind::Physical => run_on_physical_device(
-                    &device.identifier,
-                    &device.name,
-                    &executable_output_dir_path,
-                    &executable_dot_app_path,
-                    &app_identity.bundle_identifier,
-                    &process_child_ids,
-                )?,
+            let mut designtime_server = None;
+            let mut designtime_run_dir = None;
+            let run_result = (|| -> Result<(), eyre::Report> {
+                let design_server_addr = if ctx.should_run_designtime {
+                    let run_dir = project_dev_dir(&pax_dir).join("sessions").join(format!(
+                        "{}-templates-{}-{}",
+                        target_str_lower,
+                        now_ms(),
+                        std::process::id()
+                    ));
+                    let ready_file = run_dir.join("design-server-url.txt");
+                    fs::create_dir_all(&run_dir)?;
+                    designtime_run_dir = Some(run_dir);
+                    designtime_server = Some(spawn_designtime_server_process(
+                        &pax_dir,
+                        &project_path,
+                        &manifest,
+                        None,
+                        ctx.hot_reload.unwrap_or_default(),
+                        &ready_file,
+                        process_child_ids.clone(),
+                    )?);
+                    let loopback_addr =
+                        wait_for_designtime_ready(&ready_file, Duration::from_secs(5))?;
+                    let app_addr = mobile_design_server_address(device.kind, &loopback_addr)?;
+                    if ctx.hot_reload.unwrap_or_default().reloads_pax() {
+                        println!(
+                            "{} 📡 Pax hot reload available at {}. Logic changes require rebuilding the app.",
+                            *PAX_BADGE,
+                            app_addr.bold()
+                        );
+                    } else {
+                        println!(
+                            "{} 📡 Hot reload is off; the designtime server remains available at {} for inspection.",
+                            *PAX_BADGE,
+                            app_addr.bold()
+                        );
+                    }
+                    Some(app_addr)
+                } else {
+                    None
+                };
+
+                match device.kind {
+                    IosDeviceKind::Simulator => run_on_simulator(
+                        &device.identifier,
+                        &device.name,
+                        &executable_output_dir_path,
+                        &executable_dot_app_path,
+                        &app_identity.bundle_identifier,
+                        design_server_addr.as_deref(),
+                        &process_child_ids,
+                    ),
+                    IosDeviceKind::Physical => run_on_physical_device(
+                        &device.identifier,
+                        &device.name,
+                        &executable_output_dir_path,
+                        &executable_dot_app_path,
+                        &app_identity.bundle_identifier,
+                        design_server_addr.as_deref(),
+                        &process_child_ids,
+                    ),
+                }
+            })();
+
+            if let Some(server) = designtime_server.as_mut() {
+                stop_designtime_server_process(server, &process_child_ids);
             }
+            if let Some(run_dir) = designtime_run_dir {
+                let _ = fs::remove_dir_all(run_dir);
+            }
+            run_result?;
         }
     } else {
         let build_path = executable_output_dir_path.to_str().unwrap().bold();
@@ -1488,12 +1556,195 @@ fn parse_named_identifier_line(line: &str) -> Option<(String, String)> {
     Some((name.to_string(), identifier.to_string()))
 }
 
+fn enable_ios_designtime_local_network_access(pax_dir: &Path) -> Result<(), eyre::Report> {
+    let info_plist = pax_dir
+        .join(INTERFACE_DIR_NAME)
+        .join("ios")
+        .join("pax-app-ios")
+        .join("pax-app-ios")
+        .join("Info.plist");
+    let contents = fs::read_to_string(&info_plist).map_err(|err| {
+        eyre!(
+            "failed to read the iOS Info.plist at {} before enabling designtime local-network access: {err}",
+            info_plist.display()
+        )
+    })?;
+    let updated = ios_info_plist_with_local_network_usage_description(&contents)?;
+    if updated != contents {
+        fs::write(&info_plist, updated).map_err(|err| {
+            eyre!(
+                "failed to update the iOS Info.plist at {} for designtime local-network access: {err}",
+                info_plist.display()
+            )
+        })?;
+    }
+    Ok(())
+}
+
+fn ios_info_plist_with_local_network_usage_description(
+    contents: &str,
+) -> Result<String, eyre::Report> {
+    if contents.contains("<key>NSLocalNetworkUsageDescription</key>") {
+        return Ok(contents.to_string());
+    }
+
+    let insertion_point = contents.rfind("</dict>").ok_or_else(|| {
+        eyre!("the iOS Info.plist has no root dictionary to receive NSLocalNetworkUsageDescription")
+    })?;
+    let mut updated = contents.to_string();
+    updated.insert_str(
+        insertion_point,
+        &format!(
+            "\t<key>NSLocalNetworkUsageDescription</key>\n\t<string>{IOS_LOCAL_NETWORK_USAGE_DESCRIPTION}</string>\n"
+        ),
+    );
+    Ok(updated)
+}
+
+fn mobile_design_server_address(
+    device_kind: IosDeviceKind,
+    loopback_addr: &str,
+) -> Result<String, eyre::Report> {
+    match device_kind {
+        IosDeviceKind::Simulator => Ok(loopback_addr.to_string()),
+        IosDeviceKind::Physical => {
+            let host = physical_device_design_server_host()?;
+            design_server_address_with_host(loopback_addr, &host)
+        }
+    }
+}
+
+fn physical_device_design_server_host() -> Result<String, eyre::Report> {
+    if let Ok(host) = std::env::var(DESIGN_SERVER_ADVERTISE_HOST_ENV) {
+        return normalize_design_server_host(&host);
+    }
+
+    crate::design_server::local_network_ip()
+        .map(url_host_for_ip)
+        .ok_or_else(|| {
+            eyre!(
+                "could not determine a LAN address for iOS designtime; connect the Mac and device to the same network or set {DESIGN_SERVER_ADVERTISE_HOST_ENV} to the Mac's reachable host name or IP address"
+            )
+        })
+}
+
+fn normalize_design_server_host(host: &str) -> Result<String, eyre::Report> {
+    let host = host.trim();
+    if host.is_empty() {
+        return Err(eyre!(
+            "{DESIGN_SERVER_ADVERTISE_HOST_ENV} must name a host, not an empty string"
+        ));
+    }
+    if host.contains("://") || host.contains('/') {
+        return Err(eyre!(
+            "{DESIGN_SERVER_ADVERTISE_HOST_ENV} must contain only a host name or IP address, without a URL scheme, path, or port"
+        ));
+    }
+    if host.starts_with('[') && host.ends_with(']') {
+        host[1..host.len() - 1].parse::<Ipv6Addr>().map_err(|_| {
+            eyre!("invalid bracketed IPv6 address in {DESIGN_SERVER_ADVERTISE_HOST_ENV}")
+        })?;
+        return Ok(host.to_string());
+    }
+    if let Ok(ipv6) = host.parse::<Ipv6Addr>() {
+        return Ok(format!("[{ipv6}]"));
+    }
+    if host.contains(':') {
+        return Err(eyre!(
+            "{DESIGN_SERVER_ADVERTISE_HOST_ENV} accepts a host only; the design server port is selected automatically"
+        ));
+    }
+    Ok(host.to_string())
+}
+
+fn url_host_for_ip(ip: IpAddr) -> String {
+    match ip {
+        IpAddr::V4(ip) => ip.to_string(),
+        IpAddr::V6(ip) => format!("[{ip}]"),
+    }
+}
+
+fn design_server_address_with_host(
+    loopback_addr: &str,
+    advertised_host: &str,
+) -> Result<String, eyre::Report> {
+    let (scheme, authority_and_path) = loopback_addr
+        .split_once("://")
+        .ok_or_else(|| eyre!("invalid design-server ready address: {loopback_addr}"))?;
+    if !matches!(scheme, "ws" | "wss") {
+        return Err(eyre!(
+            "unsupported design-server ready address scheme in {loopback_addr}"
+        ));
+    }
+    let authority = authority_and_path.split('/').next().unwrap_or_default();
+    let port = authority
+        .rsplit_once(':')
+        .and_then(|(_, port)| port.parse::<u16>().ok())
+        .ok_or_else(|| eyre!("design-server ready address has no valid port: {loopback_addr}"))?;
+    Ok(format!("{scheme}://{advertised_host}:{port}"))
+}
+
+fn add_launchservices_environment(command: &mut Command, key: &str, value: &str) {
+    // `open` launches app bundles through LaunchServices, which does not inherit
+    // arbitrary variables from the `open` process. `--env` explicitly forwards
+    // each designtime value into the app process.
+    command.arg("--env").arg(format!("{key}={value}"));
+}
+
+fn simulator_launch_command(
+    device_udid: &str,
+    bundle_identifier: &str,
+    design_server_addr: Option<&str>,
+) -> Command {
+    let mut cmd = Command::new("xcrun");
+    cmd.arg("simctl")
+        .arg("launch")
+        .arg("--console")
+        .arg("--terminate-running-process")
+        .arg(device_udid)
+        .arg(bundle_identifier)
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit());
+    if let Some(design_server_addr) = design_server_addr {
+        cmd.env("SIMCTL_CHILD_PAX_DESIGN_SERVER_ADDR", design_server_addr);
+    } else {
+        cmd.env_remove("SIMCTL_CHILD_PAX_DESIGN_SERVER_ADDR");
+    }
+    cmd
+}
+
+fn physical_device_launch_command(
+    device_identifier: &str,
+    bundle_identifier: &str,
+    design_server_addr: Option<&str>,
+) -> Command {
+    let mut cmd = Command::new("xcrun");
+    cmd.arg("devicectl")
+        .arg("device")
+        .arg("process")
+        .arg("launch")
+        .arg("--device")
+        .arg(device_identifier)
+        .arg("--console")
+        .arg("--terminate-existing")
+        .arg(bundle_identifier)
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit());
+    if let Some(design_server_addr) = design_server_addr {
+        cmd.env("DEVICECTL_CHILD_PAX_DESIGN_SERVER_ADDR", design_server_addr);
+    } else {
+        cmd.env_remove("DEVICECTL_CHILD_PAX_DESIGN_SERVER_ADDR");
+    }
+    cmd
+}
+
 fn run_on_simulator(
     device_udid: &str,
     device_name: &str,
     executable_output_dir_path: &PathBuf,
     executable_dot_app_path: &PathBuf,
     bundle_identifier: &str,
+    design_server_addr: Option<&str>,
     process_child_ids: &Arc<Mutex<Vec<u64>>>,
 ) -> Result<(), eyre::Report> {
     let mut cmd = Command::new("open");
@@ -1587,13 +1838,7 @@ fn run_on_simulator(
         return Err(eyre!("Error installing app on iOS simulator. Aborting."));
     }
 
-    let mut cmd = Command::new("xcrun");
-    cmd.arg("simctl")
-        .arg("launch")
-        .arg(device_udid)
-        .arg(bundle_identifier)
-        .stdout(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::inherit());
+    let mut cmd = simulator_launch_command(device_udid, bundle_identifier, design_server_addr);
 
     #[cfg(unix)]
     unsafe {
@@ -1618,6 +1863,7 @@ fn run_on_physical_device(
     executable_output_dir_path: &PathBuf,
     executable_dot_app_path: &PathBuf,
     bundle_identifier: &str,
+    design_server_addr: Option<&str>,
     process_child_ids: &Arc<Mutex<Vec<u64>>>,
 ) -> Result<(), eyre::Report> {
     println!(
@@ -1650,18 +1896,8 @@ fn run_on_physical_device(
         ));
     }
 
-    let mut cmd = Command::new("xcrun");
-    cmd.arg("devicectl")
-        .arg("device")
-        .arg("process")
-        .arg("launch")
-        .arg("--device")
-        .arg(device_identifier)
-        .arg("--console")
-        .arg("--terminate-existing")
-        .arg(bundle_identifier)
-        .stdout(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::inherit());
+    let mut cmd =
+        physical_device_launch_command(device_identifier, bundle_identifier, design_server_addr);
 
     #[cfg(unix)]
     unsafe {
@@ -1948,6 +2184,7 @@ pub fn rebuild_staged_macos_logic_dylib(
         process_child_ids: process_child_ids.clone(),
         should_run_designtime: true,
         should_run_designer,
+        hot_reload: None,
         is_release: false,
         profile_wasm_size: false,
         webgl: false,
@@ -1956,14 +2193,6 @@ pub fn rebuild_staged_macos_logic_dylib(
     };
 
     let prepared = prepare_cartridge_sources(&ctx)?;
-    let manifest_path = project_designtime_manifest_file(&prepared.pax_dir);
-    if let Some(parent) = manifest_path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::write(
-        &manifest_path,
-        serde_json::to_vec(&prepared.userland_manifest)?,
-    )?;
 
     let target_mapping =
         select_apple_target_mappings(&RunTarget::macOS, false, None, std::env::consts::ARCH)
@@ -2028,10 +2257,11 @@ pub fn rebuild_staged_macos_logic_dylib(
 
     let staged_dir = session_dir.join("logic-modules");
     fs::create_dir_all(&staged_dir)?;
+    let build_id = now_ms().to_string();
     let staged_dylib_path = staged_dir.join(format!(
         "{}-{}.dylib",
         dylib_file_name.trim_end_matches(".dylib"),
-        now_ms()
+        build_id
     ));
     fs::copy(&dylib_src, &staged_dylib_path)?;
 
@@ -2058,6 +2288,7 @@ pub fn rebuild_staged_macos_logic_dylib(
 
     Ok(MacosLogicReloadBuild {
         manifest: prepared.userland_manifest,
+        build_id,
         dylib_path: staged_dylib_path,
     })
 }
@@ -2265,7 +2496,8 @@ fn spawn_designtime_server_process(
     pax_dir: &PathBuf,
     project_root: &PathBuf,
     manifest: &PaxManifest,
-    session_dir: &PathBuf,
+    native_session_dir: Option<&Path>,
+    hot_reload: HotReloadMode,
     ready_file: &PathBuf,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
 ) -> Result<Child, eyre::Report> {
@@ -2274,23 +2506,15 @@ fn spawn_designtime_server_process(
     fs::write(&manifest_path, serde_json::to_vec(manifest)?)?;
 
     let current_exe = std::env::current_exe()?;
-    let mut cmd = Command::new(current_exe);
-    cmd.arg("designtime-server")
-        .arg("--serve-dir")
-        .arg(pax_dir)
-        .arg("--watch-dir")
-        .arg(project_root)
-        .arg("--manifest-path")
-        .arg(manifest_path)
-        .arg("--macos-session-dir")
-        .arg(session_dir)
-        .arg("--port")
-        .arg("0")
-        .arg("--ready-file")
-        .arg(ready_file)
-        .arg("--suppress-address-log")
-        .stdout(std::process::Stdio::inherit())
-        .stderr(std::process::Stdio::inherit());
+    let mut cmd = designtime_server_command(
+        &current_exe,
+        pax_dir,
+        project_root,
+        &manifest_path,
+        native_session_dir,
+        hot_reload,
+        ready_file,
+    );
 
     #[cfg(unix)]
     unsafe {
@@ -2300,6 +2524,48 @@ fn spawn_designtime_server_process(
     let child = cmd.spawn().expect(ERR_SPAWN);
     process_child_ids.lock().unwrap().push(child.id() as u64);
     Ok(child)
+}
+
+fn designtime_server_command(
+    executable: &Path,
+    pax_dir: &Path,
+    project_root: &Path,
+    manifest_path: &Path,
+    native_session_dir: Option<&Path>,
+    hot_reload: HotReloadMode,
+    ready_file: &Path,
+) -> Command {
+    let mut cmd = Command::new(executable);
+    cmd.arg("designtime-server")
+        .arg("--serve-dir")
+        .arg(pax_dir)
+        .arg("--watch-dir")
+        .arg(project_root)
+        .arg("--manifest-path")
+        .arg(manifest_path)
+        .arg("--hot-reload")
+        .arg(hot_reload.as_str())
+        .arg("--port")
+        .arg("0")
+        .arg("--ready-file")
+        .arg(ready_file)
+        .arg("--suppress-address-log")
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit());
+    if let Some(native_session_dir) = native_session_dir {
+        cmd.arg("--macos-session-dir").arg(native_session_dir);
+    }
+    cmd
+}
+
+fn stop_designtime_server_process(server: &mut Child, process_child_ids: &Arc<Mutex<Vec<u64>>>) {
+    let server_pid = server.id() as u64;
+    let _ = server.kill();
+    let _ = server.wait();
+    process_child_ids
+        .lock()
+        .unwrap()
+        .retain(|&id| id != server_pid);
 }
 
 fn wait_for_designtime_ready(
@@ -2348,6 +2614,10 @@ fn is_simulator_booted(device_udid: &str, process_child_ids: &Arc<Mutex<Vec<u64>
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::ffi::OsStr;
+
+    const MACOS_HOST_SWIFT: &str =
+        include_str!("../../files/interfaces/macos/pax-app-macos/pax-app-macos/PaxViewMacos.swift");
 
     fn resolved_ios_device(kind: IosDeviceKind) -> ResolvedIosDevice {
         ResolvedIosDevice {
@@ -2387,6 +2657,20 @@ edition = "2021"
         )
         .expect("Cargo.toml should be written");
         dir
+    }
+
+    fn command_args(command: &Command) -> Vec<String> {
+        command
+            .get_args()
+            .map(|arg| arg.to_string_lossy().into_owned())
+            .collect()
+    }
+
+    fn command_env(command: &Command, key: &str) -> Option<Option<String>> {
+        command
+            .get_envs()
+            .find(|(candidate, _)| *candidate == OsStr::new(key))
+            .map(|(_, value)| value.map(|value| value.to_string_lossy().into_owned()))
     }
 
     #[test]
@@ -2521,5 +2805,157 @@ edition = "2021"
             .expect("expected an iPad simulator");
 
         assert_eq!(best.name, "iPad (A16)");
+    }
+
+    #[test]
+    fn macos_launchservices_environment_is_forwarded_with_open_env_arguments() {
+        let mut command = Command::new("open");
+        add_launchservices_environment(&mut command, "PAX_DEV_SESSION_DIR", "/tmp/Pax Session");
+        let args = command_args(&command);
+
+        assert_eq!(
+            args,
+            vec![
+                "--env".to_string(),
+                "PAX_DEV_SESSION_DIR=/tmp/Pax Session".to_string()
+            ]
+        );
+        assert_eq!(command_env(&command, "PAX_DEV_SESSION_DIR"), None);
+    }
+
+    #[test]
+    fn macos_debug_host_probes_revision_hooks_but_requires_them_for_reload() {
+        assert!(MACOS_HOST_SWIFT.contains("let activateAppRevision = resolveOptionalSymbol("));
+        assert!(MACOS_HOST_SWIFT.contains("let primeAppRevision = resolveOptionalSymbol("));
+        assert!(MACOS_HOST_SWIFT.contains(
+            "Reload candidate is not designtime-enabled; missing required revision hook(s):"
+        ));
+    }
+
+    #[test]
+    fn simulator_designtime_launch_is_attached_and_injects_server_address() {
+        let command = simulator_launch_command(
+            "SIMULATOR-UDID",
+            "dev.pax.example",
+            Some("ws://127.0.0.1:43111"),
+        );
+        let args = command_args(&command);
+
+        assert!(args.windows(2).any(|args| args == ["simctl", "launch"]));
+        assert!(args.contains(&"--console".to_string()));
+        assert!(args.contains(&"--terminate-running-process".to_string()));
+        assert_eq!(
+            command_env(&command, "SIMCTL_CHILD_PAX_DESIGN_SERVER_ADDR"),
+            Some(Some("ws://127.0.0.1:43111".to_string()))
+        );
+    }
+
+    #[test]
+    fn physical_designtime_launch_injects_reachable_server_address() {
+        let command = physical_device_launch_command(
+            "PHYSICAL-UDID",
+            "dev.pax.example",
+            Some("ws://192.168.1.25:43111"),
+        );
+        let args = command_args(&command);
+
+        assert!(args.contains(&"--console".to_string()));
+        assert!(args.contains(&"--terminate-existing".to_string()));
+        assert_eq!(
+            command_env(&command, "DEVICECTL_CHILD_PAX_DESIGN_SERVER_ADDR"),
+            Some(Some("ws://192.168.1.25:43111".to_string()))
+        );
+    }
+
+    #[test]
+    fn launch_without_designtime_removes_inherited_server_address() {
+        let simulator = simulator_launch_command("SIM", "dev.pax.example", None);
+        let physical = physical_device_launch_command("PHONE", "dev.pax.example", None);
+
+        assert_eq!(
+            command_env(&simulator, "SIMCTL_CHILD_PAX_DESIGN_SERVER_ADDR"),
+            Some(None)
+        );
+        assert_eq!(
+            command_env(&physical, "DEVICECTL_CHILD_PAX_DESIGN_SERVER_ADDR"),
+            Some(None)
+        );
+    }
+
+    #[test]
+    fn mobile_template_server_omits_native_logic_reload_session() {
+        let command = designtime_server_command(
+            Path::new("/tmp/pax-cli"),
+            Path::new("/tmp/.pax"),
+            Path::new("/tmp/project"),
+            Path::new("/tmp/manifest.json"),
+            None,
+            HotReloadMode::Pax,
+            Path::new("/tmp/ready.txt"),
+        );
+
+        assert!(!command_args(&command).contains(&"--macos-session-dir".to_string()));
+    }
+
+    #[test]
+    fn macos_template_server_keeps_native_logic_reload_session() {
+        let command = designtime_server_command(
+            Path::new("/tmp/pax-cli"),
+            Path::new("/tmp/.pax"),
+            Path::new("/tmp/project"),
+            Path::new("/tmp/manifest.json"),
+            Some(Path::new("/tmp/session")),
+            HotReloadMode::Logic,
+            Path::new("/tmp/ready.txt"),
+        );
+        let args = command_args(&command);
+        let session_arg = args
+            .iter()
+            .position(|arg| arg == "--macos-session-dir")
+            .expect("macOS server command should include its native session");
+
+        assert_eq!(
+            args.get(session_arg + 1).map(String::as_str),
+            Some("/tmp/session")
+        );
+        let hot_reload_arg = args
+            .iter()
+            .position(|arg| arg == "--hot-reload")
+            .expect("server command should forward its hot-reload policy");
+        assert_eq!(
+            args.get(hot_reload_arg + 1).map(String::as_str),
+            Some("logic")
+        );
+    }
+
+    #[test]
+    fn physical_server_address_preserves_ready_port_and_formats_ipv6() {
+        assert_eq!(
+            design_server_address_with_host("ws://127.0.0.1:43111", "192.168.1.25").unwrap(),
+            "ws://192.168.1.25:43111"
+        );
+        assert_eq!(
+            normalize_design_server_host("fe80::1").unwrap(),
+            "[fe80::1]"
+        );
+        assert_eq!(
+            design_server_address_with_host(
+                "ws://127.0.0.1:43111",
+                &normalize_design_server_host("fe80::1").unwrap()
+            )
+            .unwrap(),
+            "ws://[fe80::1]:43111"
+        );
+    }
+
+    #[test]
+    fn designtime_local_network_description_is_inserted_once() {
+        let source = "<plist>\n<dict>\n\t<key>CFBundleName</key>\n\t<string>Pax</string>\n</dict>\n</plist>\n";
+        let updated = ios_info_plist_with_local_network_usage_description(source).unwrap();
+        let repeated = ios_info_plist_with_local_network_usage_description(&updated).unwrap();
+
+        assert!(updated.contains("<key>NSLocalNetworkUsageDescription</key>"));
+        assert!(updated.contains(IOS_LOCAL_NETWORK_USAGE_DESCRIPTION));
+        assert_eq!(updated, repeated);
     }
 }

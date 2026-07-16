@@ -15,10 +15,16 @@ pub struct PaxProjectMetadata {
     package_name: Option<String>,
     package_version: Option<String>,
     common: CommonMetadata,
+    dev: DevMetadata,
     web: WebMetadata,
     ios: AppleMetadata,
     ipados: AppleMetadata,
     macos: AppleMetadata,
+}
+
+#[derive(Debug, Clone, Default)]
+struct DevMetadata {
+    hot_reload: Option<String>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -80,6 +86,10 @@ pub fn apply_copied_interface_metadata(
 }
 
 impl PaxProjectMetadata {
+    pub(crate) fn configured_hot_reload(&self) -> Option<&str> {
+        self.dev.hot_reload.as_deref()
+    }
+
     pub fn apple_xcode_build_settings(&self, target: &RunTarget) -> Vec<(String, String)> {
         let mut settings = Vec::new();
         if let Some(title) = self.apple_title(target) {
@@ -274,6 +284,9 @@ fn load_project_metadata_from_toml(
     };
 
     metadata.common = parse_common_metadata(pax, "package.metadata.pax")?;
+    if let Some(dev) = child_table(pax, "dev", "package.metadata.pax.dev")? {
+        metadata.dev = parse_dev_metadata(dev, "package.metadata.pax.dev")?;
+    }
     if let Some(web) = child_table(pax, "web", "package.metadata.pax.web")? {
         metadata.web = parse_web_metadata(web, "package.metadata.pax.web")?;
     }
@@ -288,6 +301,12 @@ fn load_project_metadata_from_toml(
     }
 
     Ok(metadata)
+}
+
+fn parse_dev_metadata(table: &Table, path: &str) -> Result<DevMetadata, eyre::Report> {
+    Ok(DevMetadata {
+        hot_reload: string_field(table, "hot_reload", &format!("{path}.hot_reload"))?,
+    })
 }
 
 fn child_table<'a>(
@@ -700,6 +719,41 @@ mod tests {
                 ("MARKETING_VERSION".to_string(), "1.2.3".to_string())
             ]
         );
+    }
+
+    #[test]
+    fn reads_dev_hot_reload_without_conflating_it_with_target_metadata() {
+        let metadata = load(
+            r#"
+            [package]
+            name = "example-app"
+            version = "1.2.3"
+
+            [package.metadata.pax.dev]
+            hot_reload = "pax"
+            "#,
+        );
+
+        assert_eq!(metadata.configured_hot_reload(), Some("pax"));
+    }
+
+    #[test]
+    fn dev_hot_reload_must_be_a_string() {
+        let error = load_project_metadata_from_toml(
+            Path::new("/tmp/example"),
+            r#"
+            [package]
+            name = "example-app"
+
+            [package.metadata.pax.dev]
+            hot_reload = false
+            "#,
+        )
+        .expect_err("non-string hot-reload metadata should fail");
+
+        assert!(error
+            .to_string()
+            .contains("`package.metadata.pax.dev.hot_reload` must be a string"));
     }
 
     #[test]

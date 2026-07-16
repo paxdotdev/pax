@@ -62,9 +62,24 @@ New features are often proven on one "chassis" at a time (platform target.)  In 
 
 ## Hot reloading
 
-Currently, changes to .pax files are hot-reloaded in the running debug-mode app hosts for all supported targets.
-In other words, no need to rebuild if the only changes being made are to .pax files.  If .rs files are changed or added, then we'll need a full rebuild.
-This should allow you to have a tight feedback loop for iterating on visual content and design.  
+Debug `pax-cli run` sessions use `--hot-reload=all` by default. `.pax` changes
+reload through the Pax lane on every supported target. Application-logic
+changes hot-reload through a separate logic lane on web and macOS; iOS and
+iPadOS still require rebuilding and relaunching after logic changes.
+
+Use `--hot-reload=pax`, `--hot-reload=logic`, or `--hot-reload=off` to suppress
+one or both lanes. The same values can be set with `PAX_HOT_RELOAD` or the
+`hot_reload` key under `[package.metadata.pax.dev]`; precedence is CLI,
+environment, Cargo metadata, then the `all` debug default. `logic` is
+language-neutral so future interpreted application modules can use the same
+policy. Disabled lanes still save source edits, but do not update the mounted
+app until a permitted logic build or restart. Release cartridges always disable
+both lanes and do not support dynamic linking, interpreted module replacement,
+or `.pax` live reload.
+
+This should allow you to have a tight feedback loop for iterating on visual
+content, design, and application behavior while making the active reload
+boundary explicit.
 
 ## Creative fidelity
 

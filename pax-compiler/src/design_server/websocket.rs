@@ -1,6 +1,4 @@
-use crate::design_server::{
-    schedule_logic_reload, ActiveWebsocketClient, AppState, FileContent, WatcherFileChanged,
-};
+use crate::design_server::{resume_deferred_logic_reload, schedule_logic_reload, AppState};
 use crate::dev_session::{
     self, session_request_dir, session_response_dir, write_registered_session, DevCapture,
     DevInspectTreeResponse, DevLogsRequest, DevLogsResponse, DevLookRequest, DevLookResponse,
@@ -19,11 +17,12 @@ use image::codecs::png::PngEncoder;
 use image::{ColorType, ImageBuffer, ImageEncoder, Rgba};
 use miniz_oxide::inflate::decompress_to_vec_zlib;
 use pax_designtime::messages::{
-    AgentMessage, ComponentSerializationRequest, DevClientInspectTreeRequest, DevClientLogsRequest,
+    ActivateAppRevision, AgentMessage, AppRevisionActivationRejected,
+    ComponentSerializationRequest, DevClientInspectTreeRequest, DevClientLogsRequest,
     DevClientLookRequest, DevClientRayCastRequest, DevClientReplaceNodeRequest, DevClientResponse,
-    DevClientSelectorQueryRequest, DisconnectNotification, FileChangedNotification,
-    LoadFileToStaticDirRequest, LoadManifestResponse, ManifestSerializationRequest,
-    UpdateTemplateRequest, UserlandSourceUpdateRequest, UserlandSourceUpdateResponse,
+    DevClientSelectorQueryRequest, DisconnectNotification, LoadFileToStaticDirRequest,
+    ManifestSerializationRequest, RevisionStamp, UpdateTemplateRequest,
+    UserlandSourceUpdateRequest, UserlandSourceUpdateResponse,
 };
 use pax_manifest::{ComponentDefinition, ComponentTemplate, PaxManifest, TypeId};
 use std::{
@@ -50,6 +49,11 @@ pub struct PrivilegedAgentWebSocket {
     socket_msg_accum: SocketMessageAccumulator,
     connection_id: Option<usize>,
     last_heartbeat: Instant,
+    superseded: bool,
+    /// Reservation established by this standby socket's successful preflight.
+    /// If the socket disappears before final commit, release it so a failed
+    /// Cancel frame cannot strand every newer build behind the reservation.
+    reserved_activation: Option<String>,
 }
 
 struct DisconnectSuperseded;
@@ -73,6 +77,8 @@ impl PrivilegedAgentWebSocket {
             socket_msg_accum: SocketMessageAccumulator::new(),
             connection_id: None,
             last_heartbeat: Instant::now(),
+            superseded: false,
+            reserved_activation: None,
         }
     }
 
@@ -80,13 +86,7 @@ impl PrivilegedAgentWebSocket {
         let Some(connection_id) = self.connection_id else {
             return false;
         };
-
-        self.state
-            .active_websocket_client
-            .lock()
-            .unwrap()
-            .as_ref()
-            .is_some_and(|active_client| active_client.connection_id == connection_id)
+        self.state.websocket_client_is_active(connection_id)
     }
 
     fn refresh_dev_session_registration(&self) {
@@ -278,6 +278,16 @@ impl PrivilegedAgentWebSocket {
                     )
                 }
                 "replace-node" => {
+                    if !self.state.pax_hot_reload_enabled() {
+                        let _ = write_dev_error_response(
+                            &dev_session,
+                            &request_envelope.request_id,
+                            "Pax hot reload is disabled; replace-node cannot mutate the running app"
+                                .to_string(),
+                        );
+                        let _ = fs::remove_file(&path);
+                        continue;
+                    }
                     let replace_request =
                         match serde_json::from_slice::<DevReplaceNodeRequest>(&request_bytes) {
                             Ok(replace_request) => replace_request,
@@ -361,6 +371,18 @@ impl Handler<DisconnectSuperseded> for PrivilegedAgentWebSocket {
     type Result = ();
 
     fn handle(&mut self, _msg: DisconnectSuperseded, ctx: &mut Self::Context) -> Self::Result {
+        // Promotion and disconnect messages are delivered by different socket
+        // actors. A late same-revision hello can therefore make this socket
+        // active again before the queued supersession reaches it. In that case
+        // the supersession is stale and must not disable reconnect or schedule
+        // a close for the current owner.
+        if self.is_active_client() {
+            return;
+        }
+        // Once the notification is sent the client disables reconnect. Keep
+        // this actor terminal so an inbound hello or activation cannot reclaim
+        // ownership during the short notification-delivery grace period.
+        self.superseded = true;
         let reason = "Superseded by a newer Pax dev browser client";
         let notification = AgentMessage::DisconnectNotification(DisconnectNotification {
             allow_reconnect: false,
@@ -391,31 +413,26 @@ impl Handler<SendAgentMessage> for PrivilegedAgentWebSocket {
     }
 }
 
+fn send_agent_message_in_context(
+    ctx: &mut ws::WebsocketContext<PrivilegedAgentWebSocket>,
+    message: AgentMessage,
+) {
+    match rmp_serde::to_vec(&message) {
+        Ok(serialized) => ctx.binary(serialized),
+        Err(err) => eprintln!("failed to serialize outbound agent message: {err}"),
+    }
+}
+
 impl Actor for PrivilegedAgentWebSocket {
     type Context = ws::WebsocketContext<Self>;
 
     fn started(&mut self, ctx: &mut Self::Context) {
         let connection_id = self.state.generate_websocket_client_id();
         self.connection_id = Some(connection_id);
-
-        let mut active_client = self.state.active_websocket_client.lock().unwrap();
-        let previous_client = active_client.replace(ActiveWebsocketClient {
-            connection_id,
-            addr: ctx.address(),
-        });
-        drop(active_client);
-
-        if let Some(previous_client) = previous_client {
-            previous_client.addr.do_send(DisconnectSuperseded);
-        }
-
-        self.refresh_dev_session_registration();
-        if let Some(request) = self.state.latest_web_reload_request() {
-            match rmp_serde::to_vec(&AgentMessage::ReloadAppRequest(request)) {
-                Ok(serialized) => ctx.binary(serialized),
-                Err(err) => eprintln!("failed to serialize latest web reload request: {err}"),
-            }
-        }
+        // A freshly constructed cartridge stays on standby until its hello or
+        // activation proves which logic revision it owns.  Replacing the active
+        // socket here would strand the old, still-mounted host when preparation
+        // of the candidate later fails.
         ctx.run_interval(WEBSOCKET_HEARTBEAT_INTERVAL, |actor, ctx| {
             if Instant::now().duration_since(actor.last_heartbeat) > WEBSOCKET_CLIENT_TIMEOUT {
                 log::warn!("timed out waiting for a heartbeat from the Pax dev browser client");
@@ -438,6 +455,20 @@ impl Actor for PrivilegedAgentWebSocket {
     }
 
     fn stopping(&mut self, _ctx: &mut Self::Context) -> Running {
+        if let Some((logic_revision_id, connection_id)) =
+            self.reserved_activation.take().zip(self.connection_id)
+        {
+            let discarded = self
+                .state
+                .revisions
+                .lock()
+                .unwrap()
+                .discard_logic_candidate_if_owner(&logic_revision_id, connection_id);
+            if discarded {
+                schedule_logic_reload(self.state.clone());
+                resume_deferred_logic_reload(self.state.clone());
+            }
+        }
         let mut active_client = self.state.active_websocket_client.lock().unwrap();
         let was_active_client = active_client.as_ref().zip(self.connection_id).is_some_and(
             |(active_client, connection_id)| active_client.connection_id == connection_id,
@@ -454,42 +485,6 @@ impl Actor for PrivilegedAgentWebSocket {
             }
         }
         Running::Stop
-    }
-}
-
-impl Handler<WatcherFileChanged> for PrivilegedAgentWebSocket {
-    type Result = ();
-
-    fn handle(&mut self, msg: WatcherFileChanged, ctx: &mut Self::Context) -> Self::Result {
-        let WatcherFileChanged { contents, path } = msg;
-        println!("File changed: {:?}", path);
-        if self.is_active_client() {
-            match contents {
-                FileContent::Pax(content) => {
-                    match apply_pax_source_update(&self.state, &path, &content) {
-                        Ok(update_request) => {
-                            let msg = AgentMessage::UpdateTemplateRequest(Box::new(update_request));
-                            match rmp_serde::to_vec(&msg) {
-                                Ok(serialized_msg) => ctx.binary(serialized_msg),
-                                Err(err) => eprintln!(
-                                "failed to serialize pax template update for watcher change: {err}"
-                            ),
-                            }
-                        }
-                        Err(err) => {
-                            eprintln!("ignoring invalid Pax watcher update for {path}: {err}");
-                        }
-                    }
-                }
-                FileContent::Rust(_) => schedule_logic_reload(self.state.clone()),
-                FileContent::Unknown => {}
-            }
-        }
-        let serialized_notification = rmp_serde::to_vec(
-            &AgentMessage::ProjectFileChangedNotification(FileChangedNotification {}),
-        )
-        .unwrap();
-        ctx.binary(serialized_notification);
     }
 }
 
@@ -522,31 +517,101 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
         let processed_message = self.socket_msg_accum.process(msg);
         if let Ok(Some(bin_data)) = processed_message {
             match rmp_serde::from_slice::<AgentMessage>(&bin_data) {
-                Ok(AgentMessage::LoadManifestRequest) => {
-                    let manifest =
-                        rmp_serde::to_vec(&*self.state.manifest.lock().unwrap()).unwrap();
+                Ok(AgentMessage::LoadManifestRequest(request)) => {
+                    let client_stamp = request.active_revision.as_ref();
+                    let client_revision =
+                        client_stamp.map(|revision| revision.logic_revision_id.as_str());
+                    if !self.superseded {
+                        if let Some(connection_id) = self.connection_id {
+                            let (promoted, previous) =
+                                self.state.reconcile_and_promote_websocket_client(
+                                    connection_id,
+                                    ctx.address(),
+                                    client_stamp,
+                                );
+                            if let Some(previous) = previous {
+                                previous.addr.do_send(DisconnectSuperseded);
+                            }
+                            if promoted {
+                                self.refresh_dev_session_registration();
+                            }
+                        }
+                    }
 
-                    let message =
-                        AgentMessage::LoadManifestResponse(LoadManifestResponse { manifest });
-                    ctx.binary(rmp_serde::to_vec(&message).unwrap());
+                    if let Some(prepare) = self.state.prepare_for_web_client(client_revision) {
+                        send_agent_message_in_context(
+                            ctx,
+                            AgentMessage::PrepareAppRevision(prepare),
+                        );
+                    }
+                    match self.state.active_manifest_response() {
+                        Ok(Some(response)) => send_agent_message_in_context(
+                            ctx,
+                            AgentMessage::LoadManifestResponse(response),
+                        ),
+                        Ok(None) => {}
+                        Err(err) => eprintln!("failed to load active manifest: {err}"),
+                    }
                 }
                 Ok(AgentMessage::ComponentSerializationRequest(request)) => {
-                    handle_component_serialization_request(
-                        request,
-                        self.state.manifest.lock().unwrap().as_mut(),
-                    );
+                    let Some(connection_id) = self.connection_id else {
+                        return;
+                    };
+                    let Some(_source_update) =
+                        self.state.source_update_guard_for_client(connection_id)
+                    else {
+                        return;
+                    };
+                    let project_root = self.state.userland_project_root.lock().unwrap().clone();
                     self.state.update_last_written_timestamp();
+                    let result = self.state.apply_pax_source_mutation(
+                        "component serialization",
+                        |next_revisions| {
+                            handle_component_serialization_request(
+                                request,
+                                next_revisions,
+                                &project_root,
+                            )
+                        },
+                    );
+                    if let Err(err) = result {
+                        eprintln!("rejected component serialization request: {err}");
+                    }
                 }
                 Ok(AgentMessage::ManifestSerializationRequest(request)) => {
-                    handle_manifest_serialization_request(
-                        request,
-                        &mut self.state.manifest.lock().unwrap(),
-                        self.state.generate_request_id(),
-                        ctx,
-                    );
+                    let Some(connection_id) = self.connection_id else {
+                        return;
+                    };
+                    let Some(_source_update) =
+                        self.state.source_update_guard_for_client(connection_id)
+                    else {
+                        return;
+                    };
+                    let project_root = self.state.userland_project_root.lock().unwrap().clone();
                     self.state.update_last_written_timestamp();
+                    let result = self.state.apply_pax_source_mutation(
+                        "manifest serialization",
+                        |next_revisions| {
+                            handle_manifest_serialization_request(
+                                request,
+                                next_revisions,
+                                &project_root,
+                            )
+                        },
+                    );
+                    if let Err(err) = result {
+                        eprintln!("rejected manifest serialization request: {err}");
+                    }
                 }
                 Ok(AgentMessage::LoadFileToStaticDirRequest(load_info)) => {
+                    let Some(connection_id) = self.connection_id else {
+                        return;
+                    };
+                    let Some(_source_update) =
+                        self.state.source_update_guard_for_client(connection_id)
+                    else {
+                        return;
+                    };
                     let LoadFileToStaticDirRequest { name, data } = load_info;
                     println!(
                         "received a file {} (size: {})! root dir to write to: {:?}",
@@ -579,13 +644,154 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                     };
                 }
                 Ok(AgentMessage::UserlandSourceUpdateRequest(request)) => {
+                    let Some(connection_id) = self.connection_id else {
+                        return;
+                    };
+                    let Some(_source_update) =
+                        self.state.source_update_guard_for_client(connection_id)
+                    else {
+                        return;
+                    };
                     handle_userland_source_update_request(self.state.clone(), request, ctx);
                 }
                 Ok(AgentMessage::DevClientResponse(response)) => {
-                    if let Err(err) = handle_dev_client_response(&self.state, response) {
-                        eprintln!("failed to handle web dev response: {err}");
+                    if self.is_active_client() {
+                        if let Err(err) = handle_dev_client_response(&self.state, response) {
+                            eprintln!("failed to handle web dev response: {err}");
+                        }
                     }
                 }
+                Ok(AgentMessage::RequestAppRevisionActivation(ActivateAppRevision {
+                    logic_revision_id,
+                })) if !self.superseded => {
+                    let Some(connection_id) = self.connection_id else {
+                        return;
+                    };
+                    match self
+                        .state
+                        .prepare_logic_activation(&logic_revision_id, connection_id)
+                    {
+                        Ok(response) => {
+                            self.reserved_activation = Some(logic_revision_id);
+                            send_agent_message_in_context(
+                                ctx,
+                                AgentMessage::AppRevisionActivationPrepared(response),
+                            );
+                        }
+                        Err(err) => {
+                            eprintln!(
+                                "rejected logic activation preflight {logic_revision_id}: {err}"
+                            );
+                            if update_requires_logic_reload(&err) {
+                                schedule_logic_reload(self.state.clone());
+                            }
+                            send_agent_message_in_context(
+                                ctx,
+                                AgentMessage::AppRevisionActivationRejected(
+                                    AppRevisionActivationRejected {
+                                        logic_revision_id,
+                                        reason: err,
+                                    },
+                                ),
+                            );
+                            resume_deferred_logic_reload(self.state.clone());
+                        }
+                    }
+                }
+                Ok(AgentMessage::CancelAppRevisionActivation(ActivateAppRevision {
+                    logic_revision_id,
+                })) if !self.superseded
+                    && self.reserved_activation.as_deref() == Some(logic_revision_id.as_str()) =>
+                {
+                    let Some(connection_id) = self.connection_id else {
+                        return;
+                    };
+                    let discarded = self
+                        .state
+                        .revisions
+                        .lock()
+                        .unwrap()
+                        .discard_logic_candidate_if_owner(&logic_revision_id, connection_id);
+                    if self.reserved_activation.as_deref() == Some(&logic_revision_id) {
+                        self.reserved_activation = None;
+                    }
+                    if discarded {
+                        schedule_logic_reload(self.state.clone());
+                    }
+                    resume_deferred_logic_reload(self.state.clone());
+                }
+                Ok(AgentMessage::CancelAppRevisionActivation(_)) => {}
+                Ok(AgentMessage::ActivateAppRevision(ActivateAppRevision {
+                    logic_revision_id,
+                })) if !self.superseded => {
+                    let Some(connection_id) = self.connection_id else {
+                        return;
+                    };
+                    match self.state.activate_logic_revision_and_promote(
+                        &logic_revision_id,
+                        connection_id,
+                        ctx.address(),
+                    ) {
+                        Ok((outcome, promoted, previous)) => {
+                            if self.reserved_activation.as_deref() == Some(&logic_revision_id) {
+                                self.reserved_activation = None;
+                            }
+                            if let Some(previous) = previous {
+                                previous.addr.do_send(DisconnectSuperseded);
+                            }
+                            if promoted {
+                                self.refresh_dev_session_registration();
+                            }
+                            send_agent_message_in_context(
+                                ctx,
+                                AgentMessage::LoadManifestResponse(outcome.response),
+                            );
+                            if outcome.requires_followup_rebuild {
+                                schedule_logic_reload(self.state.clone());
+                            }
+                            resume_deferred_logic_reload(self.state.clone());
+                        }
+                        Err(err) => {
+                            let discarded = self
+                                .state
+                                .revisions
+                                .lock()
+                                .unwrap()
+                                .discard_logic_candidate_if_owner(
+                                    &logic_revision_id,
+                                    connection_id,
+                                );
+                            if self.reserved_activation.as_deref() == Some(&logic_revision_id) {
+                                self.reserved_activation = None;
+                            }
+                            eprintln!("rejected logic activation {logic_revision_id}: {err}");
+                            if update_requires_logic_reload(&err) {
+                                schedule_logic_reload(self.state.clone());
+                            }
+                            if discarded {
+                                schedule_logic_reload(self.state.clone());
+                            }
+                            send_agent_message_in_context(
+                                ctx,
+                                AgentMessage::AppRevisionActivationRejected(
+                                    AppRevisionActivationRejected {
+                                        logic_revision_id: logic_revision_id.clone(),
+                                        reason: err,
+                                    },
+                                ),
+                            );
+                            if let Some(prepare) =
+                                self.state.prepare_for_web_client(Some(&logic_revision_id))
+                            {
+                                send_agent_message_in_context(
+                                    ctx,
+                                    AgentMessage::PrepareAppRevision(prepare),
+                                );
+                            }
+                        }
+                    }
+                }
+                Ok(AgentMessage::ActivateAppRevision(_)) => {}
                 Ok(_) => {}
                 Err(e) => {
                     eprintln!("Deserialization error: {:?}", e);
@@ -601,47 +807,49 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
 
 fn handle_component_serialization_request(
     request: ComponentSerializationRequest,
-    manifest: Option<&mut PaxManifest>,
-) {
-    let component: ComponentDefinition = rmp_serde::from_slice(&request.component_bytes).unwrap();
+    revisions: &mut crate::design_server::revision::DebugRevisionCoordinator,
+    project_root: &Path,
+) -> Result<(), String> {
+    let component: ComponentDefinition = rmp_serde::from_slice(&request.component_bytes)
+        .map_err(|err| format!("failed to decode component: {err}"))?;
     let file_path = component
         .template
         .as_ref()
-        .unwrap()
+        .ok_or_else(|| "serialized component is missing a template".to_string())?
         .get_file_path()
-        .unwrap()
+        .ok_or_else(|| "serialized component is missing a source path".to_string())?
         .to_owned();
+    revisions.replace_active_component(component.clone())?;
     serialize_component_to_file(&component, file_path.clone());
-    // update in memory manifest
-    if let Some(manifest) = manifest {
-        for comp in manifest.components.values_mut() {
-            if comp
-                .template
-                .as_ref()
-                .is_some_and(|t| t.get_file_path().is_some_and(|p| p == file_path))
-            {
-                *comp = component;
-                break;
-            }
-        }
-    }
+    revisions.record_serialized_component(
+        normalized_pax_mutation_path(&file_path, project_root),
+        component,
+    );
+    Ok(())
 }
 
 fn handle_manifest_serialization_request(
     request: ManifestSerializationRequest,
-    manifest: &mut Option<PaxManifest>,
-    _id: usize,
-    _ctx: &mut ws::WebsocketContext<PrivilegedAgentWebSocket>,
-) {
-    *manifest = Some(rmp_serde::from_slice(&request.manifest).unwrap());
-    if let Some(manifest) = manifest {
-        for component in manifest.components.values() {
-            let file_path = component.template.as_ref().unwrap().get_file_path();
-            if let Some(file_path) = &file_path {
-                serialize_component_to_file(component, file_path.clone());
-            }
+    revisions: &mut crate::design_server::revision::DebugRevisionCoordinator,
+    project_root: &Path,
+) -> Result<(), String> {
+    let manifest: PaxManifest = rmp_serde::from_slice(&request.manifest)
+        .map_err(|err| format!("failed to decode manifest: {err}"))?;
+    revisions.replace_active_authoring_manifest(&manifest)?;
+    for component in manifest.components.values() {
+        let file_path = component
+            .template
+            .as_ref()
+            .and_then(|template| template.get_file_path());
+        if let Some(file_path) = &file_path {
+            serialize_component_to_file(component, file_path.clone());
+            revisions.record_serialized_component(
+                normalized_pax_mutation_path(file_path, project_root),
+                component.clone(),
+            );
         }
     }
+    Ok(())
 }
 
 fn handle_userland_source_update_request(
@@ -670,42 +878,42 @@ fn handle_userland_source_update_request(
         .and_then(|extension| extension.to_str())
     {
         Some("pax") => {
-            let update_request = {
-                let manifest = state.manifest.lock().unwrap();
-                let Some(manifest) = manifest.as_ref() else {
-                    send_userland_source_update_response_in_context(
-                        ctx,
-                        UserlandSourceUpdateResponse {
-                            request_id: request.request_id,
-                            path: request.path,
-                            status: "error".to_string(),
-                            error: Some("design server manifest is unavailable".to_string()),
-                        },
-                    );
-                    return;
-                };
-                let project_root = state.userland_project_root.lock().unwrap().clone();
-                match parse_pax_source_update(
-                    manifest,
-                    &resolved_path.to_string_lossy(),
-                    &request.contents,
-                    &project_root,
-                ) {
-                    Ok(update_request) => update_request,
-                    Err(err) => {
-                        send_userland_source_update_response_in_context(
-                            ctx,
-                            UserlandSourceUpdateResponse {
-                                request_id: request.request_id,
-                                path: request.path,
-                                status: "error".to_string(),
-                                error: Some(err),
-                            },
-                        );
-                        return;
-                    }
-                }
+            let project_root = state.userland_project_root.lock().unwrap().clone();
+            let authoring_manifest = {
+                let revisions = state.revisions.lock().unwrap();
+                revisions
+                    .candidate_manifest_clone()
+                    .or_else(|| revisions.active_manifest_clone())
             };
+            let Some(authoring_manifest) = authoring_manifest else {
+                send_userland_source_update_response_in_context(
+                    ctx,
+                    UserlandSourceUpdateResponse {
+                        request_id: request.request_id,
+                        path: request.path,
+                        status: "error".to_string(),
+                        error: Some("design server manifest is unavailable".to_string()),
+                    },
+                );
+                return;
+            };
+            if let Err(err) = parse_pax_source_update(
+                &authoring_manifest,
+                &resolved_path.to_string_lossy(),
+                &request.contents,
+                &project_root,
+            ) {
+                send_userland_source_update_response_in_context(
+                    ctx,
+                    UserlandSourceUpdateResponse {
+                        request_id: request.request_id,
+                        path: request.path,
+                        status: "error".to_string(),
+                        error: Some(err),
+                    },
+                );
+                return;
+            }
 
             state.update_last_written_timestamp();
             if let Err(err) = fs::write(&resolved_path, &request.contents) {
@@ -720,8 +928,115 @@ fn handle_userland_source_update_request(
                 );
                 return;
             }
+            if !state.pax_hot_reload_enabled() {
+                state.note_pax_restart_required();
+                send_userland_source_update_response_in_context(
+                    ctx,
+                    UserlandSourceUpdateResponse {
+                        request_id: request.request_id,
+                        path: request.path,
+                        status: "ok".to_string(),
+                        error: None,
+                    },
+                );
+                return;
+            }
+            let mutation_path =
+                normalized_pax_mutation_path(&resolved_path.to_string_lossy(), &project_root);
+            let mutation_generation = state
+                .revisions
+                .lock()
+                .unwrap()
+                .record_pax_source(mutation_path.clone(), request.contents.clone());
 
-            if let Err(err) = commit_pax_source_update(&state, &update_request) {
+            let mut rebuild_required = false;
+            let mut update_handled = false;
+            let mut terminal_error = None;
+            for _ in 0..3 {
+                let (active_snapshot, has_candidate, mutation_is_current) = {
+                    let revisions = state.revisions.lock().unwrap();
+                    (
+                        revisions.active_manifest_snapshot(),
+                        revisions.has_candidate(),
+                        revisions.pax_mutation_is_current(&mutation_path, mutation_generation),
+                    )
+                };
+                if !mutation_is_current {
+                    // A newer edit to this source path owns the journal entry;
+                    // it will stream or rebuild the authoritative contents.
+                    update_handled = true;
+                    break;
+                }
+                let Some((expected_revision, active_manifest)) = active_snapshot else {
+                    terminal_error = Some("design server manifest is unavailable".to_string());
+                    break;
+                };
+                let update_request = match parse_pax_source_update(
+                    &active_manifest,
+                    &resolved_path.to_string_lossy(),
+                    &request.contents,
+                    &project_root,
+                ) {
+                    Ok(update) => update,
+                    Err(err) if has_candidate => {
+                        eprintln!("deferring Pax source update until logic activation: {err}");
+                        update_handled = true;
+                        break;
+                    }
+                    Err(err) => {
+                        terminal_error = Some(err);
+                        break;
+                    }
+                };
+
+                match state.commit_template_update_and_route(
+                    &expected_revision,
+                    Some((&mutation_path, mutation_generation)),
+                    update_request,
+                ) {
+                    Ok(_) => {
+                        update_handled = true;
+                        break;
+                    }
+                    Err(err)
+                        if err.starts_with("active revision changed while parsing Pax source") =>
+                    {
+                        continue;
+                    }
+                    Err(err)
+                        if err.starts_with(
+                            "Pax source mutation was superseded by a newer update",
+                        ) =>
+                    {
+                        update_handled = true;
+                        break;
+                    }
+                    Err(err) if update_requires_logic_reload(&err) => {
+                        rebuild_required = true;
+                        update_handled = true;
+                        break;
+                    }
+                    Err(err) => {
+                        let has_candidate = state.revisions.lock().unwrap().has_candidate();
+                        if has_candidate {
+                            eprintln!("deferring Pax source update until logic activation: {err}");
+                            update_handled = true;
+                        } else {
+                            terminal_error = Some(err);
+                        }
+                        break;
+                    }
+                }
+            }
+
+            if !update_handled && terminal_error.is_none() {
+                // Repeated concurrent mutations kept invalidating the parse.
+                // The source journal is durable, so rebuild instead of risking
+                // a stale template commit or silently dropping the edit.
+                rebuild_required = true;
+            }
+
+            if let Some(err) = terminal_error {
                 send_userland_source_update_response_in_context(
                     ctx,
                     UserlandSourceUpdateResponse {
@@ -734,21 +1049,8 @@ fn handle_userland_source_update_request(
                 return;
             }
 
-            if let Ok(serialized_update) = rmp_serde::to_vec(&AgentMessage::UpdateTemplateRequest(
-                Box::new(update_request),
-            )) {
-                ctx.binary(serialized_update);
-            } else {
-                send_userland_source_update_response_in_context(
-                    ctx,
-                    UserlandSourceUpdateResponse {
-                        request_id: request.request_id,
-                        path: request.path,
-                        status: "error".to_string(),
-                        error: Some("failed to serialize template update".to_string()),
-                    },
-                );
-                return;
+            if rebuild_required {
+                schedule_logic_reload(state.clone());
             }
 
             send_userland_source_update_response_in_context(
@@ -773,6 +1075,20 @@ fn handle_userland_source_update_request(
                         path: request_path,
                         status: "error".to_string(),
                         error: Some(format!("failed to write Rust source: {err}")),
+                    },
+                );
+                return;
+            }
+
+            if !state.logic_hot_reload_available() {
+                state.note_logic_restart_required();
+                send_userland_source_update_response_in_context(
+                    ctx,
+                    UserlandSourceUpdateResponse {
+                        request_id,
+                        path: request_path,
+                        status: "ok".to_string(),
+                        error: None,
                     },
                 );
                 return;
@@ -870,24 +1186,116 @@ fn resolve_userland_source_path(
     }
 }
 
-fn apply_pax_source_update(
+pub(super) fn apply_pax_source_update(
     state: &Data<AppState>,
     source_path: &str,
     content: &str,
-) -> Result<UpdateTemplateRequest, String> {
-    let update_request = {
-        let manifest = state.manifest.lock().unwrap();
-        let manifest = manifest
-            .as_ref()
-            .ok_or_else(|| "design server manifest is unavailable".to_string())?;
-        let project_root = state.userland_project_root.lock().unwrap().clone();
-        parse_pax_source_update(manifest, source_path, content, &project_root)?
+) -> Result<(), String> {
+    if !state.pax_hot_reload_enabled() {
+        return Err("Pax hot reload is disabled for this session".to_string());
+    }
+    let _source_update = state.source_update_lock.lock().unwrap();
+    let project_root = state.userland_project_root.lock().unwrap().clone();
+    let disk_path = if Path::new(source_path).is_absolute() {
+        PathBuf::from(source_path)
+    } else {
+        project_root.join(source_path)
     };
-    commit_pax_source_update(state, &update_request)?;
-    Ok(update_request)
+    if disk_path.is_file() {
+        let current = fs::read_to_string(&disk_path)
+            .map_err(|err| format!("failed to verify Pax watcher source: {err}"))?;
+        if current != content {
+            return Err(
+                "stale Pax watcher update was superseded by newer file contents".to_string(),
+            );
+        }
+    }
+    let mutation_path = normalized_pax_mutation_path(source_path, &project_root);
+    let mutation_generation = state
+        .revisions
+        .lock()
+        .unwrap()
+        .record_pax_source(mutation_path.clone(), content.to_string());
+
+    for _ in 0..3 {
+        let (active_snapshot, has_candidate, mutation_is_current) = {
+            let revisions = state.revisions.lock().unwrap();
+            (
+                revisions.active_manifest_snapshot(),
+                revisions.has_candidate(),
+                revisions.pax_mutation_is_current(&mutation_path, mutation_generation),
+            )
+        };
+        if !mutation_is_current {
+            return Ok(());
+        }
+        let Some((expected_revision, active_manifest)) = active_snapshot else {
+            return Err("design server manifest is unavailable".to_string());
+        };
+        let update_request =
+            match parse_pax_source_update(&active_manifest, source_path, content, &project_root) {
+                Ok(update) => update,
+                Err(err) if has_candidate => {
+                    eprintln!("deferring Pax watcher update until logic activation: {err}");
+                    return Ok(());
+                }
+                Err(err) => return Err(err),
+            };
+
+        match state.commit_template_update_and_route(
+            &expected_revision,
+            Some((&mutation_path, mutation_generation)),
+            update_request,
+        ) {
+            Ok(_) => return Ok(()),
+            Err(err) if err.starts_with("active revision changed while parsing Pax source") => {
+                continue;
+            }
+            Err(err) if err.starts_with("Pax source mutation was superseded by a newer update") => {
+                return Ok(());
+            }
+            Err(err) if has_candidate => {
+                eprintln!("deferring Pax watcher update until logic activation: {err}");
+                return Ok(());
+            }
+            Err(err) => return Err(err),
+        }
+    }
+
+    Err(
+        "logic artifact changed repeatedly while applying Pax watcher update; rebuilding"
+            .to_string(),
+    )
 }
 
-fn parse_pax_source_update(
+pub(super) fn normalized_pax_mutation_path(source_path: &str, project_root: &Path) -> String {
+    let source_path = Path::new(source_path);
+    let current_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::new());
+    let absolute_project_root = if project_root.is_absolute() {
+        project_root.to_path_buf()
+    } else {
+        current_dir.join(project_root)
+    };
+    let absolute = if source_path.is_absolute() {
+        source_path.to_path_buf()
+    } else {
+        let cwd_candidate = current_dir.join(source_path);
+        if cwd_candidate.starts_with(&absolute_project_root) && cwd_candidate.exists() {
+            cwd_candidate
+        } else if let Ok(relative) = source_path.strip_prefix(project_root) {
+            absolute_project_root.join(relative)
+        } else {
+            absolute_project_root.join(source_path)
+        }
+    };
+    absolute
+        .canonicalize()
+        .unwrap_or(absolute)
+        .to_string_lossy()
+        .into_owned()
+}
+
+pub(super) fn parse_pax_source_update(
     manifest: &PaxManifest,
     source_path: &str,
     content: &str,
@@ -952,6 +1360,10 @@ fn parse_pax_source_update(
         );
 
         Ok(UpdateTemplateRequest {
+            revision: RevisionStamp {
+                logic_revision_id: String::new(),
+                template_version: 0,
+            },
             type_id: self_type_id,
             new_template: tpc.template,
             settings_block: settings,
@@ -1053,21 +1465,10 @@ fn resolve_component_rust_source_path(project_root: &Path, module_path: &str) ->
     candidates.into_iter().find(|candidate| candidate.is_file())
 }
 
-fn commit_pax_source_update(
-    state: &Data<AppState>,
-    update_request: &UpdateTemplateRequest,
-) -> Result<(), String> {
-    let mut manifest = state.manifest.lock().unwrap();
-    let manifest = manifest
-        .as_mut()
-        .ok_or_else(|| "design server manifest is unavailable".to_string())?;
-    let component = manifest
-        .components
-        .get_mut(&update_request.type_id)
-        .ok_or_else(|| format!("missing component {}", update_request.type_id))?;
-    component.template = Some(update_request.new_template.clone());
-    component.settings = Some(update_request.settings_block.clone());
-    Ok(())
+pub(super) fn update_requires_logic_reload(error: &str) -> bool {
+    error.contains("compiled cartridge capability")
+        || error.contains("logic artifact")
+        || error.contains("could not replay the latest Pax source")
 }
 
 fn panic_payload_to_string(payload: Box<dyn Any + Send>) -> String {
@@ -1082,16 +1483,23 @@ fn panic_payload_to_string(payload: Box<dyn Any + Send>) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_pax_source_update, resolve_component_rust_source_path, source_paths_match};
-    use crate::design_server::{web_socket, AppState};
+    use super::{
+        normalized_pax_mutation_path, parse_pax_source_update, resolve_component_rust_source_path,
+        source_paths_match,
+    };
+    use crate::design_server::{revision::ActivationChannel, web_socket, AppState};
+    use crate::HotReloadMode;
     use actix_web::{web::Data, App};
     use futures_util::{SinkExt, StreamExt};
-    use pax_designtime::messages::{AgentMessage, ReloadAppRequest};
+    use pax_designtime::messages::{
+        ActivateAppRevision, AgentMessage, DebugArtifact, DebugLogicExecutionMode,
+        LoadManifestRequest, PrepareAppRevision,
+    };
     use pax_manifest::{
         ComponentDefinition, ComponentTemplate, PaxManifest, SettingsBlockElement, TypeId,
     };
     use rmp_serde::from_slice;
-    use std::path::Path;
+    use std::path::{Path, PathBuf};
     use std::{
         collections::{BTreeMap, HashMap},
         fs,
@@ -1099,14 +1507,38 @@ mod tests {
     use tempfile::tempdir;
 
     #[actix_web::test]
-    async fn sends_latest_web_reload_request_to_new_client() {
-        let state = Data::new(AppState::new_empty());
-        state.store_latest_web_reload_request(ReloadAppRequest {
-            request_id: "reload-app-1".to_string(),
-            build_id: "build-1".to_string(),
-            artifact_kind: "web-cartridge".to_string(),
-            artifact_location: "/__reloads__/build-1/pax-cartridge".to_string(),
-        });
+    async fn sends_pending_web_revision_after_client_hello() {
+        let manifest = basic_manifest("Example");
+        let state = Data::new(
+            AppState::new(
+                PathBuf::new(),
+                PathBuf::new(),
+                manifest.clone(),
+                None,
+                None,
+                HotReloadMode::All,
+                None,
+                None,
+            )
+            .unwrap(),
+        );
+        state
+            .revisions
+            .lock()
+            .unwrap()
+            .stage_logic_candidate(
+                manifest,
+                PrepareAppRevision {
+                    logic_revision_id: "build-1".to_string(),
+                    execution_mode: DebugLogicExecutionMode::CompiledArtifact,
+                    artifact: DebugArtifact {
+                        kind: "web-cartridge".to_string(),
+                        location: "/__reloads__/build-1/pax-cartridge".to_string(),
+                    },
+                },
+                ActivationChannel::WebSocket,
+            )
+            .unwrap();
         let server_state = state.clone();
         let srv = actix_test::start(move || {
             App::new()
@@ -1116,24 +1548,529 @@ mod tests {
 
         let client = awc::Client::new();
         let (_resp, mut connection) = client.ws(srv.url("/ws")).connect().await.unwrap();
+        let hello = AgentMessage::LoadManifestRequest(LoadManifestRequest {
+            active_revision: None,
+        });
+        connection
+            .send(awc::ws::Message::Binary(
+                rmp_serde::to_vec(&hello).unwrap().into(),
+            ))
+            .await
+            .unwrap();
 
         let Some(Ok(awc::ws::Frame::Binary(bin_data))) = connection.next().await else {
-            panic!("expected initial reload-app websocket message");
+            panic!("expected prepare-app-revision websocket message");
         };
         let message: AgentMessage = from_slice(&bin_data).unwrap();
-        let AgentMessage::ReloadAppRequest(request) = message else {
-            panic!("expected ReloadAppRequest");
+        let AgentMessage::PrepareAppRevision(request) = message else {
+            panic!("expected PrepareAppRevision");
         };
 
-        assert_eq!(request.request_id, "reload-app-1");
-        assert_eq!(request.build_id, "build-1");
-        assert_eq!(request.artifact_kind, "web-cartridge");
+        assert_eq!(request.logic_revision_id, "build-1");
+        assert_eq!(request.artifact.kind, "web-cartridge");
         assert_eq!(
-            request.artifact_location,
+            request.artifact.location,
             "/__reloads__/build-1/pax-cartridge"
         );
 
         connection.close().await.unwrap();
+    }
+
+    #[actix_web::test]
+    async fn stale_activation_is_rejected_without_closing_the_socket() {
+        let state = Data::new(
+            AppState::new(
+                PathBuf::new(),
+                PathBuf::new(),
+                basic_manifest("Example"),
+                None,
+                None,
+                HotReloadMode::All,
+                None,
+                None,
+            )
+            .unwrap(),
+        );
+        let server_state = state.clone();
+        let srv = actix_test::start(move || {
+            App::new()
+                .app_data(server_state.clone())
+                .service(web_socket)
+        });
+
+        let client = awc::Client::new();
+        let (_resp, mut connection) = client.ws(srv.url("/ws")).connect().await.unwrap();
+        connection
+            .send(awc::ws::Message::Binary(
+                rmp_serde::to_vec(&AgentMessage::ActivateAppRevision(ActivateAppRevision {
+                    logic_revision_id: "surviving-artifact".to_string(),
+                }))
+                .unwrap()
+                .into(),
+            ))
+            .await
+            .unwrap();
+
+        let Some(Ok(awc::ws::Frame::Binary(bin_data))) = connection.next().await else {
+            panic!("expected activation rejection");
+        };
+        let message: AgentMessage = from_slice(&bin_data).unwrap();
+        assert!(matches!(
+            message,
+            AgentMessage::AppRevisionActivationRejected(rejection)
+                if rejection.logic_revision_id == "surviving-artifact"
+        ));
+
+        connection
+            .send(awc::ws::Message::Binary(
+                rmp_serde::to_vec(&AgentMessage::LoadManifestRequest(LoadManifestRequest {
+                    active_revision: Some(pax_designtime::messages::RevisionStamp {
+                        logic_revision_id: "surviving-artifact".to_string(),
+                        template_version: 6,
+                    }),
+                }))
+                .unwrap()
+                .into(),
+            ))
+            .await
+            .unwrap();
+
+        let Some(Ok(awc::ws::Frame::Binary(bin_data))) = connection.next().await else {
+            panic!("socket closed instead of returning the reconciled manifest");
+        };
+        let message: AgentMessage = from_slice(&bin_data).unwrap();
+        let AgentMessage::LoadManifestResponse(response) = message else {
+            panic!("expected LoadManifestResponse");
+        };
+        assert_eq!(response.revision.logic_revision_id, "surviving-artifact");
+        assert_eq!(response.revision.template_version, 6);
+
+        connection.close().await.unwrap();
+    }
+
+    #[actix_web::test]
+    async fn reconnect_owner_survives_old_cancel_and_cleanup_then_commits() {
+        let state = Data::new(
+            AppState::new(
+                PathBuf::new(),
+                PathBuf::new(),
+                basic_manifest("A"),
+                None,
+                None,
+                HotReloadMode::All,
+                None,
+                None,
+            )
+            .unwrap(),
+        );
+        state
+            .revisions
+            .lock()
+            .unwrap()
+            .stage_logic_candidate(
+                basic_manifest("B"),
+                PrepareAppRevision {
+                    logic_revision_id: "candidate-b".to_string(),
+                    execution_mode: DebugLogicExecutionMode::CompiledArtifact,
+                    artifact: DebugArtifact {
+                        kind: "web-cartridge".to_string(),
+                        location: "/candidate-b/pax-cartridge".to_string(),
+                    },
+                },
+                ActivationChannel::WebSocket,
+            )
+            .unwrap();
+
+        let server_state = state.clone();
+        let srv = actix_test::start(move || {
+            App::new()
+                .app_data(server_state.clone())
+                .service(web_socket)
+        });
+        let client = awc::Client::new();
+        let (_resp, mut connection_a) = client.ws(srv.url("/ws")).connect().await.unwrap();
+        let (_resp, mut connection_b) = client.ws(srv.url("/ws")).connect().await.unwrap();
+        let preflight = AgentMessage::RequestAppRevisionActivation(ActivateAppRevision {
+            logic_revision_id: "candidate-b".to_string(),
+        });
+
+        connection_a
+            .send(awc::ws::Message::Binary(
+                rmp_serde::to_vec(&preflight).unwrap().into(),
+            ))
+            .await
+            .unwrap();
+        let Some(Ok(awc::ws::Frame::Binary(response))) = connection_a.next().await else {
+            panic!("first owner did not receive preflight response");
+        };
+        assert!(matches!(
+            from_slice::<AgentMessage>(&response).unwrap(),
+            AgentMessage::AppRevisionActivationPrepared(_)
+        ));
+
+        connection_b
+            .send(awc::ws::Message::Binary(
+                rmp_serde::to_vec(&preflight).unwrap().into(),
+            ))
+            .await
+            .unwrap();
+        let Some(Ok(awc::ws::Frame::Binary(response))) = connection_b.next().await else {
+            panic!("reconnect owner did not receive preflight response");
+        };
+        assert!(matches!(
+            from_slice::<AgentMessage>(&response).unwrap(),
+            AgentMessage::AppRevisionActivationPrepared(_)
+        ));
+
+        connection_a
+            .send(awc::ws::Message::Binary(
+                rmp_serde::to_vec(&AgentMessage::CancelAppRevisionActivation(
+                    ActivateAppRevision {
+                        logic_revision_id: "candidate-b".to_string(),
+                    },
+                ))
+                .unwrap()
+                .into(),
+            ))
+            .await
+            .unwrap();
+        connection_a.close().await.unwrap();
+        actix_web::rt::time::sleep(std::time::Duration::from_millis(25)).await;
+
+        connection_b
+            .send(awc::ws::Message::Binary(
+                rmp_serde::to_vec(&AgentMessage::ActivateAppRevision(ActivateAppRevision {
+                    logic_revision_id: "candidate-b".to_string(),
+                }))
+                .unwrap()
+                .into(),
+            ))
+            .await
+            .unwrap();
+        let Some(Ok(awc::ws::Frame::Binary(response))) = connection_b.next().await else {
+            panic!("reconnect owner did not receive final commit response");
+        };
+        assert!(matches!(
+            from_slice::<AgentMessage>(&response).unwrap(),
+            AgentMessage::LoadManifestResponse(response)
+                if response.revision.logic_revision_id == "candidate-b"
+        ));
+        assert!(state
+            .revisions
+            .lock()
+            .unwrap()
+            .is_active_logic_revision("candidate-b"));
+
+        connection_b.close().await.unwrap();
+    }
+
+    #[actix_web::test]
+    async fn superseded_socket_cannot_reclaim_ownership_during_close_grace_period() {
+        let state = Data::new(
+            AppState::new(
+                PathBuf::new(),
+                PathBuf::new(),
+                basic_manifest("Example"),
+                None,
+                None,
+                HotReloadMode::All,
+                None,
+                None,
+            )
+            .unwrap(),
+        );
+        let server_state = state.clone();
+        let srv = actix_test::start(move || {
+            App::new()
+                .app_data(server_state.clone())
+                .service(web_socket)
+        });
+
+        let client = awc::Client::new();
+        let (_resp, mut connection_a) = client.ws(srv.url("/ws")).connect().await.unwrap();
+        connection_a
+            .send(awc::ws::Message::Binary(
+                rmp_serde::to_vec(&AgentMessage::LoadManifestRequest(LoadManifestRequest {
+                    active_revision: None,
+                }))
+                .unwrap()
+                .into(),
+            ))
+            .await
+            .unwrap();
+        let Some(Ok(awc::ws::Frame::Binary(bin_data))) = connection_a.next().await else {
+            panic!("expected the first socket's manifest");
+        };
+        let AgentMessage::LoadManifestResponse(response) =
+            from_slice::<AgentMessage>(&bin_data).unwrap()
+        else {
+            panic!("expected LoadManifestResponse");
+        };
+        let active_revision = response.revision;
+
+        let (_resp, mut connection_b) = client.ws(srv.url("/ws")).connect().await.unwrap();
+        connection_b
+            .send(awc::ws::Message::Binary(
+                rmp_serde::to_vec(&AgentMessage::LoadManifestRequest(LoadManifestRequest {
+                    active_revision: Some(active_revision.clone()),
+                }))
+                .unwrap()
+                .into(),
+            ))
+            .await
+            .unwrap();
+        let Some(Ok(awc::ws::Frame::Binary(bin_data))) = connection_b.next().await else {
+            panic!("expected the replacement socket's manifest");
+        };
+        assert!(matches!(
+            from_slice::<AgentMessage>(&bin_data).unwrap(),
+            AgentMessage::LoadManifestResponse(_)
+        ));
+
+        let Some(Ok(awc::ws::Frame::Binary(bin_data))) = connection_a.next().await else {
+            panic!("expected the first socket's supersession notification");
+        };
+        assert!(matches!(
+            from_slice::<AgentMessage>(&bin_data).unwrap(),
+            AgentMessage::DisconnectNotification(_)
+        ));
+
+        // The server leaves a short grace period after notifying A so the
+        // notification can reach the client. A late same-revision hello in
+        // that interval must not promote A and enqueue a reciprocal close for B.
+        connection_a
+            .send(awc::ws::Message::Binary(
+                rmp_serde::to_vec(&AgentMessage::LoadManifestRequest(LoadManifestRequest {
+                    active_revision: Some(active_revision.clone()),
+                }))
+                .unwrap()
+                .into(),
+            ))
+            .await
+            .unwrap();
+        actix_web::rt::time::sleep(std::time::Duration::from_millis(75)).await;
+
+        connection_b
+            .send(awc::ws::Message::Binary(
+                rmp_serde::to_vec(&AgentMessage::LoadManifestRequest(LoadManifestRequest {
+                    active_revision: Some(active_revision),
+                }))
+                .unwrap()
+                .into(),
+            ))
+            .await
+            .expect("replacement socket should remain connected");
+        let Some(Ok(awc::ws::Frame::Binary(bin_data))) = connection_b.next().await else {
+            panic!("replacement socket was closed by a stale reciprocal supersession");
+        };
+        assert!(matches!(
+            from_slice::<AgentMessage>(&bin_data).unwrap(),
+            AgentMessage::LoadManifestResponse(_)
+        ));
+
+        connection_b.close().await.unwrap();
+    }
+
+    #[actix_web::test]
+    async fn promotion_barrier_orders_admitted_mutation_and_rejects_stale_socket_write() {
+        let dir = tempdir().unwrap();
+        let rust_path = dir.path().join("src/stale.rs");
+        fs::create_dir_all(rust_path.parent().unwrap()).unwrap();
+        fs::write(&rust_path, "original").unwrap();
+        let state = Data::new(
+            AppState::new(
+                PathBuf::new(),
+                dir.path().to_path_buf(),
+                basic_manifest("Example"),
+                None,
+                None,
+                HotReloadMode::All,
+                None,
+                None,
+            )
+            .unwrap(),
+        );
+        let server_state = state.clone();
+        let srv = actix_test::start(move || {
+            App::new()
+                .app_data(server_state.clone())
+                .service(web_socket)
+        });
+        let client = awc::Client::new();
+        let (_resp, mut connection_a) = client.ws(srv.url("/ws")).connect().await.unwrap();
+        connection_a
+            .send(awc::ws::Message::Binary(
+                rmp_serde::to_vec(&AgentMessage::LoadManifestRequest(LoadManifestRequest {
+                    active_revision: None,
+                }))
+                .unwrap()
+                .into(),
+            ))
+            .await
+            .unwrap();
+        let Some(Ok(awc::ws::Frame::Binary(_))) = connection_a.next().await else {
+            panic!("first socket did not receive its manifest");
+        };
+        let connection_a_id = state
+            .active_websocket_client
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .connection_id;
+
+        let (_resp, mut connection_b) = client.ws(srv.url("/ws")).connect().await.unwrap();
+        let active_revision = state.revisions.lock().unwrap().active_stamp().unwrap();
+        let source_barrier = state.source_update_lock.lock().unwrap();
+        connection_b
+            .send(awc::ws::Message::Binary(
+                rmp_serde::to_vec(&AgentMessage::LoadManifestRequest(LoadManifestRequest {
+                    active_revision: Some(active_revision),
+                }))
+                .unwrap()
+                .into(),
+            ))
+            .await
+            .unwrap();
+        actix_web::rt::time::sleep(std::time::Duration::from_millis(25)).await;
+        assert_eq!(
+            state
+                .active_websocket_client
+                .lock()
+                .unwrap()
+                .as_ref()
+                .unwrap()
+                .connection_id,
+            connection_a_id,
+            "promotion must wait for the admitted mutation lane"
+        );
+        {
+            let mut revisions = state.revisions.lock().unwrap();
+            let manifest = revisions.active_manifest_clone().unwrap();
+            revisions
+                .replace_active_authoring_manifest(&manifest)
+                .unwrap();
+        }
+        drop(source_barrier);
+        let Some(Ok(awc::ws::Frame::Binary(_))) = connection_b.next().await else {
+            panic!("replacement socket did not finish promotion");
+        };
+        let connection_b_id = state
+            .active_websocket_client
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .connection_id;
+        assert_ne!(connection_b_id, connection_a_id);
+        assert_eq!(
+            state
+                .revisions
+                .lock()
+                .unwrap()
+                .active_stamp()
+                .unwrap()
+                .template_version,
+            1
+        );
+
+        let stamp_before_stale_attempt = state.revisions.lock().unwrap().active_stamp().unwrap();
+        let generation_before_stale_attempt = state.revisions.lock().unwrap().mutation_generation();
+        let (passed_initial_check_tx, passed_initial_check_rx) = std::sync::mpsc::channel();
+        let (continue_stale_attempt_tx, continue_stale_attempt_rx) = std::sync::mpsc::channel();
+        let stale_state = state.clone();
+        let stale_path = rust_path.clone();
+        let stale_attempt = std::thread::spawn(move || {
+            let source_update =
+                stale_state.source_update_guard_for_client_after(connection_b_id, || {
+                    passed_initial_check_tx.send(()).unwrap();
+                    continue_stale_attempt_rx.recv().unwrap();
+                });
+            let Some(_source_update) = source_update else {
+                return false;
+            };
+
+            fs::write(&stale_path, "stale").unwrap();
+            let mut revisions = stale_state.revisions.lock().unwrap();
+            let manifest = revisions.active_manifest_clone().unwrap();
+            revisions
+                .replace_active_authoring_manifest(&manifest)
+                .unwrap();
+            revisions.record_pax_source("src/stale.rs".to_string(), "stale".to_string());
+            true
+        });
+        passed_initial_check_rx
+            .recv_timeout(std::time::Duration::from_secs(1))
+            .expect("stale socket did not pass its initial ownership check");
+
+        let (_resp, mut connection_c) = client.ws(srv.url("/ws")).connect().await.unwrap();
+        let active_revision = state.revisions.lock().unwrap().active_stamp().unwrap();
+        connection_c
+            .send(awc::ws::Message::Binary(
+                rmp_serde::to_vec(&AgentMessage::LoadManifestRequest(LoadManifestRequest {
+                    active_revision: Some(active_revision),
+                }))
+                .unwrap()
+                .into(),
+            ))
+            .await
+            .unwrap();
+        let Some(Ok(awc::ws::Frame::Binary(_))) = connection_c.next().await else {
+            panic!("third socket did not finish promotion");
+        };
+        let connection_c_id = state
+            .active_websocket_client
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .connection_id;
+        assert_ne!(connection_c_id, connection_b_id);
+
+        continue_stale_attempt_tx.send(()).unwrap();
+        assert!(
+            !stale_attempt.join().unwrap(),
+            "socket superseded between ownership checks mutated source state"
+        );
+        assert_eq!(fs::read_to_string(&rust_path).unwrap(), "original");
+        let revisions = state.revisions.lock().unwrap();
+        assert_eq!(
+            revisions.active_stamp().unwrap(),
+            stamp_before_stale_attempt
+        );
+        assert_eq!(
+            revisions.mutation_generation(),
+            generation_before_stale_attempt
+        );
+        drop(revisions);
+
+        connection_c.close().await.unwrap();
+    }
+
+    fn basic_manifest(component_name: &str) -> PaxManifest {
+        let type_id = TypeId::build_singleton(component_name, Some(component_name));
+        let mut components = BTreeMap::new();
+        components.insert(
+            type_id.clone(),
+            ComponentDefinition {
+                type_id: type_id.clone(),
+                is_main_component: true,
+                is_primitive: false,
+                is_struct_only_component: false,
+                module_path: component_name.to_string(),
+                primitive_instance_import_path: None,
+                template: None,
+                settings: None,
+                timelines: vec![],
+            },
+        );
+        PaxManifest {
+            components,
+            main_component_type_id: type_id,
+            type_table: HashMap::new(),
+            assets_dirs: vec![],
+            engine_import_path: String::new(),
+        }
     }
 
     #[test]
@@ -1164,6 +2101,36 @@ mod tests {
             "src/lib.pax",
             project_root,
         ));
+    }
+
+    #[test]
+    fn replay_journal_uses_one_key_for_relative_and_absolute_source_paths() {
+        let temp_dir = tempdir().unwrap();
+        let project_root = temp_dir.path();
+        let source_path = project_root.join("src/lib.pax");
+        fs::create_dir_all(source_path.parent().unwrap()).unwrap();
+        fs::write(&source_path, "<Group/>").unwrap();
+
+        assert_eq!(
+            normalized_pax_mutation_path("src/lib.pax", project_root),
+            normalized_pax_mutation_path(&source_path.to_string_lossy(), project_root)
+        );
+    }
+
+    #[test]
+    fn replay_journal_normalizes_project_prefixed_relative_source_paths() {
+        let current_dir = std::env::current_dir().unwrap();
+        let temp_dir = tempfile::tempdir_in(&current_dir).unwrap();
+        let project_root = temp_dir.path().join("examples/src/example");
+        let source_path = project_root.join("src/lib.pax");
+        fs::create_dir_all(source_path.parent().unwrap()).unwrap();
+        fs::write(&source_path, "<Group/>").unwrap();
+        let project_prefixed = source_path.strip_prefix(&current_dir).unwrap();
+
+        assert_eq!(
+            normalized_pax_mutation_path(&project_prefixed.to_string_lossy(), &project_root),
+            normalized_pax_mutation_path(&source_path.to_string_lossy(), &project_root)
+        );
     }
 
     #[test]
@@ -1295,6 +2262,10 @@ fn spawn_userland_rust_source_update(
     request_id: String,
     path: String,
 ) -> Result<(), String> {
+    if !state.logic_hot_reload_available() {
+        state.note_logic_restart_required();
+        return Err("logic hot reload is unavailable for this session".to_string());
+    }
     let config = {
         let mut logic_reload = state.logic_reload.lock().unwrap();
         let reload_state = logic_reload

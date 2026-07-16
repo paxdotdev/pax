@@ -3,7 +3,7 @@ use include_dir::{include_dir, Dir};
 use lazy_static::lazy_static;
 use pax_manifest::HostCrateInfo;
 use pax_runtime::api::serde::Deserialize;
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -160,6 +160,110 @@ pub fn pax_project_feature_args(project_path: &Path, requested_features: &[&str]
     features
 }
 
+/// Resolves the exact Cargo graph built for the requested release features and
+/// target triples, then reports any runtime path which contains Pax's
+/// designtime protocol. `cargo metadata`'s node features are unified across
+/// dev and build dependency contexts, so use Cargo's normal-edge tree here to
+/// match what `cargo build --release` will actually compile.
+pub fn pax_project_release_devtime_activators(
+    project_path: &Path,
+    requested_features: &[String],
+    target_triples: &[&str],
+) -> Result<Vec<String>, String> {
+    let manifest_path = project_path.join("Cargo.toml");
+    let mut activators = BTreeSet::new();
+
+    for target_triple in target_triples {
+        let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
+        let mut command = Command::new(cargo);
+        command
+            .arg("tree")
+            .arg("--manifest-path")
+            .arg(&manifest_path)
+            .arg("--target")
+            .arg(target_triple)
+            .arg("--edges")
+            .arg("normal,no-proc-macro")
+            .arg("--prefix")
+            .arg("depth")
+            .arg("--format")
+            .arg("{p}\t{f}")
+            .arg("--charset")
+            .arg("ascii")
+            .arg("--color")
+            .arg("never")
+            .arg("--quiet");
+        if !requested_features.is_empty() {
+            command.arg("--features").arg(requested_features.join(","));
+        }
+
+        let output = command
+            .output()
+            .map_err(|err| format!("failed to run Cargo's release dependency resolver: {err}"))?;
+        if !output.status.success() {
+            return Err(format!(
+                "failed to resolve release Cargo features for target {target_triple}: {}",
+                String::from_utf8_lossy(&output.stderr).trim()
+            ));
+        }
+        collect_release_devtime_activators(
+            &String::from_utf8_lossy(&output.stdout),
+            &mut activators,
+        )?;
+    }
+
+    Ok(activators.into_iter().collect())
+}
+
+fn collect_release_devtime_activators(
+    cargo_tree: &str,
+    activators: &mut BTreeSet<String>,
+) -> Result<(), String> {
+    let mut path = Vec::<String>::new();
+
+    for line in cargo_tree.lines().filter(|line| !line.trim().is_empty()) {
+        let depth_len = line
+            .as_bytes()
+            .iter()
+            .take_while(|byte| byte.is_ascii_digit())
+            .count();
+        if depth_len == 0 {
+            return Err(format!("unexpected Cargo dependency tree line: {line}"));
+        }
+        let depth = line[..depth_len]
+            .parse::<usize>()
+            .map_err(|err| format!("invalid Cargo dependency depth in `{line}`: {err}"))?;
+        let (package, features) = line[depth_len..]
+            .split_once('\t')
+            .ok_or_else(|| format!("Cargo dependency tree omitted features in `{line}`"))?;
+        let package_name = package
+            .split_whitespace()
+            .next()
+            .ok_or_else(|| format!("Cargo dependency tree omitted a package name in `{line}`"))?;
+        if depth > path.len() {
+            return Err(format!("unexpected Cargo dependency depth in `{line}`"));
+        }
+        path.truncate(depth);
+        path.push(package_name.to_string());
+
+        if matches!(package_name, "pax-designtime" | "pax-designer") {
+            activators.insert(format!("runtime dependency path `{}`", path.join(" -> ")));
+        }
+        if package_name.starts_with("pax-") {
+            for feature in features.split(',') {
+                if matches!(feature, "designtime" | "designer") {
+                    activators.insert(format!(
+                        "runtime dependency path `{}` enables `{feature}`",
+                        path.join(" -> ")
+                    ));
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
 pub fn configure_pax_build_env(
     cmd: &mut Command,
     target: &str,
@@ -189,6 +293,18 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir should be created");
         fs::write(dir.path().join("Cargo.toml"), contents).expect("manifest should be written");
         dir
+    }
+
+    fn write_local_crate(path: &Path, name: &str, manifest_body: &str) {
+        fs::create_dir_all(path.join("src")).unwrap();
+        fs::write(
+            path.join("Cargo.toml"),
+            format!(
+                "[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n{manifest_body}"
+            ),
+        )
+        .unwrap();
+        fs::write(path.join("src/lib.rs"), "pub fn fixture() {}\n").unwrap();
     }
 
     #[test]
@@ -297,6 +413,114 @@ designtime = ["pax-engine/designtime", "pax-std/designtime"]
         assert_eq!(
             pax_project_feature_args(dir.path(), &["web", "designtime"]),
             vec!["web", "designtime"]
+        );
+    }
+
+    #[test]
+    fn release_guard_follows_transitive_workspace_runtime_features() {
+        let workspace = tempfile::tempdir().unwrap();
+        fs::write(
+            workspace.path().join("Cargo.toml"),
+            r#"
+[workspace]
+resolver = "2"
+members = ["app", "widget", "pax-engine"]
+
+[workspace.dependencies]
+widget = { path = "widget" }
+"#,
+        )
+        .unwrap();
+        write_local_crate(
+            &workspace.path().join("pax-engine"),
+            "pax-engine",
+            "[features]\ndesigntime = []\n",
+        );
+        write_local_crate(
+            &workspace.path().join("widget"),
+            "widget",
+            "[dependencies]\npax-engine = { path = \"../pax-engine\", features = [\"designtime\"] }\n",
+        );
+        let app = workspace.path().join("app");
+        write_local_crate(
+            &app,
+            "app",
+            "[dependencies]\nwidget.workspace = true\n\n[features]\nweb = []\n",
+        );
+
+        let activators = pax_project_release_devtime_activators(
+            &app,
+            &["web".to_string()],
+            &["wasm32-unknown-unknown"],
+        )
+        .unwrap();
+        assert_eq!(
+            activators,
+            vec!["runtime dependency path `app -> widget -> pax-engine` enables `designtime`"]
+        );
+    }
+
+    #[test]
+    fn release_guard_ignores_inactive_optional_dev_and_off_target_dependencies() {
+        let workspace = tempfile::tempdir().unwrap();
+        fs::write(
+            workspace.path().join("Cargo.toml"),
+            "[workspace]\nresolver = \"2\"\nmembers = [\"app\", \"pax-designer\", \"pax-designtime\", \"pax-engine\"]\n",
+        )
+        .unwrap();
+        write_local_crate(&workspace.path().join("pax-designer"), "pax-designer", "");
+        write_local_crate(
+            &workspace.path().join("pax-designtime"),
+            "pax-designtime",
+            "",
+        );
+        write_local_crate(
+            &workspace.path().join("pax-engine"),
+            "pax-engine",
+            "[features]\ndesigntime = []\n",
+        );
+        let app = workspace.path().join("app");
+        write_local_crate(
+            &app,
+            "app",
+            r#"[dependencies]
+optional-tools = { package = "pax-designer", path = "../pax-designer", optional = true }
+pax-engine = { path = "../pax-engine" }
+
+[dev-dependencies]
+pax-engine = { path = "../pax-engine", features = ["designtime"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-tools = { package = "pax-designtime", path = "../pax-designtime" }
+
+[features]
+default = ["shipping-theme"]
+shipping-theme = []
+web = []
+"#,
+        );
+
+        assert!(pax_project_release_devtime_activators(
+            &app,
+            &["web".to_string()],
+            &["wasm32-unknown-unknown"],
+        )
+        .unwrap()
+        .is_empty());
+    }
+
+    #[test]
+    fn release_guard_reads_deduplicated_cargo_tree_entries() {
+        let mut activators = BTreeSet::new();
+        collect_release_devtime_activators(
+            "0app v0.1.0\t\n1wrapper v0.1.0\t\n2pax-engine v0.1.0 (*)\tdesigntime,web\n",
+            &mut activators,
+        )
+        .unwrap();
+
+        assert_eq!(
+            activators.into_iter().collect::<Vec<_>>(),
+            vec!["runtime dependency path `app -> wrapper -> pax-engine` enables `designtime`"]
         );
     }
 }

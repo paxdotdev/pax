@@ -13,7 +13,7 @@ pub enum AgentMessage {
     ManifestSerializationRequest(ManifestSerializationRequest),
     // Request to retrieve the manifest from the design server
     // sent from designtime to design-server
-    LoadManifestRequest,
+    LoadManifestRequest(LoadManifestRequest),
     LoadManifestResponse(LoadManifestResponse),
     DisconnectNotification(DisconnectNotification),
     ComponentSerializationRequest(ComponentSerializationRequest),
@@ -21,7 +21,12 @@ pub enum AgentMessage {
     LoadFileToStaticDirRequest(LoadFileToStaticDirRequest),
     UserlandSourceUpdateRequest(UserlandSourceUpdateRequest),
     UserlandSourceUpdateResponse(UserlandSourceUpdateResponse),
-    ReloadAppRequest(ReloadAppRequest),
+    PrepareAppRevision(PrepareAppRevision),
+    RequestAppRevisionActivation(ActivateAppRevision),
+    CancelAppRevisionActivation(ActivateAppRevision),
+    AppRevisionActivationPrepared(LoadManifestResponse),
+    ActivateAppRevision(ActivateAppRevision),
+    AppRevisionActivationRejected(AppRevisionActivationRejected),
     DevClientRequest(DevClientRequest),
     DevClientResponse(DevClientResponse),
     // LLM Requests to pub.pax.dev
@@ -30,15 +35,56 @@ pub enum AgentMessage {
     LLMFinalResponse(LLMFinalResponse),
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ReloadAppRequest {
-    /// Artifact-oriented debug reload envelope shared by native and web hosts.
-    /// This is intentionally broader than a dylib-path swap, but it is not yet
-    /// the language-neutral logic-module ABI described in the hot-reload spec.
-    pub request_id: String,
-    pub build_id: String,
-    pub artifact_kind: String,
-    pub artifact_location: String,
+/// Identifies the executable logic generation and the mutable template snapshot
+/// mounted on top of it. Template-only edits advance `template_version` without
+/// requiring a new executable artifact.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct RevisionStamp {
+    pub logic_revision_id: String,
+    pub template_version: u64,
+}
+
+/// Describes how a prepared logic revision will execute after host activation.
+/// The protocol deliberately does not encode chassis-specific loading details.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub enum DebugLogicExecutionMode {
+    CompiledArtifact,
+    InterpretedModule,
+}
+
+/// Host-resolvable debug artifact metadata. `kind` remains open-ended so a
+/// future language runtime can introduce an artifact without changing the
+/// revision state machine.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct DebugArtifact {
+    pub kind: String,
+    pub location: String,
+}
+
+/// Announces a complete candidate revision which the host may prepare and
+/// activate. The active manifest remains authoritative until activation.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct PrepareAppRevision {
+    pub logic_revision_id: String,
+    pub execution_mode: DebugLogicExecutionMode,
+    pub artifact: DebugArtifact,
+}
+
+/// Identifies a candidate whose prepared snapshot the host admitted. The final
+/// activation message requests server commit before the host swaps runtimes.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct ActivateAppRevision {
+    pub logic_revision_id: String,
+}
+
+/// Rejects an activation acknowledgement which is no longer authoritative.
+/// The mounted runtime remains intact and may receive a newer prepare envelope
+/// or a full snapshot for its existing logic identity.
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct AppRevisionActivationRejected {
+    pub logic_revision_id: String,
+    pub reason: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -295,11 +341,14 @@ pub struct ManifestSerializationRequest {
     pub manifest: Vec<u8>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct LoadManifestRequest {}
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
+pub struct LoadManifestRequest {
+    pub active_revision: Option<RevisionStamp>,
+}
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct LoadManifestResponse {
+    pub revision: RevisionStamp,
     pub manifest: Vec<u8>,
 }
 
@@ -316,8 +365,10 @@ pub struct ComponentSerializationRequest {
 
 /// A request to update the template of a component.
 // Sent from `pax-priviliged-agent` to `pax-designtime`.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct UpdateTemplateRequest {
+    /// Revision against which this template was parsed and committed.
+    pub revision: RevisionStamp,
     /// The type identifier of the component to update.
     pub type_id: TypeId,
     /// The new template for the component.

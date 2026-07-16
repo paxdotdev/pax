@@ -17,11 +17,14 @@ mod building;
 mod cartridge_generation;
 pub mod dev_session;
 pub mod helpers;
+mod hot_reload;
 pub mod project_metadata;
 pub mod static_analysis;
 pub mod svg_import;
 
 pub mod design_server;
+
+pub use hot_reload::HotReloadMode;
 
 use color_eyre::eyre;
 use color_eyre::eyre::Report;
@@ -62,6 +65,11 @@ use crate::helpers::{
     PAX_WEB_INTERFACE_TEMPLATE,
 };
 
+/// Configuration for building or running a Pax project.
+///
+/// Callers that want project, environment, and debug defaults to participate
+/// in hot-reload selection should leave [`RunContext::hot_reload`] as `None`.
+#[derive(Clone)]
 pub struct RunContext {
     pub target: RunTarget,
     pub project_path: PathBuf,
@@ -71,6 +79,12 @@ pub struct RunContext {
     pub process_child_ids: Arc<Mutex<Vec<u64>>>,
     pub should_run_designtime: bool,
     pub should_run_designer: bool,
+    /// An explicit debug hot-reload policy.
+    ///
+    /// For a running debug designtime session, `None` lets `PAX_HOT_RELOAD`, then
+    /// `[package.metadata.pax.dev].hot_reload`, then the debug default (`all`)
+    /// select the policy. Release builds always force hot reload off.
+    pub hot_reload: Option<HotReloadMode>,
     pub is_release: bool,
     pub profile_wasm_size: bool,
     pub webgl: bool,
@@ -84,7 +98,7 @@ struct WebFontSource {
     url: String,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum RunTarget {
     #[allow(non_camel_case_types)]
     macOS,
@@ -173,12 +187,26 @@ pub(crate) struct PreparedCartridgeSources {
 pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<PathBuf>), Report> {
     let mut timings = BuildTimings::start();
     let prepared = prepare_cartridge_sources_with_timings(ctx, &mut timings)?;
+    let hot_reload = if ctx.should_also_run && ctx.should_run_designtime {
+        let mode = resolve_hot_reload_mode(
+            ctx.is_release,
+            ctx.hot_reload,
+            std::env::var("PAX_HOT_RELOAD").ok().as_deref(),
+            prepared.project_metadata.configured_hot_reload(),
+        )?;
+        validate_hot_reload_target(&ctx.target, mode)?;
+        mode
+    } else {
+        HotReloadMode::Off
+    };
+    let mut effective_ctx = ctx.clone();
+    effective_ctx.hot_reload = Some(hot_reload);
 
     //7. Build full project from source
     println!("{} 🧱 Building project with `cargo`", *PAX_BADGE);
     let build_dir = build_project_with_cartridge(
         &prepared.pax_dir,
-        &ctx,
+        &effective_ctx,
         Arc::clone(&ctx.process_child_ids),
         prepared.assets_dirs,
         prepared.userland_manifest.clone(),
@@ -187,6 +215,40 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
     )?;
 
     Ok((prepared.userland_manifest, build_dir))
+}
+
+fn resolve_hot_reload_mode(
+    is_release: bool,
+    explicit: Option<HotReloadMode>,
+    environment: Option<&str>,
+    project_metadata: Option<&str>,
+) -> Result<HotReloadMode, Report> {
+    if is_release {
+        return Ok(HotReloadMode::Off);
+    }
+    if let Some(mode) = explicit {
+        return Ok(mode);
+    }
+    if let Some(value) = environment {
+        return value
+            .parse()
+            .map_err(|err: String| eyre!("Invalid PAX_HOT_RELOAD value: {err}"));
+    }
+    if let Some(value) = project_metadata {
+        return value.parse().map_err(|err: String| {
+            eyre!("Invalid package.metadata.pax.dev.hot_reload value: {err}")
+        });
+    }
+    Ok(HotReloadMode::All)
+}
+
+fn validate_hot_reload_target(target: &RunTarget, hot_reload: HotReloadMode) -> Result<(), Report> {
+    if matches!(target, RunTarget::iOS | RunTarget::iPadOS) && hot_reload == HotReloadMode::Logic {
+        return Err(eyre!(
+            "The `logic` hot-reload mode is unavailable for iOS and iPadOS because those chassis do not dynamically replace application logic. Use `pax` or `all`, or rebuild the app after logic changes."
+        ));
+    }
+    Ok(())
 }
 
 pub(crate) fn prepare_cartridge_sources(
@@ -200,11 +262,7 @@ fn prepare_cartridge_sources_with_timings(
     ctx: &RunContext,
     timings: &mut BuildTimings,
 ) -> eyre::Result<PreparedCartridgeSources, Report> {
-    if ctx.is_release && (ctx.should_run_designtime || ctx.should_run_designer) {
-        return Err(eyre!(
-            "Release builds do not support designtime or designer features. Use a debug build for designtime sessions."
-        ));
-    }
+    validate_release_feature_boundary(ctx)?;
 
     if ctx.target == RunTarget::Web {
         timings.record("web interface", || ensure_default_web_interface_bundle(ctx));
@@ -291,6 +349,52 @@ fn prepare_cartridge_sources_with_timings(
         assets_dirs: merged_manifest.assets_dirs,
         project_metadata,
     })
+}
+
+fn validate_release_feature_boundary(ctx: &RunContext) -> Result<(), Report> {
+    if !ctx.is_release {
+        return Ok(());
+    }
+    if ctx.should_run_designtime || ctx.should_run_designer {
+        return Err(eyre!(
+            "Release builds do not support designtime or designer features. Use a debug build for designtime sessions."
+        ));
+    }
+
+    Ok(())
+}
+
+pub(crate) fn validate_release_cargo_feature_boundary(
+    ctx: &RunContext,
+    target_triples: &[&str],
+) -> Result<(), Report> {
+    if !ctx.is_release {
+        return Ok(());
+    }
+
+    let mut requested_features = vec![match ctx.target {
+        RunTarget::Web => "web",
+        RunTarget::macOS => "macos",
+        RunTarget::iOS | RunTarget::iPadOS => "ios",
+    }];
+    if ctx.webgl {
+        requested_features.push("webgl");
+    }
+    let cargo_features = helpers::pax_project_feature_args(&ctx.project_path, &requested_features);
+    let activators = helpers::pax_project_release_devtime_activators(
+        &ctx.project_path,
+        &cargo_features,
+        target_triples,
+    )
+    .map_err(|err| eyre!("Could not verify the release Cargo feature boundary: {err}"))?;
+    if !activators.is_empty() {
+        return Err(eyre!(
+            "Release builds do not support designtime or designer code, but this project's Cargo configuration activates it through: {}. Remove these entries from Cargo defaults/dependencies for release builds. Pax enables development features explicitly for debug designtime sessions.",
+            activators.join("; ")
+        ));
+    }
+
+    Ok(())
 }
 
 fn ensure_default_web_interface_bundle(ctx: &RunContext) {
@@ -1239,6 +1343,61 @@ mod tests {
         assert!(error.contains("unsupported target `fridge`"));
     }
 
+    #[test]
+    fn hot_reload_precedence_is_explicit_then_env_then_metadata_then_default() {
+        assert_eq!(
+            resolve_hot_reload_mode(
+                false,
+                Some(HotReloadMode::Logic),
+                Some("invalid-lower-priority-value"),
+                Some("also-invalid"),
+            )
+            .unwrap(),
+            HotReloadMode::Logic
+        );
+        assert_eq!(
+            resolve_hot_reload_mode(false, None, Some("pax"), Some("logic")).unwrap(),
+            HotReloadMode::Pax
+        );
+        assert_eq!(
+            resolve_hot_reload_mode(false, None, None, Some("off")).unwrap(),
+            HotReloadMode::Off
+        );
+        assert_eq!(
+            resolve_hot_reload_mode(false, None, None, None).unwrap(),
+            HotReloadMode::All
+        );
+        assert_eq!(
+            resolve_hot_reload_mode(true, Some(HotReloadMode::All), Some("all"), Some("all"),)
+                .unwrap(),
+            HotReloadMode::Off
+        );
+    }
+
+    #[test]
+    fn invalid_selected_hot_reload_configuration_is_actionable() {
+        let env_error = resolve_hot_reload_mode(false, None, Some("rust"), Some("pax"))
+            .expect_err("selected environment value should be validated");
+        assert!(env_error
+            .to_string()
+            .contains("Invalid PAX_HOT_RELOAD value"));
+
+        let metadata_error = resolve_hot_reload_mode(false, None, None, Some("templates"))
+            .expect_err("selected metadata value should be validated");
+        assert!(metadata_error
+            .to_string()
+            .contains("package.metadata.pax.dev.hot_reload"));
+    }
+
+    #[test]
+    fn mobile_rejects_logic_only_but_accepts_pax_and_all() {
+        let error = validate_hot_reload_target(&RunTarget::iOS, HotReloadMode::Logic)
+            .expect_err("mobile has no logic-only reload lane");
+        assert!(error.to_string().contains("unavailable for iOS and iPadOS"));
+        assert!(validate_hot_reload_target(&RunTarget::iOS, HotReloadMode::Pax).is_ok());
+        assert!(validate_hot_reload_target(&RunTarget::iPadOS, HotReloadMode::All).is_ok());
+    }
+
     fn release_context(should_run_designtime: bool, should_run_designer: bool) -> RunContext {
         RunContext {
             target: RunTarget::Web,
@@ -1249,6 +1408,7 @@ mod tests {
             process_child_ids: Arc::new(Mutex::new(vec![])),
             should_run_designtime,
             should_run_designer,
+            hot_reload: None,
             is_release: true,
             profile_wasm_size: false,
             webgl: false,
@@ -1270,6 +1430,61 @@ mod tests {
                 .to_string()
                 .contains("Release builds do not support designtime or designer features"));
         }
+    }
+
+    #[test]
+    fn release_build_rejects_devtime_enabled_by_project_cargo_defaults() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir_all(dir.path().join("src")).unwrap();
+        fs::write(dir.path().join("src/lib.rs"), "pub fn app() {}\n").unwrap();
+        fs::create_dir_all(dir.path().join("pax-engine/src")).unwrap();
+        fs::write(
+            dir.path().join("pax-engine/Cargo.toml"),
+            r#"
+[package]
+name = "pax-engine"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+designtime = []
+web = []
+"#,
+        )
+        .unwrap();
+        fs::write(
+            dir.path().join("pax-engine/src/lib.rs"),
+            "pub fn engine() {}\n",
+        )
+        .unwrap();
+        fs::write(
+            dir.path().join("Cargo.toml"),
+            r#"
+[package]
+name = "release-boundary"
+version = "0.1.0"
+
+[dependencies]
+pax-engine = { path = "pax-engine" }
+
+[features]
+default = ["authoring"]
+authoring = ["pax-engine/designtime"]
+web = ["pax-engine/web"]
+"#,
+        )
+        .unwrap();
+        let mut ctx = release_context(false, false);
+        ctx.project_path = dir.path().to_path_buf();
+
+        validate_release_feature_boundary(&ctx).unwrap();
+        let error =
+            validate_release_cargo_feature_boundary(&ctx, &["wasm32-unknown-unknown"]).unwrap_err();
+        let error = error.to_string();
+        assert!(error.contains(
+            "runtime dependency path `release-boundary -> pax-engine` enables `designtime`"
+        ));
+        assert!(error.contains("Pax enables development features explicitly"));
     }
 }
 

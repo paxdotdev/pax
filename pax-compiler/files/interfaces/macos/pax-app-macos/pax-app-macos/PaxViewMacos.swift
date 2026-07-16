@@ -78,6 +78,14 @@ fileprivate struct LoadedPaxCartridgeAPI {
         OpaquePointer?,
         UnsafePointer<InterruptBuffer>?
     ) -> UnsafeMutablePointer<NativeMessageQueue>?
+    typealias PaxDesigntimeActivateAppRevision = @convention(c) (
+        OpaquePointer?,
+        UnsafePointer<CChar>?
+    ) -> Bool
+    typealias PaxDesigntimePollAppRevisionActivation = @convention(c) (
+        OpaquePointer?,
+        UnsafePointer<CChar>?
+    ) -> Int32
     typealias PaxDeallocMessageQueue = @convention(c) (UnsafeMutablePointer<NativeMessageQueue>?) -> Void
 
     let handle: UnsafeMutableRawPointer
@@ -96,6 +104,11 @@ fileprivate struct LoadedPaxCartridgeAPI {
     let paxDesigntimeRayCast: PaxDesigntimeInterrupt
     let paxDesigntimeSelectorQuery: PaxDesigntimeInterrupt
     let paxDesigntimeReplaceNode: PaxDesigntimeInterrupt
+    let paxDesigntimePrimeAppRevision: PaxDesigntimeActivateAppRevision?
+    let paxDesigntimeRequestAppRevisionActivation: PaxDesigntimeActivateAppRevision?
+    let paxDesigntimePollAppRevisionActivation: PaxDesigntimePollAppRevisionActivation?
+    let paxDesigntimeCancelAppRevisionActivation: PaxDesigntimeActivateAppRevision?
+    let paxDesigntimeActivateAppRevision: PaxDesigntimeActivateAppRevision?
     let paxDeallocMessageQueue: PaxDeallocMessageQueue
 }
 
@@ -103,7 +116,9 @@ final class PaxCartridgeRuntime {
     static let shared = PaxCartridgeRuntime()
 
     private var api: LoadedPaxCartridgeAPI?
+    #if DEBUG
     private var retiredAPIs: [LoadedPaxCartridgeAPI] = []
+    #endif
 
     private init() {}
 
@@ -148,6 +163,21 @@ final class PaxCartridgeRuntime {
         return unsafeBitCast(symbol, to: T.self)
     }
 
+    #if DEBUG
+    private func resolveOptionalSymbol<T>(
+        handle: UnsafeMutableRawPointer,
+        name: String,
+        as type: T.Type
+    ) -> T? {
+        dlerror()
+        guard let symbol = dlsym(handle, name) else {
+            _ = dlerror()
+            return nil
+        }
+        return unsafeBitCast(symbol, to: T.self)
+    }
+    #endif
+
     private func openAPI(at path: String) throws -> LoadedPaxCartridgeAPI {
         guard let handle = dlopen(path, RTLD_NOW | RTLD_LOCAL) else {
             let detail = dlerror().map { String(cString: $0) } ?? "dlopen failed"
@@ -159,6 +189,39 @@ final class PaxCartridgeRuntime {
         }
 
         do {
+            #if DEBUG
+            let activateAppRevision = resolveOptionalSymbol(
+                handle: handle,
+                name: "pax_designtime_activate_app_revision",
+                as: LoadedPaxCartridgeAPI.PaxDesigntimeActivateAppRevision.self
+            )
+            let primeAppRevision = resolveOptionalSymbol(
+                handle: handle,
+                name: "pax_designtime_prime_app_revision",
+                as: LoadedPaxCartridgeAPI.PaxDesigntimeActivateAppRevision.self
+            )
+            let requestAppRevisionActivation = resolveOptionalSymbol(
+                handle: handle,
+                name: "pax_designtime_request_app_revision_activation",
+                as: LoadedPaxCartridgeAPI.PaxDesigntimeActivateAppRevision.self
+            )
+            let pollAppRevisionActivation = resolveOptionalSymbol(
+                handle: handle,
+                name: "pax_designtime_poll_app_revision_activation",
+                as: LoadedPaxCartridgeAPI.PaxDesigntimePollAppRevisionActivation.self
+            )
+            let cancelAppRevisionActivation = resolveOptionalSymbol(
+                handle: handle,
+                name: "pax_designtime_cancel_app_revision_activation",
+                as: LoadedPaxCartridgeAPI.PaxDesigntimeActivateAppRevision.self
+            )
+            #else
+            let activateAppRevision: LoadedPaxCartridgeAPI.PaxDesigntimeActivateAppRevision? = nil
+            let primeAppRevision: LoadedPaxCartridgeAPI.PaxDesigntimeActivateAppRevision? = nil
+            let requestAppRevisionActivation: LoadedPaxCartridgeAPI.PaxDesigntimeActivateAppRevision? = nil
+            let pollAppRevisionActivation: LoadedPaxCartridgeAPI.PaxDesigntimePollAppRevisionActivation? = nil
+            let cancelAppRevisionActivation: LoadedPaxCartridgeAPI.PaxDesigntimeActivateAppRevision? = nil
+            #endif
             return LoadedPaxCartridgeAPI(
                 handle: handle,
                 sourcePath: path,
@@ -176,6 +239,11 @@ final class PaxCartridgeRuntime {
                 paxDesigntimeRayCast: try resolveSymbol(handle: handle, name: "pax_designtime_ray_cast", as: LoadedPaxCartridgeAPI.PaxDesigntimeInterrupt.self),
                 paxDesigntimeSelectorQuery: try resolveSymbol(handle: handle, name: "pax_designtime_selector_query", as: LoadedPaxCartridgeAPI.PaxDesigntimeInterrupt.self),
                 paxDesigntimeReplaceNode: try resolveSymbol(handle: handle, name: "pax_designtime_replace_node", as: LoadedPaxCartridgeAPI.PaxDesigntimeInterrupt.self),
+                paxDesigntimePrimeAppRevision: primeAppRevision,
+                paxDesigntimeRequestAppRevisionActivation: requestAppRevisionActivation,
+                paxDesigntimePollAppRevisionActivation: pollAppRevisionActivation,
+                paxDesigntimeCancelAppRevisionActivation: cancelAppRevisionActivation,
+                paxDesigntimeActivateAppRevision: activateAppRevision,
                 paxDeallocMessageQueue: try resolveSymbol(handle: handle, name: "pax_dealloc_message_queue", as: LoadedPaxCartridgeAPI.PaxDeallocMessageQueue.self)
             )
         } catch {
@@ -193,8 +261,37 @@ final class PaxCartridgeRuntime {
         return loaded
     }
 
+    #if DEBUG
     fileprivate func prepareReload(from path: String) throws -> LoadedPaxCartridgeAPI {
-        try openAPI(at: path)
+        let prepared = try openAPI(at: path)
+        var missingHooks: [String] = []
+        if prepared.paxDesigntimePrimeAppRevision == nil {
+            missingHooks.append("pax_designtime_prime_app_revision")
+        }
+        if prepared.paxDesigntimeRequestAppRevisionActivation == nil {
+            missingHooks.append("pax_designtime_request_app_revision_activation")
+        }
+        if prepared.paxDesigntimePollAppRevisionActivation == nil {
+            missingHooks.append("pax_designtime_poll_app_revision_activation")
+        }
+        if prepared.paxDesigntimeCancelAppRevisionActivation == nil {
+            missingHooks.append("pax_designtime_cancel_app_revision_activation")
+        }
+        if prepared.paxDesigntimeActivateAppRevision == nil {
+            missingHooks.append("pax_designtime_activate_app_revision")
+        }
+        guard missingHooks.isEmpty else {
+            dlclose(prepared.handle)
+            throw NSError(
+                domain: "PaxCartridgeRuntime",
+                code: 4,
+                userInfo: [
+                    NSLocalizedDescriptionKey:
+                        "Reload candidate is not designtime-enabled; missing required revision hook(s): \(missingHooks.joined(separator: ", "))"
+                ]
+            )
+        }
+        return prepared
     }
 
     fileprivate func abandonPreparedAPI(_ prepared: LoadedPaxCartridgeAPI) {
@@ -207,6 +304,72 @@ final class PaxCartridgeRuntime {
         }
         api = prepared
     }
+
+    fileprivate func requestAppRevisionActivation(
+        _ prepared: LoadedPaxCartridgeAPI,
+        engineContainer: OpaquePointer?,
+        logicRevisionId: String
+    ) -> Bool {
+        guard let request = prepared.paxDesigntimeRequestAppRevisionActivation else {
+            return false
+        }
+        return logicRevisionId.withCString { revisionId in
+            request(engineContainer, revisionId)
+        }
+    }
+
+    fileprivate func pollAppRevisionActivation(
+        _ prepared: LoadedPaxCartridgeAPI,
+        engineContainer: OpaquePointer?,
+        logicRevisionId: String
+    ) -> Int32 {
+        guard let poll = prepared.paxDesigntimePollAppRevisionActivation else {
+            return 0
+        }
+        return logicRevisionId.withCString { revisionId in
+            poll(engineContainer, revisionId)
+        }
+    }
+
+    fileprivate func cancelAppRevisionActivation(
+        _ prepared: LoadedPaxCartridgeAPI,
+        engineContainer: OpaquePointer?,
+        logicRevisionId: String
+    ) -> Bool {
+        guard let cancel = prepared.paxDesigntimeCancelAppRevisionActivation else {
+            return false
+        }
+        return logicRevisionId.withCString { revisionId in
+            cancel(engineContainer, revisionId)
+        }
+    }
+
+    fileprivate func activateAppRevision(
+        _ prepared: LoadedPaxCartridgeAPI,
+        engineContainer: OpaquePointer?,
+        logicRevisionId: String
+    ) -> Bool {
+        guard let activate = prepared.paxDesigntimeActivateAppRevision else {
+            return false
+        }
+        return logicRevisionId.withCString { revisionId in
+            activate(engineContainer, revisionId)
+        }
+    }
+
+    fileprivate func primeAppRevision(
+        _ prepared: LoadedPaxCartridgeAPI,
+        engineContainer: OpaquePointer?,
+        logicRevisionId: String
+    ) -> Bool {
+        guard let primeAppRevision = prepared.paxDesigntimePrimeAppRevision else {
+            return false
+        }
+        return logicRevisionId.withCString { revisionId in
+            primeAppRevision(engineContainer, revisionId)
+        }
+    }
+    #endif
 
     func initEngine(width: Float, height: Float) -> OpaquePointer? {
         do {
@@ -534,18 +697,58 @@ private struct PaxDevReplaceNodeResponse: Codable {
     let error: String?
 }
 
+#if DEBUG
+private enum PaxDebugLogicExecutionMode: String, Codable {
+    case compiledArtifact = "compiled-artifact"
+    case interpretedModule = "interpreted-module"
+}
+
+private struct PaxDebugArtifact: Codable {
+    let kind: String
+    let location: String
+}
+
+private struct PaxPrepareAppRevision: Codable {
+    let logic_revision_id: String
+    let execution_mode: PaxDebugLogicExecutionMode
+    let artifact: PaxDebugArtifact
+}
+
 private struct PaxDevReloadLogicRequest: Codable {
     let request_id: String
     let kind: String
-    let dylib_path: String
+    let revision: PaxPrepareAppRevision
 }
 
 private struct PaxDevReloadLogicResponse: Codable {
     let request_id: String
     let status: String
-    let dylib_path: String?
+    let logic_revision_id: String?
     let error: String?
 }
+
+private enum PaxAppRevisionActivationStatus: Int32 {
+    case unknown = 0
+    case preparing = 1
+    case prepared = 2
+    case committing = 3
+    case committed = 4
+    case rejected = 5
+}
+
+private enum PaxPendingLogicReloadPhase {
+    case preflight(deadline: Date)
+    case committing
+}
+
+private struct PendingPaxLogicReload {
+    let api: LoadedPaxCartridgeAPI
+    let engine: OpaquePointer
+    let request: PaxDevReloadLogicRequest
+    let responseDir: URL
+    var phase: PaxPendingLogicReloadPhase
+}
+#endif
 
 private struct PaxDevSessionRegistration: Codable {
     let session_id: String
@@ -669,7 +872,9 @@ struct PaxViewMacos: View {
 
         private var displayLink: CVDisplayLink?
         private var isShuttingDown = false
-        private var isReloadingLogic = false
+        #if DEBUG
+        private var pendingLogicReload: PendingPaxLogicReload?
+        #endif
         private let tickStateLock = NSLock()
         private var tickScheduled = false
         private let surfaceManager = SurfaceManager()
@@ -804,6 +1009,20 @@ struct PaxViewMacos: View {
                 return
             }
             isShuttingDown = true
+            #if DEBUG
+            if let pending = pendingLogicReload {
+                if case .preflight = pending.phase {
+                    _ = PaxCartridgeRuntime.shared.cancelAppRevisionActivation(
+                        pending.api,
+                        engineContainer: pending.engine,
+                        logicRevisionId: pending.request.revision.logic_revision_id
+                    )
+                }
+                pending.api.paxDeallocEngine(pending.engine)
+                PaxCartridgeRuntime.shared.abandonPreparedAPI(pending.api)
+                pendingLogicReload = nil
+            }
+            #endif
             tickStateLock.lock()
             tickScheduled = false
             tickStateLock.unlock()
@@ -848,7 +1067,9 @@ struct PaxViewMacos: View {
 
         private func tick() {
             guard !isShuttingDown else { return }
-            guard !isReloadingLogic else { return }
+            #if DEBUG
+            defer { pollPendingLogicReloadIfNeeded() }
+            #endif
             guard bounds.width > 0, bounds.height > 0 else { return }
 
             let scale = currentScale()
@@ -864,13 +1085,14 @@ struct PaxViewMacos: View {
 
             guard let engineContainer = PaxEngineContainer.paxEngineContainer else { return }
 
-            guard let nativeMessageQueue = PaxCartridgeRuntime.shared.tick(
+            let nativeMessageQueue = PaxCartridgeRuntime.shared.tick(
                 engineContainer,
                 cgContext: nil,
                 width: width,
                 height: height,
                 scale: Float(scale)
-            ) else {
+            )
+            guard let nativeMessageQueue else {
                 return
             }
             let queue = nativeMessageQueue.pointee
@@ -1153,9 +1375,11 @@ struct PaxViewMacos: View {
                         case "replace-node":
                             let request = try JSONDecoder().decode(PaxDevReplaceNodeRequest.self, from: requestData)
                             try performReplaceNode(request: request, responseDir: responseDir)
+                        #if DEBUG
                         case "reload-logic":
                             let request = try JSONDecoder().decode(PaxDevReloadLogicRequest.self, from: requestData)
-                            try performReloadLogic(request: request, responseDir: responseDir)
+                            performReloadLogic(request: request, responseDir: responseDir)
+                        #endif
                         default:
                             try writePaxDevErrorResponse(
                                 requestId: envelope.request_id,
@@ -1427,58 +1651,244 @@ struct PaxViewMacos: View {
             )
         }
 
-        private func performReloadLogic(request: PaxDevReloadLogicRequest, responseDir: URL) throws {
-            guard bounds.width > 0, bounds.height > 0 else {
-                throw NSError(domain: "", code: 219, userInfo: [NSLocalizedDescriptionKey: "Cannot reload while the Pax view has no size"])
-            }
-
+        #if DEBUG
+        private func performReloadLogic(request: PaxDevReloadLogicRequest, responseDir: URL) {
+            let logicRevisionId = request.revision.logic_revision_id
             let runtime = PaxCartridgeRuntime.shared
-            let preparedAPI = try runtime.prepareReload(from: request.dylib_path)
+            var candidateAPI: LoadedPaxCartridgeAPI?
+            var candidateEngine: OpaquePointer?
 
-            isReloadingLogic = true
-            tickStateLock.lock()
-            tickScheduled = false
-            tickStateLock.unlock()
-            stopDisplayLink()
+            do {
+                guard pendingLogicReload == nil else {
+                    throw NSError(
+                        domain: "PaxCartridgeRuntime",
+                        code: 218,
+                        userInfo: [NSLocalizedDescriptionKey: "A Pax logic revision is already being activated"]
+                    )
+                }
+                guard request.revision.execution_mode == .compiledArtifact else {
+                    throw NSError(
+                        domain: "PaxCartridgeRuntime",
+                        code: 219,
+                        userInfo: [NSLocalizedDescriptionKey: "macOS does not support interpreted-module activation yet"]
+                    )
+                }
+                guard request.revision.artifact.kind == "macos-dylib" else {
+                    throw NSError(
+                        domain: "PaxCartridgeRuntime",
+                        code: 220,
+                        userInfo: [NSLocalizedDescriptionKey: "Unsupported macOS reload artifact kind: \(request.revision.artifact.kind)"]
+                    )
+                }
+                guard bounds.width > 0, bounds.height > 0 else {
+                    throw NSError(
+                        domain: "PaxCartridgeRuntime",
+                        code: 221,
+                        userInfo: [NSLocalizedDescriptionKey: "Cannot reload while the Pax view has no size"]
+                    )
+                }
 
+                let prepared = try runtime.prepareReload(from: request.revision.artifact.location)
+                candidateAPI = prepared
+
+                guard let reloadedEngine = prepared.paxInit(Float(bounds.width), Float(bounds.height)) else {
+                    throw NSError(
+                        domain: "PaxCartridgeRuntime",
+                        code: 222,
+                        userInfo: [NSLocalizedDescriptionKey: "Reloaded Pax cartridge failed to initialize"]
+                    )
+                }
+                candidateEngine = reloadedEngine
+                guard runtime.primeAppRevision(
+                    prepared,
+                    engineContainer: reloadedEngine,
+                    logicRevisionId: logicRevisionId
+                ) else {
+                    throw NSError(
+                        domain: "PaxCartridgeRuntime",
+                        code: 223,
+                        userInfo: [NSLocalizedDescriptionKey: "Reloaded Pax cartridge rejected logic revision \(logicRevisionId)"]
+                    )
+                }
+                guard runtime.requestAppRevisionActivation(
+                    prepared,
+                    engineContainer: reloadedEngine,
+                    logicRevisionId: logicRevisionId
+                ) else {
+                    throw NSError(
+                        domain: "PaxCartridgeRuntime",
+                        code: 224,
+                        userInfo: [NSLocalizedDescriptionKey: "Could not start activation preflight for Pax logic revision \(logicRevisionId)"]
+                    )
+                }
+
+                pendingLogicReload = PendingPaxLogicReload(
+                    api: prepared,
+                    engine: reloadedEngine,
+                    request: request,
+                    responseDir: responseDir,
+                    phase: .preflight(deadline: Date().addingTimeInterval(15.0))
+                )
+                candidateAPI = nil
+                candidateEngine = nil
+            } catch {
+                if let candidateEngine, let candidateAPI {
+                    candidateAPI.paxDeallocEngine(candidateEngine)
+                }
+                if let candidateAPI {
+                    runtime.abandonPreparedAPI(candidateAPI)
+                }
+                writeReloadLogicResponse(
+                    requestId: request.request_id,
+                    logicRevisionId: logicRevisionId,
+                    status: "error",
+                    error: error.localizedDescription,
+                    responseDir: responseDir
+                )
+            }
+        }
+
+        private func pollPendingLogicReloadIfNeeded() {
+            guard var pending = pendingLogicReload else {
+                return
+            }
+            let runtime = PaxCartridgeRuntime.shared
+            let logicRevisionId = pending.request.revision.logic_revision_id
+            let rawStatus = runtime.pollAppRevisionActivation(
+                pending.api,
+                engineContainer: pending.engine,
+                logicRevisionId: logicRevisionId
+            )
+            let status = PaxAppRevisionActivationStatus(rawValue: rawStatus) ?? .unknown
+
+            switch pending.phase {
+            case .preflight(let deadline):
+                switch status {
+                case .prepared:
+                    guard runtime.activateAppRevision(
+                        pending.api,
+                        engineContainer: pending.engine,
+                        logicRevisionId: logicRevisionId
+                    ) else {
+                        failPendingLogicReload(
+                            "Could not start final commit for Pax logic revision \(logicRevisionId)",
+                            cancelPreflight: true
+                        )
+                        return
+                    }
+                    pending.phase = .committing
+                    pendingLogicReload = pending
+                case .committing:
+                    pending.phase = .committing
+                    pendingLogicReload = pending
+                case .committed:
+                    completePendingLogicReload()
+                case .rejected:
+                    failPendingLogicReload(
+                        "Design server rejected Pax logic revision \(logicRevisionId)",
+                        cancelPreflight: false
+                    )
+                case .unknown, .preparing:
+                    if Date() >= deadline {
+                        failPendingLogicReload(
+                            "Timed out validating Pax logic revision \(logicRevisionId)",
+                            cancelPreflight: true
+                        )
+                    }
+                }
+            case .committing:
+                // No timeout or cancellation is legal after final commit starts:
+                // the server may have committed immediately before a disconnect.
+                switch status {
+                case .committed:
+                    completePendingLogicReload()
+                case .rejected:
+                    failPendingLogicReload(
+                        "Design server rejected final commit for Pax logic revision \(logicRevisionId)",
+                        cancelPreflight: false
+                    )
+                case .unknown, .preparing, .prepared, .committing:
+                    break
+                }
+            }
+        }
+
+        private func completePendingLogicReload() {
+            guard let pending = pendingLogicReload else {
+                return
+            }
+            pendingLogicReload = nil
+            let runtime = PaxCartridgeRuntime.shared
             let previousEngine = PaxEngineContainer.paxEngineContainer
             PaxEngineContainer.paxEngineContainer = nil
             surfaceManager.reset()
             PaxNativeHostState.reset()
 
+            // Runtime still points at the old API, so deallocate the old engine
+            // before making the already-committed candidate current.
             if let previousEngine {
                 runtime.deallocEngine(previousEngine)
             }
+            runtime.activatePreparedAPI(pending.api)
+            PaxEngineContainer.paxEngineContainer = pending.engine
 
-            guard let reloadedEngine = preparedAPI.paxInit(Float(bounds.width), Float(bounds.height)) else {
-                runtime.abandonPreparedAPI(preparedAPI)
-                isReloadingLogic = false
-                if !isShuttingDown {
-                    createDisplayLink()
-                }
-                throw NSError(domain: "", code: 220, userInfo: [NSLocalizedDescriptionKey: "Reloaded Pax cartridge failed to initialize"])
-            }
-
-            runtime.activatePreparedAPI(preparedAPI)
-            PaxEngineContainer.paxEngineContainer = reloadedEngine
-            isReloadingLogic = false
-
-            if !isShuttingDown {
-                createDisplayLink()
-            }
-
-            try writePaxDevResponse(
-                PaxDevReloadLogicResponse(
-                    request_id: request.request_id,
-                    status: "ok",
-                    dylib_path: request.dylib_path,
-                    error: nil
-                ),
-                requestId: request.request_id,
-                to: responseDir
+            writeReloadLogicResponse(
+                requestId: pending.request.request_id,
+                logicRevisionId: pending.request.revision.logic_revision_id,
+                status: "ok",
+                error: nil,
+                responseDir: pending.responseDir
             )
-            tick()
         }
+
+        private func failPendingLogicReload(_ error: String, cancelPreflight: Bool) {
+            guard let pending = pendingLogicReload else {
+                return
+            }
+            pendingLogicReload = nil
+            let runtime = PaxCartridgeRuntime.shared
+            let logicRevisionId = pending.request.revision.logic_revision_id
+            if cancelPreflight {
+                _ = runtime.cancelAppRevisionActivation(
+                    pending.api,
+                    engineContainer: pending.engine,
+                    logicRevisionId: logicRevisionId
+                )
+            }
+            pending.api.paxDeallocEngine(pending.engine)
+            runtime.abandonPreparedAPI(pending.api)
+            writeReloadLogicResponse(
+                requestId: pending.request.request_id,
+                logicRevisionId: logicRevisionId,
+                status: "error",
+                error: error,
+                responseDir: pending.responseDir
+            )
+        }
+
+        private func writeReloadLogicResponse(
+            requestId: String,
+            logicRevisionId: String,
+            status: String,
+            error: String?,
+            responseDir: URL
+        ) {
+            do {
+                try writePaxDevResponse(
+                    PaxDevReloadLogicResponse(
+                        request_id: requestId,
+                        status: status,
+                        logic_revision_id: logicRevisionId,
+                        error: error
+                    ),
+                    requestId: requestId,
+                    to: responseDir
+                )
+            } catch {
+                print("Failed to write Pax logic revision response: \(error)")
+            }
+        }
+        #endif
 
         private func sendScreenshotInterrupt(id: UInt32) {
             do {

@@ -1,7 +1,9 @@
 use std::{
+    cell::RefCell,
     collections::{BTreeMap, HashMap},
     env,
-    time::Duration,
+    rc::Rc,
+    time::{Duration, Instant},
 };
 
 use actix_web::{web::Data, App};
@@ -11,10 +13,22 @@ use pax_manifest::{
     SettingsBlockElement, TemplateNodeDefinition, Token, TypeId,
 };
 
-pub fn get_test_server() -> actix_test::TestServer {
-    actix_test::start(|| {
+pub fn get_test_server(manifest: PaxManifest) -> actix_test::TestServer {
+    actix_test::start(move || {
         App::new()
-            .app_data(Data::new(AppState::new_empty()))
+            .app_data(Data::new(
+                AppState::new(
+                    Default::default(),
+                    Default::default(),
+                    manifest.clone(),
+                    None,
+                    None,
+                    pax_compiler::HotReloadMode::All,
+                    None,
+                    None,
+                )
+                .unwrap(),
+            ))
             .service(web_socket)
     })
 }
@@ -59,7 +73,7 @@ fn create_basic_manifest(source_path: String) -> PaxManifest {
                     LiteralBlockDefinition::new(vec![]),
                 ),
                 SettingsBlockElement::Handler(
-                    Token::new_without_location("existing_handler".to_string()),
+                    Token::new_without_location("click".to_string()),
                     vec![Token::new_without_location("handler_action".to_string())],
                 ),
             ]),
@@ -82,7 +96,7 @@ async fn designtime_integration_test() {
 <SpecialComponent />
 
 @settings {
-    @existing_handler: handler_action
+    @click: handler_action
     #existing_selector {
 \x20\x20\x20\x20
     }
@@ -93,12 +107,24 @@ async fn designtime_integration_test() {
     let path = current_dir.join("tests/data/designtime_integration_test.pax");
     let path_str = path.to_str().expect("Path is not a valid UTF-8 string");
 
-    let _srv = get_test_server();
+    let manifest: PaxManifest = create_basic_manifest(path_str.to_owned());
+    let _srv = get_test_server(manifest.clone());
     let socket_addr = _srv.addr();
     let url = format!("ws://{}", socket_addr);
-    let manifest: PaxManifest = create_basic_manifest(path_str.to_owned());
     let mut designer = pax_designtime::DesigntimeManager::new_with_local_addr(manifest, &url);
-    designer.send_component_update(&component_type_id).unwrap();
+    let screenshot_map = Rc::new(RefCell::new(HashMap::new()));
+    let deadline = Instant::now() + Duration::from_secs(2);
+    loop {
+        designer.handle_recv(screenshot_map.clone()).unwrap();
+        match designer.send_component_update(&component_type_id) {
+            Ok(()) => break,
+            Err(error) if Instant::now() < deadline => {
+                let _ = error;
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            Err(error) => panic!("timed out waiting for the design-server socket: {error}"),
+        }
+    }
 
     std::thread::sleep(Duration::from_secs(1));
 

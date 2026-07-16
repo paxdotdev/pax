@@ -20,7 +20,7 @@
 //!
 //! For usage examples see the tests in `pax-designtime/src/orm/tests.rs`.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use pax_manifest::code_serialization::{diff_html, press_code_serialization_template};
 use pax_manifest::pax_runtime_api::{Interpolatable, Property};
@@ -90,7 +90,7 @@ pub struct PaxManifestORM {
 
 impl PaxManifestORM {
     pub fn new(manifest: PaxManifest) -> Self {
-        let cartridge_abi_identity = cartridge_abi_identity(&manifest)
+        let cartridge_abi_identity = runtime_abi_identity(&manifest)
             .expect("the embedded cartridge manifest should always be serializable");
         let mut last_serialized_version = HashMap::new();
         for component in manifest.components.values() {
@@ -170,9 +170,9 @@ impl PaxManifestORM {
     pub fn set_initial_server_manifest(&mut self, manifest: PaxManifest) -> Result<()> {
         validate_runtime_manifest(&manifest)?;
 
-        let incoming_abi_identity = cartridge_abi_identity(&manifest)?;
+        let incoming_abi_identity = runtime_abi_identity(&manifest)?;
         if self.cartridge_abi_identity.is_empty() {
-            self.cartridge_abi_identity = cartridge_abi_identity(&self.manifest)?;
+            self.cartridge_abi_identity = runtime_abi_identity(&self.manifest)?;
         }
         if incoming_abi_identity != self.cartridge_abi_identity {
             return Err(anyhow!(
@@ -615,8 +615,34 @@ impl PaxManifestORM {
         template: ComponentTemplate,
         settings_block: Vec<SettingsBlockElement>,
     ) -> Result<usize, String> {
+        if !self.manifest.components.contains_key(&component_type_id) {
+            return Err(format!(
+                "design-server template update targets missing component {}",
+                component_type_id
+            ));
+        }
         validate_template_references(&self.manifest, &component_type_id, &template)
             .map_err(|err| err.to_string())?;
+
+        // Event-handler descriptors are generated statically from both the
+        // component settings block and inline template bindings. Validate the
+        // prospective manifest before executing the command so a template-only
+        // update cannot require a handler that this cartridge did not compile.
+        let mut prospective_manifest = self.manifest.clone();
+        let component = prospective_manifest
+            .components
+            .get_mut(&component_type_id)
+            .expect("target component presence was checked above");
+        component.template = Some(template.clone());
+        component.settings = Some(settings_block.clone());
+        let prospective_identity =
+            runtime_abi_identity(&prospective_manifest).map_err(|err| err.to_string())?;
+        if prospective_identity != self.cartridge_abi_identity {
+            return Err(
+                "design-server template update requires different runtime descriptors".to_string(),
+            );
+        }
+
         let command =
             template::ReplaceTemplateRequest::new(component_type_id, template, settings_block);
         let resp = self.execute_command(command)?;
@@ -690,7 +716,14 @@ fn type_tables_match(left: &PaxManifest, right: &PaxManifest) -> bool {
     })
 }
 
-fn cartridge_abi_identity(manifest: &PaxManifest) -> Result<Vec<u8>> {
+/// Identity of the static runtime descriptors generated for a cartridge.
+/// Handler identity models the runtime's first-match lookup: order between
+/// distinct names and same-signature duplicates after the first match are
+/// irrelevant. Conflicting later signatures remain part of the identity so a
+/// template-only update cannot route an event through an incompatible first
+/// wrapper. This remains designtime metadata and is deliberately not stored in
+/// `PaxManifest` or any release-cartridge representation.
+pub fn runtime_abi_identity(manifest: &PaxManifest) -> Result<Vec<u8>> {
     let component_identity = manifest
         .components
         .values()
@@ -706,8 +739,104 @@ fn cartridge_abi_identity(manifest: &PaxManifest) -> Result<Vec<u8>> {
     let mut type_identity = manifest.type_table.iter().collect::<Vec<_>>();
     type_identity.sort_by(|(left, _), (right, _)| left.cmp(right));
 
-    rmp_serde::to_vec(&(component_identity, type_identity))
+    let handler_identity = generated_handler_identity(manifest)?;
+
+    rmp_serde::to_vec(&(component_identity, type_identity, handler_identity))
         .map_err(|err| anyhow!("failed to identify cartridge ABI: {err}"))
+}
+
+/// Mirrors the handler descriptors emitted by cartridge generation without
+/// requiring a complete type table. The latter matters for early and test
+/// manifests, while the descriptor identity itself depends only on event names
+/// and their generated argument types.
+fn generated_handler_identity(
+    manifest: &PaxManifest,
+) -> Result<Vec<(TypeId, Vec<(String, Vec<Option<String>>)>)>> {
+    let event_map = manifest.event_to_args_map();
+    let mut component_handlers = Vec::new();
+
+    for component in manifest.components.values() {
+        if component.is_struct_only_component {
+            continue;
+        }
+
+        let mut handlers = BTreeMap::new();
+        if let Some(settings) = &component.settings {
+            for setting in settings {
+                if let SettingsBlockElement::Handler(event, targets) = setting {
+                    let args_type = event_map
+                        .get(event.token_value.as_str())
+                        .ok_or_else(|| {
+                            anyhow!(
+                                "custom handler event {} is not supported in settings blocks",
+                                event.token_value
+                            )
+                        })?
+                        .as_ref()
+                        .map(|args| format!("Event<{args}>"));
+                    for target in targets {
+                        record_handler_identity(
+                            &mut handlers,
+                            clean_handler_name(&target.token_value),
+                            args_type.clone(),
+                        );
+                    }
+                }
+            }
+        }
+
+        if let Some(template) = &component.template {
+            for node in template.get_nodes() {
+                let Some(settings) = &node.settings else {
+                    continue;
+                };
+                for setting in settings {
+                    if let SettingElement::Setting(
+                        event,
+                        ValueDefinition::EventBindingTarget(target),
+                    ) = setting
+                    {
+                        let args_type = event_map
+                            .get(event.token_value.as_str())
+                            .and_then(|args| args.as_ref())
+                            .map(|args| format!("Event<{args}>"));
+                        record_handler_identity(
+                            &mut handlers,
+                            clean_handler_name(&target.name),
+                            args_type,
+                        );
+                    }
+                }
+            }
+        }
+
+        component_handlers.push((component.type_id.clone(), handlers.into_iter().collect()));
+    }
+
+    Ok(component_handlers)
+}
+
+fn record_handler_identity(
+    handlers: &mut BTreeMap<String, Vec<Option<String>>>,
+    name: String,
+    args_type: Option<String>,
+) {
+    let signatures = handlers.entry(name).or_default();
+    let differs_from_first = signatures
+        .first()
+        .map(|first| first != &args_type)
+        .unwrap_or(true);
+
+    // Runtime lookup always selects the first descriptor for a name. Repeated
+    // descriptors with that same signature are therefore irrelevant, but a
+    // later conflicting wrapper must prevent template-only activation.
+    if differs_from_first {
+        signatures.push(args_type);
+    }
+}
+
+fn clean_handler_name(name: &str) -> String {
+    name.replace("self.", "").replace("this.", "")
 }
 
 fn validate_runtime_manifest(manifest: &PaxManifest) -> Result<()> {

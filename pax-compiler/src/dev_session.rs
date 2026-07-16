@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use color_eyre::eyre::{eyre, Report, Result};
+use pax_designtime::messages::PrepareAppRevision;
 use serde::{Deserialize, Serialize};
 
 pub const DEV_DIR_NAME: &str = "dev";
@@ -121,14 +122,14 @@ pub struct DevReplaceNodeResponse {
 pub struct DevReloadLogicRequest {
     pub request_id: String,
     pub kind: String,
-    pub dylib_path: String,
+    pub revision: PrepareAppRevision,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct DevReloadLogicResponse {
     pub request_id: String,
     pub status: String,
-    pub dylib_path: Option<String>,
+    pub logic_revision_id: Option<String>,
     pub error: Option<String>,
 }
 
@@ -358,4 +359,65 @@ fn user_home_dir() -> Result<PathBuf, Report> {
             },
         )
         .ok_or_else(|| eyre!("could not determine the current user's home directory"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{DevReloadLogicRequest, DevReloadLogicResponse};
+    use pax_designtime::messages::{DebugArtifact, DebugLogicExecutionMode, PrepareAppRevision};
+
+    #[test]
+    fn native_reload_request_round_trips_revision_envelope() {
+        let request = DevReloadLogicRequest {
+            request_id: "reload-logic-7".to_string(),
+            kind: "reload-logic".to_string(),
+            revision: PrepareAppRevision {
+                logic_revision_id: "logic-7".to_string(),
+                execution_mode: DebugLogicExecutionMode::CompiledArtifact,
+                artifact: DebugArtifact {
+                    kind: "macos-dylib".to_string(),
+                    location: "/tmp/PaxCartridge-logic-7.dylib".to_string(),
+                },
+            },
+        };
+
+        let encoded = serde_json::to_vec(&request).unwrap();
+        let json: serde_json::Value = serde_json::from_slice(&encoded).unwrap();
+        assert_eq!(
+            json["revision"]["execution_mode"],
+            serde_json::Value::String("compiled-artifact".to_string())
+        );
+        let decoded: DevReloadLogicRequest = serde_json::from_slice(&encoded).unwrap();
+
+        assert_eq!(decoded.request_id, "reload-logic-7");
+        assert_eq!(decoded.kind, "reload-logic");
+        assert_eq!(decoded.revision.logic_revision_id, "logic-7");
+        assert_eq!(decoded.revision.artifact.kind, "macos-dylib");
+        assert_eq!(
+            decoded.revision.artifact.location,
+            "/tmp/PaxCartridge-logic-7.dylib"
+        );
+        assert!(matches!(
+            decoded.revision.execution_mode,
+            DebugLogicExecutionMode::CompiledArtifact
+        ));
+    }
+
+    #[test]
+    fn native_reload_response_round_trips_revision_identity() {
+        let response = DevReloadLogicResponse {
+            request_id: "reload-logic-7".to_string(),
+            status: "ok".to_string(),
+            logic_revision_id: Some("logic-7".to_string()),
+            error: None,
+        };
+
+        let encoded = serde_json::to_vec(&response).unwrap();
+        let decoded: DevReloadLogicResponse = serde_json::from_slice(&encoded).unwrap();
+
+        assert_eq!(decoded.request_id, "reload-logic-7");
+        assert_eq!(decoded.status, "ok");
+        assert_eq!(decoded.logic_revision_id.as_deref(), Some("logic-7"));
+        assert!(decoded.error.is_none());
+    }
 }

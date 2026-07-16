@@ -4,6 +4,7 @@
 
 - Development environment: platform-specific setup guide, dependencies, etc.
 - CLI basics: `pax-cli create`, `pax-cli run`, and `pax-cli build` workflows.
+- Hot-reload policy: independently control Pax and application-logic updates.
 - Project layout: `src/lib.pax`, `src/lib.rs`, assets, and Cargo manifest basics.
 - Target platforms and build modes: web, macOS, iOS, and iPadOS; debug vs release.
 - Assets and URLs: image sources, web fonts, and static files.
@@ -169,6 +170,51 @@ Create and run a smoke project:
 pax-cli create my-first-project ; cd my-first-project ; pax-cli run
 ```
 
+## Hot reloading
+
+Debug `pax-cli run` sessions reload both Pax UI sources and application logic
+by default. The two lanes are independent: a `.pax` edit can update the mounted
+tree without replacing application logic, while a logic edit builds and
+activates a new compiled artifact. `logic` is intentionally language-neutral so
+the same policy can cover Rust today and interpreted application-logic modules
+in the future.
+
+Use `--hot-reload` to select the lanes for one run:
+
+```sh
+pax-cli run --hot-reload=all   # .pax and application logic (default)
+pax-cli run --hot-reload=pax   # .pax only
+pax-cli run --hot-reload=logic # application logic only
+pax-cli run --hot-reload=off   # neither lane
+```
+
+The generated `cargo run` wrapper forwards its trailing arguments, so
+`cargo run -- --hot-reload=pax` selects the same policy.
+
+Web and macOS support both lanes. iOS and iPadOS support Pax hot reload, but
+application-logic changes require rebuilding and relaunching the app;
+`--hot-reload=logic` therefore reports an unsupported-mode error on those
+targets. With `all`, mobile sessions continue to reload `.pax` changes and
+report once when a saved logic change requires a restart.
+
+Disabling a lane suppresses activation in the running app, not source writes.
+Edits remain on disk and enter the next permitted logic build or app restart.
+The designtime server also remains available for read-only inspection when hot
+reload is `off`.
+
+For a persistent project default, use Cargo metadata:
+
+```toml
+[package.metadata.pax.dev]
+hot_reload = "pax"
+```
+
+For a shell or tool invocation, set `PAX_HOT_RELOAD=all|pax|logic|off`.
+Precedence is CLI flag, environment variable, Cargo metadata, then the `all`
+debug default. Release builds always force hot reload `off`; release cartridges
+support neither `.pax` live reload nor dynamic or interpreted logic
+replacement.
+
 ## Project Metadata
 
 Rust-backed Pax projects can define build-time project metadata in `Cargo.toml`
@@ -213,6 +259,11 @@ Supported common keys:
 - `build_number`: Apple build number.
 - `development_team`: Apple development team for signing.
 - `info_plist`: shared string values emitted into generated Apple Info.plists.
+
+Supported development keys under `[package.metadata.pax.dev]`:
+
+- `hot_reload`: `all`, `pax`, `logic`, or `off`. See [Hot
+  reloading](#hot-reloading) for target support and precedence.
 
 Supported web keys:
 

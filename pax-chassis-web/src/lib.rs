@@ -54,7 +54,7 @@ use pax_runtime::api::{
 };
 
 #[cfg(feature = "designtime")]
-use pax_designtime::DesigntimeManager;
+use pax_designtime::{AppRevisionActivationStatus, DesigntimeManager};
 
 const USERLAND_COMPONENT_ROOT: &str = "USERLAND_COMPONENT_ROOT";
 #[cfg(feature = "designtime")]
@@ -1297,14 +1297,14 @@ impl PaxChassisWeb {
         .unwrap_or(JsValue::NULL)
     }
 
-    pub fn take_reload_app_requests(&mut self) -> JsValue {
+    pub fn take_prepare_app_revisions(&mut self) -> JsValue {
         #[cfg(feature = "designtime")]
         {
             return js_value_serde::to_value(
                 &self
                     .designtime_manager
                     .borrow_mut()
-                    .take_reload_app_requests(),
+                    .take_prepare_app_revisions(),
             );
         }
 
@@ -1314,23 +1314,100 @@ impl PaxChassisWeb {
         }
     }
 
-    /// Confirms that this Wasm instance matches the reload build selected by the host.
-    pub fn acknowledge_reload_app_request(&mut self, build_id: &str) -> bool {
+    /// Starts candidate validation without ticking or rendering the candidate.
+    pub fn request_app_revision_activation(&mut self, logic_revision_id: &str) -> bool {
         #[cfg(feature = "designtime")]
         {
+            if !self
+                .designtime_manager
+                .borrow_mut()
+                .prime_app_revision(logic_revision_id)
+            {
+                return false;
+            }
+            self.handle_recv_designtime();
             return self
                 .designtime_manager
                 .borrow_mut()
-                .acknowledge_reload_app_request(build_id)
+                .request_app_revision_activation(logic_revision_id)
                 .unwrap_or_else(|err| {
-                    log::warn!("failed to acknowledge web cartridge {build_id}: {err}");
+                    log::warn!("failed to request application revision {logic_revision_id}: {err}");
                     false
                 });
         }
 
         #[cfg(not(feature = "designtime"))]
         {
-            let _ = build_id;
+            let _ = logic_revision_id;
+            false
+        }
+    }
+
+    /// Polls only the designtime transport. Runtime ticks stay suspended until
+    /// the host has observed the server's final commit and installs this chassis.
+    pub fn poll_app_revision_activation(&mut self, logic_revision_id: &str) -> String {
+        #[cfg(feature = "designtime")]
+        {
+            self.handle_recv_designtime();
+            return match self
+                .designtime_manager
+                .borrow()
+                .app_revision_activation_status(logic_revision_id)
+            {
+                AppRevisionActivationStatus::Unknown => "unknown",
+                AppRevisionActivationStatus::Preparing => "preparing",
+                AppRevisionActivationStatus::Prepared => "prepared",
+                AppRevisionActivationStatus::Committing => "committing",
+                AppRevisionActivationStatus::Committed => "committed",
+                AppRevisionActivationStatus::Rejected => "rejected",
+            }
+            .to_string();
+        }
+
+        #[cfg(not(feature = "designtime"))]
+        {
+            let _ = logic_revision_id;
+            "unknown".to_string()
+        }
+    }
+
+    /// Cancels only a preflight activation. Once final commit begins the
+    /// designtime gate rejects cancellation and keeps replaying the commit.
+    pub fn cancel_app_revision_activation(&mut self, logic_revision_id: &str) -> bool {
+        #[cfg(feature = "designtime")]
+        {
+            return self
+                .designtime_manager
+                .borrow_mut()
+                .cancel_app_revision_activation(logic_revision_id);
+        }
+
+        #[cfg(not(feature = "designtime"))]
+        {
+            let _ = logic_revision_id;
+            false
+        }
+    }
+
+    /// Starts the irreversible final commit for a preflighted revision.
+    pub fn activate_app_revision(&mut self, logic_revision_id: &str) -> bool {
+        #[cfg(feature = "designtime")]
+        {
+            return self
+                .designtime_manager
+                .borrow_mut()
+                .activate_app_revision(logic_revision_id)
+                .unwrap_or_else(|err| {
+                    log::warn!(
+                        "failed to activate application revision {logic_revision_id}: {err}"
+                    );
+                    false
+                });
+        }
+
+        #[cfg(not(feature = "designtime"))]
+        {
+            let _ = logic_revision_id;
             false
         }
     }

@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use std::{process, thread};
 
-use pax_compiler::{CreateContext, RunContext, RunTarget};
+use pax_compiler::{CreateContext, HotReloadMode, RunContext, RunTarget};
 extern crate pax_language_server;
 
 mod dev;
@@ -78,6 +78,13 @@ fn main() -> Result<(), Report> {
         .help("Include the legacy WebGL renderer for internal experiments (force with ?pax_force_webgl=1). Default no-WebGPU and iOS Safari/WebKit fallback uses Piet/CPU, and this flag increases WASM size.");
 
     #[allow(non_snake_case)]
+    let ARG_HOT_RELOAD = Arg::with_name("hot-reload")
+        .long("hot-reload")
+        .takes_value(true)
+        .possible_values(&["all", "pax", "logic", "off"])
+        .help("Select live source-update lanes: all (default), pax, logic, or off.");
+
+    #[allow(non_snake_case)]
     let ARG_IOS_DEVICE = Arg::with_name("ios-device")
         .long("ios-device")
         .takes_value(true)
@@ -123,6 +130,7 @@ fn main() -> Result<(), Report> {
                 .arg( ARG_LIBDEV.clone() )
                 .arg( ARG_LIBDEV_MODE.clone() )
                 .arg( ARG_WEBGL.clone() )
+                .arg( ARG_HOT_RELOAD.clone() )
         )
         .subcommand(
             App::new("build")
@@ -225,7 +233,8 @@ fn main() -> Result<(), Report> {
                         .long("suppress-address-log")
                         .takes_value(false)
                         .hidden(true),
-                ),
+                )
+                .arg(ARG_HOT_RELOAD.clone().hidden(true)),
         )
         .subcommand(docs::command())
         .subcommand(dev::command())
@@ -268,6 +277,7 @@ fn perform_nominal_action(
             let ios_development_team = args.value_of("ios-development-team").map(str::to_string);
             let (should_run_designtime, should_run_designer) = default_dev_options(true);
             let webgl = args.is_present("webgl");
+            let hot_reload = parse_hot_reload_mode(args)?;
 
             let _ = pax_compiler::perform_build(&RunContext {
                 target: parse_run_target(&target)?,
@@ -278,6 +288,7 @@ fn perform_nominal_action(
                 process_child_ids,
                 should_run_designtime,
                 should_run_designer,
+                hot_reload,
                 is_release: false,
                 profile_wasm_size: false,
                 webgl,
@@ -311,6 +322,7 @@ fn perform_nominal_action(
                 should_also_run: false,
                 should_run_designtime,
                 should_run_designer,
+                hot_reload: None,
                 verbose,
                 is_libdev_mode,
                 process_child_ids,
@@ -355,6 +367,7 @@ fn perform_nominal_action(
                 should_also_run: false,
                 should_run_designtime: false,
                 should_run_designer: false,
+                hot_reload: None,
                 verbose: false,
                 is_libdev_mode,
                 process_child_ids,
@@ -401,8 +414,9 @@ fn perform_nominal_action(
             let serve_dir = args.value_of("serve-dir").unwrap();
             let watch_dir = args.value_of("watch-dir").unwrap();
             let manifest_path = PathBuf::from(args.value_of("manifest-path").unwrap());
-            let manifest_bytes = std::fs::read(manifest_path)?;
-            let manifest: pax_manifest::PaxManifest = serde_json::from_slice(&manifest_bytes)?;
+            let manifest_bytes = std::fs::read(&manifest_path)?;
+            let (manifest, restart_snapshot) =
+                pax_compiler::design_server::decode_restart_manifest(&manifest_bytes)?;
             let port = args
                 .value_of("port")
                 .unwrap()
@@ -410,10 +424,12 @@ fn perform_nominal_action(
                 .map_err(|_| eyre!("--port must be an unsigned 16-bit integer"))?;
             let ready_file = args.value_of("ready-file").map(PathBuf::from);
             let show_address_log = !args.is_present("suppress-address-log");
+            let hot_reload = parse_hot_reload_mode(args)?.unwrap_or_default();
             let logic_reload = args.value_of("macos-session-dir").map(|session_dir| {
                 pax_compiler::design_server::LogicReloadConfig::Native(
                     pax_compiler::design_server::NativeLogicReloadConfig {
                         session_dir: PathBuf::from(session_dir),
+                        manifest_path: manifest_path.clone(),
                         should_run_designer: false,
                     },
                 )
@@ -427,6 +443,9 @@ fn perform_nominal_action(
                 show_address_log,
                 None,
                 logic_reload,
+                hot_reload,
+                restart_snapshot,
+                Some(manifest_path),
             )?;
             Ok(())
         }
@@ -435,6 +454,13 @@ fn perform_nominal_action(
         ("svg-import", Some(args)) => svg_import::handle(args),
         _ => unreachable!(), // If all subcommands are defined above, anything else is unreachable
     }
+}
+
+fn parse_hot_reload_mode(args: &ArgMatches<'_>) -> Result<Option<HotReloadMode>, Report> {
+    args.value_of("hot-reload")
+        .map(str::parse)
+        .transpose()
+        .map_err(|error: String| eyre!(error))
 }
 
 fn parse_run_target(target: &str) -> Result<RunTarget, Report> {

@@ -63,7 +63,7 @@ let teardownEventListeners: (() => void) | null = null;
 let teardownResizeHandler: (() => void) | null = null;
 let teardownHiddenTabPump: (() => void) | null = null;
 let teardownRouteLocationSync: (() => void) | null = null;
-let pendingReloadRequest: ReloadAppRequest | null = null;
+let pendingReloadRequest: PrepareAppRevision | null = null;
 let reloadInProgress = false;
 let reloadInFlightBuildId: string | null = null;
 let reloadRetryBuildId: string | null = null;
@@ -71,15 +71,42 @@ let reloadRetryAttempt = 0;
 let reloadRetryDelayMs = 500;
 let reloadRetryHandle: number | null = null;
 const RELOAD_RETRY_MAX_DELAY_MS = 5_000;
+const ACTIVATION_PREFLIGHT_TIMEOUT_MS = 15_000;
+const ACTIVATION_POLL_INTERVAL_MS = 25;
 const perfTraceEnabled = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("pax_scroll_perf");
 let perfTraceSequence = 0;
 
-type ReloadAppRequest = {
-    request_id: string;
-    build_id: string;
-    artifact_kind: string;
-    artifact_location: string;
+type PrepareAppRevision = {
+    logic_revision_id: string;
+    execution_mode: "compiled-artifact" | "interpreted-module";
+    artifact: {
+        kind: string;
+        location: string;
+    };
 };
+
+type AppRevisionActivationStatus =
+    | "unknown"
+    | "preparing"
+    | "prepared"
+    | "committing"
+    | "committed"
+    | "rejected";
+
+class ReloadActivationError extends Error {
+    constructor(message: string, readonly retryable: boolean) {
+        super(message);
+    }
+}
+
+function waitForActivationPoll(): Promise<void> {
+    return new Promise((resolve) => window.setTimeout(resolve, ACTIVATION_POLL_INTERVAL_MS));
+}
+
+function hasSupersedingReload(logicRevisionId: string): boolean {
+    return pendingReloadRequest != null
+        && pendingReloadRequest.logic_revision_id !== logicRevisionId;
+}
 
 function withProfileMeasure<T>(name: string, fn: () => T): T {
     if (!perfTraceEnabled || typeof performance === "undefined") {
@@ -380,12 +407,12 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
     }
 }
 
-function takeReloadRequests(chassis: PaxChassisWeb): ReloadAppRequest[] {
-    let value = (chassis as any).take_reload_app_requests?.();
+function takePreparedRevisions(chassis: PaxChassisWeb): PrepareAppRevision[] {
+    let value = (chassis as any).take_prepare_app_revisions?.();
     if (!Array.isArray(value)) {
         return [];
     }
-    return value as ReloadAppRequest[];
+    return value as PrepareAppRevision[];
 }
 
 function normalizedArtifactLocation(location: string): string {
@@ -414,15 +441,15 @@ function clearReloadRetry(buildId: string) {
     }
 }
 
-function retryReloadAfterDelay(request: ReloadAppRequest) {
-    if (pendingReloadRequest != null && pendingReloadRequest.build_id !== request.build_id) {
-        clearReloadRetry(request.build_id);
+function retryReloadAfterDelay(request: PrepareAppRevision) {
+    if (pendingReloadRequest != null && pendingReloadRequest.logic_revision_id !== request.logic_revision_id) {
+        clearReloadRetry(request.logic_revision_id);
         return;
     }
     pendingReloadRequest = request;
     const delay = reloadRetryDelayMs;
     reloadRetryDelayMs = Math.min(reloadRetryDelayMs * 2, RELOAD_RETRY_MAX_DELAY_MS);
-    console.warn(`Retrying Pax cartridge ${request.build_id} in ${delay}ms`);
+    console.warn(`Retrying Pax cartridge ${request.logic_revision_id} in ${delay}ms`);
     reloadRetryHandle = window.setTimeout(() => {
         reloadRetryHandle = null;
         void reloadMountedApp();
@@ -430,26 +457,26 @@ function retryReloadAfterDelay(request: ReloadAppRequest) {
 }
 
 function processReloadRequests(chassis: PaxChassisWeb) {
-    let requests = takeReloadRequests(chassis);
+    let requests = takePreparedRevisions(chassis);
     if (requests.length === 0) {
         return;
     }
     let request = requests[requests.length - 1];
-    if (request.artifact_kind !== "web-cartridge") {
-        console.warn("Ignoring unsupported reload artifact kind", request.artifact_kind);
+    if (request.execution_mode !== "compiled-artifact" || request.artifact.kind !== "web-cartridge") {
+        console.warn("Ignoring unsupported Pax logic revision", request);
         return;
     }
     if (
-        pendingReloadRequest?.build_id === request.build_id
-        || reloadInFlightBuildId === request.build_id
+        pendingReloadRequest?.logic_revision_id === request.logic_revision_id
+        || reloadInFlightBuildId === request.logic_revision_id
     ) {
         return;
     }
     if (
         currentExtensionlessUrl != null
-        && normalizedArtifactLocation(currentExtensionlessUrl) === normalizedArtifactLocation(request.artifact_location)
+        && normalizedArtifactLocation(currentExtensionlessUrl) === normalizedArtifactLocation(request.artifact.location)
     ) {
-        chassis.acknowledge_reload_app_request(request.build_id);
+        chassis.activate_app_revision(request.logic_revision_id);
         return;
     }
     pendingReloadRequest = request;
@@ -473,37 +500,139 @@ async function reloadMountedApp() {
             pendingReloadRequest = null;
             let mount = currentMount;
             if (!mount) {
-                clearReloadRetry(request.build_id);
+                clearReloadRetry(request.logic_revision_id);
                 continue;
             }
-            reloadInFlightBuildId = request.build_id;
-            const attempt = beginReloadAttempt(request.build_id);
+            reloadInFlightBuildId = request.logic_revision_id;
+            const attempt = beginReloadAttempt(request.logic_revision_id);
+            let candidateChassis: PaxChassisWeb | null = null;
+            let finalCommitStarted = false;
             try {
                 let { chassis } = await loadWasmModule(
-                    request.artifact_location,
-                    `${request.build_id}-${attempt}`,
+                    request.artifact.location,
+                    `${request.logic_revision_id}-${attempt}`,
                 );
-                // PAX-889 tracks the next hardening step here: keep the last
-                // known good chassis mounted until the replacement cartridge has
-                // attached cleanly, so a failed reload does not blank the tab.
+                candidateChassis = chassis;
+                // `loadWasmModule` exposes the newest allocation for debugging,
+                // but the mounted chassis remains authoritative until commit.
+                (window as any).chassis = currentChassis;
+                if (hasSupersedingReload(request.logic_revision_id)) {
+                    // A newer candidate superseded this one while its module was
+                    // loading. Never replace the last known good chassis with a
+                    // revision the coordinator can no longer activate.
+                    (chassis as any).free?.();
+                    candidateChassis = null;
+                    clearReloadRetry(request.logic_revision_id);
+                    continue;
+                }
+
+                const preflightDeadline = performance.now() + ACTIVATION_PREFLIGHT_TIMEOUT_MS;
+                let requested = false;
+                while (!requested) {
+                    if (hasSupersedingReload(request.logic_revision_id)) {
+                        throw new ReloadActivationError(
+                            `Pax logic revision ${request.logic_revision_id} was superseded before preflight`,
+                            false,
+                        );
+                    }
+                    requested = chassis.request_app_revision_activation(request.logic_revision_id);
+                    if (requested) {
+                        break;
+                    }
+                    if (performance.now() >= preflightDeadline) {
+                        throw new ReloadActivationError(
+                            `Timed out preparing Pax logic revision ${request.logic_revision_id}`,
+                            false,
+                        );
+                    }
+                    await waitForActivationPoll();
+                }
+
+                while (true) {
+                    const status = chassis.poll_app_revision_activation(
+                        request.logic_revision_id,
+                    ) as AppRevisionActivationStatus;
+                    if (status === "prepared") {
+                        break;
+                    }
+                    if (status === "rejected") {
+                        throw new ReloadActivationError(
+                            `Design server rejected Pax logic revision ${request.logic_revision_id}`,
+                            false,
+                        );
+                    }
+                    if (hasSupersedingReload(request.logic_revision_id)) {
+                        chassis.cancel_app_revision_activation(request.logic_revision_id);
+                        throw new ReloadActivationError(
+                            `Pax logic revision ${request.logic_revision_id} was superseded during preflight`,
+                            false,
+                        );
+                    }
+                    if (performance.now() >= preflightDeadline) {
+                        chassis.cancel_app_revision_activation(request.logic_revision_id);
+                        throw new ReloadActivationError(
+                            `Timed out validating Pax logic revision ${request.logic_revision_id}`,
+                            false,
+                        );
+                    }
+                    await waitForActivationPoll();
+                }
+
+                if (!chassis.activate_app_revision(request.logic_revision_id)) {
+                    chassis.cancel_app_revision_activation(request.logic_revision_id);
+                    throw new ReloadActivationError(
+                        `Could not start final commit for Pax logic revision ${request.logic_revision_id}`,
+                        false,
+                    );
+                }
+                finalCommitStarted = true;
+
+                // There is deliberately no timeout after this boundary. The
+                // server may have committed just before a disconnect, so the
+                // candidate must reconnect and replay final commit until the
+                // matching authoritative manifest arrives.
+                while (true) {
+                    const status = chassis.poll_app_revision_activation(
+                        request.logic_revision_id,
+                    ) as AppRevisionActivationStatus;
+                    if (status === "committed") {
+                        break;
+                    }
+                    if (status === "rejected") {
+                        throw new ReloadActivationError(
+                            `Design server rejected final commit for Pax logic revision ${request.logic_revision_id}`,
+                            false,
+                        );
+                    }
+                    await waitForActivationPoll();
+                }
+
                 disposeCurrentChassis();
                 resetHostState();
                 currentChassis = chassis;
+                candidateChassis = null;
                 currentMount = mount;
-                currentExtensionlessUrl = request.artifact_location;
+                currentExtensionlessUrl = request.artifact.location;
+                (window as any).chassis = chassis;
                 attachChassis(chassis, mount);
                 renderLoopStarted = true;
                 animationFrameHandle = requestAnimationFrame(() => renderLoop(chassis, mount));
-                clearReloadRetry(request.build_id);
+                clearReloadRetry(request.logic_revision_id);
             } catch (error) {
-                console.error(`Failed to reload Pax cartridge ${request.build_id}:`, error);
-                if (pendingReloadRequest == null) {
+                console.error(`Failed to reload Pax cartridge ${request.logic_revision_id}:`, error);
+                if (!finalCommitStarted) {
+                    candidateChassis?.cancel_app_revision_activation(request.logic_revision_id);
+                }
+                candidateChassis?.free();
+                (window as any).chassis = currentChassis;
+                const retryable = !(error instanceof ReloadActivationError) || error.retryable;
+                if (retryable && pendingReloadRequest == null) {
                     retryReloadAfterDelay(request);
                     return;
                 }
-                clearReloadRetry(request.build_id);
+                clearReloadRetry(request.logic_revision_id);
             } finally {
-                if (reloadInFlightBuildId === request.build_id) {
+                if (reloadInFlightBuildId === request.logic_revision_id) {
                     reloadInFlightBuildId = null;
                 }
             }

@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::orm::{PaxManifestORM, ReloadType};
+    use crate::orm::{runtime_abi_identity, PaxManifestORM, ReloadType};
     use pax_manifest::{
         pax_runtime_api::Size, ComponentDefinition, ComponentTemplate, LiteralBlockDefinition,
         PaxManifest, SettingsBlockElement, TemplateNodeDefinition, Token, TypeDefinition, TypeId,
@@ -35,6 +35,13 @@ mod tests {
             assets_dirs: vec![],
             engine_import_path: "".to_string(),
         }
+    }
+
+    fn handler(event: &str, target: &str) -> SettingsBlockElement {
+        SettingsBlockElement::Handler(
+            Token::new_without_location(event.to_string()),
+            vec![Token::new_without_location(target.to_string())],
+        )
     }
 
     #[test]
@@ -204,6 +211,206 @@ mod tests {
             .unwrap_err();
 
         assert!(err.contains("references missing component"));
+        assert_eq!(orm.get_manifest_version().get(), 0);
+        assert!(orm.take_reload_queue().is_empty());
+    }
+
+    #[test]
+    fn template_update_targeting_missing_component_is_rejected() {
+        let manifest = create_basic_manifest();
+        let missing_type_id = TypeId::build_singleton("MissingComponent", Some("MissingComponent"));
+        let template = ComponentTemplate::new(missing_type_id.clone(), None);
+        let mut orm = PaxManifestORM::new(manifest);
+
+        let err = orm
+            .replace_template(missing_type_id, template, vec![])
+            .unwrap_err();
+
+        assert!(err.contains("targets missing component"));
+        assert_eq!(orm.get_manifest_version().get(), 0);
+        assert!(orm.take_reload_queue().is_empty());
+    }
+
+    #[test]
+    fn generated_handler_argument_type_is_part_of_runtime_abi_identity() {
+        let mut click_manifest = create_basic_manifest();
+        let main_type_id = click_manifest.main_component_type_id.clone();
+        click_manifest
+            .components
+            .get_mut(&main_type_id)
+            .unwrap()
+            .settings = Some(vec![handler("click", "self.handle_event")]);
+        let mut tick_manifest = click_manifest.clone();
+        tick_manifest
+            .components
+            .get_mut(&main_type_id)
+            .unwrap()
+            .settings = Some(vec![handler("tick", "self.handle_event")]);
+
+        assert_ne!(
+            runtime_abi_identity(&click_manifest).unwrap(),
+            runtime_abi_identity(&tick_manifest).unwrap()
+        );
+    }
+
+    #[test]
+    fn template_update_cannot_introduce_uncompiled_handler_descriptor() {
+        let manifest = create_basic_manifest();
+        let main_type_id = manifest.main_component_type_id.clone();
+        let template = ComponentTemplate::new(main_type_id.clone(), None);
+        let mut orm = PaxManifestORM::new(manifest);
+
+        let err = orm
+            .replace_template(
+                main_type_id,
+                template,
+                vec![handler("click", "self.handle_click")],
+            )
+            .unwrap_err();
+
+        assert!(err.contains("requires different runtime descriptors"));
+        assert_eq!(orm.get_manifest_version().get(), 0);
+        assert!(orm.take_reload_queue().is_empty());
+    }
+
+    #[test]
+    fn order_between_distinct_handler_names_is_not_part_of_runtime_abi_identity() {
+        let mut compiled_manifest = create_basic_manifest();
+        let main_type_id = compiled_manifest.main_component_type_id.clone();
+        let compiled_settings = vec![
+            handler("click", "self.handle_click"),
+            handler("tick", "self.handle_tick"),
+        ];
+        compiled_manifest
+            .components
+            .get_mut(&main_type_id)
+            .unwrap()
+            .settings = Some(compiled_settings);
+
+        let reordered_settings = vec![
+            handler("tick", "self.handle_tick"),
+            handler("click", "self.handle_click"),
+        ];
+        let mut reordered_manifest = compiled_manifest.clone();
+        reordered_manifest
+            .components
+            .get_mut(&main_type_id)
+            .unwrap()
+            .settings = Some(reordered_settings.clone());
+
+        assert_eq!(
+            runtime_abi_identity(&compiled_manifest).unwrap(),
+            runtime_abi_identity(&reordered_manifest).unwrap()
+        );
+    }
+
+    #[test]
+    fn duplicate_after_first_handler_match_is_not_part_of_runtime_abi_identity() {
+        let mut compiled_manifest = create_basic_manifest();
+        let main_type_id = compiled_manifest.main_component_type_id.clone();
+        compiled_manifest
+            .components
+            .get_mut(&main_type_id)
+            .unwrap()
+            .settings = Some(vec![handler("click", "self.handle_click")]);
+
+        let duplicate_settings = vec![
+            handler("click", "self.handle_click"),
+            handler("click", "self.handle_click"),
+        ];
+        let mut duplicate_manifest = compiled_manifest.clone();
+        duplicate_manifest
+            .components
+            .get_mut(&main_type_id)
+            .unwrap()
+            .settings = Some(duplicate_settings.clone());
+
+        assert_eq!(
+            runtime_abi_identity(&compiled_manifest).unwrap(),
+            runtime_abi_identity(&duplicate_manifest).unwrap()
+        );
+    }
+
+    #[test]
+    fn conflicting_duplicate_order_is_part_of_runtime_abi_identity() {
+        let mut compiled_manifest = create_basic_manifest();
+        let main_type_id = compiled_manifest.main_component_type_id.clone();
+        let compiled_settings = vec![
+            handler("click", "self.handle_event"),
+            handler("tick", "self.handle_event"),
+        ];
+        compiled_manifest
+            .components
+            .get_mut(&main_type_id)
+            .unwrap()
+            .settings = Some(compiled_settings);
+
+        let reordered_settings = vec![
+            handler("tick", "self.handle_event"),
+            handler("click", "self.handle_event"),
+        ];
+        let mut reordered_manifest = compiled_manifest.clone();
+        reordered_manifest
+            .components
+            .get_mut(&main_type_id)
+            .unwrap()
+            .settings = Some(reordered_settings.clone());
+
+        assert_ne!(
+            runtime_abi_identity(&compiled_manifest).unwrap(),
+            runtime_abi_identity(&reordered_manifest).unwrap()
+        );
+
+        let mut orm = PaxManifestORM::new(compiled_manifest);
+        let err = orm
+            .replace_template(
+                main_type_id.clone(),
+                ComponentTemplate::new(main_type_id, None),
+                reordered_settings,
+            )
+            .unwrap_err();
+
+        assert!(err.contains("requires different runtime descriptors"));
+        assert_eq!(orm.get_manifest_version().get(), 0);
+        assert!(orm.take_reload_queue().is_empty());
+    }
+
+    #[test]
+    fn later_conflicting_duplicate_is_part_of_runtime_abi_identity() {
+        let mut compiled_manifest = create_basic_manifest();
+        let main_type_id = compiled_manifest.main_component_type_id.clone();
+        compiled_manifest
+            .components
+            .get_mut(&main_type_id)
+            .unwrap()
+            .settings = Some(vec![handler("click", "self.handle_event")]);
+
+        let conflicting_settings = vec![
+            handler("click", "self.handle_event"),
+            handler("tick", "self.handle_event"),
+        ];
+        let mut conflicting_manifest = compiled_manifest.clone();
+        conflicting_manifest
+            .components
+            .get_mut(&main_type_id)
+            .unwrap()
+            .settings = Some(conflicting_settings.clone());
+
+        assert_ne!(
+            runtime_abi_identity(&compiled_manifest).unwrap(),
+            runtime_abi_identity(&conflicting_manifest).unwrap()
+        );
+
+        let mut orm = PaxManifestORM::new(compiled_manifest);
+        let err = orm
+            .replace_template(
+                main_type_id.clone(),
+                ComponentTemplate::new(main_type_id, None),
+                conflicting_settings,
+            )
+            .unwrap_err();
+
+        assert!(err.contains("requires different runtime descriptors"));
         assert_eq!(orm.get_manifest_version().get(), 0);
         assert!(orm.take_reload_queue().is_empty());
     }

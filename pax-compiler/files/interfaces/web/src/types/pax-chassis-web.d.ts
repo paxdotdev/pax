@@ -79,12 +79,27 @@ export class PaxChassisWeb {
 /**
 * @returns {any}
 */
-  take_reload_app_requests(): any;
+  take_prepare_app_revisions(): any;
 /**
-* @param {string} build_id
+* @param {string} logic_revision_id
 * @returns {boolean}
 */
-  acknowledge_reload_app_request(build_id: string): boolean;
+  request_app_revision_activation(logic_revision_id: string): boolean;
+/**
+* @param {string} logic_revision_id
+* @returns {string}
+*/
+  poll_app_revision_activation(logic_revision_id: string): string;
+/**
+* @param {string} logic_revision_id
+* @returns {boolean}
+*/
+  cancel_app_revision_activation(logic_revision_id: string): boolean;
+/**
+* @param {string} logic_revision_id
+* @returns {boolean}
+*/
+  activate_app_revision(logic_revision_id: string): boolean;
 /**
 * @param {string} path
 * @returns {boolean}
@@ -123,7 +138,11 @@ export interface InitOutput {
   readonly paxchassisweb_request_layer_screenshot: (a: number, b: number, c: number) => void;
   readonly paxchassisweb_take_layer_screenshot: (a: number, b: number, c: number) => number;
   readonly paxchassisweb_take_layer_surface_screenshots: (a: number, b: number, c: number) => number;
-  readonly paxchassisweb_acknowledge_reload_app_request: (a: number, b: number, c: number) => number;
+  readonly paxchassisweb_take_prepare_app_revisions: (a: number) => any;
+  readonly paxchassisweb_request_app_revision_activation: (a: number, b: number, c: number) => number;
+  readonly paxchassisweb_poll_app_revision_activation: (a: number, b: number, c: number, d: number) => void;
+  readonly paxchassisweb_cancel_app_revision_activation: (a: number, b: number, c: number) => number;
+  readonly paxchassisweb_activate_app_revision: (a: number, b: number, c: number) => number;
   readonly paxchassisweb_image_loaded: (a: number, b: number, c: number) => number;
   readonly slugify: (a: number, b: number, c: number) => void;
   readonly __wbindgen_malloc: (a: number, b: number) => number;

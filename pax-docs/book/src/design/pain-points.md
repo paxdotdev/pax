@@ -524,10 +524,14 @@ missing `FontComparisonRow` then caused a runtime panic, and subsequent calls
 reported wasm-bindgen recursive mutable-borrow errors because the first panic
 had crossed the Wasm boundary.
 
-Solved by gating manifest/template traffic on the web reload build ID, checking
-incoming manifests against the executing cartridge's component/type ABI, and
-publishing each reload directory atomically only after its required JS, Wasm,
-and wasm-bindgen snippets tree exist.
+Solved by routing Pax-only edits and application-logic replacements through a
+shared debug revision coordinator, checking incoming manifests against the
+executing cartridge's component/type ABI, and publishing each web reload
+directory atomically only after its required JS, Wasm, and wasm-bindgen
+snippets tree exist. Web and macOS now prepare and commit compiled artifacts
+through the same two-phase revision transaction; iOS participates only in the
+Pax-template lane. The protocol also names a separate interpreted-module mode
+without treating a future JavaScript evaluator as a dynamic library.
 
 Recommendations: whenever static generated code and dynamic program metadata
 travel through different channels, make their shared generation explicit and
@@ -552,3 +556,90 @@ loop. The UI kept animating, but each failed attempt emitted both a low-level
 browser error and a runtime warning. Capped exponential backoff preserves quick
 first recovery while avoiding sustained console and connection churn during a
 longer outage.
+
+The final web drill exposed a separate transport-state race: constructing a
+websocket marked it alive before the browser emitted `Opened`, so a revision
+message could reach `WebSocket.send` while the socket was still `CONNECTING`.
+Solved by treating sockets as offline until `Opened`; the revision gate remains
+the durable owner of messages that must replay. Recommendations: distinguish
+object construction from transport readiness, and never use socket existence
+as evidence that writes are legal.
+
+Manual Rust reloads on web and macOS also showed duplicate watcher
+notifications for one source save, which can schedule two sequential normal
+artifact builds. Restart recovery itself scheduled exactly one build, so this
+did not affect correctness, but it wastes feedback-loop time. Recommendations:
+coalesce duplicate same-path watcher events before scheduling compilation while
+preserving the coordinator's mutation-generation ordering.
+
+Refactoring reload generations exposed two less obvious coupling points. The
+source watcher delivered changes through the currently active websocket actor,
+so edits made during a disconnect were never committed to server state. Apple
+mobile debug runs also built designtime support into the cartridge without
+provisioning or injecting a server, leaving that path effectively untestable.
+
+Solved by making the debug revision coordinator, rather than a socket actor,
+the owner of source changes, and by having iOS/iPadOS debug launches provision
+an explicitly template-only server. Recommendations: treat connectivity as a
+delivery concern rather than the owner of mutable program state, and keep
+template transport, compiled-artifact replacement, and future interpreted
+logic activation as separately declared capabilities for every chassis.
+
+Watcher and designer edits initially still had a stale-buffer race: parsing a
+file happens outside the coordinator lock, so a slow watcher callback could
+commit an older disk buffer over a newer designer write. A single global
+revision check was also too coarse because independent source files should be
+able to compose rather than continuously supersede one another.
+
+Solved by putting source mutation and active-client promotion behind one
+transaction barrier, assigning a mutation generation to each canonical source
+path, and comparing that generation plus the full revision stamp at commit.
+Recommendations: when parsing or code generation occurs outside a state lock,
+make the commit token specific enough to reject same-resource staleness without
+discarding valid concurrent work on unrelated resources.
+
+The first replay implementation treated that journal as a lifetime patch set
+for every future logic artifact. That preserved edits made during a build, but
+it also meant an old entry for a source file deleted or renamed by a later Rust
+revision could make every subsequent activation fail permanently. Each logic
+build now captures the journal generation immediately before compiling, and
+preflight replays only mutations newer than that build-start baseline.
+Recommendations: replay logs that bridge a build race need an explicit snapshot
+boundary; "latest per resource" is not enough when resources can legitimately
+disappear from later generations.
+
+A process restart exposed one more distinction: reconnecting a still-running
+cartridge is not safe if the new server invents a fresh revision identity or
+forgets which compiled artifact was committed. A manifest alone is also
+insufficient because a fresh web page may need the retained artifact envelope,
+and edits can land on disk after the last successful publish.
+
+Solved with an atomically published debug restart record containing the exact
+revision stamp, active manifest, retained artifact envelope, and survivor
+adoption authority. Startup restores that record, reconciles active `.pax`
+sources from disk, and schedules one recovery logic build on web/macOS. A new
+logic revision is not committed if the record cannot be published; an already
+committed duplicate activation remains idempotent. Recommendations: treat
+durable process-restart state as the commit record for a live-reload
+transaction, keep it out of release cartridge baking, and explicitly define
+which source of truth wins when persistence fails after an external editor or
+designer has already changed the file.
+
+The first macOS chassis drill also exposed a LaunchServices boundary that is
+easy to miss: setting `PAX_DEV_SESSION_DIR`, `PAX_DEV_REGISTRY_FILE`, and the
+design-server address on the `open` helper process did not put them in the app
+bundle's environment. The renderer still opened, which made the detached dev
+session look like a websocket or heartbeat problem.
+
+Solved by passing every dev variable through explicit `open --env NAME=VALUE`
+arguments. Recommendations: when a macOS app is launched through
+LaunchServices, verify the environment in the final app PID and require a
+follow-up heartbeat or serviced dev request; a live renderer alone does not
+prove that the designtime transport was provisioned.
+
+The web interface package's nominal `npm run build` command currently points at
+a nonexistent `webpack.prod.js`, even though the supported bundle path is the
+repository's `build-interface.sh` script (which invokes esbuild and emits the
+gitignored public JS/CSS artifacts). Use `bash build-interface.sh` when
+validating host TypeScript changes; a webpack configuration error does not
+indicate a TypeScript or Pax runtime failure.

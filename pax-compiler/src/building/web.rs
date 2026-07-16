@@ -1,6 +1,6 @@
 use crate::dev_session::{
-    self, now_ms, project_dev_dir, remove_project_active_session, write_project_active_session,
-    DevSession,
+    self, now_ms, project_designtime_manifest_file, project_dev_dir, remove_project_active_session,
+    write_project_active_session, DevSession,
 };
 use crate::helpers::{
     configure_pax_build_env, pax_project_feature_args, wait_with_output, ASSETS_DIR_NAME,
@@ -337,6 +337,8 @@ fn compile_web_interface_artifacts(
     let is_release: bool = ctx.is_release;
     let is_profiling = ctx.profile_wasm_size;
 
+    crate::validate_release_cargo_feature_boundary(ctx, &["wasm32-unknown-unknown"])?;
+
     let build_mode_name: &str = if is_profiling {
         "profiling"
     } else if is_release {
@@ -552,6 +554,7 @@ pub fn rebuild_staged_web_cartridge(
         process_child_ids: process_child_ids.clone(),
         should_run_designtime: true,
         should_run_designer,
+        hot_reload: None,
         is_release: false,
         profile_wasm_size: false,
         webgl: false,
@@ -628,6 +631,9 @@ pub fn build_web_project_with_cartridge(
                         should_run_designer: true,
                     },
                 )),
+                ctx.hot_reload.unwrap_or_default(),
+                None,
+                Some(project_designtime_manifest_file(pax_dir)),
             );
             cleanup_web_dev_session(pax_dir, &dev_session)?;
         } else if ctx.should_run_designtime {
@@ -649,6 +655,9 @@ pub fn build_web_project_with_cartridge(
                         should_run_designer: false,
                     },
                 )),
+                ctx.hot_reload.unwrap_or_default(),
+                None,
+                Some(project_designtime_manifest_file(pax_dir)),
             );
             cleanup_web_dev_session(pax_dir, &dev_session)?;
         } else {

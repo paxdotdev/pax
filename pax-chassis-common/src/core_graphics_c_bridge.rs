@@ -4,6 +4,8 @@ extern crate core;
 
 use std::cell::RefCell;
 use std::collections::HashMap;
+#[cfg(feature = "designtime")]
+use std::ffi::c_char;
 use std::ffi::{c_void, CStr};
 use std::mem::{transmute, ManuallyDrop};
 use std::pin::Pin;
@@ -41,7 +43,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 #[cfg(feature = "designtime")]
-use pax_designtime::DesigntimeManager;
+use pax_designtime::{AppRevisionActivationStatus, DesigntimeManager};
 #[cfg(feature = "designtime")]
 use pax_runtime::designtime_support::{
     apply_designtime_replace_node_subtemplate, apply_designtime_userland_reload,
@@ -617,6 +619,148 @@ pub extern "C" fn pax_dealloc_engine(container: *mut PaxEngineContainer) {
             drop(Box::from_raw(container._render_context));
         }
     }
+}
+
+/// Starts the irreversible final commit for a preflighted revision.
+#[cfg(feature = "designtime")]
+#[no_mangle]
+pub extern "C" fn pax_designtime_activate_app_revision(
+    container: *mut PaxEngineContainer,
+    logic_revision_id: *const c_char,
+) -> bool {
+    if container.is_null() || logic_revision_id.is_null() {
+        return false;
+    }
+
+    let Ok(logic_revision_id) = unsafe { CStr::from_ptr(logic_revision_id) }.to_str() else {
+        return false;
+    };
+    let container = unsafe { &mut *container };
+    container
+        .designtime_manager
+        .borrow_mut()
+        .activate_app_revision(logic_revision_id)
+        .unwrap_or_else(|error| {
+            eprintln!("failed to activate designtime logic revision {logic_revision_id}: {error}");
+            false
+        })
+}
+
+/// Starts server-side replay and ABI validation without ticking the candidate.
+#[cfg(feature = "designtime")]
+#[no_mangle]
+pub extern "C" fn pax_designtime_request_app_revision_activation(
+    container: *mut PaxEngineContainer,
+    logic_revision_id: *const c_char,
+) -> bool {
+    if container.is_null() || logic_revision_id.is_null() {
+        return false;
+    }
+
+    let Ok(logic_revision_id) = unsafe { CStr::from_ptr(logic_revision_id) }.to_str() else {
+        return false;
+    };
+    let container = unsafe { &mut *container };
+    if container._engine.is_null() {
+        return false;
+    }
+    let screenshots = unsafe { &mut *container._engine }
+        .runtime_context
+        .get_screenshot_map();
+    let mut manager = container.designtime_manager.borrow_mut();
+    if !manager.prime_app_revision(logic_revision_id) {
+        return false;
+    }
+    manager
+        .handle_recv(screenshots)
+        .unwrap_or_else(|error| eprintln!("designtime receive failed: {error:?}"));
+    manager
+        .request_app_revision_activation(logic_revision_id)
+        .unwrap_or_else(|error| {
+            eprintln!("failed to request designtime logic revision {logic_revision_id}: {error}");
+            false
+        })
+}
+
+/// Polls only the candidate's designtime transport. The numeric values are a
+/// stable host ABI: unknown=0, preparing=1, prepared=2, committing=3,
+/// committed=4, rejected=5.
+#[cfg(feature = "designtime")]
+#[no_mangle]
+pub extern "C" fn pax_designtime_poll_app_revision_activation(
+    container: *mut PaxEngineContainer,
+    logic_revision_id: *const c_char,
+) -> i32 {
+    if container.is_null() || logic_revision_id.is_null() {
+        return 0;
+    }
+
+    let Ok(logic_revision_id) = unsafe { CStr::from_ptr(logic_revision_id) }.to_str() else {
+        return 0;
+    };
+    let container = unsafe { &mut *container };
+    if container._engine.is_null() {
+        return 0;
+    }
+    let screenshots = unsafe { &mut *container._engine }
+        .runtime_context
+        .get_screenshot_map();
+    let mut manager = container.designtime_manager.borrow_mut();
+    manager
+        .handle_recv(screenshots)
+        .unwrap_or_else(|error| eprintln!("designtime receive failed: {error:?}"));
+    match manager.app_revision_activation_status(logic_revision_id) {
+        AppRevisionActivationStatus::Unknown => 0,
+        AppRevisionActivationStatus::Preparing => 1,
+        AppRevisionActivationStatus::Prepared => 2,
+        AppRevisionActivationStatus::Committing => 3,
+        AppRevisionActivationStatus::Committed => 4,
+        AppRevisionActivationStatus::Rejected => 5,
+    }
+}
+
+/// Cancels only a preflight activation; the runtime gate refuses cancellation
+/// once the final commit message may have reached the server.
+#[cfg(feature = "designtime")]
+#[no_mangle]
+pub extern "C" fn pax_designtime_cancel_app_revision_activation(
+    container: *mut PaxEngineContainer,
+    logic_revision_id: *const c_char,
+) -> bool {
+    if container.is_null() || logic_revision_id.is_null() {
+        return false;
+    }
+
+    let Ok(logic_revision_id) = unsafe { CStr::from_ptr(logic_revision_id) }.to_str() else {
+        return false;
+    };
+    let container = unsafe { &mut *container };
+    container
+        .designtime_manager
+        .borrow_mut()
+        .cancel_app_revision_activation(logic_revision_id)
+}
+
+/// Prime a newly initialized designtime cartridge with the revision selected
+/// by its host before the strict activation acknowledgement is attempted.
+#[cfg(feature = "designtime")]
+#[no_mangle]
+pub extern "C" fn pax_designtime_prime_app_revision(
+    container: *mut PaxEngineContainer,
+    logic_revision_id: *const c_char,
+) -> bool {
+    if container.is_null() || logic_revision_id.is_null() {
+        return false;
+    }
+
+    let Ok(logic_revision_id) = unsafe { CStr::from_ptr(logic_revision_id) }.to_str() else {
+        return false;
+    };
+    let container = unsafe { &mut *container };
+    container
+        .designtime_manager
+        .borrow_mut()
+        .prime_app_revision(logic_revision_id)
 }
 
 /// Send `interrupt`s from the chassis, for example: user input

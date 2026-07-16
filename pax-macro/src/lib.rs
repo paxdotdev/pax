@@ -35,6 +35,15 @@ fn env_flag(name: &str) -> bool {
         .unwrap_or(false)
 }
 
+fn env_flag_explicitly_disabled(name: &str) -> bool {
+    env::var(name)
+        .map(|value| {
+            let normalized = value.to_ascii_lowercase();
+            matches!(normalized.as_str(), "0" | "false" | "no" | "off")
+        })
+        .unwrap_or(false)
+}
+
 fn cargo_feature_enabled(feature: &str) -> bool {
     env::var_os(format!(
         "CARGO_FEATURE_{}",
@@ -388,7 +397,15 @@ fn pax_full_component(
             "".to_string()
         }
     };
-    let cartridge_snippet = if let Some(pax_dir) = pax_dir {
+    // pax-engine's designtime feature propagates to this proc macro. Checking
+    // the macro's compiled feature (rather than CARGO_FEATURE_* at expansion
+    // time) provides a final backstop even when a wrapper crate activated it.
+    let release_designtime_feature_conflict = cfg!(feature = "designtime")
+        && env_flag_explicitly_disabled("PAX_BUILD_DESIGNTIME")
+        && needs_runtime_target_cartridge;
+    let cartridge_snippet = if release_designtime_feature_conflict {
+        "compile_error!(\"Pax release builds cannot include the `pax-engine/designtime` feature. Remove the transitive designtime feature activation or build this app in debug mode.\");".to_string()
+    } else if let Some(pax_dir) = pax_dir {
         if pax_dir.starts_with(&current_manifest_dir) {
             let cartridge_path = pax_dir.join("cartridge.partial.rs");
             let cartridge_path = cartridge_path.to_str().unwrap_or_else(|| {

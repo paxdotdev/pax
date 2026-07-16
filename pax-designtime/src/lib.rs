@@ -5,19 +5,22 @@ use std::rc::Rc;
 
 pub mod orm;
 pub mod privileged_agent;
+mod revision;
 
 pub mod messages;
 pub mod serde_pax;
 
 use messages::LLMRequest;
 use messages::{
-    DevClientRequest, DevClientResponse, ReloadAppRequest, UserlandSourceUpdateRequest,
-    UserlandSourceUpdateResponse,
+    AgentMessage, DevClientRequest, DevClientResponse, PrepareAppRevision,
+    UserlandSourceUpdateRequest, UserlandSourceUpdateResponse,
 };
 use orm::{MessageType, ReloadType};
 use pax_manifest::pax_runtime_api::Property;
 use pax_message::ScreenshotData;
-use privileged_agent::WebSocketConnection;
+use privileged_agent::{ConnectionEvent, WebSocketConnection};
+pub use revision::AppRevisionActivationStatus;
+use revision::{ManifestAdmission, RevisionGate, TemplateAdmission};
 
 use core::fmt::Debug;
 
@@ -41,8 +44,9 @@ pub struct DesigntimeManager {
     project_query: Option<String>,
     response_queue: Rc<RefCell<Vec<DesigntimeResponseMessage>>>,
     pending_dev_client_requests: Rc<RefCell<Vec<DevClientRequest>>>,
-    pending_reload_app_requests: Rc<RefCell<Vec<ReloadAppRequest>>>,
+    pending_prepare_app_revisions: Rc<RefCell<Vec<PrepareAppRevision>>>,
     pending_userland_source_update_responses: Rc<RefCell<Vec<UserlandSourceUpdateResponse>>>,
+    revision_gate: RevisionGate,
     last_rendered_manifest_version: Property<usize>,
     pub publish_state: Property<Option<PublishResponse>>,
     enqueued_llm_request: Option<LLMRequest>,
@@ -91,23 +95,26 @@ impl DesigntimeManager {
     }
 
     pub fn new_with_local_addr(manifest: PaxManifest, local_addr: &str) -> Self {
-        let privileged_agent = Rc::new(RefCell::new(
-            WebSocketConnection::new(local_addr, None, "privileged-agent")
-                .expect("couldn't connect to privileged agent"),
-        ));
+        let privileged_agent = WebSocketConnection::new(local_addr, None, "privileged-agent")
+            .expect("couldn't connect to privileged agent");
 
+        Self::new_with_connection(manifest, privileged_agent)
+    }
+
+    fn new_with_connection(manifest: PaxManifest, privileged_agent: WebSocketConnection) -> Self {
         let orm = PaxManifestORM::new(manifest);
         let factories = HashMap::new();
         DesigntimeManager {
             orm,
             factories,
-            privileged_agent_connection: privileged_agent,
+            privileged_agent_connection: Rc::new(RefCell::new(privileged_agent)),
             pub_pax_connection: None,
             project_query: None,
             response_queue: Rc::new(RefCell::new(Vec::new())),
             pending_dev_client_requests: Rc::new(RefCell::new(Vec::new())),
-            pending_reload_app_requests: Rc::new(RefCell::new(Vec::new())),
+            pending_prepare_app_revisions: Rc::new(RefCell::new(Vec::new())),
             pending_userland_source_update_responses: Rc::new(RefCell::new(Vec::new())),
+            revision_gate: RevisionGate::default(),
             last_rendered_manifest_version: Property::new(0),
             publish_state: Default::default(),
             enqueued_llm_request: None,
@@ -116,9 +123,14 @@ impl DesigntimeManager {
     pub fn new(manifest: PaxManifest) -> Self {
         let local_addr = std::env::var("PAX_DESIGN_SERVER_ADDR")
             .ok()
-            .or_else(resolve_default_local_addr)
-            .unwrap_or_else(|| "ws://localhost:8080".to_string());
-        Self::new_with_local_addr(manifest, &local_addr)
+            .or_else(resolve_default_local_addr);
+        match local_addr {
+            Some(local_addr) => Self::new_with_local_addr(manifest, &local_addr),
+            None => Self::new_with_connection(
+                manifest,
+                WebSocketConnection::offline("privileged-agent"),
+            ),
+        }
     }
 
     pub fn set_project(&mut self, project_query: String) {
@@ -250,19 +262,65 @@ impl DesigntimeManager {
             .send_dev_client_response(response)
     }
 
-    pub fn take_reload_app_requests(&mut self) -> Vec<ReloadAppRequest> {
-        let mut pending_requests = self.pending_reload_app_requests.borrow_mut();
+    pub fn take_prepare_app_revisions(&mut self) -> Vec<PrepareAppRevision> {
+        let mut pending_requests = self.pending_prepare_app_revisions.borrow_mut();
         pending_requests.drain(..).collect()
     }
 
-    /// Confirms that the JavaScript host has activated the cartridge for `build_id`.
-    ///
-    /// Until this acknowledgement arrives, designtime manifest and template updates
-    /// are held back so the running cartridge cannot observe a different build's ABI.
-    pub fn acknowledge_reload_app_request(&mut self, build_id: &str) -> anyhow::Result<bool> {
-        self.privileged_agent_connection
+    /// Gives a freshly initialized host-managed artifact the logic identity
+    /// from its out-of-band prepare request. Native hosts call this immediately
+    /// before activation because native prepare envelopes do not traverse the
+    /// artifact's websocket connection.
+    pub fn prime_app_revision(&mut self, logic_revision_id: &str) -> bool {
+        self.revision_gate.prime(logic_revision_id)
+    }
+
+    /// Begins the server-validation phase without changing the locally active
+    /// revision. Hosts keep their last-known-good runtime mounted while polling
+    /// `app_revision_activation_status` on the candidate.
+    pub fn request_app_revision_activation(
+        &mut self,
+        logic_revision_id: &str,
+    ) -> anyhow::Result<bool> {
+        let Some(request) = self.revision_gate.request_activation(logic_revision_id) else {
+            return Ok(false);
+        };
+        self.send_revision_messages(vec![AgentMessage::RequestAppRevisionActivation(request)]);
+        Ok(true)
+    }
+
+    pub fn app_revision_activation_status(
+        &self,
+        logic_revision_id: &str,
+    ) -> AppRevisionActivationStatus {
+        self.revision_gate.activation_status(logic_revision_id)
+    }
+
+    pub fn cancel_app_revision_activation(&mut self, logic_revision_id: &str) -> bool {
+        if !self.revision_gate.cancel_activation(logic_revision_id) {
+            return false;
+        }
+        let _ = self
+            .privileged_agent_connection
             .borrow_mut()
-            .acknowledge_reload_app_request(build_id)
+            .send_agent_message(&AgentMessage::CancelAppRevisionActivation(
+                messages::ActivateAppRevision {
+                    logic_revision_id: logic_revision_id.to_string(),
+                },
+            ));
+        true
+    }
+
+    /// Confirms that the host installed a prepared executable or interpreted
+    /// logic revision. The acknowledgement remains queued across a disconnect
+    /// until the server returns the matching manifest snapshot.
+    pub fn activate_app_revision(&mut self, logic_revision_id: &str) -> anyhow::Result<bool> {
+        let Some(activation) = self.revision_gate.activate(logic_revision_id) else {
+            return Ok(false);
+        };
+
+        self.send_revision_messages(vec![AgentMessage::ActivateAppRevision(activation)]);
+        Ok(true)
     }
 
     pub fn send_userland_source_update(
@@ -310,37 +368,43 @@ impl DesigntimeManager {
             }
         }
 
-        let privileged_agent_messages = match self
-            .privileged_agent_connection
-            .borrow_mut()
-            .handle_recv(&mut self.orm)
-        {
-            Ok(messages) => messages,
-            Err(err) => {
-                log::warn!("privileged-agent receive failed: {err:?}");
-                Vec::new()
-            }
-        };
-        for message in privileged_agent_messages {
-            match message {
-                crate::messages::AgentMessage::DevClientRequest(request) => {
-                    self.pending_dev_client_requests.borrow_mut().push(request);
+        let privileged_agent_events =
+            match self.privileged_agent_connection.borrow_mut().handle_recv() {
+                Ok(events) => events,
+                Err(err) => {
+                    log::warn!("privileged-agent receive failed: {err:?}");
+                    Vec::new()
                 }
-                crate::messages::AgentMessage::ReloadAppRequest(request) => {
-                    self.pending_reload_app_requests.borrow_mut().push(request);
+            };
+        let mut revision_messages = Vec::new();
+        for event in privileged_agent_events {
+            match event {
+                ConnectionEvent::Opened => {
+                    revision_messages.extend(self.revision_gate.connection_messages());
                 }
-                crate::messages::AgentMessage::UserlandSourceUpdateResponse(response) => {
-                    self.pending_userland_source_update_responses
-                        .borrow_mut()
-                        .push(response);
+                ConnectionEvent::Disconnected => {
+                    self.revision_gate.disconnected();
+                    self.pending_prepare_app_revisions.borrow_mut().clear();
                 }
-                _ => {}
+                ConnectionEvent::Message(message) => {
+                    self.handle_privileged_agent_message(message, &mut revision_messages)
+                }
             }
         }
+        self.send_revision_messages(revision_messages);
 
-        if let Some(pub_pax_connection) = &self.pub_pax_connection {
-            if let Err(err) = pub_pax_connection.borrow_mut().handle_recv(&mut self.orm) {
-                log::warn!("pub-pax receive failed: {err:?}");
+        if let Some(pub_pax_connection) = self.pub_pax_connection.clone() {
+            match pub_pax_connection.borrow_mut().handle_recv() {
+                Ok(events) => {
+                    for event in events {
+                        if let ConnectionEvent::Message(message) = event {
+                            self.handle_pub_pax_message(message);
+                        }
+                    }
+                }
+                Err(err) => {
+                    log::warn!("pub-pax receive failed: {err:?}");
+                }
             }
         }
 
@@ -352,6 +416,180 @@ impl DesigntimeManager {
             self.handle_response(response);
         }
         Ok(())
+    }
+
+    fn handle_privileged_agent_message(
+        &mut self,
+        message: AgentMessage,
+        revision_messages: &mut Vec<AgentMessage>,
+    ) {
+        match message {
+            AgentMessage::AppRevisionActivationPrepared(response) => {
+                let logic_revision_id = response.revision.logic_revision_id.clone();
+                if !self
+                    .revision_gate
+                    .admit_prepared_activation_manifest(&response.revision)
+                {
+                    log::debug!(
+                        "ignoring unrequested activation snapshot for {}",
+                        logic_revision_id
+                    );
+                    return;
+                }
+                let manifest = match rmp_serde::from_slice::<PaxManifest>(&response.manifest) {
+                    Ok(manifest) => manifest,
+                    Err(err) => {
+                        if self.revision_gate.reject_activation(&logic_revision_id) {
+                            revision_messages.push(AgentMessage::CancelAppRevisionActivation(
+                                messages::ActivateAppRevision {
+                                    logic_revision_id: logic_revision_id.clone(),
+                                },
+                            ));
+                        }
+                        log::warn!("received invalid activation manifest payload: {err}");
+                        return;
+                    }
+                };
+                match self.orm.set_initial_server_manifest(manifest) {
+                    Ok(()) => self
+                        .revision_gate
+                        .commit_prepared_activation_manifest(response.revision),
+                    Err(err) => {
+                        if self.revision_gate.reject_activation(&logic_revision_id) {
+                            revision_messages.push(AgentMessage::CancelAppRevisionActivation(
+                                messages::ActivateAppRevision {
+                                    logic_revision_id: logic_revision_id.clone(),
+                                },
+                            ));
+                        }
+                        log::warn!("rejected prepared activation manifest: {err}");
+                    }
+                }
+            }
+            AgentMessage::LoadManifestResponse(response) => {
+                if self.revision_gate.admit_manifest(&response.revision)
+                    == ManifestAdmission::Ignore
+                {
+                    log::debug!(
+                        "ignoring manifest for inactive logic revision {}",
+                        response.revision.logic_revision_id
+                    );
+                    return;
+                }
+
+                let manifest = match rmp_serde::from_slice::<PaxManifest>(&response.manifest) {
+                    Ok(manifest) => manifest,
+                    Err(err) => {
+                        self.revision_gate.reject_manifest();
+                        log::warn!("received invalid design-server manifest payload: {err}");
+                        return;
+                    }
+                };
+                match self.orm.set_initial_server_manifest(manifest) {
+                    Ok(()) => self.revision_gate.commit_manifest(response.revision),
+                    Err(err) => {
+                        self.revision_gate.reject_manifest();
+                        log::warn!("rejected design-server manifest: {err}");
+                    }
+                }
+            }
+            AgentMessage::UpdateTemplateRequest(update) => {
+                let admission = self.revision_gate.admit_template(&update.revision);
+                match admission {
+                    TemplateAdmission::Apply => {
+                        let revision = update.revision;
+                        if let Err(err) = self.orm.replace_template(
+                            update.type_id,
+                            update.new_template,
+                            update.settings_block,
+                        ) {
+                            self.revision_gate.reject_manifest();
+                            log::warn!("failed to apply template update from design-server: {err}");
+                        } else {
+                            self.revision_gate.commit_template(revision);
+                        }
+                    }
+                    TemplateAdmission::RequestSnapshot => {
+                        revision_messages.push(self.revision_gate.manifest_request());
+                    }
+                    TemplateAdmission::Ignore => {}
+                }
+            }
+            AgentMessage::AppRevisionActivationRejected(rejection) => {
+                if self
+                    .revision_gate
+                    .reject_activation(&rejection.logic_revision_id)
+                {
+                    log::warn!(
+                        "design server rejected application revision {}: {}",
+                        rejection.logic_revision_id,
+                        rejection.reason
+                    );
+                } else {
+                    log::debug!(
+                        "ignoring stale activation rejection for {}",
+                        rejection.logic_revision_id
+                    );
+                }
+            }
+            AgentMessage::PrepareAppRevision(prepared) => {
+                if self.revision_gate.prepare(prepared.clone()) {
+                    let mut pending = self.pending_prepare_app_revisions.borrow_mut();
+                    pending.clear();
+                    pending.push(prepared);
+                }
+            }
+            AgentMessage::DevClientRequest(request) => {
+                self.pending_dev_client_requests.borrow_mut().push(request);
+            }
+            AgentMessage::UserlandSourceUpdateResponse(response) => {
+                self.pending_userland_source_update_responses
+                    .borrow_mut()
+                    .push(response);
+            }
+            AgentMessage::LLMPartialResponse(partial) => {
+                self.orm
+                    .add_new_message(partial.request_id, partial.message, None);
+            }
+            AgentMessage::LLMFinalResponse(final_response) => {
+                self.orm.add_new_message(
+                    final_response.request_id,
+                    final_response.message,
+                    Some(final_response.component_definition),
+                );
+            }
+            _ => {}
+        }
+    }
+
+    fn handle_pub_pax_message(&mut self, message: AgentMessage) {
+        match message {
+            AgentMessage::LLMPartialResponse(partial) => {
+                self.orm
+                    .add_new_message(partial.request_id, partial.message, None);
+            }
+            AgentMessage::LLMFinalResponse(final_response) => {
+                self.orm.add_new_message(
+                    final_response.request_id,
+                    final_response.message,
+                    Some(final_response.component_definition),
+                );
+            }
+            _ => {}
+        }
+    }
+
+    fn send_revision_messages(&self, messages: Vec<AgentMessage>) {
+        if messages.is_empty() {
+            return;
+        }
+        let mut connection = self.privileged_agent_connection.borrow_mut();
+        for message in messages {
+            if let Err(err) = connection.send_agent_message(&message) {
+                log::debug!("revision message queued for websocket reconnect: {err}");
+                break;
+            }
+        }
     }
 
     fn pub_pax_connection(&mut self) -> anyhow::Result<Rc<RefCell<WebSocketConnection>>> {

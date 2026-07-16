@@ -7,7 +7,7 @@ use actix_web::{web::Data, App};
 use awc::Client;
 use futures_util::SinkExt as _;
 use pax_compiler::design_server::{web_socket, AppState};
-use pax_designtime::messages::{AgentMessage, ManifestSerializationRequest};
+use pax_designtime::messages::{AgentMessage, LoadManifestRequest, ManifestSerializationRequest};
 use pax_manifest::pax_runtime_api::PaxValue;
 use pax_manifest::{
     ComponentDefinition, ComponentTemplate, LiteralBlockDefinition, PaxManifest,
@@ -22,7 +22,7 @@ const EXPECTED_PAX: &str = "// Hello world
 <SpecialComponent />
 
 @settings {
-    @existing_handler: handler_action
+    @click: handler_action
     #existing_selector {
     
     }
@@ -39,10 +39,22 @@ const EXPECTED_PAX: &str = "// Hello world
     }
 }";
 
-pub fn get_test_server() -> actix_test::TestServer {
-    actix_test::start(|| {
+pub fn get_test_server(manifest: PaxManifest) -> actix_test::TestServer {
+    actix_test::start(move || {
         App::new()
-            .app_data(Data::new(AppState::new_empty()))
+            .app_data(Data::new(
+                AppState::new(
+                    Default::default(),
+                    Default::default(),
+                    manifest.clone(),
+                    None,
+                    None,
+                    pax_compiler::HotReloadMode::All,
+                    None,
+                    None,
+                )
+                .unwrap(),
+            ))
             .service(web_socket)
     })
 }
@@ -87,7 +99,7 @@ fn create_basic_manifest(source_path: String) -> PaxManifest {
                     LiteralBlockDefinition::new(vec![]),
                 ),
                 SettingsBlockElement::Handler(
-                    Token::new_without_location("existing_handler".to_string()),
+                    Token::new_without_location("click".to_string()),
                     vec![Token::new_without_location("handler_action".to_string())],
                 ),
             ]),
@@ -150,14 +162,25 @@ async fn test_manifest_serialization_request() {
     let path = dir.path().join("manifest_serialization_test.pax");
     let path_str = path.to_str().expect("Path is not a valid UTF-8 string");
 
-    let srv = get_test_server();
+    let manifest = create_basic_manifest(path_str.to_string());
+    let srv = get_test_server(manifest.clone());
 
     let client = Client::new();
     let (_resp, mut connection) = client.ws(srv.url("/ws")).connect().await.unwrap();
+    connection
+        .send(awc::ws::Message::Binary(
+            rmp_serde::to_vec(&AgentMessage::LoadManifestRequest(LoadManifestRequest {
+                active_revision: None,
+            }))
+            .unwrap()
+            .into(),
+        ))
+        .await
+        .unwrap();
 
     // Prepare a ManifestSerializationRequest
     let request = AgentMessage::ManifestSerializationRequest(ManifestSerializationRequest {
-        manifest: rmp_serde::to_vec(&create_basic_manifest(path_str.to_string())).unwrap(),
+        manifest: rmp_serde::to_vec(&manifest).unwrap(),
     });
 
     let serialized_request = to_vec(&request).expect("Failed to serialize request");
