@@ -567,10 +567,19 @@ as evidence that writes are legal.
 
 Manual Rust reloads on web and macOS also showed duplicate watcher
 notifications for one source save, which can schedule two sequential normal
-artifact builds. Restart recovery itself scheduled exactly one build, so this
-did not affect correctness, but it wastes feedback-loop time. Recommendations:
-coalesce duplicate same-path watcher events before scheduling compilation while
-preserving the coordinator's mutation-generation ordering.
+artifact builds. The same save sequence exposed editor backups such as
+`lib.pax~`, while a global one-second "ignore our own writes" window could drop
+an unrelated external save entirely.
+
+Solved by filtering unsupported and transient paths before reading, remembering
+the last contents observed for each canonical source path, and suppressing only
+an exact path/content echo registered by a server-authored write. The logic
+worker now distinguishes its debounce window from compilation: events before
+the build snapshot collapse into that build, while a changed source observed
+during compilation still queues one follow-up. Recommendations: source-watcher
+deduplication should be resource- and content-specific; global time windows
+hide real edits, and marking a worker busy before a debounce can accidentally
+turn duplicate events into duplicate builds.
 
 Refactoring reload generations exposed two less obvious coupling points. The
 source watcher delivered changes through the currently active websocket actor,

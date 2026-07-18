@@ -34,7 +34,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 
 use websocket::PrivilegedAgentWebSocket;
 
@@ -168,7 +168,14 @@ pub enum LogicReloadConfig {
 struct LogicReloadState {
     config: LogicReloadConfig,
     build_in_progress: bool,
+    build_started: bool,
     rebuild_pending: bool,
+}
+
+#[derive(Default)]
+struct WatcherState {
+    expected_writes: HashMap<PathBuf, String>,
+    observed_contents: HashMap<PathBuf, String>,
 }
 
 pub struct AppState {
@@ -179,7 +186,7 @@ pub struct AppState {
     request_id_counter: Mutex<usize>,
     in_flight_dev_requests: Mutex<HashSet<String>>,
     revisions: Mutex<DebugRevisionCoordinator>,
-    last_written_timestamp: Mutex<SystemTime>,
+    watcher_state: Mutex<WatcherState>,
     dev_session: Mutex<Option<DevSession>>,
     pending_dev_look_requests: Mutex<HashMap<String, DevLookRequest>>,
     hot_reload: HotReloadMode,
@@ -201,7 +208,7 @@ impl AppState {
             request_id_counter: Mutex::new(0),
             in_flight_dev_requests: Mutex::new(HashSet::new()),
             revisions: Mutex::new(DebugRevisionCoordinator::empty()),
-            last_written_timestamp: Mutex::new(UNIX_EPOCH),
+            watcher_state: Mutex::new(WatcherState::default()),
             dev_session: Mutex::new(None),
             pending_dev_look_requests: Mutex::new(HashMap::new()),
             hot_reload: HotReloadMode::All,
@@ -256,13 +263,14 @@ impl AppState {
             request_id_counter: Mutex::new(0),
             in_flight_dev_requests: Mutex::new(HashSet::new()),
             revisions: Mutex::new(revisions),
-            last_written_timestamp: Mutex::new(SystemTime::now()),
+            watcher_state: Mutex::new(WatcherState::default()),
             dev_session: Mutex::new(dev_session),
             pending_dev_look_requests: Mutex::new(HashMap::new()),
             hot_reload,
             logic_reload: Mutex::new(logic_reload.map(|config| LogicReloadState {
                 config,
                 build_in_progress: false,
+                build_started: false,
                 rebuild_pending: false,
             })),
             pax_restart_notice_emitted: Mutex::new(false),
@@ -292,9 +300,46 @@ impl AppState {
         *counter
     }
 
-    pub fn update_last_written_timestamp(&self) {
-        let mut last_written = self.last_written_timestamp.lock().unwrap();
-        *last_written = SystemTime::now();
+    pub(crate) fn expect_watcher_write(&self, path: &Path, contents: &str) {
+        self.watcher_state
+            .lock()
+            .unwrap()
+            .expected_writes
+            .insert(normalized_watcher_path(path), contents.to_string());
+    }
+
+    pub(crate) fn cancel_expected_watcher_write(&self, path: &Path) {
+        self.watcher_state
+            .lock()
+            .unwrap()
+            .expected_writes
+            .remove(&normalized_watcher_path(path));
+    }
+
+    fn should_process_watcher_contents(&self, path: &Path, contents: &str) -> bool {
+        let path = normalized_watcher_path(path);
+        let mut watcher = self.watcher_state.lock().unwrap();
+
+        if watcher
+            .expected_writes
+            .get(&path)
+            .is_some_and(|expected| expected == contents)
+        {
+            watcher.expected_writes.remove(&path);
+            watcher.observed_contents.insert(path, contents.to_string());
+            return false;
+        }
+        watcher.expected_writes.remove(&path);
+
+        if watcher
+            .observed_contents
+            .get(&path)
+            .is_some_and(|observed| observed == contents)
+        {
+            return false;
+        }
+        watcher.observed_contents.insert(path, contents.to_string());
+        true
     }
 
     fn take_startup_recovery_rebuild(&self) -> bool {
@@ -792,6 +837,29 @@ fn resolve_restored_pax_source_path(project_root: &Path, source_path: &str) -> P
     }
 }
 
+fn normalized_watcher_path(path: &Path) -> PathBuf {
+    if let Ok(canonical) = fs::canonicalize(path) {
+        return canonical;
+    }
+
+    let absolute = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        std::env::current_dir()
+            .unwrap_or_else(|_| PathBuf::new())
+            .join(path)
+    };
+    let Some(parent) = absolute.parent() else {
+        return absolute;
+    };
+    let Some(file_name) = absolute.file_name() else {
+        return absolute;
+    };
+    fs::canonicalize(parent)
+        .map(|parent| parent.join(file_name))
+        .unwrap_or(absolute)
+}
+
 #[derive(Deserialize)]
 #[serde(untagged)]
 enum RestartManifestFile {
@@ -809,31 +877,38 @@ pub fn decode_restart_manifest(
 }
 
 pub fn schedule_logic_reload(state: Data<AppState>) {
+    if request_logic_reload(&state) {
+        std::thread::spawn(move || run_logic_reload_loop(state));
+    }
+}
+
+fn request_logic_reload(state: &Data<AppState>) -> bool {
     if !state.logic_hot_reload_available() {
         state.note_logic_restart_required();
-        return;
+        return false;
     }
     let candidate_reserved = state.revisions.lock().unwrap().has_reserved_candidate();
     let mut logic_reload = state.logic_reload.lock().unwrap();
     let Some(reload_state) = logic_reload.as_mut() else {
-        return;
+        return false;
     };
 
     if candidate_reserved {
         reload_state.rebuild_pending = true;
-        return;
+        return false;
     }
 
     if reload_state.build_in_progress {
-        reload_state.rebuild_pending = true;
-        return;
+        if reload_state.build_started {
+            reload_state.rebuild_pending = true;
+        }
+        return false;
     }
 
     reload_state.build_in_progress = true;
+    reload_state.build_started = false;
     reload_state.rebuild_pending = false;
-    drop(logic_reload);
-
-    std::thread::spawn(move || run_logic_reload_loop(state));
+    true
 }
 
 pub(crate) fn resume_deferred_logic_reload(state: Data<AppState>) {
@@ -852,24 +927,35 @@ pub(crate) fn resume_deferred_logic_reload(state: Data<AppState>) {
     }
     reload_state.rebuild_pending = false;
     reload_state.build_in_progress = true;
+    reload_state.build_started = false;
     drop(logic_reload);
     std::thread::spawn(move || run_logic_reload_loop(state));
 }
 
 pub fn run_logic_reload_loop(state: Data<AppState>) {
+    run_logic_reload_loop_with(state, Duration::from_millis(150), perform_logic_reload);
+}
+
+fn run_logic_reload_loop_with<F>(state: Data<AppState>, debounce: Duration, mut perform_reload: F)
+where
+    F: FnMut(&Data<AppState>, &PathBuf, &LogicReloadConfig) -> Result<(), color_eyre::eyre::Report>,
+{
     loop {
-        std::thread::sleep(std::time::Duration::from_millis(150));
+        std::thread::sleep(debounce);
 
         let config = {
-            let logic_reload = state.logic_reload.lock().unwrap();
-            logic_reload.as_ref().map(|reload| reload.config.clone())
+            let mut logic_reload = state.logic_reload.lock().unwrap();
+            logic_reload.as_mut().map(|reload| {
+                reload.build_started = true;
+                reload.config.clone()
+            })
         };
         let Some(config) = config else {
             return;
         };
         let project_root = state.userland_project_root.lock().unwrap().clone();
 
-        match perform_logic_reload(&state, &project_root, &config) {
+        match perform_reload(&state, &project_root, &config) {
             Ok(()) => {}
             Err(err) => {
                 eprintln!("failed to reload logic for hot reload: {err}");
@@ -884,9 +970,11 @@ pub fn run_logic_reload_loop(state: Data<AppState>) {
             };
             if reload_state.rebuild_pending && !candidate_reserved {
                 reload_state.rebuild_pending = false;
+                reload_state.build_started = false;
                 true
             } else {
                 reload_state.build_in_progress = false;
+                reload_state.build_started = false;
                 false
             }
         };
@@ -1249,15 +1337,11 @@ pub fn start_server(
     runtime
 }
 
-#[derive(Default)]
 pub enum FileContent {
     Pax(String),
     Rust(String),
-    #[default]
-    Unknown,
 }
 
-#[derive(Default)]
 struct WatcherFileChanged {
     pub contents: FileContent,
     pub path: String,
@@ -1267,44 +1351,45 @@ pub fn setup_file_watcher(state: Data<AppState>, path: &str) -> Result<Recommend
     let mut watcher = RecommendedWatcher::new(
         move |res: Result<Event, Error>| match res {
             Ok(e) => {
-                let now = SystemTime::now();
-                // check last written time so we don't spam file changes when we serialize
-                let last_written = *state.last_written_timestamp.lock().unwrap();
-                if now
-                    .duration_since(last_written)
-                    .unwrap_or_default()
-                    .as_millis()
-                    > 1000
-                {
-                    if let EventKind::Modify(_) = e.kind {
-                        if let Some(path) = e.paths.first() {
-                            if should_ignore_watcher_path(path) {
-                                return;
-                            }
-                            match fs::read_to_string(path) {
-                                Ok(contents) => {
-                                    let extension = path.extension();
-                                    handle_watcher_file_changed(
-                                        state.clone(),
-                                        WatcherFileChanged {
-                                            contents: match extension.and_then(|e| e.to_str()) {
-                                                Some("pax") => FileContent::Pax(contents),
-                                                Some("rs") => FileContent::Rust(contents),
-                                                _ => FileContent::Unknown,
-                                            },
-                                            path: path.to_string_lossy().into_owned(),
-                                        },
-                                    );
-                                }
-                                Err(err) => {
-                                    eprintln!(
-                                        "failed to read changed file {}: {err}",
-                                        path.display()
-                                    )
-                                }
-                            }
-                        }
+                if !matches!(e.kind, EventKind::Modify(_) | EventKind::Create(_)) {
+                    return;
+                }
+                for path in e.paths {
+                    if should_ignore_watcher_path(&path) {
+                        continue;
                     }
+                    let Some(is_pax) = watcher_source_kind(&path) else {
+                        // Non-source project files still invalidate dev-tool views,
+                        // but they never enter source parsing or reload scheduling.
+                        send_project_file_changed_notification(&state);
+                        continue;
+                    };
+                    let change = {
+                        // Server-authored writes own this barrier until their exact
+                        // path/content echo has been registered. External writes use
+                        // the same barrier as parsing and revision commit.
+                        let _source_update = state.source_update_lock.lock().unwrap();
+                        let contents = match fs::read_to_string(&path) {
+                            Ok(contents) => contents,
+                            Err(err) if err.kind() == std::io::ErrorKind::NotFound => continue,
+                            Err(err) => {
+                                eprintln!("failed to read changed file {}: {err}", path.display());
+                                continue;
+                            }
+                        };
+                        if !state.should_process_watcher_contents(&path, &contents) {
+                            continue;
+                        }
+                        WatcherFileChanged {
+                            contents: if is_pax {
+                                FileContent::Pax(contents)
+                            } else {
+                                FileContent::Rust(contents)
+                            },
+                            path: path.to_string_lossy().into_owned(),
+                        }
+                    };
+                    handle_watcher_file_changed(state.clone(), change);
                 }
             }
             Err(e) => {
@@ -1339,7 +1424,6 @@ fn handle_watcher_file_changed(state: Data<AppState>, change: WatcherFileChanged
             }
         }
         FileContent::Rust(_) => schedule_logic_reload(state.clone()),
-        FileContent::Unknown => {}
     }
 
     send_project_file_changed_notification(&state);
@@ -1355,10 +1439,26 @@ fn send_project_file_changed_notification(state: &Data<AppState>) {
 }
 
 fn should_ignore_watcher_path(path: &Path) -> bool {
-    path.components().any(|component| {
+    let ignored_directory = path.components().any(|component| {
         let component = component.as_os_str();
         component == ".pax" || component == "target"
-    })
+    });
+    let transient_file = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.ends_with('~') || name.starts_with(".#"));
+    ignored_directory || transient_file
+}
+
+fn watcher_source_kind(path: &Path) -> Option<bool> {
+    if should_ignore_watcher_path(path) {
+        return None;
+    }
+    match path.extension().and_then(|extension| extension.to_str()) {
+        Some("pax") => Some(true),
+        Some("rs") => Some(false),
+        _ => None,
+    }
 }
 
 #[get("/ai")]
@@ -1424,9 +1524,10 @@ fn perform_build_and_update_state(state: &AppState, folder_to_watch: &str) -> st
 mod tests {
     use super::revision::DebugRevisionCoordinator;
     use super::{
-        decode_restart_manifest, handle_watcher_file_changed, static_files_service,
-        ActivationChannel, AppState, FileContent, HotReloadMode, LogicReloadConfig,
-        NativeLogicReloadConfig, WatcherFileChanged, WebLogicReloadConfig,
+        decode_restart_manifest, handle_watcher_file_changed, request_logic_reload,
+        run_logic_reload_loop_with, static_files_service, watcher_source_kind, ActivationChannel,
+        AppState, FileContent, HotReloadMode, LogicReloadConfig, NativeLogicReloadConfig,
+        WatcherFileChanged, WebLogicReloadConfig,
     };
     use actix_web::http::{header, StatusCode};
     use actix_web::{test as actix_test, web::Data, App};
@@ -1438,7 +1539,8 @@ mod tests {
     };
     use std::collections::{BTreeMap, HashMap};
     use std::fs;
-    use std::path::PathBuf;
+    use std::path::{Path, PathBuf};
+    use std::time::Duration;
     use tempfile::tempdir;
 
     fn watcher_manifest() -> PaxManifest {
@@ -1558,7 +1660,9 @@ mod tests {
         assert!(state.active_websocket_client.lock().unwrap().is_none());
         {
             let mut logic_reload = state.logic_reload.lock().unwrap();
-            logic_reload.as_mut().unwrap().build_in_progress = true;
+            let logic_reload = logic_reload.as_mut().unwrap();
+            logic_reload.build_in_progress = true;
+            logic_reload.build_started = true;
         }
 
         handle_watcher_file_changed(
@@ -1573,6 +1677,151 @@ mod tests {
         let logic_reload = logic_reload.as_ref().unwrap();
         assert!(logic_reload.build_in_progress);
         assert!(logic_reload.rebuild_pending);
+    }
+
+    #[test]
+    fn logic_events_during_debounce_do_not_queue_a_duplicate_build() {
+        let state = Data::new(
+            AppState::new(
+                PathBuf::new(),
+                PathBuf::new(),
+                watcher_manifest(),
+                None,
+                Some(LogicReloadConfig::Web(WebLogicReloadConfig {
+                    serve_dir: PathBuf::new(),
+                    should_run_designer: false,
+                })),
+                HotReloadMode::All,
+                None,
+                None,
+            )
+            .unwrap(),
+        );
+        {
+            let mut logic_reload = state.logic_reload.lock().unwrap();
+            let logic_reload = logic_reload.as_mut().unwrap();
+            logic_reload.build_in_progress = true;
+            logic_reload.build_started = false;
+        }
+
+        handle_watcher_file_changed(
+            state.clone(),
+            WatcherFileChanged {
+                contents: FileContent::Rust("pub struct Latest;".to_string()),
+                path: "src/lib.rs".to_string(),
+            },
+        );
+
+        let logic_reload = state.logic_reload.lock().unwrap();
+        let logic_reload = logic_reload.as_ref().unwrap();
+        assert!(logic_reload.build_in_progress);
+        assert!(!logic_reload.build_started);
+        assert!(!logic_reload.rebuild_pending);
+    }
+
+    #[test]
+    fn watcher_filters_transient_files_and_duplicate_contents() {
+        assert_eq!(watcher_source_kind(Path::new("src/lib.pax")), Some(true));
+        assert_eq!(watcher_source_kind(Path::new("src/lib.rs")), Some(false));
+        assert_eq!(watcher_source_kind(Path::new("src/lib.pax~")), None);
+        assert_eq!(watcher_source_kind(Path::new("src/.#lib.pax")), None);
+        assert_eq!(watcher_source_kind(Path::new("src/lib.pax.swp")), None);
+        assert_eq!(watcher_source_kind(Path::new("target/lib.rs")), None);
+
+        let dir = tempdir().unwrap();
+        let source_path = dir.path().join("src/lib.pax");
+        fs::create_dir_all(source_path.parent().unwrap()).unwrap();
+        let state = AppState::new_empty();
+
+        state.expect_watcher_write(&source_path, "server-authored");
+        assert!(!state.should_process_watcher_contents(&source_path, "server-authored"));
+        assert!(!state.should_process_watcher_contents(&source_path, "server-authored"));
+        assert!(state.should_process_watcher_contents(&source_path, "external edit"));
+        assert!(!state.should_process_watcher_contents(&source_path, "external edit"));
+        assert!(state.should_process_watcher_contents(&source_path, "next external edit"));
+    }
+
+    #[test]
+    fn failed_logic_build_preserves_active_revision_and_next_success_can_activate() {
+        let state = Data::new(
+            AppState::new(
+                PathBuf::new(),
+                PathBuf::new(),
+                watcher_manifest(),
+                None,
+                Some(LogicReloadConfig::Web(WebLogicReloadConfig {
+                    serve_dir: PathBuf::new(),
+                    should_run_designer: false,
+                })),
+                HotReloadMode::All,
+                None,
+                None,
+            )
+            .unwrap(),
+        );
+        let initial_stamp = state.revisions.lock().unwrap().active_stamp().unwrap();
+
+        assert!(request_logic_reload(&state));
+        run_logic_reload_loop_with(state.clone(), Duration::ZERO, |_, _, _| {
+            Err(color_eyre::eyre::eyre!(
+                "simulated Rust compilation failure"
+            ))
+        });
+
+        {
+            let revisions = state.revisions.lock().unwrap();
+            assert_eq!(revisions.active_stamp().unwrap(), initial_stamp);
+            assert!(!revisions.has_candidate());
+        }
+        {
+            let logic_reload = state.logic_reload.lock().unwrap();
+            let logic_reload = logic_reload.as_ref().unwrap();
+            assert!(!logic_reload.build_in_progress);
+            assert!(!logic_reload.build_started);
+            assert!(!logic_reload.rebuild_pending);
+        }
+
+        assert!(request_logic_reload(&state));
+        run_logic_reload_loop_with(state.clone(), Duration::ZERO, |state, _, _| {
+            state
+                .revisions
+                .lock()
+                .unwrap()
+                .stage_logic_candidate(
+                    watcher_manifest(),
+                    PrepareAppRevision {
+                        logic_revision_id: "fixed-logic".to_string(),
+                        execution_mode: DebugLogicExecutionMode::CompiledArtifact,
+                        artifact: DebugArtifact {
+                            kind: "web-cartridge".to_string(),
+                            location: "/__reloads__/fixed/pax-cartridge".to_string(),
+                        },
+                    },
+                    ActivationChannel::WebSocket,
+                )
+                .map_err(color_eyre::eyre::Report::msg)
+        });
+
+        assert_eq!(
+            state.revisions.lock().unwrap().active_stamp().unwrap(),
+            initial_stamp
+        );
+        state
+            .prepare_logic_activation("fixed-logic", 1)
+            .expect("successful rebuild should prepare");
+        state
+            .activate_logic_revision("fixed-logic", 1)
+            .expect("successful rebuild should activate");
+        assert_eq!(
+            state
+                .revisions
+                .lock()
+                .unwrap()
+                .active_stamp()
+                .unwrap()
+                .logic_revision_id,
+            "fixed-logic"
+        );
     }
 
     #[test]

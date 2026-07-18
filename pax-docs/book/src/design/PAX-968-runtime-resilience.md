@@ -1,7 +1,7 @@
 # PAX-968 Runtime Revision Coordination
 
 Status: implemented and validated on web, macOS, and iOS Simulator
-Last revised: 2026-07-15
+Last revised: 2026-07-17
 
 <!-- summary: Debug-only revision coordination for Pax templates, compiled logic artifacts, and resilient design-server reconnects. -->
 <!-- tags: designtime, hot-reload, runtime, websocket, web, macos, ios -->
@@ -150,6 +150,15 @@ stamp observed before parsing or serialization. A delayed watcher parse can
 therefore neither overwrite a newer designer edit to the same file nor erase a
 concurrent edit to another file. Source changes still commit while no socket is
 connected; the active socket is only a delivery route.
+
+Watcher admission is path- and content-aware. Unsupported files and transient
+editor backups are rejected before any read. Server-authored writes register
+their exact canonical path and resulting contents, so their filesystem echo is
+suppressed without creating a global interval in which unrelated edits can be
+lost. Repeated notifications with unchanged contents are coalesced. The logic
+worker separately marks when compilation has actually started: changes during
+the initial debounce are captured by that build, while a changed source
+observed after compilation begins queues one follow-up build.
 
 ## Runtime Capability Guard
 
@@ -348,7 +357,9 @@ The final `path-drawing` fault drill passed on all three supported chassis:
   the Rust edit activated a staged dylib. The app remained red and animated
   through a hard server kill, then reconnected on the same port and dev-session
   directory, returned to blue, and activated exactly one recovery dylib without
-  relaunching.
+  relaunching. A separate failed-build drill saved invalid Rust, confirmed the
+  mounted app and dev screenshot channel stayed responsive, then corrected the
+  source and observed one watcher admission and one newly staged dylib.
 - iOS Simulator: the Pax-only edit reloaded through the template lane, while a
   Rust edit produced no native artifact or logic-revision change. The app
   remained alive and animated after a hard kill, then reconciled the restored
@@ -356,7 +367,11 @@ The final `path-drawing` fault drill passed on all three supported chassis:
   An initially misleading blue capture was a later fixture exposed by scroll
   position; the edited first waveform was separately confirmed red.
 
-The final automated pass completed 50 `pax-designtime` tests, 128
+The same failed-build drill passed on web: invalid Rust left the active
+cartridge and dev screenshot channel responsive, while the corrected save
+produced one watcher admission and one replacement web artifact.
+
+The final automated pass completed 50 `pax-designtime` tests, 131
 `pax-compiler` tests, the release-feature-boundary fixture, compiler all-target
 and designtime wasm32 checks, docs validation, macOS Swift parsing, Rust format
 checking, and whitespace checking without failures.

@@ -563,7 +563,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                         return;
                     };
                     let project_root = self.state.userland_project_root.lock().unwrap().clone();
-                    self.state.update_last_written_timestamp();
+                    let mut serialized_paths = vec![];
                     let result = self.state.apply_pax_source_mutation(
                         "component serialization",
                         |next_revisions| {
@@ -571,8 +571,14 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                                 request,
                                 next_revisions,
                                 &project_root,
+                                &mut serialized_paths,
                             )
                         },
+                    );
+                    register_serialized_watcher_echoes(
+                        &self.state,
+                        &project_root,
+                        serialized_paths,
                     );
                     if let Err(err) = result {
                         eprintln!("rejected component serialization request: {err}");
@@ -588,7 +594,7 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                         return;
                     };
                     let project_root = self.state.userland_project_root.lock().unwrap().clone();
-                    self.state.update_last_written_timestamp();
+                    let mut serialized_paths = vec![];
                     let result = self.state.apply_pax_source_mutation(
                         "manifest serialization",
                         |next_revisions| {
@@ -596,8 +602,14 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
                                 request,
                                 next_revisions,
                                 &project_root,
+                                &mut serialized_paths,
                             )
                         },
+                    );
+                    register_serialized_watcher_echoes(
+                        &self.state,
+                        &project_root,
+                        serialized_paths,
                     );
                     if let Err(err) = result {
                         eprintln!("rejected manifest serialization request: {err}");
@@ -809,6 +821,7 @@ fn handle_component_serialization_request(
     request: ComponentSerializationRequest,
     revisions: &mut crate::design_server::revision::DebugRevisionCoordinator,
     project_root: &Path,
+    serialized_paths: &mut Vec<PathBuf>,
 ) -> Result<(), String> {
     let component: ComponentDefinition = rmp_serde::from_slice(&request.component_bytes)
         .map_err(|err| format!("failed to decode component: {err}"))?;
@@ -821,6 +834,7 @@ fn handle_component_serialization_request(
         .to_owned();
     revisions.replace_active_component(component.clone())?;
     serialize_component_to_file(&component, file_path.clone());
+    serialized_paths.push(PathBuf::from(&file_path));
     revisions.record_serialized_component(
         normalized_pax_mutation_path(&file_path, project_root),
         component,
@@ -832,6 +846,7 @@ fn handle_manifest_serialization_request(
     request: ManifestSerializationRequest,
     revisions: &mut crate::design_server::revision::DebugRevisionCoordinator,
     project_root: &Path,
+    serialized_paths: &mut Vec<PathBuf>,
 ) -> Result<(), String> {
     let manifest: PaxManifest = rmp_serde::from_slice(&request.manifest)
         .map_err(|err| format!("failed to decode manifest: {err}"))?;
@@ -843,6 +858,7 @@ fn handle_manifest_serialization_request(
             .and_then(|template| template.get_file_path());
         if let Some(file_path) = &file_path {
             serialize_component_to_file(component, file_path.clone());
+            serialized_paths.push(PathBuf::from(file_path));
             revisions.record_serialized_component(
                 normalized_pax_mutation_path(file_path, project_root),
                 component.clone(),
@@ -850,6 +866,27 @@ fn handle_manifest_serialization_request(
         }
     }
     Ok(())
+}
+
+fn register_serialized_watcher_echoes(
+    state: &AppState,
+    project_root: &Path,
+    serialized_paths: Vec<PathBuf>,
+) {
+    for path in serialized_paths {
+        let path = if path.is_absolute() {
+            path
+        } else {
+            project_root.join(path)
+        };
+        match fs::read_to_string(&path) {
+            Ok(contents) => state.expect_watcher_write(&path, &contents),
+            Err(err) => eprintln!(
+                "failed to register serialized source write {}: {err}",
+                path.display()
+            ),
+        }
+    }
 }
 
 fn handle_userland_source_update_request(
@@ -915,8 +952,9 @@ fn handle_userland_source_update_request(
                 return;
             }
 
-            state.update_last_written_timestamp();
+            state.expect_watcher_write(&resolved_path, &request.contents);
             if let Err(err) = fs::write(&resolved_path, &request.contents) {
+                state.cancel_expected_watcher_write(&resolved_path);
                 send_userland_source_update_response_in_context(
                     ctx,
                     UserlandSourceUpdateResponse {
@@ -1066,8 +1104,9 @@ fn handle_userland_source_update_request(
         Some("rs") => {
             let request_id = request.request_id.clone();
             let request_path = request.path.clone();
-            state.update_last_written_timestamp();
+            state.expect_watcher_write(&resolved_path, &request.contents);
             if let Err(err) = fs::write(&resolved_path, &request.contents) {
+                state.cancel_expected_watcher_write(&resolved_path);
                 send_userland_source_update_response_in_context(
                     ctx,
                     UserlandSourceUpdateResponse {

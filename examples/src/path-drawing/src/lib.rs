@@ -9,4 +9,3 @@ pub use svg_fixtures::*;
 #[main]
 #[file("lib.pax")]
 pub struct Example {}
-
