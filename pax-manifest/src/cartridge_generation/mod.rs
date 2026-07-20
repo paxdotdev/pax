@@ -17,6 +17,8 @@ pub const TRANSITION_PHASE_EXIT: u64 = 2;
 pub const TRANSITION_PLAYHEAD_SYMBOL: &str = "$transition_playhead";
 pub const TRANSITION_PLAYHEAD_MILLIS_SYMBOL: &str = "$transition_playhead_millis";
 pub const TRANSITION_PHASE_SYMBOL: &str = "$transition_phase";
+pub const TRANSITION_GENERATION_SYMBOL: &str = "$transition_generation";
+pub const TRANSITION_TAKEOVER_SYMBOL: &str = "$transition_takeover";
 pub const DEFAULT_OUT_TRANSITION_TIMEOUT_MS: u64 = 5_000;
 
 #[derive(Clone, Default, Debug)]
@@ -976,6 +978,7 @@ impl PaxManifest {
         if track.playhead.is_none() {
             track.playhead = timeline_definition.playhead.clone().map(Box::new);
         }
+        track.interruption = timeline_definition.interruption;
         track
     }
 
@@ -989,6 +992,7 @@ impl PaxManifest {
         if track.duration.is_none() {
             track.duration = timeline_definition.duration.clone().map(Box::new);
         }
+        track.interruption = timeline_definition.interruption;
         track.repeat = Some(false);
         let playhead_symbol = match Self::timeline_duration_clock_unit(timeline_definition, &track)
         {
@@ -1151,6 +1155,18 @@ impl PaxManifest {
                     timeline.repeat = *value;
                 }
                 ("playhead", value) => timeline.playhead = Some(value.clone()),
+                ("interruption", ValueDefinition::Identifier(identifier)) => {
+                    timeline.interruption = crate::InOutInterruption::from_symbol(&identifier.name)
+                        .unwrap_or_else(|| {
+                            panic!(
+                                "unknown timeline interruption `{}`; expected `Takeover` or `Restart`",
+                                identifier.name
+                            )
+                        });
+                }
+                ("interruption", _) => {
+                    panic!("timeline setting `interruption` expects `Takeover` or `Restart`")
+                }
                 (_, ValueDefinition::Timeline(track)) => selector_elements
                     .push(TimelineSelectorElement::Track(key.clone(), track.clone())),
                 _ => {}

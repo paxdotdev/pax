@@ -126,6 +126,21 @@ impl PropertyTable {
         self.dirtify_outbound(id);
     }
 
+    pub fn invalidate(&self, id: PropertyId) {
+        let newly_dirty = self.with_property_data_mut(id, |property_data| {
+            if property_data.dirty {
+                false
+            } else {
+                property_data.dirty = true;
+                true
+            }
+        });
+        if newly_dirty {
+            self.enqueue_effect_if_registered(id);
+            self.dirtify_outbound(id);
+        }
+    }
+
     // Adds a new untyped property entry
     pub fn add_entry<T: PropertyValue>(
         &self,

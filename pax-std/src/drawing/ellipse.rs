@@ -5,10 +5,8 @@ use pax_runtime::api::{Fill, Layer, Material, RenderContext};
 use pax_runtime::BaseInstance;
 use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
 
-use crate::common::{begin_bounded_canvas_node, mark_canvas_node_dirty_on_render_change};
+use crate::common::begin_bounded_canvas_node;
 use_RefCell!();
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
 const ELLIPSE_PATH_ACCURACY: f64 = 0.01;
@@ -74,22 +72,14 @@ impl InstanceNode for EllipseInstance {
         ];
         let cloned_expanded_node = expanded_node.clone();
         let cloned_context = context.clone();
-        let last_render_signature = Rc::new(RefCell::new(None));
-        let stroke_for_dirty = stroke.clone();
-        let fill_for_dirty = fill.clone();
 
         expanded_node
             .changed_listener
             .replace_with(Property::computed(
                 move || {
-                    let style_hash =
-                        stroke_fill_style_hash(&stroke_for_dirty.get(), &fill_for_dirty.get());
-                    mark_canvas_node_dirty_on_render_change(
-                        &last_render_signature,
-                        &cloned_expanded_node,
-                        &cloned_context,
-                        style_hash,
-                    );
+                    cloned_context.mark_canvas_node_dirty(cloned_expanded_node.id);
+                    cloned_context
+                        .set_canvas_dirty(cloned_expanded_node.occlusion.get().render_layer_id)
                 },
                 deps,
             ));
@@ -177,13 +167,4 @@ impl InstanceNode for EllipseInstance {
     fn base(&self) -> &BaseInstance {
         &self.base
     }
-}
-
-fn stroke_fill_style_hash(stroke: &Stroke, fill: &Fill) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    stroke.color.get().hash(&mut hasher);
-    stroke.width.get().hash(&mut hasher);
-    stroke.cap.get().hash(&mut hasher);
-    fill.hash(&mut hasher);
-    hasher.finish()
 }

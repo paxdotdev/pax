@@ -40,6 +40,7 @@ const PAX_STD_DESIGNTIME_SEED_IDENTIFIERS: &[&str] = &[
     "RouteCard",
     "RouteCardCurve",
     "RouteCardEdge",
+    "RouteModal",
     "Target",
     "NativeImage",
     "Scroller",
@@ -504,6 +505,7 @@ fn ensure_known_type_definition(ctx: &mut ParsingContext, import_path: &str) -> 
         "pax_engine::api::ColorChannel" => {
             TypeId::build_singleton(import_path, Some("ColorChannel"))
         }
+        "pax_engine::api::Opacity" => TypeId::build_singleton(import_path, Some("Opacity")),
         "pax_engine::api::Duration" => TypeId::build_singleton(import_path, Some("Duration")),
         "pax_engine::api::Rotation" => TypeId::build_singleton(import_path, Some("Rotation")),
         "pax_engine::api::Numeric" => TypeId::build_singleton(import_path, Some("Numeric")),
@@ -1211,6 +1213,7 @@ fn parse_route_branch_descriptor(attr: &Attribute) -> Result<RouteBranchDescript
     let mut descriptor = RouteBranchDescriptor {
         path_property: "path".to_string(),
         default_property: "default".to_string(),
+        modal: false,
     };
 
     match attr.parse_meta()? {
@@ -1225,24 +1228,34 @@ fn parse_route_branch_descriptor(attr: &Attribute) -> Result<RouteBranchDescript
                     .get_ident()
                     .map(|ident| ident.to_string())
                     .ok_or_else(|| eyre!("route_branch argument must be a bare identifier"))?;
-                let Lit::Str(value) = name_value.lit else {
-                    return Err(eyre!("route_branch `{key}` value must be a string"));
-                };
-                let value = value.value();
-                if value.is_empty() {
-                    return Err(eyre!("route_branch `{key}` value must not be empty"));
-                }
-
                 match key.as_str() {
-                    "path" => descriptor.path_property = value,
-                    "default" => descriptor.default_property = value,
+                    "path" | "default" => {
+                        let Lit::Str(value) = name_value.lit else {
+                            return Err(eyre!("route_branch `{key}` value must be a string"));
+                        };
+                        let value = value.value();
+                        if value.is_empty() {
+                            return Err(eyre!("route_branch `{key}` value must not be empty"));
+                        }
+                        if key == "path" {
+                            descriptor.path_property = value;
+                        } else {
+                            descriptor.default_property = value;
+                        }
+                    }
+                    "modal" => {
+                        let Lit::Bool(value) = name_value.lit else {
+                            return Err(eyre!("route_branch `modal` value must be a boolean"));
+                        };
+                        descriptor.modal = value.value;
+                    }
                     _ => return Err(eyre!("unsupported route_branch argument `{key}`")),
                 }
             }
             Ok(descriptor)
         }
         _ => Err(eyre!(
-            "`#[route_branch]` must be bare or `#[route_branch(path = \"...\", default = \"...\")]`"
+            "`#[route_branch]` must be bare or `#[route_branch(path = \"...\", default = \"...\", modal = true)]`"
         )),
     }
 }
@@ -1402,6 +1415,7 @@ fn canonical_special_import_path_for_ident(ident: &str) -> Option<&'static str> 
         "Vector3" => Some("pax_engine::api::Vector3"),
         "PathElement" => Some("pax_engine::api::PathElement"),
         "ColorChannel" => Some("pax_engine::api::ColorChannel"),
+        "Opacity" => Some("pax_engine::api::Opacity"),
         "Duration" => Some("pax_engine::api::Duration"),
         "Rotation" => Some("pax_engine::api::Rotation"),
         "Numeric" => Some("pax_engine::api::Numeric"),
@@ -1451,6 +1465,9 @@ fn canonical_special_import_path_for_path(path: &str) -> Option<&'static str> {
         "pax_engine::api::ColorChannel"
         | "pax_runtime::api::ColorChannel"
         | "pax_runtime_api::ColorChannel" => Some("pax_engine::api::ColorChannel"),
+        "pax_engine::api::Opacity" | "pax_runtime::api::Opacity" | "pax_runtime_api::Opacity" => {
+            Some("pax_engine::api::Opacity")
+        }
         "pax_engine::api::Duration"
         | "pax_runtime::api::Duration"
         | "pax_runtime_api::Duration" => Some("pax_engine::api::Duration"),

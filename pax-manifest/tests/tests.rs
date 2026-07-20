@@ -16,9 +16,10 @@ mod tests {
         },
         utils, ComponentDefinition, ControlFlowConditionalBranchKind,
         ControlFlowRepeatPredicateDefinition, GradientDefinition, GradientElement,
-        GradientShapeDefinition, GradientStopDefinition, PaxIdentifier, PaxManifest,
-        RouteBranchDescriptor, SettingElement, SettingsBlockElement, TemplateNodeDefinition,
-        TemplateNodeId, TimelineBlockElement, TimelineMarker, Token, TypeId, ValueDefinition,
+        GradientShapeDefinition, GradientStopDefinition, InOutInterruption, PaxIdentifier,
+        PaxManifest, RouteBranchDescriptor, SettingElement, SettingsBlockElement,
+        TemplateNodeDefinition, TemplateNodeId, TimelineBlockElement, TimelineMarker, Token,
+        TypeId, ValueDefinition,
     };
 
     #[cfg(feature = "code_serialization")]
@@ -159,6 +160,7 @@ mod tests {
         RouteBranchDescriptor {
             path_property: "path".to_string(),
             default_property: "default".to_string(),
+            modal: false,
         }
     }
 
@@ -483,6 +485,31 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_timeline_interruption_setting() {
+        let component = parse_pax_str(
+            Rule::pax_component_definition,
+            r#"
+                <Group />
+
+                @timeline leave {
+                    interruption: Restart,
+                    self {
+                        opacity: {
+                            0: 1,
+                            10: 0,
+                        },
+                    }
+                }
+            "#,
+        )
+        .expect("component should parse");
+
+        let timelines = parse_timeline_from_component_definition_string(component);
+        assert_eq!(timelines.len(), 1);
+        assert_eq!(timelines[0].interruption, InOutInterruption::Restart);
+    }
+
+    #[test]
     fn test_parse_transition_bindings_from_settings_block() {
         let component = parse_pax_str(
             Rule::pax_component_definition,
@@ -722,6 +749,7 @@ mod tests {
                 opacity=0.5
                 @in=@timeline {
                     duration: 10,
+                    interruption: Restart,
                     opacity: {
                         0: 0,
                         10: 1,
@@ -758,7 +786,9 @@ mod tests {
 
         assert!(matches!(
             common.get("opacity"),
-            Some(ValueDefinition::Transition(transition)) if transition.enter.is_some()
+            Some(ValueDefinition::Transition(transition))
+                if transition.enter.as_ref().map(|track| track.interruption)
+                    == Some(InOutInterruption::Restart)
         ));
         let config = manifest.get_template_node_transition_config(&component_type_id, &panel_id);
         assert!(config.has_enter);
@@ -1087,6 +1117,7 @@ mod tests {
             RouteBranchDescriptor {
                 path_property: "pattern".to_string(),
                 default_property: "fallback".to_string(),
+                modal: true,
             },
         );
 
@@ -1120,7 +1151,9 @@ mod tests {
             control_flow_settings.route_branches[0].path.as_deref(),
             Some("/sheet/:id")
         );
+        assert!(control_flow_settings.route_branches[0].modal);
         assert!(control_flow_settings.route_branches[1].default);
+        assert!(control_flow_settings.route_branches[1].modal);
 
         let sheet_route_id = control_flow_settings.route_branches[0].child_ids[0].clone();
         let sheet_route = template.get_node(&sheet_route_id).unwrap();
@@ -1565,6 +1598,7 @@ mod tests {
                 )),
                 duration: Some(ValueDefinition::LiteralValue(PaxValue::Numeric(120.into()))),
                 repeat: true,
+                interruption: InOutInterruption::Restart,
                 elements: vec![TimelineBlockElement::SelectorBlock(
                     Token::new_without_location("#orb".to_string()),
                     TimelineSelectorBlockDefinition {
@@ -1593,6 +1627,7 @@ mod tests {
                                 duration: None,
                                 repeat: None,
                                 starting_value: None,
+                                interruption: Default::default(),
                                 use_local_property_scope: false,
                             },
                         )],
@@ -1606,6 +1641,7 @@ mod tests {
         assert!(rendered.contains("@timeline orbital"));
         assert!(rendered.contains("playhead: self.phase"));
         assert!(rendered.contains("duration: 120"));
+        assert!(rendered.contains("interruption: Restart"));
         assert!(rendered.contains("0: 0.40, Linear"));
         assert!(rendered.contains("100%: 1.00"));
     }
@@ -1669,6 +1705,7 @@ mod tests {
                         ))),
                         repeat: Some(false),
                         starting_value: None,
+                        interruption: Default::default(),
                         use_local_property_scope: false,
                     }),
                 ),
@@ -1691,6 +1728,7 @@ mod tests {
                 playhead: None,
                 duration: Some(ValueDefinition::LiteralValue(PaxValue::Numeric(120.into()))),
                 repeat: true,
+                interruption: Default::default(),
                 elements: vec![TimelineBlockElement::SelectorBlock(
                     Token::new_without_location(".glow".to_string()),
                     TimelineSelectorBlockDefinition {
@@ -1734,6 +1772,7 @@ mod tests {
                                 duration: None,
                                 repeat: None,
                                 starting_value: None,
+                                interruption: Default::default(),
                                 use_local_property_scope: false,
                             },
                         )],
@@ -1861,6 +1900,7 @@ mod tests {
             template: Some(template),
             settings: None,
             timelines: vec![],
+            route_branch: None,
         };
 
         let rendered = press_code_serialization_template(component).unwrap();

@@ -180,14 +180,40 @@ impl ConditionalInstance {
                     let start = selected_range.start.min(children.len());
                     let end = selected_range.end.min(children.len());
                     let env = Rc::clone(&cloned_expanded_node.stack);
-                    let children_with_envs =
-                        children[start..end].iter().cloned().zip(iter::repeat(env));
-                    let ret = cloned_expanded_node.generate_children(
-                        children_with_envs,
-                        &cloned_context,
-                        &cloned_expanded_node.parent_frame,
-                        is_mount,
-                    );
+                    let mut selected_children = Vec::new();
+                    for template in children[start..end].iter() {
+                        let rescued = (is_mount && cloned_expanded_node.attached.get() > 0)
+                            .then(|| {
+                                cloned_expanded_node.rescue_exiting_child_matching(|child| {
+                                    let child_template = borrow!(child.instance_node).clone();
+                                    Rc::ptr_eq(&child_template, template)
+                                })
+                            })
+                            .flatten();
+                        let child = rescued.unwrap_or_else(|| {
+                            cloned_expanded_node
+                                .create_children_detached(
+                                    iter::once((Rc::clone(template), Rc::clone(&env))),
+                                    &cloned_context,
+                                    &Rc::downgrade(&cloned_expanded_node),
+                                )
+                                .pop()
+                                .expect("conditional child creation returned no child")
+                        });
+                        if !is_mount && child.attached.get() == 0 {
+                            child.recurse_control_flow_expansion(&cloned_context);
+                        }
+                        selected_children.push(child);
+                    }
+                    let ret = if is_mount {
+                        cloned_expanded_node.attach_children(
+                            selected_children,
+                            &cloned_context,
+                            &cloned_expanded_node.parent_frame,
+                        )
+                    } else {
+                        selected_children
+                    };
                     *borrow_mut!(cached_children) = ret.clone();
                     ret
                 },
@@ -205,6 +231,9 @@ mod tests {
     use crate::{
         BaseInstance, ComponentInstance, Globals, InstanceFlags, RouteLocation,
         RuntimePropertiesStackFrame, TransformAndBounds,
+    };
+    use pax_manifest::cartridge_generation::{
+        ComponentTransitionConfig, TRANSITION_PHASE_ENTER, TRANSITION_PHASE_EXIT,
     };
     use pax_runtime_api::pax_value::{PaxAny, ToFromPaxAny};
     use pax_runtime_api::{Platform, Property, TargetInfo, OS};
@@ -272,6 +301,33 @@ mod tests {
             transition_config: Default::default(),
             properties_scope: crate::PropertiesScopeInit::None,
         }
+    }
+
+    fn transition_leaf() -> Rc<dyn InstanceNode> {
+        let mut args = component_args(Some(Vec::new()));
+        args.transition_config = ComponentTransitionConfig {
+            has_enter: true,
+            enter_frame_count: 10,
+            has_exit: true,
+            exit_frame_count: 10,
+            timeout_ms: 5_000,
+            ..Default::default()
+        };
+        ComponentInstance::instantiate(args)
+    }
+
+    fn mounted_conditional(
+        condition: Property<bool>,
+    ) -> (Rc<ExpandedNode>, Rc<ExpandedNode>, Rc<RuntimeContext>) {
+        let conditional: Rc<dyn InstanceNode> =
+            ConditionalInstance::instantiate(conditional_args(condition, vec![transition_leaf()]));
+        let root_component =
+            ComponentInstance::instantiate(component_args(Some(vec![conditional])));
+        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let root = ExpandedNode::initialize_root(root_component, &context);
+        root.recurse_update(&context);
+        let conditional_node = root.children.get().remove(0);
+        (root, conditional_node, context)
     }
 
     fn conditional_args(
@@ -374,5 +430,79 @@ mod tests {
         let recomputed = detached.children.get();
         assert_eq!(recomputed.len(), 1);
         assert_eq!(recomputed[0].id, initial_id);
+    }
+
+    #[test]
+    fn conditional_prunes_completed_exit_and_can_reenter_during_exit() {
+        let condition = Property::new(true);
+        let (root, conditional_node, context) = mounted_conditional(condition.clone());
+        let initial_id = borrow!(conditional_node.active_children)[0].id;
+
+        condition.set(false);
+        root.recurse_update(&context);
+        assert!(borrow!(conditional_node.active_children).is_empty());
+        assert_eq!(borrow!(conditional_node.exiting_children).len(), 1);
+        assert_eq!(
+            borrow!(conditional_node.exiting_children)[0]
+                .transition_phase
+                .get(),
+            TRANSITION_PHASE_EXIT
+        );
+
+        context.globals().elapsed_frames.set(5);
+        condition.set(true);
+        root.recurse_update(&context);
+
+        let active = borrow!(conditional_node.active_children).clone();
+        assert_eq!(active.len(), 1);
+        assert_eq!(active[0].id, initial_id);
+        assert_eq!(active[0].transition_phase.get(), TRANSITION_PHASE_ENTER);
+        assert!(borrow!(conditional_node.exiting_children).is_empty());
+
+        context.globals().elapsed_frames.set(10);
+        context.drain_node_effects();
+        assert!(borrow!(conditional_node.exiting_children).is_empty());
+        assert_eq!(conditional_node.children.get().len(), 1);
+    }
+
+    #[test]
+    fn conditional_survives_repeated_rapid_toggles_during_transitions() {
+        let condition = Property::new(true);
+        let (root, conditional_node, context) = mounted_conditional(condition.clone());
+        let stable_id = borrow!(conditional_node.active_children)[0].id;
+
+        for frame in 1..=6 {
+            context.globals().elapsed_frames.set(frame);
+            condition.set(frame % 2 == 0);
+            root.recurse_update(&context);
+
+            let expected_active = usize::from(frame % 2 == 0);
+            assert_eq!(
+                borrow!(conditional_node.active_children).len(),
+                expected_active
+            );
+            assert_eq!(borrow!(conditional_node.mounted_children).len(), 1);
+            assert_eq!(borrow!(conditional_node.mounted_children)[0].id, stable_id);
+        }
+
+        context.globals().elapsed_frames.set(20);
+        context.drain_node_effects();
+        assert_eq!(borrow!(conditional_node.active_children).len(), 1);
+        assert!(borrow!(conditional_node.exiting_children).is_empty());
+    }
+
+    #[test]
+    fn conditional_refreshes_computed_children_after_exit_cleanup() {
+        let condition = Property::new(true);
+        let (_root, conditional_node, context) = mounted_conditional(condition.clone());
+
+        condition.set(false);
+        let _ = conditional_node.children.get();
+        context.globals().elapsed_frames.set(10);
+        context.drain_node_effects();
+
+        assert!(borrow!(conditional_node.active_children).is_empty());
+        assert!(borrow!(conditional_node.exiting_children).is_empty());
+        assert!(conditional_node.children.get().is_empty());
     }
 }

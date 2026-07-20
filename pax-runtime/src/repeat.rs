@@ -16,6 +16,10 @@ use crate::{
     RuntimePropertiesStackFrame,
 };
 
+const INTERNAL_REPEAT_INDEX_SYMBOL: &str = "$repeat_index";
+const INTERNAL_REPEAT_ELEMENT_SYMBOL: &str = "$repeat_element";
+const INTERNAL_REPEAT_KEY_SYMBOL: &str = "$repeat_key";
+
 /// A special "control-flow" primitive associated with the `for` statement.
 /// Repeat allows for nodes to be rendered dynamically per data specified in `source_expression`.
 /// That is: for a `source_expression` of length `n`, `Repeat` will render its
@@ -67,7 +71,10 @@ mod tests {
     use crate::{ComponentInstance, ExpandedNode, Globals, RouteLocation, TransformAndBounds};
     use pax_language::interpreter::property_resolution::IdentifierResolver;
     use pax_language::parse_pax_expression;
-    use pax_manifest::cartridge_generation::{ComponentTransitionConfig, TRANSITION_PHASE_EXIT};
+    use pax_manifest::cartridge_generation::{
+        ComponentTransitionConfig, TRANSITION_PHASE_ENTER, TRANSITION_PHASE_EXIT,
+        TRANSITION_PHASE_IDLE,
+    };
     use pax_runtime_api::pax_value::{PaxAny, ToFromPaxAny};
     use pax_runtime_api::{borrow, CoercionRules, Numeric, Platform, Size, TargetInfo, OS};
     use std::cell::RefCell;
@@ -388,6 +395,53 @@ mod tests {
         assert_eq!(active[2].id.0, initial_ids[0]);
         assert_eq!(exiting[0].id.0, initial_ids[1]);
         assert_eq!(exiting[0].transition_phase.get(), TRANSITION_PHASE_EXIT);
+
+        source_property.set(source(&["c", "b", "a"]));
+        root.recurse_update(&context);
+        let active = borrow!(repeat_node.active_children).clone();
+        assert_eq!(active[1].id.0, initial_ids[1]);
+        assert_eq!(borrow!(repeat_node.mounted_children).len(), 4);
+        assert_eq!(active[1].transition_phase.get(), TRANSITION_PHASE_IDLE);
+    }
+
+    #[test]
+    fn unkeyed_repeat_rescues_a_position_readded_during_exit() {
+        let source_property = Property::new(source(&["a", "b"]));
+        let leaf_transition_config = ComponentTransitionConfig {
+            has_enter: true,
+            enter_frame_count: 10,
+            has_exit: true,
+            exit_frame_count: 30,
+            timeout_ms: 5_000,
+            ..Default::default()
+        };
+        let leaf: Rc<dyn InstanceNode> =
+            ComponentInstance::instantiate(leaf_args(leaf_transition_config));
+        let repeat: Rc<dyn InstanceNode> =
+            RepeatInstance::instantiate(unkeyed_repeat_args(source_property.clone(), vec![leaf]));
+        let root_component =
+            ComponentInstance::instantiate(component_args(Some(vec![Rc::clone(&repeat)])));
+        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let root = ExpandedNode::initialize_root(root_component, &context);
+
+        root.recurse_update(&context);
+        let repeat_node = root.children.get().remove(0);
+        let second_id = borrow!(repeat_node.active_children)[1].id;
+
+        source_property.set(source(&["a"]));
+        root.recurse_update(&context);
+        assert_eq!(borrow!(repeat_node.exiting_children)[0].id, second_id);
+
+        source_property.set(source(&["a", "b"]));
+        root.recurse_update(&context);
+        assert_eq!(borrow!(repeat_node.active_children)[1].id, second_id);
+        assert!(borrow!(repeat_node.exiting_children).is_empty());
+        assert_eq!(
+            borrow!(repeat_node.active_children)[1]
+                .transition_phase
+                .get(),
+            TRANSITION_PHASE_ENTER
+        );
     }
 
     #[test]
@@ -763,6 +817,7 @@ impl RepeatInstance {
                         Rc::clone(&keyed_groups),
                         source_len,
                         is_mount,
+                        !symbols_changed,
                     );
                 }
 
@@ -776,44 +831,89 @@ impl RepeatInstance {
                         borrow!(cached_children).clone()
                     };
                 }
+                let i_symbol_value = i_symbol.get();
+                let elem_symbol_value = elem_symbol.get();
+                let symbols_unchanged = i_symbol_value == *borrow!(last_i_sym)
+                    && elem_symbol_value == *borrow!(last_elem_sym);
                 *borrow_mut!(last_length) = source_len;
-                *borrow_mut!(last_i_sym) = i_symbol.get();
-                *borrow_mut!(last_elem_sym) = elem_symbol.get();
+                *borrow_mut!(last_i_sym) = i_symbol_value.clone();
+                *borrow_mut!(last_elem_sym) = elem_symbol_value.clone();
 
-                let template_children = cloned_self.base().get_instance_children();
-                let children_with_envs = iter::repeat(template_children)
-                    .take(source_len)
-                    .enumerate()
-                    .flat_map(|(i, children)| {
-                        let property_i = Property::new(i);
-                        let cp_source_expression = source_expression.clone();
-                        let property_elem = Property::computed_with_name(
-                            move || {
-                                cp_source_expression.read(|source| Self::source_elem(source, i))
-                            },
-                            &[source_expression.untyped()],
-                            "repeat elem",
-                        );
-
-                        let scope = Self::repeat_scope(
-                            i_symbol.get(),
-                            elem_symbol.get(),
-                            property_i,
-                            property_elem,
-                        );
-
-                        let new_env = cloned_expanded_node.stack.push(scope);
-                        borrow!(children)
-                            .clone()
-                            .into_iter()
-                            .zip(iter::repeat(new_env))
-                    });
-                let ret = cloned_expanded_node.generate_children(
-                    children_with_envs,
-                    &cloned_context,
-                    &cloned_expanded_node.parent_frame,
-                    is_mount,
-                );
+                let template_children = borrow!(cloned_self.base().get_instance_children()).clone();
+                let active_children = borrow!(cloned_expanded_node.active_children).clone();
+                let mut selected_children = Vec::new();
+                for i in 0..source_len {
+                    let property_i = Property::new(i);
+                    let cp_source_expression = source_expression.clone();
+                    let property_elem = Property::computed_with_name(
+                        move || cp_source_expression.read(|source| Self::source_elem(source, i)),
+                        &[source_expression.untyped()],
+                        "repeat elem",
+                    );
+                    let scope = Self::repeat_scope(
+                        i_symbol_value.clone(),
+                        elem_symbol_value.clone(),
+                        property_i,
+                        property_elem,
+                    );
+                    let new_env = cloned_expanded_node.stack.push(scope);
+                    for (template_offset, template) in template_children.iter().enumerate() {
+                        let flat_index = i * template_children.len() + template_offset;
+                        let active = symbols_unchanged
+                            .then(|| active_children.get(flat_index))
+                            .flatten()
+                            .filter(|child| {
+                                let child_template = borrow!(child.instance_node).clone();
+                                Rc::ptr_eq(&child_template, template)
+                            })
+                            .cloned();
+                        let rescued = active.or_else(|| {
+                            (symbols_unchanged
+                                && is_mount
+                                && cloned_expanded_node.attached.get() > 0)
+                                .then(|| {
+                                    cloned_expanded_node.rescue_exiting_child_matching(|child| {
+                                        let child_template = borrow!(child.instance_node).clone();
+                                        let template_matches =
+                                            Rc::ptr_eq(&child_template, template);
+                                        let index_matches = child
+                                            .stack
+                                            .resolve_symbol_as_erased_property(
+                                                INTERNAL_REPEAT_INDEX_SYMBOL,
+                                            )
+                                            .map(Property::<usize>::new_from_untyped)
+                                            .map(|index| index.get() == i)
+                                            .unwrap_or(true);
+                                        template_matches && index_matches
+                                    })
+                                })
+                                .flatten()
+                        });
+                        let child = rescued.unwrap_or_else(|| {
+                            cloned_expanded_node
+                                .create_children_detached(
+                                    iter::once((Rc::clone(template), Rc::clone(&new_env))),
+                                    &cloned_context,
+                                    &Rc::downgrade(&cloned_expanded_node),
+                                )
+                                .pop()
+                                .expect("repeat child creation returned no child")
+                        });
+                        if !is_mount && child.attached.get() == 0 {
+                            child.recurse_control_flow_expansion(&cloned_context);
+                        }
+                        selected_children.push(child);
+                    }
+                }
+                let ret = if is_mount {
+                    cloned_expanded_node.attach_children(
+                        selected_children,
+                        &cloned_context,
+                        &cloned_expanded_node.parent_frame,
+                    )
+                } else {
+                    selected_children
+                };
                 *borrow_mut!(cached_children) = ret.clone();
                 ret
             },
@@ -855,14 +955,48 @@ impl RepeatInstance {
     ) -> HashMap<String, Variable> {
         let mut scope = HashMap::new();
         if let Some(i_symbol) = i_symbol {
-            scope.insert(i_symbol, Variable::new_from_typed_property(property_i));
+            scope.insert(
+                i_symbol,
+                Variable::new_from_typed_property(property_i.clone()),
+            );
         }
         if let Some(elem_symbol) = elem_symbol {
             scope.insert(
                 elem_symbol,
-                Variable::new_from_typed_property(property_elem),
+                Variable::new_from_typed_property(property_elem.clone()),
             );
         }
+        scope.insert(
+            INTERNAL_REPEAT_INDEX_SYMBOL.to_string(),
+            Variable::new_from_typed_property(property_i),
+        );
+        scope.insert(
+            INTERNAL_REPEAT_ELEMENT_SYMBOL.to_string(),
+            Variable::new_from_typed_property(property_elem),
+        );
+        scope
+    }
+
+    fn encoded_repeat_key(key: &RepeatKey) -> String {
+        match key {
+            RepeatKey::String(value) => format!("string:{value}"),
+            RepeatKey::Int(value) => format!("int:{value}"),
+            RepeatKey::Synthetic(value) => format!("synthetic:{value}"),
+        }
+    }
+
+    fn repeat_scope_with_key(
+        i_symbol: Option<String>,
+        elem_symbol: Option<String>,
+        property_i: Property<usize>,
+        property_elem: Property<PaxValue>,
+        key: &RepeatKey,
+    ) -> HashMap<String, Variable> {
+        let mut scope = Self::repeat_scope(i_symbol, elem_symbol, property_i, property_elem);
+        scope.insert(
+            INTERNAL_REPEAT_KEY_SYMBOL.to_string(),
+            Variable::new_from_typed_property(Property::new(Self::encoded_repeat_key(key))),
+        );
         scope
     }
 
@@ -910,6 +1044,7 @@ impl RepeatInstance {
         keyed_groups: Rc<RefCell<Vec<RepeatChildGroup>>>,
         source_len: usize,
         is_mount: bool,
+        allow_rescue: bool,
     ) -> Vec<Rc<ExpandedNode>> {
         let mut old_groups_by_key: HashMap<RepeatKey, RepeatChildGroup> = borrow_mut!(keyed_groups)
             .drain(..)
@@ -949,36 +1084,42 @@ impl RepeatInstance {
                 group.i.set(i);
                 group.elem.set(elem);
                 group
-            } else {
-                let property_i = Property::new(i);
-                let property_elem = Property::new(elem);
-                let scope = Self::repeat_scope(
+            } else if allow_rescue && is_mount {
+                Self::rescue_keyed_group(
+                    expanded_node,
+                    context,
+                    &template_children,
                     i_symbol_value.clone(),
                     elem_symbol_value.clone(),
-                    property_i.clone(),
-                    property_elem.clone(),
-                );
-                let new_env = expanded_node.stack.push(scope);
-                let children_with_env = borrow!(template_children)
-                    .clone()
-                    .into_iter()
-                    .zip(iter::repeat(new_env));
-                let children = expanded_node.create_children_detached(
-                    children_with_env,
+                    &key,
+                    i,
+                    elem.clone(),
+                )
+                .unwrap_or_else(|| {
+                    Self::create_keyed_group(
+                        expanded_node,
+                        context,
+                        &template_children,
+                        i_symbol_value.clone(),
+                        elem_symbol_value.clone(),
+                        key.clone(),
+                        i,
+                        elem,
+                        is_mount,
+                    )
+                })
+            } else {
+                Self::create_keyed_group(
+                    expanded_node,
                     context,
-                    &Rc::downgrade(expanded_node),
-                );
-                if !is_mount {
-                    for child in &children {
-                        child.recurse_control_flow_expansion(context);
-                    }
-                }
-                RepeatChildGroup {
-                    key: key.clone(),
-                    elem: property_elem,
-                    i: property_i,
-                    children,
-                }
+                    &template_children,
+                    i_symbol_value.clone(),
+                    elem_symbol_value.clone(),
+                    key.clone(),
+                    i,
+                    elem,
+                    is_mount,
+                )
             };
 
             new_children.extend(group.children.iter().cloned());
@@ -991,5 +1132,116 @@ impl RepeatInstance {
         } else {
             new_children
         }
+    }
+
+    fn create_keyed_group(
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RuntimeContext>,
+        template_children: &RefCell<Vec<Rc<dyn InstanceNode>>>,
+        i_symbol: Option<String>,
+        elem_symbol: Option<String>,
+        key: RepeatKey,
+        i: usize,
+        elem: PaxValue,
+        is_mount: bool,
+    ) -> RepeatChildGroup {
+        let property_i = Property::new(i);
+        let property_elem = Property::new(elem);
+        let scope = Self::repeat_scope_with_key(
+            i_symbol,
+            elem_symbol,
+            property_i.clone(),
+            property_elem.clone(),
+            &key,
+        );
+        let new_env = expanded_node.stack.push(scope);
+        let children = expanded_node.create_children_detached(
+            borrow!(template_children)
+                .clone()
+                .into_iter()
+                .zip(iter::repeat(new_env)),
+            context,
+            &Rc::downgrade(expanded_node),
+        );
+        if !is_mount {
+            for child in &children {
+                child.recurse_control_flow_expansion(context);
+            }
+        }
+        RepeatChildGroup {
+            key,
+            elem: property_elem,
+            i: property_i,
+            children,
+        }
+    }
+
+    fn rescue_keyed_group(
+        expanded_node: &Rc<ExpandedNode>,
+        context: &Rc<RuntimeContext>,
+        template_children: &RefCell<Vec<Rc<dyn InstanceNode>>>,
+        i_symbol: Option<String>,
+        elem_symbol: Option<String>,
+        key: &RepeatKey,
+        i: usize,
+        elem: PaxValue,
+    ) -> Option<RepeatChildGroup> {
+        let encoded_key = Self::encoded_repeat_key(key);
+        let templates = borrow!(template_children).clone();
+        let mut children = templates
+            .iter()
+            .map(|template| {
+                expanded_node.rescue_exiting_child_matching(|child| {
+                    let child_template = borrow!(child.instance_node).clone();
+                    Rc::ptr_eq(&child_template, template)
+                        && child
+                            .stack
+                            .resolve_symbol_as_erased_property(INTERNAL_REPEAT_KEY_SYMBOL)
+                            .map(Property::<String>::new_from_untyped)
+                            .map(|key| key.get() == encoded_key)
+                            .unwrap_or(false)
+                })
+            })
+            .collect::<Vec<_>>();
+        let seed = children.iter().flatten().next()?.clone();
+        let property_i = seed
+            .stack
+            .resolve_symbol_as_erased_property(INTERNAL_REPEAT_INDEX_SYMBOL)
+            .map(Property::<usize>::new_from_untyped)?;
+        let property_elem = seed
+            .stack
+            .resolve_symbol_as_erased_property(INTERNAL_REPEAT_ELEMENT_SYMBOL)
+            .map(Property::<PaxValue>::new_from_untyped)?;
+        property_i.set(i);
+        property_elem.set(elem);
+        let env = expanded_node.stack.push(Self::repeat_scope_with_key(
+            i_symbol,
+            elem_symbol,
+            property_i.clone(),
+            property_elem.clone(),
+            key,
+        ));
+        let resolved_children = children
+            .drain(..)
+            .zip(templates)
+            .map(|(child, template)| {
+                child.unwrap_or_else(|| {
+                    expanded_node
+                        .create_children_detached(
+                            iter::once((template, Rc::clone(&env))),
+                            context,
+                            &Rc::downgrade(expanded_node),
+                        )
+                        .pop()
+                        .expect("repeat child creation returned no child")
+                })
+            })
+            .collect();
+        Some(RepeatChildGroup {
+            key: key.clone(),
+            elem: property_elem,
+            i: property_i,
+            children: resolved_children,
+        })
     }
 }

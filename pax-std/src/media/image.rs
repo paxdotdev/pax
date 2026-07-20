@@ -11,9 +11,7 @@ use pax_runtime::{
 };
 use std::rc::Rc;
 
-use crate::common::{
-    begin_bounded_canvas_node, mark_canvas_node_dirty_on_render_change, patch_if_needed,
-};
+use crate::common::{begin_bounded_canvas_node, patch_if_needed};
 
 /// A GPU/canvas-rendered image decoded by the active chassis.
 ///
@@ -92,17 +90,13 @@ impl InstanceNode for ImageInstance {
         let tab = expanded_node.transform_and_bounds.clone();
         let deps = [tab.untyped()];
         let cloned_context = context.clone();
-        let cloned_expanded_node = expanded_node.clone();
-        let last_render_signature = Rc::new(RefCell::new(None));
+        let occlusion = expanded_node.occlusion.clone();
+        let expanded_node_id = expanded_node.id;
 
         let tab_changed = Property::computed(
             move || {
-                mark_canvas_node_dirty_on_render_change(
-                    &last_render_signature,
-                    &cloned_expanded_node,
-                    &cloned_context,
-                    0,
-                );
+                cloned_context.mark_canvas_node_dirty(expanded_node_id);
+                cloned_context.set_canvas_dirty(occlusion.get().render_layer_id);
             },
             &deps,
         );

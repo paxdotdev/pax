@@ -742,6 +742,7 @@ public final class NativeScrollerHostRegistry {
 
     public static let shared = NativeScrollerHostRegistry()
     private var hosts: [PaxNodeId: Hosts] = [:]
+    private var canvasOpacityMultipliers: [PaxNodeId: Double] = [:]
 
     private init() {}
 
@@ -760,6 +761,7 @@ public final class NativeScrollerHostRegistry {
 
     public func unregister(id: PaxNodeId) {
         hosts.removeValue(forKey: id)
+        canvasOpacityMultipliers.removeValue(forKey: id)
     }
 
     public func canvasHost(for id: PaxNodeId) -> HostView? {
@@ -768,6 +770,14 @@ public final class NativeScrollerHostRegistry {
 
     public func contentHost(for id: PaxNodeId) -> HostView? {
         hosts[id]?.contentHost
+    }
+
+    public func setCanvasOpacityMultiplier(id: PaxNodeId, multiplier: Double) {
+        canvasOpacityMultipliers[id] = min(max(multiplier, 0.0), 1.0)
+    }
+
+    public func canvasOpacityMultiplier(for id: PaxNodeId) -> Double {
+        canvasOpacityMultipliers[id] ?? 1.0
     }
 
     @discardableResult
@@ -781,6 +791,7 @@ public final class NativeScrollerHostRegistry {
 
     public func reset() {
         hosts.removeAll()
+        canvasOpacityMultipliers.removeAll()
     }
 }
 
@@ -1147,6 +1158,11 @@ public struct NativeRenderingLayer: View {
         }
         private var appliedGeometry: AppliedGeometry?
         private var appliedClipSignature: Int?
+        private var nativeMaskOpacityMultiplier: Double = 1.0
+
+        private static func clampedOpacity(_ opacity: Double) -> Double {
+            min(max(opacity, 0.0), 1.0)
+        }
 
 #if os(iOS) || os(tvOS) || os(watchOS)
         override init(frame: CGRect) {
@@ -1379,10 +1395,23 @@ public struct NativeRenderingLayer: View {
             layer.setAffineTransform(linearTransform)
 #endif
             layer.zPosition = CGFloat(zIndex)
-            layer.opacity = Float(opacity)
+            layer.opacity = Float(Self.clampedOpacity(opacity * nativeMaskOpacityMultiplier))
             CATransaction.commit()
             syncGlassContainerFrame()
             appliedGeometry = geometry
+        }
+
+        func applyNativeMaskOpacityMultiplier(_ multiplier: Double) {
+            let clamped = Self.clampedOpacity(multiplier)
+            guard abs(nativeMaskOpacityMultiplier - clamped) > 0.0001 else {
+                return
+            }
+            nativeMaskOpacityMultiplier = clamped
+            let baseOpacity = appliedGeometry?.opacity ?? 1.0
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            backingLayer.opacity = Float(Self.clampedOpacity(baseOpacity * nativeMaskOpacityMultiplier))
+            CATransaction.commit()
         }
 
 #if os(macOS)
@@ -1891,6 +1920,15 @@ public struct NativeRenderingLayer: View {
 #endif
         }
 
+        private func applyScrollerMaskOpacityMultiplier(_ multiplier: Double) {
+            canvasHostViewInternal.applyNativeMaskOpacityMultiplier(1.0)
+            contentHostViewInternal.applyNativeMaskOpacityMultiplier(multiplier)
+            NativeScrollerHostRegistry.shared.setCanvasOpacityMultiplier(
+                id: scrollerId,
+                multiplier: multiplier
+            )
+        }
+
         init(id: PaxNodeId) {
             self.scrollerId = id
             super.init(frame: .zero)
@@ -2097,6 +2135,32 @@ public struct NativeRenderingLayer: View {
 
         func updateNativeMask(_ mask: ResolvedNativeMask?) {
             guard let mask else {
+                NativeMaskDebug.log("scroller clear id=\(scrollerId)")
+                applyScrollerMaskOpacityMultiplier(1.0)
+                let hadAppliedMask = appliedMaskSignature != nil || currentNativeMaskLayer != nil
+                requestedMaskSignature = nil
+                requestedMaskSize = .zero
+                queuedMaskRender = nil
+                guard hadAppliedMask else {
+                    return
+                }
+                CATransaction.begin()
+                CATransaction.setDisableActions(true)
+                backingLayer.mask = nil
+                CATransaction.commit()
+                appliedMaskSignature = nil
+                appliedMaskSize = .zero
+                currentNativeMaskLayer = nil
+                return
+            }
+
+            let splitMask = splitNativeMaskFullCoverageAttenuation(mask)
+            NativeMaskDebug.log(
+                "scroller request id=\(scrollerId) sig=\(mask.signature) holes=\(mask.holes.count) "
+                    + "multiplier=\(splitMask.opacityMultiplier) residual=\(splitMask.residualMask?.holes.count ?? 0)"
+            )
+            applyScrollerMaskOpacityMultiplier(splitMask.opacityMultiplier)
+            guard let mask = splitMask.residualMask else {
                 let hadAppliedMask = appliedMaskSignature != nil || currentNativeMaskLayer != nil
                 requestedMaskSignature = nil
                 requestedMaskSize = .zero

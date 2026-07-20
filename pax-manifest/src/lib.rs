@@ -302,6 +302,8 @@ impl ComponentDefinition {
 pub struct RouteBranchDescriptor {
     pub path_property: String,
     pub default_property: String,
+    #[serde(default)]
+    pub modal: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -338,7 +340,31 @@ pub struct TimelineDefinition {
     pub playhead: Option<ValueDefinition>,
     pub duration: Option<ValueDefinition>,
     pub repeat: bool,
+    #[serde(default)]
+    pub interruption: InOutInterruption,
     pub elements: Vec<TimelineBlockElement>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[serde(crate = "pax_message::serde")]
+/// Controls how an `@in` or `@out` timeline begins when it directly reverses
+/// the other lifecycle transition on the same mounted instance.
+pub enum InOutInterruption {
+    /// Continue from the property's currently sampled value.
+    #[default]
+    Takeover,
+    /// Begin from the destination timeline's authored starting value.
+    Restart,
+}
+
+impl InOutInterruption {
+    pub fn from_symbol(symbol: &str) -> Option<Self> {
+        match symbol {
+            "Takeover" => Some(Self::Takeover),
+            "Restart" => Some(Self::Restart),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -424,6 +450,7 @@ impl Default for TimelineDefinition {
             playhead: None,
             duration: None,
             repeat: true,
+            interruption: InOutInterruption::default(),
             elements: vec![],
         }
     }
@@ -461,6 +488,8 @@ pub struct TimelineTrackDefinition {
     pub duration: Option<Box<ValueDefinition>>,
     pub repeat: Option<bool>,
     pub starting_value: Option<Box<ValueDefinition>>,
+    #[serde(default)]
+    pub interruption: InOutInterruption,
     #[serde(default)]
     pub use_local_property_scope: bool,
 }
@@ -2074,6 +2103,8 @@ pub struct ControlFlowRouteBranchDefinition {
     pub path: Option<String>,
     #[serde(default)]
     pub default: bool,
+    #[serde(default)]
+    pub modal: bool,
     #[serde(default)]
     pub child_ids: Vec<TemplateNodeId>,
 }

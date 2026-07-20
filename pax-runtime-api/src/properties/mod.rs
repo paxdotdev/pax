@@ -156,6 +156,15 @@ impl<T: PropertyValue> Property<T> {
         PROPERTY_TABLE.with(|t| t.set_value(self.untyped.id, val));
     }
 
+    /// Marks this property for re-evaluation without replacing its value or evaluator.
+    ///
+    /// This is useful for computed properties whose evaluator observes runtime state
+    /// outside the reactive dependency graph.
+    #[doc(hidden)]
+    pub fn invalidate(&self) {
+        PROPERTY_TABLE.with(|t| t.invalidate(self.untyped.id));
+    }
+
     /// Sets the value only when it differs from the current one.
     ///
     /// Returns `true` when the write changed the property and dirtied dependents.

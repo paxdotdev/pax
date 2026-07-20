@@ -232,6 +232,15 @@ final class SurfaceManager {
                     pixelSize: CGSize(width: pixelWidth, height: pixelHeight)
                 )
                 surfaceView.isHidden = !active
+                let opacity = canvasOpacityMultiplier(for: descriptor.hostSignature)
+                if abs(surfaceView.alphaValue - opacity) > 0.0001
+                    || abs((surfaceView.layer?.opacity ?? 1.0) - Float(opacity)) > 0.0001 {
+                    CATransaction.begin()
+                    CATransaction.setDisableActions(true)
+                    surfaceView.alphaValue = opacity
+                    surfaceView.layer?.opacity = Float(opacity)
+                    CATransaction.commit()
+                }
 
                 if surfaceView.superview !== hostView {
                     hostView.addSubview(surfaceView)
@@ -283,14 +292,28 @@ final class SurfaceManager {
     }
 
     private func hostView(for hostSignature: String, rootView: NSView) -> NSView? {
-        if hostSignature.hasPrefix("scroller:") {
-            let parts = hostSignature.split(separator: ":")
-            if parts.count == 2, let id = UInt32(parts[1]) {
-                return NativeScrollerHostRegistry.shared.canvasHost(for: id)
-            }
-            return nil
+        if let scrollerId = scrollerId(for: hostSignature) {
+            return NativeScrollerHostRegistry.shared.canvasHost(for: scrollerId)
         }
         return rootView
+    }
+
+    private func scrollerId(for hostSignature: String) -> UInt32? {
+        guard hostSignature.hasPrefix("scroller:") else {
+            return nil
+        }
+        let parts = hostSignature.split(separator: ":")
+        guard parts.count == 2 else {
+            return nil
+        }
+        return UInt32(parts[1])
+    }
+
+    private func canvasOpacityMultiplier(for hostSignature: String) -> CGFloat {
+        guard let scrollerId = scrollerId(for: hostSignature) else {
+            return 1.0
+        }
+        return CGFloat(NativeScrollerHostRegistry.shared.canvasOpacityMultiplier(for: scrollerId))
     }
 
     private func planSignature(

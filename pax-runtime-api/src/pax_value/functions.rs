@@ -341,6 +341,8 @@ impl HelperFunctions for crate::PaxValue {}
 
 impl HelperFunctions for crate::ColorChannel {}
 
+impl HelperFunctions for crate::Opacity {}
+
 impl HelperFunctions for crate::Stroke {}
 
 impl HelperFunctions for crate::PathSmoothing {}

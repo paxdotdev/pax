@@ -110,6 +110,7 @@ fn create_basic_manifest(source_path: String) -> PaxManifest {
                 )),
                 duration: Some(ValueDefinition::LiteralValue(PaxValue::Numeric(120.into()))),
                 repeat: true,
+                interruption: Default::default(),
                 elements: vec![TimelineBlockElement::SelectorBlock(
                     Token::new_without_location("#existing_selector".to_string()),
                     TimelineSelectorBlockDefinition {
@@ -138,6 +139,7 @@ fn create_basic_manifest(source_path: String) -> PaxManifest {
                                 duration: None,
                                 repeat: None,
                                 starting_value: None,
+                                interruption: Default::default(),
                                 use_local_property_scope: false,
                             },
                         )],

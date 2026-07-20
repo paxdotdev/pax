@@ -18,6 +18,7 @@
 }
 
 @timeline enter {
+    interruption: Takeover,
     duration: 36,
     self {
         x: {
@@ -32,6 +33,7 @@
 }
 
 @timeline exit {
+    interruption: Takeover,
     duration: 36,
     self {
         x: {

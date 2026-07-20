@@ -3,7 +3,6 @@ pub use pax_engine::api::Size;
 use pax_message::AppleLiquidGlassPatch;
 use pax_runtime::api::RenderContext;
 use pax_runtime::{ExpandedNode, RuntimeContext};
-use std::cell::RefCell;
 
 // Resolves Pax units against bounds into a kurbo point.
 pub(crate) fn to_kurbo_point(x: Size, y: Size, bounds: (f64, f64)) -> kurbo::Point {
@@ -82,58 +81,6 @@ pub fn canvas_surface_transform(expanded_node: &ExpandedNode, context: &RuntimeC
         parent_frame_id = parent_frame.parent_frame.get();
     }
     transform
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub(crate) struct CanvasRenderSignature {
-    layer_id: usize,
-    z_index: i32,
-    transform: [u64; 6],
-    bounds: [u64; 2],
-    opacity: u64,
-    style_hash: u64,
-}
-
-fn stable_f64_bits(value: f64) -> u64 {
-    if value == 0.0 {
-        0
-    } else {
-        value.to_bits()
-    }
-}
-
-pub(crate) fn canvas_render_signature(
-    expanded_node: &ExpandedNode,
-    context: &RuntimeContext,
-    style_hash: u64,
-) -> CanvasRenderSignature {
-    let tab = expanded_node.transform_and_bounds.get();
-    let transform = canvas_surface_transform(expanded_node, context);
-    let occlusion = expanded_node.occlusion.get();
-    CanvasRenderSignature {
-        layer_id: occlusion.render_layer_id,
-        z_index: occlusion.z_index,
-        transform: transform.as_coeffs().map(stable_f64_bits),
-        bounds: [stable_f64_bits(tab.bounds.0), stable_f64_bits(tab.bounds.1)],
-        opacity: stable_f64_bits(expanded_node.computed_opacity.get()),
-        style_hash,
-    }
-}
-
-pub(crate) fn mark_canvas_node_dirty_on_render_change(
-    previous: &RefCell<Option<CanvasRenderSignature>>,
-    expanded_node: &ExpandedNode,
-    context: &RuntimeContext,
-    style_hash: u64,
-) {
-    let signature = canvas_render_signature(expanded_node, context, style_hash);
-    let mut previous = previous.borrow_mut();
-    if previous.as_ref().is_some_and(|old| *old == signature) {
-        return;
-    }
-    *previous = Some(signature);
-    context.mark_canvas_node_dirty(expanded_node.id);
-    context.set_canvas_dirty(signature.layer_id);
 }
 
 fn canvas_surface_bounds_for_transform(transform: Affine, bounds: (f64, f64)) -> kurbo::Rect {

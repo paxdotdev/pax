@@ -33,10 +33,11 @@ Fallback branch used when no `path` branch matches.
 Declarative route branch presented as a card over the current route.
 
 `RouteCard` is consumed by a parent [`Router`] like [`Route`], but the
-presentation behavior lives in the `RouteCard` component shell. It renders its
-projected children inside a full-size `Group` with element-level `@in` / `@out`
-slide transitions. The route's own contents may still declare additional
-element or component lifecycle transitions.
+presentation behavior is owned by this component shell. It retains the
+previously mounted branch underneath so the incoming or outgoing card slides
+over stable content while a black scrim fades over the retained branch. The
+route's own contents may still declare additional element or component
+lifecycle transitions.
 
 #### Properties
 ##### `path`
@@ -60,11 +61,53 @@ Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Duration`](/ap
 Duration for the generated card enter/exit transition. Literal time durations
 may be written as frames or time units, e.g. `18f` or `240ms`.
 
+##### `scrim_opacity`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Opacity`](/api/pax-runtime-api/color.md#opacity)>
+
+Maximum opacity for the black scrim over the retained background. Unitless
+values are normalized alpha (`0.3` is 30%); percentages such as `30%` are also
+supported.
+
 ##### `curve`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`RouteCardCurve`](#routecardcurve)>
 
 Reserved easing tuning for the card transition. The current built-in shell uses
 `OutQuad` for its slide.
+
+---
+
+### `RouteModal`
+Stacked route branch consumed by a parent [`Router`].
+
+`RouteModal` matches like [`Route`], but it keeps the previously mounted branch
+active underneath while the modal branch is active. The shell fades a black
+scrim over the retained branch; the route's own contents are responsible for
+any modal-specific enter/exit transition.
+
+#### Properties
+##### `path`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`String`>
+
+Static route pattern, e.g. `/tools`.
+
+##### `default`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`bool`>
+
+Fallback modal branch used when no `path` branch matches.
+
+##### `duration`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Duration`](/api/pax-runtime-api/animation.md#duration)>
+
+Duration for the generated modal scrim enter/exit transition. Set this to match
+the modal content's own movement duration when the content declares custom
+`@in` / `@out` motion.
+
+##### `scrim_opacity`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Opacity`](/api/pax-runtime-api/color.md#opacity)>
+
+Maximum opacity for the black scrim over the retained background. Unitless
+values are normalized alpha (`0.3` is 30%); percentages such as `30%` are also
+supported.
 
 ---
 

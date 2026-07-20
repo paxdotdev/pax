@@ -83,6 +83,17 @@ Inside the nested router above:
 
 That makes nested route trees feel like ordinary component composition instead of global path parsing.
 
+## Route Branch Kinds
+
+`Router` can consume route branch components that declare the route-branch contract.
+The standard branches are:
+
+- `Route`: selects one mutually exclusive branch.
+- `RouteCard`: stacks over the previous active branch and wraps its contents in a card-style lifecycle shell, so the previous route stays visible under a fading scrim while the card enters or exits.
+- `RouteModal`: stacks the selected branch over the previous active branch. The previous branch stays mounted underneath a fading scrim while the modal branch is active, and the modal branch owns its own `@in` / `@out` transition.
+
+Use `RouteModal` for pop-up or sheet routes where dismissing should reveal the previous route instead of remounting it. Set `duration` to match the modal content's movement when the branch declares custom `@in` / `@out` timelines.
+
 ## Writing Routes
 
 Pax keeps route writes out of template matching nodes.

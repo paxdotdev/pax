@@ -32,6 +32,7 @@ const MOBILE_BREAKPOINT_WIDTH: f64 = 920.0;
 pub struct Example {
     pub is_mobile: Property<bool>,
     pub mobile_menu_open: Property<bool>,
+    pub mobile_top_inset: Property<f64>,
 }
 
 pub struct RouterPlaygroundChromeStore {
@@ -42,6 +43,8 @@ impl Store for RouterPlaygroundChromeStore {}
 
 impl Example {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
+        self.mobile_top_inset
+            .set(if ctx.os.is_ios() { 56.0 } else { 0.0 });
         ctx.push_local_store(RouterPlaygroundChromeStore {
             mobile_menu_open: self.mobile_menu_open.clone(),
         });

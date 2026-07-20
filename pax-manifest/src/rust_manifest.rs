@@ -92,10 +92,11 @@ impl RustManifestWriter {
 
     fn route_branch_descriptor(&self, descriptor: &RouteBranchDescriptor) -> String {
         format!(
-            "{mp}::RouteBranchDescriptor {{ path_property: {path_property}, default_property: {default_property} }}",
+            "{mp}::RouteBranchDescriptor {{ path_property: {path_property}, default_property: {default_property}, modal: {modal} }}",
             mp = self.manifest_path,
             path_property = rust_string(&descriptor.path_property),
             default_property = rust_string(&descriptor.default_property),
+            modal = descriptor.modal,
         )
     }
 
@@ -251,12 +252,13 @@ impl RustManifestWriter {
 
     fn timeline_definition(&self, timeline: &TimelineDefinition) -> String {
         format!(
-            "{mp}::TimelineDefinition {{ name: {name}, playhead: {playhead}, duration: {duration}, repeat: {repeat}, elements: {elements} }}",
+            "{mp}::TimelineDefinition {{ name: {name}, playhead: {playhead}, duration: {duration}, repeat: {repeat}, interruption: {interruption}, elements: {elements} }}",
             mp = self.manifest_path,
             name = self.option(&timeline.name, |value| self.token(value)),
             playhead = self.option(&timeline.playhead, |value| self.value_definition(value)),
             duration = self.option(&timeline.duration, |value| self.value_definition(value)),
             repeat = timeline.repeat,
+            interruption = format!("{mp}::InOutInterruption::{:?}", timeline.interruption, mp = self.manifest_path),
             elements = self.vec(&timeline.elements, |element| self.timeline_block_element(element)),
         )
     }
@@ -307,13 +309,14 @@ impl RustManifestWriter {
 
     fn timeline_track_definition(&self, track: &TimelineTrackDefinition) -> String {
         format!(
-            "{mp}::TimelineTrackDefinition {{ elements: {elements}, playhead: {playhead}, duration: {duration}, repeat: {repeat}, starting_value: {starting_value}, use_local_property_scope: {use_local_property_scope} }}",
+            "{mp}::TimelineTrackDefinition {{ elements: {elements}, playhead: {playhead}, duration: {duration}, repeat: {repeat}, starting_value: {starting_value}, interruption: {interruption}, use_local_property_scope: {use_local_property_scope} }}",
             mp = self.manifest_path,
             elements = self.vec(&track.elements, |element| self.timeline_track_element(element)),
             playhead = self.option_box_value_definition(&track.playhead),
             duration = self.option_box_value_definition(&track.duration),
             repeat = self.option(&track.repeat, |value| value.to_string()),
             starting_value = self.option_box_value_definition(&track.starting_value),
+            interruption = format!("{mp}::InOutInterruption::{:?}", track.interruption, mp = self.manifest_path),
             use_local_property_scope = track.use_local_property_scope,
         )
     }
@@ -556,10 +559,11 @@ impl RustManifestWriter {
         branch: &ControlFlowRouteBranchDefinition,
     ) -> String {
         format!(
-            "{mp}::ControlFlowRouteBranchDefinition {{ path: {path}, default: {default}, child_ids: {child_ids} }}",
+            "{mp}::ControlFlowRouteBranchDefinition {{ path: {path}, default: {default}, modal: {modal}, child_ids: {child_ids} }}",
             mp = self.manifest_path,
             path = self.option(&branch.path, |value| rust_string(value)),
             default = branch.default,
+            modal = branch.modal,
             child_ids = self.vec(&branch.child_ids, |value| self.template_node_id(value)),
         )
     }

@@ -234,6 +234,7 @@ fn sanitize_timeline(definition: &TimelineDefinition) -> TimelineDefinition {
         playhead: definition.playhead.as_ref().map(sanitize_value_definition),
         duration: definition.duration.as_ref().map(sanitize_value_definition),
         repeat: definition.repeat,
+        interruption: definition.interruption,
         elements: definition
             .elements
             .iter()
@@ -299,6 +300,7 @@ fn sanitize_timeline_track(track: &TimelineTrackDefinition) -> TimelineTrackDefi
             .starting_value
             .as_ref()
             .map(|value| Box::new(sanitize_value_definition(value))),
+        interruption: track.interruption,
         use_local_property_scope: track.use_local_property_scope,
     }
 }
@@ -520,6 +522,7 @@ mod tests {
                     ))),
                     duration: Some(ValueDefinition::LiteralValue(PaxValue::Numeric(120.into()))),
                     repeat: true,
+                    interruption: crate::InOutInterruption::Restart,
                     elements: vec![
                         TimelineBlockElement::Comment("timeline comment".to_string()),
                         TimelineBlockElement::SelectorBlock(
@@ -551,6 +554,7 @@ mod tests {
                                             duration: None,
                                             repeat: None,
                                             starting_value: None,
+                                            interruption: crate::InOutInterruption::Restart,
                                             use_local_property_scope: false,
                                         },
                                     ),
@@ -697,6 +701,18 @@ mod tests {
             .get(&decoded.main_component_type_id)
             .expect("decoded component should exist");
         assert!(component.template.is_some());
+        assert_eq!(
+            component.timelines[0].interruption,
+            crate::InOutInterruption::Restart
+        );
+        let TimelineBlockElement::SelectorBlock(_, selector) = &component.timelines[0].elements[0]
+        else {
+            panic!("expected decoded selector block")
+        };
+        let TimelineSelectorElement::Track(_, track) = &selector.elements[0] else {
+            panic!("expected decoded timeline track")
+        };
+        assert_eq!(track.interruption, crate::InOutInterruption::Restart);
         assert_eq!(
             component
                 .template

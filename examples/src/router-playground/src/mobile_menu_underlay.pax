@@ -10,6 +10,7 @@
 }
 
 @timeline enter {
+    interruption: Takeover,
     duration: 36,
     self {
         opacity: {
@@ -20,6 +21,7 @@
 }
 
 @timeline exit {
+    interruption: Takeover,
     duration: 36,
     self {
         opacity: {

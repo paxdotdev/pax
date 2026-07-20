@@ -220,6 +220,18 @@ public extension NativeMessageHandling {
         setResolvedNativeMask(id: element.id, mask: mask)
     }
 
+    func recomputeResolvedMask(for scrollerElement: ScrollerElement) {
+        let mask = resolveNativeMask(
+            patch: scrollerElement.nativeMaskPatch,
+            fallbackSize: CGSize(width: max(0, CGFloat(scrollerElement.size_x)), height: max(0, CGFloat(scrollerElement.size_y)))
+        )
+        setResolvedNativeMask(id: scrollerElement.id, mask: mask)
+        NativeScrollerHostRegistry.shared.setCanvasOpacityMultiplier(
+            id: scrollerElement.id,
+            multiplier: splitNativeMaskFullCoverageAttenuation(mask).opacityMultiplier
+        )
+    }
+
     func recomputeResolvedMasks<T: NativePositionElement>(in elements: [PaxNodeId: T]) {
         for element in elements.values {
             recomputeResolvedMask(for: element)
@@ -241,7 +253,9 @@ public extension NativeMessageHandling {
         recomputeResolvedMasks(in: textboxElements.elements)
         recomputeResolvedMasks(in: eventBlockerElements.elements)
         recomputeResolvedMasks(in: glassSurfaceElements.elements)
-        recomputeResolvedMasks(in: scrollerElements.elements)
+        for scrollerElement in scrollerElements.elements.values {
+            recomputeResolvedMask(for: scrollerElement)
+        }
     }
 
     func publish(_ dirty: DirtyCollections) {
@@ -368,6 +382,7 @@ public extension NativeMessageHandling {
     func handleScrollerDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
         scrollerElements.remove(id: patch.id)
         removeResolvedNativeMask(id: patch.id)
+        NativeScrollerHostRegistry.shared.setCanvasOpacityMultiplier(id: patch.id, multiplier: 1.0)
         dirty.scroller = true
     }
 

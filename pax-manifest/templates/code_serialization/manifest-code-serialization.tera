@@ -42,6 +42,9 @@
         {% if not timeline.repeat %}
             loop: false,
         {% endif %}
+        {% if timeline.interruption == "Restart" %}
+            interruption: Restart,
+        {% endif %}
         {% for timeline_block_element in timeline.elements %}
             {% if timeline_block_element.SelectorBlock %}
                 {{ timeline_block_element.SelectorBlock.0.token_value }}{{ macros::render_timeline_selector_block(block=timeline_block_element.SelectorBlock.1) }},

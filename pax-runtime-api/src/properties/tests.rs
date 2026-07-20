@@ -155,3 +155,16 @@ fn test_set_if_neq_skips_noop_write() {
     assert_eq!(drain_effects(10), 1);
     assert_eq!(eval_count.get(), 2);
 }
+
+#[test]
+fn test_invalidate_preserves_pending_computed_update() {
+    let source = Property::new(false);
+    let source_for_computed = source.clone();
+    let computed = Property::computed(move || source_for_computed.get(), &[source.untyped()]);
+
+    assert!(!computed.get());
+    source.set(true);
+    computed.invalidate();
+
+    assert!(computed.get());
+}

@@ -18,7 +18,7 @@ use crate::{
 };
 
 const MAGIC: &[u8; 8] = b"PAXM\x00BIN";
-const VERSION: u8 = 2;
+const VERSION: u8 = 3;
 
 pub type Result<T> = std::result::Result<T, Error>;
 

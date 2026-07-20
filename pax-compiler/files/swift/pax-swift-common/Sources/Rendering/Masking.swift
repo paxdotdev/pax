@@ -104,6 +104,57 @@ public struct ResolvedNativeMask {
     }
 }
 
+struct NativeMaskFullCoverageSplit {
+    let residualMask: ResolvedNativeMask?
+    let opacityMultiplier: Double
+}
+
+private func nativeMaskHoleCoversBounds(_ hole: ResolvedMaskHole, size: CGSize) -> Bool {
+    guard hole.clipCGPaths.isEmpty, size.width > 0, size.height > 0 else {
+        return false
+    }
+
+    let epsilon: CGFloat = 0.5
+    let bounds = hole.cgPath.boundingBoxOfPath
+    return bounds.minX <= epsilon
+        && bounds.minY <= epsilon
+        && bounds.maxX >= size.width - epsilon
+        && bounds.maxY >= size.height - epsilon
+}
+
+func splitNativeMaskFullCoverageAttenuation(_ mask: ResolvedNativeMask?) -> NativeMaskFullCoverageSplit {
+    guard let mask else {
+        return NativeMaskFullCoverageSplit(residualMask: nil, opacityMultiplier: 1.0)
+    }
+
+    var opacityMultiplier = 1.0
+    var residualHoles: [ResolvedMaskHole] = []
+
+    for hole in mask.holes {
+        if nativeMaskHoleCoversBounds(hole, size: mask.size) {
+            // CAMetalLayer-backed scroller canvases do not reliably inherit ancestor
+            // raster masks. Full-surface mask coverage is equivalent to uniform alpha
+            // attenuation, which does affect those descendants.
+            opacityMultiplier *= 1.0 - min(max(hole.opacity, 0.0), 1.0)
+        } else {
+            residualHoles.append(hole)
+        }
+    }
+
+    let residualMask = residualHoles.isEmpty
+        ? nil
+        : ResolvedNativeMask(
+            signature: mask.signature,
+            size: mask.size,
+            holes: residualHoles
+        )
+
+    return NativeMaskFullCoverageSplit(
+        residualMask: residualMask,
+        opacityMultiplier: min(max(opacityMultiplier, 0.0), 1.0)
+    )
+}
+
 private func mixMaskHash(_ state: UInt64, _ value: UInt64) -> UInt64 {
     state &* 1099511628211 ^ value
 }

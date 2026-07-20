@@ -652,3 +652,19 @@ repository's `build-interface.sh` script (which invokes esbuild and emits the
 gitignored public JS/CSS artifacts). Use `bash build-interface.sh` when
 validating host TypeScript changes; a webpack configuration error does not
 indicate a TypeScript or Pax runtime failure.
+
+## 2026-07-18
+
+The iOS chassis renders Pax edge-to-edge, so a mobile header authored at
+viewport `y=0` can paint beneath the system status area while UIKit intercepts
+touches there. In `router-playground`, this made nearly all of a visible 44px
+Menu button unhittable even though the Pax hit bounds matched its fill.
+
+Solved locally by deriving an iOS-only top inset from `NodeContext::os` and
+using the same resulting header height for the controls, drawer, underlay, and
+content outlet. Mobile web retains its original header geometry.
+
+Recommendations: expose chassis-provided safe-area insets through runtime
+viewport data. Until then, edge-to-edge examples with top-level controls must
+explicitly reserve the native status region, and visual bounds alone are not a
+reliable test of iOS hit accessibility there.

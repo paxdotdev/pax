@@ -15,6 +15,7 @@ use pax_runtime_api::{
 use crate::api::Layer;
 use crate::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
+    RuntimePropertiesStackFrame,
 };
 
 /// Internal stack symbol carrying the router input location for nested scopes.
@@ -182,6 +183,8 @@ enum RouteSegmentPattern {
 pub struct CompiledRouteBranch {
     /// Whether this branch is the fallback `default=true` branch.
     pub default: bool,
+    /// Whether this branch should stack over the previously active branch.
+    pub modal: bool,
     pattern: Vec<RouteSegmentPattern>,
 }
 
@@ -189,6 +192,7 @@ impl CompiledRouteBranch {
     fn from_definition(definition: &ControlFlowRouteBranchDefinition) -> Self {
         Self {
             default: definition.default,
+            modal: definition.modal,
             pattern: definition
                 .path
                 .as_deref()
@@ -324,30 +328,126 @@ impl RouterInstance {
                     }
                     *borrow_mut!(old_selection) = selection.clone();
 
-                    let selected_range = selection
-                        .branch_index
-                        .and_then(|branch_index| branch_child_ranges.get(branch_index).cloned())
+                    let selected_branch = selection.branch_index.and_then(|branch_index| {
+                        branches
+                            .get(branch_index)
+                            .map(|branch| (branch_index, branch))
+                    });
+                    let selected_range = selected_branch
+                        .and_then(|(branch_index, _)| branch_child_ranges.get(branch_index))
+                        .cloned()
                         .unwrap_or(0..0);
                     let children = borrow!(cloned_self.base().get_instance_children());
                     let start = selected_range.start.min(children.len());
                     let end = selected_range.end.min(children.len());
-                    let env = selection
-                        .route_match
+                    let route_match = selection.route_match.clone();
+                    let env = route_match
+                        .clone()
                         .map(route_scope)
                         .map(|scope| cloned_expanded_node.stack.push(scope))
                         .unwrap_or_else(|| Rc::clone(&cloned_expanded_node.stack));
-                    let children_with_envs =
-                        children[start..end].iter().cloned().zip(iter::repeat(env));
-                    cloned_expanded_node.generate_children(
-                        children_with_envs,
+                    let selected_range = start..end;
+                    let active_children = borrow!(cloned_expanded_node.active_children).clone();
+                    let selected_children = Self::matching_children_for_range(
+                        &cloned_expanded_node,
+                        &active_children,
+                        &children,
+                        &selected_range,
+                        route_match.as_ref(),
+                        &env,
                         &cloned_context,
-                        &cloned_expanded_node.parent_frame,
                         is_mount,
-                    )
+                    );
+
+                    let mut new_active_children = selected_children;
+                    if selected_branch
+                        .map(|(_, branch)| branch.modal)
+                        .unwrap_or(false)
+                    {
+                        for child in active_children {
+                            if !new_active_children
+                                .iter()
+                                .any(|selected| Rc::ptr_eq(selected, &child))
+                            {
+                                new_active_children.push(child);
+                            }
+                        }
+                    }
+
+                    if is_mount {
+                        cloned_expanded_node.attach_children(
+                            new_active_children,
+                            &cloned_context,
+                            &cloned_expanded_node.parent_frame,
+                        )
+                    } else {
+                        new_active_children
+                    }
                 },
                 &deps,
                 &format!("router_children (node id: {})", expanded_node.id.0),
             ));
+    }
+
+    fn matching_children_for_range(
+        expanded_node: &Rc<ExpandedNode>,
+        active_children: &[Rc<ExpandedNode>],
+        templates: &[Rc<dyn InstanceNode>],
+        range: &Range<usize>,
+        route_match: Option<&RouteMatch>,
+        env: &Rc<RuntimePropertiesStackFrame>,
+        context: &Rc<RuntimeContext>,
+        is_mount: bool,
+    ) -> Vec<Rc<ExpandedNode>> {
+        let mut selected = Vec::new();
+        for template in templates[range.clone()].iter() {
+            let active = active_children
+                .iter()
+                .find(|child| {
+                    !selected.iter().any(|selected| Rc::ptr_eq(selected, child))
+                        && Self::child_uses_template(child, template)
+                        && Self::child_route_match(child).as_ref() == route_match
+                })
+                .cloned();
+            let rescued = active.or_else(|| {
+                (is_mount && expanded_node.attached.get() > 0)
+                    .then(|| {
+                        expanded_node.rescue_exiting_child_matching(|child| {
+                            Self::child_uses_template(child, template)
+                                && Self::child_route_match(child).as_ref() == route_match
+                        })
+                    })
+                    .flatten()
+            });
+            let child = rescued.unwrap_or_else(|| {
+                expanded_node
+                    .create_children_detached(
+                        iter::once((Rc::clone(template), Rc::clone(env))),
+                        context,
+                        &Rc::downgrade(expanded_node),
+                    )
+                    .pop()
+                    .expect("route child creation returned no child")
+            });
+            if !is_mount && child.attached.get() == 0 {
+                child.recurse_control_flow_expansion(context);
+            }
+            selected.push(child);
+        }
+        selected
+    }
+
+    fn child_uses_template(child: &Rc<ExpandedNode>, template: &Rc<dyn InstanceNode>) -> bool {
+        let child_template = borrow!(child.instance_node).clone();
+        Rc::ptr_eq(&child_template, template)
+    }
+
+    fn child_route_match(child: &Rc<ExpandedNode>) -> Option<RouteMatch> {
+        child
+            .stack
+            .resolve_symbol_as_erased_property(INTERNAL_ROUTE_MATCH_SYMBOL)
+            .map(Property::<RouteMatch>::new_from_untyped)
+            .map(|route_match| route_match.get())
     }
 }
 
@@ -806,6 +906,7 @@ mod tests {
         let branches = compile_route_branches(&[ControlFlowRouteBranchDefinition {
             path: Some("/settings/*".to_string()),
             default: false,
+            modal: false,
             child_ids: vec![],
         }]);
         let input = route(&["settings", "team", "42"]);
@@ -826,6 +927,7 @@ mod tests {
         let branches = compile_route_branches(&[ControlFlowRouteBranchDefinition {
             path: Some("/docs/:slug".to_string()),
             default: false,
+            modal: false,
             child_ids: vec![],
         }]);
         let input = route(&["docs", "router"]);
@@ -843,6 +945,7 @@ mod tests {
         let branches = compile_route_branches(&[ControlFlowRouteBranchDefinition {
             path: Some("settings/*".to_string()),
             default: false,
+            modal: false,
             child_ids: vec![],
         }]);
         let input = route(&["settings", "integrations", "logs"]);
@@ -862,11 +965,13 @@ mod tests {
             ControlFlowRouteBranchDefinition {
                 path: Some("/docs/:slug".to_string()),
                 default: false,
+                modal: false,
                 child_ids: vec![],
             },
             ControlFlowRouteBranchDefinition {
                 path: None,
                 default: true,
+                modal: false,
                 child_ids: vec![],
             },
         ]);
@@ -887,6 +992,7 @@ mod tests {
             vec![ControlFlowRouteBranchDefinition {
                 path: Some("/users/:id".to_string()),
                 default: false,
+                modal: false,
                 child_ids: vec![],
             }],
             vec![0..1],
@@ -920,11 +1026,13 @@ mod tests {
                 ControlFlowRouteBranchDefinition {
                     path: Some("/alpha".to_string()),
                     default: false,
+                    modal: false,
                     child_ids: vec![],
                 },
                 ControlFlowRouteBranchDefinition {
                     path: Some("/beta".to_string()),
                     default: false,
+                    modal: false,
                     child_ids: vec![],
                 },
             ],
@@ -962,11 +1070,13 @@ mod tests {
                 ControlFlowRouteBranchDefinition {
                     path: Some("/alpha".to_string()),
                     default: false,
+                    modal: false,
                     child_ids: vec![],
                 },
                 ControlFlowRouteBranchDefinition {
                     path: Some("/beta".to_string()),
                     default: false,
+                    modal: false,
                     child_ids: vec![],
                 },
             ],
@@ -988,9 +1098,10 @@ mod tests {
         let active = borrow!(router_node.active_children).clone();
         let exiting = borrow!(router_node.exiting_children).clone();
         assert_eq!(active.len(), 1);
-        assert_ne!(active[0].id, initial_alpha);
+        assert_eq!(active[0].id, initial_alpha);
         assert_eq!(active[0].transition_phase.get(), TRANSITION_PHASE_ENTER);
-        assert!(exiting.iter().any(|child| child.id == initial_alpha));
+        assert_eq!(exiting.len(), 1);
+        assert_ne!(exiting[0].id, initial_alpha);
     }
 
     #[test]
@@ -1008,11 +1119,13 @@ mod tests {
                 ControlFlowRouteBranchDefinition {
                     path: Some("/alpha".to_string()),
                     default: false,
+                    modal: false,
                     child_ids: vec![],
                 },
                 ControlFlowRouteBranchDefinition {
                     path: Some("/beta".to_string()),
                     default: false,
+                    modal: false,
                     child_ids: vec![],
                 },
             ],
@@ -1046,11 +1159,13 @@ mod tests {
                 ControlFlowRouteBranchDefinition {
                     path: Some("/alpha".to_string()),
                     default: false,
+                    modal: false,
                     child_ids: vec![],
                 },
                 ControlFlowRouteBranchDefinition {
                     path: Some("/beta".to_string()),
                     default: false,
+                    modal: false,
                     child_ids: vec![],
                 },
             ],
@@ -1080,11 +1195,13 @@ mod tests {
                 ControlFlowRouteBranchDefinition {
                     path: Some("/alpha".to_string()),
                     default: false,
+                    modal: false,
                     child_ids: vec![],
                 },
                 ControlFlowRouteBranchDefinition {
                     path: Some("/beta".to_string()),
                     default: false,
+                    modal: false,
                     child_ids: vec![],
                 },
             ],
@@ -1109,6 +1226,84 @@ mod tests {
     }
 
     #[test]
+    fn modal_branch_keeps_previous_route_active_underneath() {
+        let input_location = Property::new(route(&["alpha"]));
+        let (_root, router_node, context) = mounted_router(
+            input_location.clone(),
+            vec![
+                ControlFlowRouteBranchDefinition {
+                    path: Some("/alpha".to_string()),
+                    default: false,
+                    modal: false,
+                    child_ids: vec![],
+                },
+                ControlFlowRouteBranchDefinition {
+                    path: Some("/tools".to_string()),
+                    default: false,
+                    modal: true,
+                    child_ids: vec![],
+                },
+            ],
+            vec![0..1, 1..2],
+            vec![leaf(), leaf()],
+        );
+
+        let base_id = borrow!(router_node.active_children)[0].id;
+
+        input_location.set(route(&["tools"]));
+        router_node.recurse_update(&context);
+
+        let active = borrow!(router_node.active_children).clone();
+        let exiting = borrow!(router_node.exiting_children).clone();
+        assert_eq!(active.len(), 2);
+        assert!(exiting.is_empty());
+        assert_ne!(active[0].id, base_id);
+        assert_eq!(active[0].transition_phase.get(), TRANSITION_PHASE_ENTER);
+        assert_eq!(active[1].id, base_id);
+    }
+
+    #[test]
+    fn dismissing_modal_reveals_previous_route_without_remounting() {
+        let input_location = Property::new(route(&["alpha"]));
+        let (_root, router_node, context) = mounted_router(
+            input_location.clone(),
+            vec![
+                ControlFlowRouteBranchDefinition {
+                    path: Some("/alpha".to_string()),
+                    default: false,
+                    modal: false,
+                    child_ids: vec![],
+                },
+                ControlFlowRouteBranchDefinition {
+                    path: Some("/tools".to_string()),
+                    default: false,
+                    modal: true,
+                    child_ids: vec![],
+                },
+            ],
+            vec![0..1, 1..2],
+            vec![leaf(), leaf()],
+        );
+
+        let base_id = borrow!(router_node.active_children)[0].id;
+
+        input_location.set(route(&["tools"]));
+        router_node.recurse_update(&context);
+        let modal_id = borrow!(router_node.active_children)[0].id;
+
+        input_location.set(route(&["alpha"]));
+        router_node.recurse_update(&context);
+
+        let active = borrow!(router_node.active_children).clone();
+        let exiting = borrow!(router_node.exiting_children).clone();
+        assert_eq!(active.len(), 1);
+        assert_eq!(active[0].id, base_id);
+        assert_eq!(exiting.len(), 1);
+        assert_eq!(exiting[0].id, modal_id);
+        assert_eq!(exiting[0].transition_phase.get(), TRANSITION_PHASE_EXIT);
+    }
+
+    #[test]
     fn no_match_transitions_out_previous_route_tree() {
         let input_location = Property::new(route(&["alpha"]));
         let (_root, router_node, context) = mounted_router(
@@ -1116,6 +1311,7 @@ mod tests {
             vec![ControlFlowRouteBranchDefinition {
                 path: Some("/alpha".to_string()),
                 default: false,
+                modal: false,
                 child_ids: vec![],
             }],
             vec![0..1],

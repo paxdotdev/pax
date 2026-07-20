@@ -596,6 +596,7 @@ fn parse_route_branch_settings(
     ControlFlowRouteBranchDefinition {
         path,
         default: is_default,
+        modal: descriptor.modal,
         child_ids,
     }
 }
@@ -962,6 +963,9 @@ fn apply_timeline_setting_to_track(track: &mut TimelineTrackDefinition, setting:
         "playhead" => {
             track.playhead = Some(Box::new(parsed_value));
         }
+        "interruption" => {
+            panic!("timeline setting `interruption` is only valid at the timeline level")
+        }
         _ => {}
     }
 }
@@ -973,6 +977,7 @@ fn derive_timeline_track_definition(timeline_track: Pair<Rule>) -> TimelineTrack
         duration: None,
         repeat: None,
         starting_value: None,
+        interruption: Default::default(),
         use_local_property_scope: false,
     };
 
@@ -1111,6 +1116,21 @@ pub fn parse_timeline_from_component_definition_string(
                             "playhead" => {
                                 timeline.playhead = Some(parsed_value);
                             }
+                            "interruption" => {
+                                let ValueDefinition::Identifier(identifier) = parsed_value else {
+                                    panic!(
+                                        "timeline setting `interruption` expects `Takeover` or `Restart`"
+                                    )
+                                };
+                                timeline.interruption =
+                                    crate::InOutInterruption::from_symbol(&identifier.name)
+                                        .unwrap_or_else(|| {
+                                            panic!(
+                                                "unknown timeline interruption `{}`; expected `Takeover` or `Restart`",
+                                                identifier.name
+                                            )
+                                        });
+                            }
                             _ => {}
                         }
                     }
@@ -1148,6 +1168,7 @@ pub fn parse_timeline_from_component_definition_string(
                 || timeline.duration.is_some()
                 || timeline.playhead.is_some()
                 || !timeline.repeat
+                || timeline.interruption != crate::InOutInterruption::default()
                 || timeline.name.is_some()
             {
                 timelines.push(timeline);

@@ -9,15 +9,11 @@ use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
 
-use crate::common::{
-    begin_bounded_canvas_node, mark_canvas_node_dirty_on_render_change, to_kurbo_point,
-};
+use crate::common::{begin_bounded_canvas_node, to_kurbo_point};
 use pax_engine::*;
 
 use_RefCell!();
-use std::collections::hash_map::DefaultHasher;
 use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
 use std::iter;
 use std::rc::Rc;
 
@@ -172,26 +168,14 @@ impl InstanceNode for PathInstance {
         ];
         let cloned_expanded_node = expanded_node.clone();
         let cloned_context = context.clone();
-        let last_render_signature = Rc::new(RefCell::new(None));
-        let elements_for_dirty = elements.clone();
-        let stroke_for_dirty = stroke.clone();
-        let fill_for_dirty = fill.clone();
 
         expanded_node
             .changed_listener
             .replace_with(Property::computed(
                 move || {
-                    let style_hash = path_style_hash(
-                        &elements_for_dirty.get(),
-                        &stroke_for_dirty.get(),
-                        &fill_for_dirty.get(),
-                    );
-                    mark_canvas_node_dirty_on_render_change(
-                        &last_render_signature,
-                        &cloned_expanded_node,
-                        &cloned_context,
-                        style_hash,
-                    );
+                    cloned_context.mark_canvas_node_dirty(cloned_expanded_node.id);
+                    cloned_context
+                        .set_canvas_dirty(cloned_expanded_node.occlusion.get().render_layer_id)
                 },
                 deps,
             ));
@@ -374,40 +358,6 @@ impl InstanceNode for PathInstance {
     ) -> std::fmt::Result {
         f.debug_struct("Path").finish()
     }
-}
-
-fn path_style_hash(elements: &[PathElement], stroke: &Stroke, fill: &Fill) -> u64 {
-    let mut hasher = DefaultHasher::new();
-    elements.len().hash(&mut hasher);
-    for element in elements {
-        match element {
-            PathElement::Empty => 0u8.hash(&mut hasher),
-            PathElement::Point(x, y) => {
-                1u8.hash(&mut hasher);
-                x.hash(&mut hasher);
-                y.hash(&mut hasher);
-            }
-            PathElement::Line => 2u8.hash(&mut hasher),
-            PathElement::Quadratic(x, y) => {
-                3u8.hash(&mut hasher);
-                x.hash(&mut hasher);
-                y.hash(&mut hasher);
-            }
-            PathElement::Cubic(x1, y1, x2, y2) => {
-                4u8.hash(&mut hasher);
-                x1.hash(&mut hasher);
-                y1.hash(&mut hasher);
-                x2.hash(&mut hasher);
-                y2.hash(&mut hasher);
-            }
-            PathElement::Close => 5u8.hash(&mut hasher),
-        }
-    }
-    stroke.color.get().hash(&mut hasher);
-    stroke.width.get().hash(&mut hasher);
-    stroke.cap.get().hash(&mut hasher);
-    fill.hash(&mut hasher);
-    hasher.finish()
 }
 
 fn build_local_bez_path(elements: &[PathElement], bounds: (f64, f64)) -> Option<BezPath> {

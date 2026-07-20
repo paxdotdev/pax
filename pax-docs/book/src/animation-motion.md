@@ -162,6 +162,27 @@ Element-level `@out` uses the same named and inline forms as element-level `@in`
 
 Entering and exiting children run in parallel by default.  For repeated lists, use keyed `for` loops when the identity of an item should survive reordering or insertion; removed keys can then play `@out` while retained keys keep their existing component instances.
 
+### Interrupted `@in` / `@out`
+
+When a stable instance reverses directly from `@in` to `@out`, or from `@out` back to `@in`, the destination timeline takes over from each property's currently sampled value by default. Its remaining authored keyframes, duration, and easing are unchanged. Conditional branches, route branches, and repeated children can rescue an instance that is still mounted for `@out`; keyed repeats use the declared key as the instance identity.
+
+Set `interruption: Restart` on a named or inline lifecycle timeline when it should always begin from its authored starting value instead:
+
+```pax
+@timeline exit {
+    duration: 300ms,
+    interruption: Restart,
+    self {
+        opacity: {
+            0ms: 1,
+            300ms: 0,
+        },
+    }
+}
+```
+
+The default is `Takeover`, which can also be written explicitly. This setting applies only to direct `@in` / `@out` reversals on the same mounted instance. It does not change `$base`, ordinary timeline playback, or the identity rules for unrelated instances.
+
 ## Container-owned Motion
 
 `@in` and `@out` define how a component animates itself.  Layout containers can also decide how sibling placement reacts while those transitions are running.
