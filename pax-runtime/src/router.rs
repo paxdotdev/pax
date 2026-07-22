@@ -406,7 +406,10 @@ impl RouterInstance {
                 .find(|child| {
                     !selected.iter().any(|selected| Rc::ptr_eq(selected, child))
                         && Self::child_uses_template(child, template)
-                        && Self::child_route_match(child).as_ref() == route_match
+                        && Self::same_route_instance(
+                            Self::child_route_match(child).as_ref(),
+                            route_match,
+                        )
                 })
                 .cloned();
             let rescued = active.or_else(|| {
@@ -414,7 +417,10 @@ impl RouterInstance {
                     .then(|| {
                         expanded_node.rescue_exiting_child_matching(|child| {
                             Self::child_uses_template(child, template)
-                                && Self::child_route_match(child).as_ref() == route_match
+                                && Self::same_route_instance(
+                                    Self::child_route_match(child).as_ref(),
+                                    route_match,
+                                )
                         })
                     })
                     .flatten()
@@ -429,6 +435,9 @@ impl RouterInstance {
                     .pop()
                     .expect("route child creation returned no child")
             });
+            if let Some(route_match) = route_match {
+                Self::set_child_route_match(&child, route_match.clone());
+            }
             if !is_mount && child.attached.get() == 0 {
                 child.recurse_control_flow_expansion(context);
             }
@@ -443,11 +452,30 @@ impl RouterInstance {
     }
 
     fn child_route_match(child: &Rc<ExpandedNode>) -> Option<RouteMatch> {
+        Self::child_route_match_property(child).map(|route_match| route_match.get())
+    }
+
+    fn child_route_match_property(child: &Rc<ExpandedNode>) -> Option<Property<RouteMatch>> {
         child
             .stack
             .resolve_symbol_as_erased_property(INTERNAL_ROUTE_MATCH_SYMBOL)
             .map(Property::<RouteMatch>::new_from_untyped)
-            .map(|route_match| route_match.get())
+    }
+
+    fn same_route_instance(lhs: Option<&RouteMatch>, rhs: Option<&RouteMatch>) -> bool {
+        // The template identifies the route declaration. Captured params identify its instance;
+        // remainder and location fields are reactive context for that same mounted instance.
+        match (lhs, rhs) {
+            (Some(lhs), Some(rhs)) => lhs.params == rhs.params,
+            (None, None) => true,
+            _ => false,
+        }
+    }
+
+    fn set_child_route_match(child: &Rc<ExpandedNode>, route_match: RouteMatch) {
+        if let Some(property) = Self::child_route_match_property(child) {
+            property.set_if_neq(route_match);
+        }
     }
 }
 
@@ -1018,6 +1046,49 @@ mod tests {
     }
 
     #[test]
+    fn catch_all_reuses_route_tree_when_only_remainder_changes() {
+        let input_location = Property::new(route(&["teams", "atlas"]));
+        let (_root, router_node, context) = mounted_router(
+            input_location.clone(),
+            vec![ControlFlowRouteBranchDefinition {
+                path: Some("/teams/:id/*".to_string()),
+                default: false,
+                modal: false,
+                child_ids: vec![],
+            }],
+            vec![0..1],
+            vec![leaf()],
+        );
+
+        let initial_active = borrow!(router_node.active_children).clone();
+        assert_eq!(initial_active.len(), 1);
+
+        input_location.set(route(&[
+            "teams",
+            "atlas",
+            "settings",
+            "integrations",
+            "logs",
+        ]));
+        router_node.recurse_update(&context);
+
+        let active = borrow!(router_node.active_children).clone();
+        assert_eq!(active.len(), 1);
+        assert_eq!(active[0].id.0, initial_active[0].id.0);
+        assert!(borrow!(router_node.exiting_children).is_empty());
+        assert_eq!(
+            RouterInstance::child_route_match(&active[0])
+                .expect("active route should retain its match")
+                .remainder,
+            vec![
+                "settings".to_string(),
+                "integrations".to_string(),
+                "logs".to_string(),
+            ]
+        );
+    }
+
+    #[test]
     fn branch_change_transitions_each_root_of_multi_root_routes() {
         let input_location = Property::new(route(&["alpha"]));
         let (_root, router_node, context) = mounted_router(
@@ -1176,6 +1247,7 @@ mod tests {
         input_location.set(route(&["beta"]));
         router_node.recurse_update(&context);
         assert_eq!(borrow!(router_node.exiting_children).len(), 1);
+        let exiting_child = borrow!(router_node.exiting_children)[0].clone();
 
         context.globals().elapsed_frames.set(2);
         context.drain_node_effects();
@@ -1184,6 +1256,15 @@ mod tests {
         context.globals().elapsed_frames.set(3);
         context.drain_node_effects();
         assert!(borrow!(router_node.exiting_children).is_empty());
+        assert_eq!(exiting_child.transition_phase.get(), TRANSITION_PHASE_IDLE);
+        assert!(!pax_runtime_api::properties::property_has_direct_outbound(
+            &context.globals().elapsed_frames.untyped(),
+            &exiting_child.transition_playhead.untyped(),
+        ));
+        assert!(!pax_runtime_api::properties::property_has_direct_outbound(
+            &context.globals().elapsed_millis.untyped(),
+            &exiting_child.transition_playhead_millis.untyped(),
+        ));
     }
 
     #[test]

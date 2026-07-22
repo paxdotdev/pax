@@ -2,12 +2,13 @@ use crate::api::math::Point2;
 use crate::api::Window;
 use crate::constants::{ACCEL_HANDLERS, GYRO_HANDLERS, PRE_RENDER_HANDLERS, TICK_HANDLERS};
 use pax_language::interpreter::property_resolution::IdentifierResolver;
-use pax_manifest::cartridge_generation::TRANSITION_PHASE_EXIT;
+use pax_manifest::cartridge_generation::{TRANSITION_PHASE_ENTER, TRANSITION_PHASE_EXIT};
 use pax_manifest::UniqueTemplateNodeIdentifier;
 use pax_message::{NativeMessage, ScreenshotData};
 use pax_runtime_api::properties::{
-    drain_effects, drain_effects_with_report, register_effect_property,
-    register_effect_property_with_name, UntypedProperty,
+    drain_effects, drain_effects_with_report, property_has_direct_outbound,
+    property_outbound_debug_names, register_effect_property, register_effect_property_with_name,
+    UntypedProperty,
 };
 use pax_runtime_api::{
     borrow, borrow_mut, use_RefCell, Event, Interpolatable, LightShape, MouseOut, MouseOver,
@@ -46,6 +47,25 @@ fn format_effect_top(top_effects: &[(String, usize)]) -> String {
         .map(|(name, count)| format!("{count}x {name}"))
         .collect::<Vec<_>>()
         .join("; ")
+}
+
+fn summarize_debug_names(names: Vec<String>) -> Vec<(String, usize)> {
+    let mut counts = HashMap::new();
+    for name in names {
+        let category = name
+            .split_once(" (")
+            .map(|(category, _)| category)
+            .unwrap_or(&name)
+            .to_owned();
+        *counts.entry(category).or_insert(0) += 1;
+    }
+    let mut counts = counts.into_iter().collect::<Vec<_>>();
+    counts.sort_by(|(left_name, left_count), (right_name, right_count)| {
+        right_count
+            .cmp(left_count)
+            .then_with(|| left_name.cmp(right_name))
+    });
+    counts
 }
 
 impl Interpolatable for ExpandedNodeIdentifier {}
@@ -389,7 +409,7 @@ impl RuntimeContext {
             let drained = drain_effects(MAX_NODE_EFFECTS_PER_TICK);
             if drained == MAX_NODE_EFFECTS_PER_TICK {
                 log::warn!(
-                    "node effect drain hit {} effects in one tick; deferring remaining effects",
+                    "reactive drain hit {} evaluations in one tick; deferring remaining work",
                     MAX_NODE_EFFECTS_PER_TICK
                 );
             }
@@ -399,23 +419,74 @@ impl RuntimeContext {
         let start = Instant::now();
         let report = drain_effects_with_report(MAX_NODE_EFFECTS_PER_TICK);
         let elapsed_ms = start.elapsed().as_secs_f64() * 1000.0;
-        if report.ran == MAX_NODE_EFFECTS_PER_TICK {
+        if report.budget_exhausted {
             log::warn!(
-                "node effect drain hit {} effects in one tick; deferring remaining effects",
+                "reactive drain hit {} evaluations in one tick; deferring remaining work",
                 MAX_NODE_EFFECTS_PER_TICK
             );
         }
-        if report.popped > 0 {
+        if report.popped > 0 || report.cutoffs_evaluated > 0 {
+            let globals = self.globals();
+            let frame_dependents = summarize_debug_names(property_outbound_debug_names(
+                &globals.elapsed_frames.untyped(),
+            ));
+            let millis_dependents = summarize_debug_names(property_outbound_debug_names(
+                &globals.elapsed_millis.untyped(),
+            ));
+            let frame_clock = globals.elapsed_frames.untyped();
+            let millis_clock = globals.elapsed_millis.untyped();
+            let (entering, exiting, enter_cleanup, exit_cleanup, stale_clock_nodes) = {
+                let nodes = borrow!(self.node_cache);
+                nodes.eid_to_node.values().fold(
+                    (0, 0, 0, 0, Vec::new()),
+                    |(entering, exiting, enter_cleanup, exit_cleanup, mut stale_clock_nodes),
+                     node| {
+                        let phase = node.transition_phase.get();
+                        if phase != TRANSITION_PHASE_ENTER
+                            && phase != TRANSITION_PHASE_EXIT
+                            && (property_has_direct_outbound(
+                                &frame_clock,
+                                &node.transition_playhead.untyped(),
+                            ) || property_has_direct_outbound(
+                                &millis_clock,
+                                &node.transition_playhead_millis.untyped(),
+                            ))
+                        {
+                            stale_clock_nodes
+                                .push(Self::expanded_node_effect_debug_name(node, "idle clock"));
+                        }
+                        (
+                            entering + usize::from(phase == TRANSITION_PHASE_ENTER),
+                            exiting + usize::from(phase == TRANSITION_PHASE_EXIT),
+                            enter_cleanup + usize::from(node.enter_cleanup_active.get()),
+                            exit_cleanup + usize::from(node.exit_cleanup_active.get()),
+                            stale_clock_nodes,
+                        )
+                    },
+                )
+            };
             println!(
-                "[PaxEffectDrain] ran={} popped={} clean={} unregistered={} missing={} remaining={} elapsed_ms={:.3} top=[{}]",
+                "[PaxEffectDrain] ran={} popped={} clean={} unregistered={} missing={} remaining={} cutoffs={} suppressed={} propagated={} remaining_cutoffs={} elapsed_ms={:.3} transitions=enter:{}/exit:{}/enter_cleanup:{}/exit_cleanup:{} stale_clocks=[{}] frame_deps=[{}] millis_deps=[{}] effects=[{}] cutoff_nodes=[{}]",
                 report.ran,
                 report.popped,
                 report.skipped_clean,
                 report.skipped_unregistered,
                 report.skipped_missing,
                 report.remaining,
+                report.cutoffs_evaluated,
+                report.cutoffs_suppressed,
+                report.cutoffs_propagated,
+                report.remaining_cutoffs,
                 elapsed_ms,
+                entering,
+                exiting,
+                enter_cleanup,
+                exit_cleanup,
+                stale_clock_nodes.join("; "),
+                format_effect_top(&frame_dependents),
+                format_effect_top(&millis_dependents),
                 format_effect_top(&report.top_effects),
+                format_effect_top(&report.top_cutoffs),
             );
         }
     }

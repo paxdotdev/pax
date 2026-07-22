@@ -52,6 +52,37 @@ fn test_property_replacement_with_self_is_noop() {
 }
 
 #[test]
+fn test_property_replacement_disconnects_previous_dependencies() {
+    let old_source = Property::new(1);
+    let old_source_for_computed = old_source.clone();
+    let slot = Property::computed(
+        move || old_source_for_computed.get(),
+        &[old_source.untyped()],
+    );
+    let effect_runs = Rc::new(Cell::new(0));
+    let effect_runs_for_effect = Rc::clone(&effect_runs);
+    let slot_for_effect = slot.clone();
+    let effect = Property::computed(
+        move || {
+            let _ = slot_for_effect.get();
+            effect_runs_for_effect.set(effect_runs_for_effect.get() + 1);
+        },
+        &[slot.untyped()],
+    );
+    register_effect_property(&effect);
+    drain_effects(10);
+
+    slot.replace_with(Property::new(0));
+    drain_effects(10);
+    let runs_after_replacement = effect_runs.get();
+
+    old_source.set(2);
+    assert_eq!(drain_effects(10), 0);
+    assert_eq!(effect_runs.get(), runs_after_replacement);
+    assert_eq!(slot.get(), 0);
+}
+
+#[test]
 fn test_larger_network() {
     let prop_1 = Property::new(2);
     let prop_2 = Property::new(6);
@@ -167,4 +198,306 @@ fn test_invalidate_preserves_pending_computed_update() {
     computed.invalidate();
 
     assert!(computed.get());
+}
+
+#[test]
+fn test_cutoff_suppresses_equivalent_output_propagation() {
+    let source = Property::new(1);
+    let source_for_cutoff = source.clone();
+    let cutoff = Property::computed_with_cutoff(
+        move || source_for_cutoff.get() % 2,
+        &[source.untyped()],
+        i32::eq,
+    );
+    let effect_runs = Rc::new(Cell::new(0));
+    let seen = Rc::new(Cell::new(0));
+    let cutoff_for_effect = cutoff.clone();
+    let effect_runs_for_effect = Rc::clone(&effect_runs);
+    let seen_for_effect = Rc::clone(&seen);
+    let effect = Property::computed(
+        move || {
+            effect_runs_for_effect.set(effect_runs_for_effect.get() + 1);
+            seen_for_effect.set(cutoff_for_effect.get());
+        },
+        &[cutoff.untyped()],
+    );
+    register_effect_property(&effect);
+
+    drain_effects(10);
+    assert_eq!(effect_runs.get(), 1);
+    assert_eq!(seen.get(), 1);
+
+    source.set(3);
+    drain_effects(10);
+    assert_eq!(effect_runs.get(), 1);
+    assert_eq!(cutoff.get(), 1);
+
+    source.set(4);
+    drain_effects(10);
+    assert_eq!(effect_runs.get(), 2);
+    assert_eq!(seen.get(), 0);
+}
+
+#[test]
+fn test_cutoff_retains_last_accepted_value() {
+    let source = Property::new(0.0);
+    let source_for_cutoff = source.clone();
+    let cutoff = Property::computed_with_cutoff(
+        move || source_for_cutoff.get(),
+        &[source.untyped()],
+        |previous: &f64, candidate: &f64| (previous - candidate).abs() < 1.0,
+    );
+
+    assert_eq!(cutoff.get(), 0.0);
+
+    source.set(0.6);
+    assert_eq!(cutoff.get(), 0.0);
+
+    source.set(1.2);
+    assert_eq!(cutoff.get(), 1.2);
+}
+
+#[test]
+fn test_chained_cutoffs_settle_before_effects() {
+    let source = Property::new(1);
+    let source_for_first = source.clone();
+    let first = Property::computed_with_cutoff(
+        move || source_for_first.get() % 2,
+        &[source.untyped()],
+        i32::eq,
+    );
+    let first_for_second = first.clone();
+    let second = Property::computed_with_cutoff(
+        move || first_for_second.get() * 10,
+        &[first.untyped()],
+        i32::eq,
+    );
+    let effect_runs = Rc::new(Cell::new(0));
+    let seen = Rc::new(Cell::new(0));
+    let second_for_effect = second.clone();
+    let effect_runs_for_effect = Rc::clone(&effect_runs);
+    let seen_for_effect = Rc::clone(&seen);
+    let effect = Property::computed(
+        move || {
+            effect_runs_for_effect.set(effect_runs_for_effect.get() + 1);
+            seen_for_effect.set(second_for_effect.get());
+        },
+        &[second.untyped()],
+    );
+    register_effect_property(&effect);
+
+    drain_effects(10);
+    assert_eq!(effect_runs.get(), 1);
+    assert_eq!(seen.get(), 10);
+
+    source.set(3);
+    drain_effects(10);
+    assert_eq!(effect_runs.get(), 1);
+
+    source.set(4);
+    drain_effects(10);
+    assert_eq!(effect_runs.get(), 2);
+    assert_eq!(seen.get(), 0);
+}
+
+#[test]
+fn test_diamond_effect_observes_settled_cutoff_once() {
+    let source = Property::new(1);
+    let source_for_cutoff = source.clone();
+    let cutoff_branch = Property::computed_with_cutoff(
+        move || source_for_cutoff.get() * 2,
+        &[source.untyped()],
+        i32::eq,
+    );
+    let source_for_eager = source.clone();
+    let eager_branch = Property::computed(move || source_for_eager.get() * 3, &[source.untyped()]);
+    let effect_runs = Rc::new(Cell::new(0));
+    let seen = Rc::new(Cell::new((0, 0)));
+    let cutoff_for_effect = cutoff_branch.clone();
+    let eager_for_effect = eager_branch.clone();
+    let effect_runs_for_effect = Rc::clone(&effect_runs);
+    let seen_for_effect = Rc::clone(&seen);
+    let effect = Property::computed(
+        move || {
+            effect_runs_for_effect.set(effect_runs_for_effect.get() + 1);
+            seen_for_effect.set((cutoff_for_effect.get(), eager_for_effect.get()));
+        },
+        &[cutoff_branch.untyped(), eager_branch.untyped()],
+    );
+    register_effect_property(&effect);
+
+    drain_effects(10);
+    assert_eq!(effect_runs.get(), 1);
+    assert_eq!(seen.get(), (2, 3));
+
+    source.set(2);
+    drain_effects(10);
+    assert_eq!(effect_runs.get(), 2);
+    assert_eq!(seen.get(), (4, 6));
+}
+
+#[test]
+fn test_get_settles_queued_cutoff_before_drain() {
+    let source = Property::new(1);
+    let source_for_cutoff = source.clone();
+    let cutoff = Property::computed_with_cutoff(
+        move || source_for_cutoff.get(),
+        &[source.untyped()],
+        i32::eq,
+    );
+
+    assert_eq!(cutoff.get(), 1);
+    source.set(2);
+    assert_eq!(cutoff.get(), 2);
+    assert_eq!(drain_effects(10), 0);
+}
+
+#[test]
+fn test_dropped_queued_cutoff_is_ignored() {
+    let source = Property::new(1);
+    let source_for_cutoff = source.clone();
+    let cutoff = Property::computed_with_cutoff(
+        move || source_for_cutoff.get(),
+        &[source.untyped()],
+        i32::eq,
+    );
+
+    assert_eq!(cutoff.get(), 1);
+    source.set(2);
+    drop(cutoff);
+
+    assert_eq!(drain_effects(10), 0);
+}
+
+#[test]
+fn test_cutoff_initializes_without_being_pulled_by_effect() {
+    let source = Property::new(1);
+    let source_for_cutoff = source.clone();
+    let cutoff = Property::computed_with_cutoff(
+        move || source_for_cutoff.get(),
+        &[source.untyped()],
+        i32::eq,
+    );
+    let effect_runs = Rc::new(Cell::new(0));
+    let effect_runs_for_effect = Rc::clone(&effect_runs);
+    let effect = Property::computed(
+        move || effect_runs_for_effect.set(effect_runs_for_effect.get() + 1),
+        &[cutoff.untyped()],
+    );
+    register_effect_property(&effect);
+
+    drain_effects(10);
+    assert_eq!(effect_runs.get(), 1);
+
+    source.set(2);
+    drain_effects(10);
+    assert_eq!(effect_runs.get(), 2);
+}
+
+#[test]
+fn test_cutoff_requeues_when_invalidated_during_evaluation() {
+    let source = Property::new(1);
+    let source_for_cutoff = source.clone();
+    let source_to_invalidate = source.clone();
+    let cutoff = Property::computed_with_cutoff(
+        move || {
+            let value = source_for_cutoff.get();
+            if value == 2 {
+                source_to_invalidate.set(3);
+            }
+            value
+        },
+        &[source.untyped()],
+        i32::eq,
+    );
+    let seen = Rc::new(Cell::new(0));
+    let cutoff_for_effect = cutoff.clone();
+    let seen_for_effect = Rc::clone(&seen);
+    let effect = Property::computed(
+        move || seen_for_effect.set(cutoff_for_effect.get()),
+        &[cutoff.untyped()],
+    );
+    register_effect_property(&effect);
+
+    drain_effects(10);
+    assert_eq!(seen.get(), 1);
+
+    source.set(2);
+    assert_eq!(drain_effects(10), 3);
+    assert_eq!(cutoff.get(), 3);
+    assert_eq!(seen.get(), 3);
+}
+
+#[test]
+fn test_replacement_preserves_cutoff_semantics() {
+    let source = Property::new(1);
+    let source_for_cutoff = source.clone();
+    let cutoff = Property::computed_with_cutoff(
+        move || source_for_cutoff.get() % 2,
+        &[source.untyped()],
+        i32::eq,
+    );
+    let slot = Property::new(99);
+    let effect_runs = Rc::new(Cell::new(0));
+    let seen = Rc::new(Cell::new(0));
+    let slot_for_effect = slot.clone();
+    let effect_runs_for_effect = Rc::clone(&effect_runs);
+    let seen_for_effect = Rc::clone(&seen);
+    let effect = Property::computed(
+        move || {
+            effect_runs_for_effect.set(effect_runs_for_effect.get() + 1);
+            seen_for_effect.set(slot_for_effect.get());
+        },
+        &[slot.untyped()],
+    );
+    register_effect_property(&effect);
+    drain_effects(10);
+
+    slot.replace_with(cutoff);
+    drain_effects(10);
+    assert_eq!(seen.get(), 1);
+    let baseline_runs = effect_runs.get();
+
+    source.set(3);
+    drain_effects(10);
+    assert_eq!(effect_runs.get(), baseline_runs);
+
+    source.set(4);
+    drain_effects(10);
+    assert_eq!(effect_runs.get(), baseline_runs + 1);
+    assert_eq!(seen.get(), 0);
+}
+
+#[test]
+fn test_cutoff_work_obeys_drain_budget() {
+    let source = Property::new(1);
+    let source_for_cutoff = source.clone();
+    let cutoff = Property::computed_with_cutoff(
+        move || source_for_cutoff.get(),
+        &[source.untyped()],
+        i32::eq,
+    );
+    let effect_runs = Rc::new(Cell::new(0));
+    let cutoff_for_effect = cutoff.clone();
+    let effect_runs_for_effect = Rc::clone(&effect_runs);
+    let effect = Property::computed(
+        move || {
+            let _ = cutoff_for_effect.get();
+            effect_runs_for_effect.set(effect_runs_for_effect.get() + 1);
+        },
+        &[cutoff.untyped()],
+    );
+    register_effect_property(&effect);
+
+    let report = drain_effects_with_report(1);
+    assert_eq!(report.cutoffs_evaluated, 1);
+    assert_eq!(report.ran, 0);
+    assert!(report.budget_exhausted);
+    assert_eq!(report.remaining, 1);
+
+    let report = drain_effects_with_report(1);
+    assert_eq!(report.cutoffs_evaluated, 0);
+    assert_eq!(report.ran, 1);
+    assert_eq!(effect_runs.get(), 1);
+    assert!(!report.budget_exhausted);
 }

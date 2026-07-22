@@ -2567,6 +2567,7 @@ pax-kit = {{ path = "{}" }}
             kind: PaxItemKind::StructOnly,
             data: DataSummary::Struct(vec![]),
             engine_import_path: DEFAULT_ENGINE_IMPORT_PATH.to_string(),
+            route_branch: None,
             package_name: import_path
                 .split("::")
                 .next()

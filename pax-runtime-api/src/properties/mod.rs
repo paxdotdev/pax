@@ -70,7 +70,21 @@ impl<T: PropertyValue> Property<T> {
 
     /// Creates a computed property from an evaluator and dependency list.
     pub fn computed(evaluator: impl Fn() -> T + 'static, dependents: &[UntypedProperty]) -> Self {
-        Self::computed_with_config(evaluator, dependents, None)
+        Self::computed_with_config(evaluator, dependents, None, None)
+    }
+
+    /// Creates a computed property with a propagation cutoff.
+    ///
+    /// The predicate receives the last accepted value and the newly evaluated
+    /// candidate. Returning `true` discards the candidate and stops outbound
+    /// invalidation at this property; returning `false` accepts and propagates
+    /// it. The first evaluation is always accepted.
+    pub fn computed_with_cutoff(
+        evaluator: impl Fn() -> T + 'static,
+        dependents: &[UntypedProperty],
+        cutoff: impl Fn(&T, &T) -> bool + 'static,
+    ) -> Self {
+        Self::computed_with_config(evaluator, dependents, None, Some(Rc::new(cutoff)))
     }
 
     /// Creates a named literal property, useful for diagnostics.
@@ -84,7 +98,17 @@ impl<T: PropertyValue> Property<T> {
         dependents: &[UntypedProperty],
         name: &str,
     ) -> Self {
-        Self::computed_with_config(evaluator, dependents, Some(name))
+        Self::computed_with_config(evaluator, dependents, Some(name), None)
+    }
+
+    /// Creates a named cutoff computed property, useful for diagnostics.
+    pub fn computed_with_cutoff_and_name(
+        evaluator: impl Fn() -> T + 'static,
+        dependents: &[UntypedProperty],
+        cutoff: impl Fn(&T, &T) -> bool + 'static,
+        name: &str,
+    ) -> Self {
+        Self::computed_with_config(evaluator, dependents, Some(name), Some(Rc::new(cutoff)))
     }
 
     fn new_optional_name(val: T, name: Option<&str>) -> Self {
@@ -98,6 +122,7 @@ impl<T: PropertyValue> Property<T> {
         evaluator: impl Fn() -> T + 'static,
         dependents: &[UntypedProperty],
         name: Option<&str>,
+        cutoff: Option<Rc<dyn Fn(&T, &T) -> bool>>,
     ) -> Self {
         let inbound: Vec<_> = dependents.iter().map(|v| v.get_id()).collect();
         let start_val = T::default();
@@ -106,7 +131,13 @@ impl<T: PropertyValue> Property<T> {
             untyped: UntypedProperty::new(
                 start_val,
                 inbound,
-                PropertyType::Computed { evaluator },
+                PropertyType::Computed {
+                    evaluator,
+                    cutoff: cutoff.map(|predicate| properties_table::Cutoff {
+                        predicate,
+                        initialized: false,
+                    }),
+                },
                 name,
             ),
             _phantom: PhantomData {},
@@ -268,6 +299,16 @@ pub fn drain_effects(max_iterations: usize) -> usize {
 #[doc(hidden)]
 pub fn drain_effects_with_report(max_iterations: usize) -> EffectDrainReport {
     PROPERTY_TABLE.with(|t| t.drain_effects_with_report(max_iterations))
+}
+
+#[doc(hidden)]
+pub fn property_outbound_debug_names(prop: &UntypedProperty) -> Vec<String> {
+    PROPERTY_TABLE.with(|t| t.outbound_debug_names(prop.id))
+}
+
+#[doc(hidden)]
+pub fn property_has_direct_outbound(source: &UntypedProperty, outbound: &UntypedProperty) -> bool {
+    PROPERTY_TABLE.with(|t| t.has_direct_outbound(source.id, outbound.id))
 }
 
 // Registers the runtime clock property used by transition/easing machinery.

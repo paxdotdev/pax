@@ -98,7 +98,7 @@ public extension NativeMessageHandling {
             || patch.presentation_scroll_y != nil
     }
 
-    private func applyScrollOnlyScrollerPatch(_ scroller: ScrollerElement) -> Bool {
+    private func applyScrollerScrollPosition(_ scroller: ScrollerElement) -> Bool {
         let scrollX = scroller.presentationScrollX.isFinite
             ? scroller.presentationScrollX
             : scroller.scrollX
@@ -366,8 +366,13 @@ public extension NativeMessageHandling {
                 || previousPresentedClipBounds != scroller.presentedClipBounds
                 || previousSubtreeDepth != scroller.subtreeDepth
 
+            // Scroll ownership is patch-specific. Apply explicit offsets even when the same
+            // patch also dirties geometry, so native-tree reconciliation never has to replay
+            // cached scroll state.
+            let appliedScrollPosition = hasScrollUpdate
+                && applyScrollerScrollPosition(scroller)
             if hasScrollUpdate && !structuralChanged {
-                if !applyScrollOnlyScrollerPatch(scroller) {
+                if !appliedScrollPosition {
                     dirty.scroller = true
                 }
                 return

@@ -1,4 +1,4 @@
-<Group width=100% height=100%>
+<Scroller width=100% height=100% autosize=true>
     <Stacker
         width=100%
         autosize=true
@@ -12,18 +12,18 @@
             autosize_x=false
             autosize_y=true
             @in=@timeline {
-                duration: 96,
+                duration: 48,
                 rotate: {
                     0: {$base + 5.5deg}, OutQuad,
-                    54: {$base},
+                    27: {$base},
                     100%: {$base},
                 },
             }
             @out=@timeline {
-                duration: 18,
+                duration: 9,
                 rotate: {
                     0: {$base}, OutQuad,
-                    18: {$base - 2deg},
+                    9: {$base - 2deg},
                 },
             }
         >
@@ -50,19 +50,19 @@
                 direction=StackerDirection::Vertical
                 gutter=10px
                 @in=@timeline {
-                    duration: 96,
+                    duration: 48,
                     rotate: {
                         0: {$base - 10deg}, Hold,
-                        12: {$base - 10deg}, OutQuad,
-                        66: {$base},
+                        6: {$base - 10deg}, OutQuad,
+                        33: {$base},
                         100%: {$base},
                     },
                 }
                 @out=@timeline {
-                    duration: 18,
+                    duration: 9,
                     rotate: {
                         0: {$base}, OutQuad,
-                        18: {$base + 1.5deg},
+                        9: {$base + 1.5deg},
                     },
                 }
             >
@@ -94,19 +94,19 @@
                 gutter=14px
                 sizes=[None, None, None, None]
                 @in=@timeline {
-                    duration: 96,
+                    duration: 48,
                     rotate: {
                         0: {$base + 9deg}, Hold,
-                        12: {$base + 9deg}, OutQuad,
-                        66: {$base},
+                        6: {$base + 9deg}, OutQuad,
+                        33: {$base},
                         100%: {$base},
                     },
                 }
                 @out=@timeline {
-                    duration: 18,
+                    duration: 9,
                     rotate: {
                         0: {$base}, OutQuad,
-                        18: {$base - 1.5deg},
+                        9: {$base - 1.5deg},
                     },
                 }
             >
@@ -134,19 +134,19 @@
             width=100%
             title="guide scope"
             @in=@timeline {
-                duration: 96,
+                duration: 48,
                 rotate: {
                     0: {$base - 4deg}, Hold,
-                    24: {$base - 4deg}, OutQuad,
-                    84: {$base},
+                    12: {$base - 4deg}, OutQuad,
+                    42: {$base},
                     100%: {$base},
                 },
             }
             @out=@timeline {
-                duration: 18,
+                duration: 9,
                 rotate: {
                     0: {$base}, OutQuad,
-                    18: {$base - 2deg},
+                    9: {$base - 2deg},
                 },
             }
         />
@@ -158,18 +158,18 @@
             autosize_x=false
             autosize_y=true
             @in=@timeline {
-                duration: 96,
+                duration: 48,
                 rotate: {
                     0: {$base + 3.5deg}, Hold,
-                    36: {$base + 3.5deg}, OutQuad,
-                    96: {$base},
+                    18: {$base + 3.5deg}, OutQuad,
+                    48: {$base},
                 },
             }
             @out=@timeline {
-                duration: 18,
+                duration: 9,
                 rotate: {
                     0: {$base}, OutQuad,
-                    18: {$base + 1deg},
+                    9: {$base + 1deg},
                 },
             }
         >
@@ -322,7 +322,7 @@
             </Router>
         </Group>
     </Stacker>
-</Group>
+</Scroller>
 
 @settings {
     @in: route_enter
@@ -419,11 +419,11 @@
 }
 
 @timeline route_enter {
-    duration: 96,
+    duration: 48,
     self {
         opacity: {
             0: 0, InQuad,
-            24: {$base},
+            12: {$base},
             100%: {$base},
         },
     }
@@ -431,12 +431,12 @@
     .route_stage_0 {
         opacity: {
             0: 0, InQuad,
-            36: {$base},
+            18: {$base},
             100%: {$base},
         },
         y: {
             0: {$base - 100px}, InQuad,
-            36: {$base},
+            18: {$base},
             100%: {$base},
         },
     }
@@ -444,14 +444,14 @@
     .route_stage_1 {
         opacity: {
             0: 0, Hold,
-            12: 0, InQuad,
-            54: {$base},
+            6: 0, InQuad,
+            27: {$base},
             100%: {$base},
         },
         y: {
             0: {$base - 100px}, Hold,
-            12: {$base - 100px}, InQuad,
-            54: {$base},
+            6: {$base - 100px}, InQuad,
+            27: {$base},
             100%: {$base},
         },
     }
@@ -459,14 +459,14 @@
     .route_stage_2 {
         opacity: {
             0: 0, Hold,
-            24: 0, InQuad,
-            72: {$base},
+            12: 0, InQuad,
+            36: {$base},
             100%: {$base},
         },
         y: {
             0: {$base - 100px}, Hold,
-            24: {$base - 100px}, InQuad,
-            72: {$base},
+            12: {$base - 100px}, InQuad,
+            36: {$base},
             100%: {$base},
         },
     }
@@ -474,19 +474,19 @@
     .route_stage_3 {
         opacity: {
             0: 0, Hold,
-            36: 0, InQuad,
-            96: {$base},
+            18: 0, InQuad,
+            48: {$base},
         },
         y: {
             0: {$base - 100px}, Hold,
-            36: {$base - 100px}, InQuad,
-            96: {$base},
+            18: {$base - 100px}, InQuad,
+            48: {$base},
         },
     }
 }
 
 @timeline route_exit {
-    duration: 18,
+    duration: 9,
     self {
         opacity: {
             0: {$base}, OutQuad,

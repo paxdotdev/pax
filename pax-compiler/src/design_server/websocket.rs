@@ -2111,6 +2111,7 @@ mod tests {
                 template: None,
                 settings: None,
                 timelines: vec![],
+                route_branch: None,
             },
         );
         PaxManifest {

@@ -6,8 +6,8 @@ use pax_message::{AnyCreatePatch, NativeInterrupt, ScrollerPatch};
 use pax_runtime::api::{borrow, borrow_mut, use_RefCell, Layer, NodeContext};
 use pax_runtime::{
     bind_content_measurement_effect, measure_content_children_forward_extents, BaseInstance,
-    ExpandedNode, ExpandedNodeIdentifier, InstanceFlags, InstanceNode, InstantiationArgs,
-    RuntimeContext, ScrollerSurfaceState, ScrollerSurfaceStateChange,
+    ContentMeasurementGeometry, ExpandedNode, ExpandedNodeIdentifier, InstanceFlags, InstanceNode,
+    InstantiationArgs, RuntimeContext, ScrollerSurfaceState, ScrollerSurfaceStateChange,
 };
 use std::iter;
 use std::rc::Rc;
@@ -795,6 +795,7 @@ impl Scroller {
             &expanded_node,
             ctx,
             "scroller autosize",
+            ContentMeasurementGeometry::Placed,
             &deps,
             move |_node, node_ctx| {
                 sync_scroller_autosize(

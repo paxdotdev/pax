@@ -1562,6 +1562,7 @@ mod tests {
                 )),
                 settings: Some(vec![]),
                 timelines: vec![],
+                route_branch: None,
             },
         );
         components.insert(
@@ -1576,6 +1577,7 @@ mod tests {
                 template: None,
                 settings: None,
                 timelines: vec![],
+                route_branch: None,
             },
         );
         PaxManifest {

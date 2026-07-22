@@ -668,3 +668,56 @@ Recommendations: expose chassis-provided safe-area insets through runtime
 viewport data. Until then, edge-to-edge examples with top-level controls must
 explicitly reserve the native status region, and visual bounds alone are not a
 reliable test of iOS hit accessibility there.
+
+## 2026-07-20
+
+Wrapping canvas-interactive content in a `Scroller` changed input ownership on
+iOS: the native `UIScrollView` correctly received pan gestures, but it sat above
+the Pax canvas and prevented taps from reaching descendant `@click` handlers.
+The macOS Scroller path already forwarded pointer interrupts explicitly; the
+iOS path had no equivalent.
+
+Solved by adding a non-cancelling tap recognizer to the iOS Scroller host. UIKit
+first distinguishes a tap from the scroll view's pan gesture, then the host
+forwards the settled viewport coordinate to Pax hit testing. Nested native
+controls and nested scroll views retain their own gesture ownership.
+
+Recommendations: any native host layered above canvas-interactive descendants
+must explicitly preserve their semantic input path. For scrolling surfaces,
+forward taps only after native gesture arbitration rather than forwarding raw
+touch-down events, which would activate content when the user intends to drag.
+
+## 2026-07-21
+
+Changing a nested route inside an autosized iOS `Scroller` reset the surviving
+outer scroll position. Native-tree reconciliation replayed the Scroller
+element's cached offset for every structural patch, even when that patch only
+changed content geometry. During route transitions, a temporary content-size
+contraction could also make UIKit clamp `contentOffset` and report the clamp as
+if it were a user scroll.
+
+Solved by applying cached scroll state only when the native host is created and
+delivering later explicit scroll patches directly to that host. iOS content-size
+updates now preserve the host's logical position while suppressing synthetic
+delegate callbacks, allowing the position to return when autosized content
+expands again. Recommendations: treat scroll offsets as patch-owned state;
+structural reconciliation must not replay them, and platform layout clamps must
+not silently become user-authored state.
+
+## 2026-07-22
+
+A modal underlay authored as a translucent canvas `Rectangle` did not composite
+above canvas content hosted by a native `Scroller`. The root canvas contains the
+underlay, while a Scroller owns a separate CAMetalLayer-backed canvas island in
+the native scene. Treating full-surface native-mask coverage as uniform island
+alpha attenuation was not equivalent to painting translucent black over the
+finished scene and left light card fills visibly brighter than surrounding
+content.
+
+Solved by allowing `EventBlocker` to paint an optional solid background and
+using that native, z-ordered surface for the `RouteCard` and `RouteModal`
+underlays. The underlay now blocks input and composites above retained native
+and scroller surfaces; opaque incoming canvas content masks it through the
+normal occlusion path. Recommendations: use a real surface in the native z
+stack for translucent modal underlays that span canvas islands. Do not model
+source-over color compositing by attenuating the covered surface's alpha.

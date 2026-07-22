@@ -1,3 +1,5 @@
+import { ColorGroup } from "../text";
+
 export class EventBlockerUpdatePatch {
     public id?: number;
     public parentFrame?: number;
@@ -6,6 +8,7 @@ export class EventBlockerUpdatePatch {
     public sizeY?: number;
     public transform?: number[];
     public opacity?: number;
+    public background?: ColorGroup;
     fromPatch(jsonMessage: any) {
         if(jsonMessage != null) {
             this.id = jsonMessage["id"];
@@ -15,6 +18,7 @@ export class EventBlockerUpdatePatch {
             this.sizeY = jsonMessage["size_y"];
             this.transform = jsonMessage["transform"];
             this.opacity = jsonMessage["opacity"];
+            this.background = jsonMessage["background"];
         }
     }
 
@@ -26,5 +30,6 @@ export class EventBlockerUpdatePatch {
         this.sizeX = 0;
         this.transform = [];
         this.opacity = undefined;
+        this.background = undefined;
     }
 }

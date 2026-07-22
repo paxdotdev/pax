@@ -853,6 +853,7 @@ mod tests {
                 template: None,
                 settings: None,
                 timelines: vec![],
+                route_branch: None,
             },
         );
         PaxManifest {
@@ -1443,6 +1444,7 @@ mod tests {
                 template: None,
                 settings: None,
                 timelines: vec![],
+                route_branch: None,
             },
         );
         let mut first = initial.components[&first_id].clone();
@@ -1527,6 +1529,7 @@ mod tests {
                 )),
                 settings: None,
                 timelines: vec![],
+                route_branch: None,
             },
         );
         let mut edited_second = initial.components[&second_id].clone();

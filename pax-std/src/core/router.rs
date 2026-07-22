@@ -73,10 +73,10 @@ pub struct Route {
                 slot(i)
             }
         </Group>
-        <Rectangle
+        <EventBlocker
             width=100%
             height=100%
-            fill=rgba(0, 0, 0, 255)
+            background=rgba(0, 0, 0, 255)
             opacity={self.scrim_opacity}
             @in=@timeline {
                 duration: {self.duration},
@@ -161,10 +161,10 @@ pub struct RouteModal {
                 slot(i)
             }
         </Group>
-        <Rectangle
+        <EventBlocker
             width=100%
             height=100%
-            fill=rgba(0, 0, 0, 255)
+            background=rgba(0, 0, 0, 255)
             opacity={self.scrim_opacity}
             @in=@timeline {
                 duration: {self.duration},

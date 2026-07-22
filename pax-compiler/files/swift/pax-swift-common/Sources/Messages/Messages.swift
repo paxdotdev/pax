@@ -2318,6 +2318,7 @@ public class EventBlockerPatchMessage: ResolvedPlacementPatch {
     public var size_x: Float?
     public var size_y: Float?
     public var opacity: Double?
+    public var background: Color?
 
     public init(fb: FlxbReference) {
         self.id = readNodeId(fb["id"]) ?? 0
@@ -2329,6 +2330,9 @@ public class EventBlockerPatchMessage: ResolvedPlacementPatch {
         self.size_x = fb["size_x"]?.asFloat
         self.size_y = fb["size_y"]?.asFloat
         self.opacity = readDouble(fb["opacity"])
+        if let background = fb["background"], !background.isNull {
+            self.background = extractColorFromBuffer(background)
+        }
     }
 }
 
@@ -2341,9 +2345,10 @@ public class EventBlockerElement: NativePositionElement {
     public var size_x: Float
     public var size_y: Float
     public var opacity: Double
+    public var background: Color
     public var nativeMaskPatch: NativeMaskPatch? = nil
 
-    public init(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, opacity: Double) {
+    public init(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32, zIndex: Int, transform: [Float], size_x: Float, size_y: Float, opacity: Double, background: Color) {
         self.id = id
         self.parentFrame = parentFrame
         self.renderLayerId = renderLayerId
@@ -2352,10 +2357,11 @@ public class EventBlockerElement: NativePositionElement {
         self.size_x = size_x
         self.size_y = size_y
         self.opacity = opacity
+        self.background = background
     }
 
     public static func makeDefault(id: PaxNodeId, parentFrame: PaxNodeId?, renderLayerId: UInt32) -> EventBlockerElement {
-        EventBlockerElement(id: id, parentFrame: parentFrame, renderLayerId: renderLayerId, zIndex: 0, transform: [1, 0, 0, 1, 0, 0], size_x: 0, size_y: 0, opacity: 1.0)
+        EventBlockerElement(id: id, parentFrame: parentFrame, renderLayerId: renderLayerId, zIndex: 0, transform: [1, 0, 0, 1, 0, 0], size_x: 0, size_y: 0, opacity: 1.0, background: Color(.clear))
     }
 
     public func applyPatch(_ patch: EventBlockerPatchMessage) {
@@ -2363,6 +2369,7 @@ public class EventBlockerElement: NativePositionElement {
         if let size_x = patch.size_x { self.size_x = size_x }
         if let size_y = patch.size_y { self.size_y = size_y }
         if let opacity = patch.opacity { self.opacity = opacity }
+        if let background = patch.background { self.background = background }
     }
 }
 

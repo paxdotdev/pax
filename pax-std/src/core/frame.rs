@@ -8,7 +8,8 @@ use pax_message::{AnyCreatePatch, FramePatch};
 use pax_runtime::api::{bez_path_to_svg_path_data, Layer, Property, RenderContext};
 use pax_runtime::{
     bind_content_measurement_effect, resolve_axis_autosize, sync_content_autosize_with_axes,
-    BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
+    BaseInstance, ContentMeasurementGeometry, ExpandedNode, InstanceFlags, InstanceNode,
+    InstantiationArgs, RuntimeContext,
 };
 use_RefCell!();
 use pax_runtime::api::{borrow, borrow_mut, use_RefCell};
@@ -109,6 +110,7 @@ impl InstanceNode for FrameInstance {
             expanded_node,
             &ctx,
             "frame autosize",
+            ContentMeasurementGeometry::Placed,
             &deps,
             move |node, node_ctx| {
                 sync_content_autosize_with_axes(

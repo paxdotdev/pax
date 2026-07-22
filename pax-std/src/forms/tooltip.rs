@@ -5,6 +5,7 @@ use pax_engine::*;
 use pax_runtime::api::NodeContext;
 use pax_runtime::{
     bind_content_measurement_effect, resolve_axis_autosize, sync_content_autosize_with_axes,
+    ContentMeasurementGeometry,
 };
 
 /// A simple hover tooltip that renders slotted content plus a floating text tip.
@@ -93,6 +94,7 @@ impl Tooltip {
             &expanded_node,
             ctx,
             "tooltip autosize",
+            ContentMeasurementGeometry::Placed,
             &deps,
             move |node, node_ctx| {
                 sync_content_autosize_with_axes(

@@ -4,18 +4,18 @@
     autosize_x=false
     autosize_y=true
     @in=@timeline {
-        duration: 72,
+        duration: 36,
         rotate: {
             0: {$base - 3.5deg}, Hold,
-            12: {$base - 3.5deg}, OutQuad,
-            72: {$base},
+            6: {$base - 3.5deg}, OutQuad,
+            36: {$base},
         },
     }
     @out=@timeline {
-        duration: 18,
+        duration: 9,
         rotate: {
             0: {$base}, OutQuad,
-            18: {$base - 1deg},
+            9: {$base - 1deg},
         },
     }
 >
@@ -28,23 +28,23 @@
 }
 
 @timeline route_enter {
-    duration: 72,
+    duration: 36,
     self {
         opacity: {
             0: 0, InQuad,
-            54: {$base},
+            27: {$base},
             100%: {$base},
         },
         y: {
             0: {$base - 100px}, InQuad,
-            54: {$base},
+            27: {$base},
             100%: {$base},
         },
     }
 }
 
 @timeline route_exit {
-    duration: 18,
+    duration: 9,
     self {
         opacity: {
             0: {$base}, OutQuad,

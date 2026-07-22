@@ -657,7 +657,7 @@ pub struct NativeMaskPatch {
 #[cfg_attr(debug_assertions, derive(Debug))]
 #[derive(Default, Serialize)]
 #[repr(C)]
-/// Create/update patch for an invisible native hit-test blocker.
+/// Create/update patch for a native hit-test blocker with an optional solid background.
 pub struct EventBlockerPatch {
     pub id: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -668,6 +668,7 @@ pub struct EventBlockerPatch {
     pub size_y: Option<f64>,
     pub transform: Option<Vec<f64>>,
     pub opacity: Option<f64>,
+    pub background: Option<ColorMessage>,
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]

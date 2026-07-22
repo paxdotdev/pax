@@ -1028,8 +1028,8 @@ public struct NativeRenderingLayer: View {
                 hasher.combine(element.fit)
             case .youtubeVideo(let element):
                 hasher.combine(element.url)
-            case .eventBlocker:
-                break
+            case .eventBlocker(let element):
+                combineColor(element.background, into: &hasher)
             }
             return hasher.finalize()
         }
@@ -1795,7 +1795,7 @@ public struct NativeRenderingLayer: View {
     }
 
 #if os(iOS) || os(tvOS) || os(watchOS)
-    private protocol PlatformScrollerDelegate: UIScrollViewDelegate {}
+    private protocol PlatformScrollerDelegate: UIScrollViewDelegate, UIGestureRecognizerDelegate {}
 #elseif os(macOS)
     private protocol PlatformScrollerDelegate {}
 #endif
@@ -1805,6 +1805,7 @@ public struct NativeRenderingLayer: View {
 #if os(iOS) || os(tvOS) || os(watchOS)
         private let scrollView = UIScrollView()
         private let innerContentView = UIView()
+        private let paxTapGestureRecognizer = UITapGestureRecognizer()
 #elseif os(macOS)
         private final class FlippedContentView: NSView {
             override var isFlipped: Bool { true }
@@ -1909,6 +1910,7 @@ public struct NativeRenderingLayer: View {
         private let positiveClipMaskLayer = CAShapeLayer()
         private var appliedPositiveClipSignature: Int?
         private var suppressScrollEvents = false
+        private var hasAppliedInitialScrollPosition = false
 
         var contentHostView: PlatformContainerView { contentHostViewInternal }
 
@@ -1943,6 +1945,12 @@ public struct NativeRenderingLayer: View {
             scrollView.clipsToBounds = true
             scrollView.layer.masksToBounds = true
             scrollView.contentInsetAdjustmentBehavior = .never
+            // The native scroll surface sits above the Pax canvas. Forward taps only after
+            // UIKit has distinguished them from pans so canvas descendants remain interactive.
+            paxTapGestureRecognizer.addTarget(self, action: #selector(handleIOSTap(_:)))
+            paxTapGestureRecognizer.delegate = self
+            paxTapGestureRecognizer.cancelsTouchesInView = false
+            scrollView.addGestureRecognizer(paxTapGestureRecognizer)
             innerContentView.backgroundColor = .clear
             innerContentView.isOpaque = false
             scrollView.addSubview(innerContentView)
@@ -2066,9 +2074,15 @@ public struct NativeRenderingLayer: View {
             updateScrollEnabled(scroller.scrollEnabledX, scroller.scrollEnabledY)
             updateSnapPoints(x: scroller.snapPointsX, y: scroller.snapPointsY)
             updateContentSize(scroller.contentSize)
-            let scrollX = scroller.presentationScrollX.isFinite ? scroller.presentationScrollX : scroller.scrollX
-            let scrollY = scroller.presentationScrollY.isFinite ? scroller.presentationScrollY : scroller.scrollY
-            updateScrollPosition(CGPoint(x: scrollX, y: scrollY))
+            // Full native-tree reconciliation carries cached scroll fields even when only
+            // geometry changed. Apply those fields when the host is created; subsequent
+            // explicit scroll patches are delivered directly through the host registry.
+            if !hasAppliedInitialScrollPosition {
+                hasAppliedInitialScrollPosition = true
+                let scrollX = scroller.presentationScrollX.isFinite ? scroller.presentationScrollX : scroller.scrollX
+                let scrollY = scroller.presentationScrollY.isFinite ? scroller.presentationScrollY : scroller.scrollY
+                updateScrollPosition(CGPoint(x: scrollX, y: scrollY))
+            }
 #if os(iOS) || os(tvOS) || os(watchOS)
             scrollView.clipsToBounds = scroller.clipContent
             scrollView.layer.cornerRadius = scroller.clipContent ? scroller.borderRadius : 0
@@ -2334,7 +2348,22 @@ public struct NativeRenderingLayer: View {
             canvasHostViewInternal.frame = rect
             contentHostViewInternal.frame = rect
 #if os(iOS) || os(tvOS) || os(watchOS)
+            // UIKit may clamp contentOffset and synchronously call the delegate when contentSize
+            // shrinks. Keep that layout side effect from replacing the user's logical position;
+            // later content growth can then restore the position without Router involvement.
+            let preservedScrollPosition = appliedScrollPosition
+            suppressScrollEvents = true
             scrollView.contentSize = safeSize
+            let maxX = max(0, safeSize.width - scrollView.bounds.width)
+            let maxY = max(0, safeSize.height - scrollView.bounds.height)
+            let target = CGPoint(
+                x: min(max(0, preservedScrollPosition.x), maxX),
+                y: min(max(0, preservedScrollPosition.y), maxY)
+            )
+            if shouldApplyScrollPosition(target, current: scrollView.contentOffset) {
+                scrollView.setContentOffset(target, animated: false)
+            }
+            suppressScrollEvents = false
 #elseif os(macOS)
             innerContentView.setFrameSize(safeSize)
             if scrollView.documentView !== innerContentView {
@@ -2574,6 +2603,31 @@ public struct NativeRenderingLayer: View {
         }
 
 #if os(iOS) || os(tvOS) || os(watchOS)
+        @objc private func handleIOSTap(_ recognizer: UITapGestureRecognizer) {
+            let point = recognizer.location(in: nil)
+            dispatchTap(x: Double(point.x), y: Double(point.y))
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldReceive touch: UITouch
+        ) -> Bool {
+            guard gestureRecognizer === paxTapGestureRecognizer else {
+                return true
+            }
+
+            // Let nested native controls and nested scrollers own their gestures. An inner Pax
+            // scroller installs the same forwarding recognizer on its own scroll view.
+            var candidate = touch.view
+            while let view = candidate, view !== scrollView {
+                if view is UIControl || view is UIScrollView {
+                    return false
+                }
+                candidate = view.superview
+            }
+            return true
+        }
+
         private func cancelIOSSnap() {
             iosSnapGeneration &+= 1
             iosSnapDisplayLink?.invalidate()
@@ -3703,8 +3757,8 @@ fileprivate extension NativeRenderingLayer {
             (view as? PaxNativeImageView)?.apply(element: element)
         case .youtubeVideo(let element):
             (view as? PaxNativeYoutubeView)?.apply(element: element)
-        case .eventBlocker:
-            break
+        case .eventBlocker(let element):
+            (view as? PaxNativeEventBlockerView)?.apply(element: element)
         }
     }
 }
@@ -3720,6 +3774,10 @@ private final class PaxNativeEventBlockerView: UIView {
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    func apply(element: EventBlockerElement) {
+        backgroundColor = platformColor(element.background)
     }
 }
 
@@ -4602,6 +4660,10 @@ private final class PaxNativeEventBlockerView: NSView {
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    func apply(element: EventBlockerElement) {
+        layer?.backgroundColor = platformColor(element.background).cgColor
     }
 }
 

@@ -21,7 +21,13 @@ pub struct EffectDrainReport {
     pub skipped_unregistered: usize,
     pub skipped_missing: usize,
     pub remaining: usize,
+    pub cutoffs_evaluated: usize,
+    pub cutoffs_suppressed: usize,
+    pub cutoffs_propagated: usize,
+    pub remaining_cutoffs: usize,
+    pub budget_exhausted: bool,
     pub top_effects: Vec<(String, usize)>,
+    pub top_cutoffs: Vec<(String, usize)>,
 }
 
 thread_local! {
@@ -47,6 +53,9 @@ pub struct PropertyData {
     // has been changed. For computed this can be any other props,
     // for literals, only time variable
     pub dirty: bool,
+    // Type-erased entry point used to settle cutoff properties from the
+    // synchronous reactive worklist.
+    pub(super) cutoff_settler: Option<Rc<dyn Fn(&PropertyTable, PropertyId) -> CutoffEvaluation>>,
 }
 
 impl PropertyData {
@@ -72,7 +81,22 @@ pub(crate) enum PropertyType<T> {
     Computed {
         // Information needed to recompute on change
         evaluator: Rc<dyn Fn() -> T>,
+        cutoff: Option<Cutoff<T>>,
     },
+}
+
+#[derive(Clone)]
+pub(crate) struct Cutoff<T> {
+    pub(super) predicate: Rc<dyn Fn(&T, &T) -> bool>,
+    pub(super) initialized: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum CutoffEvaluation {
+    NotCutoff,
+    Initialized,
+    Suppressed,
+    Propagated,
 }
 
 // Main propertytable, containing data associated with each property
@@ -87,6 +111,8 @@ pub(crate) struct PropertyTable {
     effect_properties: RefCell<HashSet<PropertyId>>,
     queued_effects: RefCell<VecDeque<PropertyId>>,
     queued_effect_set: RefCell<HashSet<PropertyId>>,
+    queued_cutoffs: RefCell<VecDeque<PropertyId>>,
+    queued_cutoff_set: RefCell<HashSet<PropertyId>>,
 }
 
 // Reference-counted slotmap entry for one property id.
@@ -127,17 +153,21 @@ impl PropertyTable {
     }
 
     pub fn invalidate(&self, id: PropertyId) {
-        let newly_dirty = self.with_property_data_mut(id, |property_data| {
+        let (newly_dirty, is_cutoff) = self.with_property_data_mut(id, |property_data| {
             if property_data.dirty {
-                false
+                (false, property_data.cutoff_settler.is_some())
             } else {
                 property_data.dirty = true;
-                true
+                (true, property_data.cutoff_settler.is_some())
             }
         });
         if newly_dirty {
-            self.enqueue_effect_if_registered(id);
-            self.dirtify_outbound(id);
+            if is_cutoff {
+                self.enqueue_cutoff(id);
+            } else {
+                self.enqueue_effect_if_registered(id);
+                self.dirtify_outbound(id);
+            }
         }
     }
 
@@ -151,6 +181,18 @@ impl PropertyTable {
     ) -> PropertyId {
         #[cfg(not(debug_assertions))]
         let _ = debug_name;
+
+        let is_cutoff = matches!(
+            &data,
+            PropertyType::Computed {
+                cutoff: Some(_),
+                ..
+            }
+        );
+        let cutoff_settler = is_cutoff.then(|| {
+            Rc::new(|table: &PropertyTable, id| table.update_value::<T>(id))
+                as Rc<dyn Fn(&PropertyTable, PropertyId) -> CutoffEvaluation>
+        });
 
         let id = {
             let Ok(mut sm) = self.property_map.try_borrow_mut() else {
@@ -173,6 +215,7 @@ impl PropertyTable {
                         transition_manager: None,
                     }),
                     outbound: Vec::with_capacity(0),
+                    cutoff_settler,
                 }),
             };
             sm.insert(entry)
@@ -294,7 +337,7 @@ impl PropertyTable {
     // computed / its value to the way target does.
     // NOTE: source_id and target_id need to both contain
     // the type T, or else this panics
-    pub fn replace_property_keep_outbound_connections<T: Clone + 'static>(
+    pub fn replace_property_keep_outbound_connections<T: PropertyValue>(
         &self,
         source_id: PropertyId,
         target_id: PropertyId,
@@ -313,16 +356,33 @@ impl PropertyTable {
                 // Copy over inbound, dirty state, and current value to source
                 source_property_data.inbound = target_property_data.inbound.clone();
                 source_property_data.dirty = target_property_data.dirty;
+                source_property_data.cutoff_settler = target_property_data.cutoff_settler.clone();
                 let source_typed = source_property_data.typed_data::<T>();
                 let target_typed = target_property_data.typed_data::<T>();
                 source_typed.value = target_typed.value.clone();
                 source_typed.property_type = target_typed.property_type.clone();
+                if target_property_data.dirty {
+                    if let PropertyType::Computed {
+                        cutoff: Some(cutoff),
+                        ..
+                    } = &mut source_typed.property_type
+                    {
+                        cutoff.initialized = false;
+                    }
+                }
             });
         });
 
         // connect self to its new dependents (found in property_types Expr
         // type as inbound) (only does something for computed values)
         self.connect_inbound(source_id);
+
+        if self.is_registered_effect(source_id) && self.is_cutoff(source_id) {
+            panic!("cutoff properties cannot be registered as effects");
+        }
+        if self.is_cutoff(source_id) && self.is_dirty(source_id) {
+            self.enqueue_cutoff(source_id);
+        }
 
         // make sure dependencies of self
         // know that something has changed
@@ -340,7 +400,7 @@ impl PropertyTable {
     }
 
     // re-computes the value if dirty
-    pub fn update_value<T: PropertyValue>(&self, id: PropertyId) {
+    pub fn update_value<T: PropertyValue>(&self, id: PropertyId) -> CutoffEvaluation {
         let mut remove_dep_from_literal = false;
         let evaluator = self.with_property_data_mut(id, |property_data| {
             //short circuit if the value is still up to date
@@ -350,7 +410,16 @@ impl PropertyTable {
             property_data.dirty = false;
             let typed_data = property_data.typed_data::<T>();
             match &mut typed_data.property_type {
-                PropertyType::Computed { evaluator, .. } => Some(Rc::clone(&evaluator)),
+                PropertyType::Computed { evaluator, cutoff } => Some((
+                    Rc::clone(&evaluator),
+                    cutoff.as_ref().map(|cutoff| {
+                        (
+                            Rc::clone(&cutoff.predicate),
+                            cutoff.initialized,
+                            typed_data.value.clone(),
+                        )
+                    }),
+                )),
                 PropertyType::Literal => {
                     let tm = typed_data.transition_manager.as_mut()?;
                     let curr_time = PROPERTY_TIME.with_borrow(|time| time.get());
@@ -375,16 +444,43 @@ impl PropertyTable {
             });
         }
 
-        if let Some(evaluator) = evaluator {
+        if let Some((evaluator, cutoff)) = evaluator {
             // WARNING: the evaluator should not be run while the table is in
             // an invalid state (borrowed, in with_property_data closure, etc.)
             // as this function is provided by a user of the property system and
             // can do arbitrary sets/ gets/drops etc (that need the prop data)
             let new_value = { evaluator() };
+            // Cutoff predicates are API callbacks too, so run them while the
+            // property is present in the table for the same reason as evaluators.
+            let cutoff_evaluation = match cutoff.as_ref() {
+                None => CutoffEvaluation::NotCutoff,
+                Some((_, false, _)) => CutoffEvaluation::Initialized,
+                Some((predicate, true, old_value)) if predicate(old_value, &new_value) => {
+                    CutoffEvaluation::Suppressed
+                }
+                Some(_) => CutoffEvaluation::Propagated,
+            };
             self.with_property_data_mut(id, |property_data| {
                 let typed_data = property_data.typed_data();
-                typed_data.value = new_value;
-            })
+                if let PropertyType::Computed {
+                    cutoff: Some(cutoff),
+                    ..
+                } = &mut typed_data.property_type
+                {
+                    cutoff.initialized = true;
+                }
+
+                if cutoff_evaluation != CutoffEvaluation::Suppressed {
+                    typed_data.value = new_value;
+                }
+            });
+
+            if cutoff_evaluation == CutoffEvaluation::Propagated {
+                self.dirtify_outbound(id);
+            }
+            cutoff_evaluation
+        } else {
+            CutoffEvaluation::NotCutoff
         }
     }
 
@@ -392,6 +488,7 @@ impl PropertyTable {
     pub fn remove_entry(&self, id: PropertyId) {
         let res = {
             self.unregister_effect(id);
+            self.queued_cutoff_set.borrow_mut().remove(&id);
             self.disconnect_outbound(id);
             self.disconnect_inbound(id);
             let Ok(mut sm) = self.property_map.try_borrow_mut() else {
@@ -430,6 +527,9 @@ impl PropertyTable {
     }
 
     pub(crate) fn register_effect_with_name(&self, id: PropertyId, debug_name: Option<&str>) {
+        if self.is_cutoff(id) {
+            panic!("cutoff properties cannot be registered as effects");
+        }
         if let Some(debug_name) = debug_name {
             self.effect_debug_names
                 .borrow_mut()
@@ -440,8 +540,18 @@ impl PropertyTable {
     }
 
     pub(crate) fn drain_effects(&self, max_iterations: usize) -> usize {
-        let mut ran = 0;
-        while ran < max_iterations {
+        let mut work_ran = 0;
+        while work_ran < max_iterations {
+            if let Some(id) = self.pop_queued_cutoff() {
+                if !self.has_live_entry(id) || !self.is_cutoff(id) || !self.is_dirty(id) {
+                    continue;
+                }
+                let settler = self.cutoff_settler(id);
+                settler(self, id);
+                work_ran += 1;
+                continue;
+            }
+
             let Some(id) = self.pop_queued_effect() else {
                 break;
             };
@@ -451,17 +561,41 @@ impl PropertyTable {
             let dirty = self.with_property_data(id, |property_data| property_data.dirty);
             if dirty {
                 self.update_value::<()>(id);
-                ran += 1;
+                work_ran += 1;
             }
         }
-        ran
+        work_ran
     }
 
     pub(crate) fn drain_effects_with_report(&self, max_iterations: usize) -> EffectDrainReport {
         let mut report = EffectDrainReport::default();
         let mut effect_counts = HashMap::new();
+        let mut cutoff_counts = HashMap::new();
 
-        while report.ran < max_iterations {
+        let mut work_ran = 0;
+        while work_ran < max_iterations {
+            if let Some(id) = self.pop_queued_cutoff() {
+                if !self.has_live_entry(id) || !self.is_cutoff(id) || !self.is_dirty(id) {
+                    continue;
+                }
+                let cutoff_name = self.debug_name_for_diagnostics(id);
+                let cutoff_category = cutoff_name
+                    .split_once(" (")
+                    .map(|(category, _)| category)
+                    .unwrap_or(&cutoff_name)
+                    .to_owned();
+                let settler = self.cutoff_settler(id);
+                match settler(self, id) {
+                    CutoffEvaluation::Suppressed => report.cutoffs_suppressed += 1,
+                    CutoffEvaluation::Propagated => report.cutoffs_propagated += 1,
+                    CutoffEvaluation::NotCutoff | CutoffEvaluation::Initialized => {}
+                }
+                report.cutoffs_evaluated += 1;
+                work_ran += 1;
+                *cutoff_counts.entry(cutoff_category).or_insert(0) += 1;
+                continue;
+            }
+
             let Some(id) = self.pop_queued_effect() else {
                 break;
             };
@@ -481,6 +615,7 @@ impl PropertyTable {
                 let effect_name = self.debug_name_for_diagnostics(id);
                 self.update_value::<()>(id);
                 report.ran += 1;
+                work_ran += 1;
                 *effect_counts.entry(effect_name).or_insert(0) += 1;
             } else {
                 report.skipped_clean += 1;
@@ -488,6 +623,9 @@ impl PropertyTable {
         }
 
         report.remaining = self.queued_effects.borrow().len();
+        report.remaining_cutoffs = self.queued_cutoffs.borrow().len();
+        report.budget_exhausted =
+            work_ran == max_iterations && (report.remaining > 0 || report.remaining_cutoffs > 0);
         report.top_effects = effect_counts.into_iter().collect();
         report
             .top_effects
@@ -497,6 +635,15 @@ impl PropertyTable {
                     .then_with(|| left_name.cmp(right_name))
             });
         report.top_effects.truncate(8);
+        report.top_cutoffs = cutoff_counts.into_iter().collect();
+        report
+            .top_cutoffs
+            .sort_by(|(left_name, left_count), (right_name, right_count)| {
+                right_count
+                    .cmp(left_count)
+                    .then_with(|| left_name.cmp(right_name))
+            });
+        report.top_cutoffs.truncate(8);
         report
     }
 
@@ -519,6 +666,19 @@ impl PropertyTable {
         Some(id)
     }
 
+    pub(crate) fn enqueue_cutoff(&self, id: PropertyId) {
+        let mut queued_set = self.queued_cutoff_set.borrow_mut();
+        if queued_set.insert(id) {
+            self.queued_cutoffs.borrow_mut().push_back(id);
+        }
+    }
+
+    fn pop_queued_cutoff(&self) -> Option<PropertyId> {
+        let id = self.queued_cutoffs.borrow_mut().pop_front()?;
+        self.queued_cutoff_set.borrow_mut().remove(&id);
+        Some(id)
+    }
+
     fn unregister_effect(&self, id: PropertyId) {
         self.effect_properties.borrow_mut().remove(&id);
         self.effect_debug_names.borrow_mut().remove(&id);
@@ -527,6 +687,26 @@ impl PropertyTable {
 
     fn is_registered_effect(&self, id: PropertyId) -> bool {
         self.effect_properties.borrow().contains(&id)
+    }
+
+    pub(crate) fn is_cutoff(&self, id: PropertyId) -> bool {
+        self.with_property_data(id, |data| data.cutoff_settler.is_some())
+    }
+
+    fn is_dirty(&self, id: PropertyId) -> bool {
+        self.with_property_data(id, |data| data.dirty)
+    }
+
+    fn cutoff_settler(
+        &self,
+        id: PropertyId,
+    ) -> Rc<dyn Fn(&PropertyTable, PropertyId) -> CutoffEvaluation> {
+        self.with_property_data(id, |data| {
+            data.cutoff_settler
+                .as_ref()
+                .expect("queued cutoff property must have a settler")
+                .clone()
+        })
     }
 
     fn has_live_entry(&self, id: PropertyId) -> bool {
@@ -550,5 +730,24 @@ impl PropertyTable {
         }
 
         format!("{id:?}")
+    }
+
+    pub(crate) fn outbound_debug_names(&self, id: PropertyId) -> Vec<String> {
+        self.with_property_data(id, |data| {
+            data.outbound
+                .iter()
+                .copied()
+                .filter(|outbound_id| self.has_live_entry(*outbound_id))
+                .map(|outbound_id| self.debug_name_for_diagnostics(outbound_id))
+                .collect()
+        })
+    }
+
+    pub(crate) fn has_direct_outbound(
+        &self,
+        source_id: PropertyId,
+        outbound_id: PropertyId,
+    ) -> bool {
+        self.with_property_data(source_id, |data| data.outbound.contains(&outbound_id))
     }
 }

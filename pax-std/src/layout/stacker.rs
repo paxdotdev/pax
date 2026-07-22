@@ -13,8 +13,9 @@ use pax_engine::*;
 use pax_runtime::api::{borrow, borrow_mut, Layer, NodeContext};
 use pax_runtime::{
     bind_content_measurement_effect, measured_size_needs_update, resolve_padded_autosize_axis,
-    BaseInstance, Container, ContainerFrame, ExpandedNode, InstanceFlags, InstanceNode,
-    InstantiationArgs, LayoutHull, ReceivedChildrenSource, RuntimeContext,
+    BaseInstance, Container, ContainerFrame, ContentMeasurementGeometry, ExpandedNode,
+    InstanceFlags, InstanceNode, InstantiationArgs, LayoutHull, ReceivedChildrenSource,
+    RuntimeContext,
 };
 
 const STACKER_REFLOW_FRAMES: u64 = 12;
@@ -426,9 +427,16 @@ impl Container for Stacker {
             return;
         };
         let update_layout_callback = Rc::clone(&update_layout);
-        bind_content_measurement_effect(&node, ctx, "stacker layout", &deps, move |_node, _ctx| {
-            update_layout_callback();
-        });
+        bind_content_measurement_effect(
+            &node,
+            ctx,
+            "stacker layout",
+            ContentMeasurementGeometry::Intrinsic,
+            &deps,
+            move |_node, _ctx| {
+                update_layout_callback();
+            },
+        );
     }
 }
 

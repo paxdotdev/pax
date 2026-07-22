@@ -19,8 +19,8 @@ use crate::api::math::Transform2;
 use crate::api::{borrow, NodeContext, Property, Size};
 use crate::node_interface::NodeLocal;
 use crate::{
-    apply_padding_frame, project_child_layout_hull_to_parent_space, resolve_padded_autosize_axis,
-    ExpandedNode, LayoutHull,
+    apply_padding_frame, layout_hulls_equivalent, project_child_layout_hull_to_parent_space,
+    resolve_padded_autosize_axis, ExpandedNode, LayoutHull,
 };
 use pax_runtime_api::{properties::UntypedProperty, Interpolatable};
 use std::rc::Rc;
@@ -42,6 +42,15 @@ const MEASURED_SIZE_EPSILON: f64 = 1e-9;
 /// behavior on top of those normalized views.
 pub trait Container {
     fn bind_container(&self, _ctx: &NodeContext) {}
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[doc(hidden)]
+pub enum ContentMeasurementGeometry {
+    /// Measure child content without container-assigned placement.
+    Intrinsic,
+    /// Measure child content after placement in the container's local space.
+    Placed,
 }
 
 /// Measure the aggregate layout hull contributed by received content in the
@@ -218,6 +227,7 @@ fn rebind_content_measurement_effect<F>(
     expanded_node: &Rc<ExpandedNode>,
     runtime_context: &Rc<crate::RuntimeContext>,
     listener_name: &'static str,
+    geometry: ContentMeasurementGeometry,
     extra_deps: &[UntypedProperty],
     effect: F,
 ) where
@@ -235,26 +245,81 @@ fn rebind_content_measurement_effect<F>(
     };
     let node_ctx = expanded_node.get_node_context(runtime_context);
     let mut deps = vec![
-        expanded_node.transform_and_bounds.untyped(),
+        node_ctx.bounds_self.untyped(),
         width_prop.untyped(),
         height_prop.untyped(),
         padding_x_prop.untyped(),
         padding_y_prop.untyped(),
     ];
     deps.extend(extra_deps.iter().cloned());
-    for child in node_ctx.received_children.get().iter() {
-        let child_cp = child.get_common_properties();
-        deps.push(borrow!(child_cp).layout_role.untyped());
-        deps.push(child.transform_and_bounds.untyped());
-        deps.push(child.subtree_layout_hull.untyped());
-    }
+
+    let placed_measurement = if geometry == ContentMeasurementGeometry::Placed {
+        let node_transform_and_bounds = expanded_node.transform_and_bounds.clone();
+        let mut projected_child_hulls = Vec::new();
+        for child in node_ctx.received_children.get().iter() {
+            let child_cp = child.get_common_properties();
+            let child_layout_role = borrow!(child_cp).layout_role.clone();
+            let projection_name = format!(
+                "{listener_name} projected child layout hull (parent id: {}, child id: {})",
+                expanded_node.id.0, child.id.0
+            );
+            projected_child_hulls.push(crate::projected_child_layout_hull_property(
+                node_transform_and_bounds.clone(),
+                padding_x_prop.clone(),
+                padding_y_prop.clone(),
+                child.transform_and_bounds.clone(),
+                child.subtree_layout_hull.clone(),
+                child_layout_role,
+                &projection_name,
+            ));
+        }
+
+        let measurement_deps = projected_child_hulls
+            .iter()
+            .map(Property::untyped)
+            .collect::<Vec<_>>();
+
+        let measurement_name = format!("{listener_name} placed measurement");
+        let measurement = Property::computed_with_cutoff_and_name(
+            move || {
+                if projected_child_hulls.is_empty() {
+                    return LayoutHull::from_axis_ranges(Some((0.0, 0.0)), Some((0.0, 0.0)));
+                }
+                let hull = projected_child_hulls
+                    .iter()
+                    .fold(LayoutHull::default(), |hull, child| hull.union(child.get()));
+                if hull.x_range().is_none() && hull.y_range().is_none() {
+                    LayoutHull::from_axis_ranges(Some((0.0, 0.0)), Some((0.0, 0.0)))
+                } else {
+                    hull
+                }
+            },
+            &measurement_deps,
+            layout_hulls_equivalent,
+            &measurement_name,
+        );
+        deps.push(measurement.untyped());
+        Some(measurement)
+    } else {
+        for child in node_ctx.received_children.get().iter() {
+            let child_cp = child.get_common_properties();
+            deps.push(borrow!(child_cp).layout_role.untyped());
+            deps.push(child.subtree_layout_hull.untyped());
+        }
+        None
+    };
 
     let weak_node = Rc::downgrade(expanded_node);
     let runtime_context = Rc::clone(runtime_context);
+    let bounds_self = node_ctx.bounds_self.clone();
     expanded_node
         .content_measurement_listener
         .replace_with(Property::computed_with_name(
             move || {
+                let _ = bounds_self.get();
+                if let Some(measurement) = &placed_measurement {
+                    let _ = measurement.get();
+                }
                 let Some(node) = weak_node.upgrade() else {
                     return;
                 };
@@ -275,6 +340,7 @@ pub fn bind_content_measurement_effect<F>(
     expanded_node: &Rc<ExpandedNode>,
     ctx: &NodeContext,
     listener_name: &'static str,
+    geometry: ContentMeasurementGeometry,
     extra_deps: &[UntypedProperty],
     effect: F,
 ) where
@@ -288,6 +354,7 @@ pub fn bind_content_measurement_effect<F>(
         expanded_node,
         &ctx.runtime_context,
         listener_name,
+        geometry,
         extra_deps,
         effect.clone(),
     );
@@ -313,6 +380,7 @@ pub fn bind_content_measurement_effect<F>(
                     &node,
                     &runtime_context,
                     listener_name,
+                    geometry,
                     &extra_deps,
                     effect.clone(),
                 );
@@ -367,17 +435,18 @@ impl Interpolatable for ContainerFrame {
 
 #[cfg(test)]
 mod tests {
-    use crate::api::math::Transform2;
+    use crate::api::math::{Transform2, Vector2};
     use crate::api::{CommonProperties, Layer, LayoutRole, Size};
     use crate::{
-        measured_size_needs_update, sync_content_autosize, sync_content_autosize_with_axes,
-        BaseInstance, ComponentInstance, ExpandedNode, Globals, InstanceFlags, InstanceNode,
+        bind_content_measurement_effect, measured_size_needs_update, sync_content_autosize,
+        sync_content_autosize_with_axes, BaseInstance, ComponentInstance, ContainerFrame,
+        ContentMeasurementGeometry, ExpandedNode, Globals, InstanceFlags, InstanceNode,
         InstantiationArgs, RouteLocation, RuntimeContext, RuntimePropertiesStackFrame,
         TransformAndBounds,
     };
     use pax_runtime_api::pax_value::PaxAny;
     use pax_runtime_api::{Platform, Property, TargetInfo, OS};
-    use std::cell::RefCell;
+    use std::cell::{Cell, RefCell};
     use std::fmt;
     use std::rc::Rc;
 
@@ -599,6 +668,114 @@ mod tests {
             (836.8000000000001, 228.6585375853658),
         ));
         assert!(measured_size_needs_update(None, (0.0, 0.0)));
+    }
+
+    #[test]
+    fn placed_measurement_ignores_ancestor_translation_but_observes_child_position() {
+        let leaf: Rc<dyn InstanceNode> = TestDirectNode::instantiate(direct_node_args(Vec::new()));
+        let direct: Rc<dyn InstanceNode> =
+            TestDirectNode::instantiate(direct_node_args(vec![leaf]));
+        let root_component =
+            ComponentInstance::instantiate(component_args(Some(vec![Rc::clone(&direct)]), None));
+        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let root = ExpandedNode::initialize_root(root_component, &context);
+        root.recurse_update(&context);
+        let direct_node = root.children.get().first().cloned().unwrap();
+        let child = direct_node.children.get().first().cloned().unwrap();
+        let child_common = child.get_common_properties();
+        child_common
+            .borrow()
+            .width
+            .set(Some(Size::Pixels(20.into())));
+        child_common
+            .borrow()
+            .height
+            .set(Some(Size::Pixels(20.into())));
+        child_common.borrow().x.set(Some(Size::Pixels(0.into())));
+        child_common.borrow().y.set(Some(Size::Pixels(0.into())));
+        context.drain_node_effects();
+
+        let effect_runs = Rc::new(Cell::new(0));
+        let effect_runs_for_effect = Rc::clone(&effect_runs);
+        let node_ctx = direct_node.get_node_context(&context);
+        bind_content_measurement_effect(
+            &direct_node,
+            &node_ctx,
+            "placed measurement test",
+            ContentMeasurementGeometry::Placed,
+            &[],
+            move |_, _| effect_runs_for_effect.set(effect_runs_for_effect.get() + 1),
+        );
+        context.drain_node_effects();
+        let baseline = effect_runs.get();
+
+        let viewport = context.globals().viewport;
+        viewport.set(TransformAndBounds {
+            transform: Transform2::translate(Vector2::new(25.0, 15.0)),
+            bounds: (100.0, 100.0),
+        });
+        context.drain_node_effects();
+        assert_eq!(effect_runs.get(), baseline);
+
+        child_common.borrow().x.set(Some(Size::Pixels(12.into())));
+        context.drain_node_effects();
+        assert_eq!(effect_runs.get(), baseline + 1);
+    }
+
+    #[test]
+    fn intrinsic_measurement_ignores_assigned_frame_but_observes_child_size() {
+        let leaf: Rc<dyn InstanceNode> = TestDirectNode::instantiate(direct_node_args(Vec::new()));
+        let direct: Rc<dyn InstanceNode> =
+            TestDirectNode::instantiate(direct_node_args(vec![leaf]));
+        let root_component =
+            ComponentInstance::instantiate(component_args(Some(vec![Rc::clone(&direct)]), None));
+        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let root = ExpandedNode::initialize_root(root_component, &context);
+        root.recurse_update(&context);
+        let direct_node = root.children.get().first().cloned().unwrap();
+        let child = direct_node.children.get().first().cloned().unwrap();
+        let child_common = child.get_common_properties();
+        child_common
+            .borrow()
+            .width
+            .set(Some(Size::Pixels(20.into())));
+        child_common
+            .borrow()
+            .height
+            .set(Some(Size::Pixels(20.into())));
+        child_common.borrow().x.set(Some(Size::Pixels(0.into())));
+        child_common.borrow().y.set(Some(Size::Pixels(0.into())));
+        context.drain_node_effects();
+
+        let effect_runs = Rc::new(Cell::new(0));
+        let effect_runs_for_effect = Rc::clone(&effect_runs);
+        let node_ctx = direct_node.get_node_context(&context);
+        bind_content_measurement_effect(
+            &direct_node,
+            &node_ctx,
+            "intrinsic measurement test",
+            ContentMeasurementGeometry::Intrinsic,
+            &[],
+            move |_, _| effect_runs_for_effect.set(effect_runs_for_effect.get() + 1),
+        );
+        context.drain_node_effects();
+        let baseline = effect_runs.get();
+        let baseline_hull = child.subtree_layout_hull.get();
+
+        child.container_frame.set(Some(ContainerFrame {
+            transform: Transform2::translate(Vector2::new(20.0, 10.0)),
+            bounds: (100.0, 100.0),
+        }));
+        context.drain_node_effects();
+        assert_eq!(effect_runs.get(), baseline);
+
+        child_common
+            .borrow()
+            .width
+            .set(Some(Size::Pixels(40.into())));
+        context.drain_node_effects();
+        assert_ne!(child.subtree_layout_hull.get(), baseline_hull);
+        assert_eq!(effect_runs.get(), baseline + 1);
     }
 
     #[test]

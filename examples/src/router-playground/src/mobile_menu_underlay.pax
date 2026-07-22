@@ -1,32 +1,27 @@
-<Rectangle class=mobile_drawer_underlay width=100% height=100% />
-
-@settings {
-    @in: enter
-    @out: exit
-
-    .mobile_drawer_underlay {
-        fill: rgba(3, 7, 14, 150)
-    }
-}
-
-@timeline enter {
-    interruption: Takeover,
-    duration: 36,
-    self {
+<Rectangle
+    class=mobile_drawer_underlay
+    width=100%
+    height=100%
+    @in=@timeline {
+        interruption: Takeover,
+        duration: 18,
         opacity: {
             0: 0, OutQuad,
             100%: 1,
         },
     }
-}
-
-@timeline exit {
-    interruption: Takeover,
-    duration: 36,
-    self {
+    @out=@timeline {
+        interruption: Takeover,
+        duration: 18,
         opacity: {
-            0: 1, OutQuad,
+            0: 1, InQuad,
             100%: 0,
         },
+    }
+/>
+
+@settings {
+    .mobile_drawer_underlay {
+        fill: rgba(3, 7, 14, 150)
     }
 }

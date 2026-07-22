@@ -3112,6 +3112,9 @@ export class NativeElementPool {
         if (patch.opacity != null) {
             setLeafLocalOpacity(leaf, patch.opacity);
         }
+        if (patch.background != null) {
+            leaf.style.backgroundColor = toCssColor(patch.background);
+        }
     }
 
     eventBlockerDelete(id: number){

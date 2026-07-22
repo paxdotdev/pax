@@ -42,9 +42,8 @@ use pax_manifest::{
 
 use crate::{
     add_symmetric_padding_to_content_layout_hull, apply_container_frame, apply_padding_frame,
-    compute_tab, project_child_layout_hull_to_parent_space, ComponentInstance, ContainerFrame,
-    HandlerLocation, InstanceNode, InstanceNodePtr, ReceivedChildrenSource, RuntimeContext,
-    RuntimePropertiesStackFrame,
+    compute_tab, ComponentInstance, ContainerFrame, HandlerLocation, InstanceNode, InstanceNodePtr,
+    ReceivedChildrenSource, RuntimeContext, RuntimePropertiesStackFrame,
 };
 
 #[derive(Clone, Debug)]
@@ -1669,85 +1668,93 @@ impl ExpandedNode {
         };
         let children = self.children.get();
         let has_children = !children.is_empty();
-        let mut deps = vec![self_transform_and_bounds.untyped()];
+        let bounds_name = format!("layout bounds (node id: {})", self.id.0);
+        let bounds_transform_and_bounds = self_transform_and_bounds.clone();
+        let bounds = Property::computed_with_cutoff_and_name(
+            move || bounds_transform_and_bounds.get().bounds,
+            &[self_transform_and_bounds.untyped()],
+            <(f64, f64)>::eq,
+            &bounds_name,
+        );
+        let mut own_deps = vec![bounds.untyped()];
         if has_children {
-            deps.extend([
-                width.untyped(),
-                height.untyped(),
-                x.untyped(),
-                y.untyped(),
-                padding_x.untyped(),
-                padding_y.untyped(),
-            ]);
+            own_deps.extend([width.untyped(), height.untyped(), x.untyped(), y.untyped()]);
         } else {
-            deps.push(layout_properties.untyped());
+            own_deps.push(layout_properties.untyped());
         }
+
+        let own_hull_name = format!("own layout hull (node id: {})", self.id.0);
+        let own_hull = Property::computed_with_cutoff_and_name(
+            move || {
+                let bounds = bounds.get();
+                let (contributes_x, contributes_y) = if has_children {
+                    (
+                        layout_axis_can_contribute_from_parts(width.get(), x.get()),
+                        layout_axis_can_contribute_from_parts(height.get(), y.get()),
+                    )
+                } else {
+                    let layout_properties = layout_properties.get();
+                    (
+                        layout_axis_can_contribute(&layout_properties, Axis::X),
+                        layout_axis_can_contribute(&layout_properties, Axis::Y),
+                    )
+                };
+                LayoutHull::from_axis_ranges(
+                    contributes_x.then_some((0.0, bounds.0)),
+                    contributes_y.then_some((0.0, bounds.1)),
+                )
+            },
+            &own_deps,
+            crate::layout_hulls_equivalent,
+            &own_hull_name,
+        );
+
+        if !has_children {
+            self.subtree_layout_hull.replace_with(own_hull);
+            return;
+        }
+
+        let mut projected_child_hulls = Vec::with_capacity(children.len());
         for child in children.iter() {
             let child_cp = child.get_common_properties();
-            deps.push(borrow!(child_cp).layout_role.untyped());
-            deps.push(child.transform_and_bounds.untyped());
-            deps.push(child.subtree_layout_hull.untyped());
+            let child_layout_role = borrow!(child_cp).layout_role.clone();
+            let projection_name = format!(
+                "projected child layout hull (parent id: {}, child id: {})",
+                self.id.0, child.id.0
+            );
+            projected_child_hulls.push(crate::projected_child_layout_hull_property(
+                self_transform_and_bounds.clone(),
+                padding_x.clone(),
+                padding_y.clone(),
+                child.transform_and_bounds.clone(),
+                child.subtree_layout_hull.clone(),
+                child_layout_role,
+                &projection_name,
+            ));
         }
+
+        let mut deps = vec![own_hull.untyped(), padding_x.untyped(), padding_y.untyped()];
+        deps.extend(projected_child_hulls.iter().map(Property::untyped));
 
         let property_name = format!("subtree layout hull (node id: {})", self.id.0);
         self.subtree_layout_hull
-            .replace_with(Property::computed_with_name(
+            .replace_with(Property::computed_with_cutoff_and_name(
                 move || {
-                    let self_tab = self_transform_and_bounds.get();
-                    let (contributes_x, contributes_y, padding_x, padding_y) = if has_children {
-                        (
-                            layout_axis_can_contribute_from_parts(width.get(), x.get()),
-                            layout_axis_can_contribute_from_parts(height.get(), y.get()),
-                            padding_x.get(),
-                            padding_y.get(),
-                        )
-                    } else {
-                        let layout_properties = layout_properties.get();
-                        (
-                            layout_axis_can_contribute(&layout_properties, Axis::X),
-                            layout_axis_can_contribute(&layout_properties, Axis::Y),
-                            None,
-                            None,
-                        )
-                    };
-                    let mut hull = LayoutHull::from_axis_ranges(
-                        contributes_x.then_some((0.0, self_tab.bounds.0)),
-                        contributes_y.then_some((0.0, self_tab.bounds.1)),
-                    );
-                    let child_projection_tab = if has_children {
-                        apply_padding_frame(self_tab, padding_x, padding_y)
-                    } else {
-                        self_tab
-                    };
+                    let mut hull = own_hull.get();
                     let mut children_hull = LayoutHull::default();
-
-                    for child in children.iter() {
-                        if child.is_layout_breakout() {
-                            // Breakout descendants are rendered and hit-tested normally but do
-                            // not participate in ancestor layout hull aggregation.
-                            continue;
-                        }
-                        let projected_hull = project_child_layout_hull_to_parent_space(
-                            child_projection_tab,
-                            child.transform_and_bounds.get(),
-                            child.subtree_layout_hull.get(),
-                        );
-                        children_hull = children_hull.union(projected_hull);
+                    for projected_hull in &projected_child_hulls {
+                        children_hull = children_hull.union(projected_hull.get());
                     }
-
-                    if has_children {
-                        hull = hull.union(add_symmetric_padding_to_content_layout_hull(
-                            children_hull,
-                            padding_x,
-                            padding_y,
-                        ));
-                    } else {
-                        hull = hull.union(children_hull);
-                    }
+                    hull = hull.union(add_symmetric_padding_to_content_layout_hull(
+                        children_hull,
+                        padding_x.get(),
+                        padding_y.get(),
+                    ));
 
                     hull
                 },
                 &deps,
+                crate::layout_hulls_equivalent,
                 &property_name,
             ));
     }
@@ -2007,6 +2014,9 @@ impl ExpandedNode {
             borrow_mut!(self.resolved_property_provenance).clear();
             self.active_children_view.set(Vec::new());
             self.exiting_children_view.set(Vec::new());
+            self.transition_phase.set(TRANSITION_PHASE_IDLE);
+            self.transition_takeover.set(false);
+            self.deactivate_transition_clock();
             self.enter_cleanup_active.set(false);
             self.enter_cleanup_listener
                 .replace_with(Property::new_with_name((), "enter transition cleanup"));
@@ -2239,7 +2249,13 @@ impl ExpandedNode {
         let target = Property::new(globals.target);
         let t_and_b = self.transform_and_bounds.clone();
         let deps = [t_and_b.untyped()];
-        let bounds_self = Property::computed(move || t_and_b.get().bounds, &deps);
+        let bounds_name = format!("node context bounds (node id: {})", self.id.0);
+        let bounds_self = Property::computed_with_cutoff_and_name(
+            move || t_and_b.get().bounds,
+            &deps,
+            <(f64, f64)>::eq,
+            &bounds_name,
+        );
         let render_parent = borrow!(self.render_parent).upgrade();
         let t_and_b_parent = render_parent
             .as_ref()

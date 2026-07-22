@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use crate::common::native_surface_opacity;
 use crate::patch_if_needed;
-use pax_engine::api::{borrow, borrow_mut, use_RefCell};
+use pax_engine::api::{borrow, borrow_mut, use_RefCell, Color};
 use pax_engine::pax;
 use pax_message::{AnyCreatePatch, EventBlockerPatch};
 use pax_runtime::api::{Layer, Property};
@@ -15,8 +15,23 @@ use_RefCell!();
 #[pax]
 #[engine_import_path("pax_engine")]
 #[primitive("pax_std::core::event_blocker::EventBlockerInstance")]
-// Transparent native surface that absorbs pointer events before they reach content beneath it.
-pub struct EventBlocker {}
+#[custom(Default)]
+/// Native surface that absorbs pointer events before they reach content beneath it.
+///
+/// `background` defaults to transparent. A solid background is useful for modal
+/// underlays that must composite above native controls and scroller canvas islands.
+pub struct EventBlocker {
+    /// Solid background painted by the native surface.
+    pub background: Property<Color>,
+}
+
+impl Default for EventBlocker {
+    fn default() -> Self {
+        Self {
+            background: Property::new(Color::TRANSPARENT),
+        }
+    }
+}
 
 // Runtime instance backing `<EventBlocker>`.
 pub struct EventBlockerInstance {
@@ -34,7 +49,7 @@ impl InstanceNode for EventBlockerInstance {
                 InstanceFlags {
                     invisible_to_slot: false,
                     invisible_to_raycasting: false,
-                    layer: Layer::NativeNonOccluding,
+                    layer: Layer::Native,
                     is_component: false,
                     is_slot: false,
                 },
@@ -101,7 +116,7 @@ impl InstanceNode for EventBlockerInstance {
                         id,
                         ..Default::default()
                     };
-                    expanded_node.with_properties_unwrapped(|_properties: &mut EventBlocker| {
+                    expanded_node.with_properties_unwrapped(|properties: &mut EventBlocker| {
                         let computed_tab = expanded_node.transform_and_bounds.get();
                         let (width, height) = computed_tab.bounds;
 
@@ -127,6 +142,11 @@ impl InstanceNode for EventBlockerInstance {
                                 &mut old_state.opacity,
                                 &mut patch.opacity,
                                 native_surface_opacity(&expanded_node, &context),
+                            ),
+                            patch_if_needed(
+                                &mut old_state.background,
+                                &mut patch.background,
+                                (&properties.background.get()).into(),
                             ),
                         ];
 

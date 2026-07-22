@@ -7,20 +7,27 @@ impl PropertyTable {
             self.with_property_data_mut(id, |property_data| property_data.outbound.clone());
 
         while let Some(dep_id) = to_dirtify.pop() {
-            let should_queue_effect = self.with_property_data_mut(dep_id, |dep_data| {
+            let (newly_dirty, is_cutoff) = self.with_property_data_mut(dep_id, |dep_data| {
                 if dep_id == id {
                     unreachable!("property cycle");
                 }
                 if !dep_data.dirty {
                     dep_data.dirty = true;
-                    to_dirtify.extend_from_slice(&dep_data.outbound);
-                    true
+                    let is_cutoff = dep_data.cutoff_settler.is_some();
+                    if !is_cutoff {
+                        to_dirtify.extend_from_slice(&dep_data.outbound);
+                    }
+                    (true, is_cutoff)
                 } else {
-                    false
+                    (false, dep_data.cutoff_settler.is_some())
                 }
             });
-            if should_queue_effect {
-                self.enqueue_effect_if_registered(dep_id);
+            if newly_dirty {
+                if is_cutoff {
+                    self.enqueue_cutoff(dep_id);
+                } else {
+                    self.enqueue_effect_if_registered(dep_id);
+                }
             }
         }
     }
@@ -55,12 +62,15 @@ impl PropertyTable {
     // NOTE: does NOT modify the inbound list of self (id), only
     // uses it to hook up dependencies
     pub fn connect_inbound(&self, id: PropertyId) {
-        self.with_property_data(id, |property_data| {
-            for inbound_id in &property_data.inbound {
-                self.with_property_data_mut(*inbound_id, |property_dependency| {
-                    property_dependency.outbound.push(id);
-                });
+        let inbound = self.with_property_data(id, |property_data| property_data.inbound.clone());
+        for inbound_id in inbound {
+            let queue_cutoff = self.with_property_data_mut(inbound_id, |property_dependency| {
+                property_dependency.outbound.push(id);
+                property_dependency.dirty && property_dependency.cutoff_settler.is_some()
+            });
+            if queue_cutoff {
+                self.enqueue_cutoff(inbound_id);
             }
-        });
+        }
     }
 }

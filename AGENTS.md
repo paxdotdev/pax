@@ -137,7 +137,7 @@ When a task starts from Linear:
     6ddac75fc update AGENTS.md
  ```
 
-- Branches will generally be squashed before merging, to ease merge conflict management and reasoning.  Follow the squash convention above when the user requests a squash.
+- Follow the squash convention above when the user requests a squash.
 - Include generated files only when they are required source artifacts for this repo. Remove build output, caches, screenshots, and throwaway experiment files before final status.
 - The User will occasional direct you to resolve a merge conflict.  When resolving conflicts, refer to your context for knowledge of intentional changes on the working branch.  Be sure to respect the changes made by the incoming branch, and splice logic to maintain both sets of intended changes (surfacing problematic areas for manual testing, if necessary). Don't allow work to be lost during merges, as this can be perniciously difficult to track down.
 

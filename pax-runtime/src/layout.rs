@@ -6,7 +6,7 @@ use pax_runtime_api::math::{Point2, Space, TransformParts};
 use pax_runtime_api::{Interpolatable, Percent, Property, Rotation, Window};
 
 use crate::api::math::{Transform2, Vector2};
-use crate::api::{Axis, Size, Transform2D};
+use crate::api::{Axis, LayoutRole, Size, Transform2D};
 use crate::node_interface::NodeLocal;
 use crate::ContainerFrame;
 
@@ -132,6 +132,27 @@ pub struct LayoutHull {
 
 impl Interpolatable for LayoutHull {}
 
+const LAYOUT_MEASUREMENT_EPSILON: f64 = 1e-9;
+
+pub(crate) fn layout_hulls_equivalent(previous: &LayoutHull, candidate: &LayoutHull) -> bool {
+    previous.valid_x == candidate.valid_x
+        && previous.valid_y == candidate.valid_y
+        && layout_measurements_equivalent(previous.min_x, candidate.min_x)
+        && layout_measurements_equivalent(previous.max_x, candidate.max_x)
+        && layout_measurements_equivalent(previous.min_y, candidate.min_y)
+        && layout_measurements_equivalent(previous.max_y, candidate.max_y)
+}
+
+fn layout_measurements_equivalent(previous: f64, candidate: f64) -> bool {
+    if previous == candidate {
+        return true;
+    }
+    if !previous.is_finite() || !candidate.is_finite() {
+        return previous.to_bits() == candidate.to_bits();
+    }
+    (previous - candidate).abs() <= LAYOUT_MEASUREMENT_EPSILON
+}
+
 impl LayoutHull {
     pub fn from_bounds(bounds: (f64, f64)) -> Self {
         Self::from_axis_ranges(Some((0.0, bounds.0)), Some((0.0, bounds.1)))
@@ -239,6 +260,41 @@ pub fn project_child_layout_hull_to_parent_space(
         relative_transform.m[5],
     ));
     project_layout_hull(layout_transform, child_hull)
+}
+
+/// Publish a child's layout hull in a parent's padded local space.
+///
+/// The cutoff sits at the coordinate-space cancellation boundary: translating an
+/// ancestor changes both world transforms, but not the resulting parent-local hull.
+pub(crate) fn projected_child_layout_hull_property(
+    parent: Property<TransformAndBounds<NodeLocal, Window>>,
+    padding_x: Property<Option<Size>>,
+    padding_y: Property<Option<Size>>,
+    child: Property<TransformAndBounds<NodeLocal, Window>>,
+    child_hull: Property<LayoutHull>,
+    child_layout_role: Property<Option<LayoutRole>>,
+    name: &str,
+) -> Property<LayoutHull> {
+    let deps = [
+        parent.untyped(),
+        padding_x.untyped(),
+        padding_y.untyped(),
+        child.untyped(),
+        child_hull.untyped(),
+        child_layout_role.untyped(),
+    ];
+    Property::computed_with_cutoff_and_name(
+        move || {
+            if child_layout_role.get() == Some(LayoutRole::Breakout) {
+                return LayoutHull::default();
+            }
+            let parent = apply_padding_frame(parent.get(), padding_x.get(), padding_y.get());
+            project_child_layout_hull_to_parent_space(parent, child.get(), child_hull.get())
+        },
+        &deps,
+        layout_hulls_equivalent,
+        name,
+    )
 }
 
 /// Expand a content-space hull into the node's padded outer layout space.
@@ -732,6 +788,17 @@ fn test_project_child_layout_hull_ignores_rotation_for_flow_measurement() {
 
     assert_eq!(projected.x_range(), None);
     assert_eq!(projected.y_range(), Some((20.0, 70.0)));
+}
+
+#[test]
+fn test_layout_hull_equivalence_ignores_numeric_jitter() {
+    let previous = LayoutHull::from_axis_ranges(Some((10.0, 30.0)), Some((20.0, 40.0000000000001)));
+    let equivalent =
+        LayoutHull::from_axis_ranges(Some((10.0, 30.0000000000001)), Some((20.0, 40.0)));
+    let changed = LayoutHull::from_axis_ranges(Some((10.0, 30.001)), Some((20.0, 40.0)));
+
+    assert!(layout_hulls_equivalent(&previous, &equivalent));
+    assert!(!layout_hulls_equivalent(&previous, &changed));
 }
 
 impl Interpolatable for LayoutProperties {}
