@@ -65,8 +65,8 @@ pub fn handle(args: &ArgMatches<'_>) -> Result<(), Report> {
 
     if !args.is_present("stdout") && args.value_of("out").is_none() {
         println!(
-            "SVG import ok: {} SVG path(s), {} generated Pax Path node(s)",
-            import.svg_path_count, import.generated_path_count
+            "SVG import ok: {} SVG path(s), {} polygon(s), {} generated Pax Path node(s)",
+            import.svg_path_count, import.svg_polygon_count, import.generated_path_count
         );
         println!(
             "viewBox: {} {} {} {}",

@@ -1,0 +1,68 @@
+<Group width=100% height=100%>
+    <Group
+        id=replay_button
+        x=50%
+        y={100% - 54px}
+        width=124px
+        height=36px
+        anchor=50%
+        @click=self.replay
+    >
+        <Text
+            id=replay_label
+            x=50%
+            y=50%
+            width=100px
+            height=20px
+            anchor=50%
+            text="Replay"
+            selectable=false
+        />
+        <Rectangle
+            width=100%
+            height=100%
+            fill=rgba(255, 255, 255, 255)
+            stroke={ color: rgba(22, 22, 20, 45), width: 1px }
+            corner_radii={RectangleCornerRadii::radii(18.0, 18.0, 18.0, 18.0)}
+        />
+    </Group>
+
+    <AnimatedPaxLogo
+        x=50%
+        y=46%
+        width=892.72px
+        height=445.39px
+        anchor=50%
+        scale={(Math::min(1.0, Math::min($viewport.width / 1040, $viewport.height / 620)) * 100)%}
+        fill=rgba(17, 17, 16, 255)
+        playhead={self.logo_playhead}
+    />
+
+    <Rectangle
+        width=100%
+        height=100%
+        fill={Fill::linearGradient(
+            (0%, 0%),
+            (100%, 100%),
+            [
+                GradientStop::get(Color::rgba(250, 249, 246, 255), 0%),
+                GradientStop::get(Color::rgba(238, 235, 228, 255), 100%)
+            ]
+        )}
+    />
+</Group>
+
+@settings {
+    @mount: handle_mount
+    @pre_render: handle_pre_render
+
+    #replay_label {
+        style: {
+            font_size: 14px
+            fill: rgba(28, 27, 24, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+        }
+    }
+}

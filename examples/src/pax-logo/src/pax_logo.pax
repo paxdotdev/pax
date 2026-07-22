@@ -1,0 +1,5 @@
+<Group width=100% height=100%>
+    <PaxLogoBoard width=100% height=100% fill={self.fill} />
+    <PaxLogoPost width=100% height=100% fill={self.fill} />
+</Group>
+

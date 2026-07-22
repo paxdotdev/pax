@@ -433,6 +433,63 @@ Recommendations: revisit handwriting smoothing only alongside a renderer-level
 path-drawing strategy that preserves full stroked geometry and varies the
 visible range without changing submitted path geometry every frame.
 
+## 2026-07-21
+
+The canonical Pax logo exported by Illustrator encoded its post as a
+`<polygon>`, while the SVG importer supported only `<path>`. Import succeeded
+with a warning but ejected an incomplete logo, which made the omission easy to
+mistake for an animation or layout bug.
+
+Solved by importing polygons as closed Pax `Path` nodes in document order,
+using the same inherited style and transform pipeline as SVG paths. Polygon
+point parsing now rejects malformed, odd-length, and fewer-than-three-point
+inputs, and CLI validation reports path, polygon, and generated-node counts
+separately. Recommendations: unsupported visible SVG geometry should be made
+conspicuous in validation output, and every newly supported element should
+share style, transform, ordering, and malformed-input coverage rather than
+growing a parallel importer path.
+
+The first animated pass also exposed two geometry canonicalization gaps in the
+same source: the sign path contained a zero-length `h0`, and the post polygon
+repeated its first vertex immediately before the implicit close. Both became
+degenerate Pax line segments, making invalid imported geometry an additional
+variable during animation debugging. The importer now drops line
+segments whose transformed, quantized endpoints are identical, removes
+consecutive polygon duplicates, and removes a polygon's redundant final copy
+of its first vertex. Animation keyframes also use direct percent literals; this
+avoids turning percent-only positions into `Size::Combined` through
+`$base +/- percent` arithmetic. Recommendations: canonicalize imported geometry
+at the precision actually emitted, and prefer literal values for fixed timeline
+geometry when relative expressions add no reuse value.
+
+The logo's selector-targeted named timeline initially declared the same `x`
+and `y` properties inline on its motion groups. Named timelines do not override
+an inline setting, so those tracks were omitted from the generated node
+settings: the playhead advanced while the intended translations stayed at
+their static values, which looked like abrupt entrances rather than a broken
+timeline. Solved by leaving timeline-owned properties off the element and
+using the last keyframe as the resting value. Replay keeps the paths mounted
+and restarts an explicit wall-clock playhead instead of relying on conditional
+unmount/remount lifecycle timing. Recommendations: treat each animated
+property as single-owner data, and inspect the expanded node transform at a
+frozen intermediate playhead before tuning choreography.
+
+Animating the same logo also exposed that a `Mask` produced an empty clipped
+result for both a nested custom component and direct `Path` descendants, even
+though the expanded tree contained the paths and the board rendered correctly
+without the mask. A width-animated `Frame` around the direct paths likewise
+failed to paint the board. Combining ancestor opacity with a large horizontal
+scale also made the filled compound paths remain absent during the transition
+and appear only when the transform settled.
+
+The example was kept reliable by splitting the ejected geometry into explicit
+board and post components, then animating the full-size, fully opaque board as
+a rigid assembly from off-canvas. The post occludes its leading edge so the
+board appears to unfurl from the attachment point without a mask or degenerate
+scale. Recommendations: add focused `Mask` and animated-`Frame` regressions for
+direct and component-backed path subtrees, and verify that ancestor opacity and
+transform changes dirty filled canvas descendants on every frame.
+
 ## 2026-07-08
 
 While exploring a complex filled-SVG stress fixture for PAX-967, an obvious
@@ -817,3 +874,28 @@ the eventual light disable visually continuous. Recommendation: when an
 authored lighting scene transitions back to identity, animate either scene
 ambient or eligible material response to an identity-equivalent endpoint before
 removing the final light.
+While animating the Pax logo, a very small nonzero rotation on a `Group`
+containing filled native `Path` descendants made those paths disappear on the
+web chassis even though scene inspection reported a valid, on-screen expanded
+transform. Translation-only tracks rendered every fixed playhead reliably, so
+the first production pass avoids ancestor rotation rather than hiding the
+failure with opacity or duplicated geometry. Recommendations: regression-test
+filled paths under animated ancestor rotation before using rotation for
+secondary action in reusable vector artwork.
+
+The same investigation exposed a hot-reload boundary: edits inside a named
+`@timeline` were detected, but the running web cartridge retained the previous
+timeline definition while ordinary template edits did update. A full
+`pax-cli run` restart regenerated the timeline and made the corrected values
+active. Recommendations: inspect the generated designtime manifest when an
+animation contradicts its source, and treat timeline-definition edits as
+requiring a clean rebuild until timeline hot reload is fixed.
+
+Frame-sequence diagnostics also had two capture traps. `pax-cli dev look`
+returned black web-canvas frames in this example, while browser screenshots
+used changed-region optimization that could make a valid animation look like
+detached fragments. A temporary fixed-step playhead plus a full-screen,
+playhead-driven background change produced reliable full frames and isolated
+the rendering failure. Recommendations: provide an official fixed-playhead
+capture mode for declarative timelines and an option to force full canvas
+frames in animation tooling.

@@ -1,0 +1,10 @@
+// Source geometry ejected from assets/pax-logo.svg
+// source_sha256: a891124180ec9a9c7f914604f0d37ccc6556badaf93589ee3bb8895dc66be743
+<Group width=100% height=100%>
+    <Path
+        width=100%
+        height=100%
+        fill={self.fill}
+        elements=[PathElement::Point(0%, 5.622%), PathElement::Line, PathElement::Point(0%, 93.3227%), PathElement::Line, PathElement::Point(7.6978%, 100%), PathElement::Line, PathElement::Point(7.6978%, 99.9506%), PathElement::Line, PathElement::Point(7.6956%, 99.9529%), PathElement::Line, PathElement::Point(7.6956%, 65.1205%), PathElement::Line, PathElement::Point(7.6956%, 35.973%), PathElement::Line, PathElement::Point(7.6978%, 10.4807%), PathElement::Line, PathElement::Point(15.3721%, 5.2404%), PathElement::Line, PathElement::Point(7.6978%, 0%), PathElement::Close]
+    />
+</Group>

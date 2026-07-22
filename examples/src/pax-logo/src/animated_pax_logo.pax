@@ -1,0 +1,77 @@
+// Animated directly from the ejected Pax-native paths in pax_logo_{post,board}.pax.
+// The opaque, full-size board begins off-canvas so the post itself stages the reveal.
+<Group width=100% height=100%>
+    <Group
+        id=post_motion
+        x=7.6978%
+        width=100%
+        height=100%
+        anchor=[7.6978%, 50%]
+    >
+        <Path
+            width=100%
+            height=100%
+            fill={self.fill}
+            elements=[PathElement::Point(0%, 5.622%), PathElement::Line, PathElement::Point(0%, 93.3227%), PathElement::Line, PathElement::Point(7.6978%, 100%), PathElement::Line, PathElement::Point(7.6978%, 99.9506%), PathElement::Line, PathElement::Point(7.6956%, 99.9529%), PathElement::Line, PathElement::Point(7.6956%, 65.1205%), PathElement::Line, PathElement::Point(7.6956%, 35.973%), PathElement::Line, PathElement::Point(7.6978%, 10.4807%), PathElement::Line, PathElement::Point(15.3721%, 5.2404%), PathElement::Line, PathElement::Point(7.6978%, 0%), PathElement::Close]
+        />
+    </Group>
+
+    <Group
+        id=board_motion
+        width=100%
+        height=100%
+        anchor=[15.371%, 50%]
+    >
+        <Path
+            width=100%
+            height=100%
+            fill={self.fill}
+            elements=[PathElement::Point(52.3199%, 37.8904%), PathElement::Cubic(52.3199%, 31.4556%, 49.413%, 25.6292%), PathElement::Point(46.2026%, 25.6292%), PathElement::Cubic(42.9922%, 25.6292%, 40.0854%, 31.4556%), PathElement::Point(40.0854%, 37.8904%), PathElement::Cubic(40.0854%, 44.3252%, 42.9922%, 50.1516%), PathElement::Point(46.2026%, 50.1516%), PathElement::Cubic(49.413%, 50.1516%, 52.3199%, 44.3252%), PathElement::Point(52.3199%, 37.8904%), PathElement::Close]
+        />
+        <Path
+            width=100%
+            height=100%
+            fill={self.fill}
+            elements=[PathElement::Point(88.4723%, 5.2404%), PathElement::Cubic(88.4723%, 5.2404%, 15.371%, 5.2404%), PathElement::Point(15.371%, 5.2404%), PathElement::Line, PathElement::Point(15.371%, 17.0906%), PathElement::Cubic(15.3553%, 17.1176%, 15.3385%, 17.1445%), PathElement::Point(15.3217%, 17.1715%), PathElement::Cubic(17.0692%, 14.2392%, 19.3521%, 12.434%), PathElement::Point(21.402%, 12.434%), PathElement::Cubic(26.8718%, 12.434%, 32.3864%, 22.093%), PathElement::Point(33.3733%, 34.215%), PathElement::Cubic(34.3154%, 21.8528%, 39.9162%, 12.3555%), PathElement::Point(46.3303%, 12.3555%), PathElement::Cubic(48.4239%, 12.3555%, 50.4178%, 14.0057%), PathElement::Point(52.1429%, 16.6865%), PathElement::Line, PathElement::Point(52.1429%, 12.3555%), PathElement::Line, PathElement::Point(59.4173%, 12.3555%), PathElement::Line, PathElement::Point(59.4173%, 63.7509%), PathElement::Line, PathElement::Point(52.1429%, 63.7509%), PathElement::Line, PathElement::Point(52.1429%, 59.0988%), PathElement::Cubic(50.6329%, 61.8896%, 48.4239%, 63.4298%), PathElement::Point(46.3303%, 63.4298%), PathElement::Cubic(39.9554%, 63.4298%, 34.3837%, 54.047%), PathElement::Point(33.3901%, 41.7971%), PathElement::Cubic(32.4884%, 53.8764%, 27.2896%, 63.1424%), PathElement::Point(21.0122%, 63.1424%), PathElement::Cubic(18.9836%, 63.1424%, 16.9605%, 61.7683%), PathElement::Point(15.371%, 58.9618%), PathElement::Line, PathElement::Point(15.371%, 70.3204%), PathElement::Line, PathElement::Point(88.4723%, 70.3204%), PathElement::Cubic(88.4723%, 70.3204%, 99.9989%, 37.8477%), PathElement::Point(99.9989%, 37.8477%), PathElement::Line, PathElement::Point(88.4723%, 5.2448%), PathElement::Close, PathElement::Point(85.8153%, 63.5376%), PathElement::Line, PathElement::Point(77.4969%, 63.5376%), PathElement::Line, PathElement::Point(72.7574%, 49.6172%), PathElement::Line, PathElement::Point(67.6214%, 63.5376%), PathElement::Line, PathElement::Point(59.4352%, 63.5376%), PathElement::Line, PathElement::Point(68.6755%, 38.1037%), PathElement::Line, PathElement::Point(59.7388%, 12.241%), PathElement::Line, PathElement::Point(67.9877%, 12.241%), PathElement::Line, PathElement::Point(72.8605%, 26.3701%), PathElement::Line, PathElement::Point(77.5226%, 12.241%), PathElement::Line, PathElement::Point(85.8141%, 12.241%), PathElement::Line, PathElement::Point(76.8931%, 38.1037%), PathElement::Line, PathElement::Point(85.8141%, 63.5376%), PathElement::Close]
+        />
+        <Path
+            width=100%
+            height=100%
+            fill={self.fill}
+            elements=[PathElement::Point(21.1724%, 50.064%), PathElement::Cubic(24.3145%, 50.064%, 27.1664%, 44.3477%), PathElement::Point(27.1664%, 38.0498%), PathElement::Cubic(27.1664%, 31.7519%, 24.3145%, 26.0356%), PathElement::Point(21.1724%, 26.0356%), PathElement::Cubic(18.0303%, 26.0356%, 15.1783%, 31.7519%), PathElement::Point(15.1783%, 38.0498%), PathElement::Cubic(15.1783%, 44.3477%, 18.0303%, 50.064%), PathElement::Point(21.1724%, 50.064%), PathElement::Close]
+        />
+    </Group>
+</Group>
+
+@timeline wayfinder_enter {
+    playhead: self.playhead,
+    duration: 1350ms,
+    loop: false,
+
+    #post_motion {
+        y: {
+            0ms: -80%, Hold,
+            90ms: -80%, InQuad,
+            380ms: 52%, OutQuad,
+            500ms: 48.8%, InOutQuad,
+            620ms: 50%,
+        },
+    }
+
+    #board_motion {
+        x: {
+            0ms: -110%, Hold,
+            380ms: -110%, OutQuad,
+            900ms: 16.471%, InOutQuad,
+            1050ms: 15.021%, OutQuad,
+            1200ms: 15.371%,
+        },
+        y: {
+            0ms: 51.2%, Hold,
+            380ms: 51.2%, OutQuad,
+            900ms: 49.8%, InOutQuad,
+            1050ms: 50.07%, OutQuad,
+            1200ms: 50%,
+        },
+    }
+}

@@ -5,7 +5,7 @@ use std::path::Path;
 use color_eyre::eyre::{eyre, Report, Result, WrapErr};
 use roxmltree::Document;
 use sha2::{Digest, Sha256};
-use svgtypes::{PathParser, PathSegment, Transform as SvgTransform};
+use svgtypes::{NumberListParser, PathParser, PathSegment, Transform as SvgTransform};
 
 #[derive(Debug)]
 pub struct SvgImport {
@@ -13,6 +13,7 @@ pub struct SvgImport {
     pub source_sha256: String,
     pub view_box: ViewBox,
     pub svg_path_count: usize,
+    pub svg_polygon_count: usize,
     pub generated_path_count: usize,
     pub warnings: Vec<String>,
 }
@@ -88,19 +89,34 @@ pub fn import_svg(
     warn_unsupported_elements(&doc, &mut warnings);
 
     let mut paths = Vec::new();
+    let mut svg_path_count = 0;
+    let mut svg_polygon_count = 0;
     for node in doc
         .descendants()
-        .filter(|node| node.is_element() && node.tag_name().name() == "path")
+        .filter(|node| node.is_element() && matches!(node.tag_name().name(), "path" | "polygon"))
     {
-        let d = node
-            .attribute("d")
-            .ok_or_else(|| eyre!("<path> is missing required d attribute"))?;
         let transform = computed_transform(&node)?;
         let mut style = computed_path_style(&node, &class_styles)?;
         if let Some(stroke) = style.stroke.as_mut() {
             stroke.width_px *= stroke_scale(transform);
         }
-        let elements = parse_path_elements(d, view_box, transform)?;
+        let elements = match node.tag_name().name() {
+            "path" => {
+                svg_path_count += 1;
+                let d = node
+                    .attribute("d")
+                    .ok_or_else(|| eyre!("<path> is missing required d attribute"))?;
+                parse_path_elements(d, view_box, transform)?
+            }
+            "polygon" => {
+                svg_polygon_count += 1;
+                let points = node
+                    .attribute("points")
+                    .ok_or_else(|| eyre!("<polygon> is missing required points attribute"))?;
+                parse_polygon_elements(points, view_box, transform)?
+            }
+            _ => unreachable!(),
+        };
         paths.push(SvgPath {
             elements,
             fill: style.fill,
@@ -109,10 +125,11 @@ pub fn import_svg(
     }
 
     if paths.is_empty() {
-        return Err(eyre!("SVG import found no supported <path> elements"));
+        return Err(eyre!(
+            "SVG import found no supported <path> or <polygon> elements"
+        ));
     }
 
-    let svg_path_count = paths.len();
     let nodes = merge_compatible_stroke_paths(paths);
     let pax_source = render_pax_template(source_path, source_sha256, view_box, &nodes);
     Ok(SvgImport {
@@ -120,6 +137,7 @@ pub fn import_svg(
         source_sha256: source_sha256.to_string(),
         view_box,
         svg_path_count,
+        svg_polygon_count,
         generated_path_count: nodes.len(),
         warnings,
     })
@@ -145,7 +163,7 @@ fn parse_view_box(value: &str) -> Result<ViewBox, Report> {
 
 fn warn_unsupported_elements(doc: &Document<'_>, warnings: &mut Vec<String>) {
     let supported = [
-        "svg", "path", "defs", "style", "title", "desc", "metadata", "g",
+        "svg", "path", "polygon", "defs", "style", "title", "desc", "metadata", "g",
     ];
     let mut names = BTreeMap::new();
     for node in doc.descendants().filter(|node| node.is_element()) {
@@ -437,29 +455,29 @@ fn parse_path_elements(
                 previous_quadratic_control = None;
             }
             PathSegment::LineTo { abs, x, y } => {
-                current = resolve_point(abs, x, y, current);
-                elements.push("PathElement::Line".to_string());
-                elements.push(point_element(current, view_box, transform));
+                let next = resolve_point(abs, x, y, current);
+                push_line_if_visible(&mut elements, current, next, view_box, transform);
+                current = next;
                 previous_cubic_control = None;
                 previous_quadratic_control = None;
             }
             PathSegment::HorizontalLineTo { abs, x } => {
-                current = Point {
+                let next = Point {
                     x: if abs { x } else { current.x + x },
                     y: current.y,
                 };
-                elements.push("PathElement::Line".to_string());
-                elements.push(point_element(current, view_box, transform));
+                push_line_if_visible(&mut elements, current, next, view_box, transform);
+                current = next;
                 previous_cubic_control = None;
                 previous_quadratic_control = None;
             }
             PathSegment::VerticalLineTo { abs, y } => {
-                current = Point {
+                let next = Point {
                     x: current.x,
                     y: if abs { y } else { current.y + y },
                 };
-                elements.push("PathElement::Line".to_string());
-                elements.push(point_element(current, view_box, transform));
+                push_line_if_visible(&mut elements, current, next, view_box, transform);
+                current = next;
                 previous_cubic_control = None;
                 previous_quadratic_control = None;
             }
@@ -526,6 +544,68 @@ fn parse_path_elements(
     Ok(elements)
 }
 
+fn parse_polygon_elements(
+    points: &str,
+    view_box: ViewBox,
+    transform: SvgTransform,
+) -> Result<Vec<String>, Report> {
+    let coordinates = NumberListParser::from(points)
+        .map(|value| value.map_err(|error| eyre!("malformed SVG polygon points: {error:?}")))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    if coordinates.len() % 2 != 0 {
+        return Err(eyre!(
+            "malformed SVG polygon points: expected coordinate pairs, found {} values",
+            coordinates.len()
+        ));
+    }
+
+    let points = coordinates
+        .chunks_exact(2)
+        .map(|pair| Point {
+            x: pair[0],
+            y: pair[1],
+        })
+        .collect::<Vec<_>>();
+    if points.len() < 3 {
+        return Err(eyre!(
+            "SVG <polygon> requires at least three coordinate pairs"
+        ));
+    }
+
+    let mut canonical_points = Vec::with_capacity(points.len());
+    for point in points {
+        let rendered = point_element(point, view_box, transform);
+        if canonical_points
+            .last()
+            .is_some_and(|(_, previous): &(Point, String)| previous == &rendered)
+        {
+            continue;
+        }
+        canonical_points.push((point, rendered));
+    }
+    if canonical_points.len() > 1
+        && canonical_points.first().map(|(_, point)| point)
+            == canonical_points.last().map(|(_, point)| point)
+    {
+        canonical_points.pop();
+    }
+    if canonical_points.len() < 3 {
+        return Err(eyre!(
+            "SVG <polygon> requires at least three distinct rendered vertices"
+        ));
+    }
+
+    let mut elements = Vec::with_capacity(canonical_points.len() * 2);
+    elements.push(canonical_points[0].1.clone());
+    for (_, point) in canonical_points.iter().skip(1) {
+        elements.push("PathElement::Line".to_string());
+        elements.push(point.clone());
+    }
+    elements.push("PathElement::Close".to_string());
+    Ok(elements)
+}
+
 #[derive(Clone, Copy, Debug)]
 struct Point {
     x: f64,
@@ -548,6 +628,22 @@ fn reflect(control: Point, around: Point) -> Point {
         x: (2.0 * around.x) - control.x,
         y: (2.0 * around.y) - control.y,
     }
+}
+
+fn push_line_if_visible(
+    elements: &mut Vec<String>,
+    from: Point,
+    to: Point,
+    view_box: ViewBox,
+    transform: SvgTransform,
+) {
+    let from = point_element(from, view_box, transform);
+    let to = point_element(to, view_box, transform);
+    if from == to {
+        return;
+    }
+    elements.push("PathElement::Line".to_string());
+    elements.push(to);
 }
 
 fn point_element(point: Point, view_box: ViewBox, transform: SvgTransform) -> String {
@@ -761,6 +857,131 @@ mod tests {
         assert!(import.pax_source.contains("PathElement::Point(0%, 0%)"));
         assert!(import.pax_source.contains("PathElement::Point(100%, 100%)"));
         assert!(import.pax_source.contains("fill=rgba(255, 0, 0, 255)"));
+    }
+
+    #[test]
+    fn converts_polygon_to_closed_percent_path() {
+        let svg = r##"
+            <svg viewBox="0 0 20 10">
+                <polygon points="0,0 20,0 10,10" fill="#f00"/>
+            </svg>
+        "##;
+        let import = import_svg(svg, Path::new("polygon.svg"), "hash").unwrap();
+
+        assert_eq!(import.svg_path_count, 0);
+        assert_eq!(import.svg_polygon_count, 1);
+        assert_eq!(import.generated_path_count, 1);
+        assert!(import.pax_source.contains("PathElement::Point(0%, 0%)"));
+        assert!(import.pax_source.contains("PathElement::Point(100%, 0%)"));
+        assert!(import.pax_source.contains("PathElement::Point(50%, 100%)"));
+        assert!(import.pax_source.contains("PathElement::Close"));
+        assert!(!import
+            .warnings
+            .iter()
+            .any(|warning| warning.contains("<polygon>")));
+    }
+
+    #[test]
+    fn removes_degenerate_line_segments_after_output_quantization() {
+        let svg = r##"
+            <svg viewBox="0 0 10 10">
+                <path d="M0 0 h0 L10 0 v0 L10 10 Z"/>
+            </svg>
+        "##;
+        let import = import_svg(svg, Path::new("degenerate-lines.svg"), "hash").unwrap();
+
+        assert_eq!(import.pax_source.matches("PathElement::Line").count(), 2);
+        assert_eq!(
+            import
+                .pax_source
+                .matches("PathElement::Point(0%, 0%)")
+                .count(),
+            1
+        );
+        assert_eq!(
+            import
+                .pax_source
+                .matches("PathElement::Point(100%, 0%)")
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn canonicalizes_repeated_polygon_vertices() {
+        let svg = r##"
+            <svg viewBox="0 0 10 10">
+                <polygon points="0,0 10,0 10,0 10,10 0,0"/>
+            </svg>
+        "##;
+        let import = import_svg(svg, Path::new("repeated-polygon.svg"), "hash").unwrap();
+
+        assert_eq!(import.pax_source.matches("PathElement::Line").count(), 2);
+        assert_eq!(
+            import
+                .pax_source
+                .matches("PathElement::Point(0%, 0%)")
+                .count(),
+            1
+        );
+        assert!(import.pax_source.contains("PathElement::Close"));
+    }
+
+    #[test]
+    fn applies_inherited_style_and_transform_to_polygon() {
+        let svg = r##"
+            <svg viewBox="0 0 20 20">
+                <g fill="none" stroke="#000" stroke-width="2" transform="translate(5 0)">
+                    <polygon points="0,0 5,0 5,5" transform="scale(2)"/>
+                </g>
+            </svg>
+        "##;
+        let import = import_svg(svg, Path::new("polygon-transform.svg"), "hash").unwrap();
+
+        assert!(import.pax_source.contains("PathElement::Point(25%, 0%)"));
+        assert!(import.pax_source.contains("PathElement::Point(75%, 0%)"));
+        assert!(import.pax_source.contains("PathElement::Point(75%, 50%)"));
+        assert!(import.pax_source.contains("width: 4px"));
+        assert!(import.pax_source.contains("draw_start={draw_start}"));
+    }
+
+    #[test]
+    fn preserves_document_order_across_paths_and_polygons() {
+        let svg = r##"
+            <svg viewBox="0 0 10 10">
+                <path d="M0 0 L10 0" fill="none" stroke="#f00"/>
+                <polygon points="0,0 10,0 5,10" fill="#00f"/>
+            </svg>
+        "##;
+        let import = import_svg(svg, Path::new("order.svg"), "hash").unwrap();
+        let polygon = import.pax_source.find("fill=rgba(0, 0, 255, 255)").unwrap();
+        let path = import
+            .pax_source
+            .find("color: rgba(255, 0, 0, 255)")
+            .unwrap();
+
+        // Pax paints earlier siblings on top, so imported SVG shapes are emitted in reverse.
+        assert!(polygon < path);
+    }
+
+    #[test]
+    fn rejects_malformed_or_incomplete_polygon_points() {
+        for (points, expected) in [
+            ("0,0 10,0 nope 5,10", "malformed SVG polygon points"),
+            ("0,0 10,0 5", "expected coordinate pairs"),
+            ("0,0 10,0", "at least three coordinate pairs"),
+            (
+                "0,0 0,0 10,10 0,0",
+                "at least three distinct rendered vertices",
+            ),
+        ] {
+            let svg = format!(r##"<svg viewBox="0 0 10 10"><polygon points="{points}"/></svg>"##);
+            let error = import_svg(&svg, Path::new("bad-polygon.svg"), "hash").unwrap_err();
+            assert!(
+                error.to_string().contains(expected),
+                "unexpected error for `{points}`: {error}"
+            );
+        }
     }
 
     #[test]

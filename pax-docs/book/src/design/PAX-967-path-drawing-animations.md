@@ -372,6 +372,7 @@ Required first-pass support:
 
 - `<svg viewBox="min_x min_y width height">`
 - `<path d="...">`
+- `<polygon points="...">`, converted to a closed Pax `Path`
 - path commands `M`, `L`, `H`, `V`, `Q`, `C`, and `Z`, plus their lowercase
   relative variants
 - path-level `fill`, `stroke`, `stroke-width`, `stroke-linecap`, and `opacity`

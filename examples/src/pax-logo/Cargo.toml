@@ -1,0 +1,18 @@
+[package]
+name = "pax-logo"
+version = "0.38.3"
+edition = "2021"
+default-run = "run"
+
+[package.metadata.pax]
+title = "Animated Pax Logo"
+
+[dependencies]
+pax-kit = { version = "0.38.3", path = "../../../pax-kit" }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "run"
+path = "bin/run.rs"
