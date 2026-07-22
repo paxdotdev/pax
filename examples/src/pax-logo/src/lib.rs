@@ -3,15 +3,17 @@
 use pax_kit::*;
 
 pub mod animated_pax_logo;
+pub mod animated_pax_logo_post;
 pub mod pax_logo;
 pub mod pax_logo_board;
 pub mod pax_logo_post;
 pub use animated_pax_logo::*;
+pub use animated_pax_logo_post::*;
 pub use pax_logo::*;
 pub use pax_logo_board::*;
 pub use pax_logo_post::*;
 
-const LOGO_DURATION_MS: u64 = 1350;
+const LOGO_DURATION_MS: u64 = 1100;
 
 #[pax]
 #[main]

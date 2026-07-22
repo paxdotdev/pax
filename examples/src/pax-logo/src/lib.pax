@@ -27,13 +27,13 @@
         />
     </Group>
 
-    <AnimatedPaxLogo
+    <AnimatedPaxLogoPost
         x=50%
         y=46%
-        width=892.72px
-        height=445.39px
+        width=137.23px
+        height=463.95px
         anchor=50%
-        scale={(Math::min(1.0, Math::min($viewport.width / 1040, $viewport.height / 620)) * 100)%}
+        scale={(Math::min(1.0, Math::min($viewport.width / 420, $viewport.height / 640)) * 100)%}
         fill=rgba(17, 17, 16, 255)
         playhead={self.logo_playhead}
     />

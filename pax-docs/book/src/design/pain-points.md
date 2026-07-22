@@ -899,3 +899,13 @@ playhead-driven background change produced reliable full frames and isolated
 the rendering failure. Recommendations: provide an official fixed-playhead
 capture mode for declarative timelines and an option to force full canvas
 frames in animation tooling.
+
+Refining the logo post from a translated rigid shape into an unfurling fabric
+strip required animating `PathElement` geometry procedurally. Rebuilding the
+same cubic-path topology from a shared playhead rendered reliably; changing
+only control points and endpoints also made exact contact-sheet frames easy to
+compare. The lower-edge overshoot was initially clipped at the `Path` bounds,
+so the component now reserves four percent of its internal vertical coordinate
+space and compensates in its presentation height. Recommendations: keep
+procedural animation topology stable, and give authored overshoot explicit
+geometry headroom instead of relying on drawing beyond primitive bounds.

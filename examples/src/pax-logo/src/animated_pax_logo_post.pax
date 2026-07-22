@@ -1,0 +1,10 @@
+<Path
+    width=100%
+    height=100%
+    fill={self.fill}
+    elements={self.path_elements}
+/>
+
+@settings {
+    @mount: handle_mount
+}
