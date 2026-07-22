@@ -13,7 +13,7 @@ pub use pax_logo::*;
 pub use pax_logo_board::*;
 pub use pax_logo_post::*;
 
-const LOGO_DURATION_MS: u64 = 1100;
+const LOGO_DURATION_MS: u64 = 1150;
 
 #[pax]
 #[main]

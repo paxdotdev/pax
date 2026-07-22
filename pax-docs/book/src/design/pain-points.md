@@ -909,3 +909,11 @@ so the component now reserves four percent of its internal vertical coordinate
 space and compensates in its presentation height. Recommendations: keep
 procedural animation topology stable, and give authored overshoot explicit
 geometry headroom instead of relying on drawing beyond primitive bounds.
+
+Building the unraveling spool as two circular contours overlapping a rectangular
+contour inside one filled `Path` produced visible seams and detached-looking
+fragments on the web chassis. The same geometry rendered cleanly when each cap
+and the body were emitted as three independently filled paths. Recommendations:
+do not assume overlapping closed contours within one native `Path` union their
+fills; use separate filled paths when an animated compound silhouette depends
+on overlap, until compound-path fill semantics are explicit and regression-tested.
