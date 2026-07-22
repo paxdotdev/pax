@@ -27,16 +27,17 @@
         />
     </Group>
 
-    <AnimatedPaxLogoPost
-        x=50%
-        y=46%
-        width=137.23px
-        height=463.95px
-        anchor=50%
-        scale={(Math::min(1.0, Math::min($viewport.width / 420, $viewport.height / 640)) * 100)%}
-        fill=rgba(17, 17, 16, 255)
-        playhead={self.logo_playhead}
-    />
+    for logo_instance in self.logo_instances key logo_instance {
+        <AnimatedPaxLogoPost
+            x=50%
+            y=46%
+            width=137.23px
+            height=463.95px
+            anchor=50%
+            scale={(Math::min(1.0, Math::min($viewport.width / 420, $viewport.height / 640)) * 100)%}
+            fill=rgba(17, 17, 16, 255)
+        />
+    }
 
     <Rectangle
         width=100%
@@ -53,9 +54,6 @@
 </Group>
 
 @settings {
-    @mount: handle_mount
-    @pre_render: handle_pre_render
-
     #replay_label {
         style: {
             font_size: 14px

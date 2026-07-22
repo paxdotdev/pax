@@ -17,10 +17,6 @@ const COMPONENT_HEIGHT_PX: f64 = 463.95;
 const X_PX_PER_PERCENT: f64 = COMPONENT_WIDTH_PX / 100.0;
 const Y_PX_PER_PERCENT: f64 = COMPONENT_HEIGHT_PX * CANVAS_Y_SCALE / 100.0;
 
-const ROLL_END_MS: f64 = 300.0;
-const FALL_END_MS: f64 = 820.0;
-const WHIP_PEAK_MS: f64 = 875.0;
-const SETTLE_END_MS: f64 = 1080.0;
 const INITIAL_ROLL_RADIUS_PX: f64 = 13.0;
 
 #[pax]
@@ -28,7 +24,13 @@ const INITIAL_ROLL_RADIUS_PX: f64 = 13.0;
 #[file("animated_pax_logo_post.pax")]
 pub struct AnimatedPaxLogoPost {
     pub fill: Property<Fill>,
-    pub playhead: Property<f64>,
+    pub rolling: Property<f64>,
+    pub extension: Property<f64>,
+    pub wave: Property<f64>,
+    pub swing: Property<f64>,
+    pub whip: Property<f64>,
+    pub fall: Property<f64>,
+    pub roll_radius_px: Property<f64>,
     pub top_fabric_elements: Property<Vec<PathElement>>,
     pub fabric_elements: Property<Vec<PathElement>>,
     pub fabric_opacity: Property<f64>,
@@ -39,74 +41,82 @@ pub struct AnimatedPaxLogoPost {
 
 impl Default for AnimatedPaxLogoPost {
     fn default() -> Self {
+        let motion = motion_from_controls(MotionControls::default());
         Self {
             fill: Property::new(Fill::Solid(Color::BLACK)),
-            playhead: Property::new(0.0),
-            top_fabric_elements: Property::new(top_fabric_path_at(0.0)),
-            fabric_elements: Property::new(fabric_path_at(0.0)),
+            rolling: Property::new(0.0),
+            extension: Property::new(0.0),
+            wave: Property::new(0.0),
+            swing: Property::new(0.0),
+            whip: Property::new(0.0),
+            fall: Property::new(0.0),
+            roll_radius_px: Property::new(INITIAL_ROLL_RADIUS_PX),
+            top_fabric_elements: Property::new(top_fabric_path(motion)),
+            fabric_elements: Property::new(fabric_path(motion)),
             fabric_opacity: Property::new(0.0),
-            roll_start_cap_elements: Property::new(roll_start_cap_path_at(0.0)),
-            roll_body_elements: Property::new(roll_body_path_at(0.0)),
-            roll_end_cap_elements: Property::new(roll_end_cap_path_at(0.0)),
+            roll_start_cap_elements: Property::new(roll_start_cap_path(motion)),
+            roll_body_elements: Property::new(roll_body_path(motion)),
+            roll_end_cap_elements: Property::new(roll_end_cap_path(motion)),
         }
     }
 }
 
 impl AnimatedPaxLogoPost {
     pub fn handle_mount(&mut self, _ctx: &NodeContext) {
-        let top_playhead = self.playhead.clone();
-        let top_dependencies = [top_playhead.untyped()];
-        let top_fabric_elements = Property::computed(
-            move || top_fabric_path_at(top_playhead.get()),
-            &top_dependencies,
+        let rolling = self.rolling.clone();
+        let extension = self.extension.clone();
+        let wave = self.wave.clone();
+        let swing = self.swing.clone();
+        let whip = self.whip.clone();
+        let fall = self.fall.clone();
+        let roll_radius_px = self.roll_radius_px.clone();
+        let motion_dependencies = [
+            rolling.untyped(),
+            extension.untyped(),
+            wave.untyped(),
+            swing.untyped(),
+            whip.untyped(),
+            fall.untyped(),
+            roll_radius_px.untyped(),
+        ];
+        let motion = Property::computed(
+            move || {
+                motion_from_controls(MotionControls {
+                    rolling: rolling.get(),
+                    extension: extension.get(),
+                    wave: wave.get(),
+                    swing: swing.get(),
+                    whip: whip.get(),
+                    fall: fall.get(),
+                    roll_radius_px: roll_radius_px.get(),
+                })
+            },
+            &motion_dependencies,
         );
-        self.top_fabric_elements.replace_with(top_fabric_elements);
 
-        let fabric_playhead = self.playhead.clone();
-        let fabric_dependencies = [fabric_playhead.untyped()];
-        let fabric_elements = Property::computed(
-            move || fabric_path_at(fabric_playhead.get()),
-            &fabric_dependencies,
-        );
-        self.fabric_elements.replace_with(fabric_elements);
-
-        let fabric_opacity_playhead = self.playhead.clone();
-        let fabric_opacity_dependencies = [fabric_opacity_playhead.untyped()];
-        let fabric_opacity = Property::computed(
-            move || fabric_opacity_at(fabric_opacity_playhead.get()),
-            &fabric_opacity_dependencies,
-        );
-        self.fabric_opacity.replace_with(fabric_opacity);
-
-        let start_cap_playhead = self.playhead.clone();
-        let start_cap_dependencies = [start_cap_playhead.untyped()];
-        let roll_start_cap_elements = Property::computed(
-            move || roll_start_cap_path_at(start_cap_playhead.get()),
-            &start_cap_dependencies,
-        );
+        self.top_fabric_elements
+            .replace_with(computed_path(&motion, top_fabric_path));
+        self.fabric_elements
+            .replace_with(computed_path(&motion, fabric_path));
         self.roll_start_cap_elements
-            .replace_with(roll_start_cap_elements);
-
-        let body_playhead = self.playhead.clone();
-        let body_dependencies = [body_playhead.untyped()];
-        let roll_body_elements = Property::computed(
-            move || roll_body_path_at(body_playhead.get()),
-            &body_dependencies,
-        );
-        self.roll_body_elements.replace_with(roll_body_elements);
-
-        let end_cap_playhead = self.playhead.clone();
-        let end_cap_dependencies = [end_cap_playhead.untyped()];
-        let roll_end_cap_elements = Property::computed(
-            move || roll_end_cap_path_at(end_cap_playhead.get()),
-            &end_cap_dependencies,
-        );
+            .replace_with(computed_path(&motion, roll_start_cap_path));
+        self.roll_body_elements
+            .replace_with(computed_path(&motion, roll_body_path));
         self.roll_end_cap_elements
-            .replace_with(roll_end_cap_elements);
+            .replace_with(computed_path(&motion, roll_end_cap_path));
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+fn computed_path(
+    motion: &Property<PostMotion>,
+    build: fn(PostMotion) -> Vec<PathElement>,
+) -> Property<Vec<PathElement>> {
+    let motion = motion.clone();
+    let dependencies = [motion.untyped()];
+    Property::computed(move || build(motion.get()), &dependencies)
+}
+
+#[derive(Clone, Copy, Debug, Default)]
 struct Point {
     x: f64,
     y: f64,
@@ -131,6 +141,31 @@ impl Point {
 }
 
 #[derive(Clone, Copy)]
+struct MotionControls {
+    rolling: f64,
+    extension: f64,
+    wave: f64,
+    swing: f64,
+    whip: f64,
+    fall: f64,
+    roll_radius_px: f64,
+}
+
+impl Default for MotionControls {
+    fn default() -> Self {
+        Self {
+            rolling: 0.0,
+            extension: 0.0,
+            wave: 0.0,
+            swing: 0.0,
+            whip: 0.0,
+            fall: 0.0,
+            roll_radius_px: INITIAL_ROLL_RADIUS_PX,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Default)]
 struct PostMotion {
     rolling: f64,
     extension: f64,
@@ -143,72 +178,48 @@ struct PostMotion {
     roll_radius_px: f64,
 }
 
-fn motion_at(playhead_ms: f64) -> PostMotion {
-    let rolling = smoothstep(progress(playhead_ms, 0.0, ROLL_END_MS));
-    let fall = progress(playhead_ms, ROLL_END_MS, FALL_END_MS);
-    let extension = if playhead_ms < ROLL_END_MS {
-        0.0
-    } else {
-        ease_in_quad(fall)
-    };
-    let descent_envelope = (fall * std::f64::consts::PI).sin() * (1.0 - fall * 0.35);
-    let wave = (fall * std::f64::consts::PI * 2.5).sin() * descent_envelope * 9.0;
-    let swing = -(fall * std::f64::consts::PI).sin() * (1.0 - fall) * 14.0;
-    let whip = if playhead_ms < FALL_END_MS {
-        0.0
-    } else if playhead_ms < WHIP_PEAK_MS {
-        lerp(
-            0.0,
-            -4.5,
-            ease_out_cubic(progress(playhead_ms, FALL_END_MS, WHIP_PEAK_MS)),
-        )
-    } else if playhead_ms < SETTLE_END_MS {
-        lerp(
-            -4.5,
-            0.0,
-            ease_out_cubic(progress(playhead_ms, WHIP_PEAK_MS, SETTLE_END_MS)),
-        )
-    } else {
-        0.0
-    };
+impl Interpolatable for PostMotion {}
 
+fn motion_from_controls(controls: MotionControls) -> PostMotion {
     let bottom_left = Point::new(
-        lerp(TOP_FRONT_LEFT.x, BOTTOM_LEFT.x, extension) + swing + wave * 0.12 + whip,
-        lerp(TOP_FRONT_LEFT.y, BOTTOM_LEFT.y, extension),
+        lerp(TOP_FRONT_LEFT.x, BOTTOM_LEFT.x, controls.extension)
+            + controls.swing
+            + controls.wave * 0.12
+            + controls.whip,
+        lerp(TOP_FRONT_LEFT.y, BOTTOM_LEFT.y, controls.extension),
     );
     let bottom_right = Point::new(
-        lerp(TOP_FRONT_RIGHT.x, BOTTOM_RIGHT.x, extension)
-            + swing * 0.75
-            + wave * 0.55
-            + whip * 0.8,
-        lerp(TOP_FRONT_RIGHT.y, BOTTOM_RIGHT.y, extension),
+        lerp(TOP_FRONT_RIGHT.x, BOTTOM_RIGHT.x, controls.extension)
+            + controls.swing * 0.75
+            + controls.wave * 0.55
+            + controls.whip * 0.8,
+        lerp(TOP_FRONT_RIGHT.y, BOTTOM_RIGHT.y, controls.extension),
     );
 
-    let (roll_axis_start, roll_axis_end, roll_radius_px) = if playhead_ms < ROLL_END_MS {
+    let (roll_axis_start, roll_axis_end) = if controls.fall <= f64::EPSILON {
         (
-            TOP_BACK_LEFT.lerp(TOP_FRONT_LEFT, rolling),
-            TOP_BACK_RIGHT.lerp(TOP_FRONT_RIGHT, rolling),
-            lerp(INITIAL_ROLL_RADIUS_PX, 6.5, ease_out_quad(rolling)),
+            TOP_BACK_LEFT.lerp(TOP_FRONT_LEFT, controls.rolling),
+            TOP_BACK_RIGHT.lerp(TOP_FRONT_RIGHT, controls.rolling),
         )
     } else {
-        (bottom_left, bottom_right, lerp(6.5, 0.7, smoothstep(fall)))
+        (bottom_left, bottom_right)
     };
 
     PostMotion {
-        rolling,
-        extension,
-        wave,
-        swing,
-        whip,
-        fall,
+        rolling: controls.rolling,
+        extension: controls.extension,
+        wave: controls.wave,
+        swing: controls.swing,
+        whip: controls.whip,
+        fall: controls.fall,
         roll_axis_start,
         roll_axis_end,
-        roll_radius_px,
+        roll_radius_px: controls.roll_radius_px,
     }
 }
 
-fn top_fabric_path_at(playhead_ms: f64) -> Vec<PathElement> {
-    let reveal = motion_at(playhead_ms).rolling.max(0.002);
+fn top_fabric_path(motion: PostMotion) -> Vec<PathElement> {
+    let reveal = motion.rolling.max(0.002);
     let moving_left = TOP_BACK_LEFT.lerp(TOP_FRONT_LEFT, reveal);
     let moving_right = TOP_BACK_RIGHT.lerp(TOP_FRONT_RIGHT, reveal);
 
@@ -224,8 +235,7 @@ fn top_fabric_path_at(playhead_ms: f64) -> Vec<PathElement> {
     ]
 }
 
-fn fabric_path_at(playhead_ms: f64) -> Vec<PathElement> {
-    let motion = motion_at(playhead_ms);
+fn fabric_path(motion: PostMotion) -> Vec<PathElement> {
     let visible_extension = motion.extension.max(0.002);
     let bottom_left = Point::new(
         lerp(TOP_FRONT_LEFT.x, BOTTOM_LEFT.x, visible_extension)
@@ -274,22 +284,15 @@ fn fabric_path_at(playhead_ms: f64) -> Vec<PathElement> {
     ]
 }
 
-fn fabric_opacity_at(playhead_ms: f64) -> f64 {
-    smoothstep(progress(playhead_ms, ROLL_END_MS, ROLL_END_MS + 50.0))
-}
-
-fn roll_start_cap_path_at(playhead_ms: f64) -> Vec<PathElement> {
-    let motion = motion_at(playhead_ms);
+fn roll_start_cap_path(motion: PostMotion) -> Vec<PathElement> {
     circle_path(motion.roll_axis_start, motion.roll_radius_px)
 }
 
-fn roll_end_cap_path_at(playhead_ms: f64) -> Vec<PathElement> {
-    let motion = motion_at(playhead_ms);
+fn roll_end_cap_path(motion: PostMotion) -> Vec<PathElement> {
     circle_path(motion.roll_axis_end, motion.roll_radius_px)
 }
 
-fn roll_body_path_at(playhead_ms: f64) -> Vec<PathElement> {
-    let motion = motion_at(playhead_ms);
+fn roll_body_path(motion: PostMotion) -> Vec<PathElement> {
     let start = motion.roll_axis_start;
     let end = motion.roll_axis_end;
     let normal = normal_offset(start, end, motion.roll_radius_px);
@@ -381,42 +384,59 @@ fn percent_y(value: f64) -> Size {
     percent(value * CANVAS_Y_SCALE)
 }
 
-fn progress(value: f64, start: f64, end: f64) -> f64 {
-    ((value - start) / (end - start)).clamp(0.0, 1.0)
-}
-
 fn lerp(start: f64, end: f64, t: f64) -> f64 {
     start + (end - start) * t
-}
-
-fn ease_out_quad(t: f64) -> f64 {
-    1.0 - (1.0 - t) * (1.0 - t)
-}
-
-fn ease_in_quad(t: f64) -> f64 {
-    t * t
-}
-
-fn ease_out_cubic(t: f64) -> f64 {
-    1.0 - (1.0 - t).powi(3)
-}
-
-fn smoothstep(t: f64) -> f64 {
-    t * t * (3.0 - 2.0 * t)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    fn top_controls(rolling: f64, radius: f64) -> MotionControls {
+        MotionControls {
+            rolling,
+            roll_radius_px: radius,
+            ..Default::default()
+        }
+    }
+
+    fn fall_controls(
+        extension: f64,
+        fall: f64,
+        wave: f64,
+        swing: f64,
+        whip: f64,
+        radius: f64,
+    ) -> MotionControls {
+        MotionControls {
+            rolling: 1.0,
+            extension,
+            fall,
+            wave,
+            swing,
+            whip,
+            roll_radius_px: radius,
+        }
+    }
+
     #[test]
     fn post_paths_keep_stable_topologies_at_every_motion_phase() {
-        for playhead in [0.0, 150.0, 300.0, 500.0, 700.0, 820.0, 875.0, 1080.0] {
-            let top = top_fabric_path_at(playhead);
-            let fabric = fabric_path_at(playhead);
-            let start_cap = roll_start_cap_path_at(playhead);
-            let body = roll_body_path_at(playhead);
-            let end_cap = roll_end_cap_path_at(playhead);
+        let samples = [
+            top_controls(0.0, INITIAL_ROLL_RADIUS_PX),
+            top_controls(0.5, 8.125),
+            top_controls(1.0, 6.5),
+            fall_controls(0.25, 0.5, -5.2503, -7.0, 0.0, 3.6),
+            fall_controls(1.0, 1.0, 0.0, 0.0, 0.0, 0.7),
+            fall_controls(1.0, 1.0, 0.0, 0.0, -4.5, 0.7),
+        ];
+
+        for controls in samples {
+            let motion = motion_from_controls(controls);
+            let top = top_fabric_path(motion);
+            let fabric = fabric_path(motion);
+            let start_cap = roll_start_cap_path(motion);
+            let body = roll_body_path(motion);
+            let end_cap = roll_end_cap_path(motion);
             assert_eq!(top.len(), 8);
             assert_eq!(top.last(), Some(&PathElement::Close));
             assert_eq!(fabric.len(), 8);
@@ -432,19 +452,21 @@ mod tests {
 
     #[test]
     fn top_face_is_revealed_before_the_descent() {
-        assert_eq!(motion_at(0.0).extension, 0.0);
-        assert_eq!(motion_at(ROLL_END_MS).rolling, 1.0);
-        assert_eq!(motion_at(ROLL_END_MS).extension, 0.0);
-        assert_eq!(fabric_opacity_at(ROLL_END_MS), 0.0);
-        assert_eq!(fabric_opacity_at(ROLL_END_MS + 50.0), 1.0);
-        assert!(motion_at(500.0).extension > 0.0);
+        let start = motion_from_controls(top_controls(0.0, INITIAL_ROLL_RADIUS_PX));
+        let rolled = motion_from_controls(top_controls(1.0, 6.5));
+        let falling = motion_from_controls(fall_controls(0.25, 0.5, 0.0, 0.0, 0.0, 3.6));
+
+        assert_eq!(start.extension, 0.0);
+        assert_eq!(rolled.rolling, 1.0);
+        assert_eq!(rolled.extension, 0.0);
+        assert!(falling.extension > 0.0);
     }
 
     #[test]
     fn capsule_keeps_its_axis_spanning_the_prism_edge() {
         let expected = screen_distance(TOP_BACK_LEFT, TOP_BACK_RIGHT);
-        for playhead in [0.0, 75.0, 150.0, 225.0, 299.0] {
-            let motion = motion_at(playhead);
+        for rolling in [0.0, 0.25, 0.5, 0.75, 1.0] {
+            let motion = motion_from_controls(top_controls(rolling, 10.0));
             let length = screen_distance(motion.roll_axis_start, motion.roll_axis_end);
             assert!((length - expected).abs() < 0.5);
         }
@@ -452,29 +474,30 @@ mod tests {
 
     #[test]
     fn settled_post_matches_the_original_rigid_extents() {
-        let path = fabric_path_at(SETTLE_END_MS);
+        let motion = motion_from_controls(fall_controls(1.0, 1.0, 0.0, 0.0, 0.0, 0.7));
+        let path = fabric_path(motion);
         assert_eq!(path[2], point_element(BOTTOM_LEFT));
         assert_eq!(path[4], point_element(BOTTOM_RIGHT));
     }
 
     #[test]
-    fn spool_shrinks_and_the_fall_has_no_vertical_rebound() {
-        assert_eq!(motion_at(0.0).roll_radius_px, INITIAL_ROLL_RADIUS_PX);
-        assert!(motion_at(0.0).roll_radius_px > motion_at(FALL_END_MS).roll_radius_px);
+    fn scalar_controls_drive_spool_shrink_and_full_extension() {
+        let start = motion_from_controls(top_controls(0.0, INITIAL_ROLL_RADIUS_PX));
+        let settled = motion_from_controls(fall_controls(1.0, 1.0, 0.0, 0.0, 0.0, 0.7));
 
-        let mut previous_extension = motion_at(ROLL_END_MS).extension;
-        for playhead in (320..=820).step_by(20) {
-            let extension = motion_at(playhead as f64).extension;
-            assert!(extension >= previous_extension);
-            previous_extension = extension;
-        }
-        assert_eq!(motion_at(SETTLE_END_MS).extension, 1.0);
+        assert_eq!(start.roll_radius_px, INITIAL_ROLL_RADIUS_PX);
+        assert!(start.roll_radius_px > settled.roll_radius_px);
+        assert_eq!(settled.extension, 1.0);
     }
 
     #[test]
     fn lower_edge_whips_once_and_returns_to_the_wall() {
-        assert_eq!(motion_at(FALL_END_MS).whip, 0.0);
-        assert!(motion_at(WHIP_PEAK_MS).whip < 0.0);
-        assert_eq!(motion_at(SETTLE_END_MS).whip, 0.0);
+        let before = motion_from_controls(fall_controls(1.0, 1.0, 0.0, 0.0, 0.0, 0.7));
+        let peak = motion_from_controls(fall_controls(1.0, 1.0, 0.0, 0.0, -4.5, 0.7));
+        let settled = motion_from_controls(fall_controls(1.0, 1.0, 0.0, 0.0, 0.0, 0.7));
+
+        assert_eq!(before.whip, 0.0);
+        assert!(peak.whip < 0.0);
+        assert_eq!(settled.whip, 0.0);
     }
 }

@@ -13,56 +13,31 @@ pub use pax_logo::*;
 pub use pax_logo_board::*;
 pub use pax_logo_post::*;
 
-const LOGO_DURATION_MS: u64 = 1150;
-
 #[pax]
 #[main]
 #[custom(Default)]
 #[file("lib.pax")]
 pub struct Example {
-    pub logo_playhead: Property<f64>,
-    pub animation_origin_ms: Property<u64>,
-    pub animation_running: Property<bool>,
+    pub logo_instances: Property<Vec<u64>>,
 }
 
 impl Default for Example {
     fn default() -> Self {
         Self {
-            logo_playhead: Property::new(0.0),
-            animation_origin_ms: Property::new(0),
-            animation_running: Property::new(false),
+            logo_instances: Property::new(vec![0]),
         }
     }
 }
 
 impl Example {
-    pub fn handle_mount(&mut self, ctx: &NodeContext) {
-        self.restart_animation(ctx);
-    }
-
-    pub fn replay(&mut self, ctx: &NodeContext, _args: Event<Click>) {
-        self.restart_animation(ctx);
-    }
-
-    pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
-        if !self.animation_running.get() {
-            return;
-        }
-
-        let now = ctx.elapsed_time_millis().min(u64::MAX as u128) as u64;
-        let elapsed = now
-            .saturating_sub(self.animation_origin_ms.get())
-            .min(LOGO_DURATION_MS);
-        self.logo_playhead.set(elapsed as f64);
-        if elapsed == LOGO_DURATION_MS {
-            self.animation_running.set(false);
-        }
-    }
-
-    fn restart_animation(&mut self, ctx: &NodeContext) {
-        let now = ctx.elapsed_time_millis().min(u64::MAX as u128) as u64;
-        self.animation_origin_ms.set(now);
-        self.logo_playhead.set(0.0);
-        self.animation_running.set(true);
+    pub fn replay(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
+        let next_instance = self
+            .logo_instances
+            .get()
+            .first()
+            .copied()
+            .unwrap_or_default()
+            .wrapping_add(1);
+        self.logo_instances.set(vec![next_instance]);
     }
 }

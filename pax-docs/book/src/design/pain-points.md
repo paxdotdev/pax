@@ -469,10 +469,11 @@ settings: the playhead advanced while the intended translations stayed at
 their static values, which looked like abrupt entrances rather than a broken
 timeline. Solved by leaving timeline-owned properties off the element and
 using the last keyframe as the resting value. Replay keeps the paths mounted
-and restarts an explicit wall-clock playhead instead of relying on conditional
-unmount/remount lifecycle timing. Recommendations: treat each animated
-property as single-owner data, and inspect the expanded node transform at a
-frozen intermediate playhead before tuning choreography.
+until the keyed component instance is replaced; mounting the replacement
+restarts its `@in` timeline without an application-owned clock. Recommendations:
+treat each animated property as single-owner data, use keyed remounting when a
+self-contained entrance animation must replay, and inspect the expanded node
+transform at a frozen intermediate playhead before tuning choreography.
 
 Animating the same logo also exposed that a `Mask` produced an empty clipped
 result for both a nested custom component and direct `Path` descendants, even
@@ -909,6 +910,24 @@ so the component now reserves four percent of its internal vertical coordinate
 space and compensates in its presentation height. Recommendations: keep
 procedural animation topology stable, and give authored overshoot explicit
 geometry headroom instead of relying on drawing beyond primitive bounds.
+
+Moving that post animation from an imperative Rust playhead to `@timeline`
+worked without interpolating `Vec<PathElement>` directly. The timeline owns a
+small set of scalar motion controls (extension, wave, swing, whip, and spool
+radius), while one reactive Rust computation maps their instantaneous values
+into stable-topology paths. This keeps timing, easing, and choreography visible
+in Pax while retaining path assembly and screen-space geometry math in a pure
+adapter. Recommendations: expose artist-facing scalar controls to timelines
+before adding collection interpolation or custom expression helpers for
+procedural geometry.
+
+The declarative timeline accepts every fixed `EasingCurve` variant, but the
+current enum contains only linear/hold, quadratic, and back families. Its
+`Custom` variant stores a Rust closure, so it cannot be named or serialized by
+Pax syntax; preserving an earlier cubic settle therefore required several
+sampled linear segments. Recommendations: if authored motion needs arbitrary
+curves, add a serializable cubic-Bezier easing value rather than trying to
+expose closure-backed `Custom` easing through the manifest.
 
 Building the unraveling spool as two circular contours overlapping a rectangular
 contour inside one filled `Path` produced visible seams and detached-looking
