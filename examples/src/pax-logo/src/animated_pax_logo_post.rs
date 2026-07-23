@@ -14,6 +14,8 @@ const BOTTOM_RIGHT: Point = Point::new(MID_X, 100.0);
 const CANVAS_Y_SCALE: f64 = 0.96;
 const COMPONENT_WIDTH_PX: f64 = 137.23;
 const COMPONENT_HEIGHT_PX: f64 = 463.95;
+const CANVAS_X_PADDING_PX: f64 = 16.0;
+const CANVAS_WIDTH_PX: f64 = COMPONENT_WIDTH_PX + CANVAS_X_PADDING_PX * 2.0;
 const X_PX_PER_PERCENT: f64 = COMPONENT_WIDTH_PX / 100.0;
 const Y_PX_PER_PERCENT: f64 = COMPONENT_HEIGHT_PX * CANVAS_Y_SCALE / 100.0;
 
@@ -29,6 +31,8 @@ pub struct AnimatedPaxLogoPost {
     pub wave: Property<f64>,
     pub swing: Property<f64>,
     pub whip: Property<f64>,
+    pub impact_billow_lower: Property<f64>,
+    pub impact_billow_upper: Property<f64>,
     pub fall: Property<f64>,
     pub roll_radius_px: Property<f64>,
     pub top_fabric_elements: Property<Vec<PathElement>>,
@@ -49,6 +53,8 @@ impl Default for AnimatedPaxLogoPost {
             wave: Property::new(0.0),
             swing: Property::new(0.0),
             whip: Property::new(0.0),
+            impact_billow_lower: Property::new(0.0),
+            impact_billow_upper: Property::new(0.0),
             fall: Property::new(0.0),
             roll_radius_px: Property::new(INITIAL_ROLL_RADIUS_PX),
             top_fabric_elements: Property::new(top_fabric_path(motion)),
@@ -68,6 +74,8 @@ impl AnimatedPaxLogoPost {
         let wave = self.wave.clone();
         let swing = self.swing.clone();
         let whip = self.whip.clone();
+        let impact_billow_lower = self.impact_billow_lower.clone();
+        let impact_billow_upper = self.impact_billow_upper.clone();
         let fall = self.fall.clone();
         let roll_radius_px = self.roll_radius_px.clone();
         let motion_dependencies = [
@@ -76,6 +84,8 @@ impl AnimatedPaxLogoPost {
             wave.untyped(),
             swing.untyped(),
             whip.untyped(),
+            impact_billow_lower.untyped(),
+            impact_billow_upper.untyped(),
             fall.untyped(),
             roll_radius_px.untyped(),
         ];
@@ -87,6 +97,8 @@ impl AnimatedPaxLogoPost {
                     wave: wave.get(),
                     swing: swing.get(),
                     whip: whip.get(),
+                    impact_billow_lower: impact_billow_lower.get(),
+                    impact_billow_upper: impact_billow_upper.get(),
                     fall: fall.get(),
                     roll_radius_px: roll_radius_px.get(),
                 })
@@ -147,6 +159,8 @@ struct MotionControls {
     wave: f64,
     swing: f64,
     whip: f64,
+    impact_billow_lower: f64,
+    impact_billow_upper: f64,
     fall: f64,
     roll_radius_px: f64,
 }
@@ -159,6 +173,8 @@ impl Default for MotionControls {
             wave: 0.0,
             swing: 0.0,
             whip: 0.0,
+            impact_billow_lower: 0.0,
+            impact_billow_upper: 0.0,
             fall: 0.0,
             roll_radius_px: INITIAL_ROLL_RADIUS_PX,
         }
@@ -172,6 +188,8 @@ struct PostMotion {
     wave: f64,
     swing: f64,
     whip: f64,
+    impact_billow_lower: f64,
+    impact_billow_upper: f64,
     fall: f64,
     roll_axis_start: Point,
     roll_axis_end: Point,
@@ -211,6 +229,8 @@ fn motion_from_controls(controls: MotionControls) -> PostMotion {
         wave: controls.wave,
         swing: controls.swing,
         whip: controls.whip,
+        impact_billow_lower: controls.impact_billow_lower,
+        impact_billow_upper: controls.impact_billow_upper,
         fall: controls.fall,
         roll_axis_start,
         roll_axis_end,
@@ -258,25 +278,31 @@ fn fabric_path(motion: PostMotion) -> Vec<PathElement> {
     vec![
         point_element(TOP_FRONT_LEFT),
         PathElement::Cubic(
-            percent(motion.swing * 0.05 - motion.wave * 0.08),
+            percent_x(motion.swing * 0.05 - motion.wave * 0.08 + motion.impact_billow_upper * 0.42),
             percent_y(TOP_FRONT_LEFT.y + left_extent * 0.28),
-            percent(motion.swing * 0.52 + motion.wave * 0.32 + motion.whip * 0.55),
+            percent_x(
+                motion.swing * 0.52
+                    + motion.wave * 0.32
+                    + motion.whip * 0.55
+                    + motion.impact_billow_lower * 0.55,
+            ),
             percent_y(TOP_FRONT_LEFT.y + left_extent * 0.72),
         ),
         point_element(bottom_left),
         PathElement::Cubic(
-            percent(lerp(bottom_left.x, bottom_right.x, 1.0 / 3.0)),
+            percent_x(lerp(bottom_left.x, bottom_right.x, 1.0 / 3.0)),
             percent_y(lerp(bottom_left.y, bottom_right.y, 1.0 / 3.0) + roll_sag),
-            percent(lerp(bottom_left.x, bottom_right.x, 2.0 / 3.0)),
+            percent_x(lerp(bottom_left.x, bottom_right.x, 2.0 / 3.0)),
             percent_y(lerp(bottom_left.y, bottom_right.y, 2.0 / 3.0) + roll_sag),
         ),
         point_element(bottom_right),
         PathElement::Cubic(
-            percent(
-                TOP_FRONT_RIGHT.x + motion.swing * 0.70 + motion.wave * 0.90 + motion.whip * 0.65,
+            percent_x(
+                TOP_FRONT_RIGHT.x + motion.swing * 0.70 + motion.wave * 0.90 + motion.whip * 0.65
+                    - motion.impact_billow_lower * 0.55,
             ),
             percent_y(TOP_FRONT_RIGHT.y + right_extent * 0.70),
-            percent(TOP_FRONT_RIGHT.x - motion.wave * 0.22),
+            percent_x(TOP_FRONT_RIGHT.x - motion.wave * 0.22 - motion.impact_billow_upper * 0.42),
             percent_y(TOP_FRONT_RIGHT.y + right_extent * 0.30),
         ),
         point_element(TOP_FRONT_RIGHT),
@@ -316,30 +342,30 @@ fn circle_path(center: Point, radius_px: f64) -> Vec<PathElement> {
     vec![
         point_element(Point::new(center.x + rx, center.y)),
         PathElement::Cubic(
-            percent(center.x + rx),
+            percent_x(center.x + rx),
             percent_y(center.y + ry * kappa),
-            percent(center.x + rx * kappa),
+            percent_x(center.x + rx * kappa),
             percent_y(center.y + ry),
         ),
         point_element(Point::new(center.x, center.y + ry)),
         PathElement::Cubic(
-            percent(center.x - rx * kappa),
+            percent_x(center.x - rx * kappa),
             percent_y(center.y + ry),
-            percent(center.x - rx),
+            percent_x(center.x - rx),
             percent_y(center.y + ry * kappa),
         ),
         point_element(Point::new(center.x - rx, center.y)),
         PathElement::Cubic(
-            percent(center.x - rx),
+            percent_x(center.x - rx),
             percent_y(center.y - ry * kappa),
-            percent(center.x - rx * kappa),
+            percent_x(center.x - rx * kappa),
             percent_y(center.y - ry),
         ),
         point_element(Point::new(center.x, center.y - ry)),
         PathElement::Cubic(
-            percent(center.x + rx * kappa),
+            percent_x(center.x + rx * kappa),
             percent_y(center.y - ry),
-            percent(center.x + rx),
+            percent_x(center.x + rx),
             percent_y(center.y - ry * kappa),
         ),
         point_element(Point::new(center.x + rx, center.y)),
@@ -373,7 +399,11 @@ fn radius_y_percent(radius_px: f64) -> f64 {
 }
 
 fn point_element(point: Point) -> PathElement {
-    PathElement::Point(percent(point.x), percent_y(point.y))
+    PathElement::Point(percent_x(point.x), percent_y(point.y))
+}
+
+fn percent_x(value: f64) -> Size {
+    percent((value * X_PX_PER_PERCENT + CANVAS_X_PADDING_PX) / CANVAS_WIDTH_PX * 100.0)
 }
 
 fn percent(value: f64) -> Size {
@@ -415,6 +445,8 @@ mod tests {
             wave,
             swing,
             whip,
+            impact_billow_lower: 0.0,
+            impact_billow_upper: 0.0,
             roll_radius_px: radius,
         }
     }
@@ -499,5 +531,39 @@ mod tests {
         assert_eq!(before.whip, 0.0);
         assert!(peak.whip < 0.0);
         assert_eq!(settled.whip, 0.0);
+    }
+
+    #[test]
+    fn impact_billow_moves_only_interior_fabric_controls_and_returns_to_rest() {
+        let base = motion_from_controls(fall_controls(1.0, 1.0, 0.0, 0.0, 0.0, 0.7));
+        let billow = motion_from_controls(MotionControls {
+            impact_billow_lower: 1.0,
+            impact_billow_upper: 0.7,
+            ..fall_controls(1.0, 1.0, 0.0, 0.0, 0.0, 0.7)
+        });
+
+        assert_eq!(top_fabric_path(base), top_fabric_path(billow));
+        assert_ne!(fabric_path(base), fabric_path(billow));
+        for anchor_index in [0, 2, 4, 6] {
+            assert_eq!(
+                fabric_path(base)[anchor_index],
+                fabric_path(billow)[anchor_index]
+            );
+        }
+        assert_eq!(
+            fabric_path(base),
+            fabric_path(motion_from_controls(fall_controls(
+                1.0, 1.0, 0.0, 0.0, 0.0, 0.7
+            )))
+        );
+    }
+
+    #[test]
+    fn front_edge_spool_cap_has_horizontal_drawing_headroom() {
+        let radius_percent = radius_x_percent(INITIAL_ROLL_RADIUS_PX);
+        let leftmost_source_x = TOP_FRONT_LEFT.x - radius_percent;
+        let leftmost_canvas_x =
+            (leftmost_source_x * X_PX_PER_PERCENT + CANVAS_X_PADDING_PX) / CANVAS_WIDTH_PX;
+        assert!(leftmost_canvas_x > 0.0);
     }
 }

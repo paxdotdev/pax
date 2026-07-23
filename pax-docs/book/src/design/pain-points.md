@@ -936,3 +936,66 @@ and the body were emitted as three independently filled paths. Recommendations:
 do not assume overlapping closed contours within one native `Path` union their
 fills; use separate filled paths when an animated compound silhouette depends
 on overlap, until compound-path fill semantics are explicit and regression-tested.
+
+The near spool cap was also clipped when its center traveled directly along the
+post component's left boundary, exposing the rectangular roll body as an angular
+outer edge. The component now reserves explicit horizontal drawing headroom,
+remaps source-space X coordinates into the padded canvas, and offsets the padded
+component so the original logo coordinates remain unchanged. Recommendations:
+reserve canvas headroom for animated caps, strokes, and overshoot that cross a
+component boundary; compensate at the component placement layer so a local
+rendering fix does not disturb alignment with adjacent artwork.
+
+Adding a new custom component while a web `pax-cli run` session was active, then
+starting a standalone `pax-cli build` for the same example, allowed both compiler
+processes to mutate the example's shared `.pax` interface directory. The running
+compiler failed while copying interface files and had to be restarted. The clean
+build and a fresh run session succeeded. Recommendations: do not run concurrent
+Pax compiler processes against the same project worktree; stop or reuse the
+active run session before starting a standalone build.
+
+Overlaying static logo letter paths on the animated sail exposed two geometry
+translation traps. The animation canvas is deliberately taller than the source
+SVG to reserve overshoot headroom, so applying the source's Y percentages
+directly stretched the letters by about 4.17% and broke their optical centering;
+the overlay needs the same 0.96 source-to-canvas Y compensation as the animated
+post. Separately, reversing a cubic counter contour requires reversing segment
+order *and* swapping each segment's two control points. Reversing only the
+endpoints turned one quadrant of the `a` counter into a triangular wedge.
+Recommendations: keep source-space-to-animation-space scaling explicit for
+every static overlay, and unit- or visually test reversed cubic contours at
+their cardinal points.
+
+Using a fill-colored `Rectangle` as a temporary reveal mask for the logo's
+animated `x` exposed a coordinate-space mismatch: the rectangle's element-frame
+positioning shifted the cover left of the source-SVG boundary, leaving the `x`
+visible behind the `a` while painting an unrelated black band over the `p`.
+Replacing it with a real `Mask` whose source is a Pax-native path in the logo's
+coordinate space made the reveal boundary exact and background-independent.
+The `a` counter did not need a mask because its counter and outer paths already
+share one computed transform; wrapping those paths in an extra mask caused the
+counter to disappear on web. Recommendations: use a true mask for cross-boundary
+reveals, express its coverage in the same coordinate space as the artwork, and
+avoid masking paths that can remain registered by sharing one transform.
+
+A restricted or interrupted web build can finish Rust compilation without
+publishing the wasm-pack output. Serving the previous `.pax/build/debug/web`
+directory separately then makes the browser appear to ignore source changes.
+This was especially confusing across worktrees because wasm-pack keeps its
+version-matched `wasm-bindgen` helpers in a machine-level cache rather than in
+the worktree; this branch locked `wasm-bindgen` 0.2.126 while another checkout
+still locked 0.2.115. Recommendations: use the canonical `pax-cli run` workflow
+with access to the Cargo/wasm-pack caches, require its explicit “Build
+completed” message before trusting the preview, and do not diagnose a stale
+served cartridge as a template or timeline failure.
+
+Morphing the logo's `a` out from behind the `p` exposed another web masking
+boundary. A leaf `Path` works reliably as a mask source, but expressing the
+source as either a `Group` of two paths or one compound path intended to union
+the `p` silhouette with a reveal half-plane clipped the moving artwork
+completely. The animation now uses one simple half-plane path while the `a` is
+moving, then hands off to exact unmasked source geometry after its final
+clatter. Recommendations: define and regression-test mask-source composition
+for grouped and multi-contour paths; until union semantics are explicit, keep
+animated mask sources single-contour and use a stable endpoint handoff when
+the final artwork needs geometry outside that contour.

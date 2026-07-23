@@ -28,28 +28,26 @@
     </Group>
 
     for logo_instance in self.logo_instances key logo_instance {
-        <AnimatedPaxLogoPost
+        <Group
             x=50%
             y=46%
-            width=137.23px
+            width=892.72px
             height=463.95px
             anchor=50%
-            scale={(Math::min(1.0, Math::min($viewport.width / 420, $viewport.height / 640)) * 100)%}
-            fill=rgba(17, 17, 16, 255)
-        />
+            scale={(Math::min(1.0, Math::min($viewport.width / 1000, $viewport.height / 650)) * 100)%}
+        >
+            <AnimatedPaxLogo
+                width=920.72px
+                height=100%
+                fill=rgba(17, 17, 16, 255)
+            />
+        </Group>
     }
 
     <Rectangle
         width=100%
         height=100%
-        fill={Fill::linearGradient(
-            (0%, 0%),
-            (100%, 100%),
-            [
-                GradientStop::get(Color::rgba(250, 249, 246, 255), 0%),
-                GradientStop::get(Color::rgba(238, 235, 228, 255), 100%)
-            ]
-        )}
+        fill=rgba(255, 255, 255, 255)
     />
 </Group>
 
