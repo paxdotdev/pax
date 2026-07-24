@@ -11,6 +11,13 @@ const BANNER_SHOULDER_X: f64 = 789.81;
 const BANNER_TIP_X: f64 = 892.72;
 const BANNER_TIP_Y: f64 = 168.57;
 const BANNER_BOTTOM_Y: f64 = 313.20;
+const CURTAIN_ROPE_XS: [f64; 5] = [
+    BANNER_LEFT_X,
+    BANNER_LEFT_X + (BANNER_SHOULDER_X - BANNER_LEFT_X) / 3.0,
+    BANNER_LEFT_X + (BANNER_SHOULDER_X - BANNER_LEFT_X) * 2.0 / 3.0,
+    BANNER_SHOULDER_X,
+    BANNER_TIP_X,
+];
 
 const A_CENTER: Point = Point::new(413.60, 168.77);
 const A_BRAKE_PIVOT: Point = Point::new(530.43, 283.94);
@@ -44,8 +51,11 @@ const X_INITIAL_ROTATION_DEG: f64 = -90.0;
 pub struct AnimatedPaxLogoBanner {
     pub fill: Property<Fill>,
     pub letter_fill: Property<Fill>,
-    pub banner_progress: Property<f64>,
-    pub banner_rustle_px: Property<f64>,
+    pub curtain_drop_1: Property<f64>,
+    pub curtain_drop_2: Property<f64>,
+    pub curtain_drop_3: Property<f64>,
+    pub curtain_drop_4: Property<f64>,
+    pub curtain_drop_5: Property<f64>,
     pub banner_opacity: Property<f64>,
     pub p_counter_opacity: Property<f64>,
     pub p_counter_final_opacity: Property<f64>,
@@ -82,8 +92,11 @@ impl Default for AnimatedPaxLogoBanner {
         Self {
             fill: Property::new(Fill::Solid(Color::BLACK)),
             letter_fill: Property::new(Fill::Solid(Color::WHITE)),
-            banner_progress: Property::new(0.0),
-            banner_rustle_px: Property::new(0.0),
+            curtain_drop_1: Property::new(0.0),
+            curtain_drop_2: Property::new(0.0),
+            curtain_drop_3: Property::new(0.0),
+            curtain_drop_4: Property::new(0.0),
+            curtain_drop_5: Property::new(0.0),
             banner_opacity: Property::new(0.0),
             p_counter_opacity: Property::new(1.0),
             p_counter_final_opacity: Property::new(0.0),
@@ -103,7 +116,7 @@ impl Default for AnimatedPaxLogoBanner {
             x_scale: Property::new(X_INITIAL_SCALE),
             x_brake_rotation_deg: Property::new(0.0),
             x_opacity: Property::new(0.0),
-            banner_elements: Property::new(banner_path(0.0, 0.0)),
+            banner_elements: Property::new(banner_path([0.0; 5])),
             p_ring_elements: Property::new(p_ring_path(Transform {
                 translation_x: -110.0,
                 rotation_deg: -90.0,
@@ -145,11 +158,28 @@ impl Default for AnimatedPaxLogoBanner {
 
 impl AnimatedPaxLogoBanner {
     pub fn handle_mount(&mut self, _ctx: &NodeContext) {
-        let banner_progress = self.banner_progress.clone();
-        let banner_rustle_px = self.banner_rustle_px.clone();
-        let banner_dependencies = [banner_progress.untyped(), banner_rustle_px.untyped()];
+        let curtain_drop_1 = self.curtain_drop_1.clone();
+        let curtain_drop_2 = self.curtain_drop_2.clone();
+        let curtain_drop_3 = self.curtain_drop_3.clone();
+        let curtain_drop_4 = self.curtain_drop_4.clone();
+        let curtain_drop_5 = self.curtain_drop_5.clone();
+        let banner_dependencies = [
+            curtain_drop_1.untyped(),
+            curtain_drop_2.untyped(),
+            curtain_drop_3.untyped(),
+            curtain_drop_4.untyped(),
+            curtain_drop_5.untyped(),
+        ];
         self.banner_elements.replace_with(Property::computed(
-            move || banner_path(banner_progress.get(), banner_rustle_px.get()),
+            move || {
+                banner_path([
+                    curtain_drop_1.get(),
+                    curtain_drop_2.get(),
+                    curtain_drop_3.get(),
+                    curtain_drop_4.get(),
+                    curtain_drop_5.get(),
+                ])
+            },
             &banner_dependencies,
         ));
 
@@ -321,26 +351,57 @@ impl Default for XTransform {
 
 impl Interpolatable for XTransform {}
 
-fn banner_path(progress: f64, rustle_px: f64) -> Vec<PathElement> {
-    let leading_x = lerp(BANNER_LEFT_X, BANNER_TIP_X, progress.max(0.002));
-    let overshoot_x = (leading_x - BANNER_TIP_X).max(0.0);
-    let shoulder_x = leading_x.min(BANNER_SHOULDER_X).max(BANNER_LEFT_X) + overshoot_x * 0.16;
-    let top_y = BANNER_TOP_Y + rustle_px * 0.35;
-    let tip_y = BANNER_TIP_Y + rustle_px;
-    let bottom_y = BANNER_BOTTOM_Y - rustle_px * 0.25;
+fn banner_path(drops: [f64; 5]) -> Vec<PathElement> {
+    let drops = drops.map(|drop| drop.clamp(0.0, 1.08));
+    let top = [
+        Point::new(CURTAIN_ROPE_XS[0], BANNER_TOP_Y),
+        Point::new(CURTAIN_ROPE_XS[1], BANNER_TOP_Y),
+        Point::new(CURTAIN_ROPE_XS[2], BANNER_TOP_Y),
+        Point::new(CURTAIN_ROPE_XS[3], BANNER_TOP_Y),
+        Point::new(CURTAIN_ROPE_XS[4], BANNER_TIP_Y),
+    ];
+    let target_bottom = [
+        Point::new(CURTAIN_ROPE_XS[0], BANNER_BOTTOM_Y),
+        Point::new(CURTAIN_ROPE_XS[1], BANNER_BOTTOM_Y),
+        Point::new(CURTAIN_ROPE_XS[2], BANNER_BOTTOM_Y),
+        Point::new(CURTAIN_ROPE_XS[3], BANNER_BOTTOM_Y),
+        Point::new(CURTAIN_ROPE_XS[4], BANNER_TIP_Y),
+    ];
+    let bottom: [Point; 5] = std::array::from_fn(|index| {
+        let visible_drop = drops[index].max(0.000_5);
+        Point::new(
+            top[index].x,
+            lerp(top[index].y, target_bottom[index].y, visible_drop),
+        )
+    });
 
-    vec![
-        point_element(Point::new(BANNER_LEFT_X, BANNER_TOP_Y)),
+    let mut path = vec![
+        point_element(top[0]),
         PathElement::Line,
-        point_element(Point::new(shoulder_x, top_y)),
+        point_element(top[3]),
         PathElement::Line,
-        point_element(Point::new(leading_x, tip_y)),
-        PathElement::Line,
-        point_element(Point::new(shoulder_x, bottom_y)),
-        PathElement::Line,
-        point_element(Point::new(BANNER_LEFT_X, BANNER_BOTTOM_Y)),
-        PathElement::Close,
-    ]
+        point_element(top[4]),
+    ];
+
+    // Trace the hem right-to-left. During each handoff the descended left
+    // neighbor supplies more slack than the still-tight right neighbor, so
+    // the cubic bows more deeply on its left side. Once both releases reach
+    // one, the controls return to the straight final silhouette.
+    for index in (0..4).rev() {
+        let left = bottom[index];
+        let right = bottom[index + 1];
+        let handoff = (drops[index] - drops[index + 1]).max(0.0);
+        let width = right.x - left.x;
+        let near_left = morph_point(left, right, 1.0 / 3.0);
+        let near_right = morph_point(left, right, 2.0 / 3.0);
+        let left_control = Point::new(near_left.x, near_left.y + width * 0.32 * handoff);
+        let right_control = Point::new(near_right.x, near_right.y + width * 0.12 * handoff);
+
+        path.push(cubic_element(right_control, left_control));
+        path.push(point_element(left));
+    }
+    path.push(PathElement::Close);
+    path
 }
 
 fn p_ring_path(transform: Transform) -> Vec<PathElement> {
@@ -788,11 +849,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn banner_keeps_stable_topology_through_overshoot() {
-        let lengths = [0.0, 0.25, 0.8, 1.0, 1.04]
-            .map(|progress| banner_path(progress, 0.0))
-            .map(|path| path.len());
-        assert!(lengths.into_iter().all(|length| length == 10));
+    fn banner_keeps_stable_topology_through_the_curtain_relay() {
+        for drops in [
+            [0.0; 5],
+            [0.5, 0.0, 0.0, 0.0, 0.0],
+            [1.06, 0.7, 0.2, 0.0, 0.0],
+            [1.0; 5],
+        ] {
+            assert_eq!(banner_path(drops).len(), 14);
+        }
     }
 
     #[test]
@@ -827,10 +892,11 @@ mod tests {
 
     #[test]
     fn settled_banner_and_letters_match_source_extents() {
-        let banner = banner_path(1.0, 0.0);
+        let banner = banner_path([1.0; 5]);
         assert_eq!(banner[0], point_element(Point::new(137.23, 23.34)));
         assert_eq!(banner[4], point_element(Point::new(892.72, 168.57)));
-        assert_eq!(banner[8], point_element(Point::new(137.23, 313.20)));
+        assert_eq!(banner[6], point_element(Point::new(789.81, 313.20)));
+        assert_eq!(banner[12], point_element(Point::new(137.23, 313.20)));
 
         let settled_a = a_path(Transform::default(), 1.0);
         assert_eq!(settled_a[0], point_element(Point::new(297.93, 152.39)));

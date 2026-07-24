@@ -109,16 +109,44 @@
     // lean-in, while the longer counter-rock and settle overlap the following
     // letters to preserve the total duration.
     self {
-        banner_progress: {
+        // Five overhead releases loosen from left to right. Their dispatch
+        // gaps expand (80, 110, 150, 190ms), and each longer OutQuad drop
+        // exposes useful area early while remaining interleaved with the
+        // rolling letters.
+        curtain_drop_1: {
             0ms: 0, Hold
-            400ms: 0, InOutQuad
-            960ms: 1.04, InOutQuad
-            1180ms: 1
+            290ms: 0, OutQuad
+            670ms: 1.06, OutQuad
+            750ms: 1
+        }
+        curtain_drop_2: {
+            0ms: 0, Hold
+            370ms: 0, OutQuad
+            750ms: 1.06, OutQuad
+            830ms: 1
+        }
+        curtain_drop_3: {
+            0ms: 0, Hold
+            480ms: 0, OutQuad
+            860ms: 1.06, OutQuad
+            940ms: 1
+        }
+        curtain_drop_4: {
+            0ms: 0, Hold
+            630ms: 0, OutQuad
+            1010ms: 1.06, OutQuad
+            1090ms: 1
+        }
+        curtain_drop_5: {
+            0ms: 0, Hold
+            820ms: 0, OutQuad
+            1200ms: 1.06, OutQuad
+            1280ms: 1
         }
         banner_opacity: {
             0ms: 0, Hold
-            400ms: 0, OutQuad
-            430ms: 1
+            290ms: 0, OutQuad
+            305ms: 1
         }
         p_counter_opacity: {
             0ms: 1, Hold
