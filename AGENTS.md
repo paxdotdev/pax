@@ -27,6 +27,13 @@ Start with the local docs before inventing patterns.  The most useful entry poin
 
 These docs are also available by CLI: `pax-cli docs`
 
+## Workstation Shell
+
+Codex command shells are non-interactive and do not source `~/.zshrc`. This
+workstation initializes its canonical Node toolchain through NVM in that file.
+Before a Node-dependent command, source `~/.zshrc` and run `nvm use` in the
+same shell; the repository's required version is recorded in `.nvmrc`. Do not
+diagnose Node/npm availability from the inherited `PATH` alone.
 
 ## Library Considerations
 

@@ -1,4 +1,4 @@
-// The black counter alone hands off after the last clatter, avoiding the tiny
+// The black counter alone hands off after the p reaches rest, avoiding the tiny
 // left-edge clip while the smooth outer ring remains continuously visible.
 <Path
     width=100%
@@ -9,8 +9,8 @@
 />
 
 // The complete outer ring and its black counter use the same translation,
-// rotation, and scale. Matching half-plane masks make them emerge as one
-// two-contour stone from behind the pillar.
+// rotation, and scale. The counter's half-plane opens after emergence so its
+// black overlap can draw above the stationary riser during the counter-rock.
 <Mask width=100% height=100%>
     <Path
         width=100%
@@ -23,7 +23,7 @@
         width=100%
         height=100%
         fill=BLACK
-        elements={self.p_reveal_mask_elements}
+        elements={self.p_counter_reveal_mask_elements}
     />
 </Mask>
 
@@ -45,13 +45,24 @@
 // The complete a, including the shared p/a cusp, rolls underneath the p.
 // The p's higher-z ring and counter conceal the initial circle, then reveal
 // the cusp naturally as the a reaches its authored position.
-<Path
-    width=100%
-    height=100%
-    fill={self.fill}
-    opacity={self.a_opacity}
-    elements={self.a_counter_elements}
-/>
+// The counter is clipped at the p ring's far edge while the a is still
+// nested. This keeps the hole attached to the rolling stone without letting
+// its black interior widen the p counter before the a tips into view.
+<Mask width=100% height=100%>
+    <Path
+        width=100%
+        height=100%
+        fill={self.fill}
+        opacity={self.a_opacity}
+        elements={self.a_counter_elements}
+    />
+    <Path
+        width=100%
+        height=100%
+        fill=BLACK
+        elements={self.a_counter_reveal_mask_elements}
+    />
+</Mask>
 
 <Path
     width=100%
@@ -61,24 +72,16 @@
     elements={self.a_elements}
 />
 
-// Reveal the x only after its rotating geometry crosses the a sidebar's
-// right edge. The mask makes this background-independent and replaces the
-// earlier banner-colored occluder.
-<Mask width=100% height=100%>
-    <Path
-        width=100%
-        height=100%
-        fill={self.letter_fill}
-        opacity={self.x_opacity}
-        elements={self.x_elements}
-    />
-    <Path
-        width=100%
-        height=100%
-        fill=BLACK
-        elements={self.x_reveal_mask_elements}
-    />
-</Mask>
+// The x rolls underneath the complete a rather than through a synthetic mask.
+// The a's body and counter are therefore the exact moving occluder while x
+// emerges, including throughout both letters' braking rotations.
+<Path
+    width=100%
+    height=100%
+    fill={self.letter_fill}
+    opacity={self.x_opacity}
+    elements={self.x_elements}
+/>
 
 <Path
     width=100%
@@ -94,13 +97,17 @@
 }
 
 @timeline banner_unfold {
-    duration: 1740ms
+    duration: 1500ms
     loop: false
 
-    // Each stone's travel uses the same sampled acceleration profile. The
-    // first checkpoint is half the old InQuad displacement; the late samples
-    // converge back toward that curve, leaving the final 10% at essentially
-    // the same impact velocity.
+    // The three letters overlap as a tight relay inside a 1500ms envelope.
+    // Every apex keeps a perceptible 140ms zero-velocity hold. Travel and
+    // recovery windows compress around those holds; the complete mathematical
+    // p ring still over-rolls, while a and x retain their lower-right-pivoted
+    // braking lean. Both sides of each braking gesture run at half the prior
+    // speed: the primary rolls begin earlier to make room for the longer
+    // lean-in, while the longer counter-rock and settle overlap the following
+    // letters to preserve the total duration.
     self {
         banner_progress: {
             0ms: 0, Hold
@@ -115,134 +122,105 @@
         }
         p_counter_opacity: {
             0ms: 1, Hold
-            968ms: 1, Linear
-            972ms: 0
+            1138ms: 1, Linear
+            1142ms: 0
         }
         p_counter_final_opacity: {
             0ms: 0, Hold
-            968ms: 0, Linear
-            972ms: 1
+            1138ms: 0, Linear
+            1142ms: 1
+        }
+        p_counter_reveal_progress: {
+            0ms: 0, Hold
+            540ms: 0, InOutQuad
+            560ms: 1
         }
         p_counter_x_px: {
             0ms: -110, Hold
-            500ms: -110, InQuad
-            612ms: -103.2625, Linear
-            708ms: -66.371594, Linear
-            788ms: -21.3455, Linear
-            820ms: 0, OutQuad
-            860ms: -7, InQuad
-            910ms: 0, OutQuad
-            938ms: -2.2, InQuad
-            970ms: 0
+            190ms: -110, InQuad
+            560ms: 0, OutQuad
+            680ms: 18, Hold
+            820ms: 18, InOutQuad
+            1040ms: -2.4, InOutQuad
+            1140ms: 0
         }
         p_rotation_deg: {
             0ms: -90, Hold
-            500ms: -90, InQuad
-            612ms: -84.4875, Linear
-            708ms: -54.304031, Linear
-            788ms: -17.4645, Linear
-            820ms: 0, OutQuad
-            860ms: -4, InQuad
-            910ms: 0, OutQuad
-            938ms: -1, InQuad
-            970ms: 0
+            190ms: -90, InQuad
+            560ms: 0, OutQuad
+            680ms: 14.7, Hold
+            820ms: 14.7, InOutQuad
+            1040ms: -1.8, InOutQuad
+            1140ms: 0
         }
         p_scale: {
             0ms: 0.28, Hold
-            500ms: 0.28, InQuad
-            612ms: 0.3241, Linear
-            708ms: 0.565568, Linear
-            788ms: 0.860284, Linear
-            820ms: 1, OutQuad
-            860ms: 0.97, InQuad
-            910ms: 1, OutQuad
-            938ms: 0.992, InQuad
-            970ms: 1
+            190ms: 0.28, InQuad
+            560ms: 1
         }
         a_x_px: {
-            0ms: -224.59, Hold
-            840ms: -224.59, InQuad
-            966ms: -210.833863, Linear
-            1074ms: -135.512693, Linear
-            1164ms: -43.581689, Linear
-            1200ms: 0, OutQuad
-            1245ms: -7, InQuad
-            1290ms: 0, OutQuad
-            1318ms: -2, InQuad
-            1350ms: 0
+            0ms: -316.256667, Hold
+            380ms: -316.256667, InOutQuad
+            750ms: 0
         }
         a_rotation_deg: {
             0ms: -90, Hold
-            840ms: -90, InQuad
-            966ms: -84.4875, Linear
-            1074ms: -54.304031, Linear
-            1164ms: -17.4645, Linear
-            1200ms: 0, OutQuad
-            1245ms: -3, InQuad
-            1290ms: 0, OutQuad
-            1318ms: -0.8, InQuad
-            1350ms: 0
+            380ms: -90, InOutQuad
+            750ms: 0
         }
         a_scale: {
-            0ms: 0.28, Hold
-            840ms: 0.28, InQuad
-            966ms: 0.3241, Linear
-            1074ms: 0.565568, Linear
-            1164ms: 0.860284, Linear
-            1200ms: 1, OutQuad
-            1245ms: 0.97, InQuad
-            1290ms: 1, OutQuad
-            1318ms: 0.992, InQuad
-            1350ms: 1
+            0ms: 0.16, Hold
+            380ms: 0.16, InOutQuad
+            750ms: 1
+        }
+        a_brake_rotation_deg: {
+            0ms: 0, Hold
+            750ms: 0, InOutQuad
+            890ms: 4.25, Hold
+            1030ms: 4.25, InOutQuad
+            1250ms: -0.9, InOutQuad
+            1350ms: 0
         }
         a_morph_progress: {
             0ms: 0, Hold
-            900ms: 0, InOutQuad
-            1180ms: 1
+            380ms: 0, InOutQuad
+            720ms: 1
         }
         a_opacity: {
             0ms: 0, Hold
-            800ms: 0, Linear
-            810ms: 1
+            600ms: 0, Linear
+            610ms: 1
         }
         x_opacity: {
-            0ms: 1
+            0ms: 0, Hold
+            750ms: 0, Linear
+            760ms: 1
         }
         x_offset_px: {
             0ms: -150.38, Hold
-            1200ms: -150.38, InQuad
-            1323ms: -141.169225, Linear
-            1428ms: -90.736002, Linear
-            1515ms: -29.181239, Linear
-            1550ms: 0, OutQuad
-            1598ms: -6, InQuad
-            1648ms: 0, OutQuad
-            1676ms: -1.8, InQuad
-            1710ms: 0
+            690ms: -150.38, InOutQuad
+            980ms: 0
+        }
+        x_offset_y_px: {
+            0ms: 0.73
         }
         x_rotation_deg: {
             0ms: -90, Hold
-            1200ms: -90, InQuad
-            1323ms: -84.4875, Linear
-            1428ms: -54.304031, Linear
-            1515ms: -17.4645, Linear
-            1550ms: 0, OutQuad
-            1598ms: -3.5, InQuad
-            1648ms: 0, OutQuad
-            1676ms: -0.7, InQuad
-            1710ms: 0
+            690ms: -90, InOutQuad
+            980ms: 0
         }
         x_scale: {
             0ms: 0.28, Hold
-            1200ms: 0.28, InQuad
-            1323ms: 0.3241, Linear
-            1428ms: 0.565568, Linear
-            1515ms: 0.860284, Linear
-            1550ms: 1, OutQuad
-            1598ms: 0.975, InQuad
-            1648ms: 1, OutQuad
-            1676ms: 0.992, InQuad
-            1710ms: 1
+            690ms: 0.28, InOutQuad
+            980ms: 1
+        }
+        x_brake_rotation_deg: {
+            0ms: 0, Hold
+            980ms: 0, InOutQuad
+            1120ms: 4, Hold
+            1260ms: 4, InOutQuad
+            1400ms: -0.8, InOutQuad
+            1500ms: 0
         }
     }
 }

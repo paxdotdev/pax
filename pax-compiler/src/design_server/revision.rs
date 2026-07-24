@@ -823,6 +823,7 @@ fn apply_template_to_manifest(
         .ok_or_else(|| format!("missing component {}", update.type_id))?;
     component.template = Some(update.new_template.clone());
     component.settings = Some(update.settings_block.clone());
+    component.timelines = update.timelines.clone();
     Ok(())
 }
 
@@ -834,7 +835,8 @@ mod tests {
         UpdateTemplateRequest,
     };
     use pax_manifest::{
-        ComponentDefinition, ComponentTemplate, PaxManifest, SettingsBlockElement, TypeId,
+        ComponentDefinition, ComponentTemplate, PaxManifest, SettingsBlockElement,
+        TimelineDefinition, Token, TypeId,
     };
     use std::collections::{BTreeMap, HashMap};
 
@@ -886,6 +888,7 @@ mod tests {
             type_id: type_id.clone(),
             new_template: ComponentTemplate::new(type_id, None),
             settings_block: vec![SettingsBlockElement::Comment(label.to_string())],
+            timelines: vec![],
         }
     }
 
@@ -928,6 +931,40 @@ mod tests {
 
         assert!(error.starts_with("active revision changed while parsing Pax source"));
         assert_eq!(coordinator.active_stamp().unwrap().template_version, 1);
+    }
+
+    #[test]
+    fn template_commit_replaces_named_timelines_in_the_active_manifest() {
+        let initial = manifest("A");
+        let component_type_id = initial.main_component_type_id.clone();
+        let mut coordinator = DebugRevisionCoordinator::new("a".to_string(), initial.clone());
+        let (expected, _) = coordinator.active_manifest_snapshot().unwrap();
+        let mut update = template_update(&initial, "timeline edit");
+        update.timelines = vec![TimelineDefinition {
+            name: Some(Token::new_without_location("entrance".to_string())),
+            ..Default::default()
+        }];
+
+        let committed = coordinator
+            .commit_template_update(&expected, None, update)
+            .unwrap();
+
+        assert_eq!(
+            committed.timelines[0]
+                .name
+                .as_ref()
+                .map(|name| name.token_value.as_str()),
+            Some("entrance")
+        );
+        let active_component =
+            &coordinator.active_manifest().unwrap().components[&component_type_id];
+        assert_eq!(
+            active_component.timelines[0]
+                .name
+                .as_ref()
+                .map(|name| name.token_value.as_str()),
+            Some("entrance")
+        );
     }
 
     #[test]

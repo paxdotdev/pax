@@ -3,8 +3,9 @@ use std::{collections::HashMap, path::PathBuf};
 use pax_manifest::{
     pax_runtime_api::ToPaxValue, ComponentDefinition, ComponentTemplate,
     ControlFlowRepeatPredicateDefinition, ExpressionInfo, NodeLocation, NodeType, PaxManifest,
-    SettingElement, SettingsBlockElement, TemplateNodeDefinition, TemplateNodeId, Token,
-    TreeIndexPosition, TreeLocation, TypeId, UniqueTemplateNodeIdentifier, ValueDefinition,
+    SettingElement, SettingsBlockElement, TemplateNodeDefinition, TemplateNodeId,
+    TimelineDefinition, Token, TreeIndexPosition, TreeLocation, TypeId,
+    UniqueTemplateNodeIdentifier, ValueDefinition,
 };
 use serde_derive::{Deserialize, Serialize};
 
@@ -786,8 +787,12 @@ pub struct ReplaceTemplateRequest {
     component_type_id: TypeId,
     new_template: ComponentTemplate,
     settings_block: Vec<SettingsBlockElement>,
+    #[serde(default)]
+    timelines: Vec<TimelineDefinition>,
     _cached_prev_template: Option<ComponentTemplate>,
     _cached_prev_settings_block: Option<Vec<SettingsBlockElement>>,
+    #[serde(default)]
+    _cached_prev_timelines: Option<Vec<TimelineDefinition>>,
 }
 
 impl ReplaceTemplateRequest {
@@ -795,13 +800,16 @@ impl ReplaceTemplateRequest {
         component_type_id: TypeId,
         new_template: ComponentTemplate,
         settings_block: Vec<SettingsBlockElement>,
+        timelines: Vec<TimelineDefinition>,
     ) -> Self {
         Self {
             component_type_id,
             new_template,
             settings_block,
+            timelines,
             _cached_prev_template: None,
             _cached_prev_settings_block: None,
+            _cached_prev_timelines: None,
         }
     }
 }
@@ -837,9 +845,11 @@ impl Command<ReplaceTemplateRequest> for ReplaceTemplateRequest {
         self._cached_prev_template.clone_from(&component.template);
         self._cached_prev_settings_block
             .clone_from(&component.settings);
+        self._cached_prev_timelines = Some(component.timelines.clone());
 
         component.template = Some(self.new_template.clone());
         component.settings = Some(self.settings_block.clone());
+        component.timelines.clone_from(&self.timelines);
 
         Ok(ReplaceTemplateResponse {
             command_id: None,
@@ -864,6 +874,7 @@ impl Undo for ReplaceTemplateRequest {
         component
             .settings
             .clone_from(&self._cached_prev_settings_block);
+        component.timelines = self._cached_prev_timelines.clone().unwrap_or_default();
         Ok(())
     }
 }

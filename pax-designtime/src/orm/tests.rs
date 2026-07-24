@@ -2,8 +2,12 @@
 mod tests {
     use crate::orm::{runtime_abi_identity, PaxManifestORM, ReloadType};
     use pax_manifest::{
-        pax_runtime_api::Size, ComponentDefinition, ComponentTemplate, LiteralBlockDefinition,
-        PaxManifest, SettingsBlockElement, TemplateNodeDefinition, Token, TypeDefinition, TypeId,
+        pax_runtime_api::{PaxValue, Size},
+        ComponentDefinition, ComponentTemplate, LiteralBlockDefinition, PaxManifest,
+        SettingsBlockElement, TemplateNodeDefinition, TimelineBlockElement, TimelineDefinition,
+        TimelineKeyframe, TimelineMarker, TimelineSelectorBlockDefinition, TimelineSelectorElement,
+        TimelineTrackDefinition, TimelineTrackElement, Token, TypeDefinition, TypeId,
+        ValueDefinition,
     };
     use std::collections::{BTreeMap, HashMap};
 
@@ -43,6 +47,97 @@ mod tests {
             Token::new_without_location(event.to_string()),
             vec![Token::new_without_location(target.to_string())],
         )
+    }
+
+    fn self_opacity_timeline(value: i64) -> TimelineDefinition {
+        TimelineDefinition {
+            name: Some(Token::new_without_location("entrance".to_string())),
+            elements: vec![TimelineBlockElement::SelectorBlock(
+                Token::new_without_location("self".to_string()),
+                TimelineSelectorBlockDefinition {
+                    elements: vec![TimelineSelectorElement::Track(
+                        Token::new_without_location("opacity".to_string()),
+                        TimelineTrackDefinition {
+                            elements: vec![TimelineTrackElement::Keyframe(TimelineKeyframe {
+                                marker: TimelineMarker::Frame(0),
+                                value: ValueDefinition::LiteralValue(PaxValue::Numeric(
+                                    value.into(),
+                                )),
+                                easing: None,
+                            })],
+                            ..Default::default()
+                        },
+                    )],
+                },
+            )],
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn template_update_replaces_timelines_and_rebuilds_component_property_layers() {
+        let mut manifest = create_basic_manifest();
+        let main_type_id = manifest.main_component_type_id.clone();
+        manifest
+            .components
+            .get_mut(&main_type_id)
+            .unwrap()
+            .timelines = vec![self_opacity_timeline(0)];
+        let template = ComponentTemplate::new(main_type_id.clone(), None);
+        let mut orm = PaxManifestORM::new(manifest);
+
+        orm.replace_template(
+            main_type_id.clone(),
+            template,
+            vec![],
+            vec![self_opacity_timeline(1)],
+        )
+        .unwrap();
+
+        assert_eq!(
+            orm.get_manifest().components[&main_type_id].timelines.len(),
+            1
+        );
+        let mut component_properties = BTreeMap::new();
+        orm.get_manifest()
+            .merge_component_self_timelines_with_properties(
+                &main_type_id,
+                &mut component_properties,
+            );
+        let Some(ValueDefinition::Timeline(opacity_track)) = component_properties.get("opacity")
+        else {
+            panic!("component opacity should be rebuilt as a timeline property");
+        };
+        let Some(TimelineTrackElement::Keyframe(keyframe)) = opacity_track.elements.first() else {
+            panic!("component opacity timeline should contain its edited keyframe");
+        };
+        assert!(matches!(
+            &keyframe.value,
+            ValueDefinition::LiteralValue(PaxValue::Numeric(value)) if value.to_int() == 1
+        ));
+        assert_eq!(orm.take_reload_queue(), [ReloadType::Tree].into());
+
+        orm.undo().unwrap();
+        let mut restored_properties = BTreeMap::new();
+        orm.get_manifest()
+            .merge_component_self_timelines_with_properties(
+                &main_type_id,
+                &mut restored_properties,
+            );
+        let Some(ValueDefinition::Timeline(restored_track)) = restored_properties.get("opacity")
+        else {
+            panic!("undo should restore the previous timeline property");
+        };
+        let Some(TimelineTrackElement::Keyframe(restored_keyframe)) =
+            restored_track.elements.first()
+        else {
+            panic!("restored opacity timeline should contain its previous keyframe");
+        };
+        assert!(matches!(
+            &restored_keyframe.value,
+            ValueDefinition::LiteralValue(PaxValue::Numeric(value)) if value.to_int() == 0
+        ));
+        assert_eq!(orm.take_reload_queue(), [ReloadType::Tree].into());
     }
 
     #[test]
@@ -209,7 +304,7 @@ mod tests {
 
         let mut orm = PaxManifestORM::new(manifest);
         let err = orm
-            .replace_template(main_type_id, template, vec![])
+            .replace_template(main_type_id, template, vec![], vec![])
             .unwrap_err();
 
         assert!(err.contains("references missing component"));
@@ -225,7 +320,7 @@ mod tests {
         let mut orm = PaxManifestORM::new(manifest);
 
         let err = orm
-            .replace_template(missing_type_id, template, vec![])
+            .replace_template(missing_type_id, template, vec![], vec![])
             .unwrap_err();
 
         assert!(err.contains("targets missing component"));
@@ -267,6 +362,7 @@ mod tests {
                 main_type_id,
                 template,
                 vec![handler("click", "self.handle_click")],
+                vec![],
             )
             .unwrap_err();
 
@@ -369,6 +465,7 @@ mod tests {
                 main_type_id.clone(),
                 ComponentTemplate::new(main_type_id, None),
                 reordered_settings,
+                vec![],
             )
             .unwrap_err();
 
@@ -409,6 +506,7 @@ mod tests {
                 main_type_id.clone(),
                 ComponentTemplate::new(main_type_id, None),
                 conflicting_settings,
+                vec![],
             )
             .unwrap_err();
 

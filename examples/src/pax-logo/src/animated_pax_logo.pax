@@ -1,14 +1,10 @@
-// The post and banner remain independently inspectable components. Each stone
-// sends an independent bottom-up wave into the post fabric, so lingering waves
-// can constructively overlap without moving the logo's rigid anchors.
+// The post and banner remain independently inspectable components.
 <Group width=100% height=100%>
     <AnimatedPaxLogoPost
         x=-16px
         width=169.23px
         height=463.95px
         fill={self.fill}
-        impact_billow_lower={self.p_billow_lower + self.a_billow_lower + self.x_billow_lower}
-        impact_billow_upper={self.p_billow_upper + self.a_billow_upper + self.x_billow_upper}
     />
 
     <AnimatedPaxLogoBanner
@@ -18,81 +14,3 @@
         letter_fill={self.letter_fill}
     />
 </Group>
-
-@settings {
-    @in: stone_clatter
-}
-
-@timeline stone_clatter {
-    duration: 2020ms
-    loop: false
-
-    self {
-        p_billow_lower: {
-            0ms: 0, Hold
-            820ms: 0, InOutQuad
-            842ms: 1, InOutQuad
-            915ms: -0.42, InOutQuad
-            1010ms: 0.22, InOutQuad
-            1120ms: -0.1, InOutQuad
-            1240ms: 0.045, InOutQuad
-            1420ms: -0.015, InOutQuad
-            1600ms: 0.004, InOutQuad
-            1750ms: 0
-        }
-        p_billow_upper: {
-            0ms: 0, Hold
-            850ms: 0, InOutQuad
-            875ms: 0.7, InOutQuad
-            950ms: -0.3, InOutQuad
-            1050ms: 0.15, InOutQuad
-            1165ms: -0.065, InOutQuad
-            1285ms: 0.03, InOutQuad
-            1460ms: -0.01, InOutQuad
-            1640ms: 0.003, InOutQuad
-            1790ms: 0
-        }
-        a_billow_lower: {
-            0ms: 0, Hold
-            1200ms: 0, InOutQuad
-            1228ms: 0.78, InOutQuad
-            1305ms: -0.32, InOutQuad
-            1410ms: 0.17, InOutQuad
-            1515ms: -0.075, InOutQuad
-            1635ms: 0.035, InOutQuad
-            1785ms: -0.012, InOutQuad
-            1920ms: 0
-        }
-        a_billow_upper: {
-            0ms: 0, Hold
-            1235ms: 0, InOutQuad
-            1260ms: 0.55, InOutQuad
-            1340ms: -0.23, InOutQuad
-            1450ms: 0.12, InOutQuad
-            1545ms: -0.05, InOutQuad
-            1680ms: 0.022, InOutQuad
-            1820ms: -0.008, InOutQuad
-            1950ms: 0
-        }
-        x_billow_lower: {
-            0ms: 0, Hold
-            1550ms: 0, InOutQuad
-            1574ms: 0.58, InOutQuad
-            1655ms: -0.23, InOutQuad
-            1750ms: 0.11, InOutQuad
-            1830ms: -0.045, InOutQuad
-            1910ms: 0.015, InOutQuad
-            1980ms: 0
-        }
-        x_billow_upper: {
-            0ms: 0, Hold
-            1584ms: 0, InOutQuad
-            1610ms: 0.42, InOutQuad
-            1690ms: -0.17, InOutQuad
-            1785ms: 0.08, InOutQuad
-            1870ms: -0.03, InOutQuad
-            1950ms: 0.01, InOutQuad
-            2020ms: 0
-        }
-    }
-}

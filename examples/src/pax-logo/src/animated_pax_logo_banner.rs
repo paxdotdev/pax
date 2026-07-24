@@ -13,6 +13,7 @@ const BANNER_TIP_Y: f64 = 168.57;
 const BANNER_BOTTOM_Y: f64 = 313.20;
 
 const A_CENTER: Point = Point::new(413.60, 168.77);
+const A_BRAKE_PIVOT: Point = Point::new(530.43, 283.94);
 const P_COUNTER_CENTER: Point = Point::new(189.01, 169.47);
 const P_RING_CENTER: Point = Point::new(189.01, 168.305);
 const P_RING_RADIUS_X_PX: f64 = 109.5;
@@ -20,15 +21,22 @@ const P_RING_RADIUS_Y_PX: f64 = 112.925;
 const A_COUNTER_CENTER: Point = Point::new(412.46, 168.76);
 const X_CENTER: Point = Point::new(648.34, 168.755);
 const X_FINAL_Y_OFFSET_PX: f64 = 0.73;
+const X_BRAKE_PIVOT: Point = Point::new(766.09, 282.99 + X_FINAL_Y_OFFSET_PX);
 const P_COUNTER_RADIUS_PX: f64 = 53.51;
 const P_INITIAL_SCALE: f64 = 0.28;
 const A_COUNTER_RADIUS_PX: f64 = 54.61;
 const A_INITIAL_OUTER_RADIUS_PX: f64 = 112.925;
-const A_INITIAL_TRANSLATION_X: f64 = P_COUNTER_CENTER.x - A_CENTER.x;
+const P_DISPATCH_TRANSLATION_X: f64 = -91.666_666_666_666_67;
+#[cfg(test)]
+const P_DISPATCH_SCALE: f64 = 0.4;
+const A_INITIAL_SCALE: f64 = 0.16;
+const A_INITIAL_TRANSLATION_X: f64 = P_COUNTER_CENTER.x + P_DISPATCH_TRANSLATION_X - A_CENTER.x;
 const A_SIDEBAR_LEFT_X: f64 = 465.49;
 const A_SIDEBAR_RIGHT_X: f64 = 530.43;
 const X_INITIAL_SCALE: f64 = 0.28;
 const X_INITIAL_TRANSLATION_X: f64 = (A_SIDEBAR_LEFT_X + A_SIDEBAR_RIGHT_X) * 0.5 - X_CENTER.x;
+const X_INITIAL_TRANSLATION_Y: f64 = X_FINAL_Y_OFFSET_PX;
+const X_INITIAL_ROTATION_DEG: f64 = -90.0;
 
 #[pax]
 #[custom(Default)]
@@ -41,26 +49,31 @@ pub struct AnimatedPaxLogoBanner {
     pub banner_opacity: Property<f64>,
     pub p_counter_opacity: Property<f64>,
     pub p_counter_final_opacity: Property<f64>,
+    pub p_counter_reveal_progress: Property<f64>,
     pub p_counter_x_px: Property<f64>,
     pub p_rotation_deg: Property<f64>,
     pub p_scale: Property<f64>,
     pub a_x_px: Property<f64>,
     pub a_rotation_deg: Property<f64>,
     pub a_scale: Property<f64>,
+    pub a_brake_rotation_deg: Property<f64>,
     pub a_morph_progress: Property<f64>,
     pub a_opacity: Property<f64>,
     pub x_offset_px: Property<f64>,
+    pub x_offset_y_px: Property<f64>,
     pub x_rotation_deg: Property<f64>,
     pub x_scale: Property<f64>,
+    pub x_brake_rotation_deg: Property<f64>,
     pub x_opacity: Property<f64>,
     pub banner_elements: Property<Vec<PathElement>>,
     pub p_ring_elements: Property<Vec<PathElement>>,
     pub p_counter_elements: Property<Vec<PathElement>>,
     pub p_counter_final_elements: Property<Vec<PathElement>>,
     pub p_reveal_mask_elements: Property<Vec<PathElement>>,
+    pub p_counter_reveal_mask_elements: Property<Vec<PathElement>>,
     pub a_elements: Property<Vec<PathElement>>,
     pub a_counter_elements: Property<Vec<PathElement>>,
-    pub x_reveal_mask_elements: Property<Vec<PathElement>>,
+    pub a_counter_reveal_mask_elements: Property<Vec<PathElement>>,
     pub x_elements: Property<Vec<PathElement>>,
 }
 
@@ -74,36 +87,44 @@ impl Default for AnimatedPaxLogoBanner {
             banner_opacity: Property::new(0.0),
             p_counter_opacity: Property::new(1.0),
             p_counter_final_opacity: Property::new(0.0),
+            p_counter_reveal_progress: Property::new(0.0),
             p_counter_x_px: Property::new(-110.0),
             p_rotation_deg: Property::new(-90.0),
             p_scale: Property::new(P_INITIAL_SCALE),
             a_x_px: Property::new(A_INITIAL_TRANSLATION_X),
             a_rotation_deg: Property::new(-90.0),
-            a_scale: Property::new(X_INITIAL_SCALE),
+            a_scale: Property::new(A_INITIAL_SCALE),
+            a_brake_rotation_deg: Property::new(0.0),
             a_morph_progress: Property::new(0.0),
             a_opacity: Property::new(0.0),
             x_offset_px: Property::new(X_INITIAL_TRANSLATION_X),
-            x_rotation_deg: Property::new(-90.0),
+            x_offset_y_px: Property::new(X_INITIAL_TRANSLATION_Y),
+            x_rotation_deg: Property::new(X_INITIAL_ROTATION_DEG),
             x_scale: Property::new(X_INITIAL_SCALE),
-            x_opacity: Property::new(1.0),
+            x_brake_rotation_deg: Property::new(0.0),
+            x_opacity: Property::new(0.0),
             banner_elements: Property::new(banner_path(0.0, 0.0)),
             p_ring_elements: Property::new(p_ring_path(Transform {
                 translation_x: -110.0,
                 rotation_deg: -90.0,
                 scale: P_INITIAL_SCALE,
+                brake_rotation_deg: 0.0,
             })),
             p_counter_elements: Property::new(p_counter_path(Transform {
                 translation_x: -110.0,
                 rotation_deg: -90.0,
                 scale: P_INITIAL_SCALE,
+                brake_rotation_deg: 0.0,
             })),
             p_counter_final_elements: Property::new(p_counter_path(Transform::default())),
             p_reveal_mask_elements: Property::new(p_reveal_mask_path()),
+            p_counter_reveal_mask_elements: Property::new(p_counter_reveal_mask_path(0.0)),
             a_elements: Property::new(a_path(
                 Transform {
                     translation_x: A_INITIAL_TRANSLATION_X,
                     rotation_deg: -90.0,
-                    scale: X_INITIAL_SCALE,
+                    scale: A_INITIAL_SCALE,
+                    brake_rotation_deg: 0.0,
                 },
                 0.0,
             )),
@@ -111,11 +132,12 @@ impl Default for AnimatedPaxLogoBanner {
                 Transform {
                     translation_x: A_INITIAL_TRANSLATION_X,
                     rotation_deg: -90.0,
-                    scale: X_INITIAL_SCALE,
+                    scale: A_INITIAL_SCALE,
+                    brake_rotation_deg: 0.0,
                 },
                 0.0,
             )),
-            x_reveal_mask_elements: Property::new(x_reveal_mask_path()),
+            a_counter_reveal_mask_elements: Property::new(a_counter_reveal_mask_path()),
             x_elements: Property::new(x_path(XTransform::initial())),
         }
     }
@@ -144,6 +166,7 @@ impl AnimatedPaxLogoBanner {
                 translation_x: p_counter_x_px.get(),
                 rotation_deg: p_rotation_deg.get(),
                 scale: p_scale.get(),
+                brake_rotation_deg: 0.0,
             },
             &p_dependencies,
         );
@@ -160,20 +183,31 @@ impl AnimatedPaxLogoBanner {
             &[p_transform.untyped()],
         ));
 
+        let p_counter_reveal_progress = self.p_counter_reveal_progress.clone();
+        let p_counter_reveal_dependency = p_counter_reveal_progress.clone();
+        self.p_counter_reveal_mask_elements
+            .replace_with(Property::computed(
+                move || p_counter_reveal_mask_path(p_counter_reveal_progress.get()),
+                &[p_counter_reveal_dependency.untyped()],
+            ));
+
         let a_x_px = self.a_x_px.clone();
         let a_rotation_deg = self.a_rotation_deg.clone();
         let a_scale = self.a_scale.clone();
+        let a_brake_rotation_deg = self.a_brake_rotation_deg.clone();
         let a_morph_progress = self.a_morph_progress.clone();
         let transform_dependencies = [
             a_x_px.untyped(),
             a_rotation_deg.untyped(),
             a_scale.untyped(),
+            a_brake_rotation_deg.untyped(),
         ];
         let a_transform = Property::computed(
             move || Transform {
                 translation_x: a_x_px.get(),
                 rotation_deg: a_rotation_deg.get(),
                 scale: a_scale.get(),
+                brake_rotation_deg: a_brake_rotation_deg.get(),
             },
             &transform_dependencies,
         );
@@ -193,20 +227,25 @@ impl AnimatedPaxLogoBanner {
         ));
 
         let x_offset_px = self.x_offset_px.clone();
+        let x_offset_y_px = self.x_offset_y_px.clone();
         let x_rotation_deg = self.x_rotation_deg.clone();
         let x_scale = self.x_scale.clone();
+        let x_brake_rotation_deg = self.x_brake_rotation_deg.clone();
         let x_dependencies = [
             x_offset_px.untyped(),
+            x_offset_y_px.untyped(),
             x_rotation_deg.untyped(),
             x_scale.untyped(),
+            x_brake_rotation_deg.untyped(),
         ];
         self.x_elements.replace_with(Property::computed(
             move || {
                 x_path(XTransform {
                     translation_x: x_offset_px.get(),
-                    translation_y: X_FINAL_Y_OFFSET_PX,
+                    translation_y: x_offset_y_px.get(),
                     rotation_deg: x_rotation_deg.get(),
                     scale: x_scale.get(),
+                    brake_rotation_deg: x_brake_rotation_deg.get(),
                 })
             },
             &x_dependencies,
@@ -231,6 +270,7 @@ struct Transform {
     translation_x: f64,
     rotation_deg: f64,
     scale: f64,
+    brake_rotation_deg: f64,
 }
 
 impl Default for Transform {
@@ -239,6 +279,7 @@ impl Default for Transform {
             translation_x: 0.0,
             rotation_deg: 0.0,
             scale: 1.0,
+            brake_rotation_deg: 0.0,
         }
     }
 }
@@ -251,15 +292,17 @@ struct XTransform {
     translation_y: f64,
     rotation_deg: f64,
     scale: f64,
+    brake_rotation_deg: f64,
 }
 
 impl XTransform {
     const fn initial() -> Self {
         Self {
             translation_x: X_INITIAL_TRANSLATION_X,
-            translation_y: X_FINAL_Y_OFFSET_PX,
-            rotation_deg: -90.0,
+            translation_y: X_INITIAL_TRANSLATION_Y,
+            rotation_deg: X_INITIAL_ROTATION_DEG,
             scale: X_INITIAL_SCALE,
+            brake_rotation_deg: 0.0,
         }
     }
 }
@@ -271,6 +314,7 @@ impl Default for XTransform {
             translation_y: X_FINAL_Y_OFFSET_PX,
             rotation_deg: 0.0,
             scale: 1.0,
+            brake_rotation_deg: 0.0,
         }
     }
 }
@@ -319,14 +363,22 @@ fn p_counter_path(transform: Transform) -> Vec<PathElement> {
 }
 
 fn p_reveal_mask_path() -> Vec<PathElement> {
+    reveal_half_plane_path(BANNER_LEFT_X)
+}
+
+fn p_counter_reveal_mask_path(progress: f64) -> Vec<PathElement> {
+    reveal_half_plane_path(lerp(BANNER_LEFT_X, 0.0, progress.clamp(0.0, 1.0)))
+}
+
+fn reveal_half_plane_path(boundary_x: f64) -> Vec<PathElement> {
     vec![
-        point_element(Point::new(BANNER_LEFT_X, 0.0)),
+        point_element(Point::new(boundary_x, 0.0)),
         PathElement::Line,
         point_element(Point::new(CANVAS_WIDTH_PX, 0.0)),
         PathElement::Line,
         point_element(Point::new(CANVAS_WIDTH_PX, CANVAS_HEIGHT_PX)),
         PathElement::Line,
-        point_element(Point::new(BANNER_LEFT_X, CANVAS_HEIGHT_PX)),
+        point_element(Point::new(boundary_x, CANVAS_HEIGHT_PX)),
         PathElement::Close,
     ]
 }
@@ -453,6 +505,20 @@ fn a_counter_path(transform: Transform, morph_progress: f64) -> Vec<PathElement>
     )
 }
 
+fn a_counter_reveal_mask_path() -> Vec<PathElement> {
+    let boundary_x = P_RING_CENTER.x + P_RING_RADIUS_X_PX;
+    vec![
+        point_element(Point::new(boundary_x, 0.0)),
+        PathElement::Line,
+        point_element(Point::new(CANVAS_WIDTH_PX, 0.0)),
+        PathElement::Line,
+        point_element(Point::new(CANVAS_WIDTH_PX, CANVAS_HEIGHT_PX)),
+        PathElement::Line,
+        point_element(Point::new(boundary_x, CANVAS_HEIGHT_PX)),
+        PathElement::Close,
+    ]
+}
+
 fn x_source_points() -> [Point; 13] {
     [
         Point::new(766.09, 282.99),
@@ -485,19 +551,6 @@ fn x_path(transform: XTransform) -> Vec<PathElement> {
         })
         .chain([PathElement::Close])
         .collect()
-}
-
-fn x_reveal_mask_path() -> Vec<PathElement> {
-    vec![
-        point_element(Point::new(A_SIDEBAR_RIGHT_X, 0.0)),
-        PathElement::Line,
-        point_element(Point::new(CANVAS_WIDTH_PX, 0.0)),
-        PathElement::Line,
-        point_element(Point::new(CANVAS_WIDTH_PX, CANVAS_HEIGHT_PX)),
-        PathElement::Line,
-        point_element(Point::new(A_SIDEBAR_RIGHT_X, CANVAS_HEIGHT_PX)),
-        PathElement::Close,
-    ]
 }
 
 fn circle_path(center: Point, radius_px: f64, transform: Transform) -> Vec<PathElement> {
@@ -665,10 +718,11 @@ fn transform_point_about(point: Point, transform: Transform, pivot: Point) -> Po
     let sine = radians.sin();
     let local_x = (point.x - pivot.x) * transform.scale;
     let local_y = (point.y - pivot.y) * transform.scale;
-    Point::new(
+    let primary = Point::new(
         pivot.x + local_x * cosine - local_y * sine + transform.translation_x,
         pivot.y + local_x * sine + local_y * cosine,
-    )
+    );
+    rotate_point_about(primary, A_BRAKE_PIVOT, transform.brake_rotation_deg)
 }
 
 fn transform_x_point(point: Point, transform: XTransform) -> Point {
@@ -677,9 +731,22 @@ fn transform_x_point(point: Point, transform: XTransform) -> Point {
     let sine = radians.sin();
     let local_x = (point.x - X_CENTER.x) * transform.scale;
     let local_y = (point.y - X_CENTER.y) * transform.scale;
-    Point::new(
+    let primary = Point::new(
         X_CENTER.x + local_x * cosine - local_y * sine + transform.translation_x,
         X_CENTER.y + local_x * sine + local_y * cosine + transform.translation_y,
+    );
+    rotate_point_about(primary, X_BRAKE_PIVOT, transform.brake_rotation_deg)
+}
+
+fn rotate_point_about(point: Point, pivot: Point, rotation_deg: f64) -> Point {
+    let radians = rotation_deg.to_radians();
+    let cosine = radians.cos();
+    let sine = radians.sin();
+    let local_x = point.x - pivot.x;
+    let local_y = point.y - pivot.y;
+    Point::new(
+        pivot.x + local_x * cosine - local_y * sine,
+        pivot.y + local_x * sine + local_y * cosine,
     )
 }
 
@@ -734,17 +801,20 @@ mod tests {
             Transform {
                 translation_x: A_INITIAL_TRANSLATION_X,
                 rotation_deg: -90.0,
-                scale: X_INITIAL_SCALE,
+                scale: A_INITIAL_SCALE,
+                brake_rotation_deg: 0.0,
             },
             Transform {
                 translation_x: -110.0,
                 rotation_deg: -45.0,
                 scale: 0.6,
+                brake_rotation_deg: 0.0,
             },
             Transform {
                 translation_x: -5.0,
                 rotation_deg: -2.0,
                 scale: 0.98,
+                brake_rotation_deg: 0.0,
             },
             Transform::default(),
         ] {
@@ -784,17 +854,27 @@ mod tests {
     }
 
     #[test]
+    fn p_counter_reveal_mask_opens_after_emergence() {
+        let hidden = p_counter_reveal_mask_path(0.0);
+        let emerged = p_counter_reveal_mask_path(1.0);
+        assert_eq!(hidden[0], point_element(Point::new(BANNER_LEFT_X, 0.0)));
+        assert_eq!(emerged[0], point_element(Point::new(0.0, 0.0)));
+    }
+
+    #[test]
     fn p_ring_and_counter_keep_stable_topology_through_the_roll() {
         for transform in [
             Transform {
                 translation_x: -110.0,
                 rotation_deg: -90.0,
                 scale: P_INITIAL_SCALE,
+                brake_rotation_deg: 0.0,
             },
             Transform {
                 translation_x: -45.0,
                 rotation_deg: -35.0,
                 scale: 0.72,
+                brake_rotation_deg: 0.0,
             },
             Transform::default(),
         ] {
@@ -809,7 +889,8 @@ mod tests {
             Transform {
                 translation_x: A_INITIAL_TRANSLATION_X,
                 rotation_deg: -90.0,
-                scale: X_INITIAL_SCALE,
+                scale: A_INITIAL_SCALE,
+                brake_rotation_deg: 0.0,
             },
             0.0,
         );
@@ -823,42 +904,67 @@ mod tests {
     #[test]
     fn initial_a_stays_inside_the_p_counter_until_its_roll_begins() {
         let initial_center = Point::new(A_CENTER.x + A_INITIAL_TRANSLATION_X, A_CENTER.y);
-        let center_offset = ((initial_center.x - P_COUNTER_CENTER.x).powi(2)
+        let dispatch_center = Point::new(
+            P_COUNTER_CENTER.x + P_DISPATCH_TRANSLATION_X,
+            P_COUNTER_CENTER.y,
+        );
+        let center_offset = ((initial_center.x - dispatch_center.x).powi(2)
             + (initial_center.y - P_COUNTER_CENTER.y).powi(2))
         .sqrt();
-        assert!(center_offset + A_INITIAL_OUTER_RADIUS_PX * X_INITIAL_SCALE < P_COUNTER_RADIUS_PX);
+        assert!(
+            center_offset + A_INITIAL_OUTER_RADIUS_PX * A_INITIAL_SCALE
+                < P_COUNTER_RADIUS_PX * P_DISPATCH_SCALE
+        );
     }
 
     #[test]
-    fn x_starts_scaled_inside_the_a_sidebar() {
+    fn x_starts_nested_inside_the_settled_a_sidebar() {
         let initial = XTransform::initial();
-        let transformed = x_source_points().map(|point| transform_x_point(point, initial));
-        let min_x = transformed
+        let nested = x_source_points().map(|point| transform_x_point(point, initial));
+        let min_x = nested
             .iter()
             .map(|point| point.x)
             .fold(f64::INFINITY, f64::min);
-        let max_x = transformed
+        let max_x = nested
             .iter()
             .map(|point| point.x)
             .fold(f64::NEG_INFINITY, f64::max);
-        assert!(min_x >= A_SIDEBAR_LEFT_X - 0.01);
-        assert!(max_x <= A_SIDEBAR_RIGHT_X + 0.01);
+        assert!(min_x >= A_SIDEBAR_LEFT_X);
+        assert!(max_x <= A_SIDEBAR_RIGHT_X);
     }
 
     #[test]
-    fn x_reveal_mask_begins_at_the_a_sidebar_edge() {
-        let reveal_mask = x_reveal_mask_path();
-        assert_eq!(
-            reveal_mask[0],
-            point_element(Point::new(A_SIDEBAR_RIGHT_X, 0.0))
+    fn braking_rotations_keep_the_lower_right_contacts_planted() {
+        let a_contact = transform_point_about(
+            A_BRAKE_PIVOT,
+            Transform {
+                brake_rotation_deg: 7.5,
+                ..Transform::default()
+            },
+            A_CENTER,
         );
-        assert_eq!(
-            reveal_mask[2],
-            point_element(Point::new(CANVAS_WIDTH_PX, 0.0))
+        assert!((a_contact.x - A_BRAKE_PIVOT.x).abs() < 0.000_001);
+        assert!((a_contact.y - A_BRAKE_PIVOT.y).abs() < 0.000_001);
+
+        let x_contact = transform_x_point(
+            Point::new(766.09, 282.99),
+            XTransform {
+                brake_rotation_deg: 7.0,
+                ..XTransform::default()
+            },
         );
+        assert!((x_contact.x - X_BRAKE_PIVOT.x).abs() < 0.000_001);
+        assert!((x_contact.y - X_BRAKE_PIVOT.y).abs() < 0.000_001);
+    }
+
+    #[test]
+    fn a_counter_stays_clipped_until_it_clears_the_p_ring() {
+        let reveal_mask = a_counter_reveal_mask_path();
+        let boundary_x = P_RING_CENTER.x + P_RING_RADIUS_X_PX;
+        assert_eq!(reveal_mask[0], point_element(Point::new(boundary_x, 0.0)));
         assert_eq!(
             reveal_mask[6],
-            point_element(Point::new(A_SIDEBAR_RIGHT_X, CANVAS_HEIGHT_PX))
+            point_element(Point::new(boundary_x, CANVAS_HEIGHT_PX))
         );
     }
 }

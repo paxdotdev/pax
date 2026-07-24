@@ -1394,6 +1394,8 @@ pub(super) fn parse_pax_source_update(
                 .map_err(|err| format!("failed to parse Pax source: {err}"))?;
         let mut settings =
             pax_manifest::parsing::parse_settings_from_component_definition_string(ast.clone());
+        let timelines =
+            pax_manifest::parsing::parse_timeline_from_component_definition_string(ast.clone());
         if let Some(rust_source_path) =
             resolve_component_rust_source_path(project_root, &component_module_path)
         {
@@ -1416,6 +1418,7 @@ pub(super) fn parse_pax_source_update(
             type_id: self_type_id,
             new_template: tpc.template,
             settings_block: settings,
+            timelines,
         })
     }))
     .map_err(panic_payload_to_string)?
@@ -2226,6 +2229,19 @@ mod tests {
         let project_root = temp_dir.path();
         let rust_source = project_root.join("src/lib.rs");
         let pax_source = project_root.join("src/lib.pax");
+        let pax_contents = r#"
+            <Group />
+
+            @timeline entrance {
+                playhead: self.progress,
+                self {
+                    opacity: {
+                        0: 0,
+                        100: 1,
+                    },
+                }
+            }
+        "#;
         fs::create_dir_all(pax_source.parent().unwrap()).unwrap();
         fs::write(
             &rust_source,
@@ -2239,7 +2255,7 @@ mod tests {
             "#,
         )
         .unwrap();
-        fs::write(&pax_source, "<Group />").unwrap();
+        fs::write(&pax_source, pax_contents).unwrap();
 
         let example_type_id = TypeId::build_singleton("crate::Example", Some("Example"));
         let group_type_id = TypeId::build_singleton("Group", Some("Group"));
@@ -2288,7 +2304,7 @@ mod tests {
         let update = parse_pax_source_update(
             &manifest,
             &pax_source.to_string_lossy(),
-            "<Group />",
+            pax_contents,
             project_root,
         )
         .unwrap();
@@ -2306,6 +2322,19 @@ mod tests {
 
         assert!(bindings.contains(&("mount".to_string(), "on_mount".to_string())));
         assert!(bindings.contains(&("pre_render".to_string(), "on_pre_render".to_string())));
+        assert_eq!(update.timelines.len(), 1);
+        assert_eq!(
+            update.timelines[0]
+                .name
+                .as_ref()
+                .map(|name| name.token_value.as_str()),
+            Some("entrance")
+        );
+        assert!(matches!(
+            update.timelines[0].playhead.as_ref(),
+            Some(pax_manifest::ValueDefinition::Identifier(identifier))
+                if identifier.name == "self.progress"
+        ));
     }
 }
 

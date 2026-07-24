@@ -888,18 +888,30 @@ The same investigation exposed a hot-reload boundary: edits inside a named
 `@timeline` were detected, but the running web cartridge retained the previous
 timeline definition while ordinary template edits did update. A full
 `pax-cli run` restart regenerated the timeline and made the corrected values
-active. Recommendations: inspect the generated designtime manifest when an
-animation contradicts its source, and treat timeline-definition edits as
-requiring a clean rebuild until timeline hot reload is fixed.
+active. The watcher update currently parses and transmits only the component
+template and settings block; it neither carries `ComponentDefinition.timelines`
+nor rebuilds the mounted component's merged timeline property layers.
+
+Solved by carrying the parsed timeline definitions in
+`UpdateTemplateRequest`, committing them into the active revision, and replacing
+them through the designtime ORM. The existing tree reload then reconstructs
+component and element property layers from the updated manifest. This required
+no release-cartridge schema change because timelines were already represented
+in the program IR, binary, and Rust-manifest paths. A live web test confirmed
+that changing and restoring a named timeline keyframe updates the mounted app
+without restarting `pax-cli`.
 
 Frame-sequence diagnostics also had two capture traps. `pax-cli dev look`
 returned black web-canvas frames in this example, while browser screenshots
 used changed-region optimization that could make a valid animation look like
 detached fragments. A temporary fixed-step playhead plus a full-screen,
 playhead-driven background change produced reliable full frames and isolated
-the rendering failure. Recommendations: provide an official fixed-playhead
-capture mode for declarative timelines and an option to force full canvas
-frames in animation tooling.
+the rendering failure. Sequential browser screenshots added another source of
+drift because image encoding time advances the live timeline between frames;
+restarting the animation before every sampled timestamp produced trustworthy
+contact sheets. Recommendations: provide an official fixed-playhead capture
+mode for declarative timelines and an option to force full canvas frames in
+animation tooling.
 
 Refining the logo post from a translated rigid shape into an unfurling fabric
 strip required animating `PathElement` geometry procedurally. Rebuilding the
@@ -920,6 +932,39 @@ in Pax while retaining path assembly and screen-space geometry math in a pure
 adapter. Recommendations: expose artist-facing scalar controls to timelines
 before adding collection interpolation or custom expression helpers for
 procedural geometry.
+
+An experiment that drove a long fabric edge with one cubic segment made impact
+feedback read as a rigid sheet: lowering the temporal period only made the
+entire silhouette convulse faster. Spatially phased upper, middle, and hem
+anchors produced a more recognizable traveling wave, but repeated letter-impact
+feedback still competed with the logo's primary choreography and was removed
+from the final composition. Recommendations: model traveling deformation with
+multiple spatial control bands rather than one global amplitude, and be willing
+to remove a physically motivated secondary action when it weakens staging.
+
+Lengthening the early part of a masked letter roll did not make its motion look
+slower because the extra frames were still hidden behind the neighboring
+letter. The visible portion remained compressed near the end and read as a
+sudden appearance. The fix was to make arrival at the mask boundary a
+first-class timing event, move the stone to that boundary early, and spend most
+of the deliberately slow acceleration after it becomes visible.
+Recommendations: tune masked motion in visible space rather than only in
+playhead or property space, and keep translation, rotation, scale, and mask
+handoffs phase-locked.
+
+Adding a planted braking flourish to those procedural letter paths required a
+second transform pivot after the main roll had reached its authored geometry.
+Reusing the center-pivoted roll rotation made the whole glyph drift, while
+editing the path points directly made the final logo harder to verify. The
+working pattern keeps a separate timeline scalar for the follow-through angle,
+then applies it as a pure post-transform around the glyph's lower-right contact
+point in the path adapter. A piecewise recovery initially snapped at its easing
+boundaries; chaining `InOutQuad` segments and holds at zero-velocity endpoints
+made the hesitation, counter-rock, and settle C1-continuous without requiring a
+custom curve. Recommendations: model anticipation and follow-through as
+composable transform stages with explicit pivots, leave source geometry and its
+final zero-state unchanged, and match endpoint velocities when assembling a
+motion curve from serializable easing segments.
 
 The declarative timeline accepts every fixed `EasingCurve` variant, but the
 current enum contains only linear/hold, quadratic, and back families. Its
@@ -972,11 +1017,20 @@ positioning shifted the cover left of the source-SVG boundary, leaving the `x`
 visible behind the `a` while painting an unrelated black band over the `p`.
 Replacing it with a real `Mask` whose source is a Pax-native path in the logo's
 coordinate space made the reveal boundary exact and background-independent.
+An axis-aligned half-plane was still insufficient once the neighboring `a`
+gained a planted braking rotation: the `x` leaked past the tilted sidebar even
+though the boundary tracked its world-space maximum X. Both an oversized
+rotating half-plane and a canvas-bounded trapezoid disappeared on web during
+the tilt, then returned when the mask approached axis alignment. The reliable
+solution needed no synthetic mask: render `x` behind the complete `a`, letting
+the actual white body and black counter occlude it as it rolls clear.
 The `a` counter did not need a mask because its counter and outer paths already
 share one computed transform; wrapping those paths in an extra mask caused the
 counter to disappear on web. Recommendations: use a true mask for cross-boundary
 reveals, express its coverage in the same coordinate space as the artwork, and
-avoid masking paths that can remain registered by sharing one transform.
+When the real occluding silhouette is already available, prefer element order
+over recreating that silhouette as an animated mask. Avoid masking paths that
+can remain registered by sharing one transform.
 
 A restricted or interrupted web build can finish Rust compilation without
 publishing the wasm-pack output. Serving the previous `.pax/build/debug/web`
@@ -995,7 +1049,7 @@ source as either a `Group` of two paths or one compound path intended to union
 the `p` silhouette with a reveal half-plane clipped the moving artwork
 completely. The animation now uses one simple half-plane path while the `a` is
 moving, then hands off to exact unmasked source geometry after its final
-clatter. Recommendations: define and regression-test mask-source composition
+endpoint. Recommendations: define and regression-test mask-source composition
 for grouped and multi-contour paths; until union semantics are explicit, keep
 animated mask sources single-contour and use a stable endpoint handoff when
 the final artwork needs geometry outside that contour.

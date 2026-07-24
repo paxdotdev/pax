@@ -31,8 +31,6 @@ pub struct AnimatedPaxLogoPost {
     pub wave: Property<f64>,
     pub swing: Property<f64>,
     pub whip: Property<f64>,
-    pub impact_billow_lower: Property<f64>,
-    pub impact_billow_upper: Property<f64>,
     pub fall: Property<f64>,
     pub roll_radius_px: Property<f64>,
     pub top_fabric_elements: Property<Vec<PathElement>>,
@@ -53,8 +51,6 @@ impl Default for AnimatedPaxLogoPost {
             wave: Property::new(0.0),
             swing: Property::new(0.0),
             whip: Property::new(0.0),
-            impact_billow_lower: Property::new(0.0),
-            impact_billow_upper: Property::new(0.0),
             fall: Property::new(0.0),
             roll_radius_px: Property::new(INITIAL_ROLL_RADIUS_PX),
             top_fabric_elements: Property::new(top_fabric_path(motion)),
@@ -74,8 +70,6 @@ impl AnimatedPaxLogoPost {
         let wave = self.wave.clone();
         let swing = self.swing.clone();
         let whip = self.whip.clone();
-        let impact_billow_lower = self.impact_billow_lower.clone();
-        let impact_billow_upper = self.impact_billow_upper.clone();
         let fall = self.fall.clone();
         let roll_radius_px = self.roll_radius_px.clone();
         let motion_dependencies = [
@@ -84,8 +78,6 @@ impl AnimatedPaxLogoPost {
             wave.untyped(),
             swing.untyped(),
             whip.untyped(),
-            impact_billow_lower.untyped(),
-            impact_billow_upper.untyped(),
             fall.untyped(),
             roll_radius_px.untyped(),
         ];
@@ -97,8 +89,6 @@ impl AnimatedPaxLogoPost {
                     wave: wave.get(),
                     swing: swing.get(),
                     whip: whip.get(),
-                    impact_billow_lower: impact_billow_lower.get(),
-                    impact_billow_upper: impact_billow_upper.get(),
                     fall: fall.get(),
                     roll_radius_px: roll_radius_px.get(),
                 })
@@ -128,7 +118,7 @@ fn computed_path(
     Property::computed(move || build(motion.get()), &dependencies)
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
 struct Point {
     x: f64,
     y: f64,
@@ -159,8 +149,6 @@ struct MotionControls {
     wave: f64,
     swing: f64,
     whip: f64,
-    impact_billow_lower: f64,
-    impact_billow_upper: f64,
     fall: f64,
     roll_radius_px: f64,
 }
@@ -173,8 +161,6 @@ impl Default for MotionControls {
             wave: 0.0,
             swing: 0.0,
             whip: 0.0,
-            impact_billow_lower: 0.0,
-            impact_billow_upper: 0.0,
             fall: 0.0,
             roll_radius_px: INITIAL_ROLL_RADIUS_PX,
         }
@@ -188,9 +174,9 @@ struct PostMotion {
     wave: f64,
     swing: f64,
     whip: f64,
-    impact_billow_lower: f64,
-    impact_billow_upper: f64,
     fall: f64,
+    fabric_bottom_left: Point,
+    fabric_bottom_right: Point,
     roll_axis_start: Point,
     roll_axis_end: Point,
     roll_radius_px: f64,
@@ -199,28 +185,27 @@ struct PostMotion {
 impl Interpolatable for PostMotion {}
 
 fn motion_from_controls(controls: MotionControls) -> PostMotion {
-    let bottom_left = Point::new(
+    let base_bottom_left = Point::new(
         lerp(TOP_FRONT_LEFT.x, BOTTOM_LEFT.x, controls.extension)
             + controls.swing
             + controls.wave * 0.12
             + controls.whip,
         lerp(TOP_FRONT_LEFT.y, BOTTOM_LEFT.y, controls.extension),
     );
-    let bottom_right = Point::new(
+    let base_bottom_right = Point::new(
         lerp(TOP_FRONT_RIGHT.x, BOTTOM_RIGHT.x, controls.extension)
             + controls.swing * 0.75
             + controls.wave * 0.55
             + controls.whip * 0.8,
         lerp(TOP_FRONT_RIGHT.y, BOTTOM_RIGHT.y, controls.extension),
     );
-
     let (roll_axis_start, roll_axis_end) = if controls.fall <= f64::EPSILON {
         (
             TOP_BACK_LEFT.lerp(TOP_FRONT_LEFT, controls.rolling),
             TOP_BACK_RIGHT.lerp(TOP_FRONT_RIGHT, controls.rolling),
         )
     } else {
-        (bottom_left, bottom_right)
+        (base_bottom_left, base_bottom_right)
     };
 
     PostMotion {
@@ -229,9 +214,9 @@ fn motion_from_controls(controls: MotionControls) -> PostMotion {
         wave: controls.wave,
         swing: controls.swing,
         whip: controls.whip,
-        impact_billow_lower: controls.impact_billow_lower,
-        impact_billow_upper: controls.impact_billow_upper,
         fall: controls.fall,
+        fabric_bottom_left: base_bottom_left,
+        fabric_bottom_right: base_bottom_right,
         roll_axis_start,
         roll_axis_end,
         roll_radius_px: controls.roll_radius_px,
@@ -256,39 +241,33 @@ fn top_fabric_path(motion: PostMotion) -> Vec<PathElement> {
 }
 
 fn fabric_path(motion: PostMotion) -> Vec<PathElement> {
-    let visible_extension = motion.extension.max(0.002);
-    let bottom_left = Point::new(
-        lerp(TOP_FRONT_LEFT.x, BOTTOM_LEFT.x, visible_extension)
-            + motion.swing
-            + motion.wave * 0.12
-            + motion.whip,
-        lerp(TOP_FRONT_LEFT.y, BOTTOM_LEFT.y, visible_extension),
-    );
-    let bottom_right = Point::new(
-        lerp(TOP_FRONT_RIGHT.x, BOTTOM_RIGHT.x, visible_extension)
-            + motion.swing * 0.75
-            + motion.wave * 0.55
-            + motion.whip * 0.8,
-        lerp(TOP_FRONT_RIGHT.y, BOTTOM_RIGHT.y, visible_extension),
-    );
+    let bottom_left = motion.fabric_bottom_left;
+    let bottom_right = motion.fabric_bottom_right;
     let left_extent = bottom_left.y - TOP_FRONT_LEFT.y;
     let right_extent = bottom_right.y - TOP_FRONT_RIGHT.y;
     let roll_sag = radius_y_percent(motion.roll_radius_px) * (1.0 - motion.fall) * 0.65;
+    let left_upper = Point::new(
+        motion.swing * 0.05 - motion.wave * 0.08,
+        TOP_FRONT_LEFT.y + left_extent / 3.0,
+    );
+    let left_middle = Point::new(
+        motion.swing * 0.52 + motion.wave * 0.32 + motion.whip * 0.55,
+        TOP_FRONT_LEFT.y + left_extent * 2.0 / 3.0,
+    );
+    let right_upper = Point::new(
+        TOP_FRONT_RIGHT.x - motion.wave * 0.22,
+        TOP_FRONT_RIGHT.y + right_extent / 3.0,
+    );
+    let right_middle = Point::new(
+        TOP_FRONT_RIGHT.x + motion.swing * 0.70 + motion.wave * 0.90 + motion.whip * 0.65,
+        TOP_FRONT_RIGHT.y + right_extent * 2.0 / 3.0,
+    );
+    let left_edge = [TOP_FRONT_LEFT, left_upper, left_middle, bottom_left];
+    let right_edge = [bottom_right, right_middle, right_upper, TOP_FRONT_RIGHT];
 
-    vec![
-        point_element(TOP_FRONT_LEFT),
-        PathElement::Cubic(
-            percent_x(motion.swing * 0.05 - motion.wave * 0.08 + motion.impact_billow_upper * 0.42),
-            percent_y(TOP_FRONT_LEFT.y + left_extent * 0.28),
-            percent_x(
-                motion.swing * 0.52
-                    + motion.wave * 0.32
-                    + motion.whip * 0.55
-                    + motion.impact_billow_lower * 0.55,
-            ),
-            percent_y(TOP_FRONT_LEFT.y + left_extent * 0.72),
-        ),
-        point_element(bottom_left),
+    let mut path = vec![point_element(TOP_FRONT_LEFT)];
+    append_catmull_rom_edge(&mut path, &left_edge);
+    path.extend([
         PathElement::Cubic(
             percent_x(lerp(bottom_left.x, bottom_right.x, 1.0 / 3.0)),
             percent_y(lerp(bottom_left.y, bottom_right.y, 1.0 / 3.0) + roll_sag),
@@ -296,18 +275,42 @@ fn fabric_path(motion: PostMotion) -> Vec<PathElement> {
             percent_y(lerp(bottom_left.y, bottom_right.y, 2.0 / 3.0) + roll_sag),
         ),
         point_element(bottom_right),
-        PathElement::Cubic(
-            percent_x(
-                TOP_FRONT_RIGHT.x + motion.swing * 0.70 + motion.wave * 0.90 + motion.whip * 0.65
-                    - motion.impact_billow_lower * 0.55,
-            ),
-            percent_y(TOP_FRONT_RIGHT.y + right_extent * 0.70),
-            percent_x(TOP_FRONT_RIGHT.x - motion.wave * 0.22 - motion.impact_billow_upper * 0.42),
-            percent_y(TOP_FRONT_RIGHT.y + right_extent * 0.30),
-        ),
-        point_element(TOP_FRONT_RIGHT),
-        PathElement::Close,
-    ]
+    ]);
+    append_catmull_rom_edge(&mut path, &right_edge);
+    path.push(PathElement::Close);
+    path
+}
+
+fn append_catmull_rom_edge(path: &mut Vec<PathElement>, points: &[Point; 4]) {
+    for index in 0..3 {
+        let previous = if index == 0 {
+            points[index]
+        } else {
+            points[index - 1]
+        };
+        let start = points[index];
+        let end = points[index + 1];
+        let next = if index == 2 {
+            points[index + 1]
+        } else {
+            points[index + 2]
+        };
+        let control_1 = Point::new(
+            start.x + (end.x - previous.x) / 6.0,
+            start.y + (end.y - previous.y) / 6.0,
+        );
+        let control_2 = Point::new(
+            end.x - (next.x - start.x) / 6.0,
+            end.y - (next.y - start.y) / 6.0,
+        );
+        path.push(PathElement::Cubic(
+            percent_x(control_1.x),
+            percent_y(control_1.y),
+            percent_x(control_2.x),
+            percent_y(control_2.y),
+        ));
+        path.push(point_element(end));
+    }
 }
 
 fn roll_start_cap_path(motion: PostMotion) -> Vec<PathElement> {
@@ -445,8 +448,6 @@ mod tests {
             wave,
             swing,
             whip,
-            impact_billow_lower: 0.0,
-            impact_billow_upper: 0.0,
             roll_radius_px: radius,
         }
     }
@@ -471,7 +472,7 @@ mod tests {
             let end_cap = roll_end_cap_path(motion);
             assert_eq!(top.len(), 8);
             assert_eq!(top.last(), Some(&PathElement::Close));
-            assert_eq!(fabric.len(), 8);
+            assert_eq!(fabric.len(), 16);
             assert_eq!(fabric.last(), Some(&PathElement::Close));
             assert_eq!(start_cap.len(), 10);
             assert_eq!(start_cap.last(), Some(&PathElement::Close));
@@ -508,8 +509,8 @@ mod tests {
     fn settled_post_matches_the_original_rigid_extents() {
         let motion = motion_from_controls(fall_controls(1.0, 1.0, 0.0, 0.0, 0.0, 0.7));
         let path = fabric_path(motion);
-        assert_eq!(path[2], point_element(BOTTOM_LEFT));
-        assert_eq!(path[4], point_element(BOTTOM_RIGHT));
+        assert_eq!(path[6], point_element(BOTTOM_LEFT));
+        assert_eq!(path[8], point_element(BOTTOM_RIGHT));
     }
 
     #[test]
@@ -531,31 +532,6 @@ mod tests {
         assert_eq!(before.whip, 0.0);
         assert!(peak.whip < 0.0);
         assert_eq!(settled.whip, 0.0);
-    }
-
-    #[test]
-    fn impact_billow_moves_only_interior_fabric_controls_and_returns_to_rest() {
-        let base = motion_from_controls(fall_controls(1.0, 1.0, 0.0, 0.0, 0.0, 0.7));
-        let billow = motion_from_controls(MotionControls {
-            impact_billow_lower: 1.0,
-            impact_billow_upper: 0.7,
-            ..fall_controls(1.0, 1.0, 0.0, 0.0, 0.0, 0.7)
-        });
-
-        assert_eq!(top_fabric_path(base), top_fabric_path(billow));
-        assert_ne!(fabric_path(base), fabric_path(billow));
-        for anchor_index in [0, 2, 4, 6] {
-            assert_eq!(
-                fabric_path(base)[anchor_index],
-                fabric_path(billow)[anchor_index]
-            );
-        }
-        assert_eq!(
-            fabric_path(base),
-            fabric_path(motion_from_controls(fall_controls(
-                1.0, 1.0, 0.0, 0.0, 0.0, 0.7
-            )))
-        );
     }
 
     #[test]

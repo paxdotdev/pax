@@ -26,8 +26,8 @@ use pax_manifest::code_serialization::{diff_html, press_code_serialization_templ
 use pax_manifest::pax_runtime_api::{Interpolatable, Property};
 use pax_manifest::{
     ComponentDefinition, ComponentTemplate, NodeLocation, PaxManifest, PropertyDefinition,
-    SettingElement, SettingsBlockElement, TemplateNodeDefinition, TemplateNodeId, TypeId,
-    UniqueTemplateNodeIdentifier, ValueDefinition,
+    SettingElement, SettingsBlockElement, TemplateNodeDefinition, TemplateNodeId,
+    TimelineDefinition, TypeId, UniqueTemplateNodeIdentifier, ValueDefinition,
 };
 use serde_derive::{Deserialize, Serialize};
 #[allow(unused_imports)]
@@ -614,6 +614,7 @@ impl PaxManifestORM {
         component_type_id: TypeId,
         template: ComponentTemplate,
         settings_block: Vec<SettingsBlockElement>,
+        timelines: Vec<TimelineDefinition>,
     ) -> Result<usize, String> {
         if !self.manifest.components.contains_key(&component_type_id) {
             return Err(format!(
@@ -635,6 +636,7 @@ impl PaxManifestORM {
             .expect("target component presence was checked above");
         component.template = Some(template.clone());
         component.settings = Some(settings_block.clone());
+        component.timelines.clone_from(&timelines);
         let prospective_identity =
             runtime_abi_identity(&prospective_manifest).map_err(|err| err.to_string())?;
         if prospective_identity != self.cartridge_abi_identity {
@@ -643,8 +645,12 @@ impl PaxManifestORM {
             );
         }
 
-        let command =
-            template::ReplaceTemplateRequest::new(component_type_id, template, settings_block);
+        let command = template::ReplaceTemplateRequest::new(
+            component_type_id,
+            template,
+            settings_block,
+            timelines,
+        );
         let resp = self.execute_command(command)?;
         Ok(resp.get_id())
     }

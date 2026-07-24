@@ -1,7 +1,8 @@
 use std::fmt::Formatter;
 
 use pax_manifest::{
-    ComponentDefinition, ComponentTemplate, PaxManifest, SettingsBlockElement, TypeId,
+    ComponentDefinition, ComponentTemplate, PaxManifest, SettingsBlockElement, TimelineDefinition,
+    TypeId,
 };
 use pax_message::ScreenshotData;
 use serde::{Deserialize, Serialize};
@@ -363,7 +364,7 @@ pub struct ComponentSerializationRequest {
     pub component_bytes: Vec<u8>,
 }
 
-/// A request to update the template of a component.
+/// A request to update the Pax-authored definition of a component.
 // Sent from `pax-priviliged-agent` to `pax-designtime`.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct UpdateTemplateRequest {
@@ -375,4 +376,7 @@ pub struct UpdateTemplateRequest {
     pub new_template: ComponentTemplate,
     /// The settings block for the component.
     pub settings_block: Vec<SettingsBlockElement>,
+    /// The named timeline blocks for the component.
+    #[serde(default)]
+    pub timelines: Vec<TimelineDefinition>,
 }
