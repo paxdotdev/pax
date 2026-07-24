@@ -16,3 +16,8 @@ Stroke drawn around the ellipse.
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Fill`](/api/pax-runtime-api/drawing.md#fill)>
 
 Fill painted inside the ellipse.
+
+##### `material`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Material`](/api/pax-runtime-api/drawing.md#material)>
+
+Light-reactive surface response.

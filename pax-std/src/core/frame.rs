@@ -169,6 +169,7 @@ impl InstanceNode for FrameInstance {
             layer_id,
             expanded_node.id.to_u32(),
             expanded_node.occlusion.get().z_index,
+            0,
         ) {
             return;
         }

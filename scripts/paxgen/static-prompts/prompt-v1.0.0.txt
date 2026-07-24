@@ -960,6 +960,7 @@ Pax supports the following input events:
 - TouchStart (@touch_start)
 - TouchMove (@touch_move)
 - TouchEnd (@touch_end)
+- TouchCancel (@touch_cancel)
 - KeyDown (@key_down)
 - KeyUp (@key_up)
 - KeyPress (@key_press)

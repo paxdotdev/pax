@@ -21,4 +21,5 @@ provide the browsing ontology used by the generated API docs.
 - [rendering](rendering.md)
 - [store](store.md)
 - [transform](transform.md)
+- [unit_value](unit_value.md)
 - [variables](variables.md)

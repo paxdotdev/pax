@@ -644,6 +644,11 @@ impl HelperFunctions for SceneLight {}
 pub struct SceneLighting {
     /// Whether authored lights or ambient overrides are present.
     pub active: bool,
+    /// Whether `ambient` came from an enabled authored `AmbientLight`.
+    ///
+    /// The default ambient is only applied to primitives with at least one
+    /// eligible direct light. An authored ambient remains layer-wide.
+    pub ambient_is_authored: bool,
     /// Singleton ambient contribution.
     pub ambient: SceneAmbientLight,
     /// Positional and directional light contributions.
@@ -654,6 +659,7 @@ impl Default for SceneLighting {
     fn default() -> Self {
         Self {
             active: false,
+            ambient_is_authored: false,
             ambient: SceneAmbientLight::default(),
             lights: vec![],
         }
@@ -661,6 +667,9 @@ impl Default for SceneLighting {
 }
 
 impl SceneLighting {
+    /// Maximum number of simultaneously enabled lights in one target canvas layer.
+    pub const MAX_LIGHTS: usize = 8;
+
     /// Ambient intensity used when point/directional lights exist but no explicit ambient override exists.
     pub const DEFAULT_AMBIENT_INTENSITY: f64 = 0.35;
 
@@ -673,6 +682,7 @@ impl SceneLighting {
     pub fn with_default_ambient(lights: Vec<SceneLight>) -> Self {
         Self {
             active: !lights.is_empty(),
+            ambient_is_authored: false,
             ambient: SceneAmbientLight {
                 color: Color::WHITE,
                 intensity: Self::DEFAULT_AMBIENT_INTENSITY,

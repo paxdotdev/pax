@@ -76,6 +76,7 @@ pub enum NativeInterrupt {
     TouchStart(TouchStartInterruptArgs),
     TouchMove(TouchMoveInterruptArgs),
     TouchEnd(TouchEndInterruptArgs),
+    TouchCancel(TouchCancelInterruptArgs),
     KeyDown(KeyDownInterruptArgs),
     KeyUp(KeyUpInterruptArgs),
     KeyPress(KeyPressInterruptArgs),
@@ -353,6 +354,13 @@ pub struct TouchMoveInterruptArgs {
 #[repr(C)]
 /// Touch-end interrupt payload.
 pub struct TouchEndInterruptArgs {
+    pub touches: Vec<TouchMessage>,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+/// Touch-cancel interrupt payload.
+pub struct TouchCancelInterruptArgs {
     pub touches: Vec<TouchMessage>,
 }
 

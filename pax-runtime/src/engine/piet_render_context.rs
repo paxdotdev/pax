@@ -728,7 +728,7 @@ impl<R: piet::RenderContext> api::RenderContext for PietRenderer<R> {
         false
     }
 
-    fn begin_node(&mut self, layer: usize, _node_id: u32, _z_index: i32) -> bool {
+    fn begin_node(&mut self, layer: usize, _node_id: u32, _z_index: i32, _light_mask: u32) -> bool {
         let renderer_count = {
             let Some((target, _)) = self.layers.get(layer) else {
                 return false;
@@ -762,6 +762,7 @@ impl<R: piet::RenderContext> api::RenderContext for PietRenderer<R> {
         node_id: u32,
         _z_index: i32,
         coverage_bounds: kurbo::Rect,
+        _light_mask: u32,
     ) -> bool {
         let renderer_count = {
             let Some((target, _)) = self.layers.get(layer) else {

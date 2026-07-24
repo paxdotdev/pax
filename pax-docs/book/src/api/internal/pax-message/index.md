@@ -45,6 +45,27 @@ Type: `u32`
 
 ---
 
+### `AppleLiquidGlassPatch`
+Apple-specific native liquid-glass effect payload.
+
+#### Properties
+##### `group_id`
+Type: `u32`
+
+##### `spacing`
+Type: `f64`
+
+##### `interactive`
+Type: `bool`
+
+##### `tint`
+Type: `Option`<[`ColorMessage`](/api/internal/pax-message/index.md#colormessage)>
+
+##### `variant`
+Type: `String`
+
+---
+
 ### `BrowserConfigInterruptArgs`
 Browser capability flags discovered by the web chassis.
 
@@ -102,6 +123,9 @@ Type: `Option`<[`ColorMessage`](/api/internal/pax-message/index.md#colormessage)
 
 ##### `style`
 Type: `Option`<[`TextStyleMessage`](/api/internal/pax-message/index.md#textstylemessage)>
+
+##### `liquid_glass`
+Type: `Option`<`Option`<[`AppleLiquidGlassPatch`](/api/internal/pax-message/index.md#appleliquidglasspatch)>>
 
 ---
 
@@ -163,6 +187,9 @@ Type: `Option`<`f64`>
 ##### `checked`
 Type: `Option`<`bool`>
 
+##### `liquid_glass`
+Type: `Option`<`Option`<[`AppleLiquidGlassPatch`](/api/internal/pax-message/index.md#appleliquidglasspatch)>>
+
 ---
 
 ### `CheckboxStyleMessage`
@@ -185,18 +212,6 @@ Type: [`MouseButtonMessage`](/api/internal/pax-message/index.md#mousebuttonmessa
 
 ##### `modifiers`
 Type: `Vec`<[`ModifierKeyMessage`](/api/internal/pax-message/index.md#modifierkeymessage)>
-
----
-
-### `TapInterruptArgs`
-Single-touch tap payload normalized to window coordinates.
-
-#### Properties
-##### `x`
-Type: `f64`
-
-##### `y`
-Type: `f64`
 
 ---
 
@@ -302,6 +317,9 @@ Type: `Option`<`f64`>
 
 ##### `style`
 Type: `Option`<[`TextStyleMessage`](/api/internal/pax-message/index.md#textstylemessage)>
+
+##### `liquid_glass`
+Type: `Option`<`Option`<[`AppleLiquidGlassPatch`](/api/internal/pax-message/index.md#appleliquidglasspatch)>>
 
 ---
 
@@ -457,6 +475,39 @@ Type: `Option`<[`f64`; 4]>
 
 ##### `presented_clip_bounds`
 Type: `Option`<[`f64`; 4]>
+
+---
+
+### `GlassSurfacePatch`
+Create/update patch for a materialized native liquid-glass surface.
+
+#### Properties
+##### `id`
+Type: `u32`
+
+##### `parent_frame`
+Type: `Option`<`Option`<`u32`>>
+
+##### `z_index`
+Type: `Option`<`i32`>
+
+##### `transform`
+Type: `Option`<`Vec`<`f64`>>
+
+##### `size_x`
+Type: `Option`<`f64`>
+
+##### `size_y`
+Type: `Option`<`f64`>
+
+##### `opacity`
+Type: `Option`<`f64`>
+
+##### `border_radius`
+Type: `Option`<`f64`>
+
+##### `liquid_glass`
+Type: `Option`<[`AppleLiquidGlassPatch`](/api/internal/pax-message/index.md#appleliquidglasspatch)>
 
 ---
 
@@ -989,6 +1040,9 @@ Type: `Option`<`f64`>
 ##### `opacity`
 Type: `Option`<`f64`>
 
+##### `liquid_glass`
+Type: `Option`<`Option`<[`AppleLiquidGlassPatch`](/api/internal/pax-message/index.md#appleliquidglasspatch)>>
+
 ---
 
 ### `RenderSurfaceUpdateArgs`
@@ -1219,6 +1273,9 @@ Type: `Option`<[`ColorMessage`](/api/internal/pax-message/index.md#colormessage)
 ##### `border_radius`
 Type: `Option`<`f64`>
 
+##### `liquid_glass`
+Type: `Option`<`Option`<[`AppleLiquidGlassPatch`](/api/internal/pax-message/index.md#appleliquidglasspatch)>>
+
 ---
 
 ### `SystemFontMessage`
@@ -1236,6 +1293,18 @@ Type: `Option`<[`FontWeightMessage`](/api/internal/pax-message/index.md#fontweig
 
 ---
 
+### `TapInterruptArgs`
+Single-touch tap payload normalized to window coordinates.
+
+#### Properties
+##### `x`
+Type: `f64`
+
+##### `y`
+Type: `f64`
+
+---
+
 ### `TextInputArgs`
 Raw text input payload delivered by a native text control.
 
@@ -1245,6 +1314,24 @@ Type: `String`
 
 ##### `id`
 Type: `u32`
+
+---
+
+### `TextMeasurementResponseArgs`
+Chassis response to an engine-authored native text measurement request.
+
+#### Properties
+##### `id`
+Type: `u32`
+
+##### `generation`
+Type: `u64`
+
+##### `width`
+Type: `f64`
+
+##### `height`
+Type: `f64`
 
 ---
 
@@ -1276,6 +1363,9 @@ Type: `Option`<`bool`>
 ##### `markdown`
 Type: `Option`<`bool`>
 
+##### `wrap`
+Type: `Option`<`bool`>
+
 ##### `transform`
 Type: `Option`<`Vec`<`f64`>>
 
@@ -1293,6 +1383,9 @@ Type: `Option`<[`TextStyleMessage`](/api/internal/pax-message/index.md#textstyle
 
 ##### `style_link`
 Type: `Option`<[`TextStyleMessage`](/api/internal/pax-message/index.md#textstylemessage)>
+
+##### `measure_generation`
+Type: `Option`<`u64`>
 
 ---
 
@@ -1380,6 +1473,18 @@ Type: `Option`<`f64`>
 
 ##### `is_text_area`
 Type: `Option`<`bool`>
+
+##### `liquid_glass`
+Type: `Option`<`Option`<[`AppleLiquidGlassPatch`](/api/internal/pax-message/index.md#appleliquidglasspatch)>>
+
+---
+
+### `TouchCancelInterruptArgs`
+Touch-cancel interrupt payload.
+
+#### Properties
+##### `touches`
+Type: `Vec`<[`TouchMessage`](/api/internal/pax-message/index.md#touchmessage)>
 
 ---
 
@@ -1609,12 +1714,14 @@ Events and data packets sent from the chassis back into the Pax runtime.
 
 #### Variants
 ##### `ChassisResizeRequestCollection`(`Vec`<[`ChassisResizeRequestArgs`](/api/internal/pax-message/index.md#chassisresizerequestargs)>)
+##### `TextMeasurementResponse`([`TextMeasurementResponseArgs`](/api/internal/pax-message/index.md#textmeasurementresponseargs))
 ##### `SelectStart`([`SelectStartArgs`](/api/internal/pax-message/index.md#selectstartargs))
 ##### `Focus`([`FocusInterruptArgs`](/api/internal/pax-message/index.md#focusinterruptargs))
 ##### `Scroll`([`ScrollInterruptArgs`](/api/internal/pax-message/index.md#scrollinterruptargs))
 ##### `TouchStart`([`TouchStartInterruptArgs`](/api/internal/pax-message/index.md#touchstartinterruptargs))
 ##### `TouchMove`([`TouchMoveInterruptArgs`](/api/internal/pax-message/index.md#touchmoveinterruptargs))
 ##### `TouchEnd`([`TouchEndInterruptArgs`](/api/internal/pax-message/index.md#touchendinterruptargs))
+##### `TouchCancel`([`TouchCancelInterruptArgs`](/api/internal/pax-message/index.md#touchcancelinterruptargs))
 ##### `KeyDown`([`KeyDownInterruptArgs`](/api/internal/pax-message/index.md#keydowninterruptargs))
 ##### `KeyUp`([`KeyUpInterruptArgs`](/api/internal/pax-message/index.md#keyupinterruptargs))
 ##### `KeyPress`([`KeyPressInterruptArgs`](/api/internal/pax-message/index.md#keypressinterruptargs))
@@ -1689,6 +1796,9 @@ Messages emitted by the runtime to create, update, delete, or configure native/c
 ##### `PhotoPickerCreate`([`AnyCreatePatch`](/api/internal/pax-message/index.md#anycreatepatch))
 ##### `PhotoPickerUpdate`([`PhotoPickerPatch`](/api/internal/pax-message/index.md#photopickerpatch))
 ##### `PhotoPickerDelete`(`u32`)
+##### `GlassSurfaceCreate`([`AnyCreatePatch`](/api/internal/pax-message/index.md#anycreatepatch))
+##### `GlassSurfaceUpdate`([`GlassSurfacePatch`](/api/internal/pax-message/index.md#glasssurfacepatch))
+##### `GlassSurfaceDelete`(`u32`)
 ##### `ScrollerCreate`([`AnyCreatePatch`](/api/internal/pax-message/index.md#anycreatepatch))
 ##### `ScrollerUpdate`([`ScrollerPatch`](/api/internal/pax-message/index.md#scrollerpatch))
 ##### `ScrollerDelete`(`u32`)

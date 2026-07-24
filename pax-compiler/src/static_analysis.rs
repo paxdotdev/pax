@@ -60,6 +60,7 @@ const PAX_STD_DESIGNTIME_SEED_IDENTIFIERS: &[&str] = &[
     "ImageSource",
     "ImageFit",
     "Line",
+    "LightFrame",
     "LightSource",
     "Path",
     "PathPoint",

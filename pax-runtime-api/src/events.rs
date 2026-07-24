@@ -63,9 +63,11 @@ pub struct Scroll {
 /// Represents a single touch event.
 #[derive(Clone)]
 pub struct Touch {
-    /// The x-coordinate of this touch point.
+    /// The window-space x-coordinate of this touch point.
+    /// Use `NodeContext::local_point` to convert it into coordinates relative to a handler's node.
     pub x: f64,
-    /// The y-coordinate of this touch point.
+    /// The window-space y-coordinate of this touch point.
+    /// Use `NodeContext::local_point` to convert it into coordinates relative to a handler's node.
     pub y: f64,
     /// Stable identifier for this touch across a touch sequence.
     pub identifier: i64,
@@ -88,7 +90,8 @@ impl From<&TouchMessage> for Touch {
 }
 
 /// A TouchStart occurs when the user touches an element.
-/// The contained `touches` represent a list of touch points.
+/// The contained `touches` represent a list of touch points. The hit node is captured for the
+/// touch identifier so subsequent move and end events keep routing to the same subtree.
 #[derive(Clone)]
 pub struct TouchStart {
     /// Active touch points at the start of this touch sequence.
@@ -96,7 +99,8 @@ pub struct TouchStart {
 }
 
 /// A TouchMove occurs when the user moves while touching an element.
-/// The contained `touches` represent a list of touch points.
+/// The contained `touches` represent a list of touch points and the event targets the node captured
+/// at touch start, even when the point has moved outside its bounds.
 #[derive(Clone)]
 pub struct TouchMove {
     /// Active touch points after this touch movement.
@@ -104,10 +108,25 @@ pub struct TouchMove {
 }
 
 /// A TouchEnd occurs when the user stops touching an element.
-/// The contained `touches` represent a list of touch points.
+/// The contained `touches` represent a list of touch points and the event targets, then releases,
+/// the node captured at touch start.
 #[derive(Clone)]
 pub struct TouchEnd {
     /// Touch points that ended.
+    pub touches: Vec<Touch>,
+}
+
+/// A TouchCancel occurs when the platform aborts an active touch sequence before normal release,
+/// such as during a system interruption or host-level gesture cancellation.
+///
+/// The contained `touches` represent the cancelled touch points and the event targets, then
+/// releases, the node captured at touch start. Cancelled touches must not produce activation.
+/// A native Scroller that can observe its pan simultaneously with child touches keeps delivering
+/// move events and finishes the child sequence with `TouchEnd`; winning scroll arbitration alone
+/// does not cancel the touch.
+#[derive(Clone)]
+pub struct TouchCancel {
+    /// Touch points whose active sequence was cancelled.
     pub touches: Vec<Touch>,
 }
 
@@ -158,9 +177,11 @@ pub struct Focus {}
 /// Common properties in mouse-backed events and normalized activation events.
 #[derive(Clone)]
 pub struct MouseEventArgs {
-    /// The x-coordinate of the event in the receiving node's local coordinate space.
+    /// The window-space x-coordinate of the event.
+    /// Use `NodeContext::local_point` to convert it into coordinates relative to a handler's node.
     pub x: f64,
-    /// The y-coordinate of the event in the receiving node's local coordinate space.
+    /// The window-space y-coordinate of the event.
+    /// Use `NodeContext::local_point` to convert it into coordinates relative to a handler's node.
     pub y: f64,
     /// Mouse button associated with the event.
     pub button: MouseButton,
@@ -219,7 +240,8 @@ impl From<&ModifierKeyMessage> for ModifierKey {
 /// User activates an element with a mouse click or single-touch tap.
 ///
 /// `@click` and `@tap` handlers both receive `Event<Click>`. A touch tap is
-/// normalized with `button` set to `MouseButton::Left` and no modifiers.
+/// emitted after touch end and normalized with `button` set to
+/// `MouseButton::Left` and no modifiers.
 #[derive(Clone)]
 pub struct Click {
     /// Common mouse event data.

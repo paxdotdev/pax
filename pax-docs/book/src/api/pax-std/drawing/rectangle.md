@@ -17,6 +17,11 @@ Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Fill`](/api/pa
 
 Fill painted inside the rectangle.
 
+##### `material`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Material`](/api/pax-runtime-api/drawing.md#material)>
+
+Light-reactive surface response.
+
 ##### `corner_radii`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`RectangleCornerRadii`](/api/pax-std/drawing/rectangle.md#rectanglecornerradii)>
 

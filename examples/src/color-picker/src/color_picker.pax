@@ -66,6 +66,7 @@
         @touch_start=self.palette_touch_start
         @touch_move=self.palette_touch_move
         @touch_end=self.palette_touch_end
+        @touch_cancel=self.palette_touch_cancel
     >
         <Ellipse
             x={(self.saturation*100)%}

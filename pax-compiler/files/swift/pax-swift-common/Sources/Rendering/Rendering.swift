@@ -1803,7 +1803,252 @@ public struct NativeRenderingLayer: View {
     private final class PlatformScrollerView: PlatformContainerView, PlatformScrollerDelegate {
         private let scrollerId: PaxNodeId
 #if os(iOS) || os(tvOS) || os(watchOS)
-        private let scrollView = UIScrollView()
+        private final class TouchObservingGestureRecognizer:
+            UIGestureRecognizer,
+            UIGestureRecognizerDelegate
+        {
+            enum Phase {
+                case began
+                case moved
+                case ended
+                case cancelled
+            }
+
+            typealias TouchHandler = (Phase, Set<UITouch>, UIEvent?) -> Void
+
+            private let touchHandler: TouchHandler
+            private var activeTouchIdentifiers: Set<ObjectIdentifier> = []
+
+            init(touchHandler: @escaping TouchHandler) {
+                self.touchHandler = touchHandler
+                super.init(target: nil, action: nil)
+                delegate = self
+                cancelsTouchesInView = false
+                delaysTouchesBegan = false
+                delaysTouchesEnded = false
+            }
+
+            required init?(coder: NSCoder) {
+                fatalError("init(coder:) has not been implemented")
+            }
+
+            override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+                activeTouchIdentifiers.formUnion(touches.map(ObjectIdentifier.init))
+                touchHandler(.began, touches, event)
+            }
+
+            override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
+                touchHandler(.moved, touches, event)
+            }
+
+            override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
+                touchHandler(.ended, touches, event)
+                activeTouchIdentifiers.subtract(touches.map(ObjectIdentifier.init))
+                if activeTouchIdentifiers.isEmpty {
+                    state = .failed
+                }
+            }
+
+            override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) {
+                touchHandler(.cancelled, touches, event)
+                activeTouchIdentifiers.subtract(touches.map(ObjectIdentifier.init))
+                if activeTouchIdentifiers.isEmpty {
+                    state = .failed
+                }
+            }
+
+            override func reset() {
+                activeTouchIdentifiers.removeAll()
+                super.reset()
+            }
+
+            override func canPrevent(_ preventedGestureRecognizer: UIGestureRecognizer) -> Bool {
+                false
+            }
+
+            override func canBePrevented(
+                by preventingGestureRecognizer: UIGestureRecognizer
+            ) -> Bool {
+                false
+            }
+
+            func gestureRecognizer(
+                _ gestureRecognizer: UIGestureRecognizer,
+                shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+            ) -> Bool {
+                true
+            }
+        }
+
+        private final class TouchForwardingScrollView: UIScrollView {
+            private var lastTouchPositions: [Int64: CGPoint] = [:]
+            private var activeTapTouchIdentifier: Int64?
+            private var activeTapStartPosition: CGPoint?
+            private var scrollDidWin = false
+            private let tapMovementTolerance: CGFloat = 10.0
+            private lazy var touchObserver = TouchObservingGestureRecognizer {
+                [weak self] phase, touches, event in
+                guard let self else {
+                    return
+                }
+                switch phase {
+                case .began:
+                    observeTouchesBegan(touches, with: event)
+                case .moved:
+                    observeTouchesMoved(touches, with: event)
+                case .ended:
+                    observeTouchesEnded(touches, with: event)
+                case .cancelled:
+                    observeTouchesCancelled(touches, with: event)
+                }
+            }
+
+            override init(frame: CGRect) {
+                super.init(frame: frame)
+                addGestureRecognizer(touchObserver)
+            }
+
+            required init?(coder: NSCoder) {
+                fatalError("init(coder:) has not been implemented")
+            }
+
+            private func touchIdentifier(for touch: UITouch) -> Int64 {
+                Int64(bitPattern: UInt64(UInt(bitPattern: Unmanaged.passUnretained(touch).toOpaque())))
+            }
+
+            private func sortedTouches(_ touches: some Sequence<UITouch>) -> [UITouch] {
+                touches.sorted { touchIdentifier(for: $0) < touchIdentifier(for: $1) }
+            }
+
+            private func orderedActiveTouches(
+                changedTouches: Set<UITouch>,
+                event: UIEvent?
+            ) -> [UITouch] {
+                let changedIdentifiers = Set(changedTouches.map(touchIdentifier(for:)))
+                let activeTouches = event?.allTouches?.filter { touch in
+                    touch.phase != .ended && touch.phase != .cancelled
+                } ?? Array(changedTouches)
+                let orderedChangedTouches = sortedTouches(changedTouches)
+                let orderedRemainingTouches = sortedTouches(activeTouches.filter { touch in
+                    !changedIdentifiers.contains(touchIdentifier(for: touch))
+                })
+                return orderedChangedTouches + orderedRemainingTouches
+            }
+
+            private func paxPoint(for touch: UITouch) -> CGPoint {
+                let touchWindow = touch.view?.window ?? window
+                let windowPoint = touch.preciseLocation(in: touchWindow)
+                return NativeInterruptDispatcher.shared.convertWindowPoint(
+                    windowPoint,
+                    in: touchWindow
+                ) ?? windowPoint
+            }
+
+            private func touchMessage(for touch: UITouch) -> TouchInterruptMessage {
+                let identifier = touchIdentifier(for: touch)
+                let point = paxPoint(for: touch)
+                let lastPoint = lastTouchPositions[identifier] ?? point
+                let message = TouchInterruptMessage(
+                    x: Double(point.x),
+                    y: Double(point.y),
+                    identifier: identifier,
+                    deltaX: Double(point.x - lastPoint.x),
+                    deltaY: Double(point.y - lastPoint.y)
+                )
+                lastTouchPositions[identifier] = point
+                return message
+            }
+
+            private func clearTouch(_ touch: UITouch) {
+                let identifier = touchIdentifier(for: touch)
+                lastTouchPositions.removeValue(forKey: identifier)
+            }
+
+            func markScrollGestureRecognized() {
+                scrollDidWin = true
+                activeTapTouchIdentifier = nil
+                activeTapStartPosition = nil
+            }
+
+            private func observeTouchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+                if lastTouchPositions.isEmpty {
+                    scrollDidWin = false
+                }
+                let activeTouches = orderedActiveTouches(changedTouches: touches, event: event)
+                activeTapTouchIdentifier = activeTouches.count == 1 && touches.count == 1
+                    ? activeTouches.first.map(touchIdentifier(for:))
+                    : nil
+                activeTapStartPosition = activeTapTouchIdentifier == nil
+                    ? nil
+                    : activeTouches.first.map(paxPoint(for:))
+                let messages = activeTouches.map(touchMessage(for:))
+                if !messages.isEmpty {
+                    dispatchTouchStart(touches: messages)
+                }
+            }
+
+            private func observeTouchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+                if let activeTapTouchIdentifier, let activeTapStartPosition,
+                   let activeTouch = event?.allTouches?.first(where: {
+                       touchIdentifier(for: $0) == activeTapTouchIdentifier
+                   }) {
+                    let point = paxPoint(for: activeTouch)
+                    if hypot(
+                        point.x - activeTapStartPosition.x,
+                        point.y - activeTapStartPosition.y
+                    ) > tapMovementTolerance {
+                        self.activeTapTouchIdentifier = nil
+                        self.activeTapStartPosition = nil
+                    }
+                }
+                let messages = orderedActiveTouches(changedTouches: touches, event: event)
+                    .map(touchMessage(for:))
+                if !messages.isEmpty {
+                    dispatchTouchMove(touches: messages)
+                }
+            }
+
+            private func observeTouchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+                let orderedTouches = sortedTouches(touches)
+                let endedMessages = orderedTouches.map(touchMessage(for:))
+                if !endedMessages.isEmpty {
+                    dispatchTouchEnd(touches: endedMessages)
+                }
+
+                let remainingTouches = event?.allTouches?.filter { touch in
+                    touch.phase != .ended && touch.phase != .cancelled
+                } ?? []
+                if !scrollDidWin,
+                   remainingTouches.isEmpty,
+                   endedMessages.count == 1,
+                   endedMessages.first?.identifier == activeTapTouchIdentifier,
+                   let tap = endedMessages.first {
+                    dispatchTap(x: tap.x, y: tap.y)
+                }
+
+                activeTapTouchIdentifier = nil
+                activeTapStartPosition = nil
+                for touch in orderedTouches {
+                    clearTouch(touch)
+                }
+            }
+
+            private func observeTouchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+                let orderedTouches = sortedTouches(touches)
+                let cancelledMessages = orderedTouches.map(touchMessage(for:))
+                if !cancelledMessages.isEmpty {
+                    dispatchTouchCancel(touches: cancelledMessages)
+                }
+                scrollDidWin = true
+                activeTapTouchIdentifier = nil
+                activeTapStartPosition = nil
+                for touch in orderedTouches {
+                    clearTouch(touch)
+                }
+            }
+        }
+
+        private let scrollView = TouchForwardingScrollView(frame: .zero)
         private let innerContentView = UIView()
         private let paxTapGestureRecognizer = UITapGestureRecognizer()
 #elseif os(macOS)
@@ -1940,6 +2185,7 @@ public struct NativeRenderingLayer: View {
             scrollView.showsHorizontalScrollIndicator = false
             scrollView.backgroundColor = .clear
             scrollView.isOpaque = false
+            scrollView.isMultipleTouchEnabled = true
             scrollView.alwaysBounceVertical = true
             scrollView.alwaysBounceHorizontal = true
             scrollView.clipsToBounds = true
@@ -2709,6 +2955,7 @@ public struct NativeRenderingLayer: View {
         }
 
         func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+            self.scrollView.markScrollGestureRecognized()
             cancelIOSSnap()
             pendingIOSSnapTarget = nil
             scrollView.layer.removeAllAnimations()

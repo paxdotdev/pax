@@ -39,6 +39,11 @@ Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`bool`>
 
 Whether `text` should be interpreted as Markdown.
 
+##### `wrap`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`bool`>
+
+Whether long text lines should wrap inside the node bounds.
+
 ---
 
 ### `TextStyle`

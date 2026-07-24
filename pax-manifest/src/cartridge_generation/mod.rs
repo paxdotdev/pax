@@ -151,6 +151,7 @@ impl PaxManifest {
         add("touch_start", "TouchStart");
         add("touch_move", "TouchMove");
         add("touch_end", "TouchEnd");
+        add("touch_cancel", "TouchCancel");
         add("key_down", "KeyDown");
         add("key_up", "KeyUp");
         add("key_press", "KeyPress");

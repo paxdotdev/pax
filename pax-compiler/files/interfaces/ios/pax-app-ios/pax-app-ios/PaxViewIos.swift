@@ -142,6 +142,9 @@ struct PaxViewIos: View {
         private var lastTouchPositions: [ObjectIdentifier: CGPoint] = [:]
         private let frameInstrumentationEnabled = PaxCanvasViewIos.frameInstrumentationFlagEnabled()
         private var frameInstrumentation = PaxFrameInstrumentation()
+        private var activeTapTouchKey: ObjectIdentifier?
+        private var activeTapStartPosition: CGPoint?
+        private let tapMovementTolerance: CGFloat = 10.0
 
         override init(frame: CGRect) {
             super.init(frame: frame)
@@ -156,7 +159,26 @@ struct PaxViewIos: View {
         private func configureView() {
             isOpaque = false
             isMultipleTouchEnabled = true
+            installNativeInterruptDispatcher()
             createDisplayLink()
+        }
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            installNativeInterruptDispatcher()
+        }
+
+        private func installNativeInterruptDispatcher() {
+            NativeInterruptDispatcher.shared.sendData = sendInterruptToEngine
+            NativeInterruptDispatcher.shared.convertWindowPointToPax = { [weak self] point, window in
+                guard let self else {
+                    return nil
+                }
+                if let window, self.window !== window {
+                    return nil
+                }
+                return self.convert(point, from: window)
+            }
         }
 
 
@@ -222,9 +244,14 @@ struct PaxViewIos: View {
             }
         }
 
-        private func dispatchTapIfNeeded(changedTouches: Set<UITouch>, event: UIEvent?) {
-            let activeTouches = orderedActiveTouches(changedTouches: changedTouches, event: event)
-            guard activeTouches.count == 1, let touch = activeTouches.first else {
+        private func dispatchTapIfNeeded(endedTouches: [UITouch], event: UIEvent?) {
+            let remainingTouches = event?.allTouches?.filter { touch in
+                touch.phase != .ended && touch.phase != .cancelled
+            } ?? []
+            guard remainingTouches.isEmpty,
+                  endedTouches.count == 1,
+                  let touch = endedTouches.first,
+                  touchStorageKey(for: touch) == activeTapTouchKey else {
                 return
             }
 
@@ -233,12 +260,31 @@ struct PaxViewIos: View {
         }
 
         override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-            dispatchTouchStart(touches: touchMessages(from: orderedActiveTouches(changedTouches: touches, event: event)))
-            dispatchTapIfNeeded(changedTouches: touches, event: event)
+            let activeTouches = orderedActiveTouches(changedTouches: touches, event: event)
+            activeTapTouchKey = activeTouches.count == 1 && touches.count == 1
+                ? activeTouches.first.map { self.touchStorageKey(for: $0) }
+                : nil
+            activeTapStartPosition = activeTapTouchKey == nil
+                ? nil
+                : activeTouches.first?.preciseLocation(in: self)
+            dispatchTouchStart(touches: touchMessages(from: activeTouches))
             super.touchesBegan(touches, with: event)
         }
 
         override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+            if let activeTapTouchKey, let activeTapStartPosition,
+               let activeTouch = event?.allTouches?.first(where: {
+                   touchStorageKey(for: $0) == activeTapTouchKey
+               }) {
+                let position = activeTouch.preciseLocation(in: self)
+                if hypot(
+                    position.x - activeTapStartPosition.x,
+                    position.y - activeTapStartPosition.y
+                ) > tapMovementTolerance {
+                    self.activeTapTouchKey = nil
+                    self.activeTapStartPosition = nil
+                }
+            }
             dispatchTouchMove(touches: touchMessages(from: orderedActiveTouches(changedTouches: touches, event: event)))
             super.touchesMoved(touches, with: event)
         }
@@ -246,13 +292,18 @@ struct PaxViewIos: View {
         override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
             let orderedTouches = sortedTouches(touches)
             dispatchTouchEnd(touches: touchMessages(from: orderedTouches))
+            dispatchTapIfNeeded(endedTouches: orderedTouches, event: event)
+            activeTapTouchKey = nil
+            activeTapStartPosition = nil
             clearTouchPositions(for: orderedTouches)
             super.touchesEnded(touches, with: event)
         }
 
         override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
             let orderedTouches = sortedTouches(touches)
-            dispatchTouchEnd(touches: touchMessages(from: orderedTouches))
+            dispatchTouchCancel(touches: touchMessages(from: orderedTouches))
+            activeTapTouchKey = nil
+            activeTapStartPosition = nil
             clearTouchPositions(for: orderedTouches)
             super.touchesCancelled(touches, with: event)
         }

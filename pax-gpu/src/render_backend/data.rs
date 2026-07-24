@@ -20,6 +20,8 @@ pub(crate) struct GpuPrimitive {
     pub material_id: u32,
     pub transform_id: u32,
     pub draw_range: [f32; 4],
+    pub light_mask: u32,
+    pub _padding: [u32; 3],
 }
 
 #[repr(C)]
@@ -94,6 +96,17 @@ pub(crate) struct GpuVertex {
     pub normal: [f32; 2],
     pub prim_id: u32,
     pub path_progress: f32,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn gpu_primitive_matches_wgsl_storage_stride() {
+        assert_eq!(std::mem::size_of::<GpuPrimitive>(), 48);
+        assert_eq!(std::mem::align_of::<GpuPrimitive>(), 4);
+    }
 }
 
 impl GpuVertex {

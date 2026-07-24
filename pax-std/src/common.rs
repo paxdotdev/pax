@@ -120,6 +120,7 @@ pub fn begin_bounded_canvas_node(
         node_id,
         expanded_node.occlusion.get().z_index,
         coverage_bounds,
+        context.canvas_node_light_mask(expanded_node.id),
     ) {
         if rc.take_clean_skipped_node(layer_id, node_id) {
             context.clear_canvas_node_dirty(&expanded_node.id);

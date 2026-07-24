@@ -23,7 +23,7 @@ Maintains the stencil stack used to render nested vector clips.
 
 #### Implementations
 ##### `new`
-<pre><code class="api-signature language-rust ignore">pub fn new(device: &amp;Device, width: u32, height: u32, sample_count: u32, globals: &amp;Buffer, clip_transforms: &amp;Buffer) -&gt; Self</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn new(device: &amp;Device, width: u32, height: u32, sample_count: u32, color_format: TextureFormat, globals: &amp;Buffer, clip_transforms: &amp;Buffer) -&gt; Self</code></pre>
 
 Create the stencil pipelines and backing texture.
 

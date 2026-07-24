@@ -704,6 +704,28 @@ expands again. Recommendations: treat scroll offsets as patch-owned state;
 structural reconciliation must not replay them, and platform layout clamps must
 not silently become user-authored state.
 
+Trying to replace per-gem sheen overlays with a scene light in the
+`slot-projection-resolver` example exposed that light membership is currently
+layer-global. One gem light also changed panels, controls, outlines, scroller
+backings, and other default-lit vector chrome. Preserving the original scene
+required defensive `Material::unlit()` settings on every unrelated primitive;
+an omitted opt-out could change UI far from the component that authored the
+effect. A local light could also dim inaccessible siblings through the default
+ambient term even if its direct contribution were filtered later.
+
+The PAX-966 MVP design introduces a lexical `LightFrame`: a light belongs to its
+nearest frame, outer lights may enter nested frames, and inner lights cannot
+escape to parents or siblings. Membership follows expanded render-parent
+ancestry, so repeated components and projected slot content behave according to
+their mounted visual tree. Primitives with no eligible light and no authored
+ambient retain identity lighting rather than receiving the default lit-scene
+ambient.
+
+Recommendations: prove scoped lighting with both a repeated hover-light case
+and the gem-tile regression; keep `AmbientLight` layer-wide for the first slice;
+and treat arbitrary selector targeting and component-authored singleton light
+resources as separate follow-up designs.
+
 ## 2026-07-22
 
 A modal underlay authored as a translucent canvas `Rectangle` did not composite
@@ -721,3 +743,77 @@ and scroller surfaces; opaque incoming canvas content masks it through the
 normal occlusion path. Recommendations: use a real surface in the native z
 stack for translucent modal underlays that span canvas islands. Do not model
 source-over color compositing by attenuating the covered surface's alpha.
+
+Building the PAX-966 `GlowButton` example exposed three adjacent integration
+boundaries. First, mouse and touch payload documentation described coordinates
+as node-local even though the web and native chassis send window coordinates.
+The existing `NodeContext::local_point` conversion is the right transform-aware
+path, so the payload docs and event guide now state that contract explicitly.
+
+Second, touch move and end events were re-hit-tested at their current position.
+A direct-manipulation effect therefore stopped receiving updates as soon as the
+finger left its original bounds, and could remain visually pressed. The runtime
+now captures the topmost hit node per touch identifier at start, routes move,
+end, and cancel to that captured subtree, and releases capture at completion,
+cancellation, or node removal.
+Recommendation: keep pointer ownership in shared runtime dispatch rather than
+reimplementing capture independently in each chassis or component.
+
+Putting that example inside a native iOS `Scroller` exposed a related input-
+island boundary: the `UIScrollView` sits above the Pax canvas, so the canvas's
+touch overrides never see contacts that begin inside the Scroller. The native
+Scroller must forward touch start/move/end in Pax viewport coordinates while
+letting UIKit's pan recognizer arbitrate.
+
+Forwarding from `UIScrollView.touchesBegan` was too late: UIKit delays delivery
+to content while deciding whether a vertical pan will win, which made immediate
+feedback appear only for quick taps, held contacts, and motion outside the
+enabled scroll axis. Cancelling the captured child from
+`scrollViewWillBeginDragging` compounded the problem by conflating scroll
+ownership with touch-stream cancellation. Observe contacts with a non-cancelling
+gesture recognizer that recognizes simultaneously with the native pan instead.
+The child receives start, move, and end even while scrolling; the pan only
+disqualifies tap activation. Reserve `TouchCancel` for an actually aborted
+contact, and keep tap recognition movement-aware on every chassis so a completed
+drag cannot synthesize a click.
+
+Third, Rust compilation did not validate the embedded WGSL shader. A helper
+scope error compiled successfully and failed only during WGPU pipeline creation,
+which surfaces as a fatal native validation crash. A focused Naga test now
+parses and validates the shipping geometry shader, alongside a Rust/WGSL storage
+layout assertion. Recommendation: every shader or GPU data-layout change should
+run host-side shader validation before launching an example.
+
+The first web showcase build also encountered a workstation-specific toolchain
+boundary: the active Node 14 runtime was below esbuild's supported range and the
+global npm staging lock was owned by another user. The macOS build remained a
+valid visual test chassis, but web validation should preflight the bundled Node
+runtime and a writable npm cache before entering the Pax build.
+
+Touch-driven local coordinates exposed one more Scroller boundary on web:
+hit-testing already folded the browser-owned presentation scroll offset into
+its event ray, but `NodeContext::local_point` inverted only the node's
+content-coordinate layout transform. A touch on a vertically scrolled child
+therefore produced a local Y displaced by the scroll amount (usually clamped to
+the child's top edge), while X appeared correct when the Scroller had not moved
+horizontally.
+
+Solved by resolving the same accumulated ancestor-scroller presentation
+transform for local coordinate conversion that hit-testing uses.
+Recommendation: any API converting window coordinates into node-local space
+must account for presentation-only transforms such as native/browser scrolling,
+not merely the engine's layout transform.
+
+Fading the final scoped light to zero exposed a separate lighting-state seam.
+While the zero-intensity light remained enabled, its eligible material still
+received the default 35% ambient term; disabling that final light then restored
+identity rendering in one frame. The result looked like a dark pause followed
+by a sudden flash back to the resting fill.
+
+The `GlowButton` now eases its material ambient response toward the reciprocal
+of the default ambient intensity while the direct light fades. At the
+zero-light endpoint the lit result already equals identity rendering, making
+the eventual light disable visually continuous. Recommendation: when an
+authored lighting scene transitions back to identity, animate either scene
+ambient or eligible material response to an identity-equivalent endpoint before
+removing the final light.

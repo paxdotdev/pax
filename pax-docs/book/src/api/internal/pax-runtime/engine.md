@@ -3,6 +3,7 @@
 <!-- tags: api, pax-runtime -->
 
 ## Submodules
+- [engine::layer_surface](engine/layer_surface.md)
 - [engine::layer_tiling](engine/layer_tiling.md)
 - [engine::node_interface](engine/node_interface.md)
 - [engine::occlusion](engine/occlusion.md)
@@ -43,6 +44,9 @@ Type: [`Platform`](/api/pax-runtime-api/platform.md#platform)
 
 ##### `os`
 Type: [`OS`](/api/pax-runtime-api/platform.md#os)
+
+##### `target`
+Type: [`TargetInfo`](/api/pax-runtime-api/platform.md#targetinfo)
 
 ##### `get_elapsed_millis`
 Type: `Rc`<`dyn` `Fn`() -> `u128`>

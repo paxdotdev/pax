@@ -36,7 +36,12 @@ BEGIN TEMPLATE
 ##### `pascal_identifier`
 ##### `event_id`
 ##### `attribute_key_value_pair`
+##### `attribute_transition_binding`
 ##### `attribute_event_binding`
+##### `transition_id`
+##### `transition_binding_value`
+##### `transition_inline_timeline_value`
+##### `transition_inline_timeline_body`
 ##### `double_binding`
 ##### `any_template_value`
 ##### `node_inner_content`
@@ -48,6 +53,12 @@ BEGIN TEMPLATE
 BEGIN SETTINGS
 ///
 
+##### `settings_block_element`
+##### `settings_conditional`
+##### `settings_if_branch`
+##### `settings_else_if_branch`
+##### `settings_else_branch`
+##### `settings_conditional_body`
 ##### `selector_block`
 ##### `literal_object`
 ##### `selector`
@@ -77,6 +88,20 @@ BEGIN TIMELINES
 ##### `timeline_target`
 ##### `timeline_local_target`
 ##### `timeline_symbol`
+##### `gradient_inline_value`
+/// ////// //////
+BEGIN GRADIENTS
+///
+
+##### `gradient_body`
+##### `gradient_shape_block`
+##### `gradient_shape_key`
+##### `gradient_shape_settings`
+##### `gradient_shape_setting`
+##### `gradient_shape_setting_value`
+##### `gradient_stop`
+##### `gradient_stop_marker`
+##### `gradient_stop_value`
 ##### `literal_function`
 ##### `silent_comma`
 ##### `function_list`
@@ -116,6 +141,7 @@ This sub-grammar describes PAXEL, the Pax Expression Language
 ##### `expression_binary`
 ##### `expression_wrapped`
 ##### `expression_grouped`
+##### `expression_grouped_unit`
 ##### `xo_primary`
 ##### `xo_prefix`
 ##### `xo_neg`

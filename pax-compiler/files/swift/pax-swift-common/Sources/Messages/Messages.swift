@@ -59,7 +59,9 @@ public final class NativeInterruptDispatcher {
     public static let shared = NativeInterruptDispatcher()
 
     public var sendData: ((Data) -> Void)?
-#if os(macOS)
+#if os(iOS) || os(tvOS) || os(watchOS)
+    public var convertWindowPointToPax: ((CGPoint, UIWindow?) -> CGPoint?)?
+#elseif os(macOS)
     public var convertWindowPointToPax: ((NSPoint, NSWindow?) -> CGPoint?)?
 #endif
 
@@ -69,7 +71,11 @@ public final class NativeInterruptDispatcher {
         sendData?(data)
     }
 
-#if os(macOS)
+#if os(iOS) || os(tvOS) || os(watchOS)
+    public func convertWindowPoint(_ point: CGPoint, in window: UIWindow?) -> CGPoint? {
+        convertWindowPointToPax?(point, window)
+    }
+#elseif os(macOS)
     public func convertWindowPoint(_ point: NSPoint, in window: NSWindow?) -> CGPoint? {
         convertWindowPointToPax?(point, window)
     }
@@ -492,6 +498,10 @@ public func dispatchTouchMove(touches: [TouchInterruptMessage]) {
 
 public func dispatchTouchEnd(touches: [TouchInterruptMessage]) {
     dispatchTouchInterrupt(type: "TouchEnd", touches: touches)
+}
+
+public func dispatchTouchCancel(touches: [TouchInterruptMessage]) {
+    dispatchTouchInterrupt(type: "TouchCancel", touches: touches)
 }
 
 public func dispatchFormButtonClick(id: PaxNodeId) {

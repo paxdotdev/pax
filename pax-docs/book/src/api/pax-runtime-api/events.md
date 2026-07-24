@@ -25,7 +25,8 @@ The new checked state.
 User activates an element with a mouse click or single-touch tap.
 
 `@click` and `@tap` handlers both receive `Event<Click>`. A touch tap is
-normalized with `button` set to `MouseButton::Left` and no modifiers.
+emitted after touch end and normalized with `button` set to
+`MouseButton::Left` and no modifiers.
 
 #### Properties
 ##### `mouse`
@@ -190,12 +191,14 @@ Common properties in mouse-backed events and normalized activation events.
 ##### `x`
 Type: `f64`
 
-The x-coordinate of the event in the receiving node's local coordinate space.
+The window-space x-coordinate of the event.
+Use `NodeContext::local_point` to convert it into coordinates relative to a handler's node.
 
 ##### `y`
 Type: `f64`
 
-The y-coordinate of the event in the receiving node's local coordinate space.
+The window-space y-coordinate of the event.
+Use `NodeContext::local_point` to convert it into coordinates relative to a handler's node.
 
 ##### `button`
 Type: [`MouseButton`](/api/pax-runtime-api/events.md#mousebutton)
@@ -387,12 +390,14 @@ Represents a single touch event.
 ##### `x`
 Type: `f64`
 
-The x-coordinate of this touch point.
+The window-space x-coordinate of this touch point.
+Use `NodeContext::local_point` to convert it into coordinates relative to a handler's node.
 
 ##### `y`
 Type: `f64`
 
-The y-coordinate of this touch point.
+The window-space y-coordinate of this touch point.
+Use `NodeContext::local_point` to convert it into coordinates relative to a handler's node.
 
 ##### `identifier`
 Type: `i64`
@@ -411,9 +416,28 @@ Vertical delta since the previous touch update.
 
 ---
 
+### `TouchCancel`
+A TouchCancel occurs when the platform aborts an active touch sequence before normal release,
+such as during a system interruption or host-level gesture cancellation.
+
+The contained `touches` represent the cancelled touch points and the event targets, then
+releases, the node captured at touch start. Cancelled touches must not produce activation.
+A native Scroller that can observe its pan simultaneously with child touches keeps delivering
+move events and finishes the child sequence with `TouchEnd`; winning scroll arbitration alone
+does not cancel the touch.
+
+#### Properties
+##### `touches`
+Type: `Vec`<[`Touch`](/api/pax-runtime-api/events.md#touch)>
+
+Touch points whose active sequence was cancelled.
+
+---
+
 ### `TouchEnd`
 A TouchEnd occurs when the user stops touching an element.
-The contained `touches` represent a list of touch points.
+The contained `touches` represent a list of touch points and the event targets, then releases,
+the node captured at touch start.
 
 #### Properties
 ##### `touches`
@@ -425,7 +449,8 @@ Touch points that ended.
 
 ### `TouchMove`
 A TouchMove occurs when the user moves while touching an element.
-The contained `touches` represent a list of touch points.
+The contained `touches` represent a list of touch points and the event targets the node captured
+at touch start, even when the point has moved outside its bounds.
 
 #### Properties
 ##### `touches`
@@ -437,7 +462,8 @@ Active touch points after this touch movement.
 
 ### `TouchStart`
 A TouchStart occurs when the user touches an element.
-The contained `touches` represent a list of touch points.
+The contained `touches` represent a list of touch points. The hit node is captured for the
+touch identifier so subsequent move and end events keep routing to the same subtree.
 
 #### Properties
 ##### `touches`

@@ -298,6 +298,7 @@ lazy_static! {
             ("touch_start", "Set Touch Start event handler"),
             ("touch_move", "Set Touch Move event handler"),
             ("touch_end", "Set Touch End event handler"),
+            ("touch_cancel", "Set Touch Cancel event handler"),
             ("key_down", "Set Key Down event handler"),
             ("key_up", "Set Key Up event handler"),
             ("key_press", "Set Key Press event handler"),

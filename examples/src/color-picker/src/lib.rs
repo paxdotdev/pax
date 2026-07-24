@@ -144,6 +144,10 @@ impl ColorPickerExample {
         self.mouse_is_down_on_palette.set(false);
     }
 
+    pub fn palette_touch_cancel(&mut self, _ctx: &NodeContext, _event: Event<TouchCancel>) {
+        self.mouse_is_down_on_palette.set(false);
+    }
+
     pub fn palette_set_from_mouse(&mut self, ctx: &NodeContext, mouse: &MouseEventArgs) {
         self.palette_set_xy(ctx, mouse.x, mouse.y);
     }

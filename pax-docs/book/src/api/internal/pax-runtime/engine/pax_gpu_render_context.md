@@ -18,67 +18,10 @@ Create a renderer wrapper with its current tile geometry.
 Access the underlying retained `pax-gpu` renderer.
 
 ##### `sync_layout_metadata`
-<pre><code class="api-signature language-rust ignore">pub fn sync_layout_metadata(&amp;mut self, surface: &amp;<a href="/api/internal/pax-runtime/engine/pax_gpu_render_context.md#layersurfaceentry">LayerSurfaceEntry</a>)</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn sync_layout_metadata(&amp;mut self, surface: &amp;<a href="/api/internal/pax-runtime/engine/layer_surface.md#layersurfaceentry">LayerSurfaceEntry</a>)</code></pre>
 
 Update the retained layout metadata after the owner has already applied matching backend
 surface/view transforms.
-
----
-
-### `LayerSurfaceEntry`
-Desired surface geometry for one tile in a layer layout.
-
-#### Properties
-##### `key`
-Type: `String`
-
-##### `host_signature`
-Type: `String`
-
-##### `origin_x`
-Type: `f32`
-
-##### `origin_y`
-Type: `f32`
-
-##### `replay_priority`
-Type: `i32`
-
-##### `surface`
-Type: [`LayerSurfaceSize`](/api/internal/pax-runtime/engine/pax_gpu_render_context.md#layersurfacesize)
-
----
-
-### `LayerSurfaceLayout`
-Desired set of physical surfaces for a logical layer.
-
-#### Properties
-##### `surfaces`
-Type: `Vec`<[`LayerSurfaceEntry`](/api/internal/pax-runtime/engine/pax_gpu_render_context.md#layersurfaceentry)>
-
-##### `active`
-Type: `bool`
-
----
-
-### `LayerSurfaceSize`
-Logical and backing-pixel dimensions for one physical surface.
-
-#### Properties
-##### `logical_width`
-Type: `f32`
-
-##### `logical_height`
-Type: `f32`
-
-##### `surface_width`
-Type: `u32`
-
-##### `surface_height`
-Type: `u32`
-
-##### `dpr`
-Type: [`f32`; 2]
 
 ---
 
@@ -114,7 +57,7 @@ Lifecycle state for a lazily-created render layer.
 #### Variants
 ##### `Pending`
 ##### `Failed`
-##### `Ready`(([`LayerTarget`](/api/internal/pax-runtime/engine/pax_gpu_render_context.md#layertarget), `Pin`<`Box`<`dyn` `Fn`() -> [`LayerSurfaceLayout`](/api/internal/pax-runtime/engine/pax_gpu_render_context.md#layersurfacelayout)>>))
+##### `Ready`(([`LayerTarget`](/api/internal/pax-runtime/engine/pax_gpu_render_context.md#layertarget), `Pin`<`Box`<`dyn` `Fn`() -> [`LayerSurfaceLayout`](/api/internal/pax-runtime/engine/layer_surface.md#layersurfacelayout)>>))
 ## Functions
 ### `convert_kurbo_to_lyon_path`
 <pre><code class="api-signature language-rust ignore">pub fn convert_kurbo_to_lyon_path(kurbo_path: &amp;BezPath) -&gt; <a href="/api/pax-std/drawing/path.md#path">Path</a></code></pre>

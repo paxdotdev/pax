@@ -4,6 +4,19 @@
 
 Rendering backend contracts and helpers for drawing Pax scene content.
 
+## Structs
+### `ReplayCanvasLayerUpdate`
+Replay invalidation for one logical canvas layer.
+
+#### Properties
+##### `layer`
+Type: `usize`
+
+##### `node_ids`
+Type: `Option`<`Vec`<`u32`>>
+
+`None` means the layer should fall back to region/full-layer dirtification.
+
 ## Enums
 ### `Layer`
 Render layer selected for a primitive or native surface.

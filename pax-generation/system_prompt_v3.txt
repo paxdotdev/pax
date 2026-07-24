@@ -327,6 +327,7 @@ Pax supports the following input events:
 - TouchStart (@touch_start)
 - TouchMove (@touch_move)
 - TouchEnd (@touch_end)
+- TouchCancel (@touch_cancel)
 - KeyDown (@key_down)
 - KeyUp (@key_up)
 - KeyPress (@key_press)
@@ -900,6 +901,13 @@ pub struct TouchMove {
 /// The contained `touches` represent a list of touch points.
 #[derive(Clone)]
 pub struct TouchEnd {
+    pub touches: Vec<Touch>,
+}
+
+/// A TouchCancel occurs when the platform aborts an active touch sequence before release.
+/// The contained touches target, then release, the node captured at TouchStart.
+#[derive(Clone)]
+pub struct TouchCancel {
     pub touches: Vec<Touch>,
 }
 

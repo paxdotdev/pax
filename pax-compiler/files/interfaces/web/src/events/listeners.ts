@@ -35,6 +35,9 @@ export function setupEventListeners(chassis: PaxChassisWeb): () => void {
 
     let lastPositions = new Map<number, {x: number, y: number}>();
     let lastTouchTap: {x: number, y: number, timestamp: number} | undefined;
+    let activeTapTouchIdentifier: number | undefined;
+    let activeTapStart: {x: number, y: number} | undefined;
+    const tapMovementTolerance = 10;
     function getTouchMessages(touchList: TouchList) {
         return Array.from(touchList).map(touch => {
             let lastPosition = lastPositions.get(touch.identifier) || { x: touch.clientX, y: touch.clientY };
@@ -202,27 +205,32 @@ export function setupEventListeners(chassis: PaxChassisWeb): () => void {
         });
         let r1 = chassis.interrupt(event, []);
 
-        let tapPreventDefault = false;
-        if (evt.touches.length === 1) {
-            let touch = evt.touches[0];
-            lastTouchTap = {
-                x: touch.clientX,
-                y: touch.clientY,
-                timestamp: performance.now(),
-            };
-            let tapEvent = {
-                "Tap": {
-                    "x": touch.clientX,
-                    "y": touch.clientY,
-                }
-            };
-            tapPreventDefault = chassis.interrupt(tapEvent, []).prevent_default;
-        }
-        if (r1.prevent_default || tapPreventDefault) {
+        activeTapTouchIdentifier = evt.touches.length === 1 && evt.changedTouches.length === 1
+            ? evt.changedTouches[0].identifier
+            : undefined;
+        activeTapStart = activeTapTouchIdentifier === undefined
+            ? undefined
+            : {x: evt.changedTouches[0].clientX, y: evt.changedTouches[0].clientY};
+        if (r1.prevent_default) {
             evt.preventDefault();
         }
     }, {"passive": true, "capture": true});
     addWindowListener('touchmove', (evt) => {
+        if (activeTapTouchIdentifier !== undefined && activeTapStart !== undefined) {
+            let activeTouch = Array.from(evt.touches as TouchList).find(
+                touch => touch.identifier === activeTapTouchIdentifier,
+            );
+            if (activeTouch !== undefined) {
+                let distance = Math.hypot(
+                    activeTouch.clientX - activeTapStart.x,
+                    activeTouch.clientY - activeTapStart.y,
+                );
+                if (distance > tapMovementTolerance) {
+                    activeTapTouchIdentifier = undefined;
+                    activeTapStart = undefined;
+                }
+            }
+        }
         let touches = getTouchMessages(evt.touches);
         let event = {
             "TouchMove": {
@@ -242,6 +250,42 @@ export function setupEventListeners(chassis: PaxChassisWeb): () => void {
             }
         };
         let res = chassis.interrupt(event, []);
+        let tapPreventDefault = false;
+        if (evt.touches.length === 0 && evt.changedTouches.length === 1) {
+            let touch = evt.changedTouches[0];
+            if (touch.identifier === activeTapTouchIdentifier) {
+                lastTouchTap = {
+                    x: touch.clientX,
+                    y: touch.clientY,
+                    timestamp: performance.now(),
+                };
+                let tapEvent = {
+                    "Tap": {
+                        "x": touch.clientX,
+                        "y": touch.clientY,
+                    }
+                };
+                tapPreventDefault = chassis.interrupt(tapEvent, []).prevent_default;
+            }
+        }
+        activeTapTouchIdentifier = undefined;
+        activeTapStart = undefined;
+        if (res.prevent_default || tapPreventDefault) {
+            evt.preventDefault();
+        }
+        Array.from(evt.changedTouches).forEach(touch => {
+            lastPositions.delete(touch.identifier);
+        });
+    }, {"passive": true, "capture": true});
+    addWindowListener('touchcancel', (evt) => {
+        let event = {
+            "TouchCancel": {
+                "touches": getTouchMessages(evt.changedTouches)
+            }
+        };
+        let res = chassis.interrupt(event, []);
+        activeTapTouchIdentifier = undefined;
+        activeTapStart = undefined;
         if (res.prevent_default) {
             evt.preventDefault();
         }

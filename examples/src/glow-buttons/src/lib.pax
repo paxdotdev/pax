@@ -1,0 +1,202 @@
+<Group width=100% height=100%>
+    <Scroller
+        width=100%
+        height=100%
+        scroll_width=100%
+        scroll_height={(content_height)px}
+        scroll_pos_y=bind:self.scroll_y
+    >
+        <Group width=100% height={(content_height)px}>
+            <Text
+                id=eyebrow
+                x=50%
+                y=40px
+                width={is_compact ? 88% : 82%}
+                height=18px
+                text="PAX LIGHTING LAB / PAX-966"
+                selectable=false
+            />
+
+            <Text
+                id=title
+                x=50%
+                y=66px
+                width={is_compact ? 88% : 82%}
+                height={is_compact ? 76px : 62px}
+                text="A pocket light for every button."
+                selectable=false
+            />
+
+            <Text
+                id=instructions
+                x=50%
+                y={is_compact ? 145px : 134px}
+                width={is_compact ? 88% : 82%}
+                height=48px
+                text={is_compact ? "Tap for a glow pulse. Hold and drag to make the light follow your finger." : "Hover to reveal the light. Move across a button to paint its surface; click to press."}
+                selectable=false
+            />
+
+            <Group
+                x=50%
+                y={is_compact ? 215px : 202px}
+                width={is_compact ? 90% : 84%}
+                height={(grid_height)px}
+                anchor_x=50%
+            >
+                <Stacker
+                    width=100%
+                    height=100%
+                    direction=StackerDirection::Vertical
+                    gutter=18px
+                >
+                    for (row, row_index) in self.rows key row.id {
+                        <Stacker
+                            width=100%
+                            height=100%
+                            direction=StackerDirection::Horizontal
+                            gutter=18px
+                        >
+                            for (button, button_index) in row.buttons key button.id {
+                                <GlowButton
+                                    width=100%
+                                    height=100%
+                                    label={button.label}
+                                    base_color={button.base_color}
+                                    glow_color={button.glow_color}
+                                    @click=self.record_press
+                                />
+                            }
+                        </Stacker>
+                    }
+                </Stacker>
+            </Group>
+
+            <Group
+                x=50%
+                y={(footer_y)px}
+                width={is_compact ? 90% : 84%}
+                height=34px
+                anchor_x=50%
+            >
+                <Text id=footer_hint width=65% height=24px text="Each light stops at its nearest LightFrame." selectable=false />
+                <Text id=press_count x=100% width=35% height=24px anchor_x=100% text={total_presses + " presses"} selectable=false />
+            </Group>
+
+            <Rectangle
+                width=100%
+                height=100%
+                fill={Fill::linearGradient(
+                    (0%, 0%),
+                    (100%, 100%),
+                    [
+                        GradientStop::get(rgba(7, 10, 18, 255), 0%),
+                        GradientStop::get(rgba(15, 19, 34, 255), 52%),
+                        GradientStop::get(rgba(9, 12, 23, 255), 100%)
+                    ]
+                )}
+                material={background_material}
+            />
+        </Group>
+    </Scroller>
+
+    <Rectangle
+        width=100%
+        height=100%
+        fill={Fill::linearGradient(
+            (0%, 0%),
+            (100%, 100%),
+            [
+                GradientStop::get(rgba(7, 10, 18, 255), 0%),
+                GradientStop::get(rgba(15, 19, 34, 255), 52%),
+                GradientStop::get(rgba(9, 12, 23, 255), 100%)
+            ]
+        )}
+        material={background_material}
+    />
+</Group>
+
+@settings {
+    @mount: handle_mount
+    @pre_render: handle_pre_render
+
+    #eyebrow {
+        style: TextStyle {
+            font: Font::Web(
+                "Inter",
+                "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::SemiBold
+            )
+            font_size: 11px
+            fill: rgba(123, 151, 255, 220)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    #title {
+        style: TextStyle {
+            font: Font::Web(
+                "Inter",
+                "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::ExtraBold
+            )
+            font_size: {is_compact ? 34px : 42px}
+            fill: rgba(246, 248, 255, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    #instructions {
+        style: TextStyle {
+            font: Font::Web(
+                "Inter",
+                "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::Medium
+            )
+            font_size: 14px
+            fill: rgba(180, 189, 214, 225)
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    #footer_hint {
+        style: TextStyle {
+            font: Font::Web(
+                "Inter",
+                "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::Medium
+            )
+            font_size: 11px
+            fill: rgba(145, 154, 180, 188)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    #press_count {
+        style: TextStyle {
+            font: Font::Web(
+                "Inter",
+                "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::SemiBold
+            )
+            font_size: 11px
+            fill: rgba(179, 194, 255, 210)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Right
+            align_multiline: TextAlignHorizontal::Right
+        }
+    }
+}

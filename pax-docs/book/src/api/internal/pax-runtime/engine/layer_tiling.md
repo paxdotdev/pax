@@ -4,7 +4,7 @@
 
 ## Structs
 ### `LayerCanvasPlan`
-Canvas tiling plan for one logical occlusion layer.
+Canvas tiling plan for one logical render layer.
 
 #### Properties
 ##### `layer_id`

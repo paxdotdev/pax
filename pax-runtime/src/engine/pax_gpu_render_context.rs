@@ -1582,7 +1582,7 @@ impl RenderContext for PaxGpuRenderer {
         screenshots
     }
 
-    fn begin_node(&mut self, layer: usize, node_id: u32, z_index: i32) -> bool {
+    fn begin_node(&mut self, layer: usize, node_id: u32, z_index: i32, light_mask: u32) -> bool {
         let mut backends = self.backends.borrow_mut();
         match backends.get_mut(layer) {
             Some(RenderLayerState::Pending) => {
@@ -1615,7 +1615,7 @@ impl RenderContext for PaxGpuRenderer {
                     let Some(renderer) = target.renderers.get_mut(index) else {
                         continue;
                     };
-                    if renderer.renderer.begin_node(node_id, z_index) {
+                    if renderer.renderer.begin_node(node_id, z_index, light_mask) {
                         selected.push(index);
                     }
                 }
@@ -1642,6 +1642,7 @@ impl RenderContext for PaxGpuRenderer {
         node_id: u32,
         z_index: i32,
         coverage_bounds: Rect,
+        light_mask: u32,
     ) -> bool {
         let mut backends = self.backends.borrow_mut();
         match backends.get_mut(layer) {
@@ -1687,7 +1688,7 @@ impl RenderContext for PaxGpuRenderer {
                         skipped_surfaces += 1;
                         continue;
                     }
-                    if renderer.renderer.begin_node(node_id, z_index) {
+                    if renderer.renderer.begin_node(node_id, z_index, light_mask) {
                         selected.push(index);
                     }
                 }
@@ -1884,6 +1885,7 @@ fn to_pax_gpu_material(material: &pax_runtime_api::Material) -> PixelMaterial {
 fn to_pax_gpu_scene_lighting(lighting: &SceneLighting) -> PixelSceneLighting {
     PixelSceneLighting {
         active: lighting.active,
+        ambient_is_authored: lighting.ambient_is_authored,
         ambient_color: to_pax_gpu_color(&lighting.ambient.color),
         ambient_intensity: lighting.ambient.intensity.max(0.0) as f32,
         lights: lighting

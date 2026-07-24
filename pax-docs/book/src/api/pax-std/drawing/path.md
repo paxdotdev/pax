@@ -26,6 +26,26 @@ Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Fill`](/api/pa
 
 The fill applied to the interior of closed contours.
 
+##### `material`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Material`](/api/pax-runtime-api/drawing.md#material)>
+
+Light-reactive surface response.
+
+##### `smoothing`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`PathSmoothing`](/api/pax-runtime-api/drawing.md#pathsmoothing)>
+
+Optional curve smoothing applied before rendering path geometry.
+
+##### `draw_start`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`UnitValue`](/api/pax-runtime-api/unit_value.md#unitvalue)>
+
+Start position of the visible stroke range over the path's total length.
+
+##### `draw_end`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`UnitValue`](/api/pax-runtime-api/unit_value.md#unitvalue)>
+
+End position of the visible stroke range over the path's total length.
+
 #### Implementations
 ##### `curve_to`
 <pre><code class="api-signature language-rust ignore">pub fn curve_to(path: Vec&lt;<a href="/api/pax-runtime-api/drawing.md#pathelement">PathElement</a>&gt;, h_x: <a href="/api/pax-runtime-api/layout.md#size">Size</a>, h_y: <a href="/api/pax-runtime-api/layout.md#size">Size</a>, x: <a href="/api/pax-runtime-api/layout.md#size">Size</a>, y: <a href="/api/pax-runtime-api/layout.md#size">Size</a>) -&gt; Vec&lt;<a href="/api/pax-runtime-api/drawing.md#pathelement">PathElement</a>&gt;</code></pre>

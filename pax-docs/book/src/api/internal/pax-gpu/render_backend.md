@@ -21,6 +21,11 @@ Type: `Vec`<`u8`>
 
 ---
 
+### `GpuContext`
+Shared GPU device context used by sibling render surfaces.
+
+---
+
 ### `Image`
 Decoded RGBA image data ready for upload as a GPU texture.
 
@@ -88,3 +93,12 @@ Type: [`f32`; 2]
 <pre><code class="api-signature language-rust ignore">pub fn new(_debug: bool, width: u32, height: u32, dpr: [f32; 2]) -&gt; Self</code></pre>
 
 Construct default buffer capacities for an initial surface size.
+
+##### `with_browser_premultiplied_alpha`
+<pre><code class="api-signature language-rust ignore">pub fn with_browser_premultiplied_alpha(self, enabled: bool) -&gt; Self</code></pre>
+
+Request premultiplied browser canvas alpha for WebGPU surfaces.
+
+wgpu's web backend currently reports only `Opaque` alpha in surface capabilities, but its
+configure path accepts `PreMultiplied` and maps it to `GPUCanvasAlphaMode::Premultiplied`.
+Pax needs that for transparent browser-owned scroller islands.

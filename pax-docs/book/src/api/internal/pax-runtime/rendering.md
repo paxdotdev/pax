@@ -73,7 +73,8 @@ Type: `bool`
 
 Used for exotic tree traversals for `Slot`, e.g. for `Stacker` > `Repeat` > `Rectangle`
 where the repeated `Rectangle`s need to be be considered direct children of `Stacker`.
-`Repeat` and `Conditional` override `is_invisible_to_slot` to return true
+`Repeat` and `Conditional` set this true so their active children can be
+considered direct projected children by slot-driven containers.
 
 ##### `invisible_to_raycasting`
 Type: `bool`

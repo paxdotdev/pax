@@ -254,6 +254,11 @@ pub trait InstanceNode {
         None
     }
 
+    /// Whether this node establishes a lexical boundary for descendant lights.
+    fn establishes_light_frame(&self) -> bool {
+        false
+    }
+
     /// Updates the expanded node, recomputing its properties and possibly updating its children.
     fn update(self: Rc<Self>, _expanded_node: &Rc<ExpandedNode>, _context: &Rc<RuntimeContext>) {}
 

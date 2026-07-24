@@ -9,6 +9,10 @@ struct Primitive {
     material_id: u32,
     transform_id: u32,
     draw_range: vec4<f32>,
+    light_mask: u32,
+    _padding_0: u32,
+    _padding_1: u32,
+    _padding_2: u32,
 };
 
 struct Primitives {
@@ -154,11 +158,21 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         color = gradient(fill_id, p);
     }
     color.a *= transforms.transforms[primitive.transform_id].opacity;
-    color = apply_lighting(color, materials.materials[primitive.material_id], in.world_position);
+    color = apply_lighting(
+        color,
+        materials.materials[primitive.material_id],
+        in.world_position,
+        primitive.light_mask,
+    );
     return color;
 }
 
-fn apply_lighting(color: vec4<f32>, material: Material, world_position: vec2<f32>) -> vec4<f32> {
+fn apply_lighting(
+    color: vec4<f32>,
+    material: Material,
+    world_position: vec2<f32>,
+    light_mask: u32,
+) -> vec4<f32> {
     if scene_lighting.flags.x == 0u {
         return color;
     }
@@ -171,15 +185,23 @@ fn apply_lighting(color: vec4<f32>, material: Material, world_position: vec2<f32
     let diffuse_coeff = material.coefficients.y;
     let specular_coeff = material.coefficients.z;
     let roughness = clamp(material.coefficients.w, 0.0, 1.0);
+    let light_count = min(scene_lighting.flags.y, 8u);
+    let active_light_mask = (1u << light_count) - 1u;
+    let eligible_light_mask = light_mask & active_light_mask;
+    if eligible_light_mask == 0u && scene_lighting.flags.z == 0u {
+        return color;
+    }
     let surface_position = vec3<f32>(world_position, 0.0);
     let normal = vec3<f32>(0.0, 0.0, 1.0);
     let view_dir = vec3<f32>(0.0, 0.0, 1.0);
     var lighting = scene_lighting.ambient.rgb * scene_lighting.ambient.a * ambient_coeff;
-    let light_count = min(scene_lighting.flags.y, 8u);
 
     for (var i = 0u; i < 8u; i++) {
         if i >= light_count {
             break;
+        }
+        if (eligible_light_mask & (1u << i)) == 0u {
+            continue;
         }
 
         let light = scene_lighting.lights[i];

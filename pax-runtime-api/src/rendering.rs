@@ -203,7 +203,13 @@ pub trait RenderContext {
     }
 
     /// Begins rendering a node and returns false when the backend can skip it.
-    fn begin_node(&mut self, _layer: usize, _node_id: u32, _z_index: i32) -> bool {
+    fn begin_node(
+        &mut self,
+        _layer: usize,
+        _node_id: u32,
+        _z_index: i32,
+        _light_mask: u32,
+    ) -> bool {
         true
     }
 
@@ -214,8 +220,9 @@ pub trait RenderContext {
         node_id: u32,
         z_index: i32,
         _coverage_bounds: kurbo::Rect,
+        light_mask: u32,
     ) -> bool {
-        self.begin_node(layer, node_id, z_index)
+        self.begin_node(layer, node_id, z_index, light_mask)
     }
 
     /// Returns true when a bounded node skipped by `begin_node_with_bounds` is clean for now.

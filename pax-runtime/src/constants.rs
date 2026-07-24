@@ -2,6 +2,7 @@ pub const SCROLL_HANDLERS: &str = "scroll";
 pub const TOUCH_START_HANDLERS: &str = "touch_start";
 pub const TOUCH_MOVE_HANDLERS: &str = "touch_move";
 pub const TOUCH_END_HANDLERS: &str = "touch_end";
+pub const TOUCH_CANCEL_HANDLERS: &str = "touch_cancel";
 pub const KEY_DOWN_HANDLERS: &str = "key_down";
 pub const SELECT_START_HANDLERS: &str = "select_start";
 pub const FOCUSED_HANDLERS: &str = "focused";

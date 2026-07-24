@@ -1,0 +1,137 @@
+<LightFrame
+    width=100%
+    height=100%
+    anchor=50%
+    x=50%
+    y=50%
+    scale={(shell_scale * 100)%}
+>
+    <Rectangle
+        width=100%
+        height=100%
+        fill=TRANSPARENT
+        material={unlit_material}
+        corner_radii={RectangleCornerRadii::radii(22.0, 22.0, 22.0, 22.0)}
+    />
+
+    <Group x=22px y={100% - 35px} width={100% - 44px} height=18px>
+        <Text id=gesture_label width=92px height=18px text="MOVE LIGHT" selectable=false />
+        <Ellipse
+            x={100% - 9px}
+            y=9px
+            width=8px
+            height=8px
+            anchor=50%
+            fill={glow_color}
+            material={unlit_material}
+        />
+    </Group>
+
+    <Text
+        id=button_label
+        x=22px
+        y=19px
+        width={100% - 44px}
+        height=38px
+        text={label}
+        selectable=false
+    />
+
+    <Rectangle
+        x=2px
+        y=2px
+        width={100% - 4px}
+        height=42%
+        fill={Fill::linearGradient(
+            (50%, 0%),
+            (50%, 100%),
+            [
+                GradientStop::get(rgba(255, 255, 255, 48), 0%),
+                GradientStop::get(rgba(255, 255, 255, 0), 100%)
+            ]
+        )}
+        material={unlit_material}
+        corner_radii={RectangleCornerRadii::radii(20.0, 20.0, 12.0, 12.0)}
+    />
+
+    <Rectangle
+        x=7px
+        y={100% - 7px}
+        width={100% - 14px}
+        height=12px
+        anchor_y=100%
+        fill=rgba(0, 0, 0, 96)
+        material={unlit_material}
+        corner_radii={RectangleCornerRadii::radii(9.0, 9.0, 9.0, 9.0)}
+    />
+
+    <Rectangle
+        width=100%
+        height=100%
+        fill={base_color}
+        material={surface_material}
+        stroke={
+            color: rgba(255, 255, 255, 44)
+            width: 1px
+        }
+        corner_radii={RectangleCornerRadii::radii(22.0, 22.0, 22.0, 22.0)}
+    />
+
+    <LightSource
+        x={(light_x)px}
+        y={(light_y)px}
+        width=1px
+        height=1px
+        z=92px
+        radius=230px
+        intensity={glow_intensity}
+        color={glow_color}
+        enabled={glow_enabled}
+    />
+</LightFrame>
+
+@settings {
+    @mount: handle_mount
+    @pre_render: handle_pre_render
+    @mouse_over: mouse_over
+    @mouse_move: mouse_move
+    @mouse_out: mouse_out
+    @mouse_down: mouse_down
+    @mouse_up: mouse_up
+    @touch_start: touch_start
+    @touch_move: touch_move
+    @touch_end: touch_end
+    @touch_cancel: touch_cancel
+
+    #button_label {
+        style: TextStyle {
+            font: Font::Web(
+                "Inter",
+                "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::ExtraBold
+            )
+            font_size: 23px
+            fill: rgba(255, 255, 255, 248)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+
+    #gesture_label {
+        style: TextStyle {
+            font: Font::Web(
+                "Inter",
+                "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::SemiBold
+            )
+            font_size: 9px
+            fill: rgba(255, 255, 255, 132)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+}

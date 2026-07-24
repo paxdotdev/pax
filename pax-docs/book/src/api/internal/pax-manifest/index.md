@@ -67,6 +67,36 @@ symbols used in the expression
 
 ---
 
+### `GradientDefinition`
+Compile-time representation of an inline `@gradient` value.
+
+#### Properties
+##### `shape`
+Type: [`GradientShapeDefinition`](/api/internal/pax-manifest/index.md#gradientshapedefinition)
+
+##### `elements`
+Type: `Vec`<[`GradientElement`](/api/internal/pax-manifest/index.md#gradientelement)>
+
+#### Implementations
+##### `stops`
+<pre><code class="api-signature language-rust ignore">pub fn stops(&amp;self) -&gt; impl Iterator</code></pre>
+
+Iterate only stop entries, skipping comments.
+
+---
+
+### `GradientStopDefinition`
+A single color stop in a gradient ramp.
+
+#### Properties
+##### `position`
+Type: [`Size`](/api/pax-runtime-api/layout.md#size)
+
+##### `color`
+Type: [`ValueDefinition`](/api/internal/pax-manifest/index.md#valuedefinition)
+
+---
+
 ### `HostCrateInfo`
 Pulled from host Cargo.toml
 
@@ -250,6 +280,27 @@ has implications on codegen
 Type: `bool`
 
 Describes whether this property is an enum variant property
+
+---
+
+### `SettingsConditionalBlock`
+Top-level conditional content inside a settings block.
+
+#### Properties
+##### `branches`
+Type: `Vec`<[`SettingsConditionalBranch`](/api/internal/pax-manifest/index.md#settingsconditionalbranch)>
+
+---
+
+### `SettingsConditionalBranch`
+One branch inside a settings conditional. `None` represents `else`.
+
+#### Properties
+##### `condition_expression`
+Type: `Option`<[`ExpressionInfo`](/api/internal/pax-manifest/index.md#expressioninfo)>
+
+##### `elements`
+Type: `Vec`<[`SettingsBlockElement`](/api/internal/pax-manifest/index.md#settingsblockelement)>
 
 ---
 
@@ -525,6 +576,22 @@ the `elem` in `for elem in foo`
 ##### `ElemIdIndexId`(`String`, `String`)
 ---
 
+### `GradientElement`
+One entry inside a gradient block.
+
+#### Variants
+##### `Stop`([`GradientStopDefinition`](/api/internal/pax-manifest/index.md#gradientstopdefinition))
+##### `Comment`(`String`)
+---
+
+### `GradientShapeDefinition`
+Shape-specific parameters for a gradient. V1 maps directly to runtime `Fill` variants.
+
+#### Variants
+##### `Linear` { `start`: `Option`<`Box`<[`ValueDefinition`](/api/internal/pax-manifest/index.md#valuedefinition)>>, `end`: `Option`<`Box`<[`ValueDefinition`](/api/internal/pax-manifest/index.md#valuedefinition)>> }
+##### `Radial` { `start`: `Box`<[`ValueDefinition`](/api/internal/pax-manifest/index.md#valuedefinition)>, `end`: `Box`<[`ValueDefinition`](/api/internal/pax-manifest/index.md#valuedefinition)>, `radius`: `Box`<[`ValueDefinition`](/api/internal/pax-manifest/index.md#valuedefinition)> }
+---
+
 ### `Number`
 Parsed numeric literal before final type coercion.
 
@@ -567,6 +634,7 @@ One entry inside a settings block.
 ##### `SelectorBlock`([`Token`](/api/internal/pax-manifest/index.md#token), [`LiteralBlockDefinition`](/api/internal/pax-manifest/index.md#literalblockdefinition))
 ##### `Handler`([`Token`](/api/internal/pax-manifest/index.md#token), `Vec`<[`Token`](/api/internal/pax-manifest/index.md#token)>)
 ##### `Transition`([`Token`](/api/internal/pax-manifest/index.md#token), [`Token`](/api/internal/pax-manifest/index.md#token))
+##### `Conditional`([`SettingsConditionalBlock`](/api/internal/pax-manifest/index.md#settingsconditionalblock))
 ##### `Comment`(`String`)
 ---
 
@@ -648,6 +716,7 @@ variants, populated at parse-time and used at compile-time
 ##### `LiteralValue`([`PaxValue`](/api/pax-runtime-api/pax_value.md#paxvalue))
 ##### `Block`([`LiteralBlockDefinition`](/api/internal/pax-manifest/index.md#literalblockdefinition))
 ##### `Timeline`([`TimelineTrackDefinition`](/api/internal/pax-manifest/index.md#timelinetrackdefinition))
+##### `Gradient`([`GradientDefinition`](/api/internal/pax-manifest/index.md#gradientdefinition))
 ##### `Transition`([`TransitionDefinition`](/api/internal/pax-manifest/index.md#transitiondefinition))
 ##### `Expression`([`ExpressionInfo`](/api/internal/pax-manifest/index.md#expressioninfo))
 (Expression contents, vtable id binding)

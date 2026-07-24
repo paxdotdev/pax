@@ -12,9 +12,9 @@ use pax_message::{
     MouseButtonMessage, MouseDownInterruptArgs, MouseMoveInterruptArgs, MouseUpInterruptArgs,
     NativeInterrupt, PhotoPickerAssetArgs, PhotoPickerInterruptArgs, RenderSurfaceUpdateArgs,
     RouteChangeInterruptArgs, ScreenshotData, ScrollInterruptArgs, ScrollerPositionInterruptArgs,
-    SelectStartArgs, TapInterruptArgs, TextInputArgs, TouchEndInterruptArgs, TouchMessage,
-    TouchMoveInterruptArgs, TouchStartInterruptArgs, ViewportResizeArgs, VisualViewportUpdateArgs,
-    WheelInterruptArgs,
+    SelectStartArgs, TapInterruptArgs, TextInputArgs, TouchCancelInterruptArgs,
+    TouchEndInterruptArgs, TouchMessage, TouchMoveInterruptArgs, TouchStartInterruptArgs,
+    ViewportResizeArgs, VisualViewportUpdateArgs, WheelInterruptArgs,
 };
 use pax_runtime::api::borrow;
 use pax_runtime::api::borrow_mut;
@@ -50,7 +50,7 @@ pub use {console_error_panic_hook, console_log};
 use pax_runtime::api::{
     Click, ContextMenu, DoubleClick, Drop, KeyDown, KeyPress, KeyUp, KeyboardEventArgs,
     ModifierKey, MouseButton, MouseDown, MouseEventArgs, MouseMove, MouseUp, Scroll, Touch,
-    TouchEnd, TouchMove, TouchStart, Wheel,
+    TouchCancel, TouchEnd, TouchMove, TouchStart, Wheel,
 };
 
 #[cfg(feature = "designtime")]
@@ -844,6 +844,9 @@ impl PaxChassisWeb {
                         .runtime_context
                         .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y))
                     {
+                        engine
+                            .runtime_context
+                            .capture_touch_target(first_touch.identifier, topmost_node.id);
                         if args.touches.len() == 1 && !node_is_in_scroller_subtree(&topmost_node) {
                             self.synthetic_scroll_gesture = Some(SyntheticScrollGesture {
                                 touch_identifier: first_touch.identifier,
@@ -866,13 +869,21 @@ impl PaxChassisWeb {
             }
             NativeInterrupt::TouchMove(args) => {
                 if let Some(first_touch) = args.touches.first() {
-                    let mut prevented = if let Some(topmost_node) = engine
+                    let target_node = engine
                         .runtime_context
-                        .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y))
-                    {
+                        .captured_touch_target(first_touch.identifier)
+                        .or_else(|| {
+                            engine
+                                .runtime_context
+                                .get_topmost_element_beneath_ray(Point2::new(
+                                    first_touch.x,
+                                    first_touch.y,
+                                ))
+                        });
+                    let mut prevented = if let Some(target_node) = target_node {
                         let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
                         let args_touch_move = TouchMove { touches };
-                        topmost_node.dispatch_touch_move(
+                        target_node.dispatch_touch_move(
                             Event::new(args_touch_move),
                             &globals,
                             &engine.runtime_context,
@@ -925,14 +936,58 @@ impl PaxChassisWeb {
                     }
                 }
                 if let Some(first_touch) = args.touches.first() {
-                    if let Some(topmost_node) = engine
+                    let target_node = engine
                         .runtime_context
-                        .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y))
-                    {
+                        .release_touch_target(first_touch.identifier)
+                        .or_else(|| {
+                            engine
+                                .runtime_context
+                                .get_topmost_element_beneath_ray(Point2::new(
+                                    first_touch.x,
+                                    first_touch.y,
+                                ))
+                        });
+                    if let Some(target_node) = target_node {
                         let touches = args.touches.iter().map(|x| Touch::from(x)).collect();
                         let args_touch_end = TouchEnd { touches };
-                        topmost_node.dispatch_touch_end(
+                        target_node.dispatch_touch_end(
                             Event::new(args_touch_end),
+                            &globals,
+                            &engine.runtime_context,
+                        )
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                }
+            }
+            NativeInterrupt::TouchCancel(args) => {
+                if let Some(gesture) = self.synthetic_scroll_gesture {
+                    if args
+                        .touches
+                        .iter()
+                        .any(|touch| touch.identifier == gesture.touch_identifier)
+                    {
+                        self.synthetic_scroll_gesture = None;
+                    }
+                }
+                if let Some(first_touch) = args.touches.first() {
+                    let target_node = engine
+                        .runtime_context
+                        .release_touch_target(first_touch.identifier)
+                        .or_else(|| {
+                            engine
+                                .runtime_context
+                                .get_topmost_element_beneath_ray(Point2::new(
+                                    first_touch.x,
+                                    first_touch.y,
+                                ))
+                        });
+                    if let Some(target_node) = target_node {
+                        let touches = args.touches.iter().map(Touch::from).collect();
+                        target_node.dispatch_touch_cancel(
+                            Event::new(TouchCancel { touches }),
                             &globals,
                             &engine.runtime_context,
                         )
@@ -1677,6 +1732,10 @@ fn native_interrupt_from_js(value: JsValue) -> NativeInterrupt {
         })
     } else if let Some(payload) = js_variant(&value, "TouchEnd") {
         NativeInterrupt::TouchEnd(TouchEndInterruptArgs {
+            touches: parse_touches(&payload),
+        })
+    } else if let Some(payload) = js_variant(&value, "TouchCancel") {
+        NativeInterrupt::TouchCancel(TouchCancelInterruptArgs {
             touches: parse_touches(&payload),
         })
     } else if let Some(payload) = js_variant(&value, "KeyDown") {

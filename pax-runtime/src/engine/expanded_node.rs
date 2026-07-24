@@ -13,8 +13,8 @@ use crate::constants::{
     KEY_DOWN_HANDLERS, KEY_PRESS_HANDLERS, KEY_UP_HANDLERS, MOUSE_DOWN_HANDLERS,
     MOUSE_MOVE_HANDLERS, MOUSE_OUT_HANDLERS, MOUSE_OVER_HANDLERS, MOUSE_UP_HANDLERS,
     PHOTO_PICKER_CHANGE_HANDLERS, SCROLL_HANDLERS, SELECT_START_HANDLERS, TAP_HANDLERS,
-    TEXTBOX_CHANGE_HANDLERS, TEXTBOX_INPUT_HANDLERS, TEXT_INPUT_HANDLERS, TOUCH_END_HANDLERS,
-    TOUCH_MOVE_HANDLERS, TOUCH_START_HANDLERS, WHEEL_HANDLERS,
+    TEXTBOX_CHANGE_HANDLERS, TEXTBOX_INPUT_HANDLERS, TEXT_INPUT_HANDLERS, TOUCH_CANCEL_HANDLERS,
+    TOUCH_END_HANDLERS, TOUCH_MOVE_HANDLERS, TOUCH_START_HANDLERS, WHEEL_HANDLERS,
 };
 use_RefCell!();
 use crate::cartridge::evaluate_timeline_duration;
@@ -28,7 +28,7 @@ use crate::api::{
     Accel, Axis, ButtonClick, CheckboxChange, Click, CommonProperties, ContextMenu, DoubleClick,
     Drop, Event, Gyro, KeyDown, KeyPress, KeyUp, LayoutRole, MouseDown, MouseMove, MouseOut,
     MouseOver, MouseUp, NodeContext, PhotoPickerChange, RenderContext, Scroll, Size, TextboxChange,
-    TextboxInput, TouchEnd, TouchMove, TouchStart, Wheel, Window,
+    TextboxInput, TouchCancel, TouchEnd, TouchMove, TouchStart, Wheel, Window,
 };
 use pax_manifest::cartridge_generation::{
     TRANSITION_GENERATION_SYMBOL, TRANSITION_PHASE_ENTER, TRANSITION_PHASE_EXIT,
@@ -2486,6 +2486,12 @@ impl ExpandedNode {
 
     dispatch_event_handler!(dispatch_touch_move, TouchMove, TOUCH_MOVE_HANDLERS, true);
     dispatch_event_handler!(dispatch_touch_end, TouchEnd, TOUCH_END_HANDLERS, true);
+    dispatch_event_handler!(
+        dispatch_touch_cancel,
+        TouchCancel,
+        TOUCH_CANCEL_HANDLERS,
+        true
+    );
     dispatch_event_handler!(dispatch_key_down, KeyDown, KEY_DOWN_HANDLERS, false);
     dispatch_event_handler!(dispatch_key_up, KeyUp, KEY_UP_HANDLERS, false);
     dispatch_event_handler!(dispatch_key_press, KeyPress, KEY_PRESS_HANDLERS, false);

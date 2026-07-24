@@ -45,6 +45,21 @@ Type: `Rc`<`RefCell`<`Vec`<`bool`>>>
 
 Add a node to runtime lookup caches.
 
+##### `canvas_node_light_mask`
+<pre><code class="api-signature language-rust ignore">pub fn canvas_node_light_mask(&amp;self, id: <a href="/api/internal/pax-runtime/properties.md#expandednodeidentifier">ExpandedNodeIdentifier</a>) -&gt; u32</code></pre>
+
+Return the direct-light membership mask resolved for a retained canvas node.
+
+##### `capture_touch_target`
+<pre><code class="api-signature language-rust ignore">pub fn capture_touch_target(&amp;self, identifier: i64, target: <a href="/api/internal/pax-runtime/properties.md#expandednodeidentifier">ExpandedNodeIdentifier</a>)</code></pre>
+
+Route a touch sequence to the node hit at touch-down, even after the finger moves away.
+
+##### `captured_touch_target`
+<pre><code class="api-signature language-rust ignore">pub fn captured_touch_target(&amp;self, identifier: i64) -&gt; Option&lt;Rc&lt;ExpandedNode&gt;&gt;</code></pre>
+
+Resolve the node captured for an active touch sequence.
+
 ##### `clear_all_dirty_canvases`
 <pre><code class="api-signature language-rust ignore">pub fn clear_all_dirty_canvases(&amp;self)</code></pre>
 
@@ -53,7 +68,7 @@ Mark every canvas layer clean.
 ##### `clear_layer_scroller_owners`
 <pre><code class="api-signature language-rust ignore">pub fn clear_layer_scroller_owners(&amp;self)</code></pre>
 
-Clear layer-to-scroller ownership before recomputing occlusion.
+Clear render-layer-to-scroller ownership before recomputing occlusion.
 
 ##### `clear_root_expanded_node`
 <pre><code class="api-signature language-rust ignore">pub fn clear_root_expanded_node(&amp;self)</code></pre>
@@ -91,7 +106,7 @@ Finds all ExpandedNodes with the CommonProperty#id matching the provided string
 ##### `get_layer_scroller_owner`
 <pre><code class="api-signature language-rust ignore">pub fn get_layer_scroller_owner(&amp;self, layer_id: usize) -&gt; Option&lt;<a href="/api/internal/pax-runtime/properties.md#expandednodeidentifier">ExpandedNodeIdentifier</a>&gt;</code></pre>
 
-Find the scroller that owns a canvas layer, when one exists.
+Find the scroller that owns a render layer, when one exists.
 
 ##### `get_root_scroller_id`
 <pre><code class="api-signature language-rust ignore">pub fn get_root_scroller_id(&amp;self) -&gt; Option&lt;u32&gt;</code></pre>
@@ -102,6 +117,12 @@ Current page-scroll-backed root scroller id.
 <pre><code class="api-signature language-rust ignore">pub fn get_screenshot_map(&amp;self) -&gt; Rc&lt;RefCell&lt;HashMap&lt;u32, <a href="/api/internal/pax-message/index.md#screenshotdata">ScreenshotData</a>&gt;&gt;&gt;</code></pre>
 
 Shared screenshot capture map keyed by request id.
+
+##### `get_scroller_surface_scroll`
+<pre><code class="api-signature language-rust ignore">pub fn get_scroller_surface_scroll(&amp;self, id: u32) -&gt; Option&lt;(f64, f64)&gt;</code></pre>
+
+Fetch the presentation scroll offset for a native scroller surface, falling back to the
+authoritative scroll position when presentation scroll is unavailable.
 
 ##### `get_scroller_surface_state`
 <pre><code class="api-signature language-rust ignore">pub fn get_scroller_surface_state(&amp;self, id: u32) -&gt; Option&lt;<a href="/api/internal/pax-runtime/properties.md#scrollersurfacestate">ScrollerSurfaceState</a>&gt;</code></pre>
@@ -123,6 +144,11 @@ Return cached browser visual viewport state, if available.
 
 Check whether a canvas layer needs redraw.
 
+##### `layer_has_canvas_drawables`
+<pre><code class="api-signature language-rust ignore">pub fn layer_has_canvas_drawables(&amp;self, layer: usize) -&gt; bool</code></pre>
+
+Return whether a render layer currently has canvas work to paint.
+
 ##### `load_screenshot`
 <pre><code class="api-signature language-rust ignore">pub fn load_screenshot(&amp;self, id: u32, data: <a href="/api/internal/pax-message/index.md#screenshotdata">ScreenshotData</a>) -&gt; bool</code></pre>
 
@@ -136,12 +162,17 @@ Create a runtime context for normal app execution.
 ##### `register_layer_scroller_owner`
 <pre><code class="api-signature language-rust ignore">pub fn register_layer_scroller_owner(&amp;self, layer_id: usize, scroller_id: <a href="/api/internal/pax-runtime/properties.md#expandednodeidentifier">ExpandedNodeIdentifier</a>)</code></pre>
 
-Record that a canvas layer is owned by a particular scroller.
+Record that a render layer is owned by a particular scroller.
 
 ##### `register_root_expanded_node`
 <pre><code class="api-signature language-rust ignore">pub fn register_root_expanded_node(&amp;self, root: &amp;Rc&lt;ExpandedNode&gt;)</code></pre>
 
 Store the root expanded node after it has been initialized.
+
+##### `release_touch_target`
+<pre><code class="api-signature language-rust ignore">pub fn release_touch_target(&amp;self, identifier: i64) -&gt; Option&lt;Rc&lt;ExpandedNode&gt;&gt;</code></pre>
+
+Release and resolve the node captured for a completed touch sequence.
 
 ##### `remove_from_cache`
 <pre><code class="api-signature language-rust ignore">pub fn remove_from_cache(&amp;self, node: &amp;Rc&lt;ExpandedNode&gt;)</code></pre>
@@ -163,13 +194,18 @@ Ensure the dirty-canvas table has entries up to the requested layer count.
 
 Mark a canvas layer dirty.
 
+##### `set_canvas_drawable_layers`
+<pre><code class="api-signature language-rust ignore">pub fn set_canvas_drawable_layers(&amp;self, layers: HashSet&lt;usize&gt;)</code></pre>
+
+Replace the set of render layers that currently contain canvas drawables.
+
 ##### `set_root_scroller_id`
 <pre><code class="api-signature language-rust ignore">pub fn set_root_scroller_id(&amp;self, id: Option&lt;u32&gt;)</code></pre>
 
 Mark which node currently delegates root scrolling behavior to the page.
 
 ##### `set_scroller_surface_state`
-<pre><code class="api-signature language-rust ignore">pub fn set_scroller_surface_state(&amp;self, id: u32, state: <a href="/api/internal/pax-runtime/properties.md#scrollersurfacestate">ScrollerSurfaceState</a>)</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn set_scroller_surface_state(&amp;self, id: u32, state: <a href="/api/internal/pax-runtime/properties.md#scrollersurfacestate">ScrollerSurfaceState</a>) -&gt; <a href="/api/internal/pax-runtime/properties.md#scrollersurfacestatechange">ScrollerSurfaceStateChange</a></code></pre>
 
 Remember browser-owned scroller state for native compositing and scroll transforms.
 
@@ -177,6 +213,12 @@ Remember browser-owned scroller state for native compositing and scroll transfor
 <pre><code class="api-signature language-rust ignore">pub fn set_visual_viewport_state(&amp;self, state: <a href="/api/internal/pax-runtime/properties.md#visualviewportstate">VisualViewportState</a>)</code></pre>
 
 Cache the browser visual viewport state for root scroller math.
+
+##### `update_scroller_surface_scroll`
+<pre><code class="api-signature language-rust ignore">pub fn update_scroller_surface_scroll(&amp;self, id: u32, scroll_x: f64, scroll_y: f64, presentation_scroll_x: f64, presentation_scroll_y: f64) -&gt; <a href="/api/internal/pax-runtime/properties.md#scrollersurfacestatechange">ScrollerSurfaceStateChange</a></code></pre>
+
+Update hot scroll offsets for an existing native scroller surface without touching
+structural state.
 
 ---
 
@@ -245,3 +287,12 @@ Type: `f64`
 
 ##### `page_scroll_y`
 Type: `f64`
+
+## Enums
+### `ScrollerSurfaceStateChange`
+Coarse classification of changes to a native or browser-owned scroller surface.
+
+#### Variants
+##### `Unchanged`
+##### `ScrollOnly`
+##### `Structural`

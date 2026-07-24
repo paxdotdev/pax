@@ -107,11 +107,14 @@ pub struct RuntimeContext {
     pub userland_root_expanded_node: RefCell<Option<Rc<ExpandedNode>>>,
     node_cache: RefCell<NodeCache>,
     last_topmost_element: RefCell<Weak<ExpandedNode>>,
+    active_touch_targets: RefCell<HashMap<i64, ExpandedNodeIdentifier>>,
     queued_custom_events: RefCell<Vec<(Rc<ExpandedNode>, &'static str)>>,
     queued_renders: RefCell<Vec<Rc<ExpandedNode>>>,
     pub layer_count: Cell<usize>,
     pub dirty_canvases: Rc<RefCell<Vec<bool>>>,
     dirty_canvas_nodes: RefCell<HashSet<ExpandedNodeIdentifier>>,
+    canvas_node_light_masks: RefCell<HashMap<ExpandedNodeIdentifier, u32>>,
+    lighting_overflow_counts: RefCell<HashMap<usize, usize>>,
     targeted_canvas_replay_node_ids: RefCell<HashMap<usize, HashSet<u32>>>,
     removed_canvas_nodes: RefCell<Vec<(usize, u32)>>,
     occlusion_dirty: Cell<bool>,
@@ -230,12 +233,15 @@ impl RuntimeContext {
             globals: RefCell::new(globals),
             root_expanded_node: RefCell::new(Weak::new()),
             node_cache: RefCell::new(NodeCache::new()),
+            active_touch_targets: Default::default(),
             queued_custom_events: Default::default(),
             queued_renders: Default::default(),
             layer_count: Cell::default(),
             last_topmost_element: Default::default(),
             dirty_canvases: Default::default(),
             dirty_canvas_nodes: Default::default(),
+            canvas_node_light_masks: Default::default(),
+            lighting_overflow_counts: Default::default(),
             targeted_canvas_replay_node_ids: Default::default(),
             removed_canvas_nodes: Default::default(),
             occlusion_dirty: Cell::new(true),
@@ -265,12 +271,15 @@ impl RuntimeContext {
             userland_frame_instance_node: RefCell::new(Some(userland)),
             userland_root_expanded_node: Default::default(),
             node_cache: RefCell::new(NodeCache::new()),
+            active_touch_targets: Default::default(),
             queued_custom_events: Default::default(),
             queued_renders: Default::default(),
             layer_count: Cell::default(),
             last_topmost_element: Default::default(),
             dirty_canvases: Default::default(),
             dirty_canvas_nodes: Default::default(),
+            canvas_node_light_masks: Default::default(),
+            lighting_overflow_counts: Default::default(),
             targeted_canvas_replay_node_ids: Default::default(),
             removed_canvas_nodes: Default::default(),
             occlusion_dirty: Cell::new(true),
@@ -300,12 +309,15 @@ impl RuntimeContext {
             userland_frame_instance_node: RefCell::new(None),
             userland_root_expanded_node: Default::default(),
             node_cache: RefCell::new(NodeCache::new()),
+            active_touch_targets: Default::default(),
             queued_custom_events: Default::default(),
             queued_renders: Default::default(),
             layer_count: Cell::default(),
             last_topmost_element: Default::default(),
             dirty_canvases: Default::default(),
             dirty_canvas_nodes: Default::default(),
+            canvas_node_light_masks: Default::default(),
+            lighting_overflow_counts: Default::default(),
             targeted_canvas_replay_node_ids: Default::default(),
             removed_canvas_nodes: Default::default(),
             occlusion_dirty: Cell::new(true),
@@ -348,6 +360,8 @@ impl RuntimeContext {
     /// Remove a node from runtime lookup caches.
     pub fn remove_from_cache(&self, node: &Rc<ExpandedNode>) {
         borrow_mut!(self.node_cache).remove_from_cache(node);
+        borrow_mut!(self.canvas_node_light_masks).remove(&node.id);
+        borrow_mut!(self.active_touch_targets).retain(|_, target| *target != node.id);
         self.unregister_node_lifecycle_handlers(node.id);
         if node.is_import_settings_node() {
             self.import_settings_node_count
@@ -582,6 +596,25 @@ impl RuntimeContext {
         borrow!(self.node_cache).eid_to_node.get(&id).cloned()
     }
 
+    /// Route a touch sequence to the node hit at touch-down, even after the finger moves away.
+    pub fn capture_touch_target(&self, identifier: i64, target: ExpandedNodeIdentifier) {
+        borrow_mut!(self.active_touch_targets).insert(identifier, target);
+    }
+
+    /// Resolve the node captured for an active touch sequence.
+    pub fn captured_touch_target(&self, identifier: i64) -> Option<Rc<ExpandedNode>> {
+        let target = borrow!(self.active_touch_targets)
+            .get(&identifier)
+            .copied()?;
+        self.get_expanded_node_by_eid(target)
+    }
+
+    /// Release and resolve the node captured for a completed touch sequence.
+    pub fn release_touch_target(&self, identifier: i64) -> Option<Rc<ExpandedNode>> {
+        let target = borrow_mut!(self.active_touch_targets).remove(&identifier)?;
+        self.get_expanded_node_by_eid(target)
+    }
+
     /// Store a screenshot payload delivered by the chassis.
     pub fn load_screenshot(&self, id: u32, data: ScreenshotData) -> bool {
         borrow_mut!(self.screenshot_map).insert(id, data);
@@ -699,6 +732,89 @@ impl RuntimeContext {
             };
             (scroll_x, scroll_y)
         })
+    }
+
+    fn scroller_content_presentation_transform(&self, node: &ExpandedNode) -> Affine {
+        fn clamp_offset(value: f64, content: f64, viewport: f64) -> f64 {
+            if content <= viewport || !value.is_finite() {
+                return 0.0;
+            }
+            value.max(0.0).min((content - viewport).max(0.0))
+        }
+
+        let root_delegates_to_page_scroll = self.get_root_scroller_id() == Some(node.id.to_u32())
+            && self.get_visual_viewport_state().is_some();
+        if root_delegates_to_page_scroll {
+            return Affine::IDENTITY;
+        }
+
+        let instance_node = borrow!(node.instance_node);
+        let (scroll_x, scroll_y) = if self.get_root_scroller_id() == Some(node.id.to_u32()) {
+            if let Some(visual) = self.get_visual_viewport_state() {
+                let visual_x = visual.page_scroll_x + visual.offset_x;
+                let visual_y = visual.page_scroll_y + visual.offset_y;
+                if visual_x.is_finite() && visual_y.is_finite() {
+                    if let Some(state) = self.get_scroller_surface_state(node.id.to_u32()) {
+                        let viewport_width = if visual.width.is_finite() {
+                            visual.width
+                        } else {
+                            state.viewport_width
+                        };
+                        let viewport_height = if visual.height.is_finite() {
+                            visual.height
+                        } else {
+                            state.viewport_height
+                        };
+                        (
+                            clamp_offset(visual_x, state.content_width, viewport_width),
+                            clamp_offset(visual_y, state.content_height, viewport_height),
+                        )
+                    } else {
+                        (visual_x, visual_y)
+                    }
+                } else {
+                    self.get_scroller_surface_scroll(node.id.to_u32())
+                        .or_else(|| instance_node.resolve_scroll_offset(node))
+                        .unwrap_or((0.0, 0.0))
+                }
+            } else {
+                self.get_scroller_surface_scroll(node.id.to_u32())
+                    .or_else(|| instance_node.resolve_scroll_offset(node))
+                    .unwrap_or((0.0, 0.0))
+            }
+        } else {
+            self.get_scroller_surface_scroll(node.id.to_u32())
+                .or_else(|| instance_node.resolve_scroll_offset(node))
+                .unwrap_or((0.0, 0.0))
+        };
+
+        if scroll_x.abs() <= f64::EPSILON && scroll_y.abs() <= f64::EPSILON {
+            return Affine::IDENTITY;
+        }
+
+        let world_transform = Affine::from(node.transform_and_bounds.get().transform);
+        let inverse_world = Affine::from(node.transform_and_bounds.get().transform.inverse());
+        world_transform * Affine::translate((-scroll_x, -scroll_y)) * inverse_world
+    }
+
+    /// Resolve the browser/native presentation transform inherited by a node from ancestor
+    /// scrollers. Layout transforms remain in content coordinates, while events arrive in the
+    /// scrolled window coordinates that the user sees.
+    pub(crate) fn presentation_scroll_transform_for_node(&self, node: &ExpandedNode) -> Affine {
+        let mut ancestors = Vec::new();
+        let mut current = node.render_parent_node();
+        while let Some(parent) = current {
+            current = parent.render_parent_node();
+            ancestors.push(parent);
+        }
+        ancestors.reverse();
+
+        ancestors
+            .into_iter()
+            .filter(|ancestor| borrow!(ancestor.instance_node).scrolls_content(ancestor))
+            .fold(Affine::IDENTITY, |transform, scroller| {
+                transform * self.scroller_content_presentation_transform(&scroller)
+            })
     }
 
     /// Clear render-layer-to-scroller ownership before recomputing occlusion.
@@ -890,11 +1006,19 @@ impl RuntimeContext {
         }
     }
 
+    /// Return the direct-light membership mask resolved for a retained canvas node.
+    pub fn canvas_node_light_mask(&self, id: ExpandedNodeIdentifier) -> u32 {
+        borrow!(self.canvas_node_light_masks)
+            .get(&id)
+            .copied()
+            .unwrap_or(0)
+    }
+
     pub fn collect_scene_lighting_for_layer(&self, layer: usize) -> SceneLighting {
         let layer_to_root_transforms = self.layer_to_root_transforms(layer);
         let root_to_target = layer_to_root_transforms[&layer].inverse();
         let node_cache = borrow!(self.node_cache);
-        let mut lights = Vec::new();
+        let mut scoped_lights = Vec::new();
         let mut topmost_ambient = None;
 
         for node in node_cache.eid_to_node.values() {
@@ -904,36 +1028,125 @@ impl RuntimeContext {
                 continue;
             };
 
-            let instance_node = borrow!(node.instance_node);
-            if let Some(light) = instance_node.resolve_scene_light(node, self) {
+            let (light, ambient) = {
+                let instance_node = borrow!(node.instance_node);
+                (
+                    instance_node.resolve_scene_light(node, self),
+                    instance_node.resolve_scene_ambient_light(node, self),
+                )
+            };
+            if let Some(light) = light {
                 if light.enabled {
-                    lights.push(transform_scene_light_for_layer(
-                        light,
-                        *source_to_root,
-                        root_to_target,
+                    scoped_lights.push((
+                        occlusion.z_index,
+                        node.id,
+                        Self::nearest_light_frame(node),
+                        transform_scene_light_for_layer(light, *source_to_root, root_to_target),
                     ));
                 }
             }
-            if let Some(ambient) = instance_node.resolve_scene_ambient_light(node, self) {
+            if let Some(ambient) = ambient {
                 let should_replace = topmost_ambient
                     .as_ref()
-                    .map(|(z_index, _)| occlusion.z_index >= *z_index)
+                    .map(|(z_index, id, _)| (occlusion.z_index, node.id) >= (*z_index, *id))
                     .unwrap_or(true);
                 if should_replace {
-                    topmost_ambient = Some((occlusion.z_index, ambient));
+                    topmost_ambient = Some((occlusion.z_index, node.id, ambient));
                 }
             }
         }
 
-        if let Some((_, ambient)) = topmost_ambient {
+        scoped_lights
+            .sort_by(|left, right| right.0.cmp(&left.0).then_with(|| left.1.cmp(&right.1)));
+        let overflow = scoped_lights
+            .len()
+            .saturating_sub(SceneLighting::MAX_LIGHTS);
+        scoped_lights.truncate(SceneLighting::MAX_LIGHTS);
+
+        {
+            let mut overflow_counts = borrow_mut!(self.lighting_overflow_counts);
+            if overflow == 0 {
+                overflow_counts.remove(&layer);
+            } else if overflow_counts.insert(layer, overflow) != Some(overflow) {
+                log::warn!(
+                    "canvas layer {layer} has more than {} enabled lights; omitting {overflow}",
+                    SceneLighting::MAX_LIGHTS
+                );
+            }
+        }
+
+        let mut resolved_masks = Vec::new();
+        for node in node_cache.eid_to_node.values() {
+            if node.occlusion.get().render_layer_id != layer
+                || borrow!(node.instance_node).base().flags().layer != crate::api::Layer::Canvas
+            {
+                continue;
+            }
+
+            let frame_ancestry = Self::light_frame_ancestry(node);
+            let mask = scoped_lights.iter().enumerate().fold(
+                0u32,
+                |mask, (slot, (_, _, owner_frame, _))| {
+                    if light_reaches_frame_ancestry(owner_frame.as_ref(), &frame_ancestry) {
+                        mask | (1u32 << slot)
+                    } else {
+                        mask
+                    }
+                },
+            );
+            resolved_masks.push((node.id, mask));
+        }
+        drop(node_cache);
+
+        let mut changed_nodes = Vec::new();
+        {
+            let mut masks = borrow_mut!(self.canvas_node_light_masks);
+            for (node_id, mask) in resolved_masks {
+                if masks.insert(node_id, mask) != Some(mask) {
+                    changed_nodes.push(node_id);
+                }
+            }
+        }
+        borrow_mut!(self.dirty_canvas_nodes).extend(changed_nodes);
+
+        let lights = scoped_lights
+            .into_iter()
+            .map(|(_, _, _, light)| light)
+            .collect::<Vec<_>>();
+
+        if let Some((_, _, ambient)) = topmost_ambient {
             SceneLighting {
                 active: true,
+                ambient_is_authored: true,
                 ambient,
                 lights,
             }
         } else {
             SceneLighting::with_default_ambient(lights)
         }
+    }
+
+    fn nearest_light_frame(node: &ExpandedNode) -> Option<ExpandedNodeIdentifier> {
+        let mut current = node.render_parent_node();
+        while let Some(parent) = current {
+            if borrow!(parent.instance_node).establishes_light_frame() {
+                return Some(parent.id);
+            }
+            current = parent.render_parent_node();
+        }
+        None
+    }
+
+    fn light_frame_ancestry(node: &ExpandedNode) -> HashSet<ExpandedNodeIdentifier> {
+        let mut frames = HashSet::new();
+        let mut current = node.render_parent_node();
+        while let Some(parent) = current {
+            if borrow!(parent.instance_node).establishes_light_frame() {
+                frames.insert(parent.id);
+            }
+            current = parent.render_parent_node();
+        }
+        frames
     }
 
     fn layer_to_root_transforms(&self, layer: usize) -> HashMap<usize, Affine> {
@@ -1107,16 +1320,6 @@ impl RuntimeContext {
         mut accum: Vec<Rc<ExpandedNode>>,
         hit_invisible: bool,
     ) -> Vec<Rc<ExpandedNode>> {
-        fn clamp_offset(value: f64, content: f64, viewport: f64) -> f64 {
-            if content <= viewport {
-                return 0.0;
-            }
-            if !value.is_finite() {
-                return 0.0;
-            }
-            value.max(0.0).min((content - viewport).max(0.0))
-        }
-
         //Traverse all elements in render tree sorted by z-index (highest-to-lowest)
         //First: check whether events are suppressed
         //Next: check whether ancestral clipping bounds (hit_test) are satisfied
@@ -1141,78 +1344,16 @@ impl RuntimeContext {
             let (scroll_transform, clips_content) = {
                 let instance_node = borrow!(node.instance_node);
                 let scrolls_content = instance_node.scrolls_content(&node);
-                let scroll_transform = if scrolls_content {
-                    let root_delegates_to_page_scroll = self.get_root_scroller_id()
-                        == Some(node.id.to_u32())
-                        && self.get_visual_viewport_state().is_some();
-                    if root_delegates_to_page_scroll {
-                        Affine::IDENTITY
+                let clips_content = instance_node.clips_content(&node);
+                drop(instance_node);
+                (
+                    if scrolls_content {
+                        self.scroller_content_presentation_transform(&node)
                     } else {
-                        let (scroll_x, scroll_y) =
-                            if self.get_root_scroller_id() == Some(node.id.to_u32()) {
-                                if let Some(visual) = self.get_visual_viewport_state() {
-                                    let visual_x = visual.page_scroll_x + visual.offset_x;
-                                    let visual_y = visual.page_scroll_y + visual.offset_y;
-                                    if visual_x.is_finite() && visual_y.is_finite() {
-                                        if let Some(state) =
-                                            self.get_scroller_surface_state(node.id.to_u32())
-                                        {
-                                            let viewport_width = if visual.width.is_finite() {
-                                                visual.width
-                                            } else {
-                                                state.viewport_width
-                                            };
-                                            let viewport_height = if visual.height.is_finite() {
-                                                visual.height
-                                            } else {
-                                                state.viewport_height
-                                            };
-                                            (
-                                                clamp_offset(
-                                                    visual_x,
-                                                    state.content_width,
-                                                    viewport_width,
-                                                ),
-                                                clamp_offset(
-                                                    visual_y,
-                                                    state.content_height,
-                                                    viewport_height,
-                                                ),
-                                            )
-                                        } else {
-                                            (visual_x, visual_y)
-                                        }
-                                    } else {
-                                        self.get_scroller_surface_scroll(node.id.to_u32())
-                                            .or_else(|| instance_node.resolve_scroll_offset(&node))
-                                            .unwrap_or((0.0, 0.0))
-                                    }
-                                } else {
-                                    self.get_scroller_surface_scroll(node.id.to_u32())
-                                        .or_else(|| instance_node.resolve_scroll_offset(&node))
-                                        .unwrap_or((0.0, 0.0))
-                                }
-                            } else {
-                                self.get_scroller_surface_scroll(node.id.to_u32())
-                                    .or_else(|| instance_node.resolve_scroll_offset(&node))
-                                    .unwrap_or((0.0, 0.0))
-                            };
-                        if scroll_x.abs() > f64::EPSILON || scroll_y.abs() > f64::EPSILON {
-                            let world_transform =
-                                Affine::from(node.transform_and_bounds.get().transform);
-                            let inverse_world =
-                                Affine::from(node.transform_and_bounds.get().transform.inverse());
-                            world_transform
-                                * Affine::translate((-scroll_x, -scroll_y))
-                                * inverse_world
-                        } else {
-                            Affine::IDENTITY
-                        }
-                    }
-                } else {
-                    Affine::IDENTITY
-                };
-                (scroll_transform, instance_node.clips_content(&node))
+                        Affine::IDENTITY
+                    },
+                    clips_content,
+                )
             };
             let descendant_scroll_transform = active_scroll_transform * scroll_transform;
             let hit = node.ray_cast_test(active_scroll_transform.inverse() * ray);
@@ -1496,9 +1637,527 @@ impl IdentifierResolver for RuntimePropertiesStackFrame {
     }
 }
 
+fn light_reaches_frame_ancestry(
+    owner_frame: Option<&ExpandedNodeIdentifier>,
+    frame_ancestry: &HashSet<ExpandedNodeIdentifier>,
+) -> bool {
+    owner_frame.is_none_or(|frame| frame_ancestry.contains(frame))
+}
+
 /// Data structure used for dynamic injection of values
 /// into Expressions, maintaining a pointer e.g. to the current
 /// stack frame to enable evaluation of properties & dependencies
 pub struct ExpressionContext {
     pub stack_frame: Rc<RuntimePropertiesStackFrame>,
+}
+
+#[cfg(test)]
+mod light_scope_tests {
+    use super::*;
+    use crate::api::math::Transform2;
+    use crate::{
+        BaseInstance, CommonPropertiesInit, ComponentInstance, InstanceFlags, InstanceNode,
+        InstantiationArgs, PropertiesInit, PropertiesScopeInit, RouteLocation, TransformAndBounds,
+    };
+    use pax_runtime_api::pax_value::{PaxAny, PaxValue};
+    use pax_runtime_api::{Layer, Platform, SceneAmbientLight, TargetInfo, OS};
+    use std::fmt;
+
+    #[derive(Clone, Copy)]
+    enum TestLightingRole {
+        Frame,
+        Light(f64),
+        Ambient(f64),
+        Surface,
+    }
+
+    struct TestLightingNode {
+        base: BaseInstance,
+        role: TestLightingRole,
+        enabled: Cell<bool>,
+    }
+
+    impl TestLightingNode {
+        fn new(
+            role: TestLightingRole,
+            children: Vec<Rc<dyn InstanceNode>>,
+        ) -> Rc<TestLightingNode> {
+            Rc::new(Self {
+                base: BaseInstance::new(
+                    node_args(children),
+                    InstanceFlags {
+                        invisible_to_slot: false,
+                        invisible_to_raycasting: true,
+                        layer: match role {
+                            TestLightingRole::Frame => Layer::DontCare,
+                            TestLightingRole::Light(_)
+                            | TestLightingRole::Ambient(_)
+                            | TestLightingRole::Surface => Layer::Canvas,
+                        },
+                        is_component: false,
+                        is_slot: false,
+                    },
+                ),
+                role,
+                enabled: Cell::new(true),
+            })
+        }
+
+        fn as_instance(self: &Rc<Self>) -> Rc<dyn InstanceNode> {
+            self.clone()
+        }
+
+        fn set_enabled(&self, enabled: bool) {
+            self.enabled.set(enabled);
+        }
+    }
+
+    impl InstanceNode for TestLightingNode {
+        fn instantiate(args: InstantiationArgs) -> Rc<Self>
+        where
+            Self: Sized,
+        {
+            Rc::new(Self {
+                base: BaseInstance::new(
+                    args,
+                    InstanceFlags {
+                        invisible_to_slot: false,
+                        invisible_to_raycasting: true,
+                        layer: Layer::Canvas,
+                        is_component: false,
+                        is_slot: false,
+                    },
+                ),
+                role: TestLightingRole::Surface,
+                enabled: Cell::new(true),
+            })
+        }
+
+        fn resolve_debug(
+            &self,
+            f: &mut fmt::Formatter,
+            _expanded_node: Option<&ExpandedNode>,
+        ) -> fmt::Result {
+            f.debug_struct("TestLightingNode").finish()
+        }
+
+        fn resolve_scene_light(
+            &self,
+            _expanded_node: &ExpandedNode,
+            _context: &RuntimeContext,
+        ) -> Option<SceneLight> {
+            match self.role {
+                TestLightingRole::Light(intensity) if self.enabled.get() => Some(SceneLight {
+                    intensity,
+                    ..Default::default()
+                }),
+                _ => None,
+            }
+        }
+
+        fn resolve_scene_ambient_light(
+            &self,
+            _expanded_node: &ExpandedNode,
+            _context: &RuntimeContext,
+        ) -> Option<SceneAmbientLight> {
+            match self.role {
+                TestLightingRole::Ambient(intensity) if self.enabled.get() => {
+                    Some(SceneAmbientLight {
+                        intensity,
+                        ..Default::default()
+                    })
+                }
+                _ => None,
+            }
+        }
+
+        fn establishes_light_frame(&self) -> bool {
+            matches!(self.role, TestLightingRole::Frame)
+        }
+
+        fn base(&self) -> &BaseInstance {
+            &self.base
+        }
+    }
+
+    struct ScopedLightingFixture {
+        context: Rc<RuntimeContext>,
+        _root: Rc<ExpandedNode>,
+        root_light: Rc<TestLightingNode>,
+        outer_light: Rc<TestLightingNode>,
+        ambient: Rc<TestLightingNode>,
+        root_surface: Rc<ExpandedNode>,
+        outer_surface: Rc<ExpandedNode>,
+        nested_surface: Rc<ExpandedNode>,
+        sibling_surface: Rc<ExpandedNode>,
+        sibling_frame: Rc<ExpandedNode>,
+    }
+
+    fn test_globals() -> Globals {
+        Globals {
+            elapsed_frames: Property::new(0),
+            elapsed_millis: Property::new(0),
+            viewport: Property::new(TransformAndBounds {
+                transform: Transform2::identity(),
+                bounds: (100.0, 100.0),
+            }),
+            gyro: Property::new(Default::default()),
+            accel: Property::new(Default::default()),
+            route_location: Property::new(RouteLocation::root()),
+            browser_allows_scroller_vector_layers: Property::new(true),
+            browser_allows_nested_scroller_vector_layers: Property::new(true),
+            platform: Platform::Unknown,
+            os: OS::Unknown,
+            target: TargetInfo::new(Platform::Unknown, OS::Unknown),
+            get_elapsed_millis: Rc::new(|| 0),
+        }
+    }
+
+    fn properties_factory() -> crate::PropertiesFactory {
+        Box::new(|_, expanded_node| {
+            expanded_node
+                .is_none()
+                .then(|| Rc::new(RefCell::new(PaxAny::Builtin(PaxValue::default()))))
+        })
+    }
+
+    fn node_args(children: Vec<Rc<dyn InstanceNode>>) -> InstantiationArgs {
+        InstantiationArgs {
+            prototypical_common_properties: CommonPropertiesInit::Default,
+            prototypical_properties: PropertiesInit::Factory(properties_factory()),
+            handler_registry: None,
+            children: Some(RefCell::new(children)),
+            component_template: None,
+            component_settings: None,
+            template_node_identifier: None,
+            template_node_type_id: None,
+            template_node_selector_info: None,
+            transition_config: Default::default(),
+            properties_scope: PropertiesScopeInit::None,
+        }
+    }
+
+    fn component_args(template: Vec<Rc<dyn InstanceNode>>) -> InstantiationArgs {
+        InstantiationArgs {
+            prototypical_common_properties: CommonPropertiesInit::Default,
+            prototypical_properties: PropertiesInit::Factory(properties_factory()),
+            handler_registry: None,
+            children: None,
+            component_template: Some(RefCell::new(template)),
+            component_settings: None,
+            template_node_identifier: None,
+            template_node_type_id: None,
+            template_node_selector_info: None,
+            transition_config: Default::default(),
+            properties_scope: PropertiesScopeInit::None,
+        }
+    }
+
+    fn mount_test_tree(
+        children: Vec<Rc<dyn InstanceNode>>,
+    ) -> (Rc<RuntimeContext>, Rc<ExpandedNode>) {
+        let root_component = ComponentInstance::instantiate(component_args(children));
+        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let root = ExpandedNode::initialize_root(root_component, &context);
+        root.recurse_update(&context);
+        crate::engine::occlusion::update_node_occlusion(&root, &context);
+        (context, root)
+    }
+
+    fn clear_dirty_canvas_nodes(context: &RuntimeContext) {
+        for id in context.dirty_canvas_node_ids() {
+            context.clear_canvas_node_dirty(&id);
+        }
+    }
+
+    fn scoped_lighting_fixture() -> ScopedLightingFixture {
+        let nested_light = TestLightingNode::new(TestLightingRole::Light(3.0), Vec::new());
+        let nested_surface = TestLightingNode::new(TestLightingRole::Surface, Vec::new());
+        let nested_frame = TestLightingNode::new(
+            TestLightingRole::Frame,
+            vec![nested_light.as_instance(), nested_surface.as_instance()],
+        );
+
+        let sibling_surface = TestLightingNode::new(TestLightingRole::Surface, Vec::new());
+        let sibling_frame =
+            TestLightingNode::new(TestLightingRole::Frame, vec![sibling_surface.as_instance()]);
+
+        let outer_light = TestLightingNode::new(TestLightingRole::Light(2.0), Vec::new());
+        let outer_surface = TestLightingNode::new(TestLightingRole::Surface, Vec::new());
+        let outer_frame = TestLightingNode::new(
+            TestLightingRole::Frame,
+            vec![
+                outer_light.as_instance(),
+                outer_surface.as_instance(),
+                nested_frame.as_instance(),
+                sibling_frame.as_instance(),
+            ],
+        );
+
+        let root_light = TestLightingNode::new(TestLightingRole::Light(1.0), Vec::new());
+        let root_surface = TestLightingNode::new(TestLightingRole::Surface, Vec::new());
+        let ambient = TestLightingNode::new(TestLightingRole::Ambient(0.72), Vec::new());
+        ambient.set_enabled(false);
+
+        let (context, root) = mount_test_tree(vec![
+            root_light.as_instance(),
+            root_surface.as_instance(),
+            outer_frame.as_instance(),
+            ambient.as_instance(),
+        ]);
+
+        let root_children = root.children.get();
+        let root_surface_node = root_children[1].clone();
+        let outer_frame_node = root_children[2].clone();
+        let outer_children = outer_frame_node.children.get();
+        let outer_surface_node = outer_children[1].clone();
+        let nested_frame_node = outer_children[2].clone();
+        let sibling_frame_node = outer_children[3].clone();
+        let nested_children = nested_frame_node.children.get();
+        let nested_surface_node = nested_children[1].clone();
+        let sibling_surface_node = sibling_frame_node.children.get()[0].clone();
+
+        ScopedLightingFixture {
+            context,
+            _root: root,
+            root_light,
+            outer_light,
+            ambient,
+            root_surface: root_surface_node,
+            outer_surface: outer_surface_node,
+            nested_surface: nested_surface_node,
+            sibling_surface: sibling_surface_node,
+            sibling_frame: sibling_frame_node,
+        }
+    }
+
+    #[test]
+    fn root_lights_reach_every_frame_ancestry() {
+        let ancestry = HashSet::from([ExpandedNodeIdentifier(10), ExpandedNodeIdentifier(20)]);
+        assert!(light_reaches_frame_ancestry(None, &ancestry));
+    }
+
+    #[test]
+    fn framed_lights_reach_only_descendants_of_their_owner_frame() {
+        let outer_frame = ExpandedNodeIdentifier(10);
+        let nested_frame = ExpandedNodeIdentifier(20);
+        let sibling_frame = ExpandedNodeIdentifier(30);
+        let nested_ancestry = HashSet::from([outer_frame, nested_frame]);
+
+        assert!(light_reaches_frame_ancestry(
+            Some(&outer_frame),
+            &nested_ancestry
+        ));
+        assert!(light_reaches_frame_ancestry(
+            Some(&nested_frame),
+            &nested_ancestry
+        ));
+        assert!(!light_reaches_frame_ancestry(
+            Some(&sibling_frame),
+            &nested_ancestry
+        ));
+    }
+
+    #[test]
+    fn mounted_tree_resolves_root_nested_and_sibling_light_masks() {
+        let fixture = scoped_lighting_fixture();
+
+        let lighting = fixture.context.collect_scene_lighting_for_layer(0);
+
+        assert_eq!(
+            lighting
+                .lights
+                .iter()
+                .map(|light| light.intensity)
+                .collect::<Vec<_>>(),
+            vec![1.0, 2.0, 3.0]
+        );
+        assert!(!lighting.ambient_is_authored);
+        assert_eq!(
+            fixture
+                .context
+                .canvas_node_light_mask(fixture.root_surface.id),
+            0b001
+        );
+        assert_eq!(
+            fixture
+                .context
+                .canvas_node_light_mask(fixture.outer_surface.id),
+            0b011
+        );
+        assert_eq!(
+            fixture
+                .context
+                .canvas_node_light_mask(fixture.nested_surface.id),
+            0b111
+        );
+        assert_eq!(
+            fixture
+                .context
+                .canvas_node_light_mask(fixture.sibling_surface.id),
+            0b011
+        );
+    }
+
+    #[test]
+    fn slot_reallocation_and_render_reparenting_refresh_retained_masks() {
+        let fixture = scoped_lighting_fixture();
+        fixture.context.collect_scene_lighting_for_layer(0);
+        clear_dirty_canvas_nodes(&fixture.context);
+
+        fixture.outer_light.set_enabled(false);
+        let lighting = fixture.context.collect_scene_lighting_for_layer(0);
+
+        assert_eq!(
+            lighting
+                .lights
+                .iter()
+                .map(|light| light.intensity)
+                .collect::<Vec<_>>(),
+            vec![1.0, 3.0]
+        );
+        assert_eq!(
+            fixture
+                .context
+                .canvas_node_light_mask(fixture.root_surface.id),
+            0b01
+        );
+        assert_eq!(
+            fixture
+                .context
+                .canvas_node_light_mask(fixture.outer_surface.id),
+            0b01
+        );
+        assert_eq!(
+            fixture
+                .context
+                .canvas_node_light_mask(fixture.nested_surface.id),
+            0b11
+        );
+        assert!(fixture
+            .context
+            .is_canvas_node_dirty(&fixture.outer_surface.id));
+        assert!(fixture
+            .context
+            .is_canvas_node_dirty(&fixture.nested_surface.id));
+        assert!(!fixture
+            .context
+            .is_canvas_node_dirty(&fixture.root_surface.id));
+
+        clear_dirty_canvas_nodes(&fixture.context);
+        *borrow_mut!(fixture.nested_surface.render_parent) = Rc::downgrade(&fixture.sibling_frame);
+        fixture.context.collect_scene_lighting_for_layer(0);
+
+        assert_eq!(
+            fixture
+                .context
+                .canvas_node_light_mask(fixture.nested_surface.id),
+            0b01
+        );
+        assert!(fixture
+            .context
+            .is_canvas_node_dirty(&fixture.nested_surface.id));
+    }
+
+    #[test]
+    fn default_and_authored_ambient_keep_empty_direct_masks_distinct() {
+        let fixture = scoped_lighting_fixture();
+        fixture.root_light.set_enabled(false);
+
+        let default_ambient = fixture.context.collect_scene_lighting_for_layer(0);
+        assert!(default_ambient.active);
+        assert!(!default_ambient.ambient_is_authored);
+        assert_eq!(
+            fixture
+                .context
+                .canvas_node_light_mask(fixture.root_surface.id),
+            0
+        );
+        assert_eq!(
+            default_ambient.ambient.intensity,
+            SceneLighting::DEFAULT_AMBIENT_INTENSITY
+        );
+
+        fixture.ambient.set_enabled(true);
+        let authored_ambient = fixture.context.collect_scene_lighting_for_layer(0);
+        assert!(authored_ambient.active);
+        assert!(authored_ambient.ambient_is_authored);
+        assert_eq!(authored_ambient.ambient.intensity, 0.72);
+        assert_eq!(
+            fixture
+                .context
+                .canvas_node_light_mask(fixture.root_surface.id),
+            0
+        );
+    }
+
+    #[test]
+    fn light_overflow_selection_is_deterministic_and_recovers() {
+        let lights = (0..10)
+            .map(|index| {
+                TestLightingNode::new(TestLightingRole::Light((index + 1) as f64), Vec::new())
+            })
+            .collect::<Vec<_>>();
+        let surface = TestLightingNode::new(TestLightingRole::Surface, Vec::new());
+        let mut templates = lights
+            .iter()
+            .rev()
+            .map(TestLightingNode::as_instance)
+            .collect::<Vec<_>>();
+        templates.push(surface.as_instance());
+        let (context, root) = mount_test_tree(templates);
+        let expanded = root.children.get();
+        let surface_node = expanded[10].clone();
+
+        let first = context.collect_scene_lighting_for_layer(0);
+        let second = context.collect_scene_lighting_for_layer(0);
+        let expected = vec![10.0, 9.0, 8.0, 7.0, 6.0, 5.0, 4.0, 3.0];
+        assert_eq!(
+            first
+                .lights
+                .iter()
+                .map(|light| light.intensity)
+                .collect::<Vec<_>>(),
+            expected
+        );
+        assert_eq!(first.lights, second.lights);
+        assert_eq!(context.canvas_node_light_mask(surface_node.id), 0xff);
+        assert_eq!(borrow!(context.lighting_overflow_counts).get(&0), Some(&2));
+
+        lights[0].set_enabled(false);
+        lights[1].set_enabled(false);
+        let recovered = context.collect_scene_lighting_for_layer(0);
+        assert_eq!(
+            recovered
+                .lights
+                .iter()
+                .map(|light| light.intensity)
+                .collect::<Vec<_>>(),
+            expected
+        );
+        assert!(!borrow!(context.lighting_overflow_counts).contains_key(&0));
+    }
+
+    #[test]
+    fn touch_capture_releases_and_clears_removed_targets() {
+        let surface = TestLightingNode::new(TestLightingRole::Surface, Vec::new());
+        let (context, root) = mount_test_tree(vec![surface.as_instance()]);
+        let surface_node = root.children.get()[0].clone();
+
+        context.capture_touch_target(41, surface_node.id);
+        assert!(Rc::ptr_eq(
+            &context.captured_touch_target(41).unwrap(),
+            &surface_node
+        ));
+        assert!(Rc::ptr_eq(
+            &context.release_touch_target(41).unwrap(),
+            &surface_node
+        ));
+        assert!(context.captured_touch_target(41).is_none());
+
+        context.capture_touch_target(42, surface_node.id);
+        context.remove_from_cache(&surface_node);
+        assert!(context.captured_touch_target(42).is_none());
+        assert!(context.release_touch_target(42).is_none());
+    }
 }

@@ -8,6 +8,7 @@ use crate::{
     node_interface::NodeLocal, ExpandedNode, LayoutHull, RuntimeContext,
     RuntimePropertiesStackFrame, TransformAndBounds,
 };
+use kurbo::Affine;
 
 pub use pax_runtime_api::*;
 use pax_runtime_api::{cursor::CursorStyle, math::Point2, properties::UntypedProperty};
@@ -125,9 +126,22 @@ impl NodeContext {
         self.local_stack_frame.peek_stack_local_store(f)
     }
 
-    /// Convert a window-space point into this node's local coordinate space.
+    /// Convert a window-space point into this node's local coordinate space, including any
+    /// presentation offsets inherited from ancestor scrollers.
     pub fn local_point(&self, p: Point2<Window>) -> Point2<NodeLocal> {
-        self.node_transform_and_bounds.as_transform().inverse() * p
+        let presentation_transform = self
+            .expanded_node
+            .upgrade()
+            .map(|node| {
+                self.runtime_context
+                    .presentation_scroll_transform_for_node(&node)
+            })
+            .unwrap_or(Affine::IDENTITY);
+        local_point_with_presentation_transform(
+            self.node_transform_and_bounds,
+            presentation_transform,
+            p,
+        )
     }
 
     /// Return the interface for this node's containing component, when present.
@@ -225,6 +239,38 @@ impl NodeContext {
     /// Shared map where completed screenshot captures are published by id.
     pub fn get_screenshot_map(&self) -> Rc<RefCell<HashMap<u32, ScreenshotData>>> {
         self.runtime_context.get_screenshot_map()
+    }
+}
+
+fn local_point_with_presentation_transform(
+    node_transform_and_bounds: TransformAndBounds<NodeLocal, Window>,
+    presentation_transform: Affine,
+    point: Point2<Window>,
+) -> Point2<NodeLocal> {
+    node_transform_and_bounds.as_transform().inverse() * (presentation_transform.inverse() * point)
+}
+
+#[cfg(test)]
+mod local_point_tests {
+    use super::*;
+    use pax_runtime_api::math::{Transform2, Vector2};
+
+    #[test]
+    fn local_point_accounts_for_ancestor_scroller_presentation_offset() {
+        let node = TransformAndBounds {
+            transform: Transform2::<NodeLocal, Window>::translate(Vector2::new(50.0, 400.0)),
+            bounds: (200.0, 100.0),
+        };
+        let presentation_transform = Affine::translate((0.0, -300.0));
+
+        let local = local_point_with_presentation_transform(
+            node,
+            presentation_transform,
+            Point2::new(150.0, 140.0),
+        );
+
+        assert!((local.x - 0.5).abs() < 1e-9);
+        assert!((local.y - 0.4).abs() < 1e-9);
     }
 }
 

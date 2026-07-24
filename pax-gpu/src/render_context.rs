@@ -782,6 +782,11 @@ impl<'w> WgpuRenderer<'w> {
         smoothing: PathSmoothing,
     ) {
         let current_transform = self.current_transform();
+        let light_mask = self
+            .current_node
+            .as_ref()
+            .map(|node| node.light_mask)
+            .unwrap_or(0);
         let geometry_signature = hash_vector_path(
             &path,
             PendingVectorOpKind::Stroke(stroke.weight, stroke.cap, stroke.join),
@@ -798,6 +803,7 @@ impl<'w> WgpuRenderer<'w> {
             path,
             fill: stroke.fill,
             material,
+            light_mask,
             transform: current_transform,
             opacity,
             kind: PendingVectorOpKind::Stroke(stroke.weight, stroke.cap, stroke.join),
@@ -844,6 +850,11 @@ impl<'w> WgpuRenderer<'w> {
         smoothing: PathSmoothing,
     ) {
         let current_transform = self.current_transform();
+        let light_mask = self
+            .current_node
+            .as_ref()
+            .map(|node| node.light_mask)
+            .unwrap_or(0);
         let geometry_signature = hash_vector_path(&path, PendingVectorOpKind::Fill, smoothing);
         let Some(PendingNode {
             kind: PendingNodeKind::Vector(buffers),
@@ -856,6 +867,7 @@ impl<'w> WgpuRenderer<'w> {
             path,
             fill,
             material,
+            light_mask,
             transform: current_transform,
             opacity,
             kind: PendingVectorOpKind::Fill,
@@ -1157,10 +1169,11 @@ impl<'w> WgpuRenderer<'w> {
         self.render_backend.take_screenshot_capture(request_id)
     }
 
-    pub fn begin_node(&mut self, node_id: u32, z_index: i32) -> bool {
+    pub fn begin_node(&mut self, node_id: u32, z_index: i32, light_mask: u32) -> bool {
         self.current_node = Some(PendingNode {
             id: node_id,
             z_index,
+            light_mask,
             owned_clip_keys: Vec::new(),
             kind: PendingNodeKind::Empty,
         });
@@ -1683,6 +1696,7 @@ struct SceneStateSave {
 struct PendingNode {
     id: u32,
     z_index: i32,
+    light_mask: u32,
     owned_clip_keys: Vec<ClipArenaKey>,
     kind: PendingNodeKind,
 }
@@ -1702,6 +1716,7 @@ struct PendingVectorOp {
     path: Path,
     fill: Fill,
     material: Material,
+    light_mask: u32,
     transform: Transform2D,
     opacity: f32,
     kind: PendingVectorOpKind,
@@ -1881,6 +1896,7 @@ fn rebuild_vector_buffers(
                 &mut next_gradient_id,
                 &mut next_material_id,
                 op.draw_range,
+                op.light_mask,
             )
         } else {
             push_primitive_def(
@@ -1889,6 +1905,7 @@ fn rebuild_vector_buffers(
                 op.material,
                 transform_id,
                 op.draw_range,
+                op.light_mask,
             )
         };
 
@@ -2440,6 +2457,7 @@ fn hash_vector_primitives(ops: &[PendingVectorOp]) -> u64 {
     let mut hasher = DefaultHasher::new();
     ops.len().hash(&mut hasher);
     for op in ops {
+        op.light_mask.hash(&mut hasher);
         for value in op.draw_range.as_gpu_range() {
             value.to_bits().hash(&mut hasher);
         }
@@ -2754,7 +2772,12 @@ fn to_gpu_scene_lighting(lighting: &SceneLighting) -> GpuSceneLighting {
             lighting.ambient_color.rgba[2],
             lighting.ambient_intensity.max(0.0),
         ],
-        meta: [lighting.active as u32, 0, 0, 0],
+        meta: [
+            lighting.active as u32,
+            0,
+            lighting.ambient_is_authored as u32,
+            0,
+        ],
         ..GpuSceneLighting::default()
     };
 
@@ -2796,6 +2819,7 @@ fn push_primitive_def(
     material: Material,
     transform_id: u32,
     draw_range: DrawRange,
+    light_mask: u32,
 ) -> u32 {
     let fill_id;
     let fill_type_flag;
@@ -2848,6 +2872,8 @@ fn push_primitive_def(
         transform_id,
         z_index: 0,
         draw_range: draw_range.as_gpu_range(),
+        light_mask,
+        _padding: [0; 3],
     };
     let prim_id = buffers.primitives.len() as u32;
     buffers.primitives.push(primitive);
@@ -2862,6 +2888,7 @@ fn push_primitive_with_existing_fill(
     next_gradient_id: &mut u16,
     next_material_id: &mut u32,
     draw_range: DrawRange,
+    light_mask: u32,
 ) -> u32 {
     let (fill_id, fill_type_flag) = match fill {
         Fill::Solid(_) => {
@@ -2885,6 +2912,8 @@ fn push_primitive_with_existing_fill(
         transform_id,
         z_index: 0,
         draw_range: draw_range.as_gpu_range(),
+        light_mask,
+        _padding: [0; 3],
     });
     prim_id
 }
@@ -3289,6 +3318,7 @@ pub struct SceneLight {
 /// Resolved lighting state for one retained vector scene.
 pub struct SceneLighting {
     pub active: bool,
+    pub ambient_is_authored: bool,
     pub ambient_color: Color,
     pub ambient_intensity: f32,
     pub lights: Vec<SceneLight>,
@@ -3298,6 +3328,7 @@ impl Default for SceneLighting {
     fn default() -> Self {
         Self {
             active: false,
+            ambient_is_authored: false,
             ambient_color: Color::rgba(1.0, 1.0, 1.0, 1.0),
             ambient_intensity: 1.0,
             lights: vec![],
@@ -3419,6 +3450,7 @@ mod tests {
             path: path.clone(),
             fill: Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),
             material: Material::default(),
+            light_mask: 0,
             transform: Transform2D::identity(),
             opacity: 1.0,
             kind: PendingVectorOpKind::Fill,
@@ -3435,6 +3467,7 @@ mod tests {
                 path,
                 fill: Fill::Solid(Color::rgba(0.0, 1.0, 0.0, 1.0)),
                 material: Material::default(),
+                light_mask: 0,
                 transform: Transform2D::identity(),
                 opacity: 1.0,
                 kind: PendingVectorOpKind::Fill,
@@ -3512,6 +3545,7 @@ mod tests {
                 path: path.clone(),
                 fill: Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),
                 material: Material::default(),
+                light_mask: 0,
                 transform: Transform2D::identity(),
                 opacity: 1.0,
                 kind,
@@ -3523,6 +3557,7 @@ mod tests {
                 path,
                 fill: Fill::Solid(Color::rgba(0.0, 1.0, 0.0, 1.0)),
                 material: Material::default(),
+                light_mask: 0,
                 transform: Transform2D::identity(),
                 opacity: 1.0,
                 kind,
@@ -3564,6 +3599,7 @@ mod tests {
             path: path.clone(),
             fill: Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),
             material: Material::default(),
+            light_mask: 0,
             transform: Transform2D::identity(),
             opacity: 1.0,
             kind,
@@ -3619,6 +3655,7 @@ mod tests {
                 path: path.clone(),
                 fill: Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),
                 material: Material::default(),
+                light_mask: 0,
                 transform: Transform2D::identity(),
                 opacity: 1.0,
                 kind,
@@ -3676,6 +3713,7 @@ mod tests {
                 path: path.clone(),
                 fill: Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),
                 material: Material::default(),
+                light_mask: 0,
                 transform: Transform2D::identity(),
                 opacity: 1.0,
                 kind,
@@ -3701,6 +3739,7 @@ mod tests {
             path: path.clone(),
             fill: Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),
             material: Material::default(),
+            light_mask: 0,
             transform: Transform2D::identity(),
             opacity: 1.0,
             kind,

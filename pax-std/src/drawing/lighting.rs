@@ -11,6 +11,55 @@ use std::rc::Rc;
 
 use crate::common::canvas_surface_transform;
 
+/// A non-rendering container that keeps descendant lights from escaping its subtree.
+///
+/// Lights outside the frame may still illuminate its descendants. Each expanded
+/// frame instance has its own lexical lighting identity.
+#[pax]
+#[engine_import_path("pax_engine")]
+#[primitive("pax_std::drawing::lighting::LightFrameInstance")]
+pub struct LightFrame {}
+
+pub struct LightFrameInstance {
+    base: BaseInstance,
+}
+
+impl InstanceNode for LightFrameInstance {
+    fn instantiate(args: InstantiationArgs) -> Rc<Self>
+    where
+        Self: Sized,
+    {
+        Rc::new(Self {
+            base: BaseInstance::new(
+                args,
+                InstanceFlags {
+                    invisible_to_slot: false,
+                    invisible_to_raycasting: true,
+                    layer: Layer::DontCare,
+                    is_component: false,
+                    is_slot: false,
+                },
+            ),
+        })
+    }
+
+    fn establishes_light_frame(&self) -> bool {
+        true
+    }
+
+    fn resolve_debug(
+        &self,
+        f: &mut std::fmt::Formatter,
+        _expanded_node: Option<&ExpandedNode>,
+    ) -> std::fmt::Result {
+        f.debug_struct("LightFrame").finish()
+    }
+
+    fn base(&self) -> &BaseInstance {
+        &self.base
+    }
+}
+
 /// A non-rendering light resource that affects light-reactive vector materials in its scene.
 #[pax]
 #[engine_import_path("pax_engine")]

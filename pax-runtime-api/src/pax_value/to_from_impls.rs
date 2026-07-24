@@ -394,6 +394,10 @@ impl ToPaxValue for SceneLighting {
         PaxValue::Object(
             vec![
                 ("active".to_string(), self.active.to_pax_value()),
+                (
+                    "ambient_is_authored".to_string(),
+                    self.ambient_is_authored.to_pax_value(),
+                ),
                 ("ambient".to_string(), self.ambient.to_pax_value()),
                 ("lights".to_string(), self.lights.to_pax_value()),
             ]

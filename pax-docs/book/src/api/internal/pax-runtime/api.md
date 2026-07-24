@@ -88,6 +88,16 @@ Type: [`OS`](/api/pax-runtime-api/platform.md#os)
 
 Current os (Android/Windows/Mac/Linux) this app is running on
 
+##### `target`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`TargetInfo`](/api/pax-runtime-api/platform.md#targetinfo)>
+
+Derived target facts for platform/OS checks.
+
+##### `viewport`
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Viewport`](/api/pax-runtime-api/platform.md#viewport)>
+
+Derived viewport facts for size and orientation checks.
+
 ##### `projected_children_count`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`usize`>
 
