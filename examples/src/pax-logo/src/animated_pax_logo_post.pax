@@ -40,7 +40,7 @@
 }
 
 @timeline post_unfurl {
-    duration: 1080ms
+    duration: 940ms
     loop: false
 
     self {
@@ -50,8 +50,9 @@
         }
         extension: {
             0ms: 0, Hold
-            300ms: 0, InQuad
-            820ms: 1
+            300ms: 0, OutQuad
+            820ms: 1.018, OutQuad
+            940ms: 1
         }
         fall: {
             0ms: 0, Hold
@@ -71,18 +72,6 @@
             300ms: 0, OutQuad
             495ms: -8.0839, InOutQuad
             820ms: 0
-        }
-        whip: {
-            0ms: 0, Hold
-            820ms: 0, Linear
-            834ms: -2.6016, Linear
-            848ms: -3.9375, Linear
-            861ms: -4.4297, Linear
-            875ms: -4.5, Linear
-            926ms: -1.8984, Linear
-            978ms: -0.5625, Linear
-            1029ms: -0.0703, Linear
-            1080ms: 0
         }
         roll_radius_px: {
             0ms: 13, InQuad

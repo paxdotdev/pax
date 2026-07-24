@@ -97,66 +97,71 @@
 }
 
 @timeline banner_unfold {
-    duration: 1500ms
+    duration: 1440ms
     loop: false
 
     // The three letters overlap as a tight relay inside a 1500ms envelope.
-    // Every apex keeps a perceptible 140ms zero-velocity hold. Travel and
-    // recovery windows compress around those holds; the complete mathematical
-    // p ring still over-rolls, while a and x retain their lower-right-pivoted
-    // braking lean. Both sides of each braking gesture run at half the prior
-    // speed: the primary rolls begin earlier to make room for the longer
-    // lean-in, while the longer counter-rock and settle overlap the following
-    // letters to preserve the total duration.
+    // Each braking gesture uses a concise out-rock, 120ms apex hold, return
+    // through a visible left nadir, and decisive settle. Compressing each of
+    // the first three phases by 20ms restores the tighter original dispatch
+    // cadence and lets the complete relay finish in a 1440ms envelope.
     self {
-        // Five overhead releases loosen from left to right. Their dispatch
-        // gaps expand (80, 110, 150, 190ms), and each longer OutQuad drop
-        // exposes useful area early while remaining interleaved with the
-        // rolling letters.
+        // Five overhead releases loosen from left to right. Each drop is
+        // front-loaded to establish a local black field before its letter
+        // arrives, then spends its remaining time in a shallow fabric settle.
+        // Overshoot decays linearly across the five ropes (7.5%, 5.625%,
+        // 3.75%, 1.875%, 0%) so the free right corner approaches rest without
+        // inheriting a bounce from its left neighbor. The fifth release
+        // reaches exact geometry at 1440ms, on the same frame that x completes
+        // its final settle.
         curtain_drop_1: {
             0ms: 0, Hold
-            290ms: 0, OutQuad
-            670ms: 1.06, OutQuad
-            750ms: 1
+            210ms: 0, OutQuad
+            600ms: 0.96, OutQuad
+            799ms: 1.075, OutQuad
+            896ms: 1
         }
         curtain_drop_2: {
             0ms: 0, Hold
-            370ms: 0, OutQuad
-            750ms: 1.06, OutQuad
-            830ms: 1
+            299ms: 0, OutQuad
+            693ms: 0.95, OutQuad
+            896ms: 1.05625, OutQuad
+            993ms: 1
         }
         curtain_drop_3: {
             0ms: 0, Hold
-            480ms: 0, OutQuad
-            860ms: 1.06, OutQuad
-            940ms: 1
+            415ms: 0, OutQuad
+            810ms: 0.94, OutQuad
+            1029ms: 1.0375, OutQuad
+            1126ms: 1
         }
         curtain_drop_4: {
             0ms: 0, Hold
-            630ms: 0, OutQuad
-            1010ms: 1.06, OutQuad
-            1090ms: 1
+            571ms: 0, OutQuad
+            985ms: 0.92, OutQuad
+            1210ms: 1.01875, OutQuad
+            1307ms: 1
         }
         curtain_drop_5: {
             0ms: 0, Hold
-            820ms: 0, OutQuad
-            1200ms: 1.06, OutQuad
-            1280ms: 1
+            766ms: 0, OutQuad
+            1185ms: 0.78, OutQuad
+            1440ms: 1
         }
         banner_opacity: {
             0ms: 0, Hold
-            290ms: 0, OutQuad
-            305ms: 1
+            210ms: 0, OutQuad
+            225ms: 1
         }
         p_counter_opacity: {
             0ms: 1, Hold
-            1138ms: 1, Linear
-            1142ms: 0
+            1078ms: 1, Linear
+            1082ms: 0
         }
         p_counter_final_opacity: {
             0ms: 0, Hold
-            1138ms: 0, Linear
-            1142ms: 1
+            1078ms: 0, Linear
+            1082ms: 1
         }
         p_counter_reveal_progress: {
             0ms: 0, Hold
@@ -167,19 +172,19 @@
             0ms: -110, Hold
             190ms: -110, InQuad
             560ms: 0, OutQuad
-            680ms: 18, Hold
-            820ms: 18, InOutQuad
-            1040ms: -2.4, InOutQuad
-            1140ms: 0
+            660ms: 18, Hold
+            780ms: 18, InOutQuad
+            980ms: -2.4, InOutQuad
+            1080ms: 0
         }
         p_rotation_deg: {
             0ms: -90, Hold
             190ms: -90, InQuad
             560ms: 0, OutQuad
-            680ms: 14.7, Hold
-            820ms: 14.7, InOutQuad
-            1040ms: -1.8, InOutQuad
-            1140ms: 0
+            660ms: 13.23, Hold
+            780ms: 13.23, InOutQuad
+            980ms: -1.8, InOutQuad
+            1080ms: 0
         }
         p_scale: {
             0ms: 0.28, Hold
@@ -204,10 +209,10 @@
         a_brake_rotation_deg: {
             0ms: 0, Hold
             750ms: 0, InOutQuad
-            890ms: 4.25, Hold
-            1030ms: 4.25, InOutQuad
-            1250ms: -0.9, InOutQuad
-            1350ms: 0
+            870ms: 3.825, Hold
+            990ms: 3.825, InOutQuad
+            1190ms: -0.9, InOutQuad
+            1290ms: 0
         }
         a_morph_progress: {
             0ms: 0, Hold
@@ -245,10 +250,10 @@
         x_brake_rotation_deg: {
             0ms: 0, Hold
             980ms: 0, InOutQuad
-            1120ms: 4, Hold
-            1260ms: 4, InOutQuad
-            1400ms: -0.8, InOutQuad
-            1500ms: 0
+            1100ms: 3.6, Hold
+            1220ms: 3.6, InOutQuad
+            1340ms: -0.8, InOutQuad
+            1440ms: 0
         }
     }
 }

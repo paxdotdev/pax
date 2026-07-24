@@ -30,7 +30,6 @@ pub struct AnimatedPaxLogoPost {
     pub extension: Property<f64>,
     pub wave: Property<f64>,
     pub swing: Property<f64>,
-    pub whip: Property<f64>,
     pub fall: Property<f64>,
     pub roll_radius_px: Property<f64>,
     pub top_fabric_elements: Property<Vec<PathElement>>,
@@ -50,7 +49,6 @@ impl Default for AnimatedPaxLogoPost {
             extension: Property::new(0.0),
             wave: Property::new(0.0),
             swing: Property::new(0.0),
-            whip: Property::new(0.0),
             fall: Property::new(0.0),
             roll_radius_px: Property::new(INITIAL_ROLL_RADIUS_PX),
             top_fabric_elements: Property::new(top_fabric_path(motion)),
@@ -69,7 +67,6 @@ impl AnimatedPaxLogoPost {
         let extension = self.extension.clone();
         let wave = self.wave.clone();
         let swing = self.swing.clone();
-        let whip = self.whip.clone();
         let fall = self.fall.clone();
         let roll_radius_px = self.roll_radius_px.clone();
         let motion_dependencies = [
@@ -77,7 +74,6 @@ impl AnimatedPaxLogoPost {
             extension.untyped(),
             wave.untyped(),
             swing.untyped(),
-            whip.untyped(),
             fall.untyped(),
             roll_radius_px.untyped(),
         ];
@@ -88,7 +84,6 @@ impl AnimatedPaxLogoPost {
                     extension: extension.get(),
                     wave: wave.get(),
                     swing: swing.get(),
-                    whip: whip.get(),
                     fall: fall.get(),
                     roll_radius_px: roll_radius_px.get(),
                 })
@@ -148,7 +143,6 @@ struct MotionControls {
     extension: f64,
     wave: f64,
     swing: f64,
-    whip: f64,
     fall: f64,
     roll_radius_px: f64,
 }
@@ -160,7 +154,6 @@ impl Default for MotionControls {
             extension: 0.0,
             wave: 0.0,
             swing: 0.0,
-            whip: 0.0,
             fall: 0.0,
             roll_radius_px: INITIAL_ROLL_RADIUS_PX,
         }
@@ -173,7 +166,6 @@ struct PostMotion {
     extension: f64,
     wave: f64,
     swing: f64,
-    whip: f64,
     fall: f64,
     fabric_bottom_left: Point,
     fabric_bottom_right: Point,
@@ -188,15 +180,13 @@ fn motion_from_controls(controls: MotionControls) -> PostMotion {
     let base_bottom_left = Point::new(
         lerp(TOP_FRONT_LEFT.x, BOTTOM_LEFT.x, controls.extension)
             + controls.swing
-            + controls.wave * 0.12
-            + controls.whip,
+            + controls.wave * 0.12,
         lerp(TOP_FRONT_LEFT.y, BOTTOM_LEFT.y, controls.extension),
     );
     let base_bottom_right = Point::new(
         lerp(TOP_FRONT_RIGHT.x, BOTTOM_RIGHT.x, controls.extension)
             + controls.swing * 0.75
-            + controls.wave * 0.55
-            + controls.whip * 0.8,
+            + controls.wave * 0.55,
         lerp(TOP_FRONT_RIGHT.y, BOTTOM_RIGHT.y, controls.extension),
     );
     let (roll_axis_start, roll_axis_end) = if controls.fall <= f64::EPSILON {
@@ -213,7 +203,6 @@ fn motion_from_controls(controls: MotionControls) -> PostMotion {
         extension: controls.extension,
         wave: controls.wave,
         swing: controls.swing,
-        whip: controls.whip,
         fall: controls.fall,
         fabric_bottom_left: base_bottom_left,
         fabric_bottom_right: base_bottom_right,
@@ -251,7 +240,7 @@ fn fabric_path(motion: PostMotion) -> Vec<PathElement> {
         TOP_FRONT_LEFT.y + left_extent / 3.0,
     );
     let left_middle = Point::new(
-        motion.swing * 0.52 + motion.wave * 0.32 + motion.whip * 0.55,
+        motion.swing * 0.52 + motion.wave * 0.32,
         TOP_FRONT_LEFT.y + left_extent * 2.0 / 3.0,
     );
     let right_upper = Point::new(
@@ -259,7 +248,7 @@ fn fabric_path(motion: PostMotion) -> Vec<PathElement> {
         TOP_FRONT_RIGHT.y + right_extent / 3.0,
     );
     let right_middle = Point::new(
-        TOP_FRONT_RIGHT.x + motion.swing * 0.70 + motion.wave * 0.90 + motion.whip * 0.65,
+        TOP_FRONT_RIGHT.x + motion.swing * 0.70 + motion.wave * 0.90,
         TOP_FRONT_RIGHT.y + right_extent * 2.0 / 3.0,
     );
     let left_edge = [TOP_FRONT_LEFT, left_upper, left_middle, bottom_left];
@@ -438,7 +427,6 @@ mod tests {
         fall: f64,
         wave: f64,
         swing: f64,
-        whip: f64,
         radius: f64,
     ) -> MotionControls {
         MotionControls {
@@ -447,7 +435,6 @@ mod tests {
             fall,
             wave,
             swing,
-            whip,
             roll_radius_px: radius,
         }
     }
@@ -458,9 +445,9 @@ mod tests {
             top_controls(0.0, INITIAL_ROLL_RADIUS_PX),
             top_controls(0.5, 8.125),
             top_controls(1.0, 6.5),
-            fall_controls(0.25, 0.5, -5.2503, -7.0, 0.0, 3.6),
-            fall_controls(1.0, 1.0, 0.0, 0.0, 0.0, 0.7),
-            fall_controls(1.0, 1.0, 0.0, 0.0, -4.5, 0.7),
+            fall_controls(0.25, 0.5, -5.2503, -7.0, 3.6),
+            fall_controls(1.0, 1.0, 0.0, 0.0, 0.7),
+            fall_controls(1.018, 1.0, 0.0, 0.0, 0.7),
         ];
 
         for controls in samples {
@@ -487,7 +474,7 @@ mod tests {
     fn top_face_is_revealed_before_the_descent() {
         let start = motion_from_controls(top_controls(0.0, INITIAL_ROLL_RADIUS_PX));
         let rolled = motion_from_controls(top_controls(1.0, 6.5));
-        let falling = motion_from_controls(fall_controls(0.25, 0.5, 0.0, 0.0, 0.0, 3.6));
+        let falling = motion_from_controls(fall_controls(0.25, 0.5, 0.0, 0.0, 3.6));
 
         assert_eq!(start.extension, 0.0);
         assert_eq!(rolled.rolling, 1.0);
@@ -507,7 +494,7 @@ mod tests {
 
     #[test]
     fn settled_post_matches_the_original_rigid_extents() {
-        let motion = motion_from_controls(fall_controls(1.0, 1.0, 0.0, 0.0, 0.0, 0.7));
+        let motion = motion_from_controls(fall_controls(1.0, 1.0, 0.0, 0.0, 0.7));
         let path = fabric_path(motion);
         assert_eq!(path[6], point_element(BOTTOM_LEFT));
         assert_eq!(path[8], point_element(BOTTOM_RIGHT));
@@ -516,7 +503,7 @@ mod tests {
     #[test]
     fn scalar_controls_drive_spool_shrink_and_full_extension() {
         let start = motion_from_controls(top_controls(0.0, INITIAL_ROLL_RADIUS_PX));
-        let settled = motion_from_controls(fall_controls(1.0, 1.0, 0.0, 0.0, 0.0, 0.7));
+        let settled = motion_from_controls(fall_controls(1.0, 1.0, 0.0, 0.0, 0.7));
 
         assert_eq!(start.roll_radius_px, INITIAL_ROLL_RADIUS_PX);
         assert!(start.roll_radius_px > settled.roll_radius_px);
@@ -524,14 +511,14 @@ mod tests {
     }
 
     #[test]
-    fn lower_edge_whips_once_and_returns_to_the_wall() {
-        let before = motion_from_controls(fall_controls(1.0, 1.0, 0.0, 0.0, 0.0, 0.7));
-        let peak = motion_from_controls(fall_controls(1.0, 1.0, 0.0, 0.0, -4.5, 0.7));
-        let settled = motion_from_controls(fall_controls(1.0, 1.0, 0.0, 0.0, 0.0, 0.7));
+    fn lower_edge_extends_past_the_wall_then_returns() {
+        let peak = motion_from_controls(fall_controls(1.018, 1.0, 0.0, 0.0, 0.7));
+        let settled = motion_from_controls(fall_controls(1.0, 1.0, 0.0, 0.0, 0.7));
 
-        assert_eq!(before.whip, 0.0);
-        assert!(peak.whip < 0.0);
-        assert_eq!(settled.whip, 0.0);
+        assert!(peak.fabric_bottom_left.y > BOTTOM_LEFT.y);
+        assert!(peak.fabric_bottom_right.y > BOTTOM_RIGHT.y);
+        assert_eq!(settled.fabric_bottom_left, BOTTOM_LEFT);
+        assert_eq!(settled.fabric_bottom_right, BOTTOM_RIGHT);
     }
 
     #[test]

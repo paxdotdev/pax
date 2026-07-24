@@ -925,13 +925,17 @@ geometry headroom instead of relying on drawing beyond primitive bounds.
 
 Moving that post animation from an imperative Rust playhead to `@timeline`
 worked without interpolating `Vec<PathElement>` directly. The timeline owns a
-small set of scalar motion controls (extension, wave, swing, whip, and spool
-radius), while one reactive Rust computation maps their instantaneous values
+small set of scalar motion controls (extension, wave, swing, and spool radius),
+while one reactive Rust computation maps their instantaneous values
 into stable-topology paths. This keeps timing, easing, and choreography visible
 in Pax while retaining path assembly and screen-space geometry math in a pure
-adapter. Recommendations: expose artist-facing scalar controls to timelines
-before adding collection interpolation or custom expression helpers for
-procedural geometry.
+adapter. A sampled horizontal `whip` control was eventually removed in favor of
+a small overshoot and return on `extension`; driving the existing physical
+dimension directly made the bottom elasticity simpler and removed the
+shockwave-like secondary deformation. Recommendations: expose artist-facing
+scalar controls to timelines before adding collection interpolation or custom
+expression helpers for procedural geometry, and prefer overshooting an existing
+physical control over introducing a second deformation channel for follow-through.
 
 An experiment that drove a long fabric edge with one cubic segment made impact
 feedback read as a rigid sheet: lowering the temporal period only made the
