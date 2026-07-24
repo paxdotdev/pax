@@ -163,7 +163,6 @@ impl Default for MotionControls {
 #[derive(Clone, Copy, Default)]
 struct PostMotion {
     rolling: f64,
-    extension: f64,
     wave: f64,
     swing: f64,
     fall: f64,
@@ -200,7 +199,6 @@ fn motion_from_controls(controls: MotionControls) -> PostMotion {
 
     PostMotion {
         rolling: controls.rolling,
-        extension: controls.extension,
         wave: controls.wave,
         swing: controls.swing,
         fall: controls.fall,
@@ -476,10 +474,10 @@ mod tests {
         let rolled = motion_from_controls(top_controls(1.0, 6.5));
         let falling = motion_from_controls(fall_controls(0.25, 0.5, 0.0, 0.0, 3.6));
 
-        assert_eq!(start.extension, 0.0);
+        assert_eq!(start.fabric_bottom_left, TOP_FRONT_LEFT);
         assert_eq!(rolled.rolling, 1.0);
-        assert_eq!(rolled.extension, 0.0);
-        assert!(falling.extension > 0.0);
+        assert_eq!(rolled.fabric_bottom_left, TOP_FRONT_LEFT);
+        assert!(falling.fabric_bottom_left.y > TOP_FRONT_LEFT.y);
     }
 
     #[test]
@@ -507,7 +505,8 @@ mod tests {
 
         assert_eq!(start.roll_radius_px, INITIAL_ROLL_RADIUS_PX);
         assert!(start.roll_radius_px > settled.roll_radius_px);
-        assert_eq!(settled.extension, 1.0);
+        assert_eq!(settled.fabric_bottom_left, BOTTOM_LEFT);
+        assert_eq!(settled.fabric_bottom_right, BOTTOM_RIGHT);
     }
 
     #[test]

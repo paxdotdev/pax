@@ -83,6 +83,7 @@ impl Console {
                                             component.type_id,
                                             component.template.unwrap_or_default(),
                                             component.settings.unwrap_or_default(),
+                                            component.timelines,
                                         )
                                         .map_err(|e| anyhow!(e))?;
                                         Ok(())

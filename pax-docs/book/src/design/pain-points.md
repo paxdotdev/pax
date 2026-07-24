@@ -875,6 +875,7 @@ the eventual light disable visually continuous. Recommendation: when an
 authored lighting scene transitions back to identity, animate either scene
 ambient or eligible material response to an identity-equivalent endpoint before
 removing the final light.
+
 While animating the Pax logo, a very small nonzero rotation on a `Group`
 containing filled native `Path` descendants made those paths disappear on the
 web chassis even though scene inspection reported a valid, on-screen expanded
@@ -1032,7 +1033,7 @@ The `a` counter did not need a mask because its counter and outer paths already
 share one computed transform; wrapping those paths in an extra mask caused the
 counter to disappear on web. Recommendations: use a true mask for cross-boundary
 reveals, express its coverage in the same coordinate space as the artwork, and
-When the real occluding silhouette is already available, prefer element order
+when the real occluding silhouette is already available, prefer element order
 over recreating that silhouette as an animated mask. Avoid masking paths that
 can remain registered by sharing one transform.
 

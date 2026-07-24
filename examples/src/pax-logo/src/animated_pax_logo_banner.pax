@@ -100,7 +100,7 @@
     duration: 1440ms
     loop: false
 
-    // The three letters overlap as a tight relay inside a 1500ms envelope.
+    // The three letters overlap as a tight relay inside a 1440ms envelope.
     // Each braking gesture uses a concise out-rock, 120ms apex hold, return
     // through a visible left nadir, and decisive settle. Compressing each of
     // the first three phases by 20ms restores the tighter original dispatch
