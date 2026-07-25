@@ -22,7 +22,8 @@ use pax_runtime::api::math::Point2;
 use pax_runtime::api::{
     Accel, ButtonClick, CheckboxChange, Click, Event, Focus, Gyro, ModifierKey, MouseButton,
     MouseDown, MouseEventArgs, MouseMove, MouseUp, PhotoPickerChange, RenderContext, Scroll,
-    SelectStart, TextboxChange, TextboxInput, Touch, TouchCancel, TouchEnd, TouchMove, TouchStart,
+    SelectStart, SliderChange, TextboxChange, TextboxInput, Touch, TouchCancel, TouchEnd,
+    TouchMove, TouchStart,
 };
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 use pax_runtime::engine::layer_surface::{LayerSurfaceEntry, LayerSurfaceLayout, LayerSurfaceSize};
@@ -1068,6 +1069,11 @@ pub extern "C" fn pax_interrupt(
             let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
             if let Some(node) = node {
                 borrow!(node.instance_node).handle_native_interrupt(&node, &interrupt);
+                node.dispatch_slider_change(
+                    Event::new(SliderChange { value: args.value }),
+                    &globals,
+                    &engine.runtime_context,
+                );
             }
         }
         NativeInterrupt::FormDropdownChange(args) => {

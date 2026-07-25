@@ -1,10 +1,10 @@
 // The post and banner remain independently inspectable components.
 <Group width=100% height=100%>
     <AnimatedPaxLogoPost
-        x=-16px
-        width=169.23px
+        width=137.23px
         height=463.95px
         fill={self.fill}
+        progress={self.progress}
     />
 
     <AnimatedPaxLogoBanner
@@ -12,5 +12,6 @@
         height=100%
         fill={self.fill}
         letter_fill={self.letter_fill}
+        progress={self.progress}
     />
 </Group>

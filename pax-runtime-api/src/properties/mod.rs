@@ -174,6 +174,15 @@ impl<T: PropertyValue> Property<T> {
         })
     }
 
+    /// Stops the active transition and clears every queued transition segment.
+    ///
+    /// The property is left at its current eased value. A subsequent [`Property::set`]
+    /// can therefore take immediate ownership without the cancelled transition
+    /// overwriting it on the next runtime tick.
+    pub fn cancel_transitions(&self) {
+        PROPERTY_TABLE.with(|t| t.cancel_transitions::<T>(self.untyped.id));
+    }
+
     /// Gets the currently stored value. Might be computationally
     /// expensive in a large reactivity network since this triggers
     /// re-evaluation of dirty property chains

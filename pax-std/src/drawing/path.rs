@@ -1,4 +1,4 @@
-use kurbo::{Affine, BezPath};
+use kurbo::{Affine, BezPath, Rect, Shape};
 
 use pax_engine::api::{Fill, PathElement};
 use pax_runtime::api::drawing::path_smoothing::smooth_bez_path;
@@ -9,7 +9,7 @@ use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
 
-use crate::common::{begin_bounded_canvas_node, to_kurbo_point};
+use crate::common::{begin_canvas_node_with_local_bounds, to_kurbo_point};
 use pax_engine::*;
 
 use_RefCell!();
@@ -24,7 +24,9 @@ use pax_runtime::api::drawing::path_trim::trim_bez_path as trim_bez_path_to_unit
 ///
 /// `elements` describes the path in local coordinates. `fill` paints the
 /// interior of closed contours, while `stroke` paints the path itself; for
-/// open subpaths, the stroke cap controls the exposed endpoints.
+/// open subpaths, the stroke cap controls the exposed endpoints. Path geometry
+/// may draw outside the element's layout bounds; use a `Frame` or `Mask` when
+/// that overflow should be clipped.
 #[pax]
 #[custom(Default)]
 #[engine_import_path("pax_engine")]
@@ -275,73 +277,81 @@ impl InstanceNode for PathInstance {
             return;
         }
 
-        let Some(scope) = begin_bounded_canvas_node(rc, expanded_node, rtc) else {
+        let bounds = expanded_node.transform_and_bounds.get().bounds;
+        let layout_bounds = Rect::new(0.0, 0.0, bounds.0, bounds.1);
+        let (bez_path, local_coverage_bounds) =
+            expanded_node.with_properties_unwrapped(|properties: &mut Path| {
+                let elements = properties.elements.get();
+                let bez_path = build_local_bez_path(&elements, bounds);
+                let local_coverage_bounds = bez_path
+                    .as_ref()
+                    .filter(|path| !path.elements().is_empty())
+                    .map(|path| {
+                        path_local_coverage_bounds(
+                            path,
+                            properties.smoothing.get(),
+                            stroke_width_pixels(&properties.stroke.get()),
+                        )
+                    })
+                    .unwrap_or(layout_bounds);
+                (bez_path, local_coverage_bounds)
+            });
+
+        let Some(scope) =
+            begin_canvas_node_with_local_bounds(rc, expanded_node, rtc, local_coverage_bounds)
+        else {
             return;
         };
 
-        expanded_node.with_properties_unwrapped(|properties: &mut Path| {
-            let bounds = scope.bounds;
-            let elements = properties.elements.get();
-            let Some(bez_path) = build_local_bez_path(&elements, bounds) else {
-                return;
-            };
-
-            let mut clip_path = BezPath::new();
-            let (width, height) = scope.bounds;
-            clip_path.move_to((0.0, 0.0));
-            clip_path.line_to((width, 0.0));
-            clip_path.line_to((width, height));
-            clip_path.line_to((0.0, height));
-            clip_path.line_to((0.0, 0.0));
-            clip_path.close_path();
-            //our "save point" before clipping — restored to in the post_render
-            let opacity = expanded_node.computed_opacity.get();
-            let fill = properties.fill.get();
-            let stroke = properties.stroke.get();
-            let material = properties.material.get();
-            let smoothing = properties.smoothing.get();
-            let draw_start = properties.draw_start.get();
-            let draw_end = properties.draw_end.get();
-            let draw_start = draw_start.to_clamped_unit_float();
-            let draw_end = draw_end.to_clamped_unit_float();
-            rc.save(scope.layer_id);
-            rc.transform(scope.layer_id, scope.surface_transform);
-            rc.clip(scope.layer_id, clip_path.clone());
-            if fill.coverage_alpha_0_1() * opacity > f64::EPSILON {
-                rc.fill_with_material_and_opacity_and_smoothing(
-                    scope.layer_id,
-                    bez_path.clone(),
-                    &fill,
-                    &material,
-                    opacity,
-                    smoothing,
-                );
-            }
-            if stroke_width_pixels(&stroke) > f64::EPSILON && draw_start < draw_end {
-                if draw_start <= f64::EPSILON && draw_end >= 1.0 - f64::EPSILON {
-                    rc.stroke_with_material_and_opacity_and_smoothing(
+        if let Some(bez_path) = bez_path {
+            expanded_node.with_properties_unwrapped(|properties: &mut Path| {
+                let opacity = expanded_node.computed_opacity.get();
+                let fill = properties.fill.get();
+                let stroke = properties.stroke.get();
+                let material = properties.material.get();
+                let smoothing = properties.smoothing.get();
+                let draw_start = properties.draw_start.get();
+                let draw_end = properties.draw_end.get();
+                let draw_start = draw_start.to_clamped_unit_float();
+                let draw_end = draw_end.to_clamped_unit_float();
+                rc.save(scope.layer_id);
+                rc.transform(scope.layer_id, scope.surface_transform);
+                if fill.coverage_alpha_0_1() * opacity > f64::EPSILON {
+                    rc.fill_with_material_and_opacity_and_smoothing(
                         scope.layer_id,
-                        bez_path,
-                        &stroke,
+                        bez_path.clone(),
+                        &fill,
                         &material,
                         opacity,
-                        smoothing,
-                    );
-                } else {
-                    rc.stroke_with_draw_range_and_material_and_opacity_and_smoothing(
-                        scope.layer_id,
-                        bez_path,
-                        &stroke,
-                        &material,
-                        opacity,
-                        draw_start,
-                        draw_end,
                         smoothing,
                     );
                 }
-            }
-            rc.restore(scope.layer_id);
-        });
+                if stroke_width_pixels(&stroke) > f64::EPSILON && draw_start < draw_end {
+                    if draw_start <= f64::EPSILON && draw_end >= 1.0 - f64::EPSILON {
+                        rc.stroke_with_material_and_opacity_and_smoothing(
+                            scope.layer_id,
+                            bez_path,
+                            &stroke,
+                            &material,
+                            opacity,
+                            smoothing,
+                        );
+                    } else {
+                        rc.stroke_with_draw_range_and_material_and_opacity_and_smoothing(
+                            scope.layer_id,
+                            bez_path,
+                            &stroke,
+                            &material,
+                            opacity,
+                            draw_start,
+                            draw_end,
+                            smoothing,
+                        );
+                    }
+                }
+                rc.restore(scope.layer_id);
+            });
+        }
         if rc.end_node(scope.layer_id, scope.node_id) {
             rtc.clear_canvas_node_dirty(&expanded_node.id);
         }
@@ -358,6 +368,12 @@ impl InstanceNode for PathInstance {
     ) -> std::fmt::Result {
         f.debug_struct("Path").finish()
     }
+}
+
+fn path_local_coverage_bounds(path: &BezPath, smoothing: PathSmoothing, stroke_width: f64) -> Rect {
+    let path = smooth_bez_path(path, smoothing);
+    let stroke_padding = stroke_width.max(0.0);
+    path.bounding_box().inflate(stroke_padding, stroke_padding)
 }
 
 fn build_local_bez_path(elements: &[PathElement], bounds: (f64, f64)) -> Option<BezPath> {
@@ -453,6 +469,17 @@ mod tests {
             (actual.x - expected.x).abs() < 1e-6 && (actual.y - expected.y).abs() < 1e-6,
             "expected {expected:?}, got {actual:?}"
         );
+    }
+
+    #[test]
+    fn local_coverage_bounds_include_geometry_outside_layout_bounds() {
+        let mut path = BezPath::new();
+        path.move_to((-25.0, -10.0));
+        path.line_to((125.0, 110.0));
+
+        let bounds = path_local_coverage_bounds(&path, PathSmoothing::None, 4.0);
+
+        assert_eq!(bounds, Rect::new(-29.0, -14.0, 129.0, 114.0));
     }
 
     #[test]

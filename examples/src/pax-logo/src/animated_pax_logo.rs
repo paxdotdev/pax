@@ -8,6 +8,9 @@ use pax_kit::*;
 pub struct AnimatedPaxLogo {
     pub fill: Property<Fill>,
     pub letter_fill: Property<Fill>,
+    /// Normalized animation position from the initial pose (0.0) to the
+    /// finished logo (1.0). Consumers own playback by binding this property.
+    pub progress: Property<f64>,
 }
 
 impl Default for AnimatedPaxLogo {
@@ -15,6 +18,7 @@ impl Default for AnimatedPaxLogo {
         Self {
             fill: Property::new(Fill::Solid(Color::BLACK)),
             letter_fill: Property::new(Fill::Solid(Color::WHITE)),
+            progress: Property::new(0.0),
         }
     }
 }

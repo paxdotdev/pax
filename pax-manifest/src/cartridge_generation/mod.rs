@@ -156,6 +156,7 @@ impl PaxManifest {
         add("key_up", "KeyUp");
         add("key_press", "KeyPress");
         add("checkbox_change", "CheckboxChange");
+        add("slider_change", "SliderChange");
         add("button_click", "ButtonClick");
         add("photo_picker_change", "PhotoPickerChange");
         add("textbox_change", "TextboxChange");

@@ -10,6 +10,37 @@ fn test_literal_set_get() {
 }
 
 #[test]
+fn test_cancel_transitions_freezes_value_and_clears_queue() {
+    let frames = Property::new(0_u64);
+    let millis = Property::new(0_u64);
+    register_time(&frames);
+    register_millis(&millis);
+
+    let prop = Property::new(0.0);
+    prop.ease_to(
+        10.0,
+        Duration::Milliseconds(100.into()),
+        EasingCurve::Linear,
+    );
+    prop.ease_to_later(
+        20.0,
+        Duration::Milliseconds(100.into()),
+        EasingCurve::Linear,
+    );
+
+    millis.set(40);
+    assert_eq!(prop.get(), 4.0);
+    prop.cancel_transitions();
+
+    millis.set(180);
+    assert_eq!(prop.get(), 4.0);
+
+    prop.set(7.5);
+    millis.set(220);
+    assert_eq!(prop.get(), 7.5);
+}
+
+#[test]
 fn test_computed_get() {
     let prop = Property::<i32>::computed(|| 42, &[]);
     assert_eq!(prop.get(), 42);

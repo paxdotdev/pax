@@ -29,7 +29,7 @@ use pax_runtime::api::RenderContext;
 use pax_runtime::api::SelectStart;
 use pax_runtime::api::OS;
 use pax_runtime::api::{Accel, Gyro};
-use pax_runtime::api::{PhotoPickerChange, TextboxChange, TextboxInput};
+use pax_runtime::api::{PhotoPickerChange, SliderChange, TextboxChange, TextboxInput};
 use pax_runtime::engine::layer_tiling::{scroller_canvas_plan_with_policy, LayerCanvasPlan};
 use pax_runtime::DefinitionToInstanceTraverser;
 use web_time::Instant;
@@ -533,8 +533,17 @@ impl PaxChassisWeb {
                 let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
                 if let Some(node) = node {
                     borrow!(node.instance_node).handle_native_interrupt(&node, &x);
+                    node.dispatch_slider_change(
+                        Event::new(SliderChange { value: args.value }),
+                        &globals,
+                        &engine.runtime_context,
+                    )
+                } else {
+                    log::warn!(
+                        "tried to dispatch event for slider change after node already removed"
+                    );
+                    false
                 }
-                false
             }
             NativeInterrupt::FormDropdownChange(args) => {
                 let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));

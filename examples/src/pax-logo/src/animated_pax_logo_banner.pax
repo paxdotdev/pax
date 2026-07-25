@@ -1,22 +1,13 @@
-// The black counter alone hands off after the p reaches rest, avoiding the tiny
-// left-edge clip while the smooth outer ring remains continuously visible.
-<Path
-    width=100%
-    height=100%
-    fill={self.fill}
-    opacity={self.p_counter_final_opacity}
-    elements={self.p_counter_final_elements}
-/>
-
 // The complete outer ring and its black counter use the same translation,
 // rotation, and scale. The counter's half-plane opens after emergence so its
 // black overlap can draw above the stationary riser during the counter-rock.
+// It remains continuously opaque through rest; no duplicate-path handoff is
+// needed now that Path overflow is not implicitly clipped.
 <Mask width=100% height=100%>
     <Path
         width=100%
         height=100%
         fill={self.fill}
-        opacity={self.p_counter_opacity}
         elements={self.p_counter_elements}
     />
     <Path
@@ -45,15 +36,15 @@
 // The complete a, including the shared p/a cusp, rolls underneath the p.
 // The p's higher-z ring and counter conceal the initial circle, then reveal
 // the cusp naturally as the a reaches its authored position.
-// The counter is clipped at the p ring's far edge while the a is still
-// nested. This keeps the hole attached to the rolling stone without letting
-// its black interior widen the p counter before the a tips into view.
+// The counter stays fully black and is clipped at the p ring's far edge while
+// the a is still nested. This keeps the hole attached to the rolling stone
+// without letting its black interior widen the p counter before the a tips
+// into view.
 <Mask width=100% height=100%>
     <Path
         width=100%
         height=100%
         fill={self.fill}
-        opacity={self.a_opacity}
         elements={self.a_counter_elements}
     />
     <Path
@@ -93,10 +84,10 @@
 
 @settings {
     @mount: handle_mount
-    @in: banner_unfold
 }
 
 @timeline banner_unfold {
+    playhead: {self.progress * 1440}
     duration: 1440ms
     loop: false
 
@@ -153,16 +144,6 @@
             210ms: 0, OutQuad
             225ms: 1
         }
-        p_counter_opacity: {
-            0ms: 1, Hold
-            1078ms: 1, Linear
-            1082ms: 0
-        }
-        p_counter_final_opacity: {
-            0ms: 0, Hold
-            1078ms: 0, Linear
-            1082ms: 1
-        }
         p_counter_reveal_progress: {
             0ms: 0, Hold
             540ms: 0, InOutQuad
@@ -192,8 +173,8 @@
             560ms: 1
         }
         a_x_px: {
-            0ms: -316.256667, Hold
-            380ms: -316.256667, InOutQuad
+            0ms: -305.583426, Hold
+            380ms: -305.583426, InOutQuad
             750ms: 0
         }
         a_rotation_deg: {
@@ -221,8 +202,8 @@
         }
         a_opacity: {
             0ms: 0, Hold
-            600ms: 0, Linear
-            610ms: 1
+            470ms: 0, Linear
+            480ms: 1
         }
         x_opacity: {
             0ms: 0, Hold

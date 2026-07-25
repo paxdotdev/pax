@@ -267,6 +267,47 @@ impl PropertyTable {
         }
     }
 
+    pub fn cancel_transitions<T: PropertyValue>(&self, id: PropertyId) {
+        let (time_id, curr_time) = PROPERTY_TIME.with_borrow(|time| (time.untyped.id, time.get()));
+        let (millis_id, curr_millis) =
+            PROPERTY_MILLIS.with_borrow(|time| (time.untyped.id, time.get()));
+        let has_transition = self.with_property_data(id, |property_data| {
+            property_data
+                .typed_data
+                .downcast_ref::<TypedPropertyData<T>>()
+                .expect("property type should match")
+                .transition_manager
+                .is_some()
+        });
+        if !has_transition {
+            return;
+        }
+
+        self.disconnect_inbound(id);
+        let value_changed = self.with_property_data_mut(id, |property_data| {
+            let typed_data = property_data.typed_data::<T>();
+            let current_value = typed_data
+                .transition_manager
+                .as_mut()
+                .and_then(|manager| manager.compute_eased_value(curr_time, curr_millis));
+            let value_changed = current_value.is_some();
+            if let Some(current_value) = current_value {
+                typed_data.value = current_value;
+            }
+            typed_data.transition_manager = None;
+            property_data
+                .inbound
+                .retain(|dependency| *dependency != time_id && *dependency != millis_id);
+            property_data.dirty = false;
+            value_changed
+        });
+        self.connect_inbound(id);
+
+        if value_changed {
+            self.dirtify_outbound(id);
+        }
+    }
+
     // Gives mutable access to a entry in the property table
     // WARNING: this function is dangerous, f can not drop, create, set, get
     // or in any other way modify the global property table or this will panic

@@ -83,11 +83,12 @@ pub fn canvas_surface_transform(expanded_node: &ExpandedNode, context: &RuntimeC
     transform
 }
 
-fn canvas_surface_bounds_for_transform(transform: Affine, bounds: (f64, f64)) -> kurbo::Rect {
+fn canvas_surface_bounds_for_transform(
+    transform: Affine,
+    local_bounds: kurbo::Rect,
+) -> kurbo::Rect {
     const TILE_CULL_BOUNDS_PAD: f64 = 64.0;
-    let (width, height) = bounds;
-    let bounds_path = kurbo::Rect::new(0.0, 0.0, width, height).to_path(0.1);
-    (transform * bounds_path)
+    (transform * local_bounds.to_path(0.1))
         .bounding_box()
         .inflate(TILE_CULL_BOUNDS_PAD, TILE_CULL_BOUNDS_PAD)
 }
@@ -109,11 +110,32 @@ pub fn begin_bounded_canvas_node(
     expanded_node: &ExpandedNode,
     context: &RuntimeContext,
 ) -> Option<CanvasNodeRenderScope> {
+    let bounds = expanded_node.transform_and_bounds.get().bounds;
+    begin_canvas_node_with_local_bounds(
+        rc,
+        expanded_node,
+        context,
+        kurbo::Rect::new(0.0, 0.0, bounds.0, bounds.1),
+    )
+}
+
+// Begin a retained vector/image node using explicit local-space coverage.
+//
+// Most primitives are bounded by their layout rectangle and use
+// `begin_bounded_canvas_node`. Paths may intentionally draw outside that
+// rectangle, so their tile coverage follows their actual geometry instead.
+pub(crate) fn begin_canvas_node_with_local_bounds(
+    rc: &mut dyn RenderContext,
+    expanded_node: &ExpandedNode,
+    context: &RuntimeContext,
+    local_coverage_bounds: kurbo::Rect,
+) -> Option<CanvasNodeRenderScope> {
     let layer_id = expanded_node.occlusion.get().render_layer_id;
     let node_id = expanded_node.id.to_u32();
     let tab = expanded_node.transform_and_bounds.get();
     let surface_transform = canvas_surface_transform(expanded_node, context);
-    let coverage_bounds = canvas_surface_bounds_for_transform(surface_transform, tab.bounds);
+    let coverage_bounds =
+        canvas_surface_bounds_for_transform(surface_transform, local_coverage_bounds);
 
     if !rc.begin_node_with_bounds(
         layer_id,

@@ -10,12 +10,10 @@ const TOP_FRONT_RIGHT: Point = Point::new(MID_X, 10.4807);
 const BOTTOM_LEFT: Point = Point::new(0.0, 93.3227);
 const BOTTOM_RIGHT: Point = Point::new(MID_X, 100.0);
 
-// Keep authored overshoot inside the primitive bounds; presentation height restores final scale.
+// The source artwork occupies 96% of the logo's presentation height.
 const CANVAS_Y_SCALE: f64 = 0.96;
 const COMPONENT_WIDTH_PX: f64 = 137.23;
 const COMPONENT_HEIGHT_PX: f64 = 463.95;
-const CANVAS_X_PADDING_PX: f64 = 16.0;
-const CANVAS_WIDTH_PX: f64 = COMPONENT_WIDTH_PX + CANVAS_X_PADDING_PX * 2.0;
 const X_PX_PER_PERCENT: f64 = COMPONENT_WIDTH_PX / 100.0;
 const Y_PX_PER_PERCENT: f64 = COMPONENT_HEIGHT_PX * CANVAS_Y_SCALE / 100.0;
 
@@ -26,6 +24,7 @@ const INITIAL_ROLL_RADIUS_PX: f64 = 13.0;
 #[file("animated_pax_logo_post.pax")]
 pub struct AnimatedPaxLogoPost {
     pub fill: Property<Fill>,
+    pub progress: Property<f64>,
     pub rolling: Property<f64>,
     pub extension: Property<f64>,
     pub wave: Property<f64>,
@@ -34,7 +33,6 @@ pub struct AnimatedPaxLogoPost {
     pub roll_radius_px: Property<f64>,
     pub top_fabric_elements: Property<Vec<PathElement>>,
     pub fabric_elements: Property<Vec<PathElement>>,
-    pub fabric_opacity: Property<f64>,
     pub roll_start_cap_elements: Property<Vec<PathElement>>,
     pub roll_body_elements: Property<Vec<PathElement>>,
     pub roll_end_cap_elements: Property<Vec<PathElement>>,
@@ -45,6 +43,7 @@ impl Default for AnimatedPaxLogoPost {
         let motion = motion_from_controls(MotionControls::default());
         Self {
             fill: Property::new(Fill::Solid(Color::BLACK)),
+            progress: Property::new(0.0),
             rolling: Property::new(0.0),
             extension: Property::new(0.0),
             wave: Property::new(0.0),
@@ -53,7 +52,6 @@ impl Default for AnimatedPaxLogoPost {
             roll_radius_px: Property::new(INITIAL_ROLL_RADIUS_PX),
             top_fabric_elements: Property::new(top_fabric_path(motion)),
             fabric_elements: Property::new(fabric_path(motion)),
-            fabric_opacity: Property::new(0.0),
             roll_start_cap_elements: Property::new(roll_start_cap_path(motion)),
             roll_body_elements: Property::new(roll_body_path(motion)),
             roll_end_cap_elements: Property::new(roll_end_cap_path(motion)),
@@ -232,7 +230,8 @@ fn fabric_path(motion: PostMotion) -> Vec<PathElement> {
     let bottom_right = motion.fabric_bottom_right;
     let left_extent = bottom_left.y - TOP_FRONT_LEFT.y;
     let right_extent = bottom_right.y - TOP_FRONT_RIGHT.y;
-    let roll_sag = radius_y_percent(motion.roll_radius_px) * (1.0 - motion.fall) * 0.65;
+    let roll_sag =
+        radius_y_percent(motion.roll_radius_px) * motion.fall * (1.0 - motion.fall) * 0.65;
     let left_upper = Point::new(
         motion.swing * 0.05 - motion.wave * 0.08,
         TOP_FRONT_LEFT.y + left_extent / 3.0,
@@ -393,7 +392,7 @@ fn point_element(point: Point) -> PathElement {
 }
 
 fn percent_x(value: f64) -> Size {
-    percent((value * X_PX_PER_PERCENT + CANVAS_X_PADDING_PX) / CANVAS_WIDTH_PX * 100.0)
+    percent(value)
 }
 
 fn percent(value: f64) -> Size {
@@ -481,6 +480,27 @@ mod tests {
     }
 
     #[test]
+    fn collapsed_fabric_has_no_pre_fall_sag() {
+        let collapsed = fabric_path(motion_from_controls(top_controls(
+            1.0,
+            INITIAL_ROLL_RADIUS_PX,
+        )));
+        let straight_bottom_edge = PathElement::Cubic(
+            percent_x(lerp(TOP_FRONT_LEFT.x, TOP_FRONT_RIGHT.x, 1.0 / 3.0)),
+            percent_y(lerp(TOP_FRONT_LEFT.y, TOP_FRONT_RIGHT.y, 1.0 / 3.0)),
+            percent_x(lerp(TOP_FRONT_LEFT.x, TOP_FRONT_RIGHT.x, 2.0 / 3.0)),
+            percent_y(lerp(TOP_FRONT_LEFT.y, TOP_FRONT_RIGHT.y, 2.0 / 3.0)),
+        );
+
+        assert_eq!(collapsed[7], straight_bottom_edge);
+
+        let falling = fabric_path(motion_from_controls(fall_controls(
+            0.5, 0.5, 0.0, 0.0, 3.6,
+        )));
+        assert_ne!(falling[7], straight_bottom_edge);
+    }
+
+    #[test]
     fn capsule_keeps_its_axis_spanning_the_prism_edge() {
         let expected = screen_distance(TOP_BACK_LEFT, TOP_BACK_RIGHT);
         for rolling in [0.0, 0.25, 0.5, 0.75, 1.0] {
@@ -521,11 +541,8 @@ mod tests {
     }
 
     #[test]
-    fn front_edge_spool_cap_has_horizontal_drawing_headroom() {
-        let radius_percent = radius_x_percent(INITIAL_ROLL_RADIUS_PX);
-        let leftmost_source_x = TOP_FRONT_LEFT.x - radius_percent;
-        let leftmost_canvas_x =
-            (leftmost_source_x * X_PX_PER_PERCENT + CANVAS_X_PADDING_PX) / CANVAS_WIDTH_PX;
-        assert!(leftmost_canvas_x > 0.0);
+    fn spool_geometry_intentionally_overflows_the_post_bounds() {
+        assert!(TOP_BACK_LEFT.y - radius_y_percent(INITIAL_ROLL_RADIUS_PX) < 0.0);
+        assert!(TOP_FRONT_LEFT.x - radius_x_percent(INITIAL_ROLL_RADIUS_PX) < 0.0);
     }
 }

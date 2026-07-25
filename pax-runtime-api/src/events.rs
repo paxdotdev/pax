@@ -299,6 +299,13 @@ pub struct CheckboxChange {
     pub checked: bool,
 }
 
+/// User changes a slider's value.
+#[derive(Clone)]
+pub struct SliderChange {
+    /// The new slider value.
+    pub value: f64,
+}
+
 /// User types into a text input field.
 #[derive(Clone)]
 pub struct TextInput {

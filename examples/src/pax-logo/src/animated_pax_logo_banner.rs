@@ -33,9 +33,12 @@ const P_COUNTER_RADIUS_PX: f64 = 53.51;
 const P_INITIAL_SCALE: f64 = 0.28;
 const A_COUNTER_RADIUS_PX: f64 = 54.61;
 const A_INITIAL_OUTER_RADIUS_PX: f64 = 112.925;
-const P_DISPATCH_TRANSLATION_X: f64 = -91.666_666_666_666_67;
+// The a begins at 380ms, when the p's 190–560ms InQuad roll has reached these
+// values. Keeping their centers aligned guarantees the scaled a starts fully
+// inside the moving p counter before it naturally peeks out.
+const P_DISPATCH_TRANSLATION_X: f64 = -80.993_425_858_290_72;
 #[cfg(test)]
-const P_DISPATCH_SCALE: f64 = 0.4;
+const P_DISPATCH_SCALE: f64 = 0.469_861_212_563_915_3;
 const A_INITIAL_SCALE: f64 = 0.16;
 const A_INITIAL_TRANSLATION_X: f64 = P_COUNTER_CENTER.x + P_DISPATCH_TRANSLATION_X - A_CENTER.x;
 const A_SIDEBAR_LEFT_X: f64 = 465.49;
@@ -51,14 +54,13 @@ const X_INITIAL_ROTATION_DEG: f64 = -90.0;
 pub struct AnimatedPaxLogoBanner {
     pub fill: Property<Fill>,
     pub letter_fill: Property<Fill>,
+    pub progress: Property<f64>,
     pub curtain_drop_1: Property<f64>,
     pub curtain_drop_2: Property<f64>,
     pub curtain_drop_3: Property<f64>,
     pub curtain_drop_4: Property<f64>,
     pub curtain_drop_5: Property<f64>,
     pub banner_opacity: Property<f64>,
-    pub p_counter_opacity: Property<f64>,
-    pub p_counter_final_opacity: Property<f64>,
     pub p_counter_reveal_progress: Property<f64>,
     pub p_counter_x_px: Property<f64>,
     pub p_rotation_deg: Property<f64>,
@@ -78,7 +80,6 @@ pub struct AnimatedPaxLogoBanner {
     pub banner_elements: Property<Vec<PathElement>>,
     pub p_ring_elements: Property<Vec<PathElement>>,
     pub p_counter_elements: Property<Vec<PathElement>>,
-    pub p_counter_final_elements: Property<Vec<PathElement>>,
     pub p_reveal_mask_elements: Property<Vec<PathElement>>,
     pub p_counter_reveal_mask_elements: Property<Vec<PathElement>>,
     pub a_elements: Property<Vec<PathElement>>,
@@ -92,14 +93,13 @@ impl Default for AnimatedPaxLogoBanner {
         Self {
             fill: Property::new(Fill::Solid(Color::BLACK)),
             letter_fill: Property::new(Fill::Solid(Color::WHITE)),
+            progress: Property::new(0.0),
             curtain_drop_1: Property::new(0.0),
             curtain_drop_2: Property::new(0.0),
             curtain_drop_3: Property::new(0.0),
             curtain_drop_4: Property::new(0.0),
             curtain_drop_5: Property::new(0.0),
             banner_opacity: Property::new(0.0),
-            p_counter_opacity: Property::new(1.0),
-            p_counter_final_opacity: Property::new(0.0),
             p_counter_reveal_progress: Property::new(0.0),
             p_counter_x_px: Property::new(-110.0),
             p_rotation_deg: Property::new(-90.0),
@@ -129,7 +129,6 @@ impl Default for AnimatedPaxLogoBanner {
                 scale: P_INITIAL_SCALE,
                 brake_rotation_deg: 0.0,
             })),
-            p_counter_final_elements: Property::new(p_counter_path(Transform::default())),
             p_reveal_mask_elements: Property::new(p_reveal_mask_path()),
             p_counter_reveal_mask_elements: Property::new(p_counter_reveal_mask_path(0.0)),
             a_elements: Property::new(a_path(

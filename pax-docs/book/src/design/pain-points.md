@@ -918,11 +918,14 @@ Refining the logo post from a translated rigid shape into an unfurling fabric
 strip required animating `PathElement` geometry procedurally. Rebuilding the
 same cubic-path topology from a shared playhead rendered reliably; changing
 only control points and endpoints also made exact contact-sheet frames easy to
-compare. The lower-edge overshoot was initially clipped at the `Path` bounds,
-so the component now reserves four percent of its internal vertical coordinate
-space and compensates in its presentation height. Recommendations: keep
-procedural animation topology stable, and give authored overshoot explicit
-geometry headroom instead of relying on drawing beyond primitive bounds.
+compare. The lower-edge overshoot exposed that `Path` was implicitly clipping
+its rendering to its layout rectangle, even though Pax otherwise reserves
+clipping for explicit containers and masks. Removing that clip also required
+using the actual path geometry for retained-renderer tile coverage; otherwise
+large overflow could still disappear when its layout bounds missed a tile.
+Recommendations: keep procedural animation topology stable, let `Path` geometry
+draw outside its layout bounds, and use `Frame` or `Mask` when clipping is part
+of the authored result.
 
 Moving that post animation from an imperative Rust playhead to `@timeline`
 worked without interpolating `Vec<PathElement>` directly. The timeline owns a
@@ -989,12 +992,10 @@ on overlap, until compound-path fill semantics are explicit and regression-teste
 
 The near spool cap was also clipped when its center traveled directly along the
 post component's left boundary, exposing the rectangular roll body as an angular
-outer edge. The component now reserves explicit horizontal drawing headroom,
-remaps source-space X coordinates into the padded canvas, and offsets the padded
-component so the original logo coordinates remain unchanged. Recommendations:
-reserve canvas headroom for animated caps, strokes, and overshoot that cross a
-component boundary; compensate at the component placement layer so a local
-rendering fix does not disturb alignment with adjacent artwork.
+outer edge. This was the same implicit `Path` clip rather than a component-layout
+constraint. Recommendations: do not pad or rescale authored geometry merely to
+work around primitive overflow; preserve source coordinates and apply an
+explicit clipping primitive only when overflow should be hidden.
 
 Adding a new custom component while a web `pax-cli run` session was active, then
 starting a standalone `pax-cli build` for the same example, allowed both compiler
@@ -1005,13 +1006,13 @@ Pax compiler processes against the same project worktree; stop or reuse the
 active run session before starting a standalone build.
 
 Overlaying static logo letter paths on the animated sail exposed two geometry
-translation traps. The animation canvas is deliberately taller than the source
-SVG to reserve overshoot headroom, so applying the source's Y percentages
-directly stretched the letters by about 4.17% and broke their optical centering;
-the overlay needs the same 0.96 source-to-canvas Y compensation as the animated
-post. Separately, reversing a cubic counter contour requires reversing segment
-order *and* swapping each segment's two control points. Reversing only the
-endpoints turned one quadrant of the `a` counter into a triangular wedge.
+translation traps. The post artwork occupies 96% of the component's presentation
+height, so applying the source's Y percentages directly stretched the letters by
+about 4.17% and broke their optical centering; the overlay needs the same 0.96
+source-to-presentation Y mapping as the animated post. Separately, reversing a
+cubic counter contour requires reversing segment order *and* swapping each
+segment's two control points. Reversing only the endpoints turned one quadrant
+of the `a` counter into a triangular wedge.
 Recommendations: keep source-space-to-animation-space scaling explicit for
 every static overlay, and unit- or visually test reversed cubic contours at
 their cardinal points.
@@ -1058,3 +1059,38 @@ endpoint. Recommendations: define and regression-test mask-source composition
 for grouped and multi-contour paths; until union semantics are explicit, keep
 animated mask sources single-contour and use a stable endpoint handoff when
 the final artwork needs geometry outside that contour.
+
+Crossfading two identical filled paths during a geometry handoff caused a
+deterministic one-frame opacity dip: at the midpoint, two 50%-opaque layers
+compose to 75% coverage under source-over blending, not 100%. In the logo this
+made the black `p` counter briefly gray. The duplicate final path was an older
+workaround for implicit `Path` clipping, so removing the handoff and retaining
+one continuously opaque path was both simpler and exact. Recommendations:
+avoid complementary opacity crossfades when identical silhouettes must preserve
+coverage; use one continuous path, or an instantaneous handoff when duplication
+is genuinely required.
+
+Exposing a reusable animation playhead raised an ownership ambiguity around
+autoplay. A direct `bind:` replaces the child field with the consumer's exact
+`Property` before the child's mount handler runs, but the public property API
+does not retain binding provenance. Starting an imperative ease from the child
+on mount would therefore mutate a bound consumer property just as readily as an
+unbound default. The logo keeps its normalized `progress` input inert and lets
+the embedding component own autoplay, replay, hover, and touch behavior.
+Recommendations: treat a bindable playhead as consumer-owned unless the
+component has an explicit playback-mode input; if default behavior needs to
+differ only when a property is unbound, add first-class binding provenance
+rather than inferring it from graph shape or lifecycle timing.
+
+### Slider scrubbing needs both an input event and transition cancellation
+
+**Pain point:** A double-bound `Slider` could write a `Property`, but it did not
+emit a typed userland event. If that property was also being driven by
+`ease_to`, the active transition would overwrite the user's scrub on the next
+tick because a direct `set` did not clear the transition queue.
+
+**Solution:** `Slider` now emits continuous `@slider_change` events carrying the
+new value, and `Property::cancel_transitions()` freezes the current eased value
+while clearing the active and queued segments. A scrub handler can cancel first
+and then re-set the event value, giving the user immediate ownership without
+changing the general semantics of `Property::set`.

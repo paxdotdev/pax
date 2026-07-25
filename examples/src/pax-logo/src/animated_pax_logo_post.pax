@@ -30,16 +30,15 @@
     width=100%
     height=100%
     fill={self.fill}
-    opacity={self.fabric_opacity}
     elements={self.fabric_elements}
 />
 
 @settings {
     @mount: handle_mount
-    @in: post_unfurl
 }
 
 @timeline post_unfurl {
+    playhead: {self.progress * 940}
     duration: 940ms
     loop: false
 
@@ -80,11 +79,6 @@
             225ms: 6.6587, OutQuad
             300ms: 6.5, InOutQuad
             820ms: 0.7
-        }
-        fabric_opacity: {
-            0ms: 0, Hold
-            300ms: 0, InOutQuad
-            350ms: 1
         }
     }
 }
