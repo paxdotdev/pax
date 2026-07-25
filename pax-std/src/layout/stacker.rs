@@ -541,6 +541,7 @@ struct StackerLayoutPlan<Id> {
     placements: Vec<StackerChildPlacement<Id>>,
 }
 
+#[cfg(test)]
 fn plan_stacker_layout<Id: Copy + Eq + Hash>(
     children: &[StackerChildSnapshot<Id>],
     prior_frames: &HashMap<Id, ContainerFrame>,
@@ -886,6 +887,7 @@ fn with_frame_main_axis_position(
     }
 }
 
+#[cfg(test)]
 fn compute_cell_specs(
     cells: usize,
     bounds: (f64, f64),

@@ -1108,3 +1108,20 @@ reload. Recommendations: when retiring a product mode, trace its semantic flag
 through manifests, environment variables, code generation, chassis/runtime
 initialization, release automation, examples, and tests; a removed top-level
 crate is not a complete removal if its build mode remains encoded downstream.
+
+## 2026-07-25
+
+Applying `#[allow(...)]` to the `include!` invocation for
+`.pax/cartridge.partial.rs` did not scope those lints over the items parsed from
+the included file. A representative debug build consequently emitted hundreds
+of generated naming, dead-code, and unused-binding warnings even though the
+macro call appeared to carry narrow allowances.
+
+Solved by making the generated cartridge a private module with its lint envelope
+on the module itself, then exposing only the two initialization functions needed
+by the surrounding mount code. Mechanically correct diagnostics remain fixed in
+the templates, including explicit `Ref<'_, T>` lifetimes and unnecessary mutable
+bindings. Recommendations: place generated-code lint policy inside the generated
+AST node that owns the code, compile both debug/JSON and release/Rust-manifest
+variants in regression tests, and always verify that a warning in hand-authored
+user Rust still escapes the generated boundary.

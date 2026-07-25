@@ -80,3 +80,62 @@ pub fn press_template_codegen_cartridge_snippet(
     tera.render(CARTRIDGE_TEMPLATE, &Context::from_serialize(args).unwrap())
         .expect("Failed to render template")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn cartridge_args(
+        is_designtime: bool,
+        use_rust_manifest: bool,
+    ) -> TemplateArgsCodegenCartridgeSnippet {
+        TemplateArgsCodegenCartridgeSnippet {
+            cartridge_struct_id: "TestCartridge".to_string(),
+            definition_to_instance_traverser_struct_id: "TestTraverser".to_string(),
+            components: Vec::new(),
+            common_properties: Vec::new(),
+            type_table: TypeTable::default(),
+            is_designtime,
+            userland_manifest_json: "{}".to_string(),
+            userland_manifest_rust: "pax_engine::pax_manifest::PaxManifest::default()".to_string(),
+            use_rust_manifest,
+            engine_import_path: "pax_engine".to_string(),
+        }
+    }
+
+    #[test]
+    fn generated_cartridge_owns_lint_scope_in_debug_and_release_modes() {
+        for (is_designtime, use_rust_manifest) in [(true, false), (false, true)] {
+            let generated = press_template_codegen_cartridge_snippet(cartridge_args(
+                is_designtime,
+                use_rust_manifest,
+            ));
+
+            syn::parse_file(&generated).expect("generated cartridge should remain valid Rust");
+            assert!(generated.contains(
+                "#[allow(dead_code, non_snake_case, non_upper_case_globals, unused_imports, unused_variables)]\nmod __pax_generated_cartridge"
+            ));
+            assert!(generated.contains(
+                "use __pax_generated_cartridge::{init_definition_to_instance_traverser, init_manifest};"
+            ));
+            assert!(generated.contains("std::cell::Ref<'_, pax_manifest::PaxManifest>"));
+            assert!(!generated.contains("std::cell::Ref<pax_manifest::PaxManifest>"));
+
+            if use_rust_manifest {
+                assert!(generated.contains("pax_engine::pax_manifest::PaxManifest::default()"));
+                assert!(!generated.contains("userland_manifest_json"));
+            } else {
+                assert!(generated.contains("userland_manifest_json"));
+                assert!(generated.contains("_project_query"));
+            }
+        }
+
+        let macros = TEMPLATE_DIR
+            .get_file(MACROS_TEMPLATE)
+            .expect("cartridge macros template should exist")
+            .contents_utf8()
+            .expect("cartridge macros template should be UTF-8");
+        assert!(macros.contains("if let Ok(properties)"));
+        assert!(!macros.contains("if let Ok(mut properties)"));
+    }
+}

@@ -379,9 +379,7 @@ fn pax_full_component(
             let cartridge_path = cartridge_path.to_str().unwrap_or_else(|| {
                 panic!("non-UTF-8 Pax cartridge path: {}", cartridge_path.display())
             });
-            format!(
-                "#[allow(dead_code, non_snake_case, non_upper_case_globals, unused_mut, unused_variables, mismatched_lifetime_syntaxes)]\ninclude!({cartridge_path:?});"
-            )
+            format!("include!({cartridge_path:?});")
         } else if needs_runtime_cartridge {
             missing_cartridge_snippet(format!(
                 "PAX_DIR ({}) does not point at the active Pax project root ({}). Build Pax apps through pax-cli so the generated cartridge can be injected into #[pax].",

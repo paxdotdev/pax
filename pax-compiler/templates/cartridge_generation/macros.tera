@@ -79,7 +79,7 @@ const {{component.pascal_identifier}}HandlerDescriptors: [{{ engine_import_path 
         "{{handler.name}}",
         |properties, ctx, args| {
             let properties = &mut *borrow_mut!(properties.as_ref());
-            if let Ok(mut properties) = <{{component.type_id.import_path}}>::mut_from_pax_any(properties) {
+            if let Ok(properties) = <{{component.type_id.import_path}}>::mut_from_pax_any(properties) {
                 {% if handler.args_type %}
                     if let Some(args) = args {
                         if let Ok(args) = <{{handler.args_type}}>::ref_from_pax_any(&args) {

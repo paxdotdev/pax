@@ -760,11 +760,11 @@ impl PaxEngine {
                             stats.skipped_subtrees,
                         );
                     }
-                    Err(reason) => {
+                    Err(_reason) => {
                         #[cfg(debug_assertions)]
                         log::trace!(
                             "[pax-render-filter] fallback={} dirty_nodes={}",
-                            reason,
+                            _reason,
                             dirty_node_ids.len(),
                         );
                         root_expanded_node.recurse_render_queue(&self.runtime_context, rcs);

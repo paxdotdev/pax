@@ -1,8 +1,9 @@
 use super::layer_surface::{
-    replay_batches_by_directional_priority, surface_intersects_coverage_bounds,
-    visible_surface_escape, LayerSurfaceEntry, LayerSurfaceLayout, LayoutChangeKind,
-    ReplayPriorityEntry, SurfaceReplayCoordinator, VisibleSurfaceEscape,
+    replay_batches_by_directional_priority, surface_intersects_coverage_bounds, LayerSurfaceEntry,
+    LayerSurfaceLayout, LayoutChangeKind, ReplayPriorityEntry, SurfaceReplayCoordinator,
 };
+#[cfg(debug_assertions)]
+use super::layer_surface::{visible_surface_escape, VisibleSurfaceEscape};
 use kurbo::{BezPath, PathEl, Rect, Shape};
 use pax_gpu::{
     point, Box2D, DrawRange as PixelDrawRange, Image, LightShape as PixelLightShape,
@@ -1670,13 +1671,18 @@ impl RenderContext for PaxGpuRenderer {
                 });
                 let mut selected = Vec::new();
                 let mut removed = Vec::new();
+                #[cfg(debug_assertions)]
                 let mut skipped_surfaces = 0u64;
+                #[cfg(debug_assertions)]
                 let mut stale_surface_removal_attempts = 0u64;
                 for (index, renderer) in target.renderers.iter_mut().enumerate() {
                     let intersects = renderer.intersects_coverage_bounds(&coverage_bounds);
                     if !intersects {
-                        skipped_surfaces += 1;
-                        stale_surface_removal_attempts += 1;
+                        #[cfg(debug_assertions)]
+                        {
+                            skipped_surfaces += 1;
+                            stale_surface_removal_attempts += 1;
+                        }
                         // If a dirty node moved out of this tile, skipping begin_node is not
                         // enough: the renderer may still retain that node from an earlier frame.
                         if renderer.renderer.remove_node(node_id) {
@@ -1685,7 +1691,10 @@ impl RenderContext for PaxGpuRenderer {
                         continue;
                     }
                     if !candidate_indices.contains(&index) {
-                        skipped_surfaces += 1;
+                        #[cfg(debug_assertions)]
+                        {
+                            skipped_surfaces += 1;
+                        }
                         continue;
                     }
                     if renderer.renderer.begin_node(node_id, z_index, light_mask) {

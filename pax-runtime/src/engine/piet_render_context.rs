@@ -10,10 +10,11 @@ use std::{
 };
 
 use super::layer_surface::{
-    replay_batches_by_directional_priority, surface_intersects_coverage_bounds,
-    visible_surface_escape, LayerSurfaceEntry, LayerSurfaceLayout, LayoutChangeKind,
-    ReplayPriorityEntry, SurfaceReplayCoordinator, VisibleSurfaceEscape,
+    replay_batches_by_directional_priority, surface_intersects_coverage_bounds, LayerSurfaceEntry,
+    LayerSurfaceLayout, LayoutChangeKind, ReplayPriorityEntry, SurfaceReplayCoordinator,
 };
+#[cfg(debug_assertions)]
+use super::layer_surface::{visible_surface_escape, VisibleSurfaceEscape};
 use crate::api;
 
 #[cfg(debug_assertions)]

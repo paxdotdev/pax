@@ -1,5 +1,12 @@
 {% import "macros.tera" as macros %}
 
+// Generated identifiers preserve Pax and Rust type identity, so they do not
+// follow Rust's source-authoring naming conventions. Keep those lint exceptions
+// inside this generated module; warnings in the user crate remain unaffected.
+#[allow(dead_code, non_snake_case, non_upper_case_globals, unused_imports, unused_variables)]
+mod __pax_generated_cartridge {
+use super::*;
+
 use {{ engine_import_path }}::api as pax_runtime_api;
 use {{ engine_import_path }}::pax_runtime::InstanceNode;
 use {{ engine_import_path }}::pax_runtime::DefinitionToInstanceTraverser;
@@ -16,7 +23,7 @@ fn init_cartridge() -> Box<dyn {{ engine_import_path }}::pax_runtime::cartridge:
     Box::new({{ cartridge_struct_id }} {})
 }
 
-fn init_manifest() -> pax_manifest::PaxManifest {
+pub(super) fn init_manifest() -> pax_manifest::PaxManifest {
     {% if use_rust_manifest -%}
     let manifest : {{ engine_import_path }}::pax_manifest::PaxManifest = {{ userland_manifest_rust }};
     {% else -%}
@@ -26,7 +33,7 @@ fn init_manifest() -> pax_manifest::PaxManifest {
     manifest
 }
 
-fn init_definition_to_instance_traverser(initial_manifest: pax_manifest::PaxManifest) -> Box<dyn {{ engine_import_path }}::pax_runtime::cartridge::DefinitionToInstanceTraverser> {
+pub(super) fn init_definition_to_instance_traverser(initial_manifest: pax_manifest::PaxManifest) -> Box<dyn {{ engine_import_path }}::pax_runtime::cartridge::DefinitionToInstanceTraverser> {
     Box::new({{ definition_to_instance_traverser_struct_id }}::new(initial_manifest))
 }
 
@@ -90,7 +97,7 @@ impl {{ engine_import_path }}::pax_runtime::DefinitionToInstanceTraverser for {{
     {% endif %}
 
     {% if is_designtime %}
-    fn get_manifest(&self) -> std::cell::Ref<pax_manifest::PaxManifest> {
+    fn get_manifest(&self) -> std::cell::Ref<'_, pax_manifest::PaxManifest> {
         if let Some(manager) = &self.designtime_manager {
             std::cell::Ref::map(manager.borrow(), |manager| manager.get_manifest())
         } else {
@@ -98,12 +105,17 @@ impl {{ engine_import_path }}::pax_runtime::DefinitionToInstanceTraverser for {{
         }
     }
 
-    fn get_designtime_manager(&self, project_query: String) -> std::option::Option<std::rc::Rc<RefCell<{{ engine_import_path }}::pax_designtime::DesigntimeManager>>> {
+    fn get_designtime_manager(&self, _project_query: String) -> std::option::Option<std::rc::Rc<RefCell<{{ engine_import_path }}::pax_designtime::DesigntimeManager>>> {
         self.designtime_manager.clone()
     }
     {% else %}
-    fn get_manifest(&self) -> std::cell::Ref<pax_manifest::PaxManifest> {
+    fn get_manifest(&self) -> std::cell::Ref<'_, pax_manifest::PaxManifest> {
         self.manifest.borrow()
     }
     {% endif %}
 }
+
+}
+
+#[allow(unused_imports)]
+use __pax_generated_cartridge::{init_definition_to_instance_traverser, init_manifest};
