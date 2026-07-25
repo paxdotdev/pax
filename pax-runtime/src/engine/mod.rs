@@ -500,32 +500,6 @@ impl PaxEngine {
     }
 
     #[cfg(feature = "designtime")]
-    pub fn new_with_designer(
-        designer_main_component_instance: Rc<ComponentInstance>,
-        userland_main_component_instance: Rc<ComponentInstance>,
-        viewport_size: (f64, f64),
-        designtime: Rc<RefCell<DesigntimeManager>>,
-        platform: Platform,
-        os: OS,
-        get_elapsed_millis: Box<dyn Fn() -> u128>,
-        scroller_tiling_policy: layer_tiling::ScrollerTilingPolicy,
-    ) -> Self {
-        let mut engine = Self::new_empty_with_designtime(
-            viewport_size,
-            designtime,
-            platform,
-            os,
-            get_elapsed_millis,
-            scroller_tiling_policy,
-        );
-        engine
-            .runtime_context
-            .set_userland_root_instance_node(Some(userland_main_component_instance));
-        engine.mount_root_component(designer_main_component_instance);
-        engine
-    }
-
-    #[cfg(feature = "designtime")]
     pub fn partial_update_expanded_node(&mut self, new_instance: Rc<dyn InstanceNode>) {
         // update the expanded nodes that just got a new instance node
         let unique_id = new_instance

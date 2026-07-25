@@ -1355,7 +1355,7 @@ impl Default for ParsingContext {
 }
 
 #[derive(Debug)]
-/// Source-mapped parsing error payload used by designer/editor integrations.
+/// Source-mapped parsing error payload used by authoring and editor integrations.
 pub struct ParsingError {
     pub error_name: String,
     pub error_message: String,

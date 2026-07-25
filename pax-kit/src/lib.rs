@@ -1,6 +1,4 @@
 //Reexport primary modules
-#[cfg(feature = "designer")]
-pub use pax_designer;
 pub use pax_engine;
 pub use pax_std;
 

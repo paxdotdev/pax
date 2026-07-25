@@ -33,7 +33,7 @@ impl Ord for NodeInterface {
 }
 
 #[derive(Clone)]
-/// Designer/runtime inspection handle for an expanded node.
+/// Runtime inspection handle for an expanded node.
 pub struct NodeInterface {
     inner: Rc<ExpandedNode>,
 }

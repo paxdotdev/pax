@@ -4,7 +4,7 @@
 
 ## Structs
 ### `NodeInterface`
-Designer/runtime inspection handle for an expanded node.
+Runtime inspection handle for an expanded node.
 
 #### Implementations
 ##### `children`

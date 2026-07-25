@@ -10,7 +10,6 @@ description = "Main entrypoint for building with Pax"
 
 [dependencies]
 pax-engine = { path = "../pax-engine", version = "0.38.3"}
-pax-designer = { path = "../pax-designer", version = "0.38.3", optional=true }
 pax-std = { path = "../pax-std", version = "0.38.3" }
 
 [features]
@@ -18,7 +17,6 @@ gpu = ["pax-engine/gpu"]
 piet = ["pax-engine/piet"]
 webgl = ["pax-engine/webgl"]
 designtime = ["pax-engine/designtime", "pax-std/designtime"]
-designer = ["designtime", "dep:pax-designer", "pax-designer?/designtime"]
 web = ["pax-engine/web"]
 ios = ["pax-engine/ios"]
 macos = ["pax-engine/macos"]

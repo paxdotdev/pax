@@ -18,7 +18,7 @@ use templating::{
 
 use sailfish::TemplateOnce;
 
-const CRATES_WITHOUT_ROOT_CARTRIDGE_SNIPPET: &[&str] = &["pax-designer", "pax-std", "pax-runtime"];
+const CRATES_WITHOUT_ROOT_CARTRIDGE_SNIPPET: &[&str] = &["pax-std", "pax-runtime"];
 
 fn is_root_crate() -> bool {
     let is_not_blacklisted = !CRATES_WITHOUT_ROOT_CARTRIDGE_SNIPPET
@@ -54,9 +54,7 @@ fn cargo_feature_enabled(feature: &str) -> bool {
 
 fn template_build_config() -> TemplateBuildConfig {
     let pax_build_target = env::var("PAX_BUILD_TARGET").unwrap_or_default();
-    let designer = env_flag("PAX_BUILD_DESIGNER") || cargo_feature_enabled("designer");
-    let designtime =
-        designer || env_flag("PAX_BUILD_DESIGNTIME") || cargo_feature_enabled("designtime");
+    let designtime = env_flag("PAX_BUILD_DESIGNTIME") || cargo_feature_enabled("designtime");
 
     TemplateBuildConfig {
         web: pax_build_target == "web" || cargo_feature_enabled("web"),
@@ -64,7 +62,6 @@ fn template_build_config() -> TemplateBuildConfig {
         ios: pax_build_target == "ios" || cargo_feature_enabled("ios"),
         ipados: pax_build_target == "ipados",
         designtime,
-        designer,
     }
 }
 
@@ -328,35 +325,6 @@ fn get_internal_definitions_from_tokens(data: &Data) -> InternalDefinitions {
 
     ret
 }
-
-/* Context:
-[ ] Issue: we are including cartridge.partial.rs across every #[main], which e.g. causes build of pax-designer to fail
-        when running Fireworks.
-
-        Drafted solution:
-            [ ] detect whether we are in the root crate of this build.
-                [ ] might be able to store a static mutable Option<root_crate_pkg_name>, a write-once-read-many (WORM) signal to the rest of the build.
-            [ ] in the stpl template, check this signal and only include the partial if we are in the root crate.
-                [-] This might be fragile if somehow different versions of pax-macro are included in a build (is that possible or does cargo prevent it?) Answer: cargo prevents it.
- */
-
-// Task at hand: [ ] detect whether we are in the root crate of this build.
-//                 [ ] might be able to store a static mutable Option<root_crate_pkg_name>, a write-once-read-many (WORM) signal to the rest of the build.
-
-//I should set this in the pax-macro crate, and then check it in the stpl template.
-//How can I access that env value, correctly reflecting the package being built (instead of pax-macro, this package) ?
-// [ ] I could set it in the build script, but that would require the user to add a build script to their project.
-// [ ] I could set it in the pax-macro crate, but that would require the user to include pax-macro in their project.
-//     This is okay -- pax-macro is available in the workspace, so it's not a big deal.
-// To verify: what snippet of code will read the env value and set the static mutable variable?
-// ```
-// let root_crate_pkg_name = std::env::var("CARGO_PKG_NAME").unwrap_or_default();
-// if let None = unsafe { ROOT_CRATE_PKG_NAME } {
-//      unsafe { ROOT_CRATE_PKG_NAME = Some(root_crate_pkg_name); }
-// }
-// ```
-// And to doubly verify: this first time this is run, CARGO_PKG_NAME should be the root crate being built?
-// [ ] I should add a println! to the build script to verify this.
 
 fn pax_full_component(
     _raw_pax: String,

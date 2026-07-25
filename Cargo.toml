@@ -30,7 +30,6 @@ members = [
 ]
 
 exclude = [
-    "pax-designer", # cannot build workspace without designtime when this is present in workspace (because it hard-codes designtime=on)
     "pax-compiler/files",
     "examples",
     "tests",

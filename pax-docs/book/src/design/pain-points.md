@@ -652,9 +652,9 @@ delivery concern rather than the owner of mutable program state, and keep
 template transport, compiled-artifact replacement, and future interpreted
 logic activation as separately declared capabilities for every chassis.
 
-Watcher and designer edits initially still had a stale-buffer race: parsing a
+Watcher and authoring edits initially still had a stale-buffer race: parsing a
 file happens outside the coordinator lock, so a slow watcher callback could
-commit an older disk buffer over a newer designer write. A single global
+commit an older disk buffer over a newer authoring write. A single global
 revision check was also too coarse because independent source files should be
 able to compose rather than continuously supersede one another.
 
@@ -690,7 +690,7 @@ committed duplicate activation remains idempotent. Recommendations: treat
 durable process-restart state as the commit record for a live-reload
 transaction, keep it out of release cartridge baking, and explicitly define
 which source of truth wins when persistence fails after an external editor or
-designer has already changed the file.
+an authoring client has already changed the file.
 
 The first macOS chassis drill also exposed a LaunchServices boundary that is
 easy to miss: setting `PAX_DEV_SESSION_DIR`, `PAX_DEV_REGISTRY_FILE`, and the
@@ -1094,3 +1094,17 @@ new value, and `Property::cancel_transitions()` freezes the current eased value
 while clearing the active and queued segments. A scrub handler can cancel first
 and then re-set the event value, giving the user immediate ownership without
 changing the general semantics of `Property::set`.
+Removing the retired `pax-designer` crate exposed how a dormant product mode
+can survive far beyond its implementation: the release list, workspace
+exclusions, feature forwarding, compiler context, generated cartridge
+template, proc-macro mount logic, chassis constructors, runtime constructors,
+test fixtures, and starter example all retained designer-specific branches.
+Several branches were already unreachable or failed deliberately, but still
+expanded the release and feature-boundary reasoning surface.
+
+Solved by removing the obsolete crate and its second-manifest build mode
+end-to-end while preserving generic designtime inspection, mutation, and hot
+reload. Recommendations: when retiring a product mode, trace its semantic flag
+through manifests, environment variables, code generation, chassis/runtime
+initialization, release automation, examples, and tests; a removed top-level
+crate is not a complete removal if its build mode remains encoded downstream.

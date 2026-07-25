@@ -275,7 +275,7 @@ fn perform_nominal_action(
             let is_libdev_mode = resolve_libdev_mode(args, Path::new(&path))?;
             let ios_device = args.value_of("ios-device").map(str::to_string);
             let ios_development_team = args.value_of("ios-development-team").map(str::to_string);
-            let (should_run_designtime, should_run_designer) = default_dev_options(true);
+            let should_run_designtime = true;
             let webgl = args.is_present("webgl");
             let hot_reload = parse_hot_reload_mode(args)?;
 
@@ -287,7 +287,6 @@ fn perform_nominal_action(
                 is_libdev_mode,
                 process_child_ids,
                 should_run_designtime,
-                should_run_designer,
                 hot_reload,
                 is_release: false,
                 profile_wasm_size: false,
@@ -307,7 +306,7 @@ fn perform_nominal_action(
             let is_release = args.is_present("release") || profile_wasm_size;
             let ios_device = args.value_of("ios-device").map(str::to_string);
             let ios_development_team = args.value_of("ios-development-team").map(str::to_string);
-            let (should_run_designtime, should_run_designer) = default_dev_options(!is_release);
+            let should_run_designtime = !is_release;
             let webgl = args.is_present("webgl");
 
             if profile_wasm_size && target != "web" {
@@ -321,7 +320,6 @@ fn perform_nominal_action(
                 project_path: PathBuf::from(path),
                 should_also_run: false,
                 should_run_designtime,
-                should_run_designer,
                 hot_reload: None,
                 verbose,
                 is_libdev_mode,
@@ -366,7 +364,6 @@ fn perform_nominal_action(
                 project_path: PathBuf::from("."),
                 should_also_run: false,
                 should_run_designtime: false,
-                should_run_designer: false,
                 hot_reload: None,
                 verbose: false,
                 is_libdev_mode,
@@ -430,7 +427,6 @@ fn perform_nominal_action(
                     pax_compiler::design_server::NativeLogicReloadConfig {
                         session_dir: PathBuf::from(session_dir),
                         manifest_path: manifest_path.clone(),
-                        should_run_designer: false,
                     },
                 )
             });
@@ -603,10 +599,6 @@ fn absolute_path(path: &Path) -> PathBuf {
         .canonicalize()
         .map(|parent| parent.join(file_name))
         .unwrap_or(absolute)
-}
-
-fn default_dev_options(default_designtime: bool) -> (bool, bool) {
-    (default_designtime, false)
 }
 
 fn perform_cleanup(

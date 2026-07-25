@@ -11,7 +11,7 @@ use pax_runtime::api::Layer;
 
 /// Allows embedding another Pax #[main] component with
 /// a separate manifest via a separate DefinitionToInstanceTraverser
-/// Useful at least for embedding userland projects inside pax-designer; may be useful for other purposes
+/// Useful for designtime hosts and other nested-program integrations.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[primitive("pax_std::core::inline_frame::InlineFrameInstance")]

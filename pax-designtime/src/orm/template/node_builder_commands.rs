@@ -1119,9 +1119,7 @@ impl Command<ConvertToComponentRequest> for ConvertToComponentRequest {
         let new_component_type_id = TypeId::build_blank_component(&new_component_identifier);
 
         let (module_path, ul_path) = {
-            let userland_project_type_id =
-                TypeId::build_singleton("designer_project::Example", None);
-            let ul_bind = manifest.components.get(&userland_project_type_id);
+            let ul_bind = manifest.components.get(&manifest.main_component_type_id);
             let ul = ul_bind.expect("Main component not found").clone();
             (
                 ul.module_path.clone(),

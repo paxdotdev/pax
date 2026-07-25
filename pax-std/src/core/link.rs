@@ -13,7 +13,7 @@ use pax_runtime::{
 #[pax]
 #[engine_import_path("pax_engine")]
 #[inlined(
-    <Rectangle id=_designer_raycast_ignore fill=TRANSPARENT/>
+    <Rectangle id=_link_raycast_ignore fill=TRANSPARENT/>
     for i in 0..self._projected_children {
         slot(i)
     }

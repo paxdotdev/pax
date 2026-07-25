@@ -207,8 +207,8 @@ from which assets will be copied for bundling into executable binaries
 ##### `engine_import_path`
 Type: `String`
 
-Compiler metadata: the import prefix for the engine module, `pax_kit::pax_engine` by default
-but parameterizable for integrating with pax_engine directly, e.g. pax_std and pax_designer
+Compiler metadata: the import prefix for the engine module, `pax_kit::pax_engine` by default,
+but parameterizable for crates such as `pax-std` that integrate with `pax-engine` directly.
 
 ---
 

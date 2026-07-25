@@ -229,7 +229,7 @@ pub fn diff(old_content: &str, new_content: &str) -> Option<String> {
     }
 }
 
-/// HTML diff used by designer-facing source update previews.
+/// HTML diff used by source-update previews.
 pub fn diff_html(old_content: &str, new_content: &str) -> Option<String> {
     let diff = TextDiff::from_lines(old_content, new_content);
     let mut all_diffs = vec![];

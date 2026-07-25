@@ -159,9 +159,7 @@ fn web_cargo_features(ctx: &RunContext) -> String {
     if ctx.webgl {
         features.push("webgl");
     }
-    if ctx.should_run_designer {
-        features.extend(["designtime", "designer"]);
-    } else if ctx.should_run_designtime {
+    if ctx.should_run_designtime {
         features.push("designtime");
     }
     pax_project_feature_args(&ctx.project_path, &features).join(",")
@@ -369,12 +367,7 @@ fn compile_web_interface_artifacts(
         .env("PAX_DIR", &pax_dir)
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit());
-    configure_pax_build_env(
-        &mut cmd,
-        "web",
-        ctx.should_run_designtime,
-        ctx.should_run_designer,
-    );
+    configure_pax_build_env(&mut cmd, "web", ctx.should_run_designtime);
 
     if is_profiling {
         cmd.arg("--profiling");
@@ -542,7 +535,6 @@ fn copy_web_reload_artifacts(interface_path: &Path, staged_dir: &Path) -> Result
 pub fn rebuild_staged_web_cartridge(
     project_root: &PathBuf,
     serve_dir: &Path,
-    should_run_designer: bool,
 ) -> Result<WebLogicReloadBuild, eyre::Report> {
     let process_child_ids = Arc::new(Mutex::new(vec![]));
     let ctx = RunContext {
@@ -553,7 +545,6 @@ pub fn rebuild_staged_web_cartridge(
         is_libdev_mode: false,
         process_child_ids: process_child_ids.clone(),
         should_run_designtime: true,
-        should_run_designer,
         hot_reload: None,
         is_release: false,
         profile_wasm_size: false,
@@ -612,31 +603,7 @@ pub fn build_web_project_with_cartridge(
 
     // Start local server if this is a `run` rather than a `build`
     if ctx.should_also_run {
-        if ctx.should_run_designer {
-            println!("{} 🐇🎨 Running Pax Web with Pax Designer...", *PAX_BADGE);
-            dotenv().ok();
-            let dev_session = prepare_web_dev_session(&ctx.project_path, pax_dir)?;
-            write_project_active_session(pax_dir, &dev_session)?;
-            let _ = crate::design_server::start_server(
-                build_dest.to_str().unwrap(),
-                pax_dir.parent().unwrap().to_str().unwrap(),
-                manifest,
-                None,
-                None,
-                true,
-                Some(dev_session.clone()),
-                Some(crate::design_server::LogicReloadConfig::Web(
-                    crate::design_server::WebLogicReloadConfig {
-                        serve_dir: build_dest.clone(),
-                        should_run_designer: true,
-                    },
-                )),
-                ctx.hot_reload.unwrap_or_default(),
-                None,
-                Some(project_designtime_manifest_file(pax_dir)),
-            );
-            cleanup_web_dev_session(pax_dir, &dev_session)?;
-        } else if ctx.should_run_designtime {
+        if ctx.should_run_designtime {
             println!("{} 🐇 Running Pax Web with designtime...", *PAX_BADGE);
             dotenv().ok();
             let dev_session = prepare_web_dev_session(&ctx.project_path, pax_dir)?;
@@ -652,7 +619,6 @@ pub fn build_web_project_with_cartridge(
                 Some(crate::design_server::LogicReloadConfig::Web(
                     crate::design_server::WebLogicReloadConfig {
                         serve_dir: build_dest.clone(),
-                        should_run_designer: false,
                     },
                 )),
                 ctx.hot_reload.unwrap_or_default(),

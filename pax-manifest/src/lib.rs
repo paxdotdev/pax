@@ -126,19 +126,12 @@ pub struct PaxManifest {
     /// Compiler metadata: list of fully qualified asset directories, gathered during compiletime,
     /// from which assets will be copied for bundling into executable binaries
     pub assets_dirs: Vec<String>,
-    /// Compiler metadata: the import prefix for the engine module, `pax_kit::pax_engine` by default
-    /// but parameterizable for integrating with pax_engine directly, e.g. pax_std and pax_designer
+    /// Compiler metadata: the import prefix for the engine module, `pax_kit::pax_engine` by default,
+    /// but parameterizable for crates such as `pax-std` that integrate with `pax-engine` directly.
     pub engine_import_path: String,
 }
 
 impl PaxManifest {
-    pub fn is_designer(&self) -> bool {
-        if let Some(identifier) = self.main_component_type_id.get_pascal_identifier() {
-            return identifier == "PaxDesigner";
-        }
-        false
-    }
-
     pub fn get_template_node(
         &self,
         uni: &UniqueTemplateNodeIdentifier,

@@ -2,6 +2,15 @@
 
 Authoring Date: 2026-04-27
 
+Status update: the legacy `pax-designer` implementation and its dedicated
+compiler/runtime build mode were removed on 2026-07-24. References below to
+that implementation are retained as historical prior art. The active
+foundation is the generic designtime protocol and its runtime, design-server,
+and CLI clients. See the
+[legacy `pax-designer` retrospective](./pax-designer-retrospective.md) for
+retrieval guidance, enduring lessons, obsolete patterns, and the archived
+source location.
+
 <!-- summary: Proposed foundation for Pax-authored designtime hosts, live cartridge sessions, and tool workflows. -->
 <!-- tags: designtime, ai, images, assets, tooling -->
 
@@ -11,16 +20,13 @@ Pax already has most of the low-level pieces needed for Pax-authored designtime 
 
 - designtime can inspect, raycast, capture, and replace parts of a running scene
 - the design server can already write binary files into a project's `assets/` directory
-- `pax-designer` proves that a Pax-authored tool can mount around a running user program
+- the removed `pax-designer` prototype proved that a Pax-authored tool can mount around a running user program
 
 What it does **not** have yet is a neutral foundation for those capabilities.
 
-Today, the path is still designer-shaped:
-
-- the compiler has a special `designer` build path that merges userland and designer manifests
-- the runtime has explicit `new_with_designer(...)` entrypoints instead of a more general host model
-- the current LLM flow is oriented around whole-component replacement, not asset enrichment
-- generated image provenance has no durable designtime home
+The dedicated designer-shaped compiler/runtime path has now been removed.
+Open design questions remain around a neutral host-program abstraction,
+fine-grained AI workflows, and durable generated-image provenance.
 
 That makes experimentation harder than it needs to be. The first step should not be "build the final design tool UI." The first step should be "define the contract for Pax programs that are `pax-designer`-shaped."
 
@@ -75,22 +81,24 @@ That is already enough to support "inspect current scene, find target node, capt
 
 That is a strong phase-1 foundation. It means generated images can behave like ordinary project assets immediately.
 
-### The compiler/runtime boundary is still special-cased for the designer
+### The removed compiler/runtime special case
 
-The current `designer` flow in `pax-compiler/src/lib.rs`:
+The legacy `designer` flow:
 
 - disables the normal static-analysis manifest build path
 - assumes the first manifest is userland and the second is designer
 - merges manifests into one build artifact
 - wraps the userland root in an extra synthetic root component
 
-The runtime side mirrors that specialization in `pax-runtime/src/engine/mod.rs` with `new_with_designer(...)` and explicit userland-root tracking.
+The runtime side mirrored that specialization with `new_with_designer(...)`
+and explicit userland-root tracking. Those dedicated entrypoints no longer
+exist; generic designtime continues to track the userland root directly.
 
 This works for `pax-designer`, but it is the wrong long-term abstraction for "a Pax-authored host tool that may or may not render visible chrome."
 
-### The current LLM flow is too coarse for image enrichment
+### Historical LLM flow prior art
 
-The existing LLM pathway in:
+The removed prototype's LLM pathway used:
 
 - `pax-designer/src/console/mod.rs`
 - `pax-designtime/src/lib.rs`
@@ -98,9 +106,9 @@ The existing LLM pathway in:
 
 is built around a prompt plus screenshot that returns a full `ComponentDefinition` replacement. That is useful for broad UI rewrites, but it is heavier than needed for "swap this placeholder with a generated image" or "try three new background variants."
 
-### The interaction routing layer is still too implicit
+### Historical interaction-routing prior art
 
-The current designer stack has useful pieces:
+The removed designer stack had useful pieces:
 
 - `pax-designer/src/model/input.rs` normalizes raw key input into `InputEvent`
 - `pax-designer/src/model/action/pointer.rs` chooses a tool on pointer entry
@@ -395,7 +403,9 @@ That is already a modeful interaction flow. Modeling it as an explicit agent FSM
 
 ### 6. Move host attachment toward a runtime concern, not a merged-manifest compiler trick
 
-The current designer build path is useful as proof that Pax can mount a tool around userland. The next step should be to reframe that ability around a host abstraction instead of a `designer` special case.
+The removed designer build path proved that Pax can mount a tool around
+userland. Any successor should use a host abstraction rather than revive a
+dedicated designer build mode.
 
 The desired contract is:
 
@@ -405,9 +415,7 @@ The desired contract is:
 - let designtime create, seed, suspend, reset, and destroy `CartridgeSession`s
 - keep each session root explicitly addressable for inspection and mutation
 
-That preserves the useful runtime behavior already present today while removing the assumption that the only valid host is `PaxDesigner`.
-
-If implementation needs a transitional step, it is acceptable to keep some of the current plumbing temporarily. The important thing is that the external model should become "attach a host" rather than "enter designer mode."
+The external model should be "attach a host," not "enter designer mode."
 
 ### 7. Add a route/session seed contract
 

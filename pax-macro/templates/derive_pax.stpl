@@ -14,17 +14,7 @@
         // setup logging
         <%= engine_import_path %>::pax_chassis_web::init_console_logging();
 
-        <% if build_config.designer { %>
-        {
-            let userland_manifest = init_manifest();
-            let userland_definition_to_instance_traverser = init_definition_to_instance_traverser(userland_manifest);
-
-            let designer_manifest = init_designer_manifest();
-            let designer_definition_to_instance_traverser = init_definition_to_instance_traverser(designer_manifest);
-
-            JsValue::from(<%= engine_import_path %>::pax_chassis_web::PaxChassisWeb::new_designer(userland_definition_to_instance_traverser, designer_definition_to_instance_traverser).await)
-        }
-        <% } else if build_config.designtime { %>
+        <% if build_config.designtime { %>
         {
             let userland_manifest = init_manifest();
             let userland_definition_to_instance_traverser = init_definition_to_instance_traverser(userland_manifest);
@@ -50,52 +40,7 @@
         let _ = <%= engine_import_path %>::pax_chassis_common::env_logger::try_init();
 
         let init_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            <% if build_config.designer { %>
-            {
-                let userland_manifest = init_manifest();
-                let userland_definition_to_instance_traverser =
-                    init_definition_to_instance_traverser(userland_manifest);
-
-                let designer_manifest = init_designer_manifest();
-                let designer_definition_to_instance_traverser =
-                    init_definition_to_instance_traverser(designer_manifest);
-
-                let userland_main_component_instance = userland_definition_to_instance_traverser
-                    .get_main_component("USERLAND_COMPONENT_ROOT");
-                let designer_main_component_instance = designer_definition_to_instance_traverser
-                    .get_main_component("DESIGNER_COMPONENT_ROOT");
-                let designtime_manager = userland_definition_to_instance_traverser
-                    .get_designtime_manager(String::new())
-                    .expect("designtime manager should exist for native designer builds");
-                let start = std::time::Instant::now();
-
-                let engine: std::mem::ManuallyDrop<Box<<%= engine_import_path %>::pax_runtime::engine::PaxEngine>> =
-                    std::mem::ManuallyDrop::new(Box::new(<%= engine_import_path %>::pax_runtime::engine::PaxEngine::new_with_designer(
-                        designer_main_component_instance,
-                        userland_main_component_instance,
-                        (
-                            initial_width.max(1.0) as f64,
-                            initial_height.max(1.0) as f64,
-                        ),
-                        designtime_manager.clone(),
-                        Platform::Native,
-                        <% if build_config.macos { %>OS::Mac,<% } else if build_config.ipados { %>OS::IPad,<% } else { %>OS::IPhone,<% } %>
-                        Box::new(move || start.elapsed().as_millis()),
-                        <%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::native_scroller_tiling_policy()
-                    )));
-
-                let container =
-                    std::mem::ManuallyDrop::new(Box::new(<%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::PaxEngineContainer {
-                        _engine: Box::into_raw(std::mem::ManuallyDrop::into_inner(engine)),
-                        _render_context: std::ptr::null_mut(),
-                        _render_target: std::ptr::null_mut(),
-                        userland_definition_to_instance_traverser,
-                        designtime_manager,
-                    }));
-
-                Box::into_raw(std::mem::ManuallyDrop::into_inner(container))
-            }
-            <% } else if build_config.designtime { %>
+            <% if build_config.designtime { %>
             {
                 let userland_manifest = init_manifest();
                 let userland_definition_to_instance_traverser =

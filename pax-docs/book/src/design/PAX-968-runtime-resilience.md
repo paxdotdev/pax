@@ -126,11 +126,11 @@ A `.pax` edit is not a logic-artifact activation:
 2. It compares the runtime descriptor capability before and after the edit.
 3. A compatible edit commits to the active manifest, increments only
    `template_version`, and streams an `UpdateTemplateRequest`.
-4. Source edits and dynamic designer mutations are recorded in one normalized
+4. Source edits and dynamic authoring mutations are recorded in one normalized
    replay journal. Every logic build records the journal generation immediately
    before compilation; preflight applies only mutations newer than that
    baseline. The journal groups every component backed by the same source file,
-   while whole-manifest designer serialization is restricted to dynamic fields.
+   while whole-manifest authoring serialization is restricted to dynamic fields.
    This closes the race where template state changes after a Rust build took its
    source snapshot without replaying lifetime-old entries that a later build
    intentionally deleted or renamed, and without allowing replay to overwrite
@@ -147,7 +147,7 @@ All server-side source mutations and active-client promotion pass through the
 same source transaction barrier. Each source path also carries a mutation
 generation, and commits compare both that generation and the full revision
 stamp observed before parsing or serialization. A delayed watcher parse can
-therefore neither overwrite a newer designer edit to the same file nor erase a
+therefore neither overwrite a newer authoring edit to the same file nor erase a
 concurrent edit to another file. Source changes still commit while no socket is
 connected; the active socket is only a delivery route.
 
@@ -288,7 +288,7 @@ probing `localhost:8080` forever.
 Production builds do not participate in this protocol:
 
 - the compiler checks the exact normal-edge Cargo graph for the requested
-  target and feature set, and rejects a direct or transitive designtime/designer
+  target and feature set, and rejects a direct or transitive designtime
   dependency while ignoring dev-only, build/proc-macro, inactive optional, and
   off-target edges;
 - generated application code also has a compile-time backstop that rejects

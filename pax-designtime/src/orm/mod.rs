@@ -137,9 +137,9 @@ impl PaxManifestORM {
         self.llm_messages.remove(&request_id).unwrap_or_default()
     }
 
-    // Method used by the designer to retrieve more granular modification data,
-    // to only dirtify what needs to be. WARNING: should only be used once by the
-    // designer, subsequent reads in the same tick is embty.
+    // Lets a designtime client retrieve granular modification data and dirty
+    // only what changed. This is a consuming read; later reads in the same tick
+    // are empty.
     pub fn take_manifest_modification_data(&mut self) -> ManifestModificationData {
         std::mem::take(&mut self.manifest_modification_data)
     }

@@ -70,7 +70,6 @@ pub struct App {}
         .env("CARGO_TARGET_DIR", workspace_dir.join("target"))
         .env("PAX_BUILD_TARGET", "web")
         .env("PAX_BUILD_DESIGNTIME", "0")
-        .env("PAX_BUILD_DESIGNER", "0")
         .env("PAX_DIR", fixture.path())
         .output()
         .unwrap();

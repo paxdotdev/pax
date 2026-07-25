@@ -37,17 +37,11 @@ pub struct TemplateArgsCodegenCartridgeSnippet {
     // Whether this is a designtime cartridge
     pub is_designtime: bool,
 
-    // Whether this is a designer cartridge
-    pub is_designer: bool,
-
     // JSON string representation of the manifest, used at least for designtime builds
     pub userland_manifest_json: String,
 
     // Rust expression that constructs the manifest directly, used for lean release builds
     pub userland_manifest_rust: String,
-
-    // JSON string representation of the manifest, used at least for designtime builds
-    pub designer_manifest_json: String,
 
     // Whether the generated cartridge should construct the manifest from generated Rust
     pub use_rust_manifest: bool,

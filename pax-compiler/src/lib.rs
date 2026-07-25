@@ -78,7 +78,6 @@ pub struct RunContext {
     pub is_libdev_mode: bool,
     pub process_child_ids: Arc<Mutex<Vec<u64>>>,
     pub should_run_designtime: bool,
-    pub should_run_designer: bool,
     /// An explicit debug hot-reload policy.
     ///
     /// For a running debug designtime session, `None` lets `PAX_HOT_RELOAD`, then
@@ -282,12 +281,6 @@ fn prepare_cartridge_sources_with_timings(
         project_metadata::apply_copied_interface_metadata(ctx, &pax_dir, &project_metadata)
     })?;
 
-    if ctx.should_run_designer {
-        return Err(eyre!(
-            "Designer builds need a static-analysis manifest path before they can run without the removed parser binary."
-        ));
-    }
-
     let mut userland_manifest = timings.record("manifest", || {
         static_analysis::build_manifest_with_options(
             &ctx.project_path,
@@ -322,8 +315,6 @@ fn prepare_cartridge_sources_with_timings(
         },
     );
 
-    let designer_manifest = None;
-
     if matches!(
         ctx.target,
         RunTarget::macOS | RunTarget::iOS | RunTarget::iPadOS
@@ -339,9 +330,8 @@ fn prepare_cartridge_sources_with_timings(
             &pax_dir,
             &merged_manifest,
             &userland_manifest,
-            designer_manifest,
-            ctx.should_run_designtime || ctx.should_run_designer,
-            ctx.is_release && !ctx.should_run_designtime && !ctx.should_run_designer,
+            ctx.should_run_designtime,
+            ctx.is_release && !ctx.should_run_designtime,
         );
     });
     Ok(PreparedCartridgeSources {
@@ -356,9 +346,9 @@ fn validate_release_feature_boundary(ctx: &RunContext) -> Result<(), Report> {
     if !ctx.is_release {
         return Ok(());
     }
-    if ctx.should_run_designtime || ctx.should_run_designer {
+    if ctx.should_run_designtime {
         return Err(eyre!(
-            "Release builds do not support designtime or designer features. Use a debug build for designtime sessions."
+            "Release builds do not support designtime features. Use a debug build for designtime sessions."
         ));
     }
 
@@ -390,7 +380,7 @@ pub(crate) fn validate_release_cargo_feature_boundary(
     .map_err(|err| eyre!("Could not verify the release Cargo feature boundary: {err}"))?;
     if !activators.is_empty() {
         return Err(eyre!(
-            "Release builds do not support designtime or designer code, but this project's Cargo configuration activates it through: {}. Remove these entries from Cargo defaults/dependencies for release builds. Pax enables development features explicitly for debug designtime sessions.",
+            "Release builds do not support designtime code, but this project's Cargo configuration activates it through: {}. Remove these entries from Cargo defaults/dependencies for release builds. Pax enables development features explicitly for debug designtime sessions.",
             activators.join("; ")
         ));
     }
@@ -1399,7 +1389,7 @@ mod tests {
         assert!(validate_hot_reload_target(&RunTarget::iPadOS, HotReloadMode::All).is_ok());
     }
 
-    fn release_context(should_run_designtime: bool, should_run_designer: bool) -> RunContext {
+    fn release_context(should_run_designtime: bool) -> RunContext {
         RunContext {
             target: RunTarget::Web,
             project_path: PathBuf::from("."),
@@ -1408,7 +1398,6 @@ mod tests {
             is_libdev_mode: false,
             process_child_ids: Arc::new(Mutex::new(vec![])),
             should_run_designtime,
-            should_run_designer,
             hot_reload: None,
             is_release: true,
             profile_wasm_size: false,
@@ -1420,17 +1409,13 @@ mod tests {
 
     #[test]
     fn release_build_rejects_devtime_features() {
-        for ctx in [release_context(true, false), release_context(false, true)] {
-            let error = match prepare_cartridge_sources(&ctx) {
-                Ok(_) => panic!(
-                    "release builds should reject designtime and designer cartridge contexts"
-                ),
-                Err(error) => error,
-            };
-            assert!(error
-                .to_string()
-                .contains("Release builds do not support designtime or designer features"));
-        }
+        let error = match prepare_cartridge_sources(&release_context(true)) {
+            Ok(_) => panic!("release builds should reject designtime cartridge contexts"),
+            Err(error) => error,
+        };
+        assert!(error
+            .to_string()
+            .contains("Release builds do not support designtime features"));
     }
 
     #[test]
@@ -1475,7 +1460,7 @@ web = ["pax-engine/web"]
 "#,
         )
         .unwrap();
-        let mut ctx = release_context(false, false);
+        let mut ctx = release_context(false);
         ctx.project_path = dir.path().to_path_buf();
 
         validate_release_feature_boundary(&ctx).unwrap();

@@ -21,12 +21,9 @@ pub fn generate_cartridge_partial_rs(
     pax_dir: &PathBuf,
     merged_manifest: &PaxManifest,
     userland_manifest: &PaxManifest,
-    designer_manifest: Option<PaxManifest>,
     is_designtime: bool,
     use_rust_manifest: bool,
 ) -> PathBuf {
-    let is_designer = designer_manifest.is_some();
-
     //press template into String
     let generated_lib_rs = templating::press_template_codegen_cartridge_snippet(
         templating::TemplateArgsCodegenCartridgeSnippet {
@@ -37,7 +34,6 @@ pub fn generate_cartridge_partial_rs(
             common_properties: CommonProperty::get_as_common_property(),
             type_table: userland_manifest.type_table.clone(),
             is_designtime,
-            is_designer,
             userland_manifest_json: if use_rust_manifest {
                 String::new()
             } else {
@@ -47,11 +43,6 @@ pub fn generate_cartridge_partial_rs(
                 pax_manifest::rust_manifest::to_rust_expression(userland_manifest)
             } else {
                 String::new()
-            },
-            designer_manifest_json: if let Some(designer_manifest) = designer_manifest {
-                serde_json::to_string(&designer_manifest).unwrap()
-            } else {
-                "{}".to_string()
             },
             use_rust_manifest,
             engine_import_path: userland_manifest.engine_import_path.clone(),

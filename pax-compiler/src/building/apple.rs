@@ -401,7 +401,6 @@ pub fn build_apple_project_with_cartridge(
 
     let build_mode_name: &str = if is_release { "release" } else { "debug" };
     let should_run_designtime = ctx.should_run_designtime;
-    let should_run_designer = ctx.should_run_designer;
 
     let target_mappings = select_apple_target_mappings(
         target,
@@ -455,9 +454,7 @@ pub fn build_apple_project_with_cartridge(
         } else {
             requested_features[0]
         };
-        if should_run_designer {
-            requested_features.extend(["designtime", "designer"]);
-        } else if should_run_designtime {
+        if should_run_designtime {
             requested_features.push("designtime");
         }
         let cargo_features = pax_project_feature_args(&project_path, &requested_features);
@@ -476,12 +473,7 @@ pub fn build_apple_project_with_cartridge(
                 .env("PAX_DIR", &pax_dir)
                 .stdout(std::process::Stdio::piped())
                 .stderr(std::process::Stdio::piped());
-            configure_pax_build_env(
-                &mut cmd,
-                pax_build_target,
-                should_run_designtime,
-                should_run_designer,
-            );
+            configure_pax_build_env(&mut cmd, pax_build_target, should_run_designtime);
 
             if is_release {
                 cmd.arg("--release");
@@ -976,15 +968,8 @@ Note that the temporary directories mentioned above are subject to overwriting.\
     if ctx.should_also_run {
         if ctx.should_run_designtime {
             println!(
-                "{} 🐇{} Running Pax {}{}...",
-                *PAX_BADGE,
-                if ctx.should_run_designer { "🎨" } else { "" },
-                target_str,
-                if ctx.should_run_designer {
-                    " with Pax Designer"
-                } else {
-                    " with designtime"
-                }
+                "{} 🐇 Running Pax {} with designtime...",
+                *PAX_BADGE, target_str,
             );
         } else {
             println!("{} 🐇 Running Pax {}...", *PAX_BADGE, target_str);
@@ -2172,7 +2157,6 @@ fn best_tablet_simulator(simulators: &[SimulatorDevice]) -> Option<&SimulatorDev
 pub fn rebuild_staged_macos_logic_dylib(
     project_root: &PathBuf,
     session_dir: &Path,
-    should_run_designer: bool,
 ) -> Result<MacosLogicReloadBuild, eyre::Report> {
     let process_child_ids = Arc::new(Mutex::new(vec![]));
     let ctx = RunContext {
@@ -2183,7 +2167,6 @@ pub fn rebuild_staged_macos_logic_dylib(
         is_libdev_mode: false,
         process_child_ids: process_child_ids.clone(),
         should_run_designtime: true,
-        should_run_designer,
         hot_reload: None,
         is_release: false,
         profile_wasm_size: false,
@@ -2201,11 +2184,7 @@ pub fn rebuild_staged_macos_logic_dylib(
             .ok_or_else(|| eyre!("no macOS target mapping available for staged logic reload"))?;
     let dylib_file_name = resolve_dylib_file_name(project_root)?;
 
-    let requested_features = if should_run_designer {
-        vec!["macos", "designtime", "designer"]
-    } else {
-        vec!["macos", "designtime"]
-    };
+    let requested_features = vec!["macos", "designtime"];
     let cargo_features = pax_project_feature_args(project_root, &requested_features);
 
     let mut cmd = Command::new("cargo");
@@ -2220,7 +2199,7 @@ pub fn rebuild_staged_macos_logic_dylib(
         .env("PAX_DIR", &prepared.pax_dir)
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
-    configure_pax_build_env(&mut cmd, "macos", true, should_run_designer);
+    configure_pax_build_env(&mut cmd, "macos", true);
 
     #[cfg(unix)]
     unsafe {

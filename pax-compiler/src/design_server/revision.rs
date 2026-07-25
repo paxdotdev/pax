@@ -315,7 +315,7 @@ impl DebugRevisionCoordinator {
         self.mutation_generation
     }
 
-    /// Records a designer serialization which has already been admitted into
+    /// Records an authoring serialization which has already been admitted into
     /// the active manifest and persisted to its source file. The watcher is
     /// intentionally suppressed for server-authored writes, so this journal is
     /// the only reliable way to replay the edit onto an in-flight logic build.
@@ -530,7 +530,7 @@ impl DebugRevisionCoordinator {
         Ok(())
     }
 
-    /// Admits only the authoring fields carried by whole-manifest designer
+    /// Admits only the authoring fields carried by whole-manifest
     /// serialization. Compiler/reflection fields and manifest-global state stay
     /// owned by the active logic revision.
     pub fn replace_active_authoring_manifest(
@@ -566,20 +566,6 @@ impl DebugRevisionCoordinator {
         active.manifest = next_manifest;
         active.stamp.template_version = active.stamp.template_version.saturating_add(1);
         Ok(())
-    }
-
-    pub fn replace_initial_manifest(&mut self, logic_revision_id: String, manifest: PaxManifest) {
-        self.active = Some(DebugRevision {
-            stamp: RevisionStamp {
-                logic_revision_id,
-                template_version: 0,
-            },
-            manifest,
-            artifact: None,
-            activation_owner: None,
-        });
-        self.candidate = None;
-        self.survivor_adoption_allowed = true;
     }
 
     /// Validate and reserve a candidate while the last-known-good runtime stays
@@ -1431,11 +1417,11 @@ mod tests {
     }
 
     #[test]
-    fn designer_serialization_is_replayed_onto_an_in_flight_candidate() {
+    fn authoring_serialization_is_replayed_onto_an_in_flight_candidate() {
         let initial = manifest("A");
         let component_id = initial.main_component_type_id.clone();
         let mut serialized_component = initial.components[&component_id].clone();
-        serialized_component.module_path = "stale-designer-module".to_string();
+        serialized_component.module_path = "stale-authoring-module".to_string();
         serialized_component.template = Some(ComponentTemplate::new(
             component_id.clone(),
             Some("src/main.pax".to_string()),
@@ -1465,7 +1451,7 @@ mod tests {
     }
 
     #[test]
-    fn designer_serialization_keeps_all_components_that_share_one_source_file() {
+    fn authoring_serialization_keeps_all_components_that_share_one_source_file() {
         let mut initial = manifest("A");
         let first_id = initial.main_component_type_id.clone();
         let second_id = TypeId::build_singleton("Second", Some("Second"));
@@ -1521,7 +1507,7 @@ mod tests {
             .components
             .get_mut(&component_id)
             .unwrap()
-            .module_path = "stale-designer-module".to_string();
+            .module_path = "stale-authoring-module".to_string();
         serialized
             .components
             .get_mut(&component_id)

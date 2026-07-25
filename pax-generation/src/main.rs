@@ -69,11 +69,6 @@ async fn main() -> Result<(), Box<dyn Error>> {
         AIModel::GPT4o | AIModel::GPT4oMini | AIModel::O1 | AIModel::O1Mini => openai_api_key,
     };
 
-    println!("Is this a designer project? (yes/no):");
-    let mut is_designer = String::new();
-    io::stdin().read_line(&mut is_designer)?;
-    let is_designer_project = is_designer.trim().to_lowercase() == "yes";
-
     println!("Initializing PaxAppGenerator...");
     let generator = PaxAppGenerator::new(api_key, model);
     let pax_file = pax_file_path();

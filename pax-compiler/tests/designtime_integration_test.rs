@@ -112,12 +112,12 @@ async fn designtime_integration_test() {
     let _srv = get_test_server(manifest.clone());
     let socket_addr = _srv.addr();
     let url = format!("ws://{}", socket_addr);
-    let mut designer = pax_designtime::DesigntimeManager::new_with_local_addr(manifest, &url);
+    let mut designtime = pax_designtime::DesigntimeManager::new_with_local_addr(manifest, &url);
     let screenshot_map = Rc::new(RefCell::new(HashMap::new()));
     let deadline = Instant::now() + Duration::from_secs(2);
     loop {
-        designer.handle_recv(screenshot_map.clone()).unwrap();
-        match designer.send_component_update(&component_type_id) {
+        designtime.handle_recv(screenshot_map.clone()).unwrap();
+        match designtime.send_component_update(&component_type_id) {
             Ok(()) => break,
             Err(error) if Instant::now() < deadline => {
                 let _ = error;

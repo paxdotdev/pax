@@ -26,14 +26,6 @@ fn init_manifest() -> pax_manifest::PaxManifest {
     manifest
 }
 
-{% if is_designer %}
-fn init_designer_manifest() -> {{ engine_import_path }}::pax_manifest::PaxManifest {
-    let designer_manifest_json = r#######"{{designer_manifest_json}}"#######;
-    let designer_manifest : {{ engine_import_path }}::pax_manifest::PaxManifest = {{ engine_import_path }}::serde_json::from_str(designer_manifest_json).expect("Failed to deserialize designer manifest");
-    designer_manifest
-}
-{% endif %}
-
 fn init_definition_to_instance_traverser(initial_manifest: pax_manifest::PaxManifest) -> Box<dyn {{ engine_import_path }}::pax_runtime::cartridge::DefinitionToInstanceTraverser> {
     Box::new({{ definition_to_instance_traverser_struct_id }}::new(initial_manifest))
 }
@@ -82,11 +74,7 @@ impl {{ engine_import_path }}::pax_runtime::DefinitionToInstanceTraverser for {{
     {% if is_designtime %}
     fn new(manifest: pax_manifest::PaxManifest) -> Self {
         register_helper_functions();
-        let designtime_manager = if !manifest.is_designer() {
-            Some(std::rc::Rc::new(RefCell::new({{ engine_import_path }}::pax_designtime::DesigntimeManager::new(manifest.clone()))))
-        } else {
-            None
-        };
+        let designtime_manager = Some(std::rc::Rc::new(RefCell::new({{ engine_import_path }}::pax_designtime::DesigntimeManager::new(manifest.clone()))));
         Self {
             manifest: RefCell::new(manifest),
             designtime_manager,

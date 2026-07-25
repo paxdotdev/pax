@@ -3,7 +3,7 @@ use pax_runtime_api::{CoercionRules, HelperFunctions, Interpolatable, PaxValue, 
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
-/// Publish request payload used by designer/server flows.
+/// Publish request payload used by authoring/server flows.
 pub struct PublishRequest {
     pub manifest: PaxManifest,
     //github_username: String,

@@ -119,9 +119,6 @@ fn pax_dependency_feature_selectors(config: &ProjectFeatureConfig, feature: &str
         "designtime" if config.has_dependency("pax-engine") => {
             vec!["pax-engine/designtime".to_string()]
         }
-        "designer" if config.has_dependency("pax-designer") => {
-            vec!["pax-designer/designtime".to_string()]
-        }
         "web" | "webgl" | "macos" | "ios" if config.has_dependency("pax-engine") => {
             vec![format!("pax-engine/{feature}")]
         }
@@ -246,12 +243,12 @@ fn collect_release_devtime_activators(
         path.truncate(depth);
         path.push(package_name.to_string());
 
-        if matches!(package_name, "pax-designtime" | "pax-designer") {
+        if package_name == "pax-designtime" {
             activators.insert(format!("runtime dependency path `{}`", path.join(" -> ")));
         }
         if package_name.starts_with("pax-") {
             for feature in features.split(',') {
-                if matches!(feature, "designtime" | "designer") {
+                if feature == "designtime" {
                     activators.insert(format!(
                         "runtime dependency path `{}` enables `{feature}`",
                         path.join(" -> ")
@@ -264,25 +261,11 @@ fn collect_release_devtime_activators(
     Ok(())
 }
 
-pub fn configure_pax_build_env(
-    cmd: &mut Command,
-    target: &str,
-    should_run_designtime: bool,
-    should_run_designer: bool,
-) {
-    cmd.env("PAX_BUILD_TARGET", target)
-        .env(
-            "PAX_BUILD_DESIGNTIME",
-            if should_run_designer || should_run_designtime {
-                "1"
-            } else {
-                "0"
-            },
-        )
-        .env(
-            "PAX_BUILD_DESIGNER",
-            if should_run_designer { "1" } else { "0" },
-        );
+pub fn configure_pax_build_env(cmd: &mut Command, target: &str, should_run_designtime: bool) {
+    cmd.env("PAX_BUILD_TARGET", target).env(
+        "PAX_BUILD_DESIGNTIME",
+        if should_run_designtime { "1" } else { "0" },
+    );
 }
 
 #[cfg(test)]
@@ -322,23 +305,17 @@ pax-kit = "0.38.3"
 [features]
 web = []
 designtime = []
-designer = []
 parser = []
 "#,
         );
 
         assert_eq!(
-            pax_project_feature_args(
-                dir.path(),
-                &["web", "designtime", "designer", "parser", "webgl"]
-            ),
+            pax_project_feature_args(dir.path(), &["web", "designtime", "parser", "webgl"]),
             vec![
                 "web",
                 "pax-kit/web",
                 "designtime",
                 "pax-kit/designtime",
-                "designer",
-                "pax-kit/designer",
                 "parser",
                 "pax-kit/parser",
                 "pax-kit/webgl",
@@ -361,14 +338,10 @@ pax-kit = "0.38.3"
         );
 
         assert_eq!(
-            pax_project_feature_args(
-                dir.path(),
-                &["web", "designtime", "designer", "parser", "webgl"]
-            ),
+            pax_project_feature_args(dir.path(), &["web", "designtime", "parser", "webgl"]),
             vec![
                 "pax-kit/web",
                 "pax-kit/designtime",
-                "pax-kit/designer",
                 "pax-kit/parser",
                 "pax-kit/webgl",
             ]
@@ -465,10 +438,9 @@ widget = { path = "widget" }
         let workspace = tempfile::tempdir().unwrap();
         fs::write(
             workspace.path().join("Cargo.toml"),
-            "[workspace]\nresolver = \"2\"\nmembers = [\"app\", \"pax-designer\", \"pax-designtime\", \"pax-engine\"]\n",
+            "[workspace]\nresolver = \"2\"\nmembers = [\"app\", \"pax-designtime\", \"pax-engine\"]\n",
         )
         .unwrap();
-        write_local_crate(&workspace.path().join("pax-designer"), "pax-designer", "");
         write_local_crate(
             &workspace.path().join("pax-designtime"),
             "pax-designtime",
@@ -484,7 +456,7 @@ widget = { path = "widget" }
             &app,
             "app",
             r#"[dependencies]
-optional-tools = { package = "pax-designer", path = "../pax-designer", optional = true }
+optional-designtime = { package = "pax-designtime", path = "../pax-designtime", optional = true }
 pax-engine = { path = "../pax-engine" }
 
 [dev-dependencies]

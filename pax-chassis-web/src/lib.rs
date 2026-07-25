@@ -57,8 +57,6 @@ use pax_runtime::api::{
 use pax_designtime::{AppRevisionActivationStatus, DesigntimeManager};
 
 const USERLAND_COMPONENT_ROOT: &str = "USERLAND_COMPONENT_ROOT";
-#[cfg(feature = "designtime")]
-const DESIGNER_COMPONENT_ROOT: &str = "DESIGNER_COMPONENT_ROOT";
 
 #[cfg(feature = "designtime")]
 mod dev;
@@ -293,50 +291,6 @@ impl PaxChassisWeb {
         }
         drop(engine);
         self.drain_render_surface_updates();
-    }
-
-    #[cfg(feature = "designtime")]
-    pub async fn new_designer(
-        userland_definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
-        designer_definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
-    ) -> Self {
-        let (width, height, os_info, surface_policy, get_elapsed_millis, renderer) =
-            Self::init_common();
-        let query_string = window()
-            .unwrap()
-            .location()
-            .search()
-            .expect("no search exists");
-
-        let main_component_instance =
-            designer_definition_to_instance_traverser.get_main_component(DESIGNER_COMPONENT_ROOT);
-        let userland_main_component_instance =
-            userland_definition_to_instance_traverser.get_main_component(USERLAND_COMPONENT_ROOT);
-
-        let designtime_manager = userland_definition_to_instance_traverser
-            .get_designtime_manager(query_string)
-            .unwrap();
-        let engine = pax_runtime::PaxEngine::new_with_designer(
-            main_component_instance,
-            userland_main_component_instance,
-            (width, height),
-            designtime_manager.clone(),
-            Platform::Web,
-            os_info,
-            get_elapsed_millis,
-            surface_policy.scroller_tiling_policy(),
-        );
-        let engine_container: Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
-        Self {
-            engine: engine_container,
-            render_context: renderer,
-            native_scroller_positions: HashMap::new(),
-            synthetic_scroll_gesture: None,
-            userland_definition_to_instance_traverser,
-            designtime_manager,
-            pending_dev_look_requests: HashMap::new(),
-            next_dev_capture_id: 1_000_000,
-        }
     }
 
     #[cfg(feature = "designtime")]

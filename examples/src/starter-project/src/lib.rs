@@ -23,11 +23,7 @@ impl Example {
         self.ticks.set((old_ticks + 1) % 255);
     }
 
-    pub fn increment(&mut self, ctx: &NodeContext, _args: Event<Click>) {
-        pax_designer::model::perform_action(
-            &pax_designer::ProjectMsg(pax_designer::model::app_state::ProjectMode::Edit),
-            ctx,
-        );
+    pub fn increment(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
         let old_num_clicks = self.num_clicks.get();
         self.num_clicks.set(old_num_clicks + 1);
     }

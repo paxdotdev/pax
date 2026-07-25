@@ -261,7 +261,7 @@ impl RuntimeContext {
     }
 
     #[cfg(feature = "designtime")]
-    /// Create a runtime context with the userland component tracked for designer tools.
+    /// Create a runtime context with the userland component tracked for designtime tools.
     pub fn new(globals: Globals, userland: Rc<ComponentInstance>) -> Self {
         Self {
             next_uid: Cell::new(ExpandedNodeIdentifier(0)),

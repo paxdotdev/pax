@@ -1,9 +1,0 @@
-<Image id=logo source=ImageSource::Url("assets/images/pax-logo-white-on-black.png") @click=handle_logo_click />
-
-@settings {
-    #logo {
-        width: 65px,
-        height: 65px,
-        x: 16px,
-    }
-}

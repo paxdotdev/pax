@@ -37,7 +37,6 @@ pub struct TemplateBuildConfig {
     pub ios: bool,
     pub ipados: bool,
     pub designtime: bool,
-    pub designer: bool,
 }
 
 #[derive(TemplateOnce)]
@@ -54,8 +53,7 @@ pub struct TemplateArgsDerivePax {
     pub _is_enum: bool,
     pub build_config: TemplateBuildConfig,
 
-    /// Used to specify a custom import prefix for codegen, if importing pax_engine
-    /// via anything other than pax_kit::pax_engine (e.g. for pax-std and pax-designer, which
-    /// import pax_engine directly)
+    /// Used to specify a custom import prefix for codegen when importing
+    /// `pax-engine` directly rather than through `pax-kit`.
     pub engine_import_path: String,
 }

@@ -22,7 +22,7 @@ use crate::dev_session::{
     DevReloadLogicResponse, DevSession,
 };
 use crate::helpers::PAX_BADGE;
-use crate::{HotReloadMode, RunContext, RunTarget};
+use crate::HotReloadMode;
 use notify::{Error, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use pax_designtime::messages::{
     AgentMessage, DebugArtifact, DebugLogicExecutionMode, PrepareAppRevision, RevisionStamp,
@@ -33,7 +33,7 @@ use pax_manifest::PaxManifest;
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use websocket::PrivilegedAgentWebSocket;
@@ -150,13 +150,11 @@ pub struct ActiveWebsocketClient {
 pub struct NativeLogicReloadConfig {
     pub session_dir: PathBuf,
     pub manifest_path: PathBuf,
-    pub should_run_designer: bool,
 }
 
 #[derive(Clone)]
 pub struct WebLogicReloadConfig {
     pub serve_dir: PathBuf,
-    pub should_run_designer: bool,
 }
 
 #[derive(Clone)]
@@ -241,7 +239,6 @@ impl AppState {
             restored_web_artifact.then(|| {
                 LogicReloadConfig::Web(WebLogicReloadConfig {
                     serve_dir: serve_dir.clone(),
-                    should_run_designer: false,
                 })
             })
         });
@@ -994,11 +991,7 @@ pub(crate) fn perform_logic_reload(
         LogicReloadConfig::Native(config) => {
             let build_start_mutation_generation =
                 state.revisions.lock().unwrap().mutation_generation();
-            let build = rebuild_staged_macos_logic_dylib(
-                project_root,
-                &config.session_dir,
-                config.should_run_designer,
-            )?;
+            let build = rebuild_staged_macos_logic_dylib(project_root, &config.session_dir)?;
             let prepare = PrepareAppRevision {
                 logic_revision_id: build.build_id,
                 execution_mode: DebugLogicExecutionMode::CompiledArtifact,
@@ -1042,11 +1035,7 @@ pub(crate) fn perform_logic_reload(
         LogicReloadConfig::Web(config) => {
             let build_start_mutation_generation =
                 state.revisions.lock().unwrap().mutation_generation();
-            let build = rebuild_staged_web_cartridge(
-                project_root,
-                &config.serve_dir,
-                config.should_run_designer,
-            )?;
+            let build = rebuild_staged_web_cartridge(project_root, &config.serve_dir)?;
             let request = PrepareAppRevision {
                 logic_revision_id: build.build_id,
                 execution_mode: DebugLogicExecutionMode::CompiledArtifact,
@@ -1475,51 +1464,6 @@ struct AiMessage {
     message: String,
 }
 
-#[allow(dead_code)]
-fn create_designer_run_context() -> RunContext {
-    RunContext {
-        target: RunTarget::Web,
-        project_path: PathBuf::from("../pax-designer".to_string()),
-        verbose: false,
-        should_also_run: false,
-        is_libdev_mode: true,
-        should_run_designtime: true,
-        should_run_designer: true,
-        hot_reload: None,
-        process_child_ids: Arc::new(Mutex::new(vec![])),
-        is_release: false,
-        profile_wasm_size: false,
-        webgl: false,
-        ios_device: None,
-        ios_development_team: None,
-    }
-}
-
-#[allow(dead_code)]
-fn perform_build() -> std::io::Result<(PaxManifest, Option<PathBuf>)> {
-    let ctx = create_designer_run_context();
-    crate::perform_build(&ctx).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
-}
-
-#[allow(dead_code)]
-fn perform_build_and_update_state(state: &AppState, folder_to_watch: &str) -> std::io::Result<()> {
-    let (manifest, fs_path) = perform_build()?;
-
-    // Update the state
-    *state.serve_dir.lock().unwrap() = fs_path.expect("serve directory should exist");
-    *state.userland_project_root.lock().unwrap() = PathBuf::from_str(folder_to_watch).unwrap();
-    let mut revisions = state.revisions.lock().unwrap();
-    let mut next_revisions = revisions.clone();
-    next_revisions
-        .replace_initial_manifest(format!("server-build-{}", dev_session::now_ms()), manifest);
-    state
-        .persist_active_restart_snapshot_locked(&next_revisions, "full server build")
-        .map_err(std::io::Error::other)?;
-    *revisions = next_revisions;
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::revision::DebugRevisionCoordinator;
@@ -1651,7 +1595,6 @@ mod tests {
                 None,
                 Some(LogicReloadConfig::Web(WebLogicReloadConfig {
                     serve_dir: PathBuf::new(),
-                    should_run_designer: false,
                 })),
                 HotReloadMode::All,
                 None,
@@ -1691,7 +1634,6 @@ mod tests {
                 None,
                 Some(LogicReloadConfig::Web(WebLogicReloadConfig {
                     serve_dir: PathBuf::new(),
-                    should_run_designer: false,
                 })),
                 HotReloadMode::All,
                 None,
@@ -1753,7 +1695,6 @@ mod tests {
                 None,
                 Some(LogicReloadConfig::Web(WebLogicReloadConfig {
                     serve_dir: PathBuf::new(),
-                    should_run_designer: false,
                 })),
                 HotReloadMode::All,
                 None,
@@ -1840,7 +1781,6 @@ mod tests {
                 None,
                 Some(LogicReloadConfig::Web(WebLogicReloadConfig {
                     serve_dir: PathBuf::new(),
-                    should_run_designer: false,
                 })),
                 HotReloadMode::Logic,
                 None,
@@ -1876,7 +1816,6 @@ mod tests {
                 None,
                 Some(LogicReloadConfig::Web(WebLogicReloadConfig {
                     serve_dir: PathBuf::new(),
-                    should_run_designer: false,
                 })),
                 HotReloadMode::Pax,
                 None,
@@ -1917,7 +1856,6 @@ mod tests {
             Some(LogicReloadConfig::Native(NativeLogicReloadConfig {
                 session_dir: dir.path().join("session"),
                 manifest_path: manifest_path.clone(),
-                should_run_designer: false,
             })),
             HotReloadMode::All,
             None,
@@ -1970,7 +1908,7 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
-    fn designer_mutation_stays_live_and_invalidates_snapshot_on_publish_failure() {
+    fn authoring_mutation_stays_live_and_invalidates_snapshot_on_publish_failure() {
         use std::os::unix::fs::PermissionsExt;
 
         let dir = tempdir().unwrap();
@@ -1998,7 +1936,7 @@ mod tests {
             .unwrap()
             .clone();
         component.settings = Some(vec![SettingsBlockElement::Comment(
-            "designer edit".to_string(),
+            "authoring edit".to_string(),
         )]);
 
         let mut read_only = fs::metadata(dir.path()).unwrap().permissions();
@@ -2012,7 +1950,7 @@ mod tests {
         writable.set_mode(0o755);
         fs::set_permissions(dir.path(), writable).unwrap();
 
-        mutation.expect("designer mutation should remain live after persistence failure");
+        mutation.expect("authoring mutation should remain live after persistence failure");
         let revisions = state.revisions.lock().unwrap();
         assert_eq!(
             revisions.active_stamp().unwrap().template_version,
@@ -2024,7 +1962,7 @@ mod tests {
             .as_ref()
             .unwrap();
         assert!(settings.iter().any(
-            |setting| matches!(setting, SettingsBlockElement::Comment(comment) if comment == "designer edit")
+            |setting| matches!(setting, SettingsBlockElement::Comment(comment) if comment == "authoring edit")
         ));
         assert_eq!(fs::metadata(&manifest_path).unwrap().len(), 0);
     }

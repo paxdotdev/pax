@@ -1373,7 +1373,7 @@ impl ExpandedNode {
                 .liquid_glass_scope
                 .replace_with(Property::computed(move || liquid_glass_scope.get(), &deps));
 
-            // suspension is used in the designer to turn of/on tick/update
+            // Suspension lets designtime tools turn ticking and updates on or off.
             child.inherit_suspend(self);
             if is_reparented {
                 child.rebind_parent_bounds_for_mounted_subtree(context);
@@ -2236,7 +2236,7 @@ impl ExpandedNode {
 
     pub fn recurse_visit_postorder(self: &Rc<Self>, func: &mut impl FnMut(&Rc<Self>)) {
         // NOTE: This is to make sure the projected children list is updated before trying to access children,
-        // to make stacker/scroller behave correctly when number of children is dynamic. (ex: tree view in designer)
+        // to make stacker/scroller behave correctly when the number of children is dynamic.
         self.compute_flattened_projected_children();
         for child in self.children.get().iter().rev() {
             child.recurse_visit_postorder(func)
