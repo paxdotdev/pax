@@ -13,9 +13,11 @@ apps—or target web browsers through WebAssembly.
 
 ## Get started
 
-Pax projects are Rust projects. After completing the
-[workstation setup](https://docs.pax.dev/getting-started/), install the CLI,
-create a project, and run it:
+**(1) Set up your workstation**
+
+Pax projects are Rust projects. Follow the [workstation setup instructions](https://docs.pax.dev/getting-started/) in the docs.
+
+**(2) Run your first project**
 
 ```sh
 cargo install pax-cli
@@ -27,38 +29,16 @@ pax-cli run
 `pax-cli run` targets the web by default. Use `--target macos`, `--target ios`,
 or `--target ipados` to run an Apple target from a supported macOS workstation.
 
-## A declarative language designed for interfaces
 
-`.pax` templates give UI trees, layout, bindings, responsive behavior, and
-motion a concise declarative home. PAXEL, Pax's side-effect-free reactive
-expression language, derives values from application state. Rust owns state,
-event handlers, platform integration, and other side effects.
+## Source example
 
-## A higher creative ceiling
+A Pax component has two layers. A `.pax` template declares the interface tree,
+layout, styling, events, and motion; its side-effect-free PAXEL expressions
+derive values from application state. Rust owns state changes, event handlers,
+platform integration, and other side effects.
 
-Pax brings components, routing, responsive layout, native text and controls,
-and scrolling into the same composition model as vectors, paths, gradients,
-masks, and first-class animation. Native elements and rendered content share a
-transformed, clipped, and occluded scene.
-
-## One Rust codebase for native and web
-
-Build for web browsers, macOS, iOS, and iPadOS from the same `.pax` templates
-and Rust application logic. Pax uses platform-native text, form controls, and
-scrolling where native behavior matters, then composites those elements with
-rendered content in one scene. Native text and controls, selection and editing,
-and image alternatives provide accessibility foundations; broader reading
-order, tab order, accessibility annotation, and broad audit work is ongoing.
-
-Rendering remains target-aware: Apple builds use Metal-backed rendering, while
-web builds select WebGPU where supported and fall back to CPU rendering where
-necessary.
-
-## How Pax is authored
-
-A Pax component is a declarative template paired with Rust application logic.
-Here, the PAXEL expression describes the label and rotation as a function opf `count`, while
-the click handler performs the state change:
+This component shows that loop in miniature: PAXEL derives the label and
+rotation from `count`, while the click binding routes an event to Rust:
 
 ```pax
 // src/lib.pax
@@ -111,7 +91,42 @@ impl Counter {
 ```
 
 When the handler updates `count`, Pax reactively reevaluates the expressions
-that depend on it and updates the running interface.
+that depend on it and updates the running interface. Pax propagates the change
+through its reactive dependency graph, invalidating the affected layout and
+rendering work—spreadsheet-like reactivity carried through the rendering
+pipeline.
+
+Browse the [repository examples](examples/src), or open a live example on the
+[Pax website](https://www.pax.dev/) and choose **View Source**.
+
+## Build your imagination
+
+Pax combines the building blocks of an application—components, reactive state,
+routing, events, and responsive layout—with direct control over vectors,
+paths, gradients, masks, clipping, occlusion, and animation.
+
+Any property can be animated. Animations can be driven imperatively with a
+tweening API, or declaratively with timelines in `.pax` templates. Timelines
+can also be bound to fire any time elements enter, leave, or reflow, or can be
+triggered imperatively in Rust.
+
+Pax aims to offer a high creative ceiling for artists with a powerful and
+accessible technical toolkit.
+Pax is designed to empower art, to help make computing more human.
+
+## One Rust codebase for native and web
+
+Build for web browsers, macOS, iOS, and iPadOS from the same `.pax` templates
+and Rust application logic. Pax uses platform-native text, form controls, and
+scrolling where native behavior matters, then composites those elements with
+rendered content into one cohesive scene. Native text and controls, selection
+and editing, and image alternatives provide accessibility foundations. Broader
+accessibility work, including reading order, tab order, annotation, and audit
+work, remains ongoing.
+
+Rendering remains target-aware: Apple builds use Metal-backed rendering, while
+web builds select WebGPU where supported and fall back to CPU rendering where
+necessary.
 
 ## Platforms and development loop
 
@@ -122,6 +137,10 @@ that depend on it and updates the running interface.
 | Template hot reload | `.pax` changes reload in debug sessions on web, macOS, iOS, and iPadOS |
 | Rust logic hot reload | Supported on web and macOS; iOS and iPadOS require a rebuild and relaunch after Rust changes |
 
+The reactive runtime propagates changes through dependent properties, gates
+layout and rendering work on dirty state, and culls content outside the
+viewport. Release cartridges omit debug and authoring metadata.
+
 `pax-cli dev` can capture screenshots, inspect the expanded scene tree, query
 selectors and hit targets, read web-session logs, and apply source-aware
 template updates against a running debug session. The framework and today's
@@ -129,26 +148,15 @@ developer tooling—including hot reload, source mapping, inspection,
 screenshots, and event-driving—ship open source in this repository. No
 companion application is required to evaluate or use Pax.
 
+The same structured, live, inspectable loop supports both human and AI-assisted
+authoring.
+
 ## Project status
 
-**Pax is ready for builders.** The project has been under development since 2021, and now offers
-a coherent, runnable framework for Apple-platform native apps and WebAssembly web apps. 
-Pax remains pre-1.0: expect evolving APIs and some platform-specific differences.
-
-## Explore
-
-- Run the [Increment](examples/src/increment) example for a small end-to-end
-  component.
-- Explore [Path Drawing](examples/src/path-drawing) for vector graphics and
-  motion.
-- Explore [Liquid Glass](examples/src/liquid-glass) for native Apple
-  compositing.
-- Browse [all examples](examples/src) or the complete
-  [documentation](https://docs.pax.dev/).
-- Visit [pax.dev](https://pax.dev/), [star Pax on
-  GitHub](https://github.com/paxdotdev/pax), read the
-  [contribution guide](CONTRIBUTING.md), or join the
-  [community Discord](https://discord.com/invite/Eq8KWAUc6b).
+**Pax is ready for builders.** The project has been under development since
+2021 and now offers a coherent, runnable framework for web browsers, macOS,
+iOS, and iPadOS. Pax remains pre-1.0: expect evolving APIs and some
+platform-specific differences.
 
 ## License
 
