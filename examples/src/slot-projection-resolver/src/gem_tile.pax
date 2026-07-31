@@ -6,8 +6,8 @@
         height={100% - 6px}
         fill=@gradient {
             radial: {
-                start: (100%, 0%)
-                end: (97%, 3%)
+                start: [100%, 0%]
+                end: [97%, 3%]
                 radius: 28
             }
             0%: rgba(255, 255, 255, 170)
@@ -15,11 +15,11 @@
             58%: rgba(255, 255, 255, 6)
             100%: rgba(255, 255, 255, 0)
         }
-        corner_radii={RectangleCornerRadii::radii(9.0, 9.0, 9.0, 9.0)}
+        corner_radius=9.0
     />
     <Rectangle
-        fill={Fill::Solid(self.color)}
-        stroke={Stroke { color: rgba(255, 255, 255, 92), width: 1px }}
-        corner_radii={RectangleCornerRadii::radii(12.0, 12.0, 12.0, 12.0)}
+        fill={self.color}
+        stroke={ color: rgba(255, 255, 255, 92) width: 1px }
+        corner_radius=12.0
     />
 </Group>

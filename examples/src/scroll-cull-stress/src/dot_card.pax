@@ -2,8 +2,8 @@
     <Rectangle
         width=100%
         height=100%
-        fill={rgba(234, 228, 222, 255)}
-        corner_radii={RectangleCornerRadii::radii(18.0, 18.0, 18.0, 18.0)}
+        fill=rgba(234, 228, 222, 255)
+        corner_radius=18.0
     />
     <Image
         x=0px
@@ -21,7 +21,10 @@
         text={"dotcard index " + index}
         selectable=false
         style={
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap", FontStyle::Normal, FontWeight::Normal)
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap"
+            }
             font_size: 12px
             fill: rgba(130, 124, 116, 255)
             align_vertical: TextAlignVertical::Center

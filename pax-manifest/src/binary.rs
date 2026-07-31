@@ -1099,27 +1099,46 @@ mod tests {
         let mut root = TemplateNodeDefinition::default();
         root.type_id = type_id.clone();
         root.raw_comment_string = Some("root".to_string());
-        root.settings = Some(vec![SettingElement::Setting(
-            Token::new_without_location("fill".to_string()),
-            ValueDefinition::Gradient(GradientDefinition {
-                shape: GradientShapeDefinition::Linear {
-                    start: None,
-                    end: None,
-                },
-                elements: vec![
-                    GradientElement::Stop(GradientStopDefinition {
-                        position: Size::Percent(Numeric::F64(0.0)),
-                        color: ValueDefinition::LiteralValue(PaxValue::Color(Box::new(Color::RED))),
-                    }),
-                    GradientElement::Stop(GradientStopDefinition {
-                        position: Size::Percent(Numeric::F64(100.0)),
-                        color: ValueDefinition::LiteralValue(PaxValue::Color(Box::new(
-                            Color::BLUE,
-                        ))),
-                    }),
-                ],
-            }),
-        )]);
+        root.settings = Some(vec![
+            SettingElement::Setting(
+                Token::new_without_location("class".to_string()),
+                ValueDefinition::Identifier(crate::PaxIdentifier::new("card")),
+            ),
+            SettingElement::Setting(
+                Token::new_without_location("class".to_string()),
+                ValueDefinition::Identifier(crate::PaxIdentifier::new("elevated")),
+            ),
+            SettingElement::Setting(
+                Token::new_without_location("fill".to_string()),
+                ValueDefinition::Gradient(GradientDefinition {
+                    shape: GradientShapeDefinition::Linear {
+                        start: None,
+                        end: None,
+                    },
+                    elements: vec![
+                        GradientElement::Stop(GradientStopDefinition {
+                            position: Size::Percent(Numeric::F64(0.0)),
+                            color: ValueDefinition::LiteralValue(PaxValue::Color(Box::new(
+                                Color::RED,
+                            ))),
+                        }),
+                        GradientElement::Stop(GradientStopDefinition {
+                            position: Size::Percent(Numeric::F64(100.0)),
+                            color: ValueDefinition::LiteralValue(PaxValue::Color(Box::new(
+                                Color::BLUE,
+                            ))),
+                        }),
+                    ],
+                }),
+            ),
+            SettingElement::Setting(
+                Token::new_without_location("corner_radius".to_string()),
+                ValueDefinition::LiteralValue(PaxValue::Vec(vec![
+                    PaxValue::Numeric(Numeric::F64(12.0)),
+                    PaxValue::Numeric(Numeric::F64(4.0)),
+                ])),
+            ),
+        ]);
         let root_id = template.add(root).template_node_id;
 
         let mut child = TemplateNodeDefinition::default();
@@ -1192,10 +1211,39 @@ mod tests {
         assert!(matches!(
             root.settings
                 .as_ref()
-                .and_then(|settings| settings.first()),
+                .and_then(|settings| settings.iter().find(|setting| {
+                    matches!(setting, SettingElement::Setting(token, _) if token.token_value == "fill")
+                })),
             Some(SettingElement::Setting(_, ValueDefinition::Gradient(gradient)))
                 if matches!(&gradient.shape, GradientShapeDefinition::Linear { start: None, end: None })
                     && gradient.stops().count() == 2
         ));
+        assert!(matches!(
+            root.settings.as_ref().and_then(|settings| settings.iter().find(|setting| {
+                matches!(setting, SettingElement::Setting(token, _) if token.token_value == "corner_radius")
+            })),
+            Some(SettingElement::Setting(
+                _,
+                ValueDefinition::LiteralValue(PaxValue::Vec(values))
+            )) if values == &vec![
+                PaxValue::Numeric(Numeric::F64(12.0)),
+                PaxValue::Numeric(Numeric::F64(4.0)),
+            ]
+        ));
+        let classes = root
+            .settings
+            .as_ref()
+            .unwrap()
+            .iter()
+            .filter_map(|setting| match setting {
+                SettingElement::Setting(token, ValueDefinition::Identifier(identifier))
+                    if token.token_value == "class" =>
+                {
+                    Some(identifier.name.as_str())
+                }
+                _ => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(classes, vec!["card", "elevated"]);
     }
 }

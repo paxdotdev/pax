@@ -571,9 +571,36 @@ impl PartialEq<TextStyleMessage> for TextStyle {
 }
 
 /// Describes a font available to native text renderers.
+///
+/// Pax templates may use either the explicit [`Font::Web`] constructor or a
+/// contextual shorthand. A string names a locally available family with an
+/// empty stylesheet URL and normal style and weight:
+///
+/// ```pax
+/// font: "Times New Roman"
+/// ```
+///
+/// Named object fields describe hosted fonts and optional modifiers. Omitted
+/// fields retain their defaults. Supplying `family` without `url` selects a
+/// locally available family, matching the string shorthand. `weight` accepts
+/// either [`FontWeight`] or its CSS numeric equivalent from `100` through
+/// `900`:
+///
+/// ```pax
+/// font: {
+///     family: "Inter"
+///     url: "https://example.com/inter.css"
+///     style: FontStyle::Italic
+///     weight: 700
+/// }
+/// ```
+///
+/// Font shorthand has no positional ("magic index") fields: named keys are
+/// canonical, and positional list/tuple forms are not accepted. Use the
+/// explicit [`Font::Web`] constructor as verbose longhand when needed.
 #[pax]
 #[engine_import_path("pax_engine")]
-#[custom(Default)]
+#[custom(Default, CoercionRules)]
 pub enum Font {
     /// Web font described by family name, stylesheet URL, style, and weight.
     Web(String, String, FontStyle, FontWeight),
@@ -612,6 +639,296 @@ pub enum FontWeight {
     Bold,
     ExtraBold,
     Black,
+}
+
+impl CoercionRules for Font {
+    fn try_coerce(value: PaxValue) -> Result<Self, String> {
+        match value {
+            PaxValue::String(family) => Ok(Self::Web(
+                family,
+                String::new(),
+                FontStyle::Normal,
+                FontWeight::Normal,
+            )),
+            PaxValue::Object(fields) => Self::from_object(fields),
+            PaxValue::Enum(contents) => {
+                let (enum_name, variant_name, values) = *contents;
+                if enum_name != "Font" || variant_name != "Web" {
+                    return Err(format!(
+                        "expected Font::Web, got {enum_name}::{variant_name}"
+                    ));
+                }
+                if values.len() != 4 {
+                    return Err(format!(
+                        "Font::Web expects 4 arguments, got {}",
+                        values.len()
+                    ));
+                }
+
+                let mut values = values.into_iter();
+                Ok(Self::Web(
+                    String::try_coerce(values.next().unwrap())?,
+                    String::try_coerce(values.next().unwrap())?,
+                    Self::coerce_style(values.next().unwrap())?,
+                    Self::coerce_weight(values.next().unwrap())?,
+                ))
+            }
+            PaxValue::Option(value) => match *value {
+                Some(value) => Self::try_coerce(value),
+                None => Err("None can't be coerced into Font".to_string()),
+            },
+            value => Err(format!("{value:?} can't be coerced into Font")),
+        }
+    }
+}
+
+impl Font {
+    fn from_object(fields: Vec<(String, PaxValue)>) -> Result<Self, String> {
+        let mut family = None;
+        let mut url = None;
+        let mut style = None;
+        let mut weight = None;
+
+        for (key, value) in fields {
+            let field = match key.as_str() {
+                "family" => &mut family,
+                "url" => &mut url,
+                "style" => &mut style,
+                "weight" => &mut weight,
+                _ => return Err(format!("unknown Font field `{key}`")),
+            };
+            if field.replace(value).is_some() {
+                return Err(format!("duplicate Font field `{key}`"));
+            }
+        }
+
+        let family_was_supplied = family.is_some();
+        let Self::Web(default_family, default_url, default_style, default_weight) = Self::default();
+        let family = family
+            .map(String::try_coerce)
+            .transpose()?
+            .unwrap_or(default_family);
+        let url = match url {
+            Some(url) => String::try_coerce(url)?,
+            None if family_was_supplied => String::new(),
+            None => default_url,
+        };
+        let style = style
+            .map(Self::coerce_style)
+            .transpose()?
+            .unwrap_or(default_style);
+        let weight = weight
+            .map(Self::coerce_weight)
+            .transpose()?
+            .unwrap_or(default_weight);
+
+        Ok(Self::Web(family, url, style, weight))
+    }
+
+    fn enum_type_name(value: &PaxValue) -> Option<&str> {
+        match value {
+            PaxValue::Enum(contents) => Some(contents.0.as_str()),
+            _ => None,
+        }
+    }
+
+    fn coerce_style(value: PaxValue) -> Result<FontStyle, String> {
+        if Self::enum_type_name(&value) != Some("FontStyle") {
+            return Err("expected FontStyle".to_string());
+        }
+        FontStyle::try_coerce(value)
+    }
+
+    fn coerce_weight(value: PaxValue) -> Result<FontWeight, String> {
+        if let PaxValue::Numeric(value) = value {
+            let value = value.to_float();
+            if !value.is_finite() || value.fract() != 0.0 {
+                return Err("font weight must be a whole CSS weight from 100 to 900".to_string());
+            }
+            return match value as i32 {
+                100 => Ok(FontWeight::Thin),
+                200 => Ok(FontWeight::ExtraLight),
+                300 => Ok(FontWeight::Light),
+                400 => Ok(FontWeight::Normal),
+                500 => Ok(FontWeight::Medium),
+                600 => Ok(FontWeight::SemiBold),
+                700 => Ok(FontWeight::Bold),
+                800 => Ok(FontWeight::ExtraBold),
+                900 => Ok(FontWeight::Black),
+                _ => Err(
+                    "font weight must be one of 100, 200, 300, 400, 500, 600, 700, 800, or 900"
+                        .to_string(),
+                ),
+            };
+        }
+        if Self::enum_type_name(&value) != Some("FontWeight") {
+            return Err("expected FontWeight or a numeric CSS weight".to_string());
+        }
+        FontWeight::try_coerce(value)
+    }
+}
+
+#[cfg(test)]
+mod font_coercion_tests {
+    use super::*;
+
+    fn string(value: &str) -> PaxValue {
+        PaxValue::String(value.to_string())
+    }
+
+    fn enum_value(type_name: &str, variant_name: &str) -> PaxValue {
+        PaxValue::Enum(Box::new((
+            type_name.to_string(),
+            variant_name.to_string(),
+            vec![],
+        )))
+    }
+
+    fn object(fields: Vec<(&str, PaxValue)>) -> PaxValue {
+        PaxValue::Object(
+            fields
+                .into_iter()
+                .map(|(key, value)| (key.to_string(), value))
+                .collect(),
+        )
+    }
+
+    fn numeric(value: i32) -> PaxValue {
+        PaxValue::Numeric(value.into())
+    }
+
+    fn assert_web(
+        font: Font,
+        expected_family: &str,
+        expected_url: &str,
+        expected_style: FontStyle,
+        expected_weight: FontWeight,
+    ) {
+        let Font::Web(family, url, style, weight) = font;
+        assert_eq!(family, expected_family);
+        assert_eq!(url, expected_url);
+        assert!(matches!(
+            (style, expected_style),
+            (FontStyle::Normal, FontStyle::Normal)
+                | (FontStyle::Italic, FontStyle::Italic)
+                | (FontStyle::Oblique, FontStyle::Oblique)
+        ));
+        assert_eq!(weight, expected_weight);
+    }
+
+    #[test]
+    fn string_coerces_to_local_family_defaults() {
+        assert_web(
+            Font::try_coerce(string("Times New Roman")).unwrap(),
+            "Times New Roman",
+            "",
+            FontStyle::Normal,
+            FontWeight::Normal,
+        );
+    }
+
+    #[test]
+    fn object_shorthand_supports_named_fields_and_defaults() {
+        let family = "Inter";
+        let url = "https://example.com/inter.css";
+
+        assert_web(
+            Font::try_coerce(object(vec![
+                ("family", string(family)),
+                ("url", string(url)),
+            ]))
+            .unwrap(),
+            family,
+            url,
+            FontStyle::Normal,
+            FontWeight::Normal,
+        );
+        assert_web(
+            Font::try_coerce(object(vec![
+                ("family", string(family)),
+                ("weight", numeric(700)),
+            ]))
+            .unwrap(),
+            family,
+            "",
+            FontStyle::Normal,
+            FontWeight::Bold,
+        );
+        assert_web(
+            Font::try_coerce(object(vec![
+                ("style", enum_value("FontStyle", "Italic")),
+                ("weight", enum_value("FontWeight", "Medium")),
+            ]))
+            .unwrap(),
+            "Roboto",
+            "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+            FontStyle::Italic,
+            FontWeight::Medium,
+        );
+    }
+
+    #[test]
+    fn explicit_web_constructor_remains_supported() {
+        let value = PaxValue::Enum(Box::new((
+            "Font".to_string(),
+            "Web".to_string(),
+            vec![
+                string("Inter"),
+                string("https://example.com/inter.css"),
+                enum_value("FontStyle", "Normal"),
+                enum_value("FontWeight", "SemiBold"),
+            ],
+        )));
+
+        assert_web(
+            Font::try_coerce(value).unwrap(),
+            "Inter",
+            "https://example.com/inter.css",
+            FontStyle::Normal,
+            FontWeight::SemiBold,
+        );
+    }
+
+    #[test]
+    fn numeric_css_weights_cover_every_runtime_variant() {
+        let cases = [
+            (100, FontWeight::Thin),
+            (200, FontWeight::ExtraLight),
+            (300, FontWeight::Light),
+            (400, FontWeight::Normal),
+            (500, FontWeight::Medium),
+            (600, FontWeight::SemiBold),
+            (700, FontWeight::Bold),
+            (800, FontWeight::ExtraBold),
+            (900, FontWeight::Black),
+        ];
+
+        for (weight, expected) in cases {
+            assert_web(
+                Font::try_coerce(object(vec![("weight", numeric(weight))])).unwrap(),
+                "Roboto",
+                "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
+                FontStyle::Normal,
+                expected,
+            );
+        }
+    }
+
+    #[test]
+    fn list_shorthand_and_invalid_object_fields_are_rejected() {
+        assert!(Font::try_coerce(PaxValue::Vec(vec![
+            string("Inter"),
+            string("https://example.com/inter.css"),
+        ]))
+        .is_err());
+        assert!(Font::try_coerce(object(vec![("weight", numeric(450))])).is_err());
+        assert!(Font::try_coerce(object(vec![("unknown", string("value"))])).is_err());
+        assert!(Font::try_coerce(object(vec![
+            ("family", string("Inter")),
+            ("family", string("Roboto")),
+        ]))
+        .is_err());
+    }
 }
 
 /// Describes available horizontal text alignments.

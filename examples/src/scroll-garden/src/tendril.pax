@@ -2,16 +2,16 @@
     if self.variant == KaleidoscopeVariant::Crimson {
         <Group class=tendril_joint x=0% y=50% anchor=[0%, 50%] rotate={(self._angle_0)deg}>
             <TendrilLimb x=0% y=50% anchor=[0%, 50%] variant=KaleidoscopeVariant::Crimson shape_index={self._shape_0} segment={self._segment} thickness={self._thickness} />
-            <Ellipse class=tendril_gem anchor=50% class=tendril_crimson_gem x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
+            <Ellipse class=[tendril_gem, tendril_crimson_gem] anchor=50% x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
             <Group x={(self._segment)px} y=50% anchor=[0%, 50%] rotate={(self._angle_1)deg}>
             <TendrilLimb x=0% y=50% anchor=[0%, 50%] variant=KaleidoscopeVariant::Crimson shape_index={self._shape_1} segment={self._segment} thickness={self._thickness} />
-                <Ellipse class=tendril_gem anchor=50% class=tendril_crimson_gem x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
+                <Ellipse class=[tendril_gem, tendril_crimson_gem] anchor=50% x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
                 <Group x={(self._segment)px} y=50% anchor=[0%, 50%] rotate={(self._angle_2)deg}>
             <TendrilLimb x=0% y=50% anchor=[0%, 50%] variant=KaleidoscopeVariant::Crimson shape_index={self._shape_2} segment={self._segment} thickness={self._thickness} />
-                    <Ellipse class=tendril_gem anchor=50% class=tendril_crimson_gem x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
+                    <Ellipse class=[tendril_gem, tendril_crimson_gem] anchor=50% x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
                     <Group x={(self._segment)px} y=50% anchor=[0%, 50%] rotate={(self._angle_3)deg}>
             <TendrilLimb x=0% y=50% anchor=[0%, 50%] variant=KaleidoscopeVariant::Crimson shape_index={self._shape_3} segment={self._segment} thickness={self._thickness} />
-                        <Ellipse class=tendril_gem anchor=50% class=tendril_crimson_gem x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
+                        <Ellipse class=[tendril_gem, tendril_crimson_gem] anchor=50% x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
                     </Group>
                 </Group>
             </Group>
@@ -21,16 +21,16 @@
     if self.variant == KaleidoscopeVariant::Nocturne {
         <Group class=tendril_joint x=0% y=50% anchor=[0%, 50%] rotate={(self._angle_0)deg}>
             <TendrilLimb x=0% y=50% anchor=[0%, 50%] variant=KaleidoscopeVariant::Nocturne shape_index={self._shape_0} segment={self._segment} thickness={self._thickness} />
-            <Ellipse class=tendril_gem anchor=50% class=tendril_nocturne_gem x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
+            <Ellipse class=[tendril_gem, tendril_nocturne_gem] anchor=50% x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
             <Group x={(self._segment)px} y=50% anchor=[0%, 50%] rotate={(self._angle_1)deg}>
             <TendrilLimb x=0% y=50% anchor=[0%, 50%] variant=KaleidoscopeVariant::Nocturne shape_index={self._shape_1} segment={self._segment} thickness={self._thickness} />
-                <Ellipse class=tendril_gem anchor=50% class=tendril_nocturne_gem x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
+                <Ellipse class=[tendril_gem, tendril_nocturne_gem] anchor=50% x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
                 <Group x={(self._segment)px} y=50% anchor=[0%, 50%] rotate={(self._angle_2)deg}>
             <TendrilLimb x=0% y=50% anchor=[0%, 50%] variant=KaleidoscopeVariant::Nocturne shape_index={self._shape_2} segment={self._segment} thickness={self._thickness} />
-                    <Ellipse class=tendril_gem anchor=50% class=tendril_nocturne_gem x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
+                    <Ellipse class=[tendril_gem, tendril_nocturne_gem] anchor=50% x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
                     <Group x={(self._segment)px} y=50% anchor=[0%, 50%] rotate={(self._angle_3)deg}>
             <TendrilLimb x=0% y=50% anchor=[0%, 50%] variant=KaleidoscopeVariant::Nocturne shape_index={self._shape_3} segment={self._segment} thickness={self._thickness} />
-                        <Ellipse class=tendril_gem anchor=50% class=tendril_nocturne_gem x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
+                        <Ellipse class=[tendril_gem, tendril_nocturne_gem] anchor=50% x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
                     </Group>
                 </Group>
             </Group>
@@ -40,16 +40,16 @@
     if self.variant == KaleidoscopeVariant::Lagoon {
         <Group class=tendril_joint x=0% y=50% anchor=[0%, 50%] rotate={(self._angle_0)deg}>
             <TendrilLimb x=0% y=50% anchor=[0%, 50%] variant=KaleidoscopeVariant::Lagoon shape_index={self._shape_0} segment={self._segment} thickness={self._thickness} />
-            <Ellipse class=tendril_gem anchor=50% class=tendril_lagoon_gem x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
+            <Ellipse class=[tendril_gem, tendril_lagoon_gem] anchor=50% x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
             <Group x={(self._segment)px} y=50% anchor=[0%, 50%] rotate={(self._angle_1)deg}>
             <TendrilLimb x=0% y=50% anchor=[0%, 50%] variant=KaleidoscopeVariant::Lagoon shape_index={self._shape_1} segment={self._segment} thickness={self._thickness} />
-                <Ellipse class=tendril_gem anchor=50% class=tendril_lagoon_gem x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
+                <Ellipse class=[tendril_gem, tendril_lagoon_gem] anchor=50% x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
                 <Group x={(self._segment)px} y=50% anchor=[0%, 50%] rotate={(self._angle_2)deg}>
             <TendrilLimb x=0% y=50% anchor=[0%, 50%] variant=KaleidoscopeVariant::Lagoon shape_index={self._shape_2} segment={self._segment} thickness={self._thickness} />
-                    <Ellipse class=tendril_gem anchor=50% class=tendril_lagoon_gem x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
+                    <Ellipse class=[tendril_gem, tendril_lagoon_gem] anchor=50% x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
                     <Group x={(self._segment)px} y=50% anchor=[0%, 50%] rotate={(self._angle_3)deg}>
             <TendrilLimb x=0% y=50% anchor=[0%, 50%] variant=KaleidoscopeVariant::Lagoon shape_index={self._shape_3} segment={self._segment} thickness={self._thickness} />
-                        <Ellipse class=tendril_gem anchor=50% class=tendril_lagoon_gem x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
+                        <Ellipse class=[tendril_gem, tendril_lagoon_gem] anchor=50% x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
                     </Group>
                 </Group>
             </Group>
@@ -59,16 +59,16 @@
     if self.variant == KaleidoscopeVariant::Fern {
         <Group class=tendril_joint x=0% y=50% anchor=[0%, 50%] rotate={(self._angle_0)deg}>
             <TendrilLimb x=0% y=50% anchor=[0%, 50%] variant=KaleidoscopeVariant::Fern shape_index={self._shape_0} segment={self._segment} thickness={self._thickness} />
-            <Ellipse class=tendril_gem anchor=50% class=tendril_fern_gem x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
+            <Ellipse class=[tendril_gem, tendril_fern_gem] anchor=50% x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
             <Group x={(self._segment)px} y=50% anchor=[0%, 50%] rotate={(self._angle_1)deg}>
             <TendrilLimb x=0% y=50% anchor=[0%, 50%] variant=KaleidoscopeVariant::Fern shape_index={self._shape_1} segment={self._segment} thickness={self._thickness} />
-                <Ellipse class=tendril_gem anchor=50% class=tendril_fern_gem x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
+                <Ellipse class=[tendril_gem, tendril_fern_gem] anchor=50% x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
                 <Group x={(self._segment)px} y=50% anchor=[0%, 50%] rotate={(self._angle_2)deg}>
             <TendrilLimb x=0% y=50% anchor=[0%, 50%] variant=KaleidoscopeVariant::Fern shape_index={self._shape_2} segment={self._segment} thickness={self._thickness} />
-                    <Ellipse class=tendril_gem anchor=50% class=tendril_fern_gem x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
+                    <Ellipse class=[tendril_gem, tendril_fern_gem] anchor=50% x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
                     <Group x={(self._segment)px} y=50% anchor=[0%, 50%] rotate={(self._angle_3)deg}>
             <TendrilLimb x=0% y=50% anchor=[0%, 50%] variant=KaleidoscopeVariant::Fern shape_index={self._shape_3} segment={self._segment} thickness={self._thickness} />
-                        <Ellipse class=tendril_gem anchor=50% class=tendril_fern_gem x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
+                        <Ellipse class=[tendril_gem, tendril_fern_gem] anchor=50% x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
                     </Group>
                 </Group>
             </Group>
@@ -78,16 +78,16 @@
     if self.variant == KaleidoscopeVariant::Violet {
         <Group class=tendril_joint x=0% y=50% anchor=[0%, 50%] rotate={(self._angle_0)deg}>
             <TendrilLimb x=0% y=50% anchor=[0%, 50%] variant=KaleidoscopeVariant::Violet shape_index={self._shape_0} segment={self._segment} thickness={self._thickness} />
-            <Ellipse class=tendril_gem anchor=50% class=tendril_violet_gem x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
+            <Ellipse class=[tendril_gem, tendril_violet_gem] anchor=50% x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
             <Group x={(self._segment)px} y=50% anchor=[0%, 50%] rotate={(self._angle_1)deg}>
             <TendrilLimb x=0% y=50% anchor=[0%, 50%] variant=KaleidoscopeVariant::Violet shape_index={self._shape_1} segment={self._segment} thickness={self._thickness} />
-                <Ellipse class=tendril_gem anchor=50% class=tendril_violet_gem x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
+                <Ellipse class=[tendril_gem, tendril_violet_gem] anchor=50% x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
                 <Group x={(self._segment)px} y=50% anchor=[0%, 50%] rotate={(self._angle_2)deg}>
             <TendrilLimb x=0% y=50% anchor=[0%, 50%] variant=KaleidoscopeVariant::Violet shape_index={self._shape_2} segment={self._segment} thickness={self._thickness} />
-                    <Ellipse class=tendril_gem anchor=50% class=tendril_violet_gem x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
+                    <Ellipse class=[tendril_gem, tendril_violet_gem] anchor=50% x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
                     <Group x={(self._segment)px} y=50% anchor=[0%, 50%] rotate={(self._angle_3)deg}>
             <TendrilLimb x=0% y=50% anchor=[0%, 50%] variant=KaleidoscopeVariant::Violet shape_index={self._shape_3} segment={self._segment} thickness={self._thickness} />
-                        <Ellipse class=tendril_gem anchor=50% class=tendril_violet_gem x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
+                        <Ellipse class=[tendril_gem, tendril_violet_gem] anchor=50% x={(self._segment)px} y=50% width={(self._gem)px} height={(self._gem)px} />
                     </Group>
                 </Group>
             </Group>

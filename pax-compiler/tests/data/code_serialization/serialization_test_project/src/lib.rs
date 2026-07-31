@@ -4,9 +4,9 @@ use pax_kit::*;
 #[pax]
 #[main]
 #[inlined(
-<Text text={message} class=centered class=small id=text/>
-<Rectangle class=centered class=small @click=self.increment fill={rgb(ticks, 75, 150)} 
-    corner_radii={RectangleCornerRadii::radii(10.00, 10.00, 10.00, 10.00)}/>
+<Text text={message} class=[centered, small] id=text/>
+<Rectangle class=[centered, small] @click=self.increment fill={rgb(ticks, 75, 150)} corner_radius=[10.00, 4.00]/>
+<Image source="assets/test.png"/>
 
 @settings {
     @mount: handle_mount
@@ -23,7 +23,11 @@ use pax_kit::*;
     }
     #text {
         style: {
-            font: {Font::Web("Times New Roman", "", FontStyle::Normal, FontWeight::Bold)}
+            font: {
+                family: "Times New Roman"
+                style: FontStyle::Italic
+                weight: 700
+            }
             font_size: 32px
             fill: {rgba(1.00, 1.00, 1.00, 1.00)}
             align_vertical: TextAlignVertical::Center

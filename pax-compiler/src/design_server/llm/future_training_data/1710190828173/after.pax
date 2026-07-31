@@ -1,5 +1,0 @@
-<Group />
-
-@settings {
-    @pre_render: pre_render,
-}

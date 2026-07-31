@@ -350,6 +350,17 @@ A native text selection is beginning.
 
 ---
 
+### `SliderChange`
+User changes a slider's value.
+
+#### Properties
+##### `value`
+Type: `f64`
+
+The new slider value.
+
+---
+
 ### `TextInput`
 User types into a text input field.
 

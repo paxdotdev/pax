@@ -49,7 +49,7 @@ We have basic support for each of these classes of error, however ongoing work i
 Currently PAXEL is transpiled into Rust and built statically into machine code.  This is fast, but it requires full recompilation when oftentimes during authoring, it is preferable to interpret in order to support live updates + edits.  The PAXEL interpreter will be particularly useful when using Pax Create, where expression changes currently require painful cycles with the Rust compiler.
 
 ### Grammar improvements & shorthands:
-Various aspects of the Pax grammar can be polished and improved for certain APIs.  For example, `<Rectangle />` border radius currently requires a verbose Rust enum literal via PAXEL like `<Rectangle corner_radii={RectangleCornerRadii::radii(7.0, 7.0, 7.0, 7.0) /> — however, this could be simplified to `<Rectangle corner_radii=7 />` (homogeneous shorthand) or `<Rectangle corner_radii=(7,7,7,7) />` (heterogeneous tuple shorthand).  Text APIs and gradient APIs are other prime candidates for grammatical polish.
+Various aspects of the Pax grammar can be polished and improved for certain APIs. `<Rectangle />` border radii now accept a homogeneous shorthand such as `<Rectangle corner_radius=7 />` and CSS-arity lists such as `<Rectangle corner_radius=[7, 7, 3, 3] />`. Text APIs and gradient APIs are other prime candidates for grammatical polish.
 
 ### Universal embedded component wrappers:
 Pax is designed to run anywhere, including inside existing codebases.  To make this easier to execute, we intend to build component wrappers that make Pax “just work” e.g. with React, Vue, NextJS, Angular, and WebComponents, as well as SwiftUI Views and other cross-platform wrappers.

@@ -42,7 +42,7 @@ Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`TextStyle`](/a
 
 Text style for the textbox and list items.
 
-##### `border_radius`
+##### `corner_radius`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`f64`>
 
 Textbox corner radius, in pixels.

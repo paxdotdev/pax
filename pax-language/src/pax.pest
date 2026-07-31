@@ -44,7 +44,9 @@ pascal_identifier = @{ ASCII_ALPHA_UPPER ~ (ASCII_ALPHANUMERIC | "_")*}
 event_id = {"@" ~ identifier}
 
 //Describes an attribute k/v pair like `id="some_element"` or `@click=self.handle_click`. Supports expressions.
-attribute_key_value_pair = {double_binding | attribute_transition_binding | attribute_event_binding | (identifier ~ "=" ~ any_template_value) }
+attribute_key_value_pair = {double_binding | attribute_transition_binding | attribute_event_binding | class_attribute | (identifier ~ "=" ~ any_template_value) }
+class_attribute = { "class" ~ "=" ~ (class_identifier_list | identifier) }
+class_identifier_list = { "[" ~ identifier ~ (silent_comma? ~ identifier)* ~ silent_comma? ~ "]" }
 attribute_transition_binding = {transition_id ~ "=" ~ transition_binding_value}
 attribute_event_binding = {event_id ~ "=" ~ literal_function}
 transition_id = {"@" ~ ("in" | "out")}
@@ -165,9 +167,9 @@ literal_enum_args_list = {literal_value ~ ("," ~ literal_value)* ~ silent_comma?
 //Notes on gradients:
 //  - when we support object literal syntax for gradients, can we just rely on the vanilla Rust structs instead of re-inventing
 //    an object literal syntax in the grammar?  in particular, it would be nice to support the sugared syntax of number+percentage as keys,
-//    but perhaps we could do that e.g. by desugaring `{0%: "bar", 100%: "foo" }` into `[(0%, "bar"),(100%, "foo")]`, akin to how
+//    but perhaps we could do that e.g. by desugaring `{0%: "bar", 100%: "foo" }` into `[[0%, "bar"], [100%, "foo"]]`, akin to how
 //    you can construct a HashMap from a vec of k/v tuples in Rust.  Thus, you could express a LinearGradient as
-//    LinearGradient {start: (0,0), stops: {0%: RED, 100%: BLUE}, end: (100%,100%)}
+//    LinearGradient {start: [0, 0], stops: {0%: RED, 100%: BLUE}, end: [100%, 100%]}
 
 //Literal colors
 literal_color = {literal_color_space_func | literal_color_const}

@@ -43,7 +43,7 @@ use pax_runtime::api::NodeContext;
         style=style
         background=background
         stroke=stroke
-        border_radius=border_radius
+        corner_radius=corner_radius
         @textbox_change=self.textbox_change
     />
 
@@ -103,7 +103,7 @@ pub struct ComboBox {
     /// Text style for the textbox and list items.
     pub style: Property<TextStyle>,
     /// Textbox corner radius, in pixels.
-    pub border_radius: Property<f64>,
+    pub corner_radius: Property<f64>,
 
     // Private filtered list backing the generated dropdown.
     pub _filtered_options: Property<Vec<ListItemData>>,

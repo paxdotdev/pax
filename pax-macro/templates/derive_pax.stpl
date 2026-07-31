@@ -138,6 +138,7 @@
     impl <%= engine_import_path %>::api::Interpolatable for <%= pascal_identifier %> {}
 <% } %>
 
+<% if !is_custom_coercion_rules { %>
 impl <%= engine_import_path %>::api::CoercionRules for <%= pascal_identifier %> {
     fn try_coerce(value: <%= engine_import_path %>::PaxValue) -> Result<Self, String> {
             <% if let InternalDefinitions::Enum(variant_definitions) = &internal_definitions { %>
@@ -188,6 +189,7 @@ impl <%= engine_import_path %>::api::CoercionRules for <%= pascal_identifier %> 
             <% } %>
     }
 }
+<% } %>
 
 impl <%= engine_import_path %>::api::ToPaxValue for <%= pascal_identifier %> {
     fn to_pax_value(self) -> <%= engine_import_path %>::PaxValue {

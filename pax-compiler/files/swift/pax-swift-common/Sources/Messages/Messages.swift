@@ -2155,7 +2155,7 @@ public class FrameUpdatePatch: ResolvedPlacementPatch {
         self.size_y = fb["size_y"]?.asFloat
         self.clipContent = fb["clip_content"]?.asBool
         self.clipPath = fb["clip_path"]?.asString
-        self.borderRadius = readDouble(fb["border_radius"])
+        self.borderRadius = readDouble(fb["corner_radius"])
         self.opacity = readDouble(fb["opacity"])
     }
 }
@@ -2200,7 +2200,7 @@ public class ScrollerUpdatePatch: ResolvedPlacementPatch {
         self.size_y = fb["size_y"]?.asFloat
         self.opacity = readDouble(fb["opacity"])
         self.clipContent = fb["clip_content"]?.asBool
-        self.borderRadius = readDouble(fb["border_radius"])
+        self.borderRadius = readDouble(fb["corner_radius"])
         self.size_inner_pane_x = fb["size_inner_pane_x"]?.asFloat
         self.size_inner_pane_y = fb["size_inner_pane_y"]?.asFloat
         self.snap_points_x = readDoubleArray(fb["snap_points_x"])
@@ -2406,7 +2406,7 @@ public class GlassSurfaceUpdatePatch: ResolvedPlacementPatch {
         self.size_x = fb["size_x"]?.asFloat
         self.size_y = fb["size_y"]?.asFloat
         self.opacity = readDouble(fb["opacity"])
-        self.borderRadius = readDouble(fb["border_radius"])
+        self.borderRadius = readDouble(fb["corner_radius"])
         self.liquidGlass = readAppleLiquidGlass(fb["liquid_glass"])
     }
 }
@@ -2478,7 +2478,7 @@ public class ButtonUpdatePatch: ResolvedPlacementPatch {
         self.zIndexUpdated = fieldExists(fb, "z_index")
         self.zIndex = readInt(fb["z_index"])
         self.outlineStrokeWidth = readDouble(fb["outline_stroke_width"])
-        self.borderRadius = readDouble(fb["border_radius"])
+        self.borderRadius = readDouble(fb["corner_radius"])
         self.transform = readFloatArray(fb["transform"])
         self.size_x = fb["size_x"]?.asFloat
         self.size_y = fb["size_y"]?.asFloat
@@ -2722,7 +2722,7 @@ public class CheckboxUpdatePatch: ResolvedPlacementPatch {
         self.zIndexUpdated = fieldExists(fb, "z_index")
         self.zIndex = readInt(fb["z_index"])
         self.outlineWidth = readDouble(fb["outline_width"])
-        self.borderRadius = readDouble(fb["border_radius"])
+        self.borderRadius = readDouble(fb["corner_radius"])
         self.transform = readFloatArray(fb["transform"])
         self.size_x = fb["size_x"]?.asFloat
         self.size_y = fb["size_y"]?.asFloat
@@ -2960,7 +2960,7 @@ public class DropdownUpdatePatch: ResolvedPlacementPatch {
         self.size_y = fb["size_y"]?.asFloat
         self.opacity = readDouble(fb["opacity"])
         self.strokeWidth = readDouble(fb["stroke_width"])
-        self.borderRadius = readDouble(fb["border_radius"])
+        self.borderRadius = readDouble(fb["corner_radius"])
         self.liquidGlassUpdated = fieldExists(fb, "liquid_glass")
         self.liquidGlass = readAppleLiquidGlass(fb["liquid_glass"])
         if let background = fb["background"], !background.isNull {
@@ -3173,7 +3173,7 @@ public class SliderUpdatePatch: ResolvedPlacementPatch {
         self.size_x = fb["size_x"]?.asFloat
         self.size_y = fb["size_y"]?.asFloat
         self.opacity = readDouble(fb["opacity"])
-        self.borderRadius = readDouble(fb["border_radius"])
+        self.borderRadius = readDouble(fb["corner_radius"])
         self.liquidGlassUpdated = fieldExists(fb, "liquid_glass")
         self.liquidGlass = readAppleLiquidGlass(fb["liquid_glass"])
         if let accent = fb["accent"], !accent.isNull {
@@ -3278,7 +3278,7 @@ public class TextboxUpdatePatch: ResolvedPlacementPatch {
         self.opacity = readDouble(fb["opacity"])
         self.text = fb["text"]?.asString
         self.strokeWidth = readDouble(fb["stroke_width"])
-        self.borderRadius = readDouble(fb["border_radius"])
+        self.borderRadius = readDouble(fb["corner_radius"])
         self.focusOnMount = fb["focus_on_mount"]?.asBool
         self.placeholder = fb["placeholder"]?.asString
         self.outlineWidth = readDouble(fb["outline_width"])

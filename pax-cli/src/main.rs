@@ -176,12 +176,17 @@ fn main() -> Result<(), Report> {
         .subcommand(App::new("lsp").about("Start the Pax LSP server"))
         .subcommand(
             App::new("format")
-                .about("Format a Pax File")
+                .about("Format Pax source files")
                 .alias("fmt")
-                .arg(Arg::with_name("file")
-                    .help("File to format. If not provided with --file, it should directly follow 'format'")
+                .arg(Arg::with_name("format-path")
+                    .help("File or directory to format (defaults to the current workspace)")
                     .takes_value(true)
+                    .default_value(".")
                     .index(1))
+                .arg(Arg::with_name("check")
+                    .long("check")
+                    .help("Check formatting without writing files")
+                    .takes_value(false))
         )
         .subcommand(
             App::new("eject")
@@ -399,12 +404,32 @@ fn perform_nominal_action(
             Ok(())
         }
         ("format", Some(args)) => {
-            let file = args.value_of("file").unwrap().to_string();
-            // current directory
-            let path = std::env::current_dir().unwrap();
-            let file_path = path.join(file);
+            let format_path = PathBuf::from(args.value_of("format-path").unwrap());
+            let check = args.is_present("check");
+            let summary = pax_language::formatting::format_path(&format_path, check)?;
+            if check && !summary.changed_files.is_empty() {
+                let paths = summary
+                    .changed_files
+                    .iter()
+                    .map(|path| format!("  {}", path.display()))
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                return Err(eyre!(
+                    "{} file(s) require formatting:\n{}",
+                    summary.changed_files.len(),
+                    paths
+                ));
+            }
 
-            pax_language::formatting::format_file(file_path.to_str().unwrap())?;
+            if check {
+                println!("Checked {} Pax source file(s)", summary.files_checked);
+            } else {
+                println!(
+                    "Formatted {} of {} Pax source file(s)",
+                    summary.changed_files.len(),
+                    summary.files_checked
+                );
+            }
             Ok(())
         }
         ("designtime-server", Some(args)) => {

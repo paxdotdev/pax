@@ -67,7 +67,6 @@ PACKAGES = [
     "pax-cli",
     "pax-compiler",
     "pax-designtime",
-    "pax-generation",
     "pax-kit",
     "pax-runtime",
     "pax-runtime-api",

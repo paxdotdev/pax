@@ -36,8 +36,8 @@
     .page_bg {
         fill: @gradient {
             linear: {
-                start: (0%, 0%)
-                end: (100%, 100%)
+                start: [0%, 0%]
+                end: [100%, 100%]
             }
             0%: rgb(2, 5, 13)
             50%: rgb(9, 16, 34)
@@ -47,13 +47,17 @@
 
     .preview_frame {
         fill: rgba(8, 14, 28, 232)
-        stroke: Stroke { color: rgba(102, 132, 190, 128), width: 1px }
-        corner_radii: RectangleCornerRadii::radii(16.0, 16.0, 16.0, 16.0)
+        stroke: { color: rgba(102, 132, 190, 128), width: 1px }
+        corner_radius: 16.0
     }
 
     .hero_title {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@700;900&display=swap", FontStyle::Normal, FontWeight::Bold)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@700;900&display=swap"
+                weight: 700
+            }
             font_size: 34px
             fill: WHITE
             align_vertical: TextAlignVertical::Center
@@ -64,8 +68,12 @@
     }
 
     .hero_copy {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap", FontStyle::Normal, FontWeight::Medium)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap"
+                weight: 500
+            }
             font_size: 16px
             fill: rgba(194, 210, 242, 230)
             align_vertical: TextAlignVertical::Top

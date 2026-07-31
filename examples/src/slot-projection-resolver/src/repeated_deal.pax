@@ -26,10 +26,45 @@
 </Group>
 
 @settings {
-    .panel_title { style: TextStyle { font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap", FontStyle::Normal, FontWeight::SemiBold) font_size: 20px fill: WHITE align_vertical: TextAlignVertical::Center align_horizontal: TextAlignHorizontal::Left } }
-    .panel_caption { style: TextStyle { font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap", FontStyle::Normal, FontWeight::Normal) font_size: 13px fill: rgba(218, 229, 255, 210) align_vertical: TextAlignVertical::Center align_horizontal: TextAlignHorizontal::Left } }
-    .bucket_label { style: TextStyle { font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap", FontStyle::Normal, FontWeight::Medium) font_size: 12px fill: rgba(235, 242, 255, 225) align_vertical: TextAlignVertical::Center align_horizontal: TextAlignHorizontal::Left } }
-    .inner_bucket_bg { fill: rgba(20, 31, 58, 210) stroke: Stroke { color: rgba(106, 132, 190, 80), width: 1px } corner_radii: RectangleCornerRadii::radii(12.0, 12.0, 12.0, 12.0) }
-    .bucket_bg { fill: rgba(13, 22, 41, 222) stroke: Stroke { color: rgba(106, 132, 190, 108), width: 1px } corner_radii: RectangleCornerRadii::radii(14.0, 14.0, 14.0, 14.0) }
-    .panel_bg { fill: rgba(7, 12, 24, 238) stroke: Stroke { color: rgba(126, 150, 210, 96), width: 1px } corner_radii: RectangleCornerRadii::radii(16.0, 16.0, 16.0, 16.0) }
+    .panel_title {
+        style: {
+            font: {
+                family: "Space Grotesk"
+                url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap"
+                weight: 600
+            }
+            font_size: 20px
+            fill: WHITE
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+        }
+    }
+    .panel_caption {
+        style: {
+            font: {
+                family: "Space Grotesk"
+                url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap"
+            }
+            font_size: 13px
+            fill: rgba(218, 229, 255, 210)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+        }
+    }
+    .bucket_label {
+        style: {
+            font: {
+                family: "Space Grotesk"
+                url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap"
+                weight: 500
+            }
+            font_size: 12px
+            fill: rgba(235, 242, 255, 225)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+        }
+    }
+    .inner_bucket_bg { fill: rgba(20, 31, 58, 210) stroke: { color: rgba(106, 132, 190, 80), width: 1px } corner_radius: 12.0 }
+    .bucket_bg { fill: rgba(13, 22, 41, 222) stroke: { color: rgba(106, 132, 190, 108), width: 1px } corner_radius: 14.0 }
+    .panel_bg { fill: rgba(7, 12, 24, 238) stroke: { color: rgba(126, 150, 210, 96), width: 1px } corner_radius: 16.0 }
 }

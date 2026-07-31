@@ -236,8 +236,12 @@
 
 @settings {
     .title {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap"
+                weight: 700
+            }
             font_size: 34px
             fill: rgb(31, 43, 48)
             align_vertical: TextAlignVertical::Center
@@ -246,8 +250,12 @@
     }
 
     .subtitle {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Medium)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap"
+                weight: 500
+            }
             font_size: 15px
             fill: rgb(89, 102, 110)
             align_vertical: TextAlignVertical::Center
@@ -256,8 +264,12 @@
     }
 
     .section_label {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap"
+                weight: 700
+            }
             font_size: 15px
             fill: rgb(36, 79, 111)
             align_vertical: TextAlignVertical::Center
@@ -266,8 +278,12 @@
     }
 
     .row_label {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Medium)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap"
+                weight: 500
+            }
             font_size: 14px
             fill: rgb(36, 44, 48)
             align_vertical: TextAlignVertical::Center
@@ -276,8 +292,12 @@
     }
 
     .row_value {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Medium)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap"
+                weight: 500
+            }
             font_size: 13px
             fill: rgb(83, 94, 101)
             align_vertical: TextAlignVertical::Center
@@ -286,10 +306,10 @@
     }
 
     .row_surface {
-        fill: Color::rgba(255, 255, 255, 238)
-        border_radius: 8
-        stroke: Stroke {
-            color: Color::rgba(136, 157, 169, 80)
+        fill: rgba(255, 255, 255, 238)
+        corner_radius: 8
+        stroke: {
+            color: rgba(136, 157, 169, 80)
             width: 1px
         }
     }

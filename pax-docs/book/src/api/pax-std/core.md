@@ -3,6 +3,7 @@
 <!-- tags: api, pax-std -->
 
 ## Submodules
+- [core::event_blocker](core/event_blocker.md)
 - [core::frame](core/frame.md)
 - [core::group](core/group.md)
 - [core::import_settings](core/import_settings.md)

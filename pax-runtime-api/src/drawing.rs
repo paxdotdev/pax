@@ -703,6 +703,9 @@ impl Interpolatable for Fill {
 }
 
 /// Describes a linear gradient fill with a start and end point, and a list of color stops.
+///
+/// Pax templates canonically author each point as `[x, y]`: magic index `0`
+/// is the horizontal coordinate and index `1` is the vertical coordinate.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
 #[serde(crate = "crate::serde")]
 pub struct LinearGradient {
@@ -715,6 +718,9 @@ pub struct LinearGradient {
 }
 
 /// Describes a radial gradient fill with a start and end point, a radius, and a list of color stops.
+///
+/// Pax templates canonically author each point as `[x, y]`: magic index `0`
+/// is the horizontal coordinate and index `1` is the vertical coordinate.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(crate = "crate::serde")]
 pub struct RadialGradient {
@@ -862,6 +868,9 @@ impl Fill {
 
     #[allow(non_snake_case)]
     /// Constructs a linear gradient fill.
+    ///
+    /// Pax templates should normally use `@gradient`. When this helper is
+    /// needed explicitly, pass `start` and `end` as `[x, y]` lists.
     pub fn linearGradient(
         start: (Size, Size),
         end: (Size, Size),

@@ -59,6 +59,9 @@ Returns a copy of this stop with alpha multiplied by `factor`.
 ### `LinearGradient`
 Describes a linear gradient fill with a start and end point, and a list of color stops.
 
+Pax templates canonically author each point as `[x, y]`: magic index `0`
+is the horizontal coordinate and index `1` is the vertical coordinate.
+
 #### Properties
 ##### `start`
 Type: ([`Size`](/api/pax-runtime-api/layout.md#size), [`Size`](/api/pax-runtime-api/layout.md#size))
@@ -120,6 +123,9 @@ Additive emissive intensity.
 
 ### `RadialGradient`
 Describes a radial gradient fill with a start and end point, a radius, and a list of color stops.
+
+Pax templates canonically author each point as `[x, y]`: magic index `0`
+is the horizontal coordinate and index `1` is the vertical coordinate.
 
 #### Properties
 ##### `end`
@@ -329,6 +335,9 @@ Estimates the alpha coverage contributed by this fill.
 <pre><code class="api-signature language-rust ignore">pub fn linearGradient(start: (<a href="/api/pax-runtime-api/layout.md#size">Size</a>, <a href="/api/pax-runtime-api/layout.md#size">Size</a>), end: (<a href="/api/pax-runtime-api/layout.md#size">Size</a>, <a href="/api/pax-runtime-api/layout.md#size">Size</a>), stops: Vec&lt;<a href="/api/pax-runtime-api/drawing.md#gradientstop">GradientStop</a>&gt;) -&gt; <a href="/api/pax-runtime-api/drawing.md#fill">Fill</a></code></pre>
 
 Constructs a linear gradient fill.
+
+Pax templates should normally use `@gradient`. When this helper is
+needed explicitly, pass `start` and `end` as `[x, y]` lists.
 
 ##### `max_alpha_0_1`
 <pre><code class="api-signature language-rust ignore">pub fn max_alpha_0_1(&amp;self) -&gt; f64</code></pre>

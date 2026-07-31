@@ -29,9 +29,23 @@ pub struct Image {
 }
 
 /// Source data for an `Image`.
+///
+/// In Pax templates, a string in an `ImageSource` context is shorthand for
+/// [`ImageSource::Url`]:
+///
+/// ```pax
+/// <Image source="assets/spaceship.png" />
+/// <Image source={avatar_url} />
+/// ```
+///
+/// [`ImageSource::Url`] and [`ImageSource::Data`] remain available as explicit
+/// constructor forms. Unlike the list shorthands used by compound Pax types,
+/// the URL shorthand has no positional ("magic index") fields: the entire
+/// string is the URL or chassis-relative asset path.
 #[pax]
 #[derive(PartialEq)]
 #[engine_import_path("pax_engine")]
+#[custom(CoercionRules)]
 pub enum ImageSource {
     /// No image.
     #[default]
@@ -40,6 +54,105 @@ pub enum ImageSource {
     Url(String),
     /// Raw RGBA image data: width, height, and bytes where `len = width * height * 4`.
     Data(usize, usize, Vec<u8>),
+}
+
+impl CoercionRules for ImageSource {
+    fn try_coerce(value: PaxValue) -> Result<Self, String> {
+        match value {
+            PaxValue::String(url) => Ok(Self::Url(url)),
+            PaxValue::Enum(contents) => {
+                let (enum_name, variant_name, values) = *contents;
+                if enum_name != "ImageSource" {
+                    return Err(format!(
+                        "expected ImageSource enum value, got {enum_name}::{variant_name}"
+                    ));
+                }
+
+                let expected_arity = match variant_name.as_str() {
+                    "Empty" => 0,
+                    "Url" => 1,
+                    "Data" => 3,
+                    _ => {
+                        return Err(format!(
+                            "failed to coerce ImageSource: unknown variant {variant_name:?}"
+                        ))
+                    }
+                };
+                if values.len() != expected_arity {
+                    return Err(format!(
+                        "ImageSource::{variant_name} expects {expected_arity} argument(s), got {}",
+                        values.len()
+                    ));
+                }
+
+                let mut values = values.into_iter();
+                match variant_name.as_str() {
+                    "Empty" => Ok(Self::Empty),
+                    "Url" => Ok(Self::Url(String::try_coerce(values.next().unwrap())?)),
+                    "Data" => Ok(Self::Data(
+                        usize::try_coerce(values.next().unwrap())?,
+                        usize::try_coerce(values.next().unwrap())?,
+                        Vec::<u8>::try_coerce(values.next().unwrap())?,
+                    )),
+                    _ => unreachable!(),
+                }
+            }
+            PaxValue::Option(value) => match *value {
+                Some(value) => Self::try_coerce(value),
+                None => Err("None can't be coerced into ImageSource".to_string()),
+            },
+            value => Err(format!("{value:?} can't be coerced into ImageSource")),
+        }
+    }
+}
+
+#[cfg(test)]
+mod image_source_coercion_tests {
+    use super::*;
+
+    #[test]
+    fn string_coerces_to_url() {
+        assert_eq!(
+            ImageSource::try_coerce(PaxValue::String("assets/photo.png".to_string())).unwrap(),
+            ImageSource::Url("assets/photo.png".to_string())
+        );
+    }
+
+    #[test]
+    fn explicit_variants_remain_supported() {
+        let url = PaxValue::Enum(Box::new((
+            "ImageSource".to_string(),
+            "Url".to_string(),
+            vec![PaxValue::String(
+                "https://example.com/photo.png".to_string(),
+            )],
+        )));
+        assert_eq!(
+            ImageSource::try_coerce(url).unwrap(),
+            ImageSource::Url("https://example.com/photo.png".to_string())
+        );
+
+        let empty = PaxValue::Enum(Box::new((
+            "ImageSource".to_string(),
+            "Empty".to_string(),
+            vec![],
+        )));
+        assert_eq!(ImageSource::try_coerce(empty).unwrap(), ImageSource::Empty);
+
+        let data = PaxValue::Enum(Box::new((
+            "ImageSource".to_string(),
+            "Data".to_string(),
+            vec![
+                1usize.to_pax_value(),
+                1usize.to_pax_value(),
+                vec![255u8, 128, 64, 255].to_pax_value(),
+            ],
+        )));
+        assert_eq!(
+            ImageSource::try_coerce(data).unwrap(),
+            ImageSource::Data(1, 1, vec![255, 128, 64, 255])
+        );
+    }
 }
 
 // Runtime instance backing `<Image>`.

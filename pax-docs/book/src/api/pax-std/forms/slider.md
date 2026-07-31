@@ -17,7 +17,7 @@ Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Color`](/api/p
 
 Accent color for the active track/thumb, when supported.
 
-##### `border_radius`
+##### `corner_radius`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`f64`>
 
 Slider corner radius, in pixels.

@@ -48,12 +48,11 @@
 @settings {
     #display {
         style: {
-            font: {Font::Web(
-                "ff-real-headline-pro",
-                "https://use.typekit.net/ivu7epf.css",
-                FontStyle::Normal,
-                FontWeight::Light,
-            )},
+            font: {
+                family: "ff-real-headline-pro"
+                url: "https://use.typekit.net/ivu7epf.css"
+                weight: 300
+            },
             font_size: 64px,
             fill: WHITE,
             align_vertical: TextAlignVertical::Center,
@@ -62,12 +61,10 @@
     }
     .btn {
         style: {
-            font: {Font::Web(
-                "ff-real-headline-pro",
-                "https://use.typekit.net/ivu7epf.css",
-                FontStyle::Normal,
-                FontWeight::Normal,
-            )},
+            font: {
+                family: "ff-real-headline-pro"
+                url: "https://use.typekit.net/ivu7epf.css"
+            },
             font_size: 28px,
             fill: WHITE,
             align_vertical: TextAlignVertical::Center,
@@ -77,12 +74,10 @@
     }
     .btn_top {
         style: {
-            font: {Font::Web(
-                "ff-real-headline-pro",
-                "https://use.typekit.net/ivu7epf.css",
-                FontStyle::Normal,
-                FontWeight::Normal,
-            )},
+            font: {
+                family: "ff-real-headline-pro"
+                url: "https://use.typekit.net/ivu7epf.css"
+            },
             font_size: 28px,
             fill: BLACK,
             align_vertical: TextAlignVertical::Center,
@@ -92,12 +87,10 @@
     }
     .btn_op {
         style: {
-           font: {Font::Web(
-                "ff-real-headline-pro",
-                "https://use.typekit.net/ivu7epf.css",
-                FontStyle::Normal,
-                FontWeight::Normal,
-            )},
+           font: {
+               family: "ff-real-headline-pro"
+               url: "https://use.typekit.net/ivu7epf.css"
+           },
             font_size: 28px,
             fill: WHITE,
             align_vertical: TextAlignVertical::Center,
@@ -107,12 +100,10 @@
     }
     .btn_zero {
         style: {
-           font: {Font::Web(
-                "ff-real-headline-pro",
-                "https://use.typekit.net/ivu7epf.css",
-                FontStyle::Normal,
-                FontWeight::Normal,
-            )},
+           font: {
+               family: "ff-real-headline-pro"
+               url: "https://use.typekit.net/ivu7epf.css"
+           },
             font_size: 28px,
             fill: WHITE,
             align_vertical: TextAlignVertical::Center,
@@ -122,12 +113,10 @@
     }
     .btn_sci {
         style: {
-           font: {Font::Web(
-                "ff-real-headline-pro",
-                "https://use.typekit.net/ivu7epf.css",
-                FontStyle::Normal,
-                FontWeight::Normal,
-            )},
+           font: {
+               family: "ff-real-headline-pro"
+               url: "https://use.typekit.net/ivu7epf.css"
+           },
             font_size: 24px,
             fill: WHITE,
             align_vertical: TextAlignVertical::Center,

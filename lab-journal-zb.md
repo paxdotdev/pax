@@ -3913,7 +3913,7 @@ In the following template:
 ```
 for i in 0..5 {
     <Stacker cells=10 direction=StackerDirection::Vertical x={(i*50)px} width=50px>
-        <Rectangle fill={Fill::Solid(Color::rgb(i * 0.2, 0.2, 0.5))} />
+        <Rectangle fill={rgb(i * 0.2, 0.2, 0.5)} />
     </Stacker>
 }
 ```
@@ -4833,6 +4833,5 @@ so that we can transfer that state when we swap out a wasm slug
 Detail: We may want to use something other than JSON for our state transfer mechanism, e.g. protobufs or flatbuffers.  It's probably worth
 the disk footprint overhead for the designer, since it should significantly boost speed of state transfer
 when reloading the designer
-
 
 

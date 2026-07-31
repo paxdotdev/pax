@@ -23,7 +23,7 @@ pub struct Slider {
     /// Accent color for the active track/thumb, when supported.
     pub accent: Property<Color>,
     /// Slider corner radius, in pixels.
-    pub border_radius: Property<f64>,
+    pub corner_radius: Property<f64>,
     /// Current slider value.
     pub value: Property<f64>,
     /// Step interval.
@@ -42,7 +42,7 @@ impl Default for Slider {
             min: Property::new(0.0),
             max: Property::new(100.0),
             accent: Property::new(Color::rgb(27.into(), 100.into(), 242.into())),
-            border_radius: Property::new(5.0),
+            corner_radius: Property::new(5.0),
             background: Property::new(Color::rgb(229.into(), 231.into(), 235.into())),
         }
     }
@@ -179,9 +179,9 @@ impl InstanceNode for SliderInstance {
                                 properties.max.get(),
                             ),
                             patch_if_needed(
-                                &mut old_state.border_radius,
-                                &mut patch.border_radius,
-                                properties.border_radius.get(),
+                                &mut old_state.corner_radius,
+                                &mut patch.corner_radius,
+                                properties.corner_radius.get(),
                             ),
                             patch_if_needed(
                                 &mut old_state.background,

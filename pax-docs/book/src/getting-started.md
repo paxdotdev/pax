@@ -170,6 +170,23 @@ Create and run a smoke project:
 pax-cli create my-first-project ; cd my-first-project ; pax-cli run
 ```
 
+## Formatting Pax source
+
+Run `pax-cli fmt` from a project or workspace root to recursively format `.pax`
+files and Pax templates embedded in Rust source. Generated and dependency
+directories such as `.pax`, `target`, and `node_modules` are skipped.
+
+```sh
+pax-cli fmt                 # format the current directory
+pax-cli fmt path/to/project # format a file or directory
+pax-cli fmt --check         # report drift without writing files
+```
+
+Formatted files always end with one newline. `--check` exits unsuccessfully
+when any file would change, so the same command can enforce canonical Pax
+formatting in CI; it does not inspect whether the process happens to be running
+in a CI environment.
+
 ## Hot reloading
 
 Debug `pax-cli run` sessions reload both Pax UI sources and application logic

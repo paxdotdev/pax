@@ -190,6 +190,19 @@ mod tests {
     }
 
     #[test]
+    fn test_type_qualified_object_constructor_remains_supported() {
+        let res = utils::parse_value(
+            "CornerRadii { top_left: 12 top_right: 8 bottom_right: 4 bottom_left: 2 }",
+        );
+        if let Ok(Some(ValueDefinition::LiteralValue(PaxValue::Object(fields)))) = res {
+            assert_eq!(fields.len(), 4);
+            assert_eq!(fields[0].0, "top_left");
+        } else {
+            panic!("unexpected result: {:?}", res);
+        }
+    }
+
+    #[test]
     fn test_parse_expression() {
         let res = utils::parse_value("{5 + 3}");
         if let Ok(Some(ValueDefinition::Expression(info))) = res {
@@ -266,7 +279,7 @@ mod tests {
     #[test]
     fn test_parse_inline_gradient_explicit_linear() {
         let res = utils::parse_value(
-            "@gradient { linear: { start: (0%, 50%) end: (100%, 50%) } 0%: rgba(255, 0, 0, 255), 100%: {self.active ? RED : BLUE} }",
+            "@gradient { linear: { start: [0%, 50%] end: [100%, 50%] } 0%: rgba(255, 0, 0, 255), 100%: {self.active ? RED : BLUE} }",
         );
         if let Ok(Some(ValueDefinition::Gradient(gradient))) = res {
             assert!(matches!(
@@ -287,7 +300,7 @@ mod tests {
     #[test]
     fn test_parse_inline_gradient_radial() {
         let res = utils::parse_value(
-            "@gradient { radial: { start: (50%, 50%) end: (50%, 50%) radius: 180 } 0%: WHITE, 100%: rgba(255, 255, 255, 0) }",
+            "@gradient { radial: { start: [50%, 50%] end: [50%, 50%] radius: 180 } 0%: WHITE, 100%: rgba(255, 255, 255, 0) }",
         );
         if let Ok(Some(ValueDefinition::Gradient(gradient))) = res {
             assert!(matches!(
@@ -304,7 +317,7 @@ mod tests {
     #[should_panic(expected = "@gradient supports only one shape block")]
     fn test_parse_inline_gradient_rejects_multiple_shapes() {
         let _ = utils::parse_value(
-            "@gradient { linear: {} radial: { start: (50%, 50%) end: (50%, 50%) radius: 180 } 0%: WHITE, 100%: TRANSPARENT }",
+            "@gradient { linear: {} radial: { start: [50%, 50%] end: [50%, 50%] radius: 180 } 0%: WHITE, 100%: TRANSPARENT }",
         );
     }
 
@@ -355,6 +368,45 @@ mod tests {
             setting,
             SettingElement::Setting(token, _) if token.token_value == "ill"
         )));
+    }
+
+    #[test]
+    fn test_static_class_list_lowers_to_selector_classes() {
+        let component_type_id = TypeId::build_singleton("Example", Some("Example"));
+        let rectangle_type_id = TypeId::build_singleton("Rectangle", Some("Rectangle"));
+        let mut template_map = HashMap::new();
+        template_map.insert("Rectangle".to_string(), rectangle_type_id);
+
+        let (_, component) = assemble_component_definition(
+            ParsingContext::default(),
+            "<Rectangle class=[card, elevated, interactive] />",
+            false,
+            template_map,
+            "crate",
+            component_type_id,
+            "example.pax",
+            file!(),
+        );
+
+        let template = component.template.unwrap();
+        let root_id = template.get_root().remove(0);
+        let node = template.get_node(&root_id).unwrap();
+        let classes = node
+            .selector_info
+            .classes
+            .iter()
+            .map(|token| token.token_value.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(classes, vec!["card", "elevated", "interactive"]);
+        assert_eq!(
+            node.settings
+                .as_ref()
+                .unwrap()
+                .iter()
+                .filter(|setting| matches!(setting, SettingElement::Setting(token, _) if token.token_value == "class"))
+                .count(),
+            3
+        );
     }
 
     #[test]
@@ -1906,6 +1958,10 @@ mod tests {
         let rendered = press_code_serialization_template(component).unwrap();
         assert!(rendered.contains("fill=@gradient {"));
         assert!(rendered.contains("linear: {"));
+        assert!(rendered.contains("start: ["), "{rendered}");
+        assert!(rendered.contains("end: ["), "{rendered}");
+        assert!(!rendered.contains("start: ("), "{rendered}");
+        assert!(!rendered.contains("end: ("), "{rendered}");
         assert!(rendered.contains("0%: RED"));
         assert!(rendered.contains("100%: BLUE"));
 

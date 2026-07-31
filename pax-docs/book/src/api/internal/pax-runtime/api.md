@@ -191,7 +191,8 @@ Shared map where completed screenshot captures are published by id.
 ##### `local_point`
 <pre><code class="api-signature language-rust ignore">pub fn local_point(&amp;self, p: Point2&lt;<a href="/api/pax-runtime-api/platform.md#window">Window</a>&gt;) -&gt; Point2&lt;<a href="/api/internal/pax-runtime/engine/node_interface.md#nodelocal">NodeLocal</a>&gt;</code></pre>
 
-Convert a window-space point into this node's local coordinate space.
+Convert a window-space point into this node's local coordinate space, including any
+presentation offsets inherited from ancestor scrollers.
 
 ##### `navigate_to`
 <pre><code class="api-signature language-rust ignore">pub fn navigate_to(&amp;self, url: &amp;str, target: <a href="/api/pax-runtime-api/drawing.md#navigationtarget">NavigationTarget</a>)</code></pre>

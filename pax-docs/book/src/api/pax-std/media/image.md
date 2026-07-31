@@ -40,6 +40,19 @@ Stretch the image to exactly match the container.
 ### `ImageSource`
 Source data for an `Image`.
 
+In Pax templates, a string in an `ImageSource` context is shorthand for
+[`ImageSource::Url`]:
+
+```pax
+<Image source="assets/spaceship.png" />
+<Image source={avatar_url} />
+```
+
+[`ImageSource::Url`] and [`ImageSource::Data`] remain available as explicit
+constructor forms. Unlike the list shorthands used by compound Pax types,
+the URL shorthand has no positional ("magic index") fields: the entire
+string is the URL or chassis-relative asset path.
+
 #### Variants
 ##### `Empty`
 No image.

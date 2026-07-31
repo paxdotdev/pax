@@ -11,7 +11,7 @@
         height=100%
         fill=TRANSPARENT
         material={unlit_material}
-        corner_radii={RectangleCornerRadii::radii(22.0, 22.0, 22.0, 22.0)}
+        corner_radius=22.0
     />
 
     <Group x=22px y={100% - 35px} width={100% - 44px} height=18px>
@@ -42,16 +42,16 @@
         y=2px
         width={100% - 4px}
         height=42%
-        fill={Fill::linearGradient(
-            (50%, 0%),
-            (50%, 100%),
-            [
-                GradientStop::get(rgba(255, 255, 255, 48), 0%),
-                GradientStop::get(rgba(255, 255, 255, 0), 100%)
-            ]
-        )}
+        fill=@gradient {
+            linear: {
+                start: [50%, 0%]
+                end: [50%, 100%]
+            }
+            0%: rgba(255, 255, 255, 48)
+            100%: rgba(255, 255, 255, 0)
+        }
         material={unlit_material}
-        corner_radii={RectangleCornerRadii::radii(20.0, 20.0, 12.0, 12.0)}
+        corner_radius=[20.0, 20.0, 12.0, 12.0]
     />
 
     <Rectangle
@@ -62,7 +62,7 @@
         anchor_y=100%
         fill=rgba(0, 0, 0, 96)
         material={unlit_material}
-        corner_radii={RectangleCornerRadii::radii(9.0, 9.0, 9.0, 9.0)}
+        corner_radius=9.0
     />
 
     <Rectangle
@@ -74,7 +74,7 @@
             color: rgba(255, 255, 255, 44)
             width: 1px
         }
-        corner_radii={RectangleCornerRadii::radii(22.0, 22.0, 22.0, 22.0)}
+        corner_radius=22.0
     />
 
     <LightSource
@@ -104,13 +104,12 @@
     @touch_cancel: touch_cancel
 
     #button_label {
-        style: TextStyle {
-            font: Font::Web(
-                "Inter",
-                "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap",
-                FontStyle::Normal,
-                FontWeight::ExtraBold
-            )
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap"
+                weight: 800
+            }
             font_size: 23px
             fill: rgba(255, 255, 255, 248)
             align_vertical: TextAlignVertical::Center
@@ -120,13 +119,12 @@
     }
 
     #gesture_label {
-        style: TextStyle {
-            font: Font::Web(
-                "Inter",
-                "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap",
-                FontStyle::Normal,
-                FontWeight::SemiBold
-            )
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap"
+                weight: 600
+            }
             font_size: 9px
             fill: rgba(255, 255, 255, 132)
             align_vertical: TextAlignVertical::Center

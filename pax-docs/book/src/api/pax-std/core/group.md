@@ -23,7 +23,7 @@ Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`Option`<`bool`>
 
 Optional override for whether autosize manages the `y` axis.
 
-##### `border_radius`
+##### `corner_radius`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`f64`>
 
 Corner radius used when the group materializes a native surface, in pixels.

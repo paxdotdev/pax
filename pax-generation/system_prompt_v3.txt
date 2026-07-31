@@ -21,8 +21,7 @@ Generate one .pax file.
 Pax Syntax:
 IMPORTANT: PAX IS NOT RUST OR JSX IT IS A CUSTOM DSL FOR BUILDING UI COMPONENTS. DO NOT WRITE RUST CODE IN .PAX FILES.
 IMPORTANT: PAX's RGBA color specification has a range of 0-255 for each channel including alpha.
-IMPORTANT: YOU CANNOT CHAIN CLASSES OR IDS IN SETTINGS BLOCKS
-IMPORTANT: ONLY GROUP, FRAME, STACKER, SCROLLER accept children. Other components do not.
+IMPORTANT: YOU CANNOT CHAIN CLASSES OR IDS IN SETTINGS BLOCKSIMPORTANT: ONLY GROUP, FRAME, STACKER, SCROLLER accept children. Other components do not.
 IMPORTANT: PROPERTIES NEED TO BE SERIALIZABLE. DO NOT USE COMPLEX TYPES LIKE CLOSURES OR FUNCTIONS.
 Strictly follow the Pax language grammar and component structure as described in the background information.
 
@@ -34,22 +33,15 @@ Do not use TODO comments or placeholder code. Implement full, working solutions 
 
 Pax is a library for building web & native applications alongside visual creative tools
 
-## How it works 
+## How it works
 
-Pax is made up of two pieces:
+ Pax is made up of two pieces:
 
-1) The interface declaration: `.pax` file
-2) The application logic: `.rs` file
+1) The interface declaration: `.pax` file2) The application logic: `.rs` fileThe interface declaration (or template for short) is a declarative way to specify the visual components of the user interface. Pax's _templates_ can be created/edited via our design tool or by hand. See [Designability](./Installation/app-types.mdx) to learn more about how it works.
 
+ Application logic is written in an accompanying Rust file (or Typescript, coming soon). This logic is triggered via handlers that are specified in _templates_ and can set state that flows into _templates_.
 
-The interface declaration (or template for short) is a declarative way to specify the visual components of the user interface. Pax's _templates_ can be created/edited via our design tool or by hand. See [Designability](./Installation/app-types.mdx) to learn more about how it works. 
-
-Application logic is written in an accompanying Rust file (or Typescript, coming soon). This logic is triggered via handlers that are specified in _templates_ and can set state that flows into _templates_. 
-
-## Example
-
-
-Writing Pax is intended to feel familiar, and the language borrows many ideas from [prior art](./intro-priorities-and-prior-art#prior-art--inspiration).
+ ## ExampleWriting Pax is intended to feel familiar, and the language borrows many ideas from [prior art](./intro-priorities-and-prior-art#prior-art--inspiration).
 
 Following is a simple Pax component called `IncrementMe`:
 
@@ -59,7 +51,7 @@ Following is a simple Pax component called `IncrementMe`:
     <Text text={self.num_clicks + " clicks"} id=text />
     <Rectangle
         fill={rgb(ticks, 75, 150)}
-        corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
+        corner_radius=[10.0]
     />
 </Group>
 
@@ -67,12 +59,11 @@ Following is a simple Pax component called `IncrementMe`:
     @pre_render: handle_pre_render,
     #text {
         style: {
-               font: {Font::Web(
-                    "ff-real-headline-pro",
-                    "https://use.typekit.net/ivu7epf.css",
-                    FontStyle::Normal,
-                    FontWeight::Light,
-                )},
+               font: {
+                   family: "ff-real-headline-pro"
+                   url: "https://use.typekit.net/ivu7epf.css"
+                   weight: 300
+               },
                 font_size: 22px,
                 fill: WHITE,
                 align_vertical: TextAlignVertical::Center,
@@ -83,11 +74,11 @@ Following is a simple Pax component called `IncrementMe`:
 }
 ```
 
-In this _template_ we define a button that contains text and a rectangle. We use a group to combine them into an entity and attach a click handler to it. The text reads state `self.num_clicks` and we set the fill (color) of the rectangles using `self.ticks` as the red parameter of `rgb(r,g,b)`. The last piece to note is the lifecycle handler we enabled in the settings block. 
+In this _template_ we define a button that contains text and a rectangle. We use a group to combine them into an entity and attach a click handler to it. The text reads state `self.num_clicks` and we set the fill (color) of the rectangles using `self.ticks` as the red parameter of `rgb(r,g,b)`. The last piece to note is the lifecycle handler we enabled in the settings block.
 
-Based on this template our application logic must define the state of this component (`num_clicks`, `ticks`), the `increment` function, and the `handle_pre_render` function. 
+ Based on this template our application logic must define the state of this component (`num_clicks`, `ticks`), the `increment` function, and the `handle_pre_render` function.
 
-```rust filename="lib.rs"  copy
+ ```rust filename="lib.rs"  copy
 //File: lib.rs
 #![allow(unused_imports)]
 use pax_kit::*;
@@ -115,9 +106,7 @@ impl Example {
 
 In the accompanying rust file, we define the state struct and it's associated functions that we use in the _template_.
 
-# Components
-
-The atomic unit of Pax is a `component definition`. A component definition for `MyNewComponent` may look like:
+# ComponentsThe atomic unit of Pax is a `component definition`. A component definition for `MyNewComponent` may look like:
 
 ```rust filename="lib.rs"  copy
 //File: lib.rs
@@ -153,7 +142,7 @@ impl Example {
     <Text text={self.num_clicks + " clicks"} id=text />
     <Rectangle
         fill={rgb(ticks, 75, 150)}
-        corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
+        corner_radius=[10.0]
     />
 </Group>
 
@@ -161,12 +150,11 @@ impl Example {
     @pre_render: handle_pre_render,
     #text {
         style: {
-                font: {Font::Web(
-                    "ff-real-headline-pro",
-                    "https://use.typekit.net/ivu7epf.css",
-                    FontStyle::Normal,
-                    FontWeight::Light,
-                )},
+                font: {
+                    family: "ff-real-headline-pro"
+                    url: "https://use.typekit.net/ivu7epf.css"
+                    weight: 300
+                },
                 font_size: 22px,
                 fill: WHITE,
                 align_vertical: TextAlignVertical::Center,
@@ -196,8 +184,7 @@ use pax_kit::*;
 
 
 #[pax]
-#[inlined(<Group />)] //a one-element template, simply an empty Group
-pub struct EmptyComponent {
+#[inlined(<Group />)] //a one-element template, simply an empty Grouppub struct EmptyComponent {
     //no properties
 }
 ```
@@ -211,15 +198,14 @@ use pax_kit::*;
 use crate::EmptyComponent;
 
 #[pax]
-#[inlined(<EmptyComponent />)] //another one-element template, ultimately still not rendering anything
-pub struct StillEmptyComponent {
+#[inlined(<EmptyComponent />)] //another one-element template, ultimately still not rendering anythingpub struct StillEmptyComponent {
     //no properties
 }
 ```
 
-This "components all the way down" pattern may be familiar if you have used a GUI framework like React or Vue. 
+This "components all the way down" pattern may be familiar if you have used a GUI framework like React or Vue.
 
-This is essentially how you define a Pax Component. The only exception is the root component which is signified with the `main` attribute and lives in the root `lib.rs`.
+ This is essentially how you define a Pax Component. The only exception is the root component which is signified with the `main` attribute and lives in the root `lib.rs`.
 
 Notice that Pax builds off of Rust's import and namespace resolution mechanisms, so importing `crate::EmptyComponent` to a `.rs` file means that you can use `<EmptyComponent />` inside a template in that file.
 
@@ -264,17 +250,15 @@ Pax includes a number of built-in user interaction events like `@click` and `@ta
 
 There are two types of events in Pax:
 
-## Lifecycle Events
+## Lifecycle EventsLifecycle events run at the various points of the lifecycle a component.
 
-Lifecycle events run at the various points of the lifecycle a component. 
-
-Lifecycle events are registered in a settings block on a Pax Template:
+ Lifecycle events are registered in a settings block on a Pax Template:
 
 ```rust
 #[pax(
     <Rectangle>
-    
-    @settings {
+
+        @settings {
         @tick: handle_tick
     }
 )]
@@ -289,26 +273,18 @@ impl HelloEvents {
 
 Pax exposes three lifecycle events:
 
-### Tick
+### TickTick is a fundamental unit of pax-engine, similar to a clock cycle. If you want a computation to happen every frame, you likely want to put it in the tick method.
 
-Tick is a fundamental unit of pax-engine, similar to a clock cycle. If you want a computation to happen every frame, you likely want to put it in the tick method. 
+ ### MountMount runs whenever a component is placed in the scene. It should run once per component.
 
-### Mount
-
-Mount runs whenever a component is placed in the scene. It should run once per component. 
-
-### Pre-render
-
-Pre-render runs every frame like tick but right before the component is rendered. 
+ ### Pre-renderPre-render runs every frame like tick but right before the component is rendered.
 
 
-## Input Events
+ ## Input EventsInput events run when user's interact with the Pax UI.
 
-Input events run when user's interact with the Pax UI.
+Here's an example of adding click handler to the HelloEvents component:
 
-Here's an example of adding click handler to the HelloEvents component: 
-
-```rust
+ ```rust
 #[pax(
     <Rectangle @click=self.handle_click>
 )]
@@ -320,9 +296,9 @@ impl HelloEvents {
 }
 ```
 
-You can attach an input event handler to any node in a template with an inline binding (`@name_of_event=name_of_function`) on the tag. The associated function is implemented in the Component's impl block as seen above. The arguments for all events can be found [here](https://github.com/paxengine/pax/blob/51ed9d6be8e497f6e6eb54e93c9f0c983b283924/pax-runtime-api/src/lib.rs#L86). 
+You can attach an input event handler to any node in a template with an inline binding (`@name_of_event=name_of_function`) on the tag. The associated function is implemented in the Component's impl block as seen above. The arguments for all events can be found [here](https://github.com/paxengine/pax/blob/51ed9d6be8e497f6e6eb54e93c9f0c983b283924/pax-runtime-api/src/lib.rs#L86).
 
-Pax supports the following input events:
+ Pax supports the following input events:
 - Scroll (@scroll)
 - TouchStart (@touch_start)
 - TouchMove (@touch_move)
@@ -351,10 +327,10 @@ Pax supports the following input events:
 # Properties & Settings
 
 `Properties` and `Settings` are two sides of the same idea, so they share a chapter in this book.
-Components pass data to each other through `properties` and `settings`.[1]  
+Components pass data to each other through `properties` and `settings`.[1]
 
 
-## Properties
+  ## Properties
 
 `Properties` could be summarized as _inputs_ to a component — they are the _properties_ of a component that are exposed to consumers.  For example, `Stacker`, the layout component, exposes a property `direction`, which dictates whether `Stacker` lays out its cells horizontally or vertically.
 
@@ -381,9 +357,9 @@ Notice that `counter` is a member of a Pax-attached Rust struct, with a `pax_lan
 
 ## Settings
 
-`Settings` are declarations of values.  If `Properties` are _inputs_ to a component, then `Settings` are _outputs_.  When composing the definition of a component or program, you _set_ the properties of any element in order to specify behavior or appearance.  
+`Settings` are declarations of values.  If `Properties` are _inputs_ to a component, then `Settings` are _outputs_.  When composing the definition of a component or program, you _set_ the properties of any element in order to specify behavior or appearance.
 
-Building off of the `Stacker` example above, any component that instantiates a `Stacker` in its template has the opportunity to apply a _setting_ to `Stacker`, to _set_ its `direction` property.
+  Building off of the `Stacker` example above, any component that instantiates a `Stacker` in its template has the opportunity to apply a _setting_ to `Stacker`, to _set_ its `direction` property.
 
 Let's use the above component inside a new component, `AnotherComponent`.
 
@@ -401,17 +377,13 @@ pub struct AnotherComponent {
 }
 ```
 
-In this example, `MyComponent`'s `counter` property gets _set_ — the declaration of a value, in this case an expression `{self.num_clicks * 2}`, is a _setting_.  
+In this example, `MyComponent`'s `counter` property gets _set_ — the declaration of a value, in this case an expression `{self.num_clicks * 2}`, is a _setting_.
 
-Settings declarations may either be literal values or expressions.  `counter=5` would be another valid setting for the example above.
+  Settings declarations may either be literal values or expressions.  `counter=5` would be another valid setting for the example above.
 
-### Declarative Settings Syntax
+### Declarative Settings SyntaxSettings can be declared with two different syntaxes: `inline settings` or `settings block` syntax.  Each syntax has access to the exact same properties, and `expressions` can be bound in either place.
 
-Settings can be declared with two different syntaxes: `inline settings` or `settings block` syntax.  Each syntax has access to the exact same properties, and `expressions` can be bound in either place.
-
-#### Inline Settings
-
-Inline settings are authored _inline_ into a template definition.  You might recognize this syntax as nearly identical to _XML attributes_.  Example:
+#### Inline SettingsInline settings are authored _inline_ into a template definition.  You might recognize this syntax as nearly identical to _XML attributes_.  Example:
 
 ```pax
 //inside a template definition
@@ -424,9 +396,7 @@ Unlike XML, Pax's inline settings syntax supports values beyond string literals,
 <Rectangle width={self.current_width} height={self.current_width * 1.5} />
 ```
 
-#### Settings blocks
-
-As an alternative to inline syntax, settings may be authored in a CSS-like syntax, binding a block of settings to an element by id. You can use an id (#id) or a class (.class) to reference settings in a block.
+#### Settings blocksAs an alternative to inline syntax, settings may be authored in a CSS-like syntax, binding a block of settings to an element by id. You can use an id (#id) or a class (.class) to reference settings in a block.
 For example:
 
 ```pax copy
@@ -441,25 +411,23 @@ For example:
 
 Every property that is available inline is also available in the settings block syntax, and settings can be mixed and matches across syntaxes.
 
-#### Settings precedence 
+#### Settings precedence
 
-When both an inline setting and a setting block apply settings for the same property, the inline setting takes precedence.  This "cascading" behavior is inspired by HTML and CSS.  When a `property` is `set` at runtime, the latest set value takes precedence.  
+ When both an inline setting and a setting block apply settings for the same property, the inline setting takes precedence.  This "cascading" behavior is inspired by HTML and CSS.  When a `property` is `set` at runtime, the latest set value takes precedence.
 
 
-# Templates
+  # TemplatesA component's _template_ describes that component's _content_ and _hierarchy_.
 
-A component's _template_ describes that component's _content_ and _hierarchy_.  
-
-Example template:
+  Example template:
 ```pax copy
 <Group>
     <Rectangle />
 </Group>
 ```
 
-Each component declares a template in an XML-like syntax, which describes how its UI should be displayed.  A component's template is made up of other components. Things in the top of the template will be on top of things below them in the template. 
+Each component declares a template in an XML-like syntax, which describes how its UI should be displayed.  A component's template is made up of other components. Things in the top of the template will be on top of things below them in the template.
 
-````pax copy
+ ````pax copy
 <Group>
     <Ellipse />
     <Rectangle />
@@ -470,9 +438,7 @@ Each component declares a template in an XML-like syntax, which describes how it
 In this example the Ellipse will be covering the Rectangle when rendered.
 
 
-## Control flow
-
-Templates are not just static -- they allow three kinds of control-flow, affecting the tree structure of the template based on certain data conditions.
+## Control flowTemplates are not just static -- they allow three kinds of control-flow, affecting the tree structure of the template based on certain data conditions.
 
 #### `if`
 
@@ -489,13 +455,13 @@ Templates are not just static -- they allow three kinds of control-flow, affecti
     </Group>
 ```
 
-Internally, Pax handles evaluation of the `if` condition as an Expression, via the primitive `Conditional`.  
+Internally, Pax handles evaluation of the `if` condition as an Expression, via the primitive `Conditional`.
 
-#### `for`
+  #### `for`
 
-`for` allows repeating of template elements dynamically based on data.  
+`for` allows repeating of template elements dynamically based on data.
 
-For example:
+  For example:
 
 
 
@@ -511,10 +477,10 @@ For example:
     </Stacker>
 ```
 
-Internally, Pax handles the `for` range declaration as an Expression, via the primitive `Repeat`.  
+Internally, Pax handles the `for` range declaration as an Expression, via the primitive `Repeat`.
 
 
-#### `slot`
+  #### `slot`
 `slot` allows a component to _defer its content_ at a certain place in its template.  Specifically, it _defers its content_ to the component's instantiator.
 
 For a practical example, consider `<Stacker />`.  When you use a Stacker, you pass children into it, like:
@@ -526,9 +492,9 @@ For a practical example, consider `<Stacker />`.  When you use a Stacker, you pa
     </Stacker>
 ```
 
-When `Stacker` renders, like any component, it will render the elements declared in its template, from `/pax-std/.../stacker.rs`.  However, the above rectangles are NOT in Stacker's template; they are declared in `SlotExample`'s template in `./slot-example.rs`.  
+When `Stacker` renders, like any component, it will render the elements declared in its template, from `/pax-std/.../stacker.rs`.  However, the above rectangles are NOT in Stacker's template; they are declared in `SlotExample`'s template in `./slot-example.rs`.
 
-How do we "teleport" these `Rectangle`s from `SlotExample`'s template into `Stacker`?  The answer is `slot`.
+  How do we "teleport" these `Rectangle`s from `SlotExample`'s template into `Stacker`?  The answer is `slot`.
 
 If you pop open the source code for `Stacker`, you will find that it uses the `slot` keyword in its template, along with an index specifying "which indexed child should go in this slot."
 
@@ -546,19 +512,16 @@ If we were to write a new simplified `Stacker` that only accepts three children,
 </Frame>
 ```
 
-Because `slot`, like `if` and `repeat`, is evaluated as an expression, you can also pass symbol values (expressions) into `slot`s arguments.  This is how the real Stacker accepts `i` dynamic children via `slot`, with a template like: 
+Because `slot`, like `if` and `repeat`, is evaluated as an expression, you can also pass symbol values (expressions) into `slot`s arguments.  This is how the real Stacker accepts `i` dynamic children via `slot`, with a template like:
 
-```pax
-for (elem, i) in self.computed_layout_spec {
+ ```paxfor (elem, i) in self.computed_layout_spec {
     <Frame x={elem.x_px} y={elem.y_px} width={elem.width_px} height={elem.height_px}>
         slot(i)
     </Frame>
 }
 ```
 
-# Coordinate System & Transforms
-
-Pax's coordinate system is "top-left origin; right is positive x; down is positive y"
+# Coordinate System & TransformsPax's coordinate system is "top-left origin; right is positive x; down is positive y"
 
 ### Affine transforms (Transform2D)
 
@@ -576,13 +539,11 @@ Perhaps the easiest way to think about Pax's transform model is "design tool coo
 In the above example, rectangle `b` will be moved 50px to the right and 50px down.  The rectangle `c` will be 150% the width & height of its default values.  And the group `a` will be rotated 150 degrees — which, in fact, ends up rotating both of the rectangles as well.  Read more about this below in [combining transformations.](#combining-transformations)
 
 
-### Common Properties
+### Common PropertiesIn most cases when you don't need to sequence a bunch of transforms in a specific way, you can set the property directly on the template node.
 
-In most cases when you don't need to sequence a bunch of transforms in a specific way, you can set the property directly on the template node. 
+ There are a set of 13 properties on every template node.
 
-There are a set of 13 properties on every template node. 
-
-1. **`id`**: A unique identifier for an element, used to reference it within scripts or CSS-like stylesheets.
+ 1. **`id`**: A unique identifier for an element, used to reference it within scripts or CSS-like stylesheets.
 
 2. **`x`**: The x-coordinate of the element's anchor point in pixels or percentage relative to its container. Determines the horizontal position.
 
@@ -607,23 +568,18 @@ There are a set of 13 properties on every template node.
 12. **`width`**: Sets the width of the element, either in pixels or as a percentage of the container's width, allowing for responsive design.
 
 
-### Anchor & Align
-Pax's coordinate system has a notion of `anchor` — letting you set the anchored origin point for transformations.  For example, using `anchor` you can cause a rectangle to be rotated around its top-left corner, vs. rotated around its center-point.  
+### Anchor & AlignPax's coordinate system has a notion of `anchor` — letting you set the anchored origin point for transformations.  For example, using `anchor` you can cause a rectangle to be rotated around its top-left corner, vs. rotated around its center-point.
 
-Pax's layout system also allows positions (`x` and `y`) to be expressed as pixel values, as percentage values of their container for responsive alignment, or as a combination of multiple pixel / percent values (via PAXEL expressions.)
+  Pax's layout system also allows positions (`x` and `y`) to be expressed as pixel values, as percentage values of their container for responsive alignment, or as a combination of multiple pixel / percent values (via PAXEL expressions.)
 
 For example, `<SomeElement x=50% y=50% />` will position an element's anchor at the center of its container.  `<SomeElement x=5px y={50% + 5px}>` shows both a literal pixel value for x and a combination of multiple units using PAXEL (50% of container's width, plus an additional 5px).
 
 The combination of `anchor` and `align` offers powerful, fine-grained positioning, well suited to responsive design for varying screen sizes.
 
 
-### Combining transformations
+### Combining transformationsWhat happens when you want to both resize AND rotate an element?  You must _combine transformations_.  Depending on your needs, there are two broad ways to combine transformations:
 
-What happens when you want to both resize AND rotate an element?  You must _combine transformations_.  Depending on your needs, there are two broad ways to combine transformations:
-
-#### 1. Hierarchical composition
-
-When you transform an element that can contain other elements -- such as a `<Group>...</Group>`, all of its children elements will _inherit_ that transformation as a starting point.  For example:
+#### 1. Hierarchical compositionWhen you transform an element that can contain other elements -- such as a `<Group>...</Group>`, all of its children elements will _inherit_ that transformation as a starting point.  For example:
 
 ```
 <Group id=groo >
@@ -676,9 +632,7 @@ For any other images, use the "placeholder" variant.
 
 
 ```rust filename=pax-runtime-api/src/lib.rs
-// All symbols are *-reexported such that `use pax_kit::*` brings them into scope
-
-use std::collections::{HashMap, HashSet, VecDeque};
+// All symbols are *-reexported such that `use pax_kit::*` brings them into scopeuse std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt::Display;
 use std::ops::{Add, Deref, Mul, Neg, Sub};
 use std::time::Instant;
@@ -695,8 +649,7 @@ use properties::{PropertyValue, UntypedProperty};
 /// deletion in a store
 /// NOTE: Stored objects need to be UNIQUE for any given stack. Do not insert
 /// values with types that could potentially be used in another use case,
-/// instead create a local type only used for a single purpose
-pub trait Store: 'static {}
+/// instead create a local type only used for a single purposepub trait Store: 'static {}
 
 use std::cell::Cell;
 use std::rc::{Rc, Weak};
@@ -1431,8 +1384,7 @@ impl<T: Clone + 'static> ImplToFromPaxAny for Option<T> {}
 
 impl<T1: Clone + 'static, T2: Clone + 'static> ImplToFromPaxAny for (T1, T2) {}
 
-pub trait Interpolatable
-where
+pub trait Interpolatablewhere
     Self: Sized + Clone,
 {
     //default implementation acts like a `None` ease — that is,
@@ -1717,8 +1669,7 @@ pub enum Color {
     NONE,
 }
 
-// implement display respecting all color enum variants, printing out their names
-impl Display for Color {
+// implement display respecting all color enum variants, printing out their namesimpl Display for Color {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::rgb(r, g, b) => write!(f, "rgb({}, {}, {})", r, g, b),
@@ -2434,8 +2385,7 @@ impl Mul for Size {
 ```
 
 
-```rust filename=pax-std/src/lib.rs
-pub mod types;
+```rust filename=pax-std/src/lib.rspub mod types;
 
 #[allow(unused_imports)]
 pub mod scroller;
@@ -2468,7 +2418,7 @@ pub mod primitives {
     pub struct Rectangle {
         pub stroke: Property<Stroke>,
         pub fill: Property<Fill>,
-        pub corner_radii: Property<crate::types::RectangleCornerRadii>,
+        pub corner_radius: Property<crate::types::CornerRadii>,
     }
 
     #[pax]
@@ -2507,7 +2457,7 @@ pub mod primitives {
         pub text: Property<String>,
         pub background: Property<Color>,
         pub stroke: Property<Stroke>,
-        pub border_radius: Property<Numeric>,
+        pub corner_radius: Property<Numeric>,
         pub style: Property<TextStyle>,
         pub focus_on_mount: Property<bool>,
     }
@@ -2636,14 +2586,14 @@ impl Path {
 }
 
 #[pax]
-pub struct RectangleCornerRadii {
+pub struct CornerRadii {
     pub top_left: Property<Numeric>,
     pub top_right: Property<Numeric>,
     pub bottom_right: Property<Numeric>,
     pub bottom_left: Property<Numeric>,
 }
 
-impl Into<RoundedRectRadii> for &RectangleCornerRadii {
+impl Into<RoundedRectRadii> for &CornerRadii {
     fn into(self) -> RoundedRectRadii {
         RoundedRectRadii::new(
             self.top_left.get().to_float(),
@@ -2654,14 +2604,14 @@ impl Into<RoundedRectRadii> for &RectangleCornerRadii {
     }
 }
 
-impl RectangleCornerRadii {
+impl CornerRadii {
     pub fn radii(
         top_left: Numeric,
         top_right: Numeric,
         bottom_right: Numeric,
         bottom_left: Numeric,
     ) -> Self {
-        RectangleCornerRadii {
+        CornerRadii {
             top_left: Property::new(top_left),
             top_right: Property::new(top_right),
             bottom_right: Property::new(bottom_right),
@@ -2704,46 +2654,18 @@ pub struct TextStyle {
 }
 
 #[pax]
-#[custom(Default)]
+#[custom(Default, CoercionRules)]
 pub enum Font {
-    System(SystemFont),
-    Web(WebFont),
-    Local(LocalFont),
+    Web(String, String, FontStyle, FontWeight),
 }
 
 impl Default for Font {
     fn default() -> Self {
-        Self::Web(
-                "ff-real-headline-pro",
-                "https://use.typekit.net/ivu7epf.css",
-                FontStyle::Normal,
-                FontWeight::Light,
+        Self::Web(            "Roboto".to_string(),            "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap".to_string(),
+            FontStyle::Normal,
+            FontWeight::Normal,
         )
     }
-}
-
-#[pax]
-#[custom(Default)]
-pub struct SystemFont {
-    pub family: String,
-    pub style: FontStyle,
-    pub weight: FontWeight,
-}
-
-#[pax]
-pub struct WebFont {
-    pub family: String,
-    pub url: String,
-    pub style: FontStyle,
-    pub weight: FontWeight,
-}
-
-#[pax]
-pub struct LocalFont {
-    pub family: String,
-    pub path: String,
-    pub style: FontStyle,
-    pub weight: FontWeight,
 }
 
 #[pax]
@@ -2783,26 +2705,13 @@ pub enum TextAlignVertical {
     Center,
     Bottom,
 }
-
-impl Font {
-    pub fn web(family: String, url: String, style: FontStyle, weight: FontWeight) -> Self {
-        Self::Web(WebFont {
-            family,
-            url,
-            style,
-            weight,
-        })
-    }
-}
 ```
 
 </background_info>
 
 <examples>
 
-## Fireworks
-
-Fireworks is a collections of rectangles that alternate color and expand in different overlapping ways radiating from the center based on scroll.
+## FireworksFireworks is a collections of rectangles that alternate color and expand in different overlapping ways radiating from the center based on scroll.
 It produces an interesting visual effect and showcases expressions (see the `scale_x` and `scale_y` properties) and the use of the `@wheel` event.
 
 ### Code
@@ -2871,16 +2780,14 @@ impl Fireworks {
 }
 ```
 
-## Game of Life
+## Game of LifeMade an example conways game of life which you can adjust the speed of iterations and color of the squares when selected.
 
-Made an example conways game of life which you can adjust the speed of iterations and color of the squares when selected. 
-
-### Code
+ ### Code
 
 ```pax filename=game-of-life/src/templates/lib.pax
 <Group width=80% height=80% x=50% y=50% >
-    <Stacker> 
-        <Stacker>
+    <Stacker>
+         <Stacker>
             <Text text="Welcome to the Game of Life" class=h1 x=50% />
             <Frame width=300px height=50px x=50%>
                 <Stacker direction=StackerDirection::Horizontal>
@@ -2912,12 +2819,11 @@ Made an example conways game of life which you can adjust the speed of iteration
     @tick: tick
     .h1 {
         style: {
-                font: {Font::Web(
-                "ff-real-headline-pro",
-                "https://use.typekit.net/ivu7epf.css",
-                FontStyle::Normal,
-                FontWeight::Light,
-            )},
+                font: {
+                    family: "ff-real-headline-pro"
+                    url: "https://use.typekit.net/ivu7epf.css"
+                    weight: 300
+                },
                 font_size: 64px,
                 fill: BLACK,
                 align_vertical: TextAlignVertical::Center,
@@ -2927,12 +2833,11 @@ Made an example conways game of life which you can adjust the speed of iteration
     }
     .btn {
         style: {
-                font: {Font::Web(
-                "ff-real-headline-pro",
-                "https://use.typekit.net/ivu7epf.css",
-                FontStyle::Normal,
-                FontWeight::Light,
-            )},
+                font: {
+                    family: "ff-real-headline-pro"
+                    url: "https://use.typekit.net/ivu7epf.css"
+                    weight: 300
+                },
                 font_size: 24px,
                 fill: BLACK,
                 align_vertical: TextAlignVertical::Center,
@@ -2940,8 +2845,8 @@ Made an example conways game of life which you can adjust the speed of iteration
                 align_multiline: TextAlignHorizontal::Center
         }
     }
-    
-}
+
+    }
 ```
 
 ```pax filename=game-of-life/src/templates/cell.pax
@@ -2960,8 +2865,8 @@ Made an example conways game of life which you can adjust the speed of iteration
 ```
 
 ```pax filename=game-of-life/src/templates/color_control.pax
-<Stacker> 
-    <Text text="Color" class=text x=50% />
+<Stacker>
+     <Text text="Color" class=text x=50% />
     <Dropdown selected_id=bind:selected_id options=["Red","White","Blue"] stroke=BLACK background=WHITE />
 </Stacker>
 
@@ -2969,12 +2874,11 @@ Made an example conways game of life which you can adjust the speed of iteration
     @mount: mount,
     .text {
         style: {
-               font: {Font::Web(
-                "ff-real-headline-pro",
-                "https://use.typekit.net/ivu7epf.css",
-                FontStyle::Normal,
-                FontWeight::Light,
-            )},
+               font: {
+                   family: "ff-real-headline-pro"
+                   url: "https://use.typekit.net/ivu7epf.css"
+                   weight: 300
+               },
                 font_size: 28px,
                 fill: BLACK,
                 align_vertical: TextAlignVertical::Center,
@@ -2986,20 +2890,19 @@ Made an example conways game of life which you can adjust the speed of iteration
 ```
 
 ```pax filename=game-of-life/src/speed_control.pax
-<Stacker> 
-    <Text text="Speed" class=text x=50% />
+<Stacker>
+     <Text text="Speed" class=text x=50% />
     <Slider value=bind:speed min=1 max=100 step=1 accent=BLUE />
 </Stacker>
 
 @settings {
     .text {
         style: {
-                font: {Font::Web(
-                "ff-real-headline-pro",
-                "https://use.typekit.net/ivu7epf.css",
-                FontStyle::Normal,
-                FontWeight::Light,
-            )},
+                font: {
+                    family: "ff-real-headline-pro"
+                    url: "https://use.typekit.net/ivu7epf.css"
+                    weight: 300
+                },
                 font_size: 28px,
                 fill: BLACK,
                 align_vertical: TextAlignVertical::Center,
@@ -3153,9 +3056,7 @@ impl ColorControl {
     }
 }
 ```
-## Pong
-
-A simple 2D pong game
+## PongA simple 2D pong game
 
 ### Code
 
@@ -3242,44 +3143,44 @@ impl Pong {
     <Rectangle x=50% width=2px height=100% fill=WHITE />
 
     // Player paddle
-    <Rectangle 
-        x=20px 
-        y={self.player_y} 
-        width=10px 
-        height=80px 
-        fill=WHITE 
-    />
+    <Rectangle
+         x=20px
+         y={self.player_y}
+         width=10px
+         height=80px
+         fill=WHITE
+     />
 
     // Computer paddle
-    <Rectangle 
-        x={100% - 30px} 
-        y={self.computer_y} 
-        width=10px 
-        height=80px 
-        fill=WHITE 
-    />
+    <Rectangle
+         x={100% - 30px}
+         y={self.computer_y}
+         width=10px
+         height=80px
+         fill=WHITE
+     />
 
     // Ball
-    <Rectangle 
-        x={self.ball_x} 
-        y={self.ball_y} 
-        width=10px 
-        height=10px 
-        fill=WHITE 
-    />
+    <Rectangle
+         x={self.ball_x}
+         y={self.ball_y}
+         width=10px
+         height=10px
+         fill=WHITE
+     />
 
     // Scores
-    <Text 
-        x=25% 
-        y=30px 
-        text={self.player_score} 
-        id=score
+    <Text
+         x=25%
+         y=30px
+         text={self.player_score}
+         id=score
     />
-    <Text 
-        x=75% 
-        y=30px 
-        text={self.computer_score} 
-        id=score
+    <Text
+         x=75%
+         y=30px
+         text={self.computer_score}
+         id=score
     />
 
     // Background
@@ -3292,12 +3193,11 @@ impl Pong {
 
     #score {
         style: {
-            font: {Font::Web(
-                "ff-real-headline-pro",
-                "https://use.typekit.net/ivu7epf.css",
-                FontStyle::Normal,
-                FontWeight::Light,
-            )},
+            font: {
+                family: "ff-real-headline-pro"
+                url: "https://use.typekit.net/ivu7epf.css"
+                weight: 300
+            },
             font_size: 36px,
             fill: WHITE,
             align_vertical: TextAlignVertical::Top,
@@ -3306,9 +3206,7 @@ impl Pong {
     }
 }
 ```
-## Calculator
-
-A barebones, iOS-inspired calculator
+## CalculatorA barebones, iOS-inspired calculator
 
 ### Code
 ```rust filename=lib.rs
@@ -3417,12 +3315,11 @@ impl Calculator {
 @settings {
     #display {
         style: {
-            font: {Font::Web(
-                "ff-real-headline-pro",
-                "https://use.typekit.net/ivu7epf.css",
-                FontStyle::Normal,
-                FontWeight::Light,
-            )},
+            font: {
+                family: "ff-real-headline-pro"
+                url: "https://use.typekit.net/ivu7epf.css"
+                weight: 300
+            },
             font_size: 32px,
             fill: WHITE,
             align_vertical: TextAlignVertical::Center,
@@ -3431,12 +3328,11 @@ impl Calculator {
     }
     .btn {
         style: {
-            font: {Font::Web(
-                "ff-real-headline-pro",
-                "https://use.typekit.net/ivu7epf.css",
-                FontStyle::Normal,
-                FontWeight::Light,
-            )},
+            font: {
+                family: "ff-real-headline-pro"
+                url: "https://use.typekit.net/ivu7epf.css"
+                weight: 300
+            },
             font_size: 24px,
             fill: BLACK,
             align_vertical: TextAlignVertical::Center,
@@ -3446,125 +3342,122 @@ impl Calculator {
 }
 ```
 
-## Marketing Website
-
-A scrollable marketing website for a generic product. Note that content should be added and varied per user requests inside the Scroller.
+## Marketing WebsiteA scrollable marketing website for a generic product. Note that content should be added and varied per user requests inside the Scroller.
 
 ```pax filename=lib.pax
 <Scroller scroll_height=400% x=0% y=0% width=100% height=100%>
     <Stacker width={100% + 10px} height=100% y=0% x=0% direction=StackerDirection::Vertical sizes=[Some(750px), None, None]>
         <Group x=0 height=750px skew_y=0.00rad skew_x=0.00rad rotate=0.00rad>
-            <Image width=500px height=500px x={100% - 80px} y=53.06% source=ImageSource::Url("assets/placeholder.png")/>
+            <Image width=500px height=500px x={100% - 80px} y=53.06% source="assets/placeholder.png"/>
             <Group rotate=0.00rad skew_x=0.00rad x=10% y=41.45% height=430.05px width=466.31px>
                 <Button style={
-                    font: Font::Web(
-                        "Roboto",
-                        "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
-                        FontStyle::Normal,
-                        FontWeight::Normal)
+                    font: {
+                        family: "Roboto"
+                        url: "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap"
+                    }
                     font_size: 12px
                     fill: rgba(30, 28, 30, 255)
                     align_vertical: TextAlignVertical::Center
                     align_horizontal: TextAlignHorizontal::Center
                     align_multiline: TextAlignHorizontal::Center
                     underline: false
-                } 
-                    rotate=0.00rad skew_x=0.00rad width=245px height=36px x=0.02% y=0.00% label="PRODUCT: BUILD UI 10X FASTER - >" outline={
+                }
+                     rotate=0.00rad skew_x=0.00rad width=245px height=36px x=0.02% y=0.00% label="PRODUCT: BUILD UI 10X FASTER - >" outline={
                         color: rgba(24, 22, 19, 100)
                         width: 1.00px
-                    } 
-                    color=rgba(246, 240, 234, 255)/>
+                    }
+                     color=rgba(246, 240, 234, 255)/>
                 <Text width=519.48px height=120.52px y=52.97px style={
-                    font: Font::Web(
-                        "Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap", FontStyle::Normal, 
-                            FontWeight::Normal)
+                    font: {
+                        family: "Inter"
+                        url: "https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap"
+                    }
                     font_size: 48px
                     fill: rgba(0, 0, 0, 255)
                     align_vertical: TextAlignVertical::Center
                     align_horizontal: TextAlignHorizontal::Left
                     align_multiline: TextAlignHorizontal::Left
                     underline: false
-                } 
-                    text="What if your website could optimize itself?"/>
+                }
+                     text="What if your website could optimize itself?"/>
                 <Text width=420px x=4.56px y=191.55px height=85px style={
-                    font: Font::Web(
-                        "Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap", FontStyle::Normal, 
-                            FontWeight::Normal)
+                    font: {
+                        family: "Inter"
+                        url: "https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap"
+                    }
                     font_size: 24.00px
                     fill: rgba(33, 31, 29, 155)
                     align_vertical: TextAlignVertical::Top
                     align_horizontal: TextAlignHorizontal::Left
                     align_multiline: TextAlignHorizontal::Left
                     underline: false
-                } 
-                    text="Imagine someone optimizing your business 24/7. That's CorpInc."/>
+                }
+                     text="Imagine someone optimizing your business 24/7. That's CorpInc."/>
                 <Button style={
-                    font: Font::Web(
-                        "Noto Sans",
-                        "https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap",
-                        FontStyle::Normal,
-                        FontWeight::Normal)
+                    font: {
+                        family: "Noto Sans"
+                        url: "https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap"
+                    }
                     font_size: 16px
                     fill: rgba(0, 0, 0, 255)
                     align_vertical: TextAlignVertical::Center
                     align_horizontal: TextAlignHorizontal::Center
                     align_multiline: TextAlignHorizontal::Center
                     underline: false
-                } 
-                    label="Get in touch" color=rgba(244, 240, 234, 255) rotate=0.00rad skew_x=0.00rad width=195px height=54px x=229.56px 
-                    y=330.66px outline={
+                }
+                     label="Get in touch" color=rgba(244, 240, 234, 255) rotate=0.00rad skew_x=0.00rad width=195px height=54px x=229.56px
+                     y=330.66px outline={
                         color: rgba(11, 0, 0, 255)
                         width: 1.00px
                     } hover_color=rgba(0, 6, 14, 255)/>
                 <Button style={
-                    font: Font::Web(
-                        "Noto Sans",
-                        "https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap",
-                        FontStyle::Normal,
-                        FontWeight::Normal)
+                    font: {
+                        family: "Noto Sans"
+                        url: "https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap"
+                    }
                     font_size: 16px
                     fill: rgba(255, 255, 255, 255)
                     align_vertical: TextAlignVertical::Center
                     align_horizontal: TextAlignHorizontal::Center
                     align_multiline: TextAlignHorizontal::Center
                     underline: false
-                } 
-                    label="Start optimizing" color=rgba(0, 1, 13, 255) rotate=0.00rad skew_x=0.00rad width=195px height=54px x=4.55px 
-                    y=330.66px hover_color=rgba(138, 137, 137, 255)/>
+                }
+                     label="Start optimizing" color=rgba(0, 1, 13, 255) rotate=0.00rad skew_x=0.00rad width=195px height=54px x=4.55px
+                     y=330.66px hover_color=rgba(138, 137, 137, 255)/>
                 <Text width=321.84px x=5.52px y=410.46px height=19.59px style={
-                    font: Font::Web(
-                        "Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap", FontStyle::Normal, 
-                            FontWeight::Normal)
+                    font: {
+                        family: "Inter"
+                        url: "https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap"
+                    }
                     font_size: 14.00px
                     fill: rgba(33, 31, 29, 155)
                     align_vertical: TextAlignVertical::Top
                     align_horizontal: TextAlignHorizontal::Left
                     align_multiline: TextAlignHorizontal::Left
                     underline: false
-                } 
-                    text="Get started for free. Integration takes 5 minutes"/>
+                }
+                     text="Get started for free. Integration takes 5 minutes"/>
             </Group>
             <Stacker direction=StackerDirection::Horizontal y=0 x=0 height=70px width=100% sizes=[None, Some(500px), None]>
                 <Group rotate=0.00rad skew_x=0.00rad skew_y=0.00rad>
                     <Stacker width=114.70px height=30.00px direction=StackerDirection::Horizontal y=20.00px x=14.72px>
                         <Group skew_x=0.00rad rotate=0.00rad skew_y=0.00rad>
-                            <Image source=ImageSource::Url("assets/placeholder.png") skew_y=0.00rad skew_x=0.00rad rotate=0.00rad x=0/>
+                            <Image source="assets/placeholder.png" skew_y=0.00rad skew_x=0.00rad rotate=0.00rad x=0/>
                         </Group>
                         <Group skew_y=0.00rad skew_x=0.00rad rotate=0.00rad>
                             <Text style={
-                                font: Font::Web(
-                                    "Noto Sans",
-                                    "https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap",
-                                    FontStyle::Normal,
-                                    FontWeight::Normal)
+                                font: {
+                                    family: "Noto Sans"
+                                    url: "https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap"
+                                }
                                 font_size: 16px
                                 fill: rgba(0, 0, 0, 255)
                                 align_vertical: TextAlignVertical::Center
                                 align_horizontal: TextAlignHorizontal::Center
                                 align_multiline: TextAlignHorizontal::Center
                                 underline: false
-                            } 
-                                text="Logo" skew_x=0.00rad rotate=0.00rad height=100% skew_y=0.00rad/>
+                            }
+                                 text="Logo" skew_x=0.00rad rotate=0.00rad height=100% skew_y=0.00rad/>
                         </Group>
                     </Stacker>
                 </Group>
@@ -3572,93 +3465,88 @@ A scrollable marketing website for a generic product. Note that content should b
                     <Stacker x=0.00% y=0.00% direction=StackerDirection::Horizontal>
                         <Group skew_x=0.00rad rotate=0.00rad skew_y=0.00rad>
                             <Text style={
-                                font: Font::Web(
-                                    "Source Sans Pro",
-                                    "https://fonts.googleapis.com/css2?family=Source+Sans+Pro:ital,wght@0,200;0,300;0,400;0,600;0,700;0,900;1,200;1,300;1,400;1,600;1,700;1,900&display=swap",
-                                    FontStyle::Normal,
-                                    FontWeight::Normal)
+                                font: {
+                                    family: "Source Sans Pro"
+                                    url: "https://fonts.googleapis.com/css2?family=Source+Sans+Pro:ital,wght@0,200;0,300;0,400;0,600;0,700;0,900;1,200;1,300;1,400;1,600;1,700;1,900&display=swap"
+                                }
                                 font_size: 16px
                                 fill: rgba(0, 0, 0, 255)
                                 align_vertical: TextAlignVertical::Center
                                 align_horizontal: TextAlignHorizontal::Center
                                 align_multiline: TextAlignHorizontal::Center
                                 underline: false
-                            } 
-                                text="Product" skew_x=0.00rad rotate=0.00rad skew_y=0.00rad width=100% height=100%/>
+                            }
+                                 text="Product" skew_x=0.00rad rotate=0.00rad skew_y=0.00rad width=100% height=100%/>
                         </Group>
                         <Group skew_y=0.00rad rotate=0.00rad skew_x=0.00rad>
                             <Text style={
-                                font: Font::Web(
-                                    "Source Sans Pro",
-                                    "https://fonts.googleapis.com/css2?family=Source+Sans+Pro:ital,wght@0,200;0,300;0,400;0,600;0,700;0,900;1,200;1,300;1,400;1,600;1,700;1,900&display=swap",
-                                    FontStyle::Normal,
-                                    FontWeight::Normal)
+                                font: {
+                                    family: "Source Sans Pro"
+                                    url: "https://fonts.googleapis.com/css2?family=Source+Sans+Pro:ital,wght@0,200;0,300;0,400;0,600;0,700;0,900;1,200;1,300;1,400;1,600;1,700;1,900&display=swap"
+                                }
                                 font_size: 16px
                                 fill: rgba(0, 0, 0, 255)
                                 align_vertical: TextAlignVertical::Center
                                 align_horizontal: TextAlignHorizontal::Center
                                 align_multiline: TextAlignHorizontal::Center
                                 underline: false
-                            } 
-                                text="Documentation" rotate=0.00rad width=100% height=100%/>
+                            }
+                                 text="Documentation" rotate=0.00rad width=100% height=100%/>
                         </Group>
                         <Group skew_y=0.00rad skew_x=0.00rad rotate=0.00rad>
                             <Text style={
-                                font: Font::Web(
-                                    "Source Sans Pro",
-                                    "https://fonts.googleapis.com/css2?family=Source+Sans+Pro:ital,wght@0,200;0,300;0,400;0,600;0,700;0,900;1,200;1,300;1,400;1,600;1,700;1,900&display=swap",
-                                    FontStyle::Normal,
-                                    FontWeight::Normal)
+                                font: {
+                                    family: "Source Sans Pro"
+                                    url: "https://fonts.googleapis.com/css2?family=Source+Sans+Pro:ital,wght@0,200;0,300;0,400;0,600;0,700;0,900;1,200;1,300;1,400;1,600;1,700;1,900&display=swap"
+                                }
                                 font_size: 16px
                                 fill: rgba(0, 0, 0, 255)
                                 align_vertical: TextAlignVertical::Center
                                 align_horizontal: TextAlignHorizontal::Center
                                 align_multiline: TextAlignHorizontal::Center
                                 underline: false
-                            } 
-                                text="Contact" skew_x=0.00rad rotate=0.00rad skew_y=0.00rad width=100% height=100%/>
+                            }
+                                 text="Contact" skew_x=0.00rad rotate=0.00rad skew_y=0.00rad width=100% height=100%/>
                         </Group>
                         <Group skew_x=0.00rad rotate=0.00rad skew_y=0.00rad>
                             <Text style={
-                                font: Font::Web(
-                                    "Source Sans Pro",
-                                    "https://fonts.googleapis.com/css2?family=Source+Sans+Pro:ital,wght@0,200;0,300;0,400;0,600;0,700;0,900;1,200;1,300;1,400;1,600;1,700;1,900&display=swap",
-                                    FontStyle::Normal,
-                                    FontWeight::Normal)
+                                font: {
+                                    family: "Source Sans Pro"
+                                    url: "https://fonts.googleapis.com/css2?family=Source+Sans+Pro:ital,wght@0,200;0,300;0,400;0,600;0,700;0,900;1,200;1,300;1,400;1,600;1,700;1,900&display=swap"
+                                }
                                 font_size: 16px
                                 fill: rgba(0, 0, 0, 255)
                                 align_vertical: TextAlignVertical::Center
                                 align_horizontal: TextAlignHorizontal::Center
                                 align_multiline: TextAlignHorizontal::Center
                                 underline: false
-                            } 
-                                text="Careers" skew_x=0.00rad rotate=0.00rad skew_y=0.00rad width=100% height=100%/>
+                            }
+                                 text="Careers" skew_x=0.00rad rotate=0.00rad skew_y=0.00rad width=100% height=100%/>
                         </Group>
                     </Stacker>
                 </Group>
                 <Group rotate=0.00rad skew_x=0.00rad skew_y=0.00rad>
                     <Button style={
-                        font: Font::Web(
-                            "Source Sans Pro",
-                            "https://fonts.googleapis.com/css2?family=Source+Sans+Pro:ital,wght@0,200;0,300;0,400;0,600;0,700;0,900;1,200;1,300;1,400;1,600;1,700;1,900&display=swap",
-                            FontStyle::Normal,
-                            FontWeight::Normal)
+                        font: {
+                            family: "Source Sans Pro"
+                            url: "https://fonts.googleapis.com/css2?family=Source+Sans+Pro:ital,wght@0,200;0,300;0,400;0,600;0,700;0,900;1,200;1,300;1,400;1,600;1,700;1,900&display=swap"
+                        }
                         font_size: 20.00px
                         fill: rgba(255, 255, 255, 255)
                         align_vertical: TextAlignVertical::Center
                         align_horizontal: TextAlignHorizontal::Center
                         align_multiline: TextAlignHorizontal::Center
                         underline: false
-                    } 
-                        label="Get started" color=rgba(0, 3, 13, 255) rotate=0.00rad skew_x=0.00rad skew_y=0.00rad width=145px height=56px 
-                        x={100% - 20px} y=10px/>
+                    }
+                         label="Get started" color=rgba(0, 3, 13, 255) rotate=0.00rad skew_x=0.00rad skew_y=0.00rad width=145px height=56px
+                         x={100% - 20px} y=10px/>
                 </Group>
             </Stacker>
             <Rectangle fill=rgba(246, 240, 234, 255) skew_x=0.00rad rotate=0.00rad stroke={
                 color: rgba(100, 116, 139, 255)
                 width: 1.00px
-            } 
-                x=0.00% y=0.00%/>
+            }
+                 x=0.00% y=0.00%/>
         </Group>
         <Group skew_x=0.00rad rotate=0.00rad skew_y=0.00rad>
             <Rectangle fill=rgba(249, 248, 248, 255) skew_y=0.00rad skew_x=0.00rad rotate=0.00rad stroke={
@@ -3676,7 +3564,10 @@ A scrollable marketing website for a generic product. Note that content should b
     @pre_render: handle_pre_render
     #text {
         style: {
-            font: Font::Web("Times New Roman", "", FontStyle::Normal, FontWeight::Bold)
+            font: {
+                family: "Times New Roman"
+                weight: 700
+            }
             font_size: 22px
             fill: WHITE
             align_vertical: TextAlignVertical::Center
@@ -3688,18 +3579,19 @@ A scrollable marketing website for a generic product. Note that content should b
 ```
 
 
-## Typographically interesting website
-
-Another website, focusing on typography.  Note that a real example should vary content and layout —
+## Typographically interesting websiteAnother website, focusing on typography.  Note that a real example should vary content and layout —
 refer to this example for the dynamics of a generic website as well as the dynamics of contrasting typography.
 
 
-```pax filename=lib.pax
-if show_desktop_warning {
+```pax filename=lib.paxif show_desktop_warning {
     <Group @click=hide_desktop_warning_click>
         <Text y=50% x=50% width=90% text="Thank you for your interest in Pax!<br /> Please use a desktop browser to try the preview."
             style={
-                font: {Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::ExtraLight)}
+                font: {
+                    family: "ff-real-headline-pro"
+                    url: "https://use.typekit.net/ivu7epf.css"
+                    weight: 200
+                }
                 font_size: {PaxDotDev::get_responsive_text_size($mobile) * 1.75}
                 underline: false
                 fill: WHITE
@@ -3716,11 +3608,15 @@ if show_desktop_warning {
 <Group width=100% height=65px y=0>
     <Stacker direction=StackerDirection::Horizontal x=1.93px sizes=[Some(12.27%), Some(9.03%), Some(11.25%), Some(9.36%), None]
         width=897.06px height=65.00px>
-        <Image x=10px height=85px width=85px y=-12px source=ImageSource::Url("assets/logo-white-on-transparent.png") skew_x=0.00rad
+        <Image x=10px height=85px width=85px y=-12px source="assets/logo-white-on-transparent.png" skew_x=0.00rad
             skew_y=0.00rad rotate=0.00rad/>
         <Link url="https://docs.pax.dev/" target=Target::New>
             <Text width=100% height=100% text="Docs" style={
-                font: Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::ExtraLight)
+                font: {
+                    family: "ff-real-headline-pro"
+                    url: "https://use.typekit.net/ivu7epf.css"
+                    weight: 200
+                }
                 font_size: 20px
                 fill: WHITE
                 underline: false
@@ -3732,7 +3628,11 @@ if show_desktop_warning {
         </Link>
         <Link url="https://discord.com/invite/Eq8KWAUc6b" target=Target::New>
             <Text width=96.13% height=100% text="Discord" style={
-                font: {Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::ExtraLight)}
+                font: {
+                    family: "ff-real-headline-pro"
+                    url: "https://use.typekit.net/ivu7epf.css"
+                    weight: 200
+                }
                 font_size: 20px
                 fill: WHITE
                 underline: false
@@ -3744,7 +3644,11 @@ if show_desktop_warning {
         </Link>
         <Link url="https://www.github.com/paxdotdev/pax" target=Target::New>
             <Text width=100% height=100% text="GitHub" style={
-                font: {Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::ExtraLight)}
+                font: {
+                    family: "ff-real-headline-pro"
+                    url: "https://use.typekit.net/ivu7epf.css"
+                    weight: 200
+                }
                 font_size: 20px
                 fill: WHITE
                 underline: false
@@ -3758,7 +3662,7 @@ if show_desktop_warning {
     <Rectangle fill=BLACK stroke={
         color: rgba(100, 116, 139, 255)
         width: 1.00px
-    } corner_radii={
+    } corner_radius={
         top_left: 0
         top_right: 0
         bottom_left: 7
@@ -3770,10 +3674,14 @@ if show_desktop_warning {
         <Group id=section_1>
             <Stacker y=100.20% x=0.00% sizes=[Some(9.66%), Some(23.41%), Some(27.03%), Some(21.69%), Some(16.59%), None]>
                 <Group />
-                <Image source=ImageSource::Url("assets/logo-black-on-transparent.png") skew_x=0.00rad rotate=0.00rad height=150.00% x=-0.00%
+                <Image source="assets/logo-black-on-transparent.png" skew_x=0.00rad rotate=0.00rad height=150.00% x=-0.00%
                     y=37.51%/>
                 <Text x=100.00% width=100% y=50% text="How the future builds software" style={
-                    font: {Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::Bold)}
+                    font: {
+                        family: "ff-real-headline-pro"
+                        url: "https://use.typekit.net/ivu7epf.css"
+                        weight: 700
+                    }
                     font_size: {PaxDotDev::get_responsive_text_size($mobile) * 2.75}
                     underline: false
                     align_vertical: TextAlignVertical::Center
@@ -3782,10 +3690,13 @@ if show_desktop_warning {
                 }
                     rotate=0.00rad skew_x=0.00rad height=54.12%/>
                 <Group>
-                    <Text y=50% x=50% width=100% text="Chat, design, and code: together.
- Pax is a revolutionary new canvas for creating with AI."
+                    <Text y=50% x=50% width=100% text="Chat, design, and code: together. Pax is a revolutionary new canvas for creating with AI."
                         style={
-                            font: {Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::ExtraLight)}
+                            font: {
+                                family: "ff-real-headline-pro"
+                                url: "https://use.typekit.net/ivu7epf.css"
+                                weight: 200
+                            }
                             font_size: {PaxDotDev::get_responsive_text_size($mobile) * 1.75}
                             underline: false
                             align_vertical: TextAlignVertical::Center
@@ -3794,7 +3705,11 @@ if show_desktop_warning {
                         }/>
                 </Group>
                 <Button @click=show_demo x=50% y=50% width=250px height=75px label="Try the Preview" color=BLACK style={
-                    font: {Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::Light)}
+                    font: {
+                        family: "ff-real-headline-pro"
+                        url: "https://use.typekit.net/ivu7epf.css"
+                        weight: 300
+                    }
                     font_size: 25px
                     fill: WHITE
                     align_vertical: TextAlignVertical::Center
@@ -3805,7 +3720,11 @@ if show_desktop_warning {
         <Group id=section_2 height=200%>
             <Stacker>
                 <Text y=100% width=100% height=100% text="AI artifacts with design & code control" style={
-                    font: {Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::Bold)}
+                    font: {
+                        family: "ff-real-headline-pro"
+                        url: "https://use.typekit.net/ivu7epf.css"
+                        weight: 700
+                    }
                     font_size: {PaxDotDev::get_responsive_text_size($mobile) * 2.25}
                     underline: false
                     align_vertical: TextAlignVertical::Bottom
@@ -3814,7 +3733,11 @@ if show_desktop_warning {
                 <Group>
                     <Stacker direction={PaxDotDev::get_stacker_direction($mobile)}>
                         <Text y=50% width=100% text="**Chat with AI** to create apps, websites, interactive widgets, or forms." style={
-                            font: {Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::ExtraLight)}
+                            font: {
+                                family: "ff-real-headline-pro"
+                                url: "https://use.typekit.net/ivu7epf.css"
+                                weight: 200
+                            }
                             font_size: {PaxDotDev::get_responsive_text_size($mobile)}
                             underline: false
                             align_vertical: TextAlignVertical::Center
@@ -3828,14 +3751,18 @@ if show_desktop_warning {
                         <Text y=50% width=100% x=0
                             text="**Refine visually** with AI on a collaborative canvas. Design, prompt, and design again. You're building software."
                             style={
-                                font: {Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::ExtraLight)}
+                                font: {
+                                    family: "ff-real-headline-pro"
+                                    url: "https://use.typekit.net/ivu7epf.css"
+                                    weight: 200
+                                }
                                 font_size: {PaxDotDev::get_responsive_text_size($mobile)}
                                 underline: false
                                 align_vertical: TextAlignVertical::Center
                                 align_horizontal: TextAlignHorizontal::Left
                                 align_multiline: TextAlignHorizontal::Left
                             }/>
-                        //<Image y=50% source=ImageSource::Url("assets/logo-black-on-white.png") skew_x=0.00rad skew_y=0.00rad rotate=0.00rad width=50%
+                        //<Image y=50% source="assets/logo-black-on-white.png" skew_x=0.00rad skew_y=0.00rad rotate=0.00rad width=50%
                         //    x=50% y=50%/>
                     </Stacker>
                 </Group>
@@ -3844,7 +3771,11 @@ if show_desktop_warning {
                         <Text y=50% width=100% x=0
                             text="**Publish** with a click — share a link to invite a teammate.  Optionally link a GitHub repo so your whole team can build the same thing, together."
                             style={
-                                font: {Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::ExtraLight)}
+                                font: {
+                                    family: "ff-real-headline-pro"
+                                    url: "https://use.typekit.net/ivu7epf.css"
+                                    weight: 200
+                                }
                                 font_size: {PaxDotDev::get_responsive_text_size($mobile)}
                                 underline: false
                                 align_vertical: TextAlignVertical::Center
@@ -3859,7 +3790,11 @@ if show_desktop_warning {
                             <Text y=95% width=100% x=0
                                 text="**Total code control:** Pop the hood and edit Pax's code at any time, while staying in sync with AI & design. Great for individuals and for teams."
                                 style={
-                                    font: {Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::ExtraLight)}
+                                    font: {
+                                        family: "ff-real-headline-pro"
+                                        url: "https://use.typekit.net/ivu7epf.css"
+                                        weight: 200
+                                    }
                                     font_size: {PaxDotDev::get_responsive_text_size($mobile)}
                                     underline: false
                                     align_vertical: TextAlignVertical::Center
@@ -3867,7 +3802,11 @@ if show_desktop_warning {
                                     align_multiline: TextAlignHorizontal::Left
                                 }/>
                             <Text y=5% width=90% text="[Learn more about code control](https://docs.pax.dev/)" link_style={
-                                font: {Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::ExtraLight)}
+                                font: {
+                                    family: "ff-real-headline-pro"
+                                    url: "https://use.typekit.net/ivu7epf.css"
+                                    weight: 200
+                                }
                                 font_size: {PaxDotDev::get_responsive_text_size($mobile)}
                                 underline: true
                                 align_vertical: TextAlignVertical::Center
@@ -3875,7 +3814,7 @@ if show_desktop_warning {
                                 align_multiline: TextAlignHorizontal::Left
                             }/>
                         </Stacker>
-                        //<Image y=50% source=ImageSource::Url("assets/logo-black-on-white.png") skew_x=0.00rad skew_y=0.00rad rotate=0.00rad width=50%
+                        //<Image y=50% source="assets/logo-black-on-white.png" skew_x=0.00rad skew_y=0.00rad rotate=0.00rad width=50%
                         //    x=50% y=50%/>
                     </Stacker>
                 </Group>
@@ -3885,7 +3824,11 @@ if show_desktop_warning {
                             <Text y=95% width=100% x=0
                                 text="**Integrate & extend** — Pax artifacts integrate with any codebase or API, or ship as stand-alone web or mobile apps."
                                 style={
-                                    font: {Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::ExtraLight)}
+                                    font: {
+                                        family: "ff-real-headline-pro"
+                                        url: "https://use.typekit.net/ivu7epf.css"
+                                        weight: 200
+                                    }
                                     font_size: {PaxDotDev::get_responsive_text_size($mobile)}
                                     underline: false
                                     align_vertical: TextAlignVertical::Center
@@ -3893,7 +3836,11 @@ if show_desktop_warning {
                                     align_multiline: TextAlignHorizontal::Left
                                 }/>
                             <Text y=5% width=100% x=0 text="[Developer Docs](https://docs.pax.dev/)" link_style={
-                                font: {Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::ExtraLight)}
+                                font: {
+                                    family: "ff-real-headline-pro"
+                                    url: "https://use.typekit.net/ivu7epf.css"
+                                    weight: 200
+                                }
                                 font_size: {PaxDotDev::get_responsive_text_size($mobile)}
                                 underline: true
                                 align_vertical: TextAlignVertical::Center
@@ -3901,7 +3848,7 @@ if show_desktop_warning {
                                 align_multiline: TextAlignHorizontal::Left
                             }/>
                         </Stacker>
-                        //<Image y=50% source=ImageSource::Url("assets/logo-black-on-white.png") skew_x=0.00rad skew_y=0.00rad rotate=0.00rad width=50%
+                        //<Image y=50% source="assets/logo-black-on-white.png" skew_x=0.00rad skew_y=0.00rad rotate=0.00rad width=50%
                         //    x=50% y=50%/>
                     </Stacker>
                 </Group>
@@ -3911,7 +3858,11 @@ if show_desktop_warning {
         <Group id=section_3>
             <Stacker>
                 <Text y=100% width=100% x=0 height=100% text="You (yes, _you_) can build:" skew_x=0.00rad rotate=0.00rad style={
-                    font: {Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::Bold)}
+                    font: {
+                        family: "ff-real-headline-pro"
+                        url: "https://use.typekit.net/ivu7epf.css"
+                        weight: 700
+                    }
                     font_size: {PaxDotDev::get_responsive_text_size($mobile) * 2.50}
                     underline: false
                     align_vertical: TextAlignVertical::Bottom
@@ -3919,7 +3870,11 @@ if show_desktop_warning {
                 }/>
                 <Stacker>
                     <Text y=100% width=100% x=0 text="**Internal tools **" style={
-                        font: {Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::ExtraLight)}
+                        font: {
+                            family: "ff-real-headline-pro"
+                            url: "https://use.typekit.net/ivu7epf.css"
+                            weight: 200
+                        }
                         font_size: {PaxDotDev::get_responsive_text_size($mobile)}
                         underline: false
                         align_vertical: TextAlignVertical::Bottom
@@ -3928,7 +3883,11 @@ if show_desktop_warning {
                     }/>
                     <Text y=0% width=100% x=0 text="Quickly create & iterate on forms and dashboards; developers can integrate data & APIs."
                         style={
-                            font: {Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::ExtraLight)}
+                            font: {
+                                family: "ff-real-headline-pro"
+                                url: "https://use.typekit.net/ivu7epf.css"
+                                weight: 200
+                            }
                             font_size: {PaxDotDev::get_responsive_text_size($mobile)}
                             underline: false
                             align_vertical: TextAlignVertical::Top
@@ -3938,7 +3897,11 @@ if show_desktop_warning {
                 </Stacker>
                 <Stacker>
                     <Text y=100% width=100% x=0 text="**Landing pages and e-commerce sites**" style={
-                        font: {Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::ExtraLight)}
+                        font: {
+                            family: "ff-real-headline-pro"
+                            url: "https://use.typekit.net/ivu7epf.css"
+                            weight: 200
+                        }
                         font_size: {PaxDotDev::get_responsive_text_size($mobile)}
                         underline: false
                         align_vertical: TextAlignVertical::Bottom
@@ -3946,7 +3909,11 @@ if show_desktop_warning {
                         align_multiline: TextAlignHorizontal::Left
                     }/>
                     <Text y=0% width=100% x=0 text="Create landing pages with a few words; keep copy up to date through Pax's visual CMS." style={
-                        font: {Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::ExtraLight)}
+                        font: {
+                            family: "ff-real-headline-pro"
+                            url: "https://use.typekit.net/ivu7epf.css"
+                            weight: 200
+                        }
                         font_size: {PaxDotDev::get_responsive_text_size($mobile)}
                         underline: false
                         align_vertical: TextAlignVertical::Top
@@ -3956,7 +3923,11 @@ if show_desktop_warning {
                 </Stacker>
                 <Stacker>
                     <Text y=100% width=100% x=0 text="**Web and mobile apps**" style={
-                        font: {Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::ExtraLight)}
+                        font: {
+                            family: "ff-real-headline-pro"
+                            url: "https://use.typekit.net/ivu7epf.css"
+                            weight: 200
+                        }
                         font_size: {PaxDotDev::get_responsive_text_size($mobile)}
                         underline: false
                         align_vertical: TextAlignVertical::Bottom
@@ -3966,7 +3937,11 @@ if show_desktop_warning {
                     <Text y=0% width=100% x=0
                         text="Give your entire team a portal into your product — make visual and AI-driven contributions at any point in the development lifecycle."
                         style={
-                            font: {Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::ExtraLight)}
+                            font: {
+                                family: "ff-real-headline-pro"
+                                url: "https://use.typekit.net/ivu7epf.css"
+                                weight: 200
+                            }
                             font_size: {PaxDotDev::get_responsive_text_size($mobile)}
                             underline: false
                             align_vertical: TextAlignVertical::Top
@@ -3976,7 +3951,11 @@ if show_desktop_warning {
                 </Stacker>
                 <Stacker>
                     <Text y=100% width=100% x=0 text="**Data visualizations, games, and interactive graphics**" style={
-                        font: {Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::ExtraLight)}
+                        font: {
+                            family: "ff-real-headline-pro"
+                            url: "https://use.typekit.net/ivu7epf.css"
+                            weight: 200
+                        }
                         font_size: {PaxDotDev::get_responsive_text_size($mobile)}
                         underline: false
                         align_vertical: TextAlignVertical::Bottom
@@ -3985,7 +3964,11 @@ if show_desktop_warning {
                     }/>
                     <Text y=0% width=100% x=0
                         text="The sky's the limit with design & code control — if you can imagine it, you can create it with Pax." style={
-                            font: {Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::ExtraLight)}
+                            font: {
+                                family: "ff-real-headline-pro"
+                                url: "https://use.typekit.net/ivu7epf.css"
+                                weight: 200
+                            }
                             font_size: {PaxDotDev::get_responsive_text_size($mobile)}
                             underline: false
                             align_vertical: TextAlignVertical::Top
@@ -3998,7 +3981,11 @@ if show_desktop_warning {
         <Group id=section_4>
             <Stacker>
                 <Text y=100.00% width=100% x=0 height=100% text="Now in Open Preview" style={
-                    font: {Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::Bold)}
+                    font: {
+                        family: "ff-real-headline-pro"
+                        url: "https://use.typekit.net/ivu7epf.css"
+                        weight: 700
+                    }
                     font_size: {PaxDotDev::get_responsive_text_size($mobile) * 2.75}
                     underline: false
                     align_vertical: TextAlignVertical::Bottom
@@ -4006,7 +3993,11 @@ if show_desktop_warning {
                     align_multiline: TextAlignHorizontal::Center
                 }/>
                 <Button @click=show_demo x=50% y=50% width=250px height=75px label="Try the Preview" color=BLACK style={
-                    font: {Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::Light)}
+                    font: {
+                        family: "ff-real-headline-pro"
+                        url: "https://use.typekit.net/ivu7epf.css"
+                        weight: 300
+                    }
                     font_size: 25px
                     fill: WHITE
                     align_vertical: TextAlignVertical::Center
@@ -4027,19 +4018,16 @@ if show_desktop_warning {
 ```
 
 
-## Form
-
-A basic form for gathering user input
+## FormA basic form for gathering user input
 
 ```pax filename=lib.pax
 <Group x=43.87% y=45.56% width=43.43% height=67.04% id=form_group>
     <Stacker direction=StackerDirection::Vertical gutter=20px y=102.66% x=100.00% height=102.66% sizes=[Some(10%), None, Some(10%)]>
         <Text text="Basic Form" id=form_title style={
-            font: Font::Web(
-                "Roboto",
-                "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
-                FontStyle::Normal,
-                FontWeight::Normal)
+            font: {
+                family: "Roboto"
+                url: "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap"
+            }
             font_size: 30.00px
             fill: rgba(0, 0, 0, 255)
             align_vertical: TextAlignVertical::Top
@@ -4076,7 +4064,11 @@ A basic form for gathering user input
 @settings {
     #form_title {
         style: {
-            font: {Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::Light)}
+            font: {
+                family: "ff-real-headline-pro"
+                url: "https://use.typekit.net/ivu7epf.css"
+                weight: 300
+            }
             font_size: 24px
             fill: BLACK
             align_vertical: TextAlignVertical::Center
@@ -4085,7 +4077,11 @@ A basic form for gathering user input
     }
     #name_input {
         style: {
-            font: {Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::Light)}
+            font: {
+                family: "ff-real-headline-pro"
+                url: "https://use.typekit.net/ivu7epf.css"
+                weight: 300
+            }
             font_size: 18px
             fill: BLACK
             align_vertical: TextAlignVertical::Center
@@ -4094,7 +4090,11 @@ A basic form for gathering user input
     }
     #password_input {
         style: {
-            font: {Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::Light)}
+            font: {
+                family: "ff-real-headline-pro"
+                url: "https://use.typekit.net/ivu7epf.css"
+                weight: 300
+            }
             font_size: 18px
             fill: BLACK
             align_vertical: TextAlignVertical::Center
@@ -4103,7 +4103,11 @@ A basic form for gathering user input
     }
     #email_input {
         style: {
-            font: {Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::Light)}
+            font: {
+                family: "ff-real-headline-pro"
+                url: "https://use.typekit.net/ivu7epf.css"
+                weight: 300
+            }
             font_size: 18px
             fill: BLACK
             align_vertical: TextAlignVertical::Center
@@ -4112,7 +4116,11 @@ A basic form for gathering user input
     }
     #address_input {
         style: {
-            font: {Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::Light)}
+            font: {
+                family: "ff-real-headline-pro"
+                url: "https://use.typekit.net/ivu7epf.css"
+                weight: 300
+            }
             font_size: 18px
             fill: BLACK
             align_vertical: TextAlignVertical::Center
@@ -4121,7 +4129,11 @@ A basic form for gathering user input
     }
     #credit_card_input {
         style: {
-            font: {Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::Light)}
+            font: {
+                family: "ff-real-headline-pro"
+                url: "https://use.typekit.net/ivu7epf.css"
+                weight: 300
+            }
             font_size: 18px
             fill: BLACK
             align_vertical: TextAlignVertical::Center
@@ -4130,7 +4142,11 @@ A basic form for gathering user input
     }
     #expiry_date_input {
         style: {
-            font: {Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::Light)}
+            font: {
+                family: "ff-real-headline-pro"
+                url: "https://use.typekit.net/ivu7epf.css"
+                weight: 300
+            }
             font_size: 18px
             fill: BLACK
             align_vertical: TextAlignVertical::Center
@@ -4139,7 +4155,11 @@ A basic form for gathering user input
     }
     #cvv_input {
         style: {
-            font: {Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::Light)}
+            font: {
+                family: "ff-real-headline-pro"
+                url: "https://use.typekit.net/ivu7epf.css"
+                weight: 300
+            }
             font_size: 18px
             fill: BLACK
             align_vertical: TextAlignVertical::Center
@@ -4148,7 +4168,11 @@ A basic form for gathering user input
     }
     #submit_button {
         style: {
-            font: {Font::Web("ff-real-headline-pro", "https://use.typekit.net/ivu7epf.css", FontStyle::Normal, FontWeight::Light)}
+            font: {
+                family: "ff-real-headline-pro"
+                url: "https://use.typekit.net/ivu7epf.css"
+                weight: 300
+            }
             font_size: 18px
             fill: WHITE
             align_vertical: TextAlignVertical::Center

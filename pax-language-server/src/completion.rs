@@ -115,7 +115,7 @@ lazy_static! {
                 label: "Transform Expression".to_string(),
                 kind: Some(CompletionItemKind::FUNCTION),
                 insert_text: Some(
-                    "{Transform2D::Scale(50%, 50%) * Transform2D::Rotation(50deg)}$0".to_string(),
+                    "{Transform2D::scale(50%, 50%) * Transform2D::rotate(50deg)}$0".to_string(),
                 ),
                 insert_text_format: Some(lsp_types::InsertTextFormat::SNIPPET),
                 detail: Some("see Transform2D api".to_string()),
@@ -129,7 +129,7 @@ lazy_static! {
                 CompletionItem {
                     label: "Solid Black".to_string(),
                     kind: Some(CompletionItemKind::FUNCTION),
-                    insert_text: Some("{Fill::Solid(Color::rgba(0.0,0.0,0.0,1.0))}$0".to_string()),
+                    insert_text: Some("rgba(0, 0, 0, 255)$0".to_string()),
                     insert_text_format: Some(lsp_types::InsertTextFormat::SNIPPET),
                     detail: Some("See Color Api".to_string()),
                     sort_text: Some("1".to_string()),
@@ -141,8 +141,8 @@ lazy_static! {
                     insert_text: Some(
                         "@gradient {
                         linear: {
-                            start: (0%, 50%)
-                            end: (100%, 50%)
+                            start: [0%, 50%]
+                            end: [100%, 50%]
                         }
                         0%: rgba(0, 0, 0, 255)
                         100%: rgba(0, 0, 0, 128)
@@ -162,7 +162,7 @@ lazy_static! {
                 CompletionItem {
                     label: "Solid Black".to_string(),
                     kind: Some(CompletionItemKind::FUNCTION),
-                    insert_text: Some("{Fill::Solid(Color::rgba(0.0,0.0,0.0,1.0))}$0".to_string()),
+                    insert_text: Some("rgba(0, 0, 0, 255)$0".to_string()),
                     insert_text_format: Some(lsp_types::InsertTextFormat::SNIPPET),
                     detail: Some("See Color Api".to_string()),
                     sort_text: Some("1".to_string()),
@@ -174,8 +174,8 @@ lazy_static! {
                     insert_text: Some(
                         "@gradient {
                         linear: {
-                            start: (0%, 50%)
-                            end: (100%, 50%)
+                            start: [0%, 50%]
+                            end: [100%, 50%]
                         }
                         0%: rgba(0, 0, 0, 255)
                         100%: rgba(0, 0, 0, 128)
@@ -194,7 +194,7 @@ lazy_static! {
             vec![CompletionItem {
                 label: "Solid Black".to_string(),
                 kind: Some(CompletionItemKind::FUNCTION),
-                insert_text: Some("{Color::rgba(0.0,0.0,0.0,1.0)}$0".to_string()),
+                insert_text: Some("rgba(0, 0, 0, 255)$0".to_string()),
                 insert_text_format: Some(lsp_types::InsertTextFormat::SNIPPET),
                 detail: Some("See Color Api".to_string()),
                 sort_text: Some("1".to_string()),
@@ -206,9 +206,51 @@ lazy_static! {
             vec![CompletionItem {
                 label: "Solid Black".to_string(),
                 kind: Some(CompletionItemKind::FUNCTION),
-                insert_text: Some("{Color::rgba(0.0,0.0,0.0,1.0)}$0".to_string()),
+                insert_text: Some("rgba(0, 0, 0, 255)$0".to_string()),
                 insert_text_format: Some(lsp_types::InsertTextFormat::SNIPPET),
                 detail: Some("See Color Api".to_string()),
+                sort_text: Some("1".to_string()),
+                ..Default::default()
+            }],
+        );
+        type_map.insert(
+            "Font".to_string(),
+            vec![
+                CompletionItem {
+                    label: "Local Font Family".to_string(),
+                    kind: Some(CompletionItemKind::VALUE),
+                    insert_text: Some("\"$0\"".to_string()),
+                    insert_text_format: Some(lsp_types::InsertTextFormat::SNIPPET),
+                    detail: Some("Local font family shorthand".to_string()),
+                    sort_text: Some("1".to_string()),
+                    ..Default::default()
+                },
+                CompletionItem {
+                    label: "Hosted Font".to_string(),
+                    kind: Some(CompletionItemKind::VALUE),
+                    insert_text: Some(
+                        "{
+                        family: \"$1\"
+                        url: \"$2\"
+                        weight: 400
+                    }$0"
+                        .to_string(),
+                    ),
+                    insert_text_format: Some(lsp_types::InsertTextFormat::SNIPPET),
+                    detail: Some("Hosted font with named options".to_string()),
+                    sort_text: Some("2".to_string()),
+                    ..Default::default()
+                },
+            ],
+        );
+        type_map.insert(
+            "ImageSource".to_string(),
+            vec![CompletionItem {
+                label: "Image URL or Asset".to_string(),
+                kind: Some(CompletionItemKind::VALUE),
+                insert_text: Some("\"assets/$0\"".to_string()),
+                insert_text_format: Some(lsp_types::InsertTextFormat::SNIPPET),
+                detail: Some("URL or project asset path shorthand".to_string()),
                 sort_text: Some("1".to_string()),
                 ..Default::default()
             }],
@@ -220,11 +262,14 @@ lazy_static! {
                 kind: Some(CompletionItemKind::FUNCTION),
                 insert_text: Some(
                     "{
-                        font: Font::system(\"Helvetica\", FontStyle::Normal, FontWeight::Bold),
-                        font_size: 24px,
-                        fill: Color::rgba(0.0, 0.0, 0.0, 0.0),
-                        align_vertical: TextAlignVertical::Center,
-                        align_horizontal: TextAlignHorizontal::Center,
+                        font: {
+                            family: \"Helvetica\"
+                            weight: 700
+                        }
+                        font_size: 24px
+                        fill: rgba(0, 0, 0, 255)
+                        align_vertical: TextAlignVertical::Center
+                        align_horizontal: TextAlignHorizontal::Center
                         underline: true
                     }$0"
                     .to_string(),
@@ -240,9 +285,7 @@ lazy_static! {
             vec![CompletionItem {
                 label: "Black Stroke".to_string(),
                 kind: Some(CompletionItemKind::FUNCTION),
-                insert_text: Some(
-                    "{color:{Color::rgba(0.0,0.0,0.0,1.0)}, width: 10px}$0".to_string(),
-                ),
+                insert_text: Some("{ color: rgba(0, 0, 0, 255) width: 10px }$0".to_string()),
                 insert_text_format: Some(lsp_types::InsertTextFormat::SNIPPET),
                 detail: Some("See Stroke Api".to_string()),
                 sort_text: Some("1".to_string()),
@@ -254,9 +297,7 @@ lazy_static! {
             vec![CompletionItem {
                 label: "Black Stroke".to_string(),
                 kind: Some(CompletionItemKind::FUNCTION),
-                insert_text: Some(
-                    "{color:{Color::rgba(0.0,0.0,0.0,1.0)}, width: 10px}$0".to_string(),
-                ),
+                insert_text: Some("{ color: rgba(0, 0, 0, 255) width: 10px }$0".to_string()),
                 insert_text_format: Some(lsp_types::InsertTextFormat::SNIPPET),
                 detail: Some("See Stroke Api".to_string()),
                 sort_text: Some("1".to_string()),
@@ -264,11 +305,11 @@ lazy_static! {
             }],
         );
         type_map.insert(
-            "crate::types::RectangleCornerRadii".to_string(),
+            "crate::types::CornerRadii".to_string(),
             vec![CompletionItem {
-                label: "5px Rounded Corners".to_string(),
-                kind: Some(CompletionItemKind::FUNCTION),
-                insert_text: Some("{RectangleCornerRadii::radii(5.0,5.0,5.0,5.0)}$0".to_string()),
+                label: "5px Uniform Corner Radius".to_string(),
+                kind: Some(CompletionItemKind::VALUE),
+                insert_text: Some("5.0$0".to_string()),
                 insert_text_format: Some(lsp_types::InsertTextFormat::SNIPPET),
                 detail: Some("See pax-std Api".to_string()),
                 sort_text: Some("1".to_string()),
@@ -276,11 +317,11 @@ lazy_static! {
             }],
         );
         type_map.insert(
-            "RectangleCornerRadii".to_string(),
+            "CornerRadii".to_string(),
             vec![CompletionItem {
-                label: "5px Rounded Corners".to_string(),
-                kind: Some(CompletionItemKind::FUNCTION),
-                insert_text: Some("{RectangleCornerRadii::radii(5.0,5.0,5.0,5.0)}$0".to_string()),
+                label: "5px Uniform Corner Radius".to_string(),
+                kind: Some(CompletionItemKind::VALUE),
+                insert_text: Some("5.0$0".to_string()),
                 insert_text_format: Some(lsp_types::InsertTextFormat::SNIPPET),
                 detail: Some("See pax-std Api".to_string()),
                 sort_text: Some("1".to_string()),
@@ -567,4 +608,57 @@ pub fn get_common_properties_setting_completions(
         }
     }
     return completions;
+}
+
+#[cfg(test)]
+mod tests {
+    use super::get_type_completion;
+
+    fn inserts_for(type_name: &str) -> Vec<String> {
+        get_type_completion(type_name)
+            .unwrap()
+            .into_iter()
+            .filter_map(|completion| completion.insert_text)
+            .collect()
+    }
+
+    #[test]
+    fn built_in_type_completions_use_canonical_pax_syntax() {
+        let snippets = [
+            "Fill",
+            "Color",
+            "Font",
+            "ImageSource",
+            "TextStyle",
+            "Stroke",
+            "CornerRadii",
+            "Transform2D",
+        ]
+        .into_iter()
+        .flat_map(inserts_for)
+        .collect::<Vec<_>>();
+
+        for obsolete in [
+            "Fill::Solid",
+            "Color::rgba",
+            "Font::system",
+            "TextStyle {",
+            "Stroke {",
+            "[5.0]",
+            "Transform2D::Scale",
+            "Transform2D::Rotation",
+        ] {
+            assert!(
+                snippets.iter().all(|snippet| !snippet.contains(obsolete)),
+                "completion still contains `{obsolete}`: {snippets:#?}"
+            );
+        }
+
+        assert!(inserts_for("Font")
+            .iter()
+            .any(|snippet| snippet.contains("family:")));
+        assert!(inserts_for("ImageSource")
+            .iter()
+            .any(|snippet| snippet.contains("assets/")));
+    }
 }

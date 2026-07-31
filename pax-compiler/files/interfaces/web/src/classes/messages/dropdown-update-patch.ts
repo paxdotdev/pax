@@ -36,7 +36,7 @@ export class DropdownUpdatePatch {
         this.stroke_width = jsonMessage["stroke_width"];
         this.background = jsonMessage["background"];
         this.selected_id = jsonMessage["selected_id"];
-        this.borderRadius = jsonMessage["border_radius"];
+        this.borderRadius = jsonMessage["corner_radius"];
         const styleMessage = jsonMessage["style"];
 
         if (styleMessage) {

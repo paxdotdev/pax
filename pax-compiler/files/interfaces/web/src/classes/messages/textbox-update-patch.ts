@@ -11,7 +11,7 @@ export class TextboxUpdatePatch {
     public stroke_width?: number;
     public stroke_color?: ColorGroup;
     public background?: ColorGroup; 
-    public border_radius?: number;
+    public corner_radius?: number;
     public focus_on_mount?: boolean;
     public transform?: number[];
     public opacity?: number;
@@ -39,7 +39,7 @@ export class TextboxUpdatePatch {
         this.stroke_color = jsonMessage["stroke_color"];
         this.stroke_width = jsonMessage["stroke_width"];
         this.background = jsonMessage["background"];
-        this.border_radius = jsonMessage["border_radius"];
+        this.corner_radius = jsonMessage["corner_radius"];
         this.focus_on_mount = jsonMessage["focus_on_mount"];
         this.placeholder = jsonMessage["placeholder"];
         const styleMessage = jsonMessage["style"];

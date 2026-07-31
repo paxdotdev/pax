@@ -14,6 +14,11 @@ Type: `bool`
 
 Whether this branch is the fallback `default=true` branch.
 
+##### `modal`
+Type: `bool`
+
+Whether this branch should stack over the previously active branch.
+
 ---
 
 ### `RouteLocation`

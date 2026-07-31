@@ -131,6 +131,5 @@ async fn designtime_integration_test() {
 
     let output = std::fs::read_to_string(path_str).expect("Failed to read output file");
     assert_eq!(output, EXPECTED_PAX);
-    std::fs::write(path_str, b"FILE HAS NOT BEEN UPDATED BY DESIGNTIME")
-        .expect("couldn't reset file");
+    std::fs::write(path_str, b"<Group />\n").expect("couldn't reset file");
 }

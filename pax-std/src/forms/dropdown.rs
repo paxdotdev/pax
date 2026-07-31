@@ -31,7 +31,7 @@ pub struct Dropdown {
     /// Dropdown background color.
     pub background: Property<Color>,
     /// Dropdown corner radius, in pixels.
-    pub border_radius: Property<f64>,
+    pub corner_radius: Property<f64>,
 }
 
 impl Default for Dropdown {
@@ -46,7 +46,7 @@ impl Default for Dropdown {
                 cap: Property::new(StrokeCap::default()),
                 join: Property::new(StrokeJoin::default()),
             }),
-            border_radius: Property::new(8.0.into()),
+            corner_radius: Property::new(8.0.into()),
             style: Property::new(TextStyle {
                 font: Property::new(Font::default()),
                 font_size: Property::new(Size::Pixels(Numeric::F64(14.0))),
@@ -179,9 +179,9 @@ impl InstanceNode for DropdownInstance {
                                 properties.selected_id.get(),
                             ),
                             patch_if_needed(
-                                &mut old_state.border_radius,
-                                &mut patch.border_radius,
-                                properties.border_radius.get(),
+                                &mut old_state.corner_radius,
+                                &mut patch.corner_radius,
+                                properties.corner_radius.get(),
                             ),
                             patch_if_needed(
                                 &mut old_state.options,

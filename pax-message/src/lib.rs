@@ -582,7 +582,7 @@ pub struct FramePatch {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub z_index: Option<i32>,
     pub clip_content: Option<bool>,
-    pub border_radius: Option<f64>,
+    pub corner_radius: Option<f64>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
     pub transform: Option<Vec<f64>>,
@@ -619,7 +619,7 @@ pub struct GlassSurfacePatch {
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
     pub opacity: Option<f64>,
-    pub border_radius: Option<f64>,
+    pub corner_radius: Option<f64>,
     pub liquid_glass: Option<AppleLiquidGlassPatch>,
 }
 
@@ -693,7 +693,7 @@ pub struct CheckboxPatch {
     pub background_checked: Option<ColorMessage>,
     pub outline_color: Option<ColorMessage>,
     pub outline_width: Option<f64>,
-    pub border_radius: Option<f64>,
+    pub corner_radius: Option<f64>,
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
@@ -757,7 +757,7 @@ pub struct DropdownPatch {
     pub background: Option<ColorMessage>,
     pub stroke_color: Option<ColorMessage>,
     pub stroke_width: Option<f64>,
-    pub border_radius: Option<f64>,
+    pub corner_radius: Option<f64>,
     pub style: Option<TextStyleMessage>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub liquid_glass: Option<Option<AppleLiquidGlassPatch>>,
@@ -808,7 +808,7 @@ pub struct SliderPatch {
     pub opacity: Option<f64>,
     pub accent: Option<ColorMessage>,
     pub background: Option<ColorMessage>,
-    pub border_radius: Option<f64>,
+    pub corner_radius: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub liquid_glass: Option<Option<AppleLiquidGlassPatch>>,
 }
@@ -831,7 +831,7 @@ pub struct TextboxPatch {
     pub background: Option<ColorMessage>,
     pub stroke_color: Option<ColorMessage>,
     pub stroke_width: Option<f64>,
-    pub border_radius: Option<f64>,
+    pub corner_radius: Option<f64>,
     pub style: Option<TextStyleMessage>,
     pub focus_on_mount: Option<bool>,
     pub placeholder: Option<String>,
@@ -855,7 +855,7 @@ pub struct ButtonPatch {
     pub hover_color: Option<ColorMessage>,
     pub outline_stroke_color: Option<ColorMessage>,
     pub outline_stroke_width: Option<f64>,
-    pub border_radius: Option<f64>,
+    pub corner_radius: Option<f64>,
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
@@ -1024,7 +1024,7 @@ pub struct ScrollerPatch {
     pub size_y: Option<f64>,
     pub opacity: Option<f64>,
     pub clip_content: Option<bool>,
-    pub border_radius: Option<f64>,
+    pub corner_radius: Option<f64>,
     pub size_inner_pane_x: Option<f64>,
     pub size_inner_pane_y: Option<f64>,
     pub snap_points_x: Option<Vec<f64>>,

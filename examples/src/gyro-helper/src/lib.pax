@@ -53,8 +53,12 @@
     @accel: on_accel
 
     .title {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;700&display=swap"
+                weight: 700
+            }
             font_size: 34px
             fill: WHITE
             align_vertical: TextAlignVertical::Center
@@ -62,8 +66,12 @@
         }
     }
     .readout {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;700&display=swap", FontStyle::Normal, FontWeight::Medium)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;700&display=swap"
+                weight: 500
+            }
             font_size: 14px
             fill: rgb(164, 230, 255)
             align_vertical: TextAlignVertical::Center
@@ -71,8 +79,12 @@
         }
     }
     .status {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;700&display=swap", FontStyle::Normal, FontWeight::Medium)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;700&display=swap"
+                weight: 500
+            }
             font_size: 15px
             fill: rgb(249, 222, 146)
             align_vertical: TextAlignVertical::Center
@@ -83,33 +95,37 @@
         fill: rgb(255, 244, 190)
     }
     .ring_a {
-        fill: Color::rgba(67, 214, 255, 82)
+        fill: rgba(67, 214, 255, 82)
     }
     .ring_b {
-        fill: Color::rgba(255, 116, 196, 54)
+        fill: rgba(255, 116, 196, 54)
     }
     .satellite {
         fill: rgb(120, 255, 190)
     }
     .guide_h {
-        fill: Color::rgba(255, 255, 255, 60)
+        fill: rgba(255, 255, 255, 60)
     }
     .guide_v {
-        fill: Color::rgba(255, 255, 255, 60)
+        fill: rgba(255, 255, 255, 60)
     }
     .field_mark {
-        fill: Color::rgba(84, 120, 255, 30)
+        fill: rgba(84, 120, 255, 30)
     }
     .motion_button {
-        color: Color::rgba(16, 23, 38, 240)
+        color: rgba(16, 23, 38, 240)
         hover_color: rgb(28, 39, 64)
-        border_radius: 8
+        corner_radius: 8
         outline: {
-            color: Color::rgba(255, 255, 255, 110)
+            color: rgba(255, 255, 255, 110)
             width: 1px
         }
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;700&display=swap"
+                weight: 700
+            }
             font_size: 16px
             fill: WHITE
             align_vertical: TextAlignVertical::Center

@@ -214,12 +214,7 @@
 @settings {
     .controller_bar {
         fill: rgba(168, 116, 62, 255)
-        corner_radii: {
-            top_left: 10,
-            top_right: 10,
-            bottom_right: 10,
-            bottom_left: 10,
-        }
+        corner_radius: 10
     }
 
     .controller_cap {
@@ -228,12 +223,7 @@
 
     .controller_cross {
         fill: rgba(202, 146, 76, 255)
-        corner_radii: {
-            top_left: 8,
-            top_right: 8,
-            bottom_right: 8,
-            bottom_left: 8,
-        }
+        corner_radius: 8
     }
 
     .string_line {
@@ -242,7 +232,7 @@
 
     .head_shape {
         fill: rgba(238, 208, 182, 255)
-        stroke: Stroke {
+        stroke: {
             color: rgba(112, 78, 56, 88%)
             width: 2px
         }
@@ -281,7 +271,7 @@
             PathElement::Point(100%, 100%)
         ]
         fill: rgba(0, 0, 0, 0)
-        stroke: Stroke {
+        stroke: {
             color: rgba(72, 42, 38, 88%)
             width: 2px
         }
@@ -309,7 +299,7 @@
             PathElement::Point(100%, 0%)
         ]
         fill: rgba(0, 0, 0, 0)
-        stroke: Stroke {
+        stroke: {
             color: rgba(110, 56, 52, 82%)
             width: 2px
         }
@@ -317,22 +307,12 @@
 
     .neck_piece {
         fill: rgba(168, 118, 84, 255)
-        corner_radii: {
-            top_left: 6,
-            top_right: 6,
-            bottom_right: 6,
-            bottom_left: 6,
-        }
+        corner_radius: 6
     }
 
     .throat_piece {
         fill: rgba(176, 126, 92, 255)
-        corner_radii: {
-            top_left: 8,
-            top_right: 8,
-            bottom_right: 8,
-            bottom_left: 8,
-        }
+        corner_radius: 8
     }
 
     .collar_piece {
@@ -361,16 +341,11 @@
 
     .torso_piece {
         fill: rgba(34, 92, 88, 255)
-        stroke: Stroke {
+        stroke: {
             color: rgba(244, 226, 196, 36%)
             width: 2px
         }
-        corner_radii: {
-            top_left: 24,
-            top_right: 24,
-            bottom_right: 20,
-            bottom_left: 20,
-        }
+        corner_radius: [24, 24, 20, 20]
     }
 
     .bodice_panel {
@@ -391,12 +366,7 @@
 
     .waist_piece {
         fill: rgba(194, 124, 76, 255)
-        corner_radii: {
-            top_left: 14,
-            top_right: 14,
-            bottom_right: 14,
-            bottom_left: 14,
-        }
+        corner_radius: 14
     }
 
     .coat_tail {
@@ -417,42 +387,22 @@
 
     .limb_segment {
         fill: rgba(186, 134, 88, 255)
-        corner_radii: {
-            top_left: 16,
-            top_right: 16,
-            bottom_right: 16,
-            bottom_left: 16,
-        }
+        corner_radius: 16
     }
 
     .limb_segment_alt {
         fill: rgba(230, 216, 198, 255)
-        corner_radii: {
-            top_left: 16,
-            top_right: 16,
-            bottom_right: 16,
-            bottom_left: 16,
-        }
+        corner_radius: 16
     }
 
     .leg_segment {
         fill: rgba(72, 46, 84, 255)
-        corner_radii: {
-            top_left: 16,
-            top_right: 16,
-            bottom_right: 16,
-            bottom_left: 16,
-        }
+        corner_radius: 16
     }
 
     .leg_segment_alt {
         fill: rgba(228, 214, 198, 255)
-        corner_radii: {
-            top_left: 14,
-            top_right: 14,
-            bottom_right: 14,
-            bottom_left: 14,
-        }
+        corner_radius: 14
     }
 
     .cuff_piece {
@@ -465,27 +415,17 @@
 
     .hand_piece {
         fill: rgba(236, 210, 184, 255)
-        corner_radii: {
-            top_left: 12,
-            top_right: 12,
-            bottom_right: 12,
-            bottom_left: 12,
-        }
+        corner_radius: 12
     }
 
     .shoe_piece {
         fill: rgba(82, 34, 42, 255)
-        corner_radii: {
-            top_left: 14,
-            top_right: 14,
-            bottom_right: 14,
-            bottom_left: 14,
-        }
+        corner_radius: 14
     }
 
     .joint_pin {
         fill: rgba(212, 154, 84, 255)
-        stroke: Stroke {
+        stroke: {
             color: rgba(84, 48, 20, 60%)
             width: 1px
         }

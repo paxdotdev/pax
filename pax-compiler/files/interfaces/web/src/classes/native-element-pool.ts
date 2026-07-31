@@ -570,8 +570,8 @@ export class NativeElementPool {
                 if (patch.stroke_color != null) {
                     textbox.style.borderColor = toCssColor(patch.stroke_color);
                 }
-                if (patch.border_radius != null) {
-                    textbox.style.borderRadius = patch.border_radius + "px";
+                if (patch.corner_radius != null) {
+                    textbox.style.borderRadius = patch.corner_radius + "px";
                 }
             }
         }

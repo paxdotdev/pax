@@ -10,20 +10,20 @@ if game_state == "PLAYING" {
 <Group scale=200% width=50% height=50%>
     if game_state == "PLAYING" {
         // Spaceship
-        <Image width=32px height=32px source=ImageSource::Url("assets/spaceship.png") anchor=50% x={ship_x} y={ship_y}/>
+        <Image width=32px height=32px source="assets/spaceship.png" anchor=50% x={ship_x} y={ship_y}/>
     }
     for asteroid in asteroids {
         <Image source={asteroid.animation.frame} anchor=50% x={asteroid.x} y={asteroid.y} width={asteroid.w}
             height={asteroid.w} rotate={(asteroid.r)deg}/>
     }
     for bullet in bullets {
-        <Image width=16px height=16px source=ImageSource::Url("assets/bullet.png") anchor=50% x={bullet.x} y={bullet.y}/>
+        <Image width=16px height=16px source="assets/bullet.png" anchor=50% x={bullet.x} y={bullet.y}/>
     }
     // background
 </Group>
 <Group width=512px height=512px>
     for background in background_tiles {
-        <Image x={background.x} y={background.y} source=ImageSource::Url("assets/starfield0.png")/>
+        <Image x={background.x} y={background.y} source="assets/starfield0.png"/>
     }
 </Group>
 
@@ -34,7 +34,10 @@ if game_state == "PLAYING" {
     @key_up: key_up
     #game_over {
         style: {
-            font: Font::Web("Times New Roman", "", FontStyle::Normal, FontWeight::Bold)
+            font: {
+                family: "Times New Roman"
+                weight: 700
+            }
             font_size: 100px
             fill: WHITE
             align_vertical: TextAlignVertical::Center
@@ -44,7 +47,10 @@ if game_state == "PLAYING" {
     }
     #game_over_score {
         style: {
-            font: Font::Web("Times New Roman", "", FontStyle::Normal, FontWeight::Bold)
+            font: {
+                family: "Times New Roman"
+                weight: 700
+            }
             font_size: 64px
             fill: WHITE
             align_vertical: TextAlignVertical::Center

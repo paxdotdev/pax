@@ -53,6 +53,8 @@ fn renamed_rules(rule: &Rule) -> String {
         Rule::pascal_identifier => "identifier".to_string(),
         Rule::event_id => "@HANDLER_NAME".to_string(),
         Rule::attribute_key_value_pair => "setting key-value pair".to_string(),
+        Rule::class_attribute => "class attribute".to_string(),
+        Rule::class_identifier_list => "class list".to_string(),
         Rule::attribute_transition_binding => "transition binding".to_string(),
         Rule::attribute_event_binding => "handler binding".to_string(),
         Rule::transition_id => "@in or @out".to_string(),

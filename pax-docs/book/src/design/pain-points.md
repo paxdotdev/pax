@@ -1125,3 +1125,64 @@ bindings. Recommendations: place generated-code lint policy inside the generated
 AST node that owns the code, compile both debug/JSON and release/Rust-manifest
 variants in regression tests, and always verify that a warning in hand-authored
 user Rust still escapes the generated boundary.
+
+## 2026-07-27
+
+Rectangle corner radii required a verbose helper expression even for the common
+uniform case because `#[pax]` always generated object-only coercion for structs.
+That also prevented a Pax type from supplying domain-specific literal semantics
+without conflicting with the generated `CoercionRules` implementation.
+
+Solved by allowing `#[custom(CoercionRules)]` to suppress that generated
+implementation and by giving `CornerRadii` scalar and CSS-arity list
+coercions. One radius applies to every corner; two, three, and four values expand
+clockwise using CSS border-radius rules. The existing object representation and
+helper constructor remain available for compatibility.
+
+While implementing the coercion, placing a private conversion utility inside a
+`#[helpers]` impl caused it to be registered as a PAXEL helper and required its
+`Result` return type to implement `ToPaxValue`. The macro now registers only
+plain `pub` associated functions, leaving private and restricted-visibility
+methods as ordinary Rust implementation details. Recommendations: use
+visibility as the explicit PAXEL helper boundary, and use custom coercion for
+small domain types whose natural authoring syntax is a scalar or list.
+
+Migrating `Font::Web(...)` to contextual literals exposed a second,
+compiler-side dependency on the constructor's serialized enum shape: native
+font vendoring scanned the manifest for that shape to discover stylesheet URLs.
+The runtime coercion was correct, but shorthand-authored fonts would not have
+been vendored. The collector now recognizes named `family` and `url` fields
+only when they occur in a `font` property context, avoiding false positives
+from arbitrary objects. A positional list was considered first, but optional
+heterogeneous fields made its indexes opaque; the canonical object instead
+names `family`, `url`, `style`, and `weight`. Recommendations: when a literal
+representation changes, audit compiler passes that inspect serialized values
+in addition to runtime coercion and release baking; prefer type/property
+context over guessing a value's meaning from its shape globally.
+
+Using `pax-cli format` only as a parser check during a broad syntax migration
+rewrote unrelated whitespace and layout throughout each source file, obscuring
+the semantic changes. Running the formatter against temporary copies preserved
+the parse validation without expanding the review surface. Recommendations:
+expect formatting to be a whole-file operation; when validating a deliberately
+minimal mechanical migration, parse temporary copies and leave repository files
+untouched unless a formatting pass is itself part of the task.
+
+Repeated `class=...` attributes were the sole intentional exception to Pax's
+otherwise single-value inline properties, which made multi-class markup look
+like duplicate-key behavior. The parser now accepts `class=[foo, bar]` and
+lowers it to the existing selector metadata, while the formatter canonicalizes
+legacy repeated class attributes to that list form. Dynamic class expressions
+remain unsupported: the current runtime `classes` property mirrors compiled
+selector metadata and does not trigger settings re-resolution. Recommendations:
+keep static classes as symbolic identifiers; design runtime classes separately
+around explicit selector invalidation rather than implying support through a
+string wrapper.
+
+The formatter previously accepted only one path, rewrote it unconditionally,
+and omitted the final newline. This made workspace cleanup and automated drift
+checks awkward. `pax fmt` now defaults to the current directory, recursively
+handles Pax and inline-Rust templates while skipping generated/dependency trees,
+supports `--check`, and emits one final newline. Recommendations: keep check
+mode side-effect free and report concrete paths so local tooling and CI use the
+same formatter contract.

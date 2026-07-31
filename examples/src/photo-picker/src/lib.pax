@@ -48,8 +48,12 @@
     @mount: on_mount
 
     .title {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+                weight: 700
+            }
             font_size: 34px
             fill: rgb(246, 248, 250)
             align_vertical: TextAlignVertical::Center
@@ -58,8 +62,11 @@
         }
     }
     .subtitle {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap", FontStyle::Normal, FontWeight::Normal)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+            }
             font_size: 15px
             fill: rgb(174, 185, 197)
             align_vertical: TextAlignVertical::Top
@@ -68,8 +75,12 @@
         }
     }
     .button_label {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap", FontStyle::Normal, FontWeight::SemiBold)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+                weight: 600
+            }
             font_size: 17px
             fill: WHITE
             align_vertical: TextAlignVertical::Center
@@ -78,8 +89,12 @@
         }
     }
     .status {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap", FontStyle::Normal, FontWeight::SemiBold)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+                weight: 600
+            }
             font_size: 16px
             fill: rgb(238, 242, 247)
             align_vertical: TextAlignVertical::Center
@@ -88,8 +103,11 @@
         }
     }
     .detail {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap", FontStyle::Normal, FontWeight::Normal)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+            }
             font_size: 13px
             fill: rgb(132, 219, 170)
             align_vertical: TextAlignVertical::Center
@@ -98,8 +116,12 @@
         }
     }
     .photo_name {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap", FontStyle::Normal, FontWeight::SemiBold)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+                weight: 600
+            }
             font_size: 15px
             fill: rgb(248, 250, 252)
             align_vertical: TextAlignVertical::Center
@@ -108,8 +130,11 @@
         }
     }
     .photo_meta {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap", FontStyle::Normal, FontWeight::Normal)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+            }
             font_size: 13px
             fill: rgb(187, 195, 204)
             align_vertical: TextAlignVertical::Center
@@ -118,8 +143,11 @@
         }
     }
     .photo_source {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap", FontStyle::Normal, FontWeight::Normal)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+            }
             font_size: 12px
             fill: rgb(117, 204, 226)
             align_vertical: TextAlignVertical::Center
@@ -128,8 +156,11 @@
         }
     }
     .placeholder_label {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap", FontStyle::Normal, FontWeight::Normal)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+            }
             font_size: 11px
             fill: rgb(144, 153, 164)
             align_vertical: TextAlignVertical::Center
@@ -138,8 +169,11 @@
         }
     }
     .empty_state {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap", FontStyle::Normal, FontWeight::Normal)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+            }
             font_size: 15px
             fill: rgb(151, 162, 175)
             align_vertical: TextAlignVertical::Center
@@ -149,11 +183,11 @@
     }
     .primary_button {
         fill: rgb(38, 116, 214)
-        corner_radii: RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)
+        corner_radius: 8.0
     }
     .secondary_button {
         fill: rgb(37, 152, 117)
-        corner_radii: RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)
+        corner_radius: 8.0
     }
     .photo_row {
         fill: rgba(24, 31, 42, 255)
@@ -161,7 +195,7 @@
             color: rgba(72, 86, 103, 255)
             width: 1px
         }
-        corner_radii: RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)
+        corner_radius: 8.0
     }
     .preview_frame {
         fill: rgba(10, 16, 25, 255)
@@ -169,7 +203,7 @@
             color: rgba(83, 99, 118, 255)
             width: 1px
         }
-        corner_radii: RectangleCornerRadii::radii(6.0, 6.0, 6.0, 6.0)
+        corner_radius: 6.0
     }
     .empty_panel {
         fill: rgba(24, 31, 42, 255)
@@ -177,7 +211,7 @@
             color: rgba(72, 86, 103, 255)
             width: 1px
         }
-        corner_radii: RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)
+        corner_radius: 8.0
     }
     .background {
         fill: rgb(12, 18, 28)

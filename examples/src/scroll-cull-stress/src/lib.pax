@@ -7,7 +7,11 @@
         text="Scroll Cull Stress"
         selectable=false
         style={
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap"
+                weight: 700
+            }
             font_size: 28px
             fill: rgba(19, 23, 33, 255)
             align_vertical: TextAlignVertical::Center
@@ -24,7 +28,10 @@
         text="Heavy vector tiles in a long scroller. Designed to stress mesh + texture work so tile culling wins are obvious."
         selectable=false
         style={
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap", FontStyle::Normal, FontWeight::Normal)
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap"
+            }
             font_size: 15px
             fill: rgba(101, 107, 120, 255)
             align_vertical: TextAlignVertical::Top
@@ -56,7 +63,11 @@
                         text={"Vector Tile " + card}
                         selectable=false
                         style={
-                            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap", FontStyle::Normal, FontWeight::Bold)
+                            font: {
+                                family: "Inter"
+                                url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap"
+                                weight: 700
+                            }
                             font_size: 16px
                             fill: rgba(18, 22, 31, 255)
                             align_vertical: TextAlignVertical::Center
@@ -81,15 +92,15 @@
                         y={100% - 30px}
                         width={100% - 48px}
                         height=12px
-                        fill={rgba(235, 228, 220, 255)}
-                        corner_radii={RectangleCornerRadii::radii(6.0, 6.0, 6.0, 6.0)}
+                        fill=rgba(235, 228, 220, 255)
+                        corner_radius=6.0
                     />
 
                     <Rectangle
                         width=100%
                         height=100%
-                        fill={rgba(255, 252, 248, 255)}
-                        corner_radii={RectangleCornerRadii::radii(28.0, 28.0, 28.0, 28.0)}
+                        fill=rgba(255, 252, 248, 255)
+                        corner_radius=28.0
                     />
                 </Group>
             }
@@ -99,5 +110,5 @@
     <Rectangle
         width=100%
         height=100%
-        fill={rgba(247, 242, 235, 255)}/>
+        fill=rgba(247, 242, 235, 255)/>
 </Group>

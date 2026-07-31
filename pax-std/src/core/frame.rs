@@ -45,7 +45,7 @@ pub struct Frame {
     // Controls whether this frame clips descendants outside its bounds.
     pub _clip_content: Property<bool>,
     /// Corner radius used for the frame clipping mask, in pixels.
-    pub border_radius: Property<f64>,
+    pub corner_radius: Property<f64>,
 }
 
 impl Default for Frame {
@@ -55,7 +55,7 @@ impl Default for Frame {
             autosize_x: Property::new(None),
             autosize_y: Property::new(None),
             _clip_content: Property::new(true),
-            border_radius: Property::new(0.0),
+            corner_radius: Property::new(0.0),
         }
     }
 }
@@ -124,9 +124,9 @@ impl InstanceNode for FrameInstance {
     }
 
     fn resolve_effect_clip_path(&self, expanded_node: &ExpandedNode) -> Option<BezPath> {
-        let (clip_content, border_radius) =
+        let (clip_content, corner_radius) =
             expanded_node.with_properties_unwrapped(|frame: &mut Frame| {
-                (frame._clip_content.get(), frame.border_radius.get())
+                (frame._clip_content.get(), frame.corner_radius.get())
             });
         if !clip_content {
             return None;
@@ -137,7 +137,7 @@ impl InstanceNode for FrameInstance {
         let (width, height) = t_and_b.bounds;
 
         let max_radius = 0.5 * width.max(0.0).min(height.max(0.0));
-        let radius = border_radius.clamp(0.0, max_radius);
+        let radius = corner_radius.clamp(0.0, max_radius);
         let rect = RoundedRect::new(0.0, 0.0, width, height, radius);
         let bez_path = rect.to_path(0.1);
 
@@ -258,9 +258,9 @@ impl InstanceNode for FrameInstance {
                     expanded_node.with_properties_unwrapped(|properties: &mut Frame| {
                         let computed_tab = expanded_node.transform_and_bounds.get();
                         let (width, height) = computed_tab.bounds;
-                        let border_radius = properties.border_radius.get();
+                        let corner_radius = properties.corner_radius.get();
                         let max_radius = 0.5 * width.max(0.0).min(height.max(0.0));
-                        let clamped_radius = border_radius.clamp(0.0, max_radius);
+                        let clamped_radius = corner_radius.clamp(0.0, max_radius);
                         let clip_path = if properties._clip_content.get()
                             && clamped_radius > f64::EPSILON
                         {
@@ -278,9 +278,9 @@ impl InstanceNode for FrameInstance {
                                 properties._clip_content.get(),
                             ),
                             patch_if_needed(
-                                &mut old_state.border_radius,
-                                &mut patch.border_radius,
-                                border_radius,
+                                &mut old_state.corner_radius,
+                                &mut patch.corner_radius,
+                                corner_radius,
                             ),
                             patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
                             patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),

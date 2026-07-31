@@ -128,12 +128,11 @@
 
     .page_eyebrow {
         style: {
-            font: Font::Web(
-                "IBM Plex Mono",
-                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
-                FontStyle::Normal,
-                FontWeight::Medium
-            )
+            font: {
+                family: "IBM Plex Mono"
+                url: "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+                weight: 500
+            }
             font_size: 14px
             fill: rgba(117, 200, 255, 255)
             align_horizontal: TextAlignHorizontal::Left
@@ -144,12 +143,11 @@
 
     .page_title {
         style: {
-            font: Font::Web(
-                "Space Grotesk",
-                "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap",
-                FontStyle::Normal,
-                FontWeight::Bold
-            )
+            font: {
+                family: "Space Grotesk"
+                url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap"
+                weight: 700
+            }
             font_size: 30px
             fill: rgba(244, 247, 255, 255)
             align_horizontal: TextAlignHorizontal::Left
@@ -160,12 +158,10 @@
 
     .page_copy {
         style: {
-            font: Font::Web(
-                "Space Grotesk",
-                "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap",
-                FontStyle::Normal,
-                FontWeight::Normal
-            )
+            font: {
+                family: "Space Grotesk"
+                url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap"
+            }
             font_size: 16px
             fill: rgba(189, 198, 212, 255)
             align_horizontal: TextAlignHorizontal::Left

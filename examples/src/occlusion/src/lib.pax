@@ -186,45 +186,25 @@
         y: 16px,
         width: 100%,
         height: 100%,
-        corner_radii: {
-            top_left: 24,
-            top_right: 24,
-            bottom_left: 24,
-            bottom_right: 24,
-        },
+        corner_radius: 24,
     }
 
     .card_surface_light {
         width: 100%,
         height: 100%,
-        corner_radii: {
-            top_left: 24,
-            top_right: 24,
-            bottom_left: 24,
-            bottom_right: 24,
-        },
+        corner_radius: 24,
     }
 
     .card_surface_dark {
         width: 100%,
         height: 100%,
-        corner_radii: {
-            top_left: 24,
-            top_right: 24,
-            bottom_left: 24,
-            bottom_right: 24,
-        },
+        corner_radius: 24,
     }
 
     .card_surface_mid {
         width: 100%,
         height: 100%,
-        corner_radii: {
-            top_left: 24,
-            top_right: 24,
-            bottom_left: 24,
-            bottom_right: 24,
-        },
+        corner_radius: 24,
     }
 
     .card_title_dark {
@@ -314,7 +294,7 @@
             color: rgba(191, 109, 77, 255),
             width: 0px,
         },
-        border_radius: 14,
+        corner_radius: 14,
         style: {
             font_size: 15px,
             fill: rgba(68, 64, 60, 255),
@@ -335,7 +315,7 @@
             color: rgba(59, 130, 246, 255),
             width: 0px,
         },
-        border_radius: 14,
+        corner_radius: 14,
         style: {
             font_size: 15px,
             fill: rgba(30, 41, 59, 255),
@@ -349,7 +329,7 @@
     .button_hot {
         color: rgba(21, 128, 61, 255),
         hover_color: rgba(22, 101, 52, 255),
-        border_radius: 14,
+        corner_radius: 14,
         outline: {
             color: rgba(255, 255, 255, 35),
             width: 1px,
@@ -367,7 +347,7 @@
     .button_dark {
         color: rgba(37, 99, 235, 255),
         hover_color: rgba(29, 78, 216, 255),
-        border_radius: 14,
+        corner_radius: 14,
         outline: {
             color: rgba(255, 255, 255, 40),
             width: 1px,

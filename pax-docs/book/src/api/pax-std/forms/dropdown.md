@@ -33,7 +33,7 @@ Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Color`](/api/p
 
 Dropdown background color.
 
-##### `border_radius`
+##### `corner_radius`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`f64`>
 
 Dropdown corner radius, in pixels.

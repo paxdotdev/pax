@@ -8,6 +8,34 @@
 - Units and expressions in attributes: `px`, `%`, `deg`, arithmetic.
 - Settings blocks: `@settings` and per-node style application.
 
+## IDs and classes
+
+Use `id` for one unique node and `class` for reusable settings selectors. A
+single class may be written as a symbolic identifier; multiple classes
+canonically use one list:
+
+```pax
+<Text id=page_title class=heading />
+<Rectangle class=[card, elevated, interactive] />
+
+@settings {
+    #page_title {
+        width: 100%
+    }
+
+    .card {
+        corner_radius: 12
+    }
+}
+```
+
+Class names are static selector symbols, not quoted strings. Runtime-computed
+class lists are not currently supported; use conditional settings or bind the
+affected property directly when styling must react to state.
+
+Other inline properties should occur at most once. Duplicate non-class
+properties are not a supported precedence mechanism.
+
 ## Conditional Settings
 
 Top-level `@settings` entries can be guarded with `if`, `else if`, and `else`. Conditions are PAXEL expressions that must evaluate to `bool`, so built-in globals such as `$ios`, `$macos`, `$landscape`, `$viewport.width`, `$frames`, and `$millis` are available.

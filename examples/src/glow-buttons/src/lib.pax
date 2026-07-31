@@ -86,15 +86,15 @@
             <Rectangle
                 width=100%
                 height=100%
-                fill={Fill::linearGradient(
-                    (0%, 0%),
-                    (100%, 100%),
-                    [
-                        GradientStop::get(rgba(7, 10, 18, 255), 0%),
-                        GradientStop::get(rgba(15, 19, 34, 255), 52%),
-                        GradientStop::get(rgba(9, 12, 23, 255), 100%)
-                    ]
-                )}
+                fill=@gradient {
+                    linear: {
+                        start: [0%, 0%]
+                        end: [100%, 100%]
+                    }
+                    0%: rgba(7, 10, 18, 255)
+                    52%: rgba(15, 19, 34, 255)
+                    100%: rgba(9, 12, 23, 255)
+                }
                 material={background_material}
             />
         </Group>
@@ -103,15 +103,15 @@
     <Rectangle
         width=100%
         height=100%
-        fill={Fill::linearGradient(
-            (0%, 0%),
-            (100%, 100%),
-            [
-                GradientStop::get(rgba(7, 10, 18, 255), 0%),
-                GradientStop::get(rgba(15, 19, 34, 255), 52%),
-                GradientStop::get(rgba(9, 12, 23, 255), 100%)
-            ]
-        )}
+        fill=@gradient {
+            linear: {
+                start: [0%, 0%]
+                end: [100%, 100%]
+            }
+            0%: rgba(7, 10, 18, 255)
+            52%: rgba(15, 19, 34, 255)
+            100%: rgba(9, 12, 23, 255)
+        }
         material={background_material}
     />
 </Group>
@@ -121,13 +121,12 @@
     @pre_render: handle_pre_render
 
     #eyebrow {
-        style: TextStyle {
-            font: Font::Web(
-                "Inter",
-                "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap",
-                FontStyle::Normal,
-                FontWeight::SemiBold
-            )
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap"
+                weight: 600
+            }
             font_size: 11px
             fill: rgba(123, 151, 255, 220)
             align_vertical: TextAlignVertical::Center
@@ -137,13 +136,12 @@
     }
 
     #title {
-        style: TextStyle {
-            font: Font::Web(
-                "Inter",
-                "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap",
-                FontStyle::Normal,
-                FontWeight::ExtraBold
-            )
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap"
+                weight: 800
+            }
             font_size: {is_compact ? 34px : 42px}
             fill: rgba(246, 248, 255, 255)
             align_vertical: TextAlignVertical::Center
@@ -153,13 +151,12 @@
     }
 
     #instructions {
-        style: TextStyle {
-            font: Font::Web(
-                "Inter",
-                "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap",
-                FontStyle::Normal,
-                FontWeight::Medium
-            )
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap"
+                weight: 500
+            }
             font_size: 14px
             fill: rgba(180, 189, 214, 225)
             align_vertical: TextAlignVertical::Top
@@ -169,13 +166,12 @@
     }
 
     #footer_hint {
-        style: TextStyle {
-            font: Font::Web(
-                "Inter",
-                "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap",
-                FontStyle::Normal,
-                FontWeight::Medium
-            )
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap"
+                weight: 500
+            }
             font_size: 11px
             fill: rgba(145, 154, 180, 188)
             align_vertical: TextAlignVertical::Center
@@ -185,13 +181,12 @@
     }
 
     #press_count {
-        style: TextStyle {
-            font: Font::Web(
-                "Inter",
-                "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap",
-                FontStyle::Normal,
-                FontWeight::SemiBold
-            )
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap"
+                weight: 600
+            }
             font_size: 11px
             fill: rgba(179, 194, 255, 210)
             align_vertical: TextAlignVertical::Center

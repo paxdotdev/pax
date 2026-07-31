@@ -79,7 +79,7 @@
 
     .carousel_dots_pill {
         fill: rgba(30, 30, 30, 180),
-        corner_radii: {RectangleCornerRadii::radii(13.0, 13.0, 13.0, 13.0)},
+        corner_radius: 13.0,
     }
 
     .carousel_dot {

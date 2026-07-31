@@ -100,7 +100,7 @@ Type: `Option`<[`ColorMessage`](/api/internal/pax-message/index.md#colormessage)
 ##### `outline_stroke_width`
 Type: `Option`<`f64`>
 
-##### `border_radius`
+##### `corner_radius`
 Type: `Option`<`f64`>
 
 ##### `transform`
@@ -169,7 +169,7 @@ Type: `Option`<[`ColorMessage`](/api/internal/pax-message/index.md#colormessage)
 ##### `outline_width`
 Type: `Option`<`f64`>
 
-##### `border_radius`
+##### `corner_radius`
 Type: `Option`<`f64`>
 
 ##### `transform`
@@ -312,7 +312,7 @@ Type: `Option`<[`ColorMessage`](/api/internal/pax-message/index.md#colormessage)
 ##### `stroke_width`
 Type: `Option`<`f64`>
 
-##### `border_radius`
+##### `corner_radius`
 Type: `Option`<`f64`>
 
 ##### `style`
@@ -324,7 +324,7 @@ Type: `Option`<`Option`<[`AppleLiquidGlassPatch`](/api/internal/pax-message/inde
 ---
 
 ### `EventBlockerPatch`
-Create/update patch for an invisible native hit-test blocker.
+Create/update patch for a native hit-test blocker with an optional solid background.
 
 #### Properties
 ##### `id`
@@ -347,6 +347,9 @@ Type: `Option`<`Vec`<`f64`>>
 
 ##### `opacity`
 Type: `Option`<`f64`>
+
+##### `background`
+Type: `Option`<[`ColorMessage`](/api/internal/pax-message/index.md#colormessage)>
 
 ---
 
@@ -452,7 +455,7 @@ Type: `Option`<`i32`>
 ##### `clip_content`
 Type: `Option`<`bool`>
 
-##### `border_radius`
+##### `corner_radius`
 Type: `Option`<`f64`>
 
 ##### `size_x`
@@ -503,7 +506,7 @@ Type: `Option`<`f64`>
 ##### `opacity`
 Type: `Option`<`f64`>
 
-##### `border_radius`
+##### `corner_radius`
 Type: `Option`<`f64`>
 
 ##### `liquid_glass`
@@ -1145,7 +1148,7 @@ Type: `Option`<`f64`>
 ##### `clip_content`
 Type: `Option`<`bool`>
 
-##### `border_radius`
+##### `corner_radius`
 Type: `Option`<`f64`>
 
 ##### `size_inner_pane_x`
@@ -1270,7 +1273,7 @@ Type: `Option`<[`ColorMessage`](/api/internal/pax-message/index.md#colormessage)
 ##### `background`
 Type: `Option`<[`ColorMessage`](/api/internal/pax-message/index.md#colormessage)>
 
-##### `border_radius`
+##### `corner_radius`
 Type: `Option`<`f64`>
 
 ##### `liquid_glass`
@@ -1453,7 +1456,7 @@ Type: `Option`<[`ColorMessage`](/api/internal/pax-message/index.md#colormessage)
 ##### `stroke_width`
 Type: `Option`<`f64`>
 
-##### `border_radius`
+##### `corner_radius`
 Type: `Option`<`f64`>
 
 ##### `style`

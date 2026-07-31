@@ -41,6 +41,7 @@
     - [variables](api/pax-runtime-api/variables.md)
   - [pax-std](api/pax-std/index.md)
     - [core](api/pax-std/core.md)
+      - [core::event_blocker](api/pax-std/core/event_blocker.md)
       - [core::frame](api/pax-std/core/frame.md)
       - [core::group](api/pax-std/core/group.md)
       - [core::import_settings](api/pax-std/core/import_settings.md)

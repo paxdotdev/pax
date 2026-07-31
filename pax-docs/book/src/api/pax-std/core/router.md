@@ -10,9 +10,6 @@ Use `path` for explicit path matching, `:param` for single-segment capture,
 and a terminal `*` to consume the remaining tail. Use `default=true` to
 provide the fallback branch when no explicit path matches.
 
-`Route` is a normal component shell: `Router` selects and mounts the `Route`
-node, and the shell renders its projected children.
-
 #### Properties
 ##### `path`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`String`>
@@ -51,38 +48,36 @@ Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`bool`>
 Fallback card branch used when no `path` branch matches.
 
 ##### `edge`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`RouteCardEdge`](#routecardedge)>
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`RouteCardEdge`](/api/pax-std/core/router.md#routecardedge)>
 
-Edge from which the card enters and toward which it exits.
+Edge used by the generated card enter/exit transition.
 
 ##### `duration`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Duration`](/api/pax-runtime-api/animation.md#duration)>
 
-Duration for the generated card enter/exit transition. Literal time durations
-may be written as frames or time units, e.g. `18f` or `240ms`.
+Duration for the generated card enter/exit transition.
 
 ##### `scrim_opacity`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Opacity`](/api/pax-runtime-api/color.md#opacity)>
 
-Maximum opacity for the black scrim over the retained background. Unitless
-values are normalized alpha (`0.3` is 30%); percentages such as `30%` are also
-supported.
+Maximum opacity for the black scrim over the retained background.
+Unitless values are normalized alpha (`0.3` is 30%); percentages such
+as `30%` are also supported.
 
 ##### `curve`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`RouteCardCurve`](#routecardcurve)>
+Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`RouteCardCurve`](/api/pax-std/core/router.md#routecardcurve)>
 
-Reserved easing tuning for the card transition. The current built-in shell uses
-`OutQuad` for its slide.
+Reserved easing tuning for the card enter/exit transition.
 
 ---
 
 ### `RouteModal`
 Stacked route branch consumed by a parent [`Router`].
 
-`RouteModal` matches like [`Route`], but it keeps the previously mounted branch
-active underneath while the modal branch is active. The shell fades a black
-scrim over the retained branch; the route's own contents are responsible for
-any modal-specific enter/exit transition.
+`RouteModal` matches like [`Route`], but it keeps the previously mounted
+branch active underneath while the modal branch is active. The shell fades a
+black scrim over the retained branch; the route's own contents are
+responsible for any modal-specific enter/exit transition.
 
 #### Properties
 ##### `path`
@@ -98,25 +93,23 @@ Fallback modal branch used when no `path` branch matches.
 ##### `duration`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Duration`](/api/pax-runtime-api/animation.md#duration)>
 
-Duration for the generated modal scrim enter/exit transition. Set this to match
-the modal content's own movement duration when the content declares custom
-`@in` / `@out` motion.
+Duration for the generated modal scrim enter/exit transition.
 
 ##### `scrim_opacity`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Opacity`](/api/pax-runtime-api/color.md#opacity)>
 
-Maximum opacity for the black scrim over the retained background. Unitless
-values are normalized alpha (`0.3` is 30%); percentages such as `30%` are also
-supported.
+Maximum opacity for the black scrim over the retained background.
+Unitless values are normalized alpha (`0.3` is 30%); percentages such
+as `30%` are also supported.
 
 ---
 
 ### `Router`
-Declarative route reader that selects one active route branch subtree.
+Declarative route reader that selects one active [`Route`] child subtree.
 
 `Router` is a control-flow primitive: it does not render by itself.
-Instead, it matches the current location against its direct route branch
-children and mounts only the winning branch node.
+Instead, it matches the current location against its child `Route` branches
+and mounts only the winning subtree.
 
 The active subtree receives an implicit `route` binding with:
 
@@ -129,51 +122,26 @@ The active subtree receives an implicit `route` binding with:
 Nested routers match against the nearest ancestor `route.remainder` by
 default, which keeps route trees composable without manual string slicing.
 
-#### Custom Route Branches
-`Router` does not require branches to be named `Route`. A component or
-primitive can act as a route branch when its Rust definition declares the route
-branch contract:
-
-```rust
-#[pax]
-#[route_branch(path = "path", default = "default")]
-#[file("src/my_card_route.pax")]
-pub struct MyCardRoute {
-    pub path: Property<String>,
-    pub r#default: Property<bool>,
-    pub edge: Property<MyEdge>,
-}
-```
-
-The `path` and `default` arguments name the component properties that `Router`
-reads statically while parsing its direct children. Other properties are owned
-by the branch component and remain normal userland configuration. Custom names
-are supported:
-
-```rust
-#[route_branch(path = "pattern", default = "fallback")]
-```
-
-```pax
-<Router>
-    <MyCardRoute path="/details/:id" edge=MyEdge::Trailing>
-        <DetailsPanel />
-    </MyCardRoute>
-    <MyCardRoute default=true />
-</Router>
-```
-
 ## Enums
 ### `RouteCardCurve`
 Reserved easing curve values for [`RouteCard`] transition tuning.
 
 #### Variants
-`Linear`, `Hold`, `InQuad`, `OutQuad`, `InOutQuad`, `InBack`, `OutBack`, `InOutBack`
-
+##### `Linear`
+##### `Hold`
+##### `InQuad`
+##### `OutQuad`
+##### `InOutQuad`
+##### `InBack`
+##### `OutBack`
+##### `InOutBack`
 ---
 
 ### `RouteCardEdge`
 Edge used by [`RouteCard`] transitions.
 
 #### Variants
-`Leading`, `Trailing`, `Top`, `Bottom`
+##### `Leading`
+##### `Trailing`
+##### `Top`
+##### `Bottom`

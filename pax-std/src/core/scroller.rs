@@ -24,7 +24,7 @@ use_RefCell!();
         scroll_pos_y=bind:scroll_pos_y
         scroll_width={self._resolved_scroll_width}
         scroll_height={self._resolved_scroll_height}
-        border_radius={self.border_radius}
+        corner_radius={self.corner_radius}
         snap_positions_x={self.snap_positions_x}
         snap_positions_y={self.snap_positions_y}
         _clip_content={!$suspended}
@@ -59,7 +59,7 @@ pub struct Scroller {
     /// Optional override for whether autosize manages the `y` axis.
     pub autosize_y: Property<Option<bool>>,
     /// Corner radius for the scroller clipping region, in pixels.
-    pub border_radius: Property<f64>,
+    pub corner_radius: Property<f64>,
     /// Scroll snap anchors expressed in px/% along each axis.
     /// Web maps to CSS scroll-snap-type + scroll-snap-align; Apple chassis map these
     /// offsets to native scroll end-points while keeping engine scroll state authoritative.
@@ -89,7 +89,7 @@ impl Default for Scroller {
             autosize: Property::new(false),
             autosize_x: Property::new(None),
             autosize_y: Property::new(None),
-            border_radius: Property::new(0.0),
+            corner_radius: Property::new(0.0),
             snap_positions_x: Default::default(),
             snap_positions_y: Default::default(),
             _clip_content: Property::new(true),
@@ -115,7 +115,7 @@ pub struct ScrollerHost {
     // Native inner pane height.
     pub scroll_height: Property<Size>,
     // Native clipping corner radius.
-    pub border_radius: Property<f64>,
+    pub corner_radius: Property<f64>,
     // Horizontal native snap anchors.
     pub snap_positions_x: Property<Vec<Size>>,
     // Vertical native snap anchors.
@@ -135,7 +135,7 @@ impl Default for ScrollerHost {
             scroll_pos_y: Default::default(),
             scroll_width: Default::default(),
             scroll_height: Default::default(),
-            border_radius: Property::new(0.0),
+            corner_radius: Property::new(0.0),
             snap_positions_x: Default::default(),
             snap_positions_y: Default::default(),
             _presentation_scroll_x: Default::default(),
@@ -192,7 +192,7 @@ fn resolve_scroller_island_layer(expanded_node: &ExpandedNode) -> Option<usize> 
 fn scroller_clip_path(
     expanded_node: &ExpandedNode,
     clip_content: bool,
-    border_radius: f64,
+    corner_radius: f64,
 ) -> Option<BezPath> {
     if !clip_content {
         return None;
@@ -202,7 +202,7 @@ fn scroller_clip_path(
     let transform = t_and_b.transform;
     let (width, height) = t_and_b.bounds;
     let max_radius = 0.5 * width.max(0.0).min(height.max(0.0));
-    let radius = border_radius.clamp(0.0, max_radius);
+    let radius = corner_radius.clamp(0.0, max_radius);
 
     let bez_path = if radius > f64::EPSILON {
         RoundedRect::new(0.0, 0.0, width, height, radius).to_path(0.1)
@@ -372,9 +372,9 @@ impl InstanceNode for ScrollerHostInstance {
                     expanded_node.with_properties_unwrapped(|properties: &mut ScrollerHost| {
                         let computed_tab = expanded_node.transform_and_bounds.get();
                         let (width, height) = computed_tab.bounds;
-                        let border_radius = properties.border_radius.get();
+                        let corner_radius = properties.corner_radius.get();
                         let max_radius = 0.5 * width.max(0.0).min(height.max(0.0));
-                        let clamped_radius = border_radius.clamp(0.0, max_radius);
+                        let clamped_radius = corner_radius.clamp(0.0, max_radius);
                         let scroll_width = properties.scroll_width.get().get_pixels(width);
                         let scroll_height = properties.scroll_height.get().get_pixels(height);
                         let snap_points_x: Vec<f64> = properties
@@ -428,8 +428,8 @@ impl InstanceNode for ScrollerHostInstance {
                             patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
                             patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),
                             patch_if_needed(
-                                &mut old_state.border_radius,
-                                &mut patch.border_radius,
+                                &mut old_state.corner_radius,
+                                &mut patch.corner_radius,
                                 clamped_radius,
                             ),
                             patch_if_needed(
@@ -585,11 +585,11 @@ impl InstanceNode for ScrollerHostInstance {
     }
 
     fn resolve_effect_clip_path(&self, expanded_node: &ExpandedNode) -> Option<BezPath> {
-        let (clip_content, border_radius) =
+        let (clip_content, corner_radius) =
             expanded_node.with_properties_unwrapped(|scroller: &mut ScrollerHost| {
-                (scroller._clip_content.get(), scroller.border_radius.get())
+                (scroller._clip_content.get(), scroller.corner_radius.get())
             });
-        scroller_clip_path(expanded_node, clip_content, border_radius)
+        scroller_clip_path(expanded_node, clip_content, corner_radius)
     }
 
     fn handle_pre_render(

@@ -21,13 +21,13 @@ use pax_runtime::{
         }
     </Group>
     if self._showing {
-        <Frame x=0px y={100% + 8px} anchor_x=0% anchor_y=0% width=220px autosize_y=true border_radius=8.0 layout_role=LayoutRole::Breakout>
+        <Frame x=0px y={100% + 8px} anchor_x=0% anchor_y=0% width=220px autosize_y=true corner_radius=8.0 layout_role=LayoutRole::Breakout>
             <Text x=12px y=10px width={100% - 24px} id=text text={self.tip}/>
             <Rectangle
                 width=100%
                 height=100%
                 fill=rgb(12.5%, 12.5%, 12.5%)
-                corner_radii={RectangleCornerRadii::radii(8.00, 8.00, 8.00, 8.00)}/>
+                corner_radius=8.00/>
         </Frame>
     }
     @settings {
@@ -38,12 +38,11 @@ use pax_runtime::{
         #text {
             selectable: false,
             style: {
-                    font: {Font::Web(
-                        "ff-real-headline-pro",
-                        "https://use.typekit.net/ivu7epf.css",
-                        FontStyle::Normal,
-                        FontWeight::ExtraLight,
-                    )},
+                    font: {
+                        family: "ff-real-headline-pro"
+                        url: "https://use.typekit.net/ivu7epf.css"
+                        weight: 200
+                    },
                     font_size: 16px,
                     fill: WHITE,
                     align_vertical: TextAlignVertical::Top,

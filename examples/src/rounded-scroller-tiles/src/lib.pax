@@ -4,7 +4,7 @@
         height=100%
         direction=StackerDirection::Vertical
         gutter=20px
-        sizes=[Some(112px), None]
+        sizes=[112px, None]
     >
         <Group width=100% height=100%>
             <Text
@@ -15,7 +15,11 @@
                 text="Rounded Scroller Tiles"
                 selectable=false
                 style={
-                    font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::SemiBold)
+                    font: {
+                        family: "Space Grotesk"
+                        url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&display=swap"
+                        weight: 600
+                    }
                     font_size: 28px
                     fill: rgba(240, 245, 255, 255)
                     align_vertical: TextAlignVertical::Center
@@ -33,7 +37,10 @@
                 text="Six scrollers with different corner radii. Scroll each tile to watch canvas gradients and native labels clip cleanly."
                 selectable=false
                 style={
-                    font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500&display=swap", FontStyle::Normal, FontWeight::Normal)
+                    font: {
+                        family: "Space Grotesk"
+                        url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500&display=swap"
+                    }
                     font_size: 15px
                     fill: rgba(170, 182, 198, 255)
                     align_vertical: TextAlignVertical::Top
@@ -64,30 +71,30 @@
                     >
                         <Group width=100% height=100%>
 
-                                <Frame x=0px y=0px width=100% height=100% border_radius=8.0>
-                                <Scroller x=0px y=0px width=100% height=100% scroll_width=100% scroll_height=1800px border_radius=8.0>
+                                <Frame x=0px y=0px width=100% height=100% corner_radius=8.0>
+                                <Scroller x=0px y=0px width=100% height=100% scroll_width=100% scroll_height=1800px corner_radius=8.0>
                                     <Group x=0px y=0px width=100% height=1800px>
                                         <Rectangle
                                             x=0px
                                             y=0px
                                             width=100%
                                             height=1800px
-                                            fill={Fill::linearGradient(
-                                                (0%, 0%),
-                                                (0%, 100%),
-                                                [
-                                                    GradientStop::get(Color::rgba(186, 224, 255, 255), 0%),
-                                                    GradientStop::get(Color::rgba(44, 96, 168, 255), 100%)
-                                                ]
-                                            )}
+                                            fill=@gradient {
+                                                linear: {
+                                                    start: [0%, 0%]
+                                                    end: [0%, 100%]
+                                                }
+                                                0%: rgba(186, 224, 255, 255)
+                                                100%: rgba(44, 96, 168, 255)
+                                            }
                                         />
                                         <Rectangle
                                             x=12px
                                             y=12px
                                             width=140px
                                             height=30px
-                                            fill={rgba(6, 10, 16, 200)}
-                                            corner_radii={RectangleCornerRadii::radii(12.0, 12.0, 12.0, 12.0)}
+                                            fill=rgba(6, 10, 16, 200)
+                                            corner_radius=12.0
                                         />
                                         <Text
                                             x=18px
@@ -97,7 +104,11 @@
                                             text="Radius 8"
                                             selectable=false
                                             style={
-                                                font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500&display=swap", FontStyle::Normal, FontWeight::Medium)
+                                                font: {
+                                                    family: "Space Grotesk"
+                                                    url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500&display=swap"
+                                                    weight: 500
+                                                }
                                                 font_size: 13px
                                                 fill: rgba(245, 248, 255, 255)
                                                 align_vertical: TextAlignVertical::Center
@@ -112,30 +123,30 @@
                         </Group>
 
                         <Group width=100% height=100%>
-                                <Frame x=0px y=0px width=100% height=100% border_radius=16.0>
-                                <Scroller x=0px y=0px width=100% height=100% scroll_width=100% scroll_height=1800px border_radius=16.0>
+                                <Frame x=0px y=0px width=100% height=100% corner_radius=16.0>
+                                <Scroller x=0px y=0px width=100% height=100% scroll_width=100% scroll_height=1800px corner_radius=16.0>
                                     <Group x=0px y=0px width=100% height=1800px>
                                         <Rectangle
                                             x=0px
                                             y=0px
                                             width=100%
                                             height=1800px
-                                            fill={Fill::linearGradient(
-                                                (0%, 0%),
-                                                (0%, 100%),
-                                                [
-                                                    GradientStop::get(Color::rgba(255, 220, 186, 255), 0%),
-                                                    GradientStop::get(Color::rgba(196, 95, 32, 255), 100%)
-                                                ]
-                                            )}
+                                            fill=@gradient {
+                                                linear: {
+                                                    start: [0%, 0%]
+                                                    end: [0%, 100%]
+                                                }
+                                                0%: rgba(255, 220, 186, 255)
+                                                100%: rgba(196, 95, 32, 255)
+                                            }
                                         />
                                         <Rectangle
                                             x=12px
                                             y=12px
                                             width=140px
                                             height=30px
-                                            fill={rgba(6, 10, 16, 200)}
-                                            corner_radii={RectangleCornerRadii::radii(12.0, 12.0, 12.0, 12.0)}
+                                            fill=rgba(6, 10, 16, 200)
+                                            corner_radius=12.0
                                         />
                                         <Text
                                             x=18px
@@ -145,7 +156,11 @@
                                             text="Radius 16"
                                             selectable=false
                                             style={
-                                                font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500&display=swap", FontStyle::Normal, FontWeight::Medium)
+                                                font: {
+                                                    family: "Space Grotesk"
+                                                    url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500&display=swap"
+                                                    weight: 500
+                                                }
                                                 font_size: 13px
                                                 fill: rgba(245, 248, 255, 255)
                                                 align_vertical: TextAlignVertical::Center
@@ -160,30 +175,30 @@
                         </Group>
 
                         <Group width=100% height=100%>
-                                <Frame x=0px y=0px width=100% height=100% border_radius=24.0>
-                                <Scroller x=0px y=0px width=100% height=100% scroll_width=100% scroll_height=1800px border_radius=24.0>
+                                <Frame x=0px y=0px width=100% height=100% corner_radius=24.0>
+                                <Scroller x=0px y=0px width=100% height=100% scroll_width=100% scroll_height=1800px corner_radius=24.0>
                                     <Group x=0px y=0px width=100% height=1800px>
                                         <Rectangle
                                             x=0px
                                             y=0px
                                             width=100%
                                             height=1800px
-                                            fill={Fill::linearGradient(
-                                                (0%, 0%),
-                                                (0%, 100%),
-                                                [
-                                                    GradientStop::get(Color::rgba(222, 205, 255, 255), 0%),
-                                                    GradientStop::get(Color::rgba(120, 76, 178, 255), 100%)
-                                                ]
-                                            )}
+                                            fill=@gradient {
+                                                linear: {
+                                                    start: [0%, 0%]
+                                                    end: [0%, 100%]
+                                                }
+                                                0%: rgba(222, 205, 255, 255)
+                                                100%: rgba(120, 76, 178, 255)
+                                            }
                                         />
                                         <Rectangle
                                             x=12px
                                             y=12px
                                             width=140px
                                             height=30px
-                                            fill={rgba(6, 10, 16, 200)}
-                                            corner_radii={RectangleCornerRadii::radii(12.0, 12.0, 12.0, 12.0)}
+                                            fill=rgba(6, 10, 16, 200)
+                                            corner_radius=12.0
                                         />
                                         <Text
                                             x=18px
@@ -193,7 +208,11 @@
                                             text="Radius 24"
                                             selectable=false
                                             style={
-                                                font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500&display=swap", FontStyle::Normal, FontWeight::Medium)
+                                                font: {
+                                                    family: "Space Grotesk"
+                                                    url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500&display=swap"
+                                                    weight: 500
+                                                }
                                                 font_size: 13px
                                                 fill: rgba(245, 248, 255, 255)
                                                 align_vertical: TextAlignVertical::Center
@@ -218,30 +237,30 @@
                         sizes=[None, None, None]
                     >
                         <Group width=100% height=100%>
-                                <Frame x=0px y=0px width=100% height=100% border_radius=32.0>
-                                <Scroller x=0px y=0px width=100% height=100% scroll_width=100% scroll_height=1800px border_radius=32.0>
+                                <Frame x=0px y=0px width=100% height=100% corner_radius=32.0>
+                                <Scroller x=0px y=0px width=100% height=100% scroll_width=100% scroll_height=1800px corner_radius=32.0>
                                     <Group x=0px y=0px width=100% height=1800px>
                                         <Rectangle
                                             x=0px
                                             y=0px
                                             width=100%
                                             height=1800px
-                                            fill={Fill::linearGradient(
-                                                (0%, 0%),
-                                                (0%, 100%),
-                                                [
-                                                    GradientStop::get(Color::rgba(198, 245, 214, 255), 0%),
-                                                    GradientStop::get(Color::rgba(40, 120, 86, 255), 100%)
-                                                ]
-                                            )}
+                                            fill=@gradient {
+                                                linear: {
+                                                    start: [0%, 0%]
+                                                    end: [0%, 100%]
+                                                }
+                                                0%: rgba(198, 245, 214, 255)
+                                                100%: rgba(40, 120, 86, 255)
+                                            }
                                         />
                                         <Rectangle
                                             x=12px
                                             y=12px
                                             width=140px
                                             height=30px
-                                            fill={rgba(6, 10, 16, 200)}
-                                            corner_radii={RectangleCornerRadii::radii(12.0, 12.0, 12.0, 12.0)}
+                                            fill=rgba(6, 10, 16, 200)
+                                            corner_radius=12.0
                                         />
                                         <Text
                                             x=18px
@@ -251,7 +270,11 @@
                                             text="Radius 32"
                                             selectable=false
                                             style={
-                                                font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500&display=swap", FontStyle::Normal, FontWeight::Medium)
+                                                font: {
+                                                    family: "Space Grotesk"
+                                                    url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500&display=swap"
+                                                    weight: 500
+                                                }
                                                 font_size: 13px
                                                 fill: rgba(245, 248, 255, 255)
                                                 align_vertical: TextAlignVertical::Center
@@ -266,30 +289,30 @@
                         </Group>
 
                         <Group width=100% height=100%>
-                                <Frame x=0px y=0px width=100% height=100% border_radius=40.0>
-                                <Scroller x=0px y=0px width=100% height=100% scroll_width=100% scroll_height=1800px border_radius=40.0>
+                                <Frame x=0px y=0px width=100% height=100% corner_radius=40.0>
+                                <Scroller x=0px y=0px width=100% height=100% scroll_width=100% scroll_height=1800px corner_radius=40.0>
                                     <Group x=0px y=0px width=100% height=1800px>
                                         <Rectangle
                                             x=0px
                                             y=0px
                                             width=100%
                                             height=1800px
-                                            fill={Fill::linearGradient(
-                                                (0%, 0%),
-                                                (0%, 100%),
-                                                [
-                                                    GradientStop::get(Color::rgba(255, 205, 196, 255), 0%),
-                                                    GradientStop::get(Color::rgba(176, 60, 48, 255), 100%)
-                                                ]
-                                            )}
+                                            fill=@gradient {
+                                                linear: {
+                                                    start: [0%, 0%]
+                                                    end: [0%, 100%]
+                                                }
+                                                0%: rgba(255, 205, 196, 255)
+                                                100%: rgba(176, 60, 48, 255)
+                                            }
                                         />
                                         <Rectangle
                                             x=12px
                                             y=12px
                                             width=140px
                                             height=30px
-                                            fill={rgba(6, 10, 16, 200)}
-                                            corner_radii={RectangleCornerRadii::radii(12.0, 12.0, 12.0, 12.0)}
+                                            fill=rgba(6, 10, 16, 200)
+                                            corner_radius=12.0
                                         />
                                         <Text
                                             x=18px
@@ -299,7 +322,11 @@
                                             text="Radius 40"
                                             selectable=false
                                             style={
-                                                font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500&display=swap", FontStyle::Normal, FontWeight::Medium)
+                                                font: {
+                                                    family: "Space Grotesk"
+                                                    url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500&display=swap"
+                                                    weight: 500
+                                                }
                                                 font_size: 13px
                                                 fill: rgba(245, 248, 255, 255)
                                                 align_vertical: TextAlignVertical::Center
@@ -314,30 +341,30 @@
                         </Group>
 
                         <Group width=100% height=100%>
-                                <Frame x=0px y=0px width=100% height=100% border_radius=48.0>
-                                <Scroller x=0px y=0px width=100% height=100% scroll_width=100% scroll_height=1800px border_radius=48.0>
+                                <Frame x=0px y=0px width=100% height=100% corner_radius=48.0>
+                                <Scroller x=0px y=0px width=100% height=100% scroll_width=100% scroll_height=1800px corner_radius=48.0>
                                     <Group x=0px y=0px width=100% height=1800px>
                                     <Rectangle
                                         x=0px
                                         y=0px
                                         width=100%
                                         height=1800px
-                                        fill={Fill::linearGradient(
-                                            (0%, 0%),
-                                            (0%, 100%),
-                                            [
-                                                GradientStop::get(Color::rgba(255, 204, 238, 255), 0%),
-                                                GradientStop::get(Color::rgba(176, 62, 132, 255), 100%)
-                                            ]
-                                        )}
+                                        fill=@gradient {
+                                            linear: {
+                                                start: [0%, 0%]
+                                                end: [0%, 100%]
+                                            }
+                                            0%: rgba(255, 204, 238, 255)
+                                            100%: rgba(176, 62, 132, 255)
+                                        }
                                     />
                                     <Rectangle
                                         x=12px
                                         y=12px
                                         width=140px
                                         height=30px
-                                        fill={rgba(6, 10, 16, 200)}
-                                        corner_radii={RectangleCornerRadii::radii(12.0, 12.0, 12.0, 12.0)}
+                                        fill=rgba(6, 10, 16, 200)
+                                        corner_radius=12.0
                                     />
                                     <Text
                                         x=18px
@@ -347,7 +374,11 @@
                                         text="Radius 48"
                                         selectable=false
                                         style={
-                                            font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500&display=swap", FontStyle::Normal, FontWeight::Medium)
+                                            font: {
+                                                family: "Space Grotesk"
+                                                url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500&display=swap"
+                                                weight: 500
+                                            }
                                             font_size: 13px
                                             fill: rgba(245, 248, 255, 255)
                                             align_vertical: TextAlignVertical::Center
@@ -366,5 +397,5 @@
         </Group>
     </Stacker>
 
-    <Rectangle width=100% height=100% fill={rgba(12, 16, 22, 255)} />
+    <Rectangle width=100% height=100% fill=rgba(12, 16, 22, 255) />
 </Group>

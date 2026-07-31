@@ -1,4 +1,4 @@
-<Path stroke={color: Color::RED, width: 5px}>
+<Path stroke={color: RED, width: 5px}>
     <PathPoint x=0.0 y=0.0/>
     if self.jump {
         <PathLine/>

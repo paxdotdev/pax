@@ -21,7 +21,7 @@ export class FrameUpdatePatch {
             this.sizeY = jsonMessage["size_y"];
             this.transform = jsonMessage["transform"];
             this.clipContent = jsonMessage["clip_content"];
-            this.borderRadius = jsonMessage["border_radius"];
+            this.borderRadius = jsonMessage["corner_radius"];
             this.clipPath = jsonMessage["clip_path"];
             this.opacity = jsonMessage["opacity"];
             this.presentedBounds = jsonMessage["presented_bounds"];

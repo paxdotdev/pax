@@ -119,39 +119,39 @@
         <Rectangle class=stem_near x=121px y=168px width=8px height=612px />
 
         <Group x=124px y=716px width=58px height=158px anchor=[50%, 100%] rotate=-72deg>
-            <Group class=leaf_motion class=sway_a>
+            <Group class=[leaf_motion, sway_a]>
                 <Rectangle class=leaf_vein x=50% y=16% width=2px height=74% anchor_x=50% />
-                <Path class=leaf_path class=leaf_near width=100% height=100% />
+                <Path class=[leaf_path, leaf_near] width=100% height=100% />
             </Group>
         </Group>
         <Group x=124px y=646px width=56px height=146px anchor=[50%, 100%] rotate=58deg>
-            <Group class=leaf_motion class=sway_b>
+            <Group class=[leaf_motion, sway_b]>
                 <Rectangle class=leaf_vein x=50% y=16% width=2px height=74% anchor_x=50% />
-                <Path class=leaf_path class=leaf_near width=100% height=100% />
+                <Path class=[leaf_path, leaf_near] width=100% height=100% />
             </Group>
         </Group>
         <Group x=124px y=572px width=52px height=136px anchor=[50%, 100%] rotate=-64deg>
-            <Group class=leaf_motion class=sway_c>
+            <Group class=[leaf_motion, sway_c]>
                 <Rectangle class=leaf_vein x=50% y=16% width=2px height=74% anchor_x=50% />
-                <Path class=leaf_path class=leaf_mid width=100% height=100% />
+                <Path class=[leaf_path, leaf_mid] width=100% height=100% />
             </Group>
         </Group>
         <Group x=124px y=500px width=48px height=124px anchor=[50%, 100%] rotate=50deg>
-            <Group class=leaf_motion class=sway_a>
+            <Group class=[leaf_motion, sway_a]>
                 <Rectangle class=leaf_vein x=50% y=16% width=2px height=74% anchor_x=50% />
-                <Path class=leaf_path class=leaf_mid width=100% height=100% />
+                <Path class=[leaf_path, leaf_mid] width=100% height=100% />
             </Group>
         </Group>
         <Group x=124px y=424px width=46px height=112px anchor=[50%, 100%] rotate=-54deg>
-            <Group class=leaf_motion class=sway_b>
+            <Group class=[leaf_motion, sway_b]>
                 <Rectangle class=leaf_vein x=50% y=16% width=2px height=74% anchor_x=50% />
-                <Path class=leaf_path class=leaf_mid width=100% height=100% />
+                <Path class=[leaf_path, leaf_mid] width=100% height=100% />
             </Group>
         </Group>
         <Group x=124px y=350px width=42px height=100px anchor=[50%, 100%] rotate=42deg>
-            <Group class=leaf_motion class=sway_c>
+            <Group class=[leaf_motion, sway_c]>
                 <Rectangle class=leaf_vein x=50% y=16% width=2px height=74% anchor_x=50% />
-                <Path class=leaf_path class=leaf_back width=100% height=100% />
+                <Path class=[leaf_path, leaf_back] width=100% height=100% />
             </Group>
         </Group>
     </Group>
@@ -162,33 +162,33 @@
         <Rectangle class=stem_near x=108px y=138px width=8px height=562px />
 
         <Group x=112px y=642px width=54px height=146px anchor=[50%, 100%] rotate=-62deg>
-            <Group class=leaf_motion class=sway_b>
+            <Group class=[leaf_motion, sway_b]>
                 <Rectangle class=leaf_vein x=50% y=16% width=2px height=74% anchor_x=50% />
-                <Path class=leaf_path class=leaf_near width=100% height=100% />
+                <Path class=[leaf_path, leaf_near] width=100% height=100% />
             </Group>
         </Group>
         <Group x=112px y=574px width=52px height=136px anchor=[50%, 100%] rotate=54deg>
-            <Group class=leaf_motion class=sway_c>
+            <Group class=[leaf_motion, sway_c]>
                 <Rectangle class=leaf_vein x=50% y=16% width=2px height=74% anchor_x=50% />
-                <Path class=leaf_path class=leaf_near width=100% height=100% />
+                <Path class=[leaf_path, leaf_near] width=100% height=100% />
             </Group>
         </Group>
         <Group x=112px y=504px width=48px height=126px anchor=[50%, 100%] rotate=-50deg>
-            <Group class=leaf_motion class=sway_a>
+            <Group class=[leaf_motion, sway_a]>
                 <Rectangle class=leaf_vein x=50% y=16% width=2px height=74% anchor_x=50% />
-                <Path class=leaf_path class=leaf_mid width=100% height=100% />
+                <Path class=[leaf_path, leaf_mid] width=100% height=100% />
             </Group>
         </Group>
         <Group x=112px y=434px width=44px height=114px anchor=[50%, 100%] rotate=44deg>
-            <Group class=leaf_motion class=sway_b>
+            <Group class=[leaf_motion, sway_b]>
                 <Rectangle class=leaf_vein x=50% y=16% width=2px height=74% anchor_x=50% />
-                <Path class=leaf_path class=leaf_mid width=100% height=100% />
+                <Path class=[leaf_path, leaf_mid] width=100% height=100% />
             </Group>
         </Group>
         <Group x=112px y=364px width=40px height=98px anchor=[50%, 100%] rotate=-38deg>
-            <Group class=leaf_motion class=sway_c>
+            <Group class=[leaf_motion, sway_c]>
                 <Rectangle class=leaf_vein x=50% y=16% width=2px height=74% anchor_x=50% />
-                <Path class=leaf_path class=leaf_back width=100% height=100% />
+                <Path class=[leaf_path, leaf_back] width=100% height=100% />
             </Group>
         </Group>
     </Group>
@@ -199,39 +199,39 @@
         <Rectangle class=stem_near x=131px y=176px width=8px height=628px />
 
         <Group x=134px y=736px width=60px height=164px anchor=[50%, 100%] rotate=72deg>
-            <Group class=leaf_motion class=sway_c>
+            <Group class=[leaf_motion, sway_c]>
                 <Rectangle class=leaf_vein x=50% y=16% width=2px height=74% anchor_x=50% />
-                <Path class=leaf_path class=leaf_near width=100% height=100% />
+                <Path class=[leaf_path, leaf_near] width=100% height=100% />
             </Group>
         </Group>
         <Group x=134px y=666px width=56px height=150px anchor=[50%, 100%] rotate=-58deg>
-            <Group class=leaf_motion class=sway_a>
+            <Group class=[leaf_motion, sway_a]>
                 <Rectangle class=leaf_vein x=50% y=16% width=2px height=74% anchor_x=50% />
-                <Path class=leaf_path class=leaf_near width=100% height=100% />
+                <Path class=[leaf_path, leaf_near] width=100% height=100% />
             </Group>
         </Group>
         <Group x=134px y=592px width=52px height=138px anchor=[50%, 100%] rotate=62deg>
-            <Group class=leaf_motion class=sway_b>
+            <Group class=[leaf_motion, sway_b]>
                 <Rectangle class=leaf_vein x=50% y=16% width=2px height=74% anchor_x=50% />
-                <Path class=leaf_path class=leaf_mid width=100% height=100% />
+                <Path class=[leaf_path, leaf_mid] width=100% height=100% />
             </Group>
         </Group>
         <Group x=134px y=516px width=48px height=126px anchor=[50%, 100%] rotate=-48deg>
-            <Group class=leaf_motion class=sway_c>
+            <Group class=[leaf_motion, sway_c]>
                 <Rectangle class=leaf_vein x=50% y=16% width=2px height=74% anchor_x=50% />
-                <Path class=leaf_path class=leaf_mid width=100% height=100% />
+                <Path class=[leaf_path, leaf_mid] width=100% height=100% />
             </Group>
         </Group>
         <Group x=134px y=438px width=44px height=114px anchor=[50%, 100%] rotate=52deg>
-            <Group class=leaf_motion class=sway_a>
+            <Group class=[leaf_motion, sway_a]>
                 <Rectangle class=leaf_vein x=50% y=16% width=2px height=74% anchor_x=50% />
-                <Path class=leaf_path class=leaf_mid width=100% height=100% />
+                <Path class=[leaf_path, leaf_mid] width=100% height=100% />
             </Group>
         </Group>
         <Group x=134px y=362px width=40px height=98px anchor=[50%, 100%] rotate=-40deg>
-            <Group class=leaf_motion class=sway_b>
+            <Group class=[leaf_motion, sway_b]>
                 <Rectangle class=leaf_vein x=50% y=16% width=2px height=74% anchor_x=50% />
-                <Path class=leaf_path class=leaf_back width=100% height=100% />
+                <Path class=[leaf_path, leaf_back] width=100% height=100% />
             </Group>
         </Group>
     </Group>
@@ -242,27 +242,27 @@
         <Rectangle class=stem_back x=88px y=122px width=6px height=438px />
 
         <Group x=91px y=518px width=46px height=126px anchor=[50%, 100%] rotate=-58deg>
-            <Group class=leaf_motion class=sway_b>
+            <Group class=[leaf_motion, sway_b]>
                 <Rectangle class=leaf_vein_back x=50% y=16% width=2px height=74% anchor_x=50% />
-                <Path class=leaf_path class=leaf_back width=100% height=100% />
+                <Path class=[leaf_path, leaf_back] width=100% height=100% />
             </Group>
         </Group>
         <Group x=91px y=462px width=42px height=114px anchor=[50%, 100%] rotate=50deg>
-            <Group class=leaf_motion class=sway_c>
+            <Group class=[leaf_motion, sway_c]>
                 <Rectangle class=leaf_vein_back x=50% y=16% width=2px height=74% anchor_x=50% />
-                <Path class=leaf_path class=leaf_back width=100% height=100% />
+                <Path class=[leaf_path, leaf_back] width=100% height=100% />
             </Group>
         </Group>
         <Group x=91px y=402px width=38px height=102px anchor=[50%, 100%] rotate=-46deg>
-            <Group class=leaf_motion class=sway_a>
+            <Group class=[leaf_motion, sway_a]>
                 <Rectangle class=leaf_vein_back x=50% y=16% width=2px height=74% anchor_x=50% />
-                <Path class=leaf_path class=leaf_back class=leaf_round_shape width=100% height=100% />
+                <Path class=[leaf_path, leaf_back, leaf_round_shape] width=100% height=100% />
             </Group>
         </Group>
         <Group x=91px y=344px width=34px height=90px anchor=[50%, 100%] rotate=38deg>
-            <Group class=leaf_motion class=sway_b>
+            <Group class=[leaf_motion, sway_b]>
                 <Rectangle class=leaf_vein_back x=50% y=16% width=2px height=74% anchor_x=50% />
-                <Path class=leaf_path class=leaf_back class=leaf_slim_shape width=100% height=100% />
+                <Path class=[leaf_path, leaf_back, leaf_slim_shape] width=100% height=100% />
             </Group>
         </Group>
     </Group>
@@ -273,27 +273,27 @@
         <Rectangle class=stem_far x=82px y=118px width=6px height=430px />
 
         <Group x=85px y=506px width=42px height=118px anchor=[50%, 100%] rotate=-54deg>
-            <Group class=leaf_motion class=sway_a>
+            <Group class=[leaf_motion, sway_a]>
                 <Rectangle class=leaf_vein_back x=50% y=16% width=2px height=74% anchor_x=50% />
-                <Path class=leaf_path class=leaf_far class=leaf_slim_shape width=100% height=100% />
+                <Path class=[leaf_path, leaf_far, leaf_slim_shape] width=100% height=100% />
             </Group>
         </Group>
         <Group x=85px y=450px width=38px height=106px anchor=[50%, 100%] rotate=48deg>
-            <Group class=leaf_motion class=sway_b>
+            <Group class=[leaf_motion, sway_b]>
                 <Rectangle class=leaf_vein_back x=50% y=16% width=2px height=74% anchor_x=50% />
-                <Path class=leaf_path class=leaf_back class=leaf_round_shape width=100% height=100% />
+                <Path class=[leaf_path, leaf_back, leaf_round_shape] width=100% height=100% />
             </Group>
         </Group>
         <Group x=85px y=392px width=34px height=94px anchor=[50%, 100%] rotate=-42deg>
-            <Group class=leaf_motion class=sway_c>
+            <Group class=[leaf_motion, sway_c]>
                 <Rectangle class=leaf_vein_back x=50% y=16% width=2px height=74% anchor_x=50% />
-                <Path class=leaf_path class=leaf_far class=leaf_slim_shape width=100% height=100% />
+                <Path class=[leaf_path, leaf_far, leaf_slim_shape] width=100% height=100% />
             </Group>
         </Group>
         <Group x=85px y=338px width=30px height=84px anchor=[50%, 100%] rotate=36deg>
-            <Group class=leaf_motion class=sway_b>
+            <Group class=[leaf_motion, sway_b]>
                 <Rectangle class=leaf_vein_back x=50% y=16% width=2px height=74% anchor_x=50% />
-                <Path class=leaf_path class=leaf_far class=leaf_slim_shape width=100% height=100% />
+                <Path class=[leaf_path, leaf_far, leaf_slim_shape] width=100% height=100% />
             </Group>
         </Group>
     </Group>
@@ -304,27 +304,27 @@
         <Rectangle class=stem_far x=84px y=128px width=6px height=438px />
 
         <Group x=87px y=520px width=44px height=120px anchor=[50%, 100%] rotate=56deg>
-            <Group class=leaf_motion class=sway_c>
+            <Group class=[leaf_motion, sway_c]>
                 <Rectangle class=leaf_vein_back x=50% y=16% width=2px height=74% anchor_x=50% />
-                <Path class=leaf_path class=leaf_far class=leaf_slim_shape width=100% height=100% />
+                <Path class=[leaf_path, leaf_far, leaf_slim_shape] width=100% height=100% />
             </Group>
         </Group>
         <Group x=87px y=462px width=40px height=110px anchor=[50%, 100%] rotate=-46deg>
-            <Group class=leaf_motion class=sway_a>
+            <Group class=[leaf_motion, sway_a]>
                 <Rectangle class=leaf_vein_back x=50% y=16% width=2px height=74% anchor_x=50% />
-                <Path class=leaf_path class=leaf_back class=leaf_round_shape width=100% height=100% />
+                <Path class=[leaf_path, leaf_back, leaf_round_shape] width=100% height=100% />
             </Group>
         </Group>
         <Group x=87px y=402px width=36px height=98px anchor=[50%, 100%] rotate=40deg>
-            <Group class=leaf_motion class=sway_b>
+            <Group class=[leaf_motion, sway_b]>
                 <Rectangle class=leaf_vein_back x=50% y=16% width=2px height=74% anchor_x=50% />
-                <Path class=leaf_path class=leaf_far class=leaf_round_shape width=100% height=100% />
+                <Path class=[leaf_path, leaf_far, leaf_round_shape] width=100% height=100% />
             </Group>
         </Group>
         <Group x=87px y=344px width=32px height=88px anchor=[50%, 100%] rotate=-34deg>
-            <Group class=leaf_motion class=sway_c>
+            <Group class=[leaf_motion, sway_c]>
                 <Rectangle class=leaf_vein_back x=50% y=16% width=2px height=74% anchor_x=50% />
-                <Path class=leaf_path class=leaf_far class=leaf_slim_shape width=100% height=100% />
+                <Path class=[leaf_path, leaf_far, leaf_slim_shape] width=100% height=100% />
             </Group>
         </Group>
     </Group>
@@ -356,18 +356,18 @@
     >
         <Rectangle class=vine_stem x=50% y=0% width=4px height=100% anchor_x=50% />
         <Group x=74px y=124px width=34px height=92px anchor=[50%, 18%] rotate=54deg>
-            <Group class=vine_leaf_motion class=vine_sway_a>
-                <Path class=leaf_path class=leaf_far class=leaf_slim_shape width=100% height=100% />
+            <Group class=[vine_leaf_motion, vine_sway_a]>
+                <Path class=[leaf_path, leaf_far, leaf_slim_shape] width=100% height=100% />
             </Group>
         </Group>
         <Group x=46px y=214px width=28px height=78px anchor=[50%, 18%] rotate=-42deg>
-            <Group class=vine_leaf_motion class=vine_sway_b>
-                <Path class=leaf_path class=leaf_back class=leaf_slim_shape width=100% height=100% />
+            <Group class=[vine_leaf_motion, vine_sway_b]>
+                <Path class=[leaf_path, leaf_back, leaf_slim_shape] width=100% height=100% />
             </Group>
         </Group>
         <Group x=68px y=304px width=30px height=82px anchor=[50%, 18%] rotate=38deg>
-            <Group class=vine_leaf_motion class=vine_sway_c>
-                <Path class=leaf_path class=leaf_back class=leaf_round_shape width=100% height=100% />
+            <Group class=[vine_leaf_motion, vine_sway_c]>
+                <Path class=[leaf_path, leaf_back, leaf_round_shape] width=100% height=100% />
             </Group>
         </Group>
         <Group x=48px y=438px width=88px height=112px anchor=0%>
@@ -407,18 +407,18 @@
     >
         <Rectangle class=vine_stem x=50% y=0% width=4px height=100% anchor_x=50% />
         <Group x=48px y=134px width=30px height=84px anchor=[50%, 18%] rotate=-46deg>
-            <Group class=vine_leaf_motion class=vine_sway_b>
-                <Path class=leaf_path class=leaf_far class=leaf_slim_shape width=100% height=100% />
+            <Group class=[vine_leaf_motion, vine_sway_b]>
+                <Path class=[leaf_path, leaf_far, leaf_slim_shape] width=100% height=100% />
             </Group>
         </Group>
         <Group x=76px y=238px width=34px height=94px anchor=[50%, 18%] rotate=44deg>
-            <Group class=vine_leaf_motion class=vine_sway_c>
-                <Path class=leaf_path class=leaf_back class=leaf_round_shape width=100% height=100% />
+            <Group class=[vine_leaf_motion, vine_sway_c]>
+                <Path class=[leaf_path, leaf_back, leaf_round_shape] width=100% height=100% />
             </Group>
         </Group>
         <Group x=52px y=348px width=28px height=80px anchor=[50%, 18%] rotate=-34deg>
-            <Group class=vine_leaf_motion class=vine_sway_a>
-                <Path class=leaf_path class=leaf_far class=leaf_slim_shape width=100% height=100% />
+            <Group class=[vine_leaf_motion, vine_sway_a]>
+                <Path class=[leaf_path, leaf_far, leaf_slim_shape] width=100% height=100% />
             </Group>
         </Group>
         <Group x=4px y=488px width=84px height=108px anchor=0%>
@@ -435,30 +435,30 @@
 <Group x=24% y=100% width=220px height=208px anchor=[50%, 100%] opacity=0.54>
     <Group x=58px y=188px width=94px height=126px anchor=[50%, 100%] rotate=-30deg>
         <Rectangle class=leaf_vein_back x=50% y=18% width=2px height=68% anchor_x=50% />
-        <Path class=leaf_path class=leaf_back class=leaf_round_shape width=100% height=100% />
+        <Path class=[leaf_path, leaf_back, leaf_round_shape] width=100% height=100% />
     </Group>
     <Group x=126px y=182px width=106px height=138px anchor=[50%, 100%] rotate=18deg>
         <Rectangle class=leaf_vein_back x=50% y=18% width=2px height=68% anchor_x=50% />
-        <Path class=leaf_path class=leaf_back class=leaf_round_shape width=100% height=100% />
+        <Path class=[leaf_path, leaf_back, leaf_round_shape] width=100% height=100% />
     </Group>
     <Group x=94px y=170px width=90px height=116px anchor=[50%, 100%] rotate=-4deg>
         <Rectangle class=leaf_vein_back x=50% y=18% width=2px height=68% anchor_x=50% />
-        <Path class=leaf_path class=leaf_far class=leaf_slim_shape width=100% height=100% />
+        <Path class=[leaf_path, leaf_far, leaf_slim_shape] width=100% height=100% />
     </Group>
 </Group>
 
 <Group x=77% y=100% width=234px height=224px anchor=[50%, 100%] opacity=0.52>
     <Group x=70px y=198px width=100px height=130px anchor=[50%, 100%] rotate=-18deg>
         <Rectangle class=leaf_vein_back x=50% y=18% width=2px height=68% anchor_x=50% />
-        <Path class=leaf_path class=leaf_back class=leaf_round_shape width=100% height=100% />
+        <Path class=[leaf_path, leaf_back, leaf_round_shape] width=100% height=100% />
     </Group>
     <Group x=146px y=188px width=108px height=140px anchor=[50%, 100%] rotate=26deg>
         <Rectangle class=leaf_vein_back x=50% y=18% width=2px height=68% anchor_x=50% />
-        <Path class=leaf_path class=leaf_back class=leaf_round_shape width=100% height=100% />
+        <Path class=[leaf_path, leaf_back, leaf_round_shape] width=100% height=100% />
     </Group>
     <Group x=118px y=176px width=94px height=120px anchor=[50%, 100%] rotate=4deg>
         <Rectangle class=leaf_vein_back x=50% y=18% width=2px height=68% anchor_x=50% />
-        <Path class=leaf_path class=leaf_far class=leaf_slim_shape width=100% height=100% />
+        <Path class=[leaf_path, leaf_far, leaf_slim_shape] width=100% height=100% />
     </Group>
 </Group>
 
@@ -472,7 +472,7 @@
     </Group>
     <Group x=84px y=108px width=72px height=94px anchor=[50%, 100%] rotate=34deg>
         <Rectangle class=leaf_vein_back x=50% y=18% width=2px height=68% anchor_x=50% />
-        <Path class=leaf_path class=leaf_back class=leaf_slim_shape width=100% height=100% />
+        <Path class=[leaf_path, leaf_back, leaf_slim_shape] width=100% height=100% />
     </Group>
 </Group>
 
@@ -486,14 +486,14 @@
     </Group>
     <Group x=34px y=118px width=76px height=98px anchor=[50%, 100%] rotate=-30deg>
         <Rectangle class=leaf_vein_back x=50% y=18% width=2px height=68% anchor_x=50% />
-        <Path class=leaf_path class=leaf_back class=leaf_slim_shape width=100% height=100% />
+        <Path class=[leaf_path, leaf_back, leaf_slim_shape] width=100% height=100% />
     </Group>
 </Group>
 
 <Group id=frog_perch x=64% y=90% width=212px height=126px anchor=[50%, 100%] rotate=-6deg opacity=0.98>
     <Group x=106px y=116px width=170px height=92px anchor=[50%, 100%] rotate=-2deg>
         <Rectangle class=leaf_vein x=50% y=18% width=2px height=68% anchor_x=50% />
-        <Path class=leaf_path class=leaf_near class=leaf_round_shape width=100% height=100% />
+        <Path class=[leaf_path, leaf_near, leaf_round_shape] width=100% height=100% />
     </Group>
     <Group x=110px y=38px width=82px height=54px anchor=50%>
         <Ellipse class=frog_body x=50% y=62% width=62px height=30px anchor=50%/>
@@ -515,17 +515,17 @@
     height=1320px
     anchor=[50%, 0%]
     rotate=9deg
-    fill={Fill::linearGradient(
-        (50%, 0%),
-        (50%, 100%),
-        [
-            GradientStop::get(Color::rgba(233, 255, 224, 0), 0%),
-            GradientStop::get(Color::rgba(231, 255, 224, 40), 18%),
-            GradientStop::get(Color::rgba(226, 249, 214, 78), 56%),
-            GradientStop::get(Color::rgba(211, 238, 200, 56), 84%),
-            GradientStop::get(Color::rgba(196, 227, 184, 14), 100%)
-        ]
-    )}
+    fill=@gradient {
+        linear: {
+            start: [50%, 0%]
+            end: [50%, 100%]
+        }
+        0%: rgba(233, 255, 224, 0)
+        18%: rgba(231, 255, 224, 40)
+        56%: rgba(226, 249, 214, 78)
+        84%: rgba(211, 238, 200, 56)
+        100%: rgba(196, 227, 184, 14)
+    }
     elements=[
         PathElement::Point(44%, 0%),
         PathElement::Line,
@@ -551,35 +551,35 @@
 </Group>
 
 <Group x=2% y=-6% width=92px height=1560px anchor=[50%, 0%] rotate=-4deg>
-    <Path class=trunk_shape class=trunk_deep width=100% height=100% />
+    <Path class=[trunk_shape, trunk_deep] width=100% height=100% />
 </Group>
 
 <Group x=11% y=-5% width=168px height=1600px anchor=[50%, 0%] rotate=2deg>
-    <Path class=trunk_shape class=trunk_mid width=100% height=100% />
+    <Path class=[trunk_shape, trunk_mid] width=100% height=100% />
     <Rectangle class=trunk_highlight x=56% y=10% width=8% height=74% rotate=2deg />
     <Rectangle class=trunk_moss x=18% y=40% width=18% height=16% rotate=-6deg />
 </Group>
 
 <Group x=24% y=-7% width=118px height=1520px anchor=[50%, 0%] rotate=-3deg>
-    <Path class=trunk_shape class=trunk_far width=100% height=100% />
+    <Path class=[trunk_shape, trunk_far] width=100% height=100% />
 </Group>
 
 <Group x=36% y=-8% width=76px height=1480px anchor=[50%, 0%] rotate=-1deg>
-    <Path class=trunk_shape class=trunk_deep width=100% height=100% />
+    <Path class=[trunk_shape, trunk_deep] width=100% height=100% />
 </Group>
 
 <Group x=83% y=-6% width=104px height=1500px anchor=[50%, 0%] rotate=3deg>
-    <Path class=trunk_shape class=trunk_far width=100% height=100% />
+    <Path class=[trunk_shape, trunk_far] width=100% height=100% />
 </Group>
 
 <Group x=92% y=-5% width=184px height=1620px anchor=[50%, 0%] rotate=5deg>
-    <Path class=trunk_shape class=trunk_near width=100% height=100% />
+    <Path class=[trunk_shape, trunk_near] width=100% height=100% />
     <Rectangle class=trunk_highlight x=30% y=12% width=8% height=72% rotate=-2deg />
     <Rectangle class=trunk_moss x=56% y=38% width=16% height=18% rotate=8deg />
 </Group>
 
 <Group x=74% y=-7% width=84px height=1460px anchor=[50%, 0%] rotate=2deg>
-    <Path class=trunk_shape class=trunk_deep width=100% height=100% />
+    <Path class=[trunk_shape, trunk_deep] width=100% height=100% />
 </Group>
 
 <Group id=mist_near class=mist_near x=50% y=68% width=1160px height=340px anchor=50%>
@@ -599,26 +599,25 @@
 <Rectangle
     width=100%
     height=100%
-    fill={Fill::linearGradient(
-        (50%, 0%),
-        (50%, 100%),
-        [
-            GradientStop::get(Color::rgba(9, 36, 34, 255), 0%),
-            GradientStop::get(Color::rgba(7, 27, 25, 255), 42%),
-            GradientStop::get(Color::rgba(3, 13, 12, 255), 100%)
-        ]
-    )}
+    fill=@gradient {
+        linear: {
+            start: [50%, 0%]
+            end: [50%, 100%]
+        }
+        0%: rgba(9, 36, 34, 255)
+        42%: rgba(7, 27, 25, 255)
+        100%: rgba(3, 13, 12, 255)
+    }
 />
 
 @settings {
     #title {
-        style: TextStyle {
-            font: Font::Web(
-                "Cormorant Garamond",
-                "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap",
-                FontStyle::Normal,
-                FontWeight::SemiBold
-            )
+        style: {
+            font: {
+                family: "Cormorant Garamond"
+                url: "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap"
+                weight: 600
+            }
             font_size: 58px
             fill: rgb(240, 235, 216)
             align_vertical: TextAlignVertical::Center
@@ -628,13 +627,12 @@
     }
 
     #subtitle {
-        style: TextStyle {
-            font: Font::Web(
-                "Source Sans 3",
-                "https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@500;600&display=swap",
-                FontStyle::Normal,
-                FontWeight::Medium
-            )
+        style: {
+            font: {
+                family: "Source Sans 3"
+                url: "https://fonts.googleapis.com/css2?family=Source+Sans+3:wght@500;600&display=swap"
+                weight: 500
+            }
             font_size: 14px
             fill: rgba(177, 196, 178, 255)
             align_vertical: TextAlignVertical::Center
@@ -683,7 +681,7 @@
             PathElement::Point(50%, 0%),
             PathElement::Close
         ]
-        stroke: Stroke {
+        stroke: {
             color: rgba(215, 255, 221, 24%)
             width: 1px
         }
@@ -823,7 +821,7 @@
             PathElement::Point(60%, 50%)
         ]
         fill: rgba(0, 0, 0, 0)
-        stroke: Stroke {
+        stroke: {
             color: rgba(78, 128, 84, 68%)
             width: 3px
         }
@@ -846,7 +844,7 @@
             PathElement::Point(42%, 44%)
         ]
         fill: rgba(0, 0, 0, 0)
-        stroke: Stroke {
+        stroke: {
             color: rgba(78, 128, 84, 68%)
             width: 3px
         }
@@ -916,7 +914,7 @@
             PathElement::Close
         ]
         fill: rgba(16, 47, 37, 255)
-        stroke: Stroke {
+        stroke: {
             color: rgba(158, 214, 177, 8%)
             width: 1px
         }
@@ -942,7 +940,7 @@
             PathElement::Close
         ]
         fill: rgba(24, 67, 49, 255)
-        stroke: Stroke {
+        stroke: {
             color: rgba(176, 228, 192, 10%)
             width: 1px
         }
@@ -968,7 +966,7 @@
             PathElement::Close
         ]
         fill: rgba(14, 40, 32, 255)
-        stroke: Stroke {
+        stroke: {
             color: rgba(158, 214, 177, 7%)
             width: 1px
         }

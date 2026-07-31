@@ -1,12 +1,15 @@
-<Stacker> 
-    <Text text="Speed" class=text x=50% />
+<Stacker>
+     <Text text="Speed" class=text x=50% />
     <Slider value=bind:speed min=1 max=100 step=1 accent=BLUE />
 </Stacker>
 
 @settings {
     .text {
         style: {
-                font: Font::Web("Times New Roman", "", FontStyle::Normal, FontWeight::Bold),
+                font: {
+                    family: "Times New Roman"
+                    weight: 700
+                },
                 font_size: 28px,
                 fill: BLACK,
                 align_vertical: TextAlignVertical::Center,

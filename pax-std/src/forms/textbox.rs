@@ -28,7 +28,7 @@ pub struct Textbox {
     /// Border stroke.
     pub stroke: Property<Stroke>,
     /// Corner radius, in pixels.
-    pub border_radius: Property<f64>,
+    pub corner_radius: Property<f64>,
     /// Text style.
     pub style: Property<TextStyle>,
     /// Focus outline stroke.
@@ -57,7 +57,7 @@ impl Default for Textbox {
                 join: Property::new(StrokeJoin::default()),
             }),
             placeholder: Property::new("".into()),
-            border_radius: Property::new(8.0.into()),
+            corner_radius: Property::new(8.0.into()),
             style: Property::new(TextStyle {
                 font: Property::new(Font::default()),
                 font_size: Property::new(Size::Pixels(Numeric::F64(14.0))),
@@ -189,9 +189,9 @@ impl InstanceNode for TextboxInstance {
                                 (&properties.background.get()).into(),
                             ),
                             patch_if_needed(
-                                &mut old_state.border_radius,
-                                &mut patch.border_radius,
-                                properties.border_radius.get(),
+                                &mut old_state.corner_radius,
+                                &mut patch.corner_radius,
+                                properties.corner_radius.get(),
                             ),
                             patch_if_needed(
                                 &mut old_state.focus_on_mount,

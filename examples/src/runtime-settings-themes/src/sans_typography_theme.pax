@@ -2,13 +2,12 @@
 
 @settings {
     .hero_kicker {
-        style: TextStyle {
-            font: Font::Web(
-                "Inter",
-                "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap",
-                FontStyle::Normal,
-                FontWeight::Bold
-            )
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap"
+                weight: 700
+            }
             font_size: 14px
             fill: {self.is_dark ? rgba(194, 205, 218, 255) : rgba(36, 41, 48, 255)}
             align_vertical: TextAlignVertical::Center
@@ -19,13 +18,12 @@
     }
 
     .hero_title {
-        style: TextStyle {
-            font: Font::Web(
-                "Inter",
-                "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap",
-                FontStyle::Normal,
-                FontWeight::ExtraBold
-            )
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap"
+                weight: 800
+            }
             font_size: 42px
             fill: {self.is_dark ? rgba(239, 245, 250, 255) : rgba(28, 34, 40, 255)}
             align_vertical: TextAlignVertical::Top
@@ -36,13 +34,12 @@
     }
 
     .body_copy {
-        style: TextStyle {
-            font: Font::Web(
-                "Inter",
-                "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap",
-                FontStyle::Normal,
-                FontWeight::Medium
-            )
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap"
+                weight: 500
+            }
             font_size: 16px
             fill: {self.is_dark ? rgba(201, 210, 220, 255) : rgba(51, 58, 64, 255)}
             align_vertical: TextAlignVertical::Top
@@ -53,13 +50,12 @@
     }
 
     .section_title {
-        style: TextStyle {
-            font: Font::Web(
-                "Inter",
-                "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap",
-                FontStyle::Normal,
-                FontWeight::Bold
-            )
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap"
+                weight: 700
+            }
             font_size: 24px
             fill: {self.is_dark ? rgba(239, 245, 251, 255) : rgba(30, 36, 42, 255)}
             align_vertical: TextAlignVertical::Center
@@ -70,13 +66,12 @@
     }
 
     .section_copy {
-        style: TextStyle {
-            font: Font::Web(
-                "Inter",
-                "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap",
-                FontStyle::Normal,
-                FontWeight::Medium
-            )
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap"
+                weight: 500
+            }
             font_size: 14px
             fill: {self.is_dark ? rgba(188, 198, 209, 255) : rgba(72, 79, 86, 255)}
             align_vertical: TextAlignVertical::Top
@@ -87,13 +82,12 @@
     }
 
     .control_label {
-        style: TextStyle {
-            font: Font::Web(
-                "Inter",
-                "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap",
-                FontStyle::Normal,
-                FontWeight::SemiBold
-            )
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap"
+                weight: 600
+            }
             font_size: 13px
             fill: {self.is_dark ? rgba(222, 230, 238, 255) : rgba(48, 56, 62, 255)}
             align_vertical: TextAlignVertical::Center
@@ -104,13 +98,12 @@
     }
 
     .preview_badge_text {
-        style: TextStyle {
-            font: Font::Web(
-                "Inter",
-                "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap",
-                FontStyle::Normal,
-                FontWeight::Bold
-            )
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap"
+                weight: 700
+            }
             font_size: 12px
             fill: {self.is_dark ? rgba(242, 247, 252, 255) : rgba(43, 49, 56, 255)}
             align_vertical: TextAlignVertical::Center
@@ -121,13 +114,12 @@
     }
 
     .preview_title {
-        style: TextStyle {
-            font: Font::Web(
-                "Inter",
-                "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap",
-                FontStyle::Normal,
-                FontWeight::ExtraBold
-            )
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap"
+                weight: 800
+            }
             font_size: 28px
             fill: {self.is_dark ? rgba(243, 248, 252, 255) : rgba(28, 34, 40, 255)}
             align_vertical: TextAlignVertical::Top
@@ -138,13 +130,12 @@
     }
 
     .preview_body {
-        style: TextStyle {
-            font: Font::Web(
-                "Inter",
-                "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap",
-                FontStyle::Normal,
-                FontWeight::Medium
-            )
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap"
+                weight: 500
+            }
             font_size: 15px
             fill: {self.is_dark ? rgba(197, 207, 217, 255) : rgba(59, 67, 74, 255)}
             align_vertical: TextAlignVertical::Top
@@ -155,13 +146,12 @@
     }
 
     .preview_chip_text {
-        style: TextStyle {
-            font: Font::Web(
-                "Inter",
-                "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap",
-                FontStyle::Normal,
-                FontWeight::SemiBold
-            )
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap"
+                weight: 600
+            }
             font_size: 14px
             fill: {self.is_dark ? rgba(237, 244, 250, 255) : rgba(42, 48, 54, 255)}
             align_vertical: TextAlignVertical::Center
@@ -172,13 +162,12 @@
     }
 
     .preview_stat_label {
-        style: TextStyle {
-            font: Font::Web(
-                "Inter",
-                "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap",
-                FontStyle::Normal,
-                FontWeight::Bold
-            )
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap"
+                weight: 700
+            }
             font_size: 12px
             fill: {self.is_dark ? rgba(166, 179, 192, 255) : rgba(85, 93, 101, 255)}
             align_vertical: TextAlignVertical::Center
@@ -189,13 +178,12 @@
     }
 
     .preview_stat_value {
-        style: TextStyle {
-            font: Font::Web(
-                "Inter",
-                "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap",
-                FontStyle::Normal,
-                FontWeight::Medium
-            )
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap"
+                weight: 500
+            }
             font_size: 15px
             fill: {self.is_dark ? rgba(223, 231, 239, 255) : rgba(44, 50, 58, 255)}
             align_vertical: TextAlignVertical::Center
@@ -206,13 +194,12 @@
     }
 
     .theme_radio {
-        style: TextStyle {
-            font: Font::Web(
-                "Inter",
-                "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap",
-                FontStyle::Normal,
-                FontWeight::SemiBold
-            )
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;700;800&display=swap"
+                weight: 600
+            }
             font_size: 14px
             fill: {self.is_dark ? rgba(238, 244, 250, 255) : rgba(41, 47, 54, 255)}
             align_vertical: TextAlignVertical::Center

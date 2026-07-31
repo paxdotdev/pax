@@ -12,11 +12,11 @@ use pax_engine::*;
             <Group x={(100.0*i/(self._slot_count - 1))%} width={(100.0/self._slot_count)%}>
     			//highlight selected
     			<Rectangle x=50% y=100% width={100%-4px} height={100%-2px} fill={rgba(255, 255, 255, 30*(i == self.selected))}
-    			    corner_radii={RectangleCornerRadii::radii(10.0,10.0,0.0,0.0)}
+                corner_radius=[10.0, 10.0, 0.0, 0.0]
     			/>
     			<Text align={TextAlignHorizontal::Center} width=100% height=100% text={name}/>
     			<Rectangle x=50% y=100% width={100%-4px} height={100%-2px} fill={self.color}
-    			    corner_radii={RectangleCornerRadii::radii(10.0,10.0,0.0,0.0)}
+                corner_radius=[10.0, 10.0, 0.0, 0.0]
     			/>
     		</Group>
     	}

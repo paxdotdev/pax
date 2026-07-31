@@ -27,7 +27,7 @@ export class ScrollerUpdatePatch {
         this.sizeX = jsonMessage["size_x"];
         this.sizeY = jsonMessage["size_y"];
         this.clipContent = jsonMessage["clip_content"];
-        this.borderRadius = jsonMessage["border_radius"];
+        this.borderRadius = jsonMessage["corner_radius"];
         this.sizeInnerPaneX = jsonMessage["size_inner_pane_x"];
         this.sizeInnerPaneY = jsonMessage["size_inner_pane_y"];
         this.snapPointsX = jsonMessage["snap_points_x"];

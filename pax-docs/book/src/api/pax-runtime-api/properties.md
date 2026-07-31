@@ -10,10 +10,34 @@ A reactive value node in Pax's property graph.
 components, PAXEL expressions, and Rust component logic.
 
 #### Implementations
+##### `cancel_transitions`
+<pre><code class="api-signature language-rust ignore">pub fn cancel_transitions(&amp;self)</code></pre>
+
+Stops the active transition and clears every queued transition segment.
+
+The property is left at its current eased value. A subsequent [`Property::set`]
+can therefore take immediate ownership without the cancelled transition
+overwriting it on the next runtime tick.
+
 ##### `computed`
 <pre><code class="api-signature language-rust ignore">pub fn computed(evaluator: impl Fn() -&gt; T + &#39;static, dependents: &amp;[UntypedProperty]) -&gt; Self</code></pre>
 
 Creates a computed property from an evaluator and dependency list.
+
+##### `computed_with_cutoff`
+<pre><code class="api-signature language-rust ignore">pub fn computed_with_cutoff(evaluator: impl Fn() -&gt; T + &#39;static, dependents: &amp;[UntypedProperty], cutoff: impl Fn(&amp;T, &amp;T) -&gt; bool + &#39;static) -&gt; Self</code></pre>
+
+Creates a computed property with a propagation cutoff.
+
+The predicate receives the last accepted value and the newly evaluated
+candidate. Returning `true` discards the candidate and stops outbound
+invalidation at this property; returning `false` accepts and propagates
+it. The first evaluation is always accepted.
+
+##### `computed_with_cutoff_and_name`
+<pre><code class="api-signature language-rust ignore">pub fn computed_with_cutoff_and_name(evaluator: impl Fn() -&gt; T + &#39;static, dependents: &amp;[UntypedProperty], cutoff: impl Fn(&amp;T, &amp;T) -&gt; bool + &#39;static, name: &amp;str) -&gt; Self</code></pre>
+
+Creates a named cutoff computed property, useful for diagnostics.
 
 ##### `computed_with_name`
 <pre><code class="api-signature language-rust ignore">pub fn computed_with_name(evaluator: impl Fn() -&gt; T + &#39;static, dependents: &amp;[UntypedProperty], name: &amp;str) -&gt; Self</code></pre>

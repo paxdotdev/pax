@@ -7,7 +7,11 @@
             text="Scroll Swatch"
             selectable=false
             style={
-                font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap", FontStyle::Normal, FontWeight::Bold)
+                font: {
+                    family: "Inter"
+                    url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap"
+                    weight: 700
+                }
                 font_size: 28px
                 fill: rgba(19, 23, 33, 255)
                 align_vertical: TextAlignVertical::Center
@@ -24,7 +28,10 @@
             text="Drag the card shell to sweep hue. Drag inside a card to pan saturation on x and luminance on y."
             selectable=false
             style={
-                font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap", FontStyle::Normal, FontWeight::Normal)
+                font: {
+                    family: "Inter"
+                    url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap"
+                }
                 font_size: 16px
                 fill: rgba(101, 107, 120, 255)
                 align_vertical: TextAlignVertical::Top
@@ -56,7 +63,11 @@
                             text={"Hue " + (hue * 20) + " deg"}
                             selectable=false
                             style={
-                                font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap", FontStyle::Normal, FontWeight::Bold)
+                                font: {
+                                    family: "Inter"
+                                    url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap"
+                                    weight: 700
+                                }
                                 font_size: 20px
                                 fill: rgba(18, 22, 31, 255)
                                 align_vertical: TextAlignVertical::Center
@@ -91,7 +102,11 @@
                                                 text={"H " + (hue * 20) + " S " + (24 + col * 18) + " L " + (84 - row * 16)}
                                                 selectable=false
                                                 style={
-                                                    font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap", FontStyle::Normal, FontWeight::Bold)
+                                                    font: {
+                                                        family: "Inter"
+                                                        url: "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap"
+                                                        weight: 700
+                                                    }
                                                     font_size: 16px
                                                     fill: rgba(17, 22, 32, 255)
                                                     align_vertical: TextAlignVertical::Center
@@ -105,8 +120,8 @@
                                                 y=20px
                                                 width=220px
                                                 height=40px
-                                                fill={rgba(255, 251, 246, 220)}
-                                                corner_radii={RectangleCornerRadii::radii(18.0, 18.0, 18.0, 18.0)}/>
+                                                fill=rgba(255, 251, 246, 220)
+                                                corner_radius=18.0/>
 
                                             <Rectangle
                                                 width=100%
@@ -123,14 +138,14 @@
                             y={100% - 10px}
                             width=312px
                             height=14px
-                            fill={rgba(240, 233, 224, 255)}
-                            corner_radii={RectangleCornerRadii::radii(7.0, 7.0, 7.0, 7.0)}/>
+                            fill=rgba(240, 233, 224, 255)
+                            corner_radius=7.0/>
 
                         <Rectangle
                             width=100%
                             height=100%
-                            fill={rgba(255, 252, 248, 255)}
-                            corner_radii={RectangleCornerRadii::radii(36.0, 36.0, 36.0, 36.0)}/>
+                            fill=rgba(255, 252, 248, 255)
+                            corner_radius=36.0/>
                     </Group>
                 }
             </Group>
@@ -139,5 +154,5 @@
         <Rectangle
             width=100%
             height=100%
-            fill={rgba(248, 242, 234, 255)}/>
+            fill=rgba(248, 242, 234, 255)/>
     </Group>

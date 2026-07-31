@@ -31,7 +31,7 @@ export class CheckboxUpdatePatch {
         this.transform = jsonMessage["transform"];
         this.opacity = jsonMessage["opacity"];
         this.checked = jsonMessage["checked"];
-        this.borderRadius = jsonMessage["border_radius"];
+        this.borderRadius = jsonMessage["corner_radius"];
         this.outlineColor = jsonMessage["outline_color"];
         this.outlineWidth = jsonMessage["outline_width"];
         this.background = jsonMessage["background"];

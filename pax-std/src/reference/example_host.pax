@@ -55,38 +55,42 @@
 
     .example_host_drawer_bg {
         fill: BLACK
-        stroke: Stroke { color: rgba(96, 125, 172, 132), width: 1px }
-        corner_radii: RectangleCornerRadii::radii(0.0, 0.0, 0.0, 0.0)
+        stroke: { color: rgba(96, 125, 172, 132), width: 1px }
+        corner_radius: 0.0
     }
 
     .example_host_split_handle {
         fill: rgba(126, 164, 232, 190)
-        corner_radii: RectangleCornerRadii::radii(2.0, 2.0, 2.0, 2.0)
+        corner_radius: 2.0
     }
 
     .example_host_code_bg {
         fill: @gradient {
             radial: {
-                start: (72%, 18%)
-                end: (72%, 18%)
+                start: [72%, 18%]
+                end: [72%, 18%]
                 radius: 520
             }
             0%: rgba(9, 11, 14, 255)
             42%: rgba(5, 6, 9, 255)
             100%: rgba(0, 1, 3, 255)
         }
-        corner_radii: RectangleCornerRadii::radii(0.0, 0.0, 12.0, 12.0)
+        corner_radius: [0.0, 0.0, 12.0, 12.0]
     }
 
     .example_host_button_bg {
         fill: BLACK
-        stroke: Stroke { color: WHITE, width: 3px }
-        corner_radii: RectangleCornerRadii::radii(9.0, 9.0, 9.0, 9.0)
+        stroke: { color: WHITE, width: 3px }
+        corner_radius: 9.0
     }
 
     .example_host_button_label {
-        style: TextStyle {
-            font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap", FontStyle::Normal, FontWeight::SemiBold)
+        style: {
+            font: {
+                family: "Space Grotesk"
+                url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap"
+                weight: 600
+            }
             font_size: 12px
             fill: WHITE
             align_vertical: TextAlignVertical::Center
@@ -97,8 +101,12 @@
     }
 
     .example_host_drawer_title {
-        style: TextStyle {
-            font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap", FontStyle::Normal, FontWeight::SemiBold)
+        style: {
+            font: {
+                family: "Space Grotesk"
+                url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap"
+                weight: 600
+            }
             font_size: 21px
             fill: WHITE
             align_vertical: TextAlignVertical::Center
@@ -109,8 +117,12 @@
     }
 
     .example_host_drawer_meta {
-        style: TextStyle {
-            font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap", FontStyle::Normal, FontWeight::Medium)
+        style: {
+            font: {
+                family: "Space Grotesk"
+                url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap"
+                weight: 500
+            }
             font_size: 11px
             fill: rgba(255, 255, 255, 220)
             align_vertical: TextAlignVertical::Center
@@ -121,8 +133,11 @@
     }
 
     .example_host_code_text {
-        style: TextStyle {
-            font: Font::Web("JetBrains Mono", "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap", FontStyle::Normal, FontWeight::Normal)
+        style: {
+            font: {
+                family: "JetBrains Mono"
+                url: "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap"
+            }
             font_size: 13px
             fill: rgba(224, 234, 250, 255)
             align_vertical: TextAlignVertical::Top

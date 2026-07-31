@@ -1,10 +1,10 @@
 <Group @scroll=self.handle_scroll y=50.00% x=50.00% width=7.98% height=13.92%>
     <Text x=0% y=0% text="SCROLL" height=100% width=100% style={
-        font: Font::Web(
-            "Roboto",
-            "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap",
-            FontStyle::Normal,
-            FontWeight::Bold)
+        font: {
+            family: "Roboto"
+            url: "https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,100;0,300;0,400;0,500;0,700;0,900;1,100;1,300;1,400;1,500;1,700;1,900&display=swap"
+            weight: 700
+        }
         font_size: 20.00px
         fill: rgba(252, 252, 252, 255)
         align_vertical: TextAlignVertical::Center

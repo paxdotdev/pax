@@ -13,7 +13,7 @@
                 height=100%
                 direction=StackerDirection::Vertical
                 gutter=10px
-                sizes=[Some(24px), None, Some(96px)]
+                sizes=[24px, None, 96px]
             >
                 <Text id=sidebar_eyebrow width=100% height=100% text="Router Playground" />
                 <Text
@@ -86,12 +86,11 @@
 
     #sidebar_eyebrow {
         style: {
-            font: Font::Web(
-                "IBM Plex Mono",
-                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
-                FontStyle::Normal,
-                FontWeight::Medium
-            )
+            font: {
+                family: "IBM Plex Mono"
+                url: "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+                weight: 500
+            }
             font_size: 15px
             fill: rgba(104, 202, 255, 255)
             align_horizontal: TextAlignHorizontal::Left
@@ -102,12 +101,11 @@
 
     #sidebar_title {
         style: {
-            font: Font::Web(
-                "Space Grotesk",
-                "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap",
-                FontStyle::Normal,
-                FontWeight::Bold
-            )
+            font: {
+                family: "Space Grotesk"
+                url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap"
+                weight: 700
+            }
             font_size: 24px
             fill: rgba(247, 249, 255, 255)
             align_horizontal: TextAlignHorizontal::Left
@@ -118,12 +116,10 @@
 
     #sidebar_copy {
         style: {
-            font: Font::Web(
-                "Space Grotesk",
-                "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap",
-                FontStyle::Normal,
-                FontWeight::Normal
-            )
+            font: {
+                family: "Space Grotesk"
+                url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap"
+            }
             font_size: 15px
             fill: rgba(187, 197, 212, 255)
             align_horizontal: TextAlignHorizontal::Left
@@ -134,12 +130,11 @@
 
     #sidebar_section {
         style: {
-            font: Font::Web(
-                "IBM Plex Mono",
-                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
-                FontStyle::Normal,
-                FontWeight::Medium
-            )
+            font: {
+                family: "IBM Plex Mono"
+                url: "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+                weight: 500
+            }
             font_size: 13px
             fill: rgba(134, 152, 181, 255)
             align_horizontal: TextAlignHorizontal::Left
@@ -155,12 +150,12 @@
         padding_y: 16px
         direction: StackerDirection::Vertical
         gutter: 3px
-        sizes: [Some(24px), None]
+        sizes: [24px, None]
     }
 
     .nav_card {
         fill: rgba(18, 26, 43, 230)
-        corner_radii: RectangleCornerRadii::radii(20.0, 20.0, 20.0, 20.0)
+        corner_radius: 20.0
         stroke: {
             color: rgba(82, 107, 145, 165)
             width: 1px
@@ -169,12 +164,11 @@
 
     .nav_title {
         style: {
-            font: Font::Web(
-                "Space Grotesk",
-                "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap",
-                FontStyle::Normal,
-                FontWeight::Bold
-            )
+            font: {
+                family: "Space Grotesk"
+                url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap"
+                weight: 700
+            }
             font_size: 16px
             fill: rgba(244, 247, 255, 255)
             align_horizontal: TextAlignHorizontal::Left
@@ -185,12 +179,10 @@
 
     .nav_meta {
         style: {
-            font: Font::Web(
-                "IBM Plex Mono",
-                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
-                FontStyle::Normal,
-                FontWeight::Normal
-            )
+            font: {
+                family: "IBM Plex Mono"
+                url: "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+            }
             font_size: 11px
             fill: rgba(154, 173, 198, 255)
             align_horizontal: TextAlignHorizontal::Left
@@ -201,7 +193,7 @@
 
     .jump_card {
         fill: rgba(18, 26, 43, 230)
-        corner_radii: RectangleCornerRadii::radii(20.0, 20.0, 20.0, 20.0)
+        corner_radius: 20.0
         stroke: {
             color: rgba(82, 107, 145, 165)
             width: 1px
@@ -210,12 +202,11 @@
 
     .jump_title {
         style: {
-            font: Font::Web(
-                "Space Grotesk",
-                "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap",
-                FontStyle::Normal,
-                FontWeight::Bold
-            )
+            font: {
+                family: "Space Grotesk"
+                url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap"
+                weight: 700
+            }
             font_size: 16px
             fill: rgba(244, 247, 255, 255)
             align_horizontal: TextAlignHorizontal::Left
@@ -226,12 +217,10 @@
 
     .jump_meta {
         style: {
-            font: Font::Web(
-                "IBM Plex Mono",
-                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
-                FontStyle::Normal,
-                FontWeight::Normal
-            )
+            font: {
+                family: "IBM Plex Mono"
+                url: "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+            }
             font_size: 11px
             fill: rgba(154, 173, 198, 255)
             align_horizontal: TextAlignHorizontal::Left
@@ -242,12 +231,11 @@
 
     #external_link {
         style: {
-            font: Font::Web(
-                "IBM Plex Mono",
-                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
-                FontStyle::Normal,
-                FontWeight::Medium
-            )
+            font: {
+                family: "IBM Plex Mono"
+                url: "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+                weight: 500
+            }
             font_size: 12px
             fill: rgba(110, 202, 255, 255)
             align_horizontal: TextAlignHorizontal::Left

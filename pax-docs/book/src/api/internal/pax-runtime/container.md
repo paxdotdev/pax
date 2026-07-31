@@ -70,7 +70,7 @@ behavior on top of those normalized views.
 
 ## Functions
 ### `bind_content_measurement_effect`
-<pre><code class="api-signature language-rust ignore">pub fn bind_content_measurement_effect&lt;F&gt;(expanded_node: &amp;Rc&lt;ExpandedNode&gt;, ctx: &amp;<a href="/api/internal/pax-runtime/api.md#nodecontext">NodeContext</a>, listener_name: &amp;&#39;static str, extra_deps: &amp;[UntypedProperty], effect: F) where F: Fn(&amp;Rc&lt;ExpandedNode&gt;, &amp;<a href="/api/internal/pax-runtime/api.md#nodecontext">NodeContext</a>) + Clone + &#39;static</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn bind_content_measurement_effect&lt;F&gt;(expanded_node: &amp;Rc&lt;ExpandedNode&gt;, ctx: &amp;<a href="/api/internal/pax-runtime/api.md#nodecontext">NodeContext</a>, listener_name: &amp;&#39;static str, geometry: <a href="/api/internal/pax-runtime/container.md#contentmeasurementgeometry">ContentMeasurementGeometry</a>, extra_deps: &amp;[UntypedProperty], effect: F) where F: Fn(&amp;Rc&lt;ExpandedNode&gt;, &amp;<a href="/api/internal/pax-runtime/api.md#nodecontext">NodeContext</a>) + Clone + &#39;static</code></pre>
 
 Bind a reactive content-measurement effect to this node.
 

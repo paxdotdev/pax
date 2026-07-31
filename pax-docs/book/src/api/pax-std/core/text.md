@@ -89,6 +89,33 @@ Horizontal text alignment within its bounds.
 ### `Font`
 Describes a font available to native text renderers.
 
+Pax templates may use either the explicit [`Font::Web`] constructor or a
+contextual shorthand. A string names a locally available family with an
+empty stylesheet URL and normal style and weight:
+
+```pax
+font: "Times New Roman"
+```
+
+Named object fields describe hosted fonts and optional modifiers. Omitted
+fields retain their defaults. Supplying `family` without `url` selects a
+locally available family, matching the string shorthand. `weight` accepts
+either [`FontWeight`] or its CSS numeric equivalent from `100` through
+`900`:
+
+```pax
+font: {
+    family: "Inter"
+    url: "https://example.com/inter.css"
+    style: FontStyle::Italic
+    weight: 700
+}
+```
+
+Font shorthand has no positional ("magic index") fields: named keys are
+canonical, and positional list/tuple forms are not accepted. Use the
+explicit [`Font::Web`] constructor as verbose longhand when needed.
+
 #### Variants
 ##### `Web`(`String`, `String`, [`FontStyle`](/api/pax-std/core/text.md#fontstyle), [`FontWeight`](/api/pax-std/core/text.md#fontweight))
 Web font described by family name, stylesheet URL, style, and weight.

@@ -12,14 +12,14 @@
             />
             <Rectangle
                 class=banner_surface
-                fill={Fill::linearGradient(
-                    (0%, 0%),
-                    (100%, 100%),
-                    [
-                        GradientStop::get(Color::rgba(88, 18, 36, 240), 0%),
-                        GradientStop::get(Color::rgba(42, 10, 20, 232), 100%)
-                    ]
-                )}
+                fill=@gradient {
+                    linear: {
+                        start: [0%, 0%]
+                        end: [100%, 100%]
+                    }
+                    0%: rgba(88, 18, 36, 240)
+                    100%: rgba(42, 10, 20, 232)
+                }
                 stroke={color: rgba(255, 210, 184, 180), width: 2px}
             />
         </Group>
@@ -38,14 +38,14 @@
             />
             <Rectangle
                 class=banner_surface
-                fill={Fill::linearGradient(
-                    (0%, 0%),
-                    (100%, 100%),
-                    [
-                        GradientStop::get(Color::rgba(20, 74, 64, 236), 0%),
-                        GradientStop::get(Color::rgba(10, 36, 31, 228), 100%)
-                    ]
-                )}
+                fill=@gradient {
+                    linear: {
+                        start: [0%, 0%]
+                        end: [100%, 100%]
+                    }
+                    0%: rgba(20, 74, 64, 236)
+                    100%: rgba(10, 36, 31, 228)
+                }
                 stroke={color: rgba(196, 250, 225, 160), width: 2px}
             />
         </Group>
@@ -105,14 +105,14 @@
             />
             <Rectangle
                 class=chip_surface
-                fill={Fill::linearGradient(
-                    (0%, 0%),
-                    (100%, 100%),
-                    [
-                        GradientStop::get(Color::rgba(54, 43, 92, 235), 0%),
-                        GradientStop::get(Color::rgba(25, 22, 52, 225), 100%)
-                    ]
-                )}
+                fill=@gradient {
+                    linear: {
+                        start: [0%, 0%]
+                        end: [100%, 100%]
+                    }
+                    0%: rgba(54, 43, 92, 235)
+                    100%: rgba(25, 22, 52, 225)
+                }
                 _raycastable=false
             />
         </Group>
@@ -127,14 +127,14 @@
             />
             <Rectangle
                 class=chip_surface
-                fill={Fill::linearGradient(
-                    (0%, 0%),
-                    (100%, 100%),
-                    [
-                        GradientStop::get(Color::rgba(48, 34, 86, 230), 0%),
-                        GradientStop::get(Color::rgba(22, 18, 48, 220), 100%)
-                    ]
-                )}
+                fill=@gradient {
+                    linear: {
+                        start: [0%, 0%]
+                        end: [100%, 100%]
+                    }
+                    0%: rgba(48, 34, 86, 230)
+                    100%: rgba(22, 18, 48, 220)
+                }
             />
         </Group>
 
@@ -148,14 +148,14 @@
             />
             <Rectangle
                 class=chip_surface
-                fill={Fill::linearGradient(
-                    (0%, 0%),
-                    (100%, 100%),
-                    [
-                        GradientStop::get(Color::rgba(48, 34, 86, 230), 0%),
-                        GradientStop::get(Color::rgba(22, 18, 48, 220), 100%)
-                    ]
-                )}
+                fill=@gradient {
+                    linear: {
+                        start: [0%, 0%]
+                        end: [100%, 100%]
+                    }
+                    0%: rgba(48, 34, 86, 230)
+                    100%: rgba(22, 18, 48, 220)
+                }
             />
         </Group>
 
@@ -308,15 +308,15 @@
         />
         <Rectangle
             class=board_surface
-            fill={Fill::linearGradient(
-                (0%, 0%),
-                (0%, 100%),
-                [
-                    GradientStop::get(Color::rgba(40, 30, 77, 255), 0%),
-                    GradientStop::get(Color::rgba(24, 19, 58, 255), 48%),
-                    GradientStop::get(Color::rgba(16, 14, 38, 255), 100%)
-                ]
-            )}
+            fill=@gradient {
+                linear: {
+                    start: [0%, 0%]
+                    end: [0%, 100%]
+                }
+                0%: rgba(40, 30, 77, 255)
+                48%: rgba(24, 19, 58, 255)
+                100%: rgba(16, 14, 38, 255)
+            }
             stroke={color: rgba(255, 227, 176, 62), width: 2px}
         />
         <Rectangle
@@ -366,15 +366,15 @@
     <Rectangle
         width=100%
         height=100%
-        fill={Fill::linearGradient(
-            (0%, 0%),
-            (0%, 100%),
-            [
-                GradientStop::get(Color::rgba(10, 11, 28, 255), 0%),
-                GradientStop::get(Color::rgba(18, 15, 40, 255), 54%),
-                GradientStop::get(Color::rgba(8, 10, 24, 255), 100%)
-            ]
-        )}
+        fill=@gradient {
+            linear: {
+                start: [0%, 0%]
+                end: [0%, 100%]
+            }
+            0%: rgba(10, 11, 28, 255)
+            54%: rgba(18, 15, 40, 255)
+            100%: rgba(8, 10, 24, 255)
+        }
     />
 </Group>
 
@@ -387,13 +387,13 @@
         y: 18px,
         width: 100%,
         height: 100%,
-        corner_radii: {RectangleCornerRadii::radii(32.0, 32.0, 32.0, 32.0)}
+        corner_radius: 32.0
     }
 
     .board_surface {
         width: 100%,
         height: 100%,
-        corner_radii: {RectangleCornerRadii::radii(32.0, 32.0, 32.0, 32.0)}
+        corner_radius: 32.0
     }
 
     .board_inset {
@@ -401,7 +401,7 @@
         y: 24px,
         width={100% - 48px},
         height={100% - 48px},
-        corner_radii: {RectangleCornerRadii::radii(26.0, 26.0, 26.0, 26.0)}
+        corner_radius: 26.0
     }
 
     .playfield {
@@ -437,7 +437,7 @@
     .reset_hit {
         width: 100%,
         height: 100%,
-        corner_radii: {RectangleCornerRadii::radii(20.0, 20.0, 20.0, 20.0)}
+        corner_radius: 20.0
     }
 
     .reset_glow {
@@ -452,13 +452,13 @@
     .chip_surface {
         width: 100%,
         height: 100%,
-        corner_radii: {RectangleCornerRadii::radii(20.0, 20.0, 20.0, 20.0)}
+        corner_radius: 20.0
     }
 
     .chip_outline {
         width: 100%,
         height: 100%,
-        corner_radii: {RectangleCornerRadii::radii(20.0, 20.0, 20.0, 20.0)}
+        corner_radius: 20.0
     }
 
     .corner_tl {
@@ -501,17 +501,16 @@
     .banner_surface {
         width: 100%,
         height: 100%,
-        corner_radii: {RectangleCornerRadii::radii(24.0, 24.0, 24.0, 24.0)}
+        corner_radius: 24.0
     }
 
     .chip_title {
         style: {
-            font: Font::Web(
-                "Space Grotesk",
-                "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Space+Grotesk:wght@400;500;700&display=swap",
-                FontStyle::Normal,
-                FontWeight::Bold
-            ),
+            font: {
+                family: "Space Grotesk"
+                url: "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Space+Grotesk:wght@400;500;700&display=swap"
+                weight: 700
+            },
             font_size: 16px,
             fill: rgba(255, 238, 206, 255),
             align_horizontal: TextAlignHorizontal::Left,
@@ -523,12 +522,10 @@
 
     .chip_body {
         style: {
-            font: Font::Web(
-                "Space Grotesk",
-                "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Space+Grotesk:wght@400;500;700&display=swap",
-                FontStyle::Normal,
-                FontWeight::Normal
-            ),
+            font: {
+                family: "Space Grotesk"
+                url: "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Space+Grotesk:wght@400;500;700&display=swap"
+            },
             font_size: 14px,
             fill: rgba(226, 226, 240, 255),
             align_horizontal: TextAlignHorizontal::Left,
@@ -540,12 +537,11 @@
 
     #title {
         style: {
-            font: Font::Web(
-                "Cormorant Garamond",
-                "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Space+Grotesk:wght@400;500;700&display=swap",
-                FontStyle::Normal,
-                FontWeight::Bold
-            ),
+            font: {
+                family: "Cormorant Garamond"
+                url: "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Space+Grotesk:wght@400;500;700&display=swap"
+                weight: 700
+            },
             font_size: 56px,
             fill: rgba(255, 242, 220, 255),
             align_horizontal: TextAlignHorizontal::Center,
@@ -557,12 +553,10 @@
 
     #subhead {
         style: {
-            font: Font::Web(
-                "Space Grotesk",
-                "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Space+Grotesk:wght@400;500;700&display=swap",
-                FontStyle::Normal,
-                FontWeight::Normal
-            ),
+            font: {
+                family: "Space Grotesk"
+                url: "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Space+Grotesk:wght@400;500;700&display=swap"
+            },
             font_size: 16px,
             fill: rgba(222, 223, 238, 255),
             align_horizontal: TextAlignHorizontal::Center,
@@ -574,12 +568,11 @@
 
     #reset_label {
         style: {
-            font: Font::Web(
-                "Space Grotesk",
-                "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Space+Grotesk:wght@400;500;700&display=swap",
-                FontStyle::Normal,
-                FontWeight::Bold
-            ),
+            font: {
+                family: "Space Grotesk"
+                url: "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Space+Grotesk:wght@400;500;700&display=swap"
+                weight: 700
+            },
             font_size: 15px,
             fill: rgba(255, 238, 206, 255),
             align_horizontal: TextAlignHorizontal::Center,
@@ -591,12 +584,10 @@
 
     #reset_caption {
         style: {
-            font: Font::Web(
-                "Space Grotesk",
-                "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Space+Grotesk:wght@400;500;700&display=swap",
-                FontStyle::Normal,
-                FontWeight::Normal
-            ),
+            font: {
+                family: "Space Grotesk"
+                url: "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Space+Grotesk:wght@400;500;700&display=swap"
+            },
             font_size: 10px,
             fill: rgba(240, 211, 164, 220),
             align_horizontal: TextAlignHorizontal::Center,
@@ -608,12 +599,11 @@
 
     #banner_title {
         style: {
-            font: Font::Web(
-                "Cormorant Garamond",
-                "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Space+Grotesk:wght@400;500;700&display=swap",
-                FontStyle::Normal,
-                FontWeight::Bold
-            ),
+            font: {
+                family: "Cormorant Garamond"
+                url: "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Space+Grotesk:wght@400;500;700&display=swap"
+                weight: 700
+            },
             font_size: 34px,
             fill: rgba(255, 242, 220, 255),
             align_horizontal: TextAlignHorizontal::Center,
@@ -625,12 +615,10 @@
 
     #banner_copy {
         style: {
-            font: Font::Web(
-                "Space Grotesk",
-                "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Space+Grotesk:wght@400;500;700&display=swap",
-                FontStyle::Normal,
-                FontWeight::Normal
-            ),
+            font: {
+                family: "Space Grotesk"
+                url: "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Space+Grotesk:wght@400;500;700&display=swap"
+            },
             font_size: 14px,
             fill: rgba(246, 240, 230, 255),
             align_horizontal: TextAlignHorizontal::Center,
@@ -642,12 +630,12 @@
 
     #field_quote {
         style: {
-            font: Font::Web(
-                "Cormorant Garamond",
-                "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Space+Grotesk:wght@400;500;700&display=swap",
-                FontStyle::Italic,
-                FontWeight::Bold
-            ),
+            font: {
+                family: "Cormorant Garamond"
+                url: "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&family=Space+Grotesk:wght@400;500;700&display=swap"
+                style: FontStyle::Italic
+                weight: 700
+            },
             font_size: 34px,
             fill: rgba(255, 236, 202, 255),
             align_horizontal: TextAlignHorizontal::Center,

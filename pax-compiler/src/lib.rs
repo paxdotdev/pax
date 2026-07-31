@@ -36,6 +36,7 @@ use pax_manifest::{
     LiteralBlockDefinition, PaxExpression, PaxManifest, SettingElement, SettingsBlockElement,
     TemplateNodeDefinition, TypeId, ValueDefinition,
 };
+use pax_runtime_api::PaxValue;
 use reqwest::blocking::Client;
 use reqwest::Url;
 use serde_json::Value as JsonValue;
@@ -858,7 +859,10 @@ fn collect_setting_elements(
 ) {
     for setting in settings {
         match setting {
-            SettingElement::Setting(_, value) => {
+            SettingElement::Setting(key, value) => {
+                if key.token_value == "font" {
+                    collect_font_object_sources(value, seen, collected);
+                }
                 collect_value_definition(value, seen, collected);
             }
             SettingElement::Comment(_) => {}
@@ -961,6 +965,51 @@ fn collect_font_sources_from_expression(
     collect_font_sources_from_serialized_json(&serialized, seen, collected);
 }
 
+fn collect_font_object_sources(
+    value: &ValueDefinition,
+    seen: &mut HashSet<WebFontSource>,
+    collected: &mut Vec<WebFontSource>,
+) {
+    if let Some(font_source) = parse_font_object_source(value) {
+        if seen.insert(font_source.clone()) {
+            collected.push(font_source);
+        }
+    }
+
+    let Ok(serialized) = serde_json::to_value(value) else {
+        return;
+    };
+    collect_font_object_sources_from_serialized_json(&serialized, seen, collected);
+}
+
+fn collect_font_object_sources_from_serialized_json(
+    value: &JsonValue,
+    seen: &mut HashSet<WebFontSource>,
+    collected: &mut Vec<WebFontSource>,
+) {
+    match value {
+        JsonValue::Object(map) => {
+            if let Some(JsonValue::Array(fields)) = map.get("Object") {
+                if let Some(font_source) = parse_font_object_fields(fields) {
+                    if seen.insert(font_source.clone()) {
+                        collected.push(font_source);
+                    }
+                }
+            }
+
+            for child in map.values() {
+                collect_font_object_sources_from_serialized_json(child, seen, collected);
+            }
+        }
+        JsonValue::Array(items) => {
+            for item in items {
+                collect_font_object_sources_from_serialized_json(item, seen, collected);
+            }
+        }
+        JsonValue::Null | JsonValue::Bool(_) | JsonValue::Number(_) | JsonValue::String(_) => {}
+    }
+}
+
 fn collect_font_sources_from_serialized_json(
     value: &JsonValue,
     seen: &mut HashSet<WebFontSource>,
@@ -968,6 +1017,21 @@ fn collect_font_sources_from_serialized_json(
 ) {
     match value {
         JsonValue::Object(map) => {
+            if let Some(JsonValue::Array(fields)) = map.get("Object") {
+                for field in fields {
+                    let JsonValue::Array(pair) = field else {
+                        continue;
+                    };
+                    if pair.first().and_then(JsonValue::as_str) == Some("font") {
+                        if let Some(font_value) = pair.get(1) {
+                            collect_font_object_sources_from_serialized_json(
+                                font_value, seen, collected,
+                            );
+                        }
+                    }
+                }
+            }
+
             if let Some(function_or_enum) = map.get("FunctionOrEnum") {
                 if let Some(font_source) = parse_font_web_source(function_or_enum) {
                     if seen.insert(font_source.clone()) {
@@ -1021,6 +1085,66 @@ fn parse_font_web_source(value: &JsonValue) -> Option<WebFontSource> {
     let url = extract_string_literal(&args[1])?;
 
     Some(WebFontSource { family, url })
+}
+
+fn parse_font_object_source(value: &ValueDefinition) -> Option<WebFontSource> {
+    let (family, url) = match value {
+        ValueDefinition::LiteralValue(PaxValue::Object(fields)) => {
+            let string_field = |expected_key: &str| {
+                fields.iter().find_map(|(key, value)| match value {
+                    PaxValue::String(value) if key == expected_key => Some(value.clone()),
+                    _ => None,
+                })
+            };
+            let family = string_field("family");
+            let url = string_field("url");
+            (family, url)
+        }
+        ValueDefinition::Block(block) => {
+            let mut family = None;
+            let mut url = None;
+            for element in &block.elements {
+                let SettingElement::Setting(key, value) = element else {
+                    continue;
+                };
+                let ValueDefinition::LiteralValue(PaxValue::String(value)) = value else {
+                    continue;
+                };
+                match key.token_value.as_str() {
+                    "family" => family = Some(value.clone()),
+                    "url" => url = Some(value.clone()),
+                    _ => {}
+                }
+            }
+            (family, url)
+        }
+        _ => return None,
+    };
+
+    let family = family?;
+    let url = url?;
+    (!url.is_empty()).then_some(WebFontSource { family, url })
+}
+
+fn parse_font_object_fields(fields: &[JsonValue]) -> Option<WebFontSource> {
+    let mut family = None;
+    let mut url = None;
+    for field in fields {
+        let JsonValue::Array(pair) = field else {
+            continue;
+        };
+        let key = pair.first()?.as_str()?;
+        let value = pair.get(1)?;
+        match key {
+            "family" => family = extract_string_literal(value),
+            "url" => url = extract_string_literal(value),
+            _ => {}
+        }
+    }
+
+    let family = family?;
+    let url = url?;
+    (!url.is_empty()).then_some(WebFontSource { family, url })
 }
 
 fn extract_string_literal(value: &JsonValue) -> Option<String> {
@@ -1194,6 +1318,23 @@ mod tests {
     }
 
     #[test]
+    fn parses_font_object_shape() {
+        let value = json!([
+            ["family", { "String": "Oxanium" }],
+            ["url", { "String": "https://fonts.googleapis.com/css2?family=Oxanium:wght@400;600;700;800&display=swap" }],
+            ["weight", { "Numeric": { "I64": 700 } }]
+        ]);
+
+        let source = parse_font_object_fields(value.as_array().unwrap())
+            .expect("expected object font source");
+        assert_eq!(source.family, "Oxanium");
+        assert_eq!(
+            source.url,
+            "https://fonts.googleapis.com/css2?family=Oxanium:wght@400;600;700;800&display=swap"
+        );
+    }
+
+    #[test]
     fn collects_font_web_sources_from_literal_value_json() {
         let value = json!({
             "LiteralValue": {
@@ -1225,6 +1366,43 @@ mod tests {
             collected[0].url,
             "https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap"
         );
+    }
+
+    #[test]
+    fn collects_font_web_sources_from_contextual_object_json() {
+        let value = json!({
+            "LiteralValue": {
+                "Object": [
+                    ["family", { "String": "Space Mono" }],
+                    ["url", { "String": "https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" }],
+                    ["weight", { "Enum": ["FontWeight", "Bold", []] }]
+                ]
+            }
+        });
+
+        let mut seen = HashSet::new();
+        let mut collected = Vec::new();
+        collect_font_object_sources_from_serialized_json(&value, &mut seen, &mut collected);
+
+        assert_eq!(collected.len(), 1);
+        assert_eq!(collected[0].family, "Space Mono");
+        assert_eq!(
+            collected[0].url,
+            "https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap"
+        );
+    }
+
+    #[test]
+    fn collects_object_font_source_from_static_manifest() {
+        let manifest = static_analysis::build_manifest(Path::new("../examples/src/increment"))
+            .expect("increment manifest should build");
+        let collected = collect_web_font_sources(&manifest);
+
+        assert!(collected.iter().any(|source| {
+            source.family == "Roboto"
+                && source.url
+                    == "https://fonts.googleapis.com/css2?family=Roboto:wght@300&display=swap"
+        }));
     }
 
     #[test]

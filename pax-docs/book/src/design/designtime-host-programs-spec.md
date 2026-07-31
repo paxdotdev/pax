@@ -448,7 +448,7 @@ and then present those sessions through surfaces:
 
 Phase 1 should reuse the existing authoring/runtime surface:
 
-- `Image source=ImageSource::Url("assets/...")`
+- `Image source="assets/..."`
 - `NativeImage url="assets/..."`
 
 Generated images should simply land under a conventional location such as:

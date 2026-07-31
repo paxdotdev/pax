@@ -93,7 +93,7 @@
                             <Text class=card_copy width=100% text="`route.location` is opinionated toward the current router's scope, so nested trees stay readable." />
                         </Stacker>
                     </Group>
-                    <Rectangle layout_role=LayoutRole::Breakout width=100% height=100% fill=rgba(16, 25, 43, 220) corner_radii=RectangleCornerRadii::radii(22.0, 22.0, 22.0, 22.0) />
+                    <Rectangle layout_role=LayoutRole::Breakout width=100% height=100% fill=rgba(16, 25, 43, 220) corner_radius=22.0 />
                 </Group>
                 <Group width=100% autosize=true autosize_x=false autosize_y=true>
                     <Group width=100% autosize=true autosize_x=false autosize_y=true padding_x=20px padding_y=18px>
@@ -102,7 +102,7 @@
                             <Text class=card_copy width=100% text="`route.global_location` preserves the full browser/native location for diagnostics and coordination." />
                         </Stacker>
                     </Group>
-                    <Rectangle layout_role=LayoutRole::Breakout width=100% height=100% fill=rgba(16, 25, 43, 220) corner_radii=RectangleCornerRadii::radii(22.0, 22.0, 22.0, 22.0) />
+                    <Rectangle layout_role=LayoutRole::Breakout width=100% height=100% fill=rgba(16, 25, 43, 220) corner_radius=22.0 />
                 </Group>
                 <Group width=100% autosize=true autosize_x=false autosize_y=true>
                     <Group width=100% autosize=true autosize_x=false autosize_y=true padding_x=20px padding_y=18px>
@@ -111,7 +111,7 @@
                             <Text class=card_copy width=100% text="Use `Link` or `NodeContext::navigate_to` when you want to write routes rather than read them." />
                         </Stacker>
                     </Group>
-                    <Rectangle layout_role=LayoutRole::Breakout width=100% height=100% fill=rgba(16, 25, 43, 220) corner_radii=RectangleCornerRadii::radii(22.0, 22.0, 22.0, 22.0) />
+                    <Rectangle layout_role=LayoutRole::Breakout width=100% height=100% fill=rgba(16, 25, 43, 220) corner_radius=22.0 />
                 </Group>
             </Stacker>
         } else {
@@ -148,7 +148,7 @@
                             <Text class=card_copy width=100% text="`route.location` is opinionated toward the current router's scope, so nested trees stay readable." />
                         </Stacker>
                     </Group>
-                    <Rectangle layout_role=LayoutRole::Breakout width=100% height=100% fill=rgba(16, 25, 43, 220) corner_radii=RectangleCornerRadii::radii(22.0, 22.0, 22.0, 22.0) />
+                    <Rectangle layout_role=LayoutRole::Breakout width=100% height=100% fill=rgba(16, 25, 43, 220) corner_radius=22.0 />
                 </Group>
                 <Group width=100% autosize=true autosize_x=false autosize_y=true>
                     <Group width=100% autosize=true autosize_x=false autosize_y=true padding_x=12% padding_y=14%>
@@ -157,7 +157,7 @@
                             <Text class=card_copy width=100% text="`route.global_location` preserves the full browser/native location for diagnostics and coordination." />
                         </Stacker>
                     </Group>
-                    <Rectangle layout_role=LayoutRole::Breakout width=100% height=100% fill=rgba(16, 25, 43, 220) corner_radii=RectangleCornerRadii::radii(22.0, 22.0, 22.0, 22.0) />
+                    <Rectangle layout_role=LayoutRole::Breakout width=100% height=100% fill=rgba(16, 25, 43, 220) corner_radius=22.0 />
                 </Group>
                 <Group width=100% autosize=true autosize_x=false autosize_y=true>
                     <Group width=100% autosize=true autosize_x=false autosize_y=true padding_x=12% padding_y=14%>
@@ -166,7 +166,7 @@
                             <Text class=card_copy width=100% text="Use `Link` or `NodeContext::navigate_to` when you want to write routes rather than read them." />
                         </Stacker>
                     </Group>
-                    <Rectangle layout_role=LayoutRole::Breakout width=100% height=100% fill=rgba(16, 25, 43, 220) corner_radii=RectangleCornerRadii::radii(22.0, 22.0, 22.0, 22.0) />
+                    <Rectangle layout_role=LayoutRole::Breakout width=100% height=100% fill=rgba(16, 25, 43, 220) corner_radius=22.0 />
                 </Group>
             </Stacker>
         }
@@ -200,12 +200,11 @@
 
     .page_eyebrow {
         style: {
-            font: Font::Web(
-                "IBM Plex Mono",
-                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
-                FontStyle::Normal,
-                FontWeight::Medium
-            )
+            font: {
+                family: "IBM Plex Mono"
+                url: "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+                weight: 500
+            }
             font_size: 14px
             fill: rgba(117, 200, 255, 255)
             align_horizontal: TextAlignHorizontal::Left
@@ -216,12 +215,11 @@
 
     .page_title {
         style: {
-            font: Font::Web(
-                "Space Grotesk",
-                "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap",
-                FontStyle::Normal,
-                FontWeight::Bold
-            )
+            font: {
+                family: "Space Grotesk"
+                url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap"
+                weight: 700
+            }
             font_size: 30px
             fill: rgba(244, 247, 255, 255)
             align_horizontal: TextAlignHorizontal::Left
@@ -232,12 +230,10 @@
 
     .page_copy {
         style: {
-            font: Font::Web(
-                "Space Grotesk",
-                "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap",
-                FontStyle::Normal,
-                FontWeight::Normal
-            )
+            font: {
+                family: "Space Grotesk"
+                url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap"
+            }
             font_size: 16px
             fill: rgba(189, 198, 212, 255)
             align_horizontal: TextAlignHorizontal::Left
@@ -248,12 +244,11 @@
 
     .card_title {
         style: {
-            font: Font::Web(
-                "Space Grotesk",
-                "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap",
-                FontStyle::Normal,
-                FontWeight::Bold
-            )
+            font: {
+                family: "Space Grotesk"
+                url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap"
+                weight: 700
+            }
             font_size: 17px
             fill: rgba(244, 247, 255, 255)
             align_horizontal: TextAlignHorizontal::Left
@@ -264,12 +259,10 @@
 
     .card_copy {
         style: {
-            font: Font::Web(
-                "Space Grotesk",
-                "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap",
-                FontStyle::Normal,
-                FontWeight::Normal
-            )
+            font: {
+                family: "Space Grotesk"
+                url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap"
+            }
             font_size: 14px
             fill: rgba(172, 186, 204, 255)
             align_horizontal: TextAlignHorizontal::Left

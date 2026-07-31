@@ -35,7 +35,7 @@ export class SliderUpdatePatch {
         this.step = jsonMessage["step"];
         this.min= jsonMessage["min"];
         this.max = jsonMessage["max"];
-        this.borderRadius = jsonMessage["border_radius"];
+        this.borderRadius = jsonMessage["corner_radius"];
         this.background = jsonMessage["background"];
     }
 

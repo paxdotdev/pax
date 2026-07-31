@@ -74,6 +74,8 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         Rule::matched_tag => vec![Box::new(MatchTagDefaultRule)],
         Rule::inner_nodes => vec![Box::new(InnerNodesDefaultRule)],
         Rule::attribute_key_value_pair => vec![Box::new(AttributeKeyValuePairDefaultRule)],
+        Rule::class_attribute => vec![Box::new(ClassAttributeDefaultRule)],
+        Rule::class_identifier_list => vec![Box::new(ClassIdentifierListDefaultRule)],
         Rule::attribute_transition_binding | Rule::attribute_event_binding => {
             vec![Box::new(AttributeEventBindingDefaultRule)]
         }
@@ -330,8 +332,13 @@ impl FormattingRule for OpenTagDefaultRule {
         formatted_node.push_str(&children[0].formatted_node);
         if children.len() > 1 {
             formatted_node.push_str(" ");
-            formatted_node
-                .push_str(greedy_append_with_line_limit(children[1..].to_vec(), " ").as_str());
+            formatted_node.push_str(
+                greedy_append_with_line_limit(
+                    canonicalize_static_class_attributes(children[1..].to_vec()),
+                    " ",
+                )
+                .as_str(),
+            );
         }
         formatted_node.push_str(">");
         formatted_node
@@ -347,8 +354,13 @@ impl FormattingRule for SelfClosingTagDefaultRule {
         formatted_node.push_str("<");
         formatted_node.push_str(&children[0].formatted_node);
         formatted_node.push_str(" ");
-        formatted_node
-            .push_str(greedy_append_with_line_limit(children[1..].to_vec(), " ").as_str());
+        formatted_node.push_str(
+            greedy_append_with_line_limit(
+                canonicalize_static_class_attributes(children[1..].to_vec()),
+                " ",
+            )
+            .as_str(),
+        );
         formatted_node.push_str("/>");
         formatted_node
     }
@@ -402,6 +414,88 @@ impl FormattingRule for AttributeKeyValuePairDefaultRule {
         }
         formatted_node
     }
+}
+
+#[derive(Clone)]
+struct ClassAttributeDefaultRule;
+
+impl FormattingRule for ClassAttributeDefaultRule {
+    fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
+        format!("class={}", children[0].formatted_node)
+    }
+}
+
+#[derive(Clone)]
+struct ClassIdentifierListDefaultRule;
+
+impl FormattingRule for ClassIdentifierListDefaultRule {
+    fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
+        if children.len() == 1 {
+            return children[0].formatted_node.clone();
+        }
+        format!(
+            "[{}]",
+            children
+                .iter()
+                .map(|child| child.formatted_node.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
+        )
+    }
+}
+
+fn canonicalize_static_class_attributes(children: Vec<Child>) -> Vec<Child> {
+    let class_indices_and_values = children
+        .iter()
+        .enumerate()
+        .filter_map(|(index, child)| {
+            let value = child.formatted_node.strip_prefix("class=")?;
+            if value
+                .chars()
+                .all(|character| character.is_ascii_alphanumeric() || "_-[], ".contains(character))
+            {
+                Some((index, value))
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>();
+
+    if class_indices_and_values.len() <= 1 {
+        return children;
+    }
+
+    let first_index = class_indices_and_values[0].0;
+    let class_indices = class_indices_and_values
+        .iter()
+        .map(|(index, _)| *index)
+        .collect::<Vec<_>>();
+    let classes = class_indices_and_values
+        .iter()
+        .flat_map(|(_, value)| {
+            value
+                .trim_matches(['[', ']'])
+                .split(',')
+                .map(str::trim)
+                .filter(|value| !value.is_empty())
+        })
+        .collect::<Vec<_>>()
+        .join(", ");
+
+    children
+        .into_iter()
+        .enumerate()
+        .filter_map(|(index, mut child)| {
+            if index == first_index {
+                child.formatted_node = format!("class=[{classes}]");
+                Some(child)
+            } else if class_indices.contains(&index) {
+                None
+            } else {
+                Some(child)
+            }
+        })
+        .collect()
 }
 
 #[derive(Clone)]

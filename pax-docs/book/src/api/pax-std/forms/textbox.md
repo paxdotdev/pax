@@ -28,7 +28,7 @@ Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Stroke`](/api/
 
 Border stroke.
 
-##### `border_radius`
+##### `corner_radius`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`f64`>
 
 Corner radius, in pixels.

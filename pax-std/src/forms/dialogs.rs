@@ -15,9 +15,7 @@ use pax_engine::*;
             <Button width=80px height=30px anchor_y=100% anchor_x=100% y={100% -20px} x={100% -20px} label="No" @button_click=handle_no/>
             <Text x=20px y=20px height=15px width=100px text=text/>
             <Rectangle fill=rgb(20, 20, 20)
-            corner_radii={
-                RectangleCornerRadii::radii(15.0,15.0,15.0,15.0)
-            }/>
+            corner_radius=15.0/>
         </Group>
         <Rectangle fill=rgba(0, 0, 0, 70)/>
     }

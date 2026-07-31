@@ -2,15 +2,15 @@
 
 @settings {
     .scene_backdrop {
-        fill: Fill::linearGradient(
-            (0%, 0%),
-            (100%, 100%),
-            [
-                GradientStop::get(Color::rgba(247, 241, 229, 255), 0%),
-                GradientStop::get(Color::rgba(234, 228, 214, 255), 54%),
-                GradientStop::get(Color::rgba(221, 215, 202, 255), 100%)
-            ]
-        )
+        fill: @gradient {
+            linear: {
+                start: [0%, 0%]
+                end: [100%, 100%]
+            }
+            0%: rgba(247, 241, 229, 255)
+            54%: rgba(234, 228, 214, 255)
+            100%: rgba(221, 215, 202, 255)
+        }
     }
 
     .panel_shadow {

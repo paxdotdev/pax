@@ -24,7 +24,7 @@ pub struct Checkbox {
     /// The outline stroke of the checkbox
     pub outline: Property<Stroke>,
     /// The border radius of the checkbox
-    pub border_radius: Property<f64>,
+    pub corner_radius: Property<f64>,
     /// Whether the checkbox is currently checked
     pub checked: Property<bool>,
 }
@@ -40,7 +40,7 @@ impl Default for Checkbox {
                 cap: Property::new(StrokeCap::default()),
                 join: Property::new(StrokeJoin::default()),
             }),
-            border_radius: Property::new(5.0),
+            corner_radius: Property::new(5.0),
             checked: Property::new(false),
         }
     }
@@ -145,9 +145,9 @@ impl InstanceNode for CheckboxInstance {
                                     .to_float(),
                             ),
                             patch_if_needed(
-                                &mut old_state.border_radius,
-                                &mut patch.border_radius,
-                                properties.border_radius.get(),
+                                &mut old_state.corner_radius,
+                                &mut patch.corner_radius,
+                                properties.corner_radius.get(),
                             ),
                             patch_if_needed(
                                 &mut old_state.checked,

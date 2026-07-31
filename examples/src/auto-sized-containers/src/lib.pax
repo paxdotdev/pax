@@ -67,7 +67,7 @@
                 width=100%
                 height=100%
                 fill=rgb(235, 244, 255)
-                corner_radii={RectangleCornerRadii::radii(24.0, 24.0, 24.0, 24.0)}/>
+                corner_radius=24.0/>
         </Group>
 
         <Stacker width=100% autosize=true gutter=12px>
@@ -106,7 +106,7 @@
                     width=100%
                     height=100%
                     fill=rgb(255, 240, 226)
-                    corner_radii={RectangleCornerRadii::radii(22.0, 22.0, 22.0, 22.0)}/>
+                    corner_radius=22.0/>
             </Group>
 
             <Group height=104px>
@@ -129,7 +129,7 @@
                     width=100%
                     height=100%
                     fill=rgb(232, 249, 242)
-                    corner_radii={RectangleCornerRadii::radii(22.0, 22.0, 22.0, 22.0)}/>
+                    corner_radius=22.0/>
             </Group>
 
             <Group height=136px>
@@ -152,7 +152,7 @@
                     width=100%
                     height=100%
                     fill=rgb(243, 236, 255)
-                    corner_radii={RectangleCornerRadii::radii(22.0, 22.0, 22.0, 22.0)}/>
+                    corner_radius=22.0/>
             </Group>
 
             <Group height=92px>
@@ -175,7 +175,7 @@
                     width=100%
                     height=100%
                     fill=rgb(255, 240, 245)
-                    corner_radii={RectangleCornerRadii::radii(22.0, 22.0, 22.0, 22.0)}/>
+                    corner_radius=22.0/>
             </Group>
         </Stacker>
 
@@ -231,15 +231,15 @@
                 width=132px
                 height=40px
                 fill=rgb(215, 227, 255)
-                corner_radii={RectangleCornerRadii::radii(18.0, 18.0, 18.0, 18.0)}/>
+                corner_radius=18.0/>
             <Rectangle
                 width=248px
                 height=76px
                 fill=rgb(246, 248, 255)
-                corner_radii={RectangleCornerRadii::radii(20.0, 20.0, 20.0, 20.0)}/>
+                corner_radius=20.0/>
         </Group>
 
-        <Frame autosize=true border_radius=22.0>
+        <Frame autosize=true corner_radius=22.0>
             <Text
                 x=20px
                 y=18px
@@ -276,12 +276,12 @@
                 width=66px
                 height=30px
                 fill=rgb(190, 233, 215)
-                corner_radii={RectangleCornerRadii::radii(15.0, 15.0, 15.0, 15.0)}/>
+                corner_radius=15.0/>
             <Rectangle
                 width=364px
                 height=136px
                 fill=rgb(236, 250, 244)
-                corner_radii={RectangleCornerRadii::radii(22.0, 22.0, 22.0, 22.0)}/>
+                corner_radius=22.0/>
         </Frame>
 
         <Link autosize=true url="https://pax.dev" target=Target::Current>
@@ -335,7 +335,7 @@
                     width=332px
                     height=72px
                     fill=rgb(233, 244, 255)
-                    corner_radii={RectangleCornerRadii::radii(22.0, 22.0, 22.0, 22.0)}/>
+                    corner_radius=22.0/>
             </Group>
         </Link>
 
@@ -375,7 +375,7 @@
                     width=290px
                     height=60px
                     fill=rgb(255, 244, 233)
-                    corner_radii={RectangleCornerRadii::radii(20.0, 20.0, 20.0, 20.0)}/>
+                    corner_radius=20.0/>
             </Group>
         </Tooltip>
 
@@ -428,7 +428,7 @@
                 step=0.01
                 accent=rgb(96, 132, 217)
                 background=rgb(226, 235, 255)
-                border_radius=13/>
+                corner_radius=13/>
             <Text
                 x=20px
                 y=142px
@@ -448,7 +448,7 @@
                 width=100%
                 height=184px
                 fill=rgb(241, 245, 255)
-                corner_radii={RectangleCornerRadii::radii(24.0, 24.0, 24.0, 24.0)}/>
+                corner_radius=24.0/>
         </Group>
 
         <Group height=184px>
@@ -482,13 +482,13 @@
                     align_multiline: TextAlignHorizontal::Left
                     underline: false
                 }/>
-            <Rectangle x=20px y=136px width=132px height=20px fill=rgb(255, 220, 231) corner_radii={RectangleCornerRadii::radii(10.0, 10.0, 10.0, 10.0)}/>
-            <Rectangle x=162px y=136px width=96px height=20px fill=rgb(255, 226, 235) corner_radii={RectangleCornerRadii::radii(10.0, 10.0, 10.0, 10.0)}/>
+            <Rectangle x=20px y=136px width=132px height=20px fill=rgb(255, 220, 231) corner_radius=10.0/>
+            <Rectangle x=162px y=136px width=96px height=20px fill=rgb(255, 226, 235) corner_radius=10.0/>
             <Rectangle
                 width=100%
                 height=184px
                 fill=rgb(255, 241, 244)
-                corner_radii={RectangleCornerRadii::radii(24.0, 24.0, 24.0, 24.0)}/>
+                corner_radius=24.0/>
         </Group>
 
         <Group height=168px>
@@ -507,10 +507,10 @@
                     align_multiline: TextAlignHorizontal::Left
                     underline: false
                 }/>
-            <Rectangle x=20px y=56px width=56px height=56px fill=rgb(188, 230, 208) corner_radii={RectangleCornerRadii::radii(18.0, 18.0, 18.0, 18.0)}/>
-            <Rectangle x=88px y=56px width=56px height=56px fill=rgb(204, 238, 219) corner_radii={RectangleCornerRadii::radii(18.0, 18.0, 18.0, 18.0)}/>
-            <Rectangle x=156px y=56px width=56px height=56px fill=rgb(217, 244, 229) corner_radii={RectangleCornerRadii::radii(18.0, 18.0, 18.0, 18.0)}/>
-            <Rectangle x=224px y=56px width=56px height=56px fill=rgb(227, 247, 236) corner_radii={RectangleCornerRadii::radii(18.0, 18.0, 18.0, 18.0)}/>
+            <Rectangle x=20px y=56px width=56px height=56px fill=rgb(188, 230, 208) corner_radius=18.0/>
+            <Rectangle x=88px y=56px width=56px height=56px fill=rgb(204, 238, 219) corner_radius=18.0/>
+            <Rectangle x=156px y=56px width=56px height=56px fill=rgb(217, 244, 229) corner_radius=18.0/>
+            <Rectangle x=224px y=56px width=56px height=56px fill=rgb(227, 247, 236) corner_radius=18.0/>
             <Slider
                 x=20px
                 y=132px
@@ -522,12 +522,12 @@
                 step=0.01
                 accent=rgb(59, 134, 96)
                 background=rgb(214, 241, 226)
-                border_radius=12/>
+                corner_radius=12/>
             <Rectangle
                 width=100%
                 height=168px
                 fill=rgb(235, 249, 243)
-                corner_radii={RectangleCornerRadii::radii(24.0, 24.0, 24.0, 24.0)}/>
+                corner_radius=24.0/>
         </Group>
 
         <Group height=208px>
@@ -546,9 +546,9 @@
                     align_multiline: TextAlignHorizontal::Left
                     underline: false
                 }/>
-            <Rectangle x=20px y=60px width=292px height=10px fill=rgb(225, 210, 255) corner_radii={RectangleCornerRadii::radii(5.0, 5.0, 5.0, 5.0)}/>
-            <Rectangle x=20px y=88px width=188px height=10px fill=rgb(202, 176, 255) corner_radii={RectangleCornerRadii::radii(5.0, 5.0, 5.0, 5.0)}/>
-            <Rectangle x=20px y=116px width=242px height=10px fill=rgb(185, 154, 250) corner_radii={RectangleCornerRadii::radii(5.0, 5.0, 5.0, 5.0)}/>
+            <Rectangle x=20px y=60px width=292px height=10px fill=rgb(225, 210, 255) corner_radius=5.0/>
+            <Rectangle x=20px y=88px width=188px height=10px fill=rgb(202, 176, 255) corner_radius=5.0/>
+            <Rectangle x=20px y=116px width=242px height=10px fill=rgb(185, 154, 250) corner_radius=5.0/>
             <Button
                 x=20px
                 y=146px
@@ -575,7 +575,7 @@
                 width=100%
                 height=208px
                 fill=rgb(255, 247, 224)
-                corner_radii={RectangleCornerRadii::radii(24.0, 24.0, 24.0, 24.0)}/>
+                corner_radius=24.0/>
         </Group>
 
         <Group height=176px>
@@ -629,7 +629,7 @@
                 width=100%
                 height=176px
                 fill=rgb(238, 240, 255)
-                corner_radii={RectangleCornerRadii::radii(24.0, 24.0, 24.0, 24.0)}/>
+                corner_radius=24.0/>
         </Group>
 
         <Group height=188px>
@@ -663,12 +663,12 @@
                     align_multiline: TextAlignHorizontal::Left
                     underline: false
                 }/>
-            <Rectangle x=20px y=114px width=150px height=18px fill=rgb(216, 230, 255) corner_radii={RectangleCornerRadii::radii(9.0, 9.0, 9.0, 9.0)}/>
+            <Rectangle x=20px y=114px width=150px height=18px fill=rgb(216, 230, 255) corner_radius=9.0/>
             <Rectangle
                 width=100%
                 height=188px
                 fill=rgb(231, 245, 255)
-                corner_radii={RectangleCornerRadii::radii(24.0, 24.0, 24.0, 24.0)}/>
+                corner_radius=24.0/>
         </Group>
     </Stacker>
 </Scroller>

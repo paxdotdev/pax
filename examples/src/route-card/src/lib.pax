@@ -290,7 +290,11 @@
 
     .eyebrow {
         style: {
-            font: Font::Web("IBM Plex Mono", "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&display=swap", FontStyle::Normal, FontWeight::Medium)
+            font: {
+                family: "IBM Plex Mono"
+                url: "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&display=swap"
+                weight: 500
+            }
             font_size: 14px
             fill: rgba(0, 127, 116, 255)
             align_horizontal: TextAlignHorizontal::Left
@@ -301,7 +305,11 @@
 
     .hero {
         style: {
-            font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font: {
+                family: "Space Grotesk"
+                url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap"
+                weight: 700
+            }
             font_size: 38px
             fill: rgba(26, 36, 45, 255)
             align_horizontal: TextAlignHorizontal::Left
@@ -312,7 +320,11 @@
 
     .mobile_hero {
         style: {
-            font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font: {
+                family: "Space Grotesk"
+                url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap"
+                weight: 700
+            }
             font_size: 28px
             fill: rgba(26, 36, 45, 255)
             align_horizontal: TextAlignHorizontal::Left
@@ -323,7 +335,11 @@
 
     .card_title {
         style: {
-            font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font: {
+                family: "Space Grotesk"
+                url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap"
+                weight: 700
+            }
             font_size: 42px
             fill: rgba(26, 36, 45, 255)
             align_horizontal: TextAlignHorizontal::Left
@@ -334,7 +350,11 @@
 
     .mobile_card_title {
         style: {
-            font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font: {
+                family: "Space Grotesk"
+                url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap"
+                weight: 700
+            }
             font_size: 32px
             fill: rgba(26, 36, 45, 255)
             align_horizontal: TextAlignHorizontal::Left
@@ -345,7 +365,11 @@
 
     .sheet_title {
         style: {
-            font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font: {
+                family: "Space Grotesk"
+                url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap"
+                weight: 700
+            }
             font_size: 30px
             fill: rgba(26, 36, 45, 255)
             align_horizontal: TextAlignHorizontal::Left
@@ -356,7 +380,11 @@
 
     .mobile_sheet_title {
         style: {
-            font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font: {
+                family: "Space Grotesk"
+                url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap"
+                weight: 700
+            }
             font_size: 28px
             fill: rgba(26, 36, 45, 255)
             align_horizontal: TextAlignHorizontal::Left
@@ -367,7 +395,10 @@
 
     .copy {
         style: {
-            font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap", FontStyle::Normal, FontWeight::Normal)
+            font: {
+                family: "Space Grotesk"
+                url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap"
+            }
             font_size: 16px
             fill: rgba(79, 91, 101, 255)
             align_horizontal: TextAlignHorizontal::Left
@@ -378,7 +409,11 @@
 
     .label {
         style: {
-            font: Font::Web("IBM Plex Mono", "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&display=swap", FontStyle::Normal, FontWeight::Medium)
+            font: {
+                family: "IBM Plex Mono"
+                url: "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&display=swap"
+                weight: 500
+            }
             font_size: 13px
             fill: rgba(198, 79, 58, 255)
             align_horizontal: TextAlignHorizontal::Left
@@ -389,7 +424,11 @@
 
     .tile_title {
         style: {
-            font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font: {
+                family: "Space Grotesk"
+                url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap"
+                weight: 700
+            }
             font_size: 20px
             fill: rgba(31, 43, 52, 255)
             align_horizontal: TextAlignHorizontal::Left
@@ -400,7 +439,10 @@
 
     .tile_copy {
         style: {
-            font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500&display=swap", FontStyle::Normal, FontWeight::Normal)
+            font: {
+                family: "Space Grotesk"
+                url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500&display=swap"
+            }
             font_size: 14px
             fill: rgba(86, 99, 110, 255)
             align_horizontal: TextAlignHorizontal::Left
@@ -411,7 +453,11 @@
 
     .button_text {
         style: {
-            font: Font::Web("IBM Plex Mono", "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&display=swap", FontStyle::Normal, FontWeight::Medium)
+            font: {
+                family: "IBM Plex Mono"
+                url: "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&display=swap"
+                weight: 500
+            }
             font_size: 14px
             fill: rgba(255, 250, 239, 255)
             align_horizontal: TextAlignHorizontal::Center
@@ -422,7 +468,7 @@
 
     .home_card {
         fill: rgba(255, 250, 239, 255)
-        corner_radii: RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)
+        corner_radius: 8.0
         stroke: {
             color: rgba(19, 115, 132, 94)
             width: 1px
@@ -431,7 +477,7 @@
 
     .panel {
         fill: rgba(255, 250, 239, 255)
-        corner_radii: RectangleCornerRadii::radii(0.0, 0.0, 0.0, 0.0)
+        corner_radius: 0.0
         stroke: {
             color: rgba(14, 111, 126, 120)
             width: 1px
@@ -440,7 +486,7 @@
 
     .sheet {
         fill: rgba(255, 250, 239, 255)
-        corner_radii: RectangleCornerRadii::radii(25.0, 25.0, 0.0, 0.0)
+        corner_radius: [25.0, 25.0, 0.0, 0.0]
         stroke: {
             color: rgba(14, 111, 126, 120)
             width: 1px
@@ -449,7 +495,7 @@
 
     .tile {
         fill: rgba(236, 248, 244, 255)
-        corner_radii: RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)
+        corner_radius: 8.0
         stroke: {
             color: rgba(0, 127, 116, 80)
             width: 1px
@@ -458,6 +504,6 @@
 
     .button {
         fill: rgba(198, 79, 58, 255)
-        corner_radii: RectangleCornerRadii::radii(6.0, 6.0, 6.0, 6.0)
+        corner_radius: 6.0
     }
 }

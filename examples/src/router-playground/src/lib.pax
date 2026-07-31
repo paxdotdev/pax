@@ -13,7 +13,7 @@ if is_mobile {
                 height=48px
                 direction=StackerDirection::Vertical
                 gutter=2px
-                sizes=[Some(26px), None]
+                sizes=[26px, None]
             >
                 <Text id=mobile_title width=100% height=100% text="Router Playground" />
                 <Text id=mobile_subtitle width=100% height=100% text="Nested routing demo" />
@@ -58,7 +58,7 @@ if is_mobile {
         height=100%
         direction=StackerDirection::Horizontal
         gutter=2%
-        sizes=[Some(27%), None]
+        sizes=[27%, None]
     >
         <Group width=100% height=100%>
             <SidebarNav width=100% height=100% />
@@ -84,7 +84,7 @@ if is_mobile {
 
     .sidebar_panel {
         fill: rgba(9, 15, 28, 232)
-        corner_radii: RectangleCornerRadii::radii(28.0, 28.0, 28.0, 28.0)
+        corner_radius: 28.0
         stroke: {
             color: rgba(88, 116, 158, 150)
             width: 1px
@@ -93,7 +93,7 @@ if is_mobile {
 
     .content_panel {
         fill: rgba(8, 14, 25, 228)
-        corner_radii: RectangleCornerRadii::radii(30.0, 30.0, 30.0, 30.0)
+        corner_radius: 30.0
         stroke: {
             color: rgba(95, 123, 167, 140)
             width: 1px
@@ -110,7 +110,7 @@ if is_mobile {
 
     .mobile_menu_button {
         fill: rgba(18, 32, 56, 238)
-        corner_radii: RectangleCornerRadii::radii(18.0, 18.0, 18.0, 18.0)
+        corner_radius: 18.0
         stroke: {
             color: rgba(104, 202, 255, 170)
             width: 1px
@@ -119,12 +119,11 @@ if is_mobile {
 
     #mobile_menu_text {
         style: {
-            font: Font::Web(
-                "IBM Plex Mono",
-                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
-                FontStyle::Normal,
-                FontWeight::Medium
-            )
+            font: {
+                family: "IBM Plex Mono"
+                url: "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+                weight: 500
+            }
             font_size: 15px
             fill: rgba(117, 200, 255, 255)
             align_horizontal: TextAlignHorizontal::Center
@@ -135,12 +134,11 @@ if is_mobile {
 
     #mobile_title {
         style: {
-            font: Font::Web(
-                "Space Grotesk",
-                "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap",
-                FontStyle::Normal,
-                FontWeight::Bold
-            )
+            font: {
+                family: "Space Grotesk"
+                url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&display=swap"
+                weight: 700
+            }
             font_size: 18px
             fill: rgba(244, 247, 255, 255)
             align_horizontal: TextAlignHorizontal::Left
@@ -151,12 +149,10 @@ if is_mobile {
 
     #mobile_subtitle {
         style: {
-            font: Font::Web(
-                "IBM Plex Mono",
-                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
-                FontStyle::Normal,
-                FontWeight::Normal
-            )
+            font: {
+                family: "IBM Plex Mono"
+                url: "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+            }
             font_size: 12px
             fill: rgba(154, 173, 198, 255)
             align_horizontal: TextAlignHorizontal::Left

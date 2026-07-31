@@ -32,8 +32,8 @@
                 <Rectangle class=badge_surface x=0px y=0px width=100% height=100% />
             </Group>
 
-            <LiquidGlass id=card_resolve class=card enabled={$macos || $ios} spacing=18px interactive=true variant="clear" tint=Some(rgba(232, 240, 246, 96))>
-                <Group width=100% height=100% border_radius=28.0>
+            <LiquidGlass id=card_resolve class=card enabled={$macos || $ios} spacing=18px interactive=true variant="clear" tint=rgba(232, 240, 246, 96)>
+                <Group width=100% height=100% corner_radius=28.0>
                     <LiquidGlass enabled=false>
                         <Group width=100% height=100%>
                             <Text class=phase_chip_text x={100% - 116px} y=25px width=82px height=18px text="TARGET" />
@@ -58,8 +58,8 @@
                 </Group>
             </LiquidGlass>
 
-            <LiquidGlass id=card_route class=card enabled={$macos || $ios} spacing=18px interactive=true variant="clear" tint=Some(rgba(232, 240, 246, 96))>
-                <Group width=100% height=100% border_radius=28.0>
+            <LiquidGlass id=card_route class=card enabled={$macos || $ios} spacing=18px interactive=true variant="clear" tint=rgba(232, 240, 246, 96)>
+                <Group width=100% height=100% corner_radius=28.0>
                     <LiquidGlass enabled=false>
                         <Group width=100% height=100%>
                             <Text class=phase_chip_text x={100% - 116px} y=25px width=82px height=18px text="PAXEL" />
@@ -84,8 +84,8 @@
                 </Group>
             </LiquidGlass>
 
-            <LiquidGlass id=card_triage class=card enabled={$macos || $ios} spacing=18px interactive=true variant="clear" tint=Some(rgba(232, 240, 246, 96))>
-                <Group width=100% height=100% border_radius=28.0>
+            <LiquidGlass id=card_triage class=card enabled={$macos || $ios} spacing=18px interactive=true variant="clear" tint=rgba(232, 240, 246, 96)>
+                <Group width=100% height=100% corner_radius=28.0>
                     <LiquidGlass enabled=false>
                         <Group width=100% height=100%>
                             <Text class=phase_chip_text x={100% - 116px} y=25px width=82px height=18px text="BASE" />
@@ -148,8 +148,12 @@
 
 @settings {
     .eyebrow {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap"
+                weight: 700
+            }
             font_size: 12px
             fill: rgb(93, 108, 111)
             align_vertical: TextAlignVertical::Center
@@ -158,8 +162,12 @@
     }
 
     .title {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap"
+                weight: 700
+            }
             font_size: 62px
             fill: rgb(21, 29, 32)
             align_vertical: TextAlignVertical::Center
@@ -168,8 +176,12 @@
     }
 
     .subtitle {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Medium)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap"
+                weight: 500
+            }
             font_size: 16px
             fill: rgb(75, 91, 94)
             align_vertical: TextAlignVertical::Center
@@ -186,8 +198,12 @@
     }
 
     .badge_text {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Medium)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap"
+                weight: 500
+            }
             font_size: 13px
             fill: rgb(36, 48, 51)
             align_vertical: TextAlignVertical::Center
@@ -196,17 +212,17 @@
     }
 
     .badge_surface {
-        fill: Fill::linearGradient(
-            (0%, 0%),
-            (100%, 100%),
-            [
-                GradientStop::get(Color::rgba(255, 255, 255, 250), 0%),
-                GradientStop::get(Color::rgba(240, 248, 247, 238), 100%)
-            ]
-        )
-        corner_radii: RectangleCornerRadii::radii(18.0, 18.0, 18.0, 18.0)
-        stroke: Stroke {
-            color: Color::rgba(119, 143, 146, 82)
+        fill: @gradient {
+            linear: {
+                start: [0%, 0%]
+                end: [100%, 100%]
+            }
+            0%: rgba(255, 255, 255, 250)
+            100%: rgba(240, 248, 247, 238)
+        }
+        corner_radius: 18.0
+        stroke: {
+            color: rgba(119, 143, 146, 82)
             width: 1px
         }
     }
@@ -230,38 +246,42 @@
     }
 
     .card_surface {
-        fill: Fill::linearGradient(
-            (0%, 0%),
-            (0%, 100%),
-            [
-                GradientStop::get(Color::rgba(255, 255, 255, 136), 0%),
-                GradientStop::get(Color::rgba(250, 253, 252, 82), 58%),
-                GradientStop::get(Color::rgba(226, 240, 244, 62), 100%)
-            ]
-        )
-        corner_radii: RectangleCornerRadii::radii(28.0, 28.0, 28.0, 28.0)
-        stroke: Stroke {
-            color: Color::rgba(255, 255, 255, 156)
+        fill: @gradient {
+            linear: {
+                start: [0%, 0%]
+                end: [0%, 100%]
+            }
+            0%: rgba(255, 255, 255, 136)
+            58%: rgba(250, 253, 252, 82)
+            100%: rgba(226, 240, 244, 62)
+        }
+        corner_radius: 28.0
+        stroke: {
+            color: rgba(255, 255, 255, 156)
             width: 1px
         }
     }
 
     .card_sheen {
-        fill: Fill::linearGradient(
-            (0%, 0%),
-            (100%, 100%),
-            [
-                GradientStop::get(Color::rgba(255, 255, 255, 112), 0%),
-                GradientStop::get(Color::rgba(255, 255, 255, 44), 58%),
-                GradientStop::get(Color::rgba(255, 255, 255, 0), 100%)
-            ]
-        )
-        corner_radii: RectangleCornerRadii::radii(22.0, 22.0, 18.0, 18.0)
+        fill: @gradient {
+            linear: {
+                start: [0%, 0%]
+                end: [100%, 100%]
+            }
+            0%: rgba(255, 255, 255, 112)
+            58%: rgba(255, 255, 255, 44)
+            100%: rgba(255, 255, 255, 0)
+        }
+        corner_radius: [22.0, 22.0, 18.0, 18.0]
     }
 
     .card_kicker {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap"
+                weight: 700
+            }
             font_size: 11px
             fill: rgb(91, 104, 108)
             align_vertical: TextAlignVertical::Center
@@ -270,8 +290,12 @@
     }
 
     .card_title {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap"
+                weight: 700
+            }
             font_size: 28px
             fill: rgb(22, 30, 33)
             align_vertical: TextAlignVertical::Center
@@ -280,8 +304,12 @@
     }
 
     .card_copy {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Medium)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap"
+                weight: 500
+            }
             font_size: 14px
             fill: rgb(70, 84, 88)
             align_vertical: TextAlignVertical::Top
@@ -291,8 +319,12 @@
     }
 
     .metric_value {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap"
+                weight: 700
+            }
             font_size: 36px
             fill: rgb(20, 29, 32)
             align_vertical: TextAlignVertical::Center
@@ -301,8 +333,12 @@
     }
 
     .metric_label {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Medium)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap"
+                weight: 500
+            }
             font_size: 12px
             fill: rgb(88, 101, 105)
             align_vertical: TextAlignVertical::Center
@@ -311,8 +347,12 @@
     }
 
     .phase_chip_text {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap"
+                weight: 700
+            }
             font_size: 10px
             fill: rgb(46, 60, 63)
             align_vertical: TextAlignVertical::Center
@@ -321,15 +361,15 @@
     }
 
     .phase_chip_surface {
-        fill: Fill::linearGradient(
-            (0%, 0%),
-            (100%, 0%),
-            [
-                GradientStop::get(Color::rgba(238, 247, 245, 250), 0%),
-                GradientStop::get(Color::rgba(221, 235, 232, 230), 100%)
-            ]
-        )
-        corner_radii: RectangleCornerRadii::radii(15.0, 15.0, 15.0, 15.0)
+        fill: @gradient {
+            linear: {
+                start: [0%, 0%]
+                end: [100%, 0%]
+            }
+            0%: rgba(238, 247, 245, 250)
+            100%: rgba(221, 235, 232, 230)
+        }
+        corner_radius: 15.0
     }
 
     .mini_dot {
@@ -337,7 +377,7 @@
     }
 
     .mini_dot_soft {
-        fill: Color::rgba(40, 56, 59, 70)
+        fill: rgba(40, 56, 59, 70)
     }
 
     .status_panel {
@@ -348,21 +388,25 @@
     }
 
     .panel_surface {
-        fill: Fill::linearGradient(
-            (0%, 0%),
-            (100%, 100%),
-            [
-                GradientStop::get(Color::rgba(25, 39, 42, 250), 0%),
-                GradientStop::get(Color::rgba(31, 51, 53, 246), 58%),
-                GradientStop::get(Color::rgba(20, 30, 34, 250), 100%)
-            ]
-        )
-        corner_radii: RectangleCornerRadii::radii(26.0, 26.0, 26.0, 26.0)
+        fill: @gradient {
+            linear: {
+                start: [0%, 0%]
+                end: [100%, 100%]
+            }
+            0%: rgba(25, 39, 42, 250)
+            58%: rgba(31, 51, 53, 246)
+            100%: rgba(20, 30, 34, 250)
+        }
+        corner_radius: 26.0
     }
 
     .panel_label {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap"
+                weight: 700
+            }
             font_size: 12px
             fill: rgb(151, 178, 180)
             align_vertical: TextAlignVertical::Center
@@ -371,8 +415,12 @@
     }
 
     .panel_value {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap"
+                weight: 700
+            }
             font_size: 28px
             fill: rgb(255, 255, 255)
             align_vertical: TextAlignVertical::Center
@@ -381,8 +429,12 @@
     }
 
     .panel_copy {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Medium)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap"
+                weight: 500
+            }
             font_size: 14px
             fill: rgb(212, 224, 224)
             align_vertical: TextAlignVertical::Top
@@ -392,8 +444,12 @@
     }
 
     .panel_chip_text {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap"
+                weight: 700
+            }
             font_size: 11px
             fill: rgb(155, 178, 180)
             align_vertical: TextAlignVertical::Center
@@ -402,8 +458,12 @@
     }
 
     .panel_chip_value {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap"
+                weight: 700
+            }
             font_size: 14px
             fill: rgb(255, 255, 255)
             align_vertical: TextAlignVertical::Center
@@ -412,123 +472,129 @@
     }
 
     .panel_stage {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap"
+                weight: 700
+            }
             font_size: 118px
-            fill: Color::rgba(255, 255, 255, 18)
+            fill: rgba(255, 255, 255, 18)
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Right
         }
     }
 
     .panel_lane_label {
-        style: TextStyle {
-            font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap"
+                weight: 700
+            }
             font_size: 11px
-            fill: Color::rgba(183, 207, 207, 152)
+            fill: rgba(183, 207, 207, 152)
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Left
         }
     }
 
     .panel_chip_surface {
-        fill: Color::rgba(255, 255, 255, 30)
-        corner_radii: RectangleCornerRadii::radii(16.0, 16.0, 16.0, 16.0)
-        stroke: Stroke {
-            color: Color::rgba(255, 255, 255, 44)
+        fill: rgba(255, 255, 255, 30)
+        corner_radius: 16.0
+        stroke: {
+            color: rgba(255, 255, 255, 44)
             width: 1px
         }
     }
 
     .scan_track {
-        fill: Color::rgba(255, 255, 255, 36)
-        corner_radii: RectangleCornerRadii::radii(4.0, 4.0, 4.0, 4.0)
+        fill: rgba(255, 255, 255, 36)
+        corner_radius: 4.0
     }
 
     .scan_bar {
-        fill: Color::rgba(255, 255, 255, 174)
-        corner_radii: RectangleCornerRadii::radii(6.0, 6.0, 6.0, 6.0)
+        fill: rgba(255, 255, 255, 174)
+        corner_radius: 6.0
     }
 
     .panel_grid_line {
-        fill: Color::rgba(255, 255, 255, 28)
+        fill: rgba(255, 255, 255, 28)
     }
 
     .panel_sheen {
-        fill: Fill::linearGradient(
-            (0%, 0%),
-            (100%, 100%),
-            [
-                GradientStop::get(Color::rgba(255, 255, 255, 42), 0%),
-                GradientStop::get(Color::rgba(255, 255, 255, 16), 58%),
-                GradientStop::get(Color::rgba(255, 255, 255, 0), 100%)
-            ]
-        )
-        corner_radii: RectangleCornerRadii::radii(22.0, 22.0, 18.0, 18.0)
+        fill: @gradient {
+            linear: {
+                start: [0%, 0%]
+                end: [100%, 100%]
+            }
+            0%: rgba(255, 255, 255, 42)
+            58%: rgba(255, 255, 255, 16)
+            100%: rgba(255, 255, 255, 0)
+        }
+        corner_radius: [22.0, 22.0, 18.0, 18.0]
     }
 
     .panel_floor {
-        fill: Fill::linearGradient(
-            (0%, 0%),
-            (100%, 100%),
-            [
-                GradientStop::get(Color::rgba(56, 96, 111, 0), 0%),
-                GradientStop::get(Color::rgba(70, 118, 139, 38), 100%)
-            ]
-        )
-        corner_radii: RectangleCornerRadii::radii(0.0, 0.0, 26.0, 26.0)
+        fill: @gradient {
+            linear: {
+                start: [0%, 0%]
+                end: [100%, 100%]
+            }
+            0%: rgba(56, 96, 111, 0)
+            100%: rgba(70, 118, 139, 38)
+        }
+        corner_radius: [0.0, 0.0, 26.0, 26.0]
     }
 
     .left_band {
-        fill: Fill::linearGradient(
-            (0%, 0%),
-            (100%, 0%),
-            [
-                GradientStop::get(Color::rgba(32, 50, 54, 34), 0%),
-                GradientStop::get(Color::rgba(32, 50, 54, 18), 58%),
-                GradientStop::get(Color::rgba(32, 50, 54, 0), 100%)
-            ]
-        )
-    }
+        fill: @gradient {
+            linear: {
+                start: [0%, 0%]
+                end: [100%, 0%]
+            }
+            0%: rgba(32, 50, 54, 34)
+            58%: rgba(32, 50, 54, 18)
+            100%: rgba(32, 50, 54, 0)
+        }    }
 
     .header_wash {
-        fill: Fill::linearGradient(
-            (0%, 0%),
-            (0%, 100%),
-            [
-                GradientStop::get(Color::rgba(255, 255, 255, 120), 0%),
-                GradientStop::get(Color::rgba(255, 255, 255, 52), 58%),
-                GradientStop::get(Color::rgba(255, 255, 255, 0), 100%)
-            ]
-        )
-    }
+        fill: @gradient {
+            linear: {
+                start: [0%, 0%]
+                end: [0%, 100%]
+            }
+            0%: rgba(255, 255, 255, 120)
+            58%: rgba(255, 255, 255, 52)
+            100%: rgba(255, 255, 255, 0)
+        }    }
 
     .ambient_panel {
-        fill: Fill::linearGradient(
-            (0%, 0%),
-            (100%, 100%),
-            [
-                GradientStop::get(Color::rgba(255, 255, 255, 54), 0%),
-                GradientStop::get(Color::rgba(65, 112, 128, 28), 58%),
-                GradientStop::get(Color::rgba(255, 255, 255, 0), 100%)
-            ]
-        )
-        corner_radii: RectangleCornerRadii::radii(32.0, 32.0, 32.0, 32.0)
+        fill: @gradient {
+            linear: {
+                start: [0%, 0%]
+                end: [100%, 100%]
+            }
+            0%: rgba(255, 255, 255, 54)
+            58%: rgba(65, 112, 128, 28)
+            100%: rgba(255, 255, 255, 0)
+        }
+        corner_radius: 32.0
     }
 
     .accent_rail {
-        fill: Color::rgba(70, 127, 191, 118)
-        corner_radii: RectangleCornerRadii::radii(2.0, 2.0, 2.0, 2.0)
+        fill: rgba(70, 127, 191, 118)
+        corner_radius: 2.0
     }
 
     .card_baseline {
-        fill: Color::rgba(42, 58, 63, 24)
-        corner_radii: RectangleCornerRadii::radii(1.0, 1.0, 1.0, 1.0)
+        fill: rgba(42, 58, 63, 24)
+        corner_radius: 1.0
     }
 
     .card_signal {
-        fill: Color::rgba(42, 94, 155, 238)
-        corner_radii: RectangleCornerRadii::radii(6.0, 6.0, 6.0, 6.0)
+        fill: rgba(42, 94, 155, 238)
+        corner_radius: 6.0
     }
 
     .badge_accent {
@@ -536,20 +602,19 @@
     }
 
     .panel_accent {
-        fill: Color::rgba(70, 127, 191, 190)
+        fill: rgba(70, 127, 191, 190)
     }
 
     .background {
-        fill: Fill::linearGradient(
-            (0%, 0%),
-            (100%, 100%),
-            [
-                GradientStop::get(Color::rgba(237, 244, 242, 255), 0%),
-                GradientStop::get(Color::rgba(224, 235, 233, 255), 48%),
-                GradientStop::get(Color::rgba(217, 229, 226, 255), 100%)
-            ]
-        )
-    }
+        fill: @gradient {
+            linear: {
+                start: [0%, 0%]
+                end: [100%, 100%]
+            }
+            0%: rgba(237, 244, 242, 255)
+            48%: rgba(224, 235, 233, 255)
+            100%: rgba(217, 229, 226, 255)
+        }    }
 
     if $desktop && $landscape {
         .card {
@@ -643,8 +708,12 @@
         }
 
         .title {
-            style: TextStyle {
-                font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            style: {
+                font: {
+                    family: "Inter"
+                    url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap"
+                    weight: 700
+                }
                 font_size: 36px
                 fill: rgb(21, 29, 32)
                 align_vertical: TextAlignVertical::Center
@@ -653,8 +722,12 @@
         }
 
         .subtitle {
-            style: TextStyle {
-                font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Medium)
+            style: {
+                font: {
+                    family: "Inter"
+                    url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap"
+                    weight: 500
+                }
                 font_size: 14px
                 fill: rgb(75, 91, 94)
                 align_vertical: TextAlignVertical::Top
@@ -664,10 +737,14 @@
         }
 
         .panel_stage {
-            style: TextStyle {
-                font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            style: {
+                font: {
+                    family: "Inter"
+                    url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap"
+                    weight: 700
+                }
                 font_size: 48px
-                fill: Color::rgba(255, 255, 255, 20)
+                fill: rgba(255, 255, 255, 20)
                 align_vertical: TextAlignVertical::Center
                 align_horizontal: TextAlignHorizontal::Right
             }
@@ -707,8 +784,12 @@
         }
 
         .title {
-            style: TextStyle {
-                font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            style: {
+                font: {
+                    family: "Inter"
+                    url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap"
+                    weight: 700
+                }
                 font_size: 34px
                 fill: rgb(21, 29, 32)
                 align_vertical: TextAlignVertical::Center
@@ -717,8 +798,12 @@
         }
 
         .subtitle {
-            style: TextStyle {
-                font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Medium)
+            style: {
+                font: {
+                    family: "Inter"
+                    url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap"
+                    weight: 500
+                }
                 font_size: 14px
                 fill: rgb(75, 91, 94)
                 align_vertical: TextAlignVertical::Top
@@ -728,10 +813,14 @@
         }
 
         .panel_stage {
-            style: TextStyle {
-                font: Font::Web("Inter", "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap", FontStyle::Normal, FontWeight::Bold)
+            style: {
+                font: {
+                    family: "Inter"
+                    url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;600;700&display=swap"
+                    weight: 700
+                }
                 font_size: 44px
-                fill: Color::rgba(255, 255, 255, 20)
+                fill: rgba(255, 255, 255, 20)
                 align_vertical: TextAlignVertical::Center
                 align_horizontal: TextAlignHorizontal::Right
             }
@@ -784,11 +873,11 @@
         }
 
         .panel_accent {
-            fill: Color::rgba(66, 113, 196, 190)
+            fill: rgba(66, 113, 196, 190)
         }
 
         .accent_rail {
-            fill: Color::rgba(66, 113, 196, 118)
+            fill: rgba(66, 113, 196, 118)
         }
     } else if $web {
         .badge_accent {
@@ -796,11 +885,11 @@
         }
 
         .panel_accent {
-            fill: Color::rgba(35, 148, 108, 190)
+            fill: rgba(35, 148, 108, 190)
         }
 
         .accent_rail {
-            fill: Color::rgba(35, 148, 108, 118)
+            fill: rgba(35, 148, 108, 118)
         }
     } else {
         .badge_accent {
@@ -808,11 +897,11 @@
         }
 
         .panel_accent {
-            fill: Color::rgba(219, 129, 58, 190)
+            fill: rgba(219, 129, 58, 190)
         }
 
         .accent_rail {
-            fill: Color::rgba(219, 129, 58, 118)
+            fill: rgba(219, 129, 58, 118)
         }
     }
 }

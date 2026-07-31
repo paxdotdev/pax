@@ -168,7 +168,7 @@ literal_enum_args_list = {literal_value ~ ("," ~ literal_value)* ~ silent_comma?
 //    an object literal syntax in the grammar?  in particular, it would be nice to support the sugared syntax of number+percentage as keys,
 //    but perhaps we could do that e.g. by desugaring `{0%: "bar", 100%: "foo" }` into `[(0%, "bar"),(100%, "foo")]`, akin to how
 //    you can construct a HashMap from a vec of k/v tuples in Rust.  Thus, you could express a LinearGradient as
-//    LinearGradient {start: (0,0), stops: {0%: RED, 100%: BLUE}, end: (100%,100%)}
+//    LinearGradient {start: [0, 0], stops: {0%: RED, 100%: BLUE}, end: [100%, 100%]}
 
 //Literal colors
 literal_color = {literal_color_space_func | literal_color_const}
@@ -387,7 +387,7 @@ impl IncrementMe {
 <Text text={self.message} class=centered class=small id=text />
 <Rectangle class=centered class=small @click=self.increment
     fill={Fill::Solid(Color::rgba(0.0,0.0,0.0,1.0))} 
-    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
+    corner_radius=[10.0]
 />
 
 @handlers{
@@ -1592,7 +1592,7 @@ impl Example {
     <Text text={self.num_clicks + " clicks"} id=text />
     <Rectangle
         fill={rgb(ticks, 75, 150)}
-        corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
+        corner_radius=[10.0]
     />
 </Group>
 

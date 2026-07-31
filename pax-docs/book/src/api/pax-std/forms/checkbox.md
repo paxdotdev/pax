@@ -22,7 +22,7 @@ Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Stroke`](/api/
 
 The outline stroke of the checkbox
 
-##### `border_radius`
+##### `corner_radius`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`f64`>
 
 The border radius of the checkbox

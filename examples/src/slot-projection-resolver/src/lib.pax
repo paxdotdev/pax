@@ -69,8 +69,12 @@
     @mount: handle_mount
 
     #title {
-        style: TextStyle {
-            font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap", FontStyle::Normal, FontWeight::SemiBold)
+        style: {
+            font: {
+                family: "Space Grotesk"
+                url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap"
+                weight: 600
+            }
             font_size: 31px
             fill: WHITE
             align_vertical: TextAlignVertical::Center
@@ -84,8 +88,12 @@
         fill: rgb(4, 8, 18)
     }
     .control_text {
-        style: TextStyle {
-            font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap", FontStyle::Normal, FontWeight::SemiBold)
+        style: {
+            font: {
+                family: "Space Grotesk"
+                url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap"
+                weight: 600
+            }
             font_size: 12px
             fill: WHITE
             align_vertical: TextAlignVertical::Center
@@ -94,7 +102,7 @@
     }
     .control_bg {
         fill: rgba(43, 80, 142, 235)
-        stroke: Stroke { color: rgba(138, 174, 255, 116), width: 1px }
-        corner_radii: RectangleCornerRadii::radii(10.0, 10.0, 10.0, 10.0)
+        stroke: { color: rgba(138, 174, 255, 116), width: 1px }
+        corner_radius: 10.0
     }
 }

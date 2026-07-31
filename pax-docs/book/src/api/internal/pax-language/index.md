@@ -36,6 +36,8 @@ BEGIN TEMPLATE
 ##### `pascal_identifier`
 ##### `event_id`
 ##### `attribute_key_value_pair`
+##### `class_attribute`
+##### `class_identifier_list`
 ##### `attribute_transition_binding`
 ##### `attribute_event_binding`
 ##### `transition_id`

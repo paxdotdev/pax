@@ -35,7 +35,7 @@
             height=30px
             anchor_y=50%
             fill=rgba(255, 255, 255, 82)
-            corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)}
+            corner_radius=8.0
         />
 
         <Rectangle
@@ -46,7 +46,7 @@
                 color: rgba(23, 42, 36, 255)
                 width: 2px
             }
-            corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)}
+            corner_radius=8.0
         />
     </Group>
 </Group>
@@ -58,13 +58,12 @@
     @out: exit
 
     #label_text {
-        style: TextStyle {
-            font: Font::Web(
-                "Inter",
-                "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap",
-                FontStyle::Normal,
-                FontWeight::ExtraBold
-            )
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap"
+                weight: 800
+            }
             font_size: 17px
             fill: rgba(255, 255, 255, 255)
             align_vertical: TextAlignVertical::Center
@@ -75,13 +74,12 @@
     }
 
     #hit_count {
-        style: TextStyle {
-            font: Font::Web(
-                "Inter",
-                "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap",
-                FontStyle::Normal,
-                FontWeight::SemiBold
-            )
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap"
+                weight: 600
+            }
             font_size: 14px
             fill: rgba(255, 255, 255, 224)
             align_vertical: TextAlignVertical::Center

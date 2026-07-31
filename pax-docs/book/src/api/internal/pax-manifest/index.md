@@ -47,6 +47,9 @@ Type: `Option`<`Vec`<[`SettingsBlockElement`](/api/internal/pax-manifest/index.m
 ##### `timelines`
 Type: `Vec`<[`TimelineDefinition`](/api/internal/pax-manifest/index.md#timelinedefinition)>
 
+##### `route_branch`
+Type: `Option`<[`RouteBranchDescriptor`](/api/internal/pax-manifest/index.md#routebranchdescriptor)>
+
 ---
 
 ### `ComponentTemplate`
@@ -283,6 +286,22 @@ Describes whether this property is an enum variant property
 
 ---
 
+### `RouteBranchDescriptor`
+Compile-time contract allowing a component or primitive to act as a direct
+route branch child of `Router`.
+
+#### Properties
+##### `path_property`
+Type: `String`
+
+##### `default_property`
+Type: `String`
+
+##### `modal`
+Type: `bool`
+
+---
+
 ### `SettingsConditionalBlock`
 Top-level conditional content inside a settings block.
 
@@ -370,6 +389,9 @@ Type: `Option`<[`ValueDefinition`](/api/internal/pax-manifest/index.md#valuedefi
 ##### `repeat`
 Type: `bool`
 
+##### `interruption`
+Type: [`InOutInterruption`](/api/internal/pax-manifest/index.md#inoutinterruption)
+
 ##### `elements`
 Type: `Vec`<[`TimelineBlockElement`](/api/internal/pax-manifest/index.md#timelineblockelement)>
 
@@ -417,6 +439,9 @@ Type: `Option`<`bool`>
 
 ##### `starting_value`
 Type: `Option`<`Box`<[`ValueDefinition`](/api/internal/pax-manifest/index.md#valuedefinition)>>
+
+##### `interruption`
+Type: [`InOutInterruption`](/api/internal/pax-manifest/index.md#inoutinterruption)
 
 ##### `use_local_property_scope`
 Type: `bool`
@@ -590,6 +615,19 @@ Shape-specific parameters for a gradient. V1 maps directly to runtime `Fill` var
 #### Variants
 ##### `Linear` { `start`: `Option`<`Box`<[`ValueDefinition`](/api/internal/pax-manifest/index.md#valuedefinition)>>, `end`: `Option`<`Box`<[`ValueDefinition`](/api/internal/pax-manifest/index.md#valuedefinition)>> }
 ##### `Radial` { `start`: `Box`<[`ValueDefinition`](/api/internal/pax-manifest/index.md#valuedefinition)>, `end`: `Box`<[`ValueDefinition`](/api/internal/pax-manifest/index.md#valuedefinition)>, `radius`: `Box`<[`ValueDefinition`](/api/internal/pax-manifest/index.md#valuedefinition)> }
+---
+
+### `InOutInterruption`
+Controls how an `@in` or `@out` timeline begins when it directly reverses
+the other lifecycle transition on the same mounted instance.
+
+#### Variants
+##### `Takeover`
+Continue from the property's currently sampled value.
+
+##### `Restart`
+Begin from the destination timeline's authored starting value.
+
 ---
 
 ### `Number`

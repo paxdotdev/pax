@@ -24,7 +24,7 @@
                 color: rgba(43, 73, 63, 255)
                 width: 1px
             }
-            corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)}
+            corner_radius=8.0
         />
     </Group>
 </Group>
@@ -34,13 +34,12 @@
     @out: exit
 
     #hint_text {
-        style: TextStyle {
-            font: Font::Web(
-                "Inter",
-                "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap",
-                FontStyle::Normal,
-                FontWeight::SemiBold
-            )
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap"
+                weight: 600
+            }
             font_size: 14px
             fill: rgba(33, 52, 46, 255)
             align_vertical: TextAlignVertical::Center

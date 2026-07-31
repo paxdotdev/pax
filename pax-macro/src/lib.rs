@@ -67,13 +67,14 @@ fn template_build_config() -> TemplateBuildConfig {
 
 use syn::{
     parse_macro_input, Data, DeriveInput, Field, Fields, FnArg, GenericArgument, ImplItem,
-    ItemImpl, Lit, Meta, PatType, PathArguments, Signature, Token, Type,
+    ImplItemMethod, ItemImpl, Lit, Meta, PatType, PathArguments, Signature, Token, Type,
 };
 
 fn pax_primitive(
     input_parsed: &DeriveInput,
     _primitive_instance_import_path: String,
     is_custom_interpolatable: bool,
+    is_custom_coercion_rules: bool,
     engine_import_path: String,
 ) -> proc_macro2::TokenStream {
     let _original_tokens = quote! { #input_parsed }.to_string();
@@ -90,6 +91,7 @@ fn pax_primitive(
         internal_definitions,
         pascal_identifier,
         is_custom_interpolatable,
+        is_custom_coercion_rules,
         is_root_crate: is_root_crate(),
         _is_enum: is_enum,
         build_config: template_build_config(),
@@ -105,6 +107,7 @@ fn pax_primitive(
 fn pax_struct_only_component(
     input_parsed: &DeriveInput,
     is_custom_interpolatable: bool,
+    is_custom_coercion_rules: bool,
     engine_import_path: String,
 ) -> proc_macro2::TokenStream {
     let pascal_identifier = input_parsed.ident.to_string();
@@ -122,6 +125,7 @@ fn pax_struct_only_component(
         internal_definitions,
         is_root_crate: is_root_crate(),
         is_custom_interpolatable,
+        is_custom_coercion_rules,
         _is_enum: is_enum,
         build_config: template_build_config(),
         engine_import_path,
@@ -332,6 +336,7 @@ fn pax_full_component(
     is_main_component: bool,
     include_fix: Option<TokenStream>,
     is_custom_interpolatable: bool,
+    is_custom_coercion_rules: bool,
     _associated_pax_file_path: Option<PathBuf>,
     engine_import_path: String,
 ) -> proc_macro2::TokenStream {
@@ -406,6 +411,7 @@ fn pax_full_component(
         internal_definitions,
         is_root_crate: is_root_crate(),
         is_custom_interpolatable,
+        is_custom_coercion_rules,
         _is_enum: is_enum,
         build_config,
         engine_import_path,
@@ -602,6 +608,7 @@ pub fn pax(
     let mut trait_impls = vec!["Clone", "Default", "Serialize", "Deserialize", "Debug"];
 
     let mut is_custom_interpolatable = false;
+    let mut is_custom_coercion_rules = false;
 
     let engine_import_path = match config.engine_import_path {
         Some(prefix) => prefix,
@@ -615,6 +622,9 @@ pub fn pax(
 
         if custom.contains(&"Interpolatable".to_string()) {
             is_custom_interpolatable = true;
+        }
+        if custom.contains(&"CoercionRules".to_string()) {
+            is_custom_coercion_rules = true;
         }
     }
 
@@ -646,6 +656,7 @@ pub fn pax(
             config.is_main_component,
             Some(include_fix),
             is_custom_interpolatable,
+            is_custom_coercion_rules,
             associated_pax_file,
             engine_import_path,
         )
@@ -669,6 +680,7 @@ pub fn pax(
             config.is_main_component,
             Some(include_fix),
             is_custom_interpolatable,
+            is_custom_coercion_rules,
             None,
             engine_import_path,
         )
@@ -681,6 +693,7 @@ pub fn pax(
             config.is_main_component,
             None,
             is_custom_interpolatable,
+            is_custom_coercion_rules,
             None,
             engine_import_path,
         )
@@ -689,10 +702,16 @@ pub fn pax(
             &input,
             config.primitive_instance_import_path.unwrap(),
             is_custom_interpolatable,
+            is_custom_coercion_rules,
             engine_import_path,
         )
     } else {
-        pax_struct_only_component(&input, is_custom_interpolatable, engine_import_path)
+        pax_struct_only_component(
+            &input,
+            is_custom_interpolatable,
+            is_custom_coercion_rules,
+            engine_import_path,
+        )
     };
 
     let derives: proc_macro2::TokenStream = trait_impls
@@ -746,40 +765,61 @@ fn generate_include(name: &Ident, path: &PathBuf) -> TokenStream {
         const #const_name: &'static str = include_str!(#path_str);
     }
 }
+/// Registers public associated functions in an impl block as PAXEL helpers.
+///
+/// Private and restricted-visibility functions remain ordinary Rust methods and
+/// are not exposed to PAXEL.
 #[proc_macro_attribute]
 pub fn helpers(
     _attr: proc_macro::TokenStream,
     item: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
     let input = parse_macro_input!(item as ItemImpl);
-    let struct_name = &input.self_ty;
+    expand_helpers(input)
+        .unwrap_or_else(syn::Error::into_compile_error)
+        .into()
+}
 
-    let mut register_functions = vec![];
-
-    for item in input.items.iter() {
-        if let ImplItem::Method(method) = item {
-            let func_name = &method.sig.ident;
-
-            // Make sure it's associated function (doesn't use `self`)
+fn public_associated_helpers(input: &ItemImpl) -> syn::Result<Vec<&ImplItemMethod>> {
+    input
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            ImplItem::Method(method) if matches!(method.vis, syn::Visibility::Public(_)) => {
+                Some(method)
+            }
+            _ => None,
+        })
+        .map(|method| {
             if method
                 .sig
                 .inputs
                 .iter()
                 .any(|arg| matches!(arg, FnArg::Receiver(_)))
             {
-                return syn::Error::new_spanned(
+                Err(syn::Error::new_spanned(
                     method.sig.clone(),
                     "Helpers macro can only be used on associated functions (methods that don't take self)",
-                )
-                .to_compile_error()
-                .into();
+                ))
+            } else {
+                Ok(method)
             }
+        })
+        .collect()
+}
 
-            let arg_count = method.sig.inputs.len();
-            let param_checks = generate_param_checks(&method.sig.inputs);
-            let func_call = generate_function_call(&method.sig, struct_name);
+fn expand_helpers(input: ItemImpl) -> syn::Result<proc_macro2::TokenStream> {
+    let struct_name = &input.self_ty;
 
-            register_functions.push(quote! {
+    let mut register_functions = vec![];
+
+    for method in public_associated_helpers(&input)? {
+        let func_name = &method.sig.ident;
+        let arg_count = method.sig.inputs.len();
+        let param_checks = generate_param_checks(&method.sig.inputs);
+        let func_call = generate_function_call(&method.sig, struct_name);
+
+        register_functions.push(quote! {
                 register_function(
                     stringify!(#struct_name).to_string(),
                     stringify!(#func_name).to_string(),
@@ -792,7 +832,6 @@ pub fn helpers(
                     })
                 );
             });
-        }
     }
 
     let expanded = quote! {
@@ -807,7 +846,42 @@ pub fn helpers(
         }
     };
 
-    expanded.into()
+    Ok(expanded)
+}
+
+#[cfg(test)]
+mod helper_visibility_tests {
+    use super::*;
+
+    #[test]
+    fn only_public_associated_functions_are_registered() {
+        let input: ItemImpl = syn::parse_quote! {
+            impl Example {
+                pub fn visible(value: f64) -> f64 { value }
+                fn private(value: f64) -> f64 { value }
+                pub(crate) fn crate_visible(value: f64) -> f64 { value }
+            }
+        };
+
+        let names = public_associated_helpers(&input)
+            .unwrap()
+            .into_iter()
+            .map(|method| method.sig.ident.to_string())
+            .collect::<Vec<_>>();
+        assert_eq!(names, vec!["visible"]);
+    }
+
+    #[test]
+    fn public_instance_methods_are_rejected() {
+        let input: ItemImpl = syn::parse_quote! {
+            impl Example {
+                pub fn instance(&self) {}
+                fn private_instance(&self) {}
+            }
+        };
+
+        assert!(public_associated_helpers(&input).is_err());
+    }
 }
 
 fn generate_param_checks(inputs: &Punctuated<FnArg, Token![,]>) -> proc_macro2::TokenStream {

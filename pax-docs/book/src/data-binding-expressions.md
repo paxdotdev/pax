@@ -53,12 +53,80 @@ Use ternaries for branch selection:
 
 ## Literals
 
-PAXEL supports booleans, numbers, strings, units, colors, lists, tuples, objects, ranges, enum/function-style calls, and option literals.
+PAXEL supports booleans, numbers, strings, units, colors, lists, objects,
+ranges, enum/function-style calls, and option literals. When a property expects
+`Option<T>`, a `T` literal is lifted automatically; write `None` for the empty
+case rather than wrapping ordinary values in `Some(...)`.
 
 ```pax
 <Rectangle x=25px y=10% rotate=15deg fill=rgba(255, 128, 64, 255) />
-<Stacker sizes=[Some(120px), None, Some(30%)] />
-<Text text={Some("Ready") ?? "Waiting"} />
+<Stacker sizes=[120px, None, 30%] />
+<Text text={status_label ?? "Waiting"} />
+```
+
+Rectangle corner radii canonically use a one-to-four-value list. Values expand
+like CSS `border-radius`, clockwise from the top-left. A uniform radius may
+optionally elide the brackets:
+
+```pax
+<Rectangle corner_radius=12 />
+<Rectangle corner_radius=[12, 6] />       // 12 6 12 6
+<Rectangle corner_radius=[12, 6, 3] />    // 12 6 3 6
+<Rectangle corner_radius=[12, 6, 3, 1] /> // top-left, top-right, bottom-right, bottom-left
+```
+
+The list is positional. Its zero-based "magic indexes" expand according to its
+arity:
+
+- A scalar applies to every corner.
+- `[0, 1]`: index 0 applies to top-left/bottom-right; index 1 applies to
+  top-right/bottom-left.
+- `[0, 1, 2]`: indexes 0 and 2 apply to top-left and bottom-right; index 1
+  applies to both remaining corners.
+- `[0, 1, 2, 3]`: top-left, top-right, bottom-right, bottom-left.
+
+Whenever a Pax type assigns special meaning to list indexes, its API Rustdocs
+and relevant book chapter document that contract. Lists without such a
+type-directed coercion retain their ordinary list meaning.
+
+Named object literals remain the explicit longhand for this and other struct
+properties:
+
+```pax
+<Rectangle corner_radius={
+    top_left: 12
+    top_right: 6
+    bottom_right: 3
+    bottom_left: 1
+} />
+```
+
+When the receiving property already supplies the type, omit redundant type
+qualifiers from object and color literals:
+
+```pax
+style: {
+    font: "Inter"
+    font_size: 16px
+    fill: rgba(24, 28, 36, 255)
+}
+
+stroke: {
+    color: rgba(255, 255, 255, 96)
+    width: 1px
+}
+```
+
+Explicit Rust-style constructors remain available as a verbose escape hatch
+for custom structs and cases the contextual syntax cannot express.
+
+```pax
+<Rectangle corner_radius=CornerRadii {
+    top_left: 12
+    top_right: 6
+    bottom_right: 3
+    bottom_left: 1
+} />
 ```
 
 Unit suffixes must be adjacent to their numeric literal: write `25px`, not `25 px`. For expression-derived units, group the expression and attach the suffix, for example `{(base_width + 8)px}`.
@@ -72,12 +140,14 @@ Objects can contain nested expressions:
 ```
 
 Inline gradients use `@gradient` with `Size -> Color` stops. Stop alpha is expressed through the color value, such as `rgba(...)` or `hsla(...)`; there is no separate stop opacity field.
+Gradient points canonically use `[x, y]` lists: magic index `0` is the
+horizontal coordinate and index `1` is the vertical coordinate.
 
 ```pax
 <Rectangle fill=@gradient {
     linear: {
-        start: (0%, 50%)
-        end: (100%, 50%)
+        start: [0%, 50%]
+        end: [100%, 50%]
     }
 
     0%: rgba(255, 0, 0, 255)
@@ -86,7 +156,7 @@ Inline gradients use `@gradient` with `Size -> Color` stops. Stop alpha is expre
 } />
 ```
 
-When the shape block is omitted, the gradient is a linear gradient from `(0%, 0%)` to `(100%, 0%)`:
+When the shape block is omitted, the gradient is a linear gradient from `[0%, 0%]` to `[100%, 0%]`:
 
 ```pax
 <Rectangle fill=@gradient {
@@ -100,8 +170,8 @@ Radial gradients declare their center, endpoint, and radius:
 ```pax
 <Rectangle fill=@gradient {
     radial: {
-        start: (50%, 50%)
-        end: (50%, 50%)
+        start: [50%, 50%]
+        end: [50%, 50%]
         radius: 180
     }
 

@@ -22,7 +22,7 @@ Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Color`](/api/p
 
 Button background color while hovered, when supported.
 
-##### `border_radius`
+##### `corner_radius`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`f64`>
 
 Button corner radius, in pixels.

@@ -26,7 +26,7 @@ pub struct Group {
     /// Optional override for whether autosize manages the `y` axis.
     pub autosize_y: Property<Option<bool>>,
     /// Corner radius used when the group materializes a native surface, in pixels.
-    pub border_radius: Property<f64>,
+    pub corner_radius: Property<f64>,
 }
 
 impl Default for Group {
@@ -35,7 +35,7 @@ impl Default for Group {
             autosize: Property::new(false),
             autosize_x: Property::new(None),
             autosize_y: Property::new(None),
-            border_radius: Property::new(0.0),
+            corner_radius: Property::new(0.0),
         }
     }
 }
@@ -208,7 +208,7 @@ impl InstanceNode for GroupInstance {
                         let computed_tab = expanded_node.transform_and_bounds.get();
                         let (width, height) = computed_tab.bounds;
                         let max_radius = 0.5 * width.min(height);
-                        let border_radius = properties.border_radius.get().clamp(0.0, max_radius);
+                        let corner_radius = properties.corner_radius.get().clamp(0.0, max_radius);
                         let liquid_glass = liquid_glass.to_message();
                         let updates = [
                             patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
@@ -234,9 +234,9 @@ impl InstanceNode for GroupInstance {
                                 expanded_node.occlusion.get().z_index,
                             ),
                             patch_if_needed(
-                                &mut old_state.border_radius,
-                                &mut patch.border_radius,
-                                border_radius,
+                                &mut old_state.corner_radius,
+                                &mut patch.corner_radius,
+                                corner_radius,
                             ),
                             patch_if_needed(
                                 &mut old_state.liquid_glass,

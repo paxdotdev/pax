@@ -1,5 +1,5 @@
-<Stacker> 
-    <Text text="Color" class=text x=50% />
+<Stacker>
+     <Text text="Color" class=text x=50% />
     <Dropdown selected_id=bind:selected_id options=["Red","White","Blue"] stroke=BLACK background=WHITE />
 </Stacker>
 
@@ -7,7 +7,10 @@
     @mount: mount,
     .text {
         style: {
-                font: Font::Web("Times New Roman", "", FontStyle::Normal, FontWeight::Bold),
+                font: {
+                    family: "Times New Roman"
+                    weight: 700
+                },
                 font_size: 28px,
                 fill: BLACK,
                 align_vertical: TextAlignVertical::Center,

@@ -37,7 +37,7 @@ export class ButtonUpdatePatch {
         this.hoverColor = jsonMessage["hover_color"];
         this.outlineStrokeColor = jsonMessage["outline_stroke_color"];
         this.outlineStrokeWidth = jsonMessage["outline_stroke_width"];
-        this.borderRadius = jsonMessage["border_radius"];
+        this.borderRadius = jsonMessage["corner_radius"];
         const styleMessage = jsonMessage["style"];
 
         if (styleMessage) {

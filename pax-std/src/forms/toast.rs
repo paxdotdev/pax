@@ -17,9 +17,7 @@ const IN_OUT_TIME: u64 = 10;
                 <Text x=40px height=100% width=70% text=message align={TextAlignHorizontal::Left}/>
                 <Button width=70px height=30px x=90% y=50% label="Undo" @button_click=handle_trigger/>
                 <Rectangle fill=rgb(20, 20, 20)
-                corner_radii={
-                    RectangleCornerRadii::radii(15.0,15.0,15.0,15.0)
-                }/>
+                corner_radius=15.0/>
             </Group>
         </Group>
     }

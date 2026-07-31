@@ -33,7 +33,7 @@
 @settings {
     .mobile_drawer_panel {
         fill: rgba(9, 15, 28, 246)
-        corner_radii: RectangleCornerRadii::radii(0.0, 28.0, 28.0, 0.0)
+        corner_radius: [0.0, 28.0, 28.0, 0.0]
         stroke: {
             color: rgba(88, 116, 158, 170)
             width: 1px

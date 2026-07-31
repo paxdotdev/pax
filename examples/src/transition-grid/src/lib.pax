@@ -40,15 +40,15 @@
     >
         <Group class=action_chip width=100% height=100% @click=self.handle_insert_top>
             <Text class=chip_label x=50% y=50% width={100% - 18px} height=20px text="Insert Top" selectable=false />
-            <Rectangle width=100% height=100% fill=rgba(33, 118, 95, 255) corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)} />
+            <Rectangle width=100% height=100% fill=rgba(33, 118, 95, 255) corner_radius=8.0 />
         </Group>
         <Group class=action_chip width=100% height=100% @click=self.handle_remove_top>
             <Text class=chip_label x=50% y=50% width={100% - 18px} height=20px text="Remove Top" selectable=false />
-            <Rectangle width=100% height=100% fill=rgba(33, 118, 95, 255) corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)} />
+            <Rectangle width=100% height=100% fill=rgba(33, 118, 95, 255) corner_radius=8.0 />
         </Group>
         <Group class=action_chip width=100% height=100% @click=self.handle_reverse_order>
             <Text class=chip_label x=50% y=50% width={100% - 18px} height=20px text="Reverse Order" selectable=false />
-            <Rectangle width=100% height=100% fill=rgba(33, 118, 95, 255) corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)} />
+            <Rectangle width=100% height=100% fill=rgba(33, 118, 95, 255) corner_radius=8.0 />
         </Group>
     </Stacker>
 
@@ -74,11 +74,11 @@
     >
         <Group class=mode_chip width=100% height=100% @click=self.set_exit_flow>
             <Text class=chip_label x=50% y=50% width={100% - 18px} height=20px text="Flow" selectable=false />
-            <Rectangle width=100% height=100% fill={exit_mode == ContainerExitMode::Flow ? rgba(49, 127, 110, 255) : rgba(139, 161, 186, 255)} corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)} />
+            <Rectangle width=100% height=100% fill={exit_mode == ContainerExitMode::Flow ? rgba(49, 127, 110, 255) : rgba(139, 161, 186, 255)} corner_radius=8.0 />
         </Group>
         <Group class=mode_chip width=100% height=100% @click=self.set_exit_ghost>
             <Text class=chip_label x=50% y=50% width={100% - 18px} height=20px text="Ghost" selectable=false />
-            <Rectangle width=100% height=100% fill={exit_mode == ContainerExitMode::Ghost ? rgba(49, 127, 110, 255) : rgba(139, 161, 186, 255)} corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)} />
+            <Rectangle width=100% height=100% fill={exit_mode == ContainerExitMode::Ghost ? rgba(49, 127, 110, 255) : rgba(139, 161, 186, 255)} corner_radius=8.0 />
         </Group>
     </Stacker>
 
@@ -104,11 +104,11 @@
     >
         <Group class=mode_chip width=100% height=100% @click=self.set_change_snap>
             <Text class=chip_label x=50% y=50% width={100% - 18px} height=20px text="Snap" selectable=false />
-            <Rectangle width=100% height=100% fill={reflow_kind == ContainerReflowTransitionKind::Snap ? rgba(92, 117, 187, 255) : rgba(139, 161, 186, 255)} corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)} />
+            <Rectangle width=100% height=100% fill={reflow_kind == ContainerReflowTransitionKind::Snap ? rgba(92, 117, 187, 255) : rgba(139, 161, 186, 255)} corner_radius=8.0 />
         </Group>
         <Group class=mode_chip width=100% height=100% @click=self.set_change_ease>
             <Text class=chip_label x=50% y=50% width={100% - 18px} height=20px text="Ease" selectable=false />
-            <Rectangle width=100% height=100% fill={reflow_kind == ContainerReflowTransitionKind::Ease ? rgba(92, 117, 187, 255) : rgba(139, 161, 186, 255)} corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)} />
+            <Rectangle width=100% height=100% fill={reflow_kind == ContainerReflowTransitionKind::Ease ? rgba(92, 117, 187, 255) : rgba(139, 161, 186, 255)} corner_radius=8.0 />
         </Group>
     </Stacker>
 
@@ -147,7 +147,7 @@
             width={100% - 36px}
             height={100% - 36px}
             fill=rgba(244, 249, 246, 255)
-            corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)}
+            corner_radius=8.0
         />
 
         <Rectangle
@@ -158,22 +158,22 @@
                 color: rgba(45, 73, 65, 255)
                 width: 1px
             }
-            corner_radii={RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)}
+            corner_radius=8.0
         />
     </Group>
 
     <Rectangle
         width=100%
         height=100%
-        fill={Fill::linearGradient(
-            (0%, 0%),
-            (100%, 100%),
-            [
-                GradientStop::get(Color::rgba(248, 250, 244, 255), 0%),
-                GradientStop::get(Color::rgba(230, 240, 232, 255), 58%),
-                GradientStop::get(Color::rgba(214, 226, 218, 255), 100%)
-            ]
-        )}
+        fill=@gradient {
+            linear: {
+                start: [0%, 0%]
+                end: [100%, 100%]
+            }
+            0%: rgba(248, 250, 244, 255)
+            58%: rgba(230, 240, 232, 255)
+            100%: rgba(214, 226, 218, 255)
+        }
     />
 </Group>
 
@@ -191,13 +191,12 @@
     }
 
     #title {
-        style: TextStyle {
-            font: Font::Web(
-                "Inter",
-                "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap",
-                FontStyle::Normal,
-                FontWeight::ExtraBold
-            )
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap"
+                weight: 800
+            }
             font_size: 38px
             fill: rgba(24, 41, 36, 255)
             align_vertical: TextAlignVertical::Center
@@ -208,13 +207,12 @@
     }
 
     #subtitle {
-        style: TextStyle {
-            font: Font::Web(
-                "Inter",
-                "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap",
-                FontStyle::Normal,
-                FontWeight::Medium
-            )
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap"
+                weight: 500
+            }
             font_size: 15px
             fill: rgba(74, 92, 84, 255)
             align_vertical: TextAlignVertical::Center
@@ -225,13 +223,12 @@
     }
 
     #exit_label {
-        style: TextStyle {
-            font: Font::Web(
-                "Inter",
-                "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap",
-                FontStyle::Normal,
-                FontWeight::SemiBold
-            )
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap"
+                weight: 600
+            }
             font_size: 13px
             fill: rgba(74, 92, 84, 255)
             align_vertical: TextAlignVertical::Center
@@ -242,13 +239,12 @@
     }
 
     #change_label {
-        style: TextStyle {
-            font: Font::Web(
-                "Inter",
-                "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap",
-                FontStyle::Normal,
-                FontWeight::SemiBold
-            )
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap"
+                weight: 600
+            }
             font_size: 13px
             fill: rgba(74, 92, 84, 255)
             align_vertical: TextAlignVertical::Center
@@ -259,13 +255,12 @@
     }
 
     .chip_label {
-        style: TextStyle {
-            font: Font::Web(
-                "Inter",
-                "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap",
-                FontStyle::Normal,
-                FontWeight::SemiBold
-            )
+        style: {
+            font: {
+                family: "Inter"
+                url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap"
+                weight: 600
+            }
             font_size: 14px
             fill: WHITE
             align_vertical: TextAlignVertical::Center

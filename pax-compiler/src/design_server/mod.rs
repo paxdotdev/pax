@@ -50,20 +50,10 @@ use revision::{ActivationOutcome, DebugRevisionCoordinator};
 pub(crate) const DEFAULT_BIND_HOST: &str = "0.0.0.0";
 const LOOPBACK_DISPLAY_HOST: &str = "127.0.0.1";
 
-pub(crate) fn display_addresses(port: u16) -> Vec<String> {
-    let mut addresses = vec![format!("http://{LOOPBACK_DISPLAY_HOST}:{port}")];
-    if let Some(ip) = local_network_ip() {
-        addresses.push(format!("http://{ip}:{port}"));
-    }
-    addresses
-}
-
 pub(crate) fn display_address_links(port: u16) -> String {
-    display_addresses(port)
-        .into_iter()
-        .map(|address| address.blue().to_string())
-        .collect::<Vec<_>>()
-        .join(" or ")
+    format!("http://{LOOPBACK_DISPLAY_HOST}:{port}")
+        .blue()
+        .to_string()
 }
 
 pub(crate) fn local_network_ip() -> Option<IpAddr> {

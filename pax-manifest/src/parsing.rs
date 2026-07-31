@@ -651,7 +651,7 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
     final_pairs_of_tag: Pairs<Rule>,
 ) -> Option<Vec<SettingElement>> {
     let vec: Vec<SettingElement> = final_pairs_of_tag
-        .map(|attribute_key_value_pair| {
+        .flat_map(|attribute_key_value_pair| {
             match attribute_key_value_pair
                 .clone()
                 .into_inner()
@@ -668,10 +668,10 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
                     let setting_location = span_to_location(&setting.as_span());
                     let setting_token = Token::new(setting.as_str().to_string(), setting_location);
 
-                    SettingElement::Setting(
+                    vec![SettingElement::Setting(
                         setting_token,
                         ValueDefinition::DoubleBinding(PaxIdentifier::new(property.as_str())),
-                    )
+                    )]
                 }
                 Rule::attribute_event_binding => {
                     // attribute_event_binding = {event_id ~ "=" ~ literal_function}
@@ -681,10 +681,10 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
                     let event_id_token = parse_event_id(attribute_event_binding.next().unwrap());
 
                     let literal_function = attribute_event_binding.next().unwrap().as_str();
-                    SettingElement::Setting(
+                    vec![SettingElement::Setting(
                         event_id_token,
                         ValueDefinition::EventBindingTarget(PaxIdentifier::new(literal_function)),
-                    )
+                    )]
                 }
                 Rule::attribute_transition_binding => {
                     let mut kv = attribute_key_value_pair.into_inner();
@@ -712,7 +712,32 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
                         ),
                     };
 
-                    SettingElement::Setting(transition_id_token, transition_value_definition)
+                    vec![SettingElement::Setting(
+                        transition_id_token,
+                        transition_value_definition,
+                    )]
+                }
+                Rule::class_attribute => {
+                    let class_attribute = attribute_key_value_pair.into_inner().next().unwrap();
+                    let key_location = span_to_location(&class_attribute.as_span());
+                    let class_value = class_attribute.into_inner().next().unwrap();
+                    let identifiers = match class_value.as_rule() {
+                        Rule::identifier => vec![class_value],
+                        Rule::class_identifier_list => class_value.into_inner().collect(),
+                        _ => unreachable!("unexpected static class value"),
+                    };
+
+                    identifiers
+                        .into_iter()
+                        .map(|identifier| {
+                            SettingElement::Setting(
+                                Token::new("class".to_string(), key_location.clone()),
+                                ValueDefinition::Identifier(PaxIdentifier::new(
+                                    identifier.as_str(),
+                                )),
+                            )
+                        })
+                        .collect()
                 }
                 _ => {
                     //Vanilla `key=value` setting pair
@@ -730,7 +755,7 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
                         value_outer.as_str()
                     ));
                     let value_definition = parse_value_definition(value);
-                    SettingElement::Setting(key_token, value_definition)
+                    vec![SettingElement::Setting(key_token, value_definition)]
                 }
             }
         })
