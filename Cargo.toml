@@ -33,7 +33,6 @@ exclude = [
     "pax-compiler/files",
     "examples",
     "tests",
-    "pax-generation",
 ]
 
 [profile.release]

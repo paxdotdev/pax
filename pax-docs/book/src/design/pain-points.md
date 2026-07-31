@@ -1186,3 +1186,18 @@ handles Pax and inline-Rust templates while skipping generated/dependency trees,
 supports `--check`, and emits one final newline. Recommendations: keep check
 mode side-effect free and report concrete paths so local tooling and CI use the
 same formatter contract.
+
+## 2026-07-30
+
+Two retired ICL pipelines remained tracked after their product integrations had
+disappeared: the standalone `pax-generation` provider wrapper with duplicated
+system prompts, and `scripts/paxgen`, which assembled another prompt from paths
+in the former standalone docs repository. Neither participated in the
+workspace, CLI, CI, release process, or current agent tooling, but both enlarged
+the stale Pax corpus available to codebase retrieval.
+
+Solved by removing both pipelines and preserving only a short provenance note
+for the historical Breakout example. Recommendations: keep Pax knowledge in the
+canonical docs, examples, and agent instructions; expose observation and
+mutation through model-neutral CLI tools; and retire duplicated embedded
+prompts when their caller is no longer a supported product surface.
