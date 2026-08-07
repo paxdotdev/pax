@@ -5,8 +5,7 @@
         direction=StackerDirection::Vertical
         gutter=20px
     >
-        <Group
-            class=route_stage_0
+        <Group class="route_stage_0"
             width=100%
             autosize=true
             autosize_x=false
@@ -33,22 +32,19 @@
                 direction=StackerDirection::Vertical
                 gutter=10px
             >
-                <Text class=page_eyebrow width=100% text="Top-level fallback" />
-                <Text
-                    class=page_title
+                <Text class="page_eyebrow" width=100% text="Top-level fallback" />
+                <Text class="page_title"
                     width=100%
                     text="No explicit top-level route matched this path."
                 />
-                <Text
-                    class=page_copy
+                <Text class="page_copy"
                     width=100%
                     text="The default branch is the final declarative escape hatch. It still gets a structured `route` value, so you can render useful diagnostics or recovery actions."
                 />
             </Stacker>
         </Group>
 
-        <RouteInspector
-            class=route_stage_1
+        <RouteInspector class="route_stage_1"
             width=100%
             title="fallback scope"
             @in=@timeline {
@@ -69,8 +65,7 @@
             }
         />
 
-        <Group
-            class=route_stage_2
+        <Group class="route_stage_2"
             width=100%
             autosize=true
             autosize_x=false
@@ -92,15 +87,13 @@
                 },
             }
         >
-            <Text
-                class=page_copy
+            <Text class="page_copy"
                 width=100%
                 text={"Fragment on this location: " + (route.global_location.fragment ?? "none")}
             />
         </Group>
 
-        <Group
-            class=route_stage_3
+        <Group class="route_stage_3"
             width=100%
             height=16px
             @in=@timeline {

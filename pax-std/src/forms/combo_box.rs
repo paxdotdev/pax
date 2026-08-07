@@ -34,7 +34,7 @@ use pax_runtime::api::NodeContext;
     if self.text != "" && self.selected != None && !_options_visible {
         <Group  @click=self.remove_index x=100% width=30px>
             <EventBlocker/>
-            <Path class=x_symbol x=50% y=50% width=15px height=15px/>
+            <Path class="x_symbol" x=50% y=50% width=15px height=15px/>
         </Group>
     }
     <Textbox

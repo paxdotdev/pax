@@ -1,7 +1,6 @@
 <Group width=100% height=100%>
     if self._show_dots {
-        <Group
-            class=carousel_dots
+        <Group class="carousel_dots"
             x={self._dots_pos_x}
             y={self._dots_pos_y}
             anchor_x=50%
@@ -12,8 +11,7 @@
         >
             for dot in self._dots {
                 if dot.is_active {
-                    <Ellipse
-                        class=carousel_dot_active
+                    <Ellipse class="carousel_dot_active"
                         x={50% + (dot.x_px)px}
                         y={50% + (dot.y_px)px}
                         width=10px
@@ -23,8 +21,7 @@
                     />
                 }
                 if !dot.is_active {
-                    <Ellipse
-                        class=carousel_dot
+                    <Ellipse class="carousel_dot"
                         x={50% + (dot.x_px)px}
                         y={50% + (dot.y_px)px}
                         width=10px
@@ -34,8 +31,7 @@
                     />
                 }
             }
-            <Rectangle
-                class=carousel_dots_pill
+            <Rectangle class="carousel_dots_pill"
                 x=50%
                 y=50%
                 width=100%

@@ -1,9 +1,8 @@
 <Group width=100% height=100%>
     <Group x=20px y=20px width=560px height={100% - 40px}>
-        <Text class=eyebrow text="Phase 10 Dynamic Linking"/>
-        <Text class=hero_title text="Dynamic Linking Lab"/>
-        <Text
-            class=hero_copy
+        <Text class="eyebrow" text="Phase 10 Dynamic Linking"/>
+        <Text class="hero_title" text="Dynamic Linking Lab"/>
+        <Text class="hero_copy"
             text="Edit Rust constants to force a dylib rebuild, or edit this Pax template to exercise the existing designtime reload path."/>
 
         <Group x=28px y=182px width={100% - 56px} height=258px>
@@ -16,9 +15,9 @@
                 hover_color=rgba(32, 52, 96, 255)
                 label={logic_button_label}
                 @button_click=self.run_logic/>
-            <Text class=card_meta x=24px y=160px width={100% - 48px} height=22px text={"Logic clicks: " + logic_clicks}/>
-            <Text class=card_copy x=24px y=96px width={100% - 48px} height=58px text={logic_message}/>
-            <Text class=card_title x=24px y=54px width={100% - 48px} height=36px text="Live Preview"/>
+            <Text class="card_meta" x=24px y=160px width={100% - 48px} height=22px text={"Logic clicks: " + logic_clicks}/>
+            <Text class="card_copy" x=24px y=96px width={100% - 48px} height=58px text={logic_message}/>
+            <Text class="card_title" x=24px y=54px width={100% - 48px} height=36px text="Live Preview"/>
             <Rectangle x=24px y=26px width=92px height=12px fill={accent_color} corner_radius=6.0/>
             <Rectangle
                 width=100%
@@ -32,8 +31,8 @@
         </Group>
 
         <Group x=28px y=468px width={100% - 56px} height=122px>
-            <Text class=status_title x=18px y=16px width={100% - 36px} height=18px text="Rust Status"/>
-            <Text class=status_body x=18px y=42px width={100% - 36px} height=64px text={rust_status}/>
+            <Text class="status_title" x=18px y=16px width={100% - 36px} height=18px text="Rust Status"/>
+            <Text class="status_body" x=18px y=42px width={100% - 36px} height=64px text={rust_status}/>
             <Rectangle
                 width=100%
                 height=100%
@@ -46,8 +45,8 @@
         </Group>
 
         <Group x=28px y=608px width={100% - 56px} height=132px>
-            <Text class=status_title x=18px y=16px width={100% - 36px} height=18px text="Pax Status"/>
-            <Text class=status_body x=18px y=42px width={100% - 36px} height=72px text={pax_status}/>
+            <Text class="status_title" x=18px y=16px width={100% - 36px} height=18px text="Pax Status"/>
+            <Text class="status_body" x=18px y=42px width={100% - 36px} height=72px text={pax_status}/>
             <Rectangle
                 width=100%
                 height=100%
@@ -97,8 +96,8 @@
                     gutter=14px
                     sizes=[24px, 18px, None]
                 >
-                    <Text class=editor_title width=100% height=100% text="src/lib.rs"/>
-                    <Text width=100% height=100% class=editor_hint text="Change LOGIC_BUTTON_LABEL, LOGIC_MESSAGE, or LOGIC_ACCENT_RGBA, then press Recompile Rust."/>
+                    <Text class="editor_title" width=100% height=100% text="src/lib.rs"/>
+                    <Text class="editor_hint" width=100% height=100% text="Change LOGIC_BUTTON_LABEL, LOGIC_MESSAGE, or LOGIC_ACCENT_RGBA, then press Recompile Rust."/>
                     <Textbox
                         width=100%
                         height=100%
@@ -149,8 +148,8 @@
                     gutter=14px
                     sizes=[24px, 18px, None]
                 >
-                    <Text class=editor_title width=100% height=100% text="src/lib.pax"/>
-                    <Text width=100% height=100% class=editor_hint text="Valid Pax edits auto-apply after a short debounce through the standard designtime template update path."/>
+                    <Text class="editor_title" width=100% height=100% text="src/lib.pax"/>
+                    <Text class="editor_hint" width=100% height=100% text="Valid Pax edits auto-apply after a short debounce through the standard designtime template update path."/>
                     <Textbox
                         width=100%
                         height=100%

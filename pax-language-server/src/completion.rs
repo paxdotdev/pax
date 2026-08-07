@@ -490,7 +490,7 @@ pub fn get_class_completions(
                     Some(format!("{}{} {{\n\t$0\n}}", prefix_string, entry.clone()));
                 completion.insert_text_format = Some(InsertTextFormat::SNIPPET);
             } else {
-                completion.insert_text = Some(format!("{}", entry.clone()));
+                completion.insert_text = Some(format!("\"{}\"", entry));
             }
             completions.push(completion);
         }
@@ -612,7 +612,10 @@ pub fn get_common_properties_setting_completions(
 
 #[cfg(test)]
 mod tests {
-    use super::get_type_completion;
+    use super::{get_class_completions, get_type_completion};
+    use crate::SelectorData;
+    use dashmap::DashMap;
+    use std::collections::HashSet;
 
     fn inserts_for(type_name: &str) -> Vec<String> {
         get_type_completion(type_name)
@@ -660,5 +663,25 @@ mod tests {
         assert!(inserts_for("ImageSource")
             .iter()
             .any(|snippet| snippet.contains("assets/")));
+    }
+
+    #[test]
+    fn class_attribute_completions_insert_string_literals() {
+        let selectors = DashMap::new();
+        selectors.insert(
+            "example.pax".to_string(),
+            SelectorData {
+                ids: HashSet::new(),
+                classes: HashSet::from(["card".to_string()]),
+            },
+        );
+        let selector_info = selectors.get("example.pax");
+
+        let inserts = get_class_completions(&selector_info, false, false)
+            .into_iter()
+            .filter_map(|completion| completion.insert_text)
+            .collect::<Vec<_>>();
+
+        assert_eq!(inserts, vec!["\"card\""]);
     }
 }

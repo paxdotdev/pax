@@ -16,7 +16,7 @@ pax_component_definition = { SOI ~ (root_tag_pair | settings_block_declaration |
 root_tag_pair = { any_tag_pair }
 any_tag_pair = _{statement_control_flow | matched_tag | self_closing_tag | comment }
 
-//This duo describes an XML-style open-tag, like <SomeElement id="..."> 
+//This duo describes an XML-style open-tag, like <SomeElement id="...">
 //and matching close-tag, like </SomeElement>.  Note the use of Pest's stack feature, `PUSH`
 //and `POP`, to match closing & opening tags
 open_tag = {"<" ~ PUSH(pascal_identifier) ~ attribute_key_value_pair * ~ ">"}
@@ -44,9 +44,10 @@ pascal_identifier = @{ ASCII_ALPHA_UPPER ~ (ASCII_ALPHANUMERIC | "_")*}
 event_id = {"@" ~ identifier}
 
 //Describes an attribute k/v pair like `id="some_element"` or `@click=self.handle_click`. Supports expressions.
-attribute_key_value_pair = {double_binding | attribute_transition_binding | attribute_event_binding | class_attribute | (identifier ~ "=" ~ any_template_value) }
-class_attribute = { "class" ~ "=" ~ (class_identifier_list | identifier) }
-class_identifier_list = { "[" ~ identifier ~ (silent_comma? ~ identifier)* ~ silent_comma? ~ "]" }
+attribute_key_value_pair = {double_binding | attribute_transition_binding | attribute_event_binding | class_attribute | (!(("class") ~ "=") ~ identifier ~ "=" ~ any_template_value) }
+class_attribute = { "class" ~ "=" ~ class_value }
+class_value = { class_string_list | string | expression_wrapped }
+class_string_list = { "[" ~ (string ~ (silent_comma? ~ string)* ~ silent_comma?)? ~ "]" }
 attribute_transition_binding = {transition_id ~ "=" ~ transition_binding_value}
 attribute_event_binding = {event_id ~ "=" ~ literal_function}
 transition_id = {"@" ~ ("in" | "out")}

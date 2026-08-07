@@ -1,6 +1,8 @@
 use pax_message::serde::{Deserialize, Serialize};
 
-use crate::{LocationInfo, SettingElement, Token, TypeId, ValueDefinition};
+use crate::{
+    pax_runtime_api::PaxValue, LocationInfo, SettingElement, Token, TypeId, ValueDefinition,
+};
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(crate = "pax_message::serde")]
@@ -41,12 +43,21 @@ impl SelectorExpr {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(crate = "pax_message::serde")]
+/// Selector identity persisted for one authored template node.
+///
+/// `class_binding` is the sole class representation: literal strings and lists
+/// as well as PAXEL expressions all cross the manifest/runtime boundary here.
 pub struct TemplateNodeSelectorInfo {
+    /// Source span of the authored node, when available.
     pub source_location: Option<LocationInfo>,
+    /// The node's authored id selector.
     pub id: Option<Token>,
-    pub classes: Vec<Token>,
+    /// The complete `class` attribute value. Literal and expression-backed classes share this
+    /// representation so runtime selector resolution has a single source of truth.
+    #[serde(default)]
+    pub class_binding: Option<ValueDefinition>,
 }
 
 impl TemplateNodeSelectorInfo {
@@ -55,19 +66,18 @@ impl TemplateNodeSelectorInfo {
         settings: &Option<Vec<SettingElement>>,
     ) -> Self {
         let mut id = None;
-        let mut classes = Vec::new();
+        let mut class_binding = None;
 
         if let Some(settings) = settings {
             for setting in settings {
                 let SettingElement::Setting(token, value) = setting else {
                     continue;
                 };
-                let ValueDefinition::Identifier(identifier) = value else {
-                    continue;
-                };
-
                 match token.token_value.as_str() {
                     "id" => {
+                        let ValueDefinition::Identifier(identifier) = value else {
+                            continue;
+                        };
                         if id.is_some() {
                             panic!("Specified more than one id inline!");
                         }
@@ -76,10 +86,12 @@ impl TemplateNodeSelectorInfo {
                             token_location: token.token_location.clone(),
                         });
                     }
-                    "class" => classes.push(Token {
-                        token_value: identifier.name.clone(),
-                        token_location: token.token_location.clone(),
-                    }),
+                    "class" => {
+                        if class_binding.is_some() {
+                            panic!("Specified more than one class attribute inline; use a list");
+                        }
+                        class_binding = Some(value.clone());
+                    }
                     _ => {}
                 }
             }
@@ -88,7 +100,28 @@ impl TemplateNodeSelectorInfo {
         Self {
             source_location,
             id,
-            classes,
+            class_binding,
+        }
+    }
+
+    /// Return class names that can be read without evaluating an expression.
+    pub fn literal_classes(&self) -> Vec<String> {
+        let Some(ValueDefinition::LiteralValue(value)) = &self.class_binding else {
+            return Vec::new();
+        };
+        match value {
+            PaxValue::String(value) => (!value.is_empty())
+                .then(|| value.clone())
+                .into_iter()
+                .collect(),
+            PaxValue::Vec(values) => values
+                .iter()
+                .filter_map(|value| match value {
+                    PaxValue::String(value) if !value.is_empty() => Some(value.clone()),
+                    _ => None,
+                })
+                .collect(),
+            _ => Vec::new(),
         }
     }
 
@@ -100,9 +133,9 @@ impl TemplateNodeSelectorInfo {
                 .map(|token| token.token_value.as_str() == id.as_str())
                 .unwrap_or(false),
             SelectorExpr::Class(class_name) => self
-                .classes
+                .literal_classes()
                 .iter()
-                .any(|token| token.token_value.as_str() == class_name.as_str()),
+                .any(|candidate| candidate == class_name),
             SelectorExpr::Type(type_name) => {
                 type_id.to_string() == *type_name
                     || type_id.get_pascal_identifier().as_deref() == Some(type_name.as_str())
@@ -119,7 +152,7 @@ fn validate_selector_identifier(identifier: &str) -> Result<(), String> {
     }
 }
 
-fn is_selector_identifier(identifier: &str) -> bool {
+pub fn is_selector_identifier(identifier: &str) -> bool {
     let mut chars = identifier.chars();
     let Some(first) = chars.next() else {
         return false;
@@ -131,7 +164,9 @@ fn is_selector_identifier(identifier: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::{PaxIdentifier, SettingElement, Token, TypeId, ValueDefinition};
+    use crate::{
+        pax_runtime_api::PaxValue, PaxIdentifier, SettingElement, Token, TypeId, ValueDefinition,
+    };
 
     use super::{SelectorExpr, TemplateNodeSelectorInfo};
 
@@ -160,7 +195,7 @@ mod tests {
             ),
             SettingElement::Setting(
                 Token::new_without_location("class".to_string()),
-                ValueDefinition::Identifier(PaxIdentifier::new("card")),
+                ValueDefinition::LiteralValue(PaxValue::String("card".to_string())),
             ),
         ]);
 

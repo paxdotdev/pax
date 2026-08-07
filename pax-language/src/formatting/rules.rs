@@ -75,7 +75,7 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         Rule::inner_nodes => vec![Box::new(InnerNodesDefaultRule)],
         Rule::attribute_key_value_pair => vec![Box::new(AttributeKeyValuePairDefaultRule)],
         Rule::class_attribute => vec![Box::new(ClassAttributeDefaultRule)],
-        Rule::class_identifier_list => vec![Box::new(ClassIdentifierListDefaultRule)],
+        Rule::class_string_list => vec![Box::new(ClassStringListDefaultRule)],
         Rule::attribute_transition_binding | Rule::attribute_event_binding => {
             vec![Box::new(AttributeEventBindingDefaultRule)]
         }
@@ -151,7 +151,8 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         Rule::statement_else_if_branch => vec![Box::new(StatementElseIfBranchDefaultRule)],
         Rule::statement_else_branch => vec![Box::new(StatementElseBranchDefaultRule)],
         Rule::statement_slot => vec![Box::new(StatementSlotDefaultRule)],
-        Rule::transition_binding_value
+        Rule::class_value
+        | Rule::transition_binding_value
         | Rule::any_template_value
         | Rule::node_inner_content
         | Rule::settings_value => {
@@ -334,7 +335,7 @@ impl FormattingRule for OpenTagDefaultRule {
             formatted_node.push_str(" ");
             formatted_node.push_str(
                 greedy_append_with_line_limit(
-                    canonicalize_static_class_attributes(children[1..].to_vec()),
+                    canonicalize_class_attribute_order(children[1..].to_vec()),
                     " ",
                 )
                 .as_str(),
@@ -356,7 +357,7 @@ impl FormattingRule for SelfClosingTagDefaultRule {
         formatted_node.push_str(" ");
         formatted_node.push_str(
             greedy_append_with_line_limit(
-                canonicalize_static_class_attributes(children[1..].to_vec()),
+                canonicalize_class_attribute_order(children[1..].to_vec()),
                 " ",
             )
             .as_str(),
@@ -426,10 +427,13 @@ impl FormattingRule for ClassAttributeDefaultRule {
 }
 
 #[derive(Clone)]
-struct ClassIdentifierListDefaultRule;
+struct ClassStringListDefaultRule;
 
-impl FormattingRule for ClassIdentifierListDefaultRule {
+impl FormattingRule for ClassStringListDefaultRule {
     fn format(&self, _node: Pair<Rule>, children: Vec<Child>) -> String {
+        if children.is_empty() {
+            return "[]".to_string();
+        }
         if children.len() == 1 {
             return children[0].formatted_node.clone();
         }
@@ -444,58 +448,15 @@ impl FormattingRule for ClassIdentifierListDefaultRule {
     }
 }
 
-fn canonicalize_static_class_attributes(children: Vec<Child>) -> Vec<Child> {
-    let class_indices_and_values = children
+fn canonicalize_class_attribute_order(mut children: Vec<Child>) -> Vec<Child> {
+    if let Some(class_index) = children
         .iter()
-        .enumerate()
-        .filter_map(|(index, child)| {
-            let value = child.formatted_node.strip_prefix("class=")?;
-            if value
-                .chars()
-                .all(|character| character.is_ascii_alphanumeric() || "_-[], ".contains(character))
-            {
-                Some((index, value))
-            } else {
-                None
-            }
-        })
-        .collect::<Vec<_>>();
-
-    if class_indices_and_values.len() <= 1 {
-        return children;
+        .position(|child| child.formatted_node.starts_with("class="))
+    {
+        let class_attribute = children.remove(class_index);
+        children.insert(0, class_attribute);
     }
-
-    let first_index = class_indices_and_values[0].0;
-    let class_indices = class_indices_and_values
-        .iter()
-        .map(|(index, _)| *index)
-        .collect::<Vec<_>>();
-    let classes = class_indices_and_values
-        .iter()
-        .flat_map(|(_, value)| {
-            value
-                .trim_matches(['[', ']'])
-                .split(',')
-                .map(str::trim)
-                .filter(|value| !value.is_empty())
-        })
-        .collect::<Vec<_>>()
-        .join(", ");
-
     children
-        .into_iter()
-        .enumerate()
-        .filter_map(|(index, mut child)| {
-            if index == first_index {
-                child.formatted_node = format!("class=[{classes}]");
-                Some(child)
-            } else if class_indices.contains(&index) {
-                None
-            } else {
-                Some(child)
-            }
-        })
-        .collect()
 }
 
 #[derive(Clone)]

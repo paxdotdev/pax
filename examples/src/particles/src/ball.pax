@@ -1,4 +1,4 @@
-<Ellipse class=ball />
+<Ellipse class="ball" />
 
 @settings {
     @mount: handle_mount,

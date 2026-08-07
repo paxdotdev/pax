@@ -6,14 +6,14 @@
 
             <LiquidGlass spacing=20px interactive=true variant="clear">
                 <Group x=0px y=212px width=100% height=360px corner_radius=30.0>
-                    <Text class=panel_kicker_light x=28px y=26px width={100% - 56px} height=18px text="GROUP MATERIALIZED SURFACE"/>
-                    <Text class=panel_title_light x=28px y=54px width={100% - 56px} height=40px text={"Route " + self.route_label}/>
-                    <Text class=panel_body_light x=28px y=102px width={100% - 56px} height=44px text="Group supplies the geometry and corner_radius for a native glass surface. The fiery backdrop should refract through the native material."/>
+                    <Text class="panel_kicker_light" x=28px y=26px width={100% - 56px} height=18px text="GROUP MATERIALIZED SURFACE"/>
+                    <Text class="panel_title_light" x=28px y=54px width={100% - 56px} height=40px text={"Route " + self.route_label}/>
+                    <Text class="panel_body_light" x=28px y=102px width={100% - 56px} height=44px text="Group supplies the geometry and corner_radius for a native glass surface. The fiery backdrop should refract through the native material."/>
                     <LiquidGlass x=28px y=164px width={100% - 56px} height=46px spacing=8px interactive=true variant="regular" tint=rgba(232, 236, 240, 112)>
-                        <Textbox class=milky_glass_input width=100% height=100% corner_radius=22.0 text=bind:call_sign placeholder="Call sign" @textbox_change=self.update_call_sign/>
+                        <Textbox class="milky_glass_input" width=100% height=100% corner_radius=22.0 text=bind:call_sign placeholder="Call sign" @textbox_change=self.update_call_sign/>
                     </LiquidGlass>
                     <LiquidGlass x=28px y=228px width={100% - 56px} height=44px spacing=8px interactive=true variant="regular" tint=rgba(232, 236, 240, 112)>
-                        <Button class=milky_glass_button width=100% height=100% corner_radius=22.0 label="FLARE" @button_click=self.record_tap/>
+                        <Button class="milky_glass_button" width=100% height=100% corner_radius=22.0 label="FLARE" @button_click=self.record_tap/>
                     </LiquidGlass>
                     <LiquidGlass enabled=false x=28px y=296px width={100% - 56px} height=30px>
                         <Slider width=100% height=30px value=bind:gain min=0.0 max=1.0 step=0.01 accent=rgba(255, 85, 70, 255) background=rgba(255, 217, 112, 156) corner_radius=12.0/>
@@ -23,16 +23,16 @@
 
             <Stacker x=0px y=602px width=100% autosize=true direction=StackerDirection::Vertical gutter=28px>
                 <Group width=100% height=44px>
-                    <Checkbox class=glass_check x=24px y=5px width=34px height=34px checked=bind:armed @checkbox_change=self.update_armed/>
-                    <Text class=panel_body_light x=72px y=11px width={100% - 96px} height=22px text="Show animated panel"/>
+                    <Checkbox class="glass_check" x=24px y=5px width=34px height=34px checked=bind:armed @checkbox_change=self.update_armed/>
+                    <Text class="panel_body_light" x=72px y=11px width={100% - 96px} height=22px text="Show animated panel"/>
                 </Group>
 
                 <Group width=100% height={(self.panel_cell_height)px}>
                     if self.panel_visible {
                         <LiquidGlass spacing=10px interactive=false variant="clear">
                             <Group x=50% y={self.panel_origin_y} width=100% height=158px anchor=[50%, 50%] scale={[(self.panel_scale_x * 100)%, (self.panel_scale_y * 100)%]} opacity={self.panel_opacity} corner_radius=24.0 layout_role=LayoutRole::Breakout>
-                                <Text class=panel_kicker_light x=24px y=22px width={100% - 48px} height=18px text="NESTED CLEAR STYLE"/>
-                                <Text class=panel_body_light x=24px y=54px width={100% - 48px} height=38px text="Nearest LiquidGlass wins for descendants."/>
+                                <Text class="panel_kicker_light" x=24px y=22px width={100% - 48px} height=18px text="NESTED CLEAR STYLE"/>
+                                <Text class="panel_body_light" x=24px y=54px width={100% - 48px} height=38px text="Nearest LiquidGlass wins for descendants."/>
                             </Group>
                         </LiquidGlass>
                     }
@@ -40,10 +40,10 @@
 
                 <LiquidGlass enabled=false spacing=12px interactive=true variant="regular">
                     <Group width=100% height=168px corner_radius=24.0>
-                        <Text class=panel_kicker_light x=24px y=22px width={100% - 48px} height=18px text="EXPLICIT OPT OUT"/>
-                        <Text class=panel_body_light x=24px y=54px width={100% - 48px} height=38px text="This subtree is inside LiquidGlass enabled=false and should render as ordinary native controls."/>
+                        <Text class="panel_kicker_light" x=24px y=22px width={100% - 48px} height=18px text="EXPLICIT OPT OUT"/>
+                        <Text class="panel_body_light" x=24px y=54px width={100% - 48px} height=38px text="This subtree is inside LiquidGlass enabled=false and should render as ordinary native controls."/>
                         <LiquidGlass x=24px y=108px width={100% - 48px} height=42px spacing=8px interactive=true variant="regular" tint=rgba(232, 236, 240, 112)>
-                            <Button class=milky_glass_button width=100% height=100% corner_radius=21.0 label="back to glass" @button_click=self.record_tap/>
+                            <Button class="milky_glass_button" width=100% height=100% corner_radius=21.0 label="back to glass" @button_click=self.record_tap/>
                         </LiquidGlass>
                     </Group>
                 </LiquidGlass>
@@ -53,14 +53,14 @@
                         <LiquidGlass enabled=false>
                             <Scroller width=100% height=100% scroll_width=1280px scroll_height=132px corner_radius=26.0>
                                 <Group width=1280px height=132px>
-                                    <Text class=panel_kicker_light x=24px y=26px width=320px height=18px text="SCROLLER IN GLASS SURFACE"/>
-                                    <Text class=panel_body_light x=24px y=56px width=340px height=24px text="One glass panel hosts horizontally scrolling native controls."/>
+                                    <Text class="panel_kicker_light" x=24px y=26px width=320px height=18px text="SCROLLER IN GLASS SURFACE"/>
+                                    <Text class="panel_body_light" x=24px y=56px width=340px height=24px text="One glass panel hosts horizontally scrolling native controls."/>
                                     <LiquidGlass x=408px y=34px width=176px height=54px spacing=8px interactive=true variant="regular" tint=rgba(48, 52, 56, 218)>
-                                        <Button class=smoky_glass_button width=100% height=100% corner_radius=22.0 label="Native" @button_click=self.record_tap/>
+                                        <Button class="smoky_glass_button" width=100% height=100% corner_radius=22.0 label="Native" @button_click=self.record_tap/>
                                     </LiquidGlass>
-                                    <RadioList class=glass_radio x=632px y=22px width=260px height=92px selected_id=bind:mode options=["ONE", "TWO", "THREE"]/>
+                                    <RadioList class="glass_radio" x=632px y=22px width=260px height=92px selected_id=bind:mode options=["ONE", "TWO", "THREE"]/>
                                     <LiquidGlass x=932px y=34px width=260px height=46px spacing=8px interactive=true variant="regular" tint=rgba(232, 236, 240, 112)>
-                                        <Textbox class=milky_glass_input width=100% height=100% corner_radius=22.0 text=bind:call_sign placeholder="Inside scroller" @textbox_change=self.update_call_sign/>
+                                        <Textbox class="milky_glass_input" width=100% height=100% corner_radius=22.0 text=bind:call_sign placeholder="Inside scroller" @textbox_change=self.update_call_sign/>
                                     </LiquidGlass>
                                 </Group>
                             </Scroller>
@@ -70,69 +70,69 @@
             </Stacker>
 
             <Group id=ember_vine_left x=-54px y=130px width=148px height=610px anchor=[0%, 0%] rotate=-4deg opacity=0.82>
-                <Rectangle class=ember_stem_near x=28px y=0px width=5px height=100%/>
+                <Rectangle class="ember_stem_near" x=28px y=0px width=5px height=100%/>
                 <Group x=34px y=112px width=82px height=138px anchor=[22%, 18%] rotate=58deg>
-                    <Group class=ember_sway_a>
-                        <Rectangle class=ember_leaf_vein x=50% y=18% width=2px height=68% anchor_x=50%/>
-                        <Path class=[ember_leaf, ember_leaf_hot] width=100% height=100%/>
+                    <Group class="ember_sway_a">
+                        <Rectangle class="ember_leaf_vein" x=50% y=18% width=2px height=68% anchor_x=50%/>
+                        <Path class=["ember_leaf", "ember_leaf_hot"] width=100% height=100%/>
                     </Group>
                 </Group>
                 <Group x=24px y=254px width=72px height=124px anchor=[78%, 18%] rotate=-48deg>
-                    <Group class=ember_sway_b>
-                        <Rectangle class=ember_leaf_vein x=50% y=18% width=2px height=68% anchor_x=50%/>
-                        <Path class=[ember_leaf, ember_leaf_warm] width=100% height=100%/>
+                    <Group class="ember_sway_b">
+                        <Rectangle class="ember_leaf_vein" x=50% y=18% width=2px height=68% anchor_x=50%/>
+                        <Path class=["ember_leaf", "ember_leaf_warm"] width=100% height=100%/>
                     </Group>
                 </Group>
                 <Group x=38px y=390px width=94px height=152px anchor=[20%, 18%] rotate=62deg>
-                    <Group class=ember_sway_c>
-                        <Rectangle class=ember_leaf_vein x=50% y=18% width=2px height=68% anchor_x=50%/>
-                        <Path class=[ember_leaf, ember_leaf_deep] width=100% height=100%/>
+                    <Group class="ember_sway_c">
+                        <Rectangle class="ember_leaf_vein" x=50% y=18% width=2px height=68% anchor_x=50%/>
+                        <Path class=["ember_leaf", "ember_leaf_deep"] width=100% height=100%/>
                     </Group>
                 </Group>
             </Group>
 
             <Group id=ember_frond_right x=108% y=274px width=232px height=730px anchor=[100%, 0%] rotate=5deg opacity=0.78>
-                <Rectangle class=ember_stem_back x=112px y=54px width=7px height=620px/>
+                <Rectangle class="ember_stem_back" x=112px y=54px width=7px height=620px/>
                 <Group x=116px y=634px width=82px height=176px anchor=[50%, 100%] rotate=66deg>
-                    <Group class=ember_sway_c>
-                        <Rectangle class=ember_leaf_vein x=50% y=18% width=2px height=70% anchor_x=50%/>
-                        <Path class=[ember_leaf, ember_leaf_hot] width=100% height=100%/>
+                    <Group class="ember_sway_c">
+                        <Rectangle class="ember_leaf_vein" x=50% y=18% width=2px height=70% anchor_x=50%/>
+                        <Path class=["ember_leaf", "ember_leaf_hot"] width=100% height=100%/>
                     </Group>
                 </Group>
                 <Group x=116px y=532px width=74px height=158px anchor=[50%, 100%] rotate=-58deg>
-                    <Group class=ember_sway_a>
-                        <Rectangle class=ember_leaf_vein x=50% y=18% width=2px height=70% anchor_x=50%/>
-                        <Path class=[ember_leaf, ember_leaf_warm] width=100% height=100%/>
+                    <Group class="ember_sway_a">
+                        <Rectangle class="ember_leaf_vein" x=50% y=18% width=2px height=70% anchor_x=50%/>
+                        <Path class=["ember_leaf", "ember_leaf_warm"] width=100% height=100%/>
                     </Group>
                 </Group>
                 <Group x=116px y=428px width=68px height=144px anchor=[50%, 100%] rotate=52deg>
-                    <Group class=ember_sway_b>
-                        <Rectangle class=ember_leaf_vein x=50% y=18% width=2px height=70% anchor_x=50%/>
-                        <Path class=[ember_leaf, ember_leaf_deep] width=100% height=100%/>
+                    <Group class="ember_sway_b">
+                        <Rectangle class="ember_leaf_vein" x=50% y=18% width=2px height=70% anchor_x=50%/>
+                        <Path class=["ember_leaf", "ember_leaf_deep"] width=100% height=100%/>
                     </Group>
                 </Group>
                 <Group x=116px y=330px width=60px height=128px anchor=[50%, 100%] rotate=-46deg>
-                    <Group class=ember_sway_c>
-                        <Rectangle class=ember_leaf_vein x=50% y=18% width=2px height=70% anchor_x=50%/>
-                        <Path class=[ember_leaf, ember_leaf_warm] width=100% height=100%/>
+                    <Group class="ember_sway_c">
+                        <Rectangle class="ember_leaf_vein" x=50% y=18% width=2px height=70% anchor_x=50%/>
+                        <Path class=["ember_leaf", "ember_leaf_warm"] width=100% height=100%/>
                     </Group>
                 </Group>
             </Group>
 
             <Group id=ember_flower_left x=-18px y=766px width=152px height=190px anchor=[0%, 50%] rotate=8deg opacity=0.86>
-                <Rectangle class=ember_stem_near x=56px y=22px width=4px height=132px/>
-                <Ellipse class=ember_petal_hot x=76px y=34px width=34px height=20px anchor=50% rotate=18deg/>
-                <Ellipse class=ember_petal_warm x=92px y=58px width=38px height=22px anchor=50% rotate=-8deg/>
-                <Ellipse class=ember_petal_hot x=78px y=84px width=34px height=20px anchor=50% rotate=20deg/>
-                <Ellipse class=ember_center x=84px y=60px width=14px height=14px anchor=50%/>
+                <Rectangle class="ember_stem_near" x=56px y=22px width=4px height=132px/>
+                <Ellipse class="ember_petal_hot" x=76px y=34px width=34px height=20px anchor=50% rotate=18deg/>
+                <Ellipse class="ember_petal_warm" x=92px y=58px width=38px height=22px anchor=50% rotate=-8deg/>
+                <Ellipse class="ember_petal_hot" x=78px y=84px width=34px height=20px anchor=50% rotate=20deg/>
+                <Ellipse class="ember_center" x=84px y=60px width=14px height=14px anchor=50%/>
             </Group>
 
             <Group id=ember_flower_right x=104% y=918px width=168px height=208px anchor=[100%, 50%] rotate=-10deg opacity=0.84>
-                <Rectangle class=ember_stem_back x=94px y=26px width=4px height=146px/>
-                <Ellipse class=ember_petal_warm x=66px y=48px width=38px height=22px anchor=50% rotate=-16deg/>
-                <Ellipse class=ember_petal_hot x=50px y=74px width=42px height=24px anchor=50% rotate=10deg/>
-                <Ellipse class=ember_petal_warm x=70px y=100px width=36px height=20px anchor=50% rotate=24deg/>
-                <Ellipse class=ember_center x=58px y=74px width=14px height=14px anchor=50%/>
+                <Rectangle class="ember_stem_back" x=94px y=26px width=4px height=146px/>
+                <Ellipse class="ember_petal_warm" x=66px y=48px width=38px height=22px anchor=50% rotate=-16deg/>
+                <Ellipse class="ember_petal_hot" x=50px y=74px width=42px height=24px anchor=50% rotate=10deg/>
+                <Ellipse class="ember_petal_warm" x=70px y=100px width=36px height=20px anchor=50% rotate=24deg/>
+                <Ellipse class="ember_center" x=58px y=74px width=14px height=14px anchor=50%/>
             </Group>
         </Group>
     </Scroller>

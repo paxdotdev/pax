@@ -13,7 +13,7 @@ use crate::{
 };
 
 const MAGIC: &[u8; 8] = b"PAXP\x00IR\x00";
-const VERSION: u8 = 2;
+const VERSION: u8 = 3;
 
 /// Runtime-facing semantic program model derived from a rich `PaxManifest`.
 ///
@@ -163,7 +163,7 @@ fn sanitize_template_node(node: &TemplateNodeDefinition) -> Option<TemplateNodeD
         selector_info: crate::TemplateNodeSelectorInfo {
             source_location: node.selector_info.source_location.clone(),
             id: node.selector_info.id.as_ref().map(strip_token),
-            classes: node.selector_info.classes.iter().map(strip_token).collect(),
+            class_binding: node.selector_info.class_binding.clone(),
         },
         raw_comment_string: None,
     })

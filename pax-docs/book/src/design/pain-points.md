@@ -4,8 +4,8 @@ Example (structure is not rigid but this showcases the style of notes we should 
 
 ## 2026-05-19
 
-Tried to do `x`, ran into `y`, solved it by `z`.  
-Recommendations:  (e.g. document in pax-docs, document in API docs (inline comments), update AGENTS.md, create a more targeted example, consider redesigning APIs, etc.) 
+Tried to do `x`, ran into `y`, solved it by `z`.
+Recommendations:  (e.g. document in pax-docs, document in API docs (inline comments), update AGENTS.md, create a more targeted example, consider redesigning APIs, etc.)
 
 ## 2026-05-20
 
@@ -1170,14 +1170,23 @@ untouched unless a formatting pass is itself part of the task.
 
 Repeated `class=...` attributes were the sole intentional exception to Pax's
 otherwise single-value inline properties, which made multi-class markup look
-like duplicate-key behavior. The parser now accepts `class=[foo, bar]` and
-lowers it to the existing selector metadata, while the formatter canonicalizes
-legacy repeated class attributes to that list form. Dynamic class expressions
-remain unsupported: the current runtime `classes` property mirrors compiled
-selector metadata and does not trigger settings re-resolution. Recommendations:
-keep static classes as symbolic identifiers; design runtime classes separately
-around explicit selector invalidation rather than implying support through a
-string wrapper.
+like duplicate-key behavior. Classes are now string data: `class="foo"`,
+`class=["foo", "bar"]`, and expression bindings that evaluate to `String` or
+`Vec<String>`. The binding is reserved selector metadata rather than an
+ordinary property, and runtime changes invalidate settings for only that node.
+Recommendations: keep one binding as the source of truth across manifests and
+baked cartridges; let the runtime own selector matching instead of maintaining
+a partial compile-time model of dynamic membership.
+
+Exercising dynamic class changes with `<ImportSettings>` also exposed that
+imported selector values and conditions were evaluated against each receiving
+node's property stack. Provider-local expressions such as `self.is_dark`
+therefore failed outside the theme component, sometimes leaving different
+chassis with different-looking fallbacks. Imported settings entries now retain
+their provider's lexical stack while `$base` still refers to the receiving
+property's previous layer. Recommendations: treat selector matching and value
+evaluation as separate concerns, and preserve the authoring scope whenever a
+declaration is transported elsewhere for application.
 
 The formatter previously accepted only one path, rewrote it unconditionally,
 and omitted the final newline. This made workspace cleanup and automated drift

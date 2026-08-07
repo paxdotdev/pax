@@ -48,11 +48,11 @@
             />
         </Group>
         <Group y=58px>
-            <Text class=rgba_label text="rgba:"/>
-            <Textbox class=[input, col_2, span_1] text={self.red}  @textbox_change=self.red_change/>
-            <Textbox class=[input, col_3, span_1] text={self.green} @textbox_change=self.green_change/>
-            <Textbox class=[input, col_4, span_1] text={self.blue} @textbox_change=self.blue_change/>
-            <Textbox class=[input, col_5, span_1] text={self.alpha_text} @textbox_change=self.alpha_change/>
+            <Text class="rgba_label" text="rgba:"/>
+            <Textbox class=["input", "col_2", "span_1"] text={self.red}  @textbox_change=self.red_change/>
+            <Textbox class=["input", "col_3", "span_1"] text={self.green} @textbox_change=self.green_change/>
+            <Textbox class=["input", "col_4", "span_1"] text={self.blue} @textbox_change=self.blue_change/>
+            <Textbox class=["input", "col_5", "span_1"] text={self.alpha_text} @textbox_change=self.alpha_change/>
         </Group>
     </Group>
     <Group

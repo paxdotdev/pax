@@ -3,6 +3,31 @@ import XCTest
 import FlexBuffers
 
 final class PaxSwiftCommonTests: XCTestCase {
+    func testFontFamilyMatchingRejectsPartialNameCollisions() {
+        XCTAssertTrue(PaxFont.fontFamilyNamesMatch(
+            candidate: "Times New-Roman",
+            requested: "times new roman"
+        ))
+        XCTAssertFalse(PaxFont.fontFamilyNamesMatch(candidate: "SignPainter", requested: "Inter"))
+        XCTAssertFalse(PaxFont.fontFamilyNamesMatch(candidate: "Roboto Slab", requested: "Roboto"))
+    }
+
+    func testFontWeightSelectionUsesCSSOrderingForEveryFamily() {
+        XCTAssertLessThan(
+            PaxFont.weightSelectionRank(candidate: .bold, requested: .semiBold),
+            PaxFont.weightSelectionRank(candidate: .medium, requested: .semiBold)
+        )
+        XCTAssertLessThan(
+            PaxFont.weightSelectionRank(candidate: .medium, requested: .normal),
+            PaxFont.weightSelectionRank(candidate: .light, requested: .normal)
+        )
+        XCTAssertLessThan(
+            PaxFont.weightSelectionRank(candidate: .extraLight, requested: .light),
+            PaxFont.weightSelectionRank(candidate: .normal, requested: .light)
+        )
+        XCTAssertEqual(PaxFont.weightSelectionRank(candidate: .black, requested: .black), 0)
+    }
+
     func testTouchCancelDispatchesDistinctInterrupt() throws {
         var sentData: Data?
         let previousSender = NativeInterruptDispatcher.shared.sendData

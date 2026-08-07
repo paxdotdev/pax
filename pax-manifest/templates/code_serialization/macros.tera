@@ -4,14 +4,14 @@
     {% elif cfd.slot_index_expression %}
         slot({{ to_pax_expression(value=cfd.slot_index_expression)  }})
     {% elif cfd.repeat_predicate_definition %}
-        for 
+        for
         {% if cfd.repeat_predicate_definition.ElemId %}
             {{cfd.repeat_predicate_definition.ElemId}}
         {% endif %}
         {% if cfd.repeat_predicate_definition.ElemIdIndexId %}
             ({{cfd.repeat_predicate_definition.ElemIdIndexId.0}}, {{cfd.repeat_predicate_definition.ElemIdIndexId.1}})
-        {% endif %} 
-            in 
+        {% endif %}
+            in
             {% if cfd.repeat_source_expression -%}
                 {{to_pax_expression(value=cfd.repeat_source_expression)}}
             {% endif %}
@@ -94,10 +94,13 @@
             {{node_map[node_id].raw_comment_string}}
         {% else %}
             {% if node_map[node_id].type_id.pax_type.Singleton %}
-                <{{node_map[node_id].type_id.pax_type.Singleton.pascal_identifier}} 
+                <{{node_map[node_id].type_id.pax_type.Singleton.pascal_identifier}}
             {% else %}
-                <{{node_map[node_id].type_id.pax_type.BlankComponent.pascal_identifier}} 
+                <{{node_map[node_id].type_id.pax_type.BlankComponent.pascal_identifier}}
             {% endif %}
+                {% if node_map[node_id].selector_info.class_binding %}
+                    class={{ self::render_value_definition(vd=node_map[node_id].selector_info.class_binding) }}
+                {% endif %}
                 {% if node_map[node_id].settings %}
                     {% for setting in node_map[node_id].settings %}
                         {% if setting.Setting %}

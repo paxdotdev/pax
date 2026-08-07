@@ -18,7 +18,7 @@ use crate::{
 };
 
 const MAGIC: &[u8; 8] = b"PAXM\x00BIN";
-const VERSION: u8 = 3;
+const VERSION: u8 = 4;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -1099,15 +1099,12 @@ mod tests {
         let mut root = TemplateNodeDefinition::default();
         root.type_id = type_id.clone();
         root.raw_comment_string = Some("root".to_string());
+        root.selector_info.class_binding =
+            Some(ValueDefinition::LiteralValue(PaxValue::Vec(vec![
+                PaxValue::String("card".to_string()),
+                PaxValue::String("elevated".to_string()),
+            ])));
         root.settings = Some(vec![
-            SettingElement::Setting(
-                Token::new_without_location("class".to_string()),
-                ValueDefinition::Identifier(crate::PaxIdentifier::new("card")),
-            ),
-            SettingElement::Setting(
-                Token::new_without_location("class".to_string()),
-                ValueDefinition::Identifier(crate::PaxIdentifier::new("elevated")),
-            ),
             SettingElement::Setting(
                 Token::new_without_location("fill".to_string()),
                 ValueDefinition::Gradient(GradientDefinition {
@@ -1230,20 +1227,7 @@ mod tests {
                 PaxValue::Numeric(Numeric::F64(4.0)),
             ]
         ));
-        let classes = root
-            .settings
-            .as_ref()
-            .unwrap()
-            .iter()
-            .filter_map(|setting| match setting {
-                SettingElement::Setting(token, ValueDefinition::Identifier(identifier))
-                    if token.token_value == "class" =>
-                {
-                    Some(identifier.name.as_str())
-                }
-                _ => None,
-            })
-            .collect::<Vec<_>>();
+        let classes = root.selector_info.literal_classes();
         assert_eq!(classes, vec!["card", "elevated"]);
     }
 }

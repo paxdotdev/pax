@@ -9,27 +9,27 @@
 />
 
 <Group x=50% y=94% width=860px height=126px anchor=[50%, 100%]>
-    <Text class=panel_kicker x=32px y=16px width=160px height=18px text="SCENE CONTROL" />
-    <Text class=panel_label x=32px y=42px width=192px height=18px text="ACTION" />
+    <Text class="panel_kicker" x=32px y=16px width=160px height=18px text="SCENE CONTROL" />
+    <Text class="panel_label" x=32px y=42px width=192px height=18px text="ACTION" />
     if selected_action == 0 {
-        <Text class=panel_label x=292px y=42px width=216px height=18px text="GREETING WAVE" />
+        <Text class="panel_label" x=292px y=42px width=216px height=18px text="GREETING WAVE" />
     }
     if selected_action == 1 {
-        <Text class=panel_label x=292px y=42px width=216px height=18px text="COURT BOW" />
+        <Text class="panel_label" x=292px y=42px width=216px height=18px text="COURT BOW" />
     }
     if selected_action == 2 {
-        <Text class=panel_label x=292px y=42px width=216px height=18px text="IDLE SWAY" />
+        <Text class="panel_label" x=292px y=42px width=216px height=18px text="IDLE SWAY" />
     }
     if selected_action == 3 {
-        <Text class=panel_label x=292px y=42px width=216px height=18px text="HEROIC POINT" />
+        <Text class="panel_label" x=292px y=42px width=216px height=18px text="HEROIC POINT" />
     }
     if selected_action == 4 {
-        <Text class=panel_label x=292px y=42px width=216px height=18px text="SNEAK STEP" />
+        <Text class="panel_label" x=292px y=42px width=216px height=18px text="SNEAK STEP" />
     }
     if selected_action == 5 {
-        <Text class=panel_label x=292px y=42px width=216px height=18px text="CAN-CAN KICK" />
+        <Text class="panel_label" x=292px y=42px width=216px height=18px text="CAN-CAN KICK" />
     }
-    <Text class=panel_label x=534px y=42px width=196px height=18px text={"PLAYHEAD " + master_playhead} />
+    <Text class="panel_label" x=534px y=42px width=196px height=18px text={"PLAYHEAD " + master_playhead} />
 
     <Dropdown
         x=32px
@@ -60,8 +60,7 @@
         corner_radius=10
     />
 
-    <Text
-        class=panel_note
+    <Text class="panel_note"
         x=690px
         y=52px
         width=138px
@@ -69,17 +68,17 @@
         text="Scrub the master playhead to drive the active puppet."
     />
 
-    <Rectangle class=control_panel />
+    <Rectangle class="control_panel" />
 </Group>
 
 <Group x=50% y=53% width=920px height=700px anchor=50%>
-    <Rectangle class=stage_border x=0px y=0px width=100% height=100% />
+    <Rectangle class="stage_border" x=0px y=0px width=100% height=100% />
 
     <Group x=0px y=0px width=100% height=100%>
-        <Path class=left_curtain width=172px height=660px />
-        <Path class=right_curtain x=748px y=0px width=172px height=660px />
-        <Path class=top_valance x=60px y=0px width=800px height=196px />
-        <Rectangle class=proscenium_edge x=56px y=48px width=808px height=526px />
+        <Path class="left_curtain" width=172px height=660px />
+        <Path class="right_curtain" x=748px y=0px width=172px height=660px />
+        <Path class="top_valance" x=60px y=0px width=800px height=196px />
+        <Rectangle class="proscenium_edge" x=56px y=48px width=808px height=526px />
     </Group>
 
     if selected_action == 0 {
@@ -185,27 +184,27 @@
         />
     }
 
-    <Path class=stage_apron x=60px y=542px width=800px height=78px />
-    <Rectangle class=floor_trim x=74px y=534px width=772px height=10px />
-    <Ellipse class=shadow_pool x=50% y=542px width=234px height=46px anchor_x=50% />
-    <Ellipse class=spotlight_pool x=50% y=560px width=330px height=108px anchor_x=50% />
+    <Path class="stage_apron" x=60px y=542px width=800px height=78px />
+    <Rectangle class="floor_trim" x=74px y=534px width=772px height=10px />
+    <Ellipse class="shadow_pool" x=50% y=542px width=234px height=46px anchor_x=50% />
+    <Ellipse class="spotlight_pool" x=50% y=560px width=330px height=108px anchor_x=50% />
 
     <Group x=50% y=52px width=804px height=582px anchor_x=50%>
-        <Path class=stage_backdrop width=100% height=100% />
-        <Path class=curtain_fold x=68px y=0px width=132px height=420px />
-        <Path class=curtain_fold x=226px y=0px width=132px height=436px />
-        <Path class=curtain_fold x=384px y=0px width=132px height=446px />
-        <Path class=curtain_fold x=542px y=0px width=132px height=432px />
-        <Path class=curtain_fold x=682px y=0px width=92px height=404px />
-        <Path class=spotlight_beam x=322px y=22px width=160px height=482px />
-        <Path class=wood_floor x=0px y=430px width=100% height=152px />
-        <Rectangle class=stage_back_shadow x=0px y=404px width=100% height=32px />
+        <Path class="stage_backdrop" width=100% height=100% />
+        <Path class="curtain_fold" x=68px y=0px width=132px height=420px />
+        <Path class="curtain_fold" x=226px y=0px width=132px height=436px />
+        <Path class="curtain_fold" x=384px y=0px width=132px height=446px />
+        <Path class="curtain_fold" x=542px y=0px width=132px height=432px />
+        <Path class="curtain_fold" x=682px y=0px width=92px height=404px />
+        <Path class="spotlight_beam" x=322px y=22px width=160px height=482px />
+        <Path class="wood_floor" x=0px y=430px width=100% height=152px />
+        <Rectangle class="stage_back_shadow" x=0px y=404px width=100% height=32px />
     </Group>
 
-    <Rectangle class=stage_shell x=0px y=0px width=100% height=100% />
+    <Rectangle class="stage_shell" x=0px y=0px width=100% height=100% />
 </Group>
 
-<Rectangle width=100% height=100% class=scene_background />
+<Rectangle class="scene_background" width=100% height=100% />
 
 @settings {
     #title {

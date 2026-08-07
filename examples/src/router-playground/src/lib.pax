@@ -3,7 +3,7 @@ if is_mobile {
         <Group x=0px y=0px width=100% height={(mobile_top_inset + 72)px}>
             <Group x=18px y={(mobile_top_inset + 14)px} width=108px height=44px @click=self.toggle_mobile_menu>
                 <Text id=mobile_menu_text width=100% height=100% text={mobile_menu_open ? "Close" : "Menu"} />
-                <Rectangle class=mobile_menu_button width=100% height=100% />
+                <Rectangle class="mobile_menu_button" width=100% height=100% />
             </Group>
 
             <Stacker
@@ -19,7 +19,7 @@ if is_mobile {
                 <Text id=mobile_subtitle width=100% height=100% text="Nested routing demo" />
             </Stacker>
 
-            <Rectangle class=mobile_top_bar width=100% height=100% />
+            <Rectangle class="mobile_top_bar" width=100% height=100% />
         </Group>
 
         if mobile_menu_open {
@@ -47,7 +47,7 @@ if is_mobile {
         >
             <RouteOutlet width=100% height=100% padding_x=24px padding_y=24px is_mobile={is_mobile} />
 
-            <Rectangle class=content_panel width=100% height=100% />
+            <Rectangle class="content_panel" width=100% height=100% />
         </Group>
     </Group>
 } else {
@@ -62,13 +62,13 @@ if is_mobile {
     >
         <Group width=100% height=100%>
             <SidebarNav width=100% height=100% />
-            <Rectangle class=sidebar_panel width=100% height=100% />
+            <Rectangle class="sidebar_panel" width=100% height=100% />
         </Group>
 
         <Group width=100% height=100%>
             <RouteOutlet width=100% height=100% padding_x=36px padding_y=36px is_mobile={is_mobile} />
 
-            <Rectangle class=content_panel width=100% height=100% />
+            <Rectangle class="content_panel" width=100% height=100% />
         </Group>
     </Stacker>
 }

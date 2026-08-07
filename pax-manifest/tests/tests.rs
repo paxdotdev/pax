@@ -371,7 +371,7 @@ mod tests {
     }
 
     #[test]
-    fn test_static_class_list_lowers_to_selector_classes() {
+    fn test_static_class_list_lowers_to_one_selector_binding() {
         let component_type_id = TypeId::build_singleton("Example", Some("Example"));
         let rectangle_type_id = TypeId::build_singleton("Rectangle", Some("Rectangle"));
         let mut template_map = HashMap::new();
@@ -379,7 +379,7 @@ mod tests {
 
         let (_, component) = assemble_component_definition(
             ParsingContext::default(),
-            "<Rectangle class=[card, elevated, interactive] />",
+            r#"<Rectangle class=["card", "elevated", "interactive"] />"#,
             false,
             template_map,
             "crate",
@@ -391,22 +391,95 @@ mod tests {
         let template = component.template.unwrap();
         let root_id = template.get_root().remove(0);
         let node = template.get_node(&root_id).unwrap();
-        let classes = node
-            .selector_info
-            .classes
-            .iter()
-            .map(|token| token.token_value.as_str())
-            .collect::<Vec<_>>();
+        let classes = node.selector_info.literal_classes();
         assert_eq!(classes, vec!["card", "elevated", "interactive"]);
-        assert_eq!(
-            node.settings
-                .as_ref()
-                .unwrap()
-                .iter()
-                .filter(|setting| matches!(setting, SettingElement::Setting(token, _) if token.token_value == "class"))
-                .count(),
-            3
+        assert!(node.settings.is_none());
+    }
+
+    #[test]
+    fn test_dynamic_class_expression_is_reserved_selector_metadata() {
+        let component_type_id = TypeId::build_singleton("Example", Some("Example"));
+        let rectangle_type_id = TypeId::build_singleton("Rectangle", Some("Rectangle"));
+        let mut template_map = HashMap::new();
+        template_map.insert("Rectangle".to_string(), rectangle_type_id);
+
+        let (_, component) = assemble_component_definition(
+            ParsingContext::default(),
+            "<Rectangle class={self.current_classes} opacity=0.5 />",
+            false,
+            template_map,
+            "crate",
+            component_type_id,
+            "example.pax",
+            file!(),
         );
+
+        let template = component.template.unwrap();
+        let root_id = template.get_root().remove(0);
+        let node = template.get_node(&root_id).unwrap();
+        assert!(matches!(
+            node.selector_info.class_binding,
+            Some(ValueDefinition::Expression(_))
+        ));
+        assert!(!node.settings.as_ref().unwrap().iter().any(
+            |setting| matches!(setting, SettingElement::Setting(token, _) if token.token_value == "class"),
+        ));
+    }
+
+    #[test]
+    #[should_panic(expected = "Specified more than one class attribute inline")]
+    fn test_duplicate_class_attributes_are_rejected() {
+        let component_type_id = TypeId::build_singleton("Example", Some("Example"));
+        let rectangle_type_id = TypeId::build_singleton("Rectangle", Some("Rectangle"));
+        let mut template_map = HashMap::new();
+        template_map.insert("Rectangle".to_string(), rectangle_type_id);
+
+        let _ = assemble_component_definition(
+            ParsingContext::default(),
+            r#"<Rectangle class="elevated" class="card" />"#,
+            false,
+            template_map,
+            "crate",
+            component_type_id,
+            "example.pax",
+            file!(),
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "class cannot be assigned from a selector or settings block")]
+    fn test_class_cannot_be_assigned_from_settings() {
+        let component = parse_pax_str(
+            Rule::pax_component_definition,
+            r#"
+                <Rectangle />
+                @settings {
+                    .card { class: "other" }
+                }
+            "#,
+        )
+        .expect("component should parse");
+
+        let _ = parse_settings_from_component_definition_string(component);
+    }
+
+    #[test]
+    #[should_panic(expected = "class cannot be assigned by a timeline")]
+    fn test_class_cannot_be_assigned_by_a_timeline() {
+        let component = parse_pax_str(
+            Rule::pax_component_definition,
+            r#"
+                <Rectangle />
+                @timeline pulse {
+                    .card {
+                        class: { 0: "card", 100: "active" }
+                    }
+                }
+            "#,
+        )
+        .expect("component should parse");
+
+        let _ = parse_timeline_from_component_definition_string(component);
     }
 
     #[test]
@@ -2088,14 +2161,14 @@ mod tests {
     }
 
     #[test]
-    fn test_runtime_settings_merge_uses_selector_metadata_precedence() {
+    fn test_compile_time_settings_merge_leaves_classes_for_runtime() {
         let mut node = TemplateNodeDefinition {
             type_id: TypeId::build_singleton("example::Text", Some("Text")),
             control_flow_settings: None,
             settings: Some(vec![
                 SettingElement::Setting(
                     Token::new_without_location("class".to_string()),
-                    ValueDefinition::Identifier(PaxIdentifier::new("headline")),
+                    ValueDefinition::LiteralValue(PaxValue::String("headline".to_string())),
                 ),
                 SettingElement::Setting(
                     Token::new_without_location("id".to_string()),
@@ -2168,10 +2241,7 @@ mod tests {
             merged_map.get("width"),
             Some(ValueDefinition::LiteralValue(PaxValue::Numeric(value))) if *value == 1.into()
         ));
-        assert!(matches!(
-            merged_map.get("height"),
-            Some(ValueDefinition::LiteralValue(PaxValue::Numeric(value))) if *value == 2.into()
-        ));
+        assert!(!merged_map.contains_key("height"));
         assert!(matches!(
             merged_map.get("opacity"),
             Some(ValueDefinition::LiteralValue(PaxValue::Numeric(value))) if *value == 3.into()

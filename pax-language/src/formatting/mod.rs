@@ -1,7 +1,7 @@
 mod rules;
 
 use crate::helpers::{replace_by_line_column, InlinedTemplateFinder};
-use crate::{parse_pax_err, Rule};
+use crate::{parse_pax_err, Pair, Rule};
 use color_eyre::eyre::{self, Report, WrapErr};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -20,7 +20,34 @@ pub struct FormatSummary {
 /// Format one Pax template string.
 pub fn format_pax_template(code: String) -> Result<String, eyre::Report> {
     let pax_component_definition = parse_pax_err(Rule::pax_component_definition, code.as_str())?;
+    reject_duplicate_class_attributes(&pax_component_definition)?;
     Ok(rules::format(pax_component_definition))
+}
+
+fn reject_duplicate_class_attributes(pair: &Pair<Rule>) -> Result<(), Report> {
+    if matches!(pair.as_rule(), Rule::open_tag | Rule::self_closing_tag) {
+        let class_attribute_count = pair
+            .clone()
+            .into_inner()
+            .filter(|child| child.as_rule() == Rule::attribute_key_value_pair)
+            .filter(|attribute| {
+                attribute
+                    .clone()
+                    .into_inner()
+                    .any(|child| child.as_rule() == Rule::class_attribute)
+            })
+            .count();
+        if class_attribute_count > 1 {
+            return Err(Report::msg(
+                "a tag may have only one `class` attribute; use a string list for multiple classes",
+            ));
+        }
+    }
+
+    for child in pair.clone().into_inner() {
+        reject_duplicate_class_attributes(&child)?;
+    }
+    Ok(())
 }
 
 /// Format either a `.pax` file or an inlined Pax template inside a Rust file.
@@ -162,22 +189,22 @@ mod tests {
     }
 
     #[test]
-    fn canonicalizes_repeated_static_classes_and_final_newline() {
+    fn canonicalizes_static_classes_and_final_newline() {
         let directory = temp_directory();
         let path = directory.join("component.pax");
-        fs::write(&path, "<Rectangle class=foo class=bar/>").unwrap();
+        fs::write(&path, r#"<Rectangle class=["foo"]/>"#).unwrap();
 
         let check = format_path(&directory, true).unwrap();
         assert_eq!(check.changed_files, vec![path.clone()]);
         assert_eq!(
             fs::read_to_string(&path).unwrap(),
-            "<Rectangle class=foo class=bar/>"
+            r#"<Rectangle class=["foo"]/>"#
         );
 
         format_path(&directory, false).unwrap();
         assert_eq!(
             fs::read_to_string(&path).unwrap(),
-            "<Rectangle class=[foo, bar]/>\n"
+            "<Rectangle class=\"foo\"/>\n"
         );
         assert!(format_path(&directory, true)
             .unwrap()
@@ -185,6 +212,33 @@ mod tests {
             .is_empty());
 
         fs::remove_dir_all(directory).unwrap();
+    }
+
+    #[test]
+    fn formats_literal_and_expression_class_bindings() {
+        assert_eq!(
+            format_pax_template(r#"<Text text="Hello" class="heading" id=title/>"#.to_string())
+                .unwrap(),
+            r#"<Text class="heading" text="Hello" id=title/>"#
+        );
+        assert_eq!(
+            format_pax_template(r#"<Rectangle class=["base", "selected"]/>"#.to_string()).unwrap(),
+            r#"<Rectangle class=["base", "selected"]/>"#
+        );
+        assert_eq!(
+            format_pax_template("<Rectangle class={self.classes}/>".to_string()).unwrap(),
+            "<Rectangle class={self.classes}/>"
+        );
+        assert_eq!(
+            format_pax_template(r#"<Rectangle class={"temporary"}/>"#.to_string()).unwrap(),
+            r#"<Rectangle class={"temporary"}/>"#
+        );
+        assert!(format_pax_template("<Rectangle class=legacy/>".to_string()).is_err());
+        assert!(format_pax_template("<Rectangle class=[legacy, selected]/>".to_string()).is_err());
+        assert!(
+            format_pax_template(r#"<Rectangle class="base" class="selected"/>"#.to_string())
+                .is_err()
+        );
     }
 
     #[test]

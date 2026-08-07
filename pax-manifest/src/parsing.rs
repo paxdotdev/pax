@@ -50,6 +50,8 @@ fn recurse_visit_tag_pairs_for_template(
             let mut open_tag = open_tag_pair.into_inner();
             let pascal_identifier = open_tag.next().unwrap().as_str();
             let settings = parse_inline_attribute_from_final_pairs_of_tag(open_tag);
+            let (settings, selector_info) =
+                split_selector_bindings_from_inline_settings(source_location, settings);
 
             if pascal_identifier == "Router" {
                 parse_router_matched_tag(ctx, matched_tag, pax, location);
@@ -64,11 +66,8 @@ fn recurse_visit_tag_pairs_for_template(
                         .to_string(),
                     Some(&pascal_identifier.to_string()),
                 ),
-                settings: settings.clone(),
-                selector_info: TemplateNodeSelectorInfo::from_inline_settings(
-                    source_location,
-                    &settings,
-                ),
+                settings,
+                selector_info,
                 raw_comment_string: None,
                 control_flow_settings: None,
             };
@@ -115,13 +114,12 @@ fn recurse_visit_tag_pairs_for_template(
                 TypeId::build_blank_component(pascal_identifier)
             };
             let settings = parse_inline_attribute_from_final_pairs_of_tag(tag_pairs);
+            let (settings, selector_info) =
+                split_selector_bindings_from_inline_settings(source_location, settings);
             let template_node = TemplateNodeDefinition {
                 type_id,
-                settings: settings.clone(),
-                selector_info: TemplateNodeSelectorInfo::from_inline_settings(
-                    source_location,
-                    &settings,
-                ),
+                settings,
+                selector_info,
                 raw_comment_string: None,
                 control_flow_settings: None,
             };
@@ -501,14 +499,13 @@ fn parse_route_branch_from_matched_tag(
     let mut open_tag = open_tag_pair.into_inner();
     let _ = open_tag.next().unwrap();
     let route_settings = parse_inline_attribute_from_final_pairs_of_tag(open_tag);
+    let (route_settings, selector_info) =
+        split_selector_bindings_from_inline_settings(source_location, route_settings);
 
     let template_node = TemplateNodeDefinition {
         type_id: type_id_for_pascal(ctx, route_tag),
         settings: route_settings.clone(),
-        selector_info: TemplateNodeSelectorInfo::from_inline_settings(
-            source_location,
-            &route_settings,
-        ),
+        selector_info,
         raw_comment_string: None,
         control_flow_settings: None,
     };
@@ -542,14 +539,13 @@ fn parse_route_branch_from_self_closing_tag(
     let mut tag_pairs = self_closing_tag.into_inner();
     let _ = tag_pairs.next().unwrap();
     let route_settings = parse_inline_attribute_from_final_pairs_of_tag(tag_pairs);
+    let (route_settings, selector_info) =
+        split_selector_bindings_from_inline_settings(source_location, route_settings);
 
     let template_node = TemplateNodeDefinition {
         type_id: type_id_for_pascal(ctx, route_tag),
         settings: route_settings.clone(),
-        selector_info: TemplateNodeSelectorInfo::from_inline_settings(
-            source_location,
-            &route_settings,
-        ),
+        selector_info,
         raw_comment_string: None,
         control_flow_settings: None,
     };
@@ -721,23 +717,18 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
                     let class_attribute = attribute_key_value_pair.into_inner().next().unwrap();
                     let key_location = span_to_location(&class_attribute.as_span());
                     let class_value = class_attribute.into_inner().next().unwrap();
-                    let identifiers = match class_value.as_rule() {
-                        Rule::identifier => vec![class_value],
-                        Rule::class_identifier_list => class_value.into_inner().collect(),
-                        _ => unreachable!("unexpected static class value"),
+                    let value = class_value.into_inner().next().unwrap();
+                    let value_definition = match value.as_rule() {
+                        Rule::string | Rule::class_string_list => ValueDefinition::LiteralValue(
+                            from_pax(value.as_str()).expect("class literals must be strings"),
+                        ),
+                        Rule::expression_body => parse_value_definition(value),
+                        _ => unreachable!("unexpected class value"),
                     };
-
-                    identifiers
-                        .into_iter()
-                        .map(|identifier| {
-                            SettingElement::Setting(
-                                Token::new("class".to_string(), key_location.clone()),
-                                ValueDefinition::Identifier(PaxIdentifier::new(
-                                    identifier.as_str(),
-                                )),
-                            )
-                        })
-                        .collect()
+                    vec![SettingElement::Setting(
+                        Token::new("class".to_string(), key_location),
+                        value_definition,
+                    )]
                 }
                 _ => {
                     //Vanilla `key=value` setting pair
@@ -766,6 +757,22 @@ fn parse_inline_attribute_from_final_pairs_of_tag(
     } else {
         None
     }
+}
+
+fn split_selector_bindings_from_inline_settings(
+    source_location: Option<LocationInfo>,
+    mut settings: Option<Vec<SettingElement>>,
+) -> (Option<Vec<SettingElement>>, TemplateNodeSelectorInfo) {
+    let selector_info = TemplateNodeSelectorInfo::from_inline_settings(source_location, &settings);
+    if let Some(settings) = &mut settings {
+        settings.retain(|setting| {
+            !matches!(setting, SettingElement::Setting(token, _) if token.token_value == "class")
+        });
+        if settings.is_empty() {
+            return (None, selector_info);
+        }
+    }
+    (settings, selector_info)
 }
 
 pub fn parse_value_definition(value: Pair<Rule>) -> ValueDefinition {
@@ -1049,6 +1056,9 @@ fn derive_inline_transition_timeline_block(
                 Rule::timeline_property_key_value_pair => {
                     let mut pairs = pair.into_inner();
                     let property_key = pairs.next().unwrap().into_inner().next().unwrap();
+                    if property_key.as_str() == "class" {
+                        panic!("class cannot be assigned by a timeline");
+                    }
                     let property_key_location = span_to_location(&property_key.as_span());
                     let property_key_token =
                         Token::new(property_key.as_str().to_string(), property_key_location);
@@ -1076,6 +1086,9 @@ fn derive_timeline_selector_block_definition(
                 Rule::timeline_property_key_value_pair => {
                     let mut pairs = pair.into_inner();
                     let property_key = pairs.next().unwrap().into_inner().next().unwrap();
+                    if property_key.as_str() == "class" {
+                        panic!("class cannot be assigned by a timeline");
+                    }
                     let property_key_location = span_to_location(&property_key.as_span());
                     let property_key_token =
                         Token::new(property_key.as_str().to_string(), property_key_location);
@@ -1284,10 +1297,14 @@ fn parse_selector_block(pair: Pair<Rule>) -> SettingsBlockElement {
     let token = Token::new(selector, raw_value_location);
     let literal_object = selector_block_pairs.next().unwrap();
 
-    SettingsBlockElement::SelectorBlock(
-        token,
-        derive_value_definition_from_literal_object_pair(literal_object),
-    )
+    let block = derive_value_definition_from_literal_object_pair(literal_object);
+    if block.elements.iter().any(
+        |element| matches!(element, SettingElement::Setting(key, _) if key.token_value == "class"),
+    ) {
+        panic!("class cannot be assigned from a selector or settings block");
+    }
+
+    SettingsBlockElement::SelectorBlock(token, block)
 }
 
 fn parse_settings_conditional(pair: Pair<Rule>) -> SettingsBlockElement {

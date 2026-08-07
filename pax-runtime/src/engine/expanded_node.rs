@@ -1,9 +1,10 @@
 use crate::api::TextInput;
 use crate::node_interface::NodeLocal;
+use pax_language::Computable;
 use pax_runtime_api::pax_value::{ImplToFromPaxAny, PaxAny, ToFromPaxAny};
 use pax_runtime_api::{
-    borrow, borrow_mut, use_RefCell, Focus, Interpolatable, Layer, NativeLiquidGlassScope, Percent,
-    Property, SelectStart, Variable,
+    borrow, borrow_mut, use_RefCell, Focus, Interpolatable, Layer, NativeLiquidGlassScope,
+    PaxValue, Percent, Property, SelectStart, Variable,
 };
 
 use crate::api::math::Point2;
@@ -37,8 +38,8 @@ use pax_manifest::cartridge_generation::{
     TRANSITION_PLAYHEAD_SYMBOL, TRANSITION_TAKEOVER_SYMBOL,
 };
 use pax_manifest::{
-    ExpressionInfo, SelectorExpr, SettingsBlockElement, TypeId, UniqueTemplateNodeIdentifier,
-    ValueDefinition,
+    ExpressionInfo, LocationInfo, SelectorExpr, SettingsBlockElement, TypeId,
+    UniqueTemplateNodeIdentifier, ValueDefinition,
 };
 
 use crate::{
@@ -47,11 +48,26 @@ use crate::{
     ReceivedChildrenSource, RuntimeContext, RuntimePropertiesStackFrame,
 };
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct RuntimeSettingsLayer {
     pub provider_id: ExpandedNodeIdentifier,
     pub provider_type_id: TypeId,
+    /// The provider component's lexical scope. Imported settings expressions
+    /// must resolve `self` and provider properties here, even though their
+    /// resulting values are applied to a different node.
+    pub provider_stack: Rc<RuntimePropertiesStackFrame>,
     pub settings: Vec<SettingsBlockElement>,
+}
+
+impl fmt::Debug for RuntimeSettingsLayer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RuntimeSettingsLayer")
+            .field("provider_id", &self.provider_id)
+            .field("provider_type_id", &self.provider_type_id)
+            .field("provider_stack", &"<runtime scope>")
+            .field("settings", &self.settings)
+            .finish()
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -76,13 +92,34 @@ pub struct RuntimeSettingsCondition {
     pub negative: Vec<ExpressionInfo>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct RuntimeResolvedPropertyEntry {
     pub source: RuntimeSettingsSource,
     pub selector: Option<SelectorExpr>,
+    pub source_location: Option<LocationInfo>,
+    /// Overrides the receiving node's scope when this value came from an
+    /// imported settings provider.
+    pub source_stack: Option<Rc<RuntimePropertiesStackFrame>>,
     pub value: ValueDefinition,
     pub condition: Option<RuntimeSettingsCondition>,
     pub axis_index: Option<usize>,
+}
+
+impl fmt::Debug for RuntimeResolvedPropertyEntry {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("RuntimeResolvedPropertyEntry")
+            .field("source", &self.source)
+            .field("selector", &self.selector)
+            .field("source_location", &self.source_location)
+            .field(
+                "source_stack",
+                &self.source_stack.as_ref().map(|_| "<runtime scope>"),
+            )
+            .field("value", &self.value)
+            .field("condition", &self.condition)
+            .field("axis_index", &self.axis_index)
+            .finish()
+    }
 }
 
 pub type RuntimeResolvedPropertyColumns = BTreeMap<String, Vec<RuntimeResolvedPropertyEntry>>;
@@ -248,6 +285,7 @@ pub struct ExpandedNode {
     /// used by native elements to trigger sending of native messages
     /// used by canvas elements to dirtify their canvas
     pub changed_listener: Property<()>,
+    selector_classes_listener: Property<()>,
 
     /// Tracks whether this node's occlusion-affecting inputs changed.
     pub occlusion_listener: Property<()>,
@@ -283,6 +321,10 @@ pub struct ExpandedNode {
     pub transition_generation: Property<u64>,
     /// Whether the current run directly reversed the opposite lifecycle phase.
     pub transition_takeover: Property<bool>,
+    /// Class membership captured at lifecycle-transition start. Ordinary settings continue to
+    /// follow live classes, while transition tracks keep the selector membership that launched
+    /// the current run.
+    pub transition_selector_classes: RefCell<Option<Vec<String>>>,
     /// Parent-owned exit retention generation for stale cleanup protection.
     exit_retention_generation: Cell<u64>,
     /// Frame at which the active lifecycle transition began.
@@ -313,6 +355,8 @@ pub struct ExpandedNode {
     pub resolved_property_columns: RefCell<RuntimeResolvedPropertyColumns>,
     /// Winning property entry per key after layering and inline override.
     pub resolved_property_provenance: RefCell<BTreeMap<String, RuntimeResolvedPropertyEntry>>,
+    /// Requests a materialization pass that resets properties removed from the prior columns.
+    pub reset_removed_runtime_properties: Cell<bool>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
@@ -332,9 +376,13 @@ impl ImplToFromPaxAny for ExpandedNode {}
 impl Interpolatable for ExpandedNode {}
 
 #[derive(Clone)]
+/// Live selector identity for one expanded runtime node.
 pub struct RuntimeSelectorMetadata {
+    /// Concrete element/component type used by type selectors.
     pub type_id: TypeId,
+    /// Reactive node id used by id selectors.
     pub id: Property<Option<String>>,
+    /// Reactive, normalized class names in left-to-right cascade order.
     pub classes: Property<Vec<String>>,
 }
 
@@ -342,22 +390,22 @@ impl RuntimeSelectorMetadata {
     fn from_base(
         base: &crate::rendering::BaseInstance,
         common_properties: &Rc<RefCell<CommonProperties>>,
+        stack: &Rc<RuntimePropertiesStackFrame>,
     ) -> Self {
         let classes = base
             .template_node_selector_info
             .as_ref()
-            .map(|info| {
-                info.classes
-                    .iter()
-                    .map(|token| token.token_value.clone())
-                    .collect::<Vec<_>>()
+            .and_then(|info| {
+                info.class_binding.as_ref().map(|binding| {
+                    build_selector_classes_property(binding, info.source_location.as_ref(), stack)
+                })
             })
-            .unwrap_or_default();
+            .unwrap_or_else(|| Property::new_with_name(Vec::new(), "selector classes"));
 
         Self {
             type_id: base.template_node_type_id.clone().unwrap_or_default(),
             id: common_properties.borrow().id.clone(),
-            classes: Property::new_with_name(classes, "selector classes"),
+            classes,
         }
     }
 
@@ -374,6 +422,214 @@ impl RuntimeSelectorMetadata {
                     || self.type_id.get_pascal_identifier().as_deref() == Some(type_name.as_str())
             }
         }
+    }
+}
+
+fn warn_selector_class_once(
+    warnings: &Rc<RefCell<HashSet<String>>>,
+    key: String,
+    message: impl FnOnce() -> String,
+) {
+    if warnings.borrow_mut().insert(key) {
+        log::warn!("{}", message());
+    }
+}
+
+fn normalize_selector_classes(
+    value: PaxValue,
+    warnings: &Rc<RefCell<HashSet<String>>>,
+    source_location: Option<&LocationInfo>,
+) -> Vec<String> {
+    let location = source_location
+        .map(|location| {
+            format!(
+                " at {}:{}",
+                location.start_line_col.0, location.start_line_col.1
+            )
+        })
+        .unwrap_or_default();
+    let candidates = match value {
+        PaxValue::String(value) => vec![value],
+        PaxValue::Vec(values) => values
+            .into_iter()
+            .filter_map(|value| match value {
+                PaxValue::String(value) => Some(value),
+                other => {
+                    warn_selector_class_once(warnings, format!("list-type:{other}"), || {
+                        format!("ignoring non-string value in class list{location}: {other}")
+                    });
+                    None
+                }
+            })
+            .collect(),
+        other => {
+            warn_selector_class_once(warnings, format!("binding-type:{other}"), || {
+                format!(
+                    "class binding{location} must evaluate to String or Vec<String>; received {other}"
+                )
+            });
+            return Vec::new();
+        }
+    };
+
+    let mut seen = HashSet::new();
+    let mut normalized = candidates
+        .into_iter()
+        .rev()
+        .filter(|class_name| {
+            if class_name.is_empty() {
+                return false;
+            }
+            if !matches!(
+                SelectorExpr::parse(&format!(".{class_name}")),
+                Ok(SelectorExpr::Class(_))
+            ) {
+                warn_selector_class_once(warnings, format!("invalid-name:{class_name}"), || {
+                    format!("ignoring invalid class name '{class_name}'{location}")
+                });
+                return false;
+            }
+            seen.insert(class_name.clone())
+        })
+        .collect::<Vec<_>>();
+    normalized.reverse();
+    normalized
+}
+
+fn build_selector_classes_property(
+    binding: &ValueDefinition,
+    source_location: Option<&LocationInfo>,
+    stack: &Rc<RuntimePropertiesStackFrame>,
+) -> Property<Vec<String>> {
+    let warnings = Rc::new(RefCell::new(HashSet::new()));
+    let source_location = source_location.cloned();
+    match binding {
+        ValueDefinition::LiteralValue(value) => Property::new_with_name(
+            normalize_selector_classes(value.clone(), &warnings, source_location.as_ref()),
+            "selector classes",
+        ),
+        ValueDefinition::Expression(info) => {
+            let dependencies = info
+                .dependencies
+                .iter()
+                .filter_map(|dependency| {
+                    stack
+                        .resolve_symbol_as_erased_property(dependency)
+                        .or_else(|| {
+                            log::warn!("failed to resolve class binding symbol {dependency}");
+                            None
+                        })
+                })
+                .collect::<Vec<_>>();
+            let expression = info.expression.clone();
+            let expression_label = expression.to_string();
+            let stack = Rc::clone(stack);
+            let warnings = Rc::clone(&warnings);
+            Property::computed_with_name(
+                move || match expression.compute(stack.clone()) {
+                    Ok(value) => {
+                        normalize_selector_classes(value, &warnings, source_location.as_ref())
+                    }
+                    Err(error) => {
+                        warn_selector_class_once(
+                            &warnings,
+                            format!("evaluation:{expression_label}:{error:?}"),
+                            || {
+                                let location = source_location
+                                    .as_ref()
+                                    .map(|location| {
+                                        format!(
+                                            " at {}:{}",
+                                            location.start_line_col.0, location.start_line_col.1
+                                        )
+                                    })
+                                    .unwrap_or_default();
+                                format!(
+                                    "failed to evaluate class binding `{expression_label}`{location}: {error:?}"
+                                )
+                            },
+                        );
+                        Vec::new()
+                    }
+                },
+                &dependencies,
+                "selector classes",
+            )
+        }
+        other => {
+            log::warn!("unsupported class binding definition: {other}");
+            Property::new_with_name(Vec::new(), "selector classes")
+        }
+    }
+}
+
+#[cfg(test)]
+mod selector_class_tests {
+    use super::{build_selector_classes_property, normalize_selector_classes};
+    use crate::RuntimePropertiesStackFrame;
+    use pax_language::parse_pax_expression;
+    use pax_manifest::{ExpressionInfo, ValueDefinition};
+    use pax_runtime_api::{PaxValue, Property, Variable};
+    use std::cell::RefCell;
+    use std::collections::{HashMap, HashSet};
+    use std::rc::Rc;
+
+    #[test]
+    fn normalizes_order_duplicates_and_invalid_names() {
+        let warnings = Rc::new(RefCell::new(HashSet::new()));
+        let classes = normalize_selector_classes(
+            PaxValue::Vec(vec![
+                PaxValue::String("base".to_string()),
+                PaxValue::String("bad name".to_string()),
+                PaxValue::String("active".to_string()),
+                PaxValue::String("base".to_string()),
+                PaxValue::Numeric(1.into()),
+            ]),
+            &warnings,
+            None,
+        );
+
+        assert_eq!(classes, vec!["active", "base"]);
+        assert_eq!(warnings.borrow().len(), 2);
+    }
+
+    #[test]
+    fn expression_backed_classes_track_string_and_vector_properties() {
+        let constant_binding = ValueDefinition::Expression(ExpressionInfo::new(
+            parse_pax_expression(r#""temporary""#).unwrap(),
+        ));
+        let constant_classes = build_selector_classes_property(
+            &constant_binding,
+            None,
+            &RuntimePropertiesStackFrame::new(HashMap::new()),
+        );
+        assert_eq!(constant_classes.get(), vec!["temporary"]);
+
+        let scalar = Property::new("base".to_string());
+        let stack = RuntimePropertiesStackFrame::new(HashMap::from([(
+            "current_class".to_string(),
+            Variable::new_from_typed_property(scalar.clone()),
+        )]));
+        let scalar_binding = ValueDefinition::Expression(ExpressionInfo::new(
+            parse_pax_expression("current_class").unwrap(),
+        ));
+        let scalar_classes = build_selector_classes_property(&scalar_binding, None, &stack);
+        assert_eq!(scalar_classes.get(), vec!["base"]);
+        scalar.set("active".to_string());
+        assert_eq!(scalar_classes.get(), vec!["active"]);
+
+        let vector = Property::new(vec!["base".to_string(), "selected".to_string()]);
+        let stack = RuntimePropertiesStackFrame::new(HashMap::from([(
+            "current_classes".to_string(),
+            Variable::new_from_typed_property(vector.clone()),
+        )]));
+        let vector_binding = ValueDefinition::Expression(ExpressionInfo::new(
+            parse_pax_expression("current_classes").unwrap(),
+        ));
+        let vector_classes = build_selector_classes_property(&vector_binding, None, &stack);
+        assert_eq!(vector_classes.get(), vec!["base", "selected"]);
+        vector.set(Vec::new());
+        assert!(vector_classes.get().is_empty());
     }
 }
 
@@ -522,7 +778,7 @@ impl ExpandedNode {
             .materialize(env.clone(), None)
             .unwrap();
         let selector_metadata =
-            RuntimeSelectorMetadata::from_base(template.base(), &common_properties);
+            RuntimeSelectorMetadata::from_base(template.base(), &common_properties, &env);
 
         let mut property_scope = borrow!(*common_properties).retrieve_property_scope();
 
@@ -573,6 +829,7 @@ impl ExpandedNode {
             slot_index: Property::default(),
             suspended: Property::new(false),
             changed_listener: Property::default(),
+            selector_classes_listener: Property::default(),
             occlusion_listener: Property::default(),
             children_listener: Property::default(),
             subtree_layout_hull_listener: Property::default(),
@@ -586,6 +843,7 @@ impl ExpandedNode {
             transition_phase,
             transition_generation,
             transition_takeover,
+            transition_selector_classes: RefCell::new(None),
             exit_retention_generation: Cell::new(0),
             transition_origin_frame,
             transition_origin_millis,
@@ -601,6 +859,7 @@ impl ExpandedNode {
             imported_settings_signature: RefCell::new(Vec::new()),
             resolved_property_columns: RefCell::new(BTreeMap::new()),
             resolved_property_provenance: RefCell::new(BTreeMap::new()),
+            reset_removed_runtime_properties: Cell::new(false),
         });
         template
             .base()
@@ -612,8 +871,9 @@ impl ExpandedNode {
             .materialize(Rc::clone(&res.stack), Some(Rc::clone(&res)));
         let common_properties = Rc::clone(&*borrow!(res.common_properties));
         *res.selector_metadata.borrow_mut() =
-            RuntimeSelectorMetadata::from_base(template.base(), &common_properties);
+            RuntimeSelectorMetadata::from_base(template.base(), &common_properties, &res.stack);
         res.refresh_properties_scope(&template);
+        res.bind_selector_classes_listener(context);
         res.bind_occlusion_listener(context);
         res.bind_children_listener(context);
         res.bind_subtree_layout_hull(context);
@@ -636,8 +896,10 @@ impl ExpandedNode {
             .materialize(Rc::clone(&self.stack), Some(Rc::clone(&self)));
         let common_properties = Rc::clone(&*borrow!(self.common_properties));
         *self.selector_metadata.borrow_mut() =
-            RuntimeSelectorMetadata::from_base(template.base(), &common_properties);
+            RuntimeSelectorMetadata::from_base(template.base(), &common_properties, &self.stack);
         self.refresh_properties_scope(&template);
+        self.bind_selector_classes_listener(context);
+        self.reapply_runtime_settings(context);
         self.bind_to_parent_bounds(context);
         self.bind_occlusion_listener(context);
         self.mark_non_reactive_update_subtree_dirty();
@@ -667,6 +929,7 @@ impl ExpandedNode {
         self.occlusion.set(Default::default());
 
         self.bind_to_parent_bounds(context);
+        self.bind_selector_classes_listener(context);
         self.bind_occlusion_listener(context);
         self.mark_non_reactive_update_subtree_dirty();
         context.mark_occlusion_dirty();
@@ -905,7 +1168,7 @@ impl ExpandedNode {
         started
     }
 
-    fn begin_transition_run(&self, context: &Rc<RuntimeContext>, phase: u64) {
+    fn begin_transition_run(self: &Rc<Self>, context: &Rc<RuntimeContext>, phase: u64) {
         let previous_phase = self.transition_phase.get();
         let is_takeover = matches!(
             (previous_phase, phase),
@@ -921,6 +1184,10 @@ impl ExpandedNode {
             .set(self.transition_generation.get().wrapping_add(1));
         self.activate_transition_clock(context);
         self.transition_phase.set(phase);
+        *self.transition_selector_classes.borrow_mut() =
+            Some(self.selector_metadata.borrow().classes.get());
+        self.reset_removed_runtime_properties.set(true);
+        self.reapply_runtime_settings(context);
     }
 
     fn activate_transition_clock(&self, context: &Rc<RuntimeContext>) {
@@ -1081,6 +1348,9 @@ impl ExpandedNode {
             self.transition_takeover.set(false);
             self.deactivate_transition_clock();
             self.exit_started_millis.set(None);
+            self.transition_selector_classes.borrow_mut().take();
+            self.reset_removed_runtime_properties.set(true);
+            self.reapply_runtime_settings(context);
         }
         let mut started = started_here;
         for child in borrow!(self.mounted_children).iter() {
@@ -1209,6 +1479,7 @@ impl ExpandedNode {
         }
         self.enter_cleanup_active.set(true);
         let weak_self = Rc::downgrade(self);
+        let runtime_context = Rc::clone(context);
         let elapsed_frames = context.globals().elapsed_frames.clone();
         let elapsed_frames_dep = elapsed_frames.untyped();
         self.enter_cleanup_listener
@@ -1216,7 +1487,7 @@ impl ExpandedNode {
                 move || {
                     let _ = elapsed_frames.get();
                     if let Some(node) = weak_self.upgrade() {
-                        node.complete_self_enter_transition_if_needed();
+                        node.complete_self_enter_transition_if_needed(&runtime_context);
                     }
                 },
                 &[elapsed_frames_dep],
@@ -1229,7 +1500,7 @@ impl ExpandedNode {
         );
     }
 
-    fn complete_self_enter_transition_if_needed(&self) {
+    fn complete_self_enter_transition_if_needed(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
         if !self.enter_cleanup_active.get() {
             return;
         }
@@ -1241,6 +1512,9 @@ impl ExpandedNode {
             self.transition_phase.set(TRANSITION_PHASE_IDLE);
             self.deactivate_transition_clock();
             self.disable_enter_cleanup_listener();
+            self.transition_selector_classes.borrow_mut().take();
+            self.reset_removed_runtime_properties.set(true);
+            self.reapply_runtime_settings(context);
         }
     }
 
@@ -1587,6 +1861,52 @@ impl ExpandedNode {
         );
     }
 
+    fn reapply_runtime_settings(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
+        let instance = Rc::clone(&*borrow!(self.instance_node));
+        instance
+            .base()
+            .instance_prototypical_common_properties
+            .materialize(Rc::clone(&self.stack), Some(Rc::clone(self)));
+        instance
+            .base()
+            .instance_prototypical_properties
+            .materialize(Rc::clone(&self.stack), Some(Rc::clone(self)));
+        self.reset_removed_runtime_properties.set(false);
+        self.refresh_properties_scope(&instance);
+        self.mark_non_reactive_update_subtree_dirty();
+        context.mark_occlusion_dirty();
+        context.set_canvas_dirty(self.occlusion.get().render_layer_id);
+    }
+
+    fn bind_selector_classes_listener(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
+        let classes = self.selector_metadata.borrow().classes.clone();
+        let previous = Rc::new(RefCell::new(classes.get()));
+        let weak_self = Rc::downgrade(self);
+        let runtime_context = Rc::clone(context);
+        self.selector_classes_listener
+            .replace_with(Property::computed_with_name(
+                move || {
+                    let current = classes.get();
+                    if *previous.borrow() == current {
+                        return;
+                    }
+                    *previous.borrow_mut() = current;
+                    let Some(node) = weak_self.upgrade() else {
+                        return;
+                    };
+                    node.reset_removed_runtime_properties.set(true);
+                    node.reapply_runtime_settings(&runtime_context);
+                },
+                &[self.selector_metadata.borrow().classes.untyped()],
+                "selector classes listener",
+            ));
+        context.register_expanded_node_effect_property_named(
+            self,
+            &self.selector_classes_listener,
+            "selector classes listener",
+        );
+    }
+
     fn bind_children_listener(self: &Rc<Self>, ctx: &Rc<RuntimeContext>) {
         let deps = [self.children.untyped()];
         let weak_self = Rc::downgrade(self);
@@ -1903,6 +2223,7 @@ impl ExpandedNode {
             .unwrap_or(false);
 
         if owned_by_component {
+            self.reset_removed_runtime_properties.set(true);
             let instance = borrow!(self.instance_node).clone();
             self.recreate_with_new_data(instance, context);
         }
@@ -2004,6 +2325,8 @@ impl ExpandedNode {
             self.occlusion.set(Default::default());
             self.browser_content_layer_id.set(None);
             self.changed_listener.replace_with(Property::default());
+            self.selector_classes_listener
+                .replace_with(Property::default());
             borrow_mut!(self.subscriptions).clear();
             borrow_mut!(self.active_children).clear();
             borrow_mut!(self.exiting_children).clear();
@@ -2013,10 +2336,12 @@ impl ExpandedNode {
             borrow_mut!(self.imported_settings_signature).clear();
             borrow_mut!(self.resolved_property_columns).clear();
             borrow_mut!(self.resolved_property_provenance).clear();
+            self.reset_removed_runtime_properties.set(false);
             self.active_children_view.set(Vec::new());
             self.exiting_children_view.set(Vec::new());
             self.transition_phase.set(TRANSITION_PHASE_IDLE);
             self.transition_takeover.set(false);
+            self.transition_selector_classes.borrow_mut().take();
             self.deactivate_transition_clock();
             self.enter_cleanup_active.set(false);
             self.enter_cleanup_listener
@@ -2076,6 +2401,7 @@ impl ExpandedNode {
                         providers.push(RuntimeSettingsLayer {
                             provider_id: node.id,
                             provider_type_id,
+                            provider_stack: node.stack.push(borrow!(node.properties_scope).clone()),
                             settings,
                         });
                     }

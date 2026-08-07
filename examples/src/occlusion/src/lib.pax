@@ -4,13 +4,12 @@
 
 
 
-    <Group class=card_left>
-        <Text class=pill_text x=28px y=258px width=206px height=20px text="Vector punchout should expose the canvas over native controls."/>
+    <Group class="card_left">
+        <Text class="pill_text" x=28px y=258px width=206px height=20px text="Vector punchout should expose the canvas over native controls."/>
         <Rectangle x=16px y=244px width=228px height=58px rotate=-5deg fill=rgba(52, 211, 153, 255)/>
-        <Text class=status_dark x=24px y=242px width=214px height=22px text={"Call sign: " + self.call_sign}/>
+        <Text class="status_dark" x=24px y=242px width=214px height=22px text={"Call sign: " + self.call_sign}/>
         <Ellipse x=198px y=160px width=140px height=140px anchor=50% fill=rgba(226, 92, 62, 125)/>
-        <Textbox
-            class=input_light
+        <Textbox class="input_light"
             x=24px
             y=126px
             width=214px
@@ -19,8 +18,7 @@
             placeholder="Type a call sign"
             @textbox_change=self.update_call_sign
         />
-        <Button
-            class=button_hot
+        <Button class="button_hot"
             x=24px
             y=182px
             width=214px
@@ -28,10 +26,10 @@
             label={"Deal " + self.button_clicks}
             @button_click=self.increment_deal
         />
-        <Text class=card_copy_dark x=24px y=58px width=210px height=40px text="Vector leaves above native controls should cut windows into the shared native overlay."/>
-        <Text class=card_title_dark x=24px y=22px width=200px height=28px text="Punchout"/>
-        <Rectangle class=card_surface_light fill=rgba(246, 232, 212, 255)/>
-        <Rectangle class=card_shadow fill=rgba(3, 8, 13, 110)/>
+        <Text class="card_copy_dark" x=24px y=58px width=210px height=40px text="Vector leaves above native controls should cut windows into the shared native overlay."/>
+        <Text class="card_title_dark" x=24px y=22px width=200px height=28px text="Punchout"/>
+        <Rectangle class="card_surface_light" fill=rgba(246, 232, 212, 255)/>
+        <Rectangle class="card_shadow" fill=rgba(3, 8, 13, 110)/>
     </Group>
 
     <Group x=50% y=63% width=760px height=160px anchor=50% rotate=-6deg>
@@ -40,18 +38,18 @@
         <Rectangle x=0px y=64px width=760px height=24px fill=rgba(251, 146, 60, 255)/>
     </Group>
 
-    <Group class=card_center>
+    <Group class="card_center">
         <Mask width=262px height=340px>
             <Group width=100% height=100%>
-                <Button class=button_dark x=24px y=246px width=214px height=44px label="Native stays clipped"/>
-                <Text class=status_light x=24px y=190px width=190px height=22px text={"Frame " + self.ticks}/>
-                <Text class=card_copy_light x=24px y=104px width=204px height=48px text="A Mask should clip vector fills and native text together while still animating."/>
-                <Text class=card_title_light x=24px y=22px width=190px height=28px text="Ellipse Mask"/>
+                <Button class="button_dark" x=24px y=246px width=214px height=44px label="Native stays clipped"/>
+                <Text class="status_light" x=24px y=190px width=190px height=22px text={"Frame " + self.ticks}/>
+                <Text class="card_copy_light" x=24px y=104px width=204px height=48px text="A Mask should clip vector fills and native text together while still animating."/>
+                <Text class="card_title_light" x=24px y=22px width=190px height=28px text="Ellipse Mask"/>
                 <Rectangle x=22px y=160px width=218px height=12px rotate=-4deg fill=rgba(250, 204, 21, 255)/>
                 <Ellipse x=206px y=116px width=120px height=120px anchor=50% fill=rgba(248, 113, 113, 255)/>
                 <Rectangle x=0px y=0px width=100% height=92px fill=rgba(87, 57, 187, 255)/>
-                <Rectangle class=card_surface_dark fill=rgba(24, 36, 61, 255)/>
-                <Rectangle class=card_shadow fill=rgba(3, 8, 13, 140)/>
+                <Rectangle class="card_surface_dark" fill=rgba(24, 36, 61, 255)/>
+                <Rectangle class="card_shadow" fill=rgba(3, 8, 13, 140)/>
             </Group>
             <Ellipse
                 x={(self.ellipse_mask_x)px}
@@ -64,12 +62,11 @@
         </Mask>
     </Group>
 
-    <Group class=card_right>
+    <Group class="card_right">
         <Mask width=262px height=340px>
             <Group width=100% height=100%>
-                <Text class=status_dark x=24px y=286px width=214px height=20px text="Path coverage is the target geometry case."/>
-                <Textbox
-                    class=input_dark
+                <Text class="status_dark" x=24px y=286px width=214px height=20px text="Path coverage is the target geometry case."/>
+                <Textbox class="input_dark"
                     x=24px
                     y=228px
                     width=214px
@@ -78,13 +75,13 @@
                     placeholder="Masked textbox"
                     @textbox_change=self.update_call_sign
                 />
-                <Text class=card_copy_dark x=24px y=108px width=204px height=46px text="This card uses a custom Path as the mask source, not just rects or ellipses."/>
-                <Text class=card_title_light x=24px y=24px width=190px height=28px text="Path Mask"/>
+                <Text class="card_copy_dark" x=24px y=108px width=204px height=46px text="This card uses a custom Path as the mask source, not just rects or ellipses."/>
+                <Text class="card_title_light" x=24px y=24px width=190px height=28px text="Path Mask"/>
                 <Ellipse x=88px y=184px width=90px height=90px anchor=50% fill=rgba(249, 115, 22, 255)/>
                 <Rectangle x=14px y=152px width=232px height=26px rotate=6deg fill=rgba(59, 130, 246, 255)/>
                 <Rectangle x=0px y=0px width=100% height=98px fill=rgba(22, 163, 74, 255)/>
-                <Rectangle class=card_surface_mid fill=rgba(237, 247, 255, 255)/>
-                <Rectangle class=card_shadow fill=rgba(3, 8, 13, 125)/>
+                <Rectangle class="card_surface_mid" fill=rgba(237, 247, 255, 255)/>
+                <Rectangle class="card_shadow" fill=rgba(3, 8, 13, 125)/>
             </Group>
             <Path
                 x={(self.path_mask_x)px}

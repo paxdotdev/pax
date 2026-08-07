@@ -4699,6 +4699,43 @@ private final class PaxNativeDropdownView: UIButton {
     }
 }
 
+private func radioIndicatorImage(
+    diameter: CGFloat,
+    fill: UIColor,
+    outline: UIColor,
+    outlineWidth: CGFloat,
+    foreground: UIColor,
+    selected: Bool
+) -> UIImage {
+    let markerDiameter = max(diameter, 1)
+    let canvasSize = CGSize(width: markerDiameter + 8, height: markerDiameter)
+    let renderer = UIGraphicsImageRenderer(size: canvasSize)
+    return renderer.image { context in
+        let strokeWidth = min(max(outlineWidth, 0), markerDiameter * 0.5)
+        let outerRect = CGRect(origin: .zero, size: CGSize(width: markerDiameter, height: markerDiameter))
+            .insetBy(dx: strokeWidth * 0.5, dy: strokeWidth * 0.5)
+
+        context.cgContext.setFillColor(fill.cgColor)
+        context.cgContext.fillEllipse(in: outerRect)
+        if strokeWidth > 0 {
+            context.cgContext.setStrokeColor(outline.cgColor)
+            context.cgContext.setLineWidth(strokeWidth)
+            context.cgContext.strokeEllipse(in: outerRect)
+        }
+        if selected {
+            let dotDiameter = max(4, markerDiameter * 0.36)
+            let dotRect = CGRect(
+                x: (markerDiameter - dotDiameter) * 0.5,
+                y: (markerDiameter - dotDiameter) * 0.5,
+                width: dotDiameter,
+                height: dotDiameter
+            )
+            context.cgContext.setFillColor(foreground.cgColor)
+            context.cgContext.fillEllipse(in: dotRect)
+        }
+    }.withRenderingMode(.alwaysOriginal)
+}
+
 private final class PaxNativeRadioListView: UIStackView {
     private var nodeId: PaxNodeId = 0
 
@@ -4730,12 +4767,37 @@ private final class PaxNativeRadioListView: UIStackView {
             }
         }
 
+        let resolvedFont = element.style.font.getUIFont(size: element.style.font_size)
+        let foreground = platformColor(element.style.fill)
+        let markerDiameter = max(14, min(resolvedFont.pointSize, 20))
+        let unselectedImage = radioIndicatorImage(
+            diameter: markerDiameter,
+            fill: nativeFillColor(element.background, liquidGlass: element.liquidGlass),
+            outline: platformColor(element.outlineColor),
+            outlineWidth: CGFloat(element.outlineWidth),
+            foreground: foreground,
+            selected: false
+        )
+        let selectedImage = radioIndicatorImage(
+            diameter: markerDiameter,
+            fill: nativeFillColor(element.backgroundChecked, liquidGlass: element.liquidGlass),
+            outline: platformColor(element.outlineColor),
+            outlineWidth: CGFloat(element.outlineWidth),
+            foreground: foreground,
+            selected: true
+        )
+
         for (index, view) in arrangedSubviews.enumerated() {
             guard let button = view as? UIButton else { continue }
-            let prefix = Int(element.selectedId) == index ? "◉ " : "○ "
-            button.setTitle(prefix + element.options[index], for: .normal)
-            button.titleLabel?.font = element.style.font.getUIFont(size: element.style.font_size)
-            button.setTitleColor(platformColor(element.style.fill), for: .normal)
+            let isSelected = Int(element.selectedId) == index
+            button.setTitle(element.options[index], for: .normal)
+            button.titleLabel?.font = resolvedFont
+            button.setTitleColor(foreground, for: .normal)
+            button.setImage(unselectedImage, for: .normal)
+            button.setImage(selectedImage, for: .selected)
+            button.isSelected = isSelected
+            button.accessibilityLabel = element.options[index]
+            button.accessibilityTraits = isSelected ? [.button, .selected] : [.button]
         }
     }
 
@@ -5133,7 +5195,6 @@ private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
             lastMeasuredTextSize = nil
         }
 
-        let rect = CGRect(origin: .zero, size: size)
         let measurementConstraint = textMeasurementConstraint(for: element, size: size)
         let contentSignature = nativeTextMeasurementSignature(for: element)
         if useTextView {
@@ -5182,15 +5243,14 @@ private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
                let cachedSize = lastMeasuredTextSize {
                 measured = cachedSize
             } else {
-                if element.wrap {
-                    measured = textView.fittingSize
-                } else {
-                    measured = textView.attributedString().boundingRect(
-                        with: measurementConstraint,
-                        options: [.usesLineFragmentOrigin, .usesFontLeading],
-                        context: nil
-                    ).integral.size
-                }
+                // NSTextView.fittingSize returns zero for a newly mounted wrapped document view
+                // on current AppKit, collapsing the selectable text host to a one-pixel strip.
+                // The attributed content is also the source of truth used by the static path.
+                measured = textView.attributedString().boundingRect(
+                    with: measurementConstraint,
+                    options: [.usesLineFragmentOrigin, .usesFontLeading],
+                    context: nil
+                ).integral.size
                 if element.wrap {
                     lastMeasuredTextSignature = nil
                     lastMeasuredTextSize = nil
@@ -5503,6 +5563,46 @@ private final class PaxNativeDropdownView: NSPopUpButton {
     }
 }
 
+private func radioIndicatorImage(
+    diameter: CGFloat,
+    fill: NSColor,
+    outline: NSColor,
+    outlineWidth: CGFloat,
+    foreground: NSColor,
+    selected: Bool
+) -> NSImage {
+    let markerDiameter = max(diameter, 1)
+    let canvasSize = NSSize(width: markerDiameter + 8, height: markerDiameter)
+    let image = NSImage(size: canvasSize, flipped: false) { _ in
+        let strokeWidth = min(max(outlineWidth, 0), markerDiameter * 0.5)
+        let outerRect = NSRect(origin: .zero, size: NSSize(width: markerDiameter, height: markerDiameter))
+            .insetBy(dx: strokeWidth * 0.5, dy: strokeWidth * 0.5)
+        let outerPath = NSBezierPath(ovalIn: outerRect)
+
+        fill.setFill()
+        outerPath.fill()
+        if strokeWidth > 0 {
+            outline.setStroke()
+            outerPath.lineWidth = strokeWidth
+            outerPath.stroke()
+        }
+        if selected {
+            let dotDiameter = max(4, markerDiameter * 0.36)
+            let dotRect = NSRect(
+                x: (markerDiameter - dotDiameter) * 0.5,
+                y: (markerDiameter - dotDiameter) * 0.5,
+                width: dotDiameter,
+                height: dotDiameter
+            )
+            foreground.setFill()
+            NSBezierPath(ovalIn: dotRect).fill()
+        }
+        return true
+    }
+    image.isTemplate = false
+    return image
+}
+
 private final class PaxNativeRadioListView: NSStackView {
     private var nodeId: PaxNodeId = 0
 
@@ -5529,16 +5629,48 @@ private final class PaxNativeRadioListView: NSStackView {
             for index in element.options.indices {
                 let button = NSButton(radioButtonWithTitle: "", target: self, action: #selector(selectOption(_:)))
                 button.tag = index
+                button.isBordered = false
+                button.imagePosition = .imageLeading
+                button.imageScaling = .scaleNone
+                button.imageHugsTitle = true
                 addArrangedSubview(button)
             }
         }
 
+        let resolvedFont = element.style.font.getNSFont(size: element.style.font_size)
+        let foreground = platformColor(element.style.fill)
+        let markerDiameter = max(14, min(resolvedFont.pointSize, 20))
+        let unselectedImage = radioIndicatorImage(
+            diameter: markerDiameter,
+            fill: nativeFillColor(element.background, liquidGlass: element.liquidGlass),
+            outline: platformColor(element.outlineColor),
+            outlineWidth: CGFloat(element.outlineWidth),
+            foreground: foreground,
+            selected: false
+        )
+        let selectedImage = radioIndicatorImage(
+            diameter: markerDiameter,
+            fill: nativeFillColor(element.backgroundChecked, liquidGlass: element.liquidGlass),
+            outline: platformColor(element.outlineColor),
+            outlineWidth: CGFloat(element.outlineWidth),
+            foreground: foreground,
+            selected: true
+        )
+        let titleAttributes: [NSAttributedString.Key: Any] = [
+            .font: resolvedFont,
+            .foregroundColor: foreground,
+        ]
+
         for (index, view) in arrangedSubviews.enumerated() {
             guard let button = view as? NSButton else { continue }
-            button.title = element.options[index]
-            button.font = element.style.font.getNSFont(size: element.style.font_size)
-            button.contentTintColor = platformColor(element.style.fill)
-            button.state = Int(element.selectedId) == index ? .on : .off
+            let isSelected = Int(element.selectedId) == index
+            button.attributedTitle = NSAttributedString(
+                string: element.options[index],
+                attributes: titleAttributes
+            )
+            button.image = isSelected ? selectedImage : unselectedImage
+            button.alternateImage = selectedImage
+            button.state = isSelected ? .on : .off
         }
     }
 

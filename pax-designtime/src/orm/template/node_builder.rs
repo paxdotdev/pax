@@ -147,13 +147,16 @@ impl<'a> NodeBuilder<'a> {
                 .execute_command(GetTemplateNodeRequest { uni: uni.clone() })
                 .unwrap();
             if let Some(node) = resp.node {
+                classes.extend(
+                    node.selector_info
+                        .literal_classes()
+                        .into_iter()
+                        .map(|name| format!(".{name}")),
+                );
                 if let Some(settings) = node.settings {
                     for setting in settings {
                         if let SettingElement::Setting(token, value) = setting {
                             if let ValueDefinition::Identifier(PaxIdentifier { name }) = value {
-                                if token.token_value == "class" {
-                                    classes.push(format!(".{}", name));
-                                }
                                 if token.token_value == "id" {
                                     classes.push(format!("#{}", name));
                                 }

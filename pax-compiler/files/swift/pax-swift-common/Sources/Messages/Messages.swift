@@ -1372,26 +1372,65 @@ public class PaxFont {
             .joined()
     }
 
-    private static func weightKeywords(_ weight: FontWeight) -> [String] {
+    static func fontFamilyNamesMatch(candidate: String, requested: String) -> Bool {
+        normalizedFontToken(candidate) == normalizedFontToken(requested)
+    }
+
+    private static func numericWeight(_ weight: FontWeight) -> Int {
         switch weight {
         case .thin:
-            return ["thin"]
+            return 100
         case .extraLight:
-            return ["extralight", "ultralight"]
+            return 200
         case .light:
-            return ["light"]
+            return 300
         case .normal:
-            return ["regular", "romanregular", "book", "normal"]
+            return 400
         case .medium:
-            return ["medium"]
+            return 500
         case .semiBold:
-            return ["semibold", "demibold"]
+            return 600
         case .bold:
-            return ["bold"]
+            return 700
         case .extraBold:
-            return ["extrabold", "ultrabold"]
+            return 800
         case .black:
-            return ["black", "heavy"]
+            return 900
+        }
+    }
+
+    // CSS font matching does not use absolute numeric distance for the 400/500 range, and for
+    // heavier requests it prefers a heavier face before a lighter one. Keep that ordering generic
+    // so every family gets the same deterministic nearest-weight behavior.
+    static func weightSelectionRank(candidate: FontWeight, requested: FontWeight) -> Int {
+        let requestedValue = numericWeight(requested)
+        let searchOrder: [Int]
+        switch requestedValue {
+        case 100...300:
+            searchOrder = Array(stride(from: requestedValue, through: 100, by: -100))
+                + Array(stride(from: requestedValue + 100, through: 900, by: 100))
+        case 400:
+            searchOrder = [400, 500, 300, 200, 100, 600, 700, 800, 900]
+        case 500:
+            searchOrder = [500, 400, 300, 200, 100, 600, 700, 800, 900]
+        default:
+            searchOrder = Array(stride(from: requestedValue, through: 900, by: 100))
+                + Array(stride(from: requestedValue - 100, through: 100, by: -100))
+        }
+        return searchOrder.firstIndex(of: numericWeight(candidate)) ?? searchOrder.count
+    }
+
+    private static func styleSelectionRank(candidateName: String, requested: FontStyle) -> Int {
+        let candidate = normalizedFontToken(candidateName)
+        let isItalic = candidate.contains("italic")
+        let isOblique = candidate.contains("oblique")
+        switch requested {
+        case .normal:
+            return isItalic || isOblique ? 1 : 0
+        case .italic:
+            return isItalic ? 0 : (isOblique ? 1 : 2)
+        case .oblique:
+            return isOblique ? 0 : (isItalic ? 1 : 2)
         }
     }
 
@@ -1452,27 +1491,17 @@ public class PaxFont {
             score += 100
         }
 
-        let expectsItalic = style == .italic || style == .oblique
-        let isItalic = candidate.contains("italic") || candidate.contains("oblique")
-        if expectsItalic {
-            score += isItalic ? 60 : -20
-        } else if isItalic {
-            score -= 20
-        }
+        // Style matching precedes weight matching, as in CSS font selection.
+        score += max(
+            0,
+            3_000 - styleSelectionRank(candidateName: candidateName, requested: style) * 1_000
+        )
 
-        let keywords = weightKeywords(weight)
         if let inferredWeight = inferredWeight(for: candidate) {
-            if inferredWeight == weight {
-                score += 120
-            } else {
-                score -= 40
-            }
-        } else if keywords.contains(where: { candidate.contains($0) }) {
-            score += 60
-        } else if weight == .normal && candidate.contains("regular") {
-            score += 40
-        } else if weight != .normal && candidate.contains("regular") {
-            score -= 10
+            score += max(
+                0,
+                900 - weightSelectionRank(candidate: inferredWeight, requested: weight) * 100
+            )
         }
 
         if isFamilyName {
@@ -1494,10 +1523,7 @@ public class PaxFont {
 
         for registeredName in registeredFontCache.keys {
             let normalizedName = normalizedFontToken(registeredName)
-            guard normalizedName == requested
-                || normalizedName.contains(requested)
-                || requested.contains(normalizedName)
-            else {
+            guard fontFamilyNamesMatch(candidate: registeredName, requested: fontFamily) else {
                 continue
             }
             if seen.insert(registeredName).inserted {
@@ -1508,10 +1534,7 @@ public class PaxFont {
         #if os(iOS) || os(tvOS) || os(watchOS)
         for familyName in UIFont.familyNames {
             let normalizedFamily = normalizedFontToken(familyName)
-            guard normalizedFamily == requested
-                || normalizedFamily.contains(requested)
-                || requested.contains(normalizedFamily)
-            else {
+            guard fontFamilyNamesMatch(candidate: familyName, requested: fontFamily) else {
                 continue
             }
             if seen.insert(familyName).inserted {
@@ -1526,10 +1549,7 @@ public class PaxFont {
         #elseif os(macOS)
         for familyName in NSFontManager.shared.availableFontFamilies {
             let normalizedFamily = normalizedFontToken(familyName)
-            guard normalizedFamily == requested
-                || normalizedFamily.contains(requested)
-                || requested.contains(normalizedFamily)
-            else {
+            guard fontFamilyNamesMatch(candidate: familyName, requested: fontFamily) else {
                 continue
             }
             if seen.insert(familyName).inserted {

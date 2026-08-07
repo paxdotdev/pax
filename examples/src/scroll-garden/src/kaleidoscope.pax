@@ -29,8 +29,7 @@
                         rotate={(angle + layer.rotation_deg * 0.4)deg}
                     >
                         if self.enable_tendrils && self.variant == KaleidoscopeVariant::Crimson {
-                            <Group
-                                class=kalei_tendril_group
+                            <Group class="kalei_tendril_group"
                                 x=50%
                                 y=50%
                                 width=120%
@@ -50,8 +49,7 @@
                             </Group>
                         }
                         if self.enable_tendrils && self.variant == KaleidoscopeVariant::Nocturne {
-                            <Group
-                                class=kalei_tendril_group
+                            <Group class="kalei_tendril_group"
                                 x=50%
                                 y=50%
                                 width=120%
@@ -71,8 +69,7 @@
                             </Group>
                         }
                         if self.enable_tendrils && self.variant == KaleidoscopeVariant::Lagoon {
-                            <Group
-                                class=kalei_tendril_group
+                            <Group class="kalei_tendril_group"
                                 x=50%
                                 y=50%
                                 width=120%
@@ -92,8 +89,7 @@
                             </Group>
                         }
                         if self.enable_tendrils && self.variant == KaleidoscopeVariant::Fern {
-                            <Group
-                                class=kalei_tendril_group
+                            <Group class="kalei_tendril_group"
                                 x=50%
                                 y=50%
                                 width=120%
@@ -113,8 +109,7 @@
                             </Group>
                         }
                         if self.enable_tendrils && self.variant == KaleidoscopeVariant::Violet {
-                            <Group
-                                class=kalei_tendril_group
+                            <Group class="kalei_tendril_group"
                                 x=50%
                                 y=50%
                                 width=120%

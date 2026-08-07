@@ -1,5 +1,5 @@
 <Stacker>
-     <Text text="Color" class=text x=50% />
+     <Text class="text" text="Color" x=50% />
     <Dropdown selected_id=bind:selected_id options=["Red","White","Blue"] stroke=BLACK background=WHITE />
 </Stacker>
 

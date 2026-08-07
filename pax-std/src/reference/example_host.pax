@@ -6,27 +6,27 @@
     }
 
     if self.drawer_open || self._drawer_progress > 0.001 {
-        <Group class=example_host_split_target x={100% - (self._drawer_width_px * self._drawer_progress)px} y=0px width=18px height=100% anchor_x=50% anchor_y=0%>
-            <Rectangle class=example_host_split_handle x=50% y=0px width=4px height=100% anchor_x=50% @mouse_down=self.on_split_mouse_down @mouse_over=self.on_resize_mouse_over @mouse_out=self.on_resize_mouse_out />
+        <Group class="example_host_split_target" x={100% - (self._drawer_width_px * self._drawer_progress)px} y=0px width=18px height=100% anchor_x=50% anchor_y=0%>
+            <Rectangle class="example_host_split_handle" x=50% y=0px width=4px height=100% anchor_x=50% @mouse_down=self.on_split_mouse_down @mouse_over=self.on_resize_mouse_over @mouse_out=self.on_resize_mouse_out />
             <Rectangle fill=TRANSPARENT width=100% height=100% @mouse_down=self.on_split_mouse_down @mouse_over=self.on_resize_mouse_over @mouse_out=self.on_resize_mouse_out />
         </Group>
     }
 
     if !self.drawer_open && self._drawer_progress <= 0.001 {
-        <Group class=example_host_toggle x={100% - 24px} y=24px width=112px height=34px @click=self.toggle_drawer>
-            <Text class=example_host_button_label x=50% y=50% width={100% - 18px} height=18px text="View Source" selectable=false />
-            <Rectangle class=example_host_button_bg width=100% height=100% />
+        <Group class="example_host_toggle" x={100% - 24px} y=24px width=112px height=34px @click=self.toggle_drawer>
+            <Text class="example_host_button_label" x=50% y=50% width={100% - 18px} height=18px text="View Source" selectable=false />
+            <Rectangle class="example_host_button_bg" width=100% height=100% />
         </Group>
     }
 
     if self.drawer_open || self._drawer_progress > 0.001 {
-        <Group class=example_host_drawer x={100% - (self._drawer_width_px * self._drawer_progress)px} y=0px width={(self._drawer_width_px)px} height=100% anchor_x=0% anchor_y=0%>
-            <Group class=example_host_drawer_close x={100% - 24px} y=24px width=34px height=34px>
-                <Text class=example_host_button_label x=50% y=50% width={100% - 10px} height=18px text="x" selectable=false @click=self.toggle_drawer />
-                <Rectangle class=example_host_button_bg width=100% height=100% @click=self.toggle_drawer />
+        <Group class="example_host_drawer" x={100% - (self._drawer_width_px * self._drawer_progress)px} y=0px width={(self._drawer_width_px)px} height=100% anchor_x=0% anchor_y=0%>
+            <Group class="example_host_drawer_close" x={100% - 24px} y=24px width=34px height=34px>
+                <Text class="example_host_button_label" x=50% y=50% width={100% - 10px} height=18px text="x" selectable=false @click=self.toggle_drawer />
+                <Rectangle class="example_host_button_bg" width=100% height=100% @click=self.toggle_drawer />
             </Group>
-            <Text class=example_host_drawer_title x=24px y=24px width={100% - 92px} height=28px text={self.title} selectable=false clip=true />
-            <Text class=example_host_drawer_meta x=24px y=58px width={100% - 48px} height=18px text={self._active_source.label} selectable=false clip=true />
+            <Text class="example_host_drawer_title" x=24px y=24px width={100% - 92px} height=28px text={self.title} selectable=false clip=true />
+            <Text class="example_host_drawer_meta" x=24px y=58px width={100% - 48px} height=18px text={self._active_source.label} selectable=false clip=true />
             <Scroller x=24px y=95px width={100% - 48px} height=30px scroll_width={(Math::len(self.sources) * 112)px} scroll_height=30px>
                 <Group width={(Math::len(self.sources) * 112)px} height=30px>
                     for (source, i) in self.sources {
@@ -36,15 +36,15 @@
             </Scroller>
             <Group x=24px y=124px width={100% - 48px} height={100% - 148px}>
                 <Scroller width=100% height=100% autosize=true autosize_x=true autosize_y=true>
-                    <Text class=example_host_code_text x=14px y=14px text={self._active_source_markup} markdown=true wrap=false selectable=true />
+                    <Text class="example_host_code_text" x=14px y=14px text={self._active_source_markup} markdown=true wrap=false selectable=true />
                 </Scroller>
-                <Rectangle class=example_host_code_bg width=100% height=100% />
+                <Rectangle class="example_host_code_bg" width=100% height=100% />
             </Group>
-            <Rectangle class=example_host_drawer_bg width=100% height=100% />
+            <Rectangle class="example_host_drawer_bg" width=100% height=100% />
         </Group>
     }
 
-    <Group class=example_host_preview x=0px y=0px width={100% - (self._drawer_width_px * self._drawer_progress)px} height=100% anchor_x=0% anchor_y=0%>
+    <Group class="example_host_preview" x=0px y=0px width={100% - (self._drawer_width_px * self._drawer_progress)px} height=100% anchor_x=0% anchor_y=0%>
         slot()
     </Group>
 </Group>

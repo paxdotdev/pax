@@ -27,8 +27,8 @@ adds the transparent native hit target needed by the web and Apple chassis.
     max_bytes_per_photo=26214400
     @photo_picker_change=self.handle_picker_change
 >
-    <Text class=button_label width=100% height=100% text="Choose Photos"/>
-    <Rectangle class=primary_button width=100% height=100%/>
+    <Text class="button_label" width=100% height=100% text="Choose Photos"/>
+    <Rectangle class="primary_button" width=100% height=100%/>
 </PhotoPicker>
 ```
 

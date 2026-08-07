@@ -1,24 +1,24 @@
 <Group height=220px>
-    <Text class=panel_title x=26px y=18px width={100% - 260px} height=28px text={self.pin_first ? "Conditional slot active: slot(0)" : "Conditional slot inactive"} selectable=false />
-    <Text class=panel_caption x=26px y=60px width={100% - 52px} height=22px text="Toggling the if branch adds or removes a prior slot site; slot() re-deals child 0 accordingly." selectable=false />
+    <Text class="panel_title" x=26px y=18px width={100% - 260px} height=28px text={self.pin_first ? "Conditional slot active: slot(0)" : "Conditional slot inactive"} selectable=false />
+    <Text class="panel_caption" x=26px y=60px width={100% - 52px} height=22px text="Toggling the if branch adds or removes a prior slot site; slot() re-deals child 0 accordingly." selectable=false />
 
     if self.pin_first {
-        <Text class=bucket_label x=28px y=100px width=72px height=18px text="slot(0)" selectable=false />
+        <Text class="bucket_label" x=28px y=100px width=72px height=18px text="slot(0)" selectable=false />
         <Stacker x=28px y=120px width=72px height=58px direction=StackerDirection::Horizontal>
             slot(0)
         </Stacker>
     }
 
-    <Text class=empty_hint x=34px y=136px width=60px height=24px text={self.pin_first ? "" : "branch empty"} selectable=false />
+    <Text class="empty_hint" x=34px y=136px width=60px height=24px text={self.pin_first ? "" : "branch empty"} selectable=false />
 
-    <Text class=bucket_label x=118px y=100px width=72px height=18px text="slot()" selectable=false />
+    <Text class="bucket_label" x=118px y=100px width=72px height=18px text="slot()" selectable=false />
     <Stacker x=118px y=120px width=72px height=58px direction=StackerDirection::Horizontal gutter=10px>
         slot()
     </Stacker>
 
-    <Rectangle class=bucket_bg x=28px y=120px width=72px height=58px />
-    <Rectangle class=bucket_bg x=118px y=120px width=72px height=58px />
-    <Rectangle class=panel_bg />
+    <Rectangle class="bucket_bg" x=28px y=120px width=72px height=58px />
+    <Rectangle class="bucket_bg" x=118px y=120px width=72px height=58px />
+    <Rectangle class="panel_bg" />
 </Group>
 
 @settings {

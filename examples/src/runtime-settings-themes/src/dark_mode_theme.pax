@@ -45,6 +45,10 @@
         fill: rgba(96, 121, 148, 255)
     }
 
+    .dark_badge {
+        fill: rgba(119, 156, 194, 255)
+    }
+
     .preview_chip_primary {
         fill: rgba(78, 93, 112, 255)
     }

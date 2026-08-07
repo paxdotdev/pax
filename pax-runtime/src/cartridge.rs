@@ -15,12 +15,13 @@ use pax_manifest::cartridge_generation::{
 };
 use pax_manifest::{
     ExpressionInfo, GradientDefinition, GradientElement, GradientShapeDefinition,
-    InOutInterruption, LiteralBlockDefinition, PaxIdentifier, SettingElement, SettingsBlockElement,
-    TemplateNodeDefinition, TimelineKeyframe, TimelineMarker, TimelineTrackDefinition,
-    TimelineTrackElement, TransitionDefinition, TypeId, ValueDefinition,
+    InOutInterruption, LiteralBlockDefinition, LocationInfo, PaxIdentifier, SelectorExpr,
+    SettingElement, SettingsBlockElement, TemplateNodeDefinition, TimelineBlockElement,
+    TimelineDefinition, TimelineKeyframe, TimelineMarker, TimelineSelectorElement,
+    TimelineTrackDefinition, TimelineTrackElement, TransitionDefinition, TypeId, ValueDefinition,
 };
 use pax_message::{borrow, borrow_mut};
-use pax_runtime_api::constants::COMMON_PROPERTIES_2D;
+use pax_runtime_api::constants::{COMMON_PROPERTIES, COMMON_PROPERTIES_2D};
 use pax_runtime_api::pax_value::functions::{call_function, Functions};
 use pax_runtime_api::pax_value::{CoercionRules, PaxAny, ToFromPaxAny, ToPaxValue};
 use pax_runtime_api::properties::{PropertyValue, UntypedProperty};
@@ -76,9 +77,20 @@ fn append_resolved_property_entry(
     columns.entry(key.to_string()).or_default().push(entry);
 }
 
+fn add_removed_property_resets(
+    previous: &RuntimeResolvedPropertyColumns,
+    current: &mut RuntimeResolvedPropertyColumns,
+) {
+    for property_name in previous.keys() {
+        current.entry(property_name.clone()).or_default();
+    }
+}
+
 fn runtime_property_entry(
     source: RuntimeSettingsSource,
     selector: Option<pax_manifest::SelectorExpr>,
+    source_location: Option<LocationInfo>,
+    source_stack: Option<Rc<RuntimePropertiesStackFrame>>,
     value: ValueDefinition,
     condition: Option<RuntimeSettingsCondition>,
     axis_index: Option<usize>,
@@ -86,6 +98,8 @@ fn runtime_property_entry(
     RuntimeResolvedPropertyEntry {
         source,
         selector,
+        source_location,
+        source_stack,
         value,
         condition,
         axis_index,
@@ -122,6 +136,8 @@ fn append_2d_common_property_entries(
     value: &ValueDefinition,
     source: RuntimeSettingsSource,
     selector: Option<pax_manifest::SelectorExpr>,
+    source_location: Option<LocationInfo>,
+    source_stack: Option<Rc<RuntimePropertiesStackFrame>>,
     condition: Option<RuntimeSettingsCondition>,
 ) -> bool {
     let Some(axes) = common_property_2d_axes(key) else {
@@ -134,6 +150,8 @@ fn append_2d_common_property_entries(
         runtime_property_entry(
             source.clone(),
             selector.clone(),
+            source_location.clone(),
+            source_stack.clone(),
             value.clone(),
             condition.clone(),
             None,
@@ -146,6 +164,8 @@ fn append_2d_common_property_entries(
             runtime_property_entry(
                 source.clone(),
                 selector.clone(),
+                source_location.clone(),
+                source_stack.clone(),
                 value.clone(),
                 condition.clone(),
                 Some(axis_index),
@@ -170,6 +190,8 @@ pub fn property_columns_from_defined_properties(
                 RuntimeSettingsSource::Inline,
                 None,
                 None,
+                None,
+                None,
             );
         }
     }
@@ -182,6 +204,8 @@ pub fn property_columns_from_defined_properties(
             key,
             runtime_property_entry(
                 RuntimeSettingsSource::Inline,
+                None,
+                None,
                 None,
                 value.clone(),
                 None,
@@ -197,6 +221,7 @@ fn append_setting_elements(
     elements: &[SettingElement],
     source: RuntimeSettingsSource,
     selector: Option<pax_manifest::SelectorExpr>,
+    source_stack: Option<Rc<RuntimePropertiesStackFrame>>,
     condition: Option<RuntimeSettingsCondition>,
 ) {
     for element in elements {
@@ -213,6 +238,8 @@ fn append_setting_elements(
                 value,
                 source.clone(),
                 selector.clone(),
+                key.token_location.clone(),
+                source_stack.clone(),
                 condition.clone(),
             );
         }
@@ -236,6 +263,8 @@ fn append_setting_elements(
             runtime_property_entry(
                 source.clone(),
                 selector.clone(),
+                key.token_location.clone(),
+                source_stack.clone(),
                 value.clone(),
                 condition.clone(),
                 None,
@@ -313,8 +342,10 @@ fn collect_selector_layer_blocks(
 fn append_selector_layer_entries(
     columns: &mut RuntimeResolvedPropertyColumns,
     tnd: &TemplateNodeDefinition,
+    classes: &[String],
     settings_block: &Option<Vec<SettingsBlockElement>>,
     source: RuntimeSettingsSource,
+    source_stack: Option<Rc<RuntimePropertiesStackFrame>>,
 ) {
     let Some(settings_block) = settings_block else {
         return;
@@ -335,13 +366,14 @@ fn append_selector_layer_entries(
                 &settings_value.elements,
                 source.clone(),
                 Some(selector),
+                source_stack.clone(),
                 settings_value.condition.clone(),
             );
         }
     }
 
-    for class in &tnd.selector_info.classes {
-        let selector = pax_manifest::SelectorExpr::Class(class.token_value.clone());
+    for class in classes {
+        let selector = pax_manifest::SelectorExpr::Class(class.clone());
         for settings_value in &selector_blocks {
             let Ok(candidate) = pax_manifest::SelectorExpr::parse(&settings_value.selector) else {
                 continue;
@@ -352,6 +384,7 @@ fn append_selector_layer_entries(
                     &settings_value.elements,
                     source.clone(),
                     Some(selector.clone()),
+                    source_stack.clone(),
                     settings_value.condition.clone(),
                 );
             }
@@ -369,6 +402,7 @@ fn append_selector_layer_entries(
                     &settings_value.elements,
                     source.clone(),
                     Some(selector.clone()),
+                    source_stack.clone(),
                     settings_value.condition.clone(),
                 );
             }
@@ -392,6 +426,8 @@ fn overlay_static_runtime_properties(
                 RuntimeSettingsSource::Inline,
                 None,
                 None,
+                None,
+                None,
             ) {
                 continue;
             }
@@ -400,6 +436,8 @@ fn overlay_static_runtime_properties(
                 key,
                 runtime_property_entry(
                     RuntimeSettingsSource::Inline,
+                    None,
+                    None,
                     None,
                     value.clone(),
                     None,
@@ -410,36 +448,174 @@ fn overlay_static_runtime_properties(
     }
 }
 
+fn timeline_transition_kind(
+    timeline: &TimelineDefinition,
+    settings: &Option<Vec<SettingsBlockElement>>,
+) -> Option<u64> {
+    let timeline_name = timeline.name.as_ref()?.token_value.as_str();
+    settings.as_ref()?.iter().find_map(|setting| {
+        let SettingsBlockElement::Transition(kind, name) = setting else {
+            return None;
+        };
+        if name.token_value != timeline_name {
+            return None;
+        }
+        match kind.token_value.as_str() {
+            "in" => Some(TRANSITION_PHASE_ENTER),
+            "out" => Some(TRANSITION_PHASE_EXIT),
+            _ => None,
+        }
+    })
+}
+
+fn timeline_target_matches_node(
+    target: &str,
+    tnd: &TemplateNodeDefinition,
+    classes: &[String],
+) -> bool {
+    if let Some(class_name) = target.strip_prefix('.') {
+        return classes.iter().any(|candidate| candidate == class_name);
+    }
+    if let Some(id) = target.strip_prefix('#') {
+        return tnd
+            .selector_info
+            .id
+            .as_ref()
+            .map(|candidate| candidate.token_value == id)
+            .unwrap_or(false);
+    }
+    false
+}
+
+fn append_timeline_selector_entries(
+    columns: &mut RuntimeResolvedPropertyColumns,
+    tnd: &TemplateNodeDefinition,
+    timelines: &[TimelineDefinition],
+    component_settings: &Option<Vec<SettingsBlockElement>>,
+    classes: &[String],
+    transition_classes: Option<&[String]>,
+) {
+    let mut values =
+        BTreeMap::<String, (SelectorExpr, Option<LocationInfo>, ValueDefinition)>::new();
+    let empty_base = BTreeMap::new();
+
+    for timeline in timelines {
+        let transition_kind = timeline_transition_kind(timeline, component_settings);
+        let selector_classes = transition_kind.and(transition_classes).unwrap_or(classes);
+        for element in &timeline.elements {
+            let TimelineBlockElement::SelectorBlock(target, block) = element else {
+                continue;
+            };
+            if !timeline_target_matches_node(&target.token_value, tnd, selector_classes) {
+                continue;
+            }
+            let Ok(selector) = SelectorExpr::parse(&target.token_value) else {
+                continue;
+            };
+            for element in &block.elements {
+                let TimelineSelectorElement::Track(property, track) = element else {
+                    continue;
+                };
+                let value = if let Some(transition_kind) = transition_kind {
+                    let track = pax_manifest::PaxManifest::prepare_transition_track(
+                        timeline,
+                        track,
+                        &empty_base,
+                        &property.token_value,
+                    );
+                    let existing = values
+                        .remove(&property.token_value)
+                        .map(|(_, _, value)| value);
+                    let mut transition = match existing {
+                        Some(ValueDefinition::Transition(transition)) => transition,
+                        Some(value) => TransitionDefinition {
+                            starting_value: Some(Box::new(value)),
+                            ..Default::default()
+                        },
+                        None => TransitionDefinition::default(),
+                    };
+                    match transition_kind {
+                        TRANSITION_PHASE_ENTER => transition.enter = Some(track),
+                        TRANSITION_PHASE_EXIT => transition.exit = Some(track),
+                        _ => {}
+                    }
+                    ValueDefinition::Transition(transition)
+                } else {
+                    ValueDefinition::Timeline(pax_manifest::PaxManifest::prepare_timeline_track(
+                        timeline, track,
+                    ))
+                };
+                values.insert(
+                    property.token_value.clone(),
+                    (selector.clone(), property.token_location.clone(), value),
+                );
+            }
+        }
+    }
+
+    for (property, (selector, source_location, value)) in values {
+        append_resolved_property_entry(
+            columns,
+            &property,
+            runtime_property_entry(
+                RuntimeSettingsSource::ComponentSettings,
+                Some(selector),
+                source_location,
+                None,
+                value,
+                None,
+                None,
+            ),
+        );
+    }
+}
+
 fn resolve_runtime_settings_with_layers_for_node(
     tnd: &TemplateNodeDefinition,
     base_defined_properties: &BTreeMap<String, ValueDefinition>,
     containing_component_settings: &Option<Vec<SettingsBlockElement>>,
     imported_layers: &[RuntimeSettingsLayer],
+    classes: &[String],
+    transition_classes: Option<&[String]>,
+    timelines: &[TimelineDefinition],
 ) -> ResolvedRuntimeSettings {
     let mut columns = BTreeMap::new();
 
     append_selector_layer_entries(
         &mut columns,
         tnd,
+        classes,
         containing_component_settings,
         RuntimeSettingsSource::ComponentSettings,
+        None,
     );
     for layer in imported_layers {
         append_selector_layer_entries(
             &mut columns,
             tnd,
+            classes,
             &Some(layer.settings.clone()),
             RuntimeSettingsSource::ImportedLayer {
                 provider_id: layer.provider_id,
                 provider_type_id: layer.provider_type_id.clone(),
             },
+            Some(Rc::clone(&layer.provider_stack)),
         );
     }
+    append_timeline_selector_entries(
+        &mut columns,
+        tnd,
+        timelines,
+        containing_component_settings,
+        classes,
+        transition_classes,
+    );
     if let Some(inline_settings) = &tnd.settings {
         append_setting_elements(
             &mut columns,
             inline_settings,
             RuntimeSettingsSource::Inline,
+            None,
             None,
             None,
         );
@@ -467,14 +643,23 @@ fn resolve_runtime_settings_for_node(
     tnd: &TemplateNodeDefinition,
     base_defined_properties: &BTreeMap<String, ValueDefinition>,
     containing_component_settings: &Option<Vec<SettingsBlockElement>>,
+    timelines: &[TimelineDefinition],
     expanded_node: Option<&Rc<ExpandedNode>>,
 ) -> ResolvedRuntimeSettings {
     let imported_layers = imported_settings_layers_for_node(expanded_node);
+    let classes = expanded_node
+        .map(|node| node.selector_metadata.borrow().classes.get())
+        .unwrap_or_else(|| tnd.selector_info.literal_classes());
+    let transition_classes =
+        expanded_node.and_then(|node| node.transition_selector_classes.borrow().clone());
     resolve_runtime_settings_with_layers_for_node(
         tnd,
         base_defined_properties,
         containing_component_settings,
         &imported_layers,
+        &classes,
+        transition_classes.as_deref(),
+        timelines,
     )
 }
 
@@ -483,12 +668,14 @@ fn resolve_defined_properties_for_node(
     tnd: &TemplateNodeDefinition,
     base_defined_properties: &BTreeMap<String, ValueDefinition>,
     containing_component_settings: &Option<Vec<SettingsBlockElement>>,
+    timelines: &[TimelineDefinition],
     expanded_node: Option<&Rc<ExpandedNode>>,
 ) -> BTreeMap<String, ValueDefinition> {
     let resolved = resolve_runtime_settings_for_node(
         tnd,
         base_defined_properties,
         containing_component_settings,
+        timelines,
         expanded_node,
     );
     if let Some(expanded_node) = expanded_node {
@@ -502,15 +689,23 @@ fn resolve_property_columns_for_node(
     tnd: &TemplateNodeDefinition,
     base_defined_properties: &BTreeMap<String, ValueDefinition>,
     containing_component_settings: &Option<Vec<SettingsBlockElement>>,
+    timelines: &[TimelineDefinition],
     expanded_node: Option<&Rc<ExpandedNode>>,
 ) -> RuntimeResolvedPropertyColumns {
-    let resolved = resolve_runtime_settings_for_node(
+    let mut resolved = resolve_runtime_settings_for_node(
         tnd,
         base_defined_properties,
         containing_component_settings,
+        timelines,
         expanded_node,
     );
     if let Some(expanded_node) = expanded_node {
+        if expanded_node.reset_removed_runtime_properties.get() {
+            add_removed_property_resets(
+                &expanded_node.resolved_property_columns.borrow(),
+                &mut resolved.columns,
+            );
+        }
         *expanded_node.resolved_property_columns.borrow_mut() = resolved.columns.clone();
         *expanded_node.resolved_property_provenance.borrow_mut() = resolved.provenance.clone();
     }
@@ -790,6 +985,53 @@ pub fn apply_component_descriptor_properties<T: Default + ToFromPaxAny + 'static
     property_columns: &RuntimeResolvedPropertyColumns,
     stack_frame: &Rc<RuntimePropertiesStackFrame>,
 ) {
+    thread_local! {
+        static WARNED_INCOMPATIBLE_SELECTOR_PROPERTIES: RefCell<std::collections::HashSet<String>> =
+            RefCell::new(std::collections::HashSet::new());
+    }
+
+    for (property_name, entries) in property_columns {
+        let is_known = descriptor
+            .property_descriptors
+            .iter()
+            .any(|property| property.name == property_name)
+            || COMMON_PROPERTIES.contains(&property_name.as_str())
+            || matches!(
+                property_name.as_str(),
+                "unclippable" | "_raycastable" | "_suspended"
+            );
+        if is_known {
+            continue;
+        }
+        for entry in entries.iter().filter(|entry| entry.selector.is_some()) {
+            let key = format!(
+                "{}:{property_name}:{:?}",
+                descriptor.type_id, entry.selector
+            );
+            WARNED_INCOMPATIBLE_SELECTOR_PROPERTIES.with(|warnings| {
+                if warnings.borrow_mut().insert(key) {
+                    let location = entry
+                        .source_location
+                        .as_ref()
+                        .map(|location| {
+                            format!(
+                                " at {}:{}",
+                                location.start_line_col.0, location.start_line_col.1
+                            )
+                        })
+                        .unwrap_or_default();
+                    log::warn!(
+                        "selector {:?} assigns property '{}' which does not apply to {}{}; ignoring it",
+                        entry.selector,
+                        property_name,
+                        descriptor.type_id,
+                        location,
+                    );
+                }
+            });
+        }
+    }
+
     for property_descriptor in descriptor.property_descriptors {
         if let Some(entries) = property_columns.get(property_descriptor.name) {
             (property_descriptor.apply_entries)(properties, entries, stack_frame);
@@ -1634,6 +1876,7 @@ pub trait DefinitionToInstanceTraverser {
         let node = containing_template.get_node(node_id).unwrap();
         let node = node.clone();
         let containing_component_settings = containing_component.settings.clone();
+        let containing_component_timelines = containing_component.timelines.clone();
         let containing_component_descriptor = self
             .get_component_descriptor(containing_component_type_id)
             .unwrap();
@@ -1689,12 +1932,14 @@ pub trait DefinitionToInstanceTraverser {
         let base_defined_properties_for_common = base_defined_properties.clone();
         let properties_tnd = node.clone();
         let properties_component_settings = containing_component_settings.clone();
+        let properties_timelines = containing_component_timelines.clone();
         args.prototypical_properties =
             crate::PropertiesInit::Factory(Box::new(move |stack_frame, expanded_node| {
                 let property_columns = resolve_property_columns_for_node(
                     &properties_tnd,
                     &base_defined_properties,
                     &properties_component_settings,
+                    &properties_timelines,
                     expanded_node.as_ref(),
                 );
                 if let Some(expanded_node) = expanded_node {
@@ -1723,12 +1968,14 @@ pub trait DefinitionToInstanceTraverser {
         // update common properties from tnd
         let common_tnd = node.clone();
         let common_component_settings = containing_component_settings;
+        let common_timelines = containing_component_timelines;
         args.prototypical_common_properties =
             crate::CommonPropertiesInit::Factory(Box::new(move |stack_frame, expanded_node| {
                 let property_columns = resolve_property_columns_for_node(
                     &common_tnd,
                     &base_defined_properties_for_common,
                     &common_component_settings,
+                    &common_timelines,
                     expanded_node.as_ref(),
                 );
                 if let Some(expanded_node) = expanded_node {
@@ -2241,8 +2488,9 @@ where
     let mut layered_property = Property::default();
     for entry in entries {
         let previous_property = layered_property.clone();
+        let source_stack = entry.source_stack.as_ref().unwrap_or(stack);
         let stack_with_base = stack_with_optional_base_or(
-            stack,
+            source_stack,
             previous_property.clone(),
             common_property_base_fallback(name),
         );
@@ -2259,7 +2507,7 @@ where
         layered_property = apply_runtime_settings_condition(
             name,
             entry.condition.as_ref(),
-            stack,
+            source_stack,
             previous_property,
             candidate_property,
         );
@@ -4158,6 +4406,8 @@ mod base_symbol_tests {
         RuntimeResolvedPropertyEntry {
             source: RuntimeSettingsSource::Inline,
             selector: None,
+            source_location: None,
+            source_stack: None,
             value,
             condition: None,
             axis_index: None,
@@ -4237,6 +4487,66 @@ mod base_symbol_tests {
 
         offset.set(Size::Pixels(Numeric::F64(20.0)));
         assert!((common.borrow().x.get().unwrap().get_pixels(100.0) - 25.0).abs() < 0.0001);
+    }
+
+    #[test]
+    fn imported_settings_use_the_provider_scope_reactively() {
+        let is_dark = Property::new(false);
+        let provider_stack = RuntimePropertiesStackFrame::new(HashMap::from([(
+            "is_dark".to_string(),
+            Variable::new_from_typed_property(is_dark.clone()),
+        )]));
+        let imported_entry = RuntimeResolvedPropertyEntry {
+            source: RuntimeSettingsSource::ImportedLayer {
+                provider_id: crate::ExpandedNodeIdentifier(1),
+                provider_type_id: pax_manifest::TypeId::build_singleton(
+                    "example::Theme",
+                    Some("Theme"),
+                ),
+            },
+            source_stack: Some(provider_stack),
+            ..entry(expression("self.is_dark ? 50px : 10px"))
+        };
+        let columns = columns_for("width", vec![imported_entry]);
+
+        let common = create_new_common_properties_from_columns(&columns, &empty_stack());
+        assert!((common.borrow().width.get().unwrap().get_pixels(100.0) - 10.0).abs() < 0.0001);
+
+        is_dark.set(true);
+        assert!((common.borrow().width.get().unwrap().get_pixels(100.0) - 50.0).abs() < 0.0001);
+    }
+
+    #[test]
+    fn imported_settings_conditions_use_the_provider_scope_reactively() {
+        let is_dark = Property::new(false);
+        let provider_stack = RuntimePropertiesStackFrame::new(HashMap::from([(
+            "is_dark".to_string(),
+            Variable::new_from_typed_property(is_dark.clone()),
+        )]));
+        let imported_entry = RuntimeResolvedPropertyEntry {
+            source: RuntimeSettingsSource::ImportedLayer {
+                provider_id: crate::ExpandedNodeIdentifier(1),
+                provider_type_id: pax_manifest::TypeId::build_singleton(
+                    "example::Theme",
+                    Some("Theme"),
+                ),
+            },
+            source_stack: Some(provider_stack),
+            condition: Some(RuntimeSettingsCondition {
+                positive: vec![ExpressionInfo::new(
+                    parse_pax_expression("self.is_dark").unwrap(),
+                )],
+                negative: Vec::new(),
+            }),
+            ..entry(size_literal(50.0))
+        };
+        let columns = columns_for("width", vec![entry(size_literal(10.0)), imported_entry]);
+
+        let common = create_new_common_properties_from_columns(&columns, &empty_stack());
+        assert!((common.borrow().width.get().unwrap().get_pixels(100.0) - 10.0).abs() < 0.0001);
+
+        is_dark.set(true);
+        assert!((common.borrow().width.get().unwrap().get_pixels(100.0) - 50.0).abs() < 0.0001);
     }
 
     #[test]
@@ -4607,14 +4917,19 @@ fn update_common_properties(
 
 #[cfg(test)]
 mod runtime_settings_tests {
-    use super::resolve_runtime_settings_with_layers_for_node;
-    use crate::{ExpandedNodeIdentifier, RuntimeSettingsLayer, RuntimeSettingsSource};
+    use super::{add_removed_property_resets, resolve_runtime_settings_with_layers_for_node};
+    use crate::{
+        ExpandedNodeIdentifier, RuntimePropertiesStackFrame, RuntimeSettingsLayer,
+        RuntimeSettingsSource,
+    };
     use pax_manifest::{
         LiteralBlockDefinition, PaxIdentifier, SettingElement, SettingsBlockElement,
-        TemplateNodeDefinition, Token, TypeId, ValueDefinition,
+        TemplateNodeDefinition, TimelineBlockElement, TimelineDefinition,
+        TimelineSelectorBlockDefinition, TimelineSelectorElement, TimelineTrackDefinition, Token,
+        TypeId, ValueDefinition,
     };
     use pax_runtime_api::PaxValue;
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, HashMap};
 
     fn setting(name: &str, value: i32) -> SettingElement {
         SettingElement::Setting(
@@ -4637,16 +4952,17 @@ mod runtime_settings_tests {
             control_flow_settings: None,
             settings: Some(vec![
                 SettingElement::Setting(
-                    Token::new_without_location("class".to_string()),
-                    ValueDefinition::Identifier(PaxIdentifier::new("headline")),
-                ),
-                SettingElement::Setting(
                     Token::new_without_location("id".to_string()),
                     ValueDefinition::Identifier(PaxIdentifier::new("hero")),
                 ),
                 setting("fill", 4),
             ]),
-            selector_info: Default::default(),
+            selector_info: pax_manifest::TemplateNodeSelectorInfo {
+                class_binding: Some(ValueDefinition::LiteralValue(PaxValue::String(
+                    "headline".to_string(),
+                ))),
+                ..Default::default()
+            },
             raw_comment_string: None,
         };
         node.normalize_selector_info();
@@ -4659,6 +4975,7 @@ mod runtime_settings_tests {
             RuntimeSettingsLayer {
                 provider_id: ExpandedNodeIdentifier(10),
                 provider_type_id: TypeId::build_singleton("example::BaseTheme", Some("BaseTheme")),
+                provider_stack: RuntimePropertiesStackFrame::new(HashMap::new()),
                 settings: vec![selector_block(
                     "Text",
                     vec![setting("height", 2), setting("fill", 2)],
@@ -4670,6 +4987,7 @@ mod runtime_settings_tests {
                     "example::AccentTheme",
                     Some("AccentTheme"),
                 ),
+                provider_stack: RuntimePropertiesStackFrame::new(HashMap::new()),
                 settings: vec![selector_block(
                     ".headline",
                     vec![setting("opacity", 3), setting("fill", 3)],
@@ -4682,6 +5000,9 @@ mod runtime_settings_tests {
             &BTreeMap::new(),
             &component_settings,
             &imported_layers,
+            &["headline".to_string()],
+            None,
+            &[],
         );
 
         assert!(matches!(
@@ -4755,5 +5076,101 @@ mod runtime_settings_tests {
             .expect("fill provenance should exist");
         assert!(matches!(fill_source.source, RuntimeSettingsSource::Inline));
         assert!(fill_source.selector.is_none());
+    }
+
+    #[test]
+    fn selector_cascade_is_type_then_classes_then_id_then_inline() {
+        let mut node = TemplateNodeDefinition {
+            type_id: TypeId::build_singleton("example::Text", Some("Text")),
+            settings: Some(vec![
+                SettingElement::Setting(
+                    Token::new_without_location("id".to_string()),
+                    ValueDefinition::Identifier(PaxIdentifier::new("hero")),
+                ),
+                setting("fill", 5),
+            ]),
+            ..Default::default()
+        };
+        node.normalize_selector_info();
+        let component_settings = Some(vec![
+            selector_block("Text", vec![setting("fill", 1)]),
+            selector_block(".base", vec![setting("fill", 2)]),
+            selector_block(".selected", vec![setting("fill", 3)]),
+            selector_block("#hero", vec![setting("fill", 4)]),
+        ]);
+
+        let resolved = resolve_runtime_settings_with_layers_for_node(
+            &node,
+            &BTreeMap::new(),
+            &component_settings,
+            &[],
+            &["base".to_string(), "selected".to_string()],
+            None,
+            &[],
+        );
+        let values = resolved.columns["fill"]
+            .iter()
+            .map(|entry| match &entry.value {
+                ValueDefinition::LiteralValue(PaxValue::Numeric(value)) => *value,
+                other => panic!("unexpected fill value: {other:?}"),
+            })
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            values,
+            vec![1.into(), 2.into(), 3.into(), 4.into(), 5.into()]
+        );
+    }
+
+    #[test]
+    fn lifecycle_timeline_uses_classes_captured_at_transition_start() {
+        let node = TemplateNodeDefinition {
+            type_id: TypeId::build_singleton("example::Rectangle", Some("Rectangle")),
+            ..Default::default()
+        };
+        let component_settings = Some(vec![SettingsBlockElement::Transition(
+            Token::new_without_location("in".to_string()),
+            Token::new_without_location("appear".to_string()),
+        )]);
+        let timelines = vec![TimelineDefinition {
+            name: Some(Token::new_without_location("appear".to_string())),
+            elements: vec![TimelineBlockElement::SelectorBlock(
+                Token::new_without_location(".active".to_string()),
+                TimelineSelectorBlockDefinition {
+                    elements: vec![TimelineSelectorElement::Track(
+                        Token::new_without_location("opacity".to_string()),
+                        TimelineTrackDefinition::default(),
+                    )],
+                },
+            )],
+            ..Default::default()
+        }];
+
+        let resolved = resolve_runtime_settings_with_layers_for_node(
+            &node,
+            &BTreeMap::new(),
+            &component_settings,
+            &[],
+            &[],
+            Some(&["active".to_string()]),
+            &timelines,
+        );
+
+        assert!(matches!(
+            resolved.defined_properties.get("opacity"),
+            Some(ValueDefinition::Transition(_))
+        ));
+    }
+
+    #[test]
+    fn removed_runtime_properties_are_explicitly_reset_only_when_requested() {
+        let previous =
+            BTreeMap::from([("fill".to_string(), vec![]), ("width".to_string(), vec![])]);
+        let mut current = BTreeMap::from([("width".to_string(), vec![])]);
+
+        add_removed_property_resets(&previous, &mut current);
+
+        assert!(current.contains_key("fill"));
+        assert!(current.contains_key("width"));
     }
 }

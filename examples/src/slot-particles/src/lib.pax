@@ -6,8 +6,8 @@
 }>
 	for i in 0..10 {
 		<Group>
-			<Rectangle class=centered fill=RED/>
-			<Rectangle class=centered rotate=45deg fill=RED/>
+			<Rectangle class="centered" fill=RED/>
+			<Rectangle class="centered" rotate=45deg fill=RED/>
 		</Group>
 		<Rectangle fill=PURPLE/>
 		<Fireworks />

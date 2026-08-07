@@ -11,10 +11,7 @@ use pax_designtime::{
 #[cfg(feature = "designtime")]
 use pax_language::{parse_pax_str, Rule};
 #[cfg(feature = "designtime")]
-use pax_manifest::{
-    ComponentTemplate, PaxManifest, SettingElement, TypeId, UniqueTemplateNodeIdentifier,
-    ValueDefinition,
-};
+use pax_manifest::{ComponentTemplate, PaxManifest, TypeId, UniqueTemplateNodeIdentifier};
 #[cfg(feature = "designtime")]
 use serde::Serialize;
 
@@ -857,47 +854,17 @@ fn designtime_selector_matches_node(
             let common_properties = common_properties.borrow();
             common_properties.id.get().as_deref() == Some(id.as_str())
         }
-        DesigntimeSelectorQuery::Class(class_name) => {
-            designtime_node_template_classes(node, manifest)
-                .into_iter()
-                .any(|node_class| node_class == class_name.as_str())
-        }
+        DesigntimeSelectorQuery::Class(class_name) => node
+            .selector_metadata
+            .borrow()
+            .classes
+            .get()
+            .iter()
+            .any(|node_class| node_class == class_name),
         DesigntimeSelectorQuery::Type(type_name) => {
             designtime_node_matches_type(node, manifest, type_name)
         }
     }
-}
-
-#[cfg(feature = "designtime")]
-fn designtime_node_template_classes<'a>(
-    node: &Rc<ExpandedNode>,
-    manifest: &'a PaxManifest,
-) -> Vec<&'a str> {
-    let global_id = {
-        let instance_node = node.instance_node.borrow();
-        instance_node.base().template_node_identifier.clone()
-    };
-    let Some(global_id) = global_id else {
-        return vec![];
-    };
-    let Some(template_node) = manifest.get_template_node(&global_id) else {
-        return vec![];
-    };
-    let Some(settings) = template_node.settings.as_ref() else {
-        return vec![];
-    };
-
-    settings
-        .iter()
-        .filter_map(|setting| match setting {
-            SettingElement::Setting(token, ValueDefinition::Identifier(identifier))
-                if token.token_value == "class" =>
-            {
-                Some(identifier.name.as_str())
-            }
-            _ => None,
-        })
-        .collect()
 }
 
 #[cfg(feature = "designtime")]

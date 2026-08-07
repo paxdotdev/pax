@@ -26,7 +26,7 @@ Type: `Option`<[`UniqueTemplateNodeIdentifier`](/api/internal/pax-manifest/index
 Type: `Option`<[`TypeId`](/api/internal/pax-manifest/index.md#typeid)>
 
 ##### `template_node_selector_info`
-Type: `Option`<`TemplateNodeSelectorInfo`>
+Type: `Option`<[`TemplateNodeSelectorInfo`](/api/internal/pax-manifest/selectors.md#templatenodeselectorinfo)>
 
 ##### `transition_config`
 Type: [`ComponentTransitionConfig`](/api/internal/pax-manifest/cartridge_generation.md#componenttransitionconfig)
@@ -132,7 +132,7 @@ Type: `Option`<[`UniqueTemplateNodeIdentifier`](/api/internal/pax-manifest/index
 Type: `Option`<[`TypeId`](/api/internal/pax-manifest/index.md#typeid)>
 
 ##### `template_node_selector_info`
-Type: `Option`<`TemplateNodeSelectorInfo`>
+Type: `Option`<[`TemplateNodeSelectorInfo`](/api/internal/pax-manifest/selectors.md#templatenodeselectorinfo)>
 
 ##### `transition_config`
 Type: [`ComponentTransitionConfig`](/api/internal/pax-manifest/cartridge_generation.md#componenttransitionconfig)
@@ -159,7 +159,7 @@ Type: `Option`<[`UniqueTemplateNodeIdentifier`](/api/internal/pax-manifest/index
 Type: `Option`<[`TypeId`](/api/internal/pax-manifest/index.md#typeid)>
 
 ##### `template_node_selector_info`
-Type: `Option`<`TemplateNodeSelectorInfo`>
+Type: `Option`<[`TemplateNodeSelectorInfo`](/api/internal/pax-manifest/selectors.md#templatenodeselectorinfo)>
 
 #### Implementations
 ##### `new`

@@ -1,47 +1,47 @@
 <Group width=100% height=100%>
     <Group x=50% y=40px width=86% height=86px anchor_x=50%>
-        <Text class=title x=0px y=0px width=100% height=40px text="Photo Picker"/>
-        <Text class=subtitle x=0px y=46px width=100% height=34px text="Select images from the library or request the camera source."/>
+        <Text class="title" x=0px y=0px width=100% height=40px text="Photo Picker"/>
+        <Text class="subtitle" x=0px y=46px width=100% height=34px text="Select images from the library or request the camera source."/>
     </Group>
 
     <PhotoPicker x=50% y=148px width=86% height=54px anchor_x=50% source=PhotoPickerSource::Library allow_multiple=true accept="image/*" include_bytes=true max_bytes_per_photo=26214400 @photo_picker_change=self.handle_picker_change>
-        <Text class=button_label x=0px y=0px width=100% height=100% text="Choose Photos"/>
-        <Rectangle class=primary_button width=100% height=100%/>
+        <Text class="button_label" x=0px y=0px width=100% height=100% text="Choose Photos"/>
+        <Rectangle class="primary_button" width=100% height=100%/>
     </PhotoPicker>
 
     <PhotoPicker x=50% y=214px width=86% height=50px anchor_x=50% source=PhotoPickerSource::Camera allow_multiple=false accept="image/*" include_bytes=true max_bytes_per_photo=26214400 @photo_picker_change=self.handle_picker_change>
-        <Text class=button_label x=0px y=0px width=100% height=100% text="Open Camera"/>
-        <Rectangle class=secondary_button width=100% height=100%/>
+        <Text class="button_label" x=0px y=0px width=100% height=100% text="Open Camera"/>
+        <Rectangle class="secondary_button" width=100% height=100%/>
     </PhotoPicker>
 
-    <Text class=status x=50% y=286px width=86% height=28px anchor_x=50% text={self.status_text}/>
-    <Text class=detail x=50% y=318px width=86% height=24px anchor_x=50% text={self.detail_text}/>
+    <Text class="status" x=50% y=286px width=86% height=28px anchor_x=50% text={self.status_text}/>
+    <Text class="detail" x=50% y=318px width=86% height=24px anchor_x=50% text={self.detail_text}/>
 
     <Group x=50% y=362px width=86% height={100% - 384px} anchor_x=50%>
         for photo in self.photos key photo.id {
             <Group x=0px y={(photo.y)px} width=100% height=102px>
-                <Text class=photo_name x=112px y=16px width={100% - 126px} height=22px text={photo.name}/>
-                <Text class=photo_meta x=112px y=44px width={100% - 126px} height=22px text={photo.metadata}/>
-                <Text class=photo_source x=112px y=70px width={100% - 126px} height=20px text={photo.source}/>
+                <Text class="photo_name" x=112px y=16px width={100% - 126px} height=22px text={photo.name}/>
+                <Text class="photo_meta" x=112px y=44px width={100% - 126px} height=22px text={photo.metadata}/>
+                <Text class="photo_source" x=112px y=70px width={100% - 126px} height=20px text={photo.source}/>
 
                 if photo.has_preview {
                     <NativeImage x=10px y=10px width=82px height=82px url={photo.handle} fit=ImageFit::Fill/>
                 } else {
-                    <Text class=placeholder_label x=10px y=10px width=82px height=82px text="no preview"/>
+                    <Text class="placeholder_label" x=10px y=10px width=82px height=82px text="no preview"/>
                 }
 
-                <Rectangle class=preview_frame x=10px y=10px width=82px height=82px/>
-                <Rectangle class=photo_row width=100% height=100%/>
+                <Rectangle class="preview_frame" x=10px y=10px width=82px height=82px/>
+                <Rectangle class="photo_row" width=100% height=100%/>
             </Group>
         }
 
         if self.photo_count == 0 {
-            <Text class=empty_state x=0px y=36px width=100% height=44px text="Selected photos will appear here."/>
-            <Rectangle class=empty_panel width=100% height=118px/>
+            <Text class="empty_state" x=0px y=36px width=100% height=44px text="Selected photos will appear here."/>
+            <Rectangle class="empty_panel" width=100% height=118px/>
         }
     </Group>
 
-    <Rectangle class=background width=100% height=100%/>
+    <Rectangle class="background" width=100% height=100%/>
 </Group>
 
 @settings {

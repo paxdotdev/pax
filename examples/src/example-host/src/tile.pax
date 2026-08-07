@@ -1,6 +1,6 @@
 <Group width=100% height=100%>
-    <Text class=tile_label x=22px y=24px width={100% - 44px} height=28px text={self.label} selectable=false />
-    <Text class=tile_detail x=22px y={100% - 42px} width={100% - 44px} height=18px text={self.detail} selectable=false />
+    <Text class="tile_label" x=22px y=24px width={100% - 44px} height=28px text={self.label} selectable=false />
+    <Text class="tile_detail" x=22px y={100% - 42px} width={100% - 44px} height=18px text={self.detail} selectable=false />
     <Rectangle
         x=3px
         y=3px

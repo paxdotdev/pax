@@ -1,32 +1,32 @@
 <Group height=220px>
-    <Text class=panel_title x=26px y=18px width={100% - 260px} height=28px text={"Duplicate explicit indices: slot(" + self.a + "), slot(" + self.b + ")"} selectable=false />
-    <Text class=panel_caption x=26px y=60px width={100% - 52px} height=22px text="If both explicit slots ask for the same child, the first site wins and the second stays empty." selectable=false />
+    <Text class="panel_title" x=26px y=18px width={100% - 260px} height=28px text={"Duplicate explicit indices: slot(" + self.a + "), slot(" + self.b + ")"} selectable=false />
+    <Text class="panel_caption" x=26px y=60px width={100% - 52px} height=22px text="If both explicit slots ask for the same child, the first site wins and the second stays empty." selectable=false />
 
-    <Text class=bucket_label x=28px y=100px width=72px height=18px text={"slot(" + self.a + ")"} selectable=false />
+    <Text class="bucket_label" x=28px y=100px width=72px height=18px text={"slot(" + self.a + ")"} selectable=false />
     <Group x=28px y=120px width=72px height=58px>
         slot(self.a)
     </Group>
 
-    <Text class=bucket_label x=118px y=100px width=72px height=18px text={"slot(" + self.b + ")"} selectable=false />
+    <Text class="bucket_label" x=118px y=100px width=72px height=18px text={"slot(" + self.b + ")"} selectable=false />
     if self.b == self.a {
-        <Rectangle class=empty_bucket_bg x=118px y=120px width=72px height=58px />
+        <Rectangle class="empty_bucket_bg" x=118px y=120px width=72px height=58px />
     }
     <Group x=118px y=120px width=72px height=58px>
         slot(self.b)
     </Group>
-    <Text class=empty_hint x=124px y=136px width=60px height=24px text={self.b == self.a ? "empty on duplicate" : ""} selectable=false />
+    <Text class="empty_hint" x=124px y=136px width=60px height=24px text={self.b == self.a ? "empty on duplicate" : ""} selectable=false />
 
-    <Text class=bucket_label x=208px y=100px width=72px height=18px text="slot()" selectable=false />
+    <Text class="bucket_label" x=208px y=100px width=72px height=18px text="slot()" selectable=false />
     <Group x=208px y=120px width=72px height=58px>
         slot()
     </Group>
 
-    <Rectangle class=bucket_bg x=28px y=120px width=72px height=58px />
+    <Rectangle class="bucket_bg" x=28px y=120px width=72px height=58px />
     if self.b != self.a {
-        <Rectangle class=bucket_bg x=118px y=120px width=72px height=58px />
+        <Rectangle class="bucket_bg" x=118px y=120px width=72px height=58px />
     }
-    <Rectangle class=bucket_bg x=208px y=120px width=72px height=58px />
-    <Rectangle class=panel_bg />
+    <Rectangle class="bucket_bg" x=208px y=120px width=72px height=58px />
+    <Rectangle class="panel_bg" />
 </Group>
 
 @settings {

@@ -20,8 +20,7 @@
     </ImportSettings>
 
     <Group x=50% y=50% width=88% height=88% anchor=50%>
-        <Text
-            class=hero_kicker
+        <Text class="hero_kicker"
             x=0px
             y=0px
             width=100%
@@ -29,8 +28,7 @@
             text="IMPORTSETTINGS // CONDITIONAL THEME STACK"
         />
 
-        <Text
-            class=hero_title
+        <Text class="hero_title"
             x=0px
             y=40px
             width=84%
@@ -38,8 +36,7 @@
             text="Runtime theme providers can attach and detach like ordinary component instances."
         />
 
-        <Text
-            class=body_copy
+        <Text class="body_copy"
             x=0px
             y=168px
             width=78%
@@ -48,8 +45,7 @@
         />
 
         <Group x=0px y=236px width=360px height={100% - 236px}>
-            <Text
-                class=section_title
+            <Text class="section_title"
                 x=24px
                 y=30px
                 width={100% - 48px}
@@ -57,8 +53,7 @@
                 text="Theme Imports"
             />
 
-            <Text
-                class=section_copy
+            <Text class="section_copy"
                 x=24px
                 y=68px
                 width={100% - 48px}
@@ -67,9 +62,8 @@
             />
 
             <Group x=24px y=128px width={100% - 48px} height=124px>
-                <Text class=control_label x=18px y=18px width={100% - 36px} height=18px text="Color Mode" />
-                <RadioList
-                    class=theme_radio
+                <Text class="control_label" x=18px y=18px width={100% - 36px} height=18px text="Color Mode" />
+                <RadioList class="theme_radio"
                     x=18px
                     y=46px
                     width={100% - 36px}
@@ -77,14 +71,13 @@
                     selected_id=bind:color_mode
                     options=["Light", "Dark"]
                 />
-                <Rectangle class=control_card_shadow x=6px y=8px width=100% height=100% />
-                <Rectangle class=control_card_surface x=0px y=0px width=100% height=100% />
+                <Rectangle class="control_card_shadow" x=6px y=8px width=100% height=100% />
+                <Rectangle class="control_card_surface" x=0px y=0px width=100% height=100% />
             </Group>
 
             <Group x=24px y=268px width={100% - 48px} height=124px>
-                <Text class=control_label x=18px y=18px width={100% - 36px} height=18px text="Typography" />
-                <RadioList
-                    class=theme_radio
+                <Text class="control_label" x=18px y=18px width={100% - 36px} height=18px text="Typography" />
+                <RadioList class="theme_radio"
                     x=18px
                     y=46px
                     width={100% - 36px}
@@ -92,14 +85,13 @@
                     selected_id=bind:typography_mode
                     options=["Sans", "Serif"]
                 />
-                <Rectangle class=control_card_shadow x=6px y=8px width=100% height=100% />
-                <Rectangle class=control_card_surface x=0px y=0px width=100% height=100% />
+                <Rectangle class="control_card_shadow" x=6px y=8px width=100% height=100% />
+                <Rectangle class="control_card_surface" x=0px y=0px width=100% height=100% />
             </Group>
 
             <Group x=24px y=408px width={100% - 48px} height=124px>
-                <Text class=control_label x=18px y=18px width={100% - 36px} height=18px text="Corners" />
-                <RadioList
-                    class=theme_radio
+                <Text class="control_label" x=18px y=18px width={100% - 36px} height=18px text="Corners" />
+                <RadioList class="theme_radio"
                     x=18px
                     y=46px
                     width={100% - 36px}
@@ -107,17 +99,22 @@
                     selected_id=bind:corner_mode
                     options=["Rounded", "Squared"]
                 />
-                <Rectangle class=control_card_shadow x=6px y=8px width=100% height=100% />
-                <Rectangle class=control_card_surface x=0px y=0px width=100% height=100% />
+                <Rectangle class="control_card_shadow" x=6px y=8px width=100% height=100% />
+                <Rectangle class="control_card_surface" x=0px y=0px width=100% height=100% />
             </Group>
 
-            <Rectangle class=panel_shadow x=12px y=14px width=100% height=100% />
-            <Rectangle class=panel_surface x=0px y=0px width=100% height=100% />
+            <Rectangle class="panel_shadow" x=12px y=14px width=100% height=100% />
+            <Rectangle
+                class={self.color_mode == 0 ? "panel_surface" : ["panel_surface", "dark_badge"]}
+                x=0px
+                y=0px
+                width=100%
+                height=100%
+            />
         </Group>
 
         <Group x=420px y=236px width={100% - 420px} height={100% - 236px}>
-            <Scroller
-                class=preview_scroller
+            <Scroller class="preview_scroller"
                 x=40px
                 y=38px
                 width={100% - 80px}
@@ -127,8 +124,7 @@
             >
                 <Group width=100% height=732px>
                     <Group x=28px y=26px width={100% - 72px} height={100% - 52px}>
-                        <Text
-                            class=section_title
+                        <Text class="section_title"
                             x=0px
                             y=0px
                             width=100%
@@ -136,8 +132,7 @@
                             text="Preview Surface"
                         />
 
-                        <Text
-                            class=section_copy
+                        <Text class="section_copy"
                             x=0px
                             y=42px
                             width=100%
@@ -146,28 +141,31 @@
                         />
 
                         <Group x=0px y=106px width=184px height=36px>
-                            <Text
-                                class=preview_badge_text
+                            <Text class="preview_badge_text"
                                 x=16px
                                 y=8px
                                 width=152px
                                 height=20px
                                 text="ACTIVE THEME"
                             />
-                            <Rectangle class=preview_badge x=0px y=0px width=100% height=100% />
+                            <Rectangle
+                                class={self.color_mode == 0 ? "preview_badge" : ["preview_badge", "dark_badge"]}
+                                x=0px
+                                y=0px
+                                width=100%
+                                height=100%
+                            />
                         </Group>
 
-                        <Text
-                            class=preview_title
+                        <Text class="preview_title"
                             x=0px
                             y=164px
                             width=100%
                             height=92px
-                            text="Selector classes stay on the nodes; only the imported providers swap."
+                            text="Selector classes and imported providers both update live."
                         />
 
-                        <Text
-                            class=preview_body
+                        <Text class="preview_body"
                             x=0px
                             y=280px
                             width=100%
@@ -175,8 +173,7 @@
                             text="This example keeps the preview in the root template so the theme axes apply through class selectors rather than bespoke component wiring."
                         />
 
-                        <Text
-                            class=preview_stat_label
+                        <Text class="preview_stat_label"
                             x=0px
                             y=368px
                             width=180px
@@ -184,8 +181,7 @@
                             text="MODE STACK"
                         />
 
-                        <Text
-                            class=preview_stat_value
+                        <Text class="preview_stat_value"
                             x=0px
                             y=394px
                             width=100%
@@ -193,8 +189,7 @@
                             text="Light or Dark + Sans or Serif + Rounded or Squared"
                         />
 
-                        <Text
-                            class=preview_stat_label
+                        <Text class="preview_stat_label"
                             x=0px
                             y=454px
                             width=200px
@@ -202,8 +197,7 @@
                             text="SURFACE PALETTE"
                         />
 
-                        <Text
-                            class=section_copy
+                        <Text class="section_copy"
                             x=0px
                             y=480px
                             width=100%
@@ -221,19 +215,17 @@
                             sizes=[None, None]
                         >
                             <Group width=100% height=100%>
-                                <Frame class=preview_chip_frame x=0px y=0px width=100% height=56px>
-                                    <Text
-                                        class=preview_chip_text
+                                <Frame class="preview_chip_frame" x=0px y=0px width=100% height=56px>
+                                    <Text class="preview_chip_text"
                                         x=18px
                                         y=16px
                                         width={100% - 36px}
                                         height=24px
                                         text="Primary Surface"
                                     />
-                                    <Rectangle class=preview_chip_primary x=0px y=0px width=100% height=100% />
+                                    <Rectangle class="preview_chip_primary" x=0px y=0px width=100% height=100% />
                                 </Frame>
-                                <Text
-                                    class=section_copy
+                                <Text class="section_copy"
                                     x=0px
                                     y=70px
                                     width=100%
@@ -243,19 +235,17 @@
                             </Group>
 
                             <Group width=100% height=100%>
-                                <Frame class=preview_chip_frame x=0px y=0px width=100% height=56px>
-                                    <Text
-                                        class=preview_chip_text
+                                <Frame class="preview_chip_frame" x=0px y=0px width=100% height=56px>
+                                    <Text class="preview_chip_text"
                                         x=18px
                                         y=16px
                                         width={100% - 36px}
                                         height=24px
                                         text="Secondary Surface"
                                     />
-                                    <Rectangle class=preview_chip_secondary x=0px y=0px width=100% height=100% />
+                                    <Rectangle class="preview_chip_secondary" x=0px y=0px width=100% height=100% />
                                 </Frame>
-                                <Text
-                                    class=section_copy
+                                <Text class="section_copy"
                                     x=0px
                                     y=70px
                                     width=100%
@@ -266,16 +256,16 @@
                         </Stacker>
                     </Group>
 
-                    <Rectangle class=preview_card_surface x=0px y=0px width=100% height=100% />
+                    <Rectangle class="preview_card_surface" x=0px y=0px width=100% height=100% />
                 </Group>
             </Scroller>
 
-            <Rectangle class=panel_shadow x=12px y=14px width=100% height=100% />
-            <Rectangle class=panel_surface x=0px y=0px width=100% height=100% />
+            <Rectangle class="panel_shadow" x=12px y=14px width=100% height=100% />
+            <Rectangle class="panel_surface" x=0px y=0px width=100% height=100% />
         </Group>
     </Group>
 
-    <Rectangle class=scene_backdrop width=100% height=100% />
+    <Rectangle class="scene_backdrop" width=100% height=100% />
 </Group>
 
 @settings {

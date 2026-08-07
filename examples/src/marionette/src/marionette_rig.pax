@@ -1,9 +1,9 @@
 <Group x=50% y=18px width=220px height=70px anchor_x=50%>
-    <Rectangle class=controller_bar x=50% y=6px width=152px height=12px anchor_x=50% />
-    <Ellipse class=controller_cap x=42px y=6px width=11px height=11px />
-    <Ellipse class=controller_cap x=167px y=6px width=11px height=11px />
-    <Rectangle class=controller_cross x=50% y=28px width=86px height=8px anchor_x=50% rotate=14deg />
-    <Rectangle class=controller_cross x=50% y=31px width=100px height=8px anchor_x=50% rotate=-13deg />
+    <Rectangle class="controller_bar" x=50% y=6px width=152px height=12px anchor_x=50% />
+    <Ellipse class="controller_cap" x=42px y=6px width=11px height=11px />
+    <Ellipse class="controller_cap" x=167px y=6px width=11px height=11px />
+    <Rectangle class="controller_cross" x=50% y=28px width=86px height=8px anchor_x=50% rotate=14deg />
+    <Rectangle class="controller_cross" x=50% y=31px width=100px height=8px anchor_x=50% rotate=-13deg />
 </Group>
 
 <Group
@@ -14,11 +14,11 @@
     anchor=[50%, 0%]
     rotate={(self.torso_rotate)deg}
 >
-    <Rectangle class=string_line x=108px y=-20px width=2px height=108px />
-    <Rectangle class=string_line x=52px y=-8px width=2px height=138px rotate=6deg />
-    <Rectangle class=string_line x=164px y=-8px width=2px height=138px rotate=-6deg />
-    <Rectangle class=string_line x=78px y=84px width=2px height=152px rotate=10deg />
-    <Rectangle class=string_line x=140px y=84px width=2px height=152px rotate=-10deg />
+    <Rectangle class="string_line" x=108px y=-20px width=2px height=108px />
+    <Rectangle class="string_line" x=52px y=-8px width=2px height=138px rotate=6deg />
+    <Rectangle class="string_line" x=164px y=-8px width=2px height=138px rotate=-6deg />
+    <Rectangle class="string_line" x=78px y=84px width=2px height=152px rotate=10deg />
+    <Rectangle class="string_line" x=140px y=84px width=2px height=152px rotate=-10deg />
 
     <Group
         x=110px
@@ -28,35 +28,35 @@
         anchor=[50%, 100%]
         rotate={(self.head_rotate)deg}
     >
-        <Ellipse class=head_shape x=50% y=40px width=76px height=84px anchor=50%/>
-        <Path class=hair_shape x=13px y=7px width=62px height=28px />
-        <Path class=brow_mark x=22px y=35px width=14px height=7px />
-        <Path class=brow_mark x=52px y=35px width=14px height=7px />
-        <Ellipse class=eye_white x=25px y=39px width=9px height=12px />
-        <Ellipse class=eye_white x=54px y=39px width=9px height=12px />
-        <Ellipse class=eye_pupil x=28px y=42px width=4px height=6px />
-        <Ellipse class=eye_pupil x=57px y=42px width=4px height=6px />
-        <Ellipse class=head_blush x=20px y=57px width=12px height=8px />
-        <Ellipse class=head_blush x=56px y=57px width=12px height=8px />
-        <Path class=nose_mark x=40px y=52px width=8px height=9px />
-        <Path class=smile_mark x=33px y=66px width=20px height=9px />
-        <Rectangle class=neck_piece x=40px y=70px width=8px height=16px />
+        <Ellipse class="head_shape" x=50% y=40px width=76px height=84px anchor=50%/>
+        <Path class="hair_shape" x=13px y=7px width=62px height=28px />
+        <Path class="brow_mark" x=22px y=35px width=14px height=7px />
+        <Path class="brow_mark" x=52px y=35px width=14px height=7px />
+        <Ellipse class="eye_white" x=25px y=39px width=9px height=12px />
+        <Ellipse class="eye_white" x=54px y=39px width=9px height=12px />
+        <Ellipse class="eye_pupil" x=28px y=42px width=4px height=6px />
+        <Ellipse class="eye_pupil" x=57px y=42px width=4px height=6px />
+        <Ellipse class="head_blush" x=20px y=57px width=12px height=8px />
+        <Ellipse class="head_blush" x=56px y=57px width=12px height=8px />
+        <Path class="nose_mark" x=40px y=52px width=8px height=9px />
+        <Path class="smile_mark" x=33px y=66px width=20px height=9px />
+        <Rectangle class="neck_piece" x=40px y=70px width=8px height=16px />
     </Group>
 
-    <Path class=collar_piece x=72px y=114px width=76px height=18px />
-    <Rectangle class=throat_piece x=100px y=104px width=20px height=24px />
+    <Path class="collar_piece" x=72px y=114px width=76px height=18px />
+    <Rectangle class="throat_piece" x=100px y=104px width=20px height=24px />
 
-    <Ellipse class=joint_pin x=42px y=136px width=18px height=18px />
-    <Ellipse class=joint_pin x=160px y=136px width=18px height=18px />
-    <Ellipse class=joint_pin x=88px y=246px width=18px height=18px />
-    <Ellipse class=joint_pin x=114px y=246px width=18px height=18px />
+    <Ellipse class="joint_pin" x=42px y=136px width=18px height=18px />
+    <Ellipse class="joint_pin" x=160px y=136px width=18px height=18px />
+    <Ellipse class="joint_pin" x=88px y=246px width=18px height=18px />
+    <Ellipse class="joint_pin" x=114px y=246px width=18px height=18px />
 
-    <Ellipse class=shoulder_cap x=30px y=122px width=36px height=28px />
-    <Ellipse class=shoulder_cap x=154px y=122px width=36px height=28px />
-    <Rectangle class=torso_piece x=54px y=128px width=112px height=104px />
-    <Path class=bodice_panel x=82px y=138px width=56px height=68px />
-    <Rectangle class=waist_piece x=64px y=226px width=92px height=22px />
-    <Path class=coat_tail x=42px y=238px width=136px height=72px />
+    <Ellipse class="shoulder_cap" x=30px y=122px width=36px height=28px />
+    <Ellipse class="shoulder_cap" x=154px y=122px width=36px height=28px />
+    <Rectangle class="torso_piece" x=54px y=128px width=112px height=104px />
+    <Path class="bodice_panel" x=82px y=138px width=56px height=68px />
+    <Rectangle class="waist_piece" x=64px y=226px width=92px height=22px />
+    <Path class="coat_tail" x=42px y=238px width=136px height=72px />
 
     <Group
         x=48px
@@ -66,9 +66,9 @@
         anchor=[50%, 0%]
         rotate={(self.left_upper_arm_angle)deg}
     >
-        <Ellipse class=joint_pin x=50% y=0px width=16px height=16px anchor=50%/>
-        <Rectangle class=limb_segment x=50% y=8px width=26px height=70px anchor_x=50% />
-        <Ellipse class=cuff_piece x=50% y=72px width=20px height=12px anchor_x=50% />
+        <Ellipse class="joint_pin" x=50% y=0px width=16px height=16px anchor=50%/>
+        <Rectangle class="limb_segment" x=50% y=8px width=26px height=70px anchor_x=50% />
+        <Ellipse class="cuff_piece" x=50% y=72px width=20px height=12px anchor_x=50% />
 
         <Group
             x=50%
@@ -78,9 +78,9 @@
             anchor=[50%, 0%]
             rotate={(self.left_forearm_angle)deg}
         >
-            <Ellipse class=joint_pin x=50% y=0px width=14px height=14px anchor=50%/>
-            <Rectangle class=limb_segment_alt x=50% y=8px width=22px height=58px anchor_x=50% />
-            <Ellipse class=cuff_piece x=50% y=60px width=18px height=10px anchor_x=50% />
+            <Ellipse class="joint_pin" x=50% y=0px width=14px height=14px anchor=50%/>
+            <Rectangle class="limb_segment_alt" x=50% y=8px width=22px height=58px anchor_x=50% />
+            <Ellipse class="cuff_piece" x=50% y=60px width=18px height=10px anchor_x=50% />
 
             <Group
                 x=50%
@@ -90,8 +90,8 @@
                 anchor=[50%, 0%]
                 rotate={(self.left_hand_angle)deg}
             >
-                <Ellipse class=joint_pin x=50% y=0px width=12px height=12px anchor=50%/>
-                <Rectangle class=hand_piece x=50% y=6px width=22px height=18px anchor_x=50% />
+                <Ellipse class="joint_pin" x=50% y=0px width=12px height=12px anchor=50%/>
+                <Rectangle class="hand_piece" x=50% y=6px width=22px height=18px anchor_x=50% />
             </Group>
         </Group>
     </Group>
@@ -104,9 +104,9 @@
         anchor=[50%, 0%]
         rotate={(self.right_upper_arm_angle)deg}
     >
-        <Ellipse class=joint_pin x=50% y=0px width=16px height=16px anchor=50%/>
-        <Rectangle class=limb_segment x=50% y=8px width=26px height=70px anchor_x=50% />
-        <Ellipse class=cuff_piece x=50% y=72px width=20px height=12px anchor_x=50% />
+        <Ellipse class="joint_pin" x=50% y=0px width=16px height=16px anchor=50%/>
+        <Rectangle class="limb_segment" x=50% y=8px width=26px height=70px anchor_x=50% />
+        <Ellipse class="cuff_piece" x=50% y=72px width=20px height=12px anchor_x=50% />
 
         <Group
             x=50%
@@ -116,9 +116,9 @@
             anchor=[50%, 0%]
             rotate={(self.right_forearm_angle)deg}
         >
-            <Ellipse class=joint_pin x=50% y=0px width=14px height=14px anchor=50%/>
-            <Rectangle class=limb_segment_alt x=50% y=8px width=22px height=58px anchor_x=50% />
-            <Ellipse class=cuff_piece x=50% y=60px width=18px height=10px anchor_x=50% />
+            <Ellipse class="joint_pin" x=50% y=0px width=14px height=14px anchor=50%/>
+            <Rectangle class="limb_segment_alt" x=50% y=8px width=22px height=58px anchor_x=50% />
+            <Ellipse class="cuff_piece" x=50% y=60px width=18px height=10px anchor_x=50% />
 
             <Group
                 x=50%
@@ -128,8 +128,8 @@
                 anchor=[50%, 0%]
                 rotate={(self.right_hand_angle)deg}
             >
-                <Ellipse class=joint_pin x=50% y=0px width=12px height=12px anchor=50%/>
-                <Rectangle class=hand_piece x=50% y=6px width=22px height=18px anchor_x=50% />
+                <Ellipse class="joint_pin" x=50% y=0px width=12px height=12px anchor=50%/>
+                <Rectangle class="hand_piece" x=50% y=6px width=22px height=18px anchor_x=50% />
             </Group>
         </Group>
     </Group>
@@ -142,9 +142,9 @@
         anchor=[50%, 0%]
         rotate={(self.left_thigh_angle)deg}
     >
-        <Ellipse class=joint_pin x=50% y=0px width=16px height=16px anchor=50%/>
-        <Rectangle class=leg_segment x=50% y=8px width=28px height=88px anchor_x=50% />
-        <Ellipse class=stocking_band x=50% y=88px width=24px height=10px anchor_x=50% />
+        <Ellipse class="joint_pin" x=50% y=0px width=16px height=16px anchor=50%/>
+        <Rectangle class="leg_segment" x=50% y=8px width=28px height=88px anchor_x=50% />
+        <Ellipse class="stocking_band" x=50% y=88px width=24px height=10px anchor_x=50% />
 
         <Group
             x=50%
@@ -154,9 +154,9 @@
             anchor=[50%, 0%]
             rotate={(self.left_shin_angle)deg}
         >
-            <Ellipse class=joint_pin x=50% y=0px width=14px height=14px anchor=50%/>
-            <Rectangle class=leg_segment_alt x=50% y=6px width=24px height=74px anchor_x=50% />
-            <Ellipse class=stocking_band x=50% y=76px width=22px height=10px anchor_x=50% />
+            <Ellipse class="joint_pin" x=50% y=0px width=14px height=14px anchor=50%/>
+            <Rectangle class="leg_segment_alt" x=50% y=6px width=24px height=74px anchor_x=50% />
+            <Ellipse class="stocking_band" x=50% y=76px width=22px height=10px anchor_x=50% />
 
             <Group
                 x=50%
@@ -166,8 +166,8 @@
                 anchor=[50%, 0%]
                 rotate={(self.left_foot_angle)deg}
             >
-                <Ellipse class=joint_pin x=50% y=0px width=12px height=12px anchor=50%/>
-                <Rectangle class=shoe_piece x=6px y=6px width=42px height=18px />
+                <Ellipse class="joint_pin" x=50% y=0px width=12px height=12px anchor=50%/>
+                <Rectangle class="shoe_piece" x=6px y=6px width=42px height=18px />
             </Group>
         </Group>
     </Group>
@@ -180,9 +180,9 @@
         anchor=[50%, 0%]
         rotate={(self.right_thigh_angle)deg}
     >
-        <Ellipse class=joint_pin x=50% y=0px width=16px height=16px anchor=50%/>
-        <Rectangle class=leg_segment x=50% y=8px width=28px height=88px anchor_x=50% />
-        <Ellipse class=stocking_band x=50% y=88px width=24px height=10px anchor_x=50% />
+        <Ellipse class="joint_pin" x=50% y=0px width=16px height=16px anchor=50%/>
+        <Rectangle class="leg_segment" x=50% y=8px width=28px height=88px anchor_x=50% />
+        <Ellipse class="stocking_band" x=50% y=88px width=24px height=10px anchor_x=50% />
 
         <Group
             x=50%
@@ -192,9 +192,9 @@
             anchor=[50%, 0%]
             rotate={(self.right_shin_angle)deg}
         >
-            <Ellipse class=joint_pin x=50% y=0px width=14px height=14px anchor=50%/>
-            <Rectangle class=leg_segment_alt x=50% y=6px width=24px height=74px anchor_x=50% />
-            <Ellipse class=stocking_band x=50% y=76px width=22px height=10px anchor_x=50% />
+            <Ellipse class="joint_pin" x=50% y=0px width=14px height=14px anchor=50%/>
+            <Rectangle class="leg_segment_alt" x=50% y=6px width=24px height=74px anchor_x=50% />
+            <Ellipse class="stocking_band" x=50% y=76px width=22px height=10px anchor_x=50% />
 
             <Group
                 x=50%
@@ -204,8 +204,8 @@
                 anchor=[50%, 0%]
                 rotate={(self.right_foot_angle)deg}
             >
-                <Ellipse class=joint_pin x=50% y=0px width=12px height=12px anchor=50%/>
-                <Rectangle class=shoe_piece x=6px y=6px width=42px height=18px />
+                <Ellipse class="joint_pin" x=50% y=0px width=12px height=12px anchor=50%/>
+                <Rectangle class="shoe_piece" x=6px y=6px width=42px height=18px />
             </Group>
         </Group>
     </Group>

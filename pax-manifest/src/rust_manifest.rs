@@ -153,11 +153,11 @@ impl RustManifestWriter {
 
     fn template_node_selector_info(&self, info: &crate::TemplateNodeSelectorInfo) -> String {
         format!(
-            "{mp}::TemplateNodeSelectorInfo {{ source_location: {source_location}, id: {id}, classes: {classes} }}",
+            "{mp}::TemplateNodeSelectorInfo {{ source_location: {source_location}, id: {id}, class_binding: {class_binding} }}",
             mp = self.manifest_path,
             source_location = self.option(&info.source_location, |value| self.location_info(value)),
             id = self.option(&info.id, |value| self.token(value)),
-            classes = self.vec(&info.classes, |token| self.token(token)),
+            class_binding = self.option(&info.class_binding, |value| self.value_definition(value)),
         )
     }
 

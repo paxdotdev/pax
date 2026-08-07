@@ -9,14 +9,12 @@
                         direction=StackerDirection::Vertical
                         gutter=18px
                     >
-                        <Text class=eyebrow width=100% text="RouteCard example" />
-                        <Text
-                            class=mobile_hero
+                        <Text class="eyebrow" width=100% text="RouteCard example" />
+                        <Text class="mobile_hero"
                             width=100%
                             text="Specialized route tags can own focused route behavior."
                         />
-                        <Text
-                            class=copy
+                        <Text class="copy"
                             width=100%
                             text="Open the cards below. RouteCard slides over the retained route, while RouteModal shows a transient sheet."
                         />
@@ -29,20 +27,20 @@
                             <Link width=100% autosize=true url="/contact/atlas">
                                 <Group width=100% autosize=true autosize_x=false autosize_y=true padding_x=22px padding_y=20px>
                                     <Stacker width=100% autosize=true direction=StackerDirection::Vertical gutter=10px>
-                                        <Text class=tile_title width=100% text="Open trailing profile" />
-                                        <Text class=tile_copy width=100% text="RouteCard path /contact/:name enters from the trailing edge." />
+                                        <Text class="tile_title" width=100% text="Open trailing profile" />
+                                        <Text class="tile_copy" width=100% text="RouteCard path /contact/:name enters from the trailing edge." />
                                     </Stacker>
                                 </Group>
-                                <Rectangle layout_role=LayoutRole::Breakout class=home_card width=100% height=100% />
+                                <Rectangle class="home_card" layout_role=LayoutRole::Breakout width=100% height=100% />
                             </Link>
                             <Link width=100% autosize=true url="/tools">
                                 <Group width=100% autosize=true autosize_x=false autosize_y=true padding_x=22px padding_y=20px>
                                     <Stacker width=100% autosize=true direction=StackerDirection::Vertical gutter=10px>
-                                        <Text class=tile_title width=100% text="Open bottom sheet" />
-                                        <Text class=tile_copy width=100% text="RouteModal slides over the retained home route." />
+                                        <Text class="tile_title" width=100% text="Open bottom sheet" />
+                                        <Text class="tile_copy" width=100% text="RouteModal slides over the retained home route." />
                                     </Stacker>
                                 </Group>
-                                <Rectangle layout_role=LayoutRole::Breakout class=home_card width=100% height=100% />
+                                <Rectangle class="home_card" layout_role=LayoutRole::Breakout width=100% height=100% />
                             </Link>
                         </Stacker>
                         <Group width=100% height=8px />
@@ -56,14 +54,12 @@
                         direction=StackerDirection::Vertical
                         gutter=22px
                     >
-                        <Text class=eyebrow width=100% text="RouteCard example" />
-                        <Text
-                            class=hero
+                        <Text class="eyebrow" width=100% text="RouteCard example" />
+                        <Text class="hero"
                             width=100%
                             text="Specialized route tags can provide focused behavior without a generic presentation object."
                         />
-                        <Text
-                            class=copy
+                        <Text class="copy"
                             width=72%
                             text="Open the cards below. RouteCard slides over the retained route, while RouteModal shows a transient sheet."
                         />
@@ -79,20 +75,20 @@
                             <Link width=100% autosize=true url="/contact/atlas">
                                 <Group width=100% autosize=true autosize_x=false autosize_y=true padding_x=24px padding_y=22px>
                                     <Stacker width=100% autosize=true direction=StackerDirection::Vertical gutter=10px>
-                                        <Text class=tile_title width=100% text="Open trailing profile" />
-                                        <Text class=tile_copy width=100% text="RouteCard path /contact/:name enters from the trailing edge." />
+                                        <Text class="tile_title" width=100% text="Open trailing profile" />
+                                        <Text class="tile_copy" width=100% text="RouteCard path /contact/:name enters from the trailing edge." />
                                     </Stacker>
                                 </Group>
-                                <Rectangle layout_role=LayoutRole::Breakout class=home_card width=100% height=100% />
+                                <Rectangle class="home_card" layout_role=LayoutRole::Breakout width=100% height=100% />
                             </Link>
                             <Link width=100% autosize=true url="/tools">
                                 <Group width=100% autosize=true autosize_x=false autosize_y=true padding_x=24px padding_y=22px>
                                     <Stacker width=100% autosize=true direction=StackerDirection::Vertical gutter=10px>
-                                        <Text class=tile_title width=100% text="Open bottom sheet" />
-                                        <Text class=tile_copy width=100% text="RouteModal slides over the retained home route." />
+                                        <Text class="tile_title" width=100% text="Open bottom sheet" />
+                                        <Text class="tile_copy" width=100% text="RouteModal slides over the retained home route." />
                                     </Stacker>
                                 </Group>
-                                <Rectangle layout_role=LayoutRole::Breakout class=home_card width=100% height=100% />
+                                <Rectangle class="home_card" layout_role=LayoutRole::Breakout width=100% height=100% />
                             </Link>
                         </Stacker>
                     </Stacker>
@@ -114,14 +110,13 @@
                             direction=StackerDirection::Vertical
                             gutter=18px
                         >
-                            <Text class=eyebrow width=100% text="Trailing card route" />
+                            <Text class="eyebrow" width=100% text="Trailing card route" />
                             if is_mobile {
-                                <Text class=mobile_card_title width=100% text={"Profile: " + route.params.name} />
+                                <Text class="mobile_card_title" width=100% text={"Profile: " + route.params.name} />
                             } else {
-                                <Text class=card_title width=100% text={"Profile: " + route.params.name} />
+                                <Text class="card_title" width=100% text={"Profile: " + route.params.name} />
                             }
-                        <Text
-                            class=copy
+                        <Text class="copy"
                             width=100%
                             text="This branch uses RouteCard. The component shell owns the edge slide while the previous route stays mounted underneath."
                         />
@@ -133,21 +128,21 @@
                                         direction=StackerDirection::Vertical
                                         gutter=10px
                                     >
-                                        <Text class=label width=100% text="Card configuration" />
-                                        <Text class=copy width=100% text="edge = Trailing" />
-                                        <Text class=copy width=100% text="duration = 18f" />
+                                        <Text class="label" width=100% text="Card configuration" />
+                                        <Text class="copy" width=100% text="edge = Trailing" />
+                                        <Text class="copy" width=100% text="duration = 18f" />
                                     </Stacker>
                                 </Group>
-                                <Rectangle layout_role=LayoutRole::Breakout class=tile width=100% height=100% />
+                                <Rectangle class="tile" layout_role=LayoutRole::Breakout width=100% height=100% />
                             </Group>
                             <Link width=156px height=44px url="/">
-                                <Text class=button_text width=100% height=100% text="Close card" />
-                                <Rectangle class=button width=100% height=100% />
+                                <Text class="button_text" width=100% height=100% text="Close card" />
+                                <Rectangle class="button" width=100% height=100% />
                             </Link>
                             <Group width=100% height=8px />
                         </Stacker>
                     </Scroller>
-                    <Rectangle class=panel width=100% height=100% />
+                    <Rectangle class="panel" width=100% height=100% />
                 </Group>
             </Group>
         </RouteCard>
@@ -182,14 +177,13 @@
                             direction=StackerDirection::Vertical
                             gutter=18px
                         >
-                            <Text class=eyebrow width=100% text="Bottom card route" />
+                            <Text class="eyebrow" width=100% text="Bottom card route" />
                             if is_mobile {
-                                <Text class=mobile_sheet_title width=100% text="Route tools" />
+                                <Text class="mobile_sheet_title" width=100% text="Route tools" />
                             } else {
-                                <Text class=sheet_title width=100% text="Route tools" />
+                                <Text class="sheet_title" width=100% text="Route tools" />
                             }
-                            <Text
-                                class=copy
+                            <Text class="copy"
                                 width=100%
                                 text="RouteModal keeps the previous route mounted while this branch owns its own lifecycle transition."
                             />
@@ -203,29 +197,29 @@
                                     <Group width=100% autosize=true autosize_x=false autosize_y=true>
                                         <Group width=100% autosize=true autosize_x=false autosize_y=true padding_x=20px padding_y=18px>
                                             <Stacker width=100% autosize=true direction=StackerDirection::Vertical gutter=8px>
-                                                <Text class=tile_title width=100% text="Route kind" />
-                                                <Text class=tile_copy width=100% text="RouteModal" />
+                                                <Text class="tile_title" width=100% text="Route kind" />
+                                                <Text class="tile_copy" width=100% text="RouteModal" />
                                             </Stacker>
                                         </Group>
-                                        <Rectangle layout_role=LayoutRole::Breakout class=tile width=100% height=100% />
+                                        <Rectangle class="tile" layout_role=LayoutRole::Breakout width=100% height=100% />
                                     </Group>
                                     <Group width=100% autosize=true autosize_x=false autosize_y=true>
                                         <Group width=100% autosize=true autosize_x=false autosize_y=true padding_x=20px padding_y=18px>
                                             <Stacker width=100% autosize=true direction=StackerDirection::Vertical gutter=8px>
-                                                <Text class=tile_title width=100% text="Inline route" />
-                                                <Text class=tile_copy width=100% text="/tools" />
+                                                <Text class="tile_title" width=100% text="Inline route" />
+                                                <Text class="tile_copy" width=100% text="/tools" />
                                             </Stacker>
                                         </Group>
-                                        <Rectangle layout_role=LayoutRole::Breakout class=tile width=100% height=100% />
+                                        <Rectangle class="tile" layout_role=LayoutRole::Breakout width=100% height=100% />
                                     </Group>
                                     <Group width=100% autosize=true autosize_x=false autosize_y=true>
                                         <Group width=100% autosize=true autosize_x=false autosize_y=true padding_x=20px padding_y=18px>
                                             <Stacker width=100% autosize=true direction=StackerDirection::Vertical gutter=8px>
-                                                <Text class=tile_title width=100% text="Local motion" />
-                                                <Text class=tile_copy width=100% text="@in / @out" />
+                                                <Text class="tile_title" width=100% text="Local motion" />
+                                                <Text class="tile_copy" width=100% text="@in / @out" />
                                             </Stacker>
                                         </Group>
-                                        <Rectangle layout_role=LayoutRole::Breakout class=tile width=100% height=100% />
+                                        <Rectangle class="tile" layout_role=LayoutRole::Breakout width=100% height=100% />
                                     </Group>
                                 </Stacker>
                             } else {
@@ -241,40 +235,40 @@
                                     <Group width=100% autosize=true autosize_x=false autosize_y=true>
                                         <Group width=100% autosize=true autosize_x=false autosize_y=true padding_x=20px padding_y=18px>
                                             <Stacker width=100% autosize=true direction=StackerDirection::Vertical gutter=8px>
-                                                <Text class=tile_title width=100% text="Route kind" />
-                                                <Text class=tile_copy width=100% text="RouteModal" />
+                                                <Text class="tile_title" width=100% text="Route kind" />
+                                                <Text class="tile_copy" width=100% text="RouteModal" />
                                             </Stacker>
                                         </Group>
-                                        <Rectangle layout_role=LayoutRole::Breakout class=tile width=100% height=100% />
+                                        <Rectangle class="tile" layout_role=LayoutRole::Breakout width=100% height=100% />
                                     </Group>
                                     <Group width=100% autosize=true autosize_x=false autosize_y=true>
                                         <Group width=100% autosize=true autosize_x=false autosize_y=true padding_x=20px padding_y=18px>
                                             <Stacker width=100% autosize=true direction=StackerDirection::Vertical gutter=8px>
-                                                <Text class=tile_title width=100% text="Inline route" />
-                                                <Text class=tile_copy width=100% text="/tools" />
+                                                <Text class="tile_title" width=100% text="Inline route" />
+                                                <Text class="tile_copy" width=100% text="/tools" />
                                             </Stacker>
                                         </Group>
-                                        <Rectangle layout_role=LayoutRole::Breakout class=tile width=100% height=100% />
+                                        <Rectangle class="tile" layout_role=LayoutRole::Breakout width=100% height=100% />
                                     </Group>
                                     <Group width=100% autosize=true autosize_x=false autosize_y=true>
                                         <Group width=100% autosize=true autosize_x=false autosize_y=true padding_x=20px padding_y=18px>
                                             <Stacker width=100% autosize=true direction=StackerDirection::Vertical gutter=8px>
-                                                <Text class=tile_title width=100% text="Local motion" />
-                                                <Text class=tile_copy width=100% text="@in / @out" />
+                                                <Text class="tile_title" width=100% text="Local motion" />
+                                                <Text class="tile_copy" width=100% text="@in / @out" />
                                             </Stacker>
                                         </Group>
-                                        <Rectangle layout_role=LayoutRole::Breakout class=tile width=100% height=100% />
+                                        <Rectangle class="tile" layout_role=LayoutRole::Breakout width=100% height=100% />
                                     </Group>
                                 </Stacker>
                             }
                             <Link width=156px height=44px url="/">
-                                <Text class=button_text width=100% height=100% text="Close sheet" />
-                                <Rectangle class=button width=100% height=100% />
+                                <Text class="button_text" width=100% height=100% text="Close sheet" />
+                                <Rectangle class="button" width=100% height=100% />
                             </Link>
                             <Group width=100% height=8px />
                         </Stacker>
                     </Scroller>
-                    <Rectangle class=sheet width=100% height=100% />
+                    <Rectangle class="sheet" width=100% height=100% />
             </Group>
         </RouteModal>
 

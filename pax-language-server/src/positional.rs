@@ -227,7 +227,22 @@ pub fn extract_positional_nodes(
                 if key == "id" {
                     ids.insert(value.to_string());
                 } else if key == "class" {
-                    classes.insert(value.to_string());
+                    let value = value.trim();
+                    if value.starts_with('[') && value.ends_with(']') {
+                        classes.extend(
+                            value[1..value.len() - 1]
+                                .split(',')
+                                .map(str::trim)
+                                .map(|class_name| class_name.trim_matches(['"', '\'', '`']))
+                                .filter(|class_name| !class_name.is_empty())
+                                .map(str::to_string),
+                        );
+                    } else if !value.starts_with('{') {
+                        let class_name = value.trim_matches(['"', '\'', '`']);
+                        if !class_name.is_empty() {
+                            classes.insert(class_name.to_string());
+                        }
+                    }
                 }
                 nodes.push(PositionalNode {
                     start,
@@ -386,4 +401,38 @@ pub fn is_inside_selector_block(nodes: &Vec<PositionalNode>) -> bool {
         }
     }
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::extract_positional_nodes;
+    use pax_language::{parse_pax_str, Rule};
+    use std::collections::HashSet;
+
+    #[test]
+    fn class_index_reads_literal_bindings_and_skips_expressions() {
+        let component = parse_pax_str(
+            Rule::pax_component_definition,
+            r#"
+                <Rectangle class=["card", "elevated"] />
+                <Group class={self.dynamic_classes} />
+                @settings { .selected { opacity: 1 } }
+            "#,
+        )
+        .unwrap();
+        let mut nodes = Vec::new();
+        let mut ids = HashSet::new();
+        let mut classes = HashSet::new();
+
+        extract_positional_nodes(component, &mut nodes, &mut ids, &mut classes);
+
+        assert_eq!(
+            classes,
+            HashSet::from([
+                "card".to_string(),
+                "elevated".to_string(),
+                "selected".to_string(),
+            ])
+        );
+    }
 }

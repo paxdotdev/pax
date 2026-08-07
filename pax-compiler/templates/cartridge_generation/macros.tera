@@ -18,8 +18,9 @@ const {{component.pascal_identifier}}PropertyDescriptors: [{{ engine_import_path
             let mut direct_binding_property: Option<{{ engine_import_path }}::api::Property<{{property.property_type.type_id._type_id}}>> = None;
             for entry in entries {
                 let previous_property = layered_property.clone();
+                let source_stack = entry.source_stack.as_ref().unwrap_or(stack_frame);
                 let stack_with_base = {{ engine_import_path }}::pax_runtime::stack_with_base(
-                    stack_frame,
+                    source_stack,
                     previous_property.clone(),
                 );
                 let uses_local_property_scope = match &entry.value {
@@ -58,7 +59,7 @@ const {{component.pascal_identifier}}PropertyDescriptors: [{{ engine_import_path
                 layered_property = {{ engine_import_path }}::pax_runtime::apply_runtime_settings_condition(
                     "{{property.name}}",
                     entry.condition.as_ref(),
-                    stack_frame,
+                    source_stack,
                     previous_property,
                     candidate_property,
                 );

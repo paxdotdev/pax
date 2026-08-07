@@ -7,7 +7,7 @@ property accepts a `TextStyle` object containing font, size, fill, alignment,
 and underline settings:
 
 ```pax
-<Text text="Hello, Pax" class=heading />
+<Text text="Hello, Pax" class="heading" />
 
 @settings {
     .heading {

@@ -1,12 +1,12 @@
 <Group width=80% height=80% x=50% y=50%>
     <Stacker>
         <Stacker>
-            <Text text="Welcome to the Game of Life" class=h1 x=50%/>
+            <Text class="h1" text="Welcome to the Game of Life" x=50%/>
             <Frame width=300px height=50px x=50%>
                 <Stacker direction=StackerDirection::Horizontal>
-                    <Button label="Start" class=btn @button_click=start/>
-                    <Button label="Stop" class=btn @button_click=stop/>
-                    <Button label="Reset" class=btn @button_click=reset/>
+                    <Button class="btn" label="Start" @button_click=start/>
+                    <Button class="btn" label="Stop" @button_click=stop/>
+                    <Button class="btn" label="Reset" @button_click=reset/>
                 </Stacker>
             </Frame>
             <Frame width=300px height=50px x=50%>

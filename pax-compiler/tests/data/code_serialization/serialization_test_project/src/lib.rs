@@ -4,8 +4,8 @@ use pax_kit::*;
 #[pax]
 #[main]
 #[inlined(
-<Text text={message} class=[centered, small] id=text/>
-<Rectangle class=[centered, small] @click=self.increment fill={rgb(ticks, 75, 150)} corner_radius=[10.00, 4.00]/>
+<Text class=["centered", "small"] text={message} id=text/>
+<Rectangle class=["centered", "small"] @click=self.increment fill={rgb(ticks, 75, 150)} corner_radius=[10.00, 4.00]/>
 <Image source="assets/test.png"/>
 
 @settings {

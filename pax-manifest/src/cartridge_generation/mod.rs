@@ -468,10 +468,7 @@ impl PaxManifest {
         matches!(key, "in" | "out")
     }
 
-    fn timeline_target_matches_node(target: &str, classes: &[String], ids: &[String]) -> bool {
-        if let Some(class) = target.strip_prefix('.') {
-            return classes.iter().any(|candidate| candidate == class);
-        }
+    fn timeline_target_matches_node(target: &str, ids: &[String]) -> bool {
         if let Some(id) = target.strip_prefix('#') {
             return ids.iter().any(|candidate| candidate == id);
         }
@@ -966,7 +963,7 @@ impl PaxManifest {
         None
     }
 
-    fn prepare_timeline_track(
+    pub fn prepare_timeline_track(
         timeline_definition: &TimelineDefinition,
         track: &crate::TimelineTrackDefinition,
     ) -> crate::TimelineTrackDefinition {
@@ -984,7 +981,7 @@ impl PaxManifest {
         track
     }
 
-    fn prepare_transition_track(
+    pub fn prepare_transition_track(
         timeline_definition: &TimelineDefinition,
         track: &crate::TimelineTrackDefinition,
         base_map: &BTreeMap<String, ValueDefinition>,
@@ -1093,8 +1090,6 @@ impl PaxManifest {
         let base_map = map.clone();
         let transition_bindings = Self::transition_bindings_from_settings(component_settings);
         let ids = Self::pull_matched_identifiers_from_inline(inline_settings, "id".to_string());
-        let classes =
-            Self::pull_matched_identifiers_from_inline(inline_settings, "class".to_string());
         if ids.len() > 1 {
             panic!("Specified more than one id inline!");
         }
@@ -1102,7 +1097,7 @@ impl PaxManifest {
         for (timeline_ordinal, timeline_definition) in timelines.iter().enumerate() {
             for timeline_value in timeline_definition.elements.iter() {
                 if let TimelineBlockElement::SelectorBlock(token, value) = timeline_value {
-                    if !Self::timeline_target_matches_node(&token.token_value, &classes, &ids) {
+                    if !Self::timeline_target_matches_node(&token.token_value, &ids) {
                         continue;
                     }
                     let transition_kind =
@@ -1222,11 +1217,19 @@ impl PaxManifest {
             return source_node_id == target_node_id;
         }
         if let Some(class) = target.strip_prefix('.') {
+            if matches!(
+                tnd.selector_info.class_binding,
+                Some(ValueDefinition::Expression(_))
+            ) {
+                // Dynamic membership is resolved by the runtime. Conservatively retain the
+                // transition clock metadata so a class that becomes active can participate.
+                return true;
+            }
             return tnd
                 .selector_info
-                .classes
+                .literal_classes()
                 .iter()
-                .any(|candidate| candidate.token_value == class);
+                .any(|candidate| candidate == class);
         }
         if let Some(id) = target.strip_prefix('#') {
             return tnd
@@ -1433,21 +1436,7 @@ impl PaxManifest {
             ));
         }
 
-        let mut class_settings = Vec::new();
-        for class in &tnd.selector_info.classes {
-            class_settings.extend(Self::pull_settings_with_selector(
-                settings_block,
-                &SelectorExpr::Class(class.token_value.clone()),
-            ));
-        }
-
         for e in type_settings.into_iter() {
-            if let SettingElement::Setting(key, _) = e.clone() {
-                map.insert(key.token_value.clone(), e);
-            }
-        }
-
-        for e in class_settings.into_iter() {
             if let SettingElement::Setting(key, _) = e.clone() {
                 map.insert(key.token_value.clone(), e);
             }

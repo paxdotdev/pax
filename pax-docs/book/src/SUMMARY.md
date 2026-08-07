@@ -112,6 +112,7 @@
     - [pax-manifest](api/internal/pax-manifest/index.md)
       - [cartridge_generation](api/internal/pax-manifest/cartridge_generation.md)
       - [program_ir](api/internal/pax-manifest/program_ir.md)
+      - [selectors](api/internal/pax-manifest/selectors.md)
     - [pax-message](api/internal/pax-message/index.md)
     - [pax-gpu](api/internal/pax-gpu/index.md)
       - [render_backend](api/internal/pax-gpu/render_backend.md)

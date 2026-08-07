@@ -207,12 +207,12 @@ pub struct ExampleSource {
 #[engine_import_path("pax_engine")]
 #[inlined(
     <Group width=100% height=100% @click=self.select_source>
-        <Text class=example_host_tab_label x=50% y=50% width={100% - 16px} height=18px text={source.label} selectable=false clip=true />
+        <Text class="example_host_tab_label" x=50% y=50% width={100% - 16px} height=18px text={source.label} selectable=false clip=true />
         if self.index == self.selected {
-            <Path class=example_host_tab_active width=100% height=100% />
+            <Path class="example_host_tab_active" width=100% height=100% />
         }
         if self.index != self.selected {
-            <Path class=example_host_tab_idle width=100% height=100% />
+            <Path class="example_host_tab_idle" width=100% height=100% />
         }
     </Group>
 

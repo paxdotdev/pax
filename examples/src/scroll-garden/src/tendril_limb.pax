@@ -1,192 +1,192 @@
 <Group width=100% height=100%>
     if self.variant == KaleidoscopeVariant::Crimson {
         if self.shape_index == 0 {
-            <Path class=[tendril_shape_0, tendril_crimson] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_0", "tendril_crimson"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 1 {
-            <Path class=[tendril_shape_1, tendril_crimson] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_1", "tendril_crimson"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 2 {
-            <Path class=[tendril_shape_2, tendril_crimson] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_2", "tendril_crimson"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 3 {
-            <Path class=[tendril_shape_3, tendril_crimson] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_3", "tendril_crimson"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 4 {
-            <Path class=[tendril_shape_4, tendril_crimson] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_4", "tendril_crimson"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 5 {
-            <Path class=[tendril_shape_5, tendril_crimson] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_5", "tendril_crimson"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 6 {
-            <Path class=[tendril_shape_6, tendril_crimson] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_6", "tendril_crimson"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 7 {
-            <Path class=[tendril_shape_7, tendril_crimson] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_7", "tendril_crimson"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 8 {
-            <Path class=[tendril_shape_8, tendril_crimson] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_8", "tendril_crimson"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 9 {
-            <Path class=[tendril_shape_9, tendril_crimson] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_9", "tendril_crimson"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 10 {
-            <Path class=[tendril_shape_10, tendril_crimson] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_10", "tendril_crimson"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 11 {
-            <Path class=[tendril_shape_11, tendril_crimson] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_11", "tendril_crimson"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
     }
     if self.variant == KaleidoscopeVariant::Nocturne {
         if self.shape_index == 0 {
-            <Path class=[tendril_shape_0, tendril_nocturne] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_0", "tendril_nocturne"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 1 {
-            <Path class=[tendril_shape_1, tendril_nocturne] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_1", "tendril_nocturne"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 2 {
-            <Path class=[tendril_shape_2, tendril_nocturne] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_2", "tendril_nocturne"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 3 {
-            <Path class=[tendril_shape_3, tendril_nocturne] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_3", "tendril_nocturne"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 4 {
-            <Path class=[tendril_shape_4, tendril_nocturne] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_4", "tendril_nocturne"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 5 {
-            <Path class=[tendril_shape_5, tendril_nocturne] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_5", "tendril_nocturne"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 6 {
-            <Path class=[tendril_shape_6, tendril_nocturne] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_6", "tendril_nocturne"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 7 {
-            <Path class=[tendril_shape_7, tendril_nocturne] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_7", "tendril_nocturne"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 8 {
-            <Path class=[tendril_shape_8, tendril_nocturne] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_8", "tendril_nocturne"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 9 {
-            <Path class=[tendril_shape_9, tendril_nocturne] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_9", "tendril_nocturne"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 10 {
-            <Path class=[tendril_shape_10, tendril_nocturne] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_10", "tendril_nocturne"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 11 {
-            <Path class=[tendril_shape_11, tendril_nocturne] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_11", "tendril_nocturne"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
     }
     if self.variant == KaleidoscopeVariant::Lagoon {
         if self.shape_index == 0 {
-            <Path class=[tendril_shape_0, tendril_lagoon] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_0", "tendril_lagoon"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 1 {
-            <Path class=[tendril_shape_1, tendril_lagoon] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_1", "tendril_lagoon"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 2 {
-            <Path class=[tendril_shape_2, tendril_lagoon] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_2", "tendril_lagoon"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 3 {
-            <Path class=[tendril_shape_3, tendril_lagoon] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_3", "tendril_lagoon"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 4 {
-            <Path class=[tendril_shape_4, tendril_lagoon] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_4", "tendril_lagoon"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 5 {
-            <Path class=[tendril_shape_5, tendril_lagoon] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_5", "tendril_lagoon"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 6 {
-            <Path class=[tendril_shape_6, tendril_lagoon] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_6", "tendril_lagoon"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 7 {
-            <Path class=[tendril_shape_7, tendril_lagoon] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_7", "tendril_lagoon"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 8 {
-            <Path class=[tendril_shape_8, tendril_lagoon] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_8", "tendril_lagoon"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 9 {
-            <Path class=[tendril_shape_9, tendril_lagoon] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_9", "tendril_lagoon"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 10 {
-            <Path class=[tendril_shape_10, tendril_lagoon] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_10", "tendril_lagoon"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 11 {
-            <Path class=[tendril_shape_11, tendril_lagoon] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_11", "tendril_lagoon"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
     }
     if self.variant == KaleidoscopeVariant::Fern {
         if self.shape_index == 0 {
-            <Path class=[tendril_shape_0, tendril_fern] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_0", "tendril_fern"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 1 {
-            <Path class=[tendril_shape_1, tendril_fern] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_1", "tendril_fern"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 2 {
-            <Path class=[tendril_shape_2, tendril_fern] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_2", "tendril_fern"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 3 {
-            <Path class=[tendril_shape_3, tendril_fern] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_3", "tendril_fern"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 4 {
-            <Path class=[tendril_shape_4, tendril_fern] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_4", "tendril_fern"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 5 {
-            <Path class=[tendril_shape_5, tendril_fern] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_5", "tendril_fern"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 6 {
-            <Path class=[tendril_shape_6, tendril_fern] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_6", "tendril_fern"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 7 {
-            <Path class=[tendril_shape_7, tendril_fern] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_7", "tendril_fern"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 8 {
-            <Path class=[tendril_shape_8, tendril_fern] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_8", "tendril_fern"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 9 {
-            <Path class=[tendril_shape_9, tendril_fern] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_9", "tendril_fern"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 10 {
-            <Path class=[tendril_shape_10, tendril_fern] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_10", "tendril_fern"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 11 {
-            <Path class=[tendril_shape_11, tendril_fern] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_11", "tendril_fern"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
     }
     if self.variant == KaleidoscopeVariant::Violet {
         if self.shape_index == 0 {
-            <Path class=[tendril_shape_0, tendril_violet] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_0", "tendril_violet"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 1 {
-            <Path class=[tendril_shape_1, tendril_violet] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_1", "tendril_violet"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 2 {
-            <Path class=[tendril_shape_2, tendril_violet] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_2", "tendril_violet"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 3 {
-            <Path class=[tendril_shape_3, tendril_violet] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_3", "tendril_violet"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 4 {
-            <Path class=[tendril_shape_4, tendril_violet] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_4", "tendril_violet"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 5 {
-            <Path class=[tendril_shape_5, tendril_violet] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_5", "tendril_violet"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 6 {
-            <Path class=[tendril_shape_6, tendril_violet] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_6", "tendril_violet"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 7 {
-            <Path class=[tendril_shape_7, tendril_violet] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_7", "tendril_violet"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 8 {
-            <Path class=[tendril_shape_8, tendril_violet] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_8", "tendril_violet"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 9 {
-            <Path class=[tendril_shape_9, tendril_violet] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_9", "tendril_violet"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 10 {
-            <Path class=[tendril_shape_10, tendril_violet] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_10", "tendril_violet"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
         if self.shape_index == 11 {
-            <Path class=[tendril_shape_11, tendril_violet] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
+            <Path class=["tendril_shape_11", "tendril_violet"] x=0% y=50% anchor=[0%, 50%] width={(self.segment)px} height={(self.thickness)px} />
         }
     }
 </Group>

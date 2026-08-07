@@ -1602,13 +1602,6 @@ impl ComponentTemplate {
                 let mut indexes_to_remove: Vec<usize> = vec![];
                 for (i, setting) in settings.iter_mut().enumerate() {
                     if let SettingElement::Setting(key, value) = setting {
-                        if &key.token_value == "class" {
-                            if let ValueDefinition::Identifier(value) = value {
-                                if !*classes.get(&format!(".{}", value.name)).unwrap_or(&true) {
-                                    indexes_to_remove.push(i);
-                                }
-                            }
-                        }
                         if &key.token_value == "id" {
                             if let ValueDefinition::Identifier(value) = value {
                                 if !*classes.get(&format!("#{}", value.name)).unwrap_or(&true) {
@@ -1625,21 +1618,45 @@ impl ComponentTemplate {
             } else {
                 node.settings = Some(vec![]);
             }
+
+            // Expression-backed class bindings are intentionally not rewritten by the visual
+            // class editor. Static bindings remain directly editable.
+            if !matches!(
+                node.selector_info.class_binding,
+                Some(ValueDefinition::Expression(_))
+            ) {
+                let mut class_names = node.selector_info.literal_classes();
+                class_names.retain(|name| *classes.get(&format!(".{name}")).unwrap_or(&true));
+                let mut additions = classes
+                    .iter()
+                    .filter_map(|(name, enabled)| {
+                        let name = name.strip_prefix('.')?;
+                        (*enabled && !class_names.iter().any(|existing| existing == name))
+                            .then(|| name.to_string())
+                    })
+                    .collect::<Vec<_>>();
+                additions.sort();
+                class_names.extend(additions);
+                node.selector_info.class_binding = match class_names.as_slice() {
+                    [] => None,
+                    [name] => Some(ValueDefinition::LiteralValue(PaxValue::String(
+                        name.clone(),
+                    ))),
+                    names => Some(ValueDefinition::LiteralValue(PaxValue::Vec(
+                        names.iter().cloned().map(PaxValue::String).collect(),
+                    ))),
+                };
+            }
         }
-        // Add new classes to settings
+        // Add new ids to settings.
         for (k, v) in classes.iter() {
             if let Some(node) = self.nodes.get_mut(id) {
                 if let Some(settings) = &mut node.settings {
-                    if *v {
-                        let is_class = k.starts_with('.');
-                        let key = if is_class { "class" } else { "id" }.to_string();
+                    if *v && k.starts_with('#') {
                         settings.push(SettingElement::Setting(
-                            Token::new_without_location(key),
+                            Token::new_without_location("id".to_string()),
                             ValueDefinition::Identifier(PaxIdentifier {
-                                name: k
-                                    .trim_start_matches('.')
-                                    .trim_start_matches('#')
-                                    .to_string(),
+                                name: k.trim_start_matches('#').to_string(),
                             }),
                         ));
                     }
@@ -1833,10 +1850,22 @@ impl TemplateNodeDefinition {
     }
 
     pub fn normalize_selector_info(&mut self) {
-        self.selector_info = TemplateNodeSelectorInfo::from_inline_settings(
+        let mut normalized = TemplateNodeSelectorInfo::from_inline_settings(
             self.selector_info.source_location.clone(),
             &self.settings,
         );
+        if normalized.class_binding.is_none() {
+            normalized.class_binding = self.selector_info.class_binding.clone();
+        }
+        if let Some(settings) = &mut self.settings {
+            settings.retain(|setting| {
+                !matches!(setting, SettingElement::Setting(token, _) if token.token_value == "class")
+            });
+            if settings.is_empty() {
+                self.settings = None;
+            }
+        }
+        self.selector_info = normalized;
     }
 }
 

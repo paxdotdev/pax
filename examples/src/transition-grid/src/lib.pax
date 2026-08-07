@@ -38,16 +38,16 @@
         direction=StackerDirection::Horizontal
         gutter=12px
     >
-        <Group class=action_chip width=100% height=100% @click=self.handle_insert_top>
-            <Text class=chip_label x=50% y=50% width={100% - 18px} height=20px text="Insert Top" selectable=false />
+        <Group class="action_chip" width=100% height=100% @click=self.handle_insert_top>
+            <Text class="chip_label" x=50% y=50% width={100% - 18px} height=20px text="Insert Top" selectable=false />
             <Rectangle width=100% height=100% fill=rgba(33, 118, 95, 255) corner_radius=8.0 />
         </Group>
-        <Group class=action_chip width=100% height=100% @click=self.handle_remove_top>
-            <Text class=chip_label x=50% y=50% width={100% - 18px} height=20px text="Remove Top" selectable=false />
+        <Group class="action_chip" width=100% height=100% @click=self.handle_remove_top>
+            <Text class="chip_label" x=50% y=50% width={100% - 18px} height=20px text="Remove Top" selectable=false />
             <Rectangle width=100% height=100% fill=rgba(33, 118, 95, 255) corner_radius=8.0 />
         </Group>
-        <Group class=action_chip width=100% height=100% @click=self.handle_reverse_order>
-            <Text class=chip_label x=50% y=50% width={100% - 18px} height=20px text="Reverse Order" selectable=false />
+        <Group class="action_chip" width=100% height=100% @click=self.handle_reverse_order>
+            <Text class="chip_label" x=50% y=50% width={100% - 18px} height=20px text="Reverse Order" selectable=false />
             <Rectangle width=100% height=100% fill=rgba(33, 118, 95, 255) corner_radius=8.0 />
         </Group>
     </Stacker>
@@ -72,12 +72,12 @@
         direction=StackerDirection::Horizontal
         gutter=12px
     >
-        <Group class=mode_chip width=100% height=100% @click=self.set_exit_flow>
-            <Text class=chip_label x=50% y=50% width={100% - 18px} height=20px text="Flow" selectable=false />
+        <Group class="mode_chip" width=100% height=100% @click=self.set_exit_flow>
+            <Text class="chip_label" x=50% y=50% width={100% - 18px} height=20px text="Flow" selectable=false />
             <Rectangle width=100% height=100% fill={exit_mode == ContainerExitMode::Flow ? rgba(49, 127, 110, 255) : rgba(139, 161, 186, 255)} corner_radius=8.0 />
         </Group>
-        <Group class=mode_chip width=100% height=100% @click=self.set_exit_ghost>
-            <Text class=chip_label x=50% y=50% width={100% - 18px} height=20px text="Ghost" selectable=false />
+        <Group class="mode_chip" width=100% height=100% @click=self.set_exit_ghost>
+            <Text class="chip_label" x=50% y=50% width={100% - 18px} height=20px text="Ghost" selectable=false />
             <Rectangle width=100% height=100% fill={exit_mode == ContainerExitMode::Ghost ? rgba(49, 127, 110, 255) : rgba(139, 161, 186, 255)} corner_radius=8.0 />
         </Group>
     </Stacker>
@@ -102,12 +102,12 @@
         direction=StackerDirection::Horizontal
         gutter=12px
     >
-        <Group class=mode_chip width=100% height=100% @click=self.set_change_snap>
-            <Text class=chip_label x=50% y=50% width={100% - 18px} height=20px text="Snap" selectable=false />
+        <Group class="mode_chip" width=100% height=100% @click=self.set_change_snap>
+            <Text class="chip_label" x=50% y=50% width={100% - 18px} height=20px text="Snap" selectable=false />
             <Rectangle width=100% height=100% fill={reflow_kind == ContainerReflowTransitionKind::Snap ? rgba(92, 117, 187, 255) : rgba(139, 161, 186, 255)} corner_radius=8.0 />
         </Group>
-        <Group class=mode_chip width=100% height=100% @click=self.set_change_ease>
-            <Text class=chip_label x=50% y=50% width={100% - 18px} height=20px text="Ease" selectable=false />
+        <Group class="mode_chip" width=100% height=100% @click=self.set_change_ease>
+            <Text class="chip_label" x=50% y=50% width={100% - 18px} height=20px text="Ease" selectable=false />
             <Rectangle width=100% height=100% fill={reflow_kind == ContainerReflowTransitionKind::Ease ? rgba(92, 117, 187, 255) : rgba(139, 161, 186, 255)} corner_radius=8.0 />
         </Group>
     </Stacker>

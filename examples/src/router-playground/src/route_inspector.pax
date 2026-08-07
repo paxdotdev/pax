@@ -19,14 +19,14 @@
             gutter=5px
         >
             <Text id=title width=100% text={title} />
-            <Text class=row width=100% text={"scope path  " + scope_path} />
-            <Text class=row width=100% text={"global path " + global_path} />
-            <Text class=row width=100% text={"params      " + params_summary} />
-            <Text class=row width=100% text={"query       " + query_summary} />
-            <Text class=row width=100% text={"remainder   " + remainder_summary} />
-            <Text class=row width=100% text={"fragment    " + fragment_summary} />
-            <Text class=row width=100% text={"exact       " + exact_summary} />
-            <Text class=row width=100% text={"consumed    " + consumed_summary} />
+            <Text class="row" width=100% text={"scope path  " + scope_path} />
+            <Text class="row" width=100% text={"global path " + global_path} />
+            <Text class="row" width=100% text={"params      " + params_summary} />
+            <Text class="row" width=100% text={"query       " + query_summary} />
+            <Text class="row" width=100% text={"remainder   " + remainder_summary} />
+            <Text class="row" width=100% text={"fragment    " + fragment_summary} />
+            <Text class="row" width=100% text={"exact       " + exact_summary} />
+            <Text class="row" width=100% text={"consumed    " + consumed_summary} />
         </Stacker>
     </Group>
 

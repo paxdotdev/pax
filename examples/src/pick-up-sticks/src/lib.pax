@@ -1,6 +1,6 @@
 <Group width=100% height=100%>
     if finished && collapsed {
-        <Group class=outcome_banner>
+        <Group class="outcome_banner">
             <Text id=banner_title x=50% y=32px width=360px height=30px text="TEE-PEE DOWN"/>
             <Text
                 id=banner_copy
@@ -10,8 +10,7 @@
                 height=28px
                 text="One bright stick too many. Tap Rebuild to stack another round."
             />
-            <Rectangle
-                class=banner_surface
+            <Rectangle class="banner_surface"
                 fill=@gradient {
                     linear: {
                         start: [0%, 0%]
@@ -26,7 +25,7 @@
     }
 
     if finished && !collapsed {
-        <Group class=outcome_banner>
+        <Group class="outcome_banner">
             <Text id=banner_title x=50% y=32px width=360px height=30px text="TABLE CLEARED"/>
             <Text
                 id=banner_copy
@@ -36,8 +35,7 @@
                 height=28px
                 text="Every stick slipped free without bringing the stack down."
             />
-            <Rectangle
-                class=banner_surface
+            <Rectangle class="banner_surface"
                 fill=@gradient {
                     linear: {
                         start: [0%, 0%]
@@ -59,18 +57,16 @@
         anchor=50%
         scale={(board_scale * 100)%}
     >
-        <Group
-            class=reset_chip
+        <Group class="reset_chip"
             scale={(100 + rebuild_pulse * 8)%}
             rotate={(rebuild_pulse * -2.4)deg}
         >
-            <Ellipse
-                class=reset_glow
+            <Ellipse class="reset_glow"
                 fill=rgba(255, 208, 122, 72)
                 opacity={rebuild_pulse * 0.75}
                 _raycastable=false
             />
-            <Rectangle class=reset_hit fill=TRANSPARENT @click=self.reset_game/>
+            <Rectangle class="reset_hit" fill=TRANSPARENT @click=self.reset_game/>
             <Text id=reset_caption x=92px y=14px width=76px height=12px text={rebuild_caption} _raycastable=false/>
             <Text id=reset_label x=90px y=33px width=78px height=18px text="Rebuild" _raycastable=false/>
             <Line
@@ -97,14 +93,12 @@
                 stroke={color: rgba(255, 236, 196, 255), width: 4px}
                 _raycastable=false
             />
-            <Rectangle
-                class=chip_outline
+            <Rectangle class="chip_outline"
                 fill=TRANSPARENT
                 stroke={color: rgba(255, 225, 168, 90), width: 2px}
                 _raycastable=false
             />
-            <Rectangle
-                class=chip_surface
+            <Rectangle class="chip_surface"
                 fill=@gradient {
                     linear: {
                         start: [0%, 0%]
@@ -117,16 +111,14 @@
             />
         </Group>
 
-        <Group class=status_chip>
-            <Text class=chip_title x=24px y=22px width=296px height=20px text={status_text}/>
-            <Text class=chip_body x=24px y=50px width=296px height=22px text={chance_text}/>
-            <Rectangle
-                class=chip_outline
+        <Group class="status_chip">
+            <Text class="chip_title" x=24px y=22px width=296px height=20px text={status_text}/>
+            <Text class="chip_body" x=24px y=50px width=296px height=22px text={chance_text}/>
+            <Rectangle class="chip_outline"
                 fill=TRANSPARENT
                 stroke={color: rgba(255, 225, 168, 88), width: 2px}
             />
-            <Rectangle
-                class=chip_surface
+            <Rectangle class="chip_surface"
                 fill=@gradient {
                     linear: {
                         start: [0%, 0%]
@@ -138,16 +130,14 @@
             />
         </Group>
 
-        <Group class=progress_chip>
-            <Text class=chip_title x=24px y=22px width=216px height=20px text="Picks"/>
-            <Text class=chip_body x=24px y=50px width=216px height=22px text={progress_text}/>
-            <Rectangle
-                class=chip_outline
+        <Group class="progress_chip">
+            <Text class="chip_title" x=24px y=22px width=216px height=20px text="Picks"/>
+            <Text class="chip_body" x=24px y=50px width=216px height=22px text={progress_text}/>
+            <Rectangle class="chip_outline"
                 fill=TRANSPARENT
                 stroke={color: rgba(255, 225, 168, 88), width: 2px}
             />
-            <Rectangle
-                class=chip_surface
+            <Rectangle class="chip_surface"
                 fill=@gradient {
                     linear: {
                         start: [0%, 0%]
@@ -169,7 +159,7 @@
             text="Click a bright stick and hope the little tee-pee holds."
         />
 
-        <Group class=playfield>
+        <Group class="playfield">
             for (stick, i) in sticks {
                 <Group
                     x={(stick.x)px}
@@ -255,25 +245,25 @@
             />
         </Group>
 
-        <Group class=corner_tl>
+        <Group class="corner_tl">
             <Ellipse x=0px y=0px width=10px height=10px fill=rgba(255, 224, 156, 190)/>
             <Line x1=0px y1=0px x2=56px y2=0px stroke={color: rgba(255, 220, 148, 82), width: 2px}/>
             <Line x1=0px y1=0px x2=0px y2=56px stroke={color: rgba(255, 220, 148, 82), width: 2px}/>
         </Group>
 
-        <Group class=corner_tr>
+        <Group class="corner_tr">
             <Ellipse x=0px y=0px width=10px height=10px fill=rgba(255, 224, 156, 190)/>
             <Line x1=0px y1=0px x2=-56px y2=0px stroke={color: rgba(255, 220, 148, 82), width: 2px}/>
             <Line x1=0px y1=0px x2=0px y2=56px stroke={color: rgba(255, 220, 148, 82), width: 2px}/>
         </Group>
 
-        <Group class=corner_bl>
+        <Group class="corner_bl">
             <Ellipse x=0px y=0px width=10px height=10px fill=rgba(255, 224, 156, 190)/>
             <Line x1=0px y1=0px x2=56px y2=0px stroke={color: rgba(255, 220, 148, 82), width: 2px}/>
             <Line x1=0px y1=0px x2=0px y2=-56px stroke={color: rgba(255, 220, 148, 82), width: 2px}/>
         </Group>
 
-        <Group class=corner_br>
+        <Group class="corner_br">
             <Ellipse x=0px y=0px width=10px height=10px fill=rgba(255, 224, 156, 190)/>
             <Line x1=0px y1=0px x2=-56px y2=0px stroke={color: rgba(255, 220, 148, 82), width: 2px}/>
             <Line x1=0px y1=0px x2=0px y2=-56px stroke={color: rgba(255, 220, 148, 82), width: 2px}/>
@@ -301,13 +291,11 @@
             }
         </Group>
 
-        <Rectangle
-            class=board_inset
+        <Rectangle class="board_inset"
             fill=TRANSPARENT
             stroke={color: rgba(255, 226, 173, 48), width: 2px}
         />
-        <Rectangle
-            class=board_surface
+        <Rectangle class="board_surface"
             fill=@gradient {
                 linear: {
                     start: [0%, 0%]
@@ -319,8 +307,7 @@
             }
             stroke={color: rgba(255, 227, 176, 62), width: 2px}
         />
-        <Rectangle
-            class=board_shadow
+        <Rectangle class="board_shadow"
             fill=rgba(4, 6, 14, 148)
         />
     </Group>

@@ -2,9 +2,8 @@
 <Scroller width=100% height=100% scroll_height=3600px scroll_pos_y=bind:outer_scroll_y>
     <Group width=100% height=3600px>
         <Group x=50% y=43px width={100% - 48px} height=126px anchor_x=50%>
-            <Text class=title x=0px y=0px width=100% height=72px text="Scroller Correctness Matrix"/>
-            <Text
-                class=dek
+            <Text class="title" x=0px y=0px width=100% height=72px text="Scroller Correctness Matrix"/>
+            <Text class="dek"
                 x=0px
                 y=78px
                 width=100%
@@ -13,11 +12,10 @@
             />
         </Group>
 
-        <Group class=card x=50% y=215px width={100% - 48px} height=340px anchor_x=50%>
-            <Text class=card_index x=24px y=24px width=88px height=24px text="01"/>
-            <Text class=card_title x=86px y=20px width={100% - 118px} height=36px text="Vertical Axis Lock"/>
-            <Text
-                class=card_copy
+        <Group class="card" x=50% y=215px width={100% - 48px} height=340px anchor_x=50%>
+            <Text class="card_index" x=24px y=24px width=88px height=24px text="01"/>
+            <Text class="card_title" x=86px y=20px width={100% - 118px} height=36px text="Vertical Axis Lock"/>
+            <Text class="card_copy"
                 x=86px
                 y=58px
                 width={100% - 118px}
@@ -37,10 +35,10 @@
                 <Group width=100% height=920px>
                     for row in 0..12 {
                         <Group x=18px y={(18 + row * 72)px} width={100% - 36px} height=56px>
-                            <Text class=mono_dark x=18px y=8px width=100px height=18px text={"LOG " + row}/>
-                            <Text class=small_dark x=18px y=28px width={100% - 140px} height=18px text="drag vertically; no sideways drift"/>
-                            <Button class=button_small x={100% - 116px} y=10px width=94px height=34px label="PING" @button_click=self.record_tap/>
-                            <Rectangle class=row_skin fill=@gradient {
+                            <Text class="mono_dark" x=18px y=8px width=100px height=18px text={"LOG " + row}/>
+                            <Text class="small_dark" x=18px y=28px width={100% - 140px} height=18px text="drag vertically; no sideways drift"/>
+                            <Button class="button_small" x={100% - 116px} y=10px width=94px height=34px label="PING" @button_click=self.record_tap/>
+                            <Rectangle class="row_skin" fill=@gradient {
                                 linear: {
                                     start: [0%, 0%]
                                     end: [100%, 100%]
@@ -60,7 +58,7 @@
                     }/>
                 </Group>
             </Scroller>
-            <Rectangle class=card_rule x=24px y=318px width={100% - 48px} height=2px fill=@gradient {
+            <Rectangle class="card_rule" x=24px y=318px width={100% - 48px} height=2px fill=@gradient {
                 linear: {
                     start: [0%, 0%]
                     end: [100%, 100%]
@@ -68,8 +66,8 @@
                 0%: rgba(137, 144, 6, 255)
                 100%: rgba(137, 144, 6, 128)
             }/>
-            <Rectangle class=card_shadow x=8px y=10px width=100% height=100% fill=rgba(35, 39, 31, 34)/>
-            <Rectangle class=card_skin fill=@gradient {
+            <Rectangle class="card_shadow" x=8px y=10px width=100% height=100% fill=rgba(35, 39, 31, 34)/>
+            <Rectangle class="card_skin" fill=@gradient {
                 linear: {
                     start: [0%, 0%]
                     end: [100%, 100%]
@@ -79,11 +77,10 @@
             }/>
         </Group>
 
-        <Group class=card x=50% y=587px width={100% - 48px} height=340px anchor_x=50%>
-            <Text class=card_index x=24px y=24px width=88px height=24px text="02"/>
-            <Text class=card_title x=86px y=20px width={100% - 118px} height=36px text="Horizontal Rail"/>
-            <Text
-                class=card_copy
+        <Group class="card" x=50% y=587px width={100% - 48px} height=340px anchor_x=50%>
+            <Text class="card_index" x=24px y=24px width=88px height=24px text="02"/>
+            <Text class="card_title" x=86px y=20px width={100% - 118px} height=36px text="Horizontal Rail"/>
+            <Text class="card_copy"
                 x=86px
                 y=58px
                 width={100% - 118px}
@@ -103,10 +100,10 @@
                 <Group width=2440px height=186px>
                     for col in 0..12 {
                         <Group x={(18 + col * 194)px} y=18px width=170px height=150px>
-                            <Text class=mono_dark x=16px y=12px width=130px height=18px text={"RAIL " + col}/>
+                            <Text class="mono_dark" x=16px y=12px width=130px height=18px text={"RAIL " + col}/>
                             <Slider x=16px y=52px width=138px height=26px value=bind:gain min=0.0 step=0.01 max=1.0 accent=rgba(98, 139, 125, 255) background=rgba(247, 216, 148, 255) corner_radius=10/>
-                            <Button class=button_small x=16px y=96px width=138px height=34px label={self.tap_label} @button_click=self.record_tap/>
-                            <Rectangle class=rail_tile fill=@gradient {
+                            <Button class="button_small" x=16px y=96px width=138px height=34px label={self.tap_label} @button_click=self.record_tap/>
+                            <Rectangle class="rail_tile" fill=@gradient {
                                 linear: {
                                     start: [0%, 0%]
                                     end: [100%, 100%]
@@ -126,9 +123,9 @@
                     }/>
                 </Group>
             </Scroller>
-            <Text class=mono x=24px y=310px width={100% - 48px} height=18px text={"HORIZONTAL X " + self.horizontal_probe_x}/>
-            <Rectangle class=card_shadow x=8px y=10px width=100% height=100% fill=rgba(35, 39, 31, 34)/>
-            <Rectangle class=card_skin fill=@gradient {
+            <Text class="mono" x=24px y=310px width={100% - 48px} height=18px text={"HORIZONTAL X " + self.horizontal_probe_x}/>
+            <Rectangle class="card_shadow" x=8px y=10px width=100% height=100% fill=rgba(35, 39, 31, 34)/>
+            <Rectangle class="card_skin" fill=@gradient {
                 linear: {
                     start: [0%, 0%]
                     end: [100%, 100%]
@@ -138,11 +135,10 @@
             }/>
         </Group>
 
-        <Group class=card x=50% y=959px width={100% - 48px} height=412px anchor_x=50%>
-            <Text class=card_index x=24px y=24px width=88px height=24px text="03"/>
-            <Text class=card_title x=86px y=20px width={100% - 118px} height=36px text="Nested Scrollers"/>
-            <Text
-                class=card_copy
+        <Group class="card" x=50% y=959px width={100% - 48px} height=412px anchor_x=50%>
+            <Text class="card_index" x=24px y=24px width=88px height=24px text="03"/>
+            <Text class="card_title" x=86px y=20px width={100% - 118px} height=36px text="Nested Scrollers"/>
+            <Text class="card_copy"
                 x=86px
                 y=58px
                 width={100% - 118px}
@@ -161,13 +157,13 @@
                 <Group width=100% height=760px>
                     for row in 0..4 {
                         <Group x=18px y={(20 + row * 172)px} width={100% - 36px} height=148px>
-                            <Text class=mono_dark x=18px y=12px width=180px height=18px text={"NESTED ROW " + row}/>
+                            <Text class="mono_dark" x=18px y=12px width=180px height=18px text={"NESTED ROW " + row}/>
                             <Scroller x=18px y=44px width={100% - 36px} height=82px scroll_width=3600px scroll_height=100% corner_radius=18.0>
                                 <Group width=3600px height=82px>
                                     for col in 0..22 {
                                         <Group x={(12 + col * 156)px} y=12px width=130px height=58px>
-                                            <Text class=small_dark x=12px y=10px width=88px height=16px text={"cell " + row + "." + col}/>
-                                            <Rectangle class=mini_tile fill=@gradient {
+                                            <Text class="small_dark" x=12px y=10px width=88px height=16px text={"cell " + row + "." + col}/>
+                                            <Rectangle class="mini_tile" fill=@gradient {
                                                 linear: {
                                                     start: [0%, 0%]
                                                     end: [100%, 100%]
@@ -187,7 +183,7 @@
                                     }/>
                                 </Group>
                             </Scroller>
-                            <Rectangle class=row_skin fill=@gradient {
+                            <Rectangle class="row_skin" fill=@gradient {
                                 linear: {
                                     start: [0%, 0%]
                                     end: [100%, 100%]
@@ -207,8 +203,8 @@
                     }/>
                 </Group>
             </Scroller>
-            <Rectangle class=card_shadow x=8px y=10px width=100% height=100% fill=rgba(35, 39, 31, 34)/>
-            <Rectangle class=card_skin fill=@gradient {
+            <Rectangle class="card_shadow" x=8px y=10px width=100% height=100% fill=rgba(35, 39, 31, 34)/>
+            <Rectangle class="card_skin" fill=@gradient {
                 linear: {
                     start: [0%, 0%]
                     end: [100%, 100%]
@@ -218,11 +214,10 @@
             }/>
         </Group>
 
-        <Group class=card x=50% y=1403px width={100% - 48px} height=560px anchor_x=50%>
-            <Text class=card_index x=24px y=24px width=88px height=24px text="04"/>
-            <Text class=card_title x=86px y=20px width={100% - 118px} height=36px text="Native Controls In Motion"/>
-            <Text
-                class=card_copy
+        <Group class="card" x=50% y=1403px width={100% - 48px} height=560px anchor_x=50%>
+            <Text class="card_index" x=24px y=24px width=88px height=24px text="04"/>
+            <Text class="card_title" x=86px y=20px width={100% - 118px} height=36px text="Native Controls In Motion"/>
+            <Text class="card_copy"
                 x=86px
                 y=58px
                 width={100% - 118px}
@@ -239,28 +234,28 @@
                 corner_radius=24.0
             >
                 <Group width=100% height=1480px>
-                    <Text class=mono_dark x=28px y=24px width={100% - 56px} height=20px text={"ROUTE " + self.route_label + " // " + self.armed_label}/>
-                    <Textbox class=input_royal x=28px y=62px width={100% - 56px} height=44px text=bind:notes placeholder="callsign" @textbox_change=self.update_notes/>
-                    <Dropdown class=dropdown_royal x=28px y=124px width={100% - 56px} height=42px selected_id=bind:selected_route options=["LOOP", "NESTED", "MASKED", "TILE"]/>
-                    <Checkbox class=checkbox_royal x=28px y=190px width=34px height=34px checked=bind:armed @checkbox_change=self.update_armed/>
-                    <Text class=small_dark x=74px y=198px width={100% - 112px} height=20px text={"control state " + self.armed_label}/>
-                    <RadioList class=radio_royal x=28px y=248px width={100% - 56px} height=106px selected_id=bind:band options=["PORT", "STARBOARD", "BOTH"]/>
-                    <Text class=mono_dark x=28px y=386px width={100% - 56px} height=20px text={"GAIN " + self.gain}/>
+                    <Text class="mono_dark" x=28px y=24px width={100% - 56px} height=20px text={"ROUTE " + self.route_label + " // " + self.armed_label}/>
+                    <Textbox class="input_royal" x=28px y=62px width={100% - 56px} height=44px text=bind:notes placeholder="callsign" @textbox_change=self.update_notes/>
+                    <Dropdown class="dropdown_royal" x=28px y=124px width={100% - 56px} height=42px selected_id=bind:selected_route options=["LOOP", "NESTED", "MASKED", "TILE"]/>
+                    <Checkbox class="checkbox_royal" x=28px y=190px width=34px height=34px checked=bind:armed @checkbox_change=self.update_armed/>
+                    <Text class="small_dark" x=74px y=198px width={100% - 112px} height=20px text={"control state " + self.armed_label}/>
+                    <RadioList class="radio_royal" x=28px y=248px width={100% - 56px} height=106px selected_id=bind:band options=["PORT", "STARBOARD", "BOTH"]/>
+                    <Text class="mono_dark" x=28px y=386px width={100% - 56px} height=20px text={"GAIN " + self.gain}/>
                     <Slider x=28px y=424px width={100% - 56px} height=28px value=bind:gain min=0.0 step=0.01 max=1.0 accent=rgba(137, 144, 6, 255) background=rgba(247, 216, 148, 255) corner_radius=12/>
-                    <Button class=button_primary x=28px y=492px width={100% - 56px} height=44px label={self.tap_label} @button_click=self.record_tap/>
-                    <Text class=small_dark x=28px y=562px width={100% - 56px} height=42px text="Continue dragging after focusing fields; native controls should not detach from engine scroll state."/>
-                    <Text class=mono_dark x=28px y=634px width=620px height=20px text="MANDATORY MICRO-ACKNOWLEDGEMENT BOARD // PLEASE CONFIRM THE CONFIRMATION"/>
+                    <Button class="button_primary" x=28px y=492px width={100% - 56px} height=44px label={self.tap_label} @button_click=self.record_tap/>
+                    <Text class="small_dark" x=28px y=562px width={100% - 56px} height=42px text="Continue dragging after focusing fields; native controls should not detach from engine scroll state."/>
+                    <Text class="mono_dark" x=28px y=634px width=620px height=20px text="MANDATORY MICRO-ACKNOWLEDGEMENT BOARD // PLEASE CONFIRM THE CONFIRMATION"/>
                     for task in 0..5 {
                         <Group x=28px y={(678 + task * 118)px} width={100% - 56px} height=92px>
-                            <Text class=mono_dark x=18px y=12px width=220px height=18px text={"FORM " + (27 + task) + "B"}/>
-                            <Textbox class=input_royal x=18px y=42px width=16% height=38px text=bind:notes placeholder={"note " + task} @textbox_change=self.update_notes/>
-                            <Dropdown class=dropdown_royal x=20% y=42px width=14% height=38px selected_id=bind:selected_route options=["ESCALATE", "DEFER", "RECONCILE", "ARCHIVE"]/>
-                            <Checkbox class=checkbox_royal x=36% y=44px width=32px height=32px checked=bind:armed @checkbox_change=self.update_armed/>
-                            <Text class=small_dark x=39% y=51px width=7% height=18px text={"signed " + self.armed_label}/>
+                            <Text class="mono_dark" x=18px y=12px width=220px height=18px text={"FORM " + (27 + task) + "B"}/>
+                            <Textbox class="input_royal" x=18px y=42px width=16% height=38px text=bind:notes placeholder={"note " + task} @textbox_change=self.update_notes/>
+                            <Dropdown class="dropdown_royal" x=20% y=42px width=14% height=38px selected_id=bind:selected_route options=["ESCALATE", "DEFER", "RECONCILE", "ARCHIVE"]/>
+                            <Checkbox class="checkbox_royal" x=36% y=44px width=32px height=32px checked=bind:armed @checkbox_change=self.update_armed/>
+                            <Text class="small_dark" x=39% y=51px width=7% height=18px text={"signed " + self.armed_label}/>
                             <Slider x=48% y=48px width=22% height=26px value=bind:gain min=0.0 step=0.01 max=1.0 accent=rgba(239, 145, 143, 255) background=rgba(247, 216, 148, 255) corner_radius=12/>
-                            <Dropdown class=dropdown_royal x=72% y=42px width=11% height=38px selected_id=bind:selected_route options=["ROUTE", "QUEUE", "STAMP", "VOID"]/>
-                            <Button class=button_primary x=85% y=42px width=14% height=38px label="REDO LATER" @button_click=self.record_tap/>
-                            <Rectangle class=row_skin fill=@gradient {
+                            <Dropdown class="dropdown_royal" x=72% y=42px width=11% height=38px selected_id=bind:selected_route options=["ROUTE", "QUEUE", "STAMP", "VOID"]/>
+                            <Button class="button_primary" x=85% y=42px width=14% height=38px label="REDO LATER" @button_click=self.record_tap/>
+                            <Rectangle class="row_skin" fill=@gradient {
                                 linear: {
                                     start: [0%, 0%]
                                     end: [100%, 100%]
@@ -271,13 +266,13 @@
                         </Group>
                     }
                     <Group x=28px y=1280px width={100% - 56px} height=144px>
-                        <Text class=mono_dark x=18px y=26px width=330px height=18px text="FINALIZE PENDING BUSYWORK"/>
-                        <RadioList class=radio_royal x=19% y=16px width=22% height=112px selected_id=bind:band options=["YES", "ALSO YES", "TRY AGAIN"]/>
-                        <Button class=button_primary x=43% y=16px width=12% height=38px label={self.tap_label} @button_click=self.record_tap/>
+                        <Text class="mono_dark" x=18px y=26px width=330px height=18px text="FINALIZE PENDING BUSYWORK"/>
+                        <RadioList class="radio_royal" x=19% y=16px width=22% height=112px selected_id=bind:band options=["YES", "ALSO YES", "TRY AGAIN"]/>
+                        <Button class="button_primary" x=43% y=16px width=12% height=38px label={self.tap_label} @button_click=self.record_tap/>
                         <Slider x=57% y=23px width=18% height=26px value=bind:gain min=0.0 step=0.01 max=1.0 accent=rgba(98, 139, 125, 255) background=rgba(247, 216, 148, 255) corner_radius=12/>
-                        <Dropdown class=dropdown_royal x=77% y=16px width=11% height=38px selected_id=bind:selected_route options=["FILE", "COPY", "DENY", "LOOP"]/>
-                        <Button class=button_primary x=89% y=16px width=10% height=38px label="COMPLY HARDER" @button_click=self.record_tap/>
-                        <Rectangle class=row_skin fill=@gradient {
+                        <Dropdown class="dropdown_royal" x=77% y=16px width=11% height=38px selected_id=bind:selected_route options=["FILE", "COPY", "DENY", "LOOP"]/>
+                        <Button class="button_primary" x=89% y=16px width=10% height=38px label="COMPLY HARDER" @button_click=self.record_tap/>
+                        <Rectangle class="row_skin" fill=@gradient {
                             linear: {
                                 start: [0%, 0%]
                                 end: [100%, 100%]
@@ -296,8 +291,8 @@
                     }/>
                 </Group>
             </Scroller>
-            <Rectangle class=card_shadow x=8px y=10px width=100% height=100% fill=rgba(35, 39, 31, 34)/>
-            <Rectangle class=card_skin fill=@gradient {
+            <Rectangle class="card_shadow" x=8px y=10px width=100% height=100% fill=rgba(35, 39, 31, 34)/>
+            <Rectangle class="card_skin" fill=@gradient {
                 linear: {
                     start: [0%, 0%]
                     end: [100%, 100%]
@@ -307,11 +302,10 @@
             }/>
         </Group>
 
-        <Group class=card x=50% y=1995px width={100% - 48px} height=404px anchor_x=50%>
-            <Text class=card_index x=24px y=24px width=88px height=24px text="05"/>
-            <Text class=card_title x=86px y=20px width={100% - 118px} height=36px text="Masked Scroller"/>
-            <Text
-                class=card_copy
+        <Group class="card" x=50% y=1995px width={100% - 48px} height=404px anchor_x=50%>
+            <Text class="card_index" x=24px y=24px width=88px height=24px text="05"/>
+            <Text class="card_title" x=86px y=20px width={100% - 118px} height=36px text="Masked Scroller"/>
+            <Text class="card_copy"
                 x=86px
                 y=58px
                 width={100% - 118px}
@@ -324,9 +318,9 @@
                             <Group width=100% height=720px>
                                 for row in 0..7 {
                                     <Group x=26px y={(26 + row * 88)px} width={100% - 52px} height=66px>
-                                        <Text class=mono_dark x=18px y=10px width=140px height=18px text={"MASK ROW " + row}/>
-                                        <Button class=button_small x={100% - 130px} y=16px width=108px height=34px label="CLIPPED" @button_click=self.record_tap/>
-                                        <Rectangle class=mask_row fill=@gradient {
+                                        <Text class="mono_dark" x=18px y=10px width=140px height=18px text={"MASK ROW " + row}/>
+                                        <Button class="button_small" x={100% - 130px} y=16px width=108px height=34px label="CLIPPED" @button_click=self.record_tap/>
+                                        <Rectangle class="mask_row" fill=@gradient {
                                             linear: {
                                                 start: [0%, 0%]
                                                 end: [100%, 100%]
@@ -443,8 +437,8 @@
                         />
                     </Group>
             </Mask>
-            <Rectangle class=card_shadow x=8px y=10px width=100% height=100% fill=rgba(35, 39, 31, 34)/>
-            <Rectangle class=card_skin fill=@gradient {
+            <Rectangle class="card_shadow" x=8px y=10px width=100% height=100% fill=rgba(35, 39, 31, 34)/>
+            <Rectangle class="card_skin" fill=@gradient {
                 linear: {
                     start: [0%, 0%]
                     end: [100%, 100%]
@@ -454,11 +448,10 @@
             }/>
         </Group>
 
-        <Group class=card x=50% y=2431px width={100% - 48px} height=398px anchor_x=50%>
-            <Text class=card_index x=24px y=24px width=88px height=24px text="06"/>
-            <Text class=card_title x=86px y=20px width={100% - 118px} height=36px text="Transformed Native Scroller"/>
-            <Text
-                class=card_copy
+        <Group class="card" x=50% y=2431px width={100% - 48px} height=398px anchor_x=50%>
+            <Text class="card_index" x=24px y=24px width=88px height=24px text="06"/>
+            <Text class="card_title" x=86px y=20px width={100% - 118px} height=36px text="Transformed Native Scroller"/>
+            <Text class="card_copy"
                 x=86px
                 y=58px
                 width={100% - 118px}
@@ -468,19 +461,19 @@
             <Group x=50% y=230px width={100% - 94px} height=188px anchor=50% rotate=-5deg>
                 <Scroller width=100% height=100% scroll_width=4200px scroll_height=620px corner_radius=24.0>
                     <Group width=4200px height=620px>
-                        <Text class=mono_dark x=28px y=26px width=300px height=20px text="ROTATED SURFACE // HIT TEST"/>
-                        <Textbox class=input_royal x=28px y=68px width=240px height=42px text=bind:notes placeholder="rotated input" @textbox_change=self.update_notes/>
-                        <Button class=button_primary x=292px y=68px width=148px height=42px label={self.tap_label} @button_click=self.record_tap/>
+                        <Text class="mono_dark" x=28px y=26px width=300px height=20px text="ROTATED SURFACE // HIT TEST"/>
+                        <Textbox class="input_royal" x=28px y=68px width=240px height=42px text=bind:notes placeholder="rotated input" @textbox_change=self.update_notes/>
+                        <Button class="button_primary" x=292px y=68px width=148px height=42px label={self.tap_label} @button_click=self.record_tap/>
                         <Slider x=466px y=76px width=260px height=28px value=bind:gain min=0.0 step=0.01 max=1.0 accent=rgba(239, 145, 143, 255) background=rgba(247, 216, 148, 255) corner_radius=12/>
-                        <Dropdown class=dropdown_royal x=760px y=68px width=218px height=42px selected_id=bind:selected_route options=["TILT", "SLIDE", "MISS", "CONFIRM"]/>
-                        <Checkbox class=checkbox_royal x=1014px y=72px width=34px height=34px checked=bind:armed @checkbox_change=self.update_armed/>
-                        <Text class=small_dark x=1062px y=80px width=142px height=18px text={self.armed_label}/>
-                        <Button class=button_small x=1240px y=68px width=176px height=42px label="ROTATE ACK" @button_click=self.record_tap/>
+                        <Dropdown class="dropdown_royal" x=760px y=68px width=218px height=42px selected_id=bind:selected_route options=["TILT", "SLIDE", "MISS", "CONFIRM"]/>
+                        <Checkbox class="checkbox_royal" x=1014px y=72px width=34px height=34px checked=bind:armed @checkbox_change=self.update_armed/>
+                        <Text class="small_dark" x=1062px y=80px width=142px height=18px text={self.armed_label}/>
+                        <Button class="button_small" x=1240px y=68px width=176px height=42px label="ROTATE ACK" @button_click=self.record_tap/>
                         for row in 0..5 {
                             for col in 0..20 {
                                 <Group x={(38 + col * 204)px} y={(148 + row * 92)px} width=164px height=60px>
-                                    <Text class=small_dark x=14px y=12px width=124px height=16px text={"rot " + row + "." + col}/>
-                                    <Rectangle class=mini_tile fill=@gradient {
+                                    <Text class="small_dark" x=14px y=12px width=124px height=16px text={"rot " + row + "." + col}/>
+                                    <Rectangle class="mini_tile" fill=@gradient {
                                         linear: {
                                             start: [0%, 0%]
                                             end: [100%, 100%]
@@ -514,10 +507,10 @@
                     }
                     corner_radius=24.0
                 />
-                <Rectangle class=tilted_shadow x=8px y=8px width=100% height=100% fill=rgba(35, 39, 31, 32)/>
+                <Rectangle class="tilted_shadow" x=8px y=8px width=100% height=100% fill=rgba(35, 39, 31, 32)/>
             </Group>
-            <Rectangle class=card_shadow x=8px y=10px width=100% height=100% fill=rgba(35, 39, 31, 34)/>
-            <Rectangle class=card_skin fill=@gradient {
+            <Rectangle class="card_shadow" x=8px y=10px width=100% height=100% fill=rgba(35, 39, 31, 34)/>
+            <Rectangle class="card_skin" fill=@gradient {
                 linear: {
                     start: [0%, 0%]
                     end: [100%, 100%]
@@ -527,11 +520,10 @@
             }/>
         </Group>
 
-        <Group class=card x=50% y=2861px width={100% - 48px} height=324px anchor_x=50% opacity={(0.42 + self.gain * 0.48)}>
-            <Text class=card_index x=24px y=24px width=88px height=24px text="07"/>
-            <Text class=card_title x=86px y=20px width={100% - 118px} height=36px text="Opacity Group"/>
-            <Text
-                class=card_copy
+        <Group class="card" x=50% y=2861px width={100% - 48px} height=324px anchor_x=50% opacity={(0.42 + self.gain * 0.48)}>
+            <Text class="card_index" x=24px y=24px width=88px height=24px text="07"/>
+            <Text class="card_title" x=86px y=20px width={100% - 118px} height=36px text="Opacity Group"/>
+            <Text class="card_copy"
                 x=86px
                 y=58px
                 width={100% - 118px}
@@ -540,14 +532,14 @@
             />
             <Scroller x=24px y=116px width={100% - 48px} height=166px scroll_width=3900px scroll_height=100% corner_radius=24.0>
                 <Group width=3900px height=166px>
-                    <Text class=mono_dark x=26px y=22px width=240px height=20px text={"GROUP OPACITY GAIN " + self.gain}/>
+                    <Text class="mono_dark" x=26px y=22px width=240px height=20px text={"GROUP OPACITY GAIN " + self.gain}/>
                     <Slider x=26px y=70px width=260px height=26px value=bind:gain min=0.0 step=0.01 max=1.0 accent=rgba(98, 139, 125, 255) background=rgba(247, 216, 148, 255) corner_radius=12/>
-                    <Checkbox class=checkbox_royal x=330px y=64px width=34px height=34px checked=bind:armed @checkbox_change=self.update_armed/>
-                    <Text class=small_dark x=376px y=72px width=180px height=18px text={self.armed_label}/>
-                    <Button class=button_primary x=596px y=58px width=172px height=46px label={self.tap_label} @button_click=self.record_tap/>
+                    <Checkbox class="checkbox_royal" x=330px y=64px width=34px height=34px checked=bind:armed @checkbox_change=self.update_armed/>
+                    <Text class="small_dark" x=376px y=72px width=180px height=18px text={self.armed_label}/>
+                    <Button class="button_primary" x=596px y=58px width=172px height=46px label={self.tap_label} @button_click=self.record_tap/>
                     for mark in 0..20 {
                         <Group x={(842 + mark * 148)px} y=34px width=112px height=98px opacity={(1.0 - mark * 0.05)}>
-                            <Text class=small_dark x=14px y=12px width=86px height=16px text={"fade " + mark}/>
+                            <Text class="small_dark" x=14px y=12px width=86px height=16px text={"fade " + mark}/>
                             <Ellipse x=72px y=58px width=54px height=54px anchor=50% fill=@gradient {
                                 linear: {
                                     start: [0%, 0%]
@@ -564,7 +556,7 @@
                                 0%: rgba(98, 139, 125, 255)
                                 100%: rgba(98, 139, 125, 128)
                             }/>
-                            <Rectangle class=mini_tile fill=@gradient {
+                            <Rectangle class="mini_tile" fill=@gradient {
                                 linear: {
                                     start: [0%, 0%]
                                     end: [100%, 100%]
@@ -584,8 +576,8 @@
                     }/>
                 </Group>
             </Scroller>
-            <Rectangle class=card_shadow x=8px y=10px width=100% height=100% fill=rgba(35, 39, 31, 34)/>
-            <Rectangle class=card_skin fill=@gradient {
+            <Rectangle class="card_shadow" x=8px y=10px width=100% height=100% fill=rgba(35, 39, 31, 34)/>
+            <Rectangle class="card_skin" fill=@gradient {
                 linear: {
                     start: [0%, 0%]
                     end: [100%, 100%]
@@ -595,11 +587,10 @@
             }/>
         </Group>
 
-        <Group class=card x=50% y=3217px width={100% - 48px} height=244px anchor_x=50%>
-            <Text class=card_index x=24px y=24px width=88px height=24px text="08"/>
-            <Text class=card_title x=86px y=20px width={100% - 118px} height=36px text="Large Tile Plane"/>
-            <Text
-                class=card_copy
+        <Group class="card" x=50% y=3217px width={100% - 48px} height=244px anchor_x=50%>
+            <Text class="card_index" x=24px y=24px width=88px height=24px text="08"/>
+            <Text class="card_title" x=86px y=20px width={100% - 118px} height=36px text="Large Tile Plane"/>
+            <Text class="card_copy"
                 x=86px
                 y=58px
                 width={100% - 118px}
@@ -611,8 +602,8 @@
                     for row in 0..16 {
                         for col in 0..30 {
                             <Group x={(24 + col * 166)px} y={(24 + row * 116)px} width=138px height=88px>
-                                <Text class=small_dark x=12px y=12px width=100px height=16px text={"tile " + row + "." + col}/>
-                                <Rectangle class=plane_tile fill=@gradient {
+                                <Text class="small_dark" x=12px y=12px width=100px height=16px text={"tile " + row + "." + col}/>
+                                <Rectangle class="plane_tile" fill=@gradient {
                                     linear: {
                                         start: [0%, 0%]
                                         end: [100%, 100%]
@@ -626,8 +617,8 @@
                     <Rectangle width=5200px height=1900px fill=rgba(35, 39, 31, 90)/>
                 </Group>
             </Scroller>
-            <Rectangle class=card_shadow x=8px y=10px width=100% height=100% fill=rgba(35, 39, 31, 34)/>
-            <Rectangle class=card_skin fill=@gradient {
+            <Rectangle class="card_shadow" x=8px y=10px width=100% height=100% fill=rgba(35, 39, 31, 34)/>
+            <Rectangle class="card_skin" fill=@gradient {
                 linear: {
                     start: [0%, 0%]
                     end: [100%, 100%]

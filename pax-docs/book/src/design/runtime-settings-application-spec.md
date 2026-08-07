@@ -23,7 +23,8 @@ The long-term direction is to make settings application a runtime behavior, not 
 - Introduce `ImportSettings` as a first-class primitive for mounting ordinary components as non-rendering settings providers.
 - Preserve `id`, `class`, and type selectors as first-class runtime metadata.
 - Allow settings providers to use normal component parameters, Rust state, control flow, PAXEL, and lifecycle handlers.
-- Preserve static validation where the compiler can still prove correctness.
+- Keep compile-time checks at the syntax and PAXEL boundary; make runtime matching the sole
+  authority for class membership and receiver compatibility.
 
 ## Non-goals
 
@@ -149,14 +150,15 @@ Each `TemplateNodeDefinition` should carry normalized selector metadata in addit
 
 ```rust
 pub struct TemplateNodeSelectorInfo {
-    pub type_id: TypeId,
     pub source_location: Option<LocationInfo>,
     pub id: Option<Token>,
-    pub classes: Vec<Token>,
+    pub class_binding: Option<ValueDefinition>,
 }
 ```
 
-This is redundant with authored inline settings, but it is the right redundancy. It makes selector identity explicit and durable across:
+`class` is removed from the ordinary inline settings list, so this is the
+single persisted representation rather than a second static token index. It
+makes selector identity explicit and durable across:
 
 - runtime builds
 - designtime builds
@@ -211,18 +213,29 @@ pub struct RuntimeSelectorMetadata {
 
 `id` is already partly runtime today via `CommonProperties`. `class` is not. The long-term design should make both available through one selector-oriented runtime surface.
 
-`id` and `classes` should both be modeled as reactive runtime properties, even if today's template grammar keeps them statically declared identifiers. That buys two things:
+`classes` is a reactive runtime property populated from a literal or expression
+binding. Expressions may evaluate to `String` or `Vec<String>`. This buys two
+things:
 
 - selector queries, devtools, and runtime matching all observe one live source of truth
 - future selector-syntax extensions do not require another runtime metadata redesign
 
+Class values are normalized as selector identifiers. Empty strings are omitted,
+invalid names warn and are ignored, and duplicates collapse so the last
+occurrence determines both membership and cascade order. Strings are never
+split on whitespace.
+
 Runtime behavior should be:
 
-- node expansion creates `id` / `classes` properties from authored inline settings
+- node expansion creates `id` / `classes` properties from selector metadata
 - selector indices and matched-selector caches subscribe to those properties
-- when either property changes, the enclosing `SettingsScope` invalidates only the affected selector buckets and recomputes only the affected host-node matches
+- when either property changes, runtime settings are rematerialized for that host node without
+  remounting it or rebuilding its subtree
 
-For today's static identifier syntax, compile-time validation can still treat selector membership as exact. If Pax later allows fully dynamic selector authoring, the static validator should fall back to conservative target-set analysis or require an explicit selector contract.
+The compiler does not predict class membership or validate selector properties
+against potential receivers. Dynamic membership, imported providers, and hot
+reload make such checking partial by construction. Incompatible matched
+properties are skipped with deduplicated runtime diagnostics.
 
 ### Component-local settings scope
 
@@ -277,6 +290,11 @@ The same model should apply to:
 - common properties
 - transitions
 - timeline selector tracks
+
+Ordinary settings continue to follow live classes during a lifecycle
+transition. Selector membership for the transition's own timeline tracks is
+captured when that transition run starts, so changing a class mid-flight does
+not splice tracks into or out of the active run.
 
 ### Cross-scope reactive data flow
 
@@ -349,7 +367,9 @@ That means:
 
 This feature cannot be designtime-only. Release builds need the same selector and provider data.
 
-Today, the cartridge embeds manifest JSON directly, which is helpful: the immediate requirement is simply that the manifest JSON continue to contain authored selector blocks plus normalized selector metadata.
+Release cartridges use baked program representations. Authored selector blocks
+and the complete class binding must therefore survive manifest, generated Rust,
+program IR, and binary baking.
 
 If Pax later introduces a slimmer descriptor-oriented release format, that format must still preserve:
 
@@ -359,61 +379,17 @@ If Pax later introduces a slimmer descriptor-oriented release format, that forma
 
 In other words, selector logic has to move into runtime, and selector data has to survive release compilation.
 
-## Static Analysis and Type Feedback
+## Diagnostics Boundary
 
-Making settings application runtime does not mean giving up compile-time feedback.
+The compiler validates selector syntax and ordinary PAXEL syntax, but it does
+not construct a static class universe, report unused classes, or attempt
+selector/receiver compatibility analysis.
 
-The compiler should perform an explicit settings-compatibility pass with source-mapped diagnostics. A useful structure is to build two contracts:
-
-```rust
-pub struct SelectorTargetContract {
-    pub node: UniqueTemplateNodeIdentifier,
-    pub node_type: TypeId,
-    pub selector_info: TemplateNodeSelectorInfo,
-    pub source_location: Option<LocationInfo>,
-}
-
-pub struct ExportedSelectorSetting {
-    pub provider_component: TypeId,
-    pub selector: Token,
-    pub setting_key: Token,
-    pub value: ValueDefinition,
-}
-```
-
-Validation algorithm:
-
-1. For each component, compute its exported settings contract:
-   - local selector blocks
-   - local timeline selector blocks
-   - transitive exports from nested `ImportSettings`
-2. For each host component template, compute a selector target contract for every node using its static type and authored selector metadata.
-3. For each `ImportSettings` site, enumerate all statically reachable provider component types from the literal child tags in its branches/loops.
-4. For each exported selector block from each reachable provider type, statically match that selector against the host component's selector target contract.
-5. For each matched target node, compute the valid property set as:
-   - `CommonProperties`
-   - unioned with the matched node type's property definitions
-6. For each applied setting key / transition target / timeline track, fail if that key is not valid for every statically matched target node.
-
-A selector-applied setting is therefore only legal if it is valid for the full statically matched target set. Partial compatibility is still an error.
-
-Diagnostic shape:
-
-- primary span: the mismatched provider-side setting token
-- first note: the selector token that caused the match
-- second note: the `ImportSettings` site that imported the provider
-- additional notes: each mismatched host node source location, with its node type
-
-Because tokens already carry `LocationInfo`, this pass can report helpful file/line/column errors without inventing new source-mapping infrastructure.
-
-For today's static selector syntax, this analysis is exact. If selector authoring becomes fully dynamic later, the validator should fall back to conservative target-set checking or require an explicit selector contract annotation for the dynamic case.
-
-The intended split is:
-
-- runtime owns application
-- compile time owns compatibility validation wherever the target set is statically knowable
-
-This directly addresses the ticket's concern about selector blocks drifting into runtime coercion failures with no early feedback.
+The runtime is the sole matching authority. It warns and skips safely when a
+class binding produces an unsupported value, a class name is invalid, or a
+matched declaration does not exist on the receiving element. An unmatched
+class is valid and does not warn because providers may arrive through imports
+or hot reload.
 
 ## Phased Rollout
 
@@ -452,7 +428,6 @@ Correctness comes first; indexing and cache shape should follow stable semantics
 
 ## Open Questions
 
-- If selector authoring later becomes fully dynamic, do we want conservative whole-template validation, or an explicit selector-contract annotation to keep compile-time errors precise?
 - What is the exact user-facing format for runtime cycle diagnostics when `bind:` and imported settings create feedback loops?
 
 ## Summary
@@ -464,4 +439,4 @@ The long-term design is not "compile-time import, but more clever." It is a runt
 - component-local settings scopes
 - non-rendering provider components mounted through `ImportSettings`
 
-That keeps Pax aligned with the ticket's theming/plugin direction while preserving the ability to type-check, inspect, serialize, and ship the same behavior consistently across designtime and release builds.
+That keeps Pax aligned with the ticket's theming/plugin direction while preserving the ability to parse, inspect, serialize, and ship the same behavior consistently across designtime and release builds.

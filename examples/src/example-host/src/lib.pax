@@ -1,8 +1,8 @@
 <Group width=100% height=100%>
     <ExampleHost x=48px y=48px width={100% - 96px} height={100% - 96px} title="ExampleHost: slot() subtree" sources={self.sources}>
         <Group x=0px y=0px width=100% height=160px>
-            <Text class=hero_title x=44px y=42px width={100% - 84px} height=52px text="A projected multi-child example" selectable=false />
-            <Text class=hero_copy x=42px y=100px width={100% - 84px} height=50px text="The source drawer belongs to ExampleHost; the preview subtree is just ordinary projected Pax content." selectable=false />
+            <Text class="hero_title" x=44px y=42px width={100% - 84px} height=52px text="A projected multi-child example" selectable=false />
+            <Text class="hero_copy" x=42px y=100px width={100% - 84px} height=50px text="The source drawer belongs to ExampleHost; the preview subtree is just ordinary projected Pax content." selectable=false />
         </Group>
 
         <Group x=0px y=0px width=100% height=100%>
@@ -23,11 +23,11 @@
         </Group>
 
         <Group x=0px y=0px width=100% height=100%>
-            <Rectangle class=preview_frame x=18px y=18px width={100% - 36px} height={100% - 36px} />
+            <Rectangle class="preview_frame" x=18px y=18px width={100% - 36px} height={100% - 36px} />
         </Group>
     </ExampleHost>
 
-    <Rectangle class=page_bg width=100% height=100% />
+    <Rectangle class="page_bg" width=100% height=100% />
 </Group>
 
 @settings {

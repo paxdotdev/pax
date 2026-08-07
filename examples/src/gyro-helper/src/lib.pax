@@ -1,7 +1,6 @@
 <Group width=100% height=100%>
     if $web && $mobile && self.motion_prompt_visible {
-        <Button
-            class=motion_button
+        <Button class="motion_button"
             x={50% - 95px}
             y={100% - 110px}
             width=190px
@@ -11,10 +10,10 @@
         />
     }
 
-    <Text class=title x=50% y=54px width=86% height=48px text="Gyroscope & Accelerometer"/>
-    <Text class=readout x=50% y=102px width=86% height=24px text={self.gyro_label}/>
-    <Text class=readout x=50% y=130px width=86% height=24px text={self.accel_label}/>
-    <Text class=status x=50% y={100% - 46px} width=84% height=28px text={self.status_label}/>
+    <Text class="title" x=50% y=54px width=86% height=48px text="Gyroscope & Accelerometer"/>
+    <Text class="readout" x=50% y=102px width=86% height=24px text={self.gyro_label}/>
+    <Text class="readout" x=50% y=130px width=86% height=24px text={self.accel_label}/>
+    <Text class="status" x=50% y={100% - 46px} width=84% height=28px text={self.status_label}/>
 
     <Group
         x={50% + ($gyro.y * 5.5)px}
@@ -25,10 +24,10 @@
         rotate={(self.wobble + $gyro.z * 0.08)deg}
         opacity={self.glow}
     >
-        <Ellipse class=core x=50% y=50% width=42% height=42% anchor=50%/>
-        <Ellipse class=ring_a x=50% y=50% width=76% height=76% anchor=50% rotate={($gyro.y * -0.9)deg}/>
-        <Ellipse class=ring_b x=50% y=50% width=104% height=104% anchor=50% rotate={($gyro.x * 0.7)deg}/>
-        <Ellipse class=satellite x={(50.0 + $gyro.y * 0.32)%} y={(50.0 + $gyro.x * 0.24)%} width=34px height=34px anchor=50%/>
+        <Ellipse class="core" x=50% y=50% width=42% height=42% anchor=50%/>
+        <Ellipse class="ring_a" x=50% y=50% width=76% height=76% anchor=50% rotate={($gyro.y * -0.9)deg}/>
+        <Ellipse class="ring_b" x=50% y=50% width=104% height=104% anchor=50% rotate={($gyro.x * 0.7)deg}/>
+        <Ellipse class="satellite" x={(50.0 + $gyro.y * 0.32)%} y={(50.0 + $gyro.x * 0.24)%} width=34px height=34px anchor=50%/>
     </Group>
 
     <Group
@@ -39,12 +38,12 @@
         anchor=50%
         opacity=0.72
     >
-        <Rectangle class=guide_h x=50% y=50% width=100% height=1px anchor=50%/>
-        <Rectangle class=guide_v x=50% y=50% width=1px height=100% anchor=50%/>
-        <Ellipse class=field_mark x=50% y=50% width=100% height=100% anchor=50%/>
+        <Rectangle class="guide_h" x=50% y=50% width=100% height=1px anchor=50%/>
+        <Rectangle class="guide_v" x=50% y=50% width=1px height=100% anchor=50%/>
+        <Ellipse class="field_mark" x=50% y=50% width=100% height=100% anchor=50%/>
     </Group>
 
-    <Rectangle class=background/>
+    <Rectangle class="background"/>
 </Group>
 
 @settings {

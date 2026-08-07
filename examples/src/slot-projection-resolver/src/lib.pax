@@ -4,24 +4,24 @@
 
         <Scroller x=50% y=96px width={100% - 48px} height={100% - 116px} anchor_x=50% scroll_height=1240px>
             <Group width=100% height=1240px>
-                <Group class=panel_control x={100% - 24px} y=268px width=142px height=32px @click=self.next_selected>
-                    <Text class=control_text x=50% y=50% width={100% - 16px} height=20px text={"selected: " + self.selected} selectable=false />
-                    <Rectangle class=control_bg />
+                <Group class="panel_control" x={100% - 24px} y=268px width=142px height=32px @click=self.next_selected>
+                    <Text class="control_text" x=50% y=50% width={100% - 16px} height=20px text={"selected: " + self.selected} selectable=false />
+                    <Rectangle class="control_bg" />
                 </Group>
 
-                <Group class=panel_control x={100% - 24px} y=512px width=142px height=32px @click=self.toggle_duplicate>
-                    <Text class=control_text x=50% y=50% width={100% - 16px} height=20px text={self.duplicate_b == self.duplicate_a ? "duplicate on" : "duplicate off"} selectable=false />
-                    <Rectangle class=control_bg />
+                <Group class="panel_control" x={100% - 24px} y=512px width=142px height=32px @click=self.toggle_duplicate>
+                    <Text class="control_text" x=50% y=50% width={100% - 16px} height=20px text={self.duplicate_b == self.duplicate_a ? "duplicate on" : "duplicate off"} selectable=false />
+                    <Rectangle class="control_bg" />
                 </Group>
 
-                <Group class=panel_control x={100% - 24px} y=756px width=142px height=32px @click=self.toggle_conditional>
-                    <Text class=control_text x=50% y=50% width={100% - 16px} height=20px text={self.pin_first ? "if slot on" : "if slot off"} selectable=false />
-                    <Rectangle class=control_bg />
+                <Group class="panel_control" x={100% - 24px} y=756px width=142px height=32px @click=self.toggle_conditional>
+                    <Text class="control_text" x=50% y=50% width={100% - 16px} height=20px text={self.pin_first ? "if slot on" : "if slot off"} selectable=false />
+                    <Rectangle class="control_bg" />
                 </Group>
 
-                <Group class=panel_control x={100% - 24px} y=1000px width=142px height=32px @click=self.rotate_repeated>
-                    <Text class=control_text x=50% y=50% width={100% - 16px} height=20px text="rotate tiles" selectable=false />
-                    <Rectangle class=control_bg />
+                <Group class="panel_control" x={100% - 24px} y=1000px width=142px height=32px @click=self.rotate_repeated>
+                    <Text class="control_text" x=50% y=50% width={100% - 16px} height=20px text="rotate tiles" selectable=false />
+                    <Rectangle class="control_bg" />
                 </Group>
 
                 <FirstThreeThenRest x=0px y=0px height=220px>
@@ -57,11 +57,11 @@
                     <GemTile x=360px width=72px height=58px index=6 label="Amethyst" color={self.repeated_color_6} />
                 </RepeatedDeal>
 
-                <Rectangle class=scroller_bg />
+                <Rectangle class="scroller_bg" />
             </Group>
         </Scroller>
 
-        <Rectangle class=background />
+        <Rectangle class="background" />
     </Group>
 </ExampleHost>
 

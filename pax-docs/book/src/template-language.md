@@ -11,12 +11,11 @@
 ## IDs and classes
 
 Use `id` for one unique node and `class` for reusable settings selectors. A
-single class may be written as a symbolic identifier; multiple classes
-canonically use one list:
+single class is a string; multiple classes canonically use one string list:
 
 ```pax
-<Text id=page_title class=heading />
-<Rectangle class=[card, elevated, interactive] />
+<Text id=page_title class="heading" />
+<Rectangle class=["card", "elevated", "interactive"] />
 
 @settings {
     #page_title {
@@ -29,12 +28,34 @@ canonically use one list:
 }
 ```
 
-Class names are static selector symbols, not quoted strings. Runtime-computed
-class lists are not currently supported; use conditional settings or bind the
-affected property directly when styling must react to state.
+Class bindings are reactive. An expression may evaluate to either `String` or
+`Vec<String>`:
 
-Other inline properties should occur at most once. Duplicate non-class
-properties are not a supported precedence mechanism.
+```pax
+<Text class={self.current_class} />
+<Rectangle class={self.current_classes} />
+<Group class={self.selected ? ["card", "selected"] : "card"} />
+<Group class={"temporary"} />
+```
+
+An empty string or empty list means no classes. A string names exactly one
+class and is never split on whitespace. When several classes match, their
+settings apply from left to right, so later classes override earlier classes
+before `id` and inline settings are applied.
+
+Duplicate names collapse to one class at the position of their final
+occurrence. The formatter writes a one-item literal list as a scalar string.
+
+Class names must use the same identifier spelling accepted by `.class`
+selectors. Invalid names and values of other runtime types are ignored with a
+runtime warning. A class is allowed to have no matching selector.
+
+`class` is reserved selector metadata rather than an ordinary component
+property. It cannot be assigned from inside a settings, selector, or timeline
+block.
+
+Every inline property, including `class`, should occur at most once. Use a
+single class list instead of repeated attributes.
 
 ## Conditional Settings
 

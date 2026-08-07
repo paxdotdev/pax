@@ -5,8 +5,7 @@
         direction=StackerDirection::Vertical
         gutter=20px
     >
-        <Group
-            class=route_stage_0
+        <Group class="route_stage_0"
             width=100%
             autosize=true
             autosize_x=false
@@ -43,8 +42,7 @@
         </Group>
 
         if is_mobile {
-            <Stacker
-                class=route_stage_1
+            <Stacker class="route_stage_1"
                 width=100%
                 autosize=true
                 direction=StackerDirection::Vertical
@@ -67,33 +65,32 @@
                 }
             >
                 <Link width=100% height=44px url={"/teams/" + route.params.team_id}>
-                    <Text class=chip_text width=100% height=100% text="Overview" />
-                    <Rectangle class=chip width=100% height=100% />
+                    <Text class="chip_text" width=100% height=100% text="Overview" />
+                    <Rectangle class="chip" width=100% height=100% />
                 </Link>
                 <Link
                     width=100%
                     height=44px
                     url={"/teams/" + route.params.team_id + "/members/ada?lane=beta#inspect"}
                 >
-                    <Text class=chip_text width=100% height=100% text="Member Param" />
-                    <Rectangle class=chip width=100% height=100% />
+                    <Text class="chip_text" width=100% height=100% text="Member Param" />
+                    <Rectangle class="chip" width=100% height=100% />
                 </Link>
                 <Link
                     width=100%
                     height=44px
                     url={"/teams/" + route.params.team_id + "/settings/integrations/logs?source=router#history"}
                 >
-                    <Text class=chip_text width=100% height=100% text="Nested Settings" />
-                    <Rectangle class=chip width=100% height=100% />
+                    <Text class="chip_text" width=100% height=100% text="Nested Settings" />
+                    <Rectangle class="chip" width=100% height=100% />
                 </Link>
                 <Link width=100% height=44px url={"/teams/" + route.params.team_id + "/missing/tail"}>
-                    <Text class=chip_text width=100% height=100% text="404" />
-                    <Rectangle class=chip width=100% height=100% />
+                    <Text class="chip_text" width=100% height=100% text="404" />
+                    <Rectangle class="chip" width=100% height=100% />
                 </Link>
             </Stacker>
         } else {
-            <Stacker
-                class=route_stage_1
+            <Stacker class="route_stage_1"
                 width=100%
                 autosize=true
                 autosize_x=false
@@ -119,34 +116,33 @@
                 }
             >
                 <Link width=100% height=44px url={"/teams/" + route.params.team_id}>
-                    <Text class=chip_text width=100% height=100% text="Overview" />
-                    <Rectangle class=chip width=100% height=100% />
+                    <Text class="chip_text" width=100% height=100% text="Overview" />
+                    <Rectangle class="chip" width=100% height=100% />
                 </Link>
                 <Link
                     width=100%
                     height=44px
                     url={"/teams/" + route.params.team_id + "/members/ada?lane=beta#inspect"}
                 >
-                    <Text class=chip_text width=100% height=100% text="Member Param" />
-                    <Rectangle class=chip width=100% height=100% />
+                    <Text class="chip_text" width=100% height=100% text="Member Param" />
+                    <Rectangle class="chip" width=100% height=100% />
                 </Link>
                 <Link
                     width=100%
                     height=44px
                     url={"/teams/" + route.params.team_id + "/settings/integrations/logs?source=router#history"}
                 >
-                    <Text class=chip_text width=100% height=100% text="Nested Settings" />
-                    <Rectangle class=chip width=100% height=100% />
+                    <Text class="chip_text" width=100% height=100% text="Nested Settings" />
+                    <Rectangle class="chip" width=100% height=100% />
                 </Link>
                 <Link width=100% height=44px url={"/teams/" + route.params.team_id + "/missing/tail"}>
-                    <Text class=chip_text width=100% height=100% text="404" />
-                    <Rectangle class=chip width=100% height=100% />
+                    <Text class="chip_text" width=100% height=100% text="404" />
+                    <Rectangle class="chip" width=100% height=100% />
                 </Link>
             </Stacker>
         }
 
-        <RouteInspector
-            class=route_stage_2
+        <RouteInspector class="route_stage_2"
             width=100%
             title="team scope"
             @in=@timeline {
@@ -167,8 +163,7 @@
             }
         />
 
-        <Group
-            class=route_stage_3
+        <Group class="route_stage_3"
             width=100%
             autosize=true
             autosize_x=false
@@ -198,9 +193,8 @@
                             direction=StackerDirection::Vertical
                             gutter=12px
                         >
-                            <Text class=section width=100% text="Default team overview" />
-                            <Text
-                                class=copy
+                            <Text class="section" width=100% text="Default team overview" />
+                            <Text class="copy"
                                 width=100%
                                 text="The team route uses `default=true` to make the empty remainder render an overview without special-case path syntax."
                             />
@@ -216,18 +210,15 @@
                             direction=StackerDirection::Vertical
                             gutter=12px
                         >
-                            <Text
-                                class=section
+                            <Text class="section"
                                 width=100%
                                 text={"Member detail for `" + route.params.member_id + "`"}
                             />
-                            <Text
-                                class=copy
+                            <Text class="copy"
                                 width=100%
                                 text="Nested params compose the same way as top-level params. This branch is exact when the remainder is just `members/:member_id`."
                             />
-                            <Text
-                                class=copy
+                            <Text class="copy"
                                 width=100%
                                 text={"Current fragment: " + (route.global_location.fragment ?? "none")}
                             />
@@ -243,15 +234,14 @@
                             direction=StackerDirection::Vertical
                             gutter=16px
                         >
-                            <Text class=section width=100% text="Settings catch-all" />
+                            <Text class="section" width=100% text="Settings catch-all" />
                             <RouteInspector width=100% title="settings scope" />
 
                             <Group width=100% autosize=true autosize_x=false autosize_y=true>
                                 <Router>
                                     <Route default=true>
                                         <RouteTransitionFrame width=100%>
-                                            <Text
-                                                class=copy
+                                            <Text class="copy"
                                                 width=100%
                                                 text="Empty settings remainder falls back here, which keeps the authoring model aligned with the rest of template control flow."
                                             />
@@ -266,8 +256,7 @@
                                                 direction=StackerDirection::Vertical
                                                 gutter=16px
                                             >
-                                                <Text
-                                                    class=copy
+                                                <Text class="copy"
                                                     width=100%
                                                     text="A second catch-all consumes `integrations/*`, proving that nested routers match against their nearest ancestor remainder instead of the original global path."
                                                 />
@@ -276,8 +265,7 @@
                                                     <Router>
                                                         <Route default=true>
                                                             <RouteTransitionFrame width=100%>
-                                                                <Text
-                                                                    class=copy
+                                                                <Text class="copy"
                                                                     width=100%
                                                                     text="This is the integrations landing branch."
                                                                 />
@@ -286,8 +274,7 @@
 
                                                         <Route path="logs">
                                                             <RouteTransitionFrame width=100%>
-                                                                <Text
-                                                                    class=copy
+                                                                <Text class="copy"
                                                                     width=100%
                                                                     text="The `logs` branch is exact inside the integrations subtree, even though the full browser URL still includes `/teams/:team_id/settings/...`."
                                                                 />
@@ -296,8 +283,7 @@
 
                                                         <Route path="*">
                                                             <RouteTransitionFrame width=100%>
-                                                                <Text
-                                                                    class=copy
+                                                                <Text class="copy"
                                                                     width=100%
                                                                     text="Unknown integrations tails land here."
                                                                 />
@@ -311,8 +297,7 @@
 
                                     <Route path="billing">
                                         <RouteTransitionFrame width=100%>
-                                            <Text
-                                                class=copy
+                                            <Text class="copy"
                                                 width=100%
                                                 text="`billing` shows an exact nested branch under settings."
                                             />
@@ -321,8 +306,7 @@
 
                                     <Route path="*">
                                         <RouteTransitionFrame width=100%>
-                                            <Text
-                                                class=copy
+                                            <Text class="copy"
                                                 width=100%
                                                 text="Unknown settings tails fall through to the nested catch-all."
                                             />
@@ -336,8 +320,7 @@
 
                 <Route path="*">
                     <RouteTransitionFrame width=100%>
-                        <Text
-                            class=copy
+                        <Text class="copy"
                             width=100%
                             text="Any unmatched team remainder ends up here after the explicit member and settings routes decline to match."
                         />
