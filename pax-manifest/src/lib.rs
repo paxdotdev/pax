@@ -2118,6 +2118,16 @@ pub struct ControlFlowConditionalBranchDefinition {
     pub child_ids: Vec<TemplateNodeId>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
+#[serde(crate = "pax_message::serde")]
+pub struct RouteMetadataDefinition {
+    pub title: String,
+    pub description: String,
+    pub index: bool,
+    pub social_image: Option<String>,
+    pub social_image_alt: Option<String>,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 #[serde(crate = "pax_message::serde")]
 pub struct ControlFlowRouteBranchDefinition {
@@ -2129,6 +2139,12 @@ pub struct ControlFlowRouteBranchDefinition {
     pub modal: bool,
     #[serde(default)]
     pub child_ids: Vec<TemplateNodeId>,
+    /// Compiler-only document metadata attached to this declarative route.
+    ///
+    /// The web compiler consumes this before cartridge generation. Runtime
+    /// routing and baked program representations intentionally omit it.
+    #[serde(default)]
+    pub metadata: Option<RouteMetadataDefinition>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]

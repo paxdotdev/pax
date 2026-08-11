@@ -1,0 +1,92 @@
+<Group />
+
+@settings {
+    .site_ink {
+        fill: rgb(20, 25, 32)
+    }
+    .site_paper {
+        fill: rgb(248, 250, 252)
+    }
+    .site_signal {
+        fill: rgb(37, 111, 190)
+    }
+    .site_rule {
+        fill: rgba(244, 240, 231, 42)
+    }
+    .site_display {
+        style: TextStyle {
+            font: Font::Web(
+                "Manrope",
+                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::ExtraBold)
+            fill: rgb(20, 25, 32)
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .site_body {
+        style: TextStyle {
+            font: Font::Web(
+                "Manrope",
+                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::Normal)
+            fill: rgb(71, 85, 105)
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .site_mono {
+        style: TextStyle {
+            font: Font::Web(
+                "IBM Plex Mono",
+                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                FontStyle::Normal,
+                FontWeight::Medium)
+            fill: rgb(20, 25, 32)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .site_button_label {
+        style: TextStyle {
+            font: Font::Web(
+                "Manrope",
+                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::Bold)
+            font_size: 14px
+            fill: WHITE
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+        }
+    }
+    .site_button_signal {
+        fill: rgb(37, 111, 190)
+        corner_radii: RectangleCornerRadii::radii(4.0, 4.0, 4.0, 4.0)
+    }
+    .site_button_outline_label {
+        style: TextStyle {
+            font: Font::Web(
+                "Manrope",
+                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::Bold)
+            font_size: 14px
+            fill: rgb(20, 25, 32)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+        }
+    }
+    .site_button_outline {
+        fill: WHITE
+        stroke: Stroke { color: rgba(20, 25, 32, 74), width: 1px }
+        corner_radii: RectangleCornerRadii::radii(4.0, 4.0, 4.0, 4.0)
+    }
+}

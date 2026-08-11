@@ -20,6 +20,7 @@ pub mod dev_session;
 pub mod helpers;
 mod hot_reload;
 pub mod project_metadata;
+mod route_metadata;
 pub mod static_analysis;
 pub mod svg_import;
 
@@ -338,6 +339,17 @@ fn prepare_cartridge_sources_with_timings(
         )
     })?;
     println!("{} 🔎 Built manifest via static analysis", *PAX_BADGE);
+
+    if ctx.target == RunTarget::Web {
+        timings.record("web route metadata", || {
+            route_metadata::prepare_web_route_metadata(
+                &pax_dir,
+                &userland_manifest,
+                &project_metadata,
+                ctx.is_release,
+            )
+        })?;
+    }
 
     let merged_manifest = userland_manifest.clone();
 

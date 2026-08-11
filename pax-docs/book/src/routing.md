@@ -104,6 +104,96 @@ Pax keeps route writes out of template matching nodes.
 On web targets, same-origin navigation in the current tab can be synchronized through the browser History API, so nested route changes do not need to trigger full reloads.
 Back and forward navigation are routed back into Pax through browser `popstate` and `hashchange` events.
 
+## Web Route Metadata
+
+Web builds can derive crawler-visible metadata from the same declarative route
+tree that renders the application. Annotate a route in place with literal
+`RouteMetadata`:
+
+```pax
+<Router>
+    <Route
+        path="/"
+        metadata=RouteMetadata {
+            title: "Wayfinder",
+            description: "Plan a clear route across every screen.",
+            index: true,
+        }
+    >
+        <Home />
+    </Route>
+
+    <Route
+        path="/notes/*"
+        metadata=RouteMetadata {
+            title: "Wayfinder Notes",
+            description: "Product notes from the Wayfinder team.",
+            index: true,
+            social_image: "assets/notes-card.png",
+            social_image_alt: "Wayfinder route map",
+        }
+    >
+        <Notes />
+    </Route>
+
+    <Route
+        default=true
+        metadata=RouteMetadata {
+            title: "Page not found — Wayfinder",
+            description: "This page could not be found.",
+            index: false,
+        }
+    >
+        <NotFound />
+    </Route>
+</Router>
+```
+
+`title`, `description`, and `index` are required literals. `social_image` and
+`social_image_alt` are optional, but must be supplied together. Metadata is
+inherited by nested routes until a descendant declares its own block.
+
+The compiler reads this topology for every target, but only a web build emits
+artifacts. It writes:
+
+- `route-metadata.json`, used to keep the document head synchronized after
+  History API navigation
+- a route-specific `index.html` for every concrete literal path
+- the root `index.html`, which also acts as the application fallback
+
+Parameterized routes remain symbolic because the compiler cannot enumerate
+their values. A terminal catch-all such as `/notes/*` can still emit the
+concrete prefix `/notes`. An indexable route cannot sit behind a dynamic
+`if`, `repeat`, or slot boundary because its topology would not be
+deterministic.
+
+Configure site-wide values under `[package.metadata.pax.web]`:
+
+```toml
+[package.metadata.pax.web]
+title = "Wayfinder"
+site_name = "Wayfinder"
+site_url = "https://example.com"
+social_image = "assets/site-card.png"
+social_image_alt = "Wayfinder"
+```
+
+`site_url` is required when a release web build contains an indexable concrete
+route. It supplies canonical and absolute social URLs. Route-specific social
+metadata overrides the site-wide pair.
+
+### Hosting the Generated Routes
+
+Serve a generated file when it exists. Rewrite every other application path
+to `/index.html` while preserving the requested browser URL and returning the
+application document. Do not redirect unknown paths to `/`, and do not use a
+separate semantic `404.html`: the declarative default route decides whether a
+preserved URL is valid and renders the application's not-found experience.
+
+This is still client-side routing. A hard load initializes a fresh Pax
+application, while same-origin `Link` and `navigate_to(...)` transitions keep
+the current session and update the document head in place.
+
 ## Example
 
 <pax-example

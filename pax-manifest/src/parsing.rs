@@ -564,6 +564,7 @@ fn parse_route_branch_settings(
 ) -> ControlFlowRouteBranchDefinition {
     let mut path = None;
     let mut is_default = false;
+    let mut metadata = None;
 
     for setting in settings.unwrap_or_default() {
         let SettingElement::Setting(token, value) = setting else {
@@ -577,6 +578,12 @@ fn parse_route_branch_settings(
             key if key == descriptor.default_property => {
                 is_default = parse_route_default_setting(&value);
             }
+            "metadata" => {
+                if metadata.is_some() {
+                    panic!("Route metadata may only be declared once");
+                }
+                metadata = Some(parse_route_metadata_setting(&value));
+            }
             _ => {}
         }
     }
@@ -588,12 +595,21 @@ fn parse_route_branch_settings(
     if !is_default && path.is_none() {
         panic!("route branch requires path or default=true");
     }
+    if is_default
+        && metadata
+            .as_ref()
+            .map(|metadata| metadata.index)
+            .unwrap_or(false)
+    {
+        panic!("default Route metadata cannot set index: true");
+    }
 
     ControlFlowRouteBranchDefinition {
         path,
         default: is_default,
         modal: descriptor.modal,
         child_ids,
+        metadata,
     }
 }
 
@@ -613,6 +629,109 @@ fn parse_route_default_setting(value: &ValueDefinition) -> bool {
     match value {
         ValueDefinition::LiteralValue(PaxValue::Bool(value)) => *value,
         _ => panic!("route branch default must be a boolean literal"),
+    }
+}
+
+fn parse_route_metadata_setting(value: &ValueDefinition) -> RouteMetadataDefinition {
+    let ValueDefinition::Block(block) = value else {
+        panic!("Route metadata must be a RouteMetadata literal object");
+    };
+    let Some(type_name) = block
+        .explicit_type_pascal_identifier
+        .as_ref()
+        .map(|token| token.token_value.as_str())
+    else {
+        panic!("Route metadata must use RouteMetadata {{ ... }}");
+    };
+    if type_name != "RouteMetadata" {
+        panic!("Route metadata must use RouteMetadata {{ ... }}");
+    }
+
+    let mut title = None;
+    let mut description = None;
+    let mut index = None;
+    let mut social_image = None;
+    let mut social_image_alt = None;
+
+    for element in &block.elements {
+        let SettingElement::Setting(token, value) = element else {
+            continue;
+        };
+        match token.token_value.as_str() {
+            "title" => {
+                set_route_metadata_field(
+                    &mut title,
+                    parse_route_metadata_string(value, "title"),
+                    "title",
+                );
+            }
+            "description" => {
+                set_route_metadata_field(
+                    &mut description,
+                    parse_route_metadata_string(value, "description"),
+                    "description",
+                );
+            }
+            "index" => {
+                set_route_metadata_field(
+                    &mut index,
+                    parse_route_metadata_bool(value, "index"),
+                    "index",
+                );
+            }
+            "social_image" => {
+                set_route_metadata_field(
+                    &mut social_image,
+                    parse_route_metadata_string(value, "social_image"),
+                    "social_image",
+                );
+            }
+            "social_image_alt" => {
+                set_route_metadata_field(
+                    &mut social_image_alt,
+                    parse_route_metadata_string(value, "social_image_alt"),
+                    "social_image_alt",
+                );
+            }
+            other => panic!("Unsupported RouteMetadata field {other}"),
+        }
+    }
+
+    if social_image.is_some() && social_image_alt.is_none() {
+        panic!("RouteMetadata social_image requires social_image_alt");
+    }
+    if social_image.is_none() && social_image_alt.is_some() {
+        panic!("RouteMetadata social_image_alt requires social_image");
+    }
+
+    RouteMetadataDefinition {
+        title: title.unwrap_or_else(|| panic!("RouteMetadata requires title")),
+        description: description.unwrap_or_else(|| panic!("RouteMetadata requires description")),
+        index: index.unwrap_or_else(|| panic!("RouteMetadata requires index")),
+        social_image,
+        social_image_alt,
+    }
+}
+
+fn parse_route_metadata_string(value: &ValueDefinition, field: &str) -> String {
+    match value {
+        ValueDefinition::LiteralValue(PaxValue::String(value)) if !value.trim().is_empty() => {
+            value.clone()
+        }
+        _ => panic!("RouteMetadata {field} must be a non-empty string literal"),
+    }
+}
+
+fn set_route_metadata_field<T>(slot: &mut Option<T>, value: T, field: &str) {
+    if slot.replace(value).is_some() {
+        panic!("RouteMetadata {field} may only be declared once");
+    }
+}
+
+fn parse_route_metadata_bool(value: &ValueDefinition, field: &str) -> bool {
+    match value {
+        ValueDefinition::LiteralValue(PaxValue::Bool(value)) => *value,
+        _ => panic!("RouteMetadata {field} must be a boolean literal"),
     }
 }
 
@@ -791,6 +910,17 @@ pub fn parse_value_definition(value: Pair<Rule>) -> ValueDefinition {
             let inner = value.into_inner().next().unwrap();
             match inner.as_rule() {
                 Rule::literal_object => {
+                    let has_explicit_type = inner
+                        .clone()
+                        .into_inner()
+                        .next()
+                        .map(|pair| pair.as_rule() == Rule::pascal_identifier)
+                        .unwrap_or(false);
+                    if has_explicit_type {
+                        return ValueDefinition::Block(
+                            derive_value_definition_from_literal_object_pair(inner),
+                        );
+                    }
                     let literal = from_pax(inner.as_str());
                     match literal {
                         Ok(value) => ValueDefinition::LiteralValue(value),

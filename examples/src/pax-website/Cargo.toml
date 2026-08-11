@@ -1,0 +1,28 @@
+[package]
+name = "pax-website"
+version = "0.38.3"
+edition = "2021"
+default-run = "run"
+description = "The Pax language-first GUI framework website"
+repository = "https://github.com/paxdotdev/pax"
+
+[package.metadata.pax]
+title = "Pax — ready for builders"
+
+[package.metadata.pax.web]
+title = "Pax — ready for builders"
+favicon = "../../../pax-compiler/files/interfaces/macos/pax-app-macos/pax-app-macos/Assets.xcassets/AppIcon.appiconset/pax-logo-1024.png"
+site_name = "Pax"
+site_url = "https://pax.dev"
+social_image = "pax-favicon.png"
+social_image_alt = "Pax logo"
+
+[dependencies]
+pax-kit = { version = "0.38.3", path = "../../../pax-kit" }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "run"
+path = "bin/run.rs"

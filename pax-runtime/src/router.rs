@@ -936,6 +936,7 @@ mod tests {
             default: false,
             modal: false,
             child_ids: vec![],
+            metadata: None,
         }]);
         let input = route(&["settings", "team", "42"]);
         let selection = select_route_branch(&branches, &input, &input);
@@ -957,6 +958,7 @@ mod tests {
             default: false,
             modal: false,
             child_ids: vec![],
+            metadata: None,
         }]);
         let input = route(&["docs", "router"]);
         let selection = select_route_branch(&branches, &input, &input);
@@ -975,6 +977,7 @@ mod tests {
             default: false,
             modal: false,
             child_ids: vec![],
+            metadata: None,
         }]);
         let input = route(&["settings", "integrations", "logs"]);
         let selection = select_route_branch(&branches, &input, &input);
@@ -995,12 +998,14 @@ mod tests {
                 default: false,
                 modal: false,
                 child_ids: vec![],
+                metadata: None,
             },
             ControlFlowRouteBranchDefinition {
                 path: None,
                 default: true,
                 modal: false,
                 child_ids: vec![],
+                metadata: None,
             },
         ]);
         let input = route(&["missing"]);
@@ -1022,6 +1027,7 @@ mod tests {
                 default: false,
                 modal: false,
                 child_ids: vec![],
+                metadata: None,
             }],
             vec![0..1],
             vec![leaf()],
@@ -1055,6 +1061,7 @@ mod tests {
                 default: false,
                 modal: false,
                 child_ids: vec![],
+                metadata: None,
             }],
             vec![0..1],
             vec![leaf()],
@@ -1099,12 +1106,14 @@ mod tests {
                     default: false,
                     modal: false,
                     child_ids: vec![],
+                    metadata: None,
                 },
                 ControlFlowRouteBranchDefinition {
                     path: Some("/beta".to_string()),
                     default: false,
                     modal: false,
                     child_ids: vec![],
+                    metadata: None,
                 },
             ],
             vec![0..2, 2..4],
@@ -1143,12 +1152,14 @@ mod tests {
                     default: false,
                     modal: false,
                     child_ids: vec![],
+                    metadata: None,
                 },
                 ControlFlowRouteBranchDefinition {
                     path: Some("/beta".to_string()),
                     default: false,
                     modal: false,
                     child_ids: vec![],
+                    metadata: None,
                 },
             ],
             vec![0..1, 1..2],
@@ -1192,12 +1203,14 @@ mod tests {
                     default: false,
                     modal: false,
                     child_ids: vec![],
+                    metadata: None,
                 },
                 ControlFlowRouteBranchDefinition {
                     path: Some("/beta".to_string()),
                     default: false,
                     modal: false,
                     child_ids: vec![],
+                    metadata: None,
                 },
             ],
             vec![0..1, 1..2],
@@ -1232,12 +1245,14 @@ mod tests {
                     default: false,
                     modal: false,
                     child_ids: vec![],
+                    metadata: None,
                 },
                 ControlFlowRouteBranchDefinition {
                     path: Some("/beta".to_string()),
                     default: false,
                     modal: false,
                     child_ids: vec![],
+                    metadata: None,
                 },
             ],
             vec![0..1, 1..2],
@@ -1278,12 +1293,14 @@ mod tests {
                     default: false,
                     modal: false,
                     child_ids: vec![],
+                    metadata: None,
                 },
                 ControlFlowRouteBranchDefinition {
                     path: Some("/beta".to_string()),
                     default: false,
                     modal: false,
                     child_ids: vec![],
+                    metadata: None,
                 },
             ],
             vec![0..1, 1..2],
@@ -1317,12 +1334,14 @@ mod tests {
                     default: false,
                     modal: false,
                     child_ids: vec![],
+                    metadata: None,
                 },
                 ControlFlowRouteBranchDefinition {
                     path: Some("/tools".to_string()),
                     default: false,
                     modal: true,
                     child_ids: vec![],
+                    metadata: None,
                 },
             ],
             vec![0..1, 1..2],
@@ -1354,12 +1373,14 @@ mod tests {
                     default: false,
                     modal: false,
                     child_ids: vec![],
+                    metadata: None,
                 },
                 ControlFlowRouteBranchDefinition {
                     path: Some("/tools".to_string()),
                     default: false,
                     modal: true,
                     child_ids: vec![],
+                    metadata: None,
                 },
             ],
             vec![0..1, 1..2],
@@ -1394,6 +1415,7 @@ mod tests {
                 default: false,
                 modal: false,
                 child_ids: vec![],
+                metadata: None,
             }],
             vec![0..1],
             vec![leaf()],

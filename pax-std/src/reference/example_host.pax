@@ -44,9 +44,11 @@
         </Group>
     }
 
-    <Group class="example_host_preview" x=0px y=0px width={100% - (self._drawer_width_px * self._drawer_progress)px} height=100% anchor_x=0% anchor_y=0%>
-        slot()
-    </Group>
+    if !(self._compact_drawer && (self.drawer_open || self._drawer_progress > 0.001)) {
+        <Group class="example_host_preview" x=0px y=0px width={100% - (self._drawer_width_px * self._drawer_progress)px} height=100% anchor_x=0% anchor_y=0%>
+            slot()
+        </Group>
+    }
 </Group>
 
 @settings {

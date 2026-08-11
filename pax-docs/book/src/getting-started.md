@@ -371,6 +371,10 @@ icon = "assets/icon.png"
 [package.metadata.pax.web]
 title = "Pax Web"
 favicon = "assets/favicon.png"
+site_name = "Pax Example"
+site_url = "https://example.com"
+social_image = "assets/social-card.png"
+social_image_alt = "Pax Example"
 
 [package.metadata.pax.ios]
 title = "Pax iOS"
@@ -411,6 +415,14 @@ Supported web keys:
 - `title`: overrides the common title for web.
 - `favicon`: source file copied as the web favicon.
 - `icon`: web-specific icon source used to generate a fallback favicon.
+- `site_name`: Open Graph site name. Defaults to the resolved web title.
+- `site_url`: absolute public HTTP(S) URL, including any deployment base path.
+  Required for release builds with indexable concrete
+  [route metadata](routing.md#web-route-metadata).
+- `social_image`: default route-preview image, as an absolute URL or a path
+  relative to `site_url`.
+- `social_image_alt`: accessible description for `social_image`. The image and
+  alt text must be configured together.
 
 Supported Apple target keys for `ios`, `ipados`, and `macos`:
 

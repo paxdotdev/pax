@@ -43,6 +43,10 @@ struct WebMetadata {
     title: Option<String>,
     icon: Option<String>,
     favicon: Option<String>,
+    site_name: Option<String>,
+    site_url: Option<String>,
+    social_image: Option<String>,
+    social_image_alt: Option<String>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -131,12 +135,28 @@ impl PaxProjectMetadata {
             .or_else(|| self.common.development_team.clone())
     }
 
-    fn web_title(&self) -> Option<String> {
+    pub(crate) fn web_title(&self) -> Option<String> {
         self.web
             .title
             .clone()
             .or_else(|| self.common.title.clone())
             .or_else(|| self.package_name.clone())
+    }
+
+    pub(crate) fn web_site_name(&self) -> Option<String> {
+        self.web.site_name.clone().or_else(|| self.web_title())
+    }
+
+    pub(crate) fn web_site_url(&self) -> Option<&str> {
+        self.web.site_url.as_deref()
+    }
+
+    pub(crate) fn web_social_image(&self) -> Option<&str> {
+        self.web.social_image.as_deref()
+    }
+
+    pub(crate) fn web_social_image_alt(&self) -> Option<&str> {
+        self.web.social_image_alt.as_deref()
     }
 
     fn web_favicon_source(&self) -> Option<&str> {
@@ -351,11 +371,30 @@ fn parse_common_metadata(table: &Table, path: &str) -> Result<CommonMetadata, ey
 }
 
 fn parse_web_metadata(table: &Table, path: &str) -> Result<WebMetadata, eyre::Report> {
-    Ok(WebMetadata {
+    let metadata = WebMetadata {
         title: string_field(table, "title", &format!("{path}.title"))?,
         icon: string_field(table, "icon", &format!("{path}.icon"))?,
         favicon: string_field(table, "favicon", &format!("{path}.favicon"))?,
-    })
+        site_name: string_field(table, "site_name", &format!("{path}.site_name"))?,
+        site_url: string_field(table, "site_url", &format!("{path}.site_url"))?,
+        social_image: string_field(table, "social_image", &format!("{path}.social_image"))?,
+        social_image_alt: string_field(
+            table,
+            "social_image_alt",
+            &format!("{path}.social_image_alt"),
+        )?,
+    };
+    if metadata.social_image.is_some() && metadata.social_image_alt.is_none() {
+        return Err(eyre!(
+            "`{path}.social_image` requires `{path}.social_image_alt`"
+        ));
+    }
+    if metadata.social_image.is_none() && metadata.social_image_alt.is_some() {
+        return Err(eyre!(
+            "`{path}.social_image_alt` requires `{path}.social_image`"
+        ));
+    }
+    Ok(metadata)
 }
 
 fn parse_apple_metadata(table: &Table, path: &str) -> Result<AppleMetadata, eyre::Report> {
@@ -758,6 +797,48 @@ mod tests {
         assert!(error
             .to_string()
             .contains("`package.metadata.pax.dev.hot_reload` must be a string"));
+    }
+
+    #[test]
+    fn reads_web_site_and_social_metadata() {
+        let metadata = load(
+            r#"
+            [package]
+            name = "example-app"
+
+            [package.metadata.pax.web]
+            title = "Example title"
+            site_name = "Example"
+            site_url = "https://example.com"
+            social_image = "assets/social.png"
+            social_image_alt = "Example preview"
+            "#,
+        );
+
+        assert_eq!(metadata.web_title().as_deref(), Some("Example title"));
+        assert_eq!(metadata.web_site_name().as_deref(), Some("Example"));
+        assert_eq!(metadata.web_site_url(), Some("https://example.com"));
+        assert_eq!(metadata.web_social_image(), Some("assets/social.png"));
+        assert_eq!(metadata.web_social_image_alt(), Some("Example preview"));
+    }
+
+    #[test]
+    fn web_social_image_requires_alt_text() {
+        let error = load_project_metadata_from_toml(
+            Path::new("/tmp/example"),
+            r#"
+            [package]
+            name = "example-app"
+
+            [package.metadata.pax.web]
+            social_image = "assets/social.png"
+            "#,
+        )
+        .expect_err("social image without alt text should fail");
+
+        assert!(error
+            .to_string()
+            .contains("social_image` requires `package.metadata.pax.web.social_image_alt"));
     }
 
     #[test]

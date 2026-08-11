@@ -1094,7 +1094,16 @@ mod tests {
 
         let pax = r#"
             <Router>
-                <Route path="/">
+                <Route
+                    path="/"
+                    metadata=RouteMetadata {
+                        title: "Home"
+                        description: "The example home route."
+                        index: true
+                        social_image: "assets/home.png"
+                        social_image_alt: "Home preview"
+                    }
+                >
                     <Text id=home />
                 </Route>
                 <Route path="/settings/*">
@@ -1132,6 +1141,21 @@ mod tests {
         assert_eq!(
             control_flow_settings.route_branches[0].path.as_deref(),
             Some("/")
+        );
+        let home_metadata = control_flow_settings.route_branches[0]
+            .metadata
+            .as_ref()
+            .expect("home route metadata should parse");
+        assert_eq!(home_metadata.title, "Home");
+        assert_eq!(home_metadata.description, "The example home route.");
+        assert!(home_metadata.index);
+        assert_eq!(
+            home_metadata.social_image.as_deref(),
+            Some("assets/home.png")
+        );
+        assert_eq!(
+            home_metadata.social_image_alt.as_deref(),
+            Some("Home preview")
         );
         assert_eq!(
             control_flow_settings.route_branches[1].path.as_deref(),
@@ -1294,6 +1318,73 @@ mod tests {
                     SettingElement::Setting(token, _value) if token.token_value == "motion"
                 )
             }));
+    }
+
+    #[test]
+    #[should_panic(expected = "default Route metadata cannot set index: true")]
+    fn test_default_route_metadata_cannot_be_indexable() {
+        let component_type_id = TypeId::build_singleton("Example", Some("Example"));
+        let text_type_id = TypeId::build_singleton("Text", Some("Text"));
+        let mut template_map = HashMap::new();
+        template_map.insert("Text".to_string(), text_type_id);
+
+        assemble_component_definition(
+            ParsingContext::default(),
+            r#"
+                <Router>
+                    <Route
+                        default=true
+                        metadata=RouteMetadata {
+                            title: "Missing"
+                            description: "This page could not be found."
+                            index: true
+                        }
+                    >
+                        <Text />
+                    </Route>
+                </Router>
+            "#,
+            false,
+            template_map,
+            "crate",
+            component_type_id,
+            "example.pax",
+            file!(),
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "RouteMetadata title may only be declared once")]
+    fn test_route_metadata_rejects_duplicate_fields() {
+        let component_type_id = TypeId::build_singleton("Example", Some("Example"));
+        let text_type_id = TypeId::build_singleton("Text", Some("Text"));
+        let mut template_map = HashMap::new();
+        template_map.insert("Text".to_string(), text_type_id);
+
+        assemble_component_definition(
+            ParsingContext::default(),
+            r#"
+                <Router>
+                    <Route
+                        path="/"
+                        metadata=RouteMetadata {
+                            title: "Home"
+                            title: "Drifted home"
+                            description: "The home route."
+                            index: true
+                        }
+                    >
+                        <Text />
+                    </Route>
+                </Router>
+            "#,
+            false,
+            template_map,
+            "crate",
+            component_type_id,
+            "example.pax",
+            file!(),
+        );
     }
 
     #[test]
@@ -1542,7 +1633,14 @@ mod tests {
 
         let pax = r#"
             <Router>
-                <Route path="/">
+                <Route
+                    path="/"
+                    metadata=RouteMetadata {
+                        title: "Home"
+                        description: "Home route"
+                        index: true
+                    }
+                >
                     <Text id=home />
                 </Route>
                 <Route path="/settings/*">
@@ -1571,6 +1669,8 @@ mod tests {
         assert!(rendered.contains("<Router>"));
         assert!(rendered.contains(r#"<Route path="/settings/*">"#));
         assert!(rendered.contains("<Route default=true>"));
+        assert!(rendered.contains("metadata=RouteMetadata"));
+        assert!(rendered.contains(r#"title: "Home""#));
 
         let (_, parsed_component) = assemble_component_definition_with_route_branches(
             ParsingContext::default(),
@@ -1598,6 +1698,13 @@ mod tests {
         assert_eq!(branches[1].child_ids.len(), 1);
         assert_eq!(branches[2].child_ids.len(), 1);
         assert!(branches[2].default);
+        assert_eq!(
+            branches[0]
+                .metadata
+                .as_ref()
+                .map(|metadata| metadata.title.as_str()),
+            Some("Home")
+        );
     }
 
     #[test]

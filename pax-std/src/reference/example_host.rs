@@ -46,6 +46,8 @@ pub struct ExampleHost {
     pub _drawer_target_open: Property<bool>,
     // Private drag state for the source divider.
     pub _is_resizing_drawer: Property<bool>,
+    // Private responsive mode where the source drawer replaces the preview.
+    pub _compact_drawer: Property<bool>,
 }
 
 impl Default for ExampleHost {
@@ -62,6 +64,7 @@ impl Default for ExampleHost {
             _drawer_progress: Property::new(0.0),
             _drawer_target_open: Property::new(false),
             _is_resizing_drawer: Property::new(false),
+            _compact_drawer: Property::new(false),
         }
     }
 }
@@ -74,6 +77,7 @@ impl ExampleHost {
         self._drawer_target_open.set(drawer_open);
         self._drawer_progress
             .set(if drawer_open { 1.0 } else { 0.0 });
+        self.clamp_drawer_to_host(ctx.bounds_self.get().0);
 
         let sources = self.sources.clone();
         let selected_source = self.selected_source.clone();
@@ -109,7 +113,8 @@ impl ExampleHost {
     }
 
     /// Keeps the animated drawer progress synchronized with external state writes.
-    pub fn on_pre_render(&mut self, _ctx: &NodeContext) {
+    pub fn on_pre_render(&mut self, ctx: &NodeContext) {
+        self.clamp_drawer_to_host(ctx.bounds_self.get().0);
         let drawer_open = self.drawer_open.get();
         if drawer_open != self._drawer_target_open.get() {
             self._drawer_target_open.set(drawer_open);
@@ -167,6 +172,10 @@ impl ExampleHost {
         }
 
         let bounds = ctx.bounds_self.get();
+        if bounds.0 < MIN_PREVIEW_WIDTH_PX + MIN_DRAWER_WIDTH_PX {
+            self._drawer_width_px.set_if_neq(bounds.0.max(0.0));
+            return;
+        }
         let max_drawer_width = (bounds.0 - MIN_PREVIEW_WIDTH_PX).max(MIN_DRAWER_WIDTH_PX);
         let drawer_width = (bounds.0 - event.mouse.x).clamp(MIN_DRAWER_WIDTH_PX, max_drawer_width);
         if (drawer_width - self._drawer_width_px.get()).abs() >= RESIZE_MIN_DELTA_PX {
@@ -188,6 +197,29 @@ impl ExampleHost {
             EasingCurve::InQuad,
         );
     }
+
+    fn clamp_drawer_to_host(&self, host_width: f64) {
+        let Some((compact_drawer, next_width)) =
+            clamped_drawer_layout(host_width, self._drawer_width_px.get())
+        else {
+            return;
+        };
+        self._compact_drawer.set_if_neq(compact_drawer);
+        self._drawer_width_px.set_if_neq(next_width);
+    }
+}
+
+fn clamped_drawer_layout(host_width: f64, current_width: f64) -> Option<(bool, f64)> {
+    if host_width <= 0.0 {
+        return None;
+    }
+    let compact_drawer = host_width < MIN_PREVIEW_WIDTH_PX + MIN_DRAWER_WIDTH_PX;
+    let width = if compact_drawer {
+        host_width
+    } else {
+        current_width.clamp(MIN_DRAWER_WIDTH_PX, host_width - MIN_PREVIEW_WIDTH_PX)
+    };
+    Some((compact_drawer, width))
 }
 
 /// One source file shown by `ExampleHost`.
@@ -200,6 +232,25 @@ pub struct ExampleSource {
     pub language: String,
     /// Source code contents.
     pub code: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn compact_drawer_replaces_preview_at_narrow_widths() {
+        assert_eq!(clamped_drawer_layout(390.0, 430.0), Some((true, 390.0)));
+    }
+
+    #[test]
+    fn wide_drawer_preserves_preview_and_clamps_to_available_space() {
+        assert_eq!(clamped_drawer_layout(1_280.0, 430.0), Some((false, 430.0)));
+        assert_eq!(
+            clamped_drawer_layout(1_280.0, 1_100.0),
+            Some((false, 960.0))
+        );
+    }
 }
 
 // Internal source tab used by `ExampleHost`.

@@ -46,6 +46,7 @@ import { NativeMaskUpdatePatch } from "./classes/messages/native-mask-update-pat
 import { isIOSWebKitBrowser } from "./classes/surface-host-policy";
 import { HIDDEN_TAB_FRAME_FALLBACK_MS } from "./utils/helpers";
 import { replaceCurrentRouteHistoryState, serializeRouteLocation } from "./utils/route-location";
+import { updateDocumentRouteMetadata } from "./utils/route-metadata";
 
 let objectManager = new ObjectManager(SUPPORTED_OBJECTS);
 let nativePool = new NativeElementPool(objectManager);
@@ -268,6 +269,7 @@ function initializeChassis(chassis: PaxChassisWeb, mount: Element) {
         chassis.interrupt({
             "RouteChange": serializeRouteLocation(url),
         }, []);
+        void updateDocumentRouteMetadata(url);
     };
     window.addEventListener("popstate", syncRouteLocation);
     window.addEventListener("hashchange", syncRouteLocation);

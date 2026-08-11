@@ -1,0 +1,261 @@
+<Group width=100% height=100%>
+    <ImportSettings>
+        <SiteTheme />
+    </ImportSettings>
+
+    <Group x=50% y={self.compact ? 54px : 74px} width={self.compact ? (100% - 40px) : 88%} height={self.compact ? 1260px : 988px} anchor_x=50%>
+        <Text class="proof_eyebrow" x=0px y=0px width=100% height=24px text="PROOF 01 / THE AUTHORING LOOP" />
+        <Text class="proof_title" x=0px y=42px width={self.compact ? 100% : 68%} height={self.compact ? 156px : 112px} text="From a blank project to something alive." />
+        <Text class="proof_copy" x=0px y={self.compact ? 214px : 188px} width={self.compact ? 100% : 66%} height={self.compact ? 110px : 62px} text="Pax keeps interface structure and motion declarative in .pax, while Rust owns state and side effects. Edit the source, see the running interface respond, then carry the same project to web and Apple targets." />
+
+        <Stacker x=0px y={self.compact ? 344px : 280px} width=100% height=44px direction=StackerDirection::Horizontal gutter={self.compact ? 4px : 8px}>
+            <Group width=100% height=100% opacity=@timeline { duration: 8s, loop: true, 0: 1, 22%: 1, 25%: 0.36, 100%: 0.36 }>
+                <Text class="stage_label" width=100% height=100% text="01 CREATE" />
+                <Rectangle class="stage_surface" width=100% height=100% />
+            </Group>
+            <Group width=100% height=100% opacity=@timeline { duration: 8s, loop: true, 0: 0.36, 24%: 0.36, 27%: 1, 47%: 1, 50%: 0.36, 100%: 0.36 }>
+                <Text class="stage_label" width=100% height=100% text="02 EDIT" />
+                <Rectangle class="stage_surface" width=100% height=100% />
+            </Group>
+            <Group width=100% height=100% opacity=@timeline { duration: 8s, loop: true, 0: 0.36, 49%: 0.36, 52%: 1, 72%: 1, 75%: 0.36, 100%: 0.36 }>
+                <Text class="stage_label" width=100% height=100% text="03 WOW" />
+                <Rectangle class="stage_surface" width=100% height=100% />
+            </Group>
+            <Group width=100% height=100% opacity=@timeline { duration: 8s, loop: true, 0: 0.36, 74%: 0.36, 77%: 1, 97%: 1, 100%: 0.36 }>
+                <Text class="stage_label" width=100% height=100% text="04 SHIP" />
+                <Rectangle class="stage_surface" width=100% height=100% />
+            </Group>
+        </Stacker>
+
+        <Group x=0px y={self.compact ? 408px : 350px} width=100% height={self.compact ? 650px : 408px}>
+            <Group x=0px y=0px width={self.compact ? 100% : 45%} height={self.compact ? 306px : 100%}>
+                <Text class="canvas_meta" x=18px y=9px width=180px height=24px text="src/wayfinder.pax" />
+                <Stacker x=18px y=54px width=28px height=224px direction=StackerDirection::Vertical gutter=0px>
+                    <Text class="editor_line_no" width=100% height=100% text="01" />
+                    <Text class="editor_line_no" width=100% height=100% text="02" />
+                    <Text class="editor_line_no" width=100% height=100% text="03" />
+                    <Text class="editor_line_no" width=100% height=100% text="04" />
+                    <Text class="editor_line_no" width=100% height=100% text="05" />
+                    <Text class="editor_line_no" width=100% height=100% text="06" />
+                    <Text class="editor_line_no" width=100% height=100% text="07" />
+                    <Text class="editor_line_no" width=100% height=100% text="08" />
+                </Stacker>
+                <Stacker x=58px y=54px width={100% - 76px} height=224px direction=StackerDirection::Vertical gutter=0px>
+                    <Text class="editor_code" width=100% height=100% text="<Group>" selectable=true />
+                    <Text class="editor_code" width=100% height=100% text="  <Text text={title} />" selectable=true />
+                    <Text class="editor_code" width=100% height=100% text="  <Path" selectable=true />
+                    <Text class="editor_code" width=100% height=100% text="    draw_end=@timeline {" selectable=true />
+                    <Text class="editor_code" width=100% height=100% text="      duration: 2.4s," selectable=true />
+                    <Text class="editor_code" width=100% height=100% text="      0: 0%," selectable=true />
+                    <Text class="editor_code" width=100% height=100% text="      100%: 100%" selectable=true />
+                    <Text class="editor_code" width=100% height=100% text="    } />" selectable=true />
+                </Stacker>
+                <Rectangle class="editor_cursor" x=58px y=122px width=104px height=22px opacity=@timeline { duration: 2s, loop: true, 0: 0.10, 48%: 0.10, 50%: 0.42, 96%: 0.42, 100%: 0.10 } />
+                <Rectangle class="editor_surface" width=100% height=100% />
+            </Group>
+
+            <Group x={self.compact ? 0px : 100%} y={self.compact ? 326px : 0px} width={self.compact ? 100% : 53%} height={self.compact ? 324px : 100%}>
+                <Text class="canvas_meta" x=18px y=12px width={100% - 36px} height=22px text="LIVE PAX CANVAS / WAYFINDER" />
+                <Group x=50% y=55% width={self.compact ? 210px : 244px} height={self.compact ? 210px : 244px} anchor=50%>
+                    <Ellipse class="artifact_ring" width=100% height=100% rotate=@timeline { duration: 7s, loop: true, 0: 0deg, 100%: 360deg } />
+                    <Ellipse class="artifact_core" x=50% y=50% width=54% height=54% anchor=50% scale=@timeline { duration: 2.8s, loop: true, 0: 94%, 50%: 104%, 100%: 94% } />
+                    <Path class="artifact_path" x=50% y=50% width=72% height=72% anchor=50% draw_end=@timeline { duration: 4s, loop: true, 0: 0%, 14%: 0%, 72%: 100%, 100%: 100% } />
+                    <Ellipse class="artifact_pin" x=50% y=50% width=16px height=16px anchor=50% />
+                </Group>
+                <Text class="canvas_meta" x=18px y={100% - 38px} width={100% - 36px} height=20px text="DECLARATIVE PATH / TIMELINE / GRADIENT / RESPONSIVE LAYOUT" />
+                <Rectangle class="canvas_grid" x=0px y=50% width=100% height=1px />
+                <Rectangle class="canvas_grid" x=50% y=0px width=1px height=100% />
+                <Rectangle class="canvas_surface" width=100% height=100% />
+            </Group>
+        </Group>
+
+        <Text class="section_meta" x=0px y={self.compact ? 1084px : 786px} width=100% height=22px text="THE SAME PROJECT, DELIVERED WHERE IT BELONGS" />
+        <Stacker x=0px y={self.compact ? 1118px : 822px} width=100% height={self.compact ? 128px : 112px} direction=StackerDirection::Horizontal gutter={self.compact ? 4px : 10px}>
+            <Group class="device_card" width=100% height=100%>
+                <Text class="device_name" x=12px y=10px width={100% - 24px} height=24px text="WEB" />
+                <Text class="device_meta" x=12px y=40px width={100% - 24px} height=34px text="Browser\nWebAssembly" />
+                <Rectangle class="device_viewport" x=12px y={100% - 22px} width={100% - 24px} height=5px />
+                <Rectangle class="device_surface" width=100% height=100% />
+            </Group>
+            <Group class="device_card" width=100% height=100%>
+                <Text class="device_name" x=12px y=10px width={100% - 24px} height=24px text="MAC" />
+                <Text class="device_meta" x=12px y=40px width={100% - 24px} height=34px text="macOS\nNative app" />
+                <Rectangle class="device_viewport" x=12px y={100% - 22px} width={100% - 24px} height=5px />
+                <Rectangle class="device_surface" width=100% height=100% />
+            </Group>
+            <Group class="device_card" width=100% height=100%>
+                <Text class="device_name" x=12px y=10px width={100% - 24px} height=24px text="PHONE" />
+                <Text class="device_meta" x=12px y=40px width={100% - 24px} height=34px text="iOS\nNative app" />
+                <Rectangle class="device_viewport" x=12px y={100% - 22px} width={100% - 24px} height=5px />
+                <Rectangle class="device_surface" width=100% height=100% />
+            </Group>
+            <Group class="device_card" width=100% height=100%>
+                <Text class="device_name" x=12px y=10px width={100% - 24px} height=24px text="TABLET" />
+                <Text class="device_meta" x=12px y=40px width={100% - 24px} height=34px text="iPadOS\nNative app" />
+                <Rectangle class="device_viewport" x=12px y={100% - 22px} width={100% - 24px} height=5px />
+                <Rectangle class="device_surface" width=100% height=100% />
+            </Group>
+        </Stacker>
+    </Group>
+
+    <Rectangle class="proof_bg" width=100% height=100% />
+</Group>
+
+@settings {
+    @mount: handle_mount
+    @pre_render: handle_pre_render
+
+    .proof_bg { fill: rgb(248, 250, 252) }
+    .proof_eyebrow {
+        style: TextStyle {
+            font: Font::Web("IBM Plex Mono", "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap", FontStyle::Normal, FontWeight::Medium)
+            font_size: {self.compact ? 9px : 11px}
+            fill: rgb(37, 111, 190)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .section_meta {
+        style: TextStyle {
+            font: Font::Web("IBM Plex Mono", "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap", FontStyle::Normal, FontWeight::Medium)
+            font_size: {self.compact ? 9px : 11px}
+            fill: rgba(10, 12, 16, 154)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .canvas_meta {
+        style: TextStyle {
+            font: Font::Web("IBM Plex Mono", "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap", FontStyle::Normal, FontWeight::Medium)
+            font_size: {self.compact ? 9px : 11px}
+            fill: rgba(244, 240, 231, 146)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .proof_title {
+        style: TextStyle {
+            font: Font::Web("Manrope", "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap", FontStyle::Normal, FontWeight::ExtraBold)
+            font_size: {self.compact ? 34px : 52px}
+            fill: rgb(10, 12, 16)
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .proof_copy {
+        style: TextStyle {
+            font: Font::Web("Manrope", "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap", FontStyle::Normal, FontWeight::Normal)
+            font_size: {self.compact ? 14px : 16px}
+            fill: rgba(10, 12, 16, 186)
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .stage_surface {
+        fill: rgba(10, 12, 16, 0)
+        stroke: Stroke { color: rgba(10, 12, 16, 78), width: 1px }
+        corner_radii: RectangleCornerRadii::radii(4.0, 4.0, 4.0, 4.0)
+    }
+    .stage_label {
+        style: TextStyle {
+            font: Font::Web("IBM Plex Mono", "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap", FontStyle::Normal, FontWeight::SemiBold)
+            font_size: {self.compact ? 8px : 10px}
+            fill: rgb(10, 12, 16)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+        }
+    }
+    .editor_surface {
+        fill: rgb(20, 25, 32)
+        corner_radii: RectangleCornerRadii::radii(7.0, 7.0, 7.0, 7.0)
+    }
+    .editor_code {
+        style: TextStyle {
+            font: Font::Web("IBM Plex Mono", "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap", FontStyle::Normal, FontWeight::Normal)
+            font_size: {self.compact ? 11px : 12px}
+            fill: rgba(244, 240, 231, 222)
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .editor_line_no {
+        style: TextStyle {
+            font: Font::Web("IBM Plex Mono", "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap", FontStyle::Normal, FontWeight::Normal)
+            font_size: {self.compact ? 11px : 12px}
+            fill: rgba(244, 240, 231, 68)
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .editor_cursor { fill: rgb(37, 111, 190) }
+    .canvas_surface {
+        fill: @gradient {
+            linear: {
+                start: (0%, 0%)
+                end: (100%, 100%)
+            }
+            0%: rgb(237, 243, 248)
+            54%: rgb(224, 233, 241)
+            100%: rgb(214, 226, 238)
+        }
+        corner_radii: RectangleCornerRadii::radii(7.0, 7.0, 7.0, 7.0)
+    }
+    .canvas_grid { fill: rgba(20, 25, 32, 20) }
+    .artifact_ring {
+        fill: rgba(37, 111, 190, 0)
+        stroke: Stroke { color: rgba(37, 111, 190, 126), width: 2px }
+    }
+    .artifact_core {
+        fill: @gradient {
+            radial: { start: (50%, 50%), end: (50%, 50%), radius: 100 }
+            0%: rgba(151, 202, 236, 255)
+            48%: rgba(37, 111, 190, 220)
+            100%: rgba(37, 111, 190, 0)
+        }
+    }
+    .artifact_path {
+        fill: TRANSPARENT
+        stroke: Stroke { color: rgb(20, 25, 32), width: 5px }
+        elements: [
+            PathElement::Point(6%, 72%),
+            PathElement::Cubic(18%, 22%, 36%, 92%),
+            PathElement::Point(52%, 38%),
+            PathElement::Quadratic(72%, 6%),
+            PathElement::Point(94%, 34%)
+        ]
+    }
+    .artifact_pin { fill: rgb(37, 111, 190) }
+    .device_surface {
+        fill: rgba(10, 12, 16, 248)
+        corner_radii: RectangleCornerRadii::radii(6.0, 6.0, 6.0, 6.0)
+    }
+    .device_name {
+        style: TextStyle {
+            font: Font::Web("Manrope", "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap", FontStyle::Normal, FontWeight::ExtraBold)
+            font_size: {self.compact ? 11px : 14px}
+            fill: rgb(244, 240, 231)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .device_meta {
+        style: TextStyle {
+            font: Font::Web("IBM Plex Mono", "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap", FontStyle::Normal, FontWeight::Normal)
+            font_size: {self.compact ? 8px : 10px}
+            fill: rgba(244, 240, 231, 142)
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .device_viewport { fill: rgb(37, 111, 190) }
+}

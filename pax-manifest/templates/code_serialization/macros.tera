@@ -58,6 +58,17 @@
                     <Route
                     {% if branch.path %} path="{{branch.path}}"{% endif %}
                     {% if branch.default %} default=true{% endif %}
+                    {% if branch.metadata %}
+                        metadata=RouteMetadata {
+                            title: {{to_pax_string(value=branch.metadata.title)}}
+                            description: {{to_pax_string(value=branch.metadata.description)}}
+                            index: {{branch.metadata.index}}
+                            {% if branch.metadata.social_image %}
+                            social_image: {{to_pax_string(value=branch.metadata.social_image)}}
+                            social_image_alt: {{to_pax_string(value=branch.metadata.social_image_alt)}}
+                            {% endif %}
+                        }
+                    {% endif %}
                     {% if branch.child_ids and branch.child_ids | length() > 0 %}
                     >
                         {% for child_id in branch.child_ids %}

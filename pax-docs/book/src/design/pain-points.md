@@ -1549,3 +1549,59 @@ Web builds can load a project's `.env` into the CLI process. Capture telemetry
 endpoint, consent-directory and suppression settings before command work,
 including originally absent values, so a later worker cannot accidentally use
 project-supplied configuration.
+
+## 2026-07-22
+
+Building the responsive Pax website exposed a positioning assumption that is
+easy to carry over from CSS: percentage `x`/`y` positions are evaluated over
+the element's remaining travel, not directly against the full parent extent.
+For example, a wide child at `x=64%` will not begin at 64% of the parent.
+
+Solved by using anchored intent for relative placement (`x=50% anchor_x=50%`
+to center and `x=100% anchor_x=100%` to right-align), and by calculating pixel
+positions from `bounds_self` when a responsive two-column split needs exact
+full-parent coordinates. Recommendations: call out percentage travel semantics
+next to the positioning examples in the layout docs and add a small diagram
+showing left, center, and right anchored placement.
+
+The same site uses `ExampleHost` as a public source-inspection affordance. On a
+narrow viewport the drawer correctly expanded to the full host width, but a
+zero-width live preview could still composite native text above the drawer.
+Shrinking or covering the preview was therefore insufficient on mobile.
+
+Solved by clamping the drawer to the host width and not instantiating the
+preview subtree while the compact, full-width drawer is open. Recommendations:
+for responsive overlays that cover arbitrary projected content, verify native
+elements as well as canvas primitives; visual width and opacity do not by
+themselves establish a native-compositing boundary.
+
+## 2026-07-23
+
+Adding in-situ route metadata exposed a parser boundary: typed literal blocks
+such as `RouteMetadata { ... }` were eagerly converted into the generic
+`PaxValue::Object` form, which discarded the author's declared type before a
+specialized consumer could validate it. The values survived, but the compiler
+could no longer distinguish a deliberate metadata block from an arbitrary
+object literal.
+
+Solved by preserving explicitly typed literal objects as structured
+`ValueDefinition::Block` values during template parsing, then validating the
+required literal fields at the `Route` boundary. Recommendations: retain source
+type intent until the consumer that owns the schema has run; generic value
+coercion should not erase information needed for compile-time validation or
+static analysis.
+
+## 2026-08-03
+
+Building a data-driven website card rail exposed two authoring details that are
+easy to infer incorrectly from CSS and Rust conventions. Pax settings do not
+accept comma-separated class selectors, so a rule such as `.axis, .track` fails
+template parsing and must currently be written as two rules. Pax data records
+that need generated field defaults use `#[custom(Defaults)]` (plural), while
+`#[custom(Default)]` expects the record itself to provide `Default` and fails
+during generated Rust compilation.
+
+Solved by expanding the shared selectors and using the established
+`#[custom(Defaults)]` annotation for repeated record data. Recommendations:
+document both constraints near settings syntax and repeated-data examples, and
+consider making the singular/plural default error explain the intended choices.

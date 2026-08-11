@@ -156,9 +156,16 @@ fn sanitize_template_node(node: &TemplateNodeDefinition) -> Option<TemplateNodeD
         return None;
     }
 
+    let mut control_flow_settings = node.control_flow_settings.clone();
+    if let Some(settings) = &mut control_flow_settings {
+        for route in &mut settings.route_branches {
+            route.metadata = None;
+        }
+    }
+
     Some(TemplateNodeDefinition {
         type_id: node.type_id.clone(),
-        control_flow_settings: node.control_flow_settings.clone(),
+        control_flow_settings,
         settings: node.settings.as_ref().map(sanitize_setting_elements),
         selector_info: crate::TemplateNodeSelectorInfo {
             source_location: node.selector_info.source_location.clone(),

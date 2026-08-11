@@ -48,6 +48,7 @@ import { DropdownUpdatePatch } from "./messages/dropdown-update-patch";
 import { SliderUpdatePatch } from "./messages/slider-update-patch";
 import { EventBlockerUpdatePatch } from "./messages/event-blocker-update-patch";
 import { NavigationPatch } from "./messages/navigation-patch";
+import { updateDocumentRouteMetadata } from "../utils/route-metadata";
 import { NativeImageUpdatePatch } from "./messages/native-image-update-patch";
 import { YoutubeVideoUpdatePatch } from "./messages/youtube-video-update-patch";
 import { SetCursorPatch } from "./messages/set-cursor-patch";
@@ -3472,6 +3473,7 @@ export class NativeElementPool {
                 this.chassis?.interrupt({
                     "RouteChange": serializeRouteLocation(url),
                 }, []);
+                void updateDocumentRouteMetadata(url);
                 return;
             }
         } catch (_err) {

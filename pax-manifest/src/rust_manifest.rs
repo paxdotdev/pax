@@ -559,7 +559,7 @@ impl RustManifestWriter {
         branch: &ControlFlowRouteBranchDefinition,
     ) -> String {
         format!(
-            "{mp}::ControlFlowRouteBranchDefinition {{ path: {path}, default: {default}, modal: {modal}, child_ids: {child_ids} }}",
+            "{mp}::ControlFlowRouteBranchDefinition {{ path: {path}, default: {default}, modal: {modal}, child_ids: {child_ids}, metadata: None }}",
             mp = self.manifest_path,
             path = self.option(&branch.path, |value| rust_string(value)),
             default = branch.default,

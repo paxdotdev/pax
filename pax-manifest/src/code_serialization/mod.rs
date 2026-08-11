@@ -48,6 +48,17 @@ fn to_pax_value(args: &HashMap<String, tera::Value>) -> tera::Result<tera::Value
     }
 }
 
+fn to_pax_string(args: &HashMap<String, tera::Value>) -> tera::Result<tera::Value> {
+    let Some(value) = args.get("value").and_then(tera::Value::as_str) else {
+        return Err(tera::Error::msg(
+            "No string value provided to to_pax_string function",
+        ));
+    };
+    serde_json::to_string(value)
+        .map(tera::Value::String)
+        .map_err(|err| tera::Error::msg(format!("Failed to serialize Pax string: {err}")))
+}
+
 fn format_numeric(value: &Numeric) -> String {
     let value = value.to_float();
     if value.fract() == 0.0 {
@@ -147,6 +158,7 @@ pub fn press_code_serialization_template(args: ComponentDefinition) -> Result<St
     let mut tera = Tera::default();
 
     tera.register_function("to_pax_value", to_pax_value);
+    tera.register_function("to_pax_string", to_pax_string);
     tera.register_function("to_pax_size", to_pax_size);
     tera.register_function("to_pax_expression", to_pax_expression);
     tera.register_function("to_timeline_marker", to_timeline_marker);
