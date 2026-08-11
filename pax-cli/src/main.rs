@@ -72,12 +72,6 @@ fn main() -> Result<(), Report> {
         .help("Build an optimized web bundle with Wasm names preserved for size profiling.");
 
     #[allow(non_snake_case)]
-    let ARG_WEBGL = Arg::with_name("webgl")
-        .long("webgl")
-        .takes_value(false)
-        .help("Include the legacy WebGL renderer for internal experiments (force with ?pax_force_webgl=1). Default no-WebGPU and iOS Safari/WebKit fallback uses Piet/CPU, and this flag increases WASM size.");
-
-    #[allow(non_snake_case)]
     let ARG_HOT_RELOAD = Arg::with_name("hot-reload")
         .long("hot-reload")
         .takes_value(true)
@@ -129,7 +123,6 @@ fn main() -> Result<(), Report> {
                 .arg( ARG_VERBOSE.clone() )
                 .arg( ARG_LIBDEV.clone() )
                 .arg( ARG_LIBDEV_MODE.clone() )
-                .arg( ARG_WEBGL.clone() )
                 .arg( ARG_HOT_RELOAD.clone() )
         )
         .subcommand(
@@ -144,7 +137,6 @@ fn main() -> Result<(), Report> {
                 .arg( ARG_LIBDEV_MODE.clone() )
                 .arg( ARG_RELEASE.clone() )
                 .arg( ARG_PROFILING.clone() )
-                .arg( ARG_WEBGL.clone() )
         )
         .subcommand(
             App::new("clean")
@@ -281,7 +273,6 @@ fn perform_nominal_action(
             let ios_device = args.value_of("ios-device").map(str::to_string);
             let ios_development_team = args.value_of("ios-development-team").map(str::to_string);
             let should_run_designtime = true;
-            let webgl = args.is_present("webgl");
             let hot_reload = parse_hot_reload_mode(args)?;
 
             let _ = pax_compiler::perform_build(&RunContext {
@@ -295,7 +286,6 @@ fn perform_nominal_action(
                 hot_reload,
                 is_release: false,
                 profile_wasm_size: false,
-                webgl,
                 ios_device,
                 ios_development_team,
             })?;
@@ -312,8 +302,6 @@ fn perform_nominal_action(
             let ios_device = args.value_of("ios-device").map(str::to_string);
             let ios_development_team = args.value_of("ios-development-team").map(str::to_string);
             let should_run_designtime = !is_release;
-            let webgl = args.is_present("webgl");
-
             if profile_wasm_size && target != "web" {
                 return Err(eyre!(
                     "--profiling is currently only supported for web builds"
@@ -331,7 +319,6 @@ fn perform_nominal_action(
                 process_child_ids,
                 is_release,
                 profile_wasm_size,
-                webgl,
                 ios_device,
                 ios_development_team,
             })?;
@@ -375,7 +362,6 @@ fn perform_nominal_action(
                 process_child_ids,
                 is_release: false,
                 profile_wasm_size: false,
-                webgl: false,
                 ios_device: None,
                 ios_development_team: None,
             })?;

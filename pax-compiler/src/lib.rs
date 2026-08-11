@@ -87,7 +87,6 @@ pub struct RunContext {
     pub hot_reload: Option<HotReloadMode>,
     pub is_release: bool,
     pub profile_wasm_size: bool,
-    pub webgl: bool,
     pub ios_device: Option<String>,
     pub ios_development_team: Option<String>,
 }
@@ -364,14 +363,11 @@ pub(crate) fn validate_release_cargo_feature_boundary(
         return Ok(());
     }
 
-    let mut requested_features = vec![match ctx.target {
+    let requested_features = vec![match ctx.target {
         RunTarget::Web => "web",
         RunTarget::macOS => "macos",
         RunTarget::iOS | RunTarget::iPadOS => "ios",
     }];
-    if ctx.webgl {
-        requested_features.push("webgl");
-    }
     let cargo_features = helpers::pax_project_feature_args(&ctx.project_path, &requested_features);
     let activators = helpers::pax_project_release_devtime_activators(
         &ctx.project_path,
@@ -1579,7 +1575,6 @@ mod tests {
             hot_reload: None,
             is_release: true,
             profile_wasm_size: false,
-            webgl: false,
             ios_device: None,
             ios_development_team: None,
         }

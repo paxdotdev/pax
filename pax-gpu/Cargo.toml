@@ -21,7 +21,6 @@ wasm-bindgen-futures = "0.4.38"
 
 [features]
 default = []
-webgl = ["wgpu/webgl"]
 
 [dev-dependencies]
 naga = { version = "28.0.0", features = ["wgsl-in"] }

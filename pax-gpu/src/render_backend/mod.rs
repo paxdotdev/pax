@@ -94,6 +94,8 @@ impl GpuContext {
             adapter_info.backend,
             adapter_info.name
         );
+        // Keep wgpu's conservative downlevel browser preset as the common WebGPU baseline. The
+        // preset name reflects its upstream compatibility tier; it does not enable a GL backend.
         #[cfg(target_arch = "wasm32")]
         let required_limits = wgpu::Limits::downlevel_webgl2_defaults();
         #[cfg(not(target_arch = "wasm32"))]
@@ -245,8 +247,8 @@ pub(crate) const MAX_BATCH_COLORS: usize = 512;
 pub(crate) const MAX_BATCH_GRADIENTS: usize = 64;
 pub(crate) const MAX_BATCH_MATERIALS: usize = 512;
 pub(crate) const MAX_BATCH_TRANSFORMS: usize = 480;
-// WebGL/WebKit-class platforms can expose a 16 KiB max uniform binding size.
-// Keep the scene transform uniform arena under that ceiling.
+// Downlevel browser adapters can expose a 16 KiB max uniform binding size. Keep the scene
+// transform uniform arena under that ceiling.
 pub(crate) const MAX_SCENE_TRANSFORMS: usize = 480;
 pub(crate) const MAX_SCENE_CLIPS: usize = 480;
 
@@ -755,47 +757,6 @@ impl<'w> RenderBackend<'w> {
         config: RenderConfig,
         shared_context: Option<SharedGpuContext>,
     ) -> Result<(Self, SharedGpuContext), anyhow::Error> {
-        #[cfg(feature = "webgl")]
-        let backends = wgpu::Backends::BROWSER_WEBGPU | wgpu::Backends::GL;
-        #[cfg(not(feature = "webgl"))]
-        let backends = wgpu::Backends::BROWSER_WEBGPU;
-        Self::to_canvas_with_context_and_backends(canvas, config, shared_context, backends, true)
-            .await
-    }
-
-    #[cfg(all(target_arch = "wasm32", feature = "webgl"))]
-    pub async fn to_canvas_gl(
-        canvas: web_sys::HtmlCanvasElement,
-        config: RenderConfig,
-    ) -> Result<Self, anyhow::Error> {
-        let (backend, _) = Self::to_canvas_gl_with_context(canvas, config, None).await?;
-        Ok(backend)
-    }
-
-    #[cfg(all(target_arch = "wasm32", feature = "webgl"))]
-    pub async fn to_canvas_gl_with_context(
-        canvas: web_sys::HtmlCanvasElement,
-        config: RenderConfig,
-        shared_context: Option<SharedGpuContext>,
-    ) -> Result<(Self, SharedGpuContext), anyhow::Error> {
-        Self::to_canvas_with_context_and_backends(
-            canvas,
-            config,
-            shared_context,
-            wgpu::Backends::GL,
-            false,
-        )
-        .await
-    }
-
-    #[cfg(target_arch = "wasm32")]
-    async fn to_canvas_with_context_and_backends(
-        canvas: web_sys::HtmlCanvasElement,
-        config: RenderConfig,
-        shared_context: Option<SharedGpuContext>,
-        backends: wgpu::Backends,
-        use_webgpu_detection: bool,
-    ) -> Result<(Self, SharedGpuContext), anyhow::Error> {
         sync_browser_canvas_backing_size(&canvas, config.initial_width, config.initial_height);
         if let Some(context) = shared_context {
             let surface_target = wgpu::SurfaceTarget::Canvas(canvas.clone());
@@ -805,35 +766,13 @@ impl<'w> RenderBackend<'w> {
             return Ok((backend, context));
         }
 
-        let instance =
-            Self::new_browser_instance(backends, config.debug, use_webgpu_detection).await;
+        let instance = Self::new_browser_instance(config.debug).await;
         let surface_target = wgpu::SurfaceTarget::Canvas(canvas.clone());
         let surface = instance.create_surface(surface_target)?;
         let context = GpuContext::new(instance, &surface, &config).await?;
         let mut backend = Self::new_with_context(surface, Rc::clone(&context), config)?;
         backend.browser_canvas = Some(canvas);
         Ok((backend, context))
-    }
-
-    #[cfg(all(target_arch = "wasm32", not(feature = "webgl")))]
-    pub async fn to_canvas_gl(
-        _canvas: web_sys::HtmlCanvasElement,
-        _config: RenderConfig,
-    ) -> Result<Self, anyhow::Error> {
-        Err(anyhow!(
-            "WebGL support is not compiled into this build; rebuild with the `webgl` feature"
-        ))
-    }
-
-    #[cfg(all(target_arch = "wasm32", not(feature = "webgl")))]
-    pub async fn to_canvas_gl_with_context(
-        _canvas: web_sys::HtmlCanvasElement,
-        _config: RenderConfig,
-        _shared_context: Option<SharedGpuContext>,
-    ) -> Result<(Self, SharedGpuContext), anyhow::Error> {
-        Err(anyhow!(
-            "WebGL support is not compiled into this build; rebuild with the `webgl` feature"
-        ))
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -854,27 +793,6 @@ impl<'w> RenderBackend<'w> {
     ) -> Result<(Self, SharedGpuContext), anyhow::Error> {
         Err(anyhow!(
             "canvas surfaces are only supported on wasm32 targets"
-        ))
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    pub async fn to_canvas_gl(
-        _canvas: web_sys::HtmlCanvasElement,
-        _config: RenderConfig,
-    ) -> Result<Self, anyhow::Error> {
-        Err(anyhow!(
-            "canvas GL surfaces are only supported on wasm32 targets"
-        ))
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    pub async fn to_canvas_gl_with_context(
-        _canvas: web_sys::HtmlCanvasElement,
-        _config: RenderConfig,
-        _shared_context: Option<SharedGpuContext>,
-    ) -> Result<(Self, SharedGpuContext), anyhow::Error> {
-        Err(anyhow!(
-            "canvas GL surfaces are only supported on wasm32 targets"
         ))
     }
 
@@ -1224,13 +1142,9 @@ impl<'w> RenderBackend<'w> {
     }
 
     #[cfg(target_arch = "wasm32")]
-    async fn new_browser_instance(
-        backends: wgpu::Backends,
-        debug: bool,
-        use_webgpu_detection: bool,
-    ) -> wgpu::Instance {
+    async fn new_browser_instance(debug: bool) -> wgpu::Instance {
         let descriptor = wgpu::InstanceDescriptor {
-            backends,
+            backends: wgpu::Backends::BROWSER_WEBGPU,
             flags: if debug {
                 wgpu::InstanceFlags::DEBUG
             } else {
@@ -1240,11 +1154,7 @@ impl<'w> RenderBackend<'w> {
             backend_options: Default::default(),
         };
 
-        if use_webgpu_detection {
-            wgpu::util::new_instance_with_webgpu_detection(&descriptor).await
-        } else {
-            wgpu::Instance::new(&descriptor)
-        }
+        wgpu::util::new_instance_with_webgpu_detection(&descriptor).await
     }
 
     fn create_pipeline(

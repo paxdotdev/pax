@@ -2170,7 +2170,6 @@ pub fn rebuild_staged_macos_logic_dylib(
         hot_reload: None,
         is_release: false,
         profile_wasm_size: false,
-        webgl: false,
         ios_device: None,
         ios_development_team: None,
     };

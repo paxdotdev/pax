@@ -474,7 +474,7 @@ impl AppleRenderContext {
 #[cfg(target_os = "ios")]
 pub fn native_scroller_tiling_policy() -> ScrollerTilingPolicy {
     let mut policy = ScrollerTilingPolicy::default();
-    // iOS has not shown WebGL-style uninit pressure on native Metal surfaces in the stress bed.
+    // iOS has not shown browser-style uninit pressure on native Metal surfaces in the stress bed.
     // Prefer fewer/larger surfaces and a tight warm band to reduce replay work on constrained
     // mobile GPUs.
     policy.target_tile_backing_dimension = 4096.0;

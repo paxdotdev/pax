@@ -16,7 +16,6 @@ crate-type = ["cdylib", "rlib"]
 default = ["console_error_panic_hook", "gpu"]
 designtime = ["dep:pax-designtime", "dep:serde_json", "pax-runtime/designtime"]
 gpu = []
-webgl = ["gpu", "pax-gpu/webgl"]
 piet = []
 
 [dependencies]
@@ -55,10 +54,6 @@ features = [
     "Response",
     "ResponseType",
     "Location",
-    
-    # WebGL features
-    "WebGl2RenderingContext",
-    "WebGlRenderingContext",
     
     # WebGPU features
     "Gpu",

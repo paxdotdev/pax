@@ -156,9 +156,6 @@ fn print_web_bundle_stats(build_dest: &std::path::Path, build_mode_name: &str) {
 
 fn web_cargo_features(ctx: &RunContext) -> String {
     let mut features = vec!["web"];
-    if ctx.webgl {
-        features.push("webgl");
-    }
     if ctx.should_run_designtime {
         features.push("designtime");
     }
@@ -548,7 +545,6 @@ pub fn rebuild_staged_web_cartridge(
         hot_reload: None,
         is_release: false,
         profile_wasm_size: false,
-        webgl: false,
         ios_device: None,
         ios_development_team: None,
     };

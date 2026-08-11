@@ -22,11 +22,11 @@ const TARGET_TILE_BACKING_DIMENSION = 1664;
 // physically wider tiles than the root viewport workaround so horizontal seam crossings happen
 // less often without pushing nested warm-island count back up.
 const SCROLLER_TARGET_TILE_BACKING_DIMENSION = 2496;
-// Empirically, iOS Safari can cap renderable surface extents to 2048 even when WebGL reports
-// larger sizes. Clamp to 2048 to avoid wgpu surface-config validation failures.
-const IOS_FALLBACK_MAX_BACKING_DIMENSION = 2048;
-const IOS_MAX_BACKING_DIMENSION_CAP = 2048;
-const IOS_MAX_BACKING_AREA_CAP = IOS_MAX_BACKING_DIMENSION_CAP * IOS_MAX_BACKING_DIMENSION_CAP;
+// iOS Safari can fail renderable surfaces above 2048 even when a graphics API reports a larger
+// limit. Keep a fixed conservative cap instead of creating a secondary graphics context only to
+// probe device limits during startup.
+const IOS_SAFE_MAX_BACKING_DIMENSION = 2048;
+const IOS_MAX_BACKING_AREA_CAP = IOS_SAFE_MAX_BACKING_DIMENSION * IOS_SAFE_MAX_BACKING_DIMENSION;
 const IOS_SCROLLER_RENDER_DPR = 1.0;
 const IOS_PIET_TARGET_TILE_BACKING_DIMENSION = 2048;
 const IOS_PIET_PREWARM_VIEWPORT_PAD_X_MULTIPLIER = 2.0;
@@ -272,46 +272,9 @@ export function describeSurfaceHost(host?: Element | null) {
         ?? host.tagName.toLowerCase();
 }
 
-let cachedIOSMaxBackingDimension: number | null = null;
-
-function getIOSMaxBackingDimension() {
-    if (!isIOSWebKitBrowser()) {
-        return undefined;
-    }
-    if (cachedIOSMaxBackingDimension != null) {
-        return cachedIOSMaxBackingDimension;
-    }
-    let maxDimension = IOS_FALLBACK_MAX_BACKING_DIMENSION;
-    try {
-        let probe = document.createElement("canvas");
-        let gl =
-            (probe.getContext("webgl2") as WebGL2RenderingContext | null)
-            ?? (probe.getContext("webgl") as WebGLRenderingContext | null)
-            ?? (probe.getContext("experimental-webgl") as WebGLRenderingContext | null);
-        if (gl) {
-            let maxTexture = gl.getParameter(gl.MAX_TEXTURE_SIZE) as number;
-            let maxRenderbuffer = gl.getParameter(gl.MAX_RENDERBUFFER_SIZE) as number;
-            let reported = Math.min(
-                Number.isFinite(maxTexture) ? maxTexture : maxDimension,
-                Number.isFinite(maxRenderbuffer) ? maxRenderbuffer : maxDimension,
-            );
-            if (Number.isFinite(reported) && reported > 0) {
-                maxDimension = Math.min(IOS_MAX_BACKING_DIMENSION_CAP, reported);
-            }
-            let lose = (gl as WebGLRenderingContext).getExtension("WEBGL_lose_context");
-            lose?.loseContext();
-        }
-    } catch {
-        // Ignore probing failures and fall back to a conservative default.
-    }
-    cachedIOSMaxBackingDimension = maxDimension;
-    return maxDimension;
-}
-
 function targetTileBackingDimension(host?: HTMLElement) {
     if (isIOSWebKitBrowser()) {
-        let maxBackingDimension = getIOSMaxBackingDimension() ?? IOS_FALLBACK_MAX_BACKING_DIMENSION;
-        return Math.min(IOS_PIET_TARGET_TILE_BACKING_DIMENSION, maxBackingDimension);
+        return Math.min(IOS_PIET_TARGET_TILE_BACKING_DIMENSION, IOS_SAFE_MAX_BACKING_DIMENSION);
     }
     return host?.dataset.role === "scroller-canvas-host"
         ? SCROLLER_TARGET_TILE_BACKING_DIMENSION

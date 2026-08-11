@@ -21,7 +21,6 @@ path = "bin/run.rs"
 default = ["designtime"]
 designtime = ["pax-engine/designtime", "pax-std/designtime"]
 web = ["pax-engine/web"]
-webgl = ["pax-engine/webgl"]
 macos = ["pax-engine/macos"]
 ios = ["pax-engine/ios"]
 

@@ -219,17 +219,6 @@ fn get_gpu_render_context(
                 surface_policy.defer_transient_root_host_surfaces(layer),
             )
             .await;
-            if surface_policy.force_gl() {
-                #[cfg(feature = "webgl")]
-                log::info!("render backend: forcing legacy WebGL canvas path by debug override");
-                #[cfg(not(feature = "webgl"))]
-                log::warn!(
-                    "render backend: legacy WebGL override was requested, but this build was compiled without WebGL fallback"
-                );
-            }
-            let force_gl = surface_policy.force_gl() && cfg!(feature = "webgl");
-            let prefer_browser_premultiplied_alpha = !force_gl;
-
             let mut renderers = Vec::with_capacity(initial_targets.len());
             let mut backend_limit = u32::MAX;
             let mut shared_context: Option<SharedGpuContext> = None;
@@ -237,33 +226,19 @@ fn get_gpu_render_context(
                 target.canvas.set_width(target.surface.surface_width);
                 target.canvas.set_height(target.surface.surface_height);
 
-                let (backend, context) = match if force_gl {
-                    RenderBackend::to_canvas_gl_with_context(
-                        target.canvas.clone(),
-                        RenderConfig::new(
-                            false,
-                            target.surface.surface_width,
-                            target.surface.surface_height,
-                            target.surface.dpr,
-                        )
-                        .with_browser_premultiplied_alpha(prefer_browser_premultiplied_alpha),
-                        shared_context.clone(),
+                let (backend, context) = match RenderBackend::to_canvas_with_context(
+                    target.canvas.clone(),
+                    RenderConfig::new(
+                        false,
+                        target.surface.surface_width,
+                        target.surface.surface_height,
+                        target.surface.dpr,
                     )
-                    .await
-                } else {
-                    RenderBackend::to_canvas_with_context(
-                        target.canvas.clone(),
-                        RenderConfig::new(
-                            false,
-                            target.surface.surface_width,
-                            target.surface.surface_height,
-                            target.surface.dpr,
-                        )
-                        .with_browser_premultiplied_alpha(prefer_browser_premultiplied_alpha),
-                        shared_context.clone(),
-                    )
-                    .await
-                } {
+                    .with_browser_premultiplied_alpha(true),
+                    shared_context.clone(),
+                )
+                .await
+                {
                     Ok(backend) => backend,
                     Err(err) => {
                         log::warn!(
@@ -391,9 +366,9 @@ async fn wait_for_canvas_layout_settle(window: &Window, document: &Document, lay
         if has_size && stable_frames >= 1 {
             // Non-root layers often appear on the root host for a frame before an explicit
             // scroller-island claim rebinds them into their browser-owned canvas host. Waiting for
-            // one stable frame avoids bootstrapping GL contexts against that transient root
-            // placement, which is especially costly on iOS WebKit where the total context budget is
-            // small.
+            // one stable frame avoids bootstrapping browser render surfaces against that transient
+            // root placement, which is especially costly on iOS WebKit where the total canvas
+            // budget is small.
             return;
         }
         wait_for_animation_frame(window).await;

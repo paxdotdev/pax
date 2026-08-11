@@ -119,7 +119,7 @@ fn pax_dependency_feature_selectors(config: &ProjectFeatureConfig, feature: &str
         "designtime" if config.has_dependency("pax-engine") => {
             vec!["pax-engine/designtime".to_string()]
         }
-        "web" | "webgl" | "macos" | "ios" if config.has_dependency("pax-engine") => {
+        "web" | "macos" | "ios" if config.has_dependency("pax-engine") => {
             vec![format!("pax-engine/{feature}")]
         }
         _ => vec![],
@@ -310,7 +310,7 @@ parser = []
         );
 
         assert_eq!(
-            pax_project_feature_args(dir.path(), &["web", "designtime", "parser", "webgl"]),
+            pax_project_feature_args(dir.path(), &["web", "designtime", "parser"]),
             vec![
                 "web",
                 "pax-kit/web",
@@ -318,7 +318,6 @@ parser = []
                 "pax-kit/designtime",
                 "parser",
                 "pax-kit/parser",
-                "pax-kit/webgl",
             ]
         );
     }
@@ -338,13 +337,8 @@ pax-kit = "0.38.3"
         );
 
         assert_eq!(
-            pax_project_feature_args(dir.path(), &["web", "designtime", "parser", "webgl"]),
-            vec![
-                "pax-kit/web",
-                "pax-kit/designtime",
-                "pax-kit/parser",
-                "pax-kit/webgl",
-            ]
+            pax_project_feature_args(dir.path(), &["web", "designtime", "parser"]),
+            vec!["pax-kit/web", "pax-kit/designtime", "pax-kit/parser"]
         );
     }
 

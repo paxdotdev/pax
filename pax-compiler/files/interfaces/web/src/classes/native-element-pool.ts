@@ -2772,7 +2772,7 @@ export class NativeElementPool {
         scrollerDiv.setAttribute("class", NATIVE_LEAF_CLASS + " " + SCROLLER_CONTAINER)
         scrollerDiv.setAttribute("pax_id", String(patch.id));
         // Blink can cull descendant browser-owned canvases inside a paint-contained scrolling leaf
-        // even while the WebGPU/WebGL surfaces continue rendering. Scrollers that host island
+        // even while the GPU surfaces continue rendering. Scrollers that host island
         // canvases still need layout containment, but relaxing paint containment keeps nested
         // vector layers composited correctly in Chrome.
         scrollerDiv.style.contain = "layout style";
@@ -4780,7 +4780,7 @@ const IOS_PREWARM_SCROLLABLE_PAD_X_MULTIPLIER = 16.0;
 const IOS_PREWARM_SCROLLABLE_PAD_Y_MULTIPLIER = 8.0;
 const IOS_PREWARM_SCROLLABLE_MIN_PAD_X = 3840;
 const IOS_PREWARM_SCROLLABLE_MIN_PAD_Y = 2048;
-// The ordinary iOS path now uses Piet/2D canvas, not one WebGL context per tile. Keep enough
+// The ordinary iOS path uses Piet/2D canvas. Keep enough
 // browser canvases around to prevent fast scrolls from exposing cold, uninitialized tile slots.
 const IOS_NESTED_BROWSER_SURFACE_BUDGET = 64;
 const IOS_TOTAL_CANVAS_BUDGET = 64;
