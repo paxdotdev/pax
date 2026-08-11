@@ -1,0 +1,806 @@
+<Group width=100% height=100%>
+    <Group x=50% y={self.compact ? 44px : 58px} width={self.compact ? (100% - 40px) : 88%} height={self.compact ? 218px : 148px} 
+        anchor_x=50%>
+        <Text class="gallery_eyebrow" x=0px y=0px width=100% height=22px text="EXPLORE / CURRENT CAPABILITIES"/>
+        <Text class="gallery_title" x=0px y=36px width={self.compact ? 100% : 78%} height={self.compact ? 96px : 58px} 
+            text="Keep pulling the thread."/>
+        <Text class="gallery_copy" x=0px y={self.compact ? 138px : 104px} width={self.compact ? 100% : 68%} 
+            height={self.compact ? 72px : 44px} 
+            text="A browsable heap of specific things Pax can do today. Hover or touch to pause; scroll or swipe to take control."/>
+    </Group>
+    <MarqueeCarousel x={self.compact ? 20px : 6%} y={self.compact ? 286px : 226px} width={self.compact ? (100% - 20px) : 94%} 
+        height={self.compact ? 464px : 446px} card_width_px={self.card_width_px} gap_px=14 speed_px_per_second=24 
+        scroll_x=bind:marquee_scroll_x hover_paused=bind:marquee_hovered touch_paused=bind:marquee_touch_active>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="ANIMATION" title="Path Drawing Animations" 
+            summary="Animate a path's visible stroke range for signatures, diagrams, handwriting, and line art that draws itself into the interface." 
+            proof="DRAW RANGE / BÉZIER" docs_label="PATH API" docs_url="https://docs.pax.dev/api/pax-std/drawing/path.html">
+            <Group class="poster">
+                <Text class="poster_code" x=26px y=24px width={100% - 52px} height=24px text="0%  ─────────  100%"/>
+                <Rectangle class="poster_track" x=28px y=82px width={100% - 56px} height=2px/>
+                <Rectangle class="poster_signal" x=28px y=79px width=62% height=8px/>
+                <Ellipse class="poster_dot" x=66% y=83px width=18px height=18px anchor=50%/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="LANGUAGE" title="Runtime Themes" 
+            summary="Layer color, typography, and shape systems as live settings providers, then swap those axes independently without rebuilding the component tree." 
+            proof="COLOR / TYPE / SHAPE" docs_label="IMPORT SETTINGS" 
+            docs_url="https://docs.pax.dev/api/pax-std/core/import_settings.html">
+            <Group class="poster">
+                <Rectangle class="poster_panel" x=28px y=28px width=72px height=92px/>
+                <Rectangle class="poster_panel_dark" x=108px y=28px width=72px height=92px/>
+                <Rectangle class="poster_panel_accent" x=188px y=28px width=72px height=92px/>
+                <Text class="poster_code" x=38px y=60px width=52px height=24px text="Aa"/>
+                <Text class="poster_code_light" x=118px y=60px width=52px height=24px text="Aa"/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="NATIVE / PLATFORM" title="Native Scrolling" 
+            summary="Move Pax-rendered scenes and projected native content through one- or two-axis platform scroll regions with clipping and rounded masks." 
+            proof="PLATFORM SCROLLER" docs_label="SCROLLER API" docs_url="https://docs.pax.dev/api/pax-std/core/scroller.html">
+            <Group class="poster">
+                <Rectangle class="poster_viewport" x=38px y=20px width={100% - 76px} height=118px/>
+                <Rectangle class="poster_panel" x=54px y=36px width=72px height=86px/>
+                <Rectangle class="poster_panel_accent" x=136px y=36px width=72px height=86px/>
+                <Rectangle class="poster_scrollbar" x={100% - 52px} y=36px width=4px height=44px/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="RENDERING" title="Vector Materials" 
+            summary="Give vector fills authored matte, glossy, metallic, emissive, or coefficient-based light response on WGPU and WebGPU renderers." 
+            proof="AUTHORED SURFACES" docs_label="MATERIAL API" 
+            docs_url="https://docs.pax.dev/api/pax-runtime-api/drawing.html#material">
+            <Group class="poster">
+                <Ellipse class="poster_orbit" x=50% y=74px width=124px height=124px anchor=50%/>
+                <Ellipse class="poster_gloss" x=50% y=74px width=82px height=82px anchor=50%/>
+                <Ellipse class="poster_highlight" x=42% y=58px width=20px height=20px anchor=50%/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="DEV TOOLING" title="Rust Hot Reload" 
+            summary="Reload Pax templates on supported targets and Rust application logic on web and macOS while keeping the running feedback loop alive." 
+            proof="TEMPLATE + LOGIC LANES" docs_label="HOT RELOADING" 
+            docs_url="https://docs.pax.dev/getting-started.html#hot-reloading">
+            <Group class="poster">
+                <Text class="poster_code" x=26px y=24px width={100% - 52px} height=24px text="src/lib.rs"/>
+                <Rectangle class="poster_code_line" x=26px y=62px width=68% height=7px/>
+                <Rectangle class="poster_signal" x=26px y=84px width=82% height=7px/>
+                <Rectangle class="poster_code_line" x=26px y=106px width=54% height=7px/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="NATIVE / PLATFORM" title="Accelerometer &amp; Gyro" 
+            summary="Bind device orientation and acceleration directly into reactive expressions; mobile WebKit permission remains an app-owned user gesture." 
+            proof="$GYRO / $ACCEL" docs_label="BUILT-IN GLOBALS" 
+            docs_url="https://docs.pax.dev/data-binding-expressions.html#built-in-globals">
+            <Group class="poster">
+                <Ellipse class="poster_orbit" x=50% y=76px width=126px height=126px anchor=50%/>
+                <Rectangle class="poster_axis" x=50% y=22px width=2px height=108px/>
+                <Rectangle class="poster_axis" x={50% - 54px} y=75px width=108px height=2px/>
+                <Ellipse class="poster_dot" x=67% y=50px width=22px height=22px anchor=50%/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="ANIMATION" title="Enter &amp; Exit Transitions" 
+            summary="Attach named @in and @out timelines to declarative branches so elements animate as they mount and leave the interface." 
+            proof="MOUNT / UNMOUNT" docs_label="TRANSITIONS" docs_url="https://docs.pax.dev/animation-motion.html#in-transitions">
+            <Group class="poster">
+                <Rectangle class="poster_panel_faint" x=24px y=46px width=68px height=70px/>
+                <Rectangle class="poster_panel" x=110px y=34px width=68px height=82px/>
+                <Rectangle class="poster_panel_accent" x=196px y=22px width=68px height=94px/>
+                <Text class="poster_arrow" x=74px y=60px width=52px height=28px text="→"/>
+                <Text class="poster_arrow" x=160px y=60px width=52px height=28px text="→"/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="ANIMATION" title="Animated Reflow" 
+            summary="Let Stacker ghost departing children and ease surviving items into newly measured frames when collections change, reorder, or collapse." 
+            proof="CONTAINER-OWNED MOTION" docs_label="REFLOW MOTION" 
+            docs_url="https://docs.pax.dev/animation-motion.html#container-owned-motion">
+            <Group class="poster">
+                <Rectangle class="poster_panel" x=26px y=34px width=70px height=74px/>
+                <Rectangle class="poster_panel_accent" x=108px y=34px width=70px height=74px/>
+                <Rectangle class="poster_panel_faint" x=190px y=34px width=70px height=74px/>
+                <Rectangle class="poster_track" x=26px y=126px width=234px height=2px/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="LANGUAGE" title="Dynamic Classes" 
+            summary="Bind a class name or ordered class list to runtime state and rematch settings without imperative bookkeeping or subtree reconstruction." 
+            proof="RUNTIME SELECTOR MATCHING" docs_label="IDS AND CLASSES" 
+            docs_url="https://docs.pax.dev/template-language.html#ids-and-classes">
+            <Group class="poster">
+                <Text class="poster_code" x=24px y=25px width={100% - 48px} height=24px text={"class={self.state}"}/>
+                <Rectangle class="poster_code_line" x=24px y=67px width=58% height=7px/>
+                <Rectangle class="poster_signal" x=24px y=91px width=82% height=7px/>
+                <Rectangle class="poster_code_line" x=24px y=115px width=44% height=7px/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="RENDERING" title="Flexible Gradients" 
+            summary="Author linear and radial gradients in inline settings, reusable classes, and reactive expressions with explicit stops and opacity." 
+            proof="INLINE / SETTINGS / PAXEL" docs_label="GRADIENT LITERALS" 
+            docs_url="https://docs.pax.dev/data-binding-expressions.html#literals">
+            <Group class="poster">
+                <Rectangle class="poster_gradient" x=24px y=28px width={100% - 48px} height=88px/>
+                <Ellipse class="poster_dot_light" x=26% y=72px width=16px height=16px anchor=50%/>
+                <Ellipse class="poster_dot" x=68% y=72px width=16px height=16px anchor=50%/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="NATIVE / PLATFORM" title="Native Element Compositing" 
+            summary="Transform, mask, and occlude selectable text and platform controls in the same scene-space composition as Pax vectors and images." 
+            proof="ONE COORDINATE SPACE" docs_label="NATIVE CONTROLS" docs_url="https://docs.pax.dev/input-native-controls.html">
+            <Group class="poster">
+                <Rectangle class="poster_native" x=34px y=30px width=202px height=90px/>
+                <Rectangle class="poster_mask" x=84px y=18px width=88px height=114px rotate=12deg/>
+                <Text class="poster_code" x=52px y=63px width=166px height=24px text="selectable native text"/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="DEV TOOLING" title="Screenshot Sequences" 
+            summary="Capture timed frame sequences from a running session to inspect animation and interaction without manually recording the screen." 
+            proof="CLI FRAME CAPTURE" docs_label="DEV CLI SOURCE" 
+            docs_url="https://github.com/paxdotdev/pax/blob/dev/pax-cli/src/dev.rs">
+            <Group class="poster">
+                <Rectangle class="poster_panel" x=30px y=38px width=74px height=78px/>
+                <Rectangle class="poster_panel" x=110px y=30px width=74px height=86px/>
+                <Rectangle class="poster_panel_accent" x=190px y=22px width=74px height=94px/>
+                <Text class="poster_code" x=32px y=120px width=230px height=20px text="001  002  003"/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="LANGUAGE" title="Mixed Units" 
+            summary="Combine pixels, percentages, angles, and time values directly in expressions such as a full-width region minus a fixed inset." 
+            proof="{100% - 25PX}" docs_label="UNIT LITERALS" docs_url="https://docs.pax.dev/data-binding-expressions.html#literals">
+            <Group class="poster">
+                <Rectangle class="poster_track" x=24px y=70px width={100% - 48px} height=6px/>
+                <Rectangle class="poster_signal" x=24px y=62px width={100% - 90px} height=22px/>
+                <Text class="poster_code" x=28px y=28px width={100% - 56px} height=24px text="100% − 25px"/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="LAYOUT" title="Content Autosizing" 
+            summary="Measure descendant content bottom-up so containers grow around dynamic text, nested layouts, and transformed children without manual height bookkeeping." 
+            proof="MEASURED CONTENT HULLS" docs_label="AUTOSIZE" docs_url="https://docs.pax.dev/layout-responsiveness.html#autosize">
+            <Group class="poster">
+                <Rectangle class="poster_outline" x=42px y=22px width=204px height=112px/>
+                <Rectangle class="poster_code_line" x=60px y=42px width=126px height=7px/>
+                <Rectangle class="poster_code_line" x=60px y=66px width=164px height=7px/>
+                <Rectangle class="poster_signal" x=60px y=90px width=92px height=7px/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="RUNTIME / APPLICATION" title="Declarative Routing" 
+            summary="Describe nested routes, parameters, catch-alls, defaults, and route remainders directly in templates while applications retain reactive location state." 
+            proof="NESTED ROUTE TREES" docs_label="ROUTING GUIDE" docs_url="https://docs.pax.dev/routing.html">
+            <Group class="poster">
+                <Text class="poster_code" x=24px y=24px width={100% - 48px} height=22px text="/docs/:section/*rest"/>
+                <Rectangle class="poster_tree" x=30px y=64px width=2px height=66px/>
+                <Rectangle class="poster_tree" x=30px y=78px width=62px height=2px/>
+                <Rectangle class="poster_tree" x=30px y=110px width=104px height=2px/>
+                <Ellipse class="poster_dot" x=98px y=79px width=14px height=14px anchor=50%/>
+                <Ellipse class="poster_dot_alt" x=140px y=111px width=14px height=14px anchor=50%/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="ANIMATION" title="Shared Playheads" 
+            summary="Bind several timelines to one playhead so nested components can scrub, synchronize, and orchestrate motion from a shared clock." 
+            proof="ONE CLOCK / MANY TIMELINES" docs_label="TIMELINES" 
+            docs_url="https://docs.pax.dev/animation-motion.html#timelines">
+            <Group class="poster">
+                <Rectangle class="poster_track" x=26px y=42px width=236px height=2px/>
+                <Rectangle class="poster_track" x=26px y=78px width=236px height=2px/>
+                <Rectangle class="poster_track" x=26px y=114px width=236px height=2px/>
+                <Rectangle class="poster_playhead" x=64% y=24px width=2px height=108px/>
+                <Ellipse class="poster_dot" x=64% y=42px width=14px height=14px anchor=50%/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="ANIMATION" title="Interruptible Transitions" 
+            summary="Reverse an entering or exiting stable instance from its sampled visual state so rapid toggles stay continuous instead of visibly restarting." 
+            proof="SAMPLED REVERSAL" docs_label="INTERRUPTED MOTION" 
+            docs_url="https://docs.pax.dev/animation-motion.html#interrupted-in-out">
+            <Group class="poster">
+                <Rectangle class="poster_track" x=28px y=76px width=232px height=2px/>
+                <Ellipse class="poster_dot_alt" x=30px y=76px width=16px height=16px anchor=50%/>
+                <Ellipse class="poster_dot" x=66% y=76px width=22px height=22px anchor=50%/>
+                <Text class="poster_arrow" x=64% y=32px width=50px height=28px text="↶"/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="NATIVE / PLATFORM" title="Scroll Snapping" 
+            summary="Declare horizontal or vertical snap anchors that map to native scroll endpoints, with Carousel providing paged composition and keyboard navigation." 
+            proof="NATIVE SNAP ANCHORS" docs_label="CAROUSEL API" docs_url="https://docs.pax.dev/api/pax-std/layout/carousel.html">
+            <Group class="poster">
+                <Rectangle class="poster_track" x=28px y=106px width=232px height=2px/>
+                <Rectangle class="poster_panel" x=28px y=30px width=68px height=68px/>
+                <Rectangle class="poster_panel_accent" x=110px y=30px width=68px height=68px/>
+                <Rectangle class="poster_panel" x=192px y=30px width=68px height=68px/>
+                <Ellipse class="poster_dot" x=144px y=107px width=14px height=14px anchor=50%/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="RENDERING" title="SVG Ejection" 
+            summary="Convert a supported SVG subset at build time into editable Pax Path source that can be styled, inspected, and animated." 
+            proof="SVG → EDITABLE PAX" docs_label="PATH EXAMPLE" 
+            docs_url="https://github.com/paxdotdev/pax/tree/dev/examples/src/path-drawing">
+            <Group class="poster">
+                <Text class="poster_code" x=26px y=24px width=78px height=24px text="logo.svg"/>
+                <Text class="poster_arrow" x=106px y=22px width=52px height=28px text="→"/>
+                <Text class="poster_code" x=156px y=24px width=112px height=24px text="&lt;Path /&gt;"/>
+                <Rectangle class="poster_code_line" x=156px y=72px width=92px height=7px/>
+                <Rectangle class="poster_signal" x=156px y=96px width=66px height=7px/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="RENDERING" title="Scoped Lighting" 
+            summary="Use LightFrame to keep authored lights inside a reusable component's layer, preventing repeated lit controls from illuminating their neighbors." 
+            proof="COMPONENT LIGHT BOUNDARY" docs_label="LIGHTING API" 
+            docs_url="https://docs.pax.dev/api/pax-std/drawing/lighting.html">
+            <Group class="poster">
+                <Rectangle class="poster_outline" x=30px y=24px width=102px height=106px/>
+                <Rectangle class="poster_outline" x=156px y=24px width=102px height=106px/>
+                <Ellipse class="poster_glow" x=82px y=74px width=66px height=66px anchor=50%/>
+                <Ellipse class="poster_glow_alt" x=208px y=74px width=66px height=66px anchor=50%/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="NATIVE / PLATFORM" title="Photo Picker" 
+            summary="Open the platform photo picker from slotted Pax content and receive the selected image through a typed event." 
+            proof="PLATFORM PICKER EVENT" docs_label="PHOTO PICKER" 
+            docs_url="https://docs.pax.dev/input-native-controls.html#photopicker">
+            <Group class="poster">
+                <Rectangle class="poster_native" x=48px y=24px width=192px height=112px/>
+                <Ellipse class="poster_dot_alt" x=92px y=58px width=22px height=22px anchor=50%/>
+                <Rectangle class="poster_mountain" x=72px y=88px width=112px height=32px rotate=-8deg/>
+                <Rectangle class="poster_mountain_alt" x=128px y=80px width=84px height=40px rotate=10deg/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="DEV TOOLING" title="Scene Ray-Casting" 
+            summary="Ask a running app for the z-sorted node stack beneath a screenshot pixel and connect a visual result back to scene structure." 
+            proof="PIXEL → NODE STACK" docs_label="DEV CLI SOURCE" 
+            docs_url="https://github.com/paxdotdev/pax/blob/dev/pax-cli/src/dev.rs#L216">
+            <Group class="poster">
+                <Rectangle class="poster_panel" x=38px y=28px width=188px height=104px/>
+                <Rectangle class="poster_panel_accent" x=96px y=48px width=142px height=78px/>
+                <Ellipse class="poster_crosshair" x=154px y=76px width=28px height=28px anchor=50%/>
+                <Rectangle class="poster_axis" x=154px y=42px width=1px height=68px/>
+                <Rectangle class="poster_axis" x=120px y=76px width=68px height=1px/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="DEV TOOLING" title="Inspectable Examples" 
+            summary="Ship working examples with an in-app source drawer so visitors can see the Pax templates and Rust logic behind the rendered result." 
+            proof="LIVE RESULT + SOURCE" docs_label="EXAMPLE HOST" 
+            docs_url="https://docs.pax.dev/api/pax-std/reference/example_host.html">
+            <Group class="poster">
+                <Rectangle class="poster_panel_accent" x=24px y=28px width=126px height=104px/>
+                <Rectangle class="poster_code_panel" x=158px y=28px width=106px height=104px/>
+                <Rectangle class="poster_code_line_light" x=172px y=48px width=72px height=6px/>
+                <Rectangle class="poster_code_line_light" x=172px y=70px width=58px height=6px/>
+                <Rectangle class="poster_code_line_signal" x=172px y=92px width=78px height=6px/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="LAYOUT" title="Breakout Layout" 
+            summary="Opt badges, tooltips, dropdowns, and overlays out of parent measurement while keeping their coordinates, clipping, and hit testing local." 
+            proof="LOCAL OVERLAY / NO HULL" docs_label="LAYOUT ROLES" 
+            docs_url="https://docs.pax.dev/layout-responsiveness.html#layout-role">
+            <Group class="poster">
+                <Rectangle class="poster_panel" x=54px y=44px width=180px height=82px/>
+                <Rectangle class="poster_panel_accent" x=188px y=18px width=76px height=44px/>
+                <Rectangle class="poster_outline" x=42px y=32px width=204px height=106px/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="LANGUAGE" title="Target-Aware Settings" 
+            summary="Branch settings on viewport and target globals to make deliberate platform, orientation, and responsive adaptations inside one declarative component." 
+            proof="$MOBILE / $LANDSCAPE / $IOS" docs_label="CONDITIONAL SETTINGS" 
+            docs_url="https://docs.pax.dev/template-language.html#conditional-settings">
+            <Group class="poster">
+                <Rectangle class="poster_panel" x=28px y=28px width=136px height=96px/>
+                <Rectangle class="poster_phone" x=190px y=18px width=58px height=116px/>
+                <Rectangle class="poster_signal" x=44px y=48px width=90px height=8px/>
+                <Rectangle class="poster_code_line" x=44px y=76px width=70px height=7px/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="LANGUAGE" title="Relative Property Values" 
+            summary="Use $base to derive a value from the previous settings layer, enabling composable offsets and relative animation without duplicating the original expression." 
+            proof="$BASE + 12PX" docs_label="RELATIVE VALUES" docs_url="https://docs.pax.dev/data-binding-expressions.html#base">
+            <Group class="poster">
+                <Text class="poster_code" x=28px y=30px width={100% - 56px} height=24px text="$base + 12px"/>
+                <Rectangle class="poster_track" x=28px y=84px width=220px height=2px/>
+                <Ellipse class="poster_dot_alt" x=42% y=84px width=16px height=16px anchor=50%/>
+                <Ellipse class="poster_dot" x=62% y=84px width=20px height=20px anchor=50%/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="RENDERING" title="Path Smoothing" 
+            summary="Apply light or strong retained-geometry smoothing to freehand paths while preserving deliberate corners and keeping draw-range animation available." 
+            proof="NONE / LIGHT / STRONG" docs_label="SMOOTHING API" 
+            docs_url="https://docs.pax.dev/api/pax-runtime-api/drawing/path_smoothing.html">
+            <Group class="poster">
+                <Rectangle class="poster_track" x=26px y=42px width=236px height=2px rotate=8deg/>
+                <Rectangle class="poster_track" x=26px y=78px width=236px height=2px rotate=-6deg/>
+                <Rectangle class="poster_signal" x=26px y=114px width=236px height=4px/>
+                <Ellipse class="poster_dot" x=82% y=114px width=16px height=16px anchor=50%/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="RENDERING" title="Masks &amp; Clipping" 
+            summary="Use rendered subtrees as masks and combine them with scroller clipping so vectors, images, and native projections remain one composition." 
+            proof="RENDERED + NATIVE LAYERS" docs_label="MASK API" docs_url="https://docs.pax.dev/api/pax-std/core/mask.html">
+            <Group class="poster">
+                <Rectangle class="poster_gradient" x=34px y=26px width=220px height=104px/>
+                <Ellipse class="poster_mask_cutout" x=50% y=78px width=112px height=112px anchor=50%/>
+                <Rectangle class="poster_native" x=104px y=54px width=80px height=50px/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="RUNTIME / APPLICATION" title="Transform-Aware Coordinates" 
+            summary="Convert window-space mouse and touch points into a node's normalized local coordinates through its full transform chain." 
+            proof="WINDOW → NODE LOCAL" docs_label="EVENT HANDLING" docs_url="https://docs.pax.dev/event-handling-rust.html">
+            <Group class="poster">
+                <Rectangle class="poster_outline" x=72px y=24px width=148px height=108px rotate=12deg/>
+                <Ellipse class="poster_crosshair" x=158px y=70px width=28px height=28px anchor=50%/>
+                <Text class="poster_code" x=28px y=116px width=232px height=20px text="(x, y) → (u, v)"/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="DEV TOOLING" title="Pax Formatter" 
+            summary="Format one template, a directory, or a project root—and use check mode to keep Pax source deterministic in CI." 
+            proof="PAX FMT --CHECK" docs_label="FORMAT SOURCE" 
+            docs_url="https://docs.pax.dev/getting-started.html#formatting-pax-source">
+            <Group class="poster">
+                <Text class="poster_code" x=24px y=24px width={100% - 48px} height=24px text="pax fmt --check"/>
+                <Rectangle class="poster_code_line" x=24px y=66px width=84% height=7px/>
+                <Rectangle class="poster_signal" x=24px y=90px width=62% height=7px/>
+                <Rectangle class="poster_code_line" x=24px y=114px width=74% height=7px/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="RUNTIME / APPLICATION" title="Computed Properties" 
+            summary="Build typed derived state in Rust's reactive property graph when template expressions are not the right ownership boundary." 
+            proof="TYPED REACTIVE DAG" docs_label="COMPUTED PROPERTIES" 
+            docs_url="https://docs.pax.dev/state-properties.html#computed-properties">
+            <Group class="poster">
+                <Ellipse class="poster_dot_alt" x=54px y=44px width=20px height=20px anchor=50%/>
+                <Ellipse class="poster_dot_alt" x=54px y=110px width=20px height=20px anchor=50%/>
+                <Ellipse class="poster_dot" x=224px y=76px width=26px height=26px anchor=50%/>
+                <Rectangle class="poster_tree" x=62px y=43px width=150px height=2px rotate=11deg/>
+                <Rectangle class="poster_tree" x=62px y=109px width=150px height=2px rotate=-11deg/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="NATIVE / PLATFORM" title="Touch Capture" 
+            summary="Keep move, end, and cancel events routed through the subtree that won touch start, even when the finger leaves its bounds." 
+            proof="STABLE TOUCH STREAM" docs_label="EVENT HANDLING" docs_url="https://docs.pax.dev/event-handling-rust.html">
+            <Group class="poster">
+                <Rectangle class="poster_outline" x=38px y=26px width=126px height=106px/>
+                <Ellipse class="poster_dot" x=96px y=74px width=24px height=24px anchor=50%/>
+                <Rectangle class="poster_track" x=96px y=73px width=132px height=2px rotate=18deg/>
+                <Ellipse class="poster_dot_alt" x=228px y=116px width=18px height=18px anchor=50%/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="TEXT / MEDIA" title="Hosted Fonts" 
+            summary="Name a font once, load it from a URL, and use the same declarative font value across template text styles." 
+            proof="NAMED FONT + URL" docs_label="FONT VALUES" docs_url="https://docs.pax.dev/text-fonts-images.html#font-values">
+            <Group class="poster">
+                <Text class="poster_type_large" x=26px y=24px width=236px height=54px text="Aa"/>
+                <Text class="poster_code" x=28px y=92px width=232px height=24px text="Manrope / IBM Plex Mono"/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="TEXT / MEDIA" title="Reactive Image Sources" 
+            summary="Bind asset paths or URL-backed image sources to state so rendered imagery can change without imperative host-element management." 
+            proof="ASSET / URL / PROPERTY" docs_label="IMAGE SOURCES" 
+            docs_url="https://docs.pax.dev/text-fonts-images.html#image-sources">
+            <Group class="poster">
+                <Rectangle class="poster_native" x=38px y=24px width=94px height=112px/>
+                <Rectangle class="poster_native" x=156px y=24px width=94px height=112px/>
+                <Text class="poster_arrow" x=119px y=64px width=50px height=28px text="↔"/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="RUNTIME / APPLICATION" title="History-Aware Links" 
+            summary="Navigate same-origin routes through browser history while retaining ordinary new-window behavior for external destinations." 
+            proof="HISTORY API / TARGET" docs_label="LINK API" docs_url="https://docs.pax.dev/api/pax-std/core/link.html">
+            <Group class="poster">
+                <Text class="poster_code" x=24px y=28px width=238px height=24px text="/docs  →  /examples"/>
+                <Rectangle class="poster_panel" x=24px y=76px width=104px height=48px/>
+                <Rectangle class="poster_panel_accent" x=158px y=76px width=104px height=48px/>
+                <Text class="poster_arrow" x=122px y=84px width=44px height=24px text="→"/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="RUNTIME / APPLICATION" title="Subscriptions &amp; Effects" 
+            summary="Subscribe Rust side effects to property changes while keeping ordinary derived values inside Pax's deterministic reactive graph." 
+            proof="STATE CHANGE → EFFECT" docs_label="SUBSCRIPTIONS" 
+            docs_url="https://docs.pax.dev/state-properties.html#subscriptions-and-effects">
+            <Group class="poster">
+                <Ellipse class="poster_dot_alt" x=50px y=76px width=20px height=20px anchor=50%/>
+                <Rectangle class="poster_track" x=60px y=75px width=162px height=2px/>
+                <Ellipse class="poster_dot" x=232px y=76px width=26px height=26px anchor=50%/>
+                <Text class="poster_code" x=82px y=38px width=120px height=22px text="subscribe"/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="LAYOUT" title="Multi-Axis Properties" 
+            summary="Use scalar or list shorthand for anchor, scale, and skew while retaining explicit per-axis control and predictable longhand precedence." 
+            proof="X / Y SHORTHANDS" docs_label="COMMON PROPERTIES" 
+            docs_url="https://docs.pax.dev/layout-responsiveness.html#multi-axis-common-properties">
+            <Group class="poster">
+                <Rectangle class="poster_outline" x=76px y=26px width=136px height=104px rotate=-8deg/>
+                <Rectangle class="poster_axis" x=144px y=16px width=2px height=126px/>
+                <Rectangle class="poster_axis" x=70px y=78px width=150px height=2px/>
+                <Text class="poster_code" x=22px y=24px width=52px height=20px text="x"/>
+                <Text class="poster_code" x=214px y=112px width=52px height=20px text="y"/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="RENDERING" title="Stroke Caps &amp; Joins" 
+            summary="Choose butt, round, or square caps and miter, round, or bevel joins for precise open-path and line rendering." 
+            proof="CAP / JOIN CONTROL" docs_label="STROKE API" 
+            docs_url="https://docs.pax.dev/api/pax-runtime-api/drawing.html#strokecap">
+            <Group class="poster">
+                <Rectangle class="poster_signal" x=28px y=42px width=220px height=10px/>
+                <Rectangle class="poster_signal_round" x=28px y=76px width=220px height=10px/>
+                <Rectangle class="poster_signal_square" x=28px y=110px width=220px height=10px/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="DEV TOOLING" title="Local Docs &amp; Examples" 
+            summary="Open the documentation shipped with the current CLI and move from prose into first-party runnable examples from the same repository revision." 
+            proof="PAX-CLI DOCS" docs_label="GETTING STARTED" docs_url="https://docs.pax.dev/getting-started.html">
+            <Group class="poster">
+                <Rectangle class="poster_code_panel" x=34px y=24px width=220px height=112px/>
+                <Text class="poster_code_light" x=52px y=44px width=182px height=24px text="$ pax-cli docs"/>
+                <Rectangle class="poster_code_line_light" x=52px y=82px width=146px height=6px/>
+                <Rectangle class="poster_code_line_signal" x=52px y=106px width=112px height=6px/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="NATIVE / PLATFORM" title="Custom Cursors" 
+            summary="Select familiar platform cursor shapes declaratively for mouse-capable interfaces while touch-first targets simply ignore the affordance." 
+            proof="PLATFORM CURSOR STYLE" docs_label="CURSOR API" docs_url="https://docs.pax.dev/api/pax-runtime-api/cursor.html">
+            <Group class="poster">
+                <Text class="poster_cursor" x=42px y=22px width=82px height=104px text="↖"/>
+                <Rectangle class="poster_panel_accent" x=128px y=58px width=112px height=46px/>
+                <Text class="poster_code_light" x=142px y=68px width=86px height=24px text="pointer"/>
+            </Group>
+        </FeatureCard>
+        <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active 
+            marquee_scroll_x=bind:marquee_scroll_x category="RUNTIME / APPLICATION" title="Project Metadata" 
+            summary="Set title, icon, favicon, bundle identifier, Apple development team, and Info.plist additions from Cargo package metadata." 
+            proof="ONE PROJECT MANIFEST" docs_label="PROJECT METADATA" 
+            docs_url="https://docs.pax.dev/getting-started.html#project-metadata">
+            <Group class="poster">
+                <Text class="poster_code" x=24px y=22px width={100% - 48px} height=22px text="[package.metadata.pax]"/>
+                <Rectangle class="poster_code_line" x=24px y=62px width=72% height=7px/>
+                <Rectangle class="poster_signal" x=24px y=86px width=86% height=7px/>
+                <Rectangle class="poster_code_line" x=24px y=110px width=58% height=7px/>
+            </Group>
+        </FeatureCard>
+    </MarqueeCarousel>
+    <Text class="gallery_note" x={self.compact ? 20px : 6%} y={self.compact ? 774px : 692px} 
+        width={self.compact ? (100% - 40px) : 88%} height=22px 
+        text="41 CURRENT FEATURES  /  AUTO-SCROLL PAUSES ON HOVER OR TOUCH  /  DRAG OR SWIPE TO EXPLORE"/>
+    <Rectangle class="gallery_rule" x=50% y={100% - 1px} width={self.compact ? (100% - 40px) : 88%} height=1px anchor_x=50%/>
+    <Rectangle class="gallery_bg" width=100% height=100%/>
+</Group>
+
+@settings {
+    @mount: handle_mount
+    @pre_render: handle_pre_render
+    .gallery_bg {
+        fill: rgb(248, 250, 252)
+    }
+    .gallery_rule {
+        fill: rgba(20, 25, 32, 32)
+    }
+    .gallery_eyebrow {
+        style: TextStyle {
+            font: Font::Web(
+                "IBM Plex Mono",
+                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                FontStyle::Normal,
+                FontWeight::Medium)
+            font_size: {self.compact ? 9px : 11px}
+            fill: rgb(37, 111, 190)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .gallery_title {
+        style: TextStyle {
+            font: Font::Web(
+                "Manrope",
+                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::ExtraBold)
+            font_size: {self.compact ? 34px : 48px}
+            fill: rgb(20, 25, 32)
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .gallery_copy {
+        style: TextStyle {
+            font: Font::Web(
+                "Manrope",
+                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::Normal)
+            font_size: {self.compact ? 13px : 15px}
+            fill: rgb(71, 85, 105)
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .gallery_note {
+        style: TextStyle {
+            font: Font::Web(
+                "IBM Plex Mono",
+                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                FontStyle::Normal,
+                FontWeight::Medium)
+            font_size: {self.compact ? 8px : 10px}
+            fill: rgba(37, 111, 190, 190)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .poster {
+        width: 100%
+        height: 100%
+    }
+    .poster_panel {
+        fill: WHITE
+        stroke: Stroke {
+            color: rgba(20, 25, 32, 58)
+            width: 1px
+        }
+        corner_radius: 3.0
+    }
+    .poster_panel_faint {
+        fill: rgba(255, 255, 255, 110)
+        stroke: Stroke {
+            color: rgba(20, 25, 32, 28)
+            width: 1px
+        }
+        corner_radius: 3.0
+    }
+    .poster_panel_dark {
+        fill: rgb(20, 25, 32)
+        corner_radius: 3.0
+    }
+    .poster_panel_accent {
+        fill: rgb(37, 111, 190)
+        corner_radius: 3.0
+    }
+    .poster_native {
+        fill: WHITE
+        stroke: Stroke {
+            color: rgba(37, 111, 190, 130)
+            width: 2px
+        }
+        corner_radius: 6.0
+    }
+    .poster_phone {
+        fill: WHITE
+        stroke: Stroke {
+            color: rgb(20, 25, 32)
+            width: 2px
+        }
+        corner_radius: 9.0
+    }
+    .poster_outline {
+        fill: TRANSPARENT
+        stroke: Stroke {
+            color: rgba(37, 111, 190, 118)
+            width: 1px
+        }
+        corner_radius: 4.0
+    }
+    .poster_viewport {
+        fill: rgba(255, 255, 255, 170)
+        stroke: Stroke {
+            color: rgba(20, 25, 32, 54)
+            width: 1px
+        }
+        corner_radius: 12.0
+    }
+    .poster_code_panel {
+        fill: rgb(20, 25, 32)
+        corner_radius: 5.0
+    }
+    .poster_gradient {
+        fill: @gradient {
+            linear: {
+                start: (0%, 50%),
+                end: (100%, 50%),
+            },
+            0%: rgb(54, 90, 214),
+            52%: rgb(151, 79, 207),
+            100%: rgb(238, 98, 120),
+        }
+        corner_radius: 8.0
+    }
+    .poster_track {
+        fill: rgba(37, 111, 190, 72)
+    }
+    .poster_tree {
+        fill: rgba(37, 111, 190, 115)
+    }
+    .poster_axis {
+        fill: rgba(37, 111, 190, 78)
+    }
+    .poster_scrollbar {
+        fill: rgba(37, 111, 190, 170)
+        corner_radius: 2.0
+    }
+    .poster_signal {
+        fill: rgb(37, 111, 190)
+    }
+    .poster_signal_round {
+        fill: rgb(37, 111, 190)
+        corner_radius: 5.0
+    }
+    .poster_signal_square {
+        fill: rgb(20, 25, 32)
+        stroke: Stroke {
+            color: rgb(37, 111, 190)
+            width: 2px
+        }
+    }
+    .poster_playhead {
+        fill: rgb(37, 111, 190)
+    }
+    .poster_code_line {
+        fill: rgba(20, 25, 32, 88)
+        corner_radius: 4.0
+    }
+    .poster_code_line_light {
+        fill: rgba(255, 255, 255, 155)
+        corner_radius: 3.0
+    }
+    .poster_code_line_signal {
+        fill: rgb(86, 161, 244)
+        corner_radius: 3.0
+    }
+    .poster_orbit {
+        fill: TRANSPARENT
+        stroke: Stroke {
+            color: rgba(37, 111, 190, 118)
+            width: 1px
+        }
+    }
+    .poster_gloss {
+        fill: rgb(37, 111, 190)
+    }
+    .poster_highlight {
+        fill: rgba(255, 255, 255, 190)
+    }
+    .poster_glow {
+        fill: rgba(37, 111, 190, 170)
+    }
+    .poster_glow_alt {
+        fill: rgba(190, 78, 185, 170)
+    }
+    .poster_dot {
+        fill: rgb(37, 111, 190)
+    }
+    .poster_dot_alt {
+        fill: WHITE
+        stroke: Stroke {
+            color: rgb(37, 111, 190)
+            width: 2px
+        }
+    }
+    .poster_dot_light {
+        fill: rgba(255, 255, 255, 210)
+    }
+    .poster_crosshair {
+        fill: rgba(255, 255, 255, 120)
+        stroke: Stroke {
+            color: rgb(37, 111, 190)
+            width: 2px
+        }
+    }
+    .poster_mask {
+        fill: rgba(37, 111, 190, 130)
+        corner_radius: 6.0
+    }
+    .poster_mask_cutout {
+        fill: rgba(242, 246, 250, 220)
+        stroke: Stroke {
+            color: rgba(255, 255, 255, 220)
+            width: 4px
+        }
+    }
+    .poster_mountain {
+        fill: rgba(37, 111, 190, 130)
+    }
+    .poster_mountain_alt {
+        fill: rgba(190, 78, 185, 120)
+    }
+    .poster_code {
+        style: TextStyle {
+            font: Font::Web(
+                "IBM Plex Mono",
+                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                FontStyle::Normal,
+                FontWeight::Medium)
+            font_size: 11px
+            fill: rgba(20, 25, 32, 180)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .poster_code_light {
+        style: TextStyle {
+            font: Font::Web(
+                "IBM Plex Mono",
+                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                FontStyle::Normal,
+                FontWeight::Medium)
+            font_size: 11px
+            fill: rgba(255, 255, 255, 220)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .poster_arrow {
+        style: TextStyle {
+            font: Font::Web(
+                "IBM Plex Mono",
+                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                FontStyle::Normal,
+                FontWeight::Medium)
+            font_size: 20px
+            fill: rgb(37, 111, 190)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+        }
+    }
+    .poster_type_large {
+        style: TextStyle {
+            font: Font::Web(
+                "Manrope",
+                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::ExtraBold)
+            font_size: 46px
+            fill: rgb(20, 25, 32)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+        }
+    }
+    .poster_cursor {
+        style: TextStyle {
+            font: Font::Web(
+                "IBM Plex Mono",
+                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                FontStyle::Normal,
+                FontWeight::Normal)
+            font_size: 68px
+            fill: rgb(20, 25, 32)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+        }
+    }
+}

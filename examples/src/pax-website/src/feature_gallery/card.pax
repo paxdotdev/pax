@@ -1,0 +1,105 @@
+<Group width=100% height=100% @mouse_over=self.pause_marquee_for_mouse @mouse_out=self.resume_marquee_for_mouse 
+    @touch_start=self.pause_marquee_for_touch @touch_move=self.drag_marquee @touch_end=self.resume_marquee_for_touch 
+    @touch_cancel=self.cancel_marquee_touch>
+    <Group x=16px y=16px width={100% - 32px} height=174px>
+        <Text class="feature_proof" x=12px y={100% - 28px} width={100% - 24px} height=18px text={self.proof}/>
+        slot()
+        <Rectangle class="feature_media_surface" width=100% height=100%/>
+    </Group>
+    <Text class="feature_category" x=20px y=207px width={100% - 40px} height=18px text={self.category}/>
+    <Text class="feature_title" x=20px y=235px width={100% - 40px} height=58px text={self.title}/>
+    <Text class="feature_summary" x=20px y=302px width={100% - 40px} height={100% - 359px} text={self.summary}/>
+    <Link x=20px y={100% - 45px} width={100% - 40px} height=26px url={self.docs_url} target=Target::New>
+        <Text class="feature_link" width=100% height=100% text={self.docs_label + "  →"}/>
+    </Link>
+    <Rectangle class="feature_card_surface" width=100% height=100%/>
+</Group>
+
+@settings {
+    .feature_card_surface {
+        fill: WHITE
+        stroke: Stroke {
+            color: rgba(20, 25, 32, 42)
+            width: 1px
+        }
+        corner_radius: 7.0
+    }
+    .feature_media_surface {
+        fill: rgb(242, 246, 250)
+        stroke: Stroke {
+            color: rgba(20, 25, 32, 28)
+            width: 1px
+        }
+        corner_radius: 4.0
+    }
+    .feature_proof {
+        style: TextStyle {
+            font: Font::Web(
+                "IBM Plex Mono",
+                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                FontStyle::Normal,
+                FontWeight::Medium)
+            font_size: 9px
+            fill: rgba(37, 111, 190, 195)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Right
+            align_multiline: TextAlignHorizontal::Right
+        }
+    }
+    .feature_category {
+        style: TextStyle {
+            font: Font::Web(
+                "IBM Plex Mono",
+                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                FontStyle::Normal,
+                FontWeight::SemiBold)
+            font_size: 10px
+            fill: rgb(37, 111, 190)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .feature_title {
+        style: TextStyle {
+            font: Font::Web(
+                "Manrope",
+                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::Bold)
+            font_size: 23px
+            fill: rgb(20, 25, 32)
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .feature_summary {
+        style: TextStyle {
+            font: Font::Web(
+                "Manrope",
+                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::Normal)
+            font_size: 14px
+            fill: rgb(71, 85, 105)
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .feature_link {
+        style: TextStyle {
+            font: Font::Web(
+                "IBM Plex Mono",
+                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                FontStyle::Normal,
+                FontWeight::SemiBold)
+            font_size: 10px
+            fill: rgb(20, 25, 32)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+}
