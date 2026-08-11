@@ -17,6 +17,7 @@ use std::io::Write;
 
 use crate::building::apple::rebuild_staged_macos_logic_dylib;
 use crate::building::web::rebuild_staged_web_cartridge;
+use crate::building::web_public::{existing_project_public_dir, is_servable_public_path};
 use crate::dev_session::{
     self, write_session_request_json, DevLookRequest, DevReloadLogicRequest,
     DevReloadLogicResponse, DevSession,
@@ -63,14 +64,33 @@ pub(crate) fn local_network_ip() -> Option<IpAddr> {
     (!ip.is_loopback()).then_some(ip)
 }
 
-fn static_files_service(fs_path: PathBuf) -> Files {
+fn static_files_service(fs_path: PathBuf, public_dir: Option<PathBuf>) -> Files {
     let index_path = fs_path.join("index.html");
-    Files::new("/*", fs_path)
+    let generated_files = Files::new("/*", fs_path)
         .index_file("index.html")
-        .default_handler(fn_service(move |req: ServiceRequest| {
+        .use_hidden_files()
+        .prefer_utf8(true);
+
+    if let Some(public_dir) = public_dir {
+        let filter_root = public_dir.clone();
+        generated_files.default_handler(
+            Files::new("/*", public_dir)
+                .index_file("index.html")
+                .redirect_to_slash_directory()
+                .use_hidden_files()
+                .prefer_utf8(true)
+                .path_filter(move |relative, _| is_servable_public_path(&filter_root, relative))
+                .default_handler(fn_service(move |req: ServiceRequest| {
+                    let index_path = index_path.clone();
+                    async move { history_api_fallback(req, index_path).await }
+                })),
+        )
+    } else {
+        generated_files.default_handler(fn_service(move |req: ServiceRequest| {
             let index_path = index_path.clone();
             async move { history_api_fallback(req, index_path).await }
         }))
+    }
 }
 
 async fn history_api_fallback(
@@ -1262,6 +1282,7 @@ pub fn start_server(
     )
     .map_err(std::io::Error::other)?;
     let fs_path = initial_state.serve_dir.lock().unwrap().clone();
+    let public_dir = existing_project_public_dir(Path::new(src_folder_to_watch));
     let state = Data::new(initial_state);
     let _watcher = setup_file_watcher(state.clone(), src_folder_to_watch)
         .expect("Failed to setup file watcher");
@@ -1305,7 +1326,7 @@ pub fn start_server(
                 .wrap(Logger::new("| %s | %U"))
                 .app_data(state.clone())
                 .service(web_socket)
-                .service(static_files_service(fs_path.clone()))
+                .service(static_files_service(fs_path.clone(), public_dir.clone()))
         })
         .listen(listener)?
         .workers(2);
@@ -2166,7 +2187,7 @@ mod tests {
         .expect("failed to write index");
 
         let app = actix_test::init_service(
-            App::new().service(static_files_service(dir.path().to_path_buf())),
+            App::new().service(static_files_service(dir.path().to_path_buf(), None)),
         )
         .await;
 
@@ -2193,7 +2214,7 @@ mod tests {
         .expect("failed to write index");
 
         let app = actix_test::init_service(
-            App::new().service(static_files_service(dir.path().to_path_buf())),
+            App::new().service(static_files_service(dir.path().to_path_buf(), None)),
         )
         .await;
 
@@ -2204,5 +2225,158 @@ mod tests {
         let resp = actix_test::call_service(&app, req).await;
 
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[actix_web::test]
+    async fn public_files_are_served_directly_from_the_source_directory() {
+        let dir = tempdir().expect("failed to create temp dir");
+        let generated_dir = dir.path().join("generated");
+        let public_dir = dir.path().join("public");
+        fs::create_dir_all(&generated_dir).unwrap();
+        fs::create_dir_all(&public_dir).unwrap();
+        fs::write(generated_dir.join("index.html"), "<html>pax app</html>").unwrap();
+        fs::write(public_dir.join("ai.md"), "first").unwrap();
+
+        let app = actix_test::init_service(App::new().service(static_files_service(
+            generated_dir,
+            Some(public_dir.clone()),
+        )))
+        .await;
+
+        let first = actix_test::TestRequest::get()
+            .uri("/ai.md")
+            .insert_header((header::ACCEPT, "*/*"))
+            .to_request();
+        let first = actix_test::call_service(&app, first).await;
+        assert_eq!(first.status(), StatusCode::OK);
+        assert_eq!(actix_test::read_body(first).await.as_ref(), b"first");
+
+        fs::write(public_dir.join("ai.md"), "second").unwrap();
+        let second = actix_test::TestRequest::get()
+            .uri("/ai.md")
+            .insert_header((header::ACCEPT, "*/*"))
+            .to_request();
+        let second = actix_test::call_service(&app, second).await;
+        assert_eq!(second.status(), StatusCode::OK);
+        assert_eq!(actix_test::read_body(second).await.as_ref(), b"second");
+
+        fs::remove_file(public_dir.join("ai.md")).unwrap();
+        let removed = actix_test::TestRequest::get()
+            .uri("/ai.md")
+            .insert_header((header::ACCEPT, "*/*"))
+            .to_request();
+        let removed = actix_test::call_service(&app, removed).await;
+        assert_eq!(removed.status(), StatusCode::NOT_FOUND);
+    }
+
+    #[actix_web::test]
+    async fn public_files_beat_history_fallback_but_not_generated_files() {
+        let dir = tempdir().expect("failed to create temp dir");
+        let generated_dir = dir.path().join("generated");
+        let public_dir = dir.path().join("public");
+        fs::create_dir_all(&generated_dir).unwrap();
+        fs::create_dir_all(&public_dir).unwrap();
+        fs::write(generated_dir.join("index.html"), "<html>pax app</html>").unwrap();
+        fs::write(generated_dir.join("runtime.js"), "generated").unwrap();
+        fs::write(public_dir.join("guide.html"), "<html>guide</html>").unwrap();
+        fs::write(public_dir.join("runtime.js"), "public").unwrap();
+
+        let app = actix_test::init_service(
+            App::new().service(static_files_service(generated_dir, Some(public_dir))),
+        )
+        .await;
+
+        let public = actix_test::TestRequest::get()
+            .uri("/guide.html")
+            .insert_header((header::ACCEPT, "text/html"))
+            .to_request();
+        let public = actix_test::call_service(&app, public).await;
+        assert_eq!(public.status(), StatusCode::OK);
+        assert_eq!(
+            actix_test::read_body(public).await.as_ref(),
+            b"<html>guide</html>"
+        );
+
+        let generated = actix_test::TestRequest::get()
+            .uri("/runtime.js")
+            .insert_header((header::ACCEPT, "*/*"))
+            .to_request();
+        let generated = actix_test::call_service(&app, generated).await;
+        assert_eq!(generated.status(), StatusCode::OK);
+        assert_eq!(
+            actix_test::read_body(generated).await.as_ref(),
+            b"generated"
+        );
+    }
+
+    #[actix_web::test]
+    async fn public_directory_indexes_and_hidden_paths_are_served() {
+        let dir = tempdir().expect("failed to create temp dir");
+        let generated_dir = dir.path().join("generated");
+        let public_dir = dir.path().join("public");
+        fs::create_dir_all(&generated_dir).unwrap();
+        fs::create_dir_all(public_dir.join("ai")).unwrap();
+        fs::create_dir_all(public_dir.join(".well-known")).unwrap();
+        fs::write(generated_dir.join("index.html"), "<html>pax app</html>").unwrap();
+        fs::write(public_dir.join("ai/index.html"), "<html>primer</html>").unwrap();
+        fs::write(public_dir.join(".well-known/pax.txt"), "pax").unwrap();
+
+        let app = actix_test::init_service(
+            App::new().service(static_files_service(generated_dir, Some(public_dir))),
+        )
+        .await;
+
+        let directory = actix_test::TestRequest::get()
+            .uri("/ai")
+            .insert_header((header::ACCEPT, "text/html"))
+            .to_request();
+        let directory = actix_test::call_service(&app, directory).await;
+        assert_eq!(directory.status(), StatusCode::TEMPORARY_REDIRECT);
+        assert_eq!(directory.headers().get(header::LOCATION).unwrap(), "/ai/");
+
+        let index = actix_test::TestRequest::get()
+            .uri("/ai/")
+            .insert_header((header::ACCEPT, "text/html"))
+            .to_request();
+        let index = actix_test::call_service(&app, index).await;
+        assert_eq!(index.status(), StatusCode::OK);
+        assert_eq!(
+            actix_test::read_body(index).await.as_ref(),
+            b"<html>primer</html>"
+        );
+
+        let hidden = actix_test::TestRequest::get()
+            .uri("/.well-known/pax.txt")
+            .insert_header((header::ACCEPT, "*/*"))
+            .to_request();
+        let hidden = actix_test::call_service(&app, hidden).await;
+        assert_eq!(hidden.status(), StatusCode::OK);
+        assert_eq!(actix_test::read_body(hidden).await.as_ref(), b"pax");
+    }
+
+    #[actix_web::test]
+    async fn public_directories_without_indexes_use_history_fallback() {
+        let dir = tempdir().expect("failed to create temp dir");
+        let generated_dir = dir.path().join("generated");
+        let public_dir = dir.path().join("public");
+        fs::create_dir_all(&generated_dir).unwrap();
+        fs::create_dir_all(public_dir.join("app-route")).unwrap();
+        fs::write(generated_dir.join("index.html"), "<html>pax app</html>").unwrap();
+
+        let app = actix_test::init_service(
+            App::new().service(static_files_service(generated_dir, Some(public_dir))),
+        )
+        .await;
+
+        let route = actix_test::TestRequest::get()
+            .uri("/app-route")
+            .insert_header((header::ACCEPT, "text/html"))
+            .to_request();
+        let route = actix_test::call_service(&app, route).await;
+        assert_eq!(route.status(), StatusCode::OK);
+        assert_eq!(
+            actix_test::read_body(route).await.as_ref(),
+            b"<base href=\"/\">\n<html>pax app</html>"
+        );
     }
 }

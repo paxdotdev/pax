@@ -9,9 +9,9 @@ use std::str::FromStr;
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum HotReloadMode {
     /// Reload both `.pax` sources and application logic.
-    #[default]
     All,
     /// Reload only `.pax` sources.
+    #[default]
     Pax,
     /// Reload only application logic.
     Logic,
@@ -66,6 +66,11 @@ impl FromStr for HotReloadMode {
 #[cfg(test)]
 mod tests {
     use super::HotReloadMode;
+
+    #[test]
+    fn pax_is_the_debug_default() {
+        assert_eq!(HotReloadMode::default(), HotReloadMode::Pax);
+    }
 
     #[test]
     fn modes_expose_independent_reload_lanes() {

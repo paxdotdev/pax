@@ -8,7 +8,7 @@ use std::io::Write;
 use std::net::TcpListener;
 use std::path::PathBuf;
 
-pub fn start_server(fs_path: PathBuf) -> std::io::Result<()> {
+pub fn start_server(fs_path: PathBuf, public_dir: Option<PathBuf>) -> std::io::Result<()> {
     // Initialize logging
     std::env::set_var("RUST_LOG", "actix_web=info");
     env_logger::Builder::from_env(env_logger::Env::default())
@@ -33,7 +33,7 @@ pub fn start_server(fs_path: PathBuf) -> std::io::Result<()> {
                 break HttpServer::new(move || {
                     App::new()
                         .wrap(Logger::new("| %s | %U"))
-                        .service(static_files_service(fs_path.clone()))
+                        .service(static_files_service(fs_path.clone(), public_dir.clone()))
                 })
                 .bind((DEFAULT_BIND_HOST, port))
                 .expect("Error binding to address")

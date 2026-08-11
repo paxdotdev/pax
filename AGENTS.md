@@ -69,15 +69,16 @@ New features are often proven on one "chassis" at a time (platform target.)  In 
 
 ## Hot reloading
 
-Debug `pax-cli run` sessions use `--hot-reload=all` by default. `.pax` changes
+Debug `pax-cli run` sessions use `--hot-reload=pax` by default. `.pax` changes
 reload through the Pax lane on every supported target. Application-logic
-changes hot-reload through a separate logic lane on web and macOS; iOS and
-iPadOS still require rebuilding and relaunching after logic changes.
+changes require rebuilding and restarting by default. Web and macOS can opt
+into the separate logic lane with `--hot-reload=all`; iOS and iPadOS still
+require rebuilding and relaunching after logic changes.
 
-Use `--hot-reload=pax`, `--hot-reload=logic`, or `--hot-reload=off` to suppress
-one or both lanes. The same values can be set with `PAX_HOT_RELOAD` or the
-`hot_reload` key under `[package.metadata.pax.dev]`; precedence is CLI,
-environment, Cargo metadata, then the `all` debug default. `logic` is
+Use `--hot-reload=all`, `--hot-reload=logic`, or `--hot-reload=off` to enable or
+suppress individual lanes. The same values can be set with `PAX_HOT_RELOAD` or
+the `hot_reload` key under `[package.metadata.pax.dev]`; precedence is CLI,
+environment, Cargo metadata, then the `pax` debug default. `logic` is
 language-neutral so future interpreted application modules can use the same
 policy. Disabled lanes still save source edits, but do not update the mounted
 app until a permitted logic build or restart. Release cartridges always disable

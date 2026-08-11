@@ -18,6 +18,7 @@ use self::{apple::build_apple_project_with_cartridge, web::build_web_project_wit
 
 pub mod apple;
 pub mod web;
+pub(crate) mod web_public;
 
 /// Runs `cargo build` (or `wasm-pack build`) with appropriate env in the directory
 /// of the generated chassis project inside the specified .pax dir
@@ -55,6 +56,7 @@ pub fn build_project_with_cartridge(
                 process_child_ids,
                 assets_dirs,
                 manifest,
+                project_metadata.manifest_dir(),
                 timings,
             )?;
             Ok(Some(fs))

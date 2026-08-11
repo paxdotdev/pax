@@ -1,3 +1,6 @@
+use crate::building::web_public::{
+    existing_project_public_dir, materialize_public_dir, project_public_dir, validate_public_dir,
+};
 use crate::dev_session::{
     self, now_ms, project_designtime_manifest_file, project_dev_dir, remove_project_active_session,
     write_project_active_session, DevSession,
@@ -579,6 +582,7 @@ pub fn build_web_project_with_cartridge(
     process_child_ids: Arc<Mutex<Vec<u64>>>,
     assets_dirs: Vec<String>,
     manifest: PaxManifest, //used by designtime
+    project_root: &Path,
     timings: &mut BuildTimings,
 ) -> Result<PathBuf, eyre::Report> {
     let target: &RunTarget = &ctx.target;
@@ -587,6 +591,14 @@ pub fn build_web_project_with_cartridge(
 
     let (interface_path, build_mode_name) =
         compile_web_interface_artifacts(ctx, pax_dir, process_child_ids, assets_dirs, timings)?;
+    let public_dir = project_public_dir(project_root);
+    timings.record("public files", || {
+        if ctx.should_also_run {
+            validate_public_dir(&public_dir, &interface_path)
+        } else {
+            materialize_public_dir(&public_dir, &interface_path)
+        }
+    })?;
     let build_dest = materialize_web_build_dir(
         pax_dir,
         &interface_path,
@@ -602,11 +614,11 @@ pub fn build_web_project_with_cartridge(
         if ctx.should_run_designtime {
             println!("{} 🐇 Running Pax Web with designtime...", *PAX_BADGE);
             dotenv().ok();
-            let dev_session = prepare_web_dev_session(&ctx.project_path, pax_dir)?;
+            let dev_session = prepare_web_dev_session(project_root, pax_dir)?;
             write_project_active_session(pax_dir, &dev_session)?;
             let _ = crate::design_server::start_server(
                 build_dest.to_str().unwrap(),
-                pax_dir.parent().unwrap().to_str().unwrap(),
+                project_root.to_str().unwrap(),
                 manifest,
                 None,
                 None,
@@ -624,7 +636,10 @@ pub fn build_web_project_with_cartridge(
             cleanup_web_dev_session(pax_dir, &dev_session)?;
         } else {
             println!("{} 🐇 Running Pax Web...", *PAX_BADGE);
-            let _ = crate::design_server::static_server::start_server(build_dest.clone());
+            let _ = crate::design_server::static_server::start_server(
+                build_dest.clone(),
+                existing_project_public_dir(project_root),
+            );
         }
     } else {
         println!(
@@ -638,7 +653,7 @@ pub fn build_web_project_with_cartridge(
 }
 
 fn prepare_web_dev_session(
-    project_root: &PathBuf,
+    project_root: &Path,
     pax_dir: &PathBuf,
 ) -> Result<DevSession, eyre::Report> {
     let started_at_ms = now_ms();
@@ -652,7 +667,9 @@ fn prepare_web_dev_session(
         session_id,
         platform: "web".to_string(),
         designtime: true,
-        project_root: Some(fs::canonicalize(project_root).unwrap_or_else(|_| project_root.clone())),
+        project_root: Some(
+            fs::canonicalize(project_root).unwrap_or_else(|_| project_root.to_path_buf()),
+        ),
         session_dir: Some(session_dir),
         app_pid: None,
         design_server_addr: None,

@@ -86,6 +86,10 @@ pub fn apply_copied_interface_metadata(
 }
 
 impl PaxProjectMetadata {
+    pub(crate) fn manifest_dir(&self) -> &Path {
+        &self.manifest_dir
+    }
+
     pub(crate) fn configured_hot_reload(&self) -> Option<&str> {
         self.dev.hot_reload.as_deref()
     }

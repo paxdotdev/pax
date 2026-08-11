@@ -189,18 +189,19 @@ in a CI environment.
 
 ## Hot reloading
 
-Debug `pax-cli run` sessions reload both Pax UI sources and application logic
-by default. The two lanes are independent: a `.pax` edit can update the mounted
-tree without replacing application logic, while a logic edit builds and
-activates a new compiled artifact. `logic` is intentionally language-neutral so
-the same policy can cover Rust today and interpreted application-logic modules
-in the future.
+Debug `pax-cli run` sessions reload Pax UI sources by default. Application
+logic reload is opt-in so a Rust edit does not unexpectedly begin a long
+background build. The two lanes are independent: a `.pax` edit can update the
+mounted tree without replacing application logic, while an enabled logic lane
+builds and activates a new compiled artifact. `logic` is intentionally
+language-neutral so the same policy can cover Rust today and interpreted
+application-logic modules in the future.
 
 Use `--hot-reload` to select the lanes for one run:
 
 ```sh
-pax-cli run --hot-reload=all   # .pax and application logic (default)
-pax-cli run --hot-reload=pax   # .pax only
+pax-cli run --hot-reload=pax   # .pax only (default)
+pax-cli run --hot-reload=all   # .pax and application logic
 pax-cli run --hot-reload=logic # application logic only
 pax-cli run --hot-reload=off   # neither lane
 ```
@@ -227,10 +228,39 @@ hot_reload = "pax"
 ```
 
 For a shell or tool invocation, set `PAX_HOT_RELOAD=all|pax|logic|off`.
-Precedence is CLI flag, environment variable, Cargo metadata, then the `all`
+Precedence is CLI flag, environment variable, Cargo metadata, then the `pax`
 debug default. Release builds always force hot reload `off`; release cartridges
 support neither `.pax` live reload nor dynamic or interpreted logic
 replacement.
+
+## Web public files
+
+Create a `public/` directory beside `Cargo.toml` when a web application needs
+files served directly from the site root. Pax preserves each file's relative
+path and bytes:
+
+```text
+public/ai.md             -> /ai.md
+public/robots.txt        -> /robots.txt
+public/.well-known/pax   -> /.well-known/pax
+public/guide/index.html  -> /guide/
+```
+
+`pax-cli build --target web` copies these files into the deployable web output.
+During `pax-cli run`, the development server reads them directly from the
+project's `public/` directory. Edits, additions, and deletions are therefore
+visible after a browser refresh without rebuilding or restarting Pax.
+
+Public files cannot replace generated web files or runtime-owned directories.
+For example, `public/index.html`, `public/assets/`, `public/snippets/`, and
+`public/__reloads__/` are rejected. Symbolic links are also rejected so a web
+build cannot accidentally publish files outside the project.
+
+Use `assets/` for application media loaded by Pax across targets; those files
+are addressed beneath `/assets`. Use `public/` for web-only responses that must
+exist before the Pax runtime loads, such as text documents, robots directives,
+or well-known metadata. `Router` remains responsible for selecting live
+application UI after startup and does not declare static HTTP responses.
 
 ## Project Metadata
 

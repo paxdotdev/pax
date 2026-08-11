@@ -76,7 +76,7 @@ fn main() -> Result<(), Report> {
         .long("hot-reload")
         .takes_value(true)
         .possible_values(&["all", "pax", "logic", "off"])
-        .help("Select live source-update lanes: all (default), pax, logic, or off.");
+        .help("Select live source-update lanes: pax (default), all, logic, or off.");
 
     #[allow(non_snake_case)]
     let ARG_IOS_DEVICE = Arg::with_name("ios-device")

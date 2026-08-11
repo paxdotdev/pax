@@ -39,12 +39,13 @@ future interpreted modules can use different chassis adapters behind the same
 policy boundary.
 
 The effective mode is selected by `pax-cli run --hot-reload`, then
-`PAX_HOT_RELOAD`, then `[package.metadata.pax.dev].hot_reload`, then the `all`
-debug default. A disabled lane continues accepting source writes but cannot
-mutate the mounted revision or schedule its build path. The server emits one
-restart-required notice per suppressed lane. `off` retains the designtime
-server for inspection; stopping designtime entirely remains a separate
-concern.
+`PAX_HOT_RELOAD`, then `[package.metadata.pax.dev].hot_reload`, then the `pax`
+debug default. Logic reload is opt-in so ordinary Rust edits do not unexpectedly
+start long background builds. A disabled lane continues accepting source writes
+but cannot mutate the mounted revision or schedule its build path. The server
+emits one restart-required notice per suppressed lane. `off` retains the
+designtime server for inspection; stopping designtime entirely remains a
+separate concern.
 
 Web and macOS implement both lanes. iOS and iPadOS implement the Pax lane only,
 so an explicit `logic`-only request is rejected and `all` reports that logic

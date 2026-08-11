@@ -21,6 +21,7 @@ lazy_static! {
 
 pub static PAX_CREATE_TEMPLATE: Dir<'_> =
     include_dir!("$CARGO_MANIFEST_DIR/files/new-project/new-project-template");
+pub static PAX_CREATE_AGENTS_TEMPLATE: &str = include_str!("../files/new-project/AGENTS.md");
 pub static PAX_WEB_INTERFACE_TEMPLATE: Dir<'_> =
     include_dir!("$CARGO_MANIFEST_DIR/files/interfaces/web/public/");
 pub static PAX_MACOS_INTERFACE_TEMPLATE: Dir<'_> =

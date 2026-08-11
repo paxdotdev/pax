@@ -61,9 +61,9 @@ use walkdir::WalkDir;
 
 use crate::helpers::{
     get_or_create_pax_directory, update_pax_dependency_versions, INTERFACE_DIR_NAME, PAX_BADGE,
-    PAX_CREATE_LIBDEV_TEMPLATE_DIR_NAME, PAX_CREATE_TEMPLATE, PAX_IOS_INTERFACE_TEMPLATE,
-    PAX_MACOS_INTERFACE_TEMPLATE, PAX_SWIFT_CARTRIDGE_TEMPLATE, PAX_SWIFT_COMMON_TEMPLATE,
-    PAX_WEB_INTERFACE_TEMPLATE,
+    PAX_CREATE_AGENTS_TEMPLATE, PAX_CREATE_LIBDEV_TEMPLATE_DIR_NAME, PAX_CREATE_TEMPLATE,
+    PAX_IOS_INTERFACE_TEMPLATE, PAX_MACOS_INTERFACE_TEMPLATE, PAX_SWIFT_CARTRIDGE_TEMPLATE,
+    PAX_SWIFT_COMMON_TEMPLATE, PAX_WEB_INTERFACE_TEMPLATE,
 };
 
 /// Configuration for building or running a Pax project.
@@ -82,7 +82,7 @@ pub struct RunContext {
     /// An explicit debug hot-reload policy.
     ///
     /// For a running debug designtime session, `None` lets `PAX_HOT_RELOAD`, then
-    /// `[package.metadata.pax.dev].hot_reload`, then the debug default (`all`)
+    /// `[package.metadata.pax.dev].hot_reload`, then the debug default (`pax`)
     /// select the policy. Release builds always force hot reload off.
     pub hot_reload: Option<HotReloadMode>,
     pub is_release: bool,
@@ -238,7 +238,7 @@ fn resolve_hot_reload_mode(
             eyre!("Invalid package.metadata.pax.dev.hot_reload value: {err}")
         });
     }
-    Ok(HotReloadMode::All)
+    Ok(HotReloadMode::default())
 }
 
 fn validate_hot_reload_target(target: &RunTarget, hot_reload: HotReloadMode) -> Result<(), Report> {
@@ -1530,12 +1530,39 @@ mod tests {
         );
         assert_eq!(
             resolve_hot_reload_mode(false, None, None, None).unwrap(),
-            HotReloadMode::All
+            HotReloadMode::Pax
         );
         assert_eq!(
             resolve_hot_reload_mode(true, Some(HotReloadMode::All), Some("all"), Some("all"),)
                 .unwrap(),
             HotReloadMode::Off
+        );
+    }
+
+    #[test]
+    fn created_project_uses_canonical_agent_instructions() {
+        let dir = tempfile::tempdir().unwrap();
+        let project = dir.path().join("generated-app");
+
+        perform_create(&CreateContext {
+            path: project.to_string_lossy().to_string(),
+            is_libdev_mode: false,
+            version: env!("CARGO_PKG_VERSION").to_string(),
+        });
+
+        assert_eq!(
+            fs::read_to_string(project.join("AGENTS.md")).unwrap(),
+            PAX_CREATE_AGENTS_TEMPLATE
+        );
+        #[cfg(unix)]
+        assert_eq!(
+            fs::read_link(project.join("CLAUDE.md")).unwrap(),
+            PathBuf::from("AGENTS.md")
+        );
+        #[cfg(not(unix))]
+        assert_eq!(
+            fs::read_to_string(project.join("CLAUDE.md")).unwrap(),
+            PAX_CREATE_AGENTS_TEMPLATE
         );
     }
 
@@ -1761,6 +1788,8 @@ pub fn perform_create(ctx: &CreateContext) {
             .expect("Failed to extract files");
     }
 
+    write_project_agent_instructions(full_path, ctx.is_libdev_mode);
+
     //Patch Cargo.toml
     let cargo_template_path = full_path.join("Cargo.toml.template");
     let extracted_cargo_toml_path = full_path.join("Cargo.toml");
@@ -1815,6 +1844,30 @@ pub fn perform_create(ctx: &CreateContext) {
         full_path.to_str().unwrap(),
         full_path.to_str().unwrap()
     );
+}
+
+fn write_project_agent_instructions(project_root: &Path, is_libdev_mode: bool) {
+    let destination = project_root.join("AGENTS.md");
+    if is_libdev_mode {
+        let source = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("files")
+            .join("new-project")
+            .join("AGENTS.md");
+        fs::copy(&source, &destination).unwrap_or_else(|err| {
+            panic!(
+                "Failed to copy project agent instructions from {} to {}: {err}",
+                source.display(),
+                destination.display()
+            )
+        });
+    } else {
+        fs::write(&destination, PAX_CREATE_AGENTS_TEMPLATE).unwrap_or_else(|err| {
+            panic!(
+                "Failed to write project agent instructions to {}: {err}",
+                destination.display()
+            )
+        });
+    }
 }
 
 fn ensure_claude_md_link(project_root: &Path) {
