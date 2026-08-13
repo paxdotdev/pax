@@ -1605,3 +1605,67 @@ Solved by expanding the shared selectors and using the established
 `#[custom(Defaults)]` annotation for repeated record data. Recommendations:
 document both constraints near settings syntax and repeated-data examples, and
 consider making the singular/plural default error explain the intended choices.
+
+## 2026-08-11
+
+Formatting the integrated Pax website exposed a formatter/check mismatch:
+`pax format` wrapped long element tags onto continuation lines but retained a
+space before each inserted newline. The formatted templates passed
+`pax format --check`, while `git diff --check` rejected the same output for
+trailing whitespace.
+
+Solved for the integration by preserving the formatter's structural output and
+mechanically trimming only end-of-line spaces before the final checks.
+Recommendations: make the formatter omit whitespace before generated newlines
+and add a regression asserting that formatted output also passes Git's
+whitespace check.
+
+Animating a culled repeat window exposed an unsafe lifecycle edge: replacing a
+`Property<Vec<CustomRecord>>` from `@pre_render` worked while the repeat grew or
+kept the same length, but removing a record left its PaxEL position dependency
+scheduled after the backing property had been torn down. Web then warned that
+the repeat-local expression could not be computed and panicked in the property
+table. Reassigning every projected slot during turnover could also strand hover
+state when the hovered projected component disappeared before `MouseOut`.
+
+Solved in the website marquee by keeping a small high-water-sized mounted
+window and recycling only cells that have actually left its overscan range.
+Surviving cells retain their virtual and projected identities, while a complete
+period jump preferentially reuses the same projected slot. Recommendations:
+make repeat teardown safe against already-scheduled expression evaluation, and
+provide keyed-repeat identity so virtualized components do not need to encode
+this recycling discipline themselves.
+
+## 2026-08-12
+
+Building a continuously moving virtualized card rail exposed a costly reactive
+shape: updating every repeated cell's position inside a
+`Property<Vec<CustomRecord>>` invalidated the whole repeat on every frame. The
+visible window was correctly culled, but its native text and rendered subtree
+still consumed a full browser main thread because every cell-local position
+changed continuously. Handling every raw wheel or touch delta by immediately
+reconciling that vector compounded the work.
+
+Solved by keeping the mounted cell window stable inside a snap-free native
+scroller, repeating one logical cycle three times for seamless wrapping, and
+recycling cell records only when motion crosses a card boundary. The browser
+owns horizontal wheel and touch manipulation; Pax advances the same scroll
+position for automatic motion. Vertical wheel input deliberately remains with
+the page scroller. A paused rail skips reconciliation unless its bounds,
+stride, or projected-child count changed. Recommendations: separate
+continuous scrolling from discrete virtualization topology, let each platform's
+native scroller own direct manipulation, and reconcile culling at most once per
+frame.
+
+Using the public `Scroller` wrapper for this rail also exposed a projection
+ownership boundary: dynamic `slot(cell.slot_index)` sites authored by the
+marquee became children of the inner `Scroller`, where they resolved to empty
+content. The website currently uses `ScrollerHost` directly so the slot sites
+remain owned by the marquee component. Recommendation: add an explicit
+projected-content forwarding pattern to `Scroller`, or a public low-level
+scroller surface for components that must retain ownership of dynamic slots.
+Hover and touch hit testing followed the same seam: handlers on the
+marquee-owned wrapper around a projected slot did not observe card hover, so
+the lightweight interaction signals remain on the projected `FeatureCard`
+root. Recommendation: document event propagation across projection ownership,
+including the intended pattern for a container to observe projected content.

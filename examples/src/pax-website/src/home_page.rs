@@ -44,24 +44,24 @@ impl HomePage {
         ));
         self.feature_gallery_sources.set(vec![
             ExampleSource {
-                label: "feature_gallery_section.pax".to_string(),
+                label: "feature_gallery/gallery.pax".to_string(),
                 language: "pax".to_string(),
-                code: include_str!("feature_gallery_section.pax").to_string(),
+                code: include_str!("feature_gallery/gallery.pax").to_string(),
             },
             ExampleSource {
-                label: "feature_gallery_section.rs".to_string(),
-                language: "rust".to_string(),
-                code: include_str!("feature_gallery_section.rs").to_string(),
-            },
-            ExampleSource {
-                label: "feature_card.pax".to_string(),
+                label: "feature_gallery/marquee.pax".to_string(),
                 language: "pax".to_string(),
-                code: include_str!("feature_card.pax").to_string(),
+                code: include_str!("feature_gallery/marquee.pax").to_string(),
             },
             ExampleSource {
-                label: "feature_card.rs".to_string(),
+                label: "feature_gallery/card.pax".to_string(),
+                language: "pax".to_string(),
+                code: include_str!("feature_gallery/card.pax").to_string(),
+            },
+            ExampleSource {
+                label: "feature_gallery/mod.rs".to_string(),
                 language: "rust".to_string(),
-                code: include_str!("feature_card.rs").to_string(),
+                code: include_str!("feature_gallery/mod.rs").to_string(),
             },
         ]);
         self.resource_sources.set(section_sources(

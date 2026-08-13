@@ -86,7 +86,10 @@
     }
     .site_button_outline {
         fill: WHITE
-        stroke: Stroke { color: rgba(20, 25, 32, 74), width: 1px }
+        stroke: Stroke {
+            color: rgba(20, 25, 32, 74)
+            width: 1px
+        }
         corner_radii: RectangleCornerRadii::radii(4.0, 4.0, 4.0, 4.0)
     }
 }

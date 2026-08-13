@@ -1,7 +1,7 @@
 <Group width=100% height=100%>
-    <Text id=brand_word x=0px y=0px width=66px height=32px text="PAX" selectable=false />
-    <Text id=brand_note x=76px y=0px width=124px height=32px text="BUILT IN PAX" selectable=false />
-    <Rectangle x=62px y=5px width=3px height=22px fill=rgb(37, 111, 190) />
+    <Text id=brand_word x=0px y=0px width=66px height=32px text="PAX" selectable=false/>
+    <Text id=brand_note x=76px y=0px width=124px height=32px text="BUILT IN PAX" selectable=false/>
+    <Rectangle x=62px y=5px width=3px height=22px fill=rgb(37, 111, 190)/>
 </Group>
 
 @settings {

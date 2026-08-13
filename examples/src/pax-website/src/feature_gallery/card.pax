@@ -1,5 +1,5 @@
-<Group width=100% height=100% @mouse_over=self.pause_marquee_for_mouse @mouse_out=self.resume_marquee_for_mouse 
-    @touch_start=self.pause_marquee_for_touch @touch_move=self.drag_marquee @touch_end=self.resume_marquee_for_touch 
+<Group width=100% height=100% @mouse_over=self.pause_marquee_for_mouse @mouse_out=self.resume_marquee_for_mouse
+    @touch_start=self.pause_marquee_for_touch @touch_end=self.resume_marquee_for_touch
     @touch_cancel=self.cancel_marquee_touch>
     <Group x=16px y=16px width={100% - 32px} height=174px>
         <Text class="feature_proof" x=12px y={100% - 28px} width={100% - 24px} height=18px text={self.proof}/>
@@ -9,8 +9,8 @@
     <Text class="feature_category" x=20px y=207px width={100% - 40px} height=18px text={self.category}/>
     <Text class="feature_title" x=20px y=235px width={100% - 40px} height=58px text={self.title}/>
     <Text class="feature_summary" x=20px y=302px width={100% - 40px} height={100% - 359px} text={self.summary}/>
-    <Link x=20px y={100% - 45px} width={100% - 40px} height=26px url={self.docs_url} target=Target::New>
-        <Text class="feature_link" width=100% height=100% text={self.docs_label + "  →"}/>
+    <Link x=20px y={100% - 19px} width={100% - 40px} height=26px url={self.docs_url} target=Target::New>
+        <Text class="feature_link" width=100% height=100% text={self.docs_label + "  →"} selectable=false/>
     </Link>
     <Rectangle class="feature_card_surface" width=100% height=100%/>
 </Group>

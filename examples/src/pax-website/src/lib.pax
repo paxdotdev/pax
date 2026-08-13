@@ -1,39 +1,28 @@
 <Router>
-    <Route
-        path="/"
-        metadata=RouteMetadata {
-            title: "Pax — ready for builders"
-            description: "Pax is a language-first GUI framework for Rust, combining declarative UI authoring with Rust application logic and a portable, high-performance runtime for macOS, iOS, iPadOS, and the web."
-            index: true
-        }
-    >
+    <Route path="/" metadata=RouteMetadata {
+        title: "Pax — ready for builders"
+        description: "Pax is a language-first GUI framework for Rust, combining declarative UI authoring with Rust application logic and a portable, high-performance runtime for macOS, iOS, iPadOS, and the web."
+        index: true
+    }>
         <SiteShell>
             <HomePage />
         </SiteShell>
     </Route>
-
     // PAX-984 owns the publishing implementation behind this stable route seam.
-    <Route
-        path="/blog/*"
-        metadata=RouteMetadata {
-            title: "Pax Notes"
-            description: "Build notes, technical essays, and project updates from the people building Pax."
-            index: true
-        }
-    >
+    <Route path="/blog/*" metadata=RouteMetadata {
+        title: "Pax Notes"
+        description: "Build notes, technical essays, and project updates from the people building Pax."
+        index: true
+    }>
         <SiteShell>
             <BlogRouteSeam />
         </SiteShell>
     </Route>
-
-    <Route
-        default=true
-        metadata=RouteMetadata {
-            title: "Page not found — Pax"
-            description: "This page could not be found."
-            index: false
-        }
-    >
+    <Route default=true metadata=RouteMetadata {
+        title: "Page not found — Pax"
+        description: "This page could not be found."
+        index: false
+    }>
         <SiteShell>
             <NotFoundPage />
         </SiteShell>

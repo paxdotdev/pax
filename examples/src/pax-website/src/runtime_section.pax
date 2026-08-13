@@ -2,47 +2,60 @@
     <ImportSettings>
         <SiteTheme />
     </ImportSettings>
-
-    <Group x=50% y={self.compact ? 54px : 72px} width={self.compact ? (100% - 40px) : 88%} height={self.compact ? 920px : 640px} anchor_x=50%>
-        <Text class="section_eyebrow" x=0px y=0px width=100% height=24px text="THE RUNTIME / PORTABLE BY DESIGN" />
-        <Text class="section_title" x=0px y=42px width={self.compact ? 100% : 74%} height={self.compact ? 124px : 140px} text="One project. Real application surfaces." />
-        <Text class="section_copy" x=0px y={self.compact ? 184px : 200px} width={self.compact ? 100% : 66%} height={self.compact ? 112px : 72px} text="Pax carries the same interface model across browser and Apple targets. Its renderer provides the creative canvas; its application architecture leaves room for the native surfaces software still needs." />
-
+    <Group x=50% y={self.compact ? 54px : 72px} width={self.compact ? (100% - 40px) : 88%} height={self.compact ? 920px : 640px}
+        anchor_x=50%>
+        <Text class="section_eyebrow" x=0px y=0px width=100% height=24px text="THE RUNTIME / PORTABLE BY DESIGN"/>
+        <Text class="section_title" x=0px y=42px width={self.compact ? 100% : 74%} height={self.compact ? 124px : 140px}
+            text="One project. Real application surfaces."/>
+        <Text class="section_copy" x=0px y={self.compact ? 184px : 200px} width={self.compact ? 100% : 66%}
+            height={self.compact ? 112px : 72px}
+            text="Pax carries the same interface model across browser and Apple targets. Its renderer provides the creative canvas; its application architecture leaves room for the native surfaces software still needs."/>
         <Group x=0px y={self.compact ? 326px : 306px} width=100% height={self.compact ? 570px : 292px}>
             <Group x=0px y=0px width={self.compact ? 100% : 32%} height={self.compact ? 174px : 100%}>
-                <Text class="pillar_tag" x=18px y=14px width={100% - 36px} height=22px text="PORTABLE RENDERER" />
-                <Text class="pillar_title" x=18px y=52px width={100% - 36px} height=58px text="GPU-powered creative canvas" />
-                <Text class="pillar_copy" x=18px y={self.compact ? 104px : 126px} width={100% - 36px} height={self.compact ? 54px : 104px} text="A wgpu rendering engine for vectors, multimedia, effects, and animation across native and web runtimes." />
-                <Rectangle class="pillar_surface" width=100% height=100% />
+                <Text class="pillar_tag" x=18px y=14px width={100% - 36px} height=22px text="PORTABLE RENDERER"/>
+                <Text class="pillar_title" x=18px y=52px width={100% - 36px} height=58px text="GPU-powered creative canvas"/>
+                <Text class="pillar_copy" x=18px y={self.compact ? 104px : 126px} width={100% - 36px} height={self.compact ? 54px : 104px}
+                    text="A wgpu rendering engine for vectors, multimedia, effects, and animation across native and web runtimes."/>
+                <Rectangle class="pillar_surface" width=100% height=100%/>
             </Group>
-            <Group x={self.compact ? 0px : 50%} y={self.compact ? 194px : 0px} width={self.compact ? 100% : 32%} height={self.compact ? 174px : 100%}>
-                <Text class="pillar_tag" x=18px y=14px width={100% - 36px} height=22px text="APPLICATION STRUCTURE" />
-                <Text class="pillar_title" x=18px y=52px width={100% - 36px} height=58px text="Built for more than a demo" />
-                <Text class="pillar_copy" x=18px y={self.compact ? 104px : 126px} width={100% - 36px} height={self.compact ? 54px : 104px} text="Components, slots, routing, events, reactive state, and responsive layout form a practical application chassis." />
-                <Rectangle class="pillar_surface" width=100% height=100% />
+            <Group x={self.compact ? 0px : 50%} y={self.compact ? 194px : 0px} width={self.compact ? 100% : 32%}
+                height={self.compact ? 174px : 100%}>
+                <Text class="pillar_tag" x=18px y=14px width={100% - 36px} height=22px text="APPLICATION STRUCTURE"/>
+                <Text class="pillar_title" x=18px y=52px width={100% - 36px} height=58px text="Built for more than a demo"/>
+                <Text class="pillar_copy" x=18px y={self.compact ? 104px : 126px} width={100% - 36px} height={self.compact ? 54px : 104px}
+                    text="Components, slots, routing, events, reactive state, and responsive layout form a practical application chassis."/>
+                <Rectangle class="pillar_surface" width=100% height=100%/>
             </Group>
-            <Group x={self.compact ? 0px : 100%} y={self.compact ? 388px : 0px} width={self.compact ? 100% : 32%} height={self.compact ? 174px : 100%}>
-                <Text class="pillar_tag" x=18px y=14px width={100% - 36px} height=22px text="NATIVE COMPOSITION" />
-                <Text class="pillar_title" x=18px y=52px width={100% - 36px} height=58px text="Native elements in the scene" />
-                <Text class="pillar_copy" x=18px y={self.compact ? 104px : 126px} width={100% - 36px} height={self.compact ? 54px : 104px} text="Pax can coordinate native controls with rendered content in one transformed, masked, and occluded coordinate space." />
-                <Rectangle class="pillar_surface" width=100% height=100% />
+            <Group x={self.compact ? 0px : 100%} y={self.compact ? 388px : 0px} width={self.compact ? 100% : 32%}
+                height={self.compact ? 174px : 100%}>
+                <Text class="pillar_tag" x=18px y=14px width={100% - 36px} height=22px text="NATIVE COMPOSITION"/>
+                <Text class="pillar_title" x=18px y=52px width={100% - 36px} height=58px text="Native elements in the scene"/>
+                <Text class="pillar_copy" x=18px y={self.compact ? 104px : 126px} width={100% - 36px} height={self.compact ? 54px : 104px}
+                    text="Pax can coordinate native controls with rendered content in one transformed, masked, and occluded coordinate space."/>
+                <Rectangle class="pillar_surface" width=100% height=100%/>
             </Group>
         </Group>
     </Group>
-
-    <Rectangle class="section_rule" x=50% y={100% - 1px} width={self.compact ? (100% - 40px) : 88%} height=1px anchor_x=50% />
-    <Rectangle class="section_bg" width=100% height=100% />
+    <Rectangle class="section_rule" x=50% y={100% - 1px} width={self.compact ? (100% - 40px) : 88%} height=1px anchor_x=50%/>
+    <Rectangle class="section_bg" width=100% height=100%/>
 </Group>
 
 @settings {
     @mount: handle_mount
     @pre_render: handle_pre_render
-
-    .section_bg { fill: rgb(248, 250, 252) }
-    .section_rule { fill: rgba(20, 25, 32, 32) }
+    .section_bg {
+        fill: rgb(248, 250, 252)
+    }
+    .section_rule {
+        fill: rgba(20, 25, 32, 32)
+    }
     .section_eyebrow {
         style: TextStyle {
-            font: Font::Web("IBM Plex Mono", "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap", FontStyle::Normal, FontWeight::Medium)
+            font: Font::Web(
+                "IBM Plex Mono",
+                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                FontStyle::Normal,
+                FontWeight::Medium)
             font_size: {self.compact ? 9px : 11px}
             fill: rgb(37, 111, 190)
             align_vertical: TextAlignVertical::Center
@@ -52,7 +65,11 @@
     }
     .pillar_tag {
         style: TextStyle {
-            font: Font::Web("IBM Plex Mono", "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap", FontStyle::Normal, FontWeight::Medium)
+            font: Font::Web(
+                "IBM Plex Mono",
+                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                FontStyle::Normal,
+                FontWeight::Medium)
             font_size: {self.compact ? 9px : 11px}
             fill: rgb(37, 111, 190)
             align_vertical: TextAlignVertical::Center
@@ -62,7 +79,11 @@
     }
     .section_title {
         style: TextStyle {
-            font: Font::Web("Manrope", "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap", FontStyle::Normal, FontWeight::ExtraBold)
+            font: Font::Web(
+                "Manrope",
+                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::ExtraBold)
             font_size: {self.compact ? 34px : 52px}
             fill: rgb(20, 25, 32)
             align_vertical: TextAlignVertical::Top
@@ -72,7 +93,11 @@
     }
     .section_copy {
         style: TextStyle {
-            font: Font::Web("Manrope", "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap", FontStyle::Normal, FontWeight::Normal)
+            font: Font::Web(
+                "Manrope",
+                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::Normal)
             font_size: {self.compact ? 14px : 16px}
             fill: rgb(71, 85, 105)
             align_vertical: TextAlignVertical::Top
@@ -82,7 +107,11 @@
     }
     .pillar_copy {
         style: TextStyle {
-            font: Font::Web("Manrope", "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap", FontStyle::Normal, FontWeight::Normal)
+            font: Font::Web(
+                "Manrope",
+                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::Normal)
             font_size: {self.compact ? 14px : 16px}
             fill: rgb(71, 85, 105)
             align_vertical: TextAlignVertical::Top
@@ -92,7 +121,11 @@
     }
     .pillar_title {
         style: TextStyle {
-            font: Font::Web("Manrope", "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap", FontStyle::Normal, FontWeight::Bold)
+            font: Font::Web(
+                "Manrope",
+                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::Bold)
             font_size: {self.compact ? 18px : 22px}
             fill: rgb(20, 25, 32)
             align_vertical: TextAlignVertical::Top
@@ -102,7 +135,10 @@
     }
     .pillar_surface {
         fill: WHITE
-        stroke: Stroke { color: rgba(20, 25, 32, 42), width: 1px }
+        stroke: Stroke {
+            color: rgba(20, 25, 32, 42)
+            width: 1px
+        }
         corner_radii: RectangleCornerRadii::radii(6.0, 6.0, 6.0, 6.0)
     }
 }

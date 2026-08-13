@@ -1,21 +1,27 @@
 <Scroller width=100% height=100% autosize=true>
     <Stacker width=100% autosize=true direction=StackerDirection::Vertical gutter=0px>
-        <ExampleHost width=100% height={self.compact ? 840px : 740px} title="Hero — a language built for living interfaces" sources={self.hero_sources} drawer_open=false>
+        <ExampleHost width=100% height={self.compact ? 840px : 740px} title="Hero — a language built for living interfaces"
+            sources={self.hero_sources} drawer_open=false>
             <HeroSection />
         </ExampleHost>
-        <ExampleHost width=100% height={self.compact ? 1390px : 1140px} title="Builder proof — create, edit, wow, ship" sources={self.proof_sources} drawer_open=false>
+        <ExampleHost width=100% height={self.compact ? 1390px : 1140px} title="Builder proof — create, edit, wow, ship"
+            sources={self.proof_sources} drawer_open=false>
             <BuilderProofSection />
         </ExampleHost>
-        <ExampleHost width=100% height={self.compact ? 1080px : 720px} title="Framework — a language for interfaces" sources={self.framework_sources} drawer_open=false>
+        <ExampleHost width=100% height={self.compact ? 1080px : 720px} title="Framework — a language for interfaces"
+            sources={self.framework_sources} drawer_open=false>
             <FrameworkSection />
         </ExampleHost>
-        <ExampleHost width=100% height={self.compact ? 1040px : 780px} title="Runtime — one project, real application surfaces" sources={self.runtime_sources} drawer_open=false>
+        <ExampleHost width=100% height={self.compact ? 1040px : 780px} title="Runtime — one project, real application surfaces"
+            sources={self.runtime_sources} drawer_open=false>
             <RuntimeSection />
         </ExampleHost>
-        <ExampleHost width=100% height={self.compact ? 870px : 760px} title="Feature gallery — breadth worth exploring" sources={self.feature_gallery_sources} drawer_open=false>
-            <FeatureGallerySection />
+        <ExampleHost width=100% height={self.compact ? 870px : 760px} title="Feature gallery — breadth worth exploring"
+            sources={self.feature_gallery_sources} drawer_open=false>
+            <FeatureGallery />
         </ExampleHost>
-        <ExampleHost width=100% height={self.compact ? 1100px : 630px} title="Resources — start with working material" sources={self.resource_sources} drawer_open=false>
+        <ExampleHost width=100% height={self.compact ? 1100px : 630px} title="Resources — start with working material"
+            sources={self.resource_sources} drawer_open=false>
             <ResourceSection />
         </ExampleHost>
     </Stacker>
