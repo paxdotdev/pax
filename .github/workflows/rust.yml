@@ -113,6 +113,16 @@ jobs:
     - name: Run tests
       run: cargo test --verbose --workspace --exclude pax-chassis-macos --exclude pax-chassis-common --exclude pax-chassis-ios
 
+    - name: Check bundled CLI examples
+      run: |
+        scripts/sync-cli-examples.py --check
+        cargo package --list --allow-dirty --manifest-path pax-compiler/Cargo.toml | grep -Fx "files/new-project/bundled-examples.paxbundle"
+
+    - name: Build generated canonical starter for web
+      env:
+        PAX_CREATE_E2E_WEB: "1"
+      run: cargo test -p pax-cli --test create_bundled_examples -- --nocapture
+
     - name: Check formatting
       run: cargo fmt -- --check
 

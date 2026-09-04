@@ -16,6 +16,10 @@ fn padded_u16_buffer(data: &[u16]) -> Vec<u16> {
     padded
 }
 
+fn has_drawable_stencil_geometry(index_count: u32) -> bool {
+    index_count > 0
+}
+
 struct CachedStencilGeometry {
     vertices_buffer: wgpu::Buffer,
     indices_buffer: wgpu::Buffer,
@@ -529,6 +533,13 @@ impl StencilRenderer {
             );
             return;
         };
+        // A reactive mask can legitimately pass through an empty/tiny path
+        // while its geometry is being inserted or animated. WGPU rejects
+        // slices of the zero-length buffers cached for that geometry, and a
+        // zero-index stencil draw has no effect anyway.
+        if !has_drawable_stencil_geometry(cached_geometry.index_count) {
+            return;
+        }
         let Some(instance_buffer) = self.cached_clip_instances.get(&entry.clip_id) else {
             log::error!(
                 "missing cached stencil clip instance for clip {}",
@@ -611,5 +622,16 @@ impl StencilRenderer {
 
         self.stencil_layer = 0;
         self.stencil_geometry_stack.clear();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn empty_stencil_geometry_is_not_submitted_to_wgpu() {
+        assert!(!has_drawable_stencil_geometry(0));
+        assert!(has_drawable_stencil_geometry(3));
     }
 }

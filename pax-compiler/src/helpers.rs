@@ -19,8 +19,6 @@ lazy_static! {
     pub static ref DIR_IGNORE_LIST_WEB : Vec<&'static str> = vec![".git"];
 }
 
-pub static PAX_CREATE_TEMPLATE: Dir<'_> =
-    include_dir!("$CARGO_MANIFEST_DIR/files/new-project/new-project-template");
 pub static PAX_CREATE_AGENTS_TEMPLATE: &str = include_str!("../files/new-project/AGENTS.md");
 pub static PAX_WEB_INTERFACE_TEMPLATE: Dir<'_> =
     include_dir!("$CARGO_MANIFEST_DIR/files/interfaces/web/public/");
@@ -34,7 +32,6 @@ pub static PAX_SWIFT_CARTRIDGE_TEMPLATE: Dir<'_> =
 pub static PAX_SWIFT_COMMON_TEMPLATE: Dir<'_> =
     include_dir!("$CARGO_MANIFEST_DIR/files/swift/pax-swift-common/");
 
-pub const PAX_CREATE_LIBDEV_TEMPLATE_DIR_NAME: &str = "new-libdev-project-template";
 pub const INTERFACE_DIR_NAME: &str = "interface";
 pub const BUILD_DIR_NAME: &str = "build";
 pub const PUBLIC_DIR_NAME: &str = "public";

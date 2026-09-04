@@ -1,0 +1,35 @@
+<Group width=100% height=100%>
+    <Text
+        id=status
+        x=74%
+        width=45%
+        height=100%
+        anchor_x=50%
+        text={is_sealed ? "sealed with light" : "ink & light"}
+        selectable=false
+    />
+    <Ellipse x=4% y=50% width=14px height=14px anchor_y=50% fill=rgba(19, 42, 77, 255) />
+    <Ellipse x=14% y=50% width=14px height=14px anchor_y=50% fill=rgba(219, 91, 73, 255) />
+    <Ellipse x=24% y=50% width=14px height=14px anchor_y=50% fill=rgba(159, 143, 190, 255) />
+    <Ellipse x=34% y=50% width=14px height=14px anchor_y=50% fill=rgba(73, 105, 231, 255) />
+    <Rectangle
+        width=100%
+        height=100%
+        fill=rgba(255, 250, 235, 178)
+        stroke={color: rgba(80, 66, 54, 32), width: 1px}
+        corner_radius=18.0
+    />
+</Group>
+
+@settings {
+    #status {
+        style: {
+            font: { family: "Georgia", style: FontStyle::Italic }
+            font_size: 13px
+            fill: rgba(35, 45, 64, 230)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+        }
+    }
+}

@@ -1,0 +1,24 @@
+use pax_kit::*;
+
+#[pax]
+#[custom(Default)]
+#[file("quilt_scene.pax")]
+pub struct QuiltScene {
+    pub is_compact: Property<bool>,
+    pub start_turn: Property<f64>,
+    pub palette: Property<usize>,
+    pub wave_origin: Property<usize>,
+    pub spin_turn: Property<f64>,
+}
+
+impl Default for QuiltScene {
+    fn default() -> Self {
+        Self {
+            is_compact: Property::new(false),
+            start_turn: Property::new(0.0),
+            palette: Property::new(0),
+            wave_origin: Property::new(0),
+            spin_turn: Property::new(0.0),
+        }
+    }
+}

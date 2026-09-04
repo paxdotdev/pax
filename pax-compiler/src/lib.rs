@@ -14,6 +14,7 @@ extern crate serde;
 
 extern crate core;
 mod building;
+mod bundled_examples;
 mod cartridge_generation;
 pub mod dev_session;
 pub mod helpers;
@@ -29,7 +30,6 @@ pub use hot_reload::HotReloadMode;
 use color_eyre::eyre;
 use color_eyre::eyre::Report;
 use eyre::eyre;
-use fs_extra::dir::{self, CopyOptions};
 use helpers::{copy_dir_recursively, wait_with_output};
 use pax_manifest::{
     ComponentDefinition, ComponentTemplate, GradientElement, GradientShapeDefinition,
@@ -61,9 +61,8 @@ use walkdir::WalkDir;
 
 use crate::helpers::{
     get_or_create_pax_directory, update_pax_dependency_versions, INTERFACE_DIR_NAME, PAX_BADGE,
-    PAX_CREATE_AGENTS_TEMPLATE, PAX_CREATE_LIBDEV_TEMPLATE_DIR_NAME, PAX_CREATE_TEMPLATE,
-    PAX_IOS_INTERFACE_TEMPLATE, PAX_MACOS_INTERFACE_TEMPLATE, PAX_SWIFT_CARTRIDGE_TEMPLATE,
-    PAX_SWIFT_COMMON_TEMPLATE, PAX_WEB_INTERFACE_TEMPLATE,
+    PAX_CREATE_AGENTS_TEMPLATE, PAX_IOS_INTERFACE_TEMPLATE, PAX_MACOS_INTERFACE_TEMPLATE,
+    PAX_SWIFT_CARTRIDGE_TEMPLATE, PAX_SWIFT_COMMON_TEMPLATE, PAX_WEB_INTERFACE_TEMPLATE,
 };
 
 /// Configuration for building or running a Pax project.
@@ -1548,7 +1547,9 @@ mod tests {
             path: project.to_string_lossy().to_string(),
             is_libdev_mode: false,
             version: env!("CARGO_PKG_VERSION").to_string(),
-        });
+            example: None,
+        })
+        .unwrap();
 
         assert_eq!(
             fs::read_to_string(project.join("AGENTS.md")).unwrap(),
@@ -1564,6 +1565,99 @@ mod tests {
             fs::read_to_string(project.join("CLAUDE.md")).unwrap(),
             PAX_CREATE_AGENTS_TEMPLATE
         );
+
+        let manifest = fs::read_to_string(project.join("Cargo.toml")).unwrap();
+        assert!(manifest.contains("name = \"generated-app\""));
+        assert!(manifest.contains("title = \"generated-app\""));
+        assert!(manifest.contains(&format!(
+            "pax-kit = {{ version = \"{}\" }}",
+            env!("CARGO_PKG_VERSION")
+        )));
+        let parsed = manifest.parse::<toml_edit::Document>().unwrap();
+        assert!(parsed["dependencies"]
+            .as_table()
+            .unwrap()
+            .iter()
+            .all(|(_, dependency)| dependency
+                .as_inline_table()
+                .map(|table| !table.contains_key("path"))
+                .unwrap_or(true)));
+        assert!(project.join("src/quilt_tile.pax").is_file());
+        assert!(project.join("src/animated_pax_logo.pax").is_file());
+        assert!(project.join("src/animated_pax_logo_banner.rs").is_file());
+    }
+
+    #[test]
+    fn create_supports_override_and_libdev_modes() {
+        let dir = tempfile::tempdir().unwrap();
+        let override_project = dir.path().join("counter-app");
+        perform_create(&CreateContext {
+            path: override_project.to_string_lossy().to_string(),
+            is_libdev_mode: false,
+            version: "9.8.7".to_string(),
+            example: Some("increment".to_string()),
+        })
+        .unwrap();
+        assert!(fs::read_to_string(override_project.join("src/lib.pax"))
+            .unwrap()
+            .contains("num_clicks"));
+        assert!(fs::read_to_string(override_project.join("Cargo.toml"))
+            .unwrap()
+            .contains("pax-kit = { version = \"9.8.7\" }"));
+
+        let libdev_project = dir.path().join("libdev-app");
+        perform_create(&CreateContext {
+            path: libdev_project.to_string_lossy().to_string(),
+            is_libdev_mode: true,
+            version: "9.8.7".to_string(),
+            example: Some("ink-and-light".to_string()),
+        })
+        .unwrap();
+        assert_eq!(
+            fs::read_to_string(libdev_project.join("AGENTS.md")).unwrap(),
+            fs::read_to_string(
+                Path::new(env!("CARGO_MANIFEST_DIR")).join("files/new-project/AGENTS.md")
+            )
+            .unwrap()
+        );
+        let libdev_manifest = fs::read_to_string(libdev_project.join("Cargo.toml"))
+            .unwrap()
+            .parse::<toml_edit::Document>()
+            .unwrap();
+        assert!(libdev_manifest["dependencies"]
+            .as_table()
+            .unwrap()
+            .iter()
+            .all(|(_, dependency)| dependency
+                .as_inline_table()
+                .map(|table| !table.contains_key("path"))
+                .unwrap_or(true)));
+    }
+
+    #[test]
+    fn unknown_example_does_not_create_destination() {
+        let dir = tempfile::tempdir().unwrap();
+        let project = dir.path().join("not-created");
+        let error = perform_create(&CreateContext {
+            path: project.to_string_lossy().to_string(),
+            is_libdev_mode: false,
+            version: env!("CARGO_PKG_VERSION").to_string(),
+            example: Some("missing".to_string()),
+        })
+        .unwrap_err();
+        assert!(error.contains("living-quilt"));
+        assert!(error.contains("ink-and-light"));
+        assert!(error.contains("increment"));
+        assert!(!project.exists());
+    }
+
+    #[test]
+    fn non_pax_path_dependencies_are_rejected() {
+        let mut doc = "[dependencies]\nhelper = { version = \"1\", path = \"../helper\" }\n"
+            .parse::<toml_edit::Document>()
+            .unwrap();
+        let error = sanitize_created_project_dependencies(&mut doc).unwrap_err();
+        assert!(error.contains("helper"));
     }
 
     #[test]
@@ -1747,65 +1841,46 @@ pub struct CreateContext {
     pub path: String,
     pub is_libdev_mode: bool,
     pub version: String,
+    pub example: Option<String>,
 }
 
-pub fn perform_create(ctx: &CreateContext) {
+pub fn perform_create(ctx: &CreateContext) -> Result<(), String> {
     let full_path = Path::new(&ctx.path);
 
-    // Abort if directory already exists
     if full_path.exists() {
-        panic!("Error: destination `{:?}` already exists", full_path);
+        return Err(format!(
+            "Destination `{}` already exists",
+            full_path.display()
+        ));
     }
-    let _ = fs::create_dir_all(&full_path);
+    let selected = bundled_examples::selected_example_name(ctx.example.as_deref())?;
+    let parent = full_path
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or(Path::new("."));
+    fs::create_dir_all(parent)
+        .map_err(|error| format!("Failed to create {}: {error}", parent.display()))?;
+    let staging = tempfile::Builder::new()
+        .prefix(".pax-create-")
+        .tempdir_in(parent)
+        .map_err(|error| format!("Failed to stage project: {error}"))?;
+    bundled_examples::extract_example(Some(&selected), staging.path())?;
+    write_project_agent_instructions(staging.path(), ctx.is_libdev_mode)?;
 
-    // clone template into full_path
-    if ctx.is_libdev_mode {
-        //For is_libdev_mode, we copy our monorepo @/pax-compiler/new-project-template directory
-        //to the target directly.  This enables iterating on new-project-template during libdev
-        //without the sticky caches associated with `include_dir`
-        let pax_compiler_cargo_root = Path::new(env!("CARGO_MANIFEST_DIR"));
-        let template_src = pax_compiler_cargo_root
-            .join("files")
-            .join("new-project")
-            .join(PAX_CREATE_LIBDEV_TEMPLATE_DIR_NAME);
+    let crate_name = full_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .filter(|name| !name.is_empty())
+        .ok_or_else(|| format!("Invalid project destination `{}`", full_path.display()))?
+        .to_string();
 
-        let mut options = CopyOptions::new();
-        options.overwrite = true;
-
-        for entry in std::fs::read_dir(&template_src).expect("Failed to read template directory") {
-            let entry_path = entry.expect("Failed to read entry").path();
-            if entry_path.is_dir() {
-                dir::copy(&entry_path, &full_path, &options).expect("Failed to copy directory");
-            } else {
-                fs::copy(&entry_path, full_path.join(entry_path.file_name().unwrap()))
-                    .expect("Failed to copy file");
-            }
-        }
-    } else {
-        // File src is include_dir — recursively extract files from include_dir into full_path
-        PAX_CREATE_TEMPLATE
-            .extract(&full_path)
-            .expect("Failed to extract files");
-    }
-
-    write_project_agent_instructions(full_path, ctx.is_libdev_mode);
-
-    //Patch Cargo.toml
-    let cargo_template_path = full_path.join("Cargo.toml.template");
-    let extracted_cargo_toml_path = full_path.join("Cargo.toml");
-    let _ = fs::copy(&cargo_template_path, &extracted_cargo_toml_path);
-    let _ = fs::remove_file(&cargo_template_path);
-
-    let crate_name = full_path.file_name().unwrap().to_str().unwrap().to_string();
-
-    // Read the Cargo.toml
-    let mut doc = fs::read_to_string(&full_path.join("Cargo.toml"))
-        .expect("Failed to read Cargo.toml")
+    let mut doc = fs::read_to_string(staging.path().join("Cargo.toml"))
+        .map_err(|error| format!("Failed to read Cargo.toml: {error}"))?
         .parse::<toml_edit::Document>()
-        .expect("Failed to parse Cargo.toml");
+        .map_err(|error| format!("Failed to parse Cargo.toml: {error}"))?;
 
-    // Update the `dependencies` section
     update_pax_dependency_versions(&mut doc, &ctx.version);
+    sanitize_created_project_dependencies(&mut doc)?;
 
     // Update the `package` section
     if let Some(package) = doc
@@ -1833,67 +1908,110 @@ pub fn perform_create(ctx: &CreateContext) {
         }
     }
 
-    // Write the modified Cargo.toml back to disk
-    fs::write(&full_path.join("Cargo.toml"), doc.to_string())
-        .expect("Failed to write modified Cargo.toml");
+    fs::write(staging.path().join("Cargo.toml"), doc.to_string())
+        .map_err(|error| format!("Failed to write modified Cargo.toml: {error}"))?;
 
-    ensure_claude_md_link(full_path);
+    ensure_claude_md_link(staging.path())?;
+
+    let staging_path = staging.keep();
+    fs::rename(&staging_path, full_path).map_err(|error| {
+        let _ = fs::remove_dir_all(&staging_path);
+        format!(
+            "Failed to finalize project at {}: {error}",
+            full_path.display()
+        )
+    })?;
 
     println!(
-        "\nCreated new Pax project at {}.\nTo run:\n  `cd {} && pax-cli run --target=web`",
+        "\nCreated `{}` from bundled example `{}`.\nTo run:\n  `cd {}`\n  `pax-cli run --target=web`",
+        crate_name,
+        selected,
         full_path.to_str().unwrap(),
-        full_path.to_str().unwrap()
     );
+    Ok(())
 }
 
-fn write_project_agent_instructions(project_root: &Path, is_libdev_mode: bool) {
+fn sanitize_created_project_dependencies(doc: &mut toml_edit::Document) -> Result<(), String> {
+    let Some(dependencies) = doc
+        .get_mut("dependencies")
+        .and_then(|item| item.as_table_mut())
+    else {
+        return Ok(());
+    };
+    for (name, dependency) in dependencies.iter_mut() {
+        if let toml_edit::Item::Value(toml_edit::Value::InlineTable(table)) = dependency {
+            if table.contains_key("path") && !name.starts_with("pax-") {
+                return Err(format!(
+                    "Bundled example dependency `{name}` uses a monorepo-relative path"
+                ));
+            }
+            table.remove("path");
+        } else if dependency
+            .as_table()
+            .map(|table| table.contains_key("path"))
+            .unwrap_or(false)
+        {
+            return Err(format!(
+                "Bundled example dependency `{name}` uses an unsupported path table"
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn write_project_agent_instructions(
+    project_root: &Path,
+    is_libdev_mode: bool,
+) -> Result<(), String> {
     let destination = project_root.join("AGENTS.md");
     if is_libdev_mode {
         let source = Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("files")
             .join("new-project")
             .join("AGENTS.md");
-        fs::copy(&source, &destination).unwrap_or_else(|err| {
-            panic!(
+        fs::copy(&source, &destination).map_err(|err| {
+            format!(
                 "Failed to copy project agent instructions from {} to {}: {err}",
                 source.display(),
                 destination.display()
             )
-        });
+        })?;
     } else {
-        fs::write(&destination, PAX_CREATE_AGENTS_TEMPLATE).unwrap_or_else(|err| {
-            panic!(
+        fs::write(&destination, PAX_CREATE_AGENTS_TEMPLATE).map_err(|err| {
+            format!(
                 "Failed to write project agent instructions to {}: {err}",
                 destination.display()
             )
-        });
+        })?;
     }
+    Ok(())
 }
 
-fn ensure_claude_md_link(project_root: &Path) {
+fn ensure_claude_md_link(project_root: &Path) -> Result<(), String> {
     let claude_path = project_root.join("CLAUDE.md");
     if let Ok(metadata) = claude_path.symlink_metadata() {
         if metadata.file_type().is_symlink() {
-            return;
+            return Ok(());
         }
         if metadata.is_dir() {
-            fs::remove_dir_all(&claude_path).expect("Failed to replace CLAUDE.md directory");
+            fs::remove_dir_all(&claude_path).map_err(|error| error.to_string())?;
         } else {
-            fs::remove_file(&claude_path).expect("Failed to replace CLAUDE.md file");
+            fs::remove_file(&claude_path).map_err(|error| error.to_string())?;
         }
     }
 
     #[cfg(unix)]
     {
         std::os::unix::fs::symlink("AGENTS.md", &claude_path)
-            .expect("Failed to create CLAUDE.md symlink");
+            .map_err(|error| format!("Failed to create CLAUDE.md symlink: {error}"))?;
     }
 
     #[cfg(not(unix))]
     {
         fs::copy(project_root.join("AGENTS.md"), &claude_path)
-            .expect("Failed to copy CLAUDE.md from AGENTS.md");
+            .map_err(|error| format!("Failed to copy CLAUDE.md from AGENTS.md: {error}"))?;
     }
+    Ok(())
 }
 
 impl RunTarget {

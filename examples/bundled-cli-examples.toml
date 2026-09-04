@@ -1,0 +1,19 @@
+default = "living-quilt"
+
+[[examples]]
+name = "living-quilt"
+description = "A full-bleed 5-by-3 geometric tapestry with the animated Pax logo and a click-centered circular reveal."
+source = "examples/src/living-quilt"
+caveats = "Vector-native interaction works across web, macOS, iOS, and iPadOS."
+
+[[examples]]
+name = "ink-and-light"
+description = "A responsive living postcard with handwriting, local assets, and one Rust-owned interaction."
+source = "examples/src/ink-and-light"
+caveats = "Authored gradients provide the essential glow on every backend."
+
+[[examples]]
+name = "increment"
+description = "The minimal click counter for learning the Pax template-to-Rust loop."
+source = "examples/src/increment"
+caveats = "Intentionally minimal; it does not demonstrate responsive composition."

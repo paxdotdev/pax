@@ -1,0 +1,240 @@
+// The complete outer ring and its black counter use the same translation,
+// rotation, and scale. The counter's half-plane opens after emergence so its
+// black overlap can draw above the stationary riser during the counter-rock.
+// It remains continuously opaque through rest; no duplicate-path handoff is
+// needed now that Path overflow is not implicitly clipped.
+<Mask width=100% height=100%>
+    <Path
+        width=100%
+        height=100%
+        fill={self.fill}
+        elements={self.p_counter_elements}
+    />
+    <Path
+        width=100%
+        height=100%
+        fill=BLACK
+        elements={self.p_counter_reveal_mask_elements}
+    />
+</Mask>
+
+<Mask width=100% height=100%>
+    <Path
+        width=100%
+        height=100%
+        fill={self.letter_fill}
+        elements={self.p_ring_elements}
+    />
+    <Path
+        width=100%
+        height=100%
+        fill=BLACK
+        elements={self.p_reveal_mask_elements}
+    />
+</Mask>
+
+// The complete a, including the shared p/a cusp, rolls underneath the p.
+// The p's higher-z ring and counter conceal the initial circle, then reveal
+// the cusp naturally as the a reaches its authored position.
+// The counter stays fully black and is clipped at the p ring's far edge while
+// the a is still nested. This keeps the hole attached to the rolling stone
+// without letting its black interior widen the p counter before the a tips
+// into view.
+<Mask width=100% height=100%>
+    <Path
+        width=100%
+        height=100%
+        fill={self.fill}
+        elements={self.a_counter_elements}
+    />
+    <Path
+        width=100%
+        height=100%
+        fill=BLACK
+        elements={self.a_counter_reveal_mask_elements}
+    />
+</Mask>
+
+<Path
+    width=100%
+    height=100%
+    fill={self.letter_fill}
+    opacity={self.a_opacity}
+    elements={self.a_elements}
+/>
+
+// The x rolls underneath the complete a rather than through a synthetic mask.
+// The a's body and counter are therefore the exact moving occluder while x
+// emerges, including throughout both letters' braking rotations.
+<Path
+    width=100%
+    height=100%
+    fill={self.letter_fill}
+    opacity={self.x_opacity}
+    elements={self.x_elements}
+/>
+
+<Path
+    width=100%
+    height=100%
+    fill={self.fill}
+    opacity={self.banner_opacity}
+    elements={self.banner_elements}
+/>
+
+@settings {
+    @mount: handle_mount
+}
+
+@timeline banner_unfold {
+    playhead: {self.progress * 1440}
+    duration: 1440ms
+    loop: false
+
+    // The three letters overlap as a tight relay inside a 1440ms envelope.
+    // Each braking gesture uses a concise out-rock, 120ms apex hold, return
+    // through a visible left nadir, and decisive settle. Compressing each of
+    // the first three phases by 20ms restores the tighter original dispatch
+    // cadence and lets the complete relay finish in a 1440ms envelope.
+    self {
+        // Five overhead releases loosen from left to right. Each drop is
+        // front-loaded to establish a local black field before its letter
+        // arrives, then spends its remaining time in a shallow fabric settle.
+        // Overshoot decays linearly across the five ropes (7.5%, 5.625%,
+        // 3.75%, 1.875%, 0%) so the free right corner approaches rest without
+        // inheriting a bounce from its left neighbor. The fifth release
+        // reaches exact geometry at 1440ms, on the same frame that x completes
+        // its final settle.
+        curtain_drop_1: {
+            0ms: 0, Hold
+            210ms: 0, OutQuad
+            600ms: 0.96, OutQuad
+            799ms: 1.075, OutQuad
+            896ms: 1
+        }
+        curtain_drop_2: {
+            0ms: 0, Hold
+            299ms: 0, OutQuad
+            693ms: 0.95, OutQuad
+            896ms: 1.05625, OutQuad
+            993ms: 1
+        }
+        curtain_drop_3: {
+            0ms: 0, Hold
+            415ms: 0, OutQuad
+            810ms: 0.94, OutQuad
+            1029ms: 1.0375, OutQuad
+            1126ms: 1
+        }
+        curtain_drop_4: {
+            0ms: 0, Hold
+            571ms: 0, OutQuad
+            985ms: 0.92, OutQuad
+            1210ms: 1.01875, OutQuad
+            1307ms: 1
+        }
+        curtain_drop_5: {
+            0ms: 0, Hold
+            766ms: 0, OutQuad
+            1185ms: 0.78, OutQuad
+            1440ms: 1
+        }
+        banner_opacity: {
+            0ms: 0, Hold
+            210ms: 0, OutQuad
+            225ms: 1
+        }
+        p_counter_reveal_progress: {
+            0ms: 0, Hold
+            540ms: 0, InOutQuad
+            560ms: 1
+        }
+        p_counter_x_px: {
+            0ms: -110, Hold
+            190ms: -110, InQuad
+            560ms: 0, OutQuad
+            660ms: 18, Hold
+            780ms: 18, InOutQuad
+            980ms: -2.4, InOutQuad
+            1080ms: 0
+        }
+        p_rotation_deg: {
+            0ms: -90, Hold
+            190ms: -90, InQuad
+            560ms: 0, OutQuad
+            660ms: 13.23, Hold
+            780ms: 13.23, InOutQuad
+            980ms: -1.8, InOutQuad
+            1080ms: 0
+        }
+        p_scale: {
+            0ms: 0.28, Hold
+            190ms: 0.28, InQuad
+            560ms: 1
+        }
+        a_x_px: {
+            0ms: -305.583426, Hold
+            380ms: -305.583426, InOutQuad
+            750ms: 0
+        }
+        a_rotation_deg: {
+            0ms: -90, Hold
+            380ms: -90, InOutQuad
+            750ms: 0
+        }
+        a_scale: {
+            0ms: 0.16, Hold
+            380ms: 0.16, InOutQuad
+            750ms: 1
+        }
+        a_brake_rotation_deg: {
+            0ms: 0, Hold
+            750ms: 0, InOutQuad
+            870ms: 3.825, Hold
+            990ms: 3.825, InOutQuad
+            1190ms: -0.9, InOutQuad
+            1290ms: 0
+        }
+        a_morph_progress: {
+            0ms: 0, Hold
+            380ms: 0, InOutQuad
+            720ms: 1
+        }
+        a_opacity: {
+            0ms: 0, Hold
+            470ms: 0, Linear
+            480ms: 1
+        }
+        x_opacity: {
+            0ms: 0, Hold
+            750ms: 0, Linear
+            760ms: 1
+        }
+        x_offset_px: {
+            0ms: -150.38, Hold
+            690ms: -150.38, InOutQuad
+            980ms: 0
+        }
+        x_offset_y_px: {
+            0ms: 0.73
+        }
+        x_rotation_deg: {
+            0ms: -90, Hold
+            690ms: -90, InOutQuad
+            980ms: 0
+        }
+        x_scale: {
+            0ms: 0.28, Hold
+            690ms: 0.28, InOutQuad
+            980ms: 1
+        }
+        x_brake_rotation_deg: {
+            0ms: 0, Hold
+            980ms: 0, InOutQuad
+            1100ms: 3.6, Hold
+            1220ms: 3.6, InOutQuad
+            1340ms: -0.8, InOutQuad
+            1440ms: 0
+        }
+    }
+}

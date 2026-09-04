@@ -1,0 +1,80 @@
+<Frame width=100% height=100%>
+    // The tile boundary stays planted while its complete inner artwork turns
+    // through one or more quarter-turns. Scaling at each midpoint keeps every
+    // clipped corner covered.
+    <Group
+        x={50% + (self._shift_x)px}
+        y={50% + (self._shift_y)px}
+        width=100%
+        height=100%
+        anchor=50%
+        rotate={self._turn}
+        scale={(self._scale * 100)%}
+    >
+        if self._motif == 0 {
+            // Concentric quarter-circles become rainbows, fans, and moons as
+            // the corner flips from tile to tile.
+            <Ellipse
+                x={self._flip ? 0% : 100%}
+                y={self._alternate ? 0% : 100%}
+                width=74%
+                height=74%
+                anchor=50%
+                fill={self._background}
+            />
+            <Ellipse
+                x={self._flip ? 0% : 100%}
+                y={self._alternate ? 0% : 100%}
+                width=146%
+                height=146%
+                anchor=50%
+                fill={self._foreground}
+            />
+        } else if self._motif == 1 {
+            // Repeated bands make the declarative loop visible at a glance.
+            for stripe in 0..6 {
+                <Rectangle
+                    x={self._flip ? (12.5 + stripe * 15)% : 50%}
+                    y={self._flip ? 50% : (12.5 + stripe * 15)%}
+                    width={self._flip ? 7% : 84%}
+                    height={self._flip ? 84% : 7%}
+                    anchor=50%
+                    fill={(stripe == 2 || stripe == 5) ? self._secondary : self._foreground}
+                />
+            }
+        } else if self._motif == 2 {
+            // A split circle reads as an arch, eye, or sunrise depending on
+            // the surrounding tiles.
+            <Ellipse x=50% y=50% width=38% height=38% anchor=50% fill={self._background} />
+            <Ellipse x=50% y=50% width=88% height=88% anchor=50% fill={self._foreground} />
+            <Rectangle
+                x={self._flip ? 0% : 50%}
+                y=0%
+                width=50%
+                height=100%
+                fill={self._secondary}
+            />
+        } else if self._motif == 3 {
+            // Four dots are the playful counterpoint to the larger geometry.
+            for dot in 0..4 {
+                <Ellipse
+                    x={(27 + (dot %% 2) * 46)%}
+                    y={(27 + (dot / 2) * 46)%}
+                    width=23%
+                    height=23%
+                    anchor=50%
+                    fill={dot == 3 ? self._secondary : self._foreground}
+                />
+            }
+        }
+
+    </Group>
+
+    // The tile paper stays fixed. Only the motif turns, so rectangular tiles
+    // never expose their corners after a persistent quarter-turn.
+    <Rectangle width=100% height=100% fill={self._background} />
+</Frame>
+
+@settings {
+    @mount: handle_mount
+}

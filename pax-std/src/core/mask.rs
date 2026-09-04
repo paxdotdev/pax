@@ -26,6 +26,41 @@ pub struct MaskInstance {
 }
 
 impl MaskInstance {
+    fn sync_mask_source_layout(expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {
+        let children = expanded_node.children.get();
+        let mounted_children = borrow!(expanded_node.mounted_children);
+        let children_changed = children.len() != mounted_children.len()
+            || children
+                .iter()
+                .zip(mounted_children.iter())
+                .any(|(child, mounted)| !Rc::ptr_eq(child, mounted));
+        drop(mounted_children);
+
+        let needs_parent_binding = children.iter().any(|child| {
+            borrow!(child.render_parent)
+                .upgrade()
+                .is_none_or(|parent| !Rc::ptr_eq(&parent, expanded_node))
+        });
+
+        if children_changed || needs_parent_binding {
+            expanded_node.attach_children(children.clone(), context, &expanded_node.parent_frame);
+        }
+
+        for child in children {
+            Self::sync_mask_source_layout(&child, context);
+        }
+    }
+
+    fn refresh_mask_source_layout(expanded_node: &ExpandedNode, context: &Rc<RuntimeContext>) {
+        let mask_source = {
+            let sidecar_children = borrow!(expanded_node.sidecar_children);
+            sidecar_children.first().cloned()
+        };
+        if let Some(mask_source) = mask_source {
+            Self::sync_mask_source_layout(&mask_source, context);
+        }
+    }
+
     fn mark_canvas_descendants_dirty(expanded_node: &ExpandedNode, context: &Rc<RuntimeContext>) {
         for child in expanded_node.children.get().iter() {
             if borrow!(child.instance_node).base().flags().layer == Layer::Canvas {
@@ -221,6 +256,7 @@ impl InstanceNode for MaskInstance {
             expanded_node.occlusion.untyped(),
         ];
         if let Some(mask_child) = borrow!(expanded_node.sidecar_children).first() {
+            Self::sync_mask_source_layout(mask_child, &context);
             Self::collect_mask_source_deps(mask_child, &mut deps);
         }
 
@@ -232,6 +268,7 @@ impl InstanceNode for MaskInstance {
                         return;
                     };
 
+                    Self::refresh_mask_source_layout(&expanded_node, &context);
                     let clip_path = Self::resolve_mask_path(&expanded_node)
                         .map(|path| bez_path_to_svg_path_data(&path))
                         .unwrap_or_default();
@@ -306,6 +343,7 @@ impl InstanceNode for MaskInstance {
             return;
         }
 
+        Self::refresh_mask_source_layout(expanded_node, rtc);
         let Some(mask_path) = Self::resolve_mask_path(expanded_node) else {
             return;
         };

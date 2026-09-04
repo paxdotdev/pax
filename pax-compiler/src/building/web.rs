@@ -616,7 +616,7 @@ pub fn build_web_project_with_cartridge(
             dotenv().ok();
             let dev_session = prepare_web_dev_session(project_root, pax_dir)?;
             write_project_active_session(pax_dir, &dev_session)?;
-            let _ = crate::design_server::start_server(
+            crate::design_server::start_server(
                 build_dest.to_str().unwrap(),
                 project_root.to_str().unwrap(),
                 manifest,
@@ -632,14 +632,14 @@ pub fn build_web_project_with_cartridge(
                 ctx.hot_reload.unwrap_or_default(),
                 None,
                 Some(project_designtime_manifest_file(pax_dir)),
-            );
+            )?;
             cleanup_web_dev_session(pax_dir, &dev_session)?;
         } else {
             println!("{} 🐇 Running Pax Web...", *PAX_BADGE);
-            let _ = crate::design_server::static_server::start_server(
+            crate::design_server::static_server::start_server(
                 build_dest.clone(),
                 existing_project_public_dir(project_root),
-            );
+            )?;
         }
     } else {
         println!(

@@ -155,6 +155,52 @@ def verify_web_interface_release_artifacts():
         exit(1)
 
 
+def sync_and_verify_bundled_cli_examples():
+    """Snapshot rewritten canonical examples before the release commit/package checks."""
+    sync_script = os.path.join(WORKSPACE_DIR, "scripts", "sync-cli-examples.py")
+    bundle_path = os.path.join(
+        WORKSPACE_DIR,
+        "pax-compiler",
+        "files",
+        "new-project",
+        "bundled-examples.paxbundle",
+    )
+    subprocess.run([sync_script], check=True, cwd=WORKSPACE_DIR)
+    subprocess.run([sync_script, "--check"], check=True, cwd=WORKSPACE_DIR)
+
+    package_files = set(subprocess.run(
+        ["cargo", "package", "--list", "--allow-dirty"],
+        cwd=os.path.join(WORKSPACE_DIR, "pax-compiler"),
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+    ).stdout.splitlines())
+    bundled_relative = "files/new-project/bundled-examples.paxbundle"
+    if bundled_relative not in package_files:
+        print("ERROR: bundled CLI examples are missing from pax-compiler package:")
+        print("  " + bundled_relative)
+        exit(1)
+
+    # release.py historically commits with `git commit -am`; explicitly staging
+    # the single generated artifact prevents a newly introduced bundle from being
+    # silently omitted during the release that first adds it.
+    subprocess.run(["git", "add", bundle_path], check=True, cwd=WORKSPACE_DIR)
+
+    status = subprocess.run(
+        ["git", "status", "--short", "--", bundle_path],
+        check=True,
+        cwd=WORKSPACE_DIR,
+        text=True,
+        stdout=subprocess.PIPE,
+    ).stdout.strip()
+    if not status:
+        print("Bundled CLI example artifact is unchanged and already tracked.")
+    elif status[0] not in {"A", "M"}:
+        print("ERROR: bundled CLI example artifact was not staged as expected:")
+        print("  " + status)
+        exit(1)
+
+
 # Compile ts to js and css for the web chassis
 original_dir = WORKSPACE_DIR
 try:
@@ -262,6 +308,10 @@ for root in root_packages:
 # Also update the versions in the examples directory
 EXAMPLES_DIR = "examples/src"
 update_crate_versions_in_examples(NEW_VERSION, PACKAGE_NAMES, EXAMPLES_DIR)
+
+# Version rewriting changes the hand-edited canonical examples. Snapshot only
+# after that pass, and verify/stage the crate-owned artifact before committing.
+sync_and_verify_bundled_cli_examples()
 
 # Also update the docs version manifest, so the release commit records the
 # newly published docs version before any S3/CloudFront upload happens.

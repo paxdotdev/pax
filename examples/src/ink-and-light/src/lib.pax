@@ -1,0 +1,206 @@
+<Group width=100% height=100%>
+    <Group
+        x=50%
+        y=50%
+        width={is_compact ? 92% : 88%}
+        height={is_compact ? 88% : 80%}
+        anchor=50%
+        scale={(card_scale * 100)%}
+    >
+        // This transparent top layer makes the whole postcard one generous mouse/touch target.
+        <Rectangle
+            width=100%
+            height=100%
+            fill=rgba(255, 255, 255, 1)
+            corner_radius={is_compact ? 16.0 : 22.0}
+            @mouse_down=self.card_mouse_down
+            @mouse_up=self.card_mouse_up
+            @touch_start=self.card_touch_start
+            @touch_end=self.card_touch_end
+            @touch_cancel=self.card_touch_cancel
+        />
+
+        // Rust eases the seal to each new press location.
+        <Group
+            x={(seal_x)%}
+            y={(seal_y)%}
+            width={is_compact ? 82px : 104px}
+            height={is_compact ? 76px : 95px}
+            anchor=50%
+        >
+            <Image width=100% height=100% source="assets/wax-seal.png" fit=ImageFit::Fit />
+        </Group>
+
+        <Text
+            id=stamp_hint
+            x={is_compact ? 50% : 87%}
+            y={is_compact ? 88% : 67%}
+            width={is_compact ? 72% : 180px}
+            height=34px
+            anchor_x=50%
+            text={is_sealed ? "Press anywhere to stamp again" : "Press anywhere to stamp"}
+            selectable=false
+        />
+
+        <PaletteStatus
+            x={is_compact ? 50% : 82%}
+            y={is_compact ? 82% : 87%}
+            width={is_compact ? 68% : 230px}
+            height=38px
+            anchor_x=50%
+            is_sealed={is_sealed}
+        />
+
+        // The second Mask child is a growing stencil, so the postmark wipes left-to-right.
+        <Mask
+            x={(seal_x - (is_compact ? 31 : 15))%}
+            y={(seal_y)%}
+            width={is_compact ? 34% : 15%}
+            height={is_compact ? 9% : 18%}
+            anchor_y=50%
+            opacity={seal_progress}
+        >
+            <Group width=100% height=100%>
+                <Path width=100% height=100% elements=[PathElement::Point(0%, 20%), PathElement::Cubic(35%, 6%, 65%, 34%), PathElement::Point(100%, 20%)] stroke={color: rgba(19, 42, 77, 210), width: 2px} />
+                <Path width=100% height=100% elements=[PathElement::Point(0%, 43%), PathElement::Cubic(35%, 29%, 65%, 57%), PathElement::Point(100%, 43%)] stroke={color: rgba(19, 42, 77, 210), width: 2px} />
+                <Path width=100% height=100% elements=[PathElement::Point(0%, 66%), PathElement::Cubic(35%, 52%, 65%, 80%), PathElement::Point(100%, 66%)] stroke={color: rgba(19, 42, 77, 210), width: 2px} />
+            </Group>
+            <Rectangle width={(0.2 + postmark_reveal * 99.8)%} height=100% fill=BLACK />
+        </Mask>
+
+        <Image
+            x={is_compact ? 78% : 87%}
+            y={is_compact ? 5% : 6%}
+            width={is_compact ? 28% : 15%}
+            height={is_compact ? 24% : 37%}
+            source="assets/moon-postage.png"
+            fit=ImageFit::Fit
+        />
+
+        <Handwriter
+            x={is_compact ? 50% : 52%}
+            y={is_compact ? 31% : 31%}
+            width={is_compact ? 82% : 62%}
+            height={is_compact ? 19% : 34%}
+            anchor_x=50%
+            text="Hello, Pax,"
+            font=HandwriterFont::HersheyScript1
+            line_height=1.0
+            smoothing=PathSmoothing::Strong
+            stroke={
+                color: rgba(18, 43, 79, 255)
+                width: {is_compact ? 7px : 8px}
+                cap: StrokeCap::Round
+                join: StrokeJoin::Round
+            }
+            draw_end={greeting_progress}
+        />
+
+        <Text
+            id=message
+            x={is_compact ? 69% : 54%}
+            y={is_compact ? 50% : 57%}
+            width={is_compact ? 54% : 44%}
+            height=48px
+            anchor_x=50%
+            text={is_sealed ? "A little light makes the journey." : "A blank page is a place to begin."}
+            selectable=false
+            opacity={0.72 + seal_progress * 0.28}
+        />
+
+        // This authored radial glow works on every backend; real lights can enhance it.
+        <Ellipse
+            x={is_compact ? 55% : 64%}
+            y={is_compact ? 64% : 68%}
+            width={is_compact ? 52% : 25%}
+            height={is_compact ? 22% : 32%}
+            anchor=50%
+            opacity={0.02 + seal_progress * 0.30}
+            fill=@gradient {
+                radial: {
+                    start: [62%, 48%]
+                    end: [62%, 48%]
+                    radius: 68
+                }
+                0%: rgba(104, 121, 255, 170)
+                42%: rgba(164, 126, 221, 72)
+                100%: rgba(164, 126, 221, 0)
+            }
+        />
+
+        <Image
+            x={is_compact ? -4% : -3%}
+            y={is_compact ? 54% : 34%}
+            width={is_compact ? 42% : 28%}
+            height={is_compact ? 45% : 70%}
+            source="assets/botanical-collage.png"
+            fit=ImageFit::Fit
+        />
+
+        <Ellipse
+            x={is_compact ? -12% : -7%}
+            y={is_compact ? 67% : 57%}
+            width={is_compact ? 48% : 31%}
+            height={is_compact ? 29% : 53%}
+            fill=rgba(160, 145, 190, 96)
+        />
+        <Ellipse
+            x={is_compact ? 12% : 19%}
+            y={is_compact ? 77% : 78%}
+            width={is_compact ? 46% : 27%}
+            height={is_compact ? 25% : 45%}
+            fill=rgba(220, 91, 74, 210)
+        />
+
+        <Rectangle
+            width=100%
+            height=100%
+            fill=@gradient {
+                linear: { start: [0%, 0%], end: [100%, 100%] }
+                0%: rgba(250, 241, 218, 255)
+                58%: rgba(247, 235, 208, 255)
+                100%: rgba(237, 220, 188, 255)
+            }
+            stroke={color: rgba(255, 250, 234, 180), width: 2px}
+            corner_radius={is_compact ? 16.0 : 22.0}
+        />
+    </Group>
+
+    <Rectangle
+        width=100%
+        height=100%
+        fill=@gradient {
+            linear: { start: [0%, 0%], end: [100%, 100%] }
+            0%: rgba(5, 19, 40, 255)
+            55%: rgba(8, 28, 55, 255)
+            100%: rgba(3, 13, 31, 255)
+        }
+    />
+</Group>
+
+@settings {
+    @mount: handle_mount
+    @pre_render: handle_pre_render
+
+    #stamp_hint {
+        style: {
+            font: { family: "Georgia", style: FontStyle::Italic }
+            font_size: {is_compact ? 13px : 15px}
+            fill: rgba(27, 45, 70, 235)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+        }
+    }
+
+    #message {
+        style: {
+            font: { family: "Georgia", style: FontStyle::Italic }
+            font_size: {is_compact ? 15px : 19px}
+            fill: rgba(45, 51, 65, 255)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+        }
+    }
+}

@@ -1210,3 +1210,47 @@ for the historical Breakout example. Recommendations: keep Pax knowledge in the
 canonical docs, examples, and agent instructions; expose observation and
 mutation through model-neutral CLI tools; and retire duplicated embedded
 prompts when their caller is no longer a supported product surface.
+
+## 2026-08-15
+
+Overriding `Handwriter.stroke` with a partial object containing only `color` and
+`width` replaced the component's rounded stroke defaults with the general
+`Stroke` defaults (`Butt` caps and `Miter` joins). At larger stroke widths this
+produced sharp cusps in otherwise fluid script glyphs. The renderer already
+supports rounded caps and joins across GPU and native paths; the example needed
+to specify `cap: StrokeCap::Round` and `join: StrokeJoin::Round` in its inline
+stroke. Recommendation: remember that an inline object replaces the complete
+nested value rather than merging with a component's nested defaults, and make
+visually meaningful omitted fields explicit in canonical examples.
+
+## 2026-08-30
+
+Putting the animated Pax logo, whose entrance already uses several `Mask`
+components, inside a second expanding quilt `Mask` produced unstable nested
+clip behavior as the outer circle changed size, especially after a responsive
+resize. Living Quilt now keeps one shared logo card outside the quilt reveal,
+so its internal logo masks remain independent while the two quilt scenes change
+underneath it. Recommendation: avoid nesting independently animated mask stacks
+unless their clip isolation has been verified on every target; a general
+layer-level blend or compositing primitive should isolate a subtree offscreen
+before combining it with another masked scene.
+
+Growing a repeated list of circles inside a `Mask` correctly produced a unioned
+coverage path, but a newly inserted sub-pixel circle could briefly tessellate to
+zero indices. The WGPU stencil renderer then attempted to bind the cached empty
+vertex/index buffers and panicked even though the ensuing draw contained no
+indices. Empty stencil geometry is now retained as stack state but skipped at
+draw submission. Recommendation: treat zero-geometry clips as valid reactive
+intermediate states, and test mask sources whose repeated children are inserted
+and animated during pointer bursts.
+
+The same repeated mask initially expanded its control-flow children without
+binding those off-tree descendants to the mask source's layout hierarchy. Every
+circle therefore resolved through its default 100-by-100 transform at the
+origin: the union existed, but it revealed only a fixed patch while the intended
+animation ran invisibly behind it. `Mask` now synchronizes the current sidecar
+child sequence into a non-rendered layout tree before resolving coverage, and
+repeats that synchronization when keyed children change. Recommendation: an
+auxiliary subtree that contributes geometry still needs normal parent/bounds
+bindings even when it intentionally skips mount and render traversal; verify
+dynamic masks by inspecting their resolved path, not only their child count.

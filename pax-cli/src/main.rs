@@ -155,6 +155,11 @@ fn main() -> Result<(), Report> {
                     .index(1))  // Positional arg, `pax create positional_arg_here`
                 .arg( ARG_LIBDEV.clone())
                 .arg( ARG_LIBDEV_MODE.clone())
+                .arg(Arg::with_name("example")
+                    .long("example")
+                    .takes_value(true)
+                    .value_name("name")
+                    .help("Create from a curated bundled example (default: living-quilt)."))
         )
         .subcommand(
             App::new("libdev")
@@ -344,7 +349,9 @@ fn perform_nominal_action(
                 path,
                 is_libdev_mode,
                 version,
-            });
+                example: args.value_of("example").map(str::to_string),
+            })
+            .map_err(|error| eyre!(error))?;
             Ok(())
         }
         ("eject", Some(args)) => {

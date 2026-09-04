@@ -122,6 +122,25 @@ fn computed_path(
     Property::computed(move || build(motion.get()), &dependencies)
 }
 
+pub(crate) fn settled_post_paths() -> [Vec<PathElement>; 6] {
+    let motion = motion_from_controls(MotionControls {
+        rolling: 1.0,
+        extension: 1.0,
+        wave: 0.0,
+        swing: 0.0,
+        fall: 1.0,
+        roll_radius_px: 0.7,
+    });
+    [
+        roll_start_cap_path(motion),
+        roll_body_path(motion),
+        roll_end_cap_path(motion),
+        top_fabric_path(motion),
+        fabric_path(motion),
+        backing_fabric_path(1.0),
+    ]
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 struct Point {
     x: f64,
