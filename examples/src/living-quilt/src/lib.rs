@@ -21,6 +21,7 @@ pub use static_pax_logo::*;
 const COMPACT_BREAKPOINT: f64 = 720.0;
 const WINDING_DURATION_MS: u64 = 1280;
 const REVEAL_DURATION_MS: u64 = 1280;
+const LIGHT_TRAVEL_DURATION_MS: u64 = 420;
 
 #[pax]
 #[main]
@@ -29,11 +30,13 @@ const REVEAL_DURATION_MS: u64 = 1280;
 pub struct Example {
     pub is_compact: Property<bool>,
     pub logo_progress: Property<f64>,
+    pub light_x: Property<f64>,
+    pub light_y: Property<f64>,
     pub spin_turn: Property<f64>,
     pub base_turn: Property<f64>,
     pub wave_origin: Property<usize>,
-    pub base_palette: Property<usize>,
-    pub next_palette: Property<usize>,
+    pub base_generation: Property<usize>,
+    pub next_generation: Property<usize>,
     pub ripples: Property<Vec<Ripple>>,
     pub next_ripple_id: Property<usize>,
 }
@@ -54,11 +57,13 @@ impl Default for Example {
         Self {
             is_compact: Property::new(false),
             logo_progress: Property::new(0.0),
+            light_x: Property::new(0.5),
+            light_y: Property::new(0.5),
             spin_turn: Property::new(0.0),
             base_turn: Property::new(0.0),
             wave_origin: Property::new(0),
-            base_palette: Property::new(0),
-            next_palette: Property::new(0),
+            base_generation: Property::new(0),
+            next_generation: Property::new(0),
             // Keeping one inert path in the mask subtree avoids a transient
             // zero-vertex stencil while keyed ripple children are replaced.
             ripples: Property::new(vec![ripple_sentinel()]),
@@ -79,6 +84,14 @@ impl Example {
         self.advance_ripples(ctx);
     }
 
+    pub fn handle_mouse_move(&mut self, ctx: &NodeContext, event: Event<MouseMove>) {
+        // MouseMove is desktop-only in the web chassis; touch taps continue
+        // through the eased click path below.
+        let (light_x, light_y) = normalized_point(ctx, event.mouse.x, event.mouse.y);
+        self.light_x.set(light_x);
+        self.light_y.set(light_y);
+    }
+
     pub fn handle_tile_click(&mut self, ctx: &NodeContext, event: Event<Click>) {
         let (root_width, root_height) = ctx.bounds_self.get();
         if root_width <= 0.0 || root_height <= 0.0 {
@@ -88,18 +101,31 @@ impl Example {
         let compact = self.is_compact.get();
         let columns = if compact { 3 } else { 5 };
         let rows = 15usize.div_ceil(columns);
-        let local = ctx.local_point(Point2::new(event.mouse.x, event.mouse.y));
-        let art_x = local.x.clamp(0.0, 1.0) * root_width;
-        let art_y = local.y.clamp(0.0, 1.0) * root_height;
+        let (local_x, local_y) = normalized_point(ctx, event.mouse.x, event.mouse.y);
+        let art_x = local_x * root_width;
+        let art_y = local_y * root_height;
         let column = ((art_x / root_width) * columns as f64).floor() as usize;
         let row = ((art_y / root_height) * rows as f64).floor() as usize;
         let index = row.min(rows - 1) * columns + column.min(columns - 1);
 
-        let settled_palette = self.next_palette.get();
-        let starts_fresh_spin = spin_is_settled(self.spin_turn.get(), settled_palette);
+        // Keep the touch-friendly move normalized so it survives a responsive
+        // resize. For a mouse click this is already the tracked hover point.
+        self.light_x.ease_to(
+            local_x,
+            Duration::Milliseconds(LIGHT_TRAVEL_DURATION_MS.into()),
+            EasingCurve::OutQuad,
+        );
+        self.light_y.ease_to(
+            local_y,
+            Duration::Milliseconds(LIGHT_TRAVEL_DURATION_MS.into()),
+            EasingCurve::OutQuad,
+        );
+
+        let settled_generation = self.next_generation.get();
+        let starts_fresh_spin = spin_is_settled(self.spin_turn.get(), settled_generation);
         if starts_fresh_spin {
-            self.base_palette.set(settled_palette);
-            self.base_turn.set(settled_palette as f64);
+            self.base_generation.set(settled_generation);
+            self.base_turn.set(settled_generation as f64);
             self.wave_origin.set(index);
             self.play_logo();
         }
@@ -124,14 +150,14 @@ impl Example {
         self.next_ripple_id.set(ripple_id + 1);
 
         // Retargeting checkpoints the current fractional turn. The full
-        // accumulated remainder then completes exactly one fresh k-window
-        // after this impulse, so more queued turns mean greater velocity.
-        let target_palette = settled_palette + 1;
-        self.next_palette.set(target_palette);
+        // accumulated remainder then completes in one fresh k-window, so rapid
+        // impulses increase velocity while the final winding eases to rest.
+        let target_generation = settled_generation + 1;
+        self.next_generation.set(target_generation);
         self.spin_turn.ease_to(
-            target_palette as f64,
+            target_generation as f64,
             Duration::Milliseconds(WINDING_DURATION_MS.into()),
-            EasingCurve::Linear,
+            EasingCurve::OutQuad,
         );
     }
 
@@ -189,6 +215,11 @@ fn elapsed_millis(ctx: &NodeContext) -> u64 {
     ctx.elapsed_time_millis().min(u64::MAX as u128) as u64
 }
 
+fn normalized_point(ctx: &NodeContext, x: f64, y: f64) -> (f64, f64) {
+    let local = ctx.local_point(Point2::new(x, y));
+    (local.x.clamp(0.0, 1.0), local.y.clamp(0.0, 1.0))
+}
+
 fn ease_in_out_quad(progress: f64) -> f64 {
     if progress < 0.5 {
         2.0 * progress * progress
@@ -197,8 +228,8 @@ fn ease_in_out_quad(progress: f64) -> f64 {
     }
 }
 
-fn spin_is_settled(spin_turn: f64, target_palette: usize) -> bool {
-    (spin_turn - target_palette as f64).abs() < 0.000_001
+fn spin_is_settled(spin_turn: f64, target_generation: usize) -> bool {
+    (spin_turn - target_generation as f64).abs() < 0.000_001
 }
 
 #[cfg(test)]

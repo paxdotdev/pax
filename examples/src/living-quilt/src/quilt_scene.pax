@@ -4,10 +4,14 @@
         height=100%
         is_compact={self.is_compact}
         start_turn={self.start_turn}
-        palette={self.palette}
+        generation={self.generation}
         wave_origin={self.wave_origin}
         spin_turn={self.spin_turn}
     />
-
-    <Rectangle width=100% height=100% fill=rgba(247, 241, 229, 255) />
+    <Rectangle
+        width=100%
+        height=100%
+        fill=rgba(72, 72, 72, 255)
+        material={Material::glossy(0.86)}
+    />
 </Group>

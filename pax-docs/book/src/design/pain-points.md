@@ -1235,14 +1235,16 @@ unless their clip isolation has been verified on every target; a general
 layer-level blend or compositing primitive should isolate a subtree offscreen
 before combining it with another masked scene.
 
-Growing a repeated list of circles inside a `Mask` correctly produced a unioned
-coverage path, but a newly inserted sub-pixel circle could briefly tessellate to
-zero indices. The WGPU stencil renderer then attempted to bind the cached empty
-vertex/index buffers and panicked even though the ensuing draw contained no
-indices. Empty stencil geometry is now retained as stack state but skipped at
-draw submission. Recommendation: treat zero-geometry clips as valid reactive
-intermediate states, and test mask sources whose repeated children are inserted
-and animated during pointer bursts.
+Growing a repeated list of circles inside a `Mask` correctly produced one
+compound coverage path, but the WGPU clip tessellator used Lyon's default
+even-odd fill rule. Overlapping circles therefore behaved like XOR: coverage
+disappeared under an even number of contours and returned under an odd number.
+Clip tessellation now uses non-zero winding so same-direction contours honor
+`Mask`'s documented union semantics. A newly inserted sub-pixel circle could
+also briefly tessellate to zero indices; the stencil renderer then attempted to
+bind cached empty buffers. Empty stencil geometry is now retained as stack state
+but skipped at draw submission. Recommendation: test both overlapping and
+zero-geometry contours when mask sources add animated repeated children.
 
 The same repeated mask initially expanded its control-flow children without
 binding those off-tree descendants to the mask source's layout hierarchy. Every
@@ -1254,3 +1256,24 @@ repeats that synchronization when keyed children change. Recommendation: an
 auxiliary subtree that contributes geometry still needs normal parent/bounds
 bindings even when it intentionally skips mount and render traversal; verify
 dynamic masks by inspecting their resolved path, not only their child count.
+
+## 2026-09-04
+
+Authoring filled polygon motifs with a list of adjacent `PathElement::Point`
+values parsed successfully but produced no visible faces. After the first point,
+another point starts a new subpath; an explicit `PathElement::Line` must precede
+each destination that should connect to the current contour. Recommendation:
+when a custom path has bounds and appears in scene inspection but does not fill,
+inspect its command sequence before debugging layout or lighting.
+
+The same pass exposed that a helper call is not accepted as a bare inline
+property value: `material=Material::matte()` fails parsing while
+`material={Material::matte()}` correctly enters PAXEL expression syntax.
+Recommendation: brace helper calls in templates even when the result is a
+constant value.
+
+Formatting long Pax elements wrapped attributes onto continuation lines with a
+space left at the preceding line ending, causing `git diff --check` to fail.
+The affected starter templates were expanded manually after formatting.
+Recommendation: keep whitespace validation separate from formatter check mode
+until wrapped element output is guaranteed to be trailing-space free.

@@ -12,7 +12,14 @@ import os
 from pathlib import Path, PurePosixPath
 import struct
 import sys
-import tomllib
+
+try:
+    import tomllib
+    TomlDecodeError = tomllib.TOMLDecodeError
+except ModuleNotFoundError:
+    # release.py already depends on tomlkit, and macOS still ships Python 3.9.
+    import tomlkit as tomllib
+    from tomlkit.exceptions import ParseError as TomlDecodeError
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -125,7 +132,7 @@ def main() -> int:
     args = parser.parse_args()
     try:
         generated = build_bundle()
-    except (KeyError, OSError, ValueError, tomllib.TOMLDecodeError) as error:
+    except (KeyError, OSError, ValueError, TomlDecodeError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
 
@@ -144,4 +151,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

@@ -1,78 +1,72 @@
 <Frame width=100% height=100%>
-    // The tile boundary stays planted while its complete inner artwork turns
-    // through one or more quarter-turns. Scaling at each midpoint keeps every
-    // clipped corner covered.
+    // Conjugating the turn through the tile's aspect ratio rotates the artwork
+    // in normalized square space. Even a sideways motif therefore still meets
+    // all four tile edges instead of becoming letterboxed.
     <Group
-        x={50% + (self._shift_x)px}
-        y={50% + (self._shift_y)px}
+        x=50%
+        y=50%
         width=100%
         height=100%
         anchor=50%
-        rotate={self._turn}
-        scale={(self._scale * 100)%}
+        scale_x={(self._aspect * self._scale * 100)%}
+        scale_y={(self._scale * 100)%}
     >
-        if self._motif == 0 {
-            // Concentric quarter-circles become rainbows, fans, and moons as
-            // the corner flips from tile to tile.
-            <Ellipse
-                x={self._flip ? 0% : 100%}
-                y={self._alternate ? 0% : 100%}
-                width=74%
-                height=74%
-                anchor=50%
-                fill={self._background}
-            />
-            <Ellipse
-                x={self._flip ? 0% : 100%}
-                y={self._alternate ? 0% : 100%}
-                width=146%
-                height=146%
-                anchor=50%
-                fill={self._foreground}
-            />
-        } else if self._motif == 1 {
-            // Repeated bands make the declarative loop visible at a glance.
-            for stripe in 0..6 {
-                <Rectangle
-                    x={self._flip ? (12.5 + stripe * 15)% : 50%}
-                    y={self._flip ? 50% : (12.5 + stripe * 15)%}
-                    width={self._flip ? 7% : 84%}
-                    height={self._flip ? 84% : 7%}
-                    anchor=50%
-                    fill={(stripe == 2 || stripe == 5) ? self._secondary : self._foreground}
-                />
-            }
-        } else if self._motif == 2 {
-            // A split circle reads as an arch, eye, or sunrise depending on
-            // the surrounding tiles.
-            <Ellipse x=50% y=50% width=38% height=38% anchor=50% fill={self._background} />
-            <Ellipse x=50% y=50% width=88% height=88% anchor=50% fill={self._foreground} />
-            <Rectangle
-                x={self._flip ? 0% : 50%}
-                y=0%
-                width=50%
-                height=100%
-                fill={self._secondary}
-            />
-        } else if self._motif == 3 {
-            // Four dots are the playful counterpoint to the larger geometry.
-            for dot in 0..4 {
-                <Ellipse
-                    x={(27 + (dot %% 2) * 46)%}
-                    y={(27 + (dot / 2) * 46)%}
-                    width=23%
-                    height=23%
-                    anchor=50%
-                    fill={dot == 3 ? self._secondary : self._foreground}
-                />
-            }
-        }
-
+        <Group x=50% y=50% width=100% height=100% anchor=50% rotate={self._turn}>
+            <Group x=50% y=50% width=100% height=100% anchor=50% scale_x={(100 / self._aspect)%}>
+                if self._variant == 0 {
+                    // Two contrasting triangles meet in one zero-width diagonal seam.
+                    <Path width=100% height=100% fill={self._secondary} material={Material::glossy(0.86)} elements=[
+                        PathElement::Point(0%, 0%),
+                        PathElement::Line,
+                        PathElement::Point(100%, 0%),
+                        PathElement::Line,
+                        PathElement::Point(100%, 100%),
+                        PathElement::Close
+                    ]/>
+                    <Rectangle width=100% height=100% fill={self._background} material={Material::glossy(0.86)}/>
+                } else {
+                    // Four contrasting triangles meet at the center. Their
+                    // zero-width diagonal seams form the implicit X.
+                    <Path width=100% height=100% fill={self._foreground} material={Material::glossy(0.86)} elements=[
+                        PathElement::Point(0%, 0%),
+                        PathElement::Line,
+                        PathElement::Point(100%, 0%),
+                        PathElement::Line,
+                        PathElement::Point(50%, 50%),
+                        PathElement::Close
+                    ]/>
+                    <Path width=100% height=100% fill={self._secondary} material={Material::glossy(0.86)} elements=[
+                        PathElement::Point(100%, 0%),
+                        PathElement::Line,
+                        PathElement::Point(100%, 100%),
+                        PathElement::Line,
+                        PathElement::Point(50%, 50%),
+                        PathElement::Close
+                    ]/>
+                    <Path width=100% height=100% fill={self._background} material={Material::glossy(0.86)} elements=[
+                        PathElement::Point(100%, 100%),
+                        PathElement::Line,
+                        PathElement::Point(0%, 100%),
+                        PathElement::Line,
+                        PathElement::Point(50%, 50%),
+                        PathElement::Close
+                    ]/>
+                    <Path width=100% height=100% fill={self._secondary} material={Material::glossy(0.86)} elements=[
+                        PathElement::Point(0%, 100%),
+                        PathElement::Line,
+                        PathElement::Point(0%, 0%),
+                        PathElement::Line,
+                        PathElement::Point(50%, 50%),
+                        PathElement::Close
+                    ]/>
+                    <Rectangle width=100% height=100% fill={self._background} material={Material::glossy(0.86)}/>
+                }
+            </Group>
+        </Group>
     </Group>
-
-    // The tile paper stays fixed. Only the motif turns, so rectangular tiles
-    // never expose their corners after a persistent quarter-turn.
-    <Rectangle width=100% height=100% fill={self._background} />
+    // Matching lit paper remains behind the turning artwork, so no transparent
+    // corners flash while a rectangular tile crosses its diagonal.
+    <Rectangle width=100% height=100% fill={self._background} material={Material::glossy(0.86)}/>
 </Frame>
 
 @settings {

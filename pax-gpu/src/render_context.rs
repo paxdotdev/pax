@@ -19,6 +19,7 @@ use crate::Vector2D;
 use lyon::geom::{CubicBezierSegment, QuadraticBezierSegment, Segment};
 use lyon::lyon_tessellation::BuffersBuilder;
 use lyon::lyon_tessellation::FillOptions;
+use lyon::lyon_tessellation::FillRule;
 use lyon::lyon_tessellation::FillTessellator;
 use lyon::lyon_tessellation::FillVertex;
 use lyon::lyon_tessellation::VertexBuffers;
@@ -1096,16 +1097,7 @@ impl<'w> WgpuRenderer<'w> {
             self.clip_stack.push(ClipReference::Scissor(scissor));
             return;
         }
-        let options = FillOptions::tolerance(self.tolerance);
-        let mut geometry = VertexBuffers::new();
-        let mut geometry_builder =
-            BuffersBuilder::new(&mut geometry, |vertex: FillVertex| stencil::Vertex {
-                position: vertex.position().to_array(),
-            });
-        match FillTessellator::new().tessellate_path(&path, &options, &mut geometry_builder) {
-            Ok(_) => {}
-            Err(e) => log::warn!("{:?}", e),
-        };
+        let geometry = tessellate_clip_geometry(&path, self.tolerance);
         let geometry_signature = hash_clip_geometry(&geometry);
         let clip_index = current_node.owned_clip_keys.len() as u32;
         let Some((clip_key, clip_id)) = self.clip_arena.sync_clip(
@@ -2992,6 +2984,23 @@ fn hash_clip_geometry(geometry: &VertexBuffers<stencil::Vertex, u16>) -> u64 {
     hasher.finish()
 }
 
+fn tessellate_clip_geometry(path: &Path, tolerance: f32) -> VertexBuffers<stencil::Vertex, u16> {
+    // A Mask combines every coverage contour from its source subtree into one
+    // compound clip path. Non-zero winding preserves their documented union;
+    // even-odd fill would cancel regions covered by an even number of shapes.
+    let options = FillOptions::tolerance(tolerance).with_fill_rule(FillRule::NonZero);
+    let mut geometry = VertexBuffers::new();
+    let mut geometry_builder =
+        BuffersBuilder::new(&mut geometry, |vertex: FillVertex| stencil::Vertex {
+            position: vertex.position().to_array(),
+        });
+    if let Err(err) = FillTessellator::new().tessellate_path(path, &options, &mut geometry_builder)
+    {
+        log::warn!("{:?}", err);
+    }
+    geometry
+}
+
 fn clip_stack_sync<'a>(
     current_clip_stack: &[u32],
     desired_clip_stack: &[ClipReference],
@@ -3427,6 +3436,23 @@ mod tests {
         builder.build()
     }
 
+    fn two_overlapping_rects_path(width: f32, height: f32, overlap: f32) -> Path {
+        two_closed_rects_path(width, height, -overlap)
+    }
+
+    fn tessellated_area(geometry: &VertexBuffers<stencil::Vertex, u16>) -> f32 {
+        geometry
+            .indices
+            .chunks_exact(3)
+            .map(|triangle| {
+                let a = geometry.vertices[triangle[0] as usize].position;
+                let b = geometry.vertices[triangle[1] as usize].position;
+                let c = geometry.vertices[triangle[2] as usize].position;
+                ((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])).abs() * 0.5
+            })
+            .sum()
+    }
+
     #[test]
     fn axis_aligned_rect_clip_becomes_scissor() {
         let transform = Transform2D::from_array([2.0, 0.0, 0.0, 3.0, 5.0, 7.0]);
@@ -3441,6 +3467,15 @@ mod tests {
     fn sheared_rect_clip_stays_on_stencil_path() {
         let transform = Transform2D::from_array([1.0, 0.5, 0.0, 1.0, 0.0, 0.0]);
         assert!(axis_aligned_rect_scissor(&rect_path(10.0, 5.0), &transform).is_none());
+    }
+
+    #[test]
+    fn overlapping_clip_contours_form_a_union() {
+        let geometry = tessellate_clip_geometry(
+            &two_overlapping_rects_path(10.0, 10.0, 5.0),
+            DEFAULT_TESSELLATION_TOLERANCE,
+        );
+        assert!((tessellated_area(&geometry) - 150.0).abs() < 0.01);
     }
 
     #[test]

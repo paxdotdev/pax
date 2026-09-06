@@ -11,7 +11,7 @@
             wave_origin={self.wave_origin}
             start_turn={self.start_turn}
             spin_turn={self.spin_turn}
-            palette={self.palette}
+            generation={self.generation}
         />
     }
 </Group>
