@@ -5,6 +5,7 @@ use crate::common::{native_surface_opacity, patch_if_needed};
 use kurbo::Affine;
 use pax_engine::*;
 use pax_message::{AnyCreatePatch, FramePatch};
+use pax_runtime::api as pax_runtime_api;
 use pax_runtime::api::{
     bez_path_to_svg_path_data, borrow, borrow_mut, properties::UntypedProperty, use_RefCell, Layer,
     Property, RenderContext,
@@ -14,11 +15,22 @@ use pax_runtime::{
 };
 use_RefCell!();
 
-/// Clips its first child by the unioned coverage path of its second child subtree.
+/// Clips its first child by the second child subtree. The default is geometric
+/// coverage; `alpha=true` uses the painted alpha of Rectangle, Ellipse and Path
+/// sources (including gradients, strokes, transforms and descendant opacity).
+/// Alpha masks currently apply to GPU canvas content; native controls are not
+/// supported inside an alpha mask. Use ordinary coverage masks for those.
+/// Source trees may group/repeat the supported vector leaves, but source-side
+/// clips, text, images and native elements are not alpha paint sources.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[primitive("pax_std::core::mask::MaskInstance")]
-pub struct Mask {}
+pub struct Mask {
+    /// Use painted alpha instead of geometric coverage.
+    pub alpha: Property<bool>,
+    /// Gaussian feather standard deviation, in logical pixels, for alpha masks.
+    pub feather: Property<f64>,
+}
 
 // Runtime instance backing `<Mask>`.
 pub struct MaskInstance {
@@ -26,6 +38,19 @@ pub struct MaskInstance {
 }
 
 impl MaskInstance {
+    fn alpha_settings(node: &ExpandedNode) -> (bool, f64) {
+        node.with_properties_unwrapped(|p: &mut Mask| (p.alpha.get(), p.feather.get().max(0.0)))
+    }
+
+    fn collect_alpha_paints(
+        node: &ExpandedNode,
+        paints: &mut Vec<pax_runtime_api::AlphaMaskPaint>,
+    ) {
+        paints.extend(borrow!(node.instance_node).resolve_alpha_mask_paints(node));
+        for child in node.children.get().iter().rev() {
+            Self::collect_alpha_paints(child, paints);
+        }
+    }
     fn sync_mask_source_layout(expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {
         let children = expanded_node.children.get();
         let mounted_children = borrow!(expanded_node.mounted_children);
@@ -121,11 +146,19 @@ impl MaskInstance {
         layer: usize,
         context: &RuntimeContext,
     ) -> kurbo::BezPath {
+        Self::mask_transform_for_layer(expanded_node, layer, context) * mask_path.clone()
+    }
+
+    fn mask_transform_for_layer(
+        expanded_node: &ExpandedNode,
+        layer: usize,
+        context: &RuntimeContext,
+    ) -> Affine {
         let Some(owner_id) = context.get_layer_scroller_owner(layer) else {
-            return mask_path.clone();
+            return Affine::IDENTITY;
         };
         let Some(owner) = context.get_expanded_node_by_eid(owner_id) else {
-            return mask_path.clone();
+            return Affine::IDENTITY;
         };
         let owner_inverse = Affine::from(owner.transform_and_bounds.get().transform.inverse());
         let mut layer_transform = owner_inverse;
@@ -150,7 +183,7 @@ impl MaskInstance {
             }
         }
 
-        layer_transform * mask_path.clone()
+        layer_transform
     }
 
     fn layer_clip_is_handled_by_scroller_dom(
@@ -158,6 +191,10 @@ impl MaskInstance {
         layer: usize,
         context: &RuntimeContext,
     ) -> bool {
+        if Self::alpha_settings(expanded_node).0 {
+            // CSS coverage clips cannot represent feathered alpha.
+            return false;
+        }
         let Some(owner_id) = context.get_layer_scroller_owner(layer) else {
             return false;
         };
@@ -255,6 +292,9 @@ impl InstanceNode for MaskInstance {
             expanded_node.computed_opacity.untyped(),
             expanded_node.occlusion.untyped(),
         ];
+        expanded_node.with_properties_unwrapped(|p: &mut Mask| {
+            deps.extend([p.alpha.untyped(), p.feather.untyped()]);
+        });
         if let Some(mask_child) = borrow!(expanded_node.sidecar_children).first() {
             Self::sync_mask_source_layout(mask_child, &context);
             Self::collect_mask_source_deps(mask_child, &mut deps);
@@ -269,9 +309,16 @@ impl InstanceNode for MaskInstance {
                     };
 
                     Self::refresh_mask_source_layout(&expanded_node, &context);
-                    let clip_path = Self::resolve_mask_path(&expanded_node)
-                        .map(|path| bez_path_to_svg_path_data(&path))
-                        .unwrap_or_default();
+                    if Self::alpha_settings(&expanded_node).0 {
+                        Self::mark_canvas_descendants_dirty(&expanded_node, &context);
+                    }
+                    let clip_path = if Self::alpha_settings(&expanded_node).0 {
+                        String::new()
+                    } else {
+                        Self::resolve_mask_path(&expanded_node)
+                            .map(|path| bez_path_to_svg_path_data(&path))
+                            .unwrap_or_default()
+                    };
 
                     let mut old_state = borrow_mut!(last_patch);
                     let mut patch = FramePatch {
@@ -344,9 +391,25 @@ impl InstanceNode for MaskInstance {
         }
 
         Self::refresh_mask_source_layout(expanded_node, rtc);
-        let Some(mask_path) = Self::resolve_mask_path(expanded_node) else {
+        let (alpha, feather) = Self::alpha_settings(expanded_node);
+        let mask_path = Self::resolve_mask_path(expanded_node);
+        if mask_path.is_none() && !alpha {
             return;
-        };
+        }
+        let mut paints = Vec::new();
+        if alpha {
+            if let Some(source) = borrow!(expanded_node.sidecar_children).first() {
+                Self::collect_alpha_paints(source, &mut paints);
+            }
+            // The mask's own ancestor opacity already applies to its content.
+            // Only source-relative opacity should modulate that content again.
+            let inherited_opacity = expanded_node.computed_opacity.get();
+            if inherited_opacity > f64::EPSILON {
+                for paint in &mut paints {
+                    paint.opacity = (paint.opacity / inherited_opacity).clamp(0.0, 1.0);
+                }
+            }
+        }
 
         #[cfg(debug_assertions)]
         let mut applied_layers = 0;
@@ -375,10 +438,19 @@ impl InstanceNode for MaskInstance {
                 continue;
             }
             rcs.save(layer);
-            rcs.clip(
-                layer,
-                Self::mask_path_for_layer(&mask_path, expanded_node, layer, rtc),
-            );
+            if alpha {
+                let mapping = Self::mask_transform_for_layer(expanded_node, layer, rtc);
+                let mut layer_paints = paints.clone();
+                for paint in &mut layer_paints {
+                    paint.transform = mapping * paint.transform;
+                }
+                rcs.clip_alpha(layer, &layer_paints, feather);
+            } else if let Some(path) = &mask_path {
+                rcs.clip(
+                    layer,
+                    Self::mask_path_for_layer(path, expanded_node, layer, rtc),
+                );
+            }
             let _ = rcs.end_node(layer, expanded_node.id.to_u32());
             #[cfg(debug_assertions)]
             {
@@ -407,7 +479,9 @@ impl InstanceNode for MaskInstance {
         if !has_dirty_layer {
             return;
         }
-        if Self::resolve_mask_path(expanded_node).is_none() {
+        if Self::resolve_mask_path(expanded_node).is_none()
+            && !Self::alpha_settings(expanded_node).0
+        {
             return;
         }
 
@@ -445,11 +519,17 @@ impl InstanceNode for MaskInstance {
     }
 
     fn resolve_effect_clip_path(&self, expanded_node: &ExpandedNode) -> Option<kurbo::BezPath> {
-        Self::resolve_mask_path(expanded_node)
+        // A hard coverage projection would truncate the feather and incorrectly
+        // occlude content through partially transparent regions.
+        if Self::alpha_settings(expanded_node).0 {
+            None
+        } else {
+            Self::resolve_mask_path(expanded_node)
+        }
     }
 
     fn clips_content(&self, expanded_node: &ExpandedNode) -> bool {
-        Self::resolve_mask_path(expanded_node).is_some()
+        !Self::alpha_settings(expanded_node).0 && Self::resolve_mask_path(expanded_node).is_some()
     }
 
     fn resolve_debug(

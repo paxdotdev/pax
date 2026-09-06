@@ -1,17 +1,5 @@
-<Group width=100% height=100%>
-    <QuiltLayer
-        width=100%
-        height=100%
-        is_compact={self.is_compact}
-        start_turn={self.start_turn}
-        generation={self.generation}
-        wave_origin={self.wave_origin}
-        spin_turn={self.spin_turn}
-    />
-    <Rectangle
-        width=100%
-        height=100%
-        fill=rgba(72, 72, 72, 255)
-        material={Material::glossy(0.86)}
-    />
-</Group>
+<QuiltLayer width=100% height=100%
+    is_compact={self.is_compact}
+    tiles={self.tiles}
+    colorized={self.colorized}
+/>

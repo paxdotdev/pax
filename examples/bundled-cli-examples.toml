@@ -2,9 +2,9 @@ default = "living-quilt"
 
 [[examples]]
 name = "living-quilt"
-description = "A full-bleed 5-by-3 geometric tapestry with the animated Pax logo and a click-centered circular reveal."
+description = "A monochrome geometric tapestry with the animated Pax logo, organic feathered color waves, and sliding panels."
 source = "examples/src/living-quilt"
-caveats = "Vector-native interaction works across web, macOS, iOS, and iPadOS."
+caveats = "Requires the WGPU renderer for painted alpha masks. Web verified; Apple target validation remains separate."
 
 [[examples]]
 name = "ink-and-light"

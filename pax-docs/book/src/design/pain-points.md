@@ -1277,3 +1277,18 @@ space left at the preceding line ending, causing `git diff --check` to fail.
 The affected starter templates were expanded manually after formatting.
 Recommendation: keep whitespace validation separate from formatter check mode
 until wrapped element output is guaranteed to be trailing-space free.
+
+## 2026-09-06
+
+Geometric `Mask` coverage deliberately ignores paint alpha, so translucent
+strokes and gradient stops cannot feather a reveal. `Mask alpha=true` now uses
+painted vector alpha on WGPU, with an optional `feather` Gaussian sigma in
+logical pixels. Use source-over union for repeated sources and test even as
+well as odd overlaps; source-side clips and native control content remain
+outside this first alpha-mask implementation.
+
+Inside an object literal, a dynamic stroke width needs its own expression:
+`stroke={color: WHITE, width: {(ripple.band_width)px}}`. A bare parenthesized
+binding there is parsed as a static literal and fails. For fractional grid
+positions, use floating-point arithmetic (`row * 100.0 / 3.0`); integer
+division truncated thirds and left an uncovered strip at the viewport edge.

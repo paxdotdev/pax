@@ -2,6 +2,16 @@
 
 use super::*;
 
+/// One vector paint contributing alpha to a mask, in local path coordinates.
+/// Color channels do not affect coverage; fill alpha and opacity are multiplied.
+#[derive(Clone, Debug)]
+pub struct AlphaMaskPaint {
+    pub path: kurbo::BezPath,
+    pub transform: kurbo::Affine,
+    pub fill: Fill,
+    pub opacity: f64,
+}
+
 /// Replay invalidation for one logical canvas layer.
 #[derive(Clone, Debug)]
 pub struct ReplayCanvasLayerUpdate {
@@ -115,6 +125,11 @@ pub trait RenderContext {
     fn restore(&mut self, layer: usize);
     /// Applies a clipping path to a layer.
     fn clip(&mut self, layer: usize, path: BezPath);
+    /// Clips canvas drawing by source-over vector paint alpha, optionally
+    /// feathered with a Gaussian of this standard deviation in logical pixels.
+    fn clip_alpha(&mut self, _layer: usize, _paints: &[AlphaMaskPaint], _feather: f64) {
+        panic!("this rendering backend does not implement alpha masks");
+    }
     /// Applies an affine transform to a layer.
     fn transform(&mut self, layer: usize, affine: kurbo::Affine);
 

@@ -446,6 +446,15 @@ pub trait InstanceNode {
         None
     }
 
+    /// Resolves vector paint for an alpha-mask source without rendering or
+    /// mutating the source's retained canvas state.
+    fn resolve_alpha_mask_paints(
+        &self,
+        _expanded_node: &ExpandedNode,
+    ) -> Vec<pax_runtime_api::AlphaMaskPaint> {
+        Vec::new()
+    }
+
     /// Returns coverage used by the occlusion/native-mask/layer-partition pass.
     ///
     /// The default uses the same coverage path as masks and hit-style geometry, but primitives

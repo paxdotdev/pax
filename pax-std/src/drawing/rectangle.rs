@@ -96,6 +96,21 @@ impl InstanceNode for RectangleInstance {
         })
     }
 
+    fn resolve_alpha_mask_paints(
+        &self,
+        node: &ExpandedNode,
+    ) -> Vec<pax_runtime_api::AlphaMaskPaint> {
+        node.with_properties_unwrapped(|p: &mut Rectangle| {
+            let (w, h) = node.transform_and_bounds.get().bounds;
+            crate::common::alpha_mask_paints(
+                node,
+                RoundedRect::new(0.0, 0.0, w, h, &p.corner_radius.get()).to_path(0.1),
+                p.fill.get(),
+                p.stroke.get(),
+            )
+        })
+    }
+
     fn resolve_coverage_opacity(&self, expanded_node: &ExpandedNode) -> f64 {
         expanded_node.with_properties_unwrapped(|properties: &mut Rectangle| {
             (properties.fill.get().coverage_alpha_0_1() * expanded_node.computed_opacity.get())

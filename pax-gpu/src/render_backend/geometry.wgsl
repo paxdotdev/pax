@@ -88,6 +88,8 @@ struct SceneLighting {
 @group(0) @binding(4) var<uniform> gradients: Gradients;
 @group(0) @binding(5) var<uniform> materials: Materials;
 @group(0) @binding(6) var<uniform> scene_lighting: SceneLighting;
+@group(1) @binding(0) var alpha_mask: texture_2d<f32>;
+@group(1) @binding(1) var alpha_sampler: sampler;
 
 struct GpuVertex {
     @location(0) position: vec2<f32>,
@@ -158,6 +160,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
         color = gradient(fill_id, p);
     }
     color.a *= transforms.transforms[primitive.transform_id].opacity;
+    color.a *= textureSampleLevel(alpha_mask, alpha_sampler,
+        in.clip_position.xy / (globals.resolution * globals.dpr), 0.0).r;
     color = apply_lighting(
         color,
         materials.materials[primitive.material_id],

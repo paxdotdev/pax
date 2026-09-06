@@ -57,6 +57,14 @@ use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
 const DEFAULT_TESSELLATION_TOLERANCE: f32 = 0.1;
+
+/// Vector paint used to construct a surface-local alpha mask.
+pub struct AlphaMaskPaint {
+    pub path: Path,
+    pub transform: Transform2D,
+    pub fill: Fill,
+    pub opacity: f32,
+}
 const MAX_VECTOR_GEOMETRY_CACHE_BYTES: usize = 16 * 1024 * 1024;
 const MAX_VECTOR_RESOURCE_CACHE_BYTES: usize = 128 * 1024 * 1024;
 pub const NATIVE_VECTOR_RESOURCE_CACHE_BYTES: usize = 256 * 1024 * 1024;
@@ -422,6 +430,7 @@ struct ClipArenaKey {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum ClipReference {
+    Alpha { owner: u32 },
     Stencil { clip_id: u32 },
     Scissor(ScissorRect),
 }
@@ -936,6 +945,19 @@ impl<'w> WgpuRenderer<'w> {
 
     fn flush_internal(&mut self, defer_submit: bool) {
         self.resource_churn_stats.flushes += 1;
+        let active_alpha_masks = self
+            .scene
+            .values()
+            .flat_map(|node| node.clip_stack())
+            .filter_map(|clip| {
+                if let ClipReference::Alpha { owner } = clip {
+                    Some(*owner)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        self.render_backend.alpha_masks.retain(&active_alpha_masks);
         if !self.scene_dirty {
             self.transform_stack.truncate(1);
             self.clip_stack.clear();
@@ -996,6 +1018,7 @@ impl<'w> WgpuRenderer<'w> {
                     record_retained_batch_stats(&mut self.resource_churn_stats, &current_batch);
                     if !current_batch.is_empty() {
                         retained_runs.push(RetainedBatchRun {
+                            alpha_mask: alpha_for_clip_stack(batch_clip_stack),
                             stencil_index,
                             scissor,
                             draws: std::mem::take(&mut current_batch),
@@ -1040,6 +1063,7 @@ impl<'w> WgpuRenderer<'w> {
             record_retained_batch_stats(&mut self.resource_churn_stats, &current_batch);
             if !current_batch.is_empty() {
                 retained_runs.push(RetainedBatchRun {
+                    alpha_mask: alpha_for_clip_stack(batch_clip_stack),
                     stencil_index,
                     scissor,
                     draws: std::mem::take(&mut current_batch),
@@ -1111,6 +1135,87 @@ impl<'w> WgpuRenderer<'w> {
         };
         current_node.owned_clip_keys.push(clip_key);
         self.clip_stack.push(ClipReference::Stencil { clip_id });
+    }
+
+    /// Installs a painted alpha mask in the current save/restore scope.
+    pub fn clip_alpha(&mut self, paints: Vec<AlphaMaskPaint>, feather: f32) {
+        use crate::render_backend::alpha_mask::{Draw, Paint};
+        let Some(node) = &self.current_node else {
+            return;
+        };
+        let owner = node.id;
+        let parent = alpha_for_clip_stack(&self.clip_stack);
+        let mut hash = DefaultHasher::new();
+        self.render_backend
+            .alpha_masks
+            .signature(parent)
+            .hash(&mut hash);
+        let transform = self.current_transform();
+        let mut draws = Vec::new();
+        for source in paints {
+            let mut paint = Paint::default();
+            paint.params[1] = source.opacity;
+            match source.fill {
+                Fill::Solid(color) => paint.params[0] = color.rgba[3],
+                Fill::Gradient {
+                    gradient_type,
+                    pos,
+                    main_axis,
+                    off_axis,
+                    stops,
+                } => {
+                    paint.axis = [pos.x, pos.y, main_axis.x, main_axis.y];
+                    paint.off_axis = [off_axis.x, off_axis.y, 0.0, 0.0];
+                    paint.params[2] = stops.len().min(8) as f32;
+                    paint.params[3] = if matches!(gradient_type, GradientType::Radial) {
+                        1.0
+                    } else {
+                        0.0
+                    };
+                    for (slot, stop) in paint.stops.iter_mut().zip(stops.iter()) {
+                        *slot = [stop.stop, stop.color.rgba[3], 0.0, 0.0];
+                    }
+                }
+            }
+            bytemuck::bytes_of(&paint).hash(&mut hash);
+            let mut geometry: VertexBuffers<[f32; 2], u32> = VertexBuffers::new();
+            let mapping = source.transform.then(&transform);
+            let mut builder = BuffersBuilder::new(&mut geometry, |v: FillVertex| {
+                mapping
+                    .transform_point(point(v.position().x, v.position().y))
+                    .to_array()
+            });
+            if let Err(error) = FillTessellator::new().tessellate_path(
+                &source.path,
+                &FillOptions::default()
+                    .with_tolerance(self.tolerance)
+                    .with_fill_rule(FillRule::NonZero),
+                &mut builder,
+            ) {
+                log::error!("alpha mask tessellation failed: {error:?}");
+            }
+            bytemuck::cast_slice::<_, u8>(&geometry.vertices).hash(&mut hash);
+            geometry.indices.hash(&mut hash);
+            draws.push(Draw {
+                vertices: geometry.vertices,
+                indices: geometry.indices,
+                paint,
+            });
+        }
+        feather.to_bits().hash(&mut hash);
+        for value in self
+            .render_backend
+            .globals
+            .resolution
+            .into_iter()
+            .chain(self.render_backend.globals.dpr)
+        {
+            value.to_bits().hash(&mut hash);
+        }
+        self.render_backend
+            .render_alpha_mask(owner, hash.finish(), &draws, feather, parent);
+        self.clip_stack.push(ClipReference::Alpha { owner });
+        self.scene_dirty = true;
     }
 
     pub fn resize(&mut self, width: f32, height: f32) {
@@ -3010,7 +3115,7 @@ fn clip_stack_sync<'a>(
         .iter()
         .filter_map(|clip| match clip {
             ClipReference::Stencil { clip_id } => Some(*clip_id),
-            ClipReference::Scissor(_) => None,
+            ClipReference::Scissor(_) | ClipReference::Alpha { .. } => None,
         })
         .collect();
     let shared_prefix = current_clip_stack
@@ -3057,6 +3162,7 @@ fn push_primitive_segment<'a>(
         clip_stack_sync(current_clip_stack, desired_clip_stack, clip_arena);
     update_current_clip_stack(current_clip_stack, shared_prefix, &clip_draws);
     segments.push(PrimitiveBatchSegment {
+        alpha_mask: alpha_for_clip_stack(desired_clip_stack),
         stencil_depth: shared_prefix as u32,
         clips: clip_draws,
         scissor: scissor_for_clip_stack(desired_clip_stack),
@@ -3100,6 +3206,13 @@ fn scissor_for_clip_stack(clip_stack: &[ClipReference]) -> Option<ScissorRect> {
         });
     }
     scissor
+}
+
+fn alpha_for_clip_stack(stack: &[ClipReference]) -> Option<u32> {
+    stack.iter().rev().find_map(|clip| match clip {
+        ClipReference::Alpha { owner } => Some(*owner),
+        _ => None,
+    })
 }
 
 fn intersect_scissor_rects(left: ScissorRect, right: ScissorRect) -> ScissorRect {

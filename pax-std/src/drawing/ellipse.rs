@@ -1,5 +1,6 @@
 use kurbo::{Affine, Rect, Shape};
 use pax_engine::*;
+use pax_runtime::api as pax_runtime_api;
 use pax_runtime::api::{use_RefCell, Stroke};
 use pax_runtime::api::{Fill, Layer, Material, RenderContext};
 use pax_runtime::BaseInstance;
@@ -91,6 +92,21 @@ impl InstanceNode for EllipseInstance {
         let rect = Rect::from_points((0.0, 0.0), (width, height));
         let ellipse = kurbo::Ellipse::from_rect(rect);
         Some(Affine::from(tab.transform) * ellipse.to_path(ELLIPSE_PATH_ACCURACY))
+    }
+
+    fn resolve_alpha_mask_paints(
+        &self,
+        node: &ExpandedNode,
+    ) -> Vec<pax_runtime_api::AlphaMaskPaint> {
+        node.with_properties_unwrapped(|p: &mut Ellipse| {
+            let (w, h) = node.transform_and_bounds.get().bounds;
+            crate::common::alpha_mask_paints(
+                node,
+                kurbo::Ellipse::from_rect(Rect::new(0.0, 0.0, w, h)).to_path(ELLIPSE_PATH_ACCURACY),
+                p.fill.get(),
+                p.stroke.get(),
+            )
+        })
     }
 
     fn resolve_coverage_opacity(&self, expanded_node: &ExpandedNode) -> f64 {

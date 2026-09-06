@@ -1,94 +1,34 @@
 <Group width=100% height=100% @click=self.handle_tile_click @mouse_move=self.handle_mouse_move>
-    // The card is shared by both quilt states, so its internal logo masks stay
-    // independent from the circular reveal and replay once per spin burst.
-    <LogoCard
-        x=50%
-        y=50%
+    <LogoCard x=50% y=50%
         width={is_compact ? 290px : 382px}
         height={is_compact ? 171px : 217px}
-        anchor=50%
-        is_compact={is_compact}
-        logo_progress={logo_progress}
+        anchor=50% is_compact={is_compact} logo_progress={logo_progress}
     />
-    // Filled mask circles correctly collapse into a union, so a younger
-    // circle wholly inside an older one has no independent boundary. These
-    // unlit leading edges keep rapid clicks visibly concentric without
-    // changing the reveal's coverage semantics.
-    <Group width=100% height=100%>
-        for ripple in self.ripples key ripple.id {
-            if ripple.id != 0 {
-                <Ellipse
-                    x={(ripple.x)px}
-                    y={(ripple.y)px}
-                    width={(18 + ripple.progress * ripple.diameter)px}
-                    height={(18 + ripple.progress * ripple.diameter)px}
-                    anchor=50%
+
+    // One shared color view keeps tile seams and slides aligned with the
+    // monochrome view. Each live wave paints alpha into the same soft mask.
+    <Mask width=100% height=100% alpha=true feather=12.0>
+        <QuiltScene width=100% height=100% tiles={self.tiles}
+            is_compact={self.is_compact} colorized=true/>
+        <Group width=100% height=100%>
+            for ripple in self.ripples key ripple.id {
+                <Path width=100% height=100%
+                    elements={ripple.elements}
+                    fill=TRANSPARENT
+                    stroke={color: WHITE, width: {(ripple.band_width)px}}
+                    opacity={ripple.opacity}
                     _raycastable=false
-                    fill=rgba(0, 0, 0, 0)
-                    stroke={color: rgba(8, 8, 8, 210), width: 7px}
-                    opacity={(1.0 - ripple.progress) * 0.68}
-                />
-                <Ellipse
-                    x={(ripple.x)px}
-                    y={(ripple.y)px}
-                    width={(18 + ripple.progress * ripple.diameter)px}
-                    height={(18 + ripple.progress * ripple.diameter)px}
-                    anchor=50%
-                    _raycastable=false
-                    fill=rgba(0, 0, 0, 0)
-                    stroke={color: rgba(248, 248, 248, 235), width: 3px}
-                    opacity={(1.0 - ripple.progress) * 0.90}
                 />
             }
-        }
-    </Group>
-    // Lighting is scoped to the quilt. The shared logo card remains an unlit
-    // sibling, preserving its authored black-and-paper identity.
+        </Group>
+    </Mask>
+
     <LightFrame width=100% height=100%>
-        <LightSource
-            x={(light_x * 100)%}
-            y={(light_y * 100)%}
-            width=1px
-            height=1px
-            z=170px
-            radius={is_compact ? 480px : 720px}
-            intensity=1.35
-            color=WHITE
-        />
-        // The next complete quilt is revealed through the union of every live
-        // ripple. A stable base quilt remains visible outside their coverage.
-        <Mask width=100% height=100%>
-            <QuiltScene
-                width=100%
-                height=100%
-                is_compact={is_compact}
-                start_turn={base_turn}
-                generation={next_generation}
-                wave_origin={wave_origin}
-                spin_turn={spin_turn}
-            />
-            <Group width=100% height=100%>
-                for ripple in self.ripples key ripple.id {
-                    <Ellipse
-                        x={(ripple.x)px}
-                        y={(ripple.y)px}
-                        width={(0.5 + ripple.progress * ripple.diameter)px}
-                        height={(0.5 + ripple.progress * ripple.diameter)px}
-                        anchor=50%
-                        fill=BLACK
-                    />
-                }
-            </Group>
-        </Mask>
-        <QuiltScene
-            width=100%
-            height=100%
-            is_compact={is_compact}
-            start_turn={base_turn}
-            generation={base_generation}
-            wave_origin={wave_origin}
-            spin_turn={base_turn}
-        />
+        <LightSource x={(light_x * 100)%} y={(light_y * 100)%}
+            width=1px height=1px z=170px radius={is_compact ? 480px : 720px}
+            intensity=1.35 color=WHITE/>
+        <QuiltScene width=100% height=100% tiles={self.tiles}
+            is_compact={self.is_compact} colorized=false/>
     </LightFrame>
 </Group>
 

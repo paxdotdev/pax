@@ -1316,6 +1316,34 @@ impl RenderContext for PaxGpuRenderer {
             context.clip(path);
         });
     }
+    fn clip_alpha(
+        &mut self,
+        layer: usize,
+        paints: &[pax_runtime_api::AlphaMaskPaint],
+        feather: f64,
+    ) {
+        self.with_layer_context(layer, |context| {
+            let paints = paints
+                .iter()
+                .map(|paint| {
+                    let transform =
+                        Transform2D::from_array(paint.transform.as_coeffs().map(|v| v as f32));
+                    pax_gpu::AlphaMaskPaint {
+                        path: convert_kurbo_to_lyon_path(&paint.path),
+                        fill: to_pax_gpu_alpha_fill(
+                            &paint.fill,
+                            paint.path.bounding_box(),
+                            transform.then(&context.current_transform()),
+                        ),
+                        transform,
+                        opacity: paint.opacity.clamp(0.0, 1.0) as f32,
+                    }
+                })
+                .collect();
+            context.clip_alpha(paints, feather.max(0.0) as f32);
+        });
+    }
+
     fn transform(&mut self, layer: usize, affine: kurbo::Affine) {
         self.with_layer_context(layer, |context| {
             context.transform(Transform2D::from_array(
@@ -1869,6 +1897,68 @@ fn to_pax_gpu_fill(
     }
 }
 
+fn to_pax_gpu_alpha_fill(
+    fill: &pax_runtime_api::Fill,
+    rect: Rect,
+    transform: Transform2D,
+) -> pax_gpu::Fill {
+    // Preserve a complete gradient basis so alpha stays attached to a sheared
+    // or nonuniformly scaled mask source. A concentric radial gradient has no
+    // direction vector; its authored radius still defines a valid circle.
+    let bounds = (rect.width(), rect.height());
+    match fill {
+        pax_runtime_api::Fill::RadialGradient(g) => {
+            let center = point(
+                (rect.x0 + g.start.0.evaluate(bounds, Axis::X)) as f32,
+                (rect.y0 + g.start.1.evaluate(bounds, Axis::Y)) as f32,
+            );
+            let direction = pax_gpu::Vector2D::new(
+                (g.end.0.evaluate(bounds, Axis::X) - g.start.0.evaluate(bounds, Axis::X)) as f32,
+                (g.end.1.evaluate(bounds, Axis::Y) - g.start.1.evaluate(bounds, Axis::Y)) as f32,
+            );
+            let unit = if direction.length() > 0.0001 {
+                direction / direction.length()
+            } else {
+                pax_gpu::Vector2D::new(1.0, 0.0)
+            };
+            let axis = unit * (g.radius as f32).max(0.0001);
+            let off = pax_gpu::Vector2D::new(-axis.y, axis.x);
+            let pos = transform.transform_point(center);
+            let main_axis = transform.transform_point(center + axis) - pos;
+            let off_axis = transform.transform_point(center + off) - pos;
+            pax_gpu::Fill::Gradient {
+                gradient_type: pax_gpu::GradientType::Radial,
+                pos,
+                main_axis,
+                off_axis,
+                stops: g
+                    .stops
+                    .iter()
+                    .map(|s| pax_gpu::GradientStop {
+                        color: to_pax_gpu_color(&s.color),
+                        stop: s
+                            .position
+                            .evaluate((main_axis.length() as f64, 0.0), Axis::X)
+                            as f32,
+                    })
+                    .collect(),
+            }
+        }
+        pax_runtime_api::Fill::LinearGradient(g) => {
+            let mut resolved = to_pax_gpu_fill(fill, rect, transform);
+            if let pax_gpu::Fill::Gradient { off_axis, .. } = &mut resolved {
+                let dx = (g.end.0.evaluate(bounds, Axis::X) - g.start.0.evaluate(bounds, Axis::X))
+                    as f32;
+                let dy = (g.end.1.evaluate(bounds, Axis::Y) - g.start.1.evaluate(bounds, Axis::Y))
+                    as f32;
+                *off_axis = transform.transform_vector(pax_gpu::Vector2D::new(-dy, dx));
+            }
+            resolved
+        }
+        _ => to_pax_gpu_fill(fill, rect, transform),
+    }
+}
+
 fn to_pax_gpu_material(material: &pax_runtime_api::Material) -> PixelMaterial {
     match material {
         pax_runtime_api::Material::Unlit => PixelMaterial::unlit(),
@@ -1997,6 +2087,57 @@ pub fn convert_kurbo_to_lyon_path(kurbo_path: &BezPath) -> Path {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn alpha_radial_gradient_retains_radius_with_coincident_endpoints() {
+        use pax_runtime_api::{Fill, RadialGradient, Size};
+        let fill = Fill::RadialGradient(RadialGradient {
+            start: (Size::Percent(50.into()), Size::Percent(50.into())),
+            end: (Size::Percent(50.into()), Size::Percent(50.into())),
+            radius: 25.0,
+            stops: vec![],
+        });
+        let pax_gpu::Fill::Gradient {
+            pos,
+            main_axis,
+            off_axis,
+            ..
+        } = to_pax_gpu_alpha_fill(
+            &fill,
+            Rect::new(0.0, 0.0, 100.0, 100.0),
+            Transform2D::new(2.0, 0.0, 1.0, 3.0, 0.0, 0.0),
+        )
+        else {
+            panic!("expected a radial gradient")
+        };
+        assert_eq!(pos, point(150.0, 150.0));
+        assert_eq!(main_axis, pax_gpu::Vector2D::new(50.0, 0.0));
+        assert_eq!(off_axis, pax_gpu::Vector2D::new(25.0, 75.0));
+    }
+
+    #[test]
+    fn alpha_linear_gradient_retains_sheared_basis() {
+        use pax_runtime_api::{Fill, LinearGradient, Size};
+        let fill = Fill::LinearGradient(LinearGradient {
+            start: (Size::Percent(0.into()), Size::Percent(0.into())),
+            end: (Size::Percent(100.into()), Size::Percent(0.into())),
+            stops: vec![],
+        });
+        let pax_gpu::Fill::Gradient {
+            main_axis,
+            off_axis,
+            ..
+        } = to_pax_gpu_alpha_fill(
+            &fill,
+            Rect::new(0.0, 0.0, 100.0, 100.0),
+            Transform2D::new(1.0, 0.0, 0.5, 1.0, 0.0, 0.0),
+        )
+        else {
+            panic!("expected a linear gradient")
+        };
+        assert_eq!(main_axis, pax_gpu::Vector2D::new(100.0, 0.0));
+        assert_eq!(off_axis, pax_gpu::Vector2D::new(50.0, 100.0));
+    }
 
     #[test]
     fn surface_intersection_includes_edges() {

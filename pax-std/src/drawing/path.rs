@@ -1,6 +1,7 @@
 use kurbo::{Affine, BezPath, Rect, Shape};
 
 use pax_engine::api::{Fill, PathElement};
+use pax_runtime::api as pax_runtime_api;
 use pax_runtime::api::drawing::path_smoothing::smooth_bez_path;
 use pax_runtime::api::drawing::stroke_utils::{stroke_width_pixels, stroked_outline_path};
 use pax_runtime::api::{borrow, borrow_mut, use_RefCell};
@@ -224,6 +225,38 @@ impl InstanceNode for PathInstance {
             }
             let tab = expanded_node.transform_and_bounds.get();
             Some(Affine::from(tab.transform) * coverage)
+        })
+    }
+
+    fn resolve_alpha_mask_paints(
+        &self,
+        node: &ExpandedNode,
+    ) -> Vec<pax_runtime_api::AlphaMaskPaint> {
+        node.with_properties_unwrapped(|p: &mut Path| {
+            let Some(path) =
+                build_local_bez_path(&p.elements.get(), node.transform_and_bounds.get().bounds)
+            else {
+                return Vec::new();
+            };
+            let path = smooth_bez_path(&path, p.smoothing.get());
+            let mut paints = crate::common::alpha_mask_paints(
+                node,
+                path.clone(),
+                p.fill.get(),
+                Stroke::default(),
+            );
+            let path = pax_runtime_api::drawing::path_trim::trim_bez_path(
+                &path,
+                p.draw_start.get().to_clamped_unit_float(),
+                p.draw_end.get().to_clamped_unit_float(),
+            );
+            paints.extend(crate::common::alpha_mask_paints(
+                node,
+                path,
+                Fill::Solid(pax_runtime_api::Color::TRANSPARENT),
+                p.stroke.get(),
+            ));
+            paints
         })
     }
 

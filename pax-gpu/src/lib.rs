@@ -13,6 +13,7 @@ pub use lyon::path::builder::BorderRadii;
 pub use lyon::path::Path;
 pub use lyon::path::Winding;
 pub use render_backend::Image;
+pub use render_context::AlphaMaskPaint;
 pub use render_context::Color;
 pub use render_context::DrawRange;
 pub use render_context::Fill;

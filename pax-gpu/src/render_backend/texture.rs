@@ -46,7 +46,9 @@ pub(crate) struct RetainedImageResource {
 impl TextureRenderer {
     #[allow(dead_code)]
     pub fn new(device: &wgpu::Device, target_format: TextureFormat, sample_count: u32) -> Self {
-        let resources = Self::create_pipeline_resources(device, target_format, sample_count);
+        let alpha_layout = super::alpha_mask::sampling_layout(device);
+        let resources =
+            Self::create_pipeline_resources(device, target_format, sample_count, &alpha_layout);
         Self::with_pipeline_resources(device, resources)
     }
 
@@ -79,6 +81,7 @@ impl TextureRenderer {
         device: &wgpu::Device,
         target_format: TextureFormat,
         sample_count: u32,
+        alpha_layout: &wgpu::BindGroupLayout,
     ) -> TexturePipelineResources {
         let texture_shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Texture Shader"),
@@ -120,7 +123,7 @@ impl TextureRenderer {
         let texture_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Texture Pipeline Layout"),
-                bind_group_layouts: &[&texture_bind_group_layout],
+                bind_group_layouts: &[&texture_bind_group_layout, alpha_layout],
                 immediate_size: 0,
             });
 

@@ -1,6 +1,7 @@
 use kurbo::{Affine, Shape};
 pub use pax_engine::api::Size;
 use pax_message::AppleLiquidGlassPatch;
+use pax_runtime::api as pax_runtime_api;
 use pax_runtime::api::RenderContext;
 use pax_runtime::{ExpandedNode, RuntimeContext};
 
@@ -156,4 +157,33 @@ pub(crate) fn begin_canvas_node_with_local_bounds(
         surface_transform,
         bounds: tab.bounds,
     })
+}
+/// Extracts fill and stroke alpha with the same local geometry as visible paint.
+pub(crate) fn alpha_mask_paints(
+    node: &pax_runtime::ExpandedNode,
+    path: kurbo::BezPath,
+    fill: pax_runtime_api::Fill,
+    stroke: pax_runtime_api::Stroke,
+) -> Vec<pax_runtime_api::AlphaMaskPaint> {
+    use pax_runtime_api::drawing::stroke_utils::stroked_outline_path;
+    let transform = kurbo::Affine::from(node.transform_and_bounds.get().transform);
+    let opacity = node.computed_opacity.get();
+    let mut paints = Vec::new();
+    if fill.coverage_alpha_0_1() > f64::EPSILON {
+        paints.push(pax_runtime_api::AlphaMaskPaint {
+            path: path.clone(),
+            transform,
+            fill,
+            opacity,
+        });
+    }
+    if let Some(path) = stroked_outline_path(&path, &stroke) {
+        paints.push(pax_runtime_api::AlphaMaskPaint {
+            path,
+            transform,
+            fill: pax_runtime_api::Fill::Solid(stroke.color.get()),
+            opacity,
+        });
+    }
+    paints
 }

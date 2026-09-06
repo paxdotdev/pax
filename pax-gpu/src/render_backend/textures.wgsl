@@ -7,6 +7,8 @@ struct Globals {
 @group(0) @binding(0) var<uniform> globals: Globals;
 @group(0) @binding(1) var texture: texture_2d<f32>;
 @group(0)@binding(2) var texture_sampler: sampler;
+@group(1) @binding(0) var alpha_mask: texture_2d<f32>;
+@group(1) @binding(1) var alpha_sampler: sampler;
 
 struct TextureVertex {
     @location(0) position: vec2<f32>,
@@ -36,5 +38,7 @@ fn vs_main(
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let t = textureSample(texture, texture_sampler, in.texture_coord);
-    return vec4<f32>(t.x + in.texture_coord.x/1000.0, t.y + in.texture_coord.y/1000.0, t.z, t.w);
+    let alpha = textureSampleLevel(alpha_mask, alpha_sampler,
+        in.clip_position.xy / (globals.resolution * globals.dpr), 0.0).r;
+    return vec4<f32>(t.x + in.texture_coord.x/1000.0, t.y + in.texture_coord.y/1000.0, t.z, t.w * alpha);
 }

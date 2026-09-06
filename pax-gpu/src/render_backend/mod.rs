@@ -15,6 +15,7 @@ use wgpu::{
     TextureFormat, TextureFormatFeatureFlags, TextureUsages, TextureView,
 };
 
+pub(crate) mod alpha_mask;
 pub mod data;
 mod gpu_resources;
 pub mod stencil;
@@ -67,6 +68,7 @@ pub struct GpuContext {
     queue: wgpu::Queue,
     max_surface_dimension: u32,
     primitive_bind_group_layout: BindGroupLayout,
+    alpha_mask_layout: BindGroupLayout,
     vector_pipelines: RefCell<HashMap<VectorPipelineKey, Rc<RenderPipeline>>>,
     texture_pipelines: RefCell<HashMap<VectorPipelineKey, TexturePipelineResources>>,
     stencil_pipelines: RefCell<HashMap<VectorPipelineKey, StencilPipelineResources>>,
@@ -117,6 +119,7 @@ impl GpuContext {
             max_surface_dimension
         );
         let primitive_bind_group_layout = create_primitive_bind_group_layout(&device);
+        let alpha_mask_layout = alpha_mask::sampling_layout(&device);
 
         Ok(Rc::new(Self {
             instance,
@@ -125,6 +128,7 @@ impl GpuContext {
             queue,
             max_surface_dimension,
             primitive_bind_group_layout,
+            alpha_mask_layout,
             vector_pipelines: RefCell::new(HashMap::new()),
             texture_pipelines: RefCell::new(HashMap::new()),
             stencil_pipelines: RefCell::new(HashMap::new()),
@@ -145,6 +149,7 @@ impl GpuContext {
             format,
             sample_count,
             &self.primitive_bind_group_layout,
+            &self.alpha_mask_layout,
         ));
         self.vector_pipelines
             .borrow_mut()
@@ -165,8 +170,12 @@ impl GpuContext {
             return resources.clone();
         }
 
-        let resources =
-            TextureRenderer::create_pipeline_resources(&self.device, format, sample_count);
+        let resources = TextureRenderer::create_pipeline_resources(
+            &self.device,
+            format,
+            sample_count,
+            &self.alpha_mask_layout,
+        );
         self.texture_pipelines
             .borrow_mut()
             .insert(key, resources.clone());
@@ -394,6 +403,7 @@ pub struct RenderBackend<'w> {
     // plugins / extensions
     texture_renderer: TextureRenderer,
     stencil_renderer: StencilRenderer,
+    pub(crate) alpha_masks: alpha_mask::AlphaMasks,
     multisampled_target: Option<MultisampledTarget>,
     sample_count: u32,
     clear_color: wgpu::Color,
@@ -498,6 +508,7 @@ pub(crate) enum RetainedDraw<'a> {
 }
 
 pub(crate) struct RetainedBatchRun<'a> {
+    pub alpha_mask: Option<u32>,
     pub stencil_index: u32,
     pub scissor: Option<ScissorRect>,
     pub draws: Vec<RetainedDraw<'a>>,
@@ -517,6 +528,7 @@ pub(crate) struct PrimitiveBatch<'a> {
 }
 
 pub(crate) struct PrimitiveBatchSegment<'a> {
+    pub alpha_mask: Option<u32>,
     pub stencil_depth: u32,
     pub clips: Vec<stencil::ClipDraw<'a>>,
     pub scissor: Option<ScissorRect>,
@@ -525,6 +537,7 @@ pub(crate) struct PrimitiveBatchSegment<'a> {
 }
 
 struct PrimitiveBatchRenderPlan {
+    alpha_mask: Option<u32>,
     stencil_sync: stencil::PreparedStencilSync,
     stencil_reference: u32,
     scissor: Option<(u32, u32, u32, u32)>,
@@ -1097,7 +1110,10 @@ impl<'w> RenderBackend<'w> {
         let initial_width = initial_width;
         let initial_height = initial_height;
         let initial_dpr = config.initial_dpr;
+        let alpha_masks =
+            alpha_mask::AlphaMasks::new(&device, &queue, context.alpha_mask_layout.clone());
         let mut backend = Self {
+            alpha_masks,
             context: Rc::clone(&context),
             texture_renderer,
             stencil_renderer,
@@ -1162,6 +1178,7 @@ impl<'w> RenderBackend<'w> {
         format: TextureFormat,
         sample_count: u32,
         primitive_bind_group_layout: &BindGroupLayout,
+        alpha_mask_layout: &BindGroupLayout,
     ) -> RenderPipeline {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
@@ -1170,7 +1187,7 @@ impl<'w> RenderBackend<'w> {
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[primitive_bind_group_layout],
+                bind_group_layouts: &[primitive_bind_group_layout, alpha_mask_layout],
                 immediate_size: 0,
             });
 
@@ -1646,6 +1663,7 @@ impl<'w> RenderBackend<'w> {
             });
             render_pass.set_pipeline(self.pipeline.as_ref());
             render_pass.set_bind_group(0, &resource.bind_group, &[]);
+            render_pass.set_bind_group(1, self.alpha_masks.bind_group(None), &[]);
             render_pass.set_vertex_buffer(0, resource.shared.vertex_buffer.slice(..));
             render_pass.set_stencil_reference(stencil_index);
             render_pass
@@ -1684,6 +1702,7 @@ impl<'w> RenderBackend<'w> {
             });
             render_pass.set_pipeline(self.pipeline.as_ref());
             render_pass.set_bind_group(0, &resource.bind_group, &[]);
+            render_pass.set_bind_group(1, self.alpha_masks.bind_group(None), &[]);
             render_pass.set_vertex_buffer(0, resource.shared.vertex_buffer.slice(..));
             render_pass.set_stencil_reference(stencil_index);
             render_pass
@@ -1691,6 +1710,36 @@ impl<'w> RenderBackend<'w> {
             render_pass.draw_indexed(0..resource.shared.index_count, 0, 0..1);
         }
 
+        self.enqueue_command_buffer(encoder.finish());
+    }
+
+    pub(crate) fn render_alpha_mask(
+        &mut self,
+        id: u32,
+        signature: u64,
+        draws: &[alpha_mask::Draw],
+        feather: f32,
+        parent: Option<u32>,
+    ) {
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Alpha mask encoder"),
+            });
+        self.alpha_masks.render(
+            &self.device,
+            &mut encoder,
+            id,
+            signature,
+            draws,
+            [
+                self.surface_config.width.max(1),
+                self.surface_config.height.max(1),
+            ],
+            self.globals,
+            feather,
+            parent,
+        );
         self.enqueue_command_buffer(encoder.finish());
     }
 
@@ -1763,6 +1812,7 @@ impl<'w> RenderBackend<'w> {
                 }
                 render_pass.set_stencil_reference(run.stencil_index);
                 render_pass.set_scissor_rect(scissor.0, scissor.1, scissor.2, scissor.3);
+                render_pass.set_bind_group(1, self.alpha_masks.bind_group(run.alpha_mask), &[]);
                 for draw in &run.draws {
                     match draw {
                         RetainedDraw::Vector(resource) => {
@@ -1830,6 +1880,7 @@ impl<'w> RenderBackend<'w> {
                 }
                 render_pass.set_stencil_reference(run.stencil_index);
                 render_pass.set_scissor_rect(scissor.0, scissor.1, scissor.2, scissor.3);
+                render_pass.set_bind_group(1, self.alpha_masks.bind_group(run.alpha_mask), &[]);
                 for draw in &run.draws {
                     match draw {
                         RetainedDraw::Vector(resource) => {
@@ -2103,6 +2154,7 @@ impl<'w> RenderBackend<'w> {
                     self.surface_config.height,
                 );
                 plans.push(PrimitiveBatchRenderPlan {
+                    alpha_mask: segment.alpha_mask,
                     stencil_sync,
                     stencil_reference,
                     scissor,
@@ -2179,6 +2231,11 @@ impl<'w> RenderBackend<'w> {
                     }
                     render_pass.set_pipeline(self.pipeline.as_ref());
                     render_pass.set_bind_group(0, &self.bind_group, &[]);
+                    render_pass.set_bind_group(
+                        1,
+                        self.alpha_masks.bind_group(plan.alpha_mask),
+                        &[],
+                    );
                     render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
                     render_pass.set_stencil_reference(plan.stencil_reference);
                     render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
@@ -2291,6 +2348,11 @@ impl<'w> RenderBackend<'w> {
                     render_pass.set_stencil_reference(stencil_reference);
                     render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
                     for (segment, scissor) in &drawable_segments {
+                        render_pass.set_bind_group(
+                            1,
+                            self.alpha_masks.bind_group(segment.alpha_mask),
+                            &[],
+                        );
                         render_pass.set_scissor_rect(scissor.0, scissor.1, scissor.2, scissor.3);
                         render_pass.draw_indexed(
                             segment.index_start..segment.index_start + segment.index_count,
@@ -2337,6 +2399,11 @@ impl<'w> RenderBackend<'w> {
                     render_pass.set_stencil_reference(stencil_reference);
                     render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
                     for (segment, scissor) in &drawable_segments {
+                        render_pass.set_bind_group(
+                            1,
+                            self.alpha_masks.bind_group(segment.alpha_mask),
+                            &[],
+                        );
                         render_pass.set_scissor_rect(scissor.0, scissor.1, scissor.2, scissor.3);
                         render_pass.draw_indexed(
                             segment.index_start..segment.index_start + segment.index_count,
@@ -2886,6 +2953,22 @@ impl CpuBuffers {
 
 #[cfg(test)]
 mod shader_tests {
+    #[test]
+    fn alpha_mask_shaders_parse_and_validate() {
+        for source in [
+            include_str!("alpha_mask.wgsl"),
+            include_str!("alpha_blur.wgsl"),
+            include_str!("textures.wgsl"),
+        ] {
+            let module = naga::front::wgsl::parse_str(source).expect("alpha shader parses");
+            naga::valid::Validator::new(
+                naga::valid::ValidationFlags::all(),
+                naga::valid::Capabilities::all(),
+            )
+            .validate(&module)
+            .expect("alpha shader validates");
+        }
+    }
     #[test]
     fn geometry_shader_parses_and_validates() {
         let module = naga::front::wgsl::parse_str(include_str!("geometry.wgsl"))
