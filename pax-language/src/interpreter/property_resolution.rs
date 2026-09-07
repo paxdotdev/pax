@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use pax_runtime_api::{PaxValue, Property, Variable};
 
 use super::{
-    PaxExpression, PaxInfix, PaxNullCoalesce, PaxPostfix, PaxPrefix, PaxPrimary, PaxTernary,
+    PaxAccessor, PaxExpression, PaxInfix, PaxNullCoalesce, PaxPostfix, PaxPrefix, PaxPrimary, PaxTernary,
 };
 
 /// Trait for resolving identifiers to values
@@ -35,7 +35,15 @@ impl DependencyCollector for PaxPrimary {
         let ret = match self {
             PaxPrimary::Literal(_) => vec![],
             PaxPrimary::Grouped(expr, _) => expr.collect_dependencies(),
-            PaxPrimary::Identifier(i, _) => vec![i.name.clone()],
+            PaxPrimary::Identifier(i, accessors) => {
+                let mut deps = vec![i.name.clone()];
+                for accessor in accessors {
+                    if let PaxAccessor::List(index) = accessor {
+                        deps.extend(index.collect_dependencies());
+                    }
+                }
+                deps
+            }
             PaxPrimary::Object(o) => o
                 .iter()
                 .flat_map(|(_, v)| v.collect_dependencies())

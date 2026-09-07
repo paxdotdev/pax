@@ -4502,6 +4502,48 @@ mod base_symbol_tests {
     }
 
     #[test]
+    fn pax995_dynamic_index_invalidates_component_property() {
+        let items = Property::new(vec![vec![10_i64, 20_i64], vec![30, 40]]);
+        let indices = Property::new(vec![0_i64, 1]);
+        let index = Property::new(0_i64);
+        let column = Property::new(0_i64);
+        let stack = RuntimePropertiesStackFrame::new(HashMap::from([
+            (
+                "items".into(),
+                Variable::new_from_typed_property(items.clone()),
+            ),
+            (
+                "indices".into(),
+                Variable::new_from_typed_property(indices.clone()),
+            ),
+            (
+                "index".into(),
+                Variable::new_from_typed_property(index.clone()),
+            ),
+            (
+                "column".into(),
+                Variable::new_from_typed_property(column.clone()),
+            ),
+        ]));
+        let selected: Property<i64> = build_component_property(
+            "selected",
+            &expression("items[indices[index]][column + 0]"),
+            &stack,
+            stack.clone(),
+            |_, _| unreachable!(),
+        );
+        assert_eq!(selected.get(), 10);
+        index.set(1);
+        assert_eq!(selected.get(), 30);
+        column.set(1);
+        assert_eq!(selected.get(), 40);
+        indices.set(vec![1, 0]);
+        assert_eq!(selected.get(), 20);
+        items.set(vec![vec![50, 60], vec![70, 80]]);
+        assert_eq!(selected.get(), 60);
+    }
+
+    #[test]
     fn base_symbol_resolves_previous_component_property_layer() {
         let base_property = Property::new(10.0_f64);
         let stack = stack_with_base(&empty_stack(), base_property);

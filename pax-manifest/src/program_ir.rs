@@ -691,6 +691,75 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "parsing")]
+    fn pax995_program_binary_preserves_ast_dependencies_and_results() -> BinaryResult<()> {
+        use pax_language::{parse_pax_expression, Computable, DependencyCollector};
+        use pax_runtime_api::{Functions, ToPaxValue};
+        use std::rc::Rc;
+        Functions::register_all_functions();
+        for source in [
+            "items[indices[index]]",
+            "1 + 2 > 2",
+            "true || false && false",
+            "2 * 3 %% 2",
+            "false && items[9]",
+            "true || items[9]",
+            "None ?? (false ? items[9] : items[index])",
+            "2 ^ 3 ^ 2",
+        ] {
+            let expr = crate::ExpressionInfo::new(parse_pax_expression(source).unwrap());
+            let mut manifest = build_manifest();
+            manifest
+                .components
+                .get_mut(&manifest.main_component_type_id)
+                .unwrap()
+                .settings = Some(vec![SettingsBlockElement::SelectorBlock(
+                Token::new_without_location("#probe".into()),
+                LiteralBlockDefinition {
+                    explicit_type_pascal_identifier: None,
+                    elements: vec![crate::SettingElement::Setting(
+                        Token::new_without_location("value".into()),
+                        ValueDefinition::Expression(expr.clone()),
+                    )],
+                },
+            )]);
+            let manifest = crate::binary::from_slice(&crate::binary::to_vec(&manifest)?)?;
+            let ir = ProgramIR::from_manifest(&manifest);
+            let decoded = super::binary::from_slice(&super::binary::to_vec(&ir)?)?;
+            let settings = decoded.components[&decoded.main_component_type_id]
+                .settings
+                .as_ref()
+                .unwrap();
+            let SettingsBlockElement::SelectorBlock(_, values) = &settings[0] else {
+                panic!("selector")
+            };
+            let crate::SettingElement::Setting(_, ValueDefinition::Expression(actual)) =
+                &values.elements[0]
+            else {
+                panic!("expression")
+            };
+            assert_eq!(actual.expression, expr.expression, "{source}");
+            assert_eq!(actual.dependencies, expr.dependencies, "{source}");
+            let mut expected_deps = expr.expression.collect_dependencies();
+            let mut actual_deps = actual.dependencies.clone();
+            expected_deps.sort();
+            actual_deps.sort();
+            assert_eq!(actual_deps, expected_deps);
+            let idr = Rc::new(HashMap::from([
+                ("items".into(), vec![10_i64, 20].to_pax_value()),
+                ("indices".into(), vec![0_i64, 1].to_pax_value()),
+                ("index".into(), 1_i64.to_pax_value()),
+            ]));
+            assert_eq!(
+                actual.expression.compute(idr.clone()),
+                expr.expression.compute(idr),
+                "{source}"
+            );
+        }
+        Ok(())
+    }
+
+    #[test]
     fn program_ir_binary_round_trips() -> BinaryResult<()> {
         let manifest = build_manifest();
         let ir = ProgramIR::from_manifest(&manifest);

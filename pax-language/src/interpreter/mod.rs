@@ -86,17 +86,61 @@ impl PaxExpression {
     }
 }
 
+impl PaxExpression {
+    // Mirror parsing.rs (including the outer grammar) when displaying ASTs
+    // constructed without explicit Grouped nodes, e.g. by cartridge generation.
+    fn precedence(&self) -> u8 {
+        match self {
+            Self::Ternary(_) => 1,
+            Self::NullCoalesce(_) => 2,
+            Self::Infix(i) => match i.operator.name.as_str() {
+                "||" => 3,
+                "&&" => 4,
+                "==" | "!=" | "<" | "<=" | ">" | ">=" => 5,
+                "+" | "-" => 6,
+                "*" | "/" | "%%" => 7,
+                "^" => 8,
+                _ => 0,
+            },
+            Self::Prefix(p) if p.operator.name == "-" => 9,
+            Self::Prefix(_) => 10,
+            Self::Postfix(_) | Self::Primary(_) => 11,
+        }
+    }
+
+    fn fmt_operand(&self, f: &mut std::fmt::Formatter<'_>, minimum: u8) -> std::fmt::Result {
+        if self.precedence() < minimum {
+            write!(f, "({self})")
+        } else {
+            write!(f, "{self}")
+        }
+    }
+}
+
 impl Display for PaxExpression {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             PaxExpression::Primary(p) => write!(f, "{}", p),
-            PaxExpression::Prefix(p) => write!(f, "{}{}", p.operator.name, p.rhs),
-            PaxExpression::Infix(i) => write!(f, "{} {} {}", i.lhs, i.operator.name, i.rhs),
+            PaxExpression::Prefix(p) => {
+                write!(f, "{}", p.operator.name)?;
+                p.rhs.fmt_operand(f, self.precedence())
+            }
+            PaxExpression::Infix(i) => {
+                let right_associative = i.operator.name == "^";
+                i.lhs.fmt_operand(f, self.precedence() + u8::from(right_associative))?;
+                write!(f, " {} ", i.operator.name)?;
+                i.rhs.fmt_operand(f, self.precedence() + u8::from(!right_associative))
+            }
             PaxExpression::Postfix(p) => write!(f, "{}{}", p.lhs, p.operator.name),
             PaxExpression::Ternary(t) => {
-                write!(f, "{} ? {} : {}", t.condition, t.then_branch, t.else_branch)
+                t.condition.fmt_operand(f, self.precedence() + 1)?;
+                write!(f, " ? {} : {}", t.then_branch, t.else_branch)
             }
-            PaxExpression::NullCoalesce(n) => write!(f, "{} ?? {}", n.lhs, n.rhs),
+            PaxExpression::NullCoalesce(n) => {
+                n.lhs.fmt_operand(f, self.precedence() + 1)?;
+                write!(f, " ?? ")?;
+                n.rhs.fmt_operand(f, self.precedence())
+            }
         }
     }
 }

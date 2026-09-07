@@ -599,3 +599,140 @@ fn test_display_object() {
     let result = format!("{}", parse_pax_expression(expr).unwrap());
     assert_eq!(expected, result);
 }
+
+#[test]
+fn pax995_precedence_and_reparse() {
+    let idr = initialize_test_resolver();
+    for (source, expected) in [
+        ("1 + 2 > 2", "true"),
+        ("true || false && false", "true"),
+        ("2 * 3 %% 2", "0"),
+        ("11 %% 4 * 2", "6"),
+        ("12 / 2 %% 4", "2"),
+        ("10 - 3 - 2", "5"),
+        ("2 ^ 3 ^ 2", "512"),
+        ("-2 ^ 2", "4"),
+        ("(2 ^ 3) ^ 2", "64"),
+        ("1 + 2 == 3 && 4 * 2 >= 8", "true"),
+        ("false || true ? 4 : 9", "4"),
+        ("None ?? false || true", "true"),
+        ("None ?? None ?? 7", "7"),
+        ("false ? 1 : true ? 2 : 3", "2"),
+        ("(2 + 3)px", "5px"),
+    ] {
+        let expected = compute_paxel(expected, idr.clone()).unwrap();
+        assert_eq!(
+            compute_paxel(source, idr.clone()).unwrap(),
+            expected,
+            "{source}"
+        );
+        let formatted = parse_pax_expression(source).unwrap().to_string();
+        assert_eq!(
+            compute_paxel(&formatted, idr.clone()).unwrap(),
+            expected,
+            "{formatted}"
+        );
+    }
+}
+
+#[test]
+fn pax995_boolean_short_circuit() {
+    let idr = initialize_test_resolver();
+    for (source, expected) in [
+        ("false && (c[9] == 1)", false),
+        ("true || (c[9] == 1)", true),
+        ("true && flag", true),
+        ("false || flag", true),
+        ("true || (missing_value ?? c[9])", true),
+        ("false ? c[9] : true || c[9]", true),
+    ] {
+        assert_eq!(
+            compute_paxel(source, idr.clone()).unwrap(),
+            PaxValue::Bool(expected),
+            "{source}"
+        );
+    }
+    for source in [
+        "true && c[9]",
+        "false || c[9]",
+        "c[9] || true",
+        "c[9] ?? true",
+    ] {
+        assert!(compute_paxel(source, idr.clone()).is_err(), "{source}");
+    }
+}
+
+#[test]
+fn pax995_index_dependencies() {
+    for (source, expected) in [
+        ("items[index]", vec!["index", "items"]),
+        (
+            "items[indices[index + offset]].rows[index]",
+            vec!["index", "indices", "items", "offset"],
+        ),
+    ] {
+        let mut deps = parse_pax_expression(source).unwrap().collect_dependencies();
+        deps.sort();
+        assert_eq!(deps, expected, "{source}");
+    }
+}
+
+#[test]
+fn pax995_template_formatter_preserves_expression_trees() {
+    let source = "<Text text={1+2>2?items[index+1]:2*3%%2} />";
+    let formatted = crate::formatting::format_pax_template(source.into()).unwrap();
+    fn expressions(source: &str) -> Vec<PaxExpression> {
+        fn visit(pair: pest::iterators::Pair<'_, Rule>, out: &mut Vec<PaxExpression>) {
+            if pair.as_rule() == Rule::expression_body {
+                out.push(parse_pax_expression(pair.as_str()).unwrap());
+            } else {
+                for child in pair.into_inner() {
+                    visit(child, out);
+                }
+            }
+        }
+        let mut out = Vec::new();
+        for pair in parse_pax_pairs(Rule::pax_component_definition, source).unwrap() {
+            visit(pair, &mut out);
+        }
+        out
+    }
+    assert_eq!(expressions(source), expressions(&formatted));
+}
+
+#[test]
+fn pax995_required_boolean_operands_preserve_value_type_behavior() {
+    let idr = initialize_test_resolver();
+    // Unsupported operands retain the existing Math fallback; this change does
+    // not introduce truthiness or redesign the value layer's type diagnostics.
+    for source in ["true && 1", "false || 1", "1 && true", "1 || false"] {
+        assert_eq!(
+            compute_paxel(source, idr.clone()).unwrap(),
+            PaxValue::default()
+        );
+    }
+}
+
+#[test]
+fn pax995_constructed_ast_display_preserves_grouping() {
+    use crate::Computable;
+    let value = |s| parse_pax_expression(s).unwrap();
+    let idr = initialize_test_resolver();
+    for expr in [
+        PaxExpression::infix(value("1 + 2"), "*", value("3")),
+        PaxExpression::infix(value("10"), "-", value("3 - 2")),
+        PaxExpression::infix(value("2 ^ 3"), "^", value("2")),
+        PaxExpression::prefix("-", value("1 + 2")),
+        PaxExpression::infix(value("true || false"), "&&", value("false")),
+        PaxExpression::null_coalesce(value("None ?? None"), value("4")),
+        PaxExpression::null_coalesce(value("None"), value("false ? 2 : 3")),
+        PaxExpression::ternary(value("true ? false : true"), value("1"), value("2")),
+    ] {
+        let formatted = expr.to_string();
+        assert_eq!(
+            compute_paxel(&formatted, idr.clone()),
+            expr.compute(idr.clone()),
+            "{formatted}"
+        );
+    }
+}

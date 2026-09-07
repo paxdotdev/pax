@@ -170,8 +170,14 @@ impl Computable for PaxPostfix {
 impl Computable for PaxInfix {
     fn compute(&self, idr: Rc<dyn IdentifierResolver>) -> Result<PaxValue, String> {
         let lhs = self.lhs.compute(idr.clone())?;
-        let rhs = self.rhs.compute(idr)?;
         let operator = &self.operator.name;
+        // Branch selection belongs to the AST evaluator: function arguments
+        // have already been evaluated by the time they reach Math dispatch.
+        match (operator.as_str(), &lhs) {
+            ("&&", PaxValue::Bool(false)) | ("||", PaxValue::Bool(true)) => return Ok(lhs),
+            _ => {}
+        }
+        let rhs = self.rhs.compute(idr)?;
         call_function("Math".to_string(), operator.to_string(), vec![lhs, rhs])
     }
 }
