@@ -1,0 +1,24 @@
+<Group x=24px y=24px width={100% - 48px} height={100% - 48px}>
+    <Text class="label" y=0px height=40px text="PAXEL / correctness" />
+    <Text class="label" id=selected y=64px height=40px text={"Selected: " + items[index]} />
+    <Group id=next y=120px width=240px height=52px @click=self.next>
+        <Text class="label" x=16px y=10px width=208px height=32px text="Change index" selectable=false />
+        <Rectangle fill=rgb(35, 92, 120) corner_radius=10 />
+    </Group>
+    <Text class="label" y=200px height=36px text={"Arithmetic: " + (1 + 2 > 2 ? "true" : "false")} />
+    <Text class="label" y=244px height=36px text={"Boolean: " + (true || false && false ? "true" : "false")} />
+    <Text class="label" y=288px height=36px text={"Modulo: " + (2 * 3 %% 2)} />
+    <Text class="label" y=332px height=36px text={"Skipped AND: " + (false && items[9] == 1 ? "true" : "false")} />
+    <Text class="label" y=376px height=36px text={"Skipped OR: " + (true || items[9] == 1 ? "true" : "false")} />
+</Group>
+<Rectangle fill=rgb(15, 25, 35) />
+
+@settings {
+    .label {
+        style: {
+            font: "Arial"
+            font_size: 22px
+            fill: WHITE
+        }
+    }
+}
