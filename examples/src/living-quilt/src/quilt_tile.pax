@@ -1,13 +1,5 @@
 <Frame width=100% height=100%>
     for panel in self.panels key panel.id {
-        <Group x={(panel.x)%} y={(panel.y)%} width=100% height=100% anchor=0%>
-            for piece in panel.pieces key piece.id {
-                <Path width=100% height=100%
-                    elements={piece.elements}
-                    fill={self.colorized ? piece.color : piece.gray}
-                    material={self.colorized ? Material::unlit() : Material::glossy(0.86)}
-                />
-            }
-        </Group>
+        <QuiltPanel width=100% height=100% panel={panel} colorized={self.colorized}/>
     }
 </Frame>

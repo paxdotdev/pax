@@ -1292,3 +1292,56 @@ Inside an object literal, a dynamic stroke width needs its own expression:
 binding there is parsed as a static literal and fails. For fractional grid
 positions, use floating-point arithmetic (`row * 100.0 / 3.0`); integer
 division truncated thirds and left an uncovered strip at the viewport edge.
+
+## 2026-09-07
+
+Living Quilt republished a `Property<Vec<TileState>>` on every slide frame, so
+motion invalidated the repeated shape data and reconverted unchanged paths to
+PAXEL values. Keep repeat membership and immutable geometry on a structural
+signal; animate a mounted component's small x/y properties separately. Use
+`set_if_neq` so settled panels stop propagating updates, and `Property::read`
+when inspecting unchanged paths rather than cloning them with `.get()`.
+
+Do not assume nested `Property` handles survive expression conversion:
+`Variable` exposes a cached `PaxValue` snapshot, and derived struct conversion
+reads wrapped fields into ordinary values. Living Quilt uses `QuiltPanel`'s
+top-level motion properties instead, preserving the existing debug and baked
+release binding contract without adding a new nested-reactivity feature.
+
+## 2026-09-08
+
+Living Quilt's expanding ring could leave a frozen color fragment once panel
+motion settled; mouse movement cleared it. `Mask` collected source dependencies
+only at mount, when the repeated ring list was empty. The off-tree source's
+later paint updates and final removal therefore did not invalidate the visible
+content. Mask sources now keep recursive subscriptions to child membership,
+layout, paint properties, and computed opacity, retaining watches for keyed
+children and releasing them on removal. Recommendation: test auxiliary render
+trees from an initially empty repeat through insertion, animation, and removal
+with no unrelated input or animation driving redraws; continuous redraw is not
+a substitute for tracking those dependencies.
+
+## 2026-09-09
+
+Living Quilt's light briefly resisted mouse movement after a click because the
+420ms click/touch tween continued overwriting direct `Property::set` updates.
+Setting a value does not cancel its transition. The mouse-follow handler now
+calls `cancel_transitions()` on both coordinates before setting them, so pointer
+input takes over immediately while touch keeps its eased movement. Recommendation:
+explicitly cancel animation when direct manipulation takes ownership of the
+same property; do not mistake competing writers for a rendering-cache delay.
+
+The mask-source ring optimization first tried a reusable component with derived
+properties in `Default`. Its pure Rust test passed, but its Path never appeared
+in the browser: off-tree control-flow expansion does not mount an ordinary
+component's template. For this case, direct repeated Path leaves with pure
+`#[helpers]` functions are sufficient. Immutable ring descriptors change only
+at birth/removal, while clock and bounds drive each leaf's geometry independently.
+Recommendation: verify off-tree source composition in a rendered app, not just
+by testing component properties; full component support there is a separate
+lifecycle feature, not something to approximate with hidden mounted copies.
+
+A `Property<(f64, f64)>` component field also failed macro/static analysis during
+that experiment. Separate scalar width/height properties work through both
+authoring paths. Recommendation: use supported scalar fields for scene bounds
+until tuple-valued component properties have an end-to-end binding contract.

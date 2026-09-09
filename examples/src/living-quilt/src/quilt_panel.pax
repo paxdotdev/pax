@@ -1,0 +1,14 @@
+<Group x={(self.x)%} y={(self.y)%} width=100% height=100% anchor=0%>
+    for piece in self.panel.pieces key piece.id {
+        <Path width=100% height=100%
+            elements={piece.elements}
+            fill={self.colorized ? piece.color : piece.gray}
+            material={self.colorized ? Material::unlit() : Material::glossy(0.86)}
+        />
+    }
+</Group>
+
+@settings {
+    @mount: handle_pre_render
+    @pre_render: handle_pre_render
+}

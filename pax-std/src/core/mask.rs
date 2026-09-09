@@ -7,8 +7,7 @@ use pax_engine::*;
 use pax_message::{AnyCreatePatch, FramePatch};
 use pax_runtime::api as pax_runtime_api;
 use pax_runtime::api::{
-    bez_path_to_svg_path_data, borrow, borrow_mut, properties::UntypedProperty, use_RefCell, Layer,
-    Property, RenderContext,
+    bez_path_to_svg_path_data, borrow, borrow_mut, use_RefCell, Layer, Property, RenderContext,
 };
 use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
@@ -36,6 +35,9 @@ pub struct Mask {
 pub struct MaskInstance {
     base: BaseInstance,
 }
+
+#[cfg(test)]
+mod tests;
 
 impl MaskInstance {
     fn alpha_settings(node: &ExpandedNode) -> (bool, f64) {
@@ -127,17 +129,69 @@ impl MaskInstance {
         }
     }
 
-    fn collect_mask_source_deps(expanded_node: &ExpandedNode, deps: &mut Vec<UntypedProperty>) {
-        deps.push(expanded_node.transform_and_bounds.untyped());
+    fn watch_mask_source(
+        owner: &Rc<ExpandedNode>,
+        source: &Rc<ExpandedNode>,
+        context: &Rc<RuntimeContext>,
+    ) -> Property<()> {
+        let mut deps = vec![
+            source.children.untyped(),
+            source.transform_and_bounds.untyped(),
+            source.computed_opacity.untyped(),
+        ];
         deps.extend(
-            borrow!(expanded_node.properties_scope)
+            borrow!(source.properties_scope)
                 .values()
                 .cloned()
                 .map(|v| v.get_untyped_property().clone()),
         );
-        for child in expanded_node.children.get().iter() {
-            Self::collect_mask_source_deps(child, deps);
-        }
+        let weak_owner = Rc::downgrade(owner);
+        let weak_source = Rc::downgrade(source);
+        let weak_context = Rc::downgrade(context);
+        let child_watches: RefCell<Vec<(pax_runtime::ExpandedNodeIdentifier, Property<()>)>> =
+            RefCell::new(Vec::new());
+        let watcher = Property::computed_with_name(
+            move || {
+                let (Some(owner), Some(source), Some(context)) = (
+                    weak_owner.upgrade(),
+                    weak_source.upgrade(),
+                    weak_context.upgrade(),
+                ) else {
+                    return;
+                };
+                let children = source.children.get();
+                let mut watches = borrow_mut!(child_watches);
+                let unchanged = children.len() == watches.len()
+                    && children
+                        .iter()
+                        .zip(watches.iter())
+                        .all(|(child, (id, _))| child.id == *id);
+                if !unchanged {
+                    // Keep subscriptions for retained children, bind new leaves,
+                    // and release retired ones. Mask sources are off-tree, so
+                    // their paint changes must invalidate the visible content.
+                    let mut previous = std::mem::take(&mut *watches);
+                    *watches = children
+                        .iter()
+                        .map(|child| {
+                            let watch = previous
+                                .iter()
+                                .position(|(id, _)| *id == child.id)
+                                .map(|i| previous.swap_remove(i).1)
+                                .unwrap_or_else(|| {
+                                    Self::watch_mask_source(&owner, child, &context)
+                                });
+                            (child.id, watch)
+                        })
+                        .collect();
+                }
+                owner.changed_listener.invalidate();
+            },
+            &deps,
+            "mask source invalidation",
+        );
+        context.register_expanded_node_effect_property_named(owner, &watcher, "mask source");
+        watcher
     }
 
     fn mask_path_for_layer(
@@ -297,7 +351,10 @@ impl InstanceNode for MaskInstance {
         });
         if let Some(mask_child) = borrow!(expanded_node.sidecar_children).first() {
             Self::sync_mask_source_layout(mask_child, &context);
-            Self::collect_mask_source_deps(mask_child, &mut deps);
+            // Observe structure as well as paint: repeats/conditionals may be
+            // empty at mount, and their last removal still needs a redraw.
+            let watcher = Self::watch_mask_source(expanded_node, mask_child, &context);
+            borrow_mut!(expanded_node.subscriptions).push(watcher);
         }
 
         expanded_node
@@ -392,7 +449,11 @@ impl InstanceNode for MaskInstance {
 
         Self::refresh_mask_source_layout(expanded_node, rtc);
         let (alpha, feather) = Self::alpha_settings(expanded_node);
-        let mask_path = Self::resolve_mask_path(expanded_node);
+        // Painted alpha consumes the source paints directly. Building a hard
+        // coverage outline here is unused work (especially for curved strokes).
+        let mask_path = (!alpha)
+            .then(|| Self::resolve_mask_path(expanded_node))
+            .flatten();
         if mask_path.is_none() && !alpha {
             return;
         }
@@ -479,8 +540,8 @@ impl InstanceNode for MaskInstance {
         if !has_dirty_layer {
             return;
         }
-        if Self::resolve_mask_path(expanded_node).is_none()
-            && !Self::alpha_settings(expanded_node).0
+        if !Self::alpha_settings(expanded_node).0
+            && Self::resolve_mask_path(expanded_node).is_none()
         {
             return;
         }

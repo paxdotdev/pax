@@ -7,18 +7,17 @@
 
     // One shared color view keeps tile seams and slides aligned with the
     // monochrome view. Each live wave paints alpha into the same soft mask.
-    <Mask width=100% height=100% alpha=true feather=12.0>
+    <Mask width=100% height=100% alpha=true feather=2.0>
         <QuiltScene width=100% height=100% tiles={self.tiles}
             is_compact={self.is_compact} colorized=true/>
         <Group width=100% height=100%>
             for ripple in self.ripples key ripple.id {
                 <Path width=100% height=100%
-                    elements={ripple.elements}
+                    elements={Ripple::path(ripple, self.wave_time, self.wave_width, self.wave_height)}
                     fill=TRANSPARENT
-                    stroke={color: WHITE, width: {(ripple.band_width)px}}
-                    opacity={ripple.opacity}
-                    _raycastable=false
-                />
+                    stroke={color: WHITE, width: {(Ripple::width(ripple, self.wave_time, self.wave_width, self.wave_height))px}}
+                    opacity={Ripple::alpha(ripple, self.wave_time)}
+                    _raycastable=false/>
             }
         </Group>
     </Mask>
