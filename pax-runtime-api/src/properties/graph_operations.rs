@@ -62,15 +62,19 @@ impl PropertyTable {
     // NOTE: does NOT modify the inbound list of self (id), only
     // uses it to hook up dependencies
     pub fn connect_inbound(&self, id: PropertyId) {
-        let inbound = self.with_property_data(id, |property_data| property_data.inbound.clone());
-        for inbound_id in inbound {
-            let queue_cutoff = self.with_property_data_mut(inbound_id, |property_dependency| {
-                property_dependency.outbound.push(id);
-                property_dependency.dirty && property_dependency.cutoff_settler.is_some()
-            });
-            if queue_cutoff {
-                self.enqueue_cutoff(inbound_id);
+        // These operations only edit upstream graph metadata and queue work;
+        // they never evaluate user code. Borrow the dependency slice just as
+        // disconnect_inbound does, without allocating a temporary ID vector.
+        self.with_property_data(id, |property_data| {
+            for &inbound_id in &property_data.inbound {
+                let queue_cutoff = self.with_property_data_mut(inbound_id, |property_dependency| {
+                    property_dependency.outbound.push(id);
+                    property_dependency.dirty && property_dependency.cutoff_settler.is_some()
+                });
+                if queue_cutoff {
+                    self.enqueue_cutoff(inbound_id);
+                }
             }
-        }
+        });
     }
 }

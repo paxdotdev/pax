@@ -1345,3 +1345,101 @@ A `Property<(f64, f64)>` component field also failed macro/static analysis durin
 that experiment. Separate scalar width/height properties work through both
 authoring paths. Recommendation: use supported scalar fields for scene bounds
 until tuple-valued component properties have an end-to-end binding contract.
+
+## 2026-09-11
+
+Reusing alpha-mask GPU buffers requires upload ordering, not just allocation
+capacity checks. `Queue::write_buffer` transfers run before submitted command
+buffers, so multiple encoded versions of one mask could all read the last
+upload. Mask uploads now use the renderer's staging belt with copies ordered
+before each consuming pass. Retained capacity is separate from current draw
+ranges; empty masks still clear coverage, and filter groups resolve current
+parent textures instead of retaining stale bindings. GPU snapshot tests capture
+intermediate versions before submission, including growth, shrinkage, removal,
+parent replacement, and viewport changes.
+
+Surface resize discards pending command buffers. Their encoded mask signatures
+must also be invalidated, and their staging allocations discarded rather than
+recalled as submitted work. Otherwise a retry with identical inputs can falsely
+hit a cache entry whose GPU upload never ran. Recommendation: test cancellation
+as well as successful submission when adding retained rendering resources.
+
+## 2026-09-12
+
+Living Quilt's animated-to-static logo handoff could disappear for one frame
+when a tile panel retired at the same time. The runtime advanced its animation
+clock after settling effects and layout. A conditional could consequently
+replace its children during render traversal, after the retained draw plan had
+captured the old node IDs. Concurrent removal forced a scene clear, exposing
+the missing replacement. The final effect drain and occlusion/layout pass now
+follow clock advancement and queued custom-event dispatch, so rendering sees
+the settled tree. Deterministic non-GPU tests cover the handoff with and without
+retained replay and sibling removal. Recommendation: settle structural effects
+before snapshotting render work; overlapping masks can expose a frame-ordering
+bug without being its cause.
+
+Concurrent Living Quilt rings amplified keyed-repeat work: retained groups wrote
+unchanged item/index values, reattached children, and rebuilt layout subscriptions.
+Repeats now compare payload representations exactly, retain parent bindings while
+their source identities match, and gate structural work on rendered/active/exiting
+child sequences. Do not use `PaxValue::PartialEq` to suppress data propagation:
+`Numeric` uses approximate language equality, which can hide small real changes
+inside paths, colors, units, or nested item data. This optimization deliberately
+does not change PAXEL equality or general `Property::set` semantics.
+
+Parent bindings must be compared by source identity, not their current values;
+reload and explicit bounds rebinding invalidate the fast path. Structural checks
+must evaluate reconciliation first and distinguish active from exiting children:
+starting an exit can change slot projection without changing rendered node IDs.
+Clock-only exit cleanup must still publish the final removal. Recommendation:
+test no-op work counts alongside output, nested repeats, off-tree mask geometry,
+equal-valued replacement sources, and repeated churn returning live property
+counts to baseline. Keep lifecycle work in the existing settlement lane rather
+than moving effectful reconciliation into propagation-cutoff evaluation.
+
+Simple same-type bindings could repeatedly convert nested Rust records into
+`PaxValue` object trees and then immediately coerce them back. The shared rich
+and release-baked property builders now forward audited plain values through
+independent computed properties, while consuming owned expression results
+without another defensive clone. This is not aliasing or zero-copy transport:
+each dirty typed hop still clones its Rust value, and child writes remain local.
+Arithmetic, accessors, unit conversion, sparse literals, and double bindings
+retain their existing paths.
+
+Exact Rust type identity alone is insufficient for this optimization. Custom
+coercion can normalize values, property-wrapped fields snapshot mutable state,
+and the current derive omits non-path fields from value conversion. The opt-in
+contract therefore defaults to false, derives only for fully represented plain
+records/enums with generated defaults and eligible fields, checks actual erased
+property storage, and rejects recursive capability cycles. Recommendation:
+test conversion counts and mutation isolation alongside values, custom fallback,
+float bits, evaluator replacement, rebinding, and create/drop lifetime counts.
+Keep eligibility in the shared runtime path so baked cartridges do not acquire
+a separate expression or serialization contract.
+
+## 2026-09-13
+
+Profiling every property read substantially slowed the ten-ring workload and
+changed how arrivals batched into frames. Narrow, separate release traces for
+value transport and reactive settlement were more informative than one heavily
+instrumented trace. Listener names can also misattribute lazy work: a mask or
+layout-hull callback can trigger repeat reconciliation and node construction.
+Recommendation: report inclusive and exclusive scope time, operation counts,
+actual input delivery times, and an uninstrumented baseline. Do not equate a
+whole listener's time with its final invalidation operation, or use intrusive
+probe frame times as a production performance comparison.
+
+Property replacement's dependency reconnect is not redundant merely because
+the dependency IDs match: reconnecting moves the destination to the end of
+upstream outbound lists, whose traversal order feeds effect scheduling, and
+connecting must enqueue dirty upstream cutoffs. The first binding-loop cleanup
+therefore preserves those operations. It reuses the destination dependency
+vector's capacity and borrows the inbound slice during connection instead of
+cloning it. That borrow is safe only while connection edits graph metadata and
+queues work without evaluating user code. Capacity belongs to the property and
+is released when it drops; there is no shared binding cache. Regression checks
+cover reordered/duplicate/empty dependencies, evaluator replacement, shared
+targets, connection order, and property cleanup. Repeated ten-ring release
+captures did not establish a substantial frame-time gain from this narrow
+allocation reduction; avoid presenting it as a substitute for reducing the
+amount of node initialization work.

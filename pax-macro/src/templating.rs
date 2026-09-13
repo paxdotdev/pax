@@ -50,6 +50,7 @@ pub struct TemplateArgsDerivePax {
     pub pascal_identifier: String,
     pub is_custom_interpolatable: bool,
     pub is_custom_coercion_rules: bool,
+    pub can_derive_identity_roundtrip: bool,
     pub is_root_crate: bool,
     pub _is_enum: bool,
     pub build_config: TemplateBuildConfig,

@@ -1,8 +1,16 @@
-// This macro requires that the $Type can be created by calling into on the $Variant contents
+/// Implements coercion by converting the selected `PaxValue` variant's contents.
+/// The optional third argument opts into `CoercionRules::is_identity_roundtrip`;
+/// omit it unless the type satisfies that method's exact, side-effect-free contract.
 #[macro_export]
 macro_rules! impl_default_coercion_rule {
     ($Type:ty, $Variant:path) => {
+        $crate::impl_default_coercion_rule!($Type, $Variant, false);
+    };
+    ($Type:ty, $Variant:path, $identity_roundtrip:expr) => {
         impl CoercionRules for $Type {
+            fn is_identity_roundtrip() -> bool {
+                $identity_roundtrip
+            }
             fn try_coerce(pax_value: PaxValue) -> Result<Self, String> {
                 if let $Variant(val) = pax_value {
                     Ok(val.into())

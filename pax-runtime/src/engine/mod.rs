@@ -558,12 +558,6 @@ impl PaxEngine {
         self.run_lifecycle_handlers(PRE_RENDER_HANDLERS, ctx.pre_render_handler_nodes());
         ctx.drain_node_effects();
 
-        if ctx.take_occlusion_dirty() {
-            if let Some(root_expanded_node) = &self.root_expanded_node {
-                occlusion::update_node_occlusion(root_expanded_node, ctx);
-            }
-            ctx.drain_node_effects();
-        }
         let globals = ctx.globals();
         let time = &globals.elapsed_frames;
         time.set(time.get() + 1);
@@ -572,6 +566,17 @@ impl PaxEngine {
             .set(saturating_u128_to_u64((globals.get_elapsed_millis)()));
 
         ctx.flush_custom_events().unwrap();
+
+        // Advancing the clock or dispatching queued events can switch branches.
+        // Settle those effects before final layout and the retained render plan;
+        // otherwise a replay can clear the old subtree but omit its replacement.
+        ctx.drain_node_effects();
+        if ctx.take_occlusion_dirty() {
+            if let Some(root_expanded_node) = &self.root_expanded_node {
+                occlusion::update_node_occlusion(root_expanded_node, ctx);
+            }
+            ctx.drain_node_effects();
+        }
         let native_messages = ctx.take_native_messages();
         native_messages
     }

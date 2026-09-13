@@ -16,6 +16,22 @@ use crate::{
     RuntimePropertiesStackFrame,
 };
 
+mod value_eq;
+
+fn update_repeat_bindings(
+    index: &Property<usize>,
+    item: &Property<PaxValue>,
+    i: usize,
+    value: PaxValue,
+) {
+    index.set_if_neq(i);
+    // PaxValue's language equality is approximate. Invalidation requires exact
+    // representation equality, otherwise small animation/data edits disappear.
+    if !item.read(|previous| value_eq::same_value(previous, &value)) {
+        item.set(value);
+    }
+}
+
 const INTERNAL_REPEAT_INDEX_SYMBOL: &str = "$repeat_index";
 const INTERNAL_REPEAT_ELEMENT_SYMBOL: &str = "$repeat_element";
 const INTERNAL_REPEAT_KEY_SYMBOL: &str = "$repeat_key";
@@ -348,6 +364,80 @@ mod tests {
         nodes.iter().map(|node| node.id.0).collect()
     }
 
+    fn mounted_repeat(source: Property<PaxValue>) -> (Rc<ExpandedNode>, Rc<RuntimeContext>) {
+        let leaf: Rc<dyn InstanceNode> =
+            ComponentInstance::instantiate(leaf_args(Default::default()));
+        let repeat: Rc<dyn InstanceNode> =
+            RepeatInstance::instantiate(repeat_args(source, vec![leaf]));
+        let root = ComponentInstance::instantiate(component_args(Some(vec![repeat])));
+        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let root = ExpandedNode::initialize_root(root, &context);
+        root.recurse_update(&context);
+        context.drain_node_effects();
+        (root, context)
+    }
+
+    fn binding_probe(
+        child: &ExpandedNode,
+        symbol: &str,
+    ) -> (Property<()>, Rc<std::cell::Cell<usize>>) {
+        let property = child
+            .stack
+            .resolve_symbol_as_erased_property(symbol)
+            .unwrap();
+        let runs = Rc::new(std::cell::Cell::new(0));
+        let count = Rc::clone(&runs);
+        let probe = Property::computed(move || count.set(count.get() + 1), &[property]);
+        probe.get();
+        (probe, runs)
+    }
+
+    #[test]
+    fn keyed_repeat_only_notifies_changed_items_and_indices() {
+        let source_property = Property::new(source_with_x(&[("a", 1.0), ("b", 2.0)]));
+        let (root, context) = mounted_repeat(source_property.clone());
+        let repeat = root.children.get().remove(0);
+        let children = repeat.children.get();
+        let probes: Vec<_> = children
+            .iter()
+            .flat_map(|child| [binding_probe(child, "item"), binding_probe(child, "i")])
+            .collect();
+        let counts = || {
+            probes
+                .iter()
+                .map(|(probe, runs)| {
+                    probe.get();
+                    runs.get()
+                })
+                .collect::<Vec<_>>()
+        };
+
+        source_property.set(source_with_x(&[("a", 1.0), ("b", 2.0)]));
+        context.drain_node_effects();
+        assert_eq!(ids(&repeat.children.get()), ids(&children));
+        assert_eq!(
+            counts(),
+            [1, 1, 1, 1],
+            "identical source must not notify retained items"
+        );
+
+        source_property.set(source_with_x(&[("a", 1.0 + 1e-8), ("b", 2.0)]));
+        context.drain_node_effects();
+        assert_eq!(
+            counts(),
+            [2, 1, 1, 1],
+            "even sub-epsilon edits must propagate"
+        );
+
+        source_property.set(source_with_x(&[("b", 2.0), ("a", 1.0 + 1e-8)]));
+        context.drain_node_effects();
+        assert_eq!(
+            ids(&repeat.children.get()),
+            [children[1].id.0, children[0].id.0]
+        );
+        assert_eq!(counts(), [2, 2, 1, 2], "reordering only changes indices");
+    }
+
     #[test]
     fn keyed_repeat_reuses_reordered_children_and_exits_removed_keys() {
         let source_property = Property::new(source(&["a", "b", "c"]));
@@ -402,6 +492,404 @@ mod tests {
         assert_eq!(active[1].id.0, initial_ids[1]);
         assert_eq!(borrow!(repeat_node.mounted_children).len(), 4);
         assert_eq!(active[1].transition_phase.get(), TRANSITION_PHASE_IDLE);
+    }
+
+    #[test]
+    fn retained_children_keep_parent_bindings_on_data_updates_and_reorder() {
+        let source_property = Property::new(source_with_x(&[("a", 1.0), ("b", 2.0)]));
+        let (root, context) = mounted_repeat(source_property.clone());
+        let repeat = root.children.get().remove(0);
+        let children = repeat.children.get();
+        let initial: Vec<_> = children
+            .iter()
+            .map(|c| c.parent_binding_rebuilds.get())
+            .collect();
+        for value in [
+            source_with_x(&[("a", 3.0), ("b", 2.0)]),
+            source_with_x(&[("b", 2.0), ("a", 3.0)]),
+        ] {
+            source_property.set(value);
+            context.drain_node_effects();
+            assert_eq!(
+                children
+                    .iter()
+                    .map(|c| c.parent_binding_rebuilds.get())
+                    .collect::<Vec<_>>(),
+                initial
+            );
+        }
+        source_property.set(source_with_x(&[("b", 2.0), ("a", 3.0), ("c", 4.0)]));
+        context.drain_node_effects();
+        assert_eq!(
+            children
+                .iter()
+                .map(|c| c.parent_binding_rebuilds.get())
+                .collect::<Vec<_>>(),
+            initial
+        );
+        assert_eq!(repeat.children.get().len(), 3);
+    }
+
+    #[test]
+    fn equal_valued_parent_sources_are_not_interchangeable() {
+        let (root, context) = mounted_repeat(Property::new(source(&["a"])));
+        let repeat = root.children.get().remove(0);
+        let children = repeat.children.get();
+        let child = &children[0];
+        let first = Property::new(None);
+        let second = Property::new(None);
+        repeat.attach_children(children.clone(), &context, &first);
+        let n = child.parent_binding_rebuilds.get();
+        repeat.attach_children(children.clone(), &context, &first);
+        assert_eq!(child.parent_binding_rebuilds.get(), n);
+        repeat.attach_children(children.clone(), &context, &second);
+        assert_eq!(child.parent_binding_rebuilds.get(), n + 1);
+        first.set(Some(root.id));
+        assert_eq!(
+            child.parent_frame.get(),
+            None,
+            "old frame source must be disconnected"
+        );
+        second.set(Some(repeat.id));
+        assert_eq!(child.parent_frame.get(), Some(repeat.id));
+
+        // Existing subscriptions must follow parent values without reattachment.
+        let cp = repeat.get_common_properties();
+        borrow!(cp)
+            .opacity
+            .set(Some(pax_runtime_api::Opacity::from(0.25)));
+        assert_eq!(child.computed_opacity.get(), 0.25);
+        assert_eq!(child.parent_binding_rebuilds.get(), n + 1);
+    }
+
+    #[test]
+    fn data_only_reconciliation_skips_structure_and_churn_releases_properties() {
+        let source_property = Property::new(source_with_x(&[("a", 1.0), ("b", 2.0)]));
+        let (root, context) = mounted_repeat(source_property.clone());
+        let repeat = root.children.get().remove(0);
+        let counts = || {
+            (
+                repeat.layout_hull_rebuilds.get(),
+                repeat.structural_children_updates.get(),
+            )
+        };
+        let initial = counts();
+        source_property.set(source_with_x(&[("a", 8.0), ("b", 2.0)]));
+        context.drain_node_effects();
+        assert_eq!(counts(), initial);
+        let settled = pax_runtime_api::properties::property_table_total_properties_count();
+        for _ in 0..40 {
+            source_property.set(source_with_x(&[("a", 8.0), ("b", 2.0), ("c", 3.0)]));
+            context.drain_node_effects();
+            source_property.set(source_with_x(&[("a", 8.0), ("b", 2.0)]));
+            context.drain_node_effects();
+            assert_eq!(
+                pax_runtime_api::properties::property_table_total_properties_count(),
+                settled
+            );
+        }
+    }
+
+    #[test]
+    fn nested_repeats_do_not_reconcile_unchanged_sibling_payloads() {
+        let data = |x| {
+            PaxValue::Vec(vec![
+                PaxValue::Object(vec![
+                    ("id".into(), PaxValue::String("a".into())),
+                    ("parts".into(), source_with_x(&[("part", x)])),
+                ]),
+                PaxValue::Object(vec![
+                    ("id".into(), PaxValue::String("b".into())),
+                    ("parts".into(), source_with_x(&[("part", 2.0)])),
+                ]),
+            ])
+        };
+        let source_property = Property::new(data(1.0));
+        let source_evaluations = Rc::new(std::cell::Cell::new(0));
+        let evaluations = source_evaluations.clone();
+        let leaf: Rc<dyn InstanceNode> =
+            ComponentInstance::instantiate(leaf_args(Default::default()));
+        let mut inner_args = repeat_args(Property::new(PaxValue::default()), vec![leaf]);
+        inner_args.prototypical_properties =
+            crate::PropertiesInit::Factory(Box::new(move |env, node| {
+                if node.is_some() {
+                    return None;
+                }
+                let outer_item = Property::<PaxValue>::new_from_untyped(
+                    env.resolve_symbol_as_erased_property("item").unwrap(),
+                );
+                let dep = outer_item.untyped();
+                let evaluations = evaluations.clone();
+                let source_expression = Property::computed(
+                    move || {
+                        evaluations.set(evaluations.get() + 1);
+                        let PaxValue::Object(fields) = outer_item.get() else {
+                            panic!("expected item object")
+                        };
+                        fields
+                            .into_iter()
+                            .find(|(name, _)| name == "parts")
+                            .unwrap()
+                            .1
+                    },
+                    &[dep],
+                );
+                Some(Rc::new(RefCell::new(
+                    RepeatProperties {
+                        source_expression,
+                        iterator_i_symbol: Property::new(Some("i".into())),
+                        iterator_elem_symbol: Property::new(Some("item".into())),
+                        repeat_key_expression: Some(ExpressionInfo::new(
+                            parse_pax_expression("item.id").unwrap(),
+                        )),
+                    }
+                    .to_pax_any(),
+                )))
+            }));
+        let inner: Rc<dyn InstanceNode> = RepeatInstance::instantiate(inner_args);
+        let outer: Rc<dyn InstanceNode> =
+            RepeatInstance::instantiate(repeat_args(source_property.clone(), vec![inner]));
+        let root = ComponentInstance::instantiate(component_args(Some(vec![outer])));
+        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let root = ExpandedNode::initialize_root(root, &context);
+        root.recurse_update(&context);
+        context.drain_node_effects();
+        let outer = root.children.get().remove(0);
+        let inners = outer.children.get();
+        let first = inners[0].children.get()[0].clone();
+        let other = inners[1].children.get()[0].clone();
+        let (first_probe, first_runs) = binding_probe(&first, "item");
+        let (other_probe, other_runs) = binding_probe(&other, "item");
+        let evaluations = source_evaluations.get();
+        source_property.set(data(1.0));
+        context.drain_node_effects();
+        assert_eq!(source_evaluations.get(), evaluations);
+        source_property.set(data(1.0 + 1e-8));
+        context.drain_node_effects();
+        first_probe.get();
+        other_probe.get();
+        assert_eq!(source_evaluations.get(), evaluations + 1);
+        assert_eq!((first_runs.get(), other_runs.get()), (2, 1));
+        assert_eq!(inners[0].children.get()[0].id, first.id);
+        assert_eq!(inners[1].children.get()[0].id, other.id);
+    }
+
+    #[test]
+    fn parent_values_resize_reactively_and_replaced_sources_rebind() {
+        let (root, context) = mounted_repeat(Property::new(source(&["a"])));
+        let repeat = root.children.get().remove(0);
+        let children = repeat.children.get();
+        let child = &children[0];
+        let parent_cp = repeat.get_common_properties();
+        let child_cp = child.get_common_properties();
+        borrow!(parent_cp).width.set(Some(Size::Pixels(100.into())));
+        borrow!(child_cp).width.set(Some(Size::Percent(50.into())));
+        assert_eq!(child.transform_and_bounds.get().bounds.0, 50.0);
+        let rebuilds = child.parent_binding_rebuilds.get();
+        borrow!(parent_cp).width.set(Some(Size::Pixels(200.into())));
+        assert_eq!(child.transform_and_bounds.get().bounds.0, 100.0);
+        repeat.attach_children(children.clone(), &context, &repeat.parent_frame);
+        assert_eq!(child.parent_binding_rebuilds.get(), rebuilds);
+
+        let old_opacity = borrow!(child_cp).opacity.clone();
+        let new_opacity = Property::new(old_opacity.get());
+        borrow_mut!(child_cp).opacity = new_opacity.clone();
+        repeat.attach_children(children.clone(), &context, &repeat.parent_frame);
+        assert_eq!(child.parent_binding_rebuilds.get(), rebuilds + 1);
+        old_opacity.set(Some(0.25.into()));
+        assert_eq!(child.computed_opacity.get(), 1.0);
+        new_opacity.set(Some(0.75.into()));
+        assert_eq!(child.computed_opacity.get(), 0.75);
+
+        let template = borrow!(child.instance_node).clone();
+        child.recreate_with_new_data(template, &context);
+        context.drain_node_effects();
+        let rebuilt = child.parent_binding_rebuilds.get();
+        repeat.attach_children(children.clone(), &context, &repeat.parent_frame);
+        assert_eq!(
+            child.parent_binding_rebuilds.get(),
+            rebuilt + 1,
+            "reload must invalidate the binding fast path"
+        );
+    }
+
+    #[test]
+    fn repeat_exit_partition_and_final_removal_are_structural_changes() {
+        let source_property = Property::new(source(&["a"]));
+        let config = ComponentTransitionConfig {
+            has_exit: true,
+            exit_frame_count: 5,
+            timeout_ms: 5_000,
+            ..Default::default()
+        };
+        let leaf: Rc<dyn InstanceNode> = ComponentInstance::instantiate(leaf_args(config));
+        let repeat: Rc<dyn InstanceNode> =
+            RepeatInstance::instantiate(repeat_args(source_property.clone(), vec![leaf]));
+        let root = ComponentInstance::instantiate(component_args(Some(vec![repeat])));
+        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let root = ExpandedNode::initialize_root(root, &context);
+        root.recurse_update(&context);
+        context.drain_node_effects();
+        let repeat = root.children.get().remove(0);
+        let id = repeat.children.get()[0].id;
+        let before_exit = repeat.structural_children_updates.get();
+        source_property.set(source(&[]));
+        context.drain_node_effects();
+        assert_eq!(repeat.children.get()[0].id, id);
+        assert!(
+            repeat.structural_children_updates.get() > before_exit,
+            "active-to-exiting affects projection even with identical rendered IDs"
+        );
+        let before_prune = repeat.structural_children_updates.get();
+        context.globals().elapsed_frames.set(10);
+        context.drain_node_effects();
+        assert!(repeat.children.get().is_empty());
+        assert!(repeat.structural_children_updates.get() > before_prune);
+
+        // Cleanup and a new selection in the same tick must both be observed.
+        source_property.set(source(&["a"]));
+        context.drain_node_effects();
+        source_property.set(source(&[]));
+        context.drain_node_effects();
+        context.globals().elapsed_frames.set(20);
+        source_property.set(source(&["b"]));
+        context.drain_node_effects();
+        assert_eq!(repeat.children.get().len(), 1);
+        assert!(borrow!(repeat.exiting_children).is_empty());
+    }
+
+    #[test]
+    fn external_key_dependencies_and_invalid_key_fallback_remain_reactive() {
+        let source_property = Property::new(source(&["a"]));
+        let leaf: Rc<dyn InstanceNode> =
+            ComponentInstance::instantiate(leaf_args(Default::default()));
+        let mut args = repeat_args(source_property.clone(), vec![leaf]);
+        let source_copy = source_property.clone();
+        args.prototypical_properties = crate::PropertiesInit::Factory(Box::new(move |_, node| {
+            node.is_none().then(|| {
+                Rc::new(RefCell::new(
+                    RepeatProperties {
+                        source_expression: source_copy.clone(),
+                        iterator_i_symbol: Property::new(Some("i".into())),
+                        iterator_elem_symbol: Property::new(Some("item".into())),
+                        repeat_key_expression: Some(ExpressionInfo::new(
+                            parse_pax_expression("$frames").unwrap(),
+                        )),
+                    }
+                    .to_pax_any(),
+                ))
+            })
+        }));
+        let repeat: Rc<dyn InstanceNode> = RepeatInstance::instantiate(args);
+        let root = ComponentInstance::instantiate(component_args(Some(vec![repeat])));
+        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let root = ExpandedNode::initialize_root(root, &context);
+        root.recurse_update(&context);
+        context.drain_node_effects();
+        let repeat = root.children.get().remove(0);
+        let first_id = repeat.children.get()[0].id;
+        context.globals().elapsed_frames.set(1);
+        context.drain_node_effects();
+        assert_ne!(repeat.children.get()[0].id, first_id);
+
+        let invalid = PaxValue::Object(vec![("id".into(), PaxValue::Bool(true))]);
+        let data = PaxValue::Vec(vec![item("same"), item("same"), invalid]);
+        let source_property = Property::new(data.clone());
+        let (root, context) = mounted_repeat(source_property.clone());
+        let repeat = root.children.get().remove(0);
+        let first_ids = ids(&repeat.children.get());
+        assert_eq!(first_ids.iter().collect::<HashSet<_>>().len(), 3);
+        source_property.set(data);
+        context.drain_node_effects();
+        assert_eq!(ids(&repeat.children.get()), first_ids);
+    }
+
+    #[test]
+    fn keyed_groups_keep_all_template_roots_together_on_reorder() {
+        let source_property = Property::new(source(&["a", "b"]));
+        let leaf: Rc<dyn InstanceNode> =
+            ComponentInstance::instantiate(leaf_args(Default::default()));
+        let repeat: Rc<dyn InstanceNode> = RepeatInstance::instantiate(repeat_args(
+            source_property.clone(),
+            vec![leaf.clone(), leaf],
+        ));
+        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let root = ExpandedNode::initialize_root(
+            ComponentInstance::instantiate(component_args(Some(vec![repeat]))),
+            &context,
+        );
+        root.recurse_update(&context);
+        context.drain_node_effects();
+        let repeat = root.children.get().remove(0);
+        let initial = ids(&repeat.children.get());
+        assert_eq!(initial.len(), 4);
+        source_property.set(source(&["b", "a"]));
+        context.drain_node_effects();
+        assert_eq!(
+            ids(&repeat.children.get()),
+            [initial[2], initial[3], initial[0], initial[1]]
+        );
+    }
+
+    #[test]
+    fn detached_mask_style_repeat_binds_inserted_children_and_releases_last_child() {
+        let source_property = Property::new(source(&[]));
+        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let root = ExpandedNode::initialize_root(
+            ComponentInstance::instantiate(component_args(None)),
+            &context,
+        );
+        let mut args = leaf_args(Default::default());
+        args.prototypical_common_properties =
+            crate::CommonPropertiesInit::Factory(Box::new(|_, node| {
+                node.is_none().then(|| {
+                    let mut cp = CommonProperties::default();
+                    cp.width = Property::new(Some(Size::Percent(50.into())));
+                    cp.height = Property::new(Some(Size::Percent(50.into())));
+                    Rc::new(RefCell::new(cp))
+                })
+            }));
+        let leaf: Rc<dyn InstanceNode> = ComponentInstance::instantiate(args);
+        let repeat: Rc<dyn InstanceNode> =
+            RepeatInstance::instantiate(repeat_args(source_property.clone(), vec![leaf]));
+        let sidecar = root.create_children_detached(
+            iter::once((repeat, root.stack.clone())),
+            &context,
+            &Rc::downgrade(&root),
+        );
+        let sidecar = root.attach_sidecar_children(sidecar, &context, &root.parent_frame);
+        let repeat = &sidecar[0];
+        repeat.recurse_control_flow_expansion(&context);
+        context.drain_node_effects();
+        assert!(repeat.children.get().is_empty());
+        source_property.set(source(&["ring"]));
+        let children = repeat.children.get();
+        repeat.attach_children(children.clone(), &context, &repeat.parent_frame);
+        context.drain_node_effects();
+        assert_eq!(
+            children[0].attached.get(),
+            0,
+            "mask geometry must not acquire visible mount lifecycle"
+        );
+        assert_eq!(children[0].transform_and_bounds.get().bounds, (50.0, 50.0));
+        context.globals().viewport.set(TransformAndBounds {
+            transform: Transform2::identity(),
+            bounds: (300.0, 200.0),
+        });
+        context.drain_node_effects();
+        assert_eq!(
+            children[0].transform_and_bounds.get().bounds,
+            (150.0, 100.0)
+        );
+        let rebuilds = children[0].parent_binding_rebuilds.get();
+        source_property.set(source(&["ring"]));
+        repeat.attach_children(repeat.children.get(), &context, &repeat.parent_frame);
+        assert_eq!(children[0].parent_binding_rebuilds.get(), rebuilds);
+        source_property.set(source(&[]));
+        repeat.attach_children(repeat.children.get(), &context, &repeat.parent_frame);
+        context.drain_node_effects();
+        assert!(repeat.children.get().is_empty());
+        assert!(borrow!(repeat.mounted_children).is_empty());
     }
 
     #[test]
@@ -1081,8 +1569,7 @@ impl RepeatInstance {
             };
 
             let group = if let Some(group) = old_groups_by_key.remove(&key) {
-                group.i.set(i);
-                group.elem.set(elem);
+                update_repeat_bindings(&group.i, &group.elem, i, elem);
                 group
             } else if allow_rescue && is_mount {
                 Self::rescue_keyed_group(
@@ -1212,8 +1699,7 @@ impl RepeatInstance {
             .stack
             .resolve_symbol_as_erased_property(INTERNAL_REPEAT_ELEMENT_SYMBOL)
             .map(Property::<PaxValue>::new_from_untyped)?;
-        property_i.set(i);
-        property_elem.set(elem);
+        update_repeat_bindings(&property_i, &property_elem, i, elem);
         let env = expanded_node.stack.push(Self::repeat_scope_with_key(
             i_symbol,
             elem_symbol,

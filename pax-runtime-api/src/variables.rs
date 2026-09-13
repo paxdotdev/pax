@@ -2,11 +2,15 @@
 
 use super::*;
 
+#[cfg(test)]
+mod tests;
+
 /// Runtime property adapter used by expression scopes.
 #[derive(Clone)]
 pub struct Variable {
     untyped_property: UntypedProperty,
     converted_to_pax_value: Property<PaxValue>,
+    rust_type: std::any::TypeId,
 }
 
 impl Variable {
@@ -23,7 +27,31 @@ impl Variable {
         Variable {
             untyped_property,
             converted_to_pax_value: pax_value_prop,
+            rust_type: std::any::TypeId::of::<T>(),
         }
+    }
+
+    /// Creates an independent one-way binding when exact typed forwarding is
+    /// safe. Unlike a double binding, writes/easing on the result never mutate
+    /// the source. Mismatched types and custom conversions return `None`.
+    pub fn try_typed_binding<T: PropertyValue + CoercionRules>(
+        &self,
+        name: &str,
+    ) -> Option<Property<T>> {
+        if self.rust_type != std::any::TypeId::of::<T>()
+            || !self.untyped_property.has_value_type::<T>()
+            || !pax_value::is_typed_binding_safe::<T>()
+        {
+            return None;
+        }
+        // Both adapter and storage types were checked. Replacement preserves T
+        // and the generational property handle; no borrowed value escapes.
+        let source = Property::<T>::new_from_untyped(self.untyped_property.clone());
+        Some(Property::computed_with_name(
+            move || source.get(),
+            &[self.untyped_property.clone()],
+            name,
+        ))
     }
 
     // Returns the underlying untyped property for dependency graph wiring.

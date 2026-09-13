@@ -75,6 +75,7 @@ fn pax_primitive(
     _primitive_instance_import_path: String,
     is_custom_interpolatable: bool,
     is_custom_coercion_rules: bool,
+    can_derive_identity_roundtrip: bool,
     engine_import_path: String,
 ) -> proc_macro2::TokenStream {
     let _original_tokens = quote! { #input_parsed }.to_string();
@@ -92,6 +93,7 @@ fn pax_primitive(
         pascal_identifier,
         is_custom_interpolatable,
         is_custom_coercion_rules,
+        can_derive_identity_roundtrip,
         is_root_crate: is_root_crate(),
         _is_enum: is_enum,
         build_config: template_build_config(),
@@ -108,6 +110,7 @@ fn pax_struct_only_component(
     input_parsed: &DeriveInput,
     is_custom_interpolatable: bool,
     is_custom_coercion_rules: bool,
+    can_derive_identity_roundtrip: bool,
     engine_import_path: String,
 ) -> proc_macro2::TokenStream {
     let pascal_identifier = input_parsed.ident.to_string();
@@ -126,6 +129,7 @@ fn pax_struct_only_component(
         is_root_crate: is_root_crate(),
         is_custom_interpolatable,
         is_custom_coercion_rules,
+        can_derive_identity_roundtrip,
         _is_enum: is_enum,
         build_config: template_build_config(),
         engine_import_path,
@@ -337,6 +341,7 @@ fn pax_full_component(
     include_fix: Option<TokenStream>,
     is_custom_interpolatable: bool,
     is_custom_coercion_rules: bool,
+    can_derive_identity_roundtrip: bool,
     _associated_pax_file_path: Option<PathBuf>,
     engine_import_path: String,
 ) -> proc_macro2::TokenStream {
@@ -412,6 +417,7 @@ fn pax_full_component(
         is_root_crate: is_root_crate(),
         is_custom_interpolatable,
         is_custom_coercion_rules,
+        can_derive_identity_roundtrip,
         _is_enum: is_enum,
         build_config,
         engine_import_path,
@@ -628,6 +634,19 @@ pub fn pax(
         }
     }
 
+    // Non-path fields are currently omitted by value conversion. A typed copy
+    // would retain them instead, so it is not an equivalent roundtrip. Custom
+    // Default may also perform work that conversion must continue to execute.
+    let all_fields_represented = match &input.data {
+        Data::Struct(data) => data.fields.iter().all(|f| get_field_type(f).is_some()),
+        Data::Enum(data) => data
+            .variants
+            .iter()
+            .all(|v| v.fields.iter().all(|f| get_field_type(f).is_some())),
+        _ => false,
+    };
+    let can_derive_identity_roundtrip = all_fields_represented && trait_impls.contains(&"Default");
+
     let is_pax_file = config.file_path.is_some();
     let is_pax_svg = config.svg_path.is_some();
     let is_pax_inlined = config.inlined_contents.is_some();
@@ -657,6 +676,7 @@ pub fn pax(
             Some(include_fix),
             is_custom_interpolatable,
             is_custom_coercion_rules,
+            can_derive_identity_roundtrip,
             associated_pax_file,
             engine_import_path,
         )
@@ -681,6 +701,7 @@ pub fn pax(
             Some(include_fix),
             is_custom_interpolatable,
             is_custom_coercion_rules,
+            can_derive_identity_roundtrip,
             None,
             engine_import_path,
         )
@@ -694,6 +715,7 @@ pub fn pax(
             None,
             is_custom_interpolatable,
             is_custom_coercion_rules,
+            can_derive_identity_roundtrip,
             None,
             engine_import_path,
         )
@@ -703,6 +725,7 @@ pub fn pax(
             config.primitive_instance_import_path.unwrap(),
             is_custom_interpolatable,
             is_custom_coercion_rules,
+            can_derive_identity_roundtrip,
             engine_import_path,
         )
     } else {
@@ -710,6 +733,7 @@ pub fn pax(
             &input,
             is_custom_interpolatable,
             is_custom_coercion_rules,
+            can_derive_identity_roundtrip,
             engine_import_path,
         )
     };

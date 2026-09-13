@@ -26,6 +26,34 @@ use std::cell::Cell;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::rc::{Rc, Weak};
 
+// Keep the source handles alive, not the parent node. Equality of current
+// values is insufficient: a different source must establish a new subscription.
+#[derive(Clone)]
+struct ParentBindingSources {
+    parent: ExpandedNodeIdentifier,
+    properties: Vec<pax_runtime_api::properties::UntypedProperty>,
+}
+
+impl ParentBindingSources {
+    fn same_as(&self, other: &Self) -> bool {
+        self.parent == other.parent
+            && self.properties.len() == other.properties.len()
+            && self
+                .properties
+                .iter()
+                .zip(&other.properties)
+                .all(|(a, b)| a.get_id() == b.get_id())
+    }
+}
+
+#[derive(PartialEq)]
+struct ChildStructure {
+    binding_generation: u64,
+    rendered: Vec<ExpandedNodeIdentifier>,
+    active: Vec<ExpandedNodeIdentifier>,
+    exiting: Vec<ExpandedNodeIdentifier>,
+}
+
 use crate::api::{
     Accel, Axis, ButtonClick, CheckboxChange, Click, CommonProperties, ContextMenu, DoubleClick,
     Drop, Event, Gyro, KeyDown, KeyPress, KeyUp, LayoutRole, MouseDown, MouseMove, MouseOut,
@@ -294,6 +322,14 @@ pub struct ExpandedNode {
     pub children_listener: Property<()>,
     /// Rebinds `subtree_layout_hull` when the child list changes.
     pub subtree_layout_hull_listener: Property<()>,
+    parent_binding_sources: RefCell<Option<ParentBindingSources>>,
+    layout_binding_generation: Cell<u64>,
+    #[cfg(test)]
+    pub(crate) parent_binding_rebuilds: Cell<usize>,
+    #[cfg(test)]
+    pub(crate) layout_hull_rebuilds: Cell<usize>,
+    #[cfg(test)]
+    pub(crate) structural_children_updates: Cell<usize>,
     /// Reactive content-measurement effect used by autosize-style container features.
     pub content_measurement_listener: Property<()>,
     /// Rebinds `content_measurement_listener` when the content child list changes.
@@ -833,6 +869,14 @@ impl ExpandedNode {
             occlusion_listener: Property::default(),
             children_listener: Property::default(),
             subtree_layout_hull_listener: Property::default(),
+            parent_binding_sources: RefCell::new(None),
+            layout_binding_generation: Cell::new(0),
+            #[cfg(test)]
+            parent_binding_rebuilds: Cell::new(0),
+            #[cfg(test)]
+            layout_hull_rebuilds: Cell::new(0),
+            #[cfg(test)]
+            structural_children_updates: Cell::new(0),
             content_measurement_listener: Property::default(),
             content_measurement_rebind_listener: Property::default(),
             content_measurement_bound: Cell::new(false),
@@ -1031,8 +1075,18 @@ impl ExpandedNode {
     fn sync_mounted_children_from_active_and_exiting(&self) -> Vec<Rc<ExpandedNode>> {
         let active_children = borrow!(self.active_children).clone();
         let exiting_children = borrow!(self.exiting_children).clone();
-        self.active_children_view.set(active_children.clone());
-        self.exiting_children_view.set(exiting_children.clone());
+        if !self
+            .active_children_view
+            .read(|old| Self::same_children(old, &active_children))
+        {
+            self.active_children_view.set(active_children.clone());
+        }
+        if !self
+            .exiting_children_view
+            .read(|old| Self::same_children(old, &exiting_children))
+        {
+            self.exiting_children_view.set(exiting_children.clone());
+        }
         let mut combined = exiting_children;
         combined.extend(active_children);
         *borrow_mut!(self.mounted_children) = combined.clone();
@@ -1041,6 +1095,10 @@ impl ExpandedNode {
 
     fn has_child(children: &[Rc<ExpandedNode>], target: &Rc<ExpandedNode>) -> bool {
         children.iter().any(|child| Rc::ptr_eq(child, target))
+    }
+
+    fn same_children(a: &[Rc<ExpandedNode>], b: &[Rc<ExpandedNode>]) -> bool {
+        a.len() == b.len() && a.iter().zip(b).all(|(a, b)| Rc::ptr_eq(a, b))
     }
 
     fn detach_child_for_reparent(&self, target: &Rc<ExpandedNode>) {
@@ -1620,6 +1678,7 @@ impl ExpandedNode {
         parent_frame: &Property<Option<ExpandedNodeIdentifier>>,
         liquid_glass_scope: &Property<Option<NativeLiquidGlassScope>>,
     ) -> Vec<Rc<ExpandedNode>> {
+        let mut bindings_changed = false;
         for child in new_children.iter() {
             let previous_parent = borrow!(child.render_parent).upgrade();
             let is_reparented = child.attached.get() > 0
@@ -1633,28 +1692,23 @@ impl ExpandedNode {
                 }
             }
 
-            // set parent and connect up viewport bounds to new parent
-            *borrow_mut!(child.render_parent) = Rc::downgrade(self);
-            // set frame clipping reference
-            let parent_frame = parent_frame.clone();
-            let deps = [parent_frame.untyped()];
-            child
-                .parent_frame
-                .replace_with(Property::computed(move || parent_frame.get(), &deps));
-            let liquid_glass_scope = liquid_glass_scope.clone();
-            let deps = [liquid_glass_scope.untyped()];
-            child
-                .liquid_glass_scope
-                .replace_with(Property::computed(move || liquid_glass_scope.get(), &deps));
-
-            // Suspension lets designtime tools turn ticking and updates on or off.
-            child.inherit_suspend(self);
+            bindings_changed |=
+                child.ensure_parent_bindings(self, context, parent_frame, liquid_glass_scope);
             if is_reparented {
                 child.rebind_parent_bounds_for_mounted_subtree(context);
                 child.mark_canvas_subtree_dirty_for_reparent(context, false);
-            } else {
-                child.bind_to_parent_bounds(context);
             }
+        }
+        // Reconciliation still evaluates item data and parent context before
+        // this fast path. Exiting children remain managed by their cleanup lane.
+        if Self::same_children(&borrow!(self.active_children), &new_children)
+            && (self.attached.get() == 0
+                || new_children.iter().all(|child| child.attached.get() > 0))
+        {
+            if bindings_changed {
+                self.mark_non_reactive_update_subtree_dirty();
+            }
+            return self.current_attached_children();
         }
         let mut newly_mounted_children = Vec::new();
         if self.attached.get() > 0 {
@@ -1678,7 +1732,7 @@ impl ExpandedNode {
                 }
             }
             for child in new_children.iter() {
-                if !Self::has_child(&old_active_children, child) {
+                if !Self::has_child(&old_active_children, child) || child.attached.get() == 0 {
                     if child.attached.get() > 0 {
                         child.start_enter_transition_tree(context);
                     } else {
@@ -1704,23 +1758,78 @@ impl ExpandedNode {
         parent_frame: &Property<Option<ExpandedNodeIdentifier>>,
     ) -> Vec<Rc<ExpandedNode>> {
         for child in new_children.iter() {
-            *borrow_mut!(child.render_parent) = Rc::downgrade(self);
-            let parent_frame = parent_frame.clone();
-            let deps = [parent_frame.untyped()];
-            child
-                .parent_frame
-                .replace_with(Property::computed(move || parent_frame.get(), &deps));
-            let liquid_glass_scope = self.liquid_glass_scope.clone();
-            let deps = [liquid_glass_scope.untyped()];
-            child
-                .liquid_glass_scope
-                .replace_with(Property::computed(move || liquid_glass_scope.get(), &deps));
-            child.inherit_suspend(self);
-            child.bind_to_parent_bounds(context);
+            child.ensure_parent_bindings(self, context, parent_frame, &self.liquid_glass_scope);
         }
         *borrow_mut!(self.sidecar_children) = new_children.clone();
         self.mark_non_reactive_update_subtree_dirty();
         new_children
+    }
+
+    fn ensure_parent_bindings(
+        self: &Rc<Self>,
+        parent: &Rc<Self>,
+        context: &Rc<RuntimeContext>,
+        frame: &Property<Option<ExpandedNodeIdentifier>>,
+        glass: &Property<Option<NativeLiquidGlassScope>>,
+    ) -> bool {
+        let properties = {
+            let parent_cp = parent.get_common_properties();
+            let parent_cp = borrow!(parent_cp);
+            let cp = self.get_common_properties();
+            let cp = borrow!(cp);
+            vec![
+                frame.untyped(),
+                glass.untyped(),
+                parent.suspended.untyped(),
+                parent.transform_and_bounds.untyped(),
+                parent.computed_opacity.untyped(),
+                parent_cp.padding_x.untyped(),
+                parent_cp.padding_y.untyped(),
+                self.container_frame.untyped(),
+                self.measured_size.untyped(),
+                cp._suspended.untyped(),
+                cp.opacity.untyped(),
+                cp.transform.untyped(),
+                cp.width.untyped(),
+                cp.height.untyped(),
+                cp.x.untyped(),
+                cp.y.untyped(),
+                cp.anchor_x.untyped(),
+                cp.anchor_y.untyped(),
+                cp.scale_x.untyped(),
+                cp.scale_y.untyped(),
+                cp.skew_x.untyped(),
+                cp.skew_y.untyped(),
+                cp.rotate.untyped(),
+            ]
+        };
+        let sources = ParentBindingSources {
+            parent: parent.id,
+            properties,
+        };
+        let same_parent = borrow!(self.render_parent)
+            .upgrade()
+            .is_some_and(|old| Rc::ptr_eq(&old, parent));
+        if same_parent
+            && borrow!(self.parent_binding_sources)
+                .as_ref()
+                .is_some_and(|old| old.same_as(&sources))
+        {
+            return false;
+        }
+        *borrow_mut!(self.render_parent) = Rc::downgrade(parent);
+        let frame = frame.clone();
+        let deps = [frame.untyped()];
+        self.parent_frame
+            .replace_with(Property::computed(move || frame.get(), &deps));
+        let glass = glass.clone();
+        let deps = [glass.untyped()];
+        self.liquid_glass_scope
+            .replace_with(Property::computed(move || glass.get(), &deps));
+        self.inherit_suspend(parent);
+        self.bind_to_parent_bounds(context);
+        *borrow_mut!(self.parent_binding_sources) = Some(sources);
+        true
     }
 
     fn rebind_parent_bounds_for_mounted_subtree(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
@@ -1762,6 +1871,15 @@ impl ExpandedNode {
     }
 
     fn bind_to_parent_bounds(self: &Rc<Self>, ctx: &Rc<RuntimeContext>) {
+        // Explicit reload/reparent rebuilds invalidate the attachment fast path.
+        self.parent_binding_sources.borrow_mut().take();
+        self.layout_binding_generation
+            .set(self.layout_binding_generation.get().wrapping_add(1));
+        self.subtree_layout_hull_listener.invalidate();
+        self.children_listener.invalidate();
+        #[cfg(test)]
+        self.parent_binding_rebuilds
+            .set(self.parent_binding_rebuilds.get() + 1);
         let render_parent = borrow!(self.render_parent).upgrade();
         let parent_transform_and_bounds = render_parent
             .as_ref()
@@ -1838,8 +1956,9 @@ impl ExpandedNode {
             .collect();
         drop(instance_node);
 
+        // Structural child changes are handled by children_listener after
+        // reconciliation; data-only repeat invalidation is not an occlusion change.
         deps.extend([
-            self.children.untyped(),
             self.transform_and_bounds.untyped(),
             self.computed_opacity.untyped(),
             self.liquid_glass_scope.untyped(),
@@ -1911,13 +2030,19 @@ impl ExpandedNode {
         let deps = [self.children.untyped()];
         let weak_self = Rc::downgrade(self);
         let context = Rc::clone(ctx);
+        let previous = RefCell::new(None);
         self.children_listener
             .replace_with(Property::computed_with_name(
                 move || {
                     let Some(node) = weak_self.upgrade() else {
                         return;
                     };
-                    let _ = node.children.get();
+                    if !node.child_structure_changed(&previous) {
+                        return;
+                    }
+                    #[cfg(test)]
+                    node.structural_children_updates
+                        .set(node.structural_children_updates.get() + 1);
                     if borrow!(node.instance_node).base().flags().is_component
                         || borrow!(node.expanded_projected_children).is_some()
                     {
@@ -1954,14 +2079,16 @@ impl ExpandedNode {
         self.rebind_subtree_layout_hull();
         let deps = [self.children.untyped()];
         let weak_self = Rc::downgrade(self);
+        let previous = RefCell::new(None);
         self.subtree_layout_hull_listener
             .replace_with(Property::computed_with_name(
                 move || {
                     let Some(node) = weak_self.upgrade() else {
                         return;
                     };
-                    let _ = node.children.get();
-                    node.rebind_subtree_layout_hull();
+                    if node.child_structure_changed(&previous) {
+                        node.rebind_subtree_layout_hull();
+                    }
                 },
                 &deps,
                 "subtree layout hull listener",
@@ -1972,7 +2099,33 @@ impl ExpandedNode {
             "subtree layout hull listener",
         );
     }
+    fn child_structure_changed(&self, previous: &RefCell<Option<ChildStructure>>) -> bool {
+        // Always evaluate first: reconciliation may update data, rescue an exit,
+        // or remove a completed exit even when the source keys are unchanged.
+        let children = self.children.get();
+        let ids = |children: &[Rc<ExpandedNode>]| {
+            children.iter().map(|child| child.id).collect::<Vec<_>>()
+        };
+        // Slot projection distinguishes active from exiting children even when
+        // their combined render order is unchanged at the start of an exit.
+        let current = ChildStructure {
+            binding_generation: self.layout_binding_generation.get(),
+            rendered: ids(&children),
+            active: ids(&borrow!(self.active_children)),
+            exiting: ids(&borrow!(self.exiting_children)),
+        };
+        let mut previous = previous.borrow_mut();
+        if previous.as_ref() == Some(&current) {
+            return false;
+        }
+        *previous = Some(current);
+        true
+    }
+
     fn rebind_subtree_layout_hull(self: &Rc<Self>) {
+        #[cfg(test)]
+        self.layout_hull_rebuilds
+            .set(self.layout_hull_rebuilds.get() + 1);
         let self_transform_and_bounds = self.transform_and_bounds.clone();
         let layout_properties = self.layout_properties();
         let common_props = self.get_common_properties();
@@ -2081,6 +2234,7 @@ impl ExpandedNode {
     }
 
     pub fn inherit_suspend(self: &Rc<Self>, node: &Rc<Self>) {
+        self.parent_binding_sources.borrow_mut().take();
         let cp = self.get_common_properties();
         let self_suspended = borrow!(cp)._suspended.clone();
         let parent_suspended = node.suspended.clone();

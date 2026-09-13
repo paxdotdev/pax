@@ -1281,6 +1281,11 @@ impl<'w> RenderBackend<'w> {
         // translucent retained geometry blends over the target.
         self.pending_clear = true;
         self.pending_command_buffers.clear();
+        // Resize abandons encoded uploads. Forget their mask signatures and
+        // staging allocations instead of recalling work that was never submitted.
+        // Dropped WGPU handles remain alive for any older in-flight commands.
+        self.alpha_masks.invalidate();
+        self.staging_belt = StagingBelt::new(self.device.clone(), STAGING_BELT_CHUNK_SIZE);
         self.staging_belt_pending_recall = false;
         self.needs_device_poll = false;
         self.surface_config.width = width;
@@ -1726,9 +1731,10 @@ impl<'w> RenderBackend<'w> {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Alpha mask encoder"),
             });
-        self.alpha_masks.render(
+        let rendered = self.alpha_masks.render(
             &self.device,
             &mut encoder,
+            &mut self.staging_belt,
             id,
             signature,
             draws,
@@ -1740,7 +1746,9 @@ impl<'w> RenderBackend<'w> {
             feather,
             parent,
         );
-        self.enqueue_command_buffer(encoder.finish());
+        if rendered {
+            self.enqueue_staged_command_buffer(encoder);
+        }
     }
 
     pub(crate) fn draw_retained_batch_runs(&mut self, runs: &[RetainedBatchRun<'_>]) {

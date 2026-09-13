@@ -140,6 +140,30 @@
 
 <% if !is_custom_coercion_rules { %>
 impl <%= engine_import_path %>::api::CoercionRules for <%= pascal_identifier %> {
+    fn is_identity_roundtrip() -> bool {
+        // Property-wrapped fields must retain conversion's snapshot semantics.
+        <%= can_derive_identity_roundtrip %>
+        <% if let InternalDefinitions::Struct(fields) = &internal_definitions { %>
+            <% for field in fields { %>
+                <% if field.is_property_wrapped { %>
+                    && false
+                <% } else { %>
+                    && <%= engine_import_path %>::api::pax_value::is_typed_binding_safe::<<%= field.root_scoped_resolvable_type %>>()
+                <% } %>
+            <% } %>
+        <% } else if let InternalDefinitions::Enum(variants) = &internal_definitions { %>
+            <% for variant in variants { %>
+                <% for field in &variant.variant_fields { %>
+                    <% if field.is_property_wrapped { %>
+                        && false
+                    <% } else { %>
+                        && <%= engine_import_path %>::api::pax_value::is_typed_binding_safe::<<%= field.root_scoped_resolvable_type %>>()
+                    <% } %>
+                <% } %>
+            <% } %>
+        <% } %>
+    }
+
     fn try_coerce(value: <%= engine_import_path %>::PaxValue) -> Result<Self, String> {
             <% if let InternalDefinitions::Enum(variant_definitions) = &internal_definitions { %>
                 match value {

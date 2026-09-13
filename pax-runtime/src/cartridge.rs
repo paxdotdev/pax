@@ -37,6 +37,9 @@ use std::rc::Rc;
 
 pub trait PaxCartridge {}
 
+#[cfg(test)]
+mod typed_binding_tests;
+
 /// PAXEL symbol bound while resolving a property layer to the value from the
 /// preceding layer in that same property's precedence stack.
 pub const BASE_SYMBOL: &str = "$base";
@@ -2071,6 +2074,44 @@ pub trait DefinitionToInstanceTraverser {
     }
 }
 
+// Shared by rich and release-baked cartridges. Keep eligibility in the runtime
+// rather than baking a second expression form or changing value serialization.
+fn try_typed_property_binding<T: PropertyValue + CoercionRules>(
+    name: &str,
+    definition: &ValueDefinition,
+    stack: &Rc<RuntimePropertiesStackFrame>,
+) -> Option<Property<T>> {
+    use pax_language::interpreter::{PaxExpression, PaxPrimary};
+    fn identifier(expression: &PaxExpression) -> Option<&str> {
+        match expression {
+            PaxExpression::Primary(primary) => match primary.as_ref() {
+                PaxPrimary::Identifier(id, accessors) if accessors.is_empty() => Some(&id.name),
+                PaxPrimary::Grouped(expression, None) => identifier(expression),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+    let symbol = match definition {
+        ValueDefinition::Identifier(id) => &id.name,
+        ValueDefinition::Expression(info) => identifier(&info.expression)?,
+        _ => return None,
+    };
+    let variable = stack.resolve_symbol_as_variable(symbol)?;
+    if let ValueDefinition::Expression(info) = definition {
+        // Preserve unusual/manual expression dependency metadata via fallback.
+        if info.dependencies.len() != 1
+            || stack
+                .resolve_symbol_as_erased_property(&info.dependencies[0])?
+                .get_id()
+                != variable.get_untyped_property().get_id()
+        {
+            return None;
+        }
+    }
+    variable.try_typed_binding(name)
+}
+
 fn build_common_property_value<T>(
     name: &str,
     value_definition: &ValueDefinition,
@@ -2079,6 +2120,9 @@ fn build_common_property_value<T>(
 where
     T: CoercionRules + PropertyValue + ToPaxValue,
 {
+    if let Some(property) = try_typed_property_binding(name, value_definition, stack) {
+        return property;
+    }
     let cloned_stack = stack.clone();
     match value_definition {
         pax_manifest::ValueDefinition::LiteralValue(lv) => {
@@ -2130,7 +2174,7 @@ where
                             log::warn!("Failed to compute expr: {}", expression_label);
                             Default::default()
                         });
-                    Option::<T>::try_coerce(new_value.clone()).unwrap_or_else(|err| {
+                    Option::<T>::try_coerce(new_value).unwrap_or_else(|err| {
                         log::warn!(
                             "Failed to coerce new value for property {property_name}. Error: {:?}",
                             err
@@ -3532,6 +3576,9 @@ pub fn build_component_property<T>(
 where
     T: CoercionRules + PropertyValue + ToPaxValue,
 {
+    if let Some(property) = try_typed_property_binding(name, value_definition, stack) {
+        return property;
+    }
     match value_definition {
         ValueDefinition::LiteralValue(lv) => {
             let value = T::try_coerce(resolve_literal_value(lv.clone())).unwrap_or_else(|err| {
@@ -3599,7 +3646,7 @@ where
                             log::warn!("Failed to compute expr: {}", expression_label);
                             Default::default()
                         });
-                    T::try_coerce(new_value.clone()).unwrap_or_else(|err| {
+                    T::try_coerce(new_value).unwrap_or_else(|err| {
                         log::warn!(
                             "Failed to coerce new value for property {property_name}. Error: {:?}",
                             err

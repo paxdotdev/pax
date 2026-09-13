@@ -122,6 +122,10 @@ pub struct Entry {
 }
 
 impl PropertyTable {
+    pub(crate) fn has_value_type<T: PropertyValue>(&self, id: PropertyId) -> bool {
+        self.with_property_data(id, |data| data.typed_data.is::<TypedPropertyData<T>>())
+    }
+
     // Main function to get access to a value inside of a property.
     // Makes sure the value is up to date before returning in the case
     // of computed properties.
@@ -387,15 +391,17 @@ impl PropertyTable {
             return;
         }
 
-        // disconnect self from its dependents, in preparation of overwriting
-        // with targets inbound. (only does something for computed values)
+        // Reconnect even identical dependencies: their outbound order affects
+        // effect scheduling. Only the vector's allocation is reusable.
         self.disconnect_inbound(source_id);
 
         // copy necessary internal state from target to source
         self.with_property_data_mut(source_id, |source_property_data| {
             self.with_property_data_mut(target_id, |target_property_data| {
                 // Copy over inbound, dirty state, and current value to source
-                source_property_data.inbound = target_property_data.inbound.clone();
+                source_property_data
+                    .inbound
+                    .clone_from(&target_property_data.inbound);
                 source_property_data.dirty = target_property_data.dirty;
                 source_property_data.cutoff_settler = target_property_data.cutoff_settler.clone();
                 let source_typed = source_property_data.typed_data::<T>();
@@ -414,8 +420,7 @@ impl PropertyTable {
             });
         });
 
-        // connect self to its new dependents (found in property_types Expr
-        // type as inbound) (only does something for computed values)
+        // Reconnect the new dependencies and enqueue any dirty upstream cutoffs.
         self.connect_inbound(source_id);
 
         if self.is_registered_effect(source_id) && self.is_cutoff(source_id) {

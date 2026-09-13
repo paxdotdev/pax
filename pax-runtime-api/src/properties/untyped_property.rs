@@ -53,4 +53,9 @@ impl UntypedProperty {
     pub fn get_id(&self) -> PropertyId {
         self.id
     }
+
+    // Inspect storage as well as the adapter's declared type before rewrapping.
+    pub(crate) fn has_value_type<T: PropertyValue>(&self) -> bool {
+        PROPERTY_TABLE.with(|table| table.has_value_type::<T>(self.id))
+    }
 }

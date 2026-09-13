@@ -15,23 +15,23 @@ use crate::{
 
 // Default coercion rules:
 // call Into::<first param>::into() on contents of second enum variant
-impl_default_coercion_rule!(bool, PaxValue::Bool);
+impl_default_coercion_rule!(bool, PaxValue::Bool, true);
 
-impl_default_coercion_rule!(u8, PaxValue::Numeric);
-impl_default_coercion_rule!(u16, PaxValue::Numeric);
-impl_default_coercion_rule!(u32, PaxValue::Numeric);
-impl_default_coercion_rule!(u64, PaxValue::Numeric);
+impl_default_coercion_rule!(u8, PaxValue::Numeric, true);
+impl_default_coercion_rule!(u16, PaxValue::Numeric, true);
+impl_default_coercion_rule!(u32, PaxValue::Numeric, true);
+impl_default_coercion_rule!(u64, PaxValue::Numeric, true);
 
-impl_default_coercion_rule!(i8, PaxValue::Numeric);
-impl_default_coercion_rule!(i16, PaxValue::Numeric);
-impl_default_coercion_rule!(i32, PaxValue::Numeric);
-impl_default_coercion_rule!(i64, PaxValue::Numeric);
+impl_default_coercion_rule!(i8, PaxValue::Numeric, true);
+impl_default_coercion_rule!(i16, PaxValue::Numeric, true);
+impl_default_coercion_rule!(i32, PaxValue::Numeric, true);
+impl_default_coercion_rule!(i64, PaxValue::Numeric, true);
 
-impl_default_coercion_rule!(f32, PaxValue::Numeric);
-impl_default_coercion_rule!(f64, PaxValue::Numeric);
+impl_default_coercion_rule!(f32, PaxValue::Numeric, true);
+impl_default_coercion_rule!(f64, PaxValue::Numeric, true);
 
-impl_default_coercion_rule!(isize, PaxValue::Numeric);
-impl_default_coercion_rule!(usize, PaxValue::Numeric);
+impl_default_coercion_rule!(isize, PaxValue::Numeric, true);
+impl_default_coercion_rule!(usize, PaxValue::Numeric, true);
 
 impl CoercionRules for LayoutRole {
     fn try_coerce(value: PaxValue) -> Result<Self, String> {
@@ -75,6 +75,40 @@ where
 {
     /// Attempts to coerce `value` into `Self`.
     fn try_coerce(value: PaxValue) -> Result<Self, String>;
+
+    /// Whether cloning `Self` preserves the semantics of converting that clone
+    /// through `ToPaxValue` and back with `try_coerce`.
+    ///
+    /// Opt in only for exact, side-effect-free value roundtrips. In particular,
+    /// shared mutable handles are not eligible when conversion snapshots their
+    /// contents. Custom conversions conservatively use the default fallback.
+    /// Composite implementations must check every field with
+    /// [`super::is_typed_binding_safe`] so recursive types terminate safely.
+    fn is_identity_roundtrip() -> bool {
+        false
+    }
+}
+
+/// Checks the opt-in value-roundtrip contract for typed one-way bindings.
+/// Recursive type graphs conservatively fall back to conversion. This tracks
+/// only the current capability check, never values or property lifetimes.
+pub fn is_typed_binding_safe<T: CoercionRules>() -> bool {
+    use std::{any::TypeId, cell::RefCell, collections::HashSet};
+    thread_local! {
+        static CHECKING: RefCell<HashSet<TypeId>> = RefCell::new(HashSet::new());
+    }
+    struct Check(TypeId);
+    impl Drop for Check {
+        fn drop(&mut self) {
+            CHECKING.with(|checking| checking.borrow_mut().remove(&self.0));
+        }
+    }
+    let id = TypeId::of::<T>();
+    if !CHECKING.with(|checking| checking.borrow_mut().insert(id)) {
+        return false;
+    }
+    let _check = Check(id);
+    T::is_identity_roundtrip()
 }
 
 // #[allow(non_camel_case_types)]
@@ -120,6 +154,10 @@ where
 // }
 
 impl CoercionRules for Color {
+    fn is_identity_roundtrip() -> bool {
+        true
+    }
+
     fn try_coerce(value: PaxValue) -> Result<Self, String> {
         match value {
             PaxValue::Color(color) => Ok(*color),
@@ -199,6 +237,10 @@ impl CoercionRules for Color {
 }
 
 impl CoercionRules for PathElement {
+    fn is_identity_roundtrip() -> bool {
+        true
+    }
+
     fn try_coerce(value: PaxValue) -> Result<Self, String> {
         match value {
             PaxValue::PathElement(path_elem) => Ok(*path_elem),
@@ -1100,6 +1142,10 @@ impl CoercionRules for UnitValue {
 }
 
 impl CoercionRules for Percent {
+    fn is_identity_roundtrip() -> bool {
+        true
+    }
+
     fn try_coerce(pax_value: PaxValue) -> Result<Self, String> {
         Ok(match pax_value {
             PaxValue::Percent(p) => p,
@@ -1117,6 +1163,10 @@ impl CoercionRules for Percent {
 }
 
 impl CoercionRules for Size {
+    fn is_identity_roundtrip() -> bool {
+        true
+    }
+
     fn try_coerce(pax_value: PaxValue) -> Result<Self, String> {
         Ok(match pax_value {
             PaxValue::Size(size) => size,
@@ -1135,6 +1185,10 @@ impl CoercionRules for Size {
 }
 
 impl CoercionRules for String {
+    fn is_identity_roundtrip() -> bool {
+        true
+    }
+
     fn try_coerce(pax_value: PaxValue) -> Result<Self, String> {
         Ok(match pax_value {
             PaxValue::String(s) => s,
@@ -1158,6 +1212,10 @@ impl CoercionRules for String {
 }
 
 impl CoercionRules for Rotation {
+    fn is_identity_roundtrip() -> bool {
+        true
+    }
+
     fn try_coerce(pax_value: PaxValue) -> Result<Self, String> {
         Ok(match pax_value {
             PaxValue::Rotation(r) => r,
@@ -1176,6 +1234,10 @@ impl CoercionRules for Rotation {
 }
 
 impl CoercionRules for Duration {
+    fn is_identity_roundtrip() -> bool {
+        true
+    }
+
     fn try_coerce(pax_value: PaxValue) -> Result<Self, String> {
         Ok(match pax_value {
             PaxValue::Duration(duration) => duration,
@@ -1193,6 +1255,10 @@ impl CoercionRules for Duration {
 }
 
 impl CoercionRules for Numeric {
+    fn is_identity_roundtrip() -> bool {
+        true
+    }
+
     fn try_coerce(pax_value: PaxValue) -> Result<Self, String> {
         Ok(match pax_value {
             PaxValue::Bool(b) => (b as i32).into(),
@@ -1211,6 +1277,10 @@ impl CoercionRules for Numeric {
 }
 
 impl<T: CoercionRules> CoercionRules for Vec<T> {
+    fn is_identity_roundtrip() -> bool {
+        is_typed_binding_safe::<T>()
+    }
+
     fn try_coerce(value: PaxValue) -> Result<Self, String> {
         match value {
             PaxValue::Vec(vec) => {
@@ -1259,6 +1329,10 @@ impl<T1: CoercionRules, T2: CoercionRules> CoercionRules for (T1, T2) {
 }
 
 impl<T: CoercionRules> CoercionRules for Option<T> {
+    fn is_identity_roundtrip() -> bool {
+        is_typed_binding_safe::<T>()
+    }
+
     fn try_coerce(value: PaxValue) -> Result<Self, String> {
         match value {
             PaxValue::Option(opt) => {
@@ -1271,6 +1345,10 @@ impl<T: CoercionRules> CoercionRules for Option<T> {
 }
 
 impl<T: CoercionRules> CoercionRules for Range<T> {
+    fn is_identity_roundtrip() -> bool {
+        is_typed_binding_safe::<T>()
+    }
+
     fn try_coerce(value: PaxValue) -> Result<Self, String> {
         match value {
             PaxValue::Range(start, end) => {
@@ -1295,6 +1373,10 @@ impl<T: CoercionRules> CoercionRules for Range<T> {
 }
 
 impl CoercionRules for PaxValue {
+    fn is_identity_roundtrip() -> bool {
+        true
+    }
+
     fn try_coerce(value: PaxValue) -> Result<Self, String> {
         Ok(value)
     }

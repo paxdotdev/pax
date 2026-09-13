@@ -41,8 +41,7 @@ impl Ripple {
         // Keep an open hole even at birth; the band thickens as the bubble grows.
         let band_width = (width.min(height) * 0.0425)
             .clamp(19.0, 39.0)
-            .min(center_radius * 0.4)
-            / 3.0;
+            .min(center_radius * 0.4);
         let opacity =
             (progress / 0.055).clamp(0.0, 1.0) * ((1.0 - progress) / 0.22).clamp(0.0, 1.0);
         WaveSample {
@@ -324,15 +323,17 @@ mod tests {
     }
 
     #[test]
-    fn ring_stroke_is_one_third_the_previous_width() {
-        for (width, height) in [(1000.0, 600.0), (390.0, 844.0)] {
+    fn ring_stroke_uses_full_width_and_preserves_the_open_center() {
+        for (width, height, full_width) in [
+            (1000.0, 600.0, 25.5_f64),
+            (390.0, 844.0, 19.0),
+            (2000.0, 1200.0, 39.0),
+        ] {
             let ripple = Ripple::new(1, width * 0.5, height * 0.5, width, height, 0);
             for now in [0, 20, 100, 500, 1700] {
                 let wave = ripple.sample(now, width, height);
-                let previous = (width.min(height) * 0.0425)
-                    .clamp(19.0, 39.0)
-                    .min(wave.radius * wave.progress * 0.4);
-                assert!((wave.band_width * 3.0 - previous).abs() < 1e-8);
+                let expected = full_width.min(wave.radius * wave.progress * 0.4);
+                assert!((wave.band_width - expected).abs() < 1e-8);
             }
         }
     }

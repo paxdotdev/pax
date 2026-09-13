@@ -2,7 +2,7 @@ use crate::{Color, Duration, Interpolatable, PathElement, Percent, Rotation, Siz
 use std::{any::Any, fmt::Display, rc::Rc};
 
 use self::numeric::Numeric;
-pub use coercion_impls::CoercionRules;
+pub use coercion_impls::{is_typed_binding_safe, CoercionRules};
 use serde::{Deserialize, Serialize};
 
 mod arithmetic;

@@ -114,6 +114,106 @@ fn test_property_replacement_disconnects_previous_dependencies() {
 }
 
 #[test]
+fn test_replacement_reuses_dependency_storage_without_reusing_binding_state() {
+    let initial_count = property_table_total_properties_count();
+    let a = Property::new(1);
+    let b = Property::new(2);
+    let c = Property::new(3);
+    let read_a = a.clone();
+    let slot = Property::computed(
+        move || read_a.get(),
+        &[a.untyped(), b.untyped(), c.untyped()],
+    );
+    let read_slot = slot.clone();
+    let dependent = Property::computed(move || read_slot.get() * 10, &[slot.untyped()]);
+    assert_eq!(dependent.get(), 10);
+    let storage = PROPERTY_TABLE
+        .with(|table| table.with_property_data(slot.untyped.id, |data| data.inbound.as_ptr()));
+
+    // Reuse capacity across shrinking, empty, duplicate, and reordered inputs.
+    // The evaluator, value, graph edges, and dirty propagation must still change.
+    for dependencies in [
+        vec![c.clone(), b.clone()],
+        vec![],
+        vec![b.clone(), b.clone(), a.clone()],
+    ] {
+        let inputs = dependencies
+            .iter()
+            .map(Property::untyped)
+            .collect::<Vec<_>>();
+        let reads = dependencies.clone();
+        let replacement = Property::computed(
+            move || reads.iter().map(Property::get).sum::<i32>(),
+            &inputs,
+        );
+        let expected = replacement.get(); // Also cover replacing from a clean property.
+        slot.replace_with(replacement);
+        assert_eq!(dependent.get(), expected * 10);
+        PROPERTY_TABLE.with(|table| {
+            let (pointer, inbound) = table.with_property_data(slot.untyped.id, |data| {
+                (data.inbound.as_ptr(), data.inbound.clone())
+            });
+            assert_eq!(pointer, storage);
+            assert_eq!(
+                inbound,
+                inputs.iter().map(|input| input.id).collect::<Vec<_>>()
+            );
+            for input in [&a, &b, &c] {
+                let connections = table.with_property_data(input.untyped.id, |data| {
+                    data.outbound
+                        .iter()
+                        .filter(|id| **id == slot.untyped.id)
+                        .count()
+                });
+                assert_eq!(
+                    connections,
+                    inputs.iter().filter(|id| id.id == input.untyped.id).count()
+                );
+            }
+        });
+    }
+    a.set(7);
+    assert_eq!(dependent.get(), 110);
+    b.set(4);
+    assert_eq!(dependent.get(), 150);
+    c.set(100);
+    assert_eq!(dependent.get(), 150);
+    drop(dependent);
+    drop(slot);
+    drop([a, b, c]);
+    assert_eq!(property_table_total_properties_count(), initial_count);
+}
+
+#[test]
+fn test_replacement_preserves_dependency_connection_order_and_shared_target() {
+    let source = Property::new(1);
+    let read_source = source.clone();
+    let first = Property::computed(move || read_source.get(), &[source.untyped()]);
+    let read_source = source.clone();
+    let sibling = Property::computed(move || read_source.get(), &[source.untyped()]);
+    let read_source = source.clone();
+    let replacement = Property::computed(move || read_source.get() + 10, &[source.untyped()]);
+
+    first.replace_with(replacement.clone());
+    PROPERTY_TABLE.with(|table| {
+        let outbound = table.with_property_data(source.untyped.id, |data| data.outbound.clone());
+        // Even identical dependencies reconnect at the end: dirtification
+        // traverses this order when scheduling dependent effects.
+        assert_eq!(
+            outbound,
+            vec![sibling.untyped.id, replacement.untyped.id, first.untyped.id]
+        );
+    });
+    source.set(3);
+    assert_eq!(first.get(), 13);
+    assert_eq!(replacement.get(), 13);
+    drop(replacement);
+    source.set(4);
+    assert_eq!(first.get(), 14);
+    assert_eq!(sibling.get(), 4);
+}
+
+#[test]
 fn test_larger_network() {
     let prop_1 = Property::new(2);
     let prop_2 = Property::new(6);
