@@ -37,3 +37,8 @@
         />
     </Group>
 </Group>
+
+@settings {
+    @mouse_over: handle_mouse_over
+    @mouse_out: handle_mouse_out
+}

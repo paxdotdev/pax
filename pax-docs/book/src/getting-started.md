@@ -233,6 +233,30 @@ debug default. Release builds always force hot reload `off`; release cartridges
 support neither `.pax` live reload nor dynamic or interpreted logic
 replacement.
 
+## Local release runs on iOS and iPadOS
+
+Use `--release` to compile, development-sign, install, and launch an optimized
+app on a connected device:
+
+```sh
+pax-cli run --release --target ipados \
+  --ios-device 'device:My iPad' --ios-development-team YOUR_TEAM_ID
+```
+
+Use `--target ios` for iPhone. The selector accepts a device name or hardware
+UDID; Xcode must have access to the team's development signing credentials and
+the device must be paired with Developer Mode enabled. The team can also be
+configured in Cargo metadata (below). Without `--ios-device`, `run` selects a
+simulator; an explicit `--ios-device simulator:<name-or-udid>` also works in
+release mode and does not require signing credentials.
+
+This is a local development workflow, not App Store distribution: the CLI uses
+Xcode's Release configuration with Apple Development signing, and does not
+archive, export, or upload the app. `build --release --target ios|ipados` builds
+without launching. Release apps disable designtime and both hot-reload lanes,
+even when requested by flags or project settings. `run --release` is currently
+supported only for iOS and iPadOS.
+
 ## Web public files
 
 Create a `public/` directory beside `Cargo.toml` when a web application needs
@@ -332,4 +356,6 @@ Supported Apple target keys for `ios`, `ipados`, and `macos`:
 
 iOS and iPadOS use a single generated 1024x1024 `AppIcon` asset. The source
 image must be square and opaque. macOS generates the full AppIcon size set from
-the same square source image.
+the same square source image. The bundled iOS/iPadOS interface includes a Pax
+icon when no custom icon is configured; ejected interfaces retain their own
+asset catalog unless an icon override is provided.

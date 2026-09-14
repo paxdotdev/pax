@@ -17,4 +17,3 @@ crate-type = ["cdylib", "rlib"]
 [[bin]]
 name = "run"
 path = "bin/run.rs"
-

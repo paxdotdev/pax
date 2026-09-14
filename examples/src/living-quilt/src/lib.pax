@@ -3,6 +3,7 @@
         width={is_compact ? 290px : 382px}
         height={is_compact ? 171px : 217px}
         anchor=50% is_compact={is_compact} logo_progress={logo_progress}
+        @click=self.handle_logo_click
     />
 
     // One shared color view keeps tile seams and slides aligned with the

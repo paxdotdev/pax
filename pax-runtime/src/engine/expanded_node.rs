@@ -802,23 +802,35 @@ impl ExpandedNode {
             env
         };
 
-        let properties = template
-            .base()
-            .instance_prototypical_properties
-            .materialize(env.clone(), None)
-            .unwrap();
-
-        let common_properties = template
-            .base()
-            .instance_prototypical_common_properties
-            .materialize(env.clone(), None)
-            .unwrap();
+        // Legacy callbacks may inspect pre-bound state. Local self-timelines
+        // also need sibling double-binding aliases installed before capturing
+        // their scope. Keep their pre-node phase until alias installation is a
+        // separate descriptor operation; ordinary structured nodes just allocate.
+        let legacy_initialization = template.base().requires_pre_node_binding();
+        let properties_init = &template.base().instance_prototypical_properties;
+        let common_init = &template.base().instance_prototypical_common_properties;
+        let properties = if legacy_initialization {
+            properties_init.materialize(env.clone(), None).unwrap()
+        } else {
+            properties_init.allocate(env.clone())
+        };
+        let common_properties = if legacy_initialization {
+            common_init.materialize(env.clone(), None).unwrap()
+        } else {
+            common_init.allocate(env.clone())
+        };
         let selector_metadata =
             RuntimeSelectorMetadata::from_base(template.base(), &common_properties, &env);
 
-        let mut property_scope = borrow!(*common_properties).retrieve_property_scope();
-
-        property_scope.extend(template.base().properties_scope.build(properties.clone()));
+        let property_scope = if legacy_initialization {
+            let mut scope = borrow!(*common_properties).retrieve_property_scope();
+            scope.extend(template.base().properties_scope.build(properties.clone()));
+            scope
+        } else {
+            // Publish after binding so double-binding aliases are final and
+            // conversion-adapter properties are allocated only once.
+            HashMap::new()
+        };
 
         let id = context.gen_uid();
         let res = Rc::new(ExpandedNode {
@@ -905,17 +917,12 @@ impl ExpandedNode {
             resolved_property_provenance: RefCell::new(BTreeMap::new()),
             reset_removed_runtime_properties: Cell::new(false),
         });
-        template
-            .base()
-            .instance_prototypical_common_properties
-            .materialize(Rc::clone(&res.stack), Some(Rc::clone(&res)));
-        template
-            .base()
-            .instance_prototypical_properties
-            .materialize(Rc::clone(&res.stack), Some(Rc::clone(&res)));
-        let common_properties = Rc::clone(&*borrow!(res.common_properties));
-        *res.selector_metadata.borrow_mut() =
-            RuntimeSelectorMetadata::from_base(template.base(), &common_properties, &res.stack);
+        template.base().bind_properties(&res);
+        if legacy_initialization {
+            let common_properties = Rc::clone(&*borrow!(res.common_properties));
+            *res.selector_metadata.borrow_mut() =
+                RuntimeSelectorMetadata::from_base(template.base(), &common_properties, &res.stack);
+        }
         res.refresh_properties_scope(&template);
         res.bind_selector_classes_listener(context);
         res.bind_occlusion_listener(context);
@@ -930,14 +937,7 @@ impl ExpandedNode {
         context: &Rc<RuntimeContext>,
     ) {
         *borrow_mut!(self.instance_node) = Rc::clone(&template);
-        template
-            .base()
-            .instance_prototypical_common_properties
-            .materialize(Rc::clone(&self.stack), Some(Rc::clone(&self)));
-        template
-            .base()
-            .instance_prototypical_properties
-            .materialize(Rc::clone(&self.stack), Some(Rc::clone(&self)));
+        template.base().bind_properties(self);
         let common_properties = Rc::clone(&*borrow!(self.common_properties));
         *self.selector_metadata.borrow_mut() =
             RuntimeSelectorMetadata::from_base(template.base(), &common_properties, &self.stack);
@@ -1982,14 +1982,7 @@ impl ExpandedNode {
 
     fn reapply_runtime_settings(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
         let instance = Rc::clone(&*borrow!(self.instance_node));
-        instance
-            .base()
-            .instance_prototypical_common_properties
-            .materialize(Rc::clone(&self.stack), Some(Rc::clone(self)));
-        instance
-            .base()
-            .instance_prototypical_properties
-            .materialize(Rc::clone(&self.stack), Some(Rc::clone(self)));
+        instance.base().bind_properties(self);
         self.reset_removed_runtime_properties.set(false);
         self.refresh_properties_scope(&instance);
         self.mark_non_reactive_update_subtree_dirty();

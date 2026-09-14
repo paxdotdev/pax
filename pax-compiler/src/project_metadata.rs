@@ -174,7 +174,7 @@ impl PaxProjectMetadata {
             .or(self.common.icon.as_deref())
     }
 
-    fn apple_bundle_identifier(&self, target: &RunTarget) -> Option<String> {
+    pub(crate) fn apple_bundle_identifier(&self, target: &RunTarget) -> Option<String> {
         self.apple_target_metadata(target)
             .and_then(|metadata| metadata.bundle_identifier.clone())
             .or_else(|| {
@@ -904,6 +904,41 @@ mod tests {
             fs::read_to_string(app_iconset.join("Contents.json")).expect("contents should exist");
         assert!(contents.contains("\"platform\": \"ios\""));
         assert!(contents.contains("\"size\": \"1024x1024\""));
+    }
+
+    #[test]
+    fn bundled_mobile_icon_is_present_opaque_and_can_be_overridden() {
+        for target in [RunTarget::iOS, RunTarget::iPadOS] {
+            let dir = tempfile::tempdir().unwrap();
+            let interface = dir.path().join(INTERFACE_DIR_NAME).join("ios");
+            fs::create_dir_all(&interface).unwrap();
+            crate::helpers::PAX_IOS_INTERFACE_TEMPLATE
+                .extract(&interface)
+                .unwrap();
+            let iconset = interface.join("pax-app-ios/pax-app-ios/Assets.xcassets/AppIcon.appiconset");
+            let contents: serde_json::Value = serde_json::from_str(
+                &fs::read_to_string(iconset.join("Contents.json")).unwrap(),
+            ).unwrap();
+            let icon = iconset.join(contents["images"][0]["filename"].as_str().unwrap());
+            let default_bytes = fs::read(&icon).unwrap();
+            let image = image::load_from_memory(&default_bytes).unwrap();
+            assert_eq!((image.width(), image.height()), (1024, 1024));
+            assert!(image.to_rgba8().pixels().all(|pixel| pixel[3] == 255));
+            assert!(image.to_rgb8().pixels().any(|pixel| pixel[0] < 32));
+            apply_apple_icon_metadata(&target, dir.path(), &PaxProjectMetadata::default()).unwrap();
+            assert_eq!(fs::read(&icon).unwrap(), default_bytes);
+
+            image::RgbImage::from_pixel(32, 32, image::Rgb([24, 48, 96]))
+                .save(dir.path().join("custom.png"))
+                .unwrap();
+            let metadata = load_project_metadata_from_toml(
+                dir.path(), "[package.metadata.pax]\nicon = 'custom.png'\n",
+            ).unwrap();
+            apply_apple_icon_metadata(&target, dir.path(), &metadata).unwrap();
+            let overridden = image::open(&icon).unwrap().to_rgb8();
+            assert_eq!(overridden.dimensions(), (1024, 1024));
+            assert!(overridden.pixels().all(|pixel| pixel.0 == [24, 48, 96]));
+        }
     }
 
     #[test]

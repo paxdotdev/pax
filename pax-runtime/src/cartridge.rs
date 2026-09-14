@@ -37,6 +37,8 @@ use std::rc::Rc;
 
 pub trait PaxCartridge {}
 
+#[cfg(all(test, not(feature = "designtime")))]
+mod initialization_tests;
 #[cfg(test)]
 mod typed_binding_tests;
 
@@ -714,6 +716,73 @@ fn resolve_property_columns_for_node(
     }
     resolved.columns
 }
+
+/// Immutable template inputs shared by common and component property binding.
+/// Resolved columns and reactive properties are always node-local; this plan
+/// never caches evaluated values or selector matches across nodes or rebinds.
+pub struct TemplatePropertyPlan {
+    node: TemplateNodeDefinition,
+    base_defined_properties: BTreeMap<String, ValueDefinition>,
+    component_settings: Option<Vec<SettingsBlockElement>>,
+    timelines: Vec<TimelineDefinition>,
+    pub(crate) requires_pre_node_binding: bool,
+    #[cfg(test)]
+    resolutions: std::cell::Cell<usize>,
+}
+
+impl TemplatePropertyPlan {
+    pub(crate) fn new(
+        node: TemplateNodeDefinition,
+        base_defined_properties: BTreeMap<String, ValueDefinition>,
+        component_settings: Option<Vec<SettingsBlockElement>>,
+        timelines: Vec<TimelineDefinition>,
+    ) -> Self {
+        let requires_pre_node_binding = base_defined_properties
+            .values()
+            .any(value_uses_local_property_scope)
+            || node.settings.iter().flatten().any(|setting| {
+                matches!(setting,
+                SettingElement::Setting(_, value) if value_uses_local_property_scope(value))
+            });
+        Self {
+            node,
+            base_defined_properties,
+            component_settings,
+            timelines,
+            requires_pre_node_binding,
+            #[cfg(test)]
+            resolutions: std::cell::Cell::new(0),
+        }
+    }
+
+    pub(crate) fn resolve(
+        &self,
+        node: Option<&Rc<ExpandedNode>>,
+    ) -> RuntimeResolvedPropertyColumns {
+        #[cfg(test)]
+        self.resolutions.set(self.resolutions.get() + 1);
+        resolve_property_columns_for_node(
+            &self.node,
+            &self.base_defined_properties,
+            &self.component_settings,
+            &self.timelines,
+            node,
+        )
+    }
+}
+
+pub(crate) fn value_uses_local_property_scope(value: &ValueDefinition) -> bool {
+    match value {
+        ValueDefinition::Timeline(track) => track.use_local_property_scope,
+        ValueDefinition::Transition(transition) => transition
+            .enter
+            .iter()
+            .chain(transition.exit.iter())
+            .any(|track| track.use_local_property_scope),
+        _ => false,
+    }
+}
+
 pub struct HandlerDescriptor {
     pub name: &'static str,
     pub function: fn(Rc<RefCell<PaxAny>>, &NodeContext, Option<PaxAny>),
@@ -1931,69 +2000,17 @@ pub trait DefinitionToInstanceTraverser {
             manifest.get_inline_properties(containing_component_type_id, node_id, &node);
         manifest
             .merge_component_self_timelines_with_properties(&node.type_id, &mut inline_properties);
-        let base_defined_properties = inline_properties.clone();
-        let base_defined_properties_for_common = base_defined_properties.clone();
-        let properties_tnd = node.clone();
-        let properties_component_settings = containing_component_settings.clone();
-        let properties_timelines = containing_component_timelines.clone();
-        args.prototypical_properties =
-            crate::PropertiesInit::Factory(Box::new(move |stack_frame, expanded_node| {
-                let property_columns = resolve_property_columns_for_node(
-                    &properties_tnd,
-                    &base_defined_properties,
-                    &properties_component_settings,
-                    &properties_timelines,
-                    expanded_node.as_ref(),
-                );
-                if let Some(expanded_node) = expanded_node {
-                    let outer_ref = expanded_node.properties.borrow();
-                    let rc = Rc::clone(&outer_ref);
-                    let mut inner_ref = (*rc).borrow_mut();
-                    (node_component_descriptor.apply_defined_properties)(
-                        node_component_descriptor.typed_descriptor,
-                        &mut inner_ref,
-                        &property_columns,
-                        &stack_frame,
-                    );
-                    return None;
-                }
-
-                let mut properties = (node_component_descriptor.create_properties)();
-                (node_component_descriptor.apply_defined_properties)(
-                    node_component_descriptor.typed_descriptor,
-                    &mut properties,
-                    &property_columns,
-                    &stack_frame,
-                );
-                Some(Rc::new(RefCell::new(properties)))
-            }));
-
-        // update common properties from tnd
-        let common_tnd = node.clone();
-        let common_component_settings = containing_component_settings;
-        let common_timelines = containing_component_timelines;
-        args.prototypical_common_properties =
-            crate::CommonPropertiesInit::Factory(Box::new(move |stack_frame, expanded_node| {
-                let property_columns = resolve_property_columns_for_node(
-                    &common_tnd,
-                    &base_defined_properties_for_common,
-                    &common_component_settings,
-                    &common_timelines,
-                    expanded_node.as_ref(),
-                );
-                if let Some(expanded_node) = expanded_node {
-                    update_existing_common_properties_from_columns(
-                        &expanded_node,
-                        &property_columns,
-                        &stack_frame,
-                    );
-                    return None;
-                }
-                Some(create_new_common_properties_from_columns(
-                    &property_columns,
-                    &stack_frame,
-                ))
-            }));
+        let plan = Rc::new(TemplatePropertyPlan::new(
+            node,
+            inline_properties,
+            containing_component_settings,
+            containing_component_timelines,
+        ));
+        args.prototypical_properties = crate::PropertiesInit::Template {
+            descriptor: node_component_descriptor,
+            plan: Rc::clone(&plan),
+        };
+        args.prototypical_common_properties = crate::CommonPropertiesInit::Template(plan);
 
         args.transition_config.merge_from(
             manifest.get_template_node_transition_config(containing_component_type_id, node_id),

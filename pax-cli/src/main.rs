@@ -36,6 +36,28 @@ fn main() -> Result<(), Report> {
         http::check_for_update(cloned_new_version_info);
     });
 
+    let matches = cli().get_matches_from(normalize_cli_args(std::env::args().collect())?);
+    let is_libdev_mode = resolve_matches_libdev_mode(&matches)?;
+
+    let cloned_version_info = Arc::clone(&new_version_info);
+    let cloned_process_child_ids = Arc::clone(&process_child_ids);
+    ctrlc::set_handler(move || {
+        println!("\nInterrupt received. Cleaning up child processes...");
+        perform_cleanup(
+            Arc::clone(&cloned_version_info),
+            Arc::clone(&cloned_process_child_ids),
+            is_libdev_mode,
+            true,
+        );
+    })
+    .expect("ctrl-c hook should have been set up successfully");
+
+    let res = perform_nominal_action(matches, Arc::clone(&process_child_ids));
+    perform_cleanup(new_version_info, process_child_ids, is_libdev_mode, false);
+    res
+}
+
+fn cli() -> App<'static, 'static> {
     #[allow(non_snake_case)]
     let ARG_PATH = Arg::with_name("path")
         .short("p")
@@ -106,7 +128,7 @@ fn main() -> Result<(), Report> {
         .help("Controls libdev behavior. Auto enables libdev for Pax monorepo examples/tests only.")
         .hidden(true);
 
-    let matches = App::new("pax")
+    App::new("pax")
         .name("pax")
         .bin_name("pax-cli")
         .about("Pax CLI including compiler and dev tooling")
@@ -124,6 +146,7 @@ fn main() -> Result<(), Report> {
                 .arg( ARG_LIBDEV.clone() )
                 .arg( ARG_LIBDEV_MODE.clone() )
                 .arg( ARG_HOT_RELOAD.clone() )
+                .arg( ARG_RELEASE.clone().help("Run an optimized local iOS/iPadOS build. Disables designtime and hot reload; does not publish the app.") )
         )
         .subcommand(
             App::new("build")
@@ -241,28 +264,40 @@ fn main() -> Result<(), Report> {
         .subcommand(docs::command())
         .subcommand(dev::command())
         .subcommand(svg_import::command())
-        .get_matches_from(normalize_cli_args(std::env::args().collect())?);
+}
 
-    let is_libdev_mode = resolve_matches_libdev_mode(&matches)?;
-
-    // Create a separate thread to handle signals e.g. via CTRL+C
-
-    let cloned_version_info = Arc::clone(&new_version_info);
-    let cloned_process_child_ids = Arc::clone(&process_child_ids);
-    ctrlc::set_handler(move || {
-        println!("\nInterrupt received. Cleaning up child processes...");
-        perform_cleanup(
-            Arc::clone(&cloned_version_info),
-            Arc::clone(&cloned_process_child_ids),
-            is_libdev_mode,
-            true,
-        );
+fn run_context(
+    args: &ArgMatches<'_>,
+    process_child_ids: Arc<Mutex<Vec<u64>>>,
+) -> Result<RunContext> {
+    let target = parse_run_target(args.value_of("target").unwrap())?;
+    let path = PathBuf::from(args.value_of("path").unwrap());
+    let is_release = args.is_present("release");
+    if is_release && !matches!(target, RunTarget::iOS | RunTarget::iPadOS) {
+        return Err(eyre!(
+            "run --release currently supports ios and ipados; use build --release for other targets"
+        ));
+    }
+    Ok(RunContext {
+        target,
+        is_libdev_mode: resolve_libdev_mode(args, &path)?,
+        project_path: path,
+        verbose: args.is_present("verbose"),
+        should_also_run: true,
+        process_child_ids,
+        should_run_designtime: !is_release,
+        // Release cartridges never include source-update machinery, even if
+        // --hot-reload or the project/environment requests a live lane.
+        hot_reload: if is_release {
+            Some(HotReloadMode::Off)
+        } else {
+            parse_hot_reload_mode(args)?
+        },
+        is_release,
+        profile_wasm_size: false,
+        ios_device: args.value_of("ios-device").map(str::to_string),
+        ios_development_team: args.value_of("ios-development-team").map(str::to_string),
     })
-    .expect("ctrl-c hook should have been set up successfully");
-
-    let res = perform_nominal_action(matches, Arc::clone(&process_child_ids));
-    perform_cleanup(new_version_info, process_child_ids, is_libdev_mode, false);
-    res
 }
 
 fn perform_nominal_action(
@@ -271,29 +306,7 @@ fn perform_nominal_action(
 ) -> Result<(), Report> {
     match matches.subcommand() {
         ("run", Some(args)) => {
-            let target = args.value_of("target").unwrap().to_lowercase();
-            let path = args.value_of("path").unwrap().to_string(); //default value "."
-            let verbose = args.is_present("verbose");
-            let is_libdev_mode = resolve_libdev_mode(args, Path::new(&path))?;
-            let ios_device = args.value_of("ios-device").map(str::to_string);
-            let ios_development_team = args.value_of("ios-development-team").map(str::to_string);
-            let should_run_designtime = true;
-            let hot_reload = parse_hot_reload_mode(args)?;
-
-            let _ = pax_compiler::perform_build(&RunContext {
-                target: parse_run_target(&target)?,
-                project_path: PathBuf::from(path),
-                verbose,
-                should_also_run: true,
-                is_libdev_mode,
-                process_child_ids,
-                should_run_designtime,
-                hot_reload,
-                is_release: false,
-                profile_wasm_size: false,
-                ios_device,
-                ios_development_team,
-            })?;
+            let _ = pax_compiler::perform_build(&run_context(args, process_child_ids)?)?;
 
             Ok(())
         }
@@ -747,6 +760,60 @@ fn kill_process(pid: u32) -> Result<(), std::io::Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mobile_release_run_disables_designtime_and_hot_reload() {
+        for target in ["ios", "ipados", "ipad"] {
+            let matches = cli()
+                .get_matches_from_safe(vec![
+                    "pax-cli", "run", "--target", target, "--release",
+                    "--hot-reload", "all", "--libdev-mode", "false",
+                    "--ios-device", "device:test-udid", "--ios-development-team", "TESTTEAM",
+                ])
+                .unwrap();
+            let ctx = run_context(
+                matches.subcommand_matches("run").unwrap(), Arc::default(),
+            ).unwrap();
+            assert!(ctx.is_release && ctx.should_also_run);
+            assert!(!ctx.should_run_designtime);
+            assert_eq!(ctx.hot_reload, Some(HotReloadMode::Off));
+            assert_eq!(ctx.ios_device.as_deref(), Some("device:test-udid"));
+            assert_eq!(ctx.ios_development_team.as_deref(), Some("TESTTEAM"));
+            assert_eq!(matches!(ctx.target, RunTarget::iOS), target == "ios");
+        }
+    }
+
+    #[test]
+    fn debug_run_retains_designtime_and_reload_policy() {
+        for lane in [None, Some("all"), Some("off")] {
+            let mut argv = vec![
+                "pax-cli", "run", "--target", "ipados", "--libdev-mode", "false",
+            ];
+            if let Some(lane) = lane {
+                argv.extend(["--hot-reload", lane]);
+            }
+            let matches = cli().get_matches_from_safe(argv).unwrap();
+            let ctx = run_context(
+                matches.subcommand_matches("run").unwrap(), Arc::default(),
+            ).unwrap();
+            assert!(!ctx.is_release);
+            assert!(ctx.should_run_designtime && ctx.should_also_run);
+            assert_eq!(ctx.hot_reload, lane.map(|lane| lane.parse().unwrap()));
+        }
+    }
+
+    #[test]
+    fn release_run_does_not_enable_unvalidated_desktop_paths() {
+        for target in ["web", "macos"] {
+            let matches = cli()
+                .get_matches_from_safe(vec!["pax-cli", "run", "--release", "--target", target])
+                .unwrap();
+            let error = run_context(
+                matches.subcommand_matches("run").unwrap(), Arc::default(),
+            ).err().unwrap();
+            assert!(error.to_string().contains("use build --release"));
+        }
+    }
 
     #[test]
     fn normalize_libdev_accepts_bare_flag() {

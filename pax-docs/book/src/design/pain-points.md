@@ -1443,3 +1443,69 @@ targets, connection order, and property cleanup. Repeated ten-ring release
 captures did not establish a substantial frame-time gain from this narrow
 allocation reduction; avoid presenting it as a substitute for reducing the
 amount of node initialization work.
+
+Template-node initialization used to resolve settings independently for common
+and component properties both before and after allocating the expanded node.
+It also built two property scopes, including their conversion-adapter
+properties. Structured template initializers now share an immutable input plan:
+allocate slots, establish selector identity, resolve once with node context,
+bind common and component properties, publish the final scope, then activate.
+The plan contains no resolved selector matches, provider bindings, or computed
+values; rebinds resolve afresh, and sibling repeat nodes never share live slots.
+Runtime defaults and per-field custom-default applicators are not pooled or
+coalesced. The plan is constructed from existing manifest data in the shared
+traverser, so rich, Rust-emitted release, and binary-decoded manifests do not
+need a new wire format or descriptor schema.
+
+One prebinding phase cannot yet be removed indiscriminately. A component-local
+timeline can capture a sibling slot before a later descriptor installs a
+double-binding alias there, leaving the timeline attached to the old slot.
+A regression test reproduced that failure. Such local timeline/transition
+nodes retain prebinding, as do custom property or scope factories (including
+mixed structured/factory initializers). Removing that compatibility path needs
+an explicit alias-installation phase before local-scope capture, not skipped
+invalidation or a special case in the example. Tests cover forward aliases,
+selector removal/reset, imported-provider scope and `$base`, lifecycle order,
+reload, shared-plan isolation, and property cleanup. Repeated ten-ring release
+comparisons improved, but input batching and short overlap windows still make
+an exact speedup estimate noisy.
+
+## 2026-09-14
+
+The physical-device identifier shown by `xcrun devicectl list devices` is a
+CoreDevice UUID, not the hardware UDID currently matched by Pax's
+`--ios-device` selector. Passing that UUID failed even though the attached iPad
+was paired and available. Use `device:<name>` or the hardware `udid` reported by
+`xcrun devicectl device info details --device <CoreDevice UUID>` instead.
+Recommendation: distinguish these identifiers in device-selection diagnostics,
+or accept both through an explicit mapping when extending the selector.
+
+The same device check found an obsolete release guard after successfully
+compiling the optimized Rust framework. Removing it alone was insufficient:
+the iOS template has Debug and Release configurations under the same
+`Pax iOS (Development)` scheme, and its old Release signing default was
+`Don't Code Sign`. Local `run --release` now uses that existing scheme,
+Apple Development signing for devices, and no signing for simulators. It
+forces designtime and hot reload off; App Store archive/export/upload remain
+separate work. Install/launch also needs the effective metadata bundle ID,
+not just the project-derived default that metadata may override in Xcode.
+
+The bundled mobile AppIcon catalog listed a 1024x1024 slot without a filename
+or image. Apps without icon metadata consequently showed a generic or blank
+icon in both build modes. The template now carries the current opaque Pax
+icon (reused from the increment example); custom metadata still replaces it.
+Keep the bitmap inside the compiler crate's packaged interface, not behind a
+build-time dependency on monorepo example files.
+
+Living Quilt's ambient tile cadence is 500 ms, but each slide lasts 580 ms.
+Requiring every panel to settle before each ambient update would stall that
+cadence. Idle is now latched after the interactive
+scene and logo settle; ambient slides preserve that state, and an accepted ring
+clears it. Idle panel batches and rings also share one ID sequence so their
+keyed panel repeats cannot collide. Schedule the next deadline from the current
+time, rather than replaying missed timer events after suspension.
+
+Logo replay is a separate `@click` handler on the logo card. Its click bubbles
+to the canvas for one ring attempt, so the card can replay without throttling
+even when the ring cap is full. Automatic rings and clicks outside the card
+never reset the logo. Keep replay out of the shared ring-emission helper.

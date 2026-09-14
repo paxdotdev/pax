@@ -16,9 +16,11 @@ use piet::{Color, StrokeStyle};
 use crate::api::{Layer, Scroll, Window};
 
 use crate::{
-    create_new_common_properties, property_columns_from_defined_properties,
-    update_existing_common_properties, ErasedComponentDescriptor, ExpandedNode, HandlerRegistry,
-    ReceivedChildrenSource, RuntimeContext, RuntimePropertiesStackFrame,
+    create_new_common_properties, create_new_common_properties_from_columns,
+    property_columns_from_defined_properties, update_existing_common_properties,
+    update_existing_common_properties_from_columns, ErasedComponentDescriptor, ExpandedNode,
+    HandlerRegistry, ReceivedChildrenSource, RuntimeContext, RuntimePropertiesStackFrame,
+    TemplatePropertyPlan,
 };
 use pax_manifest::ValueDefinition;
 
@@ -46,10 +48,36 @@ pub enum CommonPropertiesInit {
     Inline {
         defined_properties: BTreeMap<String, ValueDefinition>,
     },
+    Template(Rc<TemplatePropertyPlan>),
     Factory(CommonPropertiesFactory),
 }
 
 impl CommonPropertiesInit {
+    fn requires_pre_node_binding(&self) -> bool {
+        match self {
+            Self::Factory(_) => true,
+            Self::Inline { defined_properties } => defined_properties
+                .values()
+                .any(crate::value_uses_local_property_scope),
+            Self::Template(plan) => plan.requires_pre_node_binding,
+            Self::Default => false,
+        }
+    }
+
+    /// Allocate stable slots without binding structured template expressions.
+    /// Legacy factories retain their existing pre-node callback contract.
+    pub(crate) fn allocate(
+        &self,
+        stack: Rc<RuntimePropertiesStackFrame>,
+    ) -> Rc<RefCell<CommonProperties>> {
+        match self {
+            Self::Factory(factory) => {
+                factory(stack, None).expect("common properties factory must allocate properties")
+            }
+            _ => Rc::new(RefCell::new(CommonProperties::default())),
+        }
+    }
+
     pub fn materialize(
         &self,
         stack_frame: Rc<RuntimePropertiesStackFrame>,
@@ -74,6 +102,18 @@ impl CommonPropertiesInit {
                     ))
                 }
             }
+            CommonPropertiesInit::Template(plan) => {
+                let columns = plan.resolve(expanded_node.as_ref());
+                if let Some(node) = expanded_node {
+                    update_existing_common_properties_from_columns(&node, &columns, &stack_frame);
+                    None
+                } else {
+                    Some(create_new_common_properties_from_columns(
+                        &columns,
+                        &stack_frame,
+                    ))
+                }
+            }
             CommonPropertiesInit::Factory(factory) => factory(stack_frame, expanded_node),
         }
     }
@@ -86,10 +126,41 @@ pub enum PropertiesInit {
         descriptor: &'static ErasedComponentDescriptor,
         defined_properties: BTreeMap<String, ValueDefinition>,
     },
+    Template {
+        descriptor: &'static ErasedComponentDescriptor,
+        plan: Rc<TemplatePropertyPlan>,
+    },
     Factory(PropertiesFactory),
 }
 
 impl PropertiesInit {
+    fn requires_pre_node_binding(&self) -> bool {
+        match self {
+            Self::Factory(_) => true,
+            Self::DescriptorInline {
+                defined_properties, ..
+            } => defined_properties
+                .values()
+                .any(crate::value_uses_local_property_scope),
+            Self::Template { plan, .. } => plan.requires_pre_node_binding,
+            Self::DescriptorDefault(_) => false,
+        }
+    }
+
+    /// Allocate the component's own defaults once before node-local binding.
+    pub(crate) fn allocate(&self, stack: Rc<RuntimePropertiesStackFrame>) -> Rc<RefCell<PaxAny>> {
+        match self {
+            Self::DescriptorDefault(descriptor)
+            | Self::DescriptorInline { descriptor, .. }
+            | Self::Template { descriptor, .. } => {
+                Rc::new(RefCell::new((descriptor.create_properties)()))
+            }
+            Self::Factory(factory) => {
+                factory(stack, None).expect("properties factory must allocate properties")
+            }
+        }
+    }
+
     pub fn materialize(
         &self,
         stack_frame: Rc<RuntimePropertiesStackFrame>,
@@ -120,6 +191,28 @@ impl PropertiesInit {
                         descriptor.typed_descriptor,
                         &mut properties,
                         &property_columns_from_defined_properties(defined_properties),
+                        &stack_frame,
+                    );
+                    Some(Rc::new(RefCell::new(properties)))
+                }
+            }
+            PropertiesInit::Template { descriptor, plan } => {
+                let columns = plan.resolve(expanded_node.as_ref());
+                if let Some(node) = expanded_node {
+                    let properties = Rc::clone(&node.properties.borrow());
+                    (descriptor.apply_defined_properties)(
+                        descriptor.typed_descriptor,
+                        &mut properties.borrow_mut(),
+                        &columns,
+                        &stack_frame,
+                    );
+                    None
+                } else {
+                    let mut properties = (descriptor.create_properties)();
+                    (descriptor.apply_defined_properties)(
+                        descriptor.typed_descriptor,
+                        &mut properties,
+                        &columns,
                         &stack_frame,
                     );
                     Some(Rc::new(RefCell::new(properties)))
@@ -514,6 +607,46 @@ pub struct InstanceFlags {
 }
 
 impl BaseInstance {
+    pub(crate) fn requires_pre_node_binding(&self) -> bool {
+        self.instance_prototypical_common_properties
+            .requires_pre_node_binding()
+            || self
+                .instance_prototypical_properties
+                .requires_pre_node_binding()
+            || matches!(self.properties_scope, PropertiesScopeInit::Factory(_))
+    }
+
+    /// Bind after stable slots and selector identity exist, before publishing
+    /// the final scope and activating listeners/lifecycle handlers.
+    /// Paired template initializers share one fresh resolution per bind, including
+    /// removal resets on reload. Custom factories keep their ordered callbacks.
+    pub(crate) fn bind_properties(&self, node: &Rc<ExpandedNode>) {
+        if let (
+            CommonPropertiesInit::Template(common_plan),
+            PropertiesInit::Template { descriptor, plan },
+        ) = (
+            &self.instance_prototypical_common_properties,
+            &self.instance_prototypical_properties,
+        ) {
+            if Rc::ptr_eq(common_plan, plan) {
+                let columns = plan.resolve(Some(node));
+                update_existing_common_properties_from_columns(node, &columns, &node.stack);
+                let properties = Rc::clone(&node.properties.borrow());
+                (descriptor.apply_defined_properties)(
+                    descriptor.typed_descriptor,
+                    &mut properties.borrow_mut(),
+                    &columns,
+                    &node.stack,
+                );
+                return;
+            }
+        }
+        self.instance_prototypical_common_properties
+            .materialize(Rc::clone(&node.stack), Some(Rc::clone(node)));
+        self.instance_prototypical_properties
+            .materialize(Rc::clone(&node.stack), Some(Rc::clone(node)));
+    }
+
     /// Build shared instance state from compiler-generated instantiation args.
     pub fn new(args: InstantiationArgs, flags: InstanceFlags) -> Self {
         BaseInstance {

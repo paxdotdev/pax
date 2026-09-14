@@ -37,8 +37,8 @@ const PORTABLE_DYLIB_INSTALL_NAME: &str = "@rpath/PaxCartridge.framework/PaxCart
 
 const XCODE_MACOS_TARGET_DEBUG: &str = "Pax macOS (Development)";
 const XCODE_MACOS_TARGET_RELEASE: &str = "Pax macOS (Release)";
-const XCODE_IOS_TARGET_DEBUG: &str = "Pax iOS (Development)";
-const XCODE_IOS_TARGET_RELEASE: &str = "Pax iOS (Release)";
+// The mobile template has one shared scheme with Debug and Release configurations.
+const XCODE_IOS_TARGET: &str = "Pax iOS (Development)";
 
 // These package IDs represent the directory / package names inside the xcframework,
 const MACOS_MULTIARCH_PACKAGE_ID: &str = "macos-arm64_x86_64";
@@ -380,7 +380,9 @@ pub fn build_apple_project_with_cartridge(
     let is_release: bool = ctx.is_release;
     let apple_mobile_target = apple_mobile_target(target);
     let ios_app_identity = if apple_mobile_target.is_some() {
-        Some(resolve_ios_app_identity(&project_path)?)
+        Some(resolve_ios_app_identity(
+            &project_path, project_metadata, target,
+        )?)
     } else {
         None
     };
@@ -699,15 +701,6 @@ pub fn build_apple_project_with_cartridge(
         )?;
     }
 
-    if is_release && apple_mobile_target.is_some() {
-        unimplemented!("\n\n\
-Release builds for Pax iOS are not yet supported because configuration has not been exposed for development teams or code-signing.\n
-You can build a release build manually by configuring the generated xcodeproject in `.pax/pkg/pax-chassis-ios/interface` with your development team and codesigning configuration.\n
-The relevant Framework binaries have been built in release mode at `.pax/pkg/pax-chassis-common/pax-swift-cartridge/` and should be loaded via the above xcodeproject.\n
-You can also use the SPM package exposed at `.pax/pkg/pax-chassis-common/pax-swift-cartridge/` for manual inclusion in your own SwiftUI app.\n
-Note that the temporary directories mentioned above are subject to overwriting.\n\n")
-    }
-
     let (xcodeproj_path, scheme) = if let RunTarget::macOS = target {
         (
             pax_dir
@@ -728,11 +721,7 @@ Note that the temporary directories mentioned above are subject to overwriting.\
                 .join("ios")
                 .join("pax-app-ios")
                 .join("pax-app-ios.xcodeproj"),
-            if is_release {
-                XCODE_IOS_TARGET_RELEASE
-            } else {
-                XCODE_IOS_TARGET_DEBUG
-            },
+            XCODE_IOS_TARGET,
         )
     };
 
@@ -838,12 +827,11 @@ Note that the temporary directories mentioned above are subject to overwriting.\
             .arg(format!("id={}", device.identifier));
     }
 
-    if !is_release && !build_for_physical_device {
+    if apple_mobile_target.is_some() {
+        configure_ios_local_signing(&mut cmd, sdk, build_for_physical_device);
+    } else if !is_release {
         cmd.arg("CODE_SIGNING_REQUIRED=NO")
             .arg("CODE_SIGN_IDENTITY=");
-    } else if build_for_physical_device {
-        cmd.arg("-allowProvisioningUpdates")
-            .arg("-allowProvisioningDeviceRegistration");
     }
 
     for (key, value) in project_metadata.apple_xcode_build_settings(target) {
@@ -1956,7 +1944,32 @@ fn resolve_dylib_file_name(project_path: &PathBuf) -> Result<String, eyre::Repor
     Ok(format!("lib{}.dylib", dylib_target.name.replace('-', "_")))
 }
 
-fn resolve_ios_app_identity(project_path: &Path) -> Result<IosAppIdentity, eyre::Report> {
+fn configure_ios_local_signing(cmd: &mut Command, sdk: &str, selected_physical_device: bool) {
+    if sdk == "iphonesimulator" {
+        // Simulator Release builds are local too: they must not require a team.
+        cmd.arg("CODE_SIGNING_ALLOWED=NO")
+            .arg("CODE_SIGNING_REQUIRED=NO")
+            .arg("CODE_SIGN_IDENTITY=");
+    } else {
+        // These commands build/install development-signed apps, never archive,
+        // export or publish a distribution build. Also supports older ejections
+        // whose Release configuration still says "Don't Code Sign".
+        cmd.arg("CODE_SIGN_IDENTITY=Apple Development")
+            .arg("CODE_SIGN_STYLE=Automatic")
+            .arg("-allowProvisioningUpdates");
+        if selected_physical_device {
+            cmd.arg("-allowProvisioningDeviceRegistration");
+        } else {
+            cmd.arg("-destination").arg("generic/platform=iOS");
+        }
+    }
+}
+
+fn resolve_ios_app_identity(
+    project_path: &Path,
+    project_metadata: &PaxProjectMetadata,
+    target: &RunTarget,
+) -> Result<IosAppIdentity, eyre::Report> {
     let package_name = read_cargo_package_name(project_path)?;
     let project_identity_path = canonical_project_identity_path(project_path);
     let project_hash = stable_hex_hash(&format!(
@@ -1967,7 +1980,11 @@ fn resolve_ios_app_identity(project_path: &Path) -> Result<IosAppIdentity, eyre:
     let package_segment = bundle_identifier_segment(&package_name);
 
     Ok(IosAppIdentity {
-        bundle_identifier: format!("dev.pax.{}.{}", package_segment, project_hash),
+        // Install/launch must address the same identifier passed to Xcode,
+        // including the iPadOS -> iOS -> common metadata fallback.
+        bundle_identifier: project_metadata
+            .apple_bundle_identifier(target)
+            .unwrap_or_else(|| format!("dev.pax.{}.{}", package_segment, project_hash)),
         display_name: ios_display_name(&package_name),
     })
 }
@@ -2655,8 +2672,11 @@ edition = "2021"
     fn ios_app_identity_is_stable_for_same_project() {
         let project = cargo_project("scroll-garden");
 
-        let first = resolve_ios_app_identity(project.path()).expect("identity should resolve");
-        let second = resolve_ios_app_identity(project.path()).expect("identity should resolve");
+        let metadata = PaxProjectMetadata::default();
+        let first = resolve_ios_app_identity(project.path(), &metadata, &RunTarget::iOS)
+            .expect("identity should resolve");
+        let second = resolve_ios_app_identity(project.path(), &metadata, &RunTarget::iOS)
+            .expect("identity should resolve");
 
         assert_eq!(first.bundle_identifier, second.bundle_identifier);
         assert_eq!(first.display_name, "Scroll Garden");
@@ -2674,10 +2694,11 @@ edition = "2021"
         let first_project = cargo_project("starter-project");
         let second_project = cargo_project("starter-project");
 
-        let first =
-            resolve_ios_app_identity(first_project.path()).expect("identity should resolve");
-        let second =
-            resolve_ios_app_identity(second_project.path()).expect("identity should resolve");
+        let metadata = PaxProjectMetadata::default();
+        let first = resolve_ios_app_identity(first_project.path(), &metadata, &RunTarget::iOS)
+            .expect("identity should resolve");
+        let second = resolve_ios_app_identity(second_project.path(), &metadata, &RunTarget::iOS)
+            .expect("identity should resolve");
 
         assert_ne!(first.bundle_identifier, second.bundle_identifier);
         assert_eq!(first.display_name, second.display_name);
@@ -2690,6 +2711,85 @@ edition = "2021"
             "fancy-project"
         );
         assert_eq!(bundle_identifier_segment("---"), "project");
+    }
+
+    #[test]
+    fn mobile_launch_identity_matches_metadata_xcode_identity() {
+        let project = cargo_project("custom-id");
+        let manifest = project.path().join("Cargo.toml");
+        let original = fs::read_to_string(&manifest).unwrap();
+        fs::write(
+            &manifest,
+            format!("{original}\n[package.metadata.pax.ios]\nbundle_identifier = 'dev.example.custom'\n"),
+        ).unwrap();
+        let metadata = crate::project_metadata::load_project_metadata(project.path()).unwrap();
+        for target in [RunTarget::iOS, RunTarget::iPadOS] {
+            let identity = resolve_ios_app_identity(project.path(), &metadata, &target).unwrap();
+            assert_eq!(identity.bundle_identifier, "dev.example.custom");
+            assert!(metadata.apple_xcode_build_settings(&target).contains(&(
+                "PRODUCT_BUNDLE_IDENTIFIER".into(),
+                identity.bundle_identifier.clone(),
+            )));
+            let command =
+                physical_device_launch_command("TEST-DEVICE", &identity.bundle_identifier, None);
+            assert!(command_args(&command).contains(&identity.bundle_identifier));
+            assert_eq!(
+                command_env(&command, "DEVICECTL_CHILD_PAX_DESIGN_SERVER_ADDR"),
+                Some(None),
+            );
+        }
+    }
+
+    #[test]
+    fn mobile_release_architecture_follows_selected_destination() {
+        for target in [RunTarget::iOS, RunTarget::iPadOS] {
+            for (kind, expected) in [
+                (IosDeviceKind::Physical, "aarch64-apple-ios"),
+                (IosDeviceKind::Simulator, "aarch64-apple-ios-sim"),
+            ] {
+                let device = resolved_ios_device(kind);
+                let mappings = select_apple_target_mappings(
+                    &target, true, Some(&device), "aarch64",
+                );
+                assert_eq!(rust_targets(&mappings), vec![expected]);
+            }
+        }
+    }
+
+    #[test]
+    fn mobile_local_signing_separates_simulator_from_device_not_debug_from_release() {
+        let mut simulator = Command::new("xcodebuild");
+        configure_ios_local_signing(&mut simulator, "iphonesimulator", false);
+        assert_eq!(
+            command_args(&simulator),
+            vec!["CODE_SIGNING_ALLOWED=NO", "CODE_SIGNING_REQUIRED=NO", "CODE_SIGN_IDENTITY="],
+        );
+        for selected in [true, false] {
+            let mut device = Command::new("xcodebuild");
+            configure_ios_local_signing(&mut device, "iphoneos", selected);
+            let args = command_args(&device);
+            assert!(args.contains(&"CODE_SIGN_IDENTITY=Apple Development".into()));
+            assert!(args.contains(&"CODE_SIGN_STYLE=Automatic".into()));
+            assert!(args.contains(&"-allowProvisioningUpdates".into()));
+            assert_eq!(
+                args.contains(&"-allowProvisioningDeviceRegistration".into()), selected,
+            );
+            assert_eq!(args.contains(&"generic/platform=iOS".into()), !selected);
+            assert!(!args.iter().any(|arg| arg == "archive" || arg == "-exportArchive"));
+        }
+    }
+
+    #[test]
+    fn mobile_template_shared_scheme_supports_release_configuration() {
+        let template = &crate::helpers::PAX_IOS_INTERFACE_TEMPLATE;
+        let project = template
+            .get_file("pax-app-ios/pax-app-ios.xcodeproj/project.pbxproj")
+            .unwrap()
+            .contents_utf8()
+            .unwrap();
+        assert!(project.contains(XCODE_IOS_TARGET));
+        assert!(project.contains("name = Release;"));
+        assert!(!project.contains("Don't Code Sign"));
     }
 
     #[test]
