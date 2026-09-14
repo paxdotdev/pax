@@ -21,6 +21,9 @@ mod gpu_resources;
 pub mod stencil;
 mod texture;
 
+#[cfg(all(test, target_os = "macos"))]
+mod retained_clip_tests;
+
 pub(crate) use texture::CachedTextureResource;
 
 use data::{GpuGlobals, GpuPrimitive, GpuSceneLighting, GpuVertex};
@@ -2739,14 +2742,15 @@ impl<'w> RenderBackend<'w> {
                 depth_or_array_layers: 1,
             },
         );
-        self.enqueue_command_buffer(encoder.finish());
-        self.needs_device_poll = true;
-
         let completed_captures = Arc::clone(&self.completed_captures);
         let readback_for_callback = readback.clone();
-        readback
-            .slice(..)
-            .map_async(wgpu::MapMode::Read, move |result| {
+        // The copy may be submitted later as part of a multi-surface frame. Mapping now would
+        // make the buffer unavailable to that copy when its command buffer reaches the queue.
+        encoder.map_buffer_on_submit(
+            &readback,
+            wgpu::MapMode::Read,
+            ..,
+            move |result| {
                 if let Err(err) = result {
                     log::warn!("failed to map surface screenshot readback buffer: {err}");
                     return;
@@ -2789,7 +2793,10 @@ impl<'w> RenderBackend<'w> {
                         );
                     }
                 }
-            });
+            },
+        );
+        self.enqueue_command_buffer(encoder.finish());
+        self.needs_device_poll = true;
     }
 }
 

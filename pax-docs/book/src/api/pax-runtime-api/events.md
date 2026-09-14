@@ -384,13 +384,16 @@ Current text after the change.
 ---
 
 ### `TextboxInput`
-User types into a text input field and presses enter, or the field loses focus after being changed.
+Text input reported while the user edits a textbox.
+
+On web, this follows the DOM `input` event. `TextboxChange` follows the
+DOM `change` event instead; commit timing depends on the platform control.
 
 #### Properties
 ##### `text`
 Type: `String`
 
-Text committed by the input event.
+Current text reported by the input event.
 
 ---
 

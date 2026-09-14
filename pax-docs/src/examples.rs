@@ -395,7 +395,7 @@ fn render_cli_fallback(embed: &ExampleEmbed, workspace: &Path) -> String {
         "Hosted example: <{}>\n\n",
         hosted_example_url(&embed.path)
     ));
-    out.push_str("Run locally:\n\n");
+    out.push_str("From the Pax repository root (requires a source checkout):\n\n");
     out.push_str("```sh\n");
     out.push_str(&run_command(&embed.path));
     out.push_str("\n```\n");
@@ -440,7 +440,7 @@ fn render_source_markdown(path: &str, title: String, source_files: &[ExampleSour
     let mut out = String::new();
     out.push_str(&format!("# Example: {title}\n\n"));
     out.push_str(&format!("Path: `examples/src/{path}`\n\n"));
-    out.push_str("Run locally:\n\n");
+    out.push_str("From the Pax repository root (requires a source checkout):\n\n");
     out.push_str("```sh\n");
     out.push_str(&run_command(path));
     out.push_str("\n```\n");

@@ -27,6 +27,52 @@ Start with the local docs before inventing patterns.  The most useful entry poin
 
 These docs are also available by CLI: `pax-cli docs`
 
+## Keeping documentation current
+
+Documentation is part of a library change. Changes to public APIs, Pax/PAXEL
+syntax, defaults, observable behavior, CLI workflows, or supported capabilities
+must include the corresponding documentation updates in the same task. This
+includes bug fixes that change what builders should expect and new features
+that need an explanation of how to use them.
+
+- Before implementation, identify the affected human-facing articles through
+  `pax-docs/book/src/SUMMARY.md`, relevant public API comments, and examples in
+  `examples/src/*`. Search for old names, syntax, commands, and behavioral
+  claims so related guidance does not quietly become stale. Check the README
+  and CLI help when the change affects first-touch instructions or commands.
+- Update the canonical human-facing article where a concept is taught. For a
+  new capability, explain what a builder can do with it, show a small usable
+  example, and state its limitations. Prefer a subsection in the relevant
+  article and deliberate “read more” links over repeating explanations. For
+  a new chapter or substantial restructuring, review the outline with Zack
+  before drafting prose; routine factual corrections can proceed directly.
+- Keep public Rust `///` comments accurate and regenerate affected API
+  reference output through the repository's docs tooling when needed. Edit
+  the source comments rather than hand-editing generated API pages. Generated
+  reference and internal design/spec documents serve different purposes from
+  the public learning path; updating them does not replace needed article
+  updates.
+- Document the behavior that the current implementation and tests establish.
+  Be explicit about target/backend restrictions, experimental or partial
+  support, and debug/release differences. For renamed, removed, or changed
+  behavior, update the old guidance and explain any migration a builder needs.
+  Preserve existing deep-link anchors where practical; update navigation and
+  inbound links when moving content.
+- Keep documented snippets, commands, and canonical example source aligned.
+  Compile or run changed examples and commands, using focused tests for
+  semantic claims. Check both debug and release paths when the behavior
+  crosses that boundary. When book content changes, run
+  `mdbook build pax-docs/book` and check affected links and anchors. Report
+  validation limits instead of implying untested targets or workflows passed.
+- Include the documentation impact and checks in the handoff. If a change
+  needs no human-facing docs update, briefly explain why. If documentation is
+  blocked by an active editorial worktree or unresolved product decision,
+  coordinate with Zack and identify the affected sections and remaining work;
+  do not silently defer it or overwrite someone else's draft.
+- Update documentation source for the applicable release. Publishing docs or
+  changing already-published version snapshots requires its own authorization;
+  it is not an automatic side effect of maintaining the source.
+
 ## Workstation Shell
 
 Codex command shells are non-interactive and do not source `~/.zshrc`. This

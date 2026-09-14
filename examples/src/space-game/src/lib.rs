@@ -79,10 +79,24 @@ impl Asteroid {
 
 impl SpaceGame {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
-        let (w_o, h_o) = ctx.bounds_parent.get();
-        let (_, h) = (w_o / SCALE, h_o / SCALE);
+        self.start_round(ctx.bounds_parent.get().1, ctx.elapsed_frames.get());
+    }
+
+    pub fn play_again(&mut self, ctx: &NodeContext, _args: Event<ButtonClick>) {
+        self.start_round(ctx.bounds_parent.get().1, ctx.elapsed_frames.get());
+    }
+
+    fn start_round(&mut self, viewport_height: f64, frame: u64) {
         self.ship_x.set(32.0);
-        self.ship_y.set(h / 2.0);
+        self.ship_y.set(viewport_height / SCALE / 2.0);
+        self.asteroids.set(Vec::new());
+        self.bullets.set(Vec::new());
+        self.keys_pressed.set(Vec::new());
+        self.score.set(0);
+        self.difficulty.set(0.0);
+        // The runtime clock keeps advancing between rounds; restart cooldowns from now.
+        self.last_asteroid.set(frame);
+        self.last_bullet.set(frame);
         self.game_state.set(String::from("PLAYING"));
     }
 
@@ -208,6 +222,43 @@ impl SpaceGame {
             let mut keys_pressed = self.keys_pressed.get();
             keys_pressed.retain(|v| v != &(char as u8));
             self.keys_pressed.set(keys_pressed);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn starting_a_round_clears_previous_gameplay_and_restarts_cooldowns() {
+        let mut game = SpaceGame::default();
+
+        // Exercise repeated restarts after the app has been running for a while.
+        for frame in [10_000, 20_000] {
+            game.game_state.set(String::from("GAME_OVER"));
+            game.ship_x.set(200.0);
+            game.ship_y.set(100.0);
+            game.asteroids.set(vec![Asteroid::default()]);
+            game.bullets.set(vec![Bullet { x: 100.0, y: 50.0 }]);
+            game.keys_pressed.set(vec![b'w', b' ']);
+            game.score.set(12);
+            game.difficulty.set(1.0);
+            game.last_asteroid.set(frame - 300);
+            game.last_bullet.set(frame - 100);
+
+            game.start_round(600.0, frame);
+
+            assert_eq!(game.game_state.get(), "PLAYING");
+            assert_eq!(game.ship_x.get(), 32.0);
+            assert_eq!(game.ship_y.get(), 150.0);
+            assert!(game.asteroids.get().is_empty());
+            assert!(game.bullets.get().is_empty());
+            assert!(game.keys_pressed.get().is_empty());
+            assert_eq!(game.score.get(), 0);
+            assert_eq!(game.difficulty.get(), 0.0);
+            assert_eq!(game.last_asteroid.get(), frame);
+            assert_eq!(game.last_bullet.get(), frame);
         }
     }
 }

@@ -1,6 +1,15 @@
 # Architecture: Runtime & Cartridge
-<!-- summary: How Pax splits the runtime kernel from the cartridge, and what changes between debug and release builds. -->
+<!-- summary: Historical maintainer design notes on the runtime/cartridge boundary; includes proposed directions. -->
 <!-- tags: architecture, runtime, cartridge, build, release, debug -->
+
+> **Historical design notes.** This appendix records a direction for Pax's
+> runtime/cartridge boundary, including proposed packaging and future logic
+> runtimes. Its envelope and sidecar descriptions are not a specification of
+> today's release artifact. For the current builder-facing execution model,
+> rendering behavior, and build guidance, read [How Pax Runs](how-pax-runs.md).
+> Rust is the current application language. State that must survive a remount
+> needs an owner outside the remounted component; `Property` alone does not
+> make state durable.
 
 Pax borrows its core mental model from the NES.
 
@@ -191,18 +200,10 @@ surface as debug builds.
 The difference in footprint between debug and release can be large, especially
 for web builds.
 
-As of this architecture pass, representative examples were roughly:
-
-| Example | Debug wasm | Debug wasm gzip | Release wasm | Release wasm gzip |
-| --- | ---: | ---: | ---: | ---: |
-| `increment` | 15.4 MB | 3.4 MB | 1.2 MB | 393.2 KB |
-| `timeline-playground` | about 15.5 MB | about 3.5 MB | 1.5 MB | 502.7 KB |
-
-Treat those numbers as representative, not as a contract. The important point
-is the shape:
-
-- debug builds preserve tooling and metadata
-- release builds aggressively reduce what ships
+The earlier, unversioned example-size snapshot has been removed because it
+does not describe the current build. Measure the application and release you
+intend to ship, including its assets. [Debug and release](how-pax-runs.md#debug-and-release)
+describes the current build modes and measurement boundaries.
 
 ## Why This Architecture Matters
 

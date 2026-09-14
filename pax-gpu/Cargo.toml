@@ -25,6 +25,10 @@ default = []
 [dev-dependencies]
 naga = { version = "28.0.0", features = ["wgsl-in"] }
 
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+objc2 = "0.6.4"
+pollster = "0.4.0"
+
 [target.'cfg(target_arch = "wasm32")'.dependencies.wgpu]
 version = "28.0.0"
 default-features = false

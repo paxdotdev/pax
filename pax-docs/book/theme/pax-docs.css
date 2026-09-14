@@ -151,6 +151,7 @@
 
 .pax-example-header {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
     gap: 1rem;
@@ -161,11 +162,6 @@
 .pax-example-title {
     margin: 0;
     font-size: 1.15rem;
-}
-
-.pax-example-command {
-    white-space: nowrap;
-    font-size: 0.78rem;
 }
 
 .pax-example-stale {
@@ -180,6 +176,44 @@
     width: 100%;
     border: 0;
     background: white;
+}
+
+.pax-example-actions {
+    min-width: 0;
+}
+
+.pax-example-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.8rem 1rem;
+    padding: 1rem;
+}
+
+.pax-example-button {
+    padding: 0.6rem 1rem;
+    border: 1px solid currentColor;
+    border-radius: 6px;
+    color: var(--fg);
+    background: transparent;
+    font: inherit;
+    cursor: pointer;
+}
+
+.pax-example-button:hover {
+    background: rgba(127, 127, 127, 0.14);
+}
+
+.pax-example-button:focus-visible,
+.pax-example-standalone:focus-visible {
+    outline: 2px solid var(--links);
+    outline-offset: 3px;
+}
+
+.pax-example-status {
+    flex-basis: 100%;
+    font-size: 0.85rem;
+    opacity: 0.8;
 }
 
 .pax-example-missing,

@@ -1,56 +1,70 @@
 # Getting Started
-<!-- summary: How Pax projects are structured and run from the CLI. -->
+<!-- summary: Install Pax, create a project, and run it in your browser. -->
 <!-- tags: foundations, cli, build -->
 
-- Development environment: platform-specific setup guide, dependencies, etc.
-- CLI basics: `pax-cli create`, `pax-cli run`, and `pax-cli build` workflows.
-- Hot-reload policy: independently control Pax and application-logic updates.
-- Project layout: `src/lib.pax`, `src/lib.rs`, assets, and Cargo manifest basics.
-- Target platforms and build modes: web, macOS, iOS, and iPadOS; debug vs release.
-- Assets and URLs: image sources, web fonts, and static files.
-- Deployment and packaging overview: where build outputs land and how to ship them.
+Pax is a UI framework for Rust, with targets for web, macOS, iOS, and iPadOS.
+This guide starts with the web target: install Pax, run a project in your
+browser, and get to know the files you'll work with.
 
-## Development environment setup
+## Quick start
 
-Pax projects are Rust projects. Install the workstation toolchain for your
-operating system, then create and run a small project to confirm the setup.
+The CLI's telemetry policy and opt-out controls are described in
+[CLI Telemetry](cli-telemetry.md).
+
+If you have Rust, your operating system's build tools, the
+`wasm32-unknown-unknown` target, and `wasm-pack` installed, run these commands in
+your terminal:
+
+```sh
+cargo install pax-cli
+pax-cli create my-first-project
+cd my-first-project
+pax-cli run --target=web
+```
+
+Open the local URL printed by the last command. Keep the terminal running while
+you use the app; press **Ctrl-C** there to stop it. Installation and the first
+build compile dependencies and can take some time.
+
+Need the prerequisites? Start with [Prepare your workstation](#prepare-your-workstation).
+Already running? Continue to [Project anatomy](#project-anatomy).
+
+<a id="development-environment-setup"></a>
+
+## Prepare your workstation
+
+You can develop Pax web applications on macOS, Debian/Ubuntu Linux, or Windows.
+This guide uses the web target. Pax also runs on macOS, iOS, and iPadOS; building
+for those Apple targets requires a macOS workstation with Xcode.
+
+Choose the instructions for your workstation below. If Rust is already
+installed, you can skip its installation commands. You'll still need the
+WebAssembly target and `wasm-pack` for web builds.
 
 ### macOS
 
-#### 1. Install toolchains
-
-Run the following terminal commands to install the dependencies:
+Install Xcode Command Line Tools, then complete the installer before continuing:
 
 ```sh
-# Install Rust.
+xcode-select --install
+```
+
+If the tools are already installed, you can continue. Install Rust and the web
+build tools:
+
+```sh
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 . "$HOME/.cargo/env"
 
-# Install Xcode Command Line Tools.
-xcode-select --install
-
-# Install the WebAssembly target and helper.
 rustup target add wasm32-unknown-unknown
 cargo install wasm-pack --version 0.15.0
-
-# Install the Pax CLI.
-cargo install pax-cli
 ```
 
-#### 2. Run
-
-Create a new project and run it:
-
-```sh
-pax-cli create my-first-project && cd my-first-project && pax-cli run
-```
+Continue to [Install the Pax CLI](#install-the-pax-cli).
 
 ### Linux (Debian / Ubuntu)
 
-#### 1. Install toolchains
-
-These commands install Rust plus the native packages required by Pax web builds.
-This dependency set has been validated on Ubuntu 26.04 LTS ARM64.
+Install the system packages, Rust, and the web build tools:
 
 ```sh
 # Install native build dependencies.
@@ -67,25 +81,21 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 # Install the WebAssembly target and helper.
 rustup target add wasm32-unknown-unknown
 cargo install wasm-pack --version 0.15.0
-
-# Install the Pax CLI.
-cargo install pax-cli
 ```
 
-#### 2. Run
-
-Create a new project and run it:
-
-```sh
-pax-cli create my-first-project && cd my-first-project && pax-cli run
-```
+Continue to [Install the Pax CLI](#install-the-pax-cli).
 
 ### Windows
 
-#### 1. Install toolchains
-
 Install Visual Studio Build Tools with the C++ workload, Git, Rust, and the web
-build helper from PowerShell:
+build tools from PowerShell. The setup below also installs Clang for dependencies
+that need it on ARM64 Windows. It uses `winget` to install Git and may prompt
+for administrator approval.
+
+<details>
+<summary>Windows setup commands</summary>
+
+Run these commands in order in the same PowerShell session:
 
 ```powershell
 # Install Visual Studio Build Tools.
@@ -153,155 +163,74 @@ rustup target add wasm32-unknown-unknown
 cargo install wasm-pack --version 0.15.0
 ```
 
-#### 2. Install pax-cli
+</details>
 
-```powershell
+Continue in the same PowerShell session to [Install the Pax CLI](#install-the-pax-cli).
+
+## Install the Pax CLI
+
+Cargo is Rust's package manager. Use it to install the published Pax CLI:
+
+```sh
 cargo install pax-cli
+pax-cli --version
 ```
 
-NOTE: `cargo install pax-cli` and the first `pax-cli run` can take some time.
-Subsequent builds are faster.
+The version command confirms that your shell can find the installed CLI.
+Installing it compiles Pax and its dependencies, so expect compilation output
+before the command finishes.
 
-#### 3. Run
+If you completed the Quick Start, you can skip this installation and the next
+two steps.
 
-Create and run a smoke project:
+## Create a project
 
-```powershell
-pax-cli create my-first-project ; cd my-first-project ; pax-cli run
-```
-
-## Bundled starters
-
-`pax-cli create` (also available as `pax-cli new`) starts from **Living Quilt**:
-the animated Pax logo on an interactive geometric tapestry. Select a different
-bundled example by its string ID:
+From the directory where you keep your projects, run:
 
 ```sh
-pax-cli create my-quilt                           # living-quilt (default)
-pax-cli create my-postcard --example ink-and-light
-pax-cli create my-counter --example increment
+pax-cli create my-first-project
 ```
 
-These starters are self-contained snapshots shipped with the installed CLI,
-not downloads of a moving branch. Newer canonical example changes arrive with
-a newer CLI build; existing generated projects are not overwritten.
+Choose a destination that does not already exist. The CLI creates a Pax project
+there, including its Rust package and UI sources.
 
-For Pax contributors, `examples/src/*` is the sole hand-edited source. The
-registry in `examples/bundled-cli-examples.toml` maps each bundled ID to its
-source directory and selects the default. Run `scripts/sync-cli-examples.py`
-after changing a curated example; `--check` verifies that the tracked,
-deterministic `pax-compiler/files/new-project/bundled-examples.paxbundle` is
-current. CI checks for drift, and release preparation syncs after version
-rewriting. The compiler embeds that crate-owned artifact, so installed crates
-never need files from outside their package. Do not hand-edit a second starter
-implementation in the CLI.
+## Run it on the web
 
-## Debug build defaults
-
-Examples and generated projects optimize runtime dependencies at level 1 while
-leaving the application crate at level 0. This keeps the runtime responsive
-without paying for optimization of the application's Rust code on every edit:
-
-```toml
-[profile.dev]
-opt-level = 1
-
-[profile.dev.package.my-quilt]
-opt-level = 0
-```
-
-Use the application's exact Cargo package name for the second table. Creation
-rewrites it automatically; if you later rename `package.name` yourself, rename
-its package profile override too. Cargo reads profiles from the workspace
-root, so move these settings there if you add the app to a larger workspace.
-
-Debug information, debug assertions, overflow checks, incremental compilation,
-and hot reload retain their normal development behavior. Build scripts and
-proc macros retain Cargo's unoptimized defaults. Avoid replacing this with a
-`[profile.dev.package."*"]` override: the wildcard also takes precedence over
-build-dependency defaults. Release profiles are unchanged.
-
-Optimized dependencies take longer to compile the first time, but are cached
-for subsequent application edits. For fully unoptimized debugging, override
-the profile default for one invocation:
+Enter the project directory and start the web target:
 
 ```sh
-CARGO_PROFILE_DEV_OPT_LEVEL=0 pax-cli run
+cd my-first-project
+pax-cli run --target=web
 ```
 
-In PowerShell, set `$env:CARGO_PROFILE_DEV_OPT_LEVEL = "0"` before running the
-command, and remove it afterward with
-`Remove-Item Env:CARGO_PROFILE_DEV_OPT_LEVEL` to return to the project default.
+The first run builds your application and its dependencies. Once the server is
+ready, the terminal prints a local URL beginning with `http://127.0.0.1:`. Open
+that URL in your browser. Use the address from your current run, since the port
+can change between sessions.
 
-## Formatting Pax source
+Your first-run checkpoint is the generated application rendered in the
+browser. A blank page or a build error means there's still something to resolve;
+see [When something goes wrong](#when-something-goes-wrong).
 
-Run `pax-cli fmt` from a project or workspace root to recursively format `.pax`
-files and Pax templates embedded in Rust source. Generated and dependency
-directories such as `.pax`, `target`, and `node_modules` are skipped.
+Leave the command running while you use the app. To stop the development session,
+press **Ctrl-C** in its terminal. You can start it again with
+`pax-cli run --target=web` from the project directory.
 
-```sh
-pax-cli fmt                 # format the current directory
-pax-cli fmt path/to/project # format a file or directory
-pax-cli fmt --check         # report drift without writing files
-```
+## Project anatomy
 
-Formatted files always end with one newline. `--check` exits unsuccessfully
-when any file would change, so the same command can enforce canonical Pax
-formatting in CI; it does not inspect whether the process happens to be running
-in a CI environment.
+Open the project in your editor. These are the main roles to recognize:
 
-## CLI telemetry
+| File or directory | What it contains |
+| --- | --- |
+| `Cargo.toml` | The Rust package definition, dependencies, and optional Pax project metadata. |
+| Rust source (`.rs`) | Component definitions, application state, event handlers, and other application logic. |
+| Pax templates (`.pax`) | UI elements, layout, styles, expressions, and bindings to event handlers. Templates can also be embedded in Rust source. |
+| `assets/`, when present | Application media such as images and fonts. |
+| `.pax/` | Generated build and development files, created by the CLI. Make application changes in the source files above. |
 
-The first public CLI command prints the telemetry privacy notice and sends no
-telemetry. Later public commands enable minimal telemetry by default. See [CLI
-Telemetry](cli-telemetry.md) for the exact fields, server-side coarse-location
-handling, and opt-out controls.
-
-## Hot reloading
-
-Debug `pax-cli run` sessions reload Pax UI sources by default. Application
-logic reload is opt-in so a Rust edit does not unexpectedly begin a long
-background build. The two lanes are independent: a `.pax` edit can update the
-mounted tree without replacing application logic, while an enabled logic lane
-builds and activates a new compiled artifact. `logic` is intentionally
-language-neutral so the same policy can cover Rust today and interpreted
-application-logic modules in the future.
-
-Use `--hot-reload` to select the lanes for one run:
-
-```sh
-pax-cli run --hot-reload=pax   # .pax only (default)
-pax-cli run --hot-reload=all   # .pax and application logic
-pax-cli run --hot-reload=logic # application logic only
-pax-cli run --hot-reload=off   # neither lane
-```
-
-The generated `cargo run` wrapper forwards its trailing arguments, so
-`cargo run -- --hot-reload=pax` selects the same policy.
-
-Web and macOS support both lanes. iOS and iPadOS support Pax hot reload, but
-application-logic changes require rebuilding and relaunching the app;
-`--hot-reload=logic` therefore reports an unsupported-mode error on those
-targets. With `all`, mobile sessions continue to reload `.pax` changes and
-report once when a saved logic change requires a restart.
-
-Disabling a lane suppresses activation in the running app, not source writes.
-Edits remain on disk and enter the next permitted logic build or app restart.
-The designtime server also remains available for read-only inspection when hot
-reload is `off`.
-
-For a persistent project default, use Cargo metadata:
-
-```toml
-[package.metadata.pax.dev]
-hot_reload = "pax"
-```
-
-For a shell or tool invocation, set `PAX_HOT_RELOAD=all|pax|logic|off`.
-Precedence is CLI flag, environment variable, Cargo metadata, then the `pax`
-debug default. Release builds always force hot reload `off`; release cartridges
-support neither `.pax` live reload nor dynamic or interpreted logic
-replacement.
+Pax templates describe the interface. Rust holds the state and behavior behind
+it. Expressions inside templates connect property values to what you see on
+screen. You'll work with these parts together as you build an interface.
 
 ## Local release runs on iOS and iPadOS
 
@@ -327,85 +256,71 @@ without launching. Release apps disable designtime and both hot-reload lanes,
 even when requested by flags or project settings. `run --release` is currently
 supported only for iOS and iPadOS.
 
-## Web public files
 
-Create a `public/` directory beside `Cargo.toml` when a web application needs
-files served directly from the site root. Pax preserves each file's relative
-path and bytes:
+## When something goes wrong
 
-```text
-public/ai.md             -> /ai.md
-public/robots.txt        -> /robots.txt
-public/.well-known/pax   -> /.well-known/pax
-public/guide/index.html  -> /guide/
-```
+| Symptom | What to check |
+| --- | --- |
+| `cargo` or `pax-cli` is not found | Confirm the installation finished successfully. Rust installs commands in `$HOME/.cargo/bin` on macOS/Linux or `%USERPROFILE%\.cargo\bin` on Windows. That directory must be on your shell's `PATH`; reopening the terminal after installation usually picks up the change. |
+| A build cannot find the WebAssembly target or its standard library | Run `rustup target add wasm32-unknown-unknown`, then retry. |
+| `wasm-pack` is not found | Run `cargo install wasm-pack --version 0.15.0`, then check `wasm-pack --version`. |
+| A compiler, linker, or system library is missing | Revisit your [workstation setup](#prepare-your-workstation). On Windows, use the PowerShell session where you loaded the MSVC environment. |
+| The project destination already exists | Choose a new directory name. Keep any existing project files. |
+| The browser cannot connect | Check that `pax-cli run` is still running and use the local URL from that session. |
 
-`pax-cli build --target web` copies these files into the deployable web output.
-During `pax-cli run`, the development server reads them directly from the
-project's `public/` directory. Edits, additions, and deletions are therefore
-visible after a browser refresh without rebuilding or restarting Pax.
+For more build detail, run `pax-cli run --target=web --verbose`. If compilation
+fails, start with the first reported error. When asking for help, include that
+error, your workstation OS, and the output of `pax-cli --version`.
 
-Public files cannot replace generated web files or runtime-owned directories.
-For example, `public/index.html`, `public/assets/`, `public/snippets/`, and
-`public/__reloads__/` are rejected. Symbolic links are also rejected so a web
-build cannot accidentally publish files outside the project.
+## Where to go next
 
-Use `assets/` for application media loaded by Pax across targets; those files
-are addressed beneath `/assets`. Use `public/` for web-only responses that must
-exist before the Pax runtime loads, such as text documents, robots directives,
-or well-known metadata. `Router` remains responsible for selecting live
-application UI after startup and does not declare static HTTP responses.
+Continue with [Template Language](template-language.md) to learn how to describe
+an interface. [Data Binding and Expressions](data-binding-expressions.md) explains
+how values flow into that interface, and [Event Handling with Rust](event-handling-rust.md)
+covers responding to input.
 
-## Project Metadata
+For hot reload, inspection, screenshots, and local reference, continue with
+[Developer Workflow and Tools](developer-workflow.md).
 
-Rust-backed Pax projects can define build-time project metadata in `Cargo.toml`
-under `[package.metadata.pax]`. Pax reads this table while materializing the web
-or Apple interface. Cargo ignores the table, so it is safe to keep Pax-specific
-packaging data here.
+To choose another target or ship a release, see
+[Targets, Build, and Deployment](targets-build-deploy.md).
 
-```toml
-[package.metadata.pax]
-title = "Pax Example"
-icon = "assets/icon.png"
+## Further reference
 
-[package.metadata.pax.web]
-title = "Pax Web"
-favicon = "assets/favicon.png"
-site_name = "Pax Example"
-site_url = "https://example.com"
-social_image = "assets/social-card.png"
-social_image_alt = "Pax Example"
+The links below preserve earlier reference locations. Detailed workflow and
+packaging guidance lives in the linked chapters.
 
-[package.metadata.pax.ios]
-title = "Pax iOS"
-bundle_identifier = "dev.pax.example"
-development_team = "ABCDE12345"
+### CLI telemetry
 
-[package.metadata.pax.ios.info_plist]
-NSCameraUsageDescription = "Capture photos when the camera picker is used."
+The first public CLI command prints the telemetry privacy notice and sends no
+telemetry. Later public commands enable minimal telemetry by default. See
+[CLI Telemetry](cli-telemetry.md) for the fields and opt-out controls.
 
-[package.metadata.pax.macos]
-title = "Pax macOS"
-bundle_identifier = "dev.pax.example.macos"
-```
+### Formatting Pax source
 
-Common keys are inherited by target-specific tables. iPadOS first checks
-`[package.metadata.pax.ipados]`, then falls back to iOS, then to common values.
-Paths are relative to the project root unless absolute. Explicit CLI flags still
-take precedence over Cargo metadata where both exist.
+Use `pax-cli fmt` for Pax source and `pax-cli fmt --check` to check without
+writing. See [Format Pax source](developer-workflow.md#format-pax-source) for
+file selection, inline templates, and CI usage.
 
-Supported common keys:
+### Hot reloading
 
-- `title`: browser title, Apple display name, and target title default.
-- `icon`: shared source image for generated target icons and fallback web favicon.
-- `bundle_identifier`: Apple bundle identifier default.
-- `marketing_version`: Apple marketing version default. If omitted, Cargo
-  `package.version` is used for Apple builds.
-- `build_number`: Apple build number.
-- `development_team`: Apple development team for signing.
-- `info_plist`: shared string values emitted into generated Apple Info.plists.
+Debug runs reload `.pax` templates by default. For Rust changes, stop and rerun
+the app, or opt into logic reload on web/macOS. See
+[Hot reloading](developer-workflow.md#hot-reloading) for the mode matrix,
+target boundaries, and project configuration.
 
-Supported development keys under `[package.metadata.pax.dev]`:
+### Web public files
+
+Use a project-root `public/` directory for web-only files such as `robots.txt`
+and well-known metadata. See [Web public files](targets-build-deploy.md#web-public-files)
+for copying, live serving, reserved paths, and the distinction from app assets.
+
+### Project Metadata
+
+Configure titles, icons, Apple identity, and packaging values in
+`[package.metadata.pax]` in `Cargo.toml`. See
+[Project metadata](targets-build-deploy.md#project-metadata) for the supported
+keys, target inheritance, and icon requirements.
 
 - `hot_reload`: `all`, `pax`, `logic`, or `off`. See [Hot
   reloading](#hot-reloading) for target support and precedence.

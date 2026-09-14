@@ -37,9 +37,3 @@ The crate names follow the engine boundary: `pax-language` handles Pax syntax
 and expressions, `pax-manifest` holds program representations, `pax-runtime`
 executes the scene, `pax-message` defines platform messages, and `pax-gpu`
 implements the GPU renderer.
-
-- [pax-language](pax-language/index.md)
-- [pax-runtime](pax-runtime/index.md)
-- [pax-manifest](pax-manifest/index.md)
-- [pax-message](pax-message/index.md)
-- [pax-gpu](pax-gpu/index.md)

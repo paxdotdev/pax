@@ -5,6 +5,17 @@ if game_state == "PLAYING" {
 } else if game_state == "GAME_OVER" {
     <Text y=25% height=25% width=100% text="GAME OVER" id=game_over/>
     <Text y=50% height=25% width=100% text={"Score: " + score} id=game_over_score/>
+    <Button x=50% y=65% width=180px height=44px label="Play Again"
+        color=rgb(245, 240, 244) hover_color=WHITE
+        style={
+            font: { family: "Times New Roman", weight: 700 }
+            font_size: 20px
+            fill: rgb(55, 10, 24)
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+        }
+        @button_click=self.play_again/>
     <Rectangle fill=rgba(255, 0, 50, 50)/>
 }
 <Group scale=200% width=50% height=50%>

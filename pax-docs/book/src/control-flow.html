@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>Components and Composition — Pax Docs</title>
+    <link rel="canonical" href="components-composition.html#data-driven-components">
+    <!-- Keep incoming bookmarks useful after merging the control-flow chapter. -->
+    <script>
+      const sections = {
+        "if-blocks": "conditional-content",
+        "for-loops": "ranges-and-collections",
+        "keyed-loops": "keyed-lists",
+        "control-flow-in-templates": "data-driven-components"
+      };
+      const oldSection = window.location.hash.slice(1);
+      const section = Object.prototype.hasOwnProperty.call(sections, oldSection)
+        ? sections[oldSection] : "data-driven-components";
+      window.location.replace(
+        "components-composition.html" + window.location.search + "#" + section
+      );
+    </script>
+    <noscript>
+      <meta http-equiv="refresh" content="0; URL=components-composition.html#data-driven-components">
+    </noscript>
+  </head>
+  <body>
+    <p>Control flow is now part of <a href="components-composition.html#data-driven-components">Components and Composition</a>.</p>
+    <p>Continue to <a href="components-composition.html#conditional-content">conditional content</a>,
+      <a href="components-composition.html#ranges-and-collections">ranges and collections</a>,
+      or <a href="components-composition.html#keyed-lists">keyed lists</a>.</p>
+  </body>
+</html>

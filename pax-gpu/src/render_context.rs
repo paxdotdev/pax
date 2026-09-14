@@ -1007,7 +1007,7 @@ impl<'w> WgpuRenderer<'w> {
             self.resource_churn_stats.retained_nodes_visible += 1;
             if let Some(batch_clip_stack) = current_batch_clip_stack.as_ref() {
                 if !clip_stacks_match(batch_clip_stack, node.clip_stack()) {
-                    sync_clip_stack(
+                    sync_retained_clip_stack(
                         &mut self.render_backend,
                         &mut retained_runs,
                         &mut current_clip_stack,
@@ -1053,7 +1053,7 @@ impl<'w> WgpuRenderer<'w> {
             }
         }
         if let Some(batch_clip_stack) = current_batch_clip_stack.as_ref() {
-            sync_clip_stack(
+            sync_retained_clip_stack(
                 &mut self.render_backend,
                 &mut retained_runs,
                 &mut current_clip_stack,
@@ -3200,7 +3200,7 @@ impl RetainedClipBackend for RenderBackend<'_> {
     }
 }
 
-fn sync_clip_stack(
+fn sync_retained_clip_stack(
     render_backend: &mut impl RetainedClipBackend,
     retained_runs: &mut Vec<RetainedBatchRun<'_>>,
     current_clip_stack: &mut Vec<u32>,
@@ -3667,7 +3667,7 @@ mod tests {
             (3, vec![root]),
             (4, vec![]),
         ] {
-            sync_clip_stack(&mut backend, &mut runs, &mut current, &clips, &arena);
+            sync_retained_clip_stack(&mut backend, &mut runs, &mut current, &clips, &arena);
             runs.push(labeled_run(label));
         }
         backend.draw_runs(&runs);
@@ -3684,7 +3684,7 @@ mod tests {
         let mut current = Vec::new();
         let mut runs = Vec::new();
         let root = ClipReference::Stencil { clip_id: 0 };
-        sync_clip_stack(&mut backend, &mut runs, &mut current, &[root], &arena);
+        sync_retained_clip_stack(&mut backend, &mut runs, &mut current, &[root], &arena);
         runs.push(labeled_run(1));
         for clip in [
             ClipReference::Scissor(ScissorRect {
@@ -3695,7 +3695,7 @@ mod tests {
             }),
             ClipReference::Alpha { owner: 5 },
         ] {
-            sync_clip_stack(&mut backend, &mut runs, &mut current, &[root, clip], &arena);
+            sync_retained_clip_stack(&mut backend, &mut runs, &mut current, &[root, clip], &arena);
         }
         assert!(backend.draws.is_empty());
         assert_eq!(runs.len(), 1);

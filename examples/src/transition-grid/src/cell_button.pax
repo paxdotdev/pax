@@ -11,7 +11,7 @@
             id=label_text
             x=64px
             y=50%
-            width={100% - 168px}
+            width={100% - 124px}
             height=24px
             text={label}
             selectable=false
@@ -21,7 +21,7 @@
             id=hit_count
             x={100% - 18px}
             y=50%
-            width=84px
+            width=42px
             height=22px
             anchor=[100%, 50%]
             text={hits + "/5"}
@@ -34,16 +34,16 @@
             width=30px
             height=30px
             anchor_y=50%
-            fill=rgba(255, 255, 255, 82)
+            fill=rgb(48, 48, 55)
             corner_radius=8.0
         />
 
         <Rectangle
             width=100%
             height=100%
-            fill={hsl((display_hue)deg, 72%, 52%)}
+            fill=rgb(30, 30, 36)
             stroke={
-                color: rgba(23, 42, 36, 255)
+                color: {hsl((display_hue)deg, 94%, 66%)}
                 width: 2px
             }
             corner_radius=8.0

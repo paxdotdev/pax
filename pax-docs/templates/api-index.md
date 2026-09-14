@@ -45,14 +45,3 @@ and source for your release provide the context; the
 `pax-runtime-api` contains author-facing values and reactive APIs. `pax-std`
 contains the standard elements and components used in templates. Browse their
 modules when you need more detail than the entry points above:
-
-- [pax-runtime-api](pax-runtime-api/index.md)
-- [pax-std](pax-std/index.md)
-
-<a id="internal-crates"></a>
-
-## Engine and maintainer APIs
-
-For primitive implementations and work on Pax itself, continue with the
-[Maintainer Reference](internal/index.md). It separates current internal
-APIs from historical architecture and design notes.

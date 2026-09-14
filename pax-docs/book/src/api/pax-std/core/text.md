@@ -4,9 +4,12 @@
 
 ## Structs
 ### `Text`
-Renders and styles text on-screen using platform-specific native elements (for example, a `<div>` with text content on the web, or a `UILabel` on iOS).
-Text supports robust text layout features like automatic line breaking and selection, as well as platform-specific
-accessibility tools like screen readers.
+Renders and styles text through the target's native text system.
+
+A constrained width with an omitted height allows native measurement to
+determine the height of wrapped content. Selection, editing, font loading,
+and accessibility behavior depend on the target's native implementation;
+test the intended interaction on each shipping target.
 
 #### Properties
 ##### `editable`
@@ -17,7 +20,8 @@ Whether the text can be edited by the user.
 ##### `selectable`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`bool`>
 
-Whether the text can be selected by the user.
+Requests selectable text. On the current iOS/iPadOS path, non-editable
+text uses the interactive selection view only when `clip` is enabled.
 
 ##### `clip`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`bool`>
@@ -63,7 +67,8 @@ Font size, in pixels.
 ##### `fill`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Fill`](/api/pax-runtime-api/drawing.md#fill)>
 
-Text fill.
+Text color. Native text patches reduce gradient fills to their first
+stop's color; use a solid fill for predictable text color.
 
 ##### `underline`
 Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`bool`>
@@ -91,13 +96,13 @@ Describes a font available to native text renderers.
 
 Pax templates may use either the explicit [`Font::Web`] constructor or a
 contextual shorthand. A string names a locally available family with an
-empty stylesheet URL and normal style and weight:
+empty source URL and normal style and weight:
 
 ```pax
 font: "Times New Roman"
 ```
 
-Named object fields describe hosted fonts and optional modifiers. Omitted
+Named object fields describe font sources and optional modifiers. Omitted
 fields retain their defaults. Supplying `family` without `url` selects a
 locally available family, matching the string shorthand. `weight` accepts
 either [`FontWeight`] or its CSS numeric equivalent from `100` through
@@ -106,11 +111,17 @@ either [`FontWeight`] or its CSS numeric equivalent from `100` through
 ```pax
 font: {
     family: "Inter"
-    url: "https://example.com/inter.css"
+    url: "https://example.com/Inter-Italic.ttf"
     style: FontStyle::Italic
     weight: 700
 }
 ```
+
+Nonempty URLs identify font files, except that Google Fonts URLs containing
+`fonts.googleapis.com/css` receive special stylesheet handling. Relative
+asset URLs work on web; the native Web-font loader does not resolve them
+into application bundle resources. Native targets also require the actual
+font family name, rather than a browser-only alias.
 
 Font shorthand has no positional ("magic index") fields: named keys are
 canonical, and positional list/tuple forms are not accepted. Use the
@@ -118,7 +129,7 @@ explicit [`Font::Web`] constructor as verbose longhand when needed.
 
 #### Variants
 ##### `Web`(`String`, `String`, [`FontStyle`](/api/pax-std/core/text.md#fontstyle), [`FontWeight`](/api/pax-std/core/text.md#fontweight))
-Web font described by family name, stylesheet URL, style, and weight.
+Font described by family name, source URL, style, and weight.
 
 ---
 

@@ -11,7 +11,7 @@ pub use hint_pill::*;
 
 const INITIAL_CELLS: usize = 7;
 const INITIAL_HUE: f64 = 188.0;
-const TILE_HEIGHT: f64 = 68.0;
+const TILE_HEIGHT: f64 = 56.0;
 
 #[pax]
 #[main]
@@ -21,7 +21,6 @@ pub struct Example {
     pub cell_count: Property<usize>,
     pub cell_sizes: Property<Vec<Option<Size>>>,
     pub next_id: Property<usize>,
-    pub show_hint: Property<bool>,
     pub total_clicks: Property<usize>,
     pub recycle_count: Property<usize>,
     pub exit_mode: Property<ContainerExitMode>,
@@ -45,7 +44,6 @@ impl Example {
         let cells: Vec<_> = (1..=INITIAL_CELLS).map(new_cell).collect();
         self.set_cells(cells);
         self.next_id.set(INITIAL_CELLS + 1);
-        self.show_hint.set(true);
         self.set_exit_mode(ContainerExitMode::Flow);
         self.set_reflow_mode(ContainerReflowTransitionKind::Ease);
         self.reflow_curve.set(ContainerReflowCurve::InOutQuad);
@@ -62,7 +60,6 @@ impl Example {
         };
 
         let mut rng = rand::thread_rng();
-        self.show_hint.set(false);
         self.total_clicks.set(self.total_clicks.get() + 1);
 
         let cell = &mut cells[index];
@@ -85,7 +82,6 @@ impl Example {
         let new_id = self.next_id.get();
         self.next_id.set(new_id + 1);
         cells.insert(0, new_cell(new_id));
-        self.show_hint.set(false);
         self.set_cells(cells);
     }
 
@@ -96,34 +92,28 @@ impl Example {
         }
 
         cells.remove(0);
-        self.show_hint.set(false);
         self.set_cells(cells);
     }
 
     pub fn handle_reverse_order(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
         let mut cells = self.cells.get();
         cells.reverse();
-        self.show_hint.set(false);
         self.set_cells(cells);
     }
 
     pub fn set_exit_flow(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
-        self.show_hint.set(false);
         self.set_exit_mode(ContainerExitMode::Flow);
     }
 
     pub fn set_exit_ghost(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
-        self.show_hint.set(false);
         self.set_exit_mode(ContainerExitMode::Ghost);
     }
 
     pub fn set_change_snap(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
-        self.show_hint.set(false);
         self.set_reflow_mode(ContainerReflowTransitionKind::Snap);
     }
 
     pub fn set_change_ease(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
-        self.show_hint.set(false);
         self.set_reflow_mode(ContainerReflowTransitionKind::Ease);
     }
 

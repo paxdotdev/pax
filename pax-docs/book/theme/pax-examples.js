@@ -34,14 +34,13 @@
 
     function createChrome(host, manifest) {
         const title = host.getAttribute("title") || manifest.title || manifest.path;
-        const height = Number(host.getAttribute("height") || manifest.height || 520);
+        const requestedHeight = Number(host.getAttribute("height") || manifest.height || 520);
+        const height = Number.isFinite(requestedHeight) && requestedHeight > 0 ? requestedHeight : 520;
 
         const card = el("section", "pax-example-card");
         const header = el("header", "pax-example-header");
-        const heading = el("h4", "pax-example-title", title);
+        const heading = el("h4", "pax-example-title", `Example: ${title}`);
         const actions = el("div", "pax-example-actions");
-        const run = el("code", "pax-example-command", manifest.run_command || "");
-        actions.appendChild(run);
         if (
             manifest.app &&
             manifest.app.available &&
@@ -55,12 +54,44 @@
         card.appendChild(header);
 
         if (manifest.app && manifest.app.available) {
-            const iframe = el("iframe", "pax-example-frame");
-            iframe.loading = "lazy";
-            iframe.sandbox = "allow-scripts allow-same-origin allow-forms allow-pointer-lock";
-            iframe.src = exampleUrl(manifest.path, manifest.app.index || "app/index.html");
-            iframe.style.minHeight = `${height}px`;
-            card.appendChild(iframe);
+            const appUrl = exampleUrl(manifest.path, manifest.app.index || "app/index.html");
+            const controls = el("div", "pax-example-controls");
+            const restart = el("button", "pax-example-button", "Restart");
+            restart.type = "button";
+            restart.setAttribute("aria-label", `Restart ${title} from the beginning`);
+            const standalone = el("a", "pax-example-standalone", "Open standalone ↗");
+            standalone.href = appUrl;
+            standalone.target = "_blank";
+            standalone.rel = "noopener noreferrer";
+            const status = el("span", "pax-example-status");
+            status.setAttribute("role", "status");
+            status.hidden = true;
+            controls.append(restart, standalone, status);
+            card.appendChild(controls);
+
+            const stage = el("div", "pax-example-stage");
+            card.appendChild(stage);
+            let generation = 0;
+            function mountExample() {
+                const currentGeneration = ++generation;
+                const iframe = el("iframe", "pax-example-frame");
+                iframe.title = `${title} — interactive example`;
+                iframe.sandbox = "allow-scripts allow-same-origin allow-forms allow-pointer-lock";
+                iframe.style.height = `${height}px`;
+                status.textContent = "";
+                status.hidden = true;
+                iframe.addEventListener("error", () => {
+                    if (currentGeneration === generation) {
+                        status.textContent = "Could not load the example. Try Restart or Open standalone.";
+                        status.hidden = false;
+                    }
+                });
+                iframe.src = appUrl;
+                // Replace the browsing context so timers, input state, and the old runtime end together.
+                stage.replaceChildren(iframe);
+            }
+            restart.addEventListener("click", mountExample);
+            mountExample();
         } else {
             const missing = el("div", "pax-example-missing");
             const message = manifest.app && manifest.app.build_error

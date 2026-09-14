@@ -1,184 +1,97 @@
 <Group width=100% height=100%>
-    <Text
-        id=title
-        x=50%
-        y=54px
-        width=720px
-        height=42px
-        text="Stacker Transition Demo"
-        selectable=false
-    />
+    <Group x=50% anchor_x=50% width={(Math::min(720, $viewport.width - 32))px} height=100%>
+        <Text id=title x=50% y=24px anchor=[50%, 0%] width=100% height=40px
+            text="Transition Grid" selectable=false />
+        <Text id=subtitle x=50% y=80px anchor=[50%, 0%] width=100% height=20px
+            text={cell_count + " tiles · " + total_clicks + " taps · " + recycle_count + " replaced"}
+            selectable=false />
+        <HintPill x=0px y=116px anchor=0% width=100% height=54px />
 
-    <Text
-        id=subtitle
-        x=50%
-        y=98px
-        width=720px
-        height=24px
-        text={"Tiles " + cell_count + " / Clicks " + total_clicks + " / Recycled " + recycle_count + " / Exit " + exit_mode_label + " / Change " + reflow_mode_label}
-        selectable=false
-    />
-
-    if show_hint {
-        <HintPill
-            x=50%
-            y=150px
-            width=620px
-            height=42px
-            anchor=50%
-        />
-    }
-
-    <Stacker
-        x=50%
-        y=220px
-        width=720px
-        height=42px
-        anchor_x=50%
-        direction=StackerDirection::Horizontal
-        gutter=12px
-    >
-        <Group class="action_chip" width=100% height=100% @click=self.handle_insert_top>
-            <Text class="chip_label" x=50% y=50% width={100% - 18px} height=20px text="Insert Top" selectable=false />
-            <Rectangle width=100% height=100% fill=rgba(33, 118, 95, 255) corner_radius=8.0 />
-        </Group>
-        <Group class="action_chip" width=100% height=100% @click=self.handle_remove_top>
-            <Text class="chip_label" x=50% y=50% width={100% - 18px} height=20px text="Remove Top" selectable=false />
-            <Rectangle width=100% height=100% fill=rgba(33, 118, 95, 255) corner_radius=8.0 />
-        </Group>
-        <Group class="action_chip" width=100% height=100% @click=self.handle_reverse_order>
-            <Text class="chip_label" x=50% y=50% width={100% - 18px} height=20px text="Reverse Order" selectable=false />
-            <Rectangle width=100% height=100% fill=rgba(33, 118, 95, 255) corner_radius=8.0 />
-        </Group>
-    </Stacker>
-
-    <Text
-        id=exit_label
-        x={50% - 198px}
-        y=278px
-        width=236px
-        height=20px
-        anchor=50%
-        selectable=false
-        text="Exit Handling"
-    />
-
-    <Stacker
-        x={50% - 198px}
-        y=304px
-        width=236px
-        height=42px
-        anchor_x=50%
-        direction=StackerDirection::Horizontal
-        gutter=12px
-    >
-        <Group class="mode_chip" width=100% height=100% @click=self.set_exit_flow>
-            <Text class="chip_label" x=50% y=50% width={100% - 18px} height=20px text="Flow" selectable=false />
-            <Rectangle width=100% height=100% fill={exit_mode == ContainerExitMode::Flow ? rgba(49, 127, 110, 255) : rgba(139, 161, 186, 255)} corner_radius=8.0 />
-        </Group>
-        <Group class="mode_chip" width=100% height=100% @click=self.set_exit_ghost>
-            <Text class="chip_label" x=50% y=50% width={100% - 18px} height=20px text="Ghost" selectable=false />
-            <Rectangle width=100% height=100% fill={exit_mode == ContainerExitMode::Ghost ? rgba(49, 127, 110, 255) : rgba(139, 161, 186, 255)} corner_radius=8.0 />
-        </Group>
-    </Stacker>
-
-    <Text
-        id=change_label
-        x={50% + 198px}
-        y=278px
-        width=236px
-        height=20px
-        anchor=50%
-        selectable=false
-        text="Reflow Motion"
-    />
-
-    <Stacker
-        x={50% + 198px}
-        y=304px
-        width=236px
-        height=42px
-        anchor_x=50%
-        direction=StackerDirection::Horizontal
-        gutter=12px
-    >
-        <Group class="mode_chip" width=100% height=100% @click=self.set_change_snap>
-            <Text class="chip_label" x=50% y=50% width={100% - 18px} height=20px text="Snap" selectable=false />
-            <Rectangle width=100% height=100% fill={reflow_kind == ContainerReflowTransitionKind::Snap ? rgba(92, 117, 187, 255) : rgba(139, 161, 186, 255)} corner_radius=8.0 />
-        </Group>
-        <Group class="mode_chip" width=100% height=100% @click=self.set_change_ease>
-            <Text class="chip_label" x=50% y=50% width={100% - 18px} height=20px text="Ease" selectable=false />
-            <Rectangle width=100% height=100% fill={reflow_kind == ContainerReflowTransitionKind::Ease ? rgba(92, 117, 187, 255) : rgba(139, 161, 186, 255)} corner_radius=8.0 />
-        </Group>
-    </Stacker>
-
-    <Group
-        x=50%
-        y=372px
-        width=484px
-        height=544px
-        anchor_x=50%
-    >
-        <Stacker
-            id=demo_stacker
-            x=18px
-            y=18px
-            width={100% - 36px}
-            height={100% - 36px}
-            direction=StackerDirection::Vertical
-            gutter=10px
-            sizes={cell_sizes}
-        >
-            for (cell, i) in self.cells key cell.id {
-                <CellButton
-                    width=100%
-                    height=100%
-                    label={cell.label}
-                    hue={cell.hue}
-                    hits={cell.hits}
-                    @click=self.handle_cell_click
-                />
-            }
+        <Stacker x=0px y=186px width=100% height=42px
+            direction=StackerDirection::Horizontal gutter=8px>
+            <Group width=100% height=100% @click=self.handle_insert_top>
+                <Text class="chip_label" x=50% y=50% width={100% - 12px} height=20px text="Insert" selectable=false />
+                <Rectangle class="action_surface" width=100% height=100% />
+            </Group>
+            <Group width=100% height=100% @click=self.handle_remove_top>
+                <Text class="chip_label" x=50% y=50% width={100% - 12px} height=20px text="Remove" selectable=false />
+                <Rectangle class="action_surface" width=100% height=100% />
+            </Group>
+            <Group width=100% height=100% @click=self.handle_reverse_order>
+                <Text class="chip_label" x=50% y=50% width={100% - 12px} height=20px text="Reverse" selectable=false />
+                <Rectangle class="action_surface" width=100% height=100% />
+            </Group>
         </Stacker>
 
-        <Rectangle
-            x=18px
-            y=18px
-            width={100% - 36px}
-            height={100% - 36px}
-            fill=rgba(244, 249, 246, 255)
-            corner_radius=8.0
-        />
+        <Group x=0px y=244px anchor_x=0% width={50% - 6px} height=88px>
+            <Text id=exit_label x=50% y=12px anchor=[50%, 0%] width={100% - 12px} height=18px text="Exit Handling" selectable=false />
+            <Stacker x=6px y=38px width={100% - 12px} height=42px direction=StackerDirection::Horizontal gutter=2px>
+                <Group width=100% height=100% @click=self.set_exit_flow>
+                    <Text class="chip_label" x=50% y=50% width={100% - 6px} height=20px text="Flow" selectable=false />
+                    <Rectangle width=100% height=100% corner_radius=7
+                        fill={exit_mode == ContainerExitMode::Flow ? rgb(48, 48, 56) : rgb(26, 26, 30)}
+                        stroke={color: {exit_mode == ContainerExitMode::Flow ? rgb(64, 222, 246) : rgb(42, 42, 48)}, width: 1px} />
+                </Group>
+                <Group width=100% height=100% @click=self.set_exit_ghost>
+                    <Text class="chip_label" x=50% y=50% width={100% - 6px} height=20px text="Ghost" selectable=false />
+                    <Rectangle width=100% height=100% corner_radius=7
+                        fill={exit_mode == ContainerExitMode::Ghost ? rgb(48, 48, 56) : rgb(26, 26, 30)}
+                        stroke={color: {exit_mode == ContainerExitMode::Ghost ? rgb(64, 222, 246) : rgb(42, 42, 48)}, width: 1px} />
+                </Group>
+            </Stacker>
+            <Rectangle class="group_surface" width=100% height=100% />
+        </Group>
 
-        <Rectangle
-            width=100%
-            height=100%
-            fill=rgba(255, 255, 255, 160)
-            stroke={
-                color: rgba(45, 73, 65, 255)
-                width: 1px
-            }
-            corner_radius=8.0
-        />
+        <Group x={50% + 6px} y=244px anchor_x=0% width={50% - 6px} height=88px>
+            <Text id=change_label x=50% y=12px anchor=[50%, 0%] width={100% - 12px} height=18px text="Reflow Motion" selectable=false />
+            <Stacker x=6px y=38px width={100% - 12px} height=42px direction=StackerDirection::Horizontal gutter=2px>
+                <Group width=100% height=100% @click=self.set_change_snap>
+                    <Text class="chip_label" x=50% y=50% width={100% - 6px} height=20px text="Snap" selectable=false />
+                    <Rectangle width=100% height=100% corner_radius=7
+                        fill={reflow_kind == ContainerReflowTransitionKind::Snap ? rgb(48, 48, 56) : rgb(26, 26, 30)}
+                        stroke={color: {reflow_kind == ContainerReflowTransitionKind::Snap ? rgb(184, 137, 255) : rgb(42, 42, 48)}, width: 1px} />
+                </Group>
+                <Group width=100% height=100% @click=self.set_change_ease>
+                    <Text class="chip_label" x=50% y=50% width={100% - 6px} height=20px text="Ease" selectable=false />
+                    <Rectangle width=100% height=100% corner_radius=7
+                        fill={reflow_kind == ContainerReflowTransitionKind::Ease ? rgb(48, 48, 56) : rgb(26, 26, 30)}
+                        stroke={color: {reflow_kind == ContainerReflowTransitionKind::Ease ? rgb(184, 137, 255) : rgb(42, 42, 48)}, width: 1px} />
+                </Group>
+            </Stacker>
+            <Rectangle class="group_surface" width=100% height=100% />
+        </Group>
+
+        <Group x=0px y=352px width=100% height={100% - 368px}>
+            <Scroller id=tile_scroller x=12px y=12px width={100% - 24px} height={100% - 24px}
+                scroll_height={(Math::max(7, cell_count + 1) * 66)px}>
+                <Stacker id=demo_stacker x=2px y=2px width={100% - 4px}
+                    height={(Math::max(7, cell_count + 1) * 66 - 4)px}
+                    direction=StackerDirection::Vertical gutter=10px sizes={cell_sizes}>
+                    for (cell, i) in self.cells key cell.id {
+                        <CellButton width=100% height=100% label={cell.label}
+                            hue={cell.hue} hits={cell.hits} @click=self.handle_cell_click />
+                    }
+                </Stacker>
+            </Scroller>
+            <Rectangle class="group_surface" width=100% height=100% />
+        </Group>
     </Group>
-
-    <Rectangle
-        width=100%
-        height=100%
-        fill=@gradient {
-            linear: {
-                start: [0%, 0%]
-                end: [100%, 100%]
-            }
-            0%: rgba(248, 250, 244, 255)
-            58%: rgba(230, 240, 232, 255)
-            100%: rgba(214, 226, 218, 255)
-        }
-    />
+    <Rectangle width=100% height=100% fill=rgb(16, 16, 19) />
 </Group>
 
 @settings {
     @mount: handle_mount
+
+    .action_surface {
+        fill: rgb(38, 38, 43)
+        stroke: {color: rgb(82, 82, 92), width: 1px}
+        corner_radius: 9
+    }
+    .group_surface {
+        fill: rgb(22, 22, 26)
+        stroke: {color: rgb(60, 60, 68), width: 1px}
+        corner_radius: 12
+    }
 
     #demo_stacker {
         exit_mode: {exit_mode}
@@ -197,8 +110,8 @@
                 url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap"
                 weight: 800
             }
-            font_size: 38px
-            fill: rgba(24, 41, 36, 255)
+            font_size: 30px
+            fill: rgb(245, 245, 248)
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Center
             align_multiline: TextAlignHorizontal::Center
@@ -213,8 +126,8 @@
                 url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap"
                 weight: 500
             }
-            font_size: 15px
-            fill: rgba(74, 92, 84, 255)
+            font_size: 14px
+            fill: rgb(180, 180, 194)
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Center
             align_multiline: TextAlignHorizontal::Center
@@ -229,8 +142,8 @@
                 url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap"
                 weight: 600
             }
-            font_size: 13px
-            fill: rgba(74, 92, 84, 255)
+            font_size: 12px
+            fill: rgb(180, 180, 194)
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Center
             align_multiline: TextAlignHorizontal::Center
@@ -245,8 +158,8 @@
                 url: "https://fonts.googleapis.com/css2?family=Inter:wght@500;650;800&display=swap"
                 weight: 600
             }
-            font_size: 13px
-            fill: rgba(74, 92, 84, 255)
+            font_size: 12px
+            fill: rgb(180, 180, 194)
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Center
             align_multiline: TextAlignHorizontal::Center

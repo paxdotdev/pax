@@ -36,6 +36,7 @@ use web_time::Instant;
 use_RefCell!();
 
 mod browser_surface_policy;
+mod image_loading;
 pub mod web_render_contexts;
 
 use crate::browser_surface_policy::BrowserSurfacePolicy;
@@ -527,11 +528,11 @@ impl PaxChassisWeb {
                 ImageLoadInterruptArgs::Reference(_ref_args) => false,
                 ImageLoadInterruptArgs::Data(data_args) => {
                     let data = Uint8Array::new(additional_payload).to_vec();
-                    self.render_context.load_image(
-                        &data_args.path,
+                    image_loading::complete_image_load(
+                        &engine,
+                        self.render_context.as_mut(),
+                        &data_args,
                         &data,
-                        data_args.width,
-                        data_args.height,
                     );
                     false
                 }

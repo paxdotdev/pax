@@ -1983,29 +1983,30 @@ fn write_api_index(
     internal_crates: &[String],
     generated_files: &mut BTreeSet<PathBuf>,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let mut out = String::new();
-    out.push_str("# API Docs\n");
-    out.push_str("<!-- summary: Generated API docs for Pax crates. -->\n");
-    out.push_str("<!-- tags: api -->\n\n");
-    out.push_str("## Public Crates\n");
+    let mut out = include_str!("../../templates/api-index.md")
+        .trim_end()
+        .to_string();
+    out.push_str("\n\n");
     for krate in public_crates {
         out.push_str(&format!("- [{krate}]({krate}/index.md)\n"));
     }
     if !internal_crates.is_empty() {
         out.push('\n');
-        out.push_str("## Internal Crates\n");
-        out.push_str("- **[Internal](internal/index.md)**\n");
+        out.push_str("<a id=\"internal-crates\"></a>\n\n");
+        out.push_str("## Engine and maintainer APIs\n\n");
+        out.push_str("For primitive implementations and work on Pax itself, continue with the\n");
+        out.push_str("[Maintainer Reference](internal/index.md). It separates current internal\n");
+        out.push_str("APIs from historical architecture and design notes.\n");
     }
     let index_path = api_dir.join("index.md");
     write_if_changed(&index_path, &out)?;
     record_generated_file(generated_files, &index_path);
 
     if !internal_crates.is_empty() {
-        let mut internal_out = String::new();
-        internal_out.push_str("# Internal API Docs\n");
-        internal_out.push_str("<!-- summary: Internal API docs for Pax crates. -->\n");
-        internal_out.push_str("<!-- tags: api, internal -->\n\n");
-        internal_out.push_str("## Crates\n");
+        let mut internal_out = include_str!("../../templates/internal-api-index.md")
+            .trim_end()
+            .to_string();
+        internal_out.push_str("\n\n");
         for krate in internal_crates {
             internal_out.push_str(&format!("- [{krate}]({krate}/index.md)\n"));
         }
@@ -2075,15 +2076,23 @@ fn build_api_summary_block(
     }
 
     if !internal_entries.is_empty() {
-        lines.push("  - [Internal](api/internal/index.md)".to_string());
+        lines.push(String::new());
+        lines.push("- [Maintainer Reference](api/internal/index.md)".to_string());
+        lines.push(String::new());
         for entry in internal_entries {
             let internal_path = entry.path.clone();
             if !seen.insert(internal_path) {
                 continue;
             }
-            let indent = "  ".repeat((entry.depth + 1) as usize);
+            let indent = "  ".repeat(entry.depth as usize);
             lines.push(format!("{indent}- [{}]({})", entry.title, entry.path));
         }
+        // Keep one contiguous child list: a second list after API-END can
+        // replace the first in mdBook's SUMMARY parser.
+        lines.push(
+            "  - [Runtime & Cartridge Notes (historical)](architecture-runtime-cartridge.md)"
+                .to_string(),
+        );
     }
     lines
 }
@@ -2158,4 +2167,110 @@ fn collect_md_files(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), Box<dyn st
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct TestDirectory(PathBuf);
+
+    impl TestDirectory {
+        fn new() -> Self {
+            static NEXT: AtomicUsize = AtomicUsize::new(0);
+            let nonce = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos();
+            let path = std::env::temp_dir().join(format!(
+                "pax-api-index-test-{}-{nonce}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            fs::create_dir(&path).unwrap();
+            Self(path)
+        }
+    }
+
+    impl Drop for TestDirectory {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn indexes_include_orientation_and_preserve_anchors() {
+        let dir = TestDirectory::new();
+        let mut generated = BTreeSet::new();
+        write_api_index(
+            &dir.0,
+            &["pax-runtime-api".into(), "pax-std".into()],
+            &["pax-runtime".into()],
+            &mut generated,
+        )
+        .unwrap();
+        let public = fs::read_to_string(dir.0.join("index.md")).unwrap();
+        let internal = fs::read_to_string(dir.0.join("internal/index.md")).unwrap();
+        assert!(public.contains("# API Reference"));
+        assert!(public.contains("id=\"api-docs\""));
+        assert!(public.contains("## Public crates"));
+        assert!(public.contains("id=\"internal-crates\""));
+        assert!(public.contains("\n\n- [pax-runtime-api](pax-runtime-api/index.md)"));
+        assert!(public.contains("[Maintainer Reference](internal/index.md)"));
+        assert!(internal.contains("# Maintainer Reference"));
+        assert!(internal.contains("id=\"internal-api-docs\""));
+        assert!(internal.contains("../../primitives.md"));
+        assert!(internal.contains("- [pax-runtime](pax-runtime/index.md)"));
+        assert_eq!(generated.len(), 2);
+    }
+
+    #[test]
+    fn public_only_index_does_not_link_missing_internal_index() {
+        let dir = TestDirectory::new();
+        let mut generated = BTreeSet::new();
+        write_api_index(&dir.0, &["pax-std".into()], &[], &mut generated).unwrap();
+        let public = fs::read_to_string(dir.0.join("index.md")).unwrap();
+        assert!(!public.contains("(internal/index.md)"));
+        assert!(!dir.0.join("internal/index.md").exists());
+        assert_eq!(generated.len(), 1);
+    }
+
+    #[test]
+    fn summary_keeps_maintainer_reference_separate_and_regenerates_idempotently() {
+        let dir = TestDirectory::new();
+        let summary = dir.0.join("SUMMARY.md");
+        fs::write(
+            &summary,
+            "# Summary\n\n- [Getting Started](getting-started.md)\n- [API Reference](api/index.md)\n  <!-- API-START -->\n  <!-- API-END -->\n\n# Further reading\n\n[Team notes](notes.md)\n",
+        )
+        .unwrap();
+        let public = vec![ApiSummaryEntry {
+            title: "pax-std".into(),
+            path: "api/pax-std/index.md".into(),
+            depth: 1,
+        }];
+        let internal = vec![
+            ApiSummaryEntry {
+                title: "pax-runtime".into(),
+                path: "api/internal/pax-runtime/index.md".into(),
+                depth: 1,
+            },
+            ApiSummaryEntry {
+                title: "rendering".into(),
+                path: "api/internal/pax-runtime/rendering.md".into(),
+                depth: 2,
+            },
+        ];
+        update_summary(&summary, &public, &internal).unwrap();
+        let first = fs::read_to_string(&summary).unwrap();
+        assert!(first.contains("- [Getting Started](getting-started.md)"));
+        assert!(first
+            .contains("\n- [Maintainer Reference](api/internal/index.md)\n\n  - [pax-runtime]"));
+        assert!(first.contains("\n    - [rendering](api/internal/pax-runtime/rendering.md)"));
+        assert!(first.contains("  - [Runtime & Cartridge Notes (historical)](architecture-runtime-cartridge.md)\n  <!-- API-END -->"));
+        assert!(first.ends_with("# Further reading\n\n[Team notes](notes.md)\n"));
+        update_summary(&summary, &public, &internal).unwrap();
+        assert_eq!(first, fs::read_to_string(summary).unwrap());
+    }
 }
