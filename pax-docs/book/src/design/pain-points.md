@@ -1509,3 +1509,22 @@ Logo replay is a separate `@click` handler on the logo card. Its click bubbles
 to the canvas for one ring attempt, so the card can replay without throttling
 even when the ring cap is full. Automatic rings and clicks outside the card
 never reset the logo. Keep replay out of the shared ring-emission helper.
+
+## 2026-09-15
+
+Living Quilt's unoptimized debug build spent far more CPU time in a five-ring
+burst than release. Optimizing every crate at level 1 recovered runtime speed,
+but made small Rust application edits substantially slower to rebuild.
+Keeping runtime dependencies at level 1 and the application at level 0 retained
+near-release web performance while preserving quick application rebuilds. The
+trade-off is a longer first dependency build, not disabled debug assertions,
+overflow checks, debug information, or hot reload.
+
+Express this as `[profile.dev] opt-level = 1` plus a named application package
+override at level 0. A wildcard package override also overrides Cargo's
+build-script/proc-macro defaults and is not the same policy. When creating a
+project from a bundled example, rename the example's package profile overrides
+alongside `package.name`; otherwise Cargo silently leaves the new app at the
+profile-wide optimization level. Canonical manifests, bundle drift checks,
+and renamed-project creation tests now cover this boundary. Keep
+`CARGO_PROFILE_DEV_OPT_LEVEL=0` available for fully unoptimized debugging.

@@ -83,6 +83,9 @@ fn creates_bundled_examples_outside_the_monorepo() {
     assert!(default_manifest.contains("title = \"hello-pax\""));
     assert!(default_manifest.contains("pax-kit = { version ="));
     assert!(!default_manifest.contains("../../../pax-kit"));
+    assert!(default_manifest.contains("[profile.dev]\nopt-level = 1"));
+    assert!(default_manifest.contains("[profile.dev.package.hello-pax]\nopt-level = 0"));
+    assert!(!default_manifest.contains("profile.dev.package.living-quilt"));
     assert!(default.join("src/quilt_tile.pax").is_file());
     assert!(default.join("src/animated_pax_logo.pax").is_file());
     assert!(default.join("src/animated_pax_logo_banner.rs").is_file());
@@ -93,6 +96,10 @@ fn creates_bundled_examples_outside_the_monorepo() {
     assert!(fs::read_to_string(override_project.join("src/lib.pax"))
         .unwrap()
         .contains("num_clicks"));
+    let override_manifest = fs::read_to_string(override_project.join("Cargo.toml")).unwrap();
+    assert!(override_manifest.contains("[profile.dev]\nopt-level = 1"));
+    assert!(override_manifest.contains("[profile.dev.package.tiny-counter]\nopt-level = 0"));
+    assert!(!override_manifest.contains("profile.dev.package.increment"));
     assert!(!override_project.join(".pax").exists());
     assert!(!override_project.join("target").exists());
 

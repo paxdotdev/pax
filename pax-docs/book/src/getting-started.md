@@ -170,6 +170,69 @@ Create and run a smoke project:
 pax-cli create my-first-project ; cd my-first-project ; pax-cli run
 ```
 
+## Bundled starters
+
+`pax-cli create` (also available as `pax-cli new`) starts from **Living Quilt**:
+the animated Pax logo on an interactive geometric tapestry. Select a different
+bundled example by its string ID:
+
+```sh
+pax-cli create my-quilt                           # living-quilt (default)
+pax-cli create my-postcard --example ink-and-light
+pax-cli create my-counter --example increment
+```
+
+These starters are self-contained snapshots shipped with the installed CLI,
+not downloads of a moving branch. Newer canonical example changes arrive with
+a newer CLI build; existing generated projects are not overwritten.
+
+For Pax contributors, `examples/src/*` is the sole hand-edited source. The
+registry in `examples/bundled-cli-examples.toml` maps each bundled ID to its
+source directory and selects the default. Run `scripts/sync-cli-examples.py`
+after changing a curated example; `--check` verifies that the tracked,
+deterministic `pax-compiler/files/new-project/bundled-examples.paxbundle` is
+current. CI checks for drift, and release preparation syncs after version
+rewriting. The compiler embeds that crate-owned artifact, so installed crates
+never need files from outside their package. Do not hand-edit a second starter
+implementation in the CLI.
+
+## Debug build defaults
+
+Examples and generated projects optimize runtime dependencies at level 1 while
+leaving the application crate at level 0. This keeps the runtime responsive
+without paying for optimization of the application's Rust code on every edit:
+
+```toml
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package.my-quilt]
+opt-level = 0
+```
+
+Use the application's exact Cargo package name for the second table. Creation
+rewrites it automatically; if you later rename `package.name` yourself, rename
+its package profile override too. Cargo reads profiles from the workspace
+root, so move these settings there if you add the app to a larger workspace.
+
+Debug information, debug assertions, overflow checks, incremental compilation,
+and hot reload retain their normal development behavior. Build scripts and
+proc macros retain Cargo's unoptimized defaults. Avoid replacing this with a
+`[profile.dev.package."*"]` override: the wildcard also takes precedence over
+build-dependency defaults. Release profiles are unchanged.
+
+Optimized dependencies take longer to compile the first time, but are cached
+for subsequent application edits. For fully unoptimized debugging, override
+the profile default for one invocation:
+
+```sh
+CARGO_PROFILE_DEV_OPT_LEVEL=0 pax-cli run
+```
+
+In PowerShell, set `$env:CARGO_PROFILE_DEV_OPT_LEVEL = "0"` before running the
+command, and remove it afterward with
+`Remove-Item Env:CARGO_PROFILE_DEV_OPT_LEVEL` to return to the project default.
+
 ## Formatting Pax source
 
 Run `pax-cli fmt` from a project or workspace root to recursively format `.pax`

@@ -20,3 +20,11 @@ crate-type = ["cdylib", "rlib"]
 [[bin]]
 name = "run"
 path = "bin/run.rs"
+
+# Optimize runtime dependencies while keeping application rebuilds fast.
+# Build scripts and proc macros keep Cargo's unoptimized defaults.
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package.breakout]
+opt-level = 0

@@ -269,6 +269,49 @@ mod tests {
     }
 
     #[test]
+    fn canonical_examples_use_selective_debug_profiles() {
+        let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
+        let examples = workspace.join("examples/src");
+        if !examples.is_dir() {
+            return;
+        }
+        let mut checked = 0;
+        for entry in fs::read_dir(examples).unwrap() {
+            let manifest = entry.unwrap().path().join("Cargo.toml");
+            if !manifest.is_file() {
+                continue;
+            }
+            let doc = fs::read_to_string(&manifest)
+                .unwrap()
+                .parse::<toml_edit::Document>()
+                .unwrap();
+            let name = doc["package"]["name"].as_str().unwrap();
+            assert_eq!(
+                doc["profile"]["dev"]["opt-level"].as_integer(),
+                Some(1),
+                "{}",
+                manifest.display()
+            );
+            assert_eq!(
+                doc["profile"]["dev"]["package"][name]["opt-level"].as_integer(),
+                Some(0),
+                "{}",
+                manifest.display()
+            );
+            assert!(
+                !doc["profile"]["dev"]["package"]
+                    .as_table()
+                    .unwrap()
+                    .contains_key("*"),
+                "{} must not optimize build dependencies through a wildcard",
+                manifest.display()
+            );
+            checked += 1;
+        }
+        assert!(checked > 0);
+    }
+
+    #[test]
     fn checked_in_bundle_matches_canonical_examples() {
         let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         let sync = workspace.join("scripts/sync-cli-examples.py");

@@ -54,6 +54,12 @@ while Rust edits require rebuilding and restarting. On web and macOS, opt into
 logic reload with `pax-cli run --hot-reload=all` when its rebuild latency is
 appropriate for the task.
 
+The dev Cargo profile optimizes runtime dependencies at level 1 and keeps this
+application at level 0 for quick Rust rebuilds. Preserve the app-specific
+`[profile.dev.package.<package-name>]` override when changing the package name.
+Use `CARGO_PROFILE_DEV_OPT_LEVEL=0 pax-cli run` for fully unoptimized debugging;
+normal dev debug information, safety checks, and hot reload remain enabled.
+
 Use the open-source developer tools to inspect the running result:
 
 ```sh

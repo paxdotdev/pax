@@ -1574,6 +1574,7 @@ mod tests {
             env!("CARGO_PKG_VERSION")
         )));
         let parsed = manifest.parse::<toml_edit::Document>().unwrap();
+        assert_created_debug_profile(&parsed, "generated-app", "living-quilt");
         assert!(parsed["dependencies"]
             .as_table()
             .unwrap()
@@ -1604,6 +1605,11 @@ mod tests {
         assert!(fs::read_to_string(override_project.join("Cargo.toml"))
             .unwrap()
             .contains("pax-kit = { version = \"9.8.7\" }"));
+        let override_manifest = fs::read_to_string(override_project.join("Cargo.toml"))
+            .unwrap()
+            .parse::<toml_edit::Document>()
+            .unwrap();
+        assert_created_debug_profile(&override_manifest, "counter-app", "increment");
 
         let libdev_project = dir.path().join("libdev-app");
         perform_create(&CreateContext {
@@ -1624,6 +1630,7 @@ mod tests {
             .unwrap()
             .parse::<toml_edit::Document>()
             .unwrap();
+        assert_created_debug_profile(&libdev_manifest, "libdev-app", "ink-and-light");
         assert!(libdev_manifest["dependencies"]
             .as_table()
             .unwrap()
@@ -1649,6 +1656,98 @@ mod tests {
         assert!(error.contains("ink-and-light"));
         assert!(error.contains("increment"));
         assert!(!project.exists());
+    }
+
+    fn assert_created_debug_profile(doc: &toml_edit::Document, app_name: &str, source_name: &str) {
+        assert_eq!(doc["profile"]["dev"]["opt-level"].as_integer(), Some(1));
+        let packages = doc["profile"]["dev"]["package"].as_table().unwrap();
+        assert_eq!(packages[app_name]["opt-level"].as_integer(), Some(0));
+        assert_eq!(packages.len(), 1);
+        assert!(!packages.contains_key(source_name));
+    }
+
+    #[test]
+    fn created_project_renames_only_its_own_profile_overrides() {
+        let mut doc = r#"
+[package]
+name = "source-example"
+[profile.dev]
+opt-level = 1
+debug = true
+[profile.dev.package.source-example]
+opt-level = 0
+[profile.dev.package.rand]
+opt-level = 2
+[profile.dev.build-override]
+opt-level = 0
+[profile.release]
+lto = "thin"
+[profile.release.package.source-example]
+debug = 1
+[profile.fast]
+inherits = "dev"
+[profile.fast.package.source-example]
+codegen-units = 32
+"#
+        .parse::<toml_edit::Document>()
+        .unwrap();
+        rename_created_project_profile_overrides(&mut doc, "new-app").unwrap();
+        // Roundtrip through TOML as create does, including renamed table headers.
+        let doc = doc.to_string().parse::<toml_edit::Document>().unwrap();
+        for profile in ["dev", "release", "fast"] {
+            let packages = doc["profile"][profile]["package"].as_table().unwrap();
+            assert!(packages.contains_key("new-app"));
+            assert!(!packages.contains_key("source-example"));
+        }
+        assert_eq!(doc["profile"]["dev"]["opt-level"].as_integer(), Some(1));
+        assert_eq!(doc["profile"]["dev"]["debug"].as_bool(), Some(true));
+        assert_eq!(
+            doc["profile"]["dev"]["package"]["new-app"]["opt-level"].as_integer(),
+            Some(0)
+        );
+        assert_eq!(
+            doc["profile"]["dev"]["package"]["rand"]["opt-level"].as_integer(),
+            Some(2)
+        );
+        assert_eq!(
+            doc["profile"]["dev"]["build-override"]["opt-level"].as_integer(),
+            Some(0)
+        );
+        assert_eq!(doc["profile"]["release"]["lto"].as_str(), Some("thin"));
+        assert_eq!(
+            doc["profile"]["release"]["package"]["new-app"]["debug"].as_integer(),
+            Some(1)
+        );
+        assert_eq!(doc["profile"]["fast"]["inherits"].as_str(), Some("dev"));
+        assert_eq!(
+            doc["profile"]["fast"]["package"]["new-app"]["codegen-units"].as_integer(),
+            Some(32)
+        );
+    }
+
+    #[test]
+    fn created_project_profile_rename_preserves_absent_profiles_and_unchanged_names() {
+        for source in [
+            "[package]\nname = \"source-example\"\n",
+            "[package]\nname = \"new-app\"\n[profile.dev.package.new-app]\nopt-level = 0\n",
+            "[package]\nname = \"source-example\"\n[profile.dev.package.rand]\nopt-level = 2\n",
+        ] {
+            let mut doc = source.parse::<toml_edit::Document>().unwrap();
+            rename_created_project_profile_overrides(&mut doc, "new-app").unwrap();
+            assert_eq!(doc.to_string(), source);
+        }
+    }
+
+    #[test]
+    fn created_project_profile_rename_rejects_colliding_dependency_overrides() {
+        let source = "[package]\nname = \"source-example\"\n\
+                      [profile.dev.package.source-example]\nopt-level = 0\n\
+                      [profile.dev.package.new-app]\nopt-level = 2\n";
+        let mut doc = source.parse::<toml_edit::Document>().unwrap();
+        let error = rename_created_project_profile_overrides(&mut doc, "new-app").unwrap_err();
+        assert!(error.contains("profile.dev.package.source-example"));
+        assert!(error.contains("already exists"));
+        assert_eq!(doc.to_string(), source);
     }
 
     #[test]
@@ -1881,6 +1980,7 @@ pub fn perform_create(ctx: &CreateContext) -> Result<(), String> {
 
     update_pax_dependency_versions(&mut doc, &ctx.version);
     sanitize_created_project_dependencies(&mut doc)?;
+    rename_created_project_profile_overrides(&mut doc, &crate_name)?;
 
     // Update the `package` section
     if let Some(package) = doc
@@ -1928,6 +2028,48 @@ pub fn perform_create(ctx: &CreateContext) -> Result<(), String> {
         selected,
         full_path.to_str().unwrap(),
     );
+    Ok(())
+}
+
+fn rename_created_project_profile_overrides(
+    doc: &mut toml_edit::Document,
+    crate_name: &str,
+) -> Result<(), String> {
+    let original_name = doc["package"]["name"]
+        .as_str()
+        .ok_or_else(|| "Bundled example is missing package.name".to_string())?
+        .to_string();
+    if original_name == crate_name {
+        return Ok(());
+    }
+    let Some(profiles) = doc
+        .get_mut("profile")
+        .and_then(|item| item.as_table_like_mut())
+    else {
+        return Ok(());
+    };
+
+    // Package overrides follow the application's identity. Leaving the source
+    // example's name here silently loses its fast, unoptimized app rebuilds.
+    for (profile_name, profile) in profiles.iter_mut() {
+        let Some(packages) = profile
+            .get_mut("package")
+            .and_then(|item| item.as_table_like_mut())
+        else {
+            continue;
+        };
+        if !packages.contains_key(&original_name) {
+            continue;
+        }
+        if packages.contains_key(crate_name) {
+            return Err(format!(
+                "Cannot rename profile.{profile_name}.package.{original_name} to \
+                 `{crate_name}`: a package override with that name already exists"
+            ));
+        }
+        let settings = packages.remove(&original_name).unwrap();
+        packages.insert(crate_name, settings);
+    }
     Ok(())
 }
 
