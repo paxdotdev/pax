@@ -44,6 +44,7 @@ use std::collections::hash_map::DefaultHasher;
 use std::collections::HashSet;
 use std::fs;
 use std::io;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 
 #[cfg(unix)]
@@ -64,6 +65,12 @@ use crate::helpers::{
     PAX_CREATE_AGENTS_TEMPLATE, PAX_IOS_INTERFACE_TEMPLATE, PAX_MACOS_INTERFACE_TEMPLATE,
     PAX_SWIFT_CARTRIDGE_TEMPLATE, PAX_SWIFT_COMMON_TEMPLATE, PAX_WEB_INTERFACE_TEMPLATE,
 };
+
+/// Receives lifecycle notifications for a running Pax application.
+pub trait RunLifecycleObserver: Send + Sync {
+    /// Called once after the requested target has successfully become ready.
+    fn run_ready(&self, target: RunTarget);
+}
 
 /// Configuration for building or running a Pax project.
 ///
@@ -88,6 +95,48 @@ pub struct RunContext {
     pub profile_wasm_size: bool,
     pub ios_device: Option<String>,
     pub ios_development_team: Option<String>,
+    /// An optional observer for successful run lifecycle milestones.
+    pub lifecycle_observer: Option<Arc<dyn RunLifecycleObserver>>,
+}
+
+#[derive(Clone)]
+pub(crate) struct RunLifecycleNotifier {
+    observer: Option<Arc<dyn RunLifecycleObserver>>,
+    target: RunTarget,
+    notified: Arc<AtomicBool>,
+}
+
+impl RunLifecycleNotifier {
+    pub(crate) fn new(ctx: &RunContext) -> Self {
+        Self {
+            observer: ctx.lifecycle_observer.clone(),
+            target: ctx.target.clone(),
+            notified: Arc::new(AtomicBool::new(false)),
+        }
+    }
+
+    pub(crate) fn notify(&self) {
+        let Some(observer) = &self.observer else {
+            return;
+        };
+        if self
+            .notified
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .is_ok()
+        {
+            observer.run_ready(self.target.clone());
+        }
+    }
+
+    // Ready callbacks can cross multiple server-launch paths, so the notifier
+    // owns the invocation-local one-shot guard rather than each chassis.
+    pub(crate) fn into_callback(self) -> Option<Box<dyn FnOnce() + Send>> {
+        if self.observer.is_some() {
+            Some(Box::new(move || self.notify()))
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -1797,7 +1846,38 @@ codegen-units = 32
             profile_wasm_size: false,
             ios_device: None,
             ios_development_team: None,
+            lifecycle_observer: None,
         }
+    }
+
+    struct RecordingLifecycleObserver {
+        targets: Mutex<Vec<RunTarget>>,
+    }
+
+    impl RunLifecycleObserver for RecordingLifecycleObserver {
+        fn run_ready(&self, target: RunTarget) {
+            self.targets.lock().unwrap().push(target);
+        }
+    }
+
+    #[test]
+    fn run_lifecycle_notifier_emits_once_per_invocation() {
+        let observer = Arc::new(RecordingLifecycleObserver {
+            targets: Mutex::new(Vec::new()),
+        });
+        let mut ctx = release_context(false);
+        ctx.target = RunTarget::iPadOS;
+        ctx.lifecycle_observer = Some(observer.clone());
+
+        let notifier = RunLifecycleNotifier::new(&ctx);
+        notifier.clone().into_callback().unwrap()();
+        notifier.notify();
+        RunLifecycleNotifier::new(&ctx).notify();
+
+        assert_eq!(
+            *observer.targets.lock().unwrap(),
+            vec![RunTarget::iPadOS, RunTarget::iPadOS]
+        );
     }
 
     #[test]

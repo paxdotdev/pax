@@ -2,22 +2,25 @@ use clap::{crate_version, App, AppSettings, Arg, ArgMatches};
 use color_eyre::config::HookBuilder;
 use colored::{ColoredString, Colorize};
 use std::path::{Path, PathBuf};
-use std::sync::{Arc, Mutex};
+use std::sync::{mpsc, Arc, Mutex};
 use std::time::Duration;
 use std::{process, thread};
 
-use pax_compiler::{CreateContext, HotReloadMode, RunContext, RunTarget};
+use pax_compiler::{CreateContext, HotReloadMode, RunContext, RunLifecycleObserver, RunTarget};
 extern crate pax_language_server;
 
 mod dev;
 mod docs;
 mod http;
 mod svg_import;
+mod telemetry;
 
 use color_eyre::eyre::eyre;
 use color_eyre::eyre::Report;
 use color_eyre::eyre::Result;
 use ctrlc;
+
+const UPDATE_COMPLETION_WAIT: Duration = Duration::from_millis(250);
 
 /// `pax-cli` entrypoint
 fn main() -> Result<(), Report> {
@@ -30,13 +33,30 @@ fn main() -> Result<(), Report> {
     // Shared state to store the new version info if available.
     let new_version_info = Arc::new(Mutex::new(None));
 
-    // Spawn the check_for_update thread so it runs concurrently.
-    let cloned_new_version_info = Arc::clone(&new_version_info);
-    thread::spawn(move || {
-        http::check_for_update(cloned_new_version_info);
-    });
-
     let matches = cli().get_matches_from(normalize_cli_args(std::env::args().collect())?);
+    if let ("telemetry", Some(args)) = matches.subcommand() {
+        return telemetry::handle(args);
+    }
+    let public_command = telemetry::public_command(&matches);
+    let telemetry = if public_command.is_some() {
+        telemetry::TelemetrySession::for_public_command()
+    } else {
+        telemetry::TelemetrySession::disabled()
+    };
+
+    // Updates remain independent of telemetry; internal and management commands
+    // do not need to contact the service.
+    let update_completion = if public_command.is_some() {
+        let (sender, receiver) = mpsc::sync_channel(1);
+        let version_info = Arc::clone(&new_version_info);
+        thread::spawn(move || {
+            http::check_for_update(version_info);
+            let _ = sender.try_send(());
+        });
+        Some(receiver)
+    } else {
+        None
+    };
     let is_libdev_mode = resolve_matches_libdev_mode(&matches)?;
 
     let cloned_version_info = Arc::clone(&new_version_info);
@@ -52,8 +72,20 @@ fn main() -> Result<(), Report> {
     })
     .expect("ctrl-c hook should have been set up successfully");
 
-    let res = perform_nominal_action(matches, Arc::clone(&process_child_ids));
+    let res = perform_nominal_action(
+        matches,
+        Arc::clone(&process_child_ids),
+        telemetry.lifecycle_observer(),
+    );
+    let pending_telemetry =
+        public_command.and_then(|command| telemetry.command_finished(command, res.is_ok()));
+    if let Some(completion) = update_completion {
+        let _ = completion.recv_timeout(UPDATE_COMPLETION_WAIT);
+    }
     perform_cleanup(new_version_info, process_child_ids, is_libdev_mode, false);
+    if let Some(pending) = pending_telemetry {
+        pending.wait();
+    }
     res
 }
 
@@ -173,8 +205,9 @@ fn cli() -> App<'static, 'static> {
                 .about("Creates a new Pax + Rust project at the specified path, including necessary boilerplate and default configuration.")
                 .alias("new")
                 .arg(Arg::with_name("path")
-                    .help("File system path where the new project should be created. If not provided with --path, it should directly follow 'create'")
+                    .help("File system path where the new project should be created. It should directly follow 'create'")
                     .takes_value(true)
+                    .required(true)
                     .index(1))  // Positional arg, `pax create positional_arg_here`
                 .arg( ARG_LIBDEV.clone())
                 .arg( ARG_LIBDEV_MODE.clone())
@@ -264,6 +297,7 @@ fn cli() -> App<'static, 'static> {
         .subcommand(docs::command())
         .subcommand(dev::command())
         .subcommand(svg_import::command())
+        .subcommand(telemetry::command())
 }
 
 fn run_context(
@@ -297,16 +331,20 @@ fn run_context(
         profile_wasm_size: false,
         ios_device: args.value_of("ios-device").map(str::to_string),
         ios_development_team: args.value_of("ios-development-team").map(str::to_string),
+        lifecycle_observer: None,
     })
 }
 
 fn perform_nominal_action(
     matches: ArgMatches<'_>,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
+    lifecycle_observer: Option<Arc<dyn RunLifecycleObserver>>,
 ) -> Result<(), Report> {
     match matches.subcommand() {
         ("run", Some(args)) => {
-            let _ = pax_compiler::perform_build(&run_context(args, process_child_ids)?)?;
+            let mut context = run_context(args, process_child_ids)?;
+            context.lifecycle_observer = lifecycle_observer;
+            let _ = pax_compiler::perform_build(&context)?;
 
             Ok(())
         }
@@ -339,6 +377,7 @@ fn perform_nominal_action(
                 profile_wasm_size,
                 ios_device,
                 ios_development_team,
+                lifecycle_observer: None,
             })?;
 
             Ok(())
@@ -348,7 +387,6 @@ fn perform_nominal_action(
             let path = args.value_of("path").unwrap().to_string(); //default value "."
 
             pax_compiler::perform_clean(&path);
-            thread::sleep(Duration::from_millis(1000)); //Sleep for 1s to let update check finish
 
             println!("Done.");
             Ok(())
@@ -384,6 +422,7 @@ fn perform_nominal_action(
                 profile_wasm_size: false,
                 ios_device: None,
                 ios_development_team: None,
+                lifecycle_observer: None,
             })?;
 
             Ok(())
@@ -766,14 +805,23 @@ mod tests {
         for target in ["ios", "ipados", "ipad"] {
             let matches = cli()
                 .get_matches_from_safe(vec![
-                    "pax-cli", "run", "--target", target, "--release",
-                    "--hot-reload", "all", "--libdev-mode", "false",
-                    "--ios-device", "device:test-udid", "--ios-development-team", "TESTTEAM",
+                    "pax-cli",
+                    "run",
+                    "--target",
+                    target,
+                    "--release",
+                    "--hot-reload",
+                    "all",
+                    "--libdev-mode",
+                    "false",
+                    "--ios-device",
+                    "device:test-udid",
+                    "--ios-development-team",
+                    "TESTTEAM",
                 ])
                 .unwrap();
-            let ctx = run_context(
-                matches.subcommand_matches("run").unwrap(), Arc::default(),
-            ).unwrap();
+            let ctx =
+                run_context(matches.subcommand_matches("run").unwrap(), Arc::default()).unwrap();
             assert!(ctx.is_release && ctx.should_also_run);
             assert!(!ctx.should_run_designtime);
             assert_eq!(ctx.hot_reload, Some(HotReloadMode::Off));
@@ -787,15 +835,19 @@ mod tests {
     fn debug_run_retains_designtime_and_reload_policy() {
         for lane in [None, Some("all"), Some("off")] {
             let mut argv = vec![
-                "pax-cli", "run", "--target", "ipados", "--libdev-mode", "false",
+                "pax-cli",
+                "run",
+                "--target",
+                "ipados",
+                "--libdev-mode",
+                "false",
             ];
             if let Some(lane) = lane {
                 argv.extend(["--hot-reload", lane]);
             }
             let matches = cli().get_matches_from_safe(argv).unwrap();
-            let ctx = run_context(
-                matches.subcommand_matches("run").unwrap(), Arc::default(),
-            ).unwrap();
+            let ctx =
+                run_context(matches.subcommand_matches("run").unwrap(), Arc::default()).unwrap();
             assert!(!ctx.is_release);
             assert!(ctx.should_run_designtime && ctx.should_also_run);
             assert_eq!(ctx.hot_reload, lane.map(|lane| lane.parse().unwrap()));
@@ -808,9 +860,9 @@ mod tests {
             let matches = cli()
                 .get_matches_from_safe(vec!["pax-cli", "run", "--release", "--target", target])
                 .unwrap();
-            let error = run_context(
-                matches.subcommand_matches("run").unwrap(), Arc::default(),
-            ).err().unwrap();
+            let error = run_context(matches.subcommand_matches("run").unwrap(), Arc::default())
+                .err()
+                .unwrap();
             assert!(error.to_string().contains("use build --release"));
         }
     }
@@ -850,6 +902,15 @@ mod tests {
             normalized,
             vec!["pax-cli", "create", "--libdev", "my-project"]
         );
+    }
+
+    #[test]
+    fn format_defaults_to_current_directory() {
+        let matches = cli()
+            .get_matches_from_safe(vec!["pax-cli", "format"])
+            .unwrap();
+        let args = matches.subcommand_matches("format").unwrap();
+        assert_eq!(args.value_of("format-path"), Some("."));
     }
 
     #[test]

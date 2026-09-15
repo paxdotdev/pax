@@ -11,6 +11,8 @@ autoinstall:
   ssh:
     install-server: true
     allow-pw: true
+    authorized-keys:
+      - ${jsonencode(ssh_authorized_key)}
   storage:
     layout:
       name: direct

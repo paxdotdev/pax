@@ -518,6 +518,9 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for PrivilegedAgentWe
         if let Ok(Some(bin_data)) = processed_message {
             match rmp_serde::from_slice::<AgentMessage>(&bin_data) {
                 Ok(AgentMessage::LoadManifestRequest(request)) => {
+                    // A decoded manifest request is the first application-level
+                    // proof that the launched chassis reached its design server.
+                    self.state.mark_app_ready();
                     let client_stamp = request.active_revision.as_ref();
                     let client_revision =
                         client_stamp.map(|revision| revision.logic_revision_id.as_str());
@@ -1561,6 +1564,8 @@ mod tests {
     #[actix_web::test]
     async fn sends_pending_web_revision_after_client_hello() {
         let manifest = basic_manifest("Example");
+        let marker_dir = tempdir().unwrap();
+        let app_ready_marker = marker_dir.path().join("app-ready");
         let state = Data::new(
             AppState::new(
                 PathBuf::new(),
@@ -1574,6 +1579,7 @@ mod tests {
             )
             .unwrap(),
         );
+        state.set_app_ready_marker(Some(app_ready_marker.clone()));
         state
             .revisions
             .lock()
@@ -1600,6 +1606,7 @@ mod tests {
 
         let client = awc::Client::new();
         let (_resp, mut connection) = client.ws(srv.url("/ws")).connect().await.unwrap();
+        assert!(!app_ready_marker.exists());
         let hello = AgentMessage::LoadManifestRequest(LoadManifestRequest {
             active_revision: None,
         });
@@ -1624,6 +1631,7 @@ mod tests {
             request.artifact.location,
             "/__reloads__/build-1/pax-cartridge"
         );
+        assert!(app_ready_marker.exists());
 
         connection.close().await.unwrap();
     }

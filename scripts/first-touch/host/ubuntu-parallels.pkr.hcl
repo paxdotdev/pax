@@ -36,6 +36,10 @@ variable "ssh_password_hash" {
   type = string
 }
 
+variable "ssh_authorized_key" {
+  type = string
+}
+
 variable "output_directory" {
   type    = string
   default = "/Users/zack/Parallels/pax-ubuntu-first-touch.pvm"
@@ -67,9 +71,10 @@ source "parallels-iso" "ubuntu" {
   http_content = {
     "/meta-data" = "instance-id: ${var.vm_name}\nlocal-hostname: ${var.vm_name}\n"
     "/user-data" = templatefile("${path.root}/../guest/ubuntu-autoinstall-user-data.pkrtpl", {
-      hostname      = var.vm_name
-      username      = var.ssh_username
-      password_hash = var.ssh_password_hash
+      hostname           = var.vm_name
+      username           = var.ssh_username
+      password_hash      = var.ssh_password_hash
+      ssh_authorized_key = var.ssh_authorized_key
     })
   }
 
@@ -97,7 +102,7 @@ build {
     inline = [
       "set -eux",
       "apt-get update",
-      "DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates curl git build-essential pkg-config libssl-dev python3 unzip xvfb nodejs npm libglib2.0-dev libcairo2-dev libpango1.0-dev",
+      "DEBIAN_FRONTEND=noninteractive apt-get install -y ca-certificates curl git rsync build-essential pkg-config libssl-dev python3 unzip xvfb nodejs npm libglib2.0-dev libcairo2-dev libpango1.0-dev",
       "apt-get clean",
       "rm -rf /var/lib/apt/lists/*",
       "printf 'pax-first-touch ubuntu system prerequisites ready\\n'"

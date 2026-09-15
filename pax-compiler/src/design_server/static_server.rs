@@ -9,6 +9,14 @@ use std::net::TcpListener;
 use std::path::PathBuf;
 
 pub fn start_server(fs_path: PathBuf, public_dir: Option<PathBuf>) -> std::io::Result<()> {
+    start_server_with_ready_callback(fs_path, public_dir, None)
+}
+
+pub(crate) fn start_server_with_ready_callback(
+    fs_path: PathBuf,
+    public_dir: Option<PathBuf>,
+    ready_callback: Option<Box<dyn FnOnce() + Send>>,
+) -> std::io::Result<()> {
     // Initialize logging
     std::env::set_var("RUST_LOG", "actix_web=info");
     env_logger::Builder::from_env(env_logger::Env::default())
@@ -16,6 +24,7 @@ pub fn start_server(fs_path: PathBuf, public_dir: Option<PathBuf>) -> std::io::R
         .init();
 
     // Create a Runtime
+    let mut ready_callback = ready_callback;
     let runtime = actix_web::rt::System::new().block_on(async {
         let mut port = 8080;
         let server = loop {
@@ -35,15 +44,23 @@ pub fn start_server(fs_path: PathBuf, public_dir: Option<PathBuf>) -> std::io::R
                         .wrap(Logger::new("| %s | %U"))
                         .service(static_files_service(fs_path.clone(), public_dir.clone()))
                 })
-                .bind((DEFAULT_BIND_HOST, port))
-                .expect("Error binding to address")
+                .bind((DEFAULT_BIND_HOST, port))?
                 .workers(2);
             } else {
-                port += 1; // Try the next port
+                port = port.checked_add(1).ok_or_else(|| {
+                    std::io::Error::new(
+                        std::io::ErrorKind::AddrNotAvailable,
+                        "no available static-server port at or above 8080",
+                    )
+                })?;
             }
         };
 
-        server.run().await
+        let server = server.run();
+        if let Some(ready_callback) = ready_callback.take() {
+            ready_callback();
+        }
+        server.await
     });
 
     runtime

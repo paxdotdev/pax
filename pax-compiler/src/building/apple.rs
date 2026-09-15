@@ -13,7 +13,7 @@ use crate::helpers::{
 use crate::project_metadata::PaxProjectMetadata;
 use crate::{
     copy_dir_recursively, prepare_cartridge_sources, wait_with_output, BuildTimings, HotReloadMode,
-    RunContext, RunTarget,
+    RunContext, RunLifecycleNotifier, RunTarget,
 };
 
 use color_eyre::eyre;
@@ -24,9 +24,9 @@ use std::fs;
 use std::net::{IpAddr, Ipv6Addr};
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Output};
-use std::sync::{Arc, Mutex};
+use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 #[cfg(unix)]
 use std::os::unix::fs as unix_fs;
@@ -48,6 +48,57 @@ const PAX_CARTRIDGE_FRAMEWORK_BINARY: &str = "PaxCartridge";
 const DESIGN_SERVER_ADVERTISE_HOST_ENV: &str = "PAX_DESIGN_SERVER_ADVERTISE_HOST";
 const IOS_LOCAL_NETWORK_USAGE_DESCRIPTION: &str =
     "Pax uses the local network during development to receive live template updates.";
+const MOBILE_APP_READY_TIMEOUT: Duration = Duration::from_secs(30);
+const MOBILE_APP_READY_POLL_INTERVAL: Duration = Duration::from_millis(25);
+
+struct AppReadyMarkerWatcher {
+    cancel: Option<mpsc::Sender<()>>,
+    handle: Option<thread::JoinHandle<()>>,
+}
+
+impl Drop for AppReadyMarkerWatcher {
+    fn drop(&mut self) {
+        if let Some(cancel) = self.cancel.take() {
+            let _ = cancel.send(());
+        }
+        if let Some(handle) = self.handle.take() {
+            let _ = handle.join();
+        }
+    }
+}
+
+fn watch_app_ready_marker(
+    marker: &Path,
+    timeout: Duration,
+    on_ready: impl FnOnce() + Send + 'static,
+) -> Option<AppReadyMarkerWatcher> {
+    let marker = marker.to_path_buf();
+    let (cancel, cancelled) = mpsc::channel();
+    let handle = thread::Builder::new()
+        .name("pax-app-ready".to_string())
+        .spawn(move || {
+            let deadline = Instant::now() + timeout;
+            loop {
+                if marker.is_file() {
+                    on_ready();
+                    return;
+                }
+                let remaining = deadline.saturating_duration_since(Instant::now());
+                if remaining.is_zero() {
+                    return;
+                }
+                match cancelled.recv_timeout(remaining.min(MOBILE_APP_READY_POLL_INTERVAL)) {
+                    Ok(()) | Err(mpsc::RecvTimeoutError::Disconnected) => return,
+                    Err(mpsc::RecvTimeoutError::Timeout) => {}
+                }
+            }
+        })
+        .ok()?;
+    Some(AppReadyMarkerWatcher {
+        cancel: Some(cancel),
+        handle: Some(handle),
+    })
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum AppleTargetKind {
@@ -371,6 +422,7 @@ pub fn build_apple_project_with_cartridge(
     project_metadata: &PaxProjectMetadata,
     _timings: &mut BuildTimings,
 ) -> Result<(), eyre::Report> {
+    let lifecycle_notifier = RunLifecycleNotifier::new(ctx);
     let target: &RunTarget = &ctx.target;
     let target_str: &str = target.into();
     let target_str_lower = &target_str.to_lowercase();
@@ -1061,6 +1113,10 @@ pub fn build_apple_project_with_cartridge(
                 None
             };
 
+            if launched_app_pid.is_some() {
+                lifecycle_notifier.notify();
+            }
+
             let status = child.wait().expect("failed to wait for the app");
             process_child_ids
                 .lock()
@@ -1092,7 +1148,7 @@ pub fn build_apple_project_with_cartridge(
             let mut designtime_server = None;
             let mut designtime_run_dir = None;
             let run_result = (|| -> Result<(), eyre::Report> {
-                let design_server_addr = if ctx.should_run_designtime {
+                let (design_server_addr, app_ready_marker) = if ctx.should_run_designtime {
                     let run_dir = project_dev_dir(&pax_dir).join("sessions").join(format!(
                         "{}-templates-{}-{}",
                         target_str_lower,
@@ -1101,6 +1157,8 @@ pub fn build_apple_project_with_cartridge(
                     ));
                     let ready_file = run_dir.join("design-server-url.txt");
                     fs::create_dir_all(&run_dir)?;
+                    let app_ready_marker =
+                        crate::design_server::prepare_app_ready_marker(&ready_file);
                     designtime_run_dir = Some(run_dir);
                     designtime_server = Some(spawn_designtime_server_process(
                         &pax_dir,
@@ -1127,9 +1185,9 @@ pub fn build_apple_project_with_cartridge(
                             app_addr.bold()
                         );
                     }
-                    Some(app_addr)
+                    (Some(app_addr), app_ready_marker)
                 } else {
-                    None
+                    (None, None)
                 };
 
                 match device.kind {
@@ -1140,6 +1198,8 @@ pub fn build_apple_project_with_cartridge(
                         &executable_dot_app_path,
                         &app_identity.bundle_identifier,
                         design_server_addr.as_deref(),
+                        app_ready_marker.as_deref(),
+                        &lifecycle_notifier,
                         &process_child_ids,
                     ),
                     IosDeviceKind::Physical => run_on_physical_device(
@@ -1149,9 +1209,12 @@ pub fn build_apple_project_with_cartridge(
                         &executable_dot_app_path,
                         &app_identity.bundle_identifier,
                         design_server_addr.as_deref(),
+                        app_ready_marker.as_deref(),
+                        &lifecycle_notifier,
                         &process_child_ids,
                     ),
-                }
+                }?;
+                Ok(())
             })();
 
             if let Some(server) = designtime_server.as_mut() {
@@ -1718,6 +1781,8 @@ fn run_on_simulator(
     executable_dot_app_path: &PathBuf,
     bundle_identifier: &str,
     design_server_addr: Option<&str>,
+    app_ready_marker: Option<&Path>,
+    lifecycle_notifier: &RunLifecycleNotifier,
     process_child_ids: &Arc<Mutex<Vec<u64>>>,
 ) -> Result<(), eyre::Report> {
     let mut cmd = Command::new("open");
@@ -1818,6 +1883,12 @@ fn run_on_simulator(
         cmd.pre_exec(crate::pre_exec_hook);
     }
     let child = cmd.spawn().expect(ERR_SPAWN);
+    let _app_ready_watcher = app_ready_marker.and_then(|marker| {
+        let lifecycle_notifier = lifecycle_notifier.clone();
+        watch_app_ready_marker(marker, MOBILE_APP_READY_TIMEOUT, move || {
+            lifecycle_notifier.notify()
+        })
+    });
     let output = wait_with_output(process_child_ids, child);
     if !output.status.success() {
         return Err(eyre!("Error launching app on iOS simulator. Aborting."));
@@ -1837,6 +1908,8 @@ fn run_on_physical_device(
     executable_dot_app_path: &PathBuf,
     bundle_identifier: &str,
     design_server_addr: Option<&str>,
+    app_ready_marker: Option<&Path>,
+    lifecycle_notifier: &RunLifecycleNotifier,
     process_child_ids: &Arc<Mutex<Vec<u64>>>,
 ) -> Result<(), eyre::Report> {
     println!(
@@ -1877,6 +1950,12 @@ fn run_on_physical_device(
         cmd.pre_exec(crate::pre_exec_hook);
     }
     let child = cmd.spawn().expect(ERR_SPAWN);
+    let _app_ready_watcher = app_ready_marker.and_then(|marker| {
+        let lifecycle_notifier = lifecycle_notifier.clone();
+        watch_app_ready_marker(marker, MOBILE_APP_READY_TIMEOUT, move || {
+            lifecycle_notifier.notify()
+        })
+    });
     let output = wait_with_output(process_child_ids, child);
     if !output.status.success() {
         return Err(eyre!(
@@ -2189,6 +2268,7 @@ pub fn rebuild_staged_macos_logic_dylib(
         profile_wasm_size: false,
         ios_device: None,
         ios_development_team: None,
+        lifecycle_observer: None,
     };
 
     let prepared = prepare_cartridge_sources(&ctx)?;
@@ -2666,6 +2746,50 @@ edition = "2021"
             .get_envs()
             .find(|(candidate, _)| *candidate == OsStr::new(key))
             .map(|(_, value)| value.map(|value| value.to_string_lossy().into_owned()))
+    }
+
+    #[test]
+    fn app_ready_marker_watcher_notifies_after_marker_creation() {
+        let dir = tempfile::tempdir().unwrap();
+        let marker = dir.path().join("app-ready");
+        let (ready, observed) = mpsc::channel();
+        let watcher = watch_app_ready_marker(&marker, Duration::from_secs(1), move || {
+            let _ = ready.send(());
+        })
+        .unwrap();
+
+        fs::write(&marker, b"").unwrap();
+        observed.recv_timeout(Duration::from_secs(1)).unwrap();
+        drop(watcher);
+    }
+
+    #[test]
+    fn app_ready_marker_watcher_timeout_is_non_fatal() {
+        let dir = tempfile::tempdir().unwrap();
+        let marker = dir.path().join("app-ready");
+        let (ready, observed) = mpsc::channel();
+        let watcher = watch_app_ready_marker(&marker, Duration::from_millis(20), move || {
+            let _ = ready.send(());
+        })
+        .unwrap();
+
+        assert!(observed.recv_timeout(Duration::from_millis(100)).is_err());
+        drop(watcher);
+    }
+
+    #[test]
+    fn dropping_app_ready_marker_watcher_cancels_notification() {
+        let dir = tempfile::tempdir().unwrap();
+        let marker = dir.path().join("app-ready");
+        let (ready, observed) = mpsc::channel();
+        let watcher = watch_app_ready_marker(&marker, Duration::from_secs(1), move || {
+            let _ = ready.send(());
+        })
+        .unwrap();
+
+        drop(watcher);
+        fs::write(&marker, b"").unwrap();
+        assert!(observed.recv_timeout(Duration::from_millis(50)).is_err());
     }
 
     #[test]

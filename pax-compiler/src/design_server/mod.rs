@@ -9,7 +9,7 @@ use actix_web::{get, web, App, HttpRequest, HttpServer, Responder};
 use actix_web::{HttpResponse, Result};
 use actix_web_actors::ws;
 use colored::Colorize;
-use std::fs;
+use std::fs::{self, OpenOptions};
 use std::net::{IpAddr, TcpListener, UdpSocket};
 
 use env_logger;
@@ -50,6 +50,25 @@ use revision::{ActivationOutcome, DebugRevisionCoordinator};
 
 pub(crate) const DEFAULT_BIND_HOST: &str = "0.0.0.0";
 const LOOPBACK_DISPLAY_HOST: &str = "127.0.0.1";
+
+pub(crate) fn app_ready_marker_path(server_ready_file: &Path) -> PathBuf {
+    server_ready_file.with_extension("app-ready")
+}
+
+pub(crate) fn prepare_app_ready_marker(server_ready_file: &Path) -> Option<PathBuf> {
+    let marker = app_ready_marker_path(server_ready_file);
+    match fs::remove_file(&marker) {
+        Ok(()) => Some(marker),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Some(marker),
+        Err(error) => {
+            log::warn!(
+                "app readiness will not be observed because {} could not be reset: {error}",
+                marker.display()
+            );
+            None
+        }
+    }
+}
 
 pub(crate) fn display_address_links(port: u16) -> String {
     format!("http://{LOOPBACK_DISPLAY_HOST}:{port}")
@@ -204,6 +223,7 @@ pub struct AppState {
     source_update_lock: Mutex<()>,
     restart_manifest_path: Option<PathBuf>,
     startup_recovery_rebuild: Mutex<bool>,
+    app_ready_marker: Mutex<Option<PathBuf>>,
 }
 
 impl AppState {
@@ -226,6 +246,7 @@ impl AppState {
             source_update_lock: Mutex::new(()),
             restart_manifest_path: None,
             startup_recovery_rebuild: Mutex::new(false),
+            app_ready_marker: Mutex::new(None),
         }
     }
     pub fn new(
@@ -285,6 +306,7 @@ impl AppState {
             source_update_lock: Mutex::new(()),
             restart_manifest_path,
             startup_recovery_rebuild: Mutex::new(startup_recovery_rebuild),
+            app_ready_marker: Mutex::new(None),
         };
         if restored_snapshot && hot_reload.reloads_pax() {
             state.reconcile_restored_pax_sources();
@@ -293,6 +315,29 @@ impl AppState {
             state.persist_active_restart_snapshot_locked(&revisions, "server startup")?;
         }
         Ok(state)
+    }
+
+    pub(crate) fn set_app_ready_marker(&self, marker: Option<PathBuf>) {
+        *self.app_ready_marker.lock().unwrap() = marker;
+    }
+
+    pub(crate) fn mark_app_ready(&self) {
+        let marker = self.app_ready_marker.lock().unwrap().clone();
+        let Some(marker) = marker else {
+            return;
+        };
+        match OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&marker)
+        {
+            Ok(_) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(error) => log::warn!(
+                "failed to publish app readiness marker {}: {error}",
+                marker.display()
+            ),
+        }
     }
 
     fn generate_request_id(&self) -> usize {
@@ -1264,12 +1309,43 @@ pub fn start_server(
     restart_snapshot: Option<DebugRestartSnapshot>,
     restart_manifest_path: Option<PathBuf>,
 ) -> std::io::Result<()> {
+    start_server_with_ready_callback(
+        static_file_path,
+        src_folder_to_watch,
+        manifest,
+        requested_port,
+        ready_file,
+        show_address_log,
+        dev_session,
+        logic_reload,
+        hot_reload,
+        restart_snapshot,
+        restart_manifest_path,
+        None,
+    )
+}
+
+pub(crate) fn start_server_with_ready_callback(
+    static_file_path: &str,
+    src_folder_to_watch: &str,
+    manifest: PaxManifest,
+    requested_port: Option<u16>,
+    ready_file: Option<PathBuf>,
+    show_address_log: bool,
+    dev_session: Option<DevSession>,
+    logic_reload: Option<LogicReloadConfig>,
+    hot_reload: HotReloadMode,
+    restart_snapshot: Option<DebugRestartSnapshot>,
+    restart_manifest_path: Option<PathBuf>,
+    ready_callback: Option<Box<dyn FnOnce() + Send>>,
+) -> std::io::Result<()> {
     // Initialize logging
     std::env::set_var("RUST_LOG", "actix_web=info");
     env_logger::Builder::from_env(env_logger::Env::default())
         .format(|buf, record| writeln!(buf, "{} 🍱 Served {}", *PAX_BADGE, record.args()))
         .init();
 
+    let app_ready_marker = ready_file.as_deref().and_then(prepare_app_ready_marker);
     let initial_state = AppState::new(
         PathBuf::from(static_file_path),
         PathBuf::from_str(src_folder_to_watch).unwrap(),
@@ -1281,11 +1357,12 @@ pub fn start_server(
         restart_manifest_path,
     )
     .map_err(std::io::Error::other)?;
+    initial_state.set_app_ready_marker(app_ready_marker);
     let fs_path = initial_state.serve_dir.lock().unwrap().clone();
     let public_dir = existing_project_public_dir(Path::new(src_folder_to_watch));
     let state = Data::new(initial_state);
-    let _watcher = setup_file_watcher(state.clone(), src_folder_to_watch)
-        .expect("Failed to setup file watcher");
+    let _watcher =
+        setup_file_watcher(state.clone(), src_folder_to_watch).map_err(std::io::Error::other)?;
     if state.take_startup_recovery_rebuild() {
         // Source reconciliation above preserves ABI-compatible edits made while
         // the server was down. One unconditional rebuild recovers Rust edits,
@@ -1294,6 +1371,7 @@ pub fn start_server(
     }
 
     // Create a Runtime
+    let mut ready_callback = ready_callback;
     let runtime = actix_web::rt::System::new().block_on(async {
         let listener = TcpListener::bind((DEFAULT_BIND_HOST, requested_port.unwrap_or(0)))?;
         let port = listener.local_addr()?.port();
@@ -1331,7 +1409,11 @@ pub fn start_server(
         .listen(listener)?
         .workers(2);
 
-        server.run().await
+        let server = server.run();
+        if let Some(ready_callback) = ready_callback.take() {
+            ready_callback();
+        }
+        server.await
     });
 
     runtime
@@ -1542,6 +1624,21 @@ mod tests {
             assets_dirs: vec![],
             engine_import_path: "pax_kit".to_string(),
         }
+    }
+
+    #[test]
+    fn app_ready_marker_is_created_once_without_truncating() {
+        let dir = tempdir().unwrap();
+        let marker = dir.path().join("app-ready");
+        let state = AppState::new_empty();
+        state.set_app_ready_marker(Some(marker.clone()));
+
+        state.mark_app_ready();
+        assert!(marker.exists());
+
+        fs::write(&marker, b"already-ready").unwrap();
+        state.mark_app_ready();
+        assert_eq!(fs::read(&marker).unwrap(), b"already-ready");
     }
 
     #[test]

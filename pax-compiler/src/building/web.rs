@@ -9,7 +9,10 @@ use crate::helpers::{
     configure_pax_build_env, pax_project_feature_args, wait_with_output, ASSETS_DIR_NAME,
     BUILD_DIR_NAME, DIR_IGNORE_LIST_WEB, INTERFACE_DIR_NAME, PAX_BADGE,
 };
-use crate::{copy_dir_recursively, prepare_cartridge_sources, BuildTimings, RunContext, RunTarget};
+use crate::{
+    copy_dir_recursively, prepare_cartridge_sources, BuildTimings, RunContext,
+    RunLifecycleNotifier, RunTarget,
+};
 
 use color_eyre::eyre;
 use flate2::{write::GzEncoder, Compression};
@@ -550,6 +553,7 @@ pub fn rebuild_staged_web_cartridge(
         profile_wasm_size: false,
         ios_device: None,
         ios_development_team: None,
+        lifecycle_observer: None,
     };
 
     let prepared = prepare_cartridge_sources(&ctx)?;
@@ -585,6 +589,7 @@ pub fn build_web_project_with_cartridge(
     project_root: &Path,
     timings: &mut BuildTimings,
 ) -> Result<PathBuf, eyre::Report> {
+    let lifecycle_notifier = RunLifecycleNotifier::new(ctx);
     let target: &RunTarget = &ctx.target;
     let target_str: &str = target.into();
     let target_str_lower = &target_str.to_lowercase();
@@ -616,7 +621,7 @@ pub fn build_web_project_with_cartridge(
             dotenv().ok();
             let dev_session = prepare_web_dev_session(project_root, pax_dir)?;
             write_project_active_session(pax_dir, &dev_session)?;
-            crate::design_server::start_server(
+            let server_result = crate::design_server::start_server_with_ready_callback(
                 build_dest.to_str().unwrap(),
                 project_root.to_str().unwrap(),
                 manifest,
@@ -632,13 +637,17 @@ pub fn build_web_project_with_cartridge(
                 ctx.hot_reload.unwrap_or_default(),
                 None,
                 Some(project_designtime_manifest_file(pax_dir)),
-            )?;
-            cleanup_web_dev_session(pax_dir, &dev_session)?;
+                lifecycle_notifier.clone().into_callback(),
+            );
+            let cleanup_result = cleanup_web_dev_session(pax_dir, &dev_session);
+            server_result?;
+            cleanup_result?;
         } else {
             println!("{} 🐇 Running Pax Web...", *PAX_BADGE);
-            crate::design_server::static_server::start_server(
+            crate::design_server::static_server::start_server_with_ready_callback(
                 build_dest.clone(),
                 existing_project_public_dir(project_root),
+                lifecycle_notifier.into_callback(),
             )?;
         }
     } else {

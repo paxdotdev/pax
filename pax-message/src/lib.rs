@@ -1,3 +1,4 @@
+pub mod http_api;
 pub mod reflection;
 
 //FUTURE: feature-flag, only for Web builds

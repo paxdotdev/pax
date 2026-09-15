@@ -1,6 +1,7 @@
 # Summary
 
 - [Getting Started](getting-started.md)
+- [CLI Telemetry](cli-telemetry.md)
 - [Template Language & Structure](template-language.md)
 - [State & Properties](state-properties.md)
 - [Data Binding & Expressions](data-binding-expressions.md)

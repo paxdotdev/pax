@@ -250,6 +250,13 @@ when any file would change, so the same command can enforce canonical Pax
 formatting in CI; it does not inspect whether the process happens to be running
 in a CI environment.
 
+## CLI telemetry
+
+The first public CLI command prints the telemetry privacy notice and sends no
+telemetry. Later public commands enable minimal telemetry by default. See [CLI
+Telemetry](cli-telemetry.md) for the exact fields, server-side coarse-location
+handling, and opt-out controls.
+
 ## Hot reloading
 
 Debug `pax-cli run` sessions reload Pax UI sources by default. Application

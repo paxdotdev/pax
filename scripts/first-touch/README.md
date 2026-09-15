@@ -81,8 +81,16 @@ Defaults:
 - WebAssembly helper: `wasm-pack` 0.15.0
 
 Set `PAX_FIRST_TOUCH_PASSWORD` to control the temporary VM password. If omitted,
-the script generates one for the current invocation and passes it to Packer via
-environment variables.
+the script generates one for the current invocation, stores it in a mode-0600
+file under `~/.cache/pax-first-touch/keys/`, and passes it to Packer via
+environment variables. Override the password-file location with
+`PAX_FIRST_TOUCH_PASSWORD_FILE`. The
+provisioner installs
+`~/.cache/pax-first-touch/keys/pax-ubuntu-first-touch_ed25519.pub` for the `pax`
+user by default, generating the host-local keypair there when it is absent.
+Override the pair with `PAX_FIRST_TOUCH_SSH_KEY` or provide a public key with
+`PAX_FIRST_TOUCH_SSH_PUBLIC_KEY`. The matching private key remains host-local
+and is used by the source smoke.
 
 The first successful output should be a stopped and registered Parallels VM with
 a `pax-first-touch-ubuntu-workstation-prereqs` snapshot. Pax smoke scripts
