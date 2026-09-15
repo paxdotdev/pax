@@ -20,9 +20,13 @@ const DELIVERY_QUEUE_CAPACITY: usize = 1;
 const STATE_LOCK_TIMEOUT: Duration = Duration::from_millis(250);
 const DELIVERY_STATE_LOCK_TIMEOUT: Duration = Duration::from_millis(25);
 const STATE_LOCK_RETRY: Duration = Duration::from_millis(2);
-const CONNECT_TIMEOUT: Duration = Duration::from_millis(100);
-const REQUEST_TIMEOUT: Duration = Duration::from_millis(200);
-const EXIT_WAIT: Duration = Duration::from_millis(250);
+// Allow ordinary cross-region TLS latency, while keeping offline invocations
+// bounded. No durable queue or retries are needed for the launch signal.
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(1);
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
+const EXIT_WAIT: Duration = Duration::from_millis(2250);
+// An explicit opt-out must be able to outwait an already-authorized delivery.
+const MANAGEMENT_LOCK_TIMEOUT: Duration = Duration::from_millis(2500);
 
 const NOTICE: &str = "Pax collects minimal CLI telemetry after this command to guide aggregate product, content, outreach, and marketing investment: the command, target, success or failure, CLI version, OS, architecture, and approximate city, region, and country derived from the connection IP. A random installation ID connects events over time and is not tied to an account, hardware, or project. This command sends no telemetry. The CLI sends no location or IP field; the telemetry service passes the connection IP to Mixpanel only to derive coarse location, and the raw IP is not retained. Pax never collects source, filenames, project paths, project content, command arguments, or error text. Run `pax-cli telemetry off` at any time. Learn more: https://docs.pax.dev/cli-telemetry";
 
@@ -220,15 +224,8 @@ fn terminal_event(
     succeeded: bool,
     run_ready_observed: bool,
 ) -> Option<TelemetryEvent> {
-    if command.family == CommandFamily::Run {
-        if succeeded || run_ready_observed {
-            return None;
-        }
-        return Some(TelemetryEvent::CommandOutcome {
-            command: CommandFamily::Run,
-            target: command.target,
-            outcome: CommandOutcome::Failed,
-        });
+    if command.family == CommandFamily::Run && run_ready_observed {
+        return None;
     }
     Some(TelemetryEvent::CommandOutcome {
         command: command.family,
@@ -438,14 +435,14 @@ impl StateStore {
     }
 
     fn disable(&self) -> io::Result<()> {
-        self.with_lock(|store| {
+        self.with_lock_timeout(MANAGEMENT_LOCK_TIMEOUT, |store| {
             store.write_disabled_locked()?;
             remove_if_exists(&store.root.join(ENABLED_FILE_NAME))
         })
     }
 
     fn enable_new(&self) -> io::Result<()> {
-        self.with_lock(|store| {
+        self.with_lock_timeout(MANAGEMENT_LOCK_TIMEOUT, |store| {
             store.write_enabled_locked(&EnabledState {
                 schema_version: 1,
                 notice_version: NOTICE_VERSION,
@@ -940,7 +937,9 @@ mod tests {
         });
         off_attempting_receiver.recv().unwrap();
         assert_eq!(
-            off_returned_receiver.recv_timeout(Duration::from_millis(30)),
+            // A realistic delivery can outlive the short public-command lock
+            // budget; management commands must still complete their opt-out.
+            off_returned_receiver.recv_timeout(Duration::from_millis(400)),
             Err(mpsc::RecvTimeoutError::Timeout)
         );
 
@@ -1026,13 +1025,21 @@ mod tests {
     }
 
     #[test]
-    fn run_has_run_ready_as_its_only_success_event() {
+    fn run_outcome_does_not_invent_or_duplicate_readiness() {
         let run = PublicCommand {
             family: CommandFamily::Run,
             target: Some(Target::Web),
         };
-        assert_eq!(terminal_event(run, true, false), None);
+        assert_eq!(terminal_event(run, true, true), None);
         assert_eq!(terminal_event(run, false, true), None);
+        assert_eq!(
+            terminal_event(run, true, false),
+            Some(TelemetryEvent::CommandOutcome {
+                command: CommandFamily::Run,
+                target: Some(Target::Web),
+                outcome: CommandOutcome::Succeeded,
+            })
+        );
         assert_eq!(
             terminal_event(run, false, false),
             Some(TelemetryEvent::CommandOutcome {
@@ -1117,8 +1124,59 @@ mod tests {
     }
 
     #[test]
+    fn delivery_allows_ordinary_cross_region_latency() {
+        use std::io::Read;
+        use std::net::TcpListener;
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let base_url = format!("http://{}", listener.local_addr().unwrap());
+        let server = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            stream
+                .set_read_timeout(Some(Duration::from_secs(3)))
+                .unwrap();
+            let mut request = Vec::new();
+            let mut buffer = [0; 1024];
+            loop {
+                let count = stream.read(&mut buffer).unwrap();
+                assert!(count > 0);
+                request.extend_from_slice(&buffer[..count]);
+                if request.windows(4).any(|bytes| bytes == b"\r\n\r\n") {
+                    break;
+                }
+            }
+            thread::sleep(Duration::from_millis(600));
+            stream
+                .write_all(b"HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n")
+                .unwrap();
+        });
+        let directory = tempfile::tempdir().unwrap();
+        let store = StateStore::at(directory.path().join("telemetry"));
+        store.prepare_public_command(|| {}).unwrap();
+        let Preparation::Enabled(installation_id) = store.prepare_public_command(|| {}).unwrap()
+        else {
+            panic!("the second command should have an enabled installation");
+        };
+        let client =
+            TelemetryClient::start_with_base_url(installation_id, base_url, store).unwrap();
+        let started = Instant::now();
+        client
+            .send_with_ack(TelemetryEvent::CommandOutcome {
+                command: CommandFamily::Clean,
+                target: None,
+                outcome: CommandOutcome::Succeeded,
+            })
+            .unwrap()
+            .wait();
+        assert!(started.elapsed() >= Duration::from_millis(500));
+        assert!(started.elapsed() < EXIT_WAIT);
+        server.join().unwrap();
+    }
+
+    #[test]
     fn stalled_delivery_is_bounded() {
         assert!(REQUEST_TIMEOUT <= EXIT_WAIT);
+        assert!(REQUEST_TIMEOUT < MANAGEMENT_LOCK_TIMEOUT);
         let (_acknowledgement, receiver) = mpsc::sync_channel::<()>(1);
         let wait = Duration::from_millis(50);
         let pending = PendingDelivery {

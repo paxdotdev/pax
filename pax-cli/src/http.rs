@@ -4,8 +4,8 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 const DEFAULT_API_BASE_URL: &str = "https://pub.pax.dev";
-const UPDATE_CONNECT_TIMEOUT: Duration = Duration::from_millis(200);
-const UPDATE_REQUEST_TIMEOUT: Duration = Duration::from_millis(750);
+const UPDATE_CONNECT_TIMEOUT: Duration = Duration::from_secs(1);
+const UPDATE_REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
 
 pub fn check_for_update(new_version_info: Arc<Mutex<Option<String>>>) {
     let _ = std::panic::catch_unwind(|| {

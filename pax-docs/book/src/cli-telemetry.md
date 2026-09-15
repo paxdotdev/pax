@@ -26,9 +26,11 @@ country and [discards the IP before ingesting the event][mixpanel-geolocation].
 Pax does not log or persist the raw address. The coarse location is used only in
 aggregate to guide product, content, outreach, and marketing investment.
 
-A successful `run` emits only the ready event. It does not later emit a second
-successful-command event when the long-running process exits. A `run` that
-fails before readiness emits only a failed-command event.
+A `run` that reaches its target-specific ready point emits only the ready
+event, never a second event when it exits. Without observed readiness, a
+finished `run` emits only its command outcome. In particular, iOS/iPadOS release
+runs have no readiness channel: a clean exit is a successful command outcome,
+not evidence of activation. Activation counts only ready events.
 
 Pax does not collect source code, filenames, project paths, project names,
 project content, command arguments, error text, account information, locale, or
@@ -36,7 +38,9 @@ hardware-derived identifiers.
 
 Events are sent on a bounded best-effort basis. They are not persisted, queued,
 or retried, and a telemetry failure never changes command behavior or exit
-status.
+status. A delivery has a two-second network timeout and can add at most 2.25
+seconds of exit grace to a short command. A stalled connection is silently
+dropped; long-running sessions normally deliver while the app is running.
 
 ## Controls
 
