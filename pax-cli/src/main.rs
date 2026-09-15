@@ -2,16 +2,15 @@ use clap::{crate_version, App, AppSettings, Arg, ArgMatches};
 use color_eyre::config::HookBuilder;
 use colored::{ColoredString, Colorize};
 use std::path::{Path, PathBuf};
-use std::sync::{mpsc, Arc, Mutex};
-use std::time::Duration;
-use std::{process, thread};
+use std::process;
+use std::sync::{Arc, Mutex};
 
 use pax_compiler::{CreateContext, HotReloadMode, RunContext, RunLifecycleObserver, RunTarget};
 extern crate pax_language_server;
 
 mod dev;
 mod docs;
-mod http;
+mod network;
 mod svg_import;
 mod telemetry;
 
@@ -20,10 +19,14 @@ use color_eyre::eyre::Report;
 use color_eyre::eyre::Result;
 use ctrlc;
 
-const UPDATE_COMPLETION_WAIT: Duration = Duration::from_millis(250);
-
 /// `pax-cli` entrypoint
 fn main() -> Result<(), Report> {
+    network::initialize();
+    // The private worker must not initialize command hooks, print a notice, or
+    // recursively start update checks/telemetry.
+    if network::run_worker_if_requested() {
+        return Ok(());
+    }
     HookBuilder::default()
         .display_location_section(false)
         .install()?;
@@ -46,17 +49,9 @@ fn main() -> Result<(), Report> {
 
     // Updates remain independent of telemetry; internal and management commands
     // do not need to contact the service.
-    let update_completion = if public_command.is_some() {
-        let (sender, receiver) = mpsc::sync_channel(1);
-        let version_info = Arc::clone(&new_version_info);
-        thread::spawn(move || {
-            http::check_for_update(version_info);
-            let _ = sender.try_send(());
-        });
-        Some(receiver)
-    } else {
-        None
-    };
+    if public_command.is_some() {
+        network::start_update_check(Arc::clone(&new_version_info));
+    }
     let is_libdev_mode = resolve_matches_libdev_mode(&matches)?;
 
     let cloned_version_info = Arc::clone(&new_version_info);
@@ -77,15 +72,10 @@ fn main() -> Result<(), Report> {
         Arc::clone(&process_child_ids),
         telemetry.lifecycle_observer(),
     );
-    let pending_telemetry =
-        public_command.and_then(|command| telemetry.command_finished(command, res.is_ok()));
-    if let Some(completion) = update_completion {
-        let _ = completion.recv_timeout(UPDATE_COMPLETION_WAIT);
+    if let Some(command) = public_command {
+        telemetry.command_finished(command, res.is_ok());
     }
     perform_cleanup(new_version_info, process_child_ids, is_libdev_mode, false);
-    if let Some(pending) = pending_telemetry {
-        pending.wait();
-    }
     res
 }
 

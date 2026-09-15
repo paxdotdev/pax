@@ -1528,3 +1528,24 @@ alongside `package.name`; otherwise Cargo silently leaves the new app at the
 profile-wide optimization level. Canonical manifests, bundle drift checks,
 and renamed-project creation tests now cover this boundary. Keep
 `CARGO_PROFILE_DEV_OPT_LEVEL=0` available for fully unoptimized debugging.
+
+## 2026-09-16
+
+A detached Windows telemetry worker kept captured CLI output pipes open even
+with its own stdout/stderr set to `Stdio::null()`. Stable Rust's `Command`
+also inherits other inheritable handles, including the original standard
+streams. Clear only those streams' inheritance flags once at CLI startup,
+before threads start; do not close or replace them. Explicit `Stdio::inherit()`
+still duplicates the handles for normal compiler children. Validate both
+foreground exit and pipe EOF while the worker's HTTP response is withheld.
+
+The loopback telemetry fixture also intermittently dropped requests on macOS
+and Windows because accepted sockets retained the listener's nonblocking mode;
+Ubuntu did not reproduce it. Explicitly set accepted `TcpStream`s to blocking
+before using blocking readers and read timeouts. Keep fixture timeouts longer
+than the client's request budget so the fixture does not manufacture failures.
+
+Web builds can load a project's `.env` into the CLI process. Capture telemetry
+endpoint, consent-directory and suppression settings before command work,
+including originally absent values, so a later worker cannot accidentally use
+project-supplied configuration.

@@ -36,11 +36,19 @@ Pax does not collect source code, filenames, project paths, project names,
 project content, command arguments, error text, account information, locale, or
 hardware-derived identifiers.
 
-Events are sent on a bounded best-effort basis. They are not persisted, queued,
-or retried, and a telemetry failure never changes command behavior or exit
-status. A delivery has a two-second network timeout and can add at most 2.25
-seconds of exit grace to a short command. A stalled connection is silently
-dropped; long-running sessions normally deliver while the app is running.
+Events are sent on a bounded best-effort basis by a short-lived background copy
+of the CLI. They are not persisted, durably queued, or retried. A telemetry
+failure never changes command behavior or exit status, and the foreground CLI
+does not wait for network delivery. The worker may finish after the command has
+returned to the prompt. Each request has a two-second timeout; once started,
+the worker has a five-second deadline for input handling, local setup and
+delivery. If worker launch or delivery fails, that event is silently dropped.
+
+The worker rechecks consent immediately before sending. Ordinary commands and
+telemetry status do not wait for in-flight network requests. An explicit
+`telemetry off` disables future sends first, then waits up to 2.5 seconds for
+any already-authorized requests to finish before reporting success. If that
+wait times out, it reports an error but telemetry remains disabled.
 
 ## Controls
 
@@ -78,6 +86,7 @@ when telemetry is off and never includes the installation identifier. Like any
 HTTPS request, the update service sees the connection IP while handling the
 request. Under the server contract, Pax does not retain that raw IP, derive
 coarse location for the update check, or turn the update request into a
-telemetry event.
+telemetry event. Update checks run in a background thread and never delay CLI
+exit; an update notice is shown only if the result is already available.
 
 [mixpanel-geolocation]: https://docs.mixpanel.com/docs/tracking-best-practices/geolocation

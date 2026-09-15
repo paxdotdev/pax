@@ -32,5 +32,8 @@ serde_json = "1.0.114"
 tokio = { version = "1", features = ["full"] }
 uuid = { version = "1.20", features = ["v4"] }
 
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Console"] }
+
 [dev-dependencies]
 tempfile = "3.9.0"

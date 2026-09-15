@@ -1,37 +1,44 @@
 use clap::{App, ArgMatches, SubCommand};
 use color_eyre::eyre::{eyre, Report, Result};
 use pax_compiler::{RunLifecycleObserver, RunTarget};
-use pax_message::http_api::{
-    CommandFamily, CommandOutcome, HostArch, HostOs, Target, TelemetryEvent, TelemetryRequest,
-    CLI_TELEMETRY_PATH,
-};
+use pax_message::http_api::{CommandFamily, CommandOutcome, Target, TelemetryEvent};
 use serde::{Deserialize, Serialize};
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering as AtomicOrdering};
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 use uuid::Uuid;
 
 const NOTICE_VERSION: u32 = 2;
-const DELIVERY_QUEUE_CAPACITY: usize = 1;
 const STATE_LOCK_TIMEOUT: Duration = Duration::from_millis(250);
 const DELIVERY_STATE_LOCK_TIMEOUT: Duration = Duration::from_millis(25);
 const STATE_LOCK_RETRY: Duration = Duration::from_millis(2);
-// Allow ordinary cross-region TLS latency, while keeping offline invocations
-// bounded. No durable queue or retries are needed for the launch signal.
-const CONNECT_TIMEOUT: Duration = Duration::from_secs(1);
-const REQUEST_TIMEOUT: Duration = Duration::from_secs(2);
-const EXIT_WAIT: Duration = Duration::from_millis(2250);
 // An explicit opt-out must be able to outwait an already-authorized delivery.
 const MANAGEMENT_LOCK_TIMEOUT: Duration = Duration::from_millis(2500);
+
+// Keep worker consent/state selection tied to the invoking shell, even if a
+// compiler later loads a project's .env file into the foreground process.
+pub(crate) const CONFIG_ENV_KEYS: &[&str] = &[
+    "HOME",
+    "USERPROFILE",
+    "LOCALAPPDATA",
+    "APPDATA",
+    "XDG_STATE_HOME",
+    "HOMEDRIVE",
+    "HOMEPATH",
+    "PAX_TELEMETRY",
+    "DO_NOT_TRACK",
+    "CI",
+];
 
 const NOTICE: &str = "Pax collects minimal CLI telemetry after this command to guide aggregate product, content, outreach, and marketing investment: the command, target, success or failure, CLI version, OS, architecture, and approximate city, region, and country derived from the connection IP. A random installation ID connects events over time and is not tied to an account, hardware, or project. This command sends no telemetry. The CLI sends no location or IP field; the telemetry service passes the connection IP to Mixpanel only to derive coarse location, and the raw IP is not retained. Pax never collects source, filenames, project paths, project content, command arguments, or error text. Run `pax-cli telemetry off` at any time. Learn more: https://docs.pax.dev/cli-telemetry";
 
 const STATE_DIR_NAME: &str = "telemetry";
 const LOCK_FILE_NAME: &str = "state.lock";
+const DELIVERY_LOCK_FILE_NAME: &str = "delivery.lock";
 const ENABLED_FILE_NAME: &str = "installation.json";
 const DISABLED_FILE_NAME: &str = "disabled";
 
@@ -152,17 +159,15 @@ fn print_status(store: &StateStore) -> Result<(), Report> {
 
 #[derive(Clone)]
 pub struct TelemetrySession {
-    client: Option<Arc<TelemetryClient>>,
+    sender: Option<crate::network::TelemetrySender>,
     run_ready_observed: Arc<AtomicBool>,
-    run_ready_delivery: Arc<Mutex<Option<PendingDelivery>>>,
 }
 
 impl TelemetrySession {
     pub fn disabled() -> Self {
         Self {
-            client: None,
+            sender: None,
             run_ready_observed: Arc::new(AtomicBool::new(false)),
-            run_ready_delivery: Arc::new(Mutex::new(None)),
         }
     }
 
@@ -176,9 +181,8 @@ impl TelemetrySession {
         };
         match store.prepare_public_command(|| eprintln!("\n{NOTICE}\n")) {
             Ok(Preparation::Enabled(installation_id)) => Self {
-                client: TelemetryClient::start(installation_id, store).map(Arc::new),
+                sender: Some(crate::network::TelemetrySender::new(installation_id)),
                 run_ready_observed: Arc::new(AtomicBool::new(false)),
-                run_ready_delivery: Arc::new(Mutex::new(None)),
             },
             Ok(Preparation::FirstCommandNoSend | Preparation::Disabled) | Err(_) => {
                 Self::disabled()
@@ -186,34 +190,22 @@ impl TelemetrySession {
         }
     }
 
-    pub fn command_finished(
-        &self,
-        command: PublicCommand,
-        succeeded: bool,
-    ) -> Option<PendingDelivery> {
-        if command.family == CommandFamily::Run
-            && self.run_ready_observed.load(AtomicOrdering::Acquire)
-        {
-            return self
-                .run_ready_delivery
-                .lock()
-                .ok()
-                .and_then(|mut pending| pending.take());
-        }
+    pub fn command_finished(&self, command: PublicCommand, succeeded: bool) {
         let event = terminal_event(
             command,
             succeeded,
             self.run_ready_observed.load(AtomicOrdering::Acquire),
-        )?;
-        self.client.as_ref()?.send_with_ack(event)
+        );
+        if let (Some(sender), Some(event)) = (&self.sender, event) {
+            sender.send(event);
+        }
     }
 
     pub fn lifecycle_observer(&self) -> Option<Arc<dyn RunLifecycleObserver>> {
-        self.client.as_ref().map(|client| {
+        self.sender.as_ref().map(|sender| {
             Arc::new(CliRunLifecycleObserver {
-                client: Arc::clone(client),
+                sender: sender.clone(),
                 run_ready_observed: Arc::clone(&self.run_ready_observed),
-                run_ready_delivery: Arc::clone(&self.run_ready_delivery),
             }) as Arc<dyn RunLifecycleObserver>
         })
     }
@@ -239,9 +231,8 @@ fn terminal_event(
 }
 
 struct CliRunLifecycleObserver {
-    client: Arc<TelemetryClient>,
+    sender: crate::network::TelemetrySender,
     run_ready_observed: Arc<AtomicBool>,
-    run_ready_delivery: Arc<Mutex<Option<PendingDelivery>>>,
 }
 
 impl RunLifecycleObserver for CliRunLifecycleObserver {
@@ -249,122 +240,18 @@ impl RunLifecycleObserver for CliRunLifecycleObserver {
         if self.run_ready_observed.swap(true, AtomicOrdering::AcqRel) {
             return;
         }
-        let pending = self.client.send_with_ack(TelemetryEvent::RunReady {
+        self.sender.send(TelemetryEvent::RunReady {
             target: target_from_run_target(target),
         });
-        if let (Some(pending), Ok(mut slot)) = (pending, self.run_ready_delivery.lock()) {
-            *slot = Some(pending);
-        }
     }
 }
 
-pub struct PendingDelivery {
-    acknowledgement: mpsc::Receiver<()>,
-    deadline: Instant,
-}
-
-impl PendingDelivery {
-    pub fn wait(self) {
-        let remaining = self.deadline.saturating_duration_since(Instant::now());
-        let _ = self.acknowledgement.recv_timeout(remaining);
+pub(crate) fn with_delivery_permission(installation_id: &str, deliver: impl FnOnce()) {
+    if EnvironmentPolicy::current().suppression_reason().is_some() {
+        return;
     }
-}
-
-struct Delivery {
-    event: TelemetryEvent,
-    acknowledgement: mpsc::SyncSender<()>,
-}
-
-struct TelemetryClient {
-    sender: mpsc::SyncSender<Delivery>,
-}
-
-impl TelemetryClient {
-    fn start(installation_id: String, store: StateStore) -> Option<Self> {
-        Self::start_with_base_url(installation_id, crate::http::api_base_url(), store)
-    }
-
-    fn start_with_base_url(
-        installation_id: String,
-        api_base_url: String,
-        store: StateStore,
-    ) -> Option<Self> {
-        let (sender, receiver) = mpsc::sync_channel::<Delivery>(DELIVERY_QUEUE_CAPACITY);
-        thread::Builder::new()
-            .name("pax-telemetry".to_owned())
-            .spawn(move || delivery_worker(receiver, installation_id, api_base_url, store))
-            .ok()?;
-        Some(Self { sender })
-    }
-
-    fn send_with_ack(&self, event: TelemetryEvent) -> Option<PendingDelivery> {
-        let (acknowledgement, receiver) = mpsc::sync_channel(1);
-        self.sender
-            .try_send(Delivery {
-                event,
-                acknowledgement,
-            })
-            .ok()?;
-        Some(PendingDelivery {
-            acknowledgement: receiver,
-            deadline: Instant::now() + EXIT_WAIT,
-        })
-    }
-}
-
-fn delivery_worker(
-    receiver: mpsc::Receiver<Delivery>,
-    installation_id: String,
-    api_base_url: String,
-    store: StateStore,
-) {
-    let client = std::panic::catch_unwind(|| {
-        reqwest::blocking::Client::builder()
-            .no_proxy()
-            .connect_timeout(CONNECT_TIMEOUT)
-            .timeout(REQUEST_TIMEOUT)
-            .redirect(reqwest::redirect::Policy::none())
-            .user_agent(crate::http::user_agent())
-            .build()
-    })
-    .ok()
-    .and_then(Result::ok);
-    let url = crate::http::api_url(&api_base_url, CLI_TELEMETRY_PATH);
-
-    while let Ok(delivery) = receiver.recv() {
-        // Authorization and the bounded POST share one lock epoch. A successful
-        // `telemetry off` therefore cannot return while an older authorized send
-        // is still in flight.
-        let _ = store.deliver_if_enabled(&installation_id, || {
-            if let Some(client) = &client {
-                let request = TelemetryRequest {
-                    installation_id: installation_id.clone(),
-                    cli_version: env!("CARGO_PKG_VERSION").to_owned(),
-                    host_os: host_os(),
-                    host_arch: host_arch(),
-                    event: delivery.event,
-                };
-                let _ = client.post(&url).json(&request).send();
-            }
-        });
-        let _ = delivery.acknowledgement.try_send(());
-    }
-}
-
-fn host_os() -> HostOs {
-    match std::env::consts::OS {
-        "macos" => HostOs::Macos,
-        "linux" => HostOs::Linux,
-        "windows" => HostOs::Windows,
-        _ => HostOs::Other,
-    }
-}
-
-fn host_arch() -> HostArch {
-    match std::env::consts::ARCH {
-        "x86_64" => HostArch::X86_64,
-        "aarch64" => HostArch::Aarch64,
-        _ => HostArch::Other,
+    if let Ok(store) = StateStore::global() {
+        let _ = store.deliver_if_enabled(installation_id, deliver);
     }
 }
 
@@ -435,20 +322,22 @@ impl StateStore {
     }
 
     fn disable(&self) -> io::Result<()> {
-        self.with_lock_timeout(MANAGEMENT_LOCK_TIMEOUT, |store| {
+        self.with_lock(|store| {
             store.write_disabled_locked()?;
             remove_if_exists(&store.root.join(ENABLED_FILE_NAME))
-        })
+        })?;
+        self.drain_deliveries()
     }
 
     fn enable_new(&self) -> io::Result<()> {
-        self.with_lock_timeout(MANAGEMENT_LOCK_TIMEOUT, |store| {
+        self.with_lock(|store| {
             store.write_enabled_locked(&EnabledState {
                 schema_version: 1,
                 notice_version: NOTICE_VERSION,
                 installation_id: Uuid::new_v4().to_string(),
             })
-        })
+        })?;
+        self.drain_deliveries()
     }
 
     fn deliver_if_enabled(
@@ -456,18 +345,31 @@ impl StateStore {
         expected_installation_id: &str,
         deliver: impl FnOnce(),
     ) -> io::Result<bool> {
-        self.with_lock_timeout(DELIVERY_STATE_LOCK_TIMEOUT, |store| {
-            let authorized = matches!(
+        // Shared delivery locks allow independent workers to send concurrently.
+        // Only management commands take this lock exclusively; ordinary state
+        // reads/first-run preparation never wait for the network.
+        let gate = self.open_lock(DELIVERY_LOCK_FILE_NAME)?;
+        lock_bounded(&gate, DELIVERY_STATE_LOCK_TIMEOUT, true)?;
+        let authorized = self.with_lock(|store| {
+            Ok(matches!(
                 store.read_locked()?,
                 StoredState::Enabled(state)
                     if state.notice_version == NOTICE_VERSION
                         && state.installation_id == expected_installation_id
-            );
-            if authorized {
-                deliver();
-            }
-            Ok(authorized)
-        })
+            ))
+        })?;
+        if authorized {
+            deliver();
+        }
+        Ok(authorized)
+    }
+
+    fn drain_deliveries(&self) -> io::Result<()> {
+        // Consent was already changed under the state lock. Release that lock
+        // before taking the gate exclusively, so workers cannot deadlock with
+        // management and no stale worker can authorize a new send.
+        let gate = self.open_lock(DELIVERY_LOCK_FILE_NAME)?;
+        lock_bounded(&gate, MANAGEMENT_LOCK_TIMEOUT, false)
     }
 
     fn with_lock<T>(&self, action: impl FnOnce(&Self) -> io::Result<T>) -> io::Result<T> {
@@ -479,15 +381,19 @@ impl StateStore {
         timeout: Duration,
         action: impl FnOnce(&Self) -> io::Result<T>,
     ) -> io::Result<T> {
+        let lock = self.open_lock(LOCK_FILE_NAME)?;
+        lock_bounded(&lock, timeout, false)?;
+        action(self)
+    }
+
+    fn open_lock(&self, name: &str) -> io::Result<File> {
         fs::create_dir_all(&self.root)?;
         secure_directory(&self.root)?;
-        let lock = secure_open_options()
+        secure_open_options()
             .create(true)
             .read(true)
             .write(true)
-            .open(self.root.join(LOCK_FILE_NAME))?;
-        lock_bounded(&lock, timeout)?;
-        action(self)
+            .open(self.root.join(name))
     }
 
     fn read_locked(&self) -> io::Result<StoredState> {
@@ -549,10 +455,14 @@ impl StateStore {
     }
 }
 
-fn lock_bounded(lock: &File, timeout: Duration) -> io::Result<()> {
+fn lock_bounded(lock: &File, timeout: Duration, shared: bool) -> io::Result<()> {
     let started = Instant::now();
     loop {
-        match lock.try_lock() {
+        match if shared {
+            lock.try_lock_shared()
+        } else {
+            lock.try_lock()
+        } {
             Ok(()) => return Ok(()),
             Err(std::fs::TryLockError::WouldBlock) => {
                 let elapsed = started.elapsed();
@@ -701,8 +611,9 @@ fn is_truthy(value: &str) -> bool {
 mod tests {
     use super::*;
     use clap::Arg;
+    use pax_message::http_api::{HostArch, HostOs, TelemetryRequest};
     use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::sync::Barrier;
+    use std::sync::{mpsc, Barrier};
 
     #[test]
     fn first_public_command_enables_state_but_sends_nothing() {
@@ -926,6 +837,18 @@ mod tests {
         });
         delivery_started_receiver.recv().unwrap();
 
+        // Network delivery does not own the state lock or serialize other
+        // workers. A rapid create→run sequence must retain both events.
+        assert!(matches!(store.read().unwrap(), StoredState::Enabled(state)
+            if state.installation_id == installation_id));
+        assert!(matches!(
+            store
+                .prepare_public_command(|| panic!("notice repeated"))
+                .unwrap(),
+            Preparation::Enabled(_)
+        ));
+        assert!(store.deliver_if_enabled(&installation_id, || {}).unwrap());
+
         let (off_attempting_sender, off_attempting_receiver) = mpsc::sync_channel(1);
         let (off_returned_sender, off_returned_receiver) = mpsc::sync_channel(1);
         let off_store = Arc::clone(&store);
@@ -937,11 +860,11 @@ mod tests {
         });
         off_attempting_receiver.recv().unwrap();
         assert_eq!(
-            // A realistic delivery can outlive the short public-command lock
-            // budget; management commands must still complete their opt-out.
+            // Only the explicit management command waits for old requests.
             off_returned_receiver.recv_timeout(Duration::from_millis(400)),
             Err(mpsc::RecvTimeoutError::Timeout)
         );
+        assert_eq!(store.read().unwrap(), StoredState::Disabled);
 
         release_delivery_sender.send(()).unwrap();
         off_returned_receiver
@@ -1124,69 +1047,7 @@ mod tests {
     }
 
     #[test]
-    fn delivery_allows_ordinary_cross_region_latency() {
-        use std::io::Read;
-        use std::net::TcpListener;
-
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let base_url = format!("http://{}", listener.local_addr().unwrap());
-        let server = thread::spawn(move || {
-            let (mut stream, _) = listener.accept().unwrap();
-            stream
-                .set_read_timeout(Some(Duration::from_secs(3)))
-                .unwrap();
-            let mut request = Vec::new();
-            let mut buffer = [0; 1024];
-            loop {
-                let count = stream.read(&mut buffer).unwrap();
-                assert!(count > 0);
-                request.extend_from_slice(&buffer[..count]);
-                if request.windows(4).any(|bytes| bytes == b"\r\n\r\n") {
-                    break;
-                }
-            }
-            thread::sleep(Duration::from_millis(600));
-            stream
-                .write_all(b"HTTP/1.1 204 No Content\r\nConnection: close\r\n\r\n")
-                .unwrap();
-        });
-        let directory = tempfile::tempdir().unwrap();
-        let store = StateStore::at(directory.path().join("telemetry"));
-        store.prepare_public_command(|| {}).unwrap();
-        let Preparation::Enabled(installation_id) = store.prepare_public_command(|| {}).unwrap()
-        else {
-            panic!("the second command should have an enabled installation");
-        };
-        let client =
-            TelemetryClient::start_with_base_url(installation_id, base_url, store).unwrap();
-        let started = Instant::now();
-        client
-            .send_with_ack(TelemetryEvent::CommandOutcome {
-                command: CommandFamily::Clean,
-                target: None,
-                outcome: CommandOutcome::Succeeded,
-            })
-            .unwrap()
-            .wait();
-        assert!(started.elapsed() >= Duration::from_millis(500));
-        assert!(started.elapsed() < EXIT_WAIT);
-        server.join().unwrap();
-    }
-
-    #[test]
-    fn stalled_delivery_is_bounded() {
-        assert!(REQUEST_TIMEOUT <= EXIT_WAIT);
-        assert!(REQUEST_TIMEOUT < MANAGEMENT_LOCK_TIMEOUT);
-        let (_acknowledgement, receiver) = mpsc::sync_channel::<()>(1);
-        let wait = Duration::from_millis(50);
-        let pending = PendingDelivery {
-            acknowledgement: receiver,
-            deadline: Instant::now() + wait,
-        };
-
-        let start = Instant::now();
-        pending.wait();
-        assert!(start.elapsed() >= Duration::from_millis(40));
-        assert!(start.elapsed() < Duration::from_millis(200));
+    fn opt_out_can_outwait_a_network_request() {
+        assert!(crate::network::REQUEST_TIMEOUT < MANAGEMENT_LOCK_TIMEOUT);
     }
 }
