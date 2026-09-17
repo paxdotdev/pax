@@ -1,0 +1,46 @@
+<Group width=100% height=100%>
+    <ImportSettings>
+        <SiteTheme />
+    </ImportSettings>
+    <Stacker x=50% y=80px width={self.compact ? (100% - 40px) : 88%} autosize=true gutter=28px>
+        <Text class="editorial_kicker" width=100% text="THE LANGUAGE / THE LOGIC"/>
+        <Stacker width=100% autosize=true gutter=0px>
+            <Text class="editorial_title" width=100% text="Describe your interface."/>
+            <Text class="editorial_title" width=100% text="Power it with Rust."/>
+        </Stacker>
+        <Text class="editorial_lead" width={self.compact ? 100% : 82%}
+            text="Pax pairs a declarative UI language with Rust application logic. Compose layout, graphics, and motion, then bring the same application to macOS, iOS, iPadOS, and the web."/>
+        <Stacker width=100% autosize=true autosize_x=false autosize_y=true gutter=32px
+            direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal}>
+            <Stacker width=100% autosize=true gutter=12px>
+                <Text class="editorial_subtitle" width=100% text=".pax describes the interface"/>
+                <Text class="editorial_body" width=100%
+                    text="Structure, layout, style, and motion live beside the elements they affect. Side-effect-free PAXEL expressions connect state to the scene—even when that relationship involves units, conditions, or animation."/>
+            </Stacker>
+            <Stacker width=100% autosize=true gutter=12px>
+                <Text class="editorial_subtitle" width=100% text="Rust makes things happen"/>
+                <Text class="editorial_body" width=100%
+                    text="Handle a click. Load a file. Talk to a service. Your Rust code owns state and side effects, with the Rust ecosystem available behind it. Update a property, and Pax carries that change through the interface."/>
+            </Stacker>
+        </Stacker>
+        <Stacker width={self.compact ? 100% : 82%} autosize=true gutter=14px>
+            <Text class="editorial_subtitle" width=100% text="Think in relationships, not redraws."/>
+            <Text class="editorial_body" width=100%
+                text="Like a spreadsheet, Pax tracks what depends on what. Change an input and the dependent expressions, layout, and rendering work update. The template stays declarative; you don't write the machinery that keeps it in sync."/>
+            <Text class="editorial_body" width=100%
+                text="Then work against the real thing: hot-reload templates, inspect the running scene, capture screenshots, and drive events with pax-cli dev. The same feedback loop is available to you and your coding agent."/>
+            <Text class="editorial_note" width=100%
+                text="Template hot reload runs in debug builds on all current targets. Opt into Rust logic reload on web and macOS; iOS and iPadOS logic changes require a rebuild."/>
+        </Stacker>
+        <Link width=100% height=28px url="https://docs.pax.dev/template-language/" target=Target::New>
+            <Text class="editorial_link" width=100% text="GET TO KNOW THE LANGUAGE →"/>
+        </Link>
+    </Stacker>
+    <Rectangle class="site_rule" x=50% y={100% - 1px} width={self.compact ? (100% - 40px) : 88%} height=1px/>
+    <Rectangle class="site_ink" width=100% height=100%/>
+</Group>
+
+@settings {
+    @mount: on_pre_render
+    @pre_render: on_pre_render
+}

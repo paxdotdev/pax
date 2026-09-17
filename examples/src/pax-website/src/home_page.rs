@@ -9,7 +9,7 @@ const COMPACT_BREAKPOINT_PX: f64 = 760.0;
 pub struct HomePage {
     pub compact: Property<bool>,
     pub hero_sources: Property<Vec<ExampleSource>>,
-    pub proof_sources: Property<Vec<ExampleSource>>,
+    pub authoring_sources: Property<Vec<ExampleSource>>,
     pub framework_sources: Property<Vec<ExampleSource>>,
     pub runtime_sources: Property<Vec<ExampleSource>>,
     pub feature_gallery_sources: Property<Vec<ExampleSource>>,
@@ -18,17 +18,30 @@ pub struct HomePage {
 
 impl HomePage {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
-        self.hero_sources.set(section_sources(
+        let mut hero_sources = section_sources(
             "src/hero_section.pax",
             include_str!("hero_section.pax"),
             "src/hero_section.rs",
             include_str!("hero_section.rs"),
+        );
+        // include_str! is relative to this source file, not the build's cwd.
+        hero_sources.extend(section_sources(
+            "living-quilt/src/lib.pax",
+            include_str!("../../living-quilt/src/lib.pax"),
+            "living-quilt/src/lib.rs",
+            include_str!("../../living-quilt/src/lib.rs"),
         ));
-        self.proof_sources.set(section_sources(
-            "src/builder_proof_section.pax",
-            include_str!("builder_proof_section.pax"),
-            "src/builder_proof_section.rs",
-            include_str!("builder_proof_section.rs"),
+        hero_sources.push(ExampleSource {
+            label: "living-quilt/src/quilt_tile.rs".to_string(),
+            language: "rust".to_string(),
+            code: include_str!("../../living-quilt/src/quilt_tile.rs").to_string(),
+        });
+        self.hero_sources.set(hero_sources);
+        self.authoring_sources.set(section_sources(
+            "src/authoring_section.pax",
+            include_str!("authoring_section.pax"),
+            "src/authoring_section.rs",
+            include_str!("authoring_section.rs"),
         ));
         self.framework_sources.set(section_sources(
             "framework_section.pax",

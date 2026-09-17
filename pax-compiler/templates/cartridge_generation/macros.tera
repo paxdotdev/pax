@@ -1,5 +1,5 @@
 {%- macro render_component_factory(component, engine_import_path) %}
-const {{component.pascal_identifier}}PropertyScopeDescriptors: [{{ engine_import_path }}::pax_runtime::PropertyScopeDescriptor<{{component.type_id.import_path}}> ; {{ component.properties | length }}] = [
+const {{component.symbol_identifier}}PropertyScopeDescriptors: [{{ engine_import_path }}::pax_runtime::PropertyScopeDescriptor<{{component.type_id.import_path}}> ; {{ component.properties | length }}] = [
     {% for prop in component.properties %}
     {{ engine_import_path }}::pax_runtime::PropertyScopeDescriptor::new(
         "{{prop.name}}",
@@ -8,7 +8,7 @@ const {{component.pascal_identifier}}PropertyScopeDescriptors: [{{ engine_import
     {% endfor %}
 ];
 
-const {{component.pascal_identifier}}PropertyDescriptors: [{{ engine_import_path }}::pax_runtime::ComponentPropertyDescriptor<{{component.type_id.import_path}}> ; {{ component.properties | length }}] = [
+const {{component.symbol_identifier}}PropertyDescriptors: [{{ engine_import_path }}::pax_runtime::ComponentPropertyDescriptor<{{component.type_id.import_path}}> ; {{ component.properties | length }}] = [
     {% for property in component.properties %}
     {{ engine_import_path }}::pax_runtime::ComponentPropertyDescriptor::new(
         "{{property.name}}",
@@ -34,7 +34,7 @@ const {{component.pascal_identifier}}PropertyDescriptors: [{{ engine_import_path
                 let timeline_stack = if uses_local_property_scope {
                     let mut local_scope = {{ engine_import_path }}::pax_runtime::build_property_scope(
                         properties,
-                        &{{component.pascal_identifier}}PropertyScopeDescriptors,
+                        &{{component.symbol_identifier}}PropertyScopeDescriptors,
                     );
                     local_scope.insert(
                         "{{property.name}}".to_string(),
@@ -74,7 +74,7 @@ const {{component.pascal_identifier}}PropertyDescriptors: [{{ engine_import_path
     {% endfor %}
 ];
 
-const {{component.pascal_identifier}}HandlerDescriptors: [{{ engine_import_path }}::pax_runtime::HandlerDescriptor ; {{ component.handlers | length }}] = [
+const {{component.symbol_identifier}}HandlerDescriptors: [{{ engine_import_path }}::pax_runtime::HandlerDescriptor ; {{ component.handlers | length }}] = [
     {% for handler in component.handlers %}
     {{ engine_import_path }}::pax_runtime::HandlerDescriptor::new(
         "{{handler.name}}",
@@ -106,7 +106,7 @@ const {{component.pascal_identifier}}HandlerDescriptors: [{{ engine_import_path 
     {% endfor %}
 ];
 
-fn {{component.pascal_identifier}}Instantiate(args: {{ engine_import_path }}::rendering::InstantiationArgs) -> std::rc::Rc<dyn InstanceNode> {
+fn {{component.symbol_identifier}}Instantiate(args: {{ engine_import_path }}::rendering::InstantiationArgs) -> std::rc::Rc<dyn InstanceNode> {
     {% if component.primitive_instance_import_path%}
     {{component.primitive_instance_import_path}}::instantiate(args)
     {% else %}
@@ -114,24 +114,24 @@ fn {{component.pascal_identifier}}Instantiate(args: {{ engine_import_path }}::re
     {% endif %}
 }
 
-static {{component.pascal_identifier}}ComponentDescriptor: {{ engine_import_path }}::pax_runtime::ComponentDescriptor<{{component.type_id.import_path}}> =
+static {{component.symbol_identifier}}ComponentDescriptor: {{ engine_import_path }}::pax_runtime::ComponentDescriptor<{{component.type_id.import_path}}> =
     {{ engine_import_path }}::pax_runtime::ComponentDescriptor::new(
         "{{component.type_id._type_id}}",
-        &{{component.pascal_identifier}}PropertyScopeDescriptors,
-        &{{component.pascal_identifier}}PropertyDescriptors,
-        &{{component.pascal_identifier}}HandlerDescriptors,
-        {{component.pascal_identifier}}Instantiate,
+        &{{component.symbol_identifier}}PropertyScopeDescriptors,
+        &{{component.symbol_identifier}}PropertyDescriptors,
+        &{{component.symbol_identifier}}HandlerDescriptors,
+        {{component.symbol_identifier}}Instantiate,
     );
 
-static {{component.pascal_identifier}}ErasedComponentDescriptor: {{ engine_import_path }}::pax_runtime::ErasedComponentDescriptor =
+static {{component.symbol_identifier}}ErasedComponentDescriptor: {{ engine_import_path }}::pax_runtime::ErasedComponentDescriptor =
     {{ engine_import_path }}::pax_runtime::ErasedComponentDescriptor::new(
         "{{component.type_id._type_id}}",
-        &{{component.pascal_identifier}}ComponentDescriptor as &'static (dyn std::any::Any + Sync),
+        &{{component.symbol_identifier}}ComponentDescriptor as &'static (dyn std::any::Any + Sync),
         {{ engine_import_path }}::pax_runtime::erased_create_properties::<{{component.type_id.import_path}}>,
         {{ engine_import_path }}::pax_runtime::erased_apply_defined_properties::<{{component.type_id.import_path}}>,
         {{ engine_import_path }}::pax_runtime::erased_build_property_scope::<{{component.type_id.import_path}}>,
-        &{{component.pascal_identifier}}HandlerDescriptors,
-        {{component.pascal_identifier}}Instantiate,
+        &{{component.symbol_identifier}}HandlerDescriptors,
+        {{component.symbol_identifier}}Instantiate,
     );
 {%- endmacro -%}
 

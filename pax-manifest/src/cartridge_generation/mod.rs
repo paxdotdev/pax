@@ -102,9 +102,24 @@ enum TimelineClockUnit {
 pub struct ComponentInfo {
     pub type_id: TypeId,
     pub pascal_identifier: String,
+    /// Collision-free Rust helper prefix derived from the complete component type identity.
+    pub symbol_identifier: String,
     pub primitive_instance_import_path: Option<String>,
     pub properties: Vec<PropertyInfo>,
     pub handlers: Vec<HandlerInfo>,
+}
+
+fn component_symbol_identifier(type_id: &TypeId) -> String {
+    use std::fmt::Write;
+
+    // Encoding every byte avoids both same-leaf names across crates/modules and
+    // collisions between punctuation escapes and literal text in an identifier.
+    // This names generated Rust only; runtime and baked type IDs stay unchanged.
+    let mut symbol = String::from("PaxComponent_");
+    for byte in type_id.get_unique_identifier().bytes() {
+        write!(&mut symbol, "{byte:02x}").unwrap();
+    }
+    symbol
 }
 
 #[derive(Serialize, Debug)]
@@ -252,6 +267,7 @@ impl PaxManifest {
             component_infos.push(ComponentInfo {
                 type_id: component.type_id.clone(),
                 pascal_identifier: component.type_id.get_pascal_identifier().unwrap(),
+                symbol_identifier: component_symbol_identifier(&component.type_id),
                 primitive_instance_import_path: component.primitive_instance_import_path.clone(),
                 properties,
                 handlers: handler_data,

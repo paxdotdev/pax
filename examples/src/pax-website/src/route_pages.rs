@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 
+use crate::SiteTheme;
 use pax_kit::*;
 
 #[pax]

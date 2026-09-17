@@ -19,20 +19,20 @@
 
 @settings {
     .feature_card_surface {
-        fill: WHITE
+        fill: {SiteTheme::surface()}
         stroke: Stroke {
-            color: rgba(20, 25, 32, 42)
+            color: rgba(252, 249, 242, 42)
             width: 1px
         }
-        corner_radius: 7.0
+        corner_radius: 0.0
     }
     .feature_media_surface {
-        fill: rgb(242, 246, 250)
+        fill: {SiteTheme::raised()}
         stroke: Stroke {
-            color: rgba(20, 25, 32, 28)
+            color: rgba(252, 249, 242, 28)
             width: 1px
         }
-        corner_radius: 4.0
+        corner_radius: 0.0
     }
     .feature_proof {
         style: TextStyle {
@@ -42,7 +42,7 @@
                 FontStyle::Normal,
                 FontWeight::Medium)
             font_size: 9px
-            fill: rgba(37, 111, 190, 195)
+            fill: {SiteTheme::muted()}
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Right
             align_multiline: TextAlignHorizontal::Right
@@ -56,7 +56,11 @@
                 FontStyle::Normal,
                 FontWeight::SemiBold)
             font_size: 10px
-            fill: rgb(37, 111, 190)
+            fill: {self.category == "LANGUAGE"
+                ? SiteTheme::signal()
+                : (self.category == "RENDERING"
+                    ? SiteTheme::pink()
+                    : (self.category == "DEV TOOLING" ? SiteTheme::violet() : SiteTheme::cyan()))}
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
@@ -70,7 +74,7 @@
                 FontStyle::Normal,
                 FontWeight::Bold)
             font_size: 23px
-            fill: rgb(20, 25, 32)
+            fill: {SiteTheme::paper()}
             align_vertical: TextAlignVertical::Top
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
@@ -84,7 +88,7 @@
                 FontStyle::Normal,
                 FontWeight::Normal)
             font_size: 14px
-            fill: rgb(71, 85, 105)
+            fill: {SiteTheme::muted()}
             align_vertical: TextAlignVertical::Top
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
@@ -98,7 +102,7 @@
                 FontStyle::Normal,
                 FontWeight::SemiBold)
             font_size: 10px
-            fill: rgb(20, 25, 32)
+            fill: {SiteTheme::paper()}
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left

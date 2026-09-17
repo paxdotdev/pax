@@ -1669,3 +1669,108 @@ marquee-owned wrapper around a projected slot did not observe card hover, so
 the lightweight interaction signals remain on the projected `FeatureCard`
 root. Recommendation: document event propagation across projection ownership,
 including the intended pattern for a container to observe projected content.
+
+## 2026-09-14
+
+Reusing Living Quilt in the website confirmed that sibling Cargo paths and
+crate-relative Pax templates resolve without copying source. Source inspection
+can use `include_str!` relative to the inspecting Rust file, independently of
+the invoking shell's working directory. Importing the example's `#[main]`
+component exposed a macro boundary: the old root-crate blacklist let a dependency
+load the website's cartridge and emit a second platform entrypoint. Solved by
+matching the declaring crate to the exact active project directory (the parent
+of `PAX_DIR`), gating both cartridge injection and platform entrypoints, and
+tracking the build environment in Cargo's fingerprint. The dependency remains
+an ordinary component; its standalone build still owns its own entrypoint.
+
+The combined cartridge also exposed helper-symbol collisions between the two
+crates' `Example` types. Solved by deriving component helper names from an
+unambiguous byte encoding of the full type ID, rather than its leaf name.
+This affects generated Rust symbols only: runtime type identity and the baked
+program representation are unchanged. Debug/release template tests cover both
+entrypoint ownership and same-name components in different crates/modules.
+Recommendation: test example composition as well as standalone example builds;
+moving an example into `pax-std` would conceal these boundaries, not solve them.
+
+The embedded quilt's clipped tiles also exposed a coordinate mismatch: vector
+draws in a native scroller use the owning canvas's local space, while `Frame`
+still submitted its clip in world space. A page header therefore displaced
+every tile clip by the header's height. Solved by using `canvas_surface_transform`
+for rendering the frame clip, keeping the world-space effect clip for occlusion
+and hit testing. Scaled/translated clip tests protect the coordinate distinction.
+
+A separate multi-surface case made the quilt stop at x=1248 on an 1800 CSS-pixel,
+DPR 2 viewport. The small-scene retained renderer applied every stencil change
+before submitting queued draws, so sibling Frames used the final sibling's clip.
+Larger scenes use another batching path, making this appear tile-dependent and
+sometimes disappear as animated nodes changed the scene size. Solved by submitting
+queued retained runs before stencil replacement or removal, while preserving
+batching for scissor/alpha-only changes. Command-order tests cover siblings,
+nested clips, and non-stencil changes; the sibling test fails under the old
+ordering. Debug/release first paint and scroll-away/return checks now span both
+native tiles. Responsive validation must cover physical canvas tile boundaries
+as well as CSS breakpoints; a DPR 1 check can miss this class of bug.
+
+Native text overflow flickered when animated siblings caused unnecessary
+punch-through masks. At a 764px website viewport,
+the four-line title paints 348px inside a 252px layout box; the paragraph paints
+147px inside 140px. Live DOM sampling caught `mask-image` toggling with unchanged
+`overflow: visible` and unchanged z-index. The captured mask includes quilt paths
+whose ancestor clips end 112px above the text, but `update_native_masks` filters
+overlap using the paths' unclipped bounds. Even though the black mask paint is
+fully clipped away, the mask's white backdrop is limited to the native layout
+box and hides text overflow. Solved the spurious occlusion in the shared runtime
+by intersecting each coverage bound with all ancestor clip bounds before native
+overlap testing. Fully clipped entries are discarded; exact paths and clips
+remain intact for genuine overlaps. This avoids unnecessary mask construction,
+hashing, and browser updates outside Frames, without skipping scene traversal
+or treating Frames as a blanket exemption from occlusion.
+
+The website title and paragraph now omit `height`, using Text's existing native
+measurement: at 764px their layout boxes match the 348px/147px ink extents.
+`Text.clip` defaults to false; enabling it would hide overflow, not solve the
+layout issue. Container `autosize` is distinct from omitting a Text dimension.
+Regression tests cover animated clipped paths, nested/disjoint/empty clips,
+transformed clips, and unclipped coverage. A compositor-only browser check also
+showed zero mask activations over 100 observations with the original undersized
+text boxes, isolating the runtime fix from the website sizing change. Deliberate
+fixed-size native overflow under a genuinely overlapping mask remains a separate
+contract; this change does not add visual-overflow bounds to the mask protocol.
+
+Shared palette functions need both `#[has_helpers]` on the Pax type and
+`#[helpers]` on its Rust implementation. Without registration, a call such as
+`SiteTheme::ink()` can fall through as an enum-shaped value and produce coercion
+warnings instead of the intended color. Check dev logs, not just compilation,
+when adding a helper-backed theme. Also use the current `corner_radius` property
+(for example `0px`); the former `corner_radii` selector setting is ignored.
+
+The Pax formatter also introduced trailing spaces on wrapped element lines in
+this pass. Formatting followed by stripping line-end spaces produces readable
+source that passes `git diff --check`; the formatter itself was left outside
+the website scope. Always run a whitespace check after generated formatting.
+
+## 2026-09-15
+
+The website's editorial pass used omitted Text heights inside autosized Stackers
+to keep paragraphs in flow as they wrap. Responsive columns need
+`autosize_x=false autosize_y=true` on a horizontal Stacker when the width is
+constrained and its content should determine the row height. Merely changing a
+fixed paragraph height does not make its following siblings flow.
+
+ExampleHost still has a fixed preview envelope. Native text can paint beyond
+that envelope, leaving a section's bottom rule through its prose even when the
+outer page's autosize hull preserves the content. The website keeps explicit
+mobile/narrow-desktop/wide envelopes for now. Check the narrow desktop case,
+not only a phone and a wide monitor: larger type in two narrow columns can need
+more height than the single-column phone layout. Future variable-height
+ExampleHost work should establish a real content-measurement contract rather
+than a website-specific DOM measurement loop.
+
+## 2026-09-17
+
+A responsive component can compile with a Rust `on_pre_render` method that
+never runs: naming the method does not bind a lifecycle event. The website's
+AuthoringSection had this omission, leaving `compact` at its default on mobile.
+Bind the layout synchronizer to `@mount` and `@pre_render` in the template's
+settings block, then verify a breakpoint in the running scene. The fix restores
+the intended single-column layout without viewport-specific text offsets.

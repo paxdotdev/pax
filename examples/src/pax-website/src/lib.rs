@@ -2,8 +2,8 @@
 
 use pax_kit::*;
 
+pub mod authoring_section;
 pub mod brand_mark;
-pub mod builder_proof_section;
 pub mod feature_gallery;
 pub mod framework_section;
 pub mod hero_section;
@@ -14,8 +14,8 @@ pub mod runtime_section;
 pub mod site_shell;
 pub mod site_theme;
 
+pub use authoring_section::AuthoringSection;
 pub use brand_mark::BrandMark;
-pub use builder_proof_section::BuilderProofSection;
 pub use feature_gallery::{FeatureCard, FeatureGallery};
 pub use framework_section::FrameworkSection;
 pub use hero_section::HeroSection;

@@ -1,18 +1,18 @@
 <Scroller width=100% height=100% autosize=true>
     <Stacker width=100% autosize=true direction=StackerDirection::Vertical gutter=0px>
-        <ExampleHost width=100% height={self.compact ? 840px : 740px} title="Hero — a language built for living interfaces"
+        <ExampleHost width=100% height={self.compact ? 1120px : ($viewport.width < 1100 ? 1020px : 902px)} title="Living Quilt"
             sources={self.hero_sources} drawer_open=false>
             <HeroSection />
         </ExampleHost>
-        <ExampleHost width=100% height={self.compact ? 1390px : 1140px} title="Builder proof — create, edit, wow, ship"
-            sources={self.proof_sources} drawer_open=false>
-            <BuilderProofSection />
-        </ExampleHost>
-        <ExampleHost width=100% height={self.compact ? 1080px : 720px} title="Framework — a language for interfaces"
+        <ExampleHost width=100% height={self.compact ? 720px : ($viewport.width < 1100 ? 700px : 580px)} title="Creative freedom"
             sources={self.framework_sources} drawer_open=false>
             <FrameworkSection />
         </ExampleHost>
-        <ExampleHost width=100% height={self.compact ? 1040px : 780px} title="Runtime — one project, real application surfaces"
+        <ExampleHost width=100% height={self.compact ? 1360px : ($viewport.width < 1100 ? 1160px : 900px)} title="The language and the logic"
+            sources={self.authoring_sources} drawer_open=false>
+            <AuthoringSection />
+        </ExampleHost>
+        <ExampleHost width=100% height={self.compact ? 1100px : ($viewport.width < 1100 ? 1040px : 790px)} title="Native and web"
             sources={self.runtime_sources} drawer_open=false>
             <RuntimeSection />
         </ExampleHost>
@@ -20,7 +20,7 @@
             sources={self.feature_gallery_sources} drawer_open=false>
             <FeatureGallery />
         </ExampleHost>
-        <ExampleHost width=100% height={self.compact ? 1100px : 630px} title="Resources — start with working material"
+        <ExampleHost width=100% height={self.compact ? 1400px : ($viewport.width < 1100 ? 1400px : 990px)} title="Start building"
             sources={self.resource_sources} drawer_open=false>
             <ResourceSection />
         </ExampleHost>

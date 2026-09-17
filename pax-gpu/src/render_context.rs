@@ -1009,6 +1009,7 @@ impl<'w> WgpuRenderer<'w> {
                 if !clip_stacks_match(batch_clip_stack, node.clip_stack()) {
                     sync_clip_stack(
                         &mut self.render_backend,
+                        &mut retained_runs,
                         &mut current_clip_stack,
                         batch_clip_stack,
                         &self.clip_arena,
@@ -1054,6 +1055,7 @@ impl<'w> WgpuRenderer<'w> {
         if let Some(batch_clip_stack) = current_batch_clip_stack.as_ref() {
             sync_clip_stack(
                 &mut self.render_backend,
+                &mut retained_runs,
                 &mut current_clip_stack,
                 batch_clip_stack,
                 &self.clip_arena,
@@ -3182,15 +3184,39 @@ fn push_primitive_batch<'a>(
     batches.push(PrimitiveBatch { buffers, segments });
 }
 
-fn sync_clip_stack<'w>(
-    render_backend: &mut RenderBackend<'w>,
+// Keep command ordering testable without creating a platform GPU surface.
+trait RetainedClipBackend {
+    fn draw_runs(&mut self, runs: &[RetainedBatchRun<'_>]);
+    fn sync_stencil(&mut self, depth: u32, clips: &[stencil::ClipDraw<'_>]);
+}
+
+impl RetainedClipBackend for RenderBackend<'_> {
+    fn draw_runs(&mut self, runs: &[RetainedBatchRun<'_>]) {
+        self.draw_retained_batch_runs(runs);
+    }
+
+    fn sync_stencil(&mut self, depth: u32, clips: &[stencil::ClipDraw<'_>]) {
+        self.sync_stencil_stack(depth, clips);
+    }
+}
+
+fn sync_clip_stack(
+    render_backend: &mut impl RetainedClipBackend,
+    retained_runs: &mut Vec<RetainedBatchRun<'_>>,
     current_clip_stack: &mut Vec<u32>,
     desired_clip_stack: &[ClipReference],
     clip_arena: &ClipArena,
 ) {
     let (shared_prefix, clip_draws) =
         clip_stack_sync(current_clip_stack, desired_clip_stack, clip_arena);
-    render_backend.sync_stencil_stack(shared_prefix as u32, &clip_draws);
+    // Runs retain a stencil reference, not a snapshot of the stencil texture. Submit the
+    // previous runs before popping/pushing clips, or sibling Frames all see the final clip.
+    // Scissor/alpha-only changes leave the stencil intact and can still share one draw pass.
+    if shared_prefix != current_clip_stack.len() || !clip_draws.is_empty() {
+        render_backend.draw_runs(retained_runs);
+        retained_runs.clear();
+    }
+    render_backend.sync_stencil(shared_prefix as u32, &clip_draws);
     update_current_clip_stack(current_clip_stack, shared_prefix, &clip_draws);
 }
 
@@ -3580,6 +3606,100 @@ mod tests {
     fn sheared_rect_clip_stays_on_stencil_path() {
         let transform = Transform2D::from_array([1.0, 0.5, 0.0, 1.0, 0.0, 0.0]);
         assert!(axis_aligned_rect_scissor(&rect_path(10.0, 5.0), &transform).is_none());
+    }
+
+    #[derive(Default)]
+    struct RecordingClipBackend {
+        stencil: Vec<u32>,
+        draws: Vec<(u32, Vec<u32>)>,
+    }
+
+    impl RetainedClipBackend for RecordingClipBackend {
+        fn draw_runs(&mut self, runs: &[RetainedBatchRun<'_>]) {
+            for run in runs {
+                self.draws
+                    .push((run.alpha_mask.unwrap(), self.stencil.clone()));
+            }
+        }
+
+        fn sync_stencil(&mut self, depth: u32, clips: &[stencil::ClipDraw<'_>]) {
+            self.stencil.truncate(depth as usize);
+            self.stencil.extend(clips.iter().map(|clip| clip.clip_id));
+        }
+    }
+
+    fn labeled_run(label: u32) -> RetainedBatchRun<'static> {
+        RetainedBatchRun {
+            alpha_mask: Some(label),
+            stencil_index: 0,
+            scissor: None,
+            draws: Vec::new(),
+        }
+    }
+
+    fn test_clip_arena() -> ClipArena {
+        let mut arena = ClipArena::new();
+        for node_id in 0..3 {
+            let geometry = tessellate_clip_geometry(&rect_path(10.0, 10.0), 0.1);
+            arena
+                .sync_clip(
+                    node_id,
+                    0,
+                    hash_clip_geometry(&geometry),
+                    geometry,
+                    Transform2D::translation(node_id as f32 * 10.0, 0.0),
+                )
+                .unwrap();
+        }
+        arena
+    }
+
+    #[test]
+    fn retained_siblings_draw_before_their_stencil_is_replaced_or_popped() {
+        let arena = test_clip_arena();
+        let mut backend = RecordingClipBackend::default();
+        let mut current = Vec::new();
+        let mut runs = Vec::new();
+        let root = ClipReference::Stencil { clip_id: 0 };
+        for (label, clips) in [
+            (1, vec![root, ClipReference::Stencil { clip_id: 1 }]),
+            (2, vec![root, ClipReference::Stencil { clip_id: 2 }]),
+            (3, vec![root]),
+            (4, vec![]),
+        ] {
+            sync_clip_stack(&mut backend, &mut runs, &mut current, &clips, &arena);
+            runs.push(labeled_run(label));
+        }
+        backend.draw_runs(&runs);
+        assert_eq!(
+            backend.draws,
+            vec![(1, vec![0, 1]), (2, vec![0, 2]), (3, vec![0]), (4, vec![]),]
+        );
+    }
+
+    #[test]
+    fn retained_scissor_and_alpha_changes_preserve_stencil_batching() {
+        let arena = test_clip_arena();
+        let mut backend = RecordingClipBackend::default();
+        let mut current = Vec::new();
+        let mut runs = Vec::new();
+        let root = ClipReference::Stencil { clip_id: 0 };
+        sync_clip_stack(&mut backend, &mut runs, &mut current, &[root], &arena);
+        runs.push(labeled_run(1));
+        for clip in [
+            ClipReference::Scissor(ScissorRect {
+                min_x: 1.0,
+                min_y: 2.0,
+                max_x: 3.0,
+                max_y: 4.0,
+            }),
+            ClipReference::Alpha { owner: 5 },
+        ] {
+            sync_clip_stack(&mut backend, &mut runs, &mut current, &[root, clip], &arena);
+        }
+        assert!(backend.draws.is_empty());
+        assert_eq!(runs.len(), 1);
+        assert_eq!(current, vec![0]);
     }
 
     #[test]

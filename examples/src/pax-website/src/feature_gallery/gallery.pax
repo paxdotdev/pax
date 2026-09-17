@@ -6,7 +6,7 @@
             text="Keep pulling the thread."/>
         <Text class="gallery_copy" x=0px y={self.compact ? 138px : 104px} width={self.compact ? 100% : 68%}
             height={self.compact ? 72px : 44px}
-            text="A browsable heap of specific things Pax can do today. Hover or touch to pause; scroll or swipe to take control."/>
+            text="From the language to the renderer to the tools: explore what you can build with Pax. Hover or touch to pause; scroll horizontally or swipe to explore."/>
     </Group>
     <MarqueeCarousel x=0px y={self.compact ? 286px : 226px} width=100% height={self.compact ? 464px : 446px}
         card_width_px={self.card_width_px} gap_px=14 speed_px_per_second=24 hover_paused=bind:marquee_hovered
@@ -498,10 +498,10 @@
     @mount: handle_mount
     @pre_render: handle_pre_render
     .gallery_bg {
-        fill: rgb(248, 250, 252)
+        fill: {SiteTheme::ink()}
     }
     .gallery_rule {
-        fill: rgba(20, 25, 32, 32)
+        fill: rgba(252, 249, 242, 32)
     }
     .gallery_eyebrow {
         style: TextStyle {
@@ -511,7 +511,7 @@
                 FontStyle::Normal,
                 FontWeight::Medium)
             font_size: {self.compact ? 9px : 11px}
-            fill: rgb(37, 111, 190)
+            fill: {SiteTheme::muted()}
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
@@ -525,7 +525,7 @@
                 FontStyle::Normal,
                 FontWeight::ExtraBold)
             font_size: {self.compact ? 34px : 48px}
-            fill: rgb(20, 25, 32)
+            fill: {SiteTheme::paper()}
             align_vertical: TextAlignVertical::Top
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
@@ -539,7 +539,7 @@
                 FontStyle::Normal,
                 FontWeight::Normal)
             font_size: {self.compact ? 13px : 15px}
-            fill: rgb(71, 85, 105)
+            fill: {SiteTheme::muted()}
             align_vertical: TextAlignVertical::Top
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
@@ -553,7 +553,7 @@
                 FontStyle::Normal,
                 FontWeight::Medium)
             font_size: {self.compact ? 8px : 10px}
-            fill: rgba(37, 111, 190, 190)
+            fill: rgba(64, 243, 255, 190)
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
@@ -564,41 +564,41 @@
         height: 100%
     }
     .poster_panel {
-        fill: WHITE
+        fill: {SiteTheme::surface()}
         stroke: Stroke {
-            color: rgba(20, 25, 32, 58)
+            color: rgba(252, 249, 242, 58)
             width: 1px
         }
-        corner_radius: 3.0
+        corner_radius: 0.0
     }
     .poster_panel_faint {
         fill: rgba(255, 255, 255, 110)
         stroke: Stroke {
-            color: rgba(20, 25, 32, 28)
+            color: rgba(252, 249, 242, 28)
             width: 1px
         }
-        corner_radius: 3.0
+        corner_radius: 0.0
     }
     .poster_panel_dark {
-        fill: rgb(20, 25, 32)
-        corner_radius: 3.0
+        fill: {SiteTheme::ink()}
+        corner_radius: 0.0
     }
     .poster_panel_accent {
-        fill: rgb(37, 111, 190)
-        corner_radius: 3.0
+        fill: {SiteTheme::cyan()}
+        corner_radius: 0.0
     }
     .poster_native {
-        fill: WHITE
+        fill: {SiteTheme::surface()}
         stroke: Stroke {
-            color: rgba(37, 111, 190, 130)
+            color: rgba(64, 243, 255, 130)
             width: 2px
         }
         corner_radius: 6.0
     }
     .poster_phone {
-        fill: WHITE
+        fill: {SiteTheme::surface()}
         stroke: Stroke {
-            color: rgb(20, 25, 32)
+            color: {SiteTheme::raised()}
             width: 2px
         }
         corner_radius: 9.0
@@ -606,7 +606,7 @@
     .poster_outline {
         fill: TRANSPARENT
         stroke: Stroke {
-            color: rgba(37, 111, 190, 118)
+            color: rgba(64, 243, 255, 118)
             width: 1px
         }
         corner_radius: 4.0
@@ -614,14 +614,14 @@
     .poster_viewport {
         fill: rgba(255, 255, 255, 170)
         stroke: Stroke {
-            color: rgba(20, 25, 32, 54)
+            color: rgba(252, 249, 242, 54)
             width: 1px
         }
         corner_radius: 12.0
     }
     .poster_code_panel {
-        fill: rgb(20, 25, 32)
-        corner_radius: 5.0
+        fill: {SiteTheme::ink()}
+        corner_radius: 0.0
     }
     .poster_gradient {
         fill: @gradient {
@@ -629,44 +629,44 @@
                 start: (0%, 50%),
                 end: (100%, 50%),
             },
-            0%: rgb(54, 90, 214),
-            52%: rgb(151, 79, 207),
-            100%: rgb(238, 98, 120),
+            0%: rgb(129, 69, 255),
+            52%: rgb(254, 50, 191),
+            100%: rgb(255, 184, 36),
         }
         corner_radius: 8.0
     }
     .poster_track {
-        fill: rgba(37, 111, 190, 72)
+        fill: rgba(64, 243, 255, 72)
     }
     .poster_tree {
-        fill: rgba(37, 111, 190, 115)
+        fill: rgba(64, 243, 255, 115)
     }
     .poster_axis {
-        fill: rgba(37, 111, 190, 78)
+        fill: rgba(64, 243, 255, 78)
     }
     .poster_scrollbar {
-        fill: rgba(37, 111, 190, 170)
+        fill: rgba(64, 243, 255, 170)
         corner_radius: 2.0
     }
     .poster_signal {
-        fill: rgb(37, 111, 190)
+        fill: {SiteTheme::cyan()}
     }
     .poster_signal_round {
-        fill: rgb(37, 111, 190)
+        fill: {SiteTheme::cyan()}
         corner_radius: 5.0
     }
     .poster_signal_square {
-        fill: rgb(20, 25, 32)
+        fill: {SiteTheme::raised()}
         stroke: Stroke {
-            color: rgb(37, 111, 190)
+            color: {SiteTheme::cyan()}
             width: 2px
         }
     }
     .poster_playhead {
-        fill: rgb(37, 111, 190)
+        fill: {SiteTheme::cyan()}
     }
     .poster_code_line {
-        fill: rgba(20, 25, 32, 88)
+        fill: rgba(252, 249, 242, 88)
         corner_radius: 4.0
     }
     .poster_code_line_light {
@@ -680,29 +680,29 @@
     .poster_orbit {
         fill: TRANSPARENT
         stroke: Stroke {
-            color: rgba(37, 111, 190, 118)
+            color: rgba(64, 243, 255, 118)
             width: 1px
         }
     }
     .poster_gloss {
-        fill: rgb(37, 111, 190)
+        fill: {SiteTheme::cyan()}
     }
     .poster_highlight {
         fill: rgba(255, 255, 255, 190)
     }
     .poster_glow {
-        fill: rgba(37, 111, 190, 170)
+        fill: rgba(64, 243, 255, 170)
     }
     .poster_glow_alt {
-        fill: rgba(190, 78, 185, 170)
+        fill: rgba(254, 50, 191, 170)
     }
     .poster_dot {
-        fill: rgb(37, 111, 190)
+        fill: {SiteTheme::cyan()}
     }
     .poster_dot_alt {
-        fill: WHITE
+        fill: {SiteTheme::surface()}
         stroke: Stroke {
-            color: rgb(37, 111, 190)
+            color: {SiteTheme::cyan()}
             width: 2px
         }
     }
@@ -712,26 +712,26 @@
     .poster_crosshair {
         fill: rgba(255, 255, 255, 120)
         stroke: Stroke {
-            color: rgb(37, 111, 190)
+            color: {SiteTheme::cyan()}
             width: 2px
         }
     }
     .poster_mask {
-        fill: rgba(37, 111, 190, 130)
+        fill: rgba(64, 243, 255, 130)
         corner_radius: 6.0
     }
     .poster_mask_cutout {
-        fill: rgba(242, 246, 250, 220)
+        fill: rgba(36, 36, 36, 220)
         stroke: Stroke {
             color: rgba(255, 255, 255, 220)
             width: 4px
         }
     }
     .poster_mountain {
-        fill: rgba(37, 111, 190, 130)
+        fill: rgba(64, 243, 255, 130)
     }
     .poster_mountain_alt {
-        fill: rgba(190, 78, 185, 120)
+        fill: rgba(254, 50, 191, 120)
     }
     .poster_code {
         style: TextStyle {
@@ -741,7 +741,7 @@
                 FontStyle::Normal,
                 FontWeight::Medium)
             font_size: 11px
-            fill: rgba(20, 25, 32, 180)
+            fill: rgba(252, 249, 242, 180)
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
@@ -769,7 +769,7 @@
                 FontStyle::Normal,
                 FontWeight::Medium)
             font_size: 20px
-            fill: rgb(37, 111, 190)
+            fill: {SiteTheme::cyan()}
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Center
             align_multiline: TextAlignHorizontal::Center
@@ -783,7 +783,7 @@
                 FontStyle::Normal,
                 FontWeight::ExtraBold)
             font_size: 46px
-            fill: rgb(20, 25, 32)
+            fill: {SiteTheme::paper()}
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Center
             align_multiline: TextAlignHorizontal::Center
@@ -797,7 +797,7 @@
                 FontStyle::Normal,
                 FontWeight::Normal)
             font_size: 68px
-            fill: rgb(20, 25, 32)
+            fill: {SiteTheme::paper()}
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Center
             align_multiline: TextAlignHorizontal::Center

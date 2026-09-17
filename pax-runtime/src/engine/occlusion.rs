@@ -117,13 +117,27 @@ struct LayerCoverage {
 }
 
 impl LayerCoverage {
-    fn push(&mut self, entry: CoverageEntry) {
+    fn push(&mut self, mut entry: CoverageEntry) {
+        // A path may animate far outside its Frame while its visible paint remains inside.
+        // Cull against the intersection of ancestor clip bounds before comparing it with
+        // native leaves. Keep the exact clip paths for the eventual mask: bounding boxes
+        // only provide a conservative rejection test for rounded/rotated/compound clips.
+        let Some(bounds) = clipped_coverage_bounds(entry.bounds, &entry.clips) else {
+            return;
+        };
+        entry.bounds = bounds;
         self.bounds = Some(match self.bounds {
             Some(bounds) => bounds.union(&entry.bounds),
             None => entry.bounds,
         });
         self.entries.push(entry);
     }
+}
+
+fn clipped_coverage_bounds(bounds: OcclusionBox, clips: &[BezPath]) -> Option<OcclusionBox> {
+    clips.iter().try_fold(bounds, |bounds, clip| {
+        bounds.intersect(&OcclusionBox::new_from_path(clip)?)
+    })
 }
 
 enum DrawableInfo {
@@ -648,4 +662,81 @@ fn hash_presentation_bounds(
         .map(|bounds| bounds.as_array().map(f64::to_bits))
         .hash(&mut hasher);
     hasher.finish()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use kurbo::{Rect, RoundedRect};
+
+    fn rect(x0: f64, y0: f64, x1: f64, y1: f64) -> BezPath {
+        Rect::new(x0, y0, x1, y1).to_path(0.1)
+    }
+
+    fn entry(path: BezPath, clips: Vec<BezPath>) -> CoverageEntry {
+        CoverageEntry {
+            bounds: OcclusionBox::new_from_path(&path).unwrap(),
+            path,
+            clips,
+            opacity: 1.0,
+        }
+    }
+
+    #[test]
+    fn clipped_animation_never_becomes_an_occluder_below_its_frame() {
+        let frame = rect(0.0, 0.0, 400.0, 420.0);
+        let text = OcclusionBox::new_from_path(&rect(0.0, 532.0, 400.0, 784.0)).unwrap();
+        for offset in (0..600).step_by(10) {
+            let mut coverage = LayerCoverage::default();
+            coverage.push(entry(
+                rect(0.0, offset as f64, 400.0, offset as f64 + 140.0),
+                vec![frame.clone()],
+            ));
+            assert!(!coverage
+                .bounds
+                .is_some_and(|bounds| bounds.intersects(&text)));
+            assert!(coverage
+                .entries
+                .iter()
+                .all(|entry| !entry.bounds.intersects(&text)));
+        }
+    }
+
+    #[test]
+    fn nested_disjoint_and_empty_clips_discard_coverage() {
+        for clips in [
+            vec![
+                rect(0.0, 0.0, 100.0, 100.0),
+                rect(200.0, 200.0, 300.0, 300.0),
+            ],
+            vec![BezPath::new()],
+        ] {
+            let mut coverage = LayerCoverage::default();
+            coverage.push(entry(rect(0.0, 0.0, 400.0, 400.0), clips));
+            assert!(coverage.bounds.is_none());
+            assert!(coverage.entries.is_empty());
+        }
+    }
+
+    #[test]
+    fn partial_transformed_clips_keep_exact_mask_geometry() {
+        let transform = Affine::translate((30.0, 80.0)) * Affine::rotate(0.2);
+        let clip = transform * RoundedRect::new(0.0, 0.0, 100.0, 100.0, 20.0).to_path(0.1);
+        let path = rect(-100.0, -100.0, 400.0, 400.0);
+        let expected = OcclusionBox::new_from_path(&clip).unwrap();
+        let mut coverage = LayerCoverage::default();
+        coverage.push(entry(path.clone(), vec![clip.clone()]));
+        assert_eq!(coverage.bounds.unwrap().as_array(), expected.as_array());
+        assert_eq!(coverage.entries[0].path, path);
+        assert_eq!(coverage.entries[0].clips, vec![clip]);
+    }
+
+    #[test]
+    fn unclipped_occluders_keep_their_full_bounds() {
+        let path = rect(-20.0, 40.0, 100.0, 200.0);
+        let expected = OcclusionBox::new_from_path(&path).unwrap();
+        let mut coverage = LayerCoverage::default();
+        coverage.push(entry(path, vec![]));
+        assert_eq!(coverage.bounds.unwrap().as_array(), expected.as_array());
+    }
 }

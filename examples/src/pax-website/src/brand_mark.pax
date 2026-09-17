@@ -1,7 +1,7 @@
 <Group width=100% height=100%>
     <Text id=brand_word x=0px y=0px width=66px height=32px text="PAX" selectable=false/>
     <Text id=brand_note x=76px y=0px width=124px height=32px text="BUILT IN PAX" selectable=false/>
-    <Rectangle x=62px y=5px width=3px height=22px fill=rgb(37, 111, 190)/>
+    <Rectangle x=62px y=5px width=3px height=22px fill={SiteTheme::signal()}/>
 </Group>
 
 @settings {
@@ -13,7 +13,7 @@
                 FontStyle::Normal,
                 FontWeight::ExtraBold)
             font_size: 22px
-            fill: rgb(20, 25, 32)
+            fill: {SiteTheme::paper()}
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
@@ -27,7 +27,7 @@
                 FontStyle::Normal,
                 FontWeight::Medium)
             font_size: 9px
-            fill: rgb(100, 116, 139)
+            fill: {SiteTheme::muted()}
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left

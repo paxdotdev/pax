@@ -8,7 +8,7 @@
             <BrandMark />
         </Link>
         if !self.compact {
-            <Stacker x={100% - 454px} y=20px width=414px height=40px direction=StackerDirection::Horizontal gutter=8px
+            <Stacker x={100% - 40px} anchor_x=100% y=20px width=414px height=40px direction=StackerDirection::Horizontal gutter=8px
                 sizes=[Some(74px), Some(78px), Some(88px), None]>
                 <Link width=100% height=100% url="https://docs.pax.dev" target=Target::New>
                     <Text class="nav_link" width=100% height=100% text="Docs" selectable=false/>
@@ -19,24 +19,30 @@
                 <Link width=100% height=100% url="https://discord.com/invite/Eq8KWAUc6b" target=Target::New>
                     <Text class="nav_link" width=100% height=100% text="Discord" selectable=false/>
                 </Link>
-                <Link width=100% height=100% url="https://docs.pax.dev/getting-started.html" target=Target::New>
+                <Link width=100% height=100% url="https://docs.pax.dev/getting-started/" target=Target::New>
                     <Text class="nav_cta_label" width=100% height=100% text="Get started" selectable=false/>
                     <Rectangle class="nav_cta_surface" width=100% height=100%/>
                 </Link>
             </Stacker>
+        } else {
+            <Link x={100% - 20px} anchor_x=100% y=14px width=116px height=36px url="https://docs.pax.dev/getting-started/"
+                target=Target::New>
+                <Text class="nav_cta_label" width=100% height=100% text="Get started →" selectable=false/>
+                <Rectangle class="nav_cta_surface" width=100% height=100%/>
+            </Link>
         }
         <Rectangle class="shell_nav_bg" width=100% height=100%/>
     </Group>
-    <Rectangle fill=rgb(248, 250, 252) width=100% height=100%/>
+    <Rectangle fill={SiteTheme::ink()} width=100% height=100%/>
 </Group>
 
 @settings {
     @mount: handle_mount
     @pre_render: handle_pre_render
     .shell_nav_bg {
-        fill: rgba(255, 255, 255, 246)
+        fill: {SiteTheme::ink()}
         stroke: Stroke {
-            color: rgba(20, 25, 32, 28)
+            color: rgba(252, 249, 242, 28)
             width: 1px
         }
     }
@@ -48,7 +54,7 @@
                 FontStyle::Normal,
                 FontWeight::SemiBold)
             font_size: 13px
-            fill: rgb(71, 85, 105)
+            fill: {SiteTheme::muted()}
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Center
             align_multiline: TextAlignHorizontal::Center
@@ -62,14 +68,14 @@
                 FontStyle::Normal,
                 FontWeight::Bold)
             font_size: 13px
-            fill: WHITE
+            fill: {SiteTheme::ink()}
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Center
             align_multiline: TextAlignHorizontal::Center
         }
     }
     .nav_cta_surface {
-        fill: rgb(37, 111, 190)
-        corner_radii: RectangleCornerRadii::radii(4.0, 4.0, 4.0, 4.0)
+        fill: {SiteTheme::signal()}
+        corner_radius: 0px
     }
 }

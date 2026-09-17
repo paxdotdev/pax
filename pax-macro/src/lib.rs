@@ -1,5 +1,6 @@
 extern crate proc_macro;
 extern crate proc_macro2;
+mod root_crate;
 mod templating;
 use std::fs::File;
 use std::io::Read;
@@ -18,12 +19,14 @@ use templating::{
 
 use sailfish::TemplateOnce;
 
-const CRATES_WITHOUT_ROOT_CARTRIDGE_SNIPPET: &[&str] = &["pax-std", "pax-runtime"];
-
 fn is_root_crate() -> bool {
-    let is_not_blacklisted = !CRATES_WITHOUT_ROOT_CARTRIDGE_SNIPPET
-        .contains(&std::env::var("CARGO_PKG_NAME").unwrap_or_default().as_str());
-    is_not_blacklisted
+    root_crate::is_application_crate(
+        env::var_os("PAX_DIR").as_deref().map(Path::new),
+        &env::var_os("CARGO_MANIFEST_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_default(),
+        env::var_os("CARGO_PRIMARY_PACKAGE").is_some(),
+    )
 }
 
 fn env_flag(name: &str) -> bool {
@@ -365,7 +368,8 @@ fn pax_full_component(
         .map(PathBuf::from)
         .unwrap_or_else(|_| ".".into());
     let build_config = template_build_config();
-    let needs_runtime_cartridge = is_main_component && is_root_crate();
+    let is_root_crate = is_root_crate();
+    let needs_runtime_cartridge = is_main_component && is_root_crate;
     let needs_runtime_target_cartridge = needs_runtime_cartridge
         && (build_config.web || build_config.macos || build_config.ios || build_config.ipados);
     let missing_cartridge_snippet = |reason: String| {
@@ -381,24 +385,16 @@ fn pax_full_component(
     let release_designtime_feature_conflict = cfg!(feature = "designtime")
         && env_flag_explicitly_disabled("PAX_BUILD_DESIGNTIME")
         && needs_runtime_target_cartridge;
-    let cartridge_snippet = if release_designtime_feature_conflict {
+    let cartridge_snippet = if !needs_runtime_cartridge {
+        String::new()
+    } else if release_designtime_feature_conflict {
         "compile_error!(\"Pax release builds cannot include the `pax-engine/designtime` feature. Remove the transitive designtime feature activation or build this app in debug mode.\");".to_string()
     } else if let Some(pax_dir) = pax_dir {
-        if pax_dir.starts_with(&current_manifest_dir) {
-            let cartridge_path = pax_dir.join("cartridge.partial.rs");
-            let cartridge_path = cartridge_path.to_str().unwrap_or_else(|| {
-                panic!("non-UTF-8 Pax cartridge path: {}", cartridge_path.display())
-            });
-            format!("include!({cartridge_path:?});")
-        } else if needs_runtime_cartridge {
-            missing_cartridge_snippet(format!(
-                "PAX_DIR ({}) does not point at the active Pax project root ({}). Build Pax apps through pax-cli so the generated cartridge can be injected into #[pax].",
-                pax_dir.display(),
-                current_manifest_dir.display()
-            ))
-        } else {
-            "".to_string()
-        }
+        let cartridge_path = pax_dir.join("cartridge.partial.rs");
+        let cartridge_path = cartridge_path.to_str().unwrap_or_else(|| {
+            panic!("non-UTF-8 Pax cartridge path: {}", cartridge_path.display())
+        });
+        format!("include!({cartridge_path:?});")
     } else if needs_runtime_cartridge {
         missing_cartridge_snippet(format!(
             "PAX_DIR was not set while expanding #[pax] for {}. Build Pax apps through pax-cli so the generated cartridge can be injected into #[pax].",
@@ -414,7 +410,7 @@ fn pax_full_component(
         }),
         pascal_identifier,
         internal_definitions,
-        is_root_crate: is_root_crate(),
+        is_root_crate,
         is_custom_interpolatable,
         is_custom_coercion_rules,
         can_derive_identity_roundtrip,
@@ -426,7 +422,18 @@ fn pax_full_component(
     .unwrap()
     .to_string();
 
-    let ret = TokenStream::from_str(&output).unwrap().into();
+    let ret: proc_macro2::TokenStream = TokenStream::from_str(&output).unwrap().into();
+    // Track caller environment changes in Cargo's fingerprint too. A component
+    // crate may be built standalone and as a dependency using the same target dir.
+    let ret = if is_main_component {
+        quote! {
+            const _: Option<&str> = option_env!("PAX_DIR");
+            const _: Option<&str> = option_env!("CARGO_PRIMARY_PACKAGE");
+            #ret
+        }
+    } else {
+        ret
+    };
     if !include_fix.is_none() {
         quote! {
             #include_fix

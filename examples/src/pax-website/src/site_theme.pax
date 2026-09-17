@@ -1,17 +1,129 @@
 <Group />
 
 @settings {
+    .editorial_title {
+        style: TextStyle {
+            font: Font::Web(
+                "Manrope",
+                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::ExtraBold)
+            font_size: {$viewport.width < 760 ? 34px : 48px}
+            fill: {SiteTheme::paper()}
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .editorial_lead {
+        style: TextStyle {
+            font: Font::Web(
+                "Manrope",
+                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::Normal)
+            font_size: {$viewport.width < 760 ? 19px : 23px}
+            fill: {SiteTheme::paper()}
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .editorial_body {
+        style: TextStyle {
+            font: Font::Web(
+                "Manrope",
+                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::Normal)
+            font_size: {$viewport.width < 760 ? 16px : 18px}
+            fill: {SiteTheme::muted()}
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .editorial_note {
+        style: TextStyle {
+            font: Font::Web(
+                "Manrope",
+                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::Normal)
+            font_size: 14px
+            fill: {SiteTheme::muted()}
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .editorial_subtitle {
+        style: TextStyle {
+            font: Font::Web(
+                "Manrope",
+                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::Bold)
+            font_size: {$viewport.width < 760 ? 22px : 26px}
+            fill: {SiteTheme::paper()}
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .editorial_kicker {
+        style: TextStyle {
+            font: Font::Web(
+                "IBM Plex Mono",
+                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                FontStyle::Normal,
+                FontWeight::Medium)
+            font_size: 11px
+            fill: {SiteTheme::signal()}
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .editorial_link {
+        style: TextStyle {
+            font: Font::Web(
+                "IBM Plex Mono",
+                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                FontStyle::Normal,
+                FontWeight::Medium)
+            font_size: 12px
+            fill: {SiteTheme::paper()}
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .editorial_code {
+        style: TextStyle {
+            font: Font::Web(
+                "IBM Plex Mono",
+                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                FontStyle::Normal,
+                FontWeight::Normal)
+            font_size: {$viewport.width < 760 ? 15px : 18px}
+            fill: {SiteTheme::signal()}
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
     .site_ink {
-        fill: rgb(20, 25, 32)
+        fill: {SiteTheme::ink()}
     }
     .site_paper {
-        fill: rgb(248, 250, 252)
+        fill: {SiteTheme::paper()}
     }
     .site_signal {
-        fill: rgb(37, 111, 190)
+        fill: {SiteTheme::signal()}
     }
     .site_rule {
-        fill: rgba(244, 240, 231, 42)
+        fill: {SiteTheme::rule()}
     }
     .site_display {
         style: TextStyle {
@@ -20,7 +132,7 @@
                 "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
                 FontStyle::Normal,
                 FontWeight::ExtraBold)
-            fill: rgb(20, 25, 32)
+            fill: {SiteTheme::paper()}
             align_vertical: TextAlignVertical::Top
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
@@ -33,7 +145,7 @@
                 "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
                 FontStyle::Normal,
                 FontWeight::Normal)
-            fill: rgb(71, 85, 105)
+            fill: {SiteTheme::muted()}
             align_vertical: TextAlignVertical::Top
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
@@ -46,7 +158,7 @@
                 "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
                 FontStyle::Normal,
                 FontWeight::Medium)
-            fill: rgb(20, 25, 32)
+            fill: {SiteTheme::paper()}
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
@@ -60,15 +172,15 @@
                 FontStyle::Normal,
                 FontWeight::Bold)
             font_size: 14px
-            fill: WHITE
+            fill: {SiteTheme::ink()}
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Center
             align_multiline: TextAlignHorizontal::Center
         }
     }
     .site_button_signal {
-        fill: rgb(37, 111, 190)
-        corner_radii: RectangleCornerRadii::radii(4.0, 4.0, 4.0, 4.0)
+        fill: {SiteTheme::signal()}
+        corner_radius: 0px
     }
     .site_button_outline_label {
         style: TextStyle {
@@ -78,18 +190,18 @@
                 FontStyle::Normal,
                 FontWeight::Bold)
             font_size: 14px
-            fill: rgb(20, 25, 32)
+            fill: {SiteTheme::paper()}
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Center
             align_multiline: TextAlignHorizontal::Center
         }
     }
     .site_button_outline {
-        fill: WHITE
+        fill: {SiteTheme::surface()}
         stroke: Stroke {
-            color: rgba(20, 25, 32, 74)
+            color: rgba(252, 249, 242, 74)
             width: 1px
         }
-        corner_radii: RectangleCornerRadii::radii(4.0, 4.0, 4.0, 4.0)
+        corner_radius: 0px
     }
 }

@@ -4,7 +4,7 @@
         <Text class="route_home" width=100% height=100% text="Return home  →" selectable=false/>
         <Rectangle class="route_home_bg" width=100% height=100%/>
     </Link>
-    <Rectangle fill=rgb(10, 12, 16) width=100% height=100%/>
+    <Rectangle fill={SiteTheme::ink()} width=100% height=100%/>
 </Group>
 
 @settings {
@@ -16,7 +16,7 @@
                 FontStyle::Normal,
                 FontWeight::SemiBold)
             font_size: 13px
-            fill: rgb(37, 111, 190)
+            fill: {SiteTheme::signal()}
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Center
             align_multiline: TextAlignHorizontal::Center
@@ -30,14 +30,14 @@
                 FontStyle::Normal,
                 FontWeight::Bold)
             font_size: 14px
-            fill: rgb(10, 12, 16)
+            fill: {SiteTheme::ink()}
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Center
             align_multiline: TextAlignHorizontal::Center
         }
     }
     .route_home_bg {
-        fill: rgb(37, 111, 190)
-        corner_radii: RectangleCornerRadii::radii(4.0, 4.0, 4.0, 4.0)
+        fill: {SiteTheme::signal()}
+        corner_radius: 0px
     }
 }

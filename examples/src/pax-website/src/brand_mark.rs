@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 
+use crate::SiteTheme;
 use pax_kit::*;
 
 /// Static integration point for the animated mark produced by PAX-982.

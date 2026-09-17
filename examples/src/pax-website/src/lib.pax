@@ -1,7 +1,7 @@
 <Router>
     <Route path="/" metadata=RouteMetadata {
-        title: "Pax — ready for builders"
-        description: "Pax is a language-first GUI framework for Rust, combining declarative UI authoring with Rust application logic and a portable, high-performance runtime for macOS, iOS, iPadOS, and the web."
+        title: "Pax — A declarative language for native and web UI"
+        description: "Pax is an open-source GUI framework pairing a declarative UI language with Rust application logic. Build for macOS, iOS, iPadOS, and the web."
         index: true
     }>
         <SiteShell>

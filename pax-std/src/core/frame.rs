@@ -1,7 +1,7 @@
 use std::iter;
 use std::rc::Rc;
 
-use crate::common::{native_surface_opacity, patch_if_needed};
+use crate::common::{canvas_surface_transform, native_surface_opacity, patch_if_needed};
 use kurbo::{Affine, BezPath, RoundedRect, Shape};
 use pax_engine::*;
 use pax_message::{AnyCreatePatch, FramePatch};
@@ -65,6 +65,27 @@ pub struct FrameInstance {
     base: BaseInstance,
 }
 
+impl FrameInstance {
+    fn clip_path_in_space(expanded_node: &ExpandedNode, transform: Affine) -> Option<BezPath> {
+        expanded_node.with_properties_unwrapped(|frame: &mut Frame| {
+            frame._clip_content.get().then(|| {
+                frame_clip_path(
+                    expanded_node.transform_and_bounds.get().bounds,
+                    frame.corner_radius.get(),
+                    transform,
+                )
+            })
+        })
+    }
+}
+
+fn frame_clip_path(bounds: (f64, f64), corner_radius: f64, transform: Affine) -> BezPath {
+    let (width, height) = bounds;
+    let max_radius = 0.5 * width.max(0.0).min(height.max(0.0));
+    let radius = corner_radius.clamp(0.0, max_radius);
+    transform * RoundedRect::new(0.0, 0.0, width, height, radius).to_path(0.1)
+}
+
 impl InstanceNode for FrameInstance {
     fn instantiate(args: InstantiationArgs) -> Rc<Self>
     where
@@ -124,24 +145,10 @@ impl InstanceNode for FrameInstance {
     }
 
     fn resolve_effect_clip_path(&self, expanded_node: &ExpandedNode) -> Option<BezPath> {
-        let (clip_content, corner_radius) =
-            expanded_node.with_properties_unwrapped(|frame: &mut Frame| {
-                (frame._clip_content.get(), frame.corner_radius.get())
-            });
-        if !clip_content {
-            return None;
-        }
-
-        let t_and_b = expanded_node.transform_and_bounds.get();
-        let transform = t_and_b.transform;
-        let (width, height) = t_and_b.bounds;
-
-        let max_radius = 0.5 * width.max(0.0).min(height.max(0.0));
-        let radius = corner_radius.clamp(0.0, max_radius);
-        let rect = RoundedRect::new(0.0, 0.0, width, height, radius);
-        let bez_path = rect.to_path(0.1);
-
-        Some(<Affine>::from(transform) * bez_path)
+        Self::clip_path_in_space(
+            expanded_node,
+            Affine::from(expanded_node.transform_and_bounds.get().transform),
+        )
     }
 
     fn handle_pre_render(
@@ -159,7 +166,11 @@ impl InstanceNode for FrameInstance {
             return;
         }
 
-        let Some(transformed_bez_path) = self.resolve_effect_clip_path(expanded_node) else {
+        // Render clips share the leaf primitives' owning-surface coordinate space.
+        // World-space paths remain available above for occlusion and hit testing.
+        let Some(transformed_bez_path) =
+            Self::clip_path_in_space(expanded_node, canvas_surface_transform(expanded_node, rtc))
+        else {
             return;
         };
 
@@ -350,5 +361,29 @@ impl InstanceNode for FrameInstance {
 
     fn clips_content(&self, expanded_node: &ExpandedNode) -> bool {
         expanded_node.with_properties_unwrapped(|props: &mut Frame| props._clip_content.get())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn frame_clip_tracks_its_surface_without_reapplying_the_scroller_offset() {
+        let scroller_world = Affine::translate((32.0, 80.0)) * Affine::scale(1.5);
+        let tile_in_scroller = Affine::translate((288.0, 140.0));
+        let tile_world = scroller_world * tile_in_scroller;
+        let bounds = (288.0, 140.0);
+        for radius in [0.0, 18.0, 500.0] {
+            let world_path = frame_clip_path(bounds, radius, tile_world);
+            let surface_path =
+                frame_clip_path(bounds, radius, scroller_world.inverse() * tile_world);
+            let expected = frame_clip_path(bounds, radius, tile_in_scroller);
+            assert_eq!(surface_path.bounding_box(), expected.bounding_box());
+            assert_eq!(
+                (scroller_world * surface_path).bounding_box(),
+                world_path.bounding_box()
+            );
+        }
     }
 }

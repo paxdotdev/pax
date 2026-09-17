@@ -49,7 +49,7 @@ static ComponentDescriptorRegistry: [{{ engine_import_path }}::pax_runtime::Comp
     {% for component in components %}
     {{ engine_import_path }}::pax_runtime::ComponentDescriptorRegistryEntry::new(
         "{{component.type_id._type_id}}",
-        &{{component.pascal_identifier}}ErasedComponentDescriptor,
+        &{{component.symbol_identifier}}ErasedComponentDescriptor,
     ),
     {% endfor %}
 ];

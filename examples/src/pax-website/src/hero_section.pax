@@ -2,85 +2,61 @@
     <ImportSettings>
         <SiteTheme />
     </ImportSettings>
-    <Group x={(self.copy_x_px)px} y={self.compact ? 42px : 72px} width={(self.copy_width_px)px}
-        height={self.compact ? 430px : 570px}>
-        <Text class="hero_eyebrow" x=0px y=0px width=100% height=24px text="PAX / LANGUAGE-FIRST GUI FRAMEWORK / RUST"/>
-        <Text class="hero_title" x=0px y=46px width=100% height={self.compact ? 190px : 238px}
-            text="A language built for living interfaces."/>
-        <Text class="hero_copy" x=0px y={self.compact ? 250px : 304px} width={self.compact ? 100% : 92%}
-            height={self.compact ? 116px : 98px}
-            text="Pax is a language-first GUI framework for Rust, combining declarative UI authoring with Rust application logic and a portable, high-performance runtime for macOS, iOS, iPadOS, and the web."/>
-        <Stacker x=0px y={self.compact ? 382px : 430px} width={self.compact ? 100% : 398px} height=50px
-            direction=StackerDirection::Horizontal gutter=10px sizes=[Some(194px), None]>
-            <Link width=100% height=100% url="https://docs.pax.dev/getting-started.html" target=Target::New>
-                <Text class="site_button_label" width=100% height=100% text="Start with the CLI  →" selectable=false/>
-                <Rectangle class="site_button_signal" width=100% height=100%/>
-            </Link>
-            <Link width=100% height=100% url="https://github.com/paxdotdev/pax" target=Target::New>
-                <Text class="site_button_outline_label" width=100% height=100% text="View GitHub" selectable=false/>
-                <Rectangle class="site_button_outline" width=100% height=100%/>
-            </Link>
+    // The real example, imported through Cargo; no forked hero implementation.
+    <Frame width=100% height={self.compact ? 340px : 420px}>
+        <LivingQuilt width=100% height=100%/>
+    </Frame>
+    <Group x=50% y={self.compact ? 356px : 438px} width={self.compact ? (100% - 40px) : 88%} height=24px anchor_x=50%>
+        <Text class="hero_caption" width=100% height=24px text="LIVING QUILT / LIVE PAX · CLICK OR TAP"/>
+    </Group>
+    <Stacker x=50% y={self.compact ? 410px : 492px} width={self.compact ? (100% - 40px) : 88%} anchor_x=50% autosize=true gutter=18px>
+        <Text class="hero_eyebrow" width=100% height=22px text="PAX IS READY FOR BUILDERS"/>
+        <Stacker width=100% autosize=true autosize_x=false autosize_y=true
+            direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal} gutter={self.compact ? 24px : 6%}
+            sizes={self.compact ? [] : [Some(54%), None]}>
+            // Omitted heights let native text measurement follow wrapping and font metrics.
+            <Text class="hero_title" width=100% text="A declarative language for native and web UI."/>
+            <Stacker width=100% autosize=true gutter=18px>
+                <Text class="hero_copy" width=100%
+                    text="Pax is an open-source GUI framework for Rust. Describe layout, graphics, and motion in declarative templates; write your application logic in Rust. Build for macOS, iOS, iPadOS, and the web."/>
+                <Text class="hero_targets" width=100% height=34px text="WEB / MACOS / IOS / IPADOS"/>
+                <Stacker width=100% height=48px direction=StackerDirection::Horizontal gutter=10px>
+                    <Link width=100% height=100% url="https://docs.pax.dev/getting-started/" target=Target::New>
+                        <Text class="site_button_label" width=100% height=100% text="Start with the CLI →" selectable=false/>
+                        <Rectangle class="site_button_signal" width=100% height=100%/>
+                    </Link>
+                    <Link width=100% height=100% url="https://github.com/paxdotdev/pax" target=Target::New>
+                        <Text class="site_button_outline_label" width=100% height=100% text="View GitHub ↗" selectable=false/>
+                        <Rectangle class="site_button_outline" width=100% height=100%/>
+                    </Link>
+                </Stacker>
+                <Group width=100% height=64px>
+                    <Text class="hero_command" x=14px y=10px width={100% - 28px} height=20px text="pax-cli create my-app" selectable=true/>
+                    <Text class="hero_command" x=14px y=30px width={100% - 28px} height=20px text="cd my-app && pax-cli run" selectable=true/>
+                    <Rectangle fill={SiteTheme::surface()} width=100% height=100%/>
+                </Group>
+            </Stacker>
         </Stacker>
-        <Group x=0px y={self.compact ? 450px : 506px} width={self.compact ? 100% : 470px} height=48px>
-            <Text class="hero_command" x=16px y=0px width={100% - 32px} height=48px
-                text="pax-cli create wayfinder && cd wayfinder && pax-cli run" selectable=true clip=true/>
-            <Rectangle class="hero_command_bg" width=100% height=100%/>
-        </Group>
-    </Group>
-    <Group x={(self.map_x_px)px} y={self.compact ? 552px : 92px} width={(self.map_width_px)px}
-        height={self.compact ? 260px : 530px}>
-        <Text class="map_meta" x=22px y=16px width={100% - 44px} height=22px text="ONE INTERFACE MODEL / FOUR TARGETS"/>
-        <Group x=22px y=60px width={100% - 44px} height={self.compact ? 174px : 416px}>
-            <Group class="target_card" x=0px y=0px width={self.compact ? 48% : 100%} height={self.compact ? 78px : 84px}>
-                <Text class="map_meta" x=14px y=10px width=34px height=22px text="01"/>
-                <Text class="target_name" x=52px y=10px width={100% - 66px} height=24px text="WEB"/>
-                <Text class="map_meta" x=52px y=38px width={100% - 66px} height=20px text="WASM / WebGPU + fallback"/>
-                <Rectangle class="target_surface" width=100% height=100%/>
-            </Group>
-            <Group class="target_card" x={self.compact ? 100% : 0px} y={self.compact ? 0px : 106px} width={self.compact ? 48% : 100%}
-                height={self.compact ? 78px : 84px}>
-                <Text class="map_meta" x=14px y=10px width=34px height=22px text="02"/>
-                <Text class="target_name" x=52px y=10px width={100% - 66px} height=24px text="MACOS"/>
-                <Text class="map_meta" x=52px y=38px width={100% - 66px} height=20px text="Native application target"/>
-                <Rectangle class="target_surface" width=100% height=100%/>
-            </Group>
-            <Group class="target_card" x=0px y={self.compact ? 96px : 212px} width={self.compact ? 48% : 100%}
-                height={self.compact ? 78px : 84px}>
-                <Text class="map_meta" x=14px y=10px width=34px height=22px text="03"/>
-                <Text class="target_name" x=52px y=10px width={100% - 66px} height=24px text="IOS"/>
-                <Text class="map_meta" x=52px y=38px width={100% - 66px} height=20px text="Native application target"/>
-                <Rectangle class="target_surface" width=100% height=100%/>
-            </Group>
-            <Group class="target_card" x={self.compact ? 100% : 0px} y={self.compact ? 96px : 318px} width={self.compact ? 48% : 100%}
-                height={self.compact ? 78px : 84px}>
-                <Text class="map_meta" x=14px y=10px width=34px height=22px text="04"/>
-                <Text class="target_name" x=52px y=10px width={100% - 66px} height=24px text="IPADOS"/>
-                <Text class="map_meta" x=52px y=38px width={100% - 66px} height=20px text="Native application target"/>
-                <Rectangle class="target_surface" width=100% height=100%/>
-            </Group>
-            <Path class="map_trace" width=100% height=100% draw_end=@timeline {
-                duration: 3.6s,
-                loop: true,
-                0: 0%,
-                16%: 0%,
-                72%: 100%,
-                100%: 100%,
-            }/>
-        </Group>
-        <Rectangle class="map_surface" width=100% height=100%/>
-    </Group>
-    <Rectangle class="hero_rule" x=50% y={100% - 1px} width={self.compact ? (100% - 40px) : 88%} height=1px anchor_x=50%/>
-    <Rectangle class="hero_bg" width=100% height=100%/>
+    </Stacker>
+    <Rectangle x=50% y={100% - 1px} width={self.compact ? (100% - 40px) : 88%} height=1px anchor_x=50% fill={SiteTheme::rule()}/>
+    <Rectangle fill={SiteTheme::ink()} width=100% height=100%/>
 </Group>
 
 @settings {
     @mount: handle_mount
     @pre_render: handle_pre_render
-    .hero_bg {
-        fill: WHITE
-    }
-    .hero_rule {
-        fill: rgba(20, 25, 32, 32)
+    .hero_caption {
+        style: TextStyle {
+            font: Font::Web(
+                "IBM Plex Mono",
+                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                FontStyle::Normal,
+                FontWeight::Medium)
+            font_size: 10px
+            fill: {SiteTheme::muted()}
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+        }
     }
     .hero_eyebrow {
         style: TextStyle {
@@ -90,10 +66,9 @@
                 FontStyle::Normal,
                 FontWeight::Medium)
             font_size: 11px
-            fill: rgb(37, 111, 190)
+            fill: {SiteTheme::signal()}
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Left
-            align_multiline: TextAlignHorizontal::Left
         }
     }
     .hero_title {
@@ -103,8 +78,8 @@
                 "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
                 FontStyle::Normal,
                 FontWeight::ExtraBold)
-            font_size: {self.compact ? 49px : 78px}
-            fill: rgb(20, 25, 32)
+            font_size: {self.compact ? 44px : 64px}
+            fill: {SiteTheme::paper()}
             align_vertical: TextAlignVertical::Top
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
@@ -117,20 +92,25 @@
                 "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
                 FontStyle::Normal,
                 FontWeight::Normal)
-            font_size: {self.compact ? 15px : 18px}
-            fill: rgb(71, 85, 105)
+            font_size: {self.compact ? 16px : 18px}
+            fill: {SiteTheme::muted()}
             align_vertical: TextAlignVertical::Top
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
         }
     }
-    .hero_command_bg {
-        fill: rgb(248, 250, 252)
-        stroke: Stroke {
-            color: rgba(20, 25, 32, 48)
-            width: 1px
+    .hero_targets {
+        style: TextStyle {
+            font: Font::Web(
+                "IBM Plex Mono",
+                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                FontStyle::Normal,
+                FontWeight::Medium)
+            font_size: {self.compact ? 11px : 12px}
+            fill: {SiteTheme::paper()}
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
         }
-        corner_radii: RectangleCornerRadii::radii(4.0, 4.0, 4.0, 4.0)
     }
     .hero_command {
         style: TextStyle {
@@ -139,73 +119,11 @@
                 "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
                 FontStyle::Normal,
                 FontWeight::Normal)
-            font_size: {self.compact ? 9px : 11px}
-            fill: rgb(30, 41, 59)
-            align_vertical: TextAlignVertical::Center
+            font_size: 12px
+            fill: {SiteTheme::muted()}
+            align_vertical: TextAlignVertical::Top
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
         }
-    }
-    .map_surface {
-        fill: rgb(248, 250, 252)
-        stroke: Stroke {
-            color: rgba(20, 25, 32, 48)
-            width: 1px
-        }
-        corner_radii: RectangleCornerRadii::radii(8.0, 8.0, 8.0, 8.0)
-    }
-    .map_meta {
-        style: TextStyle {
-            font: Font::Web(
-                "IBM Plex Mono",
-                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
-                FontStyle::Normal,
-                FontWeight::Medium)
-            font_size: 9px
-            fill: rgb(100, 116, 139)
-            align_vertical: TextAlignVertical::Center
-            align_horizontal: TextAlignHorizontal::Left
-            align_multiline: TextAlignHorizontal::Left
-        }
-    }
-    .target_name {
-        style: TextStyle {
-            font: Font::Web(
-                "Manrope",
-                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
-                FontStyle::Normal,
-                FontWeight::Bold)
-            font_size: 13px
-            fill: rgb(20, 25, 32)
-            align_vertical: TextAlignVertical::Center
-            align_horizontal: TextAlignHorizontal::Left
-            align_multiline: TextAlignHorizontal::Left
-        }
-    }
-    .target_surface {
-        fill: WHITE
-        stroke: Stroke {
-            color: rgba(20, 25, 32, 38)
-            width: 1px
-        }
-        corner_radii: RectangleCornerRadii::radii(4.0, 4.0, 4.0, 4.0)
-    }
-    .map_trace {
-        fill: TRANSPARENT
-        stroke: Stroke {
-            color: rgb(37, 111, 190)
-            width: 2px
-        }
-        elements: [
-            PathElement::Point(2%, 8%),
-            PathElement::Line,
-            PathElement::Point(18%, 24%),
-            PathElement::Line,
-            PathElement::Point(10%, 48%),
-            PathElement::Line,
-            PathElement::Point(28%, 68%),
-            PathElement::Line,
-            PathElement::Point(18%, 92%)
-        ]
     }
 }

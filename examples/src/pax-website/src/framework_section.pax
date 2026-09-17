@@ -2,148 +2,21 @@
     <ImportSettings>
         <SiteTheme />
     </ImportSettings>
-    <Group x=50% y={self.compact ? 54px : 72px} width={self.compact ? (100% - 40px) : 88%} height={self.compact ? 960px : 576px}
-        anchor_x=50%>
-        <Text class="section_eyebrow" x=0px y=0px width=100% height=24px text="THE FRAMEWORK / LANGUAGE FIRST"/>
-        <Text class="section_title" x=0px y=42px width={self.compact ? 100% : 72%} height={self.compact ? 126px : 72px}
-            text="Build at the level of intent."/>
-        <Text class="section_copy" x=0px y={self.compact ? 184px : 126px} width={self.compact ? 100% : 66%}
-            height={self.compact ? 112px : 72px}
-            text="Pax separates what an interface is from what an application does. The declarative layer stays readable; Rust remains available wherever state, systems work, or side effects belong."/>
-        <Stacker x=0px y={self.compact ? 326px : 238px} width=100% height={self.compact ? 600px : 292px}
-            direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal} gutter={self.compact ? 12px : 14px}>
-            <Group width=100% height=100%>
-                <Text class="card_index" x=18px y=14px width=60px height=22px text="01 / .PAX"/>
-                <Text class="card_title" x=18px y=54px width={100% - 36px} height=34px text="Declare the interface"/>
-                <Text class="card_copy" x=18px y=102px width={100% - 36px} height={self.compact ? 66px : 116px}
-                    text="Describe the component tree, layout, styling, events, transitions, and timelines in a purpose-built UI language."/>
-                <Rectangle class="card_rule" x=18px y={100% - 18px} width={100% - 36px} height=2px/>
-                <Rectangle class="card_surface" width=100% height=100%/>
-            </Group>
-            <Group width=100% height=100%>
-                <Text class="card_index" x=18px y=14px width=80px height=22px text="02 / PAXEL"/>
-                <Text class="card_title" x=18px y=54px width={100% - 36px} height=34px text="Bind data declaratively"/>
-                <Text class="card_copy" x=18px y=102px width={100% - 36px} height={self.compact ? 66px : 116px}
-                    text="Connect reactive state to the scene with side-effect-free expressions that Pax can track and update."/>
-                <Rectangle class="card_rule" x=18px y={100% - 18px} width={100% - 36px} height=2px/>
-                <Rectangle class="card_surface" width=100% height=100%/>
-            </Group>
-            <Group width=100% height=100%>
-                <Text class="card_index" x=18px y=14px width=80px height=22px text="03 / RUST"/>
-                <Text class="card_title" x=18px y=54px width={100% - 36px} height=34px text="Own application logic"/>
-                <Text class="card_copy" x=18px y=102px width={100% - 36px} height={self.compact ? 66px : 116px}
-                    text="Handle state, events, platform integrations, and side effects in ordinary Rust, with reactive properties feeding the UI."/>
-                <Rectangle class="card_rule" x=18px y={100% - 18px} width={100% - 36px} height=2px/>
-                <Rectangle class="card_surface" width=100% height=100%/>
-            </Group>
-        </Stacker>
-    </Group>
-    <Rectangle class="section_rule" x=50% y={100% - 1px} width={self.compact ? (100% - 40px) : 88%} height=1px anchor_x=50%/>
-    <Rectangle class="section_bg" width=100% height=100%/>
+    <Stacker x=50% y=80px width={self.compact ? (100% - 40px) : 88%} autosize=true gutter=28px>
+        <Text class="editorial_kicker" width=100% text="BUILT FOR CREATIVE FREEDOM"/>
+        <Text class="editorial_title" width={self.compact ? 100% : 82%} text="Give your software a character of its own."/>
+        <Text class="editorial_lead" width={self.compact ? 100% : 82%}
+            text="A useful interface can also be playful, tactile, expressive—even a little strange. Pax gives you the structure to build an application and the freedom to decide how it should feel."/>
+        <Text class="editorial_body" width={self.compact ? 100% : 72%}
+            text="Components, state, and routing share a scene with paths, gradients, masks, and motion. A custom interaction doesn't need to become a separate rendering project. You can keep building on the same foundation as your idea becomes more ambitious."/>
+        <Text class="editorial_note" width={self.compact ? 100% : 72%}
+            text="You're already inside a Pax app. The quilt, this page, and the feature gallery all use the same framework. Open View Source on a section to see how it is made."/>
+    </Stacker>
+    <Rectangle class="site_rule" x=50% y={100% - 1px} width={self.compact ? (100% - 40px) : 88%} height=1px/>
+    <Rectangle class="site_ink" width=100% height=100%/>
 </Group>
 
 @settings {
     @mount: handle_mount
     @pre_render: handle_pre_render
-    .section_bg {
-        fill: WHITE
-    }
-    .section_rule {
-        fill: rgba(20, 25, 32, 32)
-    }
-    .section_eyebrow {
-        style: TextStyle {
-            font: Font::Web(
-                "IBM Plex Mono",
-                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
-                FontStyle::Normal,
-                FontWeight::Medium)
-            font_size: {self.compact ? 9px : 11px}
-            fill: rgb(37, 111, 190)
-            align_vertical: TextAlignVertical::Center
-            align_horizontal: TextAlignHorizontal::Left
-            align_multiline: TextAlignHorizontal::Left
-        }
-    }
-    .card_index {
-        style: TextStyle {
-            font: Font::Web(
-                "IBM Plex Mono",
-                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
-                FontStyle::Normal,
-                FontWeight::Medium)
-            font_size: {self.compact ? 9px : 11px}
-            fill: rgb(37, 111, 190)
-            align_vertical: TextAlignVertical::Center
-            align_horizontal: TextAlignHorizontal::Left
-            align_multiline: TextAlignHorizontal::Left
-        }
-    }
-    .section_title {
-        style: TextStyle {
-            font: Font::Web(
-                "Manrope",
-                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
-                FontStyle::Normal,
-                FontWeight::ExtraBold)
-            font_size: {self.compact ? 34px : 52px}
-            fill: rgb(20, 25, 32)
-            align_vertical: TextAlignVertical::Top
-            align_horizontal: TextAlignHorizontal::Left
-            align_multiline: TextAlignHorizontal::Left
-        }
-    }
-    .section_copy {
-        style: TextStyle {
-            font: Font::Web(
-                "Manrope",
-                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
-                FontStyle::Normal,
-                FontWeight::Normal)
-            font_size: {self.compact ? 14px : 16px}
-            fill: rgb(71, 85, 105)
-            align_vertical: TextAlignVertical::Top
-            align_horizontal: TextAlignHorizontal::Left
-            align_multiline: TextAlignHorizontal::Left
-        }
-    }
-    .card_copy {
-        style: TextStyle {
-            font: Font::Web(
-                "Manrope",
-                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
-                FontStyle::Normal,
-                FontWeight::Normal)
-            font_size: {self.compact ? 14px : 16px}
-            fill: rgb(71, 85, 105)
-            align_vertical: TextAlignVertical::Top
-            align_horizontal: TextAlignHorizontal::Left
-            align_multiline: TextAlignHorizontal::Left
-        }
-    }
-    .card_title {
-        style: TextStyle {
-            font: Font::Web(
-                "Manrope",
-                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
-                FontStyle::Normal,
-                FontWeight::Bold)
-            font_size: {self.compact ? 17px : 20px}
-            fill: rgb(20, 25, 32)
-            align_vertical: TextAlignVertical::Top
-            align_horizontal: TextAlignHorizontal::Left
-            align_multiline: TextAlignHorizontal::Left
-        }
-    }
-    .card_surface {
-        fill: rgb(248, 250, 252)
-        stroke: Stroke {
-            color: rgba(20, 25, 32, 42)
-            width: 1px
-        }
-        corner_radii: RectangleCornerRadii::radii(6.0, 6.0, 6.0, 6.0)
-    }
-    .card_rule {
-        fill: rgb(37, 111, 190)
-    }
 }

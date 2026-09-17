@@ -84,6 +84,99 @@ pub fn press_template_codegen_cartridge_snippet(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pax_manifest::{ComponentDefinition, PaxManifest, TypeDefinition, TypeId};
+
+    #[test]
+    fn component_helpers_preserve_full_type_identity_in_debug_and_release() {
+        let mut manifest = PaxManifest {
+            components: Default::default(),
+            main_component_type_id: TypeId::build_singleton("crate::Example", None),
+            type_table: Default::default(),
+            assets_dirs: vec![],
+            engine_import_path: "pax_engine".into(),
+        };
+        let paths = [
+            "crate::Example",
+            "living_quilt::Example",
+            "crate::nested::Example",
+            "crateCOCOExample",
+        ];
+        for path in paths {
+            let type_id = TypeId::build_singleton(path, None);
+            manifest.components.insert(
+                type_id.clone(),
+                ComponentDefinition {
+                    type_id: type_id.clone(),
+                    is_main_component: path == "crate::Example",
+                    is_primitive: false,
+                    is_struct_only_component: false,
+                    module_path: path.rsplit_once("::").map_or("crate", |(m, _)| m).into(),
+                    primitive_instance_import_path: None,
+                    template: None,
+                    settings: None,
+                    timelines: vec![],
+                    route_branch: None,
+                },
+            );
+            manifest.type_table.insert(
+                type_id.clone(),
+                TypeDefinition {
+                    type_id,
+                    ..Default::default()
+                },
+            );
+        }
+
+        for (is_designtime, use_rust_manifest) in [(true, false), (false, true)] {
+            let mut args = cartridge_args(is_designtime, use_rust_manifest);
+            args.components = manifest.generate_codegen_component_info();
+            let symbols: std::collections::HashSet<_> = args
+                .components
+                .iter()
+                .map(|component| component.symbol_identifier.clone())
+                .collect();
+            assert_eq!(symbols.len(), paths.len());
+            let generated = press_template_codegen_cartridge_snippet(args);
+            let parsed = syn::parse_file(&generated).expect("valid cartridge Rust");
+            let module = parsed
+                .items
+                .iter()
+                .find_map(|item| match item {
+                    syn::Item::Mod(module) => module.content.as_ref(),
+                    _ => None,
+                })
+                .unwrap();
+            let mut declared = std::collections::HashSet::new();
+            for item in &module.1 {
+                let name = match item {
+                    syn::Item::Const(item) => &item.ident,
+                    syn::Item::Static(item) => &item.ident,
+                    syn::Item::Fn(item) => &item.sig.ident,
+                    _ => continue,
+                };
+                assert!(
+                    declared.insert(name.to_string()),
+                    "duplicate generated symbol: {name}"
+                );
+            }
+            for symbol in symbols {
+                for suffix in [
+                    "PropertyScopeDescriptors",
+                    "PropertyDescriptors",
+                    "HandlerDescriptors",
+                    "Instantiate",
+                    "ComponentDescriptor",
+                    "ErasedComponentDescriptor",
+                ] {
+                    assert!(declared.contains(&format!("{symbol}{suffix}")));
+                }
+                assert!(generated.contains(&format!("&{symbol}ErasedComponentDescriptor,")));
+            }
+            for path in paths {
+                assert!(generated.contains(&format!("\"{path}\"")));
+            }
+        }
+    }
 
     fn cartridge_args(
         is_designtime: bool,

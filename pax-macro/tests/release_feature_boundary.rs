@@ -70,7 +70,7 @@ pub struct App {}
         .env("CARGO_TARGET_DIR", workspace_dir.join("target"))
         .env("PAX_BUILD_TARGET", "web")
         .env("PAX_BUILD_DESIGNTIME", "0")
-        .env("PAX_DIR", fixture.path())
+        .env("PAX_DIR", fixture.path().join(".pax"))
         .output()
         .unwrap();
     let stderr = String::from_utf8_lossy(&output.stderr);

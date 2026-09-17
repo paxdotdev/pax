@@ -1,8 +1,6 @@
-<% if args_full_component.as_ref().is_some() && args_full_component.as_ref().unwrap().is_main_component  { %>
-    <% if is_root_crate { %>
-        //For main+root component only, include cartridge snippet and manifest JSON
-        <%= args_full_component.as_ref().unwrap().cartridge_snippet %>
-    <% } %>
+<% if is_root_crate && args_full_component.as_ref().is_some() && args_full_component.as_ref().unwrap().is_main_component { %>
+    // Only the active application owns a cartridge and platform entrypoints.
+    <%= args_full_component.as_ref().unwrap().cartridge_snippet %>
 
     <% if build_config.web { %>
     //Platform-specific mount logic for #[main] component

@@ -59,3 +59,68 @@ pub struct TemplateArgsDerivePax {
     /// `pax-engine` directly rather than through `pax-kit`.
     pub engine_import_path: String,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn render_main(root: bool, target: &str, designtime: bool) -> String {
+        TemplateArgsDerivePax {
+            args_full_component: Some(ArgsFullComponent {
+                is_main_component: true,
+                cartridge_snippet: "const CARTRIDGE_OWNER: bool = true;".into(),
+            }),
+            internal_definitions: InternalDefinitions::Struct(vec![]),
+            pascal_identifier: "EmbeddedExample".into(),
+            is_custom_interpolatable: false,
+            is_custom_coercion_rules: false,
+            can_derive_identity_roundtrip: false,
+            is_root_crate: root,
+            _is_enum: false,
+            build_config: TemplateBuildConfig {
+                web: target == "web",
+                macos: target == "macos",
+                ios: target == "ios",
+                ipados: target == "ipados",
+                designtime,
+            },
+            engine_import_path: "pax_engine".into(),
+        }
+        .render_once()
+        .unwrap()
+    }
+
+    #[test]
+    fn dependency_main_remains_a_component_without_platform_entrypoints() {
+        for target in ["web", "macos", "ios", "ipados"] {
+            for designtime in [true, false] {
+                let generated = render_main(false, target, designtime);
+                syn::parse_file(&generated).unwrap();
+                assert!(generated.contains("Interpolatable for EmbeddedExample"));
+                assert!(!generated.contains("CARTRIDGE_OWNER"));
+                assert!(!generated.contains("fn pax_init"));
+                assert!(!generated.contains("init_manifest"));
+                assert!(!generated.contains("pub use pax_engine::pax_chassis"));
+            }
+        }
+    }
+
+    #[test]
+    fn application_main_keeps_debug_and_release_entrypoints() {
+        for target in ["web", "macos", "ios", "ipados"] {
+            for designtime in [true, false] {
+                let generated = render_main(true, target, designtime);
+                syn::parse_file(&generated).unwrap();
+                assert!(generated.contains("CARTRIDGE_OWNER"));
+                assert_eq!(generated.matches("fn pax_init").count(), 1);
+                assert!(generated.contains("init_manifest"));
+                let debug_constructor = if target == "web" {
+                    "new_designtime"
+                } else {
+                    "new_with_designtime"
+                };
+                assert_eq!(generated.contains(debug_constructor), designtime);
+            }
+        }
+    }
+}
