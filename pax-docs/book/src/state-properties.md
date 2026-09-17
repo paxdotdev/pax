@@ -272,18 +272,6 @@ Computed evaluators should be deterministic and free of side effects. Their
 execution follows demand for a value. Use a subscription for work that must
 respond to a change independently of a value being read.
 
-<div class="docs-example-placeholder">
-<p><strong>Interactive example planned:</strong> advance the Field notes panel and follow the Rust state write into the label and bar.</p>
-<!-- Production brief:
-- Keep the source property, handler, computed field, and template visible.
-- Show the initial value and successive changes without introducing a starter.
-- Distinguish a shared property handle from a copied value.
-Treatments: the existing panel with coordinated source highlights; a short
-checklist whose add action demonstrates collection updates; or two side-by-side
-readouts sharing a handle, with a separate frozen snapshot. Prefer the panel.
-Keep source and behavior tied to the docs version. -->
-</div>
-
 ## Subscriptions and effects
 
 A subscription runs a callback in response to reactive dependencies. Use it
@@ -353,18 +341,6 @@ This is eager invalidation with on-demand evaluation. Subscriptions are
 explicit observers: the runtime schedules them when they become dirty.
 Propagation cutoffs, described next, also schedule work so they can decide
 whether a change should travel farther through the graph.
-
-<div class="docs-media-placeholder">
-<p><strong>Diagram planned:</strong> trace a progress write through invalidation and then through the reads that update the panel.</p>
-<!-- Production brief:
-- Distinguish graph edges from the temporal order of writes and evaluations.
-- Show one input branching into a template formula and a Rust computed value.
-- Show cached reads and multiple writes coalescing before evaluation.
-Treatments: an annotated three-step dependency graph; a before/after graph of
-replace_with preserving consumers; or a pointer-to-bucket cutoff diagram with
-several input positions sharing one accepted output. Prefer the three-step
-graph; avoid suggesting that every write triggers a full render. -->
-</div>
 
 ## Propagation cutoffs
 

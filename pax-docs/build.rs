@@ -10,6 +10,9 @@ use tantivy::Index;
 #[allow(dead_code)]
 mod examples;
 
+#[path = "src/source_bundle.rs"]
+mod source_bundle;
+
 const MAGIC: &[u8; 8] = b"PAXDOCS\0";
 const VERSION: u32 = 3;
 
@@ -48,13 +51,14 @@ struct IndexFile {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR")?);
-    let workspace_dir = manifest_dir
-        .parent()
-        .ok_or("pax-docs must live one level below workspace root")?;
+    let out_dir = PathBuf::from(env::var("OUT_DIR")?);
+    let workspace = source_bundle::example_workspace(&manifest_dir, &out_dir)?;
+    let workspace_dir = workspace.as_path();
     let book_dir = manifest_dir.join("book").join("src");
     let summary_path = book_dir.join("SUMMARY.md");
 
     println!("cargo:rerun-if-env-changed=PAX_DOCS_FORCE_REBUILD");
+    println!("cargo:rerun-if-changed=bundled-example-sources.json");
     println!("cargo:rerun-if-changed={}", summary_path.display());
     println!(
         "cargo:rerun-if-changed={}",
@@ -67,7 +71,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let entries = load_entries(workspace_dir, &book_dir, &summary_path)?;
     let index_id = compute_docs_hash(&entries);
 
-    let out_dir = PathBuf::from(env::var("OUT_DIR")?);
     let index_dir = out_dir.join("paxdocs_index");
     if index_dir.exists() {
         let _ = fs::remove_dir_all(&index_dir);

@@ -83,17 +83,6 @@ when checking whether a shell or project preference is affecting a run.
 Generated `cargo run` wrappers forward trailing arguments, so
 `cargo run -- --hot-reload=all` can select the same policy.
 
-<div class="docs-example-placeholder">
-<p><strong>Workflow demonstration planned:</strong> one template edit followed by one Rust-handler edit, with the source, running app, and reload status visible together.</p>
-<!-- Production brief:
-- Use one canonical example and name its source revision. Show the default Pax
-  lane first, then the optional all mode; include a real failure/recovery step.
-- Three treatments: an annotated terminal/app recording; a four-step filmstrip;
-  or a source diff beside before/after captures. Prefer the filmstrip with a
-  short optional recording. Do not imply a fixed reload duration.
-- Keep the demonstration separate from the PAX-993 starter's evolving design. -->
-</div>
-
 ## Format Pax source
 
 `pax-cli fmt` formats `.pax` files and Pax templates embedded in Rust source.
@@ -342,7 +331,9 @@ pager. Example lookup prints the included source files.
 These reads use the CLI's bundled snapshot, not a live fetch of the latest
 website. Check `pax-cli --version` when comparing instructions across releases.
 Viewing source through `docs examples` does not create a project or install
-its assets. In a repository checkout, canonical examples live under
+its assets. To create a runnable project from the curated bundled set, use
+[`create --example`](#create-from-a-bundled-example) below.
+In a repository checkout, canonical examples live under
 `examples/src`; run one from the repository root with:
 
 ```sh
@@ -353,6 +344,41 @@ The CLI also has `docs build` for contributors rebuilding the documentation
 assets in a Pax repository. It can regenerate API pages, example metadata/
 bundles, and the CLI's search content. It is not required to browse installed
 docs, and should not be run casually over an in-progress documentation edit.
+
+The HTML docs use optimized release builds for their interactive examples.
+An example runs automatically while its stage is visible and suspends frame
+updates and drawing when scrolled out of view or when the docs tab is hidden.
+Returning to it preserves its state; **Restart** starts over, and **Open
+standalone** runs the example independently. Suspension does not stop application
+network requests or other external work. Elapsed-time-based animations can
+advance to the current time when resumed.
+
+### Create from a bundled example
+
+The CLI includes complete project templates for a curated subset of examples:
+
+| Example | Starting point |
+| --- | --- |
+| `living-quilt` (default) | Interactive geometric tapestry with responsive components, motion, lighting, and GPU alpha masks |
+| `ink-and-light` | A responsive postcard with handwriting, local assets, and Rust interaction |
+| `increment` | A minimal counter for exploring the reactive update loop |
+
+```sh
+pax-cli create my-quilt
+pax-cli create my-postcard --example=ink-and-light
+pax-cli create my-counter --example=increment
+```
+
+Choose one, enter its directory, and run `pax-cli run --target web`. These
+projects include the source and assets needed to build; they require no Pax
+repository checkout. An unknown example name reports the available choices
+without creating a partial project. The curated create set is smaller than
+the source-reading catalog in `docs examples`.
+
+Each CLI release carries its own snapshot. For contributors, `examples/src/*`
+is canonical; `examples/bundled-cli-examples.toml` selects the create set and
+`scripts/sync-cli-examples.py` synchronizes the packaged archive. Release tooling
+runs that synchronization after version updates and before packaging.
 
 
 ## Read more

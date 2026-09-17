@@ -155,6 +155,24 @@ def verify_web_interface_release_artifacts():
         exit(1)
 
 
+def sync_and_verify_bundled_docs_examples():
+    """Keep registry-built CLI docs independent of a monorepo checkout."""
+    sync_script = os.path.join(WORKSPACE_DIR, "scripts", "sync-docs-examples.py")
+    bundle_path = os.path.join(WORKSPACE_DIR, "pax-docs", "bundled-example-sources.json")
+    subprocess.run(["python3", sync_script], check=True, cwd=WORKSPACE_DIR)
+    subprocess.run(["python3", sync_script, "--check"], check=True, cwd=WORKSPACE_DIR)
+    package_files = subprocess.run(
+        ["cargo", "package", "--list", "--allow-dirty"],
+        cwd=os.path.join(WORKSPACE_DIR, "pax-docs"), check=True,
+        text=True, stdout=subprocess.PIPE,
+    ).stdout.splitlines()
+    if "bundled-example-sources.json" not in package_files:
+        raise SystemExit("Docs example source snapshot is missing from pax-docs package")
+    # The release commit uses -am; include this generated source artifact even
+    # on the first release that introduces it.
+    subprocess.run(["git", "add", bundle_path], check=True, cwd=WORKSPACE_DIR)
+
+
 def sync_and_verify_bundled_cli_examples():
     """Snapshot rewritten canonical examples before the release commit/package checks."""
     sync_script = os.path.join(WORKSPACE_DIR, "scripts", "sync-cli-examples.py")
@@ -312,6 +330,7 @@ update_crate_versions_in_examples(NEW_VERSION, PACKAGE_NAMES, EXAMPLES_DIR)
 # Version rewriting changes the hand-edited canonical examples. Snapshot only
 # after that pass, and verify/stage the crate-owned artifact before committing.
 sync_and_verify_bundled_cli_examples()
+sync_and_verify_bundled_docs_examples()
 
 # Also update the docs version manifest, so the release commit records the
 # newly published docs version before any S3/CloudFront upload happens.

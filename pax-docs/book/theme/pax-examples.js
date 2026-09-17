@@ -72,12 +72,30 @@
             const stage = el("div", "pax-example-stage");
             card.appendChild(stage);
             let generation = 0;
+            let currentIframe;
+            // Observe the live stage, not its potentially very long source-code panel.
+            let inViewport = typeof IntersectionObserver === "undefined";
+            function syncPlayback() {
+                currentIframe?.contentWindow?.Pax?.setSuspended?.(!inViewport || document.hidden);
+            }
+            if (typeof IntersectionObserver !== "undefined") {
+                const observer = new IntersectionObserver(entries => {
+                    inViewport = entries.some(entry => entry.isIntersecting);
+                    syncPlayback();
+                });
+                observer.observe(stage);
+            }
+            document.addEventListener("visibilitychange", syncPlayback);
             function mountExample() {
                 const currentGeneration = ++generation;
                 const iframe = el("iframe", "pax-example-frame");
                 iframe.title = `${title} — interactive example`;
                 iframe.sandbox = "allow-scripts allow-same-origin allow-forms allow-pointer-lock";
                 iframe.style.height = `${height}px`;
+                currentIframe = iframe;
+                iframe.addEventListener("load", () => {
+                    if (currentGeneration === generation) syncPlayback();
+                });
                 status.textContent = "";
                 status.hidden = true;
                 iframe.addEventListener("error", () => {
@@ -86,7 +104,10 @@
                         status.hidden = false;
                     }
                 });
-                iframe.src = appUrl;
+                const embeddedUrl = new URL(appUrl);
+                // Prevent a frame from running before the observer/load handshake.
+                embeddedUrl.searchParams.set("pax_suspended", "1");
+                iframe.src = embeddedUrl.href;
                 // Replace the browsing context so timers, input state, and the old runtime end together.
                 stage.replaceChildren(iframe);
             }

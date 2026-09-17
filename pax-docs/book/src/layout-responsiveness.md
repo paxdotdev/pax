@@ -113,17 +113,6 @@ Be deliberate with anchors when placing content beyond an edge. For example,
 `y={100% + 8px} anchor_y=0px` places the top of a child eight pixels below its
 parent. The explicit anchor is important to that relationship.
 
-<div class="docs-media-placeholder">
-<p><strong>Diagram planned:</strong> move a fixed-size card through 0%, 50%, and 100% positions, showing the parent point and the matching child anchor.</p>
-<!-- Production brief:
-- Label parent width, child width, position, anchor, and resulting left edge.
-- Compare default percentage anchoring with an explicit zero anchor and a mixed-unit inset.
-- Keep transformed geometry out of the first view.
-Treatments: a draggable alignment rail; three small annotated panels; or an
-anchor crosshair over a resizable card. Prefer the alignment rail with exact
-numeric readouts and a static fallback. -->
-</div>
-
 ## Choose a container
 
 A Group establishes a shared coordinate space. It does not automatically
@@ -278,16 +267,6 @@ content rather than depending on its first frame. The
 [`auto-sized-containers` example](https://github.com/paxproject/pax/tree/dev/examples/src/auto-sized-containers)
 explores the available surfaces.
 
-<div class="docs-example-placeholder">
-<p><strong>Interactive example planned:</strong> resize or edit notes and compare a fixed-height group with a content-sized stack.</p>
-<!-- Production brief:
-- Expose concrete dimensions, content measurement, and gutter/padding contributions.
-- Show a useful, well-constrained case before introducing a parent-dependent axis.
-- Keep font loading and settled measurement observable without a noisy debugger.
-Treatments: editable note cards; a parcel stack with labeled heights; or a
-caption frame that follows its text. Prefer the note cards with source tabs. -->
-</div>
-
 ## Responsive layout
 
 Start with fluid relationships: percentage widths, deliberate insets, and
@@ -407,16 +386,6 @@ position that node in its parent. Use layout position and anchors for the
 node, and `style.align_horizontal`, `style.align_vertical`, and
 `style.align_multiline` for text within it. [Text](text-fonts-images.md)
 covers the distinction in more detail.
-
-<div class="docs-example-placeholder">
-<p><strong>Interactive example planned:</strong> resize the Field notes board and compare viewport-driven layout with two differently sized instances in the same window.</p>
-<!-- Production brief:
-- Keep card state visible while the row changes to a column.
-- Show widths just below and above the chosen breakpoint, plus a short viewport.
-- Include a side-by-side nested-component case whose available widths differ.
-Treatments: a draggable app frame; three synchronized viewport previews; or a
-full-page/inspector split. Prefer the draggable frame with explicit width labels. -->
-</div>
 
 ## Transforms and origins
 

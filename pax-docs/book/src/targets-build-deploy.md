@@ -8,8 +8,9 @@ in the environment where people will use them.
 
 Pax targets web, macOS, iOS, and iPadOS. Web releases can be served as static
 files. macOS has a release build path; distribution adds Apple's signing and
-packaging steps. iOS and iPadOS currently support development builds and device
-runs, with a [release-packaging limitation](#apple-distribution) described below.
+packaging steps. iOS and iPadOS support debug and release builds, including
+local simulator and connected-device runs. [Apple distribution](#apple-distribution)
+requires additional signing and delivery steps.
 
 This chapter assumes you have completed [Getting Started](getting-started.md).
 Commands run from your project's directory unless stated otherwise.
@@ -52,9 +53,10 @@ pax-cli build --target web
 pax-cli build --target web --release
 ```
 
-Run these separately. `run` uses a debug build and starts the target's
+Run these separately. `run` defaults to a debug build and starts the target's
 development harness. `build` also defaults to debug; `--release` selects the
-optimized release path. `run` does not accept `--release`.
+optimized release path. iOS and iPadOS additionally accept `run --release` to
+install and launch a local release. For web and macOS, use `build --release`.
 
 You can work from another directory with `--path`:
 
@@ -81,9 +83,12 @@ Pax writes generated files beneath the project's `.pax/` directory:
 | macOS release | `.pax/build/release/macos/app/Pax macOS (Release).app` |
 | iOS debug | `.pax/build/debug/ios/app/Pax iOS (Development).app` |
 | iPadOS debug | `.pax/build/debug/ipados/app/Pax iOS (Development).app` |
+| iOS release | `.pax/build/release/ios/app/Pax iOS (Development).app` |
+| iPadOS release | `.pax/build/release/ipados/app/Pax iOS (Development).app` |
 
 iOS and iPadOS share the generated iOS host, including that bundle filename.
-The display name inside the app can be configured independently.
+The mobile bundle filename retains “Development” even when built with the
+Release configuration. The display name inside the app can be configured independently.
 
 `--profiling` is web-only: it produces optimized output with Wasm names retained
 for size analysis. It is separate from the normal release directory. See
@@ -133,6 +138,22 @@ On Windows, `py -3` can replace `python3`. Open
 `http://127.0.0.1:8080/`, interact with the app, and inspect the browser console
 and network requests. This server is for local review. It does not configure
 production HTTPS, caching, or application-route fallback.
+
+### Suspend an embedded web app
+
+A custom web host can call `window.Pax.setSuspended(true)` to suspend frame
+updates and drawing without unmounting the app. Call it with `false` to resume.
+For a same-origin iframe, the host can access the API through
+`iframe.contentWindow.Pax`; wait for the iframe's `load` event first.
+Loading the iframe with `?pax_suspended=1` starts it suspended, including while
+its Wasm is loading. The standalone URL needs no such parameter.
+
+Use an `IntersectionObserver` on the iframe's stage and the host document's
+`visibilitychange` event to resume only while the example is in view and the
+host tab is visible. The docs use this arrangement. Properties and form state
+remain mounted; this does not cancel application requests, freeze wall-clock
+time, or pause arbitrary JavaScript timers. Elapsed-time-based animations may
+catch up when frame updates resume.
 
 ## Assets and web public files
 
@@ -396,6 +417,34 @@ To build a debug simulator app without launching it, use
 and simulator `run` are development workflows; they do not produce a TestFlight
 or App Store upload.
 
+### Local release runs
+
+Use the same simulator selection with `--release` to build and launch optimized
+code without designtime or hot reload:
+
+```sh
+pax-cli run --target ios --release
+pax-cli run --target ipados --release --ios-device "simulator:YOUR_SIMULATOR_UDID"
+```
+
+Run either command for the target you want. Simulator runs do not require
+signing credentials. For a paired physical device with Developer Mode enabled:
+
+```sh
+pax-cli run --release --target ipados \
+  --ios-device 'device:My iPad' --ios-development-team YOUR_TEAM_ID
+```
+
+Use `--target ios` for iPhone and replace the device name and team with your
+own. The CLI compiles, uses Xcode's Release configuration with Apple Development
+signing, installs, and launches the app. The team can also come from
+[project metadata](#project-metadata). Release runs disable both hot-reload
+lanes even if a flag, environment variable, or project setting requests them.
+
+`pax-cli build --target ios --release` (or `--target ipados`) builds the
+device-target app without launching it. These commands do not archive, export,
+or upload an app for TestFlight or the App Store.
+
 ## Project metadata
 
 Keep application identity and packaging preferences in `Cargo.toml`. Pax reads
@@ -455,6 +504,10 @@ the square source. Without an explicit web favicon, a configured icon produces
 a 64×64 PNG favicon. These are build-time transformations; rebuild after
 changing the source or metadata.
 
+The bundled iOS/iPadOS interface includes a Pax icon when no custom icon is
+configured. An ejected interface retains its own asset catalog unless an icon
+override is supplied.
+
 ## Apple distribution
 
 For macOS, finish the signing and distribution configuration appropriate to
@@ -465,24 +518,22 @@ and [notarization guide](https://developer.apple.com/documentation/security/nota
 own those platform steps. Pax does not upload an archive or notarize the
 application for you.
 
-**Current mobile release boundary:** `pax-cli build --target ios --release`
-and its iPadOS equivalent do not complete app packaging. The implementation
-builds the selected release cartridge binaries, then stops at an explicit
-unimplemented step before the Xcode app build. Supplying a development team
-does not remove that limitation.
+For iOS and iPadOS, the CLI completes the local release app build and can
+development-sign and launch it on a selected device. Distribution still
+requires the appropriate Apple archive/export, distribution signing,
+provisioning, and upload workflow. A successful local release run does not
+establish TestFlight or App Store readiness.
 
 The generated mobile Xcode project is currently at
 `.pax/interface/ios/pax-app-ios/pax-app-ios.xcodeproj`; shared Swift packages
 and cartridge framework files are under `.pax/interface/common/`. These are
-generated working files and can be overwritten by later builds. The current
-release diagnostic still mentions older `.pax/pkg/…` paths; use the current
-layout when inspecting artifacts.
+generated working files and can be overwritten by later builds.
 
 A custom native host or manual Xcode integration requires its own release,
 resource, signing, and device validation. There is no verified end-to-end
 mobile distribution recipe in this chapter yet. If TestFlight or App Store
-delivery is required for your project, treat this as an open release-tooling
-dependency rather than assuming a successful development run establishes it.
+delivery is required for your project, plan and verify that distribution step
+separately from the CLI's local release workflow.
 
 ## Before sharing a build
 

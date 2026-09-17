@@ -2041,6 +2041,26 @@ impl ExpandedNode {
                     {
                         node.compute_flattened_projected_children();
                     }
+                    // Projected if/for nodes are flattened out of the render
+                    // tree. Their structural changes must refresh the receiving
+                    // component's input list, even when it was previously empty.
+                    if borrow!(node.instance_node).base().flags().invisible_to_slot {
+                        let mut ancestor = node.template_parent.upgrade();
+                        while let Some(parent) = ancestor {
+                            if borrow!(parent.expanded_projected_children).is_some() {
+                                parent.compute_flattened_projected_children();
+                                break;
+                            }
+                            if !borrow!(parent.instance_node)
+                                .base()
+                                .flags()
+                                .invisible_to_slot
+                            {
+                                break;
+                            }
+                            ancestor = parent.template_parent.upgrade();
+                        }
+                    }
                     context.mark_occlusion_dirty();
 
                     let (is_slot, is_component) = {

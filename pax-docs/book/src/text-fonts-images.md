@@ -130,14 +130,6 @@ The default alignments are left, top, and left. Text metrics and line breaks
 can differ between platforms even with the same declared size. Check your
 longest content and the scripts your application needs on each shipping target.
 
-<div class="docs-media-placeholder">
-<p><strong>Interactive example planned:</strong> resize a Field notes paragraph and compare measured height, a fixed clipped box, and centered multiline text.</p>
-<!-- Production brief: use the exact chapter snippets; show node bounds and
-measured height without altering the paragraph. Include a delayed-font view
-only after its loading behavior is independently verified. Provide source
-tabs and a static narrow/wide comparison. -->
-</div>
-
 ## Font values
 
 A string names a locally available family: `font: "Arial"`. It selects normal
@@ -324,13 +316,6 @@ the top and bottom, and Stretch makes the subject wider:
 Use a Frame around an Image for rounded clipping; an Image's own fit policy
 only defines how pixels occupy its box. Read [Compositing](compositing-effects.md)
 for clipping and masks.
-
-<div class="docs-media-placeholder">
-<p><strong>Interactive example planned:</strong> compare Fit, Fill, and Stretch using one image with clearly marked edges.</p>
-<!-- Production brief: keep the same source and bounds in all three cells;
-show the uncropped source alongside them. Let the reader resize the cells.
-Use canonical example assets and source tabs; include a static comparison. -->
-</div>
 
 ### Raw pixel data
 

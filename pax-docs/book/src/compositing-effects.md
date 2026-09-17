@@ -14,6 +14,24 @@ This chapter builds on [Layout](layout-responsiveness.md) and
 [Animation](animation-motion.md) explains how to move those boundaries and
 change their properties over time.
 
+Neon Opacity's **Afterimage Observatory** combines moving vector layers,
+transparency, and masked native controls. Adjust the **BEAM** slider in the
+Console to change the shared opacity (initially 75%), then try the text field or
+**ENGAGE** button while the scene moves. Watch how overlapping surfaces and
+their controls fade together. **Open standalone** gives the composition more
+room to explore.
+
+The masks in this example use geometric coverage; the
+[painted alpha mask](#painted-alpha-masks) section below describes a separate
+mode. Its motion is driven by frame-based Rust updates.
+
+<pax-example
+  path="neon-opacity"
+  title="Neon Opacity"
+  height="900"
+  files="src/lib.pax,src/lib.rs">
+</pax-example>
+
 ## Choose the boundary
 
 Earlier siblings in a Pax template appear in front of later siblings. Put
@@ -194,6 +212,16 @@ repeated subtree can combine supported source shapes; overlapping paints
 combine with source-over alpha, so two half-opacity shapes give 75%
 coverage where they overlap.
 
+Add `feather=2.0` to the Mask to soften its painted coverage. `feather` is the
+Gaussian standard deviation in logical pixels, rather than a percentage or a
+Pax length literal. It defaults to zero; negative values are treated as zero.
+It affects alpha masks only and does not blur the revealed content itself.
+
+Living Quilt uses `alpha=true feather=2.0` for its moving color waves. See the
+[live Living Quilt and its source](what-is-pax.md#try-it-living-quilt) for the
+complete two-child composition: a colored quilt followed by a Group of repeated
+animated paths that supplies the coverage.
+
 Nested alpha masks on the content multiply their coverage, while ordinary
 geometric clips further restrict the result. An empty or fully transparent
 alpha source hides all content. Alpha masking modulates individual canvas
@@ -207,19 +235,6 @@ not supported alpha sources. For a mixed native/rendered composition, keep
 the default geometry mask; for a soft visual reveal, use supported vector
 source paint and keep interactive hit targets separate. Alpha coverage does
 not change hit testing.
-
-<div class="docs-example-placeholder">
-<p><strong>Interactive example planned:</strong> compare a hard geometry mask with a gradient-alpha reveal, showing the content, source, and result side by side.</p>
-<!-- Production brief:
-- Expose geometry controls and a source-outline toggle outside the actual Mask.
-  Keep native text and a working button in the content; compare Frame and Mask.
-- Use separate GPU canvas content for the alpha example, with an explicit
-  backend label and no native text or controls inside the alpha-masked content.
-- Three treatments: a Field notes specimen window; a paper viewfinder over a
-  landscape; a ticket-shaped crop. Prefer the specimen window and a static path.
-- Show the two direct children in source tabs. Include a still diagram and
-  keyboard controls; do not rely on autoplay or on color alone. -->
-</div>
 
 ## Opacity through a subtree
 
@@ -284,16 +299,6 @@ The ellipse is earlier in the template, so its overlapping area appears in
 front of the Button. The later Rectangle stays behind both. Moving the
 ellipse updates that relationship; wrapping the composition in a Mask
 adds another visible boundary.
-
-<div class="docs-media-placeholder">
-<p><strong>Diagram planned:</strong> show the template order, rendered surface, native surface, and coverage mask for the overlapping button and ellipse.</p>
-<!-- Production brief:
-- Explain the final image first, then separate its contributing surfaces.
-- Three treatments: exploded paper layers; a four-panel before/after; a simple
-  annotated cutaway. Prefer the cutaway, with labels that do not imply one
-  offscreen texture or native layer for every Pax component.
-- Include a scroller-island inset only after the root-surface explanation. -->
-</div>
 
 ### Coverage has limits
 
@@ -390,6 +395,19 @@ Light-reactive vector materials and LightFrame are taught in
 [Drawing](drawing-styling.md#lighting-and-materials). Their GPU lighting
 changes the drawn material; it does not automatically blur or refract all
 the native content behind it. Piet renders those materials unlit.
+
+In **Materials**, scroll through the collection of imagined elements. Scrolling
+moves a light across surfaces with matte, glossy, metallic, emissive, and custom
+materials. Compare how their highlights respond, then open the Rust source to
+see the material parameters and scroll-driven light position. The lighting
+requires the WGPU renderer; Piet shows the unlit fills and strokes.
+
+<pax-example
+  path="materials"
+  title="Materials"
+  height="760"
+  files="src/lib.pax,src/lib.rs">
+</pax-example>
 
 A general-purpose Gaussian blur wrapper, configurable blend modes, and
 portable backdrop materials are not part of the current public toolkit.

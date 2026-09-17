@@ -58,9 +58,56 @@ impl Example {
         self.callsign.set("LUX-17".to_string());
         self.selected_mode.set(0);
         self.spectrum_band.set(1);
-        self.beam_gain.set(1.0);
+        self.beam_gain.set(0.75);
+        self.scene_opacity.set(0.75);
         self.stabilizers.set(true);
-        self.refresh_labels();
+
+        let mode = self.selected_mode.clone();
+        self.mode_label.replace_with(Property::computed(
+            move || {
+                match mode.get() {
+                    0 => "SPECTRAL",
+                    1 => "NATIVE",
+                    _ => "MASK",
+                }
+                .to_string()
+            },
+            &[self.selected_mode.untyped()],
+        ));
+        let band = self.spectrum_band.clone();
+        self.spectrum_label.replace_with(Property::computed(
+            move || {
+                match band.get() {
+                    0 => "AURORA",
+                    1 => "NOCTIS",
+                    _ => "PULSE",
+                }
+                .to_string()
+            },
+            &[self.spectrum_band.untyped()],
+        ));
+        let opacity = self.scene_opacity.clone();
+        self.beam_label.replace_with(Property::computed(
+            move || format!("{:03.0}%", opacity.get() * 100.0),
+            &[self.scene_opacity.untyped()],
+        ));
+        let count = self.engage_count.clone();
+        self.engage_label.replace_with(Property::computed(
+            move || format!("ENGAGE {}", count.get()),
+            &[self.engage_count.untyped()],
+        ));
+        let stabilizers = self.stabilizers.clone();
+        self.stabilizer_label.replace_with(Property::computed(
+            move || {
+                if stabilizers.get() {
+                    "ONLINE"
+                } else {
+                    "OFFLINE"
+                }
+                .to_string()
+            },
+            &[self.stabilizers.untyped()],
+        ));
     }
 
     pub fn handle_pre_render(&mut self, _ctx: &NodeContext) {
@@ -70,14 +117,13 @@ impl Example {
         let t = ticks as f64 / 60.0;
         let group_opacity = self.beam_gain.get().clamp(0.10, 1.0);
 
-        self.scene_opacity.set(group_opacity);
-        self.monolith_opacity.set(group_opacity);
-        self.inner_glass_opacity.set(group_opacity);
-        self.mask_panel_opacity.set(group_opacity);
-        self.lattice_left_opacity.set(group_opacity);
-        self.lattice_right_opacity.set(group_opacity);
-        self.halo_opacity
-            .set(0.46 + 0.18 * wave(t * 0.43 + 2.0));
+        self.scene_opacity.set_if_neq(group_opacity);
+        self.monolith_opacity.set_if_neq(group_opacity);
+        self.inner_glass_opacity.set_if_neq(group_opacity);
+        self.mask_panel_opacity.set_if_neq(group_opacity);
+        self.lattice_left_opacity.set_if_neq(group_opacity);
+        self.lattice_right_opacity.set_if_neq(group_opacity);
+        self.halo_opacity.set(0.46 + 0.18 * wave(t * 0.43 + 2.0));
 
         self.orbit_a.set((t * 0.37).sin());
         self.orbit_b.set((t * 0.29 + 1.1).cos());
@@ -101,10 +147,8 @@ impl Example {
             .set(118.0 + 128.0 * wave(t * 0.78 + 0.5) + 18.0 * self.orbit_b.get());
         self.iris_y
             .set(138.0 + 96.0 * wave(t * 0.61 + 1.6) + 12.0 * self.orbit_d.get());
-        self.iris_size
-            .set(198.0 + 118.0 * wave(t * 1.19 + 0.2));
-        self.star_size
-            .set(292.0 + 48.0 * wave(t * 0.86 + 0.7));
+        self.iris_size.set(198.0 + 118.0 * wave(t * 1.19 + 0.2));
+        self.star_size.set(292.0 + 48.0 * wave(t * 0.86 + 0.7));
         self.star_rotation
             .set(ticks as f64 * 1.25 + 24.0 * (t * 0.37).sin());
         self.mask_hole_opacity
@@ -113,13 +157,10 @@ impl Example {
             .set(-9.0 + 7.0 * (t * 0.22).sin() + 2.6 * (t * 0.71).cos());
         self.ribbon_rotation
             .set(-6.0 + 2.4 * (t * 0.34).sin() + 1.2 * (t * 0.82).cos());
-
-        self.refresh_labels();
     }
 
     pub fn increment_engage(&mut self, _ctx: &NodeContext, _args: Event<ButtonClick>) {
         self.engage_count.set(self.engage_count.get() + 1);
-        self.refresh_labels();
     }
 
     pub fn update_callsign(&mut self, _ctx: &NodeContext, args: Event<TextboxChange>) {
@@ -128,34 +169,5 @@ impl Example {
 
     pub fn update_stabilizers(&mut self, _ctx: &NodeContext, args: Event<CheckboxChange>) {
         self.stabilizers.set(args.checked);
-        self.refresh_labels();
-    }
-
-    fn refresh_labels(&mut self) {
-        let mode_label = match self.selected_mode.get() {
-            0 => "SPECTRAL",
-            1 => "NATIVE",
-            _ => "MASK",
-        };
-        let spectrum_label = match self.spectrum_band.get() {
-            0 => "AURORA",
-            1 => "NOCTIS",
-            _ => "PULSE",
-        };
-
-        self.mode_label.set(mode_label.to_string());
-        self.spectrum_label.set(spectrum_label.to_string());
-        self.beam_label
-            .set(format!("{:03.0}%", self.scene_opacity.get() * 100.0));
-        self.engage_label
-            .set(format!("ENGAGE {}", self.engage_count.get()));
-        self.stabilizer_label.set(
-            if self.stabilizers.get() {
-                "ONLINE"
-            } else {
-                "OFFLINE"
-            }
-            .to_string(),
-        );
     }
 }

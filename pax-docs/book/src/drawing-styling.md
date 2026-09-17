@@ -187,16 +187,6 @@ collapse the GPU gradient's axis. Treat radial fills as backend-sensitive
 and verify their appearance on your shipping targets; the linear examples
 above are the starting point for this chapter.
 
-<div class="docs-example-placeholder">
-<p><strong>Interactive example planned:</strong> tune a small surface's palette, outline, corners, and gradient while viewing its source.</p>
-<!-- Production brief:
-- Show equivalent alpha/opacity, centered stroke extents, corner-list mapping,
-  gradient direction, and narrow/wide bounds. Keep the geometry small and legible.
-- Three treatments: a Field notes cover; a transit-ticket designer; a set of
-  botanical specimen labels. Prefer the cover to continue the learning thread.
-- Use canonical source tabs and a static fallback. No new gallery ownership. -->
-</div>
-
 ## Reusable visual settings
 
 Choose a small vocabulary for your interface: perhaps a paper surface, a
@@ -293,14 +283,6 @@ you want clipping, rather than relying on width and height to crop it.
 `smoothing=PathSmoothing::Light` or `Strong` can soften polyline runs;
 the default `None` preserves the authored geometry. Smoothing changes the
 shape, so inspect corners and lettering after enabling it.
-
-<div class="docs-media-placeholder">
-<p><strong>Diagram planned:</strong> annotate the cubic curve with its two endpoints, two control points, and local percentage bounds.</p>
-<!-- Production brief:
-- Show which Point ends the Cubic and how widening the bounds reshapes it.
-- Three treatments: a drafting-board diagram; a string-and-pins illustration;
-  a graph-editor screenshot. Prefer the drafting board with literal labels. -->
-</div>
 
 ### Reveal a stroke
 
@@ -447,19 +429,9 @@ that response. Native Text, native controls, and bitmap Images are not lit
 vector materials. Texture maps, cast shadows, and a 3D camera are not part
 of this API. Keep information legible when lighting is absent.
 
-The canonical `glow-buttons` example shows a pointer-following light scoped
-to each button; `materials` explores surface response. They are useful
-references after the small static scene above.
-
-<div class="docs-example-placeholder">
-<p><strong>Interactive example planned:</strong> move a light over two adjacent surfaces and compare glossy, matte, and unlit paint.</p>
-<!-- Production brief:
-- Reuse glow-buttons/materials source. Show sibling isolation, ancestor light
-  entry, an unlit label, and a plainly labeled fallback without GPU lighting.
-- Three treatments: mineral samples; two illuminated instrument buttons;
-  glazed ceramic tiles. Prefer two buttons for a compact scoping demonstration.
-- Keep source version-aligned and include a static comparison. -->
-</div>
+Try [Materials in Compositing and Effects](compositing-effects.md#lighting-and-other-effects)
+to compare surface responses as scrolling moves a light through the scene.
+The source tabs show the material parameters and scroll-driven light position.
 
 ## Read more
 

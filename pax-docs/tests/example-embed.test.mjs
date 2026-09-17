@@ -41,7 +41,7 @@ function find(root, className) {
     }
 }
 
-async function setup({ available = true, height = '820', fetchOk = true } = {}) {
+async function setup({ available = true, height = '820', fetchOk = true, observe = true } = {}) {
     const root = new Element('main');
     const host = new Element('pax-example');
     host.setAttribute('path', 'transition-grid');
@@ -58,24 +58,79 @@ async function setup({ available = true, height = '820', fetchOk = true } = {}) 
         ],
     };
     const requests = [];
+    const observers = [];
+    const document = {
+        currentScript: { src: 'https://docs.example/0.38.3/theme/pax-examples.js' },
+        baseURI: 'https://docs.example/0.38.3/animation-motion.html',
+        readyState: 'complete', hidden: false, listeners: {},
+        addEventListener(name, fn) { this.listeners[name] = fn; },
+        createElement: tag => new Element(tag),
+        querySelectorAll: () => [host],
+    };
     vm.runInNewContext(readFileSync(new URL('../book/theme/pax-examples.js', import.meta.url), 'utf8'), {
         URL,
         window: {},
-        document: {
-            currentScript: { src: 'https://docs.example/0.38.3/theme/pax-examples.js' },
-            baseURI: 'https://docs.example/0.38.3/animation-motion.html',
-            readyState: 'complete',
-            createElement: tag => new Element(tag),
-            querySelectorAll: () => [host],
-        },
+        document,
+        IntersectionObserver: observe ? class {
+            constructor(callback) { this.callback = callback; observers.push(this); }
+            observe(target) { this.target = target; }
+        } : undefined,
         fetch: async url => {
             requests.push(url);
             return { ok: fetchOk, status: 404, json: async () => manifest };
         },
     });
     await new Promise(resolve => setImmediate(resolve));
-    return { root, requests };
+    return { root, requests, document, observers };
 }
+
+test('offscreen and hidden embeds suspend without replacing their state', async () => {
+    const {root, document, observers} = await setup();
+    const frame = find(root, 'pax-example-frame');
+    const states = [];
+    frame.contentWindow = {Pax: {setSuspended: value => states.push(value)}};
+    assert.equal(new URL(frame.src).searchParams.get('pax_suspended'), '1');
+    frame.fire('load');
+    assert.equal(states.at(-1), true);
+    assert.equal(observers[0].target, find(root, 'pax-example-stage'));
+    observers[0].callback([{isIntersecting:true}]);
+    assert.equal(states.at(-1), false);
+    document.hidden = true;
+    document.listeners.visibilitychange();
+    assert.equal(states.at(-1), true);
+    document.hidden = false;
+    document.listeners.visibilitychange();
+    assert.equal(states.at(-1), false);
+    observers[0].callback([{isIntersecting:false}]);
+    assert.equal(states.at(-1), true);
+    assert.equal(find(root, 'pax-example-frame'), frame);
+});
+
+test('visibility established before load is applied to the new runtime', async () => {
+    const {root, observers} = await setup();
+    observers[0].callback([{isIntersecting:true}]);
+    const first = find(root, 'pax-example-frame');
+    find(root, 'pax-example-button').fire('click');
+    const second = find(root, 'pax-example-frame');
+    const states = [];
+    second.contentWindow = {Pax: {setSuspended: value => states.push(value)}};
+    first.fire('load');
+    assert.equal(states.length, 0);
+    second.fire('load');
+    assert.equal(states.at(-1), false);
+});
+
+test('without IntersectionObserver the loaded embed runs and still pauses in a hidden tab', async () => {
+    const {root, document} = await setup({observe:false});
+    const states = [];
+    const frame = find(root, 'pax-example-frame');
+    frame.contentWindow = {Pax: {setSuspended: value => states.push(value)}};
+    frame.fire('load');
+    assert.equal(states.at(-1), false);
+    document.hidden = true;
+    document.listeners.visibilitychange();
+    assert.equal(states.at(-1), true);
+});
 
 test('app initializes automatically alongside source and standalone link', async () => {
     const { root, requests } = await setup();
@@ -140,6 +195,7 @@ test('chapter examples are discoverable before instruction or through an intro l
     for (const [file, example, nextHeading] of [
         ['event-handling-rust.md', 'space-game', '## Connect an action to Rust'],
         ['routing.md', 'router-playground', '## Routes and history'],
+        ['compositing-effects.md', 'neon-opacity', '## Choose the boundary'],
     ]) {
         const article = readFileSync(new URL(`../book/src/${file}`, import.meta.url), 'utf8');
         const embed = `path="${example}"`;
@@ -149,4 +205,6 @@ test('chapter examples are discoverable before instruction or through an intro l
     const animation = readFileSync(new URL('../book/src/animation-motion.md', import.meta.url), 'utf8');
     assert.ok(animation.indexOf('[Transition Grid](#try-it-transition-grid)') < animation.indexOf('## Timelines'));
     assert.ok(animation.indexOf('path="transition-grid"') > animation.indexOf('## Container-owned motion'));
+    const effects = readFileSync(new URL('../book/src/compositing-effects.md', import.meta.url), 'utf8');
+    assert.ok(effects.indexOf('path="materials"') > effects.indexOf('### Lighting and other effects'));
 });

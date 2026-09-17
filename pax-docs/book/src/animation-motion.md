@@ -102,16 +102,6 @@ animate numeric parameters and derive its geometry from them, as in the
 `mouse-animation` example. For a reveal, animate a Path's `draw_end`; see
 [Drawing](drawing-styling.md#reveal-a-stroke).
 
-<div class="docs-media-placeholder">
-<p><strong>Diagram planned:</strong> compare four easing curves using the same start, finish, and duration.</p>
-<!-- Production brief:
-- Mark equal-time samples and show that the curve belongs to the outgoing
-  keyframe. Include one overshoot extending beyond the endpoint.
-- Three treatments: a dot crossing a ruler; four paper tabs sliding into place;
-  a time/value graph beside sampled positions. Prefer the ruler for beginners.
-- Include a textual account of the positions and a still alternative to motion. -->
-</div>
-
 ## Share a playhead
 
 A named timeline can coordinate several properties on elements selected by
@@ -212,16 +202,6 @@ unless overridden on the track. Multiple named timelines can bind to the
 same property when separate groups need the same progress. Naming the
 timeline organizes its tracks; playback comes from its clock or playhead,
 rather than an implicit Rust method named after it.
-
-<div class="docs-example-placeholder">
-<p><strong>Interactive example planned:</strong> replay, pause, and scrub a coordinated sequence while its current playhead and source remain visible.</p>
-<!-- Production brief:
-- Use one shared property, two moving/fading elements, and a numeric playhead
-  display. Contrast timeline sampling scale with elapsed playback duration.
-- Three treatments: a Field notes bookmark and caption; a miniature departure
-  board; a folding paper invitation. Prefer the bookmark for the small example.
-- Keep controls user-driven, with a static final state and source tabs. -->
-</div>
 
 ## Relative values and property ownership
 

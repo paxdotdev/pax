@@ -257,18 +257,6 @@ This app intentionally remains animated. To understand activity after an
 interaction in your own application, follow the same trail: event handler,
 property dependencies, active motion, and per-frame handlers.
 
-<div class="docs-example-placeholder">
-<p><strong>Visualization planned:</strong> follow a click through the existing Increment example, highlighting the count and rotation dependencies separately from its continuous color update.</p>
-<!-- Production brief:
-- Reuse the canonical example's source and show its rendered result alongside
-  the graph. Label graph highlights as an explanatory visualization, not a
-  measured performance trace.
-- Three treatments: a small wiring diagram with highlighted edges; source and
-  output with synchronized callouts; or a frame-by-frame annotated filmstrip.
-  Prefer the wiring diagram. Include a static accessible reading order.
-- No new starter, duplicate canonical app, or website gallery ownership here. -->
-</div>
-
 ## Measure the question you have
 
 Separate startup, interaction, continuous motion, and resting-state work.

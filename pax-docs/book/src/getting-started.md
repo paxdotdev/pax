@@ -191,8 +191,15 @@ From the directory where you keep your projects, run:
 pax-cli create my-first-project
 ```
 
-Choose a destination that does not already exist. The CLI creates a Pax project
-there, including its Rust package and UI sources.
+Choose a destination that does not already exist. The CLI creates Living Quilt,
+an interactive geometric tapestry, including its Rust package, UI sources, and
+assets. You can [try it in the introduction](what-is-pax.md#try-it-living-quilt).
+The project source is bundled with your CLI version; no repository checkout is
+needed.
+
+For a smaller starting point, use `pax-cli create my-counter --example=increment`.
+The curated alternatives and their purpose are covered in
+[Developer Workflow](developer-workflow.md#create-from-a-bundled-example).
 
 ## Run it on the web
 
@@ -208,8 +215,11 @@ ready, the terminal prints a local URL beginning with `http://127.0.0.1:`. Open
 that URL in your browser. Use the address from your current run, since the port
 can change between sessions.
 
-Your first-run checkpoint is the generated application rendered in the
-browser. A blank page or a build error means there's still something to resolve;
+Your first-run checkpoint is a geometric quilt with a Pax card in the middle.
+Click or tap the quilt to send out a color wave, or click the card to replay
+its entrance. The color reveal uses GPU alpha masking; check the
+[rendering backend](how-pax-runs.md#rendering-backends) if that effect is absent.
+A blank page or a build error means there's still something to resolve;
 see [When something goes wrong](#when-something-goes-wrong).
 
 Leave the command running while you use the app. To stop the development session,
@@ -232,30 +242,25 @@ Pax templates describe the interface. Rust holds the state and behavior behind
 it. Expressions inside templates connect property values to what you see on
 screen. You'll work with these parts together as you build an interface.
 
-## Local release runs on iOS and iPadOS
+## Make a first edit
 
-Use `--release` to compile, development-sign, install, and launch an optimized
-app on a connected device:
+Open `src/lib.pax` and find the `LogoCard` near the top. Change its width from:
 
-```sh
-pax-cli run --release --target ipados \
-  --ios-device 'device:My iPad' --ios-development-team YOUR_TEAM_ID
+```pax
+width={is_compact ? 290px : 382px}
 ```
 
-Use `--target ios` for iPhone. The selector accepts a device name or hardware
-UDID; Xcode must have access to the team's development signing credentials and
-the device must be paired with Developer Mode enabled. The team can also be
-configured in Cargo metadata (below). Without `--ios-device`, `run` selects a
-simulator; an explicit `--ios-device simulator:<name-or-udid>` also works in
-release mode and does not require signing credentials.
+to:
 
-This is a local development workflow, not App Store distribution: the CLI uses
-Xcode's Release configuration with Apple Development signing, and does not
-archive, export, or upload the app. `build --release --target ios|ipados` builds
-without launching. Release apps disable designtime and both hot-reload lanes,
-even when requested by flags or project settings. `run --release` is currently
-supported only for iOS and iPadOS.
+```pax
+width={is_compact ? 320px : 420px}
+```
 
+Save with the development session still running. The card becomes wider through
+Pax's default template hot reload. The expression chooses a compact width for
+smaller windows and a larger width otherwise; try resizing the browser. Restore
+the original values whenever you like. Rust changes normally require restarting
+the run, or opting into [logic reload](developer-workflow.md#hot-reloading).
 
 ## When something goes wrong
 
@@ -322,37 +327,9 @@ Configure titles, icons, Apple identity, and packaging values in
 [Project metadata](targets-build-deploy.md#project-metadata) for the supported
 keys, target inheritance, and icon requirements.
 
-- `hot_reload`: `all`, `pax`, `logic`, or `off`. See [Hot
-  reloading](#hot-reloading) for target support and precedence.
+### Local release runs on iOS and iPadOS
 
-Supported web keys:
-
-- `title`: overrides the common title for web.
-- `favicon`: source file copied as the web favicon.
-- `icon`: web-specific icon source used to generate a fallback favicon.
-- `site_name`: Open Graph site name. Defaults to the resolved web title.
-- `site_url`: absolute public HTTP(S) URL, including any deployment base path.
-  Required for release builds with indexable concrete
-  [route metadata](routing.md#web-route-metadata).
-- `social_image`: default route-preview image, as an absolute URL or a path
-  relative to `site_url`.
-- `social_image_alt`: accessible description for `social_image`. The image and
-  alt text must be configured together.
-
-Supported Apple target keys for `ios`, `ipados`, and `macos`:
-
-- `title`
-- `icon`
-- `bundle_identifier`
-- `marketing_version`
-- `build_number`
-- `development_team`
-- `info_plist`: string values emitted into generated Apple Info.plists. Declare
-  as a nested table, for example
-  `[package.metadata.pax.ios.info_plist] NSCameraUsageDescription = "..."`
-
-iOS and iPadOS use a single generated 1024x1024 `AppIcon` asset. The source
-image must be square and opaque. macOS generates the full AppIcon size set from
-the same square source image. The bundled iOS/iPadOS interface includes a Pax
-icon when no custom icon is configured; ejected interfaces retain their own
-asset catalog unless an icon override is provided.
+Use `pax-cli run --release --target ios` or `--target ipados` for an optimized
+simulator run. Connected-device runs also accept a device selector and Apple
+development team. See [Local release runs](targets-build-deploy.md#local-release-runs)
+for signing, device selection, and the boundary with App Store distribution.

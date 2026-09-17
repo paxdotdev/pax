@@ -1774,3 +1774,23 @@ AuthoringSection had this omission, leaving `compact` at its default on mobile.
 Bind the layout synchronizer to `@mount` and `@pre_render` in the template's
 settings block, then verify a breakpoint in the running scene. The fix restores
 the intended single-column layout without viewport-specific text offsets.
+
+## 2026-09-15 — Forwarded slots and packaged documentation sources
+
+Carousel's dots rendered while its pages were empty. The page slots are
+authored by Carousel but passed through Scroller; the active-slot traversal
+stopped at the nested component and never found those caller-owned sites.
+Traverse a nested component's projected input while keeping its implementation
+slots isolated. Projected `if`/`for` structure changes must also refresh the
+receiving component's flattened input, including empty-to-populated changes.
+Tests cover forwarding, nested ownership, changing indices, remainder and
+duplicate consumption, and conditional removal/reinsertion. Fresh web debug
+and baked release builds show all three Carousel pages with matching dots.
+
+CLI docs built inside the monorepo hid a packaging hole: the published crate
+could not read its sibling `examples/src`, so its index omitted all example
+sources. `scripts/sync-docs-examples.py` now generates the crate-owned source
+snapshot from canonical examples. The release script refreshes and verifies
+it after version rewriting; packaged builds materialize it in Cargo's output
+directory. Always test the actual unpacked crate outside the repo, including
+the compiled docs index, rather than only checking the in-workspace CLI.

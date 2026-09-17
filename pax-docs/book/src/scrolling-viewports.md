@@ -63,17 +63,6 @@ background sibling behind it, depending on which should move. Earlier Pax
 siblings appear in front; that is why each note's Text precedes its Rectangle.
 `corner_radius` is a numeric pixel radius for the viewport clip.
 
-<div class="docs-example-placeholder">
-<p><strong>Interactive example planned:</strong> scroll a short set of notes while a diagram labels the viewport, content extent, and current offset.</p>
-<!-- Production brief:
-- Reuse the chapter snippet and show source. Controls change viewport height and
-  note count; distinguish a content-sized Group from height=100%.
-- Three treatments: field notes through a paper window; a contact sheet through
-  a viewfinder; or a bookshelf behind a sliding panel. Prefer the field notes.
-- Include a still at offset 0 and 480 with the same ruler, plus keyboard-operable
-  position controls. Do not substitute scripted motion for native scrolling. -->
-</div>
-
 ## Autosized Scrollers
 
 For a document that grows as you add content, let Scroller measure its pane:
@@ -221,12 +210,6 @@ Gesture momentum and settling can differ between platforms.
 
 ### Carousel pages
 
-> **Draft verification note:** the current docs checkout renders Carousel's
-> position dots but omits its supplied page content in the small example below.
-> This reproduces separately from the chapter's test harness. The Scroller
-> snapping example above has passed its visual checks; Carousel needs a
-> rendering follow-up before this example is ready for publication.
-
 `Carousel` packages page layout, content extents, and snapping. Each supplied
 child becomes a page:
 
@@ -293,17 +276,6 @@ example binds a vertical Carousel to a playhead for its articulated scenes.
 [Animation and Motion](animation-motion.md#share-a-playhead) explains track
 ownership, easing, and playback; [Drawing](drawing-styling.md#paths-and-svg)
 owns Path and Handwriter reveals.
-
-<div class="docs-example-placeholder">
-<p><strong>Interactive example planned:</strong> use one scroll position to fill a reading bar, reveal a line drawing, and introduce a caption.</p>
-<!-- Production brief:
-- Begin with the exact reading-progress snippet; show the normalized value and
-  timeline together. Keep the content extent fixed while visual tracks change.
-- Three treatments: a botanical field note; an architectural section drawing;
-  or a route on a small travel map. Prefer the botanical note.
-- Offer a static completed view and explicit position buttons. Keep all essential
-  text readable without traversing a decorative animation. Show source tabs. -->
-</div>
 
 ## Nested viewports and native content
 

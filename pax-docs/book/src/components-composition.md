@@ -195,16 +195,6 @@ cards usually belongs in their common owner. For an action such as “advance
 this note,” a named event can let the owner decide how state should change;
 we will build that connection [below](#component-actions).
 
-<div class="docs-media-placeholder">
-<p><strong>Diagram planned:</strong> follow an input from Notes into two separate NoteCard instances, then compare an expression input with an explicit shared binding.</p>
-<!-- Production brief:
-- Show two component instances with distinct local state and parent-supplied values.
-- Keep the source owner and the place where an action writes visually identifiable.
-- Show a formula connection versus a shared property handle without implying copied whole components.
-Treatments: a source-to-card wiring diagram; an exploded pair of component
-boundaries; or a step-through parent/child state trace. Prefer the wiring diagram. -->
-</div>
-
 <a id="control-flow-and-identity"></a>
 ## Data-driven components
 
@@ -385,6 +375,11 @@ positional, with zero-based indices. These children remain authored in
 `Notes`: their `self.title` and `self.advance` still refer to `Notes`, even
 though the frame supplies their layout containers.
 
+A component can forward its slots through another component. For example,
+placing `slot(0)` inside a `Scroller` keeps that slot associated with the
+component that authored it. The Scroller's own slots handle its received
+content separately; they do not consume the outer component's children.
+
 Slots project the existing child content. They do not make a new independent
 copy at each insertion site. An explicit index that is out of range or already
 consumed renders empty and produces a warning. An empty remainder slot is
@@ -404,17 +399,6 @@ Caller content and private implementation structure serve different roles;
 container code should use `NodeContext::received_children` for its semantic
 content rather than treating all runtime descendants as supplied children.
 Custom container internals are beyond this chapter.
-
-<div class="docs-example-placeholder">
-<p><strong>Interactive example planned:</strong> supply a heading and body controls to a frame, then watch them move between fixed and remainder slots.</p>
-<!-- Production brief:
-- Distinguish caller-owned expressions/handlers from the frame's placement rules.
-- Show zero-based indices, one-time consumption, and a valid empty remainder.
-- Reuse the slot-projection-resolver's verified behavior without bringing all its diagnostics into the beginner path.
-Treatments: a notebook frame with interchangeable content; a labeled tray of
-colored tiles; or a compact media player accepting different controls. Prefer
-the notebook frame, with source tabs for both caller and frame. -->
-</div>
 
 ## Component actions
 

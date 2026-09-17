@@ -1,12 +1,12 @@
 # Launch documentation coverage map
 
-Status: Initial prose reviewed through Routing and Primitives; navigation/reference integration in progress. The first-interface tutorial remains queued for a stable PAX-993 handoff. Launch verification and publication gates are still open; see the latest checkpoints below.
+Status: Initial prose reviewed through Routing and Primitives; navigation/reference integration in progress. PAX-993 has landed: Living Quilt is embedded in the introduction and Getting Started includes the default create contract and a first edit. The longer Living Quilt tutorial was withdrawn at Zack's request on 2026-09-15 and is deferred for a more considered future pass, not a launch gate. Launch/publication verification remains open; see the latest checkpoints below.
 
 Owner issue: PAX-975
 
 Parent program: PAX-860
 
-Last audited: 2026-09-12, including the standalone Primitives review and the navigation/reference pass.
+Last audited: 2026-09-14, including the local-dev rebase and PAX-993 starter/engine documentation audit.
 
 Sections A–J retain the original discovery and approved planning history;
 later lettered checkpoints record implementation, review, and superseding
@@ -30,6 +30,58 @@ The governing launch claims are:
 - Exact performance, binary-size, accessibility, backend, and platform claims must be qualified and demonstrated rather than generalized.
 
 ## A. Current-state audit
+
+### 2026-09-14: landed starter and engine audit
+
+This checkpoint supersedes earlier references to an unstable or unavailable
+PAX-993 starter. Local `dev` at `c28058fa4` is now an ancestor of this docs
+worktree. The rebase retained the pending docs/example-performance edits;
+Getting Started was the only textual conflict and its incoming Apple guidance
+has been integrated into the canonical build chapter with a preserved link.
+
+- **Introduction:** Living Quilt appears after the opening context and direct
+  Getting Started link, with canonical source tabs. Compositing links to this
+  instance instead of mounting a second copy.
+- **Getting Started:** default Living Quilt create/run expectations, a small
+  responsive LogoCard-width edit, and a link to curated alternatives. The
+  broader first-interface tutorial is still a separate editorial checkpoint.
+- **Developer Workflow:** distinguish the complete curated `create --example`
+  projects from the larger read-only `docs examples` source snapshot. Canonical
+  sources, registry, and release-time synchronization remain with PAX-993.
+- **Targets/Build/Deploy:** remove the obsolete mobile release-packaging stop;
+  document iOS/iPadOS release simulator/device runs, release output paths,
+  forced-off development lanes, local signing, and the remaining distribution
+  boundary. Preserve the incoming single-1024px icon/fallback guidance.
+- **Compositing:** add Gaussian mask feathering and replace the alpha-demo
+  placeholder with the Living Quilt source link. Keep GPU-only, native-content,
+  source-paint, and hit-testing limitations explicit.
+- **Reviewed without semantic changes:** property `read`/`update` guidance
+  still matches source (`update` still clones); rendering/backend and release
+  explanations retain their target qualifications; existing Mask API reference
+  already covers `alpha` and `feather`. Internal cache/typed-variable changes
+  do not require a new public concept or a broad performance claim.
+- **Preview correctness:** example caches now account for compiler/runtime
+  source changes, so a rebase cannot silently retain earlier renderer bundles
+  when the example source itself is unchanged. Rebuild the six embedded web
+  releases against this checkout before review.
+
+Validation scope: local CLI create/override/error-path and mobile release-policy
+tests, mask/runtime and native Metal alpha-mask tests, canonical bundle drift
+check, browser-host/cache tests, release web examples, mdBook and local links.
+Published-package installation and physical Apple installation/signing are not
+repeated by this docs pass; those release-channel/device gates remain separate.
+
+Results: all six release web embeds rebuilt; 26 displayed source files match
+canonical source byte-for-byte. Living Quilt's 47 tests, bundled-create test,
+seven compiler mobile tests, two CLI release-policy tests, two Mask tests,
+three alpha-mask CPU/shader tests, three native Metal alpha-mask tests, and
+the retained clipping/screenshot Metal test passed. Four docs-cache tests and
+13 browser-host/frame-scheduler tests passed. The built book passed 665 local
+link checks, 121 sidebar destinations, and seven redirect cases. Browser review
+confirmed the quilt, click-driven color wave, and logo replay in the intro.
+The first-edit width values were checked against the canonical template; a
+fresh published-CLI install and a separate first-edit hot-reload walkthrough
+were not rerun here.
 
 ### Public learning-path topology
 
@@ -866,9 +918,55 @@ review and stable PAX-993 first-edit handoff.
 
 ## J. `Build your first Pax interface` outline and evidence packet
 
-**Status:** Outline accepted, 2026-09-06. Prose awaits the stable PAX-993
-first-edit handoff. No tutorial prose or example changes.
-Proposed file: `first-pax-interface.md`. Launch-critical.
+**Status:** Deferred, 2026-09-15. Zack requested withdrawing the first draft
+and revisiting the tutorial later with more care and attention. The article,
+navigation/inbound links, and draft-specific verification test have been removed
+from the active docs. The introductory Living Quilt embed and short first edit
+in Getting Started remain. Earlier launch-critical classifications for the longer
+tutorial are superseded by this decision. The notes below are historical, not
+an approved brief for automatically restoring the draft.
+
+### Landed-source outline and draft
+
+The tutorial customizes the existing LogoCard backing while preserving the
+quilt, lighting, ripples, and replay animation. No second canonical example or
+new collateral is introduced. The sequence is:
+
+1. Locate the main/child Rust and template pairs.
+2. Raise the backing Rectangle's literal alpha and observe template reload.
+3. Add `LogoCard.backing_opacity`, its manual default, and a Rectangle binding.
+4. Add parent `solid_backing` state and derive the child's opacity through PAXEL.
+5. Extend the existing logo click handler to toggle that boolean while retaining
+   replay and click bubbling.
+6. Check the same card and handler at narrow and wide sizes.
+
+This follows the accepted bounded editing arc. Component input wiring precedes
+the event-handler step so each visible checkpoint has a complete binding.
+The new state is not written by any existing animation or per-frame callback.
+The primary path keeps default Pax-only hot reload and explicitly restarts
+after Rust edits. Deeper component, property, event, motion, and mask concepts
+link to their canonical articles.
+
+`pax-docs/tests/living-quilt-tutorial.test.mjs` extracts the article's actual
+code blocks and applies them to a CLI-created temporary project. Set
+`PAX_TUTORIAL_BUILD=1` to compile each checkpoint on web, run the starter's
+Rust tests, and build the final release; `PAX_TUTORIAL_KEEP=1` retains that
+temporary project for visual review. The verification patches its Cargo
+dependencies to this engine checkout, so it is not a published-package test.
+
+Navigation: immediately after Getting Started, with an inbound link from
+Getting Started and the intro's Living Quilt section. The starter's canonical
+source and bundled create archive remain unchanged.
+
+Verification completed across 2026-09-14/15: all four article checkpoints
+compiled as debug web builds; the final project passed its 47 Rust tests and
+built in release mode. Browser checks at 390px and 1000px confirmed the
+translucent/solid click toggle and retained logo replay. A separate debug run
+loaded the final project and hot-reloaded the optional 0.5-to-0.7 template edit.
+mdBook built successfully; 684 local links, 122 sidebar destinations, and seven
+redirect cases passed. These are source-linked web checks; no new native-device
+or published-CLI claim is made. These checks concern the withdrawn draft; they
+do not establish editorial approval for a future tutorial.
 
 ### Reader promise and scope
 
@@ -3836,3 +3934,197 @@ it selects `.pax`/`.rs` source, defaults to at most 12 files, truncates files
 over 200 KB, and excludes Cargo manifests/assets. PAX-993's separate bundled
 project machinery is the appropriate future foundation for an example runner.
 No `pax-cli example` command was added in this bounded presentation pass.
+
+### Compositing examples: Neon Opacity and Materials
+
+At Zack's request, Neon Opacity is embedded after the Compositing introduction,
+and Materials appears in "Lighting and other effects." Both use canonical
+source tabs and the shared automatic-start/Restart/standalone wrapper. Drawing
+links to Materials instead of promising another lighting specimen. Its
+earlier proposed glossy/matte/unlit comparison remains optional future work.
+
+Neon Opacity's captions now accurately describe inherited opacity and geometric
+mask coverage rather than promising fractional alpha masking. Materials replaces
+the initially proposed Glow Buttons at Zack's request, showing scroll-driven
+lighting across matte, glossy, metallic, emissive, and custom surfaces. No
+rendering algorithms or new examples were introduced.
+
+Neon Opacity's debug and release web builds pass; browser interaction confirms
+its BEAM slider (100% to 10%) and ENGAGE counter. Materials' debug web build
+passes. Neon Opacity remains an intentionally dense, moving
+composition best explored with room in the standalone view; this integration
+does not claim a complete mobile redesign or native-target visual validation.
+
+### Embedded-example resource pass
+
+Docs examples now build with `--release`; the generator tracks a release recipe
+and the web-interface source fingerprint so cached debug/older-interface bundles
+are rebuilt. Failed builds cannot promote stale local output as freshly built.
+Skipping a build retains only a verified compatible bundle for live playback.
+
+The web host exposes `Pax.setSuspended(bool)` and a suspended startup query.
+The docs wrapper observes the actual iframe stage and document visibility,
+retaining the iframe while suspending frame updates and rendering out of view.
+Restart still replaces it; standalone links do not opt into host suspension.
+This pauses engine frames, not external requests or arbitrary JavaScript timers;
+elapsed-time-driven animation may catch up on resume.
+
+Neon Opacity now derives its five labels from computed properties and guards
+unchanged opacity assignments with `set_if_neq`. Its 75% startup, shortened
+headings/copy, brighter slider track, and revised intro spacing remain intact.
+
+Verification: all five embedded examples build in release, Neon also builds in
+debug, 13 JavaScript scheduler/embed tests and three generator-cache tests pass.
+Canonical source tabs and bundle fingerprints match. A same-size Chrome profile
+(1800 × 1043) measured about 55 ms per debug frame before this pass versus roughly
+16–19 ms per release frame. The label cleanup did not produce a clear additional
+timing win under variable workstation load. Host-controlled suspension produced
+an empty five-second frame-measurement window while preserving ENGAGE 1, and
+returning to view resumed frames with that state intact. These are local web
+checks, not cross-device FPS or GPU-time guarantees.
+
+## BD. Launch preflight — 2026-09-15
+
+Zack authorized removing deferred collateral placeholders and checking Carousel,
+PAX-869 integration options, CLI packaging, and versioned publication. No merge,
+release, upload, or publication-script implementation was performed.
+
+### Public prose cleanup
+
+Removed all 27 `docs-example-placeholder` / `docs-media-placeholder` blocks,
+including their production briefs, from 14 public articles. Existing live
+examples, article headings, and teaching text remain. A future visual-content
+pass can choose its scope afresh; the withdrawn Living Quilt tutorial remains
+deferred. The book rebuild passes, with 665 local links, 121 sidebar destinations,
+seven redirect cases, and zero remaining placeholder blocks. The 13 JavaScript
+embed/scheduler tests and four generator-cache tests pass.
+
+### Carousel assessment
+
+Fresh standalone web debug and release builds of the chapter's exact
+three-Rectangle Carousel still show the page dots and no page content.
+A smaller optimized fixture removes Carousel entirely: a component whose
+template is `<Group>slot(0)</Group>` displays its supplied Rectangle, while
+the equivalent `<Scroller>slot(0)</Scroller>` displays nothing. This isolates
+the failure to projected-content forwarding through Scroller, independent of
+Carousel's page calculations, repeat indexes, opacity, or docs embedding.
+
+The runtime's `collect_active_slot_sites` stops at nested component boundaries
+and does not discover the caller-owned slots forwarded through Scroller's
+projected subtree. Consequently, `compute_slot_projection` cannot find the
+current slot among that owner's active sites and returns no content. PAX-869's
+existing pain-points entry independently describes the same failure in its
+marquee; its local ScrollerHost usage does not repair the public Carousel.
+The eight existing slot tests pass, showing a missing regression case rather
+than validation of this composition pattern.
+
+Recommendation: a focused shared projection fix, with tests for caller-owned
+slots forwarded through a component, repeated/indexed and remainder slots,
+and ownership/lifecycle preservation; verify Carousel in both baked release
+and debug paths. Do not replace the public component with a special low-level
+ScrollerHost workaround. Until fixed, retain the publication warning or defer
+the Carousel teaching subsection. No runtime source was changed in this pass.
+
+### PAX-869 integration recommendation
+
+`zb/website` is at `96dadd90c`, with three commits over shared dev `c28058fa4`.
+A read-only three-way preview predicts textual conflicts in Getting Started
+and Routing; the program-IR change merges textually but needs semantic review
+alongside our PAXEL changes. The preview covers committed state only.
+Both worktrees are dirty. In particular, the website's recent macro/compiler,
+Frame, occlusion, and retained-renderer fixes are still uncommitted and would
+not arrive by merely merging its current branch tip.
+
+Prefer checkpointing both worktrees, then merging the website branch here,
+preserving the reviewed docs and deliberately splicing its metadata additions.
+Website development can continue independently; merge ancestry records the
+shared checkpoint. Once the combined changes reach dev, the website can move
+onto that dev state. A targeted extraction is possible, but metadata crosses
+compiler generation, manifest/parsing/serialization, router support, and two
+web runtime call sites; it is bundled in `7fb19d28e`, not an isolated cherry-pick.
+Avoid copying whole files or duplicating that feature's patch history solely
+to bypass two manageable editorial conflicts. No git refs were modified.
+
+### CLI and publication findings
+
+- Starter archive parity passes (`scripts/sync-cli-examples.py --check`).
+  Cargo's compiler package list includes the archive and prebuilt web JS/CSS.
+  Local CLI creation succeeds for Increment and default Living Quilt.
+- An actual `cargo package -p pax-docs --allow-dirty --no-verify` archive was
+  unpacked outside the monorepo. Running its docs-index build produces 121
+  article/API entries and **zero example-source entries**. The archive has no
+  sibling `examples/src`; embed fallbacks list source paths but omit contents.
+  Fix release packaging with a deterministic source snapshot or prebuilt index
+  included in the crate, generated from canonical examples. The starter's
+  separate three-example archive does not fulfill this docs-source contract.
+- An unpatched generated Living Quilt project resolves Pax dependencies from
+  crates.io at 0.38.3, then fails `cargo check --lib` with 21 errors, including
+  missing `cancel_transitions`. Those published crates predate this starter's
+  APIs. Source-linked success is not released-CLI success. PAX-906 must choose
+  the new version, align crates and the regenerated starter archive, and verify
+  the resulting package set outside the monorepo before calling this gate done.
+- A local synthetic versioned site passes representative deep-link, source-tab,
+  and iframe-path checks: Transition Grid loads beneath `/0.38.3/`; switching
+  to root Latest preserves the article, query string, and anchor. This uses a
+  test manifest, not an assertion that these docs were released as 0.38.3.
+- A publication planning harness intercepts **all** external commands. It
+  confirms the version upload uses `sync --delete` without an existing-prefix
+  guard, so immutable snapshots can be overwritten. `--no-latest` still changes
+  the manifest's latest pointer; `--skip-build` can upload a stale built manifest.
+  Prerelease sorting also places `1.0.0-rc.1` above `1.0.0`. The script publishes
+  root-as-latest but no literal `/latest/` tree; coordinate that explicit URL
+  contract with PAX-987 rather than assuming an alias exists.
+
+Before uploading: add immutable-prefix protection and manifest/build consistency
+checks, preserve latest when requested, and decide the `/latest/` alias contract.
+Validate the approved release version through the no-upload pipeline and then
+the real host checks under PAX-987. This pass did not run `scripts/release.py`,
+`cargo publish`, AWS, CDN invalidation, or native-device installation. It does
+not establish clean Windows/Linux/macOS published-CLI first-touch success.
+
+Diagnostic fixtures and logs are in `/tmp/pax-975-preflight.MPkgvw`; they are
+temporary and not a substitute for checked-in regressions when fixes are made.
+The normal docs preview is rebuilt at `http://localhost:8796/`.
+
+## BE. Carousel and registry docs-source fixes — 2026-09-15
+
+Zack approved fixing Carousel and identified missing packaged example sources
+as a problem. PAX-869 integration remains on hold for its outstanding work.
+Same-current-semver ghost patches are explicitly allowed: an immutable-prefix
+rejection is no longer a proposed gate. The current one-year `immutable` cache
+header still conflicts with promptly delivering such corrections; a follow-up
+should use revalidation/short cache lifetimes for mutable URLs or content-hashed
+assets. CDN invalidation alone does not evict already-cached browser responses.
+No publication behavior or cache headers were changed in this fix.
+
+Carousel is repaired in shared runtime projection, without changing its
+template or introducing a ScrollerHost special case. The active-site walk now
+includes caller-authored projected input across component boundaries, and
+projected control-flow changes update the receiver's flattened input list.
+Four new regression tests cover direct/nested forwarding, dynamic indices,
+remainder slots, duplicates, ownership/mount preservation, and conditional
+removal/reinsertion. The first three fail against the previous traversal; the
+conditional test additionally exposed stale empty-to-populated input lists.
+All 163 runtime and 52 std library tests pass. Fresh web debug and release
+builds of the exact chapter snippet render the pages; release scrolling visits
+all three colors and updates the active dot. This exercises the baked runtime
+path without a manifest/schema change. No native-target runtime check was made.
+Removed the Carousel draft warning and explained forwarding in Components.
+
+For registry CLI builds, `pax-docs/bundled-example-sources.json` is a generated
+source artifact (about 1.2 MB uncompressed), derived only from canonical
+example Rust/Pax sources and package descriptors. No media, compiled examples,
+or build caches are bundled. The live monorepo remains authoritative in local
+builds. Outside it, the build script reads this crate-owned snapshot and creates
+the same example catalog and inline source output. The release script refreshes,
+checks, verifies package inclusion, and stages the snapshot before committing.
+It was syntax-checked, not executed. `python3 scripts/sync-docs-examples.py --check`
+is the standalone parity check.
+
+Source-bundle regressions check the compiled index, source parity, malformed
+paths, and deleted-file isolation. An actual Cargo package was unpacked under
+`/tmp/pax-975-packaged-verify.U1AZqO` and tested without sibling examples; both
+article/API indexing and searchable example sources work there. This supersedes
+BD's zero-example packaging finding, but does not claim a crates.io release or
+published-CLI first-touch pass. Release version alignment and PAX-869 remain
+separate gates. Book build and 665 local-link checks pass with zero placeholders.

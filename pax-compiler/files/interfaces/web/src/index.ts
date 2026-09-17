@@ -48,6 +48,8 @@ import { HIDDEN_TAB_FRAME_FALLBACK_MS } from "./utils/helpers";
 import { replaceCurrentRouteHistoryState, serializeRouteLocation } from "./utils/route-location";
 import { updateDocumentRouteMetadata } from "./utils/route-metadata";
 
+import { FrameScheduler } from "./utils/frame-scheduler";
+
 let objectManager = new ObjectManager(SUPPORTED_OBJECTS);
 let nativePool = new NativeElementPool(objectManager);
 let initializedChassis = false;
@@ -56,7 +58,15 @@ let renderLoopStarted = false;
 let frameInProgress = false;
 let hiddenTabPumpHandle: number | null = null;
 let pendingAsyncInterruptFlush = false;
-let animationFrameHandle: number | null = null;
+const frameScheduler = new FrameScheduler(new URLSearchParams(window.location.search).get("pax_suspended") === "1");
+
+/** Suspend frame updates and drawing while retaining the mounted application.
+ * Hosts may call this before Wasm finishes loading. Resuming schedules one frame;
+ * elapsed-time-based animations can advance to the current time on resume.
+ */
+export function setSuspended(suspended: boolean) {
+    frameScheduler.setSuspended(suspended);
+}
 let currentChassis: PaxChassisWeb | null = null;
 let currentMount: Element | null = null;
 let currentExtensionlessUrl: string | null = null;
@@ -203,10 +213,7 @@ function resetHostState() {
 }
 
 function disposeCurrentChassis() {
-    if (animationFrameHandle !== null) {
-        cancelAnimationFrame(animationFrameHandle);
-        animationFrameHandle = null;
-    }
+    frameScheduler.clear();
     teardownHiddenTabPump?.();
     teardownHiddenTabPump = null;
     teardownRouteLocationSync?.();
@@ -239,7 +246,7 @@ async function startRenderLoop(extensionlessUrl: string, mount: Element) {
         attachChassis(chassis, mount);
         renderLoopStarted = true;
         renderLoopStarting = false;
-        animationFrameHandle = requestAnimationFrame(() => renderLoop(chassis, mount));
+        frameScheduler.schedule(() => renderLoop(chassis, mount));
     } catch (error) {
         renderLoopStarting = false;
         console.error("Failed to load or instantiate Wasm module:", error);
@@ -379,7 +386,7 @@ function requestFrameFlush(chassis: PaxChassisWeb, mount: Element) {
 }
 
 function runFrame(chassis: PaxChassisWeb, mount: Element) {
-    if (frameInProgress || chassis !== currentChassis || mount !== currentMount) {
+    if (frameScheduler.suspended || frameInProgress || chassis !== currentChassis || mount !== currentMount) {
         return;
     }
     frameInProgress = true;
@@ -618,7 +625,7 @@ async function reloadMountedApp() {
                 (window as any).chassis = chassis;
                 attachChassis(chassis, mount);
                 renderLoopStarted = true;
-                animationFrameHandle = requestAnimationFrame(() => renderLoop(chassis, mount));
+                frameScheduler.schedule(() => renderLoop(chassis, mount));
                 clearReloadRetry(request.logic_revision_id);
             } catch (error) {
                 console.error(`Failed to reload Pax cartridge ${request.logic_revision_id}:`, error);
@@ -654,7 +661,7 @@ function renderLoop (chassis: PaxChassisWeb, mount: Element) {
     if (chassis !== currentChassis || mount !== currentMount) {
         return;
     }
-    animationFrameHandle = requestAnimationFrame(() => renderLoop(chassis, mount));
+    frameScheduler.schedule(() => renderLoop(chassis, mount));
 }
 
 

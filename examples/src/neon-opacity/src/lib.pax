@@ -1,17 +1,17 @@
 <Group width=100% height=100%>
-    <Text id=headline x=50% y=68px width=90% height=56px text="Afterimage Observatory"/>
+    <Text id=headline x=50% y=28px width=90% height=56px text="Afterimage Observatory"/>
     <Text
         id=subhead
         x=50%
-        y=116px
+        y=92px
         width=88%
-        height=32px
+        height=44px
         text="Opacity as atmosphere: fully opaque overlaps, nested attenuation, masked native controls, and moving vector collisions in one noctilucent test bed."
     />
     <Text
         id=live_line
         x=50%
-        y=156px
+        y=144px
         width=88%
         height=22px
         text={"LIVE // " + self.mode_label + " // BAND " + self.spectrum_label + " // CALLSIGN " + self.callsign}
@@ -24,14 +24,14 @@
         opacity={self.scene_opacity}
     >
         <Group x=24px y=20px width=388px height=146px opacity=1>
-            <Text class="eyebrow" x=16px y=14px width=286px height=22px text="OPAQUE OVERLAP // NO INHERITED LOSS"/>
+            <Text class="eyebrow" x=16px y=14px width=286px height=22px text="OPAQUE OVERLAP // BEAM AT 100%"/>
             <Text class="panel_title_small" x=16px y=42px width=304px height=42px text="Diffraction Field"/>
             <Text class="body_copy"
                 x=16px
                 y=92px
                 width=272px
                 height=58px
-                text="Single elements at 1.00 should stay fully saturated even while translucent groups drift behind them."
+                text="At full BEAM, these solid shapes stay opaque. Lower BEAM to fade them together."
             />
             <Ellipse
                 x=326px
@@ -132,13 +132,13 @@
     >
         <Group x=22px y=26px width=352px height=520px opacity=1>
             <Text class="eyebrow" x=20px y=16px width=312px height=22px text="GROUP CASCADE // NATIVE + VECTOR"/>
-            <Text class="panel_title" x=20px y=46px width=320px height=52px text="Afterimage Console"/>
+            <Text class="panel_title" x=20px y=46px width=320px height=52px text="Console"/>
             <Text class="body_copy"
                 x=20px
                 y=108px
                 width=286px
                 height=72px
-                text="One breathing opacity field attenuates glass, text, and native controls together while hard 1.00 probes stay crisp."
+                text="The BEAM slider fades vector surfaces, text, and native controls together. Child opacity 1.00 preserves that inherited fade."
             />
             <Group x=292px y=118px width=64px height=64px opacity=1>
                 <Ellipse
@@ -197,7 +197,6 @@
             </Group>
 
             <Group x=20px y=198px width=292px height=258px opacity=1>
-                <Text class="tiny_label" x=0px y=0px width=256px height=18px text={"GROUP OPACITY // " + self.beam_label}/>
 
                 <Text class="stat_label" x=20px y=24px width=156px height=18px text={"CALLSIGN // " + self.callsign}/>
                 <Text class="stat_right" x=190px y=24px width=74px height=18px text={"BEAM " + self.beam_label}/>
@@ -229,7 +228,7 @@
                     max=1.0
                     step=0.01
                     accent=rgba(96, 242, 255, 255)
-                    background=rgba(25, 25, 58, 255)
+                    background=rgba(100, 110, 140, 255)
                     corner_radius=10
                 />
                 <Button class="button_neon"
@@ -394,7 +393,7 @@
                         y=92px
                         width=256px
                         height=74px
-                        text="Animated iris and star cut away the subtree with fractional strength instead of snapping to a hard binary hole."
+                        text="A moving star selects the visible region of this subtree. This geometric mask has a hard edge; BEAM controls the inherited fade."
                     />
                     <RadioList class="radio_neon"
                         x=14px

@@ -114,17 +114,6 @@ Text elements: Pax does not currently turn that proximity into a semantic
 label association for assistive technology. Keep the
 [accessibility boundary](#accessibility-today) in mind when adapting the form.
 
-<div class="docs-example-placeholder">
-<p><strong>Interactive example planned:</strong> edit these settings and watch the bound properties change beside the form.</p>
-<!-- Production brief:
-- Use the article's exact form and source tabs; show live properties separately
-  from the saved summary. Include empty-name validation and narrow/wide layouts.
-- Three treatments: Field notes settings; a sound-check panel; a reading-list
-  editor. Prefer Field notes to connect the content and drawing chapters.
-- Add keyboard instructions and a static fallback. Explain the current label
-  association gap; do not present the fixture as an accessibility certification. -->
-</div>
-
 <a id="other-controls"></a>
 
 ## Choose a control
@@ -248,17 +237,6 @@ If your product depends on a particular accessibility contract, verify it
 early against the current implementation. This chapter makes no blanket
 screen-reader or standards-conformance claim.
 
-<div class="docs-media-placeholder">
-<p><strong>Diagram planned:</strong> compare a form's visual arrangement, keyboard path, and accessible names.</p>
-<!-- Production brief:
-- Show three separate observations of the same form. Mark a visible label
-  without a semantic association and a custom drawing without a native role.
-- Three treatments: stacked annotated screenshots; a three-column comparison;
-  a keyboard walkthrough with a screen-reader transcript. Prefer the comparison.
-- Base the accessible view on a recorded audit, not inferred native semantics.
-  Provide text equivalents for the final diagram. -->
-</div>
-
 ## PhotoPicker
 
 PhotoPicker lets someone select images for the application. Its children
@@ -380,17 +358,6 @@ root, run it with:
 ```sh
 pax-cli run --path examples/src/photo-picker --target web
 ```
-
-<div class="docs-example-placeholder">
-<p><strong>Interactive example planned:</strong> the canonical PhotoPicker example, with source and an explanation of the current platform's picker.</p>
-<!-- Production brief:
-- Reuse examples/src/photo-picker without duplicating its source. Keep the
-  chooser user-initiated. Show optional bytes, partial results, and cancellation.
-- Three treatments: the existing metadata inspector; a Field notes photo inset;
-  a contact-sheet composer. Prefer the existing example for current coverage.
-- Include target-labeled screenshots and a static fallback; never imply the
-  embedded web picker verifies camera permission or accessibility on Apple. -->
-</div>
 
 ## Current support
 

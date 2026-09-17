@@ -24,6 +24,9 @@ struct ExampleBuildPlan {
     files: Vec<String>,
 }
 
+// Invalidate bundles produced before release builds and host-controlled suspension.
+const BUILD_RECIPE: &str = "release-web-suspension-v1";
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = parse_args()?;
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -233,8 +236,11 @@ fn process_example(
     let source_fingerprint = examples::fingerprint_dir(&example_dir)?;
     let manifest_path = example_out.join("manifest.json");
     let previous_built_fingerprint = read_manifest_string(&manifest_path, "built_fingerprint");
+    let previous_build_recipe = read_manifest_string(&manifest_path, "build_recipe");
+    let build_recipe = engine_build_recipe(workspace)?;
     let app_index = example_out.join("app").join("index.html");
     let needs_build = previous_built_fingerprint.as_deref() != Some(source_fingerprint.as_str())
+        || previous_build_recipe.as_deref() != Some(build_recipe.as_str())
         || !app_index.exists();
 
     let mut build_error = None;
@@ -249,14 +255,21 @@ fn process_example(
     let build_src = example_dir
         .join(".pax")
         .join("build")
-        .join("debug")
+        .join("release")
         .join("web");
-    if build_src.join("index.html").exists() && (!skip_build || !app_index.exists()) {
-        sync_dir(&build_src, &example_out.join("app"))?;
+    let fresh_build = !skip_build && needs_build && build_error.is_none();
+    if fresh_build {
+        if build_src.join("index.html").exists() {
+            sync_dir(&build_src, &example_out.join("app"))?;
+        } else {
+            build_error = Some("release web build produced no index.html".to_string());
+        }
     }
 
-    let app_available = example_out.join("app").join("index.html").exists();
-    let built_fingerprint = if !skip_build && app_available {
+    let app_available = app_index.exists()
+        && build_error.is_none()
+        && (!skip_build || previous_build_recipe.as_deref() == Some(build_recipe.as_str()));
+    let built_fingerprint = if fresh_build && app_available {
         Some(source_fingerprint.clone())
     } else if app_available {
         previous_built_fingerprint
@@ -268,6 +281,11 @@ fn process_example(
         plan,
         &source_fingerprint,
         built_fingerprint.as_deref(),
+        if fresh_build && app_available {
+            Some(build_recipe.as_str())
+        } else {
+            previous_build_recipe.as_deref()
+        },
         app_available,
         skip_build,
         build_error.as_deref(),
@@ -304,6 +322,7 @@ fn build_example(pax_cli: &Path, workspace: &Path, example_path: &str) -> io::Re
         .arg(format!("examples/src/{example_path}"))
         .arg("--target")
         .arg("web")
+        .arg("--release")
         .status()?;
 
     if !status.success() {
@@ -330,6 +349,7 @@ fn write_manifest(
     plan: &ExampleBuildPlan,
     source_fingerprint: &str,
     built_fingerprint: Option<&str>,
+    build_recipe: Option<&str>,
     app_available: bool,
     build_skipped: bool,
     build_error: Option<&str>,
@@ -355,6 +375,7 @@ fn write_manifest(
         "hosted_url": examples::hosted_example_url(&plan.path),
         "source_fingerprint": source_fingerprint,
         "built_fingerprint": built_fingerprint,
+        "build_recipe": build_recipe,
         "app": {
             "available": app_available,
             "index": "app/index.html",
@@ -413,6 +434,132 @@ fn write_if_changed(path: &Path, bytes: &[u8]) -> io::Result<()> {
     fs::write(path, bytes)
 }
 
+// An unchanged example still needs rebuilding after an engine/compiler update.
+// Exclude docs so editorial changes alone can reuse the compiled applications.
+fn engine_build_recipe(workspace: &Path) -> io::Result<String> {
+    let mut recipe = BUILD_RECIPE.to_string();
+    for package in [
+        "pax-cli", "pax-compiler", "pax-engine", "pax-gpu", "pax-kit",
+        "pax-language", "pax-macro", "pax-manifest", "pax-message",
+        "pax-runtime", "pax-runtime-api", "pax-std",
+    ] {
+        for suffix in ["src", "templates"] {
+            let relative = format!("{package}/{suffix}");
+            let path = workspace.join(&relative);
+            if path.is_dir() {
+                recipe.push_str(&format!(":{relative}={}", examples::fingerprint_dir(&path)?));
+            }
+        }
+    }
+    let interface = workspace.join("pax-compiler/files/interfaces/web/src");
+    if interface.is_dir() {
+        recipe.push_str(&format!(":web={}", examples::fingerprint_dir(&interface)?));
+    }
+    Ok(recipe)
+}
+
 fn write_gitignore(out_dir: &Path) -> io::Result<()> {
     write_if_changed(&out_dir.join(".gitignore"), b"*\n!.gitignore\n")
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use std::os::unix::fs::PermissionsExt;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct Fixture(PathBuf);
+    impl Fixture {
+        fn new(script: &str) -> Self {
+            static NEXT: AtomicUsize = AtomicUsize::new(0);
+            let root = std::env::temp_dir().join(format!(
+                "pax-docs-release-test-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            fs::create_dir_all(root.join("examples/src/demo/src")).unwrap();
+            fs::write(root.join("examples/src/demo/src/lib.pax"), "<Group />").unwrap();
+            fs::write(root.join("cli"), format!("#!/bin/sh\n{script}\n")).unwrap();
+            fs::set_permissions(root.join("cli"), fs::Permissions::from_mode(0o755)).unwrap();
+            Self(root)
+        }
+        fn run(&self, skip: bool) -> serde_json::Value {
+            let plan = ExampleBuildPlan {
+                path: "demo".into(),
+                title: "Demo".into(),
+                height: None,
+                files: vec![],
+            };
+            process_example(
+                &self.0,
+                &self.0.join("out"),
+                &self.0.join("cli"),
+                &plan,
+                skip,
+            )
+            .unwrap();
+            serde_json::from_slice(&fs::read(self.0.join("out/demo/manifest.json")).unwrap())
+                .unwrap()
+        }
+        fn seed_legacy(&self) {
+            fs::create_dir_all(self.0.join("out/demo/app")).unwrap();
+            fs::write(self.0.join("out/demo/app/index.html"), "old debug").unwrap();
+            let fingerprint = examples::fingerprint_dir(&self.0.join("examples/src/demo")).unwrap();
+            fs::write(
+                self.0.join("out/demo/manifest.json"),
+                json!({"built_fingerprint":fingerprint}).to_string(),
+            )
+            .unwrap();
+        }
+    }
+    impl Drop for Fixture {
+        fn drop(&mut self) {
+            let _ = fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn legacy_debug_cache_rebuilds_as_release_then_reuses_verified_output() {
+        let f = Fixture::new("printf '%s\\n' \"$@\" > args\nmkdir -p examples/src/demo/.pax/build/release/web\nprintf release > examples/src/demo/.pax/build/release/web/index.html");
+        f.seed_legacy();
+        let manifest = f.run(false);
+        assert_eq!(manifest["build_recipe"], BUILD_RECIPE);
+        assert_eq!(manifest["app"]["available"], true);
+        assert!(fs::read_to_string(f.0.join("args"))
+            .unwrap()
+            .contains("--release"));
+        assert_eq!(
+            fs::read_to_string(f.0.join("out/demo/app/index.html")).unwrap(),
+            "release"
+        );
+        fs::write(f.0.join("cli"), "#!/bin/sh\nexit 1\n").unwrap();
+        assert_eq!(f.run(false)["app"]["available"], true);
+    }
+
+    #[test]
+    fn engine_changes_invalidate_unchanged_example_cache() {
+        let f = Fixture::new("mkdir -p examples/src/demo/.pax/build/release/web\nprintf release > examples/src/demo/.pax/build/release/web/index.html");
+        assert_eq!(f.run(false)["app"]["available"], true);
+        fs::create_dir_all(f.0.join("pax-gpu/src")).unwrap();
+        fs::write(f.0.join("pax-gpu/src/lib.rs"), "// changed renderer").unwrap();
+        assert_eq!(f.run(true)["app"]["available"], false);
+        assert_eq!(f.run(false)["app"]["available"], true);
+    }
+
+    #[test]
+    fn failed_build_does_not_promote_stale_artifacts() {
+        let f = Fixture::new("exit 1");
+        f.seed_legacy();
+        let manifest = f.run(false);
+        assert_eq!(manifest["app"]["available"], false);
+        assert!(manifest["build_recipe"].is_null());
+        assert!(!manifest["app"]["build_error"].is_null());
+    }
+
+    #[test]
+    fn skipping_build_cannot_present_legacy_debug_as_release() {
+        let f = Fixture::new("exit 1");
+        f.seed_legacy();
+        assert_eq!(f.run(true)["app"]["available"], false);
+    }
 }

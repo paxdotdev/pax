@@ -110,26 +110,6 @@ application logic.
 In this panel, `self.title` and `title` read the same property. This chapter
 uses the explicit `self` form when referring to component state.
 
-<div class="docs-example-placeholder">
-<p><strong>Interactive example planned:</strong> adjust the panel's slider with the formulas and their results visible beside it.</p>
-<!-- Production brief:
-- Show one property feeding a label, percentage width, and conditional color.
-- Show the read/write control connection separately from derived values.
-- Keep editable source tabs tied to the docs version; reuse the Templates panel.
-Treatments: a panel with highlighted source lines; a worksheet of formula/result
-pairs; or a split view with dependency arrows that light up after a change.
-Prefer the panel with source tabs. -->
-</div>
-
-<div class="docs-media-placeholder">
-<p><strong>Diagram planned:</strong> follow a slider edit into <code>progress</code>, then out to the label, width, and color.</p>
-<!-- Production brief:
-- Distinguish a state write from the three formula reads.
-- Label the common input and each resulting property.
-Treatments: a small dependency graph; three annotated rendered snapshots at
-25/50/100 percent; or a source-to-screen overlay. Prefer the dependency graph. -->
-</div>
-
 ## Literals
 
 The receiving property supplies the expected type. A `Text` needs a string for

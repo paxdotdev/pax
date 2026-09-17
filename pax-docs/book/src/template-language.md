@@ -116,13 +116,6 @@ as `Stacker` can arrange children for you. Continue with
 or [Compositing and Effects](compositing-effects.md) for clipping, masks, and
 native-element layering.
 
-<div class="docs-media-placeholder">
-<p><strong>Diagram planned:</strong> the panel's source, its parent/child tree, and its foreground-to-background layers side by side.</p>
-<!-- Production brief: show the common parent, sibling order, and the text/background overlap.
-Treatments: annotated source-to-screen connectors; an exploded layer stack; or a tree with a selectable rendered overlay.
-Use the source-to-screen treatment. Keep this tied to the verified panel, with no starter-specific media. -->
-</div>
-
 ## IDs and classes
 
 Inline values keep a small element easy to read. As settings become reusable,
@@ -328,15 +321,6 @@ reactively. See [Drawing and Styling](drawing-styling.md) for visual design
 choices and [PAXEL's `$base`](data-binding-expressions.md#base) for building on
 an earlier property value. Timelines add animation-specific behavior covered
 in [Animation and Motion](animation-motion.md).
-
-<div class="docs-example-placeholder">
-<p><strong>Interactive example planned:</strong> explore the panel with its source visible, changing sibling order, selected classes, and a theme override.</p>
-<!-- Production brief: reuse existing layered-panel and runtime-settings-themes material.
-Demonstrate foreground/background order, literal versus bound values, class-list order,
-local ID/inline precedence, and one imported provider. Keep source tied to the docs version.
-Treatments: a panel with selectable source lines; an exploded layer view; or a per-property
-settings inspector. Prefer the panel with source tabs; the inspector is a possible later enhancement. -->
-</div>
 
 ## Read more
 

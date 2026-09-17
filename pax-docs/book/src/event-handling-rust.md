@@ -139,18 +139,6 @@ commit. Exact commit timing belongs to the platform control, so test it on
 the targets you ship. Forms, two-way bindings, and focus are covered in
 [Native Controls](accessibility-native-controls.md).
 
-<div class="docs-example-placeholder">
-<p><strong>Interactive example planned:</strong> use the Field notes controls and follow each event into its Rust handler and state update.</p>
-<!-- Production brief:
-- Show the template binding, event payload, handler, and resulting value together.
-- Contrast a native Button's activation with a Textbox's live input.
-- Make source available alongside the running example, tied to the docs version.
-Treatments: a Field notes panel with a short event trace and coordinated source
-highlights; a title editor with separate live and committed previews; or a
-transformed interaction pad with window/local coordinate readouts. Prefer the
-panel, with source highlights that stay legible without rapid animation. -->
-</div>
-
 ## Choose the binding's scope
 
 An inline binding belongs to the element where it is written. In the Advance
@@ -178,18 +166,6 @@ the child's own settings acts on that child; an inline binding on the child's
 invocation acts on the containing component. See
 [Components and Composition](components-composition.md) for the component
 boundary and [Event delivery](#event-delivery) for propagation.
-
-<div class="docs-media-placeholder">
-<p><strong>Diagram planned:</strong> distinguish the receiving node from the Rust component that owns its inline handler.</p>
-<!-- Production brief:
-- Draw a Notes component, a child container, and its Button.
-- Mark the handler's state owner separately from its NodeContext.
-- Trace template-parent propagation, distinguishing it from event cancellation.
-Treatments: an annotated component/element tree with two coordinated highlights;
-a lifecycle strip showing mounting, repeated ticks, and removal; or a Scroller
-coordinate overlay with window and local axes. Prefer the small tree. Label the
-event family being illustrated so the path does not imply universal bubbling. -->
-</div>
 
 ## Do application work
 

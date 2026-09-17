@@ -498,6 +498,138 @@ mod tests {
     }
 
     #[test]
+    fn indexed_slot_forwards_through_a_component() {
+        let slot: Rc<dyn InstanceNode> =
+            SlotInstance::instantiate(slot_args(Some(Property::new(Numeric::I64(0)))));
+        let forwarding = forwarding_component(vec![slot]);
+        let (root, context) = projection_fixture(vec![forwarding]);
+        root.recurse_update(&context);
+
+        let owner = root.children.get()[0].clone();
+        let sites = active_slot_sites(&owner);
+        assert_eq!(sites.len(), 1, "discover the caller's forwarded slot");
+        assert_eq!(labels(&sites[0].children.get()), vec!["red"]);
+    }
+
+    fn forwarding_component(children: Vec<Rc<dyn InstanceNode>>) -> Rc<dyn InstanceNode> {
+        // Like Scroller, this component has its own projection sites, distinct
+        // from any caller-owned slots passed as its content.
+        let own_slot: Rc<dyn InstanceNode> = SlotInstance::instantiate(slot_args(None));
+        ComponentInstance::instantiate(component_args(Some(vec![own_slot]), Some(children)))
+    }
+
+    fn projection_fixture(
+        template: Vec<Rc<dyn InstanceNode>>,
+    ) -> (Rc<ExpandedNode>, Rc<RuntimeContext>) {
+        let content = ["red", "orange", "yellow"]
+            .into_iter()
+            .map(|label| TestLeaf::instantiate(leaf_args(label)) as Rc<dyn InstanceNode>)
+            .collect();
+        let owner = ComponentInstance::instantiate(component_args(Some(template), Some(content)));
+        let root = ComponentInstance::instantiate(component_args(Some(vec![owner]), None));
+        let context = Rc::new(RuntimeContext::new(test_globals()));
+        (ExpandedNode::initialize_root(root, &context), context)
+    }
+
+    #[test]
+    fn forwarded_slots_preserve_owner_remainder_and_dynamic_index() {
+        let index = Property::new(Numeric::I64(1));
+        let selected: Rc<dyn InstanceNode> =
+            SlotInstance::instantiate(slot_args(Some(index.clone())));
+        let remainder: Rc<dyn InstanceNode> = SlotInstance::instantiate(slot_args(None));
+        let nested = forwarding_component(vec![forwarding_component(vec![selected, remainder])]);
+        let (root, context) = projection_fixture(vec![nested]);
+        root.recurse_update(&context);
+
+        let owner = root.children.get()[0].clone();
+        let sites = active_slot_sites(&owner);
+        assert_eq!(sites.len(), 2, "nested components' own slots are excluded");
+        let original = owner.expanded_and_flattened_projected_children.get();
+        assert_eq!(labels(&sites[0].children.get()), vec!["orange"]);
+        assert_eq!(labels(&sites[1].children.get()), vec!["red", "yellow"]);
+
+        index.set(Numeric::I64(0));
+        root.recurse_update(&context);
+        assert_eq!(labels(&sites[0].children.get()), vec!["red"]);
+        assert_eq!(labels(&sites[1].children.get()), vec!["orange", "yellow"]);
+        assert_eq!(sites[0].children.get()[0].id, original[0].id);
+        for child in &original {
+            assert_eq!(child.attached.get(), 1, "forwarding must not double mount");
+            assert_eq!(
+                child.containing_component.upgrade().unwrap().id,
+                root.id,
+                "content retains the lexical owner that supplied it"
+            );
+        }
+    }
+
+    #[test]
+    fn conditional_forwarded_slot_releases_content_to_remainder() {
+        let visible = Property::new(true);
+        let selected: Rc<dyn InstanceNode> =
+            SlotInstance::instantiate(slot_args(Some(Property::new(Numeric::I64(0)))));
+        let mut args = container_args(vec![selected]);
+        let condition = visible.clone();
+        args.prototypical_properties =
+            crate::PropertiesInit::Factory(Box::new(move |_, expanded_node| {
+                expanded_node.is_none().then(|| {
+                    Rc::new(RefCell::new(
+                        crate::conditional::ConditionalProperties {
+                            boolean_expression: condition.clone(),
+                            conditional_branches: vec![],
+                        }
+                        .to_pax_any(),
+                    ))
+                })
+            }));
+        let conditional = crate::conditional::ConditionalInstance::instantiate(args);
+        let forwarding = forwarding_component(vec![conditional]);
+        let remainder: Rc<dyn InstanceNode> = SlotInstance::instantiate(slot_args(None));
+        let (root, context) = projection_fixture(vec![forwarding, remainder]);
+        root.recurse_update(&context);
+        let owner = root.children.get()[0].clone();
+        let sites = active_slot_sites(&owner);
+        assert_eq!(sites.len(), 2);
+        let remainder = sites[1].clone();
+        assert_eq!(labels(&remainder.children.get()), vec!["orange", "yellow"]);
+
+        visible.set(false);
+        root.recurse_update(&context);
+        assert_eq!(active_slot_sites(&owner).len(), 1);
+        assert_eq!(
+            labels(&remainder.children.get()),
+            vec!["red", "orange", "yellow"]
+        );
+
+        visible.set(true);
+        root.recurse_update(&context);
+        let sites = active_slot_sites(&owner);
+        assert_eq!(sites.len(), 2);
+        assert_eq!(labels(&sites[0].children.get()), vec!["red"]);
+        assert_eq!(labels(&remainder.children.get()), vec!["orange", "yellow"]);
+    }
+
+    #[test]
+    fn forwarded_duplicate_does_not_steal_an_earlier_slot() {
+        let first: Rc<dyn InstanceNode> =
+            SlotInstance::instantiate(slot_args(Some(Property::new(Numeric::I64(0)))));
+        let duplicate: Rc<dyn InstanceNode> =
+            SlotInstance::instantiate(slot_args(Some(Property::new(Numeric::I64(0)))));
+        let remainder: Rc<dyn InstanceNode> = SlotInstance::instantiate(slot_args(None));
+        let nested = forwarding_component(vec![duplicate, remainder]);
+        let (root, context) = projection_fixture(vec![first, nested]);
+        root.recurse_update(&context);
+
+        let owner = root.children.get()[0].clone();
+        let sites = active_slot_sites(&owner);
+        assert_eq!(sites.len(), 3);
+        assert_eq!(labels(&sites[0].children.get()), vec!["red"]);
+        assert!(sites[1].children.get().is_empty());
+        assert!(sites[1].mounted_children.borrow().is_empty());
+        assert_eq!(labels(&sites[2].children.get()), vec!["orange", "yellow"]);
+    }
+
+    #[test]
     fn remainder_slot_receives_unconsumed_projected_children() {
         let slot_zero: Rc<dyn InstanceNode> =
             SlotInstance::instantiate(slot_args(Some(Property::new(Numeric::I64(0)))));
@@ -919,6 +1051,15 @@ fn collect_active_slot_sites(
     }
 
     if flags.is_component && node.id != containing_component_id {
+        drop(instance);
+        // A nested component owns its implementation, but not the content the
+        // caller passed to it. Forwarded slot sites keep that caller's lexical
+        // ownership (e.g. Carousel -> Scroller -> slot(i)). Walk the projected
+        // input, not the nested template or its own projection sites.
+        let projected = borrow!(node.expanded_projected_children).clone();
+        for child in projected.iter().flatten() {
+            collect_active_slot_sites(child, containing_component_id, slot_sites);
+        }
         return;
     }
     drop(instance);
