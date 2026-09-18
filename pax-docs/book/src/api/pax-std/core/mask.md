@@ -4,7 +4,6 @@
 
 ## Structs
 ### `Mask`
-
 Clips its first child using its second child subtree, which is not rendered as
 visible content. By default, this is a geometric coverage mask. Set `alpha=true`
 to use painted alpha instead, and `feather` to soften its edge:
@@ -37,3 +36,14 @@ clipping, images, text, and native elements are not alpha sources; use vector
 leaves inside `Group`/repeat containers. Alpha masks modulate canvas draw alpha,
 not an isolated offscreen group, and do not change hit testing. Keep interactive
 hit targets separate from purely visual alpha reveals.
+
+#### Properties
+##### `alpha`
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`bool`>
+
+Use painted alpha instead of geometric coverage.
+
+##### `feather`
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`f64`>
+
+Gaussian feather standard deviation, in logical pixels, for alpha masks.

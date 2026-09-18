@@ -19,7 +19,7 @@ rejected during value coercion.
 
 #### Properties
 ##### `0`
-Type: [`Numeric`](/api/pax-runtime-api/pax_value/numeric.md#numeric)
+Type: [`Numeric`](../../api/pax-runtime-api/pax_value/numeric.md#numeric)
 
 #### Implementations
 ##### `to_float`
@@ -34,23 +34,23 @@ A color stop for a gradient fill, defined by a position (% or px) and a color.
 
 #### Properties
 ##### `position`
-Type: [`Size`](/api/pax-runtime-api/layout.md#size)
+Type: [`Size`](../../api/pax-runtime-api/layout.md#size)
 
 Stop position, conventionally expressed as a percentage along the gradient.
 
 ##### `color`
-Type: [`Color`](/api/pax-runtime-api/color.md#color)
+Type: [`Color`](../../api/pax-runtime-api/color.md#color)
 
 Color at this stop.
 
 #### Implementations
 ##### `get`
-<pre><code class="api-signature language-rust ignore">pub fn get(color: <a href="/api/pax-runtime-api/color.md#color">Color</a>, position: <a href="/api/pax-runtime-api/layout.md#size">Size</a>) -&gt; <a href="/api/pax-runtime-api/drawing.md#gradientstop">GradientStop</a></code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn get(color: <a href="../../api/pax-runtime-api/color.md#color">Color</a>, position: <a href="../../api/pax-runtime-api/layout.md#size">Size</a>) -&gt; <a href="../../api/pax-runtime-api/drawing.md#gradientstop">GradientStop</a></code></pre>
 
 Constructs a gradient stop at `position`.
 
 ##### `with_alpha_factor`
-<pre><code class="api-signature language-rust ignore">pub fn with_alpha_factor(&amp;self, factor: f64) -&gt; <a href="/api/pax-runtime-api/drawing.md#gradientstop">GradientStop</a></code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn with_alpha_factor(&amp;self, factor: f64) -&gt; <a href="../../api/pax-runtime-api/drawing.md#gradientstop">GradientStop</a></code></pre>
 
 Returns a copy of this stop with alpha multiplied by `factor`.
 
@@ -64,17 +64,17 @@ is the horizontal coordinate and index `1` is the vertical coordinate.
 
 #### Properties
 ##### `start`
-Type: ([`Size`](/api/pax-runtime-api/layout.md#size), [`Size`](/api/pax-runtime-api/layout.md#size))
+Type: ([`Size`](../../api/pax-runtime-api/layout.md#size), [`Size`](../../api/pax-runtime-api/layout.md#size))
 
 Gradient start point in the primitive's local coordinate space.
 
 ##### `end`
-Type: ([`Size`](/api/pax-runtime-api/layout.md#size), [`Size`](/api/pax-runtime-api/layout.md#size))
+Type: ([`Size`](../../api/pax-runtime-api/layout.md#size), [`Size`](../../api/pax-runtime-api/layout.md#size))
 
 Gradient end point in the primitive's local coordinate space.
 
 ##### `stops`
-Type: `Vec`<[`GradientStop`](/api/pax-runtime-api/drawing.md#gradientstop)>
+Type: `Vec`<[`GradientStop`](../../api/pax-runtime-api/drawing.md#gradientstop)>
 
 Ordered color stops along the gradient.
 
@@ -85,37 +85,37 @@ Tunable response parameters for a light-reactive vector material.
 
 #### Properties
 ##### `ambient`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`f64`>
+Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<`f64`>
 
 Ambient contribution multiplier.
 
 ##### `diffuse`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`f64`>
+Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<`f64`>
 
 Diffuse contribution multiplier.
 
 ##### `specular`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`f64`>
+Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<`f64`>
 
 Specular contribution multiplier.
 
 ##### `roughness`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`f64`>
+Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<`f64`>
 
 Surface roughness in the `[0.0, 1.0]` range.
 
 ##### `metallic`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`f64`>
+Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<`f64`>
 
 Metallic response in the `[0.0, 1.0]` range.
 
 ##### `emissive`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Color`](/api/pax-runtime-api/color.md#color)>
+Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<[`Color`](../../api/pax-runtime-api/color.md#color)>
 
 Additive emissive color.
 
 ##### `emissive_intensity`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`f64`>
+Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<`f64`>
 
 Additive emissive intensity.
 
@@ -129,12 +129,12 @@ is the horizontal coordinate and index `1` is the vertical coordinate.
 
 #### Properties
 ##### `end`
-Type: ([`Size`](/api/pax-runtime-api/layout.md#size), [`Size`](/api/pax-runtime-api/layout.md#size))
+Type: ([`Size`](../../api/pax-runtime-api/layout.md#size), [`Size`](../../api/pax-runtime-api/layout.md#size))
 
 Outer radius endpoint in the primitive's local coordinate space.
 
 ##### `start`
-Type: ([`Size`](/api/pax-runtime-api/layout.md#size), [`Size`](/api/pax-runtime-api/layout.md#size))
+Type: ([`Size`](../../api/pax-runtime-api/layout.md#size), [`Size`](../../api/pax-runtime-api/layout.md#size))
 
 Gradient center point in the primitive's local coordinate space.
 
@@ -144,7 +144,7 @@ Type: `f64`
 Radial gradient radius.
 
 ##### `stops`
-Type: `Vec`<[`GradientStop`](/api/pax-runtime-api/drawing.md#gradientstop)>
+Type: `Vec`<[`GradientStop`](../../api/pax-runtime-api/drawing.md#gradientstop)>
 
 Ordered color stops along the gradient.
 
@@ -155,7 +155,7 @@ Resolved ambient light for one logical canvas layer.
 
 #### Properties
 ##### `color`
-Type: [`Color`](/api/pax-runtime-api/color.md#color)
+Type: [`Color`](../../api/pax-runtime-api/color.md#color)
 
 Ambient color.
 
@@ -171,22 +171,22 @@ Resolved light contribution for one logical canvas layer.
 
 #### Properties
 ##### `shape`
-Type: [`LightShape`](/api/pax-runtime-api/drawing.md#lightshape)
+Type: [`LightShape`](../../api/pax-runtime-api/drawing.md#lightshape)
 
 Positional or directional light shape.
 
 ##### `position`
-Type: [`Vector3`](/api/pax-runtime-api/drawing.md#vector3)
+Type: [`Vector3`](../../api/pax-runtime-api/drawing.md#vector3)
 
 Position in logical canvas pixels for point lights.
 
 ##### `direction`
-Type: [`Vector3`](/api/pax-runtime-api/drawing.md#vector3)
+Type: [`Vector3`](../../api/pax-runtime-api/drawing.md#vector3)
 
 Direction in scene space for directional lights.
 
 ##### `color`
-Type: [`Color`](/api/pax-runtime-api/color.md#color)
+Type: [`Color`](../../api/pax-runtime-api/color.md#color)
 
 Light color.
 
@@ -225,12 +225,12 @@ The default ambient is only applied to primitives with at least one
 eligible direct light. An authored ambient remains layer-wide.
 
 ##### `ambient`
-Type: [`SceneAmbientLight`](/api/pax-runtime-api/drawing.md#sceneambientlight)
+Type: [`SceneAmbientLight`](../../api/pax-runtime-api/drawing.md#sceneambientlight)
 
 Singleton ambient contribution.
 
 ##### `lights`
-Type: `Vec`<[`SceneLight`](/api/pax-runtime-api/drawing.md#scenelight)>
+Type: `Vec`<[`SceneLight`](../../api/pax-runtime-api/drawing.md#scenelight)>
 
 Positional and directional light contributions.
 
@@ -247,7 +247,7 @@ Maximum number of simultaneously enabled lights in one target canvas layer.
 Returns lighting that preserves unlit legacy rendering.
 
 ##### `with_default_ambient`
-<pre><code class="api-signature language-rust ignore">pub fn with_default_ambient(lights: Vec&lt;<a href="/api/pax-runtime-api/drawing.md#scenelight">SceneLight</a>&gt;) -&gt; Self</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn with_default_ambient(lights: Vec&lt;<a href="../../api/pax-runtime-api/drawing.md#scenelight">SceneLight</a>&gt;) -&gt; Self</code></pre>
 
 Creates active lighting with Pax's default ambient term.
 
@@ -262,12 +262,12 @@ the path, while `join` controls how adjacent segments meet.
 
 #### Properties
 ##### `color`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Color`](/api/pax-runtime-api/color.md#color)>
+Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<[`Color`](../../api/pax-runtime-api/color.md#color)>
 
 The stroke color, including alpha.
 
 ##### `width`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Size`](/api/pax-runtime-api/layout.md#size)>
+Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<[`Size`](../../api/pax-runtime-api/layout.md#size)>
 
 The stroke width.
 
@@ -275,12 +275,12 @@ The type is [`Size`] for consistency with the wider property system, but
 current vector renderers interpret this value in pixels.
 
 ##### `cap`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`StrokeCap`](/api/pax-runtime-api/drawing.md#strokecap)>
+Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<[`StrokeCap`](../../api/pax-runtime-api/drawing.md#strokecap)>
 
 The cap style used for exposed endpoints on open paths.
 
 ##### `join`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`StrokeJoin`](/api/pax-runtime-api/drawing.md#strokejoin)>
+Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<[`StrokeJoin`](../../api/pax-runtime-api/drawing.md#strokejoin)>
 
 The join style used where adjacent stroke segments meet.
 
@@ -316,13 +316,13 @@ Constructs a 3D vector.
 Describes how to fill vector geometry.
 
 #### Variants
-##### `Solid`([`Color`](/api/pax-runtime-api/color.md#color))
+##### `Solid`([`Color`](../../api/pax-runtime-api/color.md#color))
 A single solid color.
 
-##### `LinearGradient`([`LinearGradient`](/api/pax-runtime-api/drawing.md#lineargradient))
+##### `LinearGradient`([`LinearGradient`](../../api/pax-runtime-api/drawing.md#lineargradient))
 A linear gradient.
 
-##### `RadialGradient`([`RadialGradient`](/api/pax-runtime-api/drawing.md#radialgradient))
+##### `RadialGradient`([`RadialGradient`](../../api/pax-runtime-api/drawing.md#radialgradient))
 A radial gradient.
 
 #### Implementations
@@ -332,7 +332,7 @@ A radial gradient.
 Estimates the alpha coverage contributed by this fill.
 
 ##### `linearGradient`
-<pre><code class="api-signature language-rust ignore">pub fn linearGradient(start: (<a href="/api/pax-runtime-api/layout.md#size">Size</a>, <a href="/api/pax-runtime-api/layout.md#size">Size</a>), end: (<a href="/api/pax-runtime-api/layout.md#size">Size</a>, <a href="/api/pax-runtime-api/layout.md#size">Size</a>), stops: Vec&lt;<a href="/api/pax-runtime-api/drawing.md#gradientstop">GradientStop</a>&gt;) -&gt; <a href="/api/pax-runtime-api/drawing.md#fill">Fill</a></code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn linearGradient(start: (<a href="../../api/pax-runtime-api/layout.md#size">Size</a>, <a href="../../api/pax-runtime-api/layout.md#size">Size</a>), end: (<a href="../../api/pax-runtime-api/layout.md#size">Size</a>, <a href="../../api/pax-runtime-api/layout.md#size">Size</a>), stops: Vec&lt;<a href="../../api/pax-runtime-api/drawing.md#gradientstop">GradientStop</a>&gt;) -&gt; <a href="../../api/pax-runtime-api/drawing.md#fill">Fill</a></code></pre>
 
 Constructs a linear gradient fill.
 
@@ -345,7 +345,7 @@ needed explicitly, pass `start` and `end` as `[x, y]` lists.
 Returns the maximum alpha used by this fill.
 
 ##### `with_alpha_factor`
-<pre><code class="api-signature language-rust ignore">pub fn with_alpha_factor(&amp;self, factor: f64) -&gt; <a href="/api/pax-runtime-api/drawing.md#fill">Fill</a></code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn with_alpha_factor(&amp;self, factor: f64) -&gt; <a href="../../api/pax-runtime-api/drawing.md#fill">Fill</a></code></pre>
 
 Returns a copy of this fill with alpha multiplied by `factor`.
 
@@ -370,7 +370,7 @@ This is intentionally named `Material`; `texture` is reserved for future
 bitmap-backed texture maps and pattern data.
 
 #### Variants
-##### `Lit`([`MaterialParams`](/api/pax-runtime-api/drawing.md#materialparams))
+##### `Lit`([`MaterialParams`](../../api/pax-runtime-api/drawing.md#materialparams))
 Responds to scene lighting using parameterized material coefficients.
 
 ##### `Unlit`
@@ -378,12 +378,12 @@ Ignores scene lighting and preserves legacy unlit rendering behavior.
 
 #### Implementations
 ##### `custom`
-<pre><code class="api-signature language-rust ignore">pub fn custom(params: <a href="/api/pax-runtime-api/drawing.md#materialparams">MaterialParams</a>) -&gt; Self</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn custom(params: <a href="../../api/pax-runtime-api/drawing.md#materialparams">MaterialParams</a>) -&gt; Self</code></pre>
 
 Creates a lit material from explicit coefficients.
 
 ##### `emissive`
-<pre><code class="api-signature language-rust ignore">pub fn emissive(color: <a href="/api/pax-runtime-api/color.md#color">Color</a>, intensity: f64) -&gt; Self</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn emissive(color: <a href="../../api/pax-runtime-api/color.md#color">Color</a>, intensity: f64) -&gt; Self</code></pre>
 
 An emissive material that adds color independent of lights.
 
@@ -428,16 +428,16 @@ Describes a single element of a vector path, such as a line, a point, or curve s
 ##### `Empty`
 No-op path element.
 
-##### `Point`([`Size`](/api/pax-runtime-api/layout.md#size), [`Size`](/api/pax-runtime-api/layout.md#size))
+##### `Point`([`Size`](../../api/pax-runtime-api/layout.md#size), [`Size`](../../api/pax-runtime-api/layout.md#size))
 Moves the current point to the provided coordinate.
 
 ##### `Line`
 Draws a straight line to the following `Point`.
 
-##### `Quadratic`([`Size`](/api/pax-runtime-api/layout.md#size), [`Size`](/api/pax-runtime-api/layout.md#size))
+##### `Quadratic`([`Size`](../../api/pax-runtime-api/layout.md#size), [`Size`](../../api/pax-runtime-api/layout.md#size))
 Draws a quadratic Bézier segment with one control point, ending at the following `Point`.
 
-##### `Cubic`([`Size`](/api/pax-runtime-api/layout.md#size), [`Size`](/api/pax-runtime-api/layout.md#size), [`Size`](/api/pax-runtime-api/layout.md#size), [`Size`](/api/pax-runtime-api/layout.md#size))
+##### `Cubic`([`Size`](../../api/pax-runtime-api/layout.md#size), [`Size`](../../api/pax-runtime-api/layout.md#size), [`Size`](../../api/pax-runtime-api/layout.md#size), [`Size`](../../api/pax-runtime-api/layout.md#size))
 Draws a cubic Bézier segment with two control points, ending at the following `Point`.
 
 ##### `Close`

@@ -14,7 +14,7 @@ Type: `usize`
 Type: `bool`
 
 ##### `surfaces`
-Type: `Vec`<[`SurfaceCanvasDescriptor`](/api/internal/pax-runtime/engine/layer_tiling.md#surfacecanvasdescriptor)>
+Type: `Vec`<[`SurfaceCanvasDescriptor`](../../../../api/internal/pax-runtime/engine/layer_tiling.md#surfacecanvasdescriptor)>
 
 ---
 
@@ -54,13 +54,13 @@ Type: `String`
 
 ## Functions
 ### `scroller_canvas_plan`
-<pre><code class="api-signature language-rust ignore">pub fn scroller_canvas_plan(layer_id: usize, host_signature: String, content_width: f64, content_height: f64, viewport_width: f64, viewport_height: f64, scroll_x: f64, scroll_y: f64, device_pixel_ratio: f64) -&gt; <a href="/api/internal/pax-runtime/engine/layer_tiling.md#layercanvasplan">LayerCanvasPlan</a></code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn scroller_canvas_plan(layer_id: usize, host_signature: String, content_width: f64, content_height: f64, viewport_width: f64, viewport_height: f64, scroll_x: f64, scroll_y: f64, device_pixel_ratio: f64) -&gt; <a href="../../../../api/internal/pax-runtime/engine/layer_tiling.md#layercanvasplan">LayerCanvasPlan</a></code></pre>
 
 Build a tile window for a scrollable vector layer.
 
 ---
 
 ### `single_surface_plan`
-<pre><code class="api-signature language-rust ignore">pub fn single_surface_plan(layer_id: usize, host_signature: String, width: f64, height: f64) -&gt; <a href="/api/internal/pax-runtime/engine/layer_tiling.md#layercanvasplan">LayerCanvasPlan</a></code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn single_surface_plan(layer_id: usize, host_signature: String, width: f64, height: f64) -&gt; <a href="../../../../api/internal/pax-runtime/engine/layer_tiling.md#layercanvasplan">LayerCanvasPlan</a></code></pre>
 
 Build a one-surface plan for layers that do not need tiling.

@@ -12,47 +12,47 @@ animate the visible writing range.
 
 #### Properties
 ##### `text`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`String`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`String`>
 
 Text to render. Newline characters create additional baselines.
 
 ##### `font`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`HandwriterFont`](/api/pax-std/drawing/handwriter.md#handwriterfont)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`HandwriterFont`](../../../api/pax-std/drawing/handwriter.md#handwriterfont)>
 
 Bundled stroke font used to draw `text`.
 
 ##### `stroke`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Stroke`](/api/pax-runtime-api/drawing.md#stroke)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Stroke`](../../../api/pax-runtime-api/drawing.md#stroke)>
 
 Stroke used for the generated path.
 
 ##### `smoothing`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`PathSmoothing`](/api/pax-runtime-api/drawing.md#pathsmoothing)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`PathSmoothing`](../../../api/pax-runtime-api/drawing.md#pathsmoothing)>
 
 Optional curve smoothing applied to generated path geometry.
 
 ##### `alt_text`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`String`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`String`>
 
 Accessible text label. When empty, `text` is used.
 
 ##### `selectable`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`bool`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`bool`>
 
 Whether the invisible native text layer can be selected.
 
 ##### `draw_start`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`UnitValue`](/api/pax-runtime-api/unit_value.md#unitvalue)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`UnitValue`](../../../api/pax-runtime-api/unit_value.md#unitvalue)>
 
 Start position of the visible handwriting range.
 
 ##### `draw_end`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`UnitValue`](/api/pax-runtime-api/unit_value.md#unitvalue)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`UnitValue`](../../../api/pax-runtime-api/unit_value.md#unitvalue)>
 
 End position of the visible handwriting range.
 
 ##### `line_height`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`f64`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`f64`>
 
 Baseline-to-baseline multiplier relative to the font's em size.
 

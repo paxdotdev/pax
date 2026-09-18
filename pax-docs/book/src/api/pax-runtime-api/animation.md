@@ -33,13 +33,13 @@ A duration used by animation and transition systems.
 wall clock.
 
 #### Variants
-##### `Frames`([`Numeric`](/api/pax-runtime-api/pax_value/numeric.md#numeric))
+##### `Frames`([`Numeric`](../../api/pax-runtime-api/pax_value/numeric.md#numeric))
 Duration measured in runtime frames.
 
-##### `Milliseconds`([`Numeric`](/api/pax-runtime-api/pax_value/numeric.md#numeric))
+##### `Milliseconds`([`Numeric`](../../api/pax-runtime-api/pax_value/numeric.md#numeric))
 Duration measured in milliseconds.
 
-##### `Seconds`([`Numeric`](/api/pax-runtime-api/pax_value/numeric.md#numeric))
+##### `Seconds`([`Numeric`](../../api/pax-runtime-api/pax_value/numeric.md#numeric))
 Duration measured in seconds.
 
 #### Implementations
@@ -101,7 +101,7 @@ A custom easing curve defined by a user-provided function that maps a time on th
 
 #### Implementations
 ##### `interpolate`
-<pre><code class="api-signature language-rust ignore">pub fn interpolate&lt;T: <a href="/api/pax-runtime-api/animation.md#interpolatable">Interpolatable</a>&gt;(&amp;self, v0: &amp;T, v1: &amp;T, t: f64) -&gt; T</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn interpolate&lt;T: <a href="../../api/pax-runtime-api/animation.md#interpolatable">Interpolatable</a>&gt;(&amp;self, v0: &amp;T, v1: &amp;T, t: f64) -&gt; T</code></pre>
 
 Interpolates between `v0` and `v1` using `t` as time on the unit interval.
 

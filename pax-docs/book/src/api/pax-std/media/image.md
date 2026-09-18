@@ -12,12 +12,12 @@ element is preferable.
 
 #### Properties
 ##### `source`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`ImageSource`](/api/pax-std/media/image.md#imagesource)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`ImageSource`](../../../api/pax-std/media/image.md#imagesource)>
 
 Image source: empty, URL, or raw RGBA data.
 
 ##### `fit`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`ImageFit`](/api/pax-std/media/image.md#imagefit)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`ImageFit`](../../../api/pax-std/media/image.md#imagefit)>
 
 How the image should fit into this node's bounds.
 

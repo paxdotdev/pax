@@ -190,7 +190,7 @@ fn build_link_resolver(
     crates: &[String],
     public_crates: &HashSet<String>,
 ) -> Result<LinkResolver, Box<dyn std::error::Error>> {
-    let generated_pages = collect_generated_api_pages(workspace_root, crates, public_crates)?;
+    let generated_targets = collect_generated_api_targets(workspace_root, crates, public_crates)?;
     let crate_prefixes = crates
         .iter()
         .map(|krate| {
@@ -233,7 +233,7 @@ fn build_link_resolver(
                 .filter_map(Value::as_str)
                 .collect::<Vec<_>>();
             let Some(target) =
-                generated_doc_target_for_path(&parts, &crate_prefixes, &generated_pages)
+                generated_doc_target_for_path(&parts, &crate_prefixes, &generated_targets)
             else {
                 continue;
             };
@@ -248,13 +248,13 @@ fn build_link_resolver(
     Ok(resolver)
 }
 
-fn collect_generated_api_pages(
+fn collect_generated_api_targets(
     workspace_root: &Path,
     crates: &[String],
     public_crates: &HashSet<String>,
 ) -> Result<BTreeSet<String>, Box<dyn std::error::Error>> {
     let empty_resolver = LinkResolver::default();
-    let mut pages = BTreeSet::new();
+    let mut targets = BTreeSet::new();
     for krate in crates {
         let json = serde_json::from_str::<Value>(&fs::read_to_string(rustdoc_json_path(
             workspace_root,
@@ -283,25 +283,25 @@ fn collect_generated_api_pages(
 
         let mut root_items_filtered = filter_items(index, &root_items, &empty_resolver);
         root_items_filtered.retain(|item| item.kind != ItemKind::Module);
-        let crate_docs = extract_docs(root_item);
         let prefix = if public_crates.contains(krate) {
             format!("/api/{krate}")
         } else {
             format!("/api/internal/{krate}")
         };
-        if !crate_docs.is_empty() || !rendered_modules.is_empty() || !root_items_filtered.is_empty()
-        {
-            pages.insert(format!("{prefix}/index.md"));
+        for item in &root_items_filtered {
+            targets.insert(format!("{prefix}/index.md#{}", mdbook_anchor(&item.name)));
         }
 
         let mut all_modules = Vec::new();
         flatten_rendered_modules(&rendered_modules, &mut all_modules);
         for module in &all_modules {
             let (_, rel_path) = module.path.display_name_and_path();
-            pages.insert(format!("{prefix}/{rel_path}"));
+            for item in &module.items {
+                targets.insert(format!("{prefix}/{rel_path}#{}", mdbook_anchor(&item.name)));
+            }
         }
     }
-    Ok(pages)
+    Ok(targets)
 }
 
 fn is_linkable_type_path(path_info: &Value) -> bool {
@@ -314,7 +314,7 @@ fn is_linkable_type_path(path_info: &Value) -> bool {
 fn generated_doc_target_for_path(
     path_parts: &[&str],
     crate_prefixes: &BTreeMap<String, String>,
-    generated_pages: &BTreeSet<String>,
+    generated_targets: &BTreeSet<String>,
 ) -> Option<String> {
     if path_parts.len() < 2 {
         return None;
@@ -327,10 +327,10 @@ fn generated_doc_target_for_path(
     } else {
         format!("{prefix}/{}.md", module_parts.join("/"))
     };
-    if !generated_pages.contains(&page) {
-        return None;
-    }
-    Some(format!("{page}#{}", mdbook_anchor(name)))
+    let target = format!("{page}#{}", mdbook_anchor(name));
+    // A module page can exist while an undocumented type is intentionally
+    // omitted. Link only to item headings that the generator actually emits.
+    generated_targets.contains(&target).then_some(target)
 }
 
 fn mdbook_anchor(name: &str) -> String {
@@ -399,6 +399,7 @@ fn generate_crate_docs(
     let crate_index_path = crate_dir.join("index.md");
     let crate_written = write_module_doc(
         &crate_index_path,
+        &format!("{path_prefix}/index.md"),
         krate,
         &crate_docs,
         &crate_summary,
@@ -428,6 +429,7 @@ fn generate_crate_docs(
         }
         let module_written = write_module_doc(
             &file_path,
+            &format!("{path_prefix}/{rel_path}"),
             &display_name,
             &module.docs,
             &summary_from_docs(&module.docs)
@@ -1771,6 +1773,7 @@ fn summary_from_docs(docs: &str) -> Option<String> {
 
 fn write_module_doc(
     path: &Path,
+    book_relative_path: &str,
     title: &str,
     docs: &str,
     summary: &str,
@@ -1893,8 +1896,22 @@ fn write_module_doc(
         }
     }
 
-    write_if_changed(path, &out)?;
+    write_if_changed(path, &relativize_api_links(&out, book_relative_path))?;
     Ok(true)
+}
+
+fn relativize_api_links(markdown: &str, book_relative_path: &str) -> String {
+    // Type resolution uses book-root targets while assembling nested items.
+    // Once the destination page is known, emit links that stay in the same
+    // published version for both Markdown fields and HTML signature blocks.
+    let depth = Path::new(book_relative_path)
+        .parent()
+        .map(|parent| parent.components().count())
+        .unwrap_or(0);
+    let prefix = format!("{}api/", "../".repeat(depth));
+    markdown
+        .replace("](/api/", &format!("]({prefix}"))
+        .replace("href=\"/api/", &format!("href=\"{prefix}"))
 }
 
 fn push_function_entry(
@@ -2173,6 +2190,55 @@ fn collect_md_files(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), Box<dyn st
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn api_links_remain_inside_the_current_publication_prefix() {
+        let content = "[Property](/api/pax-runtime-api/properties.md#property)\n\
+            <a href=\"/api/internal/pax-runtime/engine.md#engine\">Engine</a>\n\
+            [external](https://docs.example/api/keep.md) [local](#anchor)";
+        for (page, up) in [
+            ("api/pax-runtime-api/index.md", "../../"),
+            ("api/pax-std/core/mask.md", "../../../"),
+            (
+                "api/internal/pax-runtime/engine/occlusion.md",
+                "../../../../",
+            ),
+        ] {
+            let output = relativize_api_links(content, page);
+            assert!(output.contains(&format!(
+                "[Property]({up}api/pax-runtime-api/properties.md#property)"
+            )));
+            assert!(output.contains(&format!(
+                "href=\"{up}api/internal/pax-runtime/engine.md#engine\""
+            )));
+            assert!(output.contains("https://docs.example/api/keep.md"));
+            assert!(output.contains("[local](#anchor)"));
+            assert!(!output.contains("](/api/"));
+            assert!(!output.contains("href=\"/api/"));
+        }
+    }
+
+    #[test]
+    fn api_links_require_a_rendered_item_not_just_its_module_page() {
+        let prefixes = BTreeMap::from([("pax_std".into(), "/api/pax-std".into())]);
+        let targets = BTreeSet::from(["/api/pax-std/core/mask.md#mask".into()]);
+        assert_eq!(
+            generated_doc_target_for_path(
+                &["pax_std", "core", "mask", "Mask"],
+                &prefixes,
+                &targets
+            ),
+            Some("/api/pax-std/core/mask.md#mask".into())
+        );
+        assert_eq!(
+            generated_doc_target_for_path(
+                &["pax_std", "core", "mask", "UndocumentedType"],
+                &prefixes,
+                &targets
+            ),
+            None
+        );
+    }
 
     struct TestDirectory(PathBuf);
 

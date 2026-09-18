@@ -61,12 +61,12 @@ Structured match data exposed to the active route subtree as `route`.
 
 #### Properties
 ##### `location`
-Type: [`RouteLocation`](/api/internal/pax-runtime/router.md#routelocation)
+Type: [`RouteLocation`](../../../api/internal/pax-runtime/router.md#routelocation)
 
 Location as seen by the current router scope.
 
 ##### `global_location`
-Type: [`RouteLocation`](/api/internal/pax-runtime/router.md#routelocation)
+Type: [`RouteLocation`](../../../api/internal/pax-runtime/router.md#routelocation)
 
 Full global application location.
 
@@ -92,7 +92,7 @@ Whether the selected branch consumed the entire scoped path.
 
 #### Implementations
 ##### `remainder_location`
-<pre><code class="api-signature language-rust ignore">pub fn remainder_location(&amp;self) -&gt; <a href="/api/internal/pax-runtime/router.md#routelocation">RouteLocation</a></code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn remainder_location(&amp;self) -&gt; <a href="../../../api/internal/pax-runtime/router.md#routelocation">RouteLocation</a></code></pre>
 
 Converts the remainder into a `RouteLocation` for nested router input.
 
@@ -101,7 +101,7 @@ Converts the remainder into a `RouteLocation` for nested router input.
 ### `RouterInstance`
 #### Implementations
 ##### `instantiate_with_branches`
-<pre><code class="api-signature language-rust ignore">pub fn instantiate_with_branches(args: <a href="/api/internal/pax-runtime/rendering.md#instantiationargs">InstantiationArgs</a>, branches: Vec&lt;<a href="/api/internal/pax-runtime/router.md#compiledroutebranch">CompiledRouteBranch</a>&gt;, branch_child_ranges: Vec&lt;Range&lt;usize&gt;&gt;) -&gt; Rc&lt;Self&gt;</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn instantiate_with_branches(args: <a href="../../../api/internal/pax-runtime/rendering.md#instantiationargs">InstantiationArgs</a>, branches: Vec&lt;<a href="../../../api/internal/pax-runtime/router.md#compiledroutebranch">CompiledRouteBranch</a>&gt;, branch_child_ranges: Vec&lt;Range&lt;usize&gt;&gt;) -&gt; Rc&lt;Self&gt;</code></pre>
 
 Creates a router instance with precompiled route branches.
 
@@ -112,12 +112,12 @@ Internal router inputs carried into a `RouterInstance`.
 
 #### Properties
 ##### `input_location`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`RouteLocation`](/api/internal/pax-runtime/router.md#routelocation)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`RouteLocation`](../../../api/internal/pax-runtime/router.md#routelocation)>
 
 Location scoped to the current router.
 
 ##### `global_location`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`RouteLocation`](/api/internal/pax-runtime/router.md#routelocation)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`RouteLocation`](../../../api/internal/pax-runtime/router.md#routelocation)>
 
 Full application location retained for diagnostics and coordination.
 

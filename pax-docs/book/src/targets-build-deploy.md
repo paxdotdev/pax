@@ -296,6 +296,22 @@ URLs, and host mapping all need to agree. Prefer a domain-root deployment for
 the launch path, and verify those pieces separately before using a subdirectory.
 See [Routing](routing.md) for nested scope, parameters, and navigation.
 
+### Embedded examples
+
+The default web interface supports an explicit query-backed routing mode for
+examples hosted inside another site. Open its entry document with `pax_route=/`
+(URL-encoded as `?pax_route=%2F`) to start at the application root. In this mode,
+Pax loads bundle resources beside that entry document and stores subsequent
+same-tab routes, including their query and fragment, inside `pax_route`.
+Back, Forward, and reload keep the physical entry URL intact. The docs use this
+mode for both embedded examples and their **Open standalone** links.
+
+Omit the parameter for normal pathname routing. Query-backed examples do not
+need a server fallback for each application route, but this is a preview/host
+integration mode, not a replacement for the crawler-visible route entries
+described above. A custom ejected web interface must preserve the default
+bootstrap's embedded-base setup if it uses this mode.
+
 ### HTTPS, content types, and caching
 
 Serve production apps over HTTPS. WebGPU requires a secure context; loopback
@@ -485,6 +501,10 @@ configuration portable between workstations.
 | `title` | Common, web, Apple | Browser title or Apple display name; defaults to the Cargo package name |
 | `icon` | Common, web, Apple | Image used for generated icons, including the fallback web favicon |
 | `favicon` | Web | Explicit favicon file; takes priority over icon-derived favicon generation |
+| `site_name` | Web | Open Graph site name; defaults to the resolved web title |
+| `site_url` | Web | Absolute public HTTP(S) URL, without query or fragment; required for release builds with indexable concrete routes |
+| `social_image` | Web | Default social-preview image: an absolute HTTP(S) URL or a path relative to `site_url` |
+| `social_image_alt` | Web | Description of the social image; configure both image fields together |
 | `bundle_identifier` | Common, Apple | Application identity for the Apple host |
 | `marketing_version` | Common, Apple | User-facing version; defaults to Cargo `package.version` |
 | `build_number` | Common, Apple | Apple build number, expressed as a TOML string |
@@ -495,6 +515,10 @@ configuration portable between workstations.
 booleans. Platform-specific entries override matching common keys; iPadOS
 also inherits iOS entries. Reload configuration has its own
 [`[package.metadata.pax.dev]` table](developer-workflow.md#configure-a-project-default).
+
+For per-page titles, descriptions, indexing, and social-preview overrides, use
+[Web route metadata](routing.md#web-route-metadata). These site-wide settings
+supply defaults and public URLs; they do not enumerate parameterized pages.
 
 ### Application icons
 

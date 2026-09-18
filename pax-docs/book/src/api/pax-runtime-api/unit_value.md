@@ -13,10 +13,10 @@ properties whose authoring domain is "part of a whole", such as path drawing
 progress where `0.5` and `50%` describe the same position.
 
 #### Variants
-##### `Unitless`([`Numeric`](/api/pax-runtime-api/pax_value/numeric.md#numeric))
+##### `Unitless`([`Numeric`](../../api/pax-runtime-api/pax_value/numeric.md#numeric))
 Unitless normalized value, where `0.5` means halfway through the domain.
 
-##### `Percent`([`Numeric`](/api/pax-runtime-api/pax_value/numeric.md#numeric))
+##### `Percent`([`Numeric`](../../api/pax-runtime-api/pax_value/numeric.md#numeric))
 Percent value, where `50%` means halfway through the domain.
 
 #### Implementations

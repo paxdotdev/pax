@@ -14,23 +14,23 @@ type through `into` inference.
 
 #### Properties
 ##### `0`
-Type: [`Numeric`](/api/pax-runtime-api/pax_value/numeric.md#numeric)
+Type: [`Numeric`](../../api/pax-runtime-api/pax_value/numeric.md#numeric)
 
 ## Enums
 ### `Color`
 Entrypoint for specifying and representing colors in Pax.
 
 #### Variants
-##### `rgb`([`ColorChannel`](/api/pax-runtime-api/color.md#colorchannel), [`ColorChannel`](/api/pax-runtime-api/color.md#colorchannel), [`ColorChannel`](/api/pax-runtime-api/color.md#colorchannel))
+##### `rgb`([`ColorChannel`](../../api/pax-runtime-api/color.md#colorchannel), [`ColorChannel`](../../api/pax-runtime-api/color.md#colorchannel), [`ColorChannel`](../../api/pax-runtime-api/color.md#colorchannel))
 Models a color in the RGB space, with an alpha channel of 100%
 
-##### `rgba`([`ColorChannel`](/api/pax-runtime-api/color.md#colorchannel), [`ColorChannel`](/api/pax-runtime-api/color.md#colorchannel), [`ColorChannel`](/api/pax-runtime-api/color.md#colorchannel), [`ColorChannel`](/api/pax-runtime-api/color.md#colorchannel))
+##### `rgba`([`ColorChannel`](../../api/pax-runtime-api/color.md#colorchannel), [`ColorChannel`](../../api/pax-runtime-api/color.md#colorchannel), [`ColorChannel`](../../api/pax-runtime-api/color.md#colorchannel), [`ColorChannel`](../../api/pax-runtime-api/color.md#colorchannel))
 Models a color in the RGBA space
 
-##### `hsl`([`Rotation`](/api/pax-runtime-api/transform.md#rotation), [`ColorChannel`](/api/pax-runtime-api/color.md#colorchannel), [`ColorChannel`](/api/pax-runtime-api/color.md#colorchannel))
+##### `hsl`([`Rotation`](../../api/pax-runtime-api/transform.md#rotation), [`ColorChannel`](../../api/pax-runtime-api/color.md#colorchannel), [`ColorChannel`](../../api/pax-runtime-api/color.md#colorchannel))
 Models a color in the HSL space, with an alpha channel of 100%
 
-##### `hsla`([`Rotation`](/api/pax-runtime-api/transform.md#rotation), [`ColorChannel`](/api/pax-runtime-api/color.md#colorchannel), [`ColorChannel`](/api/pax-runtime-api/color.md#colorchannel), [`ColorChannel`](/api/pax-runtime-api/color.md#colorchannel))
+##### `hsla`([`Rotation`](../../api/pax-runtime-api/transform.md#rotation), [`ColorChannel`](../../api/pax-runtime-api/color.md#colorchannel), [`ColorChannel`](../../api/pax-runtime-api/color.md#colorchannel), [`ColorChannel`](../../api/pax-runtime-api/color.md#colorchannel))
 Models a color in the HSLA space.
 
 ##### `SLATE`
@@ -128,22 +128,22 @@ Constructs a color from a six- or eight-character RGB/RGBA hex string.
 Constructs a color from normalized RGBA channels in the `[0.0, 1.0]` range.
 
 ##### `hsl`
-<pre><code class="api-signature language-rust ignore">pub fn hsl(h: <a href="/api/pax-runtime-api/transform.md#rotation">Rotation</a>, s: <a href="/api/pax-runtime-api/color.md#colorchannel">ColorChannel</a>, l: <a href="/api/pax-runtime-api/color.md#colorchannel">ColorChannel</a>) -&gt; Self</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn hsl(h: <a href="../../api/pax-runtime-api/transform.md#rotation">Rotation</a>, s: <a href="../../api/pax-runtime-api/color.md#colorchannel">ColorChannel</a>, l: <a href="../../api/pax-runtime-api/color.md#colorchannel">ColorChannel</a>) -&gt; Self</code></pre>
 
 Constructs an HSL color with 100% alpha.
 
 ##### `hsla`
-<pre><code class="api-signature language-rust ignore">pub fn hsla(h: <a href="/api/pax-runtime-api/transform.md#rotation">Rotation</a>, s: <a href="/api/pax-runtime-api/color.md#colorchannel">ColorChannel</a>, l: <a href="/api/pax-runtime-api/color.md#colorchannel">ColorChannel</a>, a: <a href="/api/pax-runtime-api/color.md#colorchannel">ColorChannel</a>) -&gt; Self</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn hsla(h: <a href="../../api/pax-runtime-api/transform.md#rotation">Rotation</a>, s: <a href="../../api/pax-runtime-api/color.md#colorchannel">ColorChannel</a>, l: <a href="../../api/pax-runtime-api/color.md#colorchannel">ColorChannel</a>, a: <a href="../../api/pax-runtime-api/color.md#colorchannel">ColorChannel</a>) -&gt; Self</code></pre>
 
 Constructs an HSLA color.
 
 ##### `rgb`
-<pre><code class="api-signature language-rust ignore">pub fn rgb(r: <a href="/api/pax-runtime-api/color.md#colorchannel">ColorChannel</a>, g: <a href="/api/pax-runtime-api/color.md#colorchannel">ColorChannel</a>, b: <a href="/api/pax-runtime-api/color.md#colorchannel">ColorChannel</a>) -&gt; Self</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn rgb(r: <a href="../../api/pax-runtime-api/color.md#colorchannel">ColorChannel</a>, g: <a href="../../api/pax-runtime-api/color.md#colorchannel">ColorChannel</a>, b: <a href="../../api/pax-runtime-api/color.md#colorchannel">ColorChannel</a>) -&gt; Self</code></pre>
 
 Constructs an RGB color with 100% alpha.
 
 ##### `rgba`
-<pre><code class="api-signature language-rust ignore">pub fn rgba(r: <a href="/api/pax-runtime-api/color.md#colorchannel">ColorChannel</a>, g: <a href="/api/pax-runtime-api/color.md#colorchannel">ColorChannel</a>, b: <a href="/api/pax-runtime-api/color.md#colorchannel">ColorChannel</a>, a: <a href="/api/pax-runtime-api/color.md#colorchannel">ColorChannel</a>) -&gt; Self</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn rgba(r: <a href="../../api/pax-runtime-api/color.md#colorchannel">ColorChannel</a>, g: <a href="../../api/pax-runtime-api/color.md#colorchannel">ColorChannel</a>, b: <a href="../../api/pax-runtime-api/color.md#colorchannel">ColorChannel</a>, a: <a href="../../api/pax-runtime-api/color.md#colorchannel">ColorChannel</a>) -&gt; Self</code></pre>
 
 Constructs an RGBA color.
 
@@ -168,13 +168,13 @@ Multiplies this color's alpha channel by `factor`.
 Describes a color channel in a unit appropriate to the surrounding color model.
 
 #### Variants
-##### `Rotation`([`Rotation`](/api/pax-runtime-api/transform.md#rotation))
+##### `Rotation`([`Rotation`](../../api/pax-runtime-api/transform.md#rotation))
 Used, for example, to express hue in HSL or other rotational color models.
 
 ##### `Integer`(`u8`)
 Integer color channel in the `[0, 255]` range.
 
-##### `Percent`([`Numeric`](/api/pax-runtime-api/pax_value/numeric.md#numeric))
+##### `Percent`([`Numeric`](../../api/pax-runtime-api/pax_value/numeric.md#numeric))
 Percent color channel in the `[0.0, 100.0]` range.
 
 #### Implementations
@@ -189,10 +189,10 @@ Normalizes this color channel as a float in the `[0.0, 1.0]` range.
 Describes an opacity value either as normalized alpha or as a percent.
 
 #### Variants
-##### `Alpha`([`Numeric`](/api/pax-runtime-api/pax_value/numeric.md#numeric))
+##### `Alpha`([`Numeric`](../../api/pax-runtime-api/pax_value/numeric.md#numeric))
 Unitless alpha in the normalized [0.0, 1.0] range.
 
-##### `Percent`([`Numeric`](/api/pax-runtime-api/pax_value/numeric.md#numeric))
+##### `Percent`([`Numeric`](../../api/pax-runtime-api/pax_value/numeric.md#numeric))
 Percent alpha in the [0.0, 100.0] range.
 
 #### Implementations

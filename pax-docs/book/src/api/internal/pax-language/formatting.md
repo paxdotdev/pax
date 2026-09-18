@@ -26,7 +26,7 @@ Format either a `.pax` file or an inlined Pax template inside a Rust file.
 ---
 
 ### `format_path`
-<pre><code class="api-signature language-rust ignore">pub fn format_path(path: &amp;<a href="/api/pax-std/drawing/path.md#path">Path</a>, check: bool) -&gt; Result&lt;<a href="/api/internal/pax-language/formatting.md#formatsummary">FormatSummary</a>, Report&gt;</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn format_path(path: &amp;<a href="../../../api/pax-std/drawing/path.md#path">Path</a>, check: bool) -&gt; Result&lt;<a href="../../../api/internal/pax-language/formatting.md#formatsummary">FormatSummary</a>, Report&gt;</code></pre>
 
 Format a `.pax`/`.rs` file or every Pax-bearing source file below a directory.
 

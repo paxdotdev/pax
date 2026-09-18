@@ -12,7 +12,7 @@ This type serves a similar purpose as `Box<dyn Any>`, but allows for special
 handling of some types, enabling things like coercion.
 
 #### Variants
-##### `Builtin`([`PaxValue`](/api/pax-runtime-api/pax_value.md#paxvalue))
+##### `Builtin`([`PaxValue`](../../api/pax-runtime-api/pax_value.md#paxvalue))
 Built-in PAXEL/runtime value.
 
 ##### `Any`(`Box`<`dyn` `Any`>)
@@ -33,43 +33,43 @@ CoercionRules - responsible for coercing a PaxValue to a specific type
 ##### `Bool`(`bool`)
 Boolean value.
 
-##### `Numeric`([`Numeric`](/api/pax-runtime-api/pax_value/numeric.md#numeric))
+##### `Numeric`([`Numeric`](../../api/pax-runtime-api/pax_value/numeric.md#numeric))
 Polymorphic numeric value.
 
 ##### `String`(`String`)
 UTF-8 string value.
 
-##### `Size`([`Size`](/api/pax-runtime-api/layout.md#size))
+##### `Size`([`Size`](../../api/pax-runtime-api/layout.md#size))
 Pax size value, such as `25px` or `50%`.
 
-##### `Percent`([`Percent`](/api/pax-runtime-api/color.md#percent))
+##### `Percent`([`Percent`](../../api/pax-runtime-api/color.md#percent))
 Raw percent value.
 
-##### `Color`(`Box`<[`Color`](/api/pax-runtime-api/color.md#color)>)
+##### `Color`(`Box`<[`Color`](../../api/pax-runtime-api/color.md#color)>)
 Pax color value.
 
-##### `Rotation`([`Rotation`](/api/pax-runtime-api/transform.md#rotation))
+##### `Rotation`([`Rotation`](../../api/pax-runtime-api/transform.md#rotation))
 Pax rotation value.
 
-##### `Duration`([`Duration`](/api/pax-runtime-api/animation.md#duration))
+##### `Duration`([`Duration`](../../api/pax-runtime-api/animation.md#duration))
 Pax animation duration value, such as `250ms`, `1s`, or `10f`.
 
-##### `PathElement`(`Box`<[`PathElement`](/api/pax-runtime-api/drawing.md#pathelement)>)
+##### `PathElement`(`Box`<[`PathElement`](../../api/pax-runtime-api/drawing.md#pathelement)>)
 Vector path element value.
 
-##### `Option`(`Box`<`Option`<[`PaxValue`](/api/pax-runtime-api/pax_value.md#paxvalue)>>)
+##### `Option`(`Box`<`Option`<[`PaxValue`](../../api/pax-runtime-api/pax_value.md#paxvalue)>>)
 Optional value.
 
-##### `Vec`(`Vec`<[`PaxValue`](/api/pax-runtime-api/pax_value.md#paxvalue)>)
+##### `Vec`(`Vec`<[`PaxValue`](../../api/pax-runtime-api/pax_value.md#paxvalue)>)
 Homogeneous or heterogeneous vector value.
 
-##### `Range`(`Box`<[`PaxValue`](/api/pax-runtime-api/pax_value.md#paxvalue)>, `Box`<[`PaxValue`](/api/pax-runtime-api/pax_value.md#paxvalue)>)
+##### `Range`(`Box`<[`PaxValue`](../../api/pax-runtime-api/pax_value.md#paxvalue)>, `Box`<[`PaxValue`](../../api/pax-runtime-api/pax_value.md#paxvalue)>)
 Range value.
 
-##### `Object`(`Vec`<(`String`, [`PaxValue`](/api/pax-runtime-api/pax_value.md#paxvalue))>)
+##### `Object`(`Vec`<(`String`, [`PaxValue`](../../api/pax-runtime-api/pax_value.md#paxvalue))>)
 Object value represented by named fields.
 
-##### `Enum`(`Box`<(`String`, `String`, `Vec`<[`PaxValue`](/api/pax-runtime-api/pax_value.md#paxvalue)>)>)
+##### `Enum`(`Box`<(`String`, `String`, `Vec`<[`PaxValue`](../../api/pax-runtime-api/pax_value.md#paxvalue)>)>)
 Enum value represented by type name, variant name, and payload values.
 
 ## Traits

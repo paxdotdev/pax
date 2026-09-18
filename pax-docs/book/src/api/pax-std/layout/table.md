@@ -8,12 +8,12 @@ Selects one cell from a parent `Table`.
 
 #### Properties
 ##### `x`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`usize`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`usize`>
 
 Zero-based column index.
 
 ##### `y`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`usize`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`usize`>
 
 Zero-based row index.
 
@@ -24,7 +24,7 @@ Selects one column from a parent `Table`.
 
 #### Properties
 ##### `x`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`usize`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`usize`>
 
 Zero-based column index.
 
@@ -35,7 +35,7 @@ Selects one row from a parent `Table`.
 
 #### Properties
 ##### `y`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`usize`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`usize`>
 
 Zero-based row index.
 
@@ -46,22 +46,22 @@ Selects a rectangular region from a parent `Table`.
 
 #### Properties
 ##### `x`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`usize`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`usize`>
 
 Zero-based column index.
 
 ##### `y`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`usize`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`usize`>
 
 Zero-based row index.
 
 ##### `w`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`usize`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`usize`>
 
 Number of columns to span.
 
 ##### `h`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`usize`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`usize`>
 
 Number of rows to span.
 
@@ -76,11 +76,11 @@ their own slotted content.
 
 #### Properties
 ##### `rows`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`usize`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`usize`>
 
 Number of table rows.
 
 ##### `columns`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`usize`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`usize`>
 
 Number of table columns.

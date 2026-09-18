@@ -120,6 +120,7 @@
     - [program_ir](api/internal/pax-manifest/program_ir.md)
     - [selectors](api/internal/pax-manifest/selectors.md)
   - [pax-message](api/internal/pax-message/index.md)
+    - [http_api](api/internal/pax-message/http_api.md)
   - [pax-gpu](api/internal/pax-gpu/index.md)
     - [render_backend](api/internal/pax-gpu/render_backend.md)
       - [render_backend::stencil](api/internal/pax-gpu/render_backend/stencil.md)

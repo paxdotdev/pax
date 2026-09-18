@@ -11,11 +11,11 @@ where the latter is managed as a GPU texture and drawn on a canvas surface.
 
 #### Properties
 ##### `url`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`String`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`String`>
 
 Image URL/path understood by the chassis.
 
 ##### `fit`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`ImageFit`](/api/pax-std/media/image.md#imagefit)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`ImageFit`](../../../api/pax-std/media/image.md#imagefit)>
 
 How the image should fit into this node's bounds.

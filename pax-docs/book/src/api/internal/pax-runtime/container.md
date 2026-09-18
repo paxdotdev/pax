@@ -30,7 +30,7 @@ child container bounds.
 
 #### Properties
 ##### `transform`
-Type: `Transform2`<[`NodeLocal`](/api/internal/pax-runtime/engine/node_interface.md#nodelocal), [`NodeLocal`](/api/internal/pax-runtime/engine/node_interface.md#nodelocal)>
+Type: `Transform2`<[`NodeLocal`](../../../api/internal/pax-runtime/engine/node_interface.md#nodelocal), [`NodeLocal`](../../../api/internal/pax-runtime/engine/node_interface.md#nodelocal)>
 
 ##### `bounds`
 Type: (`f64`, `f64`)
@@ -70,7 +70,7 @@ behavior on top of those normalized views.
 
 ## Functions
 ### `bind_content_measurement_effect`
-<pre><code class="api-signature language-rust ignore">pub fn bind_content_measurement_effect&lt;F&gt;(expanded_node: &amp;Rc&lt;ExpandedNode&gt;, ctx: &amp;<a href="/api/internal/pax-runtime/api.md#nodecontext">NodeContext</a>, listener_name: &amp;&#39;static str, geometry: <a href="/api/internal/pax-runtime/container.md#contentmeasurementgeometry">ContentMeasurementGeometry</a>, extra_deps: &amp;[UntypedProperty], effect: F) where F: Fn(&amp;Rc&lt;ExpandedNode&gt;, &amp;<a href="/api/internal/pax-runtime/api.md#nodecontext">NodeContext</a>) + Clone + &#39;static</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn bind_content_measurement_effect&lt;F&gt;(expanded_node: &amp;Rc&lt;ExpandedNode&gt;, ctx: &amp;<a href="../../../api/internal/pax-runtime/api.md#nodecontext">NodeContext</a>, listener_name: &amp;&#39;static str, geometry: ContentMeasurementGeometry, extra_deps: &amp;[UntypedProperty], effect: F) where F: Fn(&amp;Rc&lt;ExpandedNode&gt;, &amp;<a href="../../../api/internal/pax-runtime/api.md#nodecontext">NodeContext</a>) + Clone + &#39;static</code></pre>
 
 Bind a reactive content-measurement effect to this node.
 
@@ -81,14 +81,14 @@ normalized received-child list changes.
 ---
 
 ### `measure_content_children_forward_extents`
-<pre><code class="api-signature language-rust ignore">pub fn measure_content_children_forward_extents(ctx: &amp;<a href="/api/internal/pax-runtime/api.md#nodecontext">NodeContext</a>) -&gt; (Option&lt;f64&gt;, Option&lt;f64&gt;)</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn measure_content_children_forward_extents(ctx: &amp;<a href="../../../api/internal/pax-runtime/api.md#nodecontext">NodeContext</a>) -&gt; (Option&lt;f64&gt;, Option&lt;f64&gt;)</code></pre>
 
 Measure forward autosize extents from received content.
 
 ---
 
 ### `measure_content_children_layout_hull`
-<pre><code class="api-signature language-rust ignore">pub fn measure_content_children_layout_hull(ctx: &amp;<a href="/api/internal/pax-runtime/api.md#nodecontext">NodeContext</a>) -&gt; <a href="/api/internal/pax-runtime/layout.md#layouthull">LayoutHull</a></code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn measure_content_children_layout_hull(ctx: &amp;<a href="../../../api/internal/pax-runtime/api.md#nodecontext">NodeContext</a>) -&gt; <a href="../../../api/internal/pax-runtime/layout.md#layouthull">LayoutHull</a></code></pre>
 
 Measure the aggregate layout hull contributed by received content in the
 container's local coordinate space.
@@ -106,7 +106,7 @@ Resolve one axis of autosize given the public `autosize` toggle plus an optional
 ---
 
 ### `resolve_content_autosize_measurement`
-<pre><code class="api-signature language-rust ignore">pub fn resolve_content_autosize_measurement(ctx: &amp;<a href="/api/internal/pax-runtime/api.md#nodecontext">NodeContext</a>, width_explicit: bool, height_explicit: bool) -&gt; Option&lt;(f64, f64)&gt;</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn resolve_content_autosize_measurement(ctx: &amp;<a href="../../../api/internal/pax-runtime/api.md#nodecontext">NodeContext</a>, width_explicit: bool, height_explicit: bool) -&gt; Option&lt;(f64, f64)&gt;</code></pre>
 
 Resolve a node's measured size from its received content.
 
@@ -117,20 +117,20 @@ measured safely, this returns `None` so the caller can fall back.
 ---
 
 ### `resolve_content_autosize_measurement_with_axes`
-<pre><code class="api-signature language-rust ignore">pub fn resolve_content_autosize_measurement_with_axes(ctx: &amp;<a href="/api/internal/pax-runtime/api.md#nodecontext">NodeContext</a>, width_explicit: bool, height_explicit: bool, autosize_width: bool, autosize_height: bool) -&gt; Option&lt;(f64, f64)&gt;</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn resolve_content_autosize_measurement_with_axes(ctx: &amp;<a href="../../../api/internal/pax-runtime/api.md#nodecontext">NodeContext</a>, width_explicit: bool, height_explicit: bool, autosize_width: bool, autosize_height: bool) -&gt; Option&lt;(f64, f64)&gt;</code></pre>
 
 Resolve a node's measured size from received content with explicit per-axis autosize control.
 
 ---
 
 ### `sync_content_autosize`
-<pre><code class="api-signature language-rust ignore">pub fn sync_content_autosize(expanded_node: &amp;Rc&lt;ExpandedNode&gt;, ctx: &amp;<a href="/api/internal/pax-runtime/api.md#nodecontext">NodeContext</a>, enabled: bool)</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn sync_content_autosize(expanded_node: &amp;Rc&lt;ExpandedNode&gt;, ctx: &amp;<a href="../../../api/internal/pax-runtime/api.md#nodecontext">NodeContext</a>, enabled: bool)</code></pre>
 
 Update `measured_size` from received content when autosize is enabled.
 
 ---
 
 ### `sync_content_autosize_with_axes`
-<pre><code class="api-signature language-rust ignore">pub fn sync_content_autosize_with_axes(expanded_node: &amp;Rc&lt;ExpandedNode&gt;, ctx: &amp;<a href="/api/internal/pax-runtime/api.md#nodecontext">NodeContext</a>, autosize_width: bool, autosize_height: bool)</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn sync_content_autosize_with_axes(expanded_node: &amp;Rc&lt;ExpandedNode&gt;, ctx: &amp;<a href="../../../api/internal/pax-runtime/api.md#nodecontext">NodeContext</a>, autosize_width: bool, autosize_height: bool)</code></pre>
 
 Update `measured_size` from received content with explicit per-axis autosize control.

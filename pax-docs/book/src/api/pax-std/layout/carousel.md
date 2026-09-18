@@ -12,27 +12,27 @@ internal `Scroller`.
 
 #### Properties
 ##### `axis`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`CarouselAxis`](/api/pax-std/layout/carousel.md#carouselaxis)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`CarouselAxis`](../../../api/pax-std/layout/carousel.md#carouselaxis)>
 
 Axis along which pages are laid out and snapped.
 
 ##### `page_size`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Size`](/api/pax-runtime-api/layout.md#size)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Size`](../../../api/pax-runtime-api/layout.md#size)>
 
 Size of each page along the scroll axis (defaults to 100%).
 
 ##### `show_dots`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`bool`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`bool`>
 
 Whether to show page-position dots when there is more than one page.
 
 ##### `scroll_pos_x`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`f64`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`f64`>
 
 Horizontal scroll position, in pixels.
 
 ##### `scroll_pos_y`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`f64`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`f64`>
 
 Vertical scroll position, in pixels.
 

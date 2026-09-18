@@ -45,7 +45,7 @@ import { ScreenshotPatch } from "./classes/messages/screenshot-patch";
 import { NativeMaskUpdatePatch } from "./classes/messages/native-mask-update-patch";
 import { isIOSWebKitBrowser } from "./classes/surface-host-policy";
 import { HIDDEN_TAB_FRAME_FALLBACK_MS } from "./utils/helpers";
-import { replaceCurrentRouteHistoryState, serializeRouteLocation } from "./utils/route-location";
+import { browserRouteLocation, replaceCurrentRouteHistoryState, serializeRouteLocation } from "./utils/route-location";
 import { updateDocumentRouteMetadata } from "./utils/route-metadata";
 
 import { FrameScheduler } from "./utils/frame-scheduler";
@@ -271,7 +271,7 @@ function initializeChassis(chassis: PaxChassisWeb, mount: Element) {
         },
     }, []);
     let syncRouteLocation = () => {
-        let url = new URL(window.location.href);
+        let url = browserRouteLocation();
         replaceCurrentRouteHistoryState(url);
         chassis.interrupt({
             "RouteChange": serializeRouteLocation(url),

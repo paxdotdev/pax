@@ -8,40 +8,40 @@ Shared storage carried by every concrete `InstanceNode`.
 
 #### Properties
 ##### `handler_registry`
-Type: `Option`<`Rc`<`RefCell`<[`HandlerRegistry`](/api/internal/pax-runtime/engine.md#handlerregistry)>>>
+Type: `Option`<`Rc`<`RefCell`<[`HandlerRegistry`](../../../api/internal/pax-runtime/engine.md#handlerregistry)>>>
 
 ##### `instance_prototypical_properties`
-Type: [`PropertiesInit`](/api/internal/pax-runtime/rendering.md#propertiesinit)
+Type: [`PropertiesInit`](../../../api/internal/pax-runtime/rendering.md#propertiesinit)
 
 ##### `instance_prototypical_common_properties`
-Type: [`CommonPropertiesInit`](/api/internal/pax-runtime/rendering.md#commonpropertiesinit)
+Type: [`CommonPropertiesInit`](../../../api/internal/pax-runtime/rendering.md#commonpropertiesinit)
 
 ##### `component_settings`
-Type: `Option`<`Vec`<[`SettingsBlockElement`](/api/internal/pax-manifest/index.md#settingsblockelement)>>
+Type: `Option`<`Vec`<[`SettingsBlockElement`](../../../api/internal/pax-manifest/index.md#settingsblockelement)>>
 
 ##### `template_node_identifier`
-Type: `Option`<[`UniqueTemplateNodeIdentifier`](/api/internal/pax-manifest/index.md#uniquetemplatenodeidentifier)>
+Type: `Option`<[`UniqueTemplateNodeIdentifier`](../../../api/internal/pax-manifest/index.md#uniquetemplatenodeidentifier)>
 
 ##### `template_node_type_id`
-Type: `Option`<[`TypeId`](/api/internal/pax-manifest/index.md#typeid)>
+Type: `Option`<[`TypeId`](../../../api/internal/pax-manifest/index.md#typeid)>
 
 ##### `template_node_selector_info`
-Type: `Option`<[`TemplateNodeSelectorInfo`](/api/internal/pax-manifest/selectors.md#templatenodeselectorinfo)>
+Type: `Option`<[`TemplateNodeSelectorInfo`](../../../api/internal/pax-manifest/selectors.md#templatenodeselectorinfo)>
 
 ##### `transition_config`
-Type: [`ComponentTransitionConfig`](/api/internal/pax-manifest/cartridge_generation.md#componenttransitionconfig)
+Type: `ComponentTransitionConfig`
 
 ##### `properties_scope`
-Type: [`PropertiesScopeInit`](/api/internal/pax-runtime/rendering.md#propertiesscopeinit)
+Type: [`PropertiesScopeInit`](../../../api/internal/pax-runtime/rendering.md#propertiesscopeinit)
 
 #### Implementations
 ##### `flags`
-<pre><code class="api-signature language-rust ignore">pub fn flags(&amp;self) -&gt; &amp;<a href="/api/internal/pax-runtime/rendering.md#instanceflags">InstanceFlags</a></code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn flags(&amp;self) -&gt; &amp;<a href="../../../api/internal/pax-runtime/rendering.md#instanceflags">InstanceFlags</a></code></pre>
 
 Static behavior flags for this instance.
 
 ##### `get_handler_registry`
-<pre><code class="api-signature language-rust ignore">pub fn get_handler_registry(&amp;self) -&gt; Option&lt;Rc&lt;RefCell&lt;<a href="/api/internal/pax-runtime/engine.md#handlerregistry">HandlerRegistry</a>&gt;&gt;&gt;</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn get_handler_registry(&amp;self) -&gt; Option&lt;Rc&lt;RefCell&lt;<a href="../../../api/internal/pax-runtime/engine.md#handlerregistry">HandlerRegistry</a>&gt;&gt;&gt;</code></pre>
 
 Returns a handle to a node-managed HandlerRegistry, a mapping between event types and handlers.
 Each node that can handle events is responsible for implementing this; Component instances generate
@@ -49,7 +49,7 @@ the necessary code to wire up userland events like `<SomeNode @click=self.handle
 this explicitly, see e.g. `[pax_std::drawing::rectangle::RectangleInstance#get_handler_registry]`.
 
 ##### `get_instance_children`
-<pre><code class="api-signature language-rust ignore">pub fn get_instance_children(&amp;self) -&gt; &amp;<a href="/api/internal/pax-runtime/rendering.md#instancenodeptrlist">InstanceNodePtrList</a></code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn get_instance_children(&amp;self) -&gt; &amp;InstanceNodePtrList</code></pre>
 
 Return the list of instance nodes that are children of this one. Intuitively, this returns
 the nodes owned directly by this instance's definition.
@@ -58,7 +58,7 @@ For `Component`s, this returns the root(s) of the component template, not the
 projected children supplied by the containing component.
 
 ##### `new`
-<pre><code class="api-signature language-rust ignore">pub fn new(args: <a href="/api/internal/pax-runtime/rendering.md#instantiationargs">InstantiationArgs</a>, flags: <a href="/api/internal/pax-runtime/rendering.md#instanceflags">InstanceFlags</a>) -&gt; Self</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn new(args: <a href="../../../api/internal/pax-runtime/rendering.md#instantiationargs">InstantiationArgs</a>, flags: <a href="../../../api/internal/pax-runtime/rendering.md#instanceflags">InstanceFlags</a>) -&gt; Self</code></pre>
 
 Build shared instance state from compiler-generated instantiation args.
 
@@ -84,7 +84,7 @@ Since these container elements are on top of the elements they contain,
 this is needed otherwise the containers would intercept rays that should hit their contents.
 
 ##### `layer`
-Type: [`Layer`](/api/pax-runtime-api/rendering.md#layer)
+Type: [`Layer`](../../../api/pax-runtime-api/rendering.md#layer)
 
 The layer type (`Layer::Native`, `Layer::NativeNonOccluding`, or `Layer::Canvas`)
 for this RenderNode.
@@ -108,37 +108,37 @@ Construction payload used when compiler-generated code instantiates an `Instance
 
 #### Properties
 ##### `prototypical_common_properties`
-Type: [`CommonPropertiesInit`](/api/internal/pax-runtime/rendering.md#commonpropertiesinit)
+Type: [`CommonPropertiesInit`](../../../api/internal/pax-runtime/rendering.md#commonpropertiesinit)
 
 ##### `prototypical_properties`
-Type: [`PropertiesInit`](/api/internal/pax-runtime/rendering.md#propertiesinit)
+Type: [`PropertiesInit`](../../../api/internal/pax-runtime/rendering.md#propertiesinit)
 
 ##### `handler_registry`
-Type: `Option`<`Rc`<`RefCell`<[`HandlerRegistry`](/api/internal/pax-runtime/engine.md#handlerregistry)>>>
+Type: `Option`<`Rc`<`RefCell`<[`HandlerRegistry`](../../../api/internal/pax-runtime/engine.md#handlerregistry)>>>
 
 ##### `children`
-Type: `Option`<[`InstanceNodePtrList`](/api/internal/pax-runtime/rendering.md#instancenodeptrlist)>
+Type: `Option`<`InstanceNodePtrList`>
 
 ##### `component_template`
-Type: `Option`<[`InstanceNodePtrList`](/api/internal/pax-runtime/rendering.md#instancenodeptrlist)>
+Type: `Option`<`InstanceNodePtrList`>
 
 ##### `component_settings`
-Type: `Option`<`Vec`<[`SettingsBlockElement`](/api/internal/pax-manifest/index.md#settingsblockelement)>>
+Type: `Option`<`Vec`<[`SettingsBlockElement`](../../../api/internal/pax-manifest/index.md#settingsblockelement)>>
 
 ##### `template_node_identifier`
-Type: `Option`<[`UniqueTemplateNodeIdentifier`](/api/internal/pax-manifest/index.md#uniquetemplatenodeidentifier)>
+Type: `Option`<[`UniqueTemplateNodeIdentifier`](../../../api/internal/pax-manifest/index.md#uniquetemplatenodeidentifier)>
 
 ##### `template_node_type_id`
-Type: `Option`<[`TypeId`](/api/internal/pax-manifest/index.md#typeid)>
+Type: `Option`<[`TypeId`](../../../api/internal/pax-manifest/index.md#typeid)>
 
 ##### `template_node_selector_info`
-Type: `Option`<[`TemplateNodeSelectorInfo`](/api/internal/pax-manifest/selectors.md#templatenodeselectorinfo)>
+Type: `Option`<[`TemplateNodeSelectorInfo`](../../../api/internal/pax-manifest/selectors.md#templatenodeselectorinfo)>
 
 ##### `transition_config`
-Type: [`ComponentTransitionConfig`](/api/internal/pax-manifest/cartridge_generation.md#componenttransitionconfig)
+Type: `ComponentTransitionConfig`
 
 ##### `properties_scope`
-Type: [`PropertiesScopeInit`](/api/internal/pax-runtime/rendering.md#propertiesscopeinit)
+Type: [`PropertiesScopeInit`](../../../api/internal/pax-runtime/rendering.md#propertiesscopeinit)
 
 ---
 
@@ -147,23 +147,23 @@ Lightweight clone of reusable base-node data for helper constructors.
 
 #### Properties
 ##### `handler_registry`
-Type: `Option`<`Rc`<`RefCell`<[`HandlerRegistry`](/api/internal/pax-runtime/engine.md#handlerregistry)>>>
+Type: `Option`<`Rc`<`RefCell`<[`HandlerRegistry`](../../../api/internal/pax-runtime/engine.md#handlerregistry)>>>
 
 ##### `children`
-Type: [`InstanceNodePtrList`](/api/internal/pax-runtime/rendering.md#instancenodeptrlist)
+Type: `InstanceNodePtrList`
 
 ##### `template_node_identifier`
-Type: `Option`<[`UniqueTemplateNodeIdentifier`](/api/internal/pax-manifest/index.md#uniquetemplatenodeidentifier)>
+Type: `Option`<[`UniqueTemplateNodeIdentifier`](../../../api/internal/pax-manifest/index.md#uniquetemplatenodeidentifier)>
 
 ##### `template_node_type_id`
-Type: `Option`<[`TypeId`](/api/internal/pax-manifest/index.md#typeid)>
+Type: `Option`<[`TypeId`](../../../api/internal/pax-manifest/index.md#typeid)>
 
 ##### `template_node_selector_info`
-Type: `Option`<[`TemplateNodeSelectorInfo`](/api/internal/pax-manifest/selectors.md#templatenodeselectorinfo)>
+Type: `Option`<[`TemplateNodeSelectorInfo`](../../../api/internal/pax-manifest/selectors.md#templatenodeselectorinfo)>
 
 #### Implementations
 ##### `new`
-<pre><code class="api-signature language-rust ignore">pub fn new(base: &amp;<a href="/api/internal/pax-runtime/rendering.md#baseinstance">BaseInstance</a>) -&gt; Self</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn new(base: &amp;<a href="../../../api/internal/pax-runtime/rendering.md#baseinstance">BaseInstance</a>) -&gt; Self</code></pre>
 
 Capture the reusable portions of a `BaseInstance`.
 
@@ -174,7 +174,7 @@ Resolved stroke style used by canvas drawing primitives.
 
 #### Properties
 ##### `color`
-Type: [`Color`](/api/pax-runtime-api/color.md#color)
+Type: [`Color`](../../../api/pax-runtime-api/color.md#color)
 
 ##### `width`
 Type: `f64`
@@ -188,8 +188,9 @@ Structured initialization for node-local common properties.
 
 #### Variants
 ##### `Default`
-##### `Inline` { `defined_properties`: `BTreeMap`<`String`, [`ValueDefinition`](/api/internal/pax-manifest/index.md#valuedefinition)> }
-##### `Factory`([`CommonPropertiesFactory`](/api/internal/pax-runtime/rendering.md#commonpropertiesfactory))
+##### `Inline` { `defined_properties`: `BTreeMap`<`String`, [`ValueDefinition`](../../../api/internal/pax-manifest/index.md#valuedefinition)> }
+##### `Template`(`Rc`<[`TemplatePropertyPlan`](../../../api/internal/pax-runtime/cartridge.md#templatepropertyplan)>)
+##### `Factory`(`CommonPropertiesFactory`)
 ---
 
 ### `NodeType`
@@ -204,9 +205,10 @@ Coarse runtime category for an instance node.
 Structured initialization for node-local typed properties.
 
 #### Variants
-##### `DescriptorDefault`(&'`static` [`ErasedComponentDescriptor`](/api/internal/pax-runtime/cartridge.md#erasedcomponentdescriptor))
-##### `DescriptorInline` { `descriptor`: &'`static` [`ErasedComponentDescriptor`](/api/internal/pax-runtime/cartridge.md#erasedcomponentdescriptor), `defined_properties`: `BTreeMap`<`String`, [`ValueDefinition`](/api/internal/pax-manifest/index.md#valuedefinition)> }
-##### `Factory`([`PropertiesFactory`](/api/internal/pax-runtime/rendering.md#propertiesfactory))
+##### `DescriptorDefault`(&'`static` `ErasedComponentDescriptor`)
+##### `DescriptorInline` { `descriptor`: &'`static` `ErasedComponentDescriptor`, `defined_properties`: `BTreeMap`<`String`, [`ValueDefinition`](../../../api/internal/pax-manifest/index.md#valuedefinition)> }
+##### `Template` { `descriptor`: &'`static` `ErasedComponentDescriptor`, `plan`: `Rc`<[`TemplatePropertyPlan`](../../../api/internal/pax-runtime/cartridge.md#templatepropertyplan)> }
+##### `Factory`(`PropertiesFactory`)
 ---
 
 ### `PropertiesScopeInit`
@@ -214,8 +216,8 @@ How an expanded node should expose component-local symbols into scope.
 
 #### Variants
 ##### `None`
-##### `Descriptor`(&'`static` [`ErasedComponentDescriptor`](/api/internal/pax-runtime/cartridge.md#erasedcomponentdescriptor))
-##### `Factory`([`PropertiesScopeFactory`](/api/internal/pax-runtime/rendering.md#propertiesscopefactory))
+##### `Descriptor`(&'`static` `ErasedComponentDescriptor`)
+##### `Factory`(`PropertiesScopeFactory`)
 ## Traits
 ### `InstanceNode`
 Central runtime representation of a properties-computable and renderable node.

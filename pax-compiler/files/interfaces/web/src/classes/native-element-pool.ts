@@ -63,7 +63,7 @@ import {
 } from "./surface-host-policy";
 import type { LayerCanvasPlan } from "./surface-host-policy";
 import { CanvasPool } from "./canvas-pool";
-import { pushRouteHistoryState, serializeRouteLocation } from "../utils/route-location";
+import { browserRouteLocation, pushRouteHistoryState, serializeRouteLocation } from "../utils/route-location";
 
 const SCREENSHOT_FONT_STYLE_ATTRIBUTE = 'data-pax-screenshot-font-style';
 const SCROLLER_CHROME_STYLE_ATTRIBUTE = 'data-pax-scroller-chrome-style';
@@ -3467,7 +3467,7 @@ export class NativeElementPool {
         }
 
         try {
-            let url = new URL(destination, window.location.href);
+            let url = new URL(destination, browserRouteLocation());
             if (patch.target === "current" && url.origin === window.location.origin) {
                 pushRouteHistoryState(url);
                 this.chassis?.interrupt({

@@ -54,7 +54,9 @@
         card.appendChild(header);
 
         if (manifest.app && manifest.app.available) {
-            const appUrl = exampleUrl(manifest.path, manifest.app.index || "app/index.html");
+            const entryUrl = new URL(exampleUrl(manifest.path, manifest.app.index || "app/index.html"));
+            entryUrl.searchParams.set("pax_route", "/");
+            const appUrl = entryUrl.href;
             const controls = el("div", "pax-example-controls");
             const restart = el("button", "pax-example-button", "Restart");
             restart.type = "button";

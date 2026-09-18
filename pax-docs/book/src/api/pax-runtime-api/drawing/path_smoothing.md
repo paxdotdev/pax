@@ -4,7 +4,7 @@
 
 ## Functions
 ### `smooth_bez_path`
-<pre><code class="api-signature language-rust ignore">pub fn smooth_bez_path(path: &amp;BezPath, smoothing: <a href="/api/pax-runtime-api/drawing.md#pathsmoothing">PathSmoothing</a>) -&gt; BezPath</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn smooth_bez_path(path: &amp;BezPath, smoothing: <a href="../../../api/pax-runtime-api/drawing.md#pathsmoothing">PathSmoothing</a>) -&gt; BezPath</code></pre>
 
 Converts long polyline runs in `path` to cubic Bezier segments.
 

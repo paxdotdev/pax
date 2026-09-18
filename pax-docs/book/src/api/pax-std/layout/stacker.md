@@ -8,22 +8,22 @@ Reflow animation applied to surviving children when the stack layout changes.
 
 #### Properties
 ##### `kind`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`ContainerReflowTransitionKind`](/api/pax-std/layout/stacker.md#containerreflowtransitionkind)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`ContainerReflowTransitionKind`](../../../api/pax-std/layout/stacker.md#containerreflowtransitionkind)>
 
 Which reflow animation source to use.
 
 ##### `frames`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`u64`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`u64`>
 
 Duration in frames for `Ease`.
 
 ##### `curve`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`ContainerReflowCurve`](/api/pax-std/layout/stacker.md#containerreflowcurve)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`ContainerReflowCurve`](../../../api/pax-std/layout/stacker.md#containerreflowcurve)>
 
 Curve used for `Ease`.
 
 ##### `name`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`String`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`String`>
 
 Reserved for a future named motion-curve lookup when `kind` is `Named`.
 
@@ -37,17 +37,17 @@ and vertically, along with percentage-based positioning and `Transform2D.anchor`
 
 #### Properties
 ##### `direction`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`StackerDirection`](/api/pax-std/layout/stacker.md#stackerdirection)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`StackerDirection`](../../../api/pax-std/layout/stacker.md#stackerdirection)>
 
 The direction the stacker should flow its cells
 
 ##### `gutter`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Size`](/api/pax-runtime-api/layout.md#size)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Size`](../../../api/pax-runtime-api/layout.md#size)>
 
 Spacing between cells
 
 ##### `autosize`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`bool`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`bool`>
 
 When true, the stacker uses content-child bounds to autosize its cells
 and, when possible, its own bounds as well.
@@ -62,28 +62,28 @@ continue to use the existing top-down layout behavior unless the
 corresponding stacker axis is already explicit.
 
 ##### `autosize_x`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`Option`<`bool`>>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`Option`<`bool`>>
 
 Optional override for whether autosize manages the `x` axis.
 
 ##### `autosize_y`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`Option`<`bool`>>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`Option`<`bool`>>
 
 Optional override for whether autosize manages the `y` axis.
 
 ##### `sizes`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`Vec`<`Option`<[`Size`](/api/pax-runtime-api/layout.md#size)>>>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`Vec`<`Option`<[`Size`](../../../api/pax-runtime-api/layout.md#size)>>>
 
 Size of each cell, by index.  None-values (or array-index out-of-bounds values)
 will fall back to computed, equal-sizing
 
 ##### `exit_mode`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`ContainerExitMode`](/api/pax-std/layout/stacker.md#containerexitmode)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`ContainerExitMode`](../../../api/pax-std/layout/stacker.md#containerexitmode)>
 
 Whether exiting children stay in normal stack flow or hold their previous frame as ghosts.
 
 ##### `reflow_transition`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`ContainerReflowTransition`](/api/pax-std/layout/stacker.md#containerreflowtransition)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`ContainerReflowTransition`](../../../api/pax-std/layout/stacker.md#containerreflowtransition)>
 
 How surviving children should move when the stack's layout changes.
 

@@ -88,6 +88,9 @@ def docs_publish_command(new_version, manifest_only=False):
         WORKSPACE_DIR,
     ]
 
+    if args.docs_no_latest:
+        cmd_args.append("--no-latest")
+
     if manifest_only:
         cmd_args.extend(["--skip-build", "--no-upload"])
         return cmd_args
@@ -98,8 +101,6 @@ def docs_publish_command(new_version, manifest_only=False):
         cmd_args.extend(["--bucket", args.docs_bucket])
     if args.docs_distribution_id:
         cmd_args.extend(["--distribution-id", args.docs_distribution_id])
-    if args.docs_no_latest:
-        cmd_args.append("--no-latest")
 
     return cmd_args
 
@@ -371,7 +372,7 @@ subprocess.run(['cargo', 'build'])
 # Fixup git commit, to include updates to Cargo.lock
 subprocess.run(["git", "commit", "-a", "--amend", "--no-edit"], check=True)
 
-# Publish the mutable latest docs plus the immutable /<version>/ snapshot after
+# Publish the mutable latest docs plus the /<version>/ snapshot after
 # the release commit has been amended into its final state.
 publish_docs(NEW_VERSION)
 

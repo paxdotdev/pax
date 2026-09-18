@@ -30,7 +30,7 @@ emitted after touch end and normalized with `button` set to
 
 #### Properties
 ##### `mouse`
-Type: [`MouseEventArgs`](/api/pax-runtime-api/events.md#mouseeventargs)
+Type: [`MouseEventArgs`](../../api/pax-runtime-api/events.md#mouseeventargs)
 
 Common mouse event data.
 
@@ -41,7 +41,7 @@ User right-clicks an element to open the context menu.
 
 #### Properties
 ##### `mouse`
-Type: [`MouseEventArgs`](/api/pax-runtime-api/events.md#mouseeventargs)
+Type: [`MouseEventArgs`](../../api/pax-runtime-api/events.md#mouseeventargs)
 
 Common mouse event data.
 
@@ -52,7 +52,7 @@ User double-clicks a mouse button over an element.
 
 #### Properties
 ##### `mouse`
-Type: [`MouseEventArgs`](/api/pax-runtime-api/events.md#mouseeventargs)
+Type: [`MouseEventArgs`](../../api/pax-runtime-api/events.md#mouseeventargs)
 
 Common mouse event data.
 
@@ -124,7 +124,7 @@ User is pressing a key.
 
 #### Properties
 ##### `keyboard`
-Type: [`KeyboardEventArgs`](/api/pax-runtime-api/events.md#keyboardeventargs)
+Type: [`KeyboardEventArgs`](../../api/pax-runtime-api/events.md#keyboardeventargs)
 
 Common keyboard event data.
 
@@ -135,7 +135,7 @@ User presses a key that displays a character (alphanumeric or symbol).
 
 #### Properties
 ##### `keyboard`
-Type: [`KeyboardEventArgs`](/api/pax-runtime-api/events.md#keyboardeventargs)
+Type: [`KeyboardEventArgs`](../../api/pax-runtime-api/events.md#keyboardeventargs)
 
 Common keyboard event data.
 
@@ -146,7 +146,7 @@ User has released a key.
 
 #### Properties
 ##### `keyboard`
-Type: [`KeyboardEventArgs`](/api/pax-runtime-api/events.md#keyboardeventargs)
+Type: [`KeyboardEventArgs`](../../api/pax-runtime-api/events.md#keyboardeventargs)
 
 Common keyboard event data.
 
@@ -162,7 +162,7 @@ Type: `String`
 Platform-normalized key string.
 
 ##### `modifiers`
-Type: `Vec`<[`ModifierKey`](/api/pax-runtime-api/events.md#modifierkey)>
+Type: `Vec`<[`ModifierKey`](../../api/pax-runtime-api/events.md#modifierkey)>
 
 Modifier keys active during the event.
 
@@ -178,7 +178,7 @@ User presses a mouse button over an element.
 
 #### Properties
 ##### `mouse`
-Type: [`MouseEventArgs`](/api/pax-runtime-api/events.md#mouseeventargs)
+Type: [`MouseEventArgs`](../../api/pax-runtime-api/events.md#mouseeventargs)
 
 Common mouse event data.
 
@@ -201,12 +201,12 @@ The window-space y-coordinate of the event.
 Use `NodeContext::local_point` to convert it into coordinates relative to a handler's node.
 
 ##### `button`
-Type: [`MouseButton`](/api/pax-runtime-api/events.md#mousebutton)
+Type: [`MouseButton`](../../api/pax-runtime-api/events.md#mousebutton)
 
 Mouse button associated with the event.
 
 ##### `modifiers`
-Type: `Vec`<[`ModifierKey`](/api/pax-runtime-api/events.md#modifierkey)>
+Type: `Vec`<[`ModifierKey`](../../api/pax-runtime-api/events.md#modifierkey)>
 
 Modifier keys active during the event.
 
@@ -217,7 +217,7 @@ User moves the mouse while it is over an element.
 
 #### Properties
 ##### `mouse`
-Type: [`MouseEventArgs`](/api/pax-runtime-api/events.md#mouseeventargs)
+Type: [`MouseEventArgs`](../../api/pax-runtime-api/events.md#mouseeventargs)
 
 Common mouse event data.
 
@@ -238,7 +238,7 @@ User releases a mouse button over an element.
 
 #### Properties
 ##### `mouse`
-Type: [`MouseEventArgs`](/api/pax-runtime-api/events.md#mouseeventargs)
+Type: [`MouseEventArgs`](../../api/pax-runtime-api/events.md#mouseeventargs)
 
 Common mouse event data.
 
@@ -259,7 +259,7 @@ Type: `u64`
 App-controlled request id, usually copied from the picker trigger value.
 
 ##### `status`
-Type: [`PhotoPickerStatus`](/api/pax-runtime-api/events.md#photopickerstatus)
+Type: [`PhotoPickerStatus`](../../api/pax-runtime-api/events.md#photopickerstatus)
 
 Completion status.
 
@@ -269,7 +269,7 @@ Type: `Option`<`String`>
 Human-readable platform message for errors or partial results.
 
 ##### `photos`
-Type: `Vec`<[`PhotoPickerPhoto`](/api/pax-runtime-api/events.md#photopickerphoto)>
+Type: `Vec`<[`PhotoPickerPhoto`](../../api/pax-runtime-api/events.md#photopickerphoto)>
 
 Selected photos, empty for cancellation, permission denial, or unavailable sources.
 
@@ -310,7 +310,7 @@ Type: `Option`<`u32`>
 Image height in pixels, when available.
 
 ##### `source_kind`
-Type: [`PhotoPickerSourceKind`](/api/pax-runtime-api/events.md#photopickersourcekind)
+Type: [`PhotoPickerSourceKind`](../../api/pax-runtime-api/events.md#photopickersourcekind)
 
 Source used for this image.
 
@@ -442,7 +442,7 @@ does not cancel the touch.
 
 #### Properties
 ##### `touches`
-Type: `Vec`<[`Touch`](/api/pax-runtime-api/events.md#touch)>
+Type: `Vec`<[`Touch`](../../api/pax-runtime-api/events.md#touch)>
 
 Touch points whose active sequence was cancelled.
 
@@ -455,7 +455,7 @@ the node captured at touch start.
 
 #### Properties
 ##### `touches`
-Type: `Vec`<[`Touch`](/api/pax-runtime-api/events.md#touch)>
+Type: `Vec`<[`Touch`](../../api/pax-runtime-api/events.md#touch)>
 
 Touch points that ended.
 
@@ -468,7 +468,7 @@ at touch start, even when the point has moved outside its bounds.
 
 #### Properties
 ##### `touches`
-Type: `Vec`<[`Touch`](/api/pax-runtime-api/events.md#touch)>
+Type: `Vec`<[`Touch`](../../api/pax-runtime-api/events.md#touch)>
 
 Active touch points after this touch movement.
 
@@ -481,7 +481,7 @@ touch identifier so subsequent move and end events keep routing to the same subt
 
 #### Properties
 ##### `touches`
-Type: `Vec`<[`Touch`](/api/pax-runtime-api/events.md#touch)>
+Type: `Vec`<[`Touch`](../../api/pax-runtime-api/events.md#touch)>
 
 Active touch points at the start of this touch sequence.
 
@@ -512,7 +512,7 @@ Type: `f64`
 Vertical wheel delta.
 
 ##### `modifiers`
-Type: `Vec`<[`ModifierKey`](/api/pax-runtime-api/events.md#modifierkey)>
+Type: `Vec`<[`ModifierKey`](../../api/pax-runtime-api/events.md#modifierkey)>
 
 Modifier keys active during the event.
 

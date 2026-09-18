@@ -23,3 +23,9 @@ provide the browsing ontology used by the generated API docs.
 - [transform](transform.md)
 - [unit_value](unit_value.md)
 - [variables](variables.md)
+
+## Macros
+### `impl_default_coercion_rule`
+Implements coercion by converting the selected `PaxValue` variant's contents.
+The optional third argument opts into `CoercionRules::is_identity_roundtrip`;
+omit it unless the type satisfies that method's exact, side-effect-free contract.

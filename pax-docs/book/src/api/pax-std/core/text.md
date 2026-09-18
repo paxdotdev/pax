@@ -13,38 +13,38 @@ test the intended interaction on each shipping target.
 
 #### Properties
 ##### `editable`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`bool`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`bool`>
 
 Whether the text can be edited by the user.
 
 ##### `selectable`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`bool`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`bool`>
 
 Requests selectable text. On the current iOS/iPadOS path, non-editable
 text uses the interactive selection view only when `clip` is enabled.
 
 ##### `clip`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`bool`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`bool`>
 
 Whether text overflow is clipped to the node bounds.
 
 ##### `text`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`String`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`String`>
 
 Text content to display.
 
 ##### `style`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`TextStyle`](/api/pax-std/core/text.md#textstyle)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`TextStyle`](../../../api/pax-std/core/text.md#textstyle)>
 
 Text styling.
 
 ##### `markdown`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`bool`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`bool`>
 
 Whether `text` should be interpreted as Markdown.
 
 ##### `wrap`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`bool`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`bool`>
 
 Whether long text lines should wrap inside the node bounds.
 
@@ -55,38 +55,38 @@ Struct describing platform-agnostic text display properties.
 
 #### Properties
 ##### `font`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Font`](/api/pax-std/core/text.md#font)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Font`](../../../api/pax-std/core/text.md#font)>
 
 Font family/source/style/weight configuration.
 
 ##### `font_size`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Size`](/api/pax-runtime-api/layout.md#size)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Size`](../../../api/pax-runtime-api/layout.md#size)>
 
 Font size, in pixels.
 
 ##### `fill`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Fill`](/api/pax-runtime-api/drawing.md#fill)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Fill`](../../../api/pax-runtime-api/drawing.md#fill)>
 
 Text color. Native text patches reduce gradient fills to their first
 stop's color; use a solid fill for predictable text color.
 
 ##### `underline`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`bool`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`bool`>
 
 Whether text should be underlined.
 
 ##### `align_multiline`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`TextAlignHorizontal`](/api/pax-std/core/text.md#textalignhorizontal)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`TextAlignHorizontal`](../../../api/pax-std/core/text.md#textalignhorizontal)>
 
 Alignment for multiline text layout.
 
 ##### `align_vertical`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`TextAlignVertical`](/api/pax-std/core/text.md#textalignvertical)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`TextAlignVertical`](../../../api/pax-std/core/text.md#textalignvertical)>
 
 Vertical text alignment within its bounds.
 
 ##### `align_horizontal`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`TextAlignHorizontal`](/api/pax-std/core/text.md#textalignhorizontal)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`TextAlignHorizontal`](../../../api/pax-std/core/text.md#textalignhorizontal)>
 
 Horizontal text alignment within its bounds.
 
@@ -128,7 +128,7 @@ canonical, and positional list/tuple forms are not accepted. Use the
 explicit [`Font::Web`] constructor as verbose longhand when needed.
 
 #### Variants
-##### `Web`(`String`, `String`, [`FontStyle`](/api/pax-std/core/text.md#fontstyle), [`FontWeight`](/api/pax-std/core/text.md#fontweight))
+##### `Web`(`String`, `String`, [`FontStyle`](../../../api/pax-std/core/text.md#fontstyle), [`FontWeight`](../../../api/pax-std/core/text.md#fontweight))
 Font described by family name, source URL, style, and weight.
 
 ---
@@ -157,12 +157,12 @@ Describes available font weights.
 ##### `Black`
 #### Implementations
 ##### `decrease`
-<pre><code class="api-signature language-rust ignore">pub fn decrease(weight: <a href="/api/pax-std/core/text.md#fontweight">FontWeight</a>) -&gt; <a href="/api/pax-std/core/text.md#fontweight">FontWeight</a></code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn decrease(weight: <a href="../../../api/pax-std/core/text.md#fontweight">FontWeight</a>) -&gt; <a href="../../../api/pax-std/core/text.md#fontweight">FontWeight</a></code></pre>
 
 Returns the next lighter named font weight.
 
 ##### `increase`
-<pre><code class="api-signature language-rust ignore">pub fn increase(weight: <a href="/api/pax-std/core/text.md#fontweight">FontWeight</a>) -&gt; <a href="/api/pax-std/core/text.md#fontweight">FontWeight</a></code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn increase(weight: <a href="../../../api/pax-std/core/text.md#fontweight">FontWeight</a>) -&gt; <a href="../../../api/pax-std/core/text.md#fontweight">FontWeight</a></code></pre>
 
 Returns the next heavier named font weight.
 

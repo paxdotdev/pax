@@ -90,6 +90,10 @@ test('offscreen and hidden embeds suspend without replacing their state', async 
     const states = [];
     frame.contentWindow = {Pax: {setSuspended: value => states.push(value)}};
     assert.equal(new URL(frame.src).searchParams.get('pax_suspended'), '1');
+    assert.equal(new URL(frame.src).searchParams.get('pax_route'), '/');
+    const standalone = new URL(find(root, 'pax-example-standalone').href);
+    assert.equal(standalone.searchParams.get('pax_route'), '/');
+    assert.equal(standalone.searchParams.has('pax_suspended'), false);
     frame.fire('load');
     assert.equal(states.at(-1), true);
     assert.equal(observers[0].target, find(root, 'pax-example-stage'));
@@ -143,7 +147,7 @@ test('app initializes automatically alongside source and standalone link', async
     assert.equal(find(root, 'pax-example-title').textContent, 'Example: Transition Grid');
     assert.equal(find(root, 'pax-example-command'), undefined);
     const link = find(root, 'pax-example-standalone');
-    assert.equal(link.href, 'https://docs.example/0.38.3/_pax_examples/transition-grid/app/index.html');
+    assert.equal(link.href, 'https://docs.example/0.38.3/_pax_examples/transition-grid/app/index.html?pax_route=%2F');
     assert.equal(link.rel, 'noopener noreferrer');
     assert.equal(link.target, '_blank');
 });

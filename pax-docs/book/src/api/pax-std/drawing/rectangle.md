@@ -26,28 +26,28 @@ bottom_right: 4 bottom_left: 2 }`.
 
 #### Properties
 ##### `top_left`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Numeric`](/api/pax-runtime-api/pax_value/numeric.md#numeric)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Numeric`](../../../api/pax-runtime-api/pax_value/numeric.md#numeric)>
 
 Top-left corner radius.
 
 ##### `top_right`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Numeric`](/api/pax-runtime-api/pax_value/numeric.md#numeric)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Numeric`](../../../api/pax-runtime-api/pax_value/numeric.md#numeric)>
 
 Top-right corner radius.
 
 ##### `bottom_right`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Numeric`](/api/pax-runtime-api/pax_value/numeric.md#numeric)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Numeric`](../../../api/pax-runtime-api/pax_value/numeric.md#numeric)>
 
 Bottom-right corner radius.
 
 ##### `bottom_left`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Numeric`](/api/pax-runtime-api/pax_value/numeric.md#numeric)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Numeric`](../../../api/pax-runtime-api/pax_value/numeric.md#numeric)>
 
 Bottom-left corner radius.
 
 #### Implementations
 ##### `radii`
-<pre><code class="api-signature language-rust ignore">pub fn radii(top_left: <a href="/api/pax-runtime-api/pax_value/numeric.md#numeric">Numeric</a>, top_right: <a href="/api/pax-runtime-api/pax_value/numeric.md#numeric">Numeric</a>, bottom_right: <a href="/api/pax-runtime-api/pax_value/numeric.md#numeric">Numeric</a>, bottom_left: <a href="/api/pax-runtime-api/pax_value/numeric.md#numeric">Numeric</a>) -&gt; Self</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn radii(top_left: <a href="../../../api/pax-runtime-api/pax_value/numeric.md#numeric">Numeric</a>, top_right: <a href="../../../api/pax-runtime-api/pax_value/numeric.md#numeric">Numeric</a>, bottom_right: <a href="../../../api/pax-runtime-api/pax_value/numeric.md#numeric">Numeric</a>, bottom_left: <a href="../../../api/pax-runtime-api/pax_value/numeric.md#numeric">Numeric</a>) -&gt; Self</code></pre>
 
 Constructs a `CornerRadii` value from clockwise corner radii.
 
@@ -58,21 +58,21 @@ A 2D vector rectangle, which covers its bounding box with the specified fill and
 
 #### Properties
 ##### `stroke`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Stroke`](/api/pax-runtime-api/drawing.md#stroke)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Stroke`](../../../api/pax-runtime-api/drawing.md#stroke)>
 
 Stroke drawn around the rectangle.
 
 ##### `fill`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Fill`](/api/pax-runtime-api/drawing.md#fill)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Fill`](../../../api/pax-runtime-api/drawing.md#fill)>
 
 Fill painted inside the rectangle.
 
 ##### `material`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Material`](/api/pax-runtime-api/drawing.md#material)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Material`](../../../api/pax-runtime-api/drawing.md#material)>
 
 Light-reactive surface response.
 
 ##### `corner_radius`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`CornerRadii`](/api/pax-std/drawing/rectangle.md#cornerradii)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`CornerRadii`](../../../api/pax-std/drawing/rectangle.md#cornerradii)>
 
 Per-corner radii.

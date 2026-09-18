@@ -16,44 +16,44 @@ Engine-wide reactive globals exposed to every component frame.
 
 #### Properties
 ##### `elapsed_frames`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`u64`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`u64`>
 
 ##### `elapsed_millis`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`u64`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`u64`>
 
 ##### `viewport`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`TransformAndBounds`](/api/internal/pax-runtime/layout.md#transformandbounds)<[`NodeLocal`](/api/internal/pax-runtime/engine/node_interface.md#nodelocal), [`Window`](/api/pax-runtime-api/platform.md#window)>>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`TransformAndBounds`](../../../api/internal/pax-runtime/layout.md#transformandbounds)<[`NodeLocal`](../../../api/internal/pax-runtime/engine/node_interface.md#nodelocal), [`Window`](../../../api/pax-runtime-api/platform.md#window)>>
 
 ##### `gyro`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Gyro`](/api/pax-runtime-api/platform.md#gyro)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Gyro`](../../../api/pax-runtime-api/platform.md#gyro)>
 
 ##### `accel`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Accel`](/api/pax-runtime-api/platform.md#accel)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Accel`](../../../api/pax-runtime-api/platform.md#accel)>
 
 ##### `route_location`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`RouteLocation`](/api/internal/pax-runtime/router.md#routelocation)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`RouteLocation`](../../../api/internal/pax-runtime/router.md#routelocation)>
 
 ##### `browser_allows_scroller_vector_layers`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`bool`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`bool`>
 
 ##### `browser_allows_nested_scroller_vector_layers`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`bool`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`bool`>
 
 ##### `platform`
-Type: [`Platform`](/api/pax-runtime-api/platform.md#platform)
+Type: [`Platform`](../../../api/pax-runtime-api/platform.md#platform)
 
 ##### `os`
-Type: [`OS`](/api/pax-runtime-api/platform.md#os)
+Type: [`OS`](../../../api/pax-runtime-api/platform.md#os)
 
 ##### `target`
-Type: [`TargetInfo`](/api/pax-runtime-api/platform.md#targetinfo)
+Type: [`TargetInfo`](../../../api/pax-runtime-api/platform.md#targetinfo)
 
 ##### `get_elapsed_millis`
 Type: `Rc`<`dyn` `Fn`() -> `u128`>
 
 #### Implementations
 ##### `stack_frame`
-<pre><code class="api-signature language-rust ignore">pub fn stack_frame(&amp;self) -&gt; Rc&lt;<a href="/api/internal/pax-runtime/properties.md#runtimepropertiesstackframe">RuntimePropertiesStackFrame</a>&gt;</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn stack_frame(&amp;self) -&gt; Rc&lt;<a href="../../../api/internal/pax-runtime/properties.md#runtimepropertiesstackframe">RuntimePropertiesStackFrame</a>&gt;</code></pre>
 
 Build the root stack frame containing built-in globals plus internal engine state.
 
@@ -67,7 +67,7 @@ Runtime event handler thunk generated from template bindings.
 Type: `fn`()
 
 ##### `location`
-Type: [`HandlerLocation`](/api/internal/pax-runtime/engine.md#handlerlocation)
+Type: [`HandlerLocation`](../../../api/internal/pax-runtime/engine.md#handlerlocation)
 
 #### Implementations
 ##### `new_component_handler`
@@ -87,7 +87,7 @@ Map from event key to one or more handlers registered on an instance node.
 
 #### Properties
 ##### `handlers`
-Type: `HashMap`<`String`, `Vec`<[`Handler`](/api/internal/pax-runtime/engine.md#handler)>>
+Type: `HashMap`<`String`, `Vec`<[`Handler`](../../../api/internal/pax-runtime/engine.md#handler)>>
 
 ---
 
@@ -96,20 +96,20 @@ Singleton struct storing everything related to properties computation & renderin
 
 #### Properties
 ##### `runtime_context`
-Type: `Rc`<[`RuntimeContext`](/api/internal/pax-runtime/properties.md#runtimecontext)>
+Type: `Rc`<[`RuntimeContext`](../../../api/internal/pax-runtime/properties.md#runtimecontext)>
 
 ##### `root_expanded_node`
 Type: `Option`<`Rc`<`ExpandedNode`>>
 
 ##### `scroller_tiling_policy`
-Type: [`ScrollerTilingPolicy`](/api/internal/pax-runtime/engine/layer_tiling.md#scrollertilingpolicy)
+Type: `ScrollerTilingPolicy`
 
 #### Implementations
 Central instance of the PaxEngine and runtime, intended to be created by a particular chassis.
 Contains all rendering and runtime logic.
 
 ##### `mount_root_component`
-<pre><code class="api-signature language-rust ignore">pub fn mount_root_component(&amp;mut self, main_component_instance: Rc&lt;<a href="/api/internal/pax-runtime/component.md#componentinstance">ComponentInstance</a>&gt;) -&gt; Rc&lt;ExpandedNode&gt;</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn mount_root_component(&amp;mut self, main_component_instance: Rc&lt;<a href="../../../api/internal/pax-runtime/component.md#componentinstance">ComponentInstance</a>&gt;) -&gt; Rc&lt;ExpandedNode&gt;</code></pre>
 
 Mount a root component tree into an existing runtime kernel.
 
@@ -119,7 +119,7 @@ Mount a root component tree into an existing runtime kernel.
 Called by chassis when viewport size changes, e.g. with native window resizes
 
 ##### `tick`
-<pre><code class="api-signature language-rust ignore">pub fn tick(&amp;mut self) -&gt; Vec&lt;<a href="/api/internal/pax-message/index.md#nativemessage">NativeMessage</a>&gt;</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn tick(&amp;mut self) -&gt; Vec&lt;<a href="../../../api/internal/pax-message/index.md#nativemessage">NativeMessage</a>&gt;</code></pre>
 
 Workhorse methods of every tick.  Will be executed up to 240 Hz.
 Three phases:

@@ -1,12 +1,12 @@
 # Launch documentation coverage map
 
-Status: Initial prose reviewed through Routing and Primitives; navigation/reference integration in progress. PAX-993 has landed: Living Quilt is embedded in the introduction and Getting Started includes the default create contract and a first edit. The longer Living Quilt tutorial was withdrawn at Zack's request on 2026-09-15 and is deferred for a more considered future pass, not a launch gate. Launch/publication verification remains open; see the latest checkpoints below.
+Status: Launch prose reviewed; navigation, examples, router integration, and local publication verification are ready for release handoff. PAX-993 has landed: Living Quilt is embedded in the introduction and Getting Started includes the default create contract and a first edit. The longer Living Quilt tutorial was withdrawn at Zack's request on 2026-09-15 and is deferred for a more considered future pass, not a launch gate. PAX-906 owns released-CLI verification and PAX-987 owns production deployment; see BG for the handoff.
 
 Owner issue: PAX-975
 
 Parent program: PAX-860
 
-Last audited: 2026-09-14, including the local-dev rebase and PAX-993 starter/engine documentation audit.
+Last audited: 2026-09-18, including the publication-script/cache fixes and root/versioned link preflight in BG. BF records the PAX-869 integration and combined-branch router checks.
 
 Sections A–J retain the original discovery and approved planning history;
 later lettered checkpoints record implementation, review, and superseding
@@ -493,6 +493,10 @@ Approved topology: **keep and expand the three existing articles rather than int
 This costs more than one combined article. If launch time becomes the binding constraint, preserve the current Text article and finish Drawing/Styling plus Compositing to a concise orientation-and-caveats standard; defer exhaustive examples and leaf-API coverage rather than collapsing the topology.
 
 ### Versioned docs and primary CTA contract
+
+Historical proposal: the immutability restriction and caching recommendations
+below are superseded by Zack's ghost-patch approval in BE and implementation in
+BG. The bare root remains latest; no literal `/latest/` alias is required.
 
 The existing PAX-987 publisher is a good foundation. It already uploads `/<version>/` with `public,max-age=31536000,immutable`, treats the bucket root as mutable latest with `no-cache`, publishes a no-cache `versions.json`, and has a path-preserving version picker. The bucket root, not a literal `/latest/` prefix, is the current latest implementation.
 
@@ -4128,3 +4132,142 @@ article/API indexing and searchable example sources work there. This supersedes
 BD's zero-example packaging finding, but does not claim a crates.io release or
 published-CLI first-touch pass. Release version alignment and PAX-869 remain
 separate gates. Book build and 665 local-link checks pass with zero placeholders.
+
+## BF. PAX-869 rebase and router metadata integration — 2026-09-17
+
+Zack landed the website on local `dev` and requested completion of the in-flight
+rebase. The rebase onto `f9be4dbc3` completed at detached HEAD `2a246388d`.
+Resolved SUMMARY, Getting Started, Routing, render_context, web-interface
+imports, and pain-points conflicts. Retained the reviewed learning path, incoming
+CLI Telemetry page/notice, both rendering regression suites, both metadata and
+frame-suspension imports, and both branches' pain-point records. Range-diff
+confirms the first three replayed commits are unchanged. No dev merge or remote
+push was performed; the follow-up integration changes are left uncommitted.
+
+Two integration issues required fixes rather than a prose-only sign-off:
+
+- The metadata collector mistook the parser-retained route presentation shell
+  for arbitrary projected input. A static nested router therefore failed with
+  the dynamic-topology error. Declared route shells now preserve the already
+  selected branch's static scope; ordinary component projection and actual
+  conditional topology still reject indexable routes. The regression covers
+  inheritance, nested concrete paths, custom branch descriptors, and both
+  rejection boundaries. The real nested fixture failed before this fix and
+  builds in web debug and release after it. ProgramIR still strips metadata;
+  no runtime/baked schema was changed.
+- Origin-root entry bases and physical docs paths were unsuitable for hosted
+  examples. The default web interface now supports explicit `pax_route` query
+  routing: resolve assets beside the entry document, keep the physical entry
+  URL stable, and serialize the app's route/query/fragment in the parameter.
+  Docs embeds and Open standalone opt in at `/`; ordinary deployments retain
+  pathname routing. Generated base tags precede the bootstrap. No generated
+  bundle rewriting, example-specific mount navigation, or copying of example
+  implementation was introduced.
+
+Routing removes the manual Menu → Landing workaround. Targets now owns the
+site/social Cargo metadata keys plus the embedding contract, with deliberate
+links to the route-metadata explanation. Canonical example-source snapshots
+were regenerated after the website merge and pass parity checks.
+
+Validation: CPU GPU tests pass (17; four hardware tests ignored by default),
+and the retained-image/vector Metal pixel regression passes explicitly with
+GPU access. Combined runtime/std suites pass (167/55), manifest compiler-feature
+tests pass (7), and all compiler tests pass, including metadata/public-file
+collision coverage. Web host/metadata/docs-embed tests pass (22), as do four
+example-generator and four packaged-source tests. All six canonical docs embeds
+build as optimized web apps. Book/navigation checks cover 23 articles, 122
+sidebar destinations, 673 local links, and seven redirects, with no placeholders.
+
+Live checks use a separate local fixture with the chapter's metadata blocks,
+an inherited nested route, a nested override, a parameter, and a default. Debug
+and release generate root, `/notes/`, and `/notes/about/` HTML with matching
+metadata. Direct nested loading, in-app navigation with preserved state,
+symbolic-route noindex/no canonical, preserved-URL unknown fallback, and reload
+pass. Missing assets return 404 from the local test host. The release Router
+Playground starts at Landing under the docs directory; nested navigation leaves
+the article URL unchanged. Open standalone, query/fragment preservation, Back,
+Forward, and direct reload pass. Local fixtures/logs are under
+`/tmp/pax-975-route-integration.mvra9e` and `/tmp/pax-975-rebase-*`.
+
+This supersedes the PAX-869 merge and routed-embed gates above. It does not
+publish documentation, prove a production host configuration, or validate a
+new registry release. Remaining deployment work: align and test the release
+package set outside the monorepo; correct publication manifest/flag behavior;
+and reconcile ghost-patch delivery with browser caching. Same-current-semver
+overwrites remain allowed. General pathname routing under a deployment prefix
+is still distinct from the explicit query-backed example mode.
+
+## BG. Publication fixes and PAX-906 handoff — 2026-09-18
+
+Zack approved the remaining publisher fixes and local-only preflight. The
+operator contract and reproducible checks are in `pax-docs/scripts/README.md`.
+No AWS upload, invalidation, crate publication, release-script execution, commit,
+or merge was performed. Changes remain for Zack to checkpoint with the earlier
+router/rebase follow-ups.
+
+Implemented:
+
+- `--no-latest` preserves the catalog's latest pointer, including the release
+  wrapper's manifest-only preparation. The version picker no longer invents a
+  latest release when that pointer is null. It also recognizes prerelease
+  versions with build metadata.
+- `--skip-build` requires a recorded build of the requested version and checks
+  its content digest. It refreshes the output catalog from source before upload.
+  `--skip-build --no-upload` remains explicitly manifest-only for release prep;
+  it does not claim a build or preflight passed.
+- Versioned and root files use revalidation (`no-cache`). Full copies refresh
+  headers even on unchanged objects; a subsequent version-scoped sync removes
+  stale files. Root is never deleted recursively. Same-semver ghost patches
+  remain allowed; no immutability guard or version-bump requirement was added.
+- Version-only deployments invalidate their version prefix as well as the root
+  catalog. Root catalog promotion happens after content uploads. Upload failure
+  stops further promotion/invalidation; copied trees are still not atomic.
+- Strict SemVer validation/sorting puts a stable release after its prereleases
+  in ascending precedence and ignores build metadata for ordering.
+- Publication refuses missing, failed, or stale example builds and missing
+  embedded source. The generator's source-only fallback remains useful locally,
+  but cannot silently pass publication preflight.
+
+The broader preflight found generated API links escaping the selected version
+through `/api/...` URLs, plus links to undocumented types whose headings were
+never emitted. Fixed the generator, added regressions, and regenerated the API
+reference. Reviewed Mask exposition previously present only in a generated page
+now lives in its Rust `///` comments, so regeneration preserves it. The highlight
+grammar was also regenerated from current Pax syntax. These are source-derived
+reference changes, not a rewrite of the reviewed public chapters.
+
+Verification: 18 mocked-publication tests, 14 version-picker/embed tests, five
+API generator tests, four example generator tests, and four source-bundle tests
+pass. The actual no-upload pipeline builds mdBook and all six release-web
+examples; the generator may reuse fingerprint-matched artifacts on subsequent
+runs. The broad checker covers 123 table-of-contents pages and 10,488 links and
+anchors across root and semver layouts, with no errors. Both canonical source
+bundle parity checks pass. Cargo packaging confirms the docs source snapshot
+and the compiler's starter archive/prebuilt web JS/CSS are included.
+
+The final local pipeline uses cached dependencies with `CARGO_NET_OFFLINE=true`
+after a sandboxed rebuild could not contact crates.io. No network-dependent
+release success is implied. The temporary 0.39.0 preview catalog is removed from
+the source manifest after verification; the preview is not a released version.
+
+Remaining release boundary:
+
+1. Zack checkpoints/integrates this work before PAX-906 takes the release state.
+2. PAX-906 aligns the full 0.39.0 crate graph, regenerates both source bundles
+   after version rewriting, verifies the actual package set outside the
+   monorepo, and obtains approval before release. This checkout's crates are
+   still 0.38.3; the candidate docs label does not change their compatibility.
+3. PAX-906 verifies install/create/build/run and CLI docs/example source from
+   the published artifacts on the planned workstation baselines, then hands
+   the exact release state to PAX-987 and the post-release PAX-997 smoke.
+4. PAX-987 runs the no-upload build from that state, reviews catalog/history,
+   obtains upload approval, waits for invalidation, and verifies the live host.
+   Use `--skip-docs-publish` when keeping publication separate from the release
+   script. Neither historical-prefix overwrites nor production uploads are
+   implied by this local handoff.
+
+Production caveats are explicit in the runbook: old browser responses carrying
+the former one-year immutable policy cannot be evicted by CDN invalidation;
+CloudFront minimum TTL/origin cache policy must be checked live; root-only stale
+files need a separately scoped cleanup rather than bucket-root `--delete`.
+There is no `/latest/` alias and no claim of an atomic object-store deployment.

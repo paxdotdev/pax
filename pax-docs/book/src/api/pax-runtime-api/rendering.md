@@ -5,6 +5,25 @@
 Rendering backend contracts and helpers for drawing Pax scene content.
 
 ## Structs
+### `AlphaMaskPaint`
+One vector paint contributing alpha to a mask, in local path coordinates.
+Color channels do not affect coverage; fill alpha and opacity are multiplied.
+
+#### Properties
+##### `path`
+Type: `BezPath`
+
+##### `transform`
+Type: `Affine`
+
+##### `fill`
+Type: [`Fill`](../../api/pax-runtime-api/drawing.md#fill)
+
+##### `opacity`
+Type: `f64`
+
+---
+
 ### `ReplayCanvasLayerUpdate`
 Replay invalidation for one logical canvas layer.
 

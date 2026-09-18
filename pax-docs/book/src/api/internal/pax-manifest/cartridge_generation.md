@@ -13,19 +13,24 @@ Template context for generating a component's cartridge code.
 
 #### Properties
 ##### `type_id`
-Type: [`TypeId`](/api/internal/pax-manifest/index.md#typeid)
+Type: [`TypeId`](../../../api/internal/pax-manifest/index.md#typeid)
 
 ##### `pascal_identifier`
 Type: `String`
+
+##### `symbol_identifier`
+Type: `String`
+
+Collision-free Rust helper prefix derived from the complete component type identity.
 
 ##### `primitive_instance_import_path`
 Type: `Option`<`String`>
 
 ##### `properties`
-Type: `Vec`<[`PropertyInfo`](/api/internal/pax-manifest/cartridge_generation.md#propertyinfo)>
+Type: `Vec`<[`PropertyInfo`](../../../api/internal/pax-manifest/cartridge_generation.md#propertyinfo)>
 
 ##### `handlers`
-Type: `Vec`<[`HandlerInfo`](/api/internal/pax-manifest/cartridge_generation.md#handlerinfo)>
+Type: `Vec`<[`HandlerInfo`](../../../api/internal/pax-manifest/cartridge_generation.md#handlerinfo)>
 
 ---
 
@@ -49,4 +54,4 @@ Property entry passed into cartridge codegen templates.
 Type: `String`
 
 ##### `property_type`
-Type: [`PropertyDefinition`](/api/internal/pax-manifest/index.md#propertydefinition)
+Type: [`PropertyDefinition`](../../../api/internal/pax-manifest/index.md#propertydefinition)

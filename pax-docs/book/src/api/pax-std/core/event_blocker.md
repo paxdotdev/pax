@@ -11,6 +11,6 @@ underlays that must composite above native controls and scroller canvas islands.
 
 #### Properties
 ##### `background`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Color`](/api/pax-runtime-api/color.md#color)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Color`](../../../api/pax-runtime-api/color.md#color)>
 
 Solid background painted by the native surface.

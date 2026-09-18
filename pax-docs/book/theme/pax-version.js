@@ -1,7 +1,7 @@
 (function () {
     const script = document.currentScript;
     const scriptUrl = script && script.src ? script.src : new URL("theme/pax-version.js", document.baseURI).href;
-    const VERSION_SEGMENT = /^v?\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?$/;
+    const VERSION_SEGMENT = /^v?\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?(?:\+[A-Za-z0-9.-]+)?$/;
 
     function el(tag, className, text) {
         const node = document.createElement(tag);
@@ -34,7 +34,7 @@
             });
         });
 
-        const latest = manifest.latest || (versions[0] && versions[0].version) || null;
+        const latest = manifest.latest || null;
         return { latest, versions };
     }
 

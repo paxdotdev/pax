@@ -10,10 +10,12 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
 import json
 import os
 import re
 import subprocess
+from html.parser import HTMLParser
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -22,24 +24,47 @@ BOOK_OUTPUT = BOOK_DIR / "book"
 VERSIONS_MANIFEST = BOOK_DIR / "src" / "versions.json"
 DEFAULT_BUCKET = os.environ.get("PAX_DOCS_S3_BUCKET", "docs.pax.dev")
 DEFAULT_DISTRIBUTION_ID = os.environ.get("PAX_DOCS_CLOUDFRONT_DISTRIBUTION_ID")
+BUILD_RECORD = "_pax_docs_build.json"
+SEMVER = re.compile(
+    r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
+    r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
+    r"(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
+)
 
 
 def main() -> int:
+    global BOOK_DIR, BOOK_OUTPUT, VERSIONS_MANIFEST
     args = parse_args()
     workspace = args.workspace.resolve()
-    if workspace != ROOT:
-        global BOOK_DIR, BOOK_OUTPUT, VERSIONS_MANIFEST
-        BOOK_DIR = workspace / "pax-docs" / "book"
-        BOOK_OUTPUT = BOOK_DIR / "book"
-        VERSIONS_MANIFEST = BOOK_DIR / "src" / "versions.json"
+    args.workspace = workspace
+    BOOK_DIR = workspace / "pax-docs" / "book"
+    BOOK_OUTPUT = BOOK_DIR / "book"
+    VERSIONS_MANIFEST = BOOK_DIR / "src" / "versions.json"
 
-    update_versions_manifest(args.version)
+    # The release script uses this combination before packaging/committing.
+    # It deliberately does not require, stamp, or validate a built site.
+    if args.skip_build and args.no_upload:
+        update_versions_manifest(args.version, promote=not args.no_latest)
+        print("Version manifest updated only; no build, validation, or upload performed.")
+        return 0
+
+    if args.skip_build:
+        validate_build_record(args.version)
+
+    update_versions_manifest(args.version, promote=not args.no_latest)
 
     if not args.skip_build:
         build_docs(workspace, args.skip_examples)
 
+    validate_output()
+    # A reused build may carry an older catalog. Publish exactly the catalog
+    # just prepared, even when no mdBook rebuild was requested.
+    (BOOK_OUTPUT / "versions.json").write_bytes(VERSIONS_MANIFEST.read_bytes())
+    if not args.skip_build:
+        write_build_record(args.version)
+
     if args.no_upload:
-        print("Docs built locally; upload skipped.")
+        print(f"Docs built and validated locally at {BOOK_OUTPUT}; upload skipped.")
         return 0
 
     publish_docs(args)
@@ -48,7 +73,7 @@ def main() -> int:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build and publish versioned Pax docs")
-    parser.add_argument("version", help="Release version, e.g. 0.39.0")
+    parser.add_argument("version", type=release_version, help="Release SemVer, e.g. 0.39.0 (no v prefix)")
     parser.add_argument(
         "--workspace",
         type=Path,
@@ -73,7 +98,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--skip-build",
         action="store_true",
-        help="Only update the manifest and publish the existing mdBook output",
+        help="Reuse a validated publisher build of this version; with --no-upload, only update the source manifest",
     )
     parser.add_argument(
         "--no-upload",
@@ -88,7 +113,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def update_versions_manifest(version: str) -> None:
+def update_versions_manifest(version: str, *, promote: bool = True) -> None:
     manifest = read_manifest()
     today = dt.datetime.now(dt.timezone.utc).date().isoformat()
     existing = normalize_version_entries(manifest.get("versions", []))
@@ -108,7 +133,7 @@ def update_versions_manifest(version: str) -> None:
     versions = sorted(by_version.values(), key=lambda item: version_key(item["version"]), reverse=True)
     manifest = {
         "schema": 1,
-        "latest": version,
+        "latest": version if promote else manifest.get("latest"),
         "versions": versions,
     }
     VERSIONS_MANIFEST.parent.mkdir(parents=True, exist_ok=True)
@@ -139,14 +164,28 @@ def normalize_version_entries(raw_entries: list) -> list[dict]:
 
 
 def version_key(version: str) -> tuple:
-    parts = re.split(r"[.+-]", version.lstrip("v"))
-    key = []
-    for part in parts:
+    match = SEMVER.fullmatch(version)
+    if match is None:
+        raise ValueError(f"Invalid release SemVer: {version!r}")
+    major, minor, patch, prerelease, _build = match.groups()
+    identifiers = []
+    for part in prerelease.split(".") if prerelease else []:
         if part.isdigit():
-            key.append((1, int(part)))
+            if len(part) > 1 and part.startswith("0"):
+                raise ValueError(f"Leading zero in SemVer prerelease: {version!r}")
+            identifiers.append((0, int(part)))
         else:
-            key.append((0, part))
-    return tuple(key)
+            identifiers.append((1, part))
+    # Stable releases outrank prereleases; build metadata has no precedence.
+    return (int(major), int(minor), int(patch), prerelease is None, tuple(identifiers))
+
+
+def release_version(value: str) -> str:
+    try:
+        version_key(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError(str(error)) from error
+    return value
 
 
 def build_docs(workspace: Path, skip_examples: bool) -> None:
@@ -154,15 +193,106 @@ def build_docs(workspace: Path, skip_examples: bool) -> None:
     if skip_examples:
         docs_args.append("--skip-examples")
     run(docs_args, cwd=workspace)
-    run(["mdbook", "build", str(BOOK_DIR)], cwd=workspace)
+    run(["mdbook", "build", str(BOOK_DIR), "--dest-dir", str(BOOK_OUTPUT)], cwd=workspace)
+    run([
+        "node", str(workspace / "pax-docs/scripts/check_publication_output.mjs"),
+        str(BOOK_OUTPUT),
+    ], cwd=workspace)
+
+
+def validate_output() -> None:
+    required = ["index.html", "getting-started.html", "theme/pax-version.js"]
+    missing = [path for path in required if not (BOOK_OUTPUT / path).is_file()]
+    if missing:
+        raise SystemExit(f"Incomplete docs output at {BOOK_OUTPUT}: missing {', '.join(missing)}")
+    collector = ExampleCollector()
+    for page in BOOK_OUTPUT.rglob("*.html"):
+        collector.feed(page.read_text())
+        collector.close()
+        collector.reset()
+    for name in sorted(collector.examples):
+        validate_example(name)
+
+
+class ExampleCollector(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.examples: set[str] = set()
+
+    def handle_starttag(self, tag: str, attrs: list) -> None:
+        if tag == "pax-example":
+            name = dict(attrs).get("path") or ""
+            if not name or "\\" in name or any(part in ("", ".", "..") for part in name.split("/")):
+                raise SystemExit(f"Invalid embedded example path: {name!r}")
+            self.examples.add(name)
+
+
+def validate_example(name: str) -> None:
+    directory = BOOK_OUTPUT / "_pax_examples" / name
+    try:
+        manifest = json.loads((directory / "manifest.json").read_text())
+    except (OSError, ValueError) as error:
+        raise SystemExit(f"Missing/invalid example manifest for {name}") from error
+    if not isinstance(manifest, dict):
+        raise SystemExit(f"Invalid example manifest for {name}")
+    app = manifest.get("app") or {}
+    if not app.get("available") or app.get("build_error"):
+        raise SystemExit(f"Example {name} has no successful web build: {app.get('build_error')}")
+    if not manifest.get("built_fingerprint") or manifest["built_fingerprint"] != manifest.get("source_fingerprint"):
+        raise SystemExit(f"Example {name} has stale compiled source; rebuild without --skip-examples.")
+    if app.get("index") != "app/index.html" or not (directory / "app/index.html").is_file():
+        raise SystemExit(f"Missing example entry document for {name}")
+    if not any((directory / "app").rglob("*.wasm")):
+        raise SystemExit(f"Missing compiled Wasm for example {name}")
+    if not manifest.get("files") or not all(isinstance(file.get("contents"), str) for file in manifest["files"]):
+        raise SystemExit(f"Missing embedded example source for {name}")
+
+
+def output_digest() -> str:
+    digest = hashlib.sha256()
+    for path in sorted(BOOK_OUTPUT.rglob("*")):
+        if path.is_symlink():
+            raise SystemExit(f"Docs output must not contain symlinks: {path}")
+        if not path.is_file():
+            continue
+        relative = path.relative_to(BOOK_OUTPUT).as_posix()
+        # Catalog changes do not require rebuilding the articles or examples.
+        if relative in (BUILD_RECORD, "versions.json"):
+            continue
+        digest.update(relative.encode() + b"\0")
+        with path.open("rb") as source:
+            for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                digest.update(chunk)
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def write_build_record(version: str) -> None:
+    record = {"schema": 1, "version": version, "content_sha256": output_digest()}
+    (BOOK_OUTPUT / BUILD_RECORD).write_text(json.dumps(record, indent=2) + "\n")
+
+
+def validate_build_record(version: str) -> None:
+    validate_output()
+    path = BOOK_OUTPUT / BUILD_RECORD
+    try:
+        record = json.loads(path.read_text())
+    except (OSError, ValueError) as error:
+        raise SystemExit("Missing/invalid docs build record; run the publisher without --skip-build first.") from error
+    if not isinstance(record, dict) or record.get("schema") != 1 or record.get("version") != version:
+        raise SystemExit(f"Docs build is not recorded for {version}; rebuild without --skip-build.")
+    if record.get("content_sha256") != output_digest():
+        raise SystemExit("Docs output changed since its recorded build; rebuild without --skip-build.")
 
 
 def publish_docs(args: argparse.Namespace) -> None:
-    if not BOOK_OUTPUT.exists():
-        raise SystemExit(f"mdBook output not found: {BOOK_OUTPUT}")
+    validate_build_record(args.version)
 
     version_prefix = f"s3://{args.bucket}/{args.version}/"
     root_prefix = f"s3://{args.bucket}/"
+    # Copy every file so unchanged objects also receive the new cache policy.
+    # A sync alone skips those objects and can retain a previous immutable header.
+    copy_tree(version_prefix, args.workspace)
     run(
         [
             "aws",
@@ -172,26 +302,16 @@ def publish_docs(args: argparse.Namespace) -> None:
             version_prefix,
             "--delete",
             "--cache-control",
-            "public,max-age=31536000,immutable",
+            "no-cache",
+            "--no-follow-symlinks",
         ],
         cwd=args.workspace,
     )
 
     if not args.no_latest:
-        # Intentionally avoid --delete at the bucket root so immutable version
-        # directories are never removed by a latest-docs deploy.
-        run(
-            [
-                "aws",
-                "s3",
-                "sync",
-                str(BOOK_OUTPUT),
-                root_prefix,
-                "--cache-control",
-                "no-cache",
-            ],
-            cwd=args.workspace,
-        )
+        # Never delete at the bucket root: it also contains historical versions.
+        # The root catalog is promoted only after both content uploads succeed.
+        copy_tree(root_prefix, args.workspace, exclude_catalog=True)
 
     run(
         [
@@ -207,7 +327,7 @@ def publish_docs(args: argparse.Namespace) -> None:
     )
 
     if args.distribution_id:
-        paths = ["/versions.json"] if args.no_latest else ["/versions.json", "/*"]
+        paths = [f"/{args.version}/*", "/versions.json"] if args.no_latest else ["/*"]
         run(
             [
                 "aws",
@@ -220,6 +340,16 @@ def publish_docs(args: argparse.Namespace) -> None:
             ],
             cwd=args.workspace,
         )
+
+
+def copy_tree(destination: str, workspace: Path, *, exclude_catalog: bool = False) -> None:
+    command = [
+        "aws", "s3", "cp", str(BOOK_OUTPUT), destination, "--recursive",
+        "--no-follow-symlinks", "--cache-control", "no-cache",
+    ]
+    if exclude_catalog:
+        command.extend(["--exclude", "versions.json"])
+    run(command, cwd=workspace)
 
 
 def run(command: list[str], cwd: Path) -> None:

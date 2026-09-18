@@ -23,7 +23,7 @@ Type: `f32`
 Type: `i32`
 
 ##### `surface`
-Type: [`LayerSurfaceSize`](/api/internal/pax-runtime/engine/layer_surface.md#layersurfacesize)
+Type: [`LayerSurfaceSize`](../../../../api/internal/pax-runtime/engine/layer_surface.md#layersurfacesize)
 
 ---
 
@@ -32,7 +32,7 @@ Desired set of physical surfaces for a logical layer.
 
 #### Properties
 ##### `surfaces`
-Type: `Vec`<[`LayerSurfaceEntry`](/api/internal/pax-runtime/engine/layer_surface.md#layersurfaceentry)>
+Type: `Vec`<[`LayerSurfaceEntry`](../../../../api/internal/pax-runtime/engine/layer_surface.md#layersurfaceentry)>
 
 ##### `active`
 Type: `bool`
@@ -80,6 +80,6 @@ remain responsible for applying the selected indices to their own renderer objec
 
 ## Functions
 ### `replay_batches_by_directional_priority`
-<pre><code class="api-signature language-rust ignore">pub fn replay_batches_by_directional_priority(entries: &amp;[<a href="/api/internal/pax-runtime/engine/layer_surface.md#replaypriorityentry">ReplayPriorityEntry</a>]) -&gt; Vec&lt;Vec&lt;usize&gt;&gt;</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn replay_batches_by_directional_priority(entries: &amp;[<a href="../../../../api/internal/pax-runtime/engine/layer_surface.md#replaypriorityentry">ReplayPriorityEntry</a>]) -&gt; Vec&lt;Vec&lt;usize&gt;&gt;</code></pre>
 
 Batch retargeted surfaces by planner priority, then by the leading row/column of travel.

@@ -73,7 +73,7 @@ Type: `bool`
 Whether supported Apple surfaces should use the interactive glass effect.
 
 ##### `tint`
-Type: `Option`<[`Color`](/api/pax-runtime-api/color.md#color)>
+Type: `Option`<[`Color`](../../api/pax-runtime-api/color.md#color)>
 
 Optional tint for supported Apple surfaces.
 
@@ -84,7 +84,7 @@ Apple glass style name, currently "regular" or "clear".
 
 #### Implementations
 ##### `to_message`
-<pre><code class="api-signature language-rust ignore">pub fn to_message(&amp;self) -&gt; <a href="/api/internal/pax-message/index.md#appleliquidglasspatch">AppleLiquidGlassPatch</a></code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn to_message(&amp;self) -&gt; <a href="../../api/internal/pax-message/index.md#appleliquidglasspatch">AppleLiquidGlassPatch</a></code></pre>
 
 Converts runtime style data into the serialized native-message payload.
 
@@ -151,7 +151,7 @@ Any desktop OS target.
 
 #### Implementations
 ##### `new`
-<pre><code class="api-signature language-rust ignore">pub fn new(platform: <a href="/api/pax-runtime-api/platform.md#platform">Platform</a>, os: <a href="/api/pax-runtime-api/platform.md#os">OS</a>) -&gt; Self</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn new(platform: <a href="../../api/pax-runtime-api/platform.md#platform">Platform</a>, os: <a href="../../api/pax-runtime-api/platform.md#os">OS</a>) -&gt; Self</code></pre>
 
 Build target facts from the chassis platform and detected OS.
 

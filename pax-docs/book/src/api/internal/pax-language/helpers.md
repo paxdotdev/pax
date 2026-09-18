@@ -29,7 +29,7 @@ AST visitor that extracts `#[inlined(...)]` templates from `#[pax]` structs.
 Type: `String`
 
 ##### `templates`
-Type: `Vec`<[`InlinedTemplate`](/api/internal/pax-language/helpers.md#inlinedtemplate)>
+Type: `Vec`<[`InlinedTemplate`](../../../api/internal/pax-language/helpers.md#inlinedtemplate)>
 
 #### Implementations
 ##### `new`

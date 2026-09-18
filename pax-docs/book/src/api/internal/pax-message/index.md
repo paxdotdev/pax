@@ -2,6 +2,9 @@
 <!-- summary: API reference for pax-message. -->
 <!-- tags: api, pax-message -->
 
+## Submodules
+- [http_api](http_api.md)
+
 ## Structs
 ### `AccelInterruptArgs`
 Device acceleration payload, in meters per second squared.
@@ -59,7 +62,7 @@ Type: `f64`
 Type: `bool`
 
 ##### `tint`
-Type: `Option`<[`ColorMessage`](/api/internal/pax-message/index.md#colormessage)>
+Type: `Option`<[`ColorMessage`](../../../api/internal/pax-message/index.md#colormessage)>
 
 ##### `variant`
 Type: `String`
@@ -92,10 +95,10 @@ Type: `Option`<`Option`<`u32`>>
 Type: `Option`<`i32`>
 
 ##### `hover_color`
-Type: `Option`<[`ColorMessage`](/api/internal/pax-message/index.md#colormessage)>
+Type: `Option`<[`ColorMessage`](../../../api/internal/pax-message/index.md#colormessage)>
 
 ##### `outline_stroke_color`
-Type: `Option`<[`ColorMessage`](/api/internal/pax-message/index.md#colormessage)>
+Type: `Option`<[`ColorMessage`](../../../api/internal/pax-message/index.md#colormessage)>
 
 ##### `outline_stroke_width`
 Type: `Option`<`f64`>
@@ -119,13 +122,13 @@ Type: `Option`<`f64`>
 Type: `Option`<`String`>
 
 ##### `color`
-Type: `Option`<[`ColorMessage`](/api/internal/pax-message/index.md#colormessage)>
+Type: `Option`<[`ColorMessage`](../../../api/internal/pax-message/index.md#colormessage)>
 
 ##### `style`
-Type: `Option`<[`TextStyleMessage`](/api/internal/pax-message/index.md#textstylemessage)>
+Type: `Option`<[`TextStyleMessage`](../../../api/internal/pax-message/index.md#textstylemessage)>
 
 ##### `liquid_glass`
-Type: `Option`<`Option`<[`AppleLiquidGlassPatch`](/api/internal/pax-message/index.md#appleliquidglasspatch)>>
+Type: `Option`<`Option`<[`AppleLiquidGlassPatch`](../../../api/internal/pax-message/index.md#appleliquidglasspatch)>>
 
 ---
 
@@ -158,13 +161,13 @@ Type: `Option`<`Option`<`u32`>>
 Type: `Option`<`i32`>
 
 ##### `background`
-Type: `Option`<[`ColorMessage`](/api/internal/pax-message/index.md#colormessage)>
+Type: `Option`<[`ColorMessage`](../../../api/internal/pax-message/index.md#colormessage)>
 
 ##### `background_checked`
-Type: `Option`<[`ColorMessage`](/api/internal/pax-message/index.md#colormessage)>
+Type: `Option`<[`ColorMessage`](../../../api/internal/pax-message/index.md#colormessage)>
 
 ##### `outline_color`
-Type: `Option`<[`ColorMessage`](/api/internal/pax-message/index.md#colormessage)>
+Type: `Option`<[`ColorMessage`](../../../api/internal/pax-message/index.md#colormessage)>
 
 ##### `outline_width`
 Type: `Option`<`f64`>
@@ -188,7 +191,7 @@ Type: `Option`<`f64`>
 Type: `Option`<`bool`>
 
 ##### `liquid_glass`
-Type: `Option`<`Option`<[`AppleLiquidGlassPatch`](/api/internal/pax-message/index.md#appleliquidglasspatch)>>
+Type: `Option`<`Option`<[`AppleLiquidGlassPatch`](../../../api/internal/pax-message/index.md#appleliquidglasspatch)>>
 
 ---
 
@@ -208,10 +211,10 @@ Type: `f64`
 Type: `f64`
 
 ##### `button`
-Type: [`MouseButtonMessage`](/api/internal/pax-message/index.md#mousebuttonmessage)
+Type: [`MouseButtonMessage`](../../../api/internal/pax-message/index.md#mousebuttonmessage)
 
 ##### `modifiers`
-Type: `Vec`<[`ModifierKeyMessage`](/api/internal/pax-message/index.md#modifierkeymessage)>
+Type: `Vec`<[`ModifierKeyMessage`](../../../api/internal/pax-message/index.md#modifierkeymessage)>
 
 ---
 
@@ -226,10 +229,10 @@ Type: `f64`
 Type: `f64`
 
 ##### `button`
-Type: [`MouseButtonMessage`](/api/internal/pax-message/index.md#mousebuttonmessage)
+Type: [`MouseButtonMessage`](../../../api/internal/pax-message/index.md#mousebuttonmessage)
 
 ##### `modifiers`
-Type: `Vec`<[`ModifierKeyMessage`](/api/internal/pax-message/index.md#modifierkeymessage)>
+Type: `Vec`<[`ModifierKeyMessage`](../../../api/internal/pax-message/index.md#modifierkeymessage)>
 
 ---
 
@@ -244,10 +247,10 @@ Type: `f64`
 Type: `f64`
 
 ##### `button`
-Type: [`MouseButtonMessage`](/api/internal/pax-message/index.md#mousebuttonmessage)
+Type: [`MouseButtonMessage`](../../../api/internal/pax-message/index.md#mousebuttonmessage)
 
 ##### `modifiers`
-Type: `Vec`<[`ModifierKeyMessage`](/api/internal/pax-message/index.md#modifierkeymessage)>
+Type: `Vec`<[`ModifierKeyMessage`](../../../api/internal/pax-message/index.md#modifierkeymessage)>
 
 ---
 
@@ -304,10 +307,10 @@ Type: `Option`<`f64`>
 Type: `Option`<`f64`>
 
 ##### `background`
-Type: `Option`<[`ColorMessage`](/api/internal/pax-message/index.md#colormessage)>
+Type: `Option`<[`ColorMessage`](../../../api/internal/pax-message/index.md#colormessage)>
 
 ##### `stroke_color`
-Type: `Option`<[`ColorMessage`](/api/internal/pax-message/index.md#colormessage)>
+Type: `Option`<[`ColorMessage`](../../../api/internal/pax-message/index.md#colormessage)>
 
 ##### `stroke_width`
 Type: `Option`<`f64`>
@@ -316,10 +319,10 @@ Type: `Option`<`f64`>
 Type: `Option`<`f64`>
 
 ##### `style`
-Type: `Option`<[`TextStyleMessage`](/api/internal/pax-message/index.md#textstylemessage)>
+Type: `Option`<[`TextStyleMessage`](../../../api/internal/pax-message/index.md#textstylemessage)>
 
 ##### `liquid_glass`
-Type: `Option`<`Option`<[`AppleLiquidGlassPatch`](/api/internal/pax-message/index.md#appleliquidglasspatch)>>
+Type: `Option`<`Option`<[`AppleLiquidGlassPatch`](../../../api/internal/pax-message/index.md#appleliquidglasspatch)>>
 
 ---
 
@@ -349,7 +352,7 @@ Type: `Option`<`Vec`<`f64`>>
 Type: `Option`<`f64`>
 
 ##### `background`
-Type: `Option`<[`ColorMessage`](/api/internal/pax-message/index.md#colormessage)>
+Type: `Option`<[`ColorMessage`](../../../api/internal/pax-message/index.md#colormessage)>
 
 ---
 
@@ -510,7 +513,7 @@ Type: `Option`<`f64`>
 Type: `Option`<`f64`>
 
 ##### `liquid_glass`
-Type: `Option`<[`AppleLiquidGlassPatch`](/api/internal/pax-message/index.md#appleliquidglasspatch)>
+Type: `Option`<[`AppleLiquidGlassPatch`](../../../api/internal/pax-message/index.md#appleliquidglasspatch)>
 
 ---
 
@@ -603,7 +606,7 @@ Key-down interrupt payload.
 Type: `String`
 
 ##### `modifiers`
-Type: `Vec`<[`ModifierKeyMessage`](/api/internal/pax-message/index.md#modifierkeymessage)>
+Type: `Vec`<[`ModifierKeyMessage`](../../../api/internal/pax-message/index.md#modifierkeymessage)>
 
 ##### `is_repeat`
 Type: `bool`
@@ -618,7 +621,7 @@ Key-press interrupt payload.
 Type: `String`
 
 ##### `modifiers`
-Type: `Vec`<[`ModifierKeyMessage`](/api/internal/pax-message/index.md#modifierkeymessage)>
+Type: `Vec`<[`ModifierKeyMessage`](../../../api/internal/pax-message/index.md#modifierkeymessage)>
 
 ##### `is_repeat`
 Type: `bool`
@@ -633,7 +636,7 @@ Key-up interrupt payload.
 Type: `String`
 
 ##### `modifiers`
-Type: `Vec`<[`ModifierKeyMessage`](/api/internal/pax-message/index.md#modifierkeymessage)>
+Type: `Vec`<[`ModifierKeyMessage`](../../../api/internal/pax-message/index.md#modifierkeymessage)>
 
 ##### `is_repeat`
 Type: `bool`
@@ -678,10 +681,10 @@ Serializable style payload for link text.
 
 #### Properties
 ##### `font`
-Type: `Option`<[`FontPatch`](/api/internal/pax-message/index.md#fontpatch)>
+Type: `Option`<[`FontPatch`](../../../api/internal/pax-message/index.md#fontpatch)>
 
 ##### `fill`
-Type: `Option`<[`ColorMessage`](/api/internal/pax-message/index.md#colormessage)>
+Type: `Option`<[`ColorMessage`](../../../api/internal/pax-message/index.md#colormessage)>
 
 ##### `underline`
 Type: `Option`<`bool`>
@@ -702,10 +705,10 @@ Type: `Option`<`String`>
 Type: `Option`<`String`>
 
 ##### `style`
-Type: `Option`<[`FontStyleMessage`](/api/internal/pax-message/index.md#fontstylemessage)>
+Type: `Option`<[`FontStyleMessage`](../../../api/internal/pax-message/index.md#fontstylemessage)>
 
 ##### `weight`
-Type: `Option`<[`FontWeightMessage`](/api/internal/pax-message/index.md#fontweightmessage)>
+Type: `Option`<[`FontWeightMessage`](../../../api/internal/pax-message/index.md#fontweightmessage)>
 
 ---
 
@@ -729,7 +732,7 @@ Serializable batch of native messages emitted for one runtime tick.
 
 #### Properties
 ##### `messages`
-Type: `Vec`<[`NativeMessage`](/api/internal/pax-message/index.md#nativemessage)>
+Type: `Vec`<[`NativeMessage`](../../../api/internal/pax-message/index.md#nativemessage)>
 
 ---
 
@@ -744,10 +747,10 @@ Type: `f64`
 Type: `f64`
 
 ##### `button`
-Type: [`MouseButtonMessage`](/api/internal/pax-message/index.md#mousebuttonmessage)
+Type: [`MouseButtonMessage`](../../../api/internal/pax-message/index.md#mousebuttonmessage)
 
 ##### `modifiers`
-Type: `Vec`<[`ModifierKeyMessage`](/api/internal/pax-message/index.md#modifierkeymessage)>
+Type: `Vec`<[`ModifierKeyMessage`](../../../api/internal/pax-message/index.md#modifierkeymessage)>
 
 ---
 
@@ -762,10 +765,10 @@ Type: `f64`
 Type: `f64`
 
 ##### `button`
-Type: [`MouseButtonMessage`](/api/internal/pax-message/index.md#mousebuttonmessage)
+Type: [`MouseButtonMessage`](../../../api/internal/pax-message/index.md#mousebuttonmessage)
 
 ##### `modifiers`
-Type: `Vec`<[`ModifierKeyMessage`](/api/internal/pax-message/index.md#modifierkeymessage)>
+Type: `Vec`<[`ModifierKeyMessage`](../../../api/internal/pax-message/index.md#modifierkeymessage)>
 
 ---
 
@@ -780,10 +783,10 @@ Type: `f64`
 Type: `f64`
 
 ##### `button`
-Type: [`MouseButtonMessage`](/api/internal/pax-message/index.md#mousebuttonmessage)
+Type: [`MouseButtonMessage`](../../../api/internal/pax-message/index.md#mousebuttonmessage)
 
 ##### `modifiers`
-Type: `Vec`<[`ModifierKeyMessage`](/api/internal/pax-message/index.md#modifierkeymessage)>
+Type: `Vec`<[`ModifierKeyMessage`](../../../api/internal/pax-message/index.md#modifierkeymessage)>
 
 ---
 
@@ -798,10 +801,10 @@ Type: `f64`
 Type: `f64`
 
 ##### `button`
-Type: [`MouseButtonMessage`](/api/internal/pax-message/index.md#mousebuttonmessage)
+Type: [`MouseButtonMessage`](../../../api/internal/pax-message/index.md#mousebuttonmessage)
 
 ##### `modifiers`
-Type: `Vec`<[`ModifierKeyMessage`](/api/internal/pax-message/index.md#modifierkeymessage)>
+Type: `Vec`<[`ModifierKeyMessage`](../../../api/internal/pax-message/index.md#modifierkeymessage)>
 
 ---
 
@@ -816,10 +819,10 @@ Type: `f64`
 Type: `f64`
 
 ##### `button`
-Type: [`MouseButtonMessage`](/api/internal/pax-message/index.md#mousebuttonmessage)
+Type: [`MouseButtonMessage`](../../../api/internal/pax-message/index.md#mousebuttonmessage)
 
 ##### `modifiers`
-Type: `Vec`<[`ModifierKeyMessage`](/api/internal/pax-message/index.md#modifierkeymessage)>
+Type: `Vec`<[`ModifierKeyMessage`](../../../api/internal/pax-message/index.md#modifierkeymessage)>
 
 ---
 
@@ -870,7 +873,7 @@ Type: `f64`
 Type: `f64`
 
 ##### `entries`
-Type: `Vec`<[`MaskPathPatch`](/api/internal/pax-message/index.md#maskpathpatch)>
+Type: `Vec`<[`MaskPathPatch`](../../../api/internal/pax-message/index.md#maskpathpatch)>
 
 ---
 
@@ -948,7 +951,7 @@ Type: `String`
 Type: `Option`<`String`>
 
 ##### `photos`
-Type: `Vec`<[`PhotoPickerAssetArgs`](/api/internal/pax-message/index.md#photopickerassetargs)>
+Type: `Vec`<[`PhotoPickerAssetArgs`](../../../api/internal/pax-message/index.md#photopickerassetargs)>
 
 ---
 
@@ -1017,19 +1020,19 @@ Type: `Option`<`u32`>
 Type: `Option`<`Vec`<`String`>>
 
 ##### `style`
-Type: `Option`<[`TextStyleMessage`](/api/internal/pax-message/index.md#textstylemessage)>
+Type: `Option`<[`TextStyleMessage`](../../../api/internal/pax-message/index.md#textstylemessage)>
 
 ##### `background_checked`
-Type: `Option`<[`ColorMessage`](/api/internal/pax-message/index.md#colormessage)>
+Type: `Option`<[`ColorMessage`](../../../api/internal/pax-message/index.md#colormessage)>
 
 ##### `outline_color`
-Type: `Option`<[`ColorMessage`](/api/internal/pax-message/index.md#colormessage)>
+Type: `Option`<[`ColorMessage`](../../../api/internal/pax-message/index.md#colormessage)>
 
 ##### `outline_width`
 Type: `Option`<`f64`>
 
 ##### `background`
-Type: `Option`<[`ColorMessage`](/api/internal/pax-message/index.md#colormessage)>
+Type: `Option`<[`ColorMessage`](../../../api/internal/pax-message/index.md#colormessage)>
 
 ##### `transform`
 Type: `Option`<`Vec`<`f64`>>
@@ -1044,7 +1047,7 @@ Type: `Option`<`f64`>
 Type: `Option`<`f64`>
 
 ##### `liquid_glass`
-Type: `Option`<`Option`<[`AppleLiquidGlassPatch`](/api/internal/pax-message/index.md#appleliquidglasspatch)>>
+Type: `Option`<`Option`<[`AppleLiquidGlassPatch`](../../../api/internal/pax-message/index.md#appleliquidglasspatch)>>
 
 ---
 
@@ -1268,16 +1271,16 @@ Type: `Option`<`f64`>
 Type: `Option`<`f64`>
 
 ##### `accent`
-Type: `Option`<[`ColorMessage`](/api/internal/pax-message/index.md#colormessage)>
+Type: `Option`<[`ColorMessage`](../../../api/internal/pax-message/index.md#colormessage)>
 
 ##### `background`
-Type: `Option`<[`ColorMessage`](/api/internal/pax-message/index.md#colormessage)>
+Type: `Option`<[`ColorMessage`](../../../api/internal/pax-message/index.md#colormessage)>
 
 ##### `corner_radius`
 Type: `Option`<`f64`>
 
 ##### `liquid_glass`
-Type: `Option`<`Option`<[`AppleLiquidGlassPatch`](/api/internal/pax-message/index.md#appleliquidglasspatch)>>
+Type: `Option`<`Option`<[`AppleLiquidGlassPatch`](../../../api/internal/pax-message/index.md#appleliquidglasspatch)>>
 
 ---
 
@@ -1289,10 +1292,10 @@ System font family payload.
 Type: `Option`<`String`>
 
 ##### `style`
-Type: `Option`<[`FontStyleMessage`](/api/internal/pax-message/index.md#fontstylemessage)>
+Type: `Option`<[`FontStyleMessage`](../../../api/internal/pax-message/index.md#fontstylemessage)>
 
 ##### `weight`
-Type: `Option`<[`FontWeightMessage`](/api/internal/pax-message/index.md#fontweightmessage)>
+Type: `Option`<[`FontWeightMessage`](../../../api/internal/pax-message/index.md#fontweightmessage)>
 
 ---
 
@@ -1382,10 +1385,10 @@ Type: `Option`<`f64`>
 Type: `Option`<`f64`>
 
 ##### `style`
-Type: `Option`<[`TextStyleMessage`](/api/internal/pax-message/index.md#textstylemessage)>
+Type: `Option`<[`TextStyleMessage`](../../../api/internal/pax-message/index.md#textstylemessage)>
 
 ##### `style_link`
-Type: `Option`<[`TextStyleMessage`](/api/internal/pax-message/index.md#textstylemessage)>
+Type: `Option`<[`TextStyleMessage`](../../../api/internal/pax-message/index.md#textstylemessage)>
 
 ##### `measure_generation`
 Type: `Option`<`u64`>
@@ -1397,25 +1400,25 @@ Serializable text style payload shared with chassis text renderers.
 
 #### Properties
 ##### `font`
-Type: `Option`<[`FontPatch`](/api/internal/pax-message/index.md#fontpatch)>
+Type: `Option`<[`FontPatch`](../../../api/internal/pax-message/index.md#fontpatch)>
 
 ##### `font_size`
 Type: `Option`<`f64`>
 
 ##### `fill`
-Type: `Option`<[`ColorMessage`](/api/internal/pax-message/index.md#colormessage)>
+Type: `Option`<[`ColorMessage`](../../../api/internal/pax-message/index.md#colormessage)>
 
 ##### `underline`
 Type: `Option`<`bool`>
 
 ##### `align_multiline`
-Type: `Option`<[`TextAlignHorizontalMessage`](/api/internal/pax-message/index.md#textalignhorizontalmessage)>
+Type: `Option`<[`TextAlignHorizontalMessage`](../../../api/internal/pax-message/index.md#textalignhorizontalmessage)>
 
 ##### `align_vertical`
-Type: `Option`<[`TextAlignVerticalMessage`](/api/internal/pax-message/index.md#textalignverticalmessage)>
+Type: `Option`<[`TextAlignVerticalMessage`](../../../api/internal/pax-message/index.md#textalignverticalmessage)>
 
 ##### `align_horizontal`
-Type: `Option`<[`TextAlignHorizontalMessage`](/api/internal/pax-message/index.md#textalignhorizontalmessage)>
+Type: `Option`<[`TextAlignHorizontalMessage`](../../../api/internal/pax-message/index.md#textalignhorizontalmessage)>
 
 ---
 
@@ -1448,10 +1451,10 @@ Type: `Option`<`f64`>
 Type: `Option`<`String`>
 
 ##### `background`
-Type: `Option`<[`ColorMessage`](/api/internal/pax-message/index.md#colormessage)>
+Type: `Option`<[`ColorMessage`](../../../api/internal/pax-message/index.md#colormessage)>
 
 ##### `stroke_color`
-Type: `Option`<[`ColorMessage`](/api/internal/pax-message/index.md#colormessage)>
+Type: `Option`<[`ColorMessage`](../../../api/internal/pax-message/index.md#colormessage)>
 
 ##### `stroke_width`
 Type: `Option`<`f64`>
@@ -1460,7 +1463,7 @@ Type: `Option`<`f64`>
 Type: `Option`<`f64`>
 
 ##### `style`
-Type: `Option`<[`TextStyleMessage`](/api/internal/pax-message/index.md#textstylemessage)>
+Type: `Option`<[`TextStyleMessage`](../../../api/internal/pax-message/index.md#textstylemessage)>
 
 ##### `focus_on_mount`
 Type: `Option`<`bool`>
@@ -1469,7 +1472,7 @@ Type: `Option`<`bool`>
 Type: `Option`<`String`>
 
 ##### `outline_color`
-Type: `Option`<[`ColorMessage`](/api/internal/pax-message/index.md#colormessage)>
+Type: `Option`<[`ColorMessage`](../../../api/internal/pax-message/index.md#colormessage)>
 
 ##### `outline_width`
 Type: `Option`<`f64`>
@@ -1478,7 +1481,7 @@ Type: `Option`<`f64`>
 Type: `Option`<`bool`>
 
 ##### `liquid_glass`
-Type: `Option`<`Option`<[`AppleLiquidGlassPatch`](/api/internal/pax-message/index.md#appleliquidglasspatch)>>
+Type: `Option`<`Option`<[`AppleLiquidGlassPatch`](../../../api/internal/pax-message/index.md#appleliquidglasspatch)>>
 
 ---
 
@@ -1487,7 +1490,7 @@ Touch-cancel interrupt payload.
 
 #### Properties
 ##### `touches`
-Type: `Vec`<[`TouchMessage`](/api/internal/pax-message/index.md#touchmessage)>
+Type: `Vec`<[`TouchMessage`](../../../api/internal/pax-message/index.md#touchmessage)>
 
 ---
 
@@ -1496,7 +1499,7 @@ Touch-end interrupt payload.
 
 #### Properties
 ##### `touches`
-Type: `Vec`<[`TouchMessage`](/api/internal/pax-message/index.md#touchmessage)>
+Type: `Vec`<[`TouchMessage`](../../../api/internal/pax-message/index.md#touchmessage)>
 
 ---
 
@@ -1526,7 +1529,7 @@ Touch-move interrupt payload.
 
 #### Properties
 ##### `touches`
-Type: `Vec`<[`TouchMessage`](/api/internal/pax-message/index.md#touchmessage)>
+Type: `Vec`<[`TouchMessage`](../../../api/internal/pax-message/index.md#touchmessage)>
 
 ---
 
@@ -1535,7 +1538,7 @@ Touch-start interrupt payload.
 
 #### Properties
 ##### `touches`
-Type: `Vec`<[`TouchMessage`](/api/internal/pax-message/index.md#touchmessage)>
+Type: `Vec`<[`TouchMessage`](../../../api/internal/pax-message/index.md#touchmessage)>
 
 ---
 
@@ -1586,10 +1589,10 @@ Type: `Option`<`String`>
 Type: `Option`<`String`>
 
 ##### `style`
-Type: `Option`<[`FontStyleMessage`](/api/internal/pax-message/index.md#fontstylemessage)>
+Type: `Option`<[`FontStyleMessage`](../../../api/internal/pax-message/index.md#fontstylemessage)>
 
 ##### `weight`
-Type: `Option`<[`FontWeightMessage`](/api/internal/pax-message/index.md#fontweightmessage)>
+Type: `Option`<[`FontWeightMessage`](../../../api/internal/pax-message/index.md#fontweightmessage)>
 
 ---
 
@@ -1610,7 +1613,7 @@ Type: `f64`
 Type: `f64`
 
 ##### `modifiers`
-Type: `Vec`<[`ModifierKeyMessage`](/api/internal/pax-message/index.md#modifierkeymessage)>
+Type: `Vec`<[`ModifierKeyMessage`](../../../api/internal/pax-message/index.md#modifierkeymessage)>
 
 ---
 
@@ -1655,9 +1658,9 @@ Serializable color payload for native/chassis messages.
 Serializable font selection payload.
 
 #### Variants
-##### `System`([`SystemFontMessage`](/api/internal/pax-message/index.md#systemfontmessage))
-##### `Web`([`WebFontMessage`](/api/internal/pax-message/index.md#webfontmessage))
-##### `Local`([`LocalFontMessage`](/api/internal/pax-message/index.md#localfontmessage))
+##### `System`([`SystemFontMessage`](../../../api/internal/pax-message/index.md#systemfontmessage))
+##### `Web`([`WebFontMessage`](../../../api/internal/pax-message/index.md#webfontmessage))
+##### `Local`([`LocalFontMessage`](../../../api/internal/pax-message/index.md#localfontmessage))
 ---
 
 ### `FontStyleMessage`
@@ -1688,8 +1691,8 @@ Serializable font-weight value.
 Image-load response, either by pointer or copied metadata.
 
 #### Variants
-##### `Reference`([`ImagePointerArgs`](/api/internal/pax-message/index.md#imagepointerargs))
-##### `Data`([`ImageDataArgs`](/api/internal/pax-message/index.md#imagedataargs))
+##### `Reference`([`ImagePointerArgs`](../../../api/internal/pax-message/index.md#imagepointerargs))
+##### `Data`([`ImageDataArgs`](../../../api/internal/pax-message/index.md#imagedataargs))
 ---
 
 ### `ModifierKeyMessage`
@@ -1716,101 +1719,101 @@ Normalized mouse button identifier.
 Events and data packets sent from the chassis back into the Pax runtime.
 
 #### Variants
-##### `ChassisResizeRequestCollection`(`Vec`<[`ChassisResizeRequestArgs`](/api/internal/pax-message/index.md#chassisresizerequestargs)>)
-##### `TextMeasurementResponse`([`TextMeasurementResponseArgs`](/api/internal/pax-message/index.md#textmeasurementresponseargs))
-##### `SelectStart`([`SelectStartArgs`](/api/internal/pax-message/index.md#selectstartargs))
-##### `Focus`([`FocusInterruptArgs`](/api/internal/pax-message/index.md#focusinterruptargs))
-##### `Scroll`([`ScrollInterruptArgs`](/api/internal/pax-message/index.md#scrollinterruptargs))
-##### `TouchStart`([`TouchStartInterruptArgs`](/api/internal/pax-message/index.md#touchstartinterruptargs))
-##### `TouchMove`([`TouchMoveInterruptArgs`](/api/internal/pax-message/index.md#touchmoveinterruptargs))
-##### `TouchEnd`([`TouchEndInterruptArgs`](/api/internal/pax-message/index.md#touchendinterruptargs))
-##### `TouchCancel`([`TouchCancelInterruptArgs`](/api/internal/pax-message/index.md#touchcancelinterruptargs))
-##### `KeyDown`([`KeyDownInterruptArgs`](/api/internal/pax-message/index.md#keydowninterruptargs))
-##### `KeyUp`([`KeyUpInterruptArgs`](/api/internal/pax-message/index.md#keyupinterruptargs))
-##### `KeyPress`([`KeyPressInterruptArgs`](/api/internal/pax-message/index.md#keypressinterruptargs))
-##### `Click`([`ClickInterruptArgs`](/api/internal/pax-message/index.md#clickinterruptargs))
-##### `Tap`([`TapInterruptArgs`](/api/internal/pax-message/index.md#tapinterruptargs))
-##### `DoubleClick`([`DoubleClickInterruptArgs`](/api/internal/pax-message/index.md#doubleclickinterruptargs))
-##### `MouseMove`([`MouseMoveInterruptArgs`](/api/internal/pax-message/index.md#mousemoveinterruptargs))
-##### `Wheel`([`WheelInterruptArgs`](/api/internal/pax-message/index.md#wheelinterruptargs))
-##### `MouseDown`([`MouseDownInterruptArgs`](/api/internal/pax-message/index.md#mousedowninterruptargs))
-##### `MouseUp`([`MouseUpInterruptArgs`](/api/internal/pax-message/index.md#mouseupinterruptargs))
-##### `ContextMenu`([`ContextMenuInterruptArgs`](/api/internal/pax-message/index.md#contextmenuinterruptargs))
-##### `Image`([`ImageLoadInterruptArgs`](/api/internal/pax-message/index.md#imageloadinterruptargs))
-##### `AddedLayer`([`AddedLayerArgs`](/api/internal/pax-message/index.md#addedlayerargs))
-##### `TextInput`([`TextInputArgs`](/api/internal/pax-message/index.md#textinputargs))
-##### `FormCheckboxToggle`([`FormCheckboxToggleArgs`](/api/internal/pax-message/index.md#formcheckboxtoggleargs))
-##### `FormDropdownChange`([`FormDropdownChangeArgs`](/api/internal/pax-message/index.md#formdropdownchangeargs))
-##### `FormSliderChange`([`FormSliderChangeArgs`](/api/internal/pax-message/index.md#formsliderchangeargs))
-##### `FormRadioListChange`([`FormRadioListChangeArgs`](/api/internal/pax-message/index.md#formradiolistchangeargs))
-##### `FormTextboxChange`([`FormTextboxChangeArgs`](/api/internal/pax-message/index.md#formtextboxchangeargs))
-##### `FormTextboxInput`([`FormTextboxInputArgs`](/api/internal/pax-message/index.md#formtextboxinputargs))
-##### `FormButtonClick`([`FormButtonClickArgs`](/api/internal/pax-message/index.md#formbuttonclickargs))
-##### `PhotoPicker`([`PhotoPickerInterruptArgs`](/api/internal/pax-message/index.md#photopickerinterruptargs))
-##### `ScrollerPosition`([`ScrollerPositionInterruptArgs`](/api/internal/pax-message/index.md#scrollerpositioninterruptargs))
-##### `BrowserConfig`([`BrowserConfigInterruptArgs`](/api/internal/pax-message/index.md#browserconfiginterruptargs))
-##### `RenderSurfaceUpdate`([`RenderSurfaceUpdateArgs`](/api/internal/pax-message/index.md#rendersurfaceupdateargs))
-##### `ViewportResize`([`ViewportResizeArgs`](/api/internal/pax-message/index.md#viewportresizeargs))
-##### `RouteChange`([`RouteChangeInterruptArgs`](/api/internal/pax-message/index.md#routechangeinterruptargs))
-##### `VisualViewportUpdate`([`VisualViewportUpdateArgs`](/api/internal/pax-message/index.md#visualviewportupdateargs))
-##### `Gyro`([`GyroInterruptArgs`](/api/internal/pax-message/index.md#gyrointerruptargs))
-##### `Accel`([`AccelInterruptArgs`](/api/internal/pax-message/index.md#accelinterruptargs))
-##### `DropFile`([`DropFileArgs`](/api/internal/pax-message/index.md#dropfileargs))
-##### `Screenshot`([`ImageLoadInterruptArgs`](/api/internal/pax-message/index.md#imageloadinterruptargs))
+##### `ChassisResizeRequestCollection`(`Vec`<[`ChassisResizeRequestArgs`](../../../api/internal/pax-message/index.md#chassisresizerequestargs)>)
+##### `TextMeasurementResponse`([`TextMeasurementResponseArgs`](../../../api/internal/pax-message/index.md#textmeasurementresponseargs))
+##### `SelectStart`([`SelectStartArgs`](../../../api/internal/pax-message/index.md#selectstartargs))
+##### `Focus`([`FocusInterruptArgs`](../../../api/internal/pax-message/index.md#focusinterruptargs))
+##### `Scroll`([`ScrollInterruptArgs`](../../../api/internal/pax-message/index.md#scrollinterruptargs))
+##### `TouchStart`([`TouchStartInterruptArgs`](../../../api/internal/pax-message/index.md#touchstartinterruptargs))
+##### `TouchMove`([`TouchMoveInterruptArgs`](../../../api/internal/pax-message/index.md#touchmoveinterruptargs))
+##### `TouchEnd`([`TouchEndInterruptArgs`](../../../api/internal/pax-message/index.md#touchendinterruptargs))
+##### `TouchCancel`([`TouchCancelInterruptArgs`](../../../api/internal/pax-message/index.md#touchcancelinterruptargs))
+##### `KeyDown`([`KeyDownInterruptArgs`](../../../api/internal/pax-message/index.md#keydowninterruptargs))
+##### `KeyUp`([`KeyUpInterruptArgs`](../../../api/internal/pax-message/index.md#keyupinterruptargs))
+##### `KeyPress`([`KeyPressInterruptArgs`](../../../api/internal/pax-message/index.md#keypressinterruptargs))
+##### `Click`([`ClickInterruptArgs`](../../../api/internal/pax-message/index.md#clickinterruptargs))
+##### `Tap`([`TapInterruptArgs`](../../../api/internal/pax-message/index.md#tapinterruptargs))
+##### `DoubleClick`([`DoubleClickInterruptArgs`](../../../api/internal/pax-message/index.md#doubleclickinterruptargs))
+##### `MouseMove`([`MouseMoveInterruptArgs`](../../../api/internal/pax-message/index.md#mousemoveinterruptargs))
+##### `Wheel`([`WheelInterruptArgs`](../../../api/internal/pax-message/index.md#wheelinterruptargs))
+##### `MouseDown`([`MouseDownInterruptArgs`](../../../api/internal/pax-message/index.md#mousedowninterruptargs))
+##### `MouseUp`([`MouseUpInterruptArgs`](../../../api/internal/pax-message/index.md#mouseupinterruptargs))
+##### `ContextMenu`([`ContextMenuInterruptArgs`](../../../api/internal/pax-message/index.md#contextmenuinterruptargs))
+##### `Image`([`ImageLoadInterruptArgs`](../../../api/internal/pax-message/index.md#imageloadinterruptargs))
+##### `AddedLayer`([`AddedLayerArgs`](../../../api/internal/pax-message/index.md#addedlayerargs))
+##### `TextInput`([`TextInputArgs`](../../../api/internal/pax-message/index.md#textinputargs))
+##### `FormCheckboxToggle`([`FormCheckboxToggleArgs`](../../../api/internal/pax-message/index.md#formcheckboxtoggleargs))
+##### `FormDropdownChange`([`FormDropdownChangeArgs`](../../../api/internal/pax-message/index.md#formdropdownchangeargs))
+##### `FormSliderChange`([`FormSliderChangeArgs`](../../../api/internal/pax-message/index.md#formsliderchangeargs))
+##### `FormRadioListChange`([`FormRadioListChangeArgs`](../../../api/internal/pax-message/index.md#formradiolistchangeargs))
+##### `FormTextboxChange`([`FormTextboxChangeArgs`](../../../api/internal/pax-message/index.md#formtextboxchangeargs))
+##### `FormTextboxInput`([`FormTextboxInputArgs`](../../../api/internal/pax-message/index.md#formtextboxinputargs))
+##### `FormButtonClick`([`FormButtonClickArgs`](../../../api/internal/pax-message/index.md#formbuttonclickargs))
+##### `PhotoPicker`([`PhotoPickerInterruptArgs`](../../../api/internal/pax-message/index.md#photopickerinterruptargs))
+##### `ScrollerPosition`([`ScrollerPositionInterruptArgs`](../../../api/internal/pax-message/index.md#scrollerpositioninterruptargs))
+##### `BrowserConfig`([`BrowserConfigInterruptArgs`](../../../api/internal/pax-message/index.md#browserconfiginterruptargs))
+##### `RenderSurfaceUpdate`([`RenderSurfaceUpdateArgs`](../../../api/internal/pax-message/index.md#rendersurfaceupdateargs))
+##### `ViewportResize`([`ViewportResizeArgs`](../../../api/internal/pax-message/index.md#viewportresizeargs))
+##### `RouteChange`([`RouteChangeInterruptArgs`](../../../api/internal/pax-message/index.md#routechangeinterruptargs))
+##### `VisualViewportUpdate`([`VisualViewportUpdateArgs`](../../../api/internal/pax-message/index.md#visualviewportupdateargs))
+##### `Gyro`([`GyroInterruptArgs`](../../../api/internal/pax-message/index.md#gyrointerruptargs))
+##### `Accel`([`AccelInterruptArgs`](../../../api/internal/pax-message/index.md#accelinterruptargs))
+##### `DropFile`([`DropFileArgs`](../../../api/internal/pax-message/index.md#dropfileargs))
+##### `Screenshot`([`ImageLoadInterruptArgs`](../../../api/internal/pax-message/index.md#imageloadinterruptargs))
 ---
 
 ### `NativeMessage`
 Messages emitted by the runtime to create, update, delete, or configure native/chassis resources.
 
 #### Variants
-##### `TextCreate`([`AnyCreatePatch`](/api/internal/pax-message/index.md#anycreatepatch))
-##### `TextUpdate`([`TextPatch`](/api/internal/pax-message/index.md#textpatch))
+##### `TextCreate`([`AnyCreatePatch`](../../../api/internal/pax-message/index.md#anycreatepatch))
+##### `TextUpdate`([`TextPatch`](../../../api/internal/pax-message/index.md#textpatch))
 ##### `TextDelete`(`u32`)
-##### `FrameCreate`([`AnyCreatePatch`](/api/internal/pax-message/index.md#anycreatepatch))
-##### `FrameUpdate`([`FramePatch`](/api/internal/pax-message/index.md#framepatch))
+##### `FrameCreate`([`AnyCreatePatch`](../../../api/internal/pax-message/index.md#anycreatepatch))
+##### `FrameUpdate`([`FramePatch`](../../../api/internal/pax-message/index.md#framepatch))
 ##### `FrameDelete`(`u32`)
-##### `EventBlockerCreate`([`AnyCreatePatch`](/api/internal/pax-message/index.md#anycreatepatch))
-##### `EventBlockerUpdate`([`EventBlockerPatch`](/api/internal/pax-message/index.md#eventblockerpatch))
+##### `EventBlockerCreate`([`AnyCreatePatch`](../../../api/internal/pax-message/index.md#anycreatepatch))
+##### `EventBlockerUpdate`([`EventBlockerPatch`](../../../api/internal/pax-message/index.md#eventblockerpatch))
 ##### `EventBlockerDelete`(`u32`)
-##### `CheckboxCreate`([`AnyCreatePatch`](/api/internal/pax-message/index.md#anycreatepatch))
-##### `CheckboxUpdate`([`CheckboxPatch`](/api/internal/pax-message/index.md#checkboxpatch))
+##### `CheckboxCreate`([`AnyCreatePatch`](../../../api/internal/pax-message/index.md#anycreatepatch))
+##### `CheckboxUpdate`([`CheckboxPatch`](../../../api/internal/pax-message/index.md#checkboxpatch))
 ##### `CheckboxDelete`(`u32`)
-##### `NativeImageCreate`([`AnyCreatePatch`](/api/internal/pax-message/index.md#anycreatepatch))
-##### `NativeImageUpdate`([`NativeImagePatch`](/api/internal/pax-message/index.md#nativeimagepatch))
+##### `NativeImageCreate`([`AnyCreatePatch`](../../../api/internal/pax-message/index.md#anycreatepatch))
+##### `NativeImageUpdate`([`NativeImagePatch`](../../../api/internal/pax-message/index.md#nativeimagepatch))
 ##### `NativeImageDelete`(`u32`)
-##### `YoutubeVideoCreate`([`AnyCreatePatch`](/api/internal/pax-message/index.md#anycreatepatch))
-##### `YoutubeVideoUpdate`([`YoutubeVideoPatch`](/api/internal/pax-message/index.md#youtubevideopatch))
+##### `YoutubeVideoCreate`([`AnyCreatePatch`](../../../api/internal/pax-message/index.md#anycreatepatch))
+##### `YoutubeVideoUpdate`([`YoutubeVideoPatch`](../../../api/internal/pax-message/index.md#youtubevideopatch))
 ##### `YoutubeVideoDelete`(`u32`)
-##### `TextboxCreate`([`AnyCreatePatch`](/api/internal/pax-message/index.md#anycreatepatch))
-##### `TextboxUpdate`([`TextboxPatch`](/api/internal/pax-message/index.md#textboxpatch))
+##### `TextboxCreate`([`AnyCreatePatch`](../../../api/internal/pax-message/index.md#anycreatepatch))
+##### `TextboxUpdate`([`TextboxPatch`](../../../api/internal/pax-message/index.md#textboxpatch))
 ##### `TextboxDelete`(`u32`)
-##### `SliderCreate`([`AnyCreatePatch`](/api/internal/pax-message/index.md#anycreatepatch))
-##### `SliderUpdate`([`SliderPatch`](/api/internal/pax-message/index.md#sliderpatch))
+##### `SliderCreate`([`AnyCreatePatch`](../../../api/internal/pax-message/index.md#anycreatepatch))
+##### `SliderUpdate`([`SliderPatch`](../../../api/internal/pax-message/index.md#sliderpatch))
 ##### `SliderDelete`(`u32`)
-##### `DropdownCreate`([`AnyCreatePatch`](/api/internal/pax-message/index.md#anycreatepatch))
-##### `DropdownUpdate`([`DropdownPatch`](/api/internal/pax-message/index.md#dropdownpatch))
+##### `DropdownCreate`([`AnyCreatePatch`](../../../api/internal/pax-message/index.md#anycreatepatch))
+##### `DropdownUpdate`([`DropdownPatch`](../../../api/internal/pax-message/index.md#dropdownpatch))
 ##### `DropdownDelete`(`u32`)
-##### `RadioListCreate`([`AnyCreatePatch`](/api/internal/pax-message/index.md#anycreatepatch))
-##### `RadioListUpdate`([`RadioListPatch`](/api/internal/pax-message/index.md#radiolistpatch))
+##### `RadioListCreate`([`AnyCreatePatch`](../../../api/internal/pax-message/index.md#anycreatepatch))
+##### `RadioListUpdate`([`RadioListPatch`](../../../api/internal/pax-message/index.md#radiolistpatch))
 ##### `RadioListDelete`(`u32`)
-##### `ButtonCreate`([`AnyCreatePatch`](/api/internal/pax-message/index.md#anycreatepatch))
-##### `ButtonUpdate`([`ButtonPatch`](/api/internal/pax-message/index.md#buttonpatch))
+##### `ButtonCreate`([`AnyCreatePatch`](../../../api/internal/pax-message/index.md#anycreatepatch))
+##### `ButtonUpdate`([`ButtonPatch`](../../../api/internal/pax-message/index.md#buttonpatch))
 ##### `ButtonDelete`(`u32`)
-##### `PhotoPickerCreate`([`AnyCreatePatch`](/api/internal/pax-message/index.md#anycreatepatch))
-##### `PhotoPickerUpdate`([`PhotoPickerPatch`](/api/internal/pax-message/index.md#photopickerpatch))
+##### `PhotoPickerCreate`([`AnyCreatePatch`](../../../api/internal/pax-message/index.md#anycreatepatch))
+##### `PhotoPickerUpdate`([`PhotoPickerPatch`](../../../api/internal/pax-message/index.md#photopickerpatch))
 ##### `PhotoPickerDelete`(`u32`)
-##### `GlassSurfaceCreate`([`AnyCreatePatch`](/api/internal/pax-message/index.md#anycreatepatch))
-##### `GlassSurfaceUpdate`([`GlassSurfacePatch`](/api/internal/pax-message/index.md#glasssurfacepatch))
+##### `GlassSurfaceCreate`([`AnyCreatePatch`](../../../api/internal/pax-message/index.md#anycreatepatch))
+##### `GlassSurfaceUpdate`([`GlassSurfacePatch`](../../../api/internal/pax-message/index.md#glasssurfacepatch))
 ##### `GlassSurfaceDelete`(`u32`)
-##### `ScrollerCreate`([`AnyCreatePatch`](/api/internal/pax-message/index.md#anycreatepatch))
-##### `ScrollerUpdate`([`ScrollerPatch`](/api/internal/pax-message/index.md#scrollerpatch))
+##### `ScrollerCreate`([`AnyCreatePatch`](../../../api/internal/pax-message/index.md#anycreatepatch))
+##### `ScrollerUpdate`([`ScrollerPatch`](../../../api/internal/pax-message/index.md#scrollerpatch))
 ##### `ScrollerDelete`(`u32`)
-##### `ImageLoad`([`ImagePatch`](/api/internal/pax-message/index.md#imagepatch))
+##### `ImageLoad`([`ImagePatch`](../../../api/internal/pax-message/index.md#imagepatch))
 ##### `ShrinkLayersTo`(`u32`)
-##### `NativeMaskUpdate`([`NativeMaskPatch`](/api/internal/pax-message/index.md#nativemaskpatch))
-##### `Navigate`([`NavigationPatch`](/api/internal/pax-message/index.md#navigationpatch))
-##### `SetCursor`([`SetCursorPatch`](/api/internal/pax-message/index.md#setcursorpatch))
-##### `Screenshot`([`ScreenshotPatch`](/api/internal/pax-message/index.md#screenshotpatch))
+##### `NativeMaskUpdate`([`NativeMaskPatch`](../../../api/internal/pax-message/index.md#nativemaskpatch))
+##### `Navigate`([`NavigationPatch`](../../../api/internal/pax-message/index.md#navigationpatch))
+##### `SetCursor`([`SetCursorPatch`](../../../api/internal/pax-message/index.md#setcursorpatch))
+##### `Screenshot`([`ScreenshotPatch`](../../../api/internal/pax-message/index.md#screenshotpatch))
 ---
 
 ### `TextAlignHorizontalMessage`

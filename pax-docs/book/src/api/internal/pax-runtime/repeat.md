@@ -12,7 +12,7 @@ with an index `i` and a pointer to that relevant datum `source_expression[i]`
 
 #### Properties
 ##### `base`
-Type: [`BaseInstance`](/api/internal/pax-runtime/rendering.md#baseinstance)
+Type: [`BaseInstance`](../../../api/internal/pax-runtime/rendering.md#baseinstance)
 
 ---
 
@@ -21,10 +21,10 @@ Per-iteration bindings exposed inside a `for` template body.
 
 #### Properties
 ##### `elem`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`PaxValue`](/api/pax-runtime-api/pax_value.md#paxvalue)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`PaxValue`](../../../api/pax-runtime-api/pax_value.md#paxvalue)>
 
 ##### `i`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`usize`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`usize`>
 
 ---
 
@@ -34,13 +34,13 @@ is encoded as a `Vec<T>` (where T is a `PaxValue` properties type) or as a `Rang
 
 #### Properties
 ##### `source_expression`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`PaxValue`](/api/pax-runtime-api/pax_value.md#paxvalue)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`PaxValue`](../../../api/pax-runtime-api/pax_value.md#paxvalue)>
 
 ##### `iterator_i_symbol`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`Option`<`String`>>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`Option`<`String`>>
 
 ##### `iterator_elem_symbol`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`Option`<`String`>>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`Option`<`String`>>
 
 ##### `repeat_key_expression`
-Type: `Option`<[`ExpressionInfo`](/api/internal/pax-manifest/index.md#expressioninfo)>
+Type: `Option`<`ExpressionInfo`>

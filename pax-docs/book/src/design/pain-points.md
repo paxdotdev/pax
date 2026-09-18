@@ -1794,3 +1794,21 @@ snapshot from canonical examples. The release script refreshes and verifies
 it after version rewriting; packaged builds materialize it in Cargo's output
 directory. Always test the actual unpacked crate outside the repo, including
 the compiled docs index, rather than only checking the in-workspace CLI.
+
+## 2026-09-17 — Nested route metadata and hosted examples
+
+Nested static metadata failed because the parser retains the `Route` component
+shell while the catalog walker classified all component children as arbitrary
+slot projection. Walk a declared branch shell's caller content in its selected
+route scope; keep its internal template and ordinary projected/conditional
+content subject to dynamic-topology checks. Synthetic tests that connect two
+Router nodes directly miss this boundary; include the actual presentation shell
+and a compiled nested fixture.
+
+An origin-root HTML base broke example bundles hosted under versioned docs
+directories. Routing also consumed the physical iframe path rather than `/`.
+Explicit query-backed embedding now keeps assets beside the entry and stores
+the virtual route in `pax_route`, including query/fragment and browser history.
+Set the base before bootstrap scripts execute, and test both iframe and Open
+standalone reloads. Do not solve this with generated-bundle substitutions or an
+unconditional mount-time redirect that discards legitimate app locations.

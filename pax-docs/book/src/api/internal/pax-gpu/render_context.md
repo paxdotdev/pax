@@ -3,6 +3,24 @@
 <!-- tags: api, pax-gpu -->
 
 ## Structs
+### `AlphaMaskPaint`
+Vector paint used to construct a surface-local alpha mask.
+
+#### Properties
+##### `path`
+Type: [`Path`](../../../api/pax-std/drawing/path.md#path)
+
+##### `transform`
+Type: [`Transform2D`](../../../api/pax-runtime-api/transform.md#transform2d)
+
+##### `fill`
+Type: [`Fill`](../../../api/pax-runtime-api/drawing.md#fill)
+
+##### `opacity`
+Type: `f32`
+
+---
+
 ### `Color`
 Linear RGBA color used by the low-level renderer.
 
@@ -44,7 +62,7 @@ One color stop in a GPU gradient fill.
 
 #### Properties
 ##### `color`
-Type: [`Color`](/api/pax-runtime-api/color.md#color)
+Type: [`Color`](../../../api/pax-runtime-api/color.md#color)
 
 ##### `stop`
 Type: `f32`
@@ -167,7 +185,7 @@ A resolved scene light for the low-level renderer.
 
 #### Properties
 ##### `shape`
-Type: [`LightShape`](/api/pax-runtime-api/drawing.md#lightshape)
+Type: [`LightShape`](../../../api/pax-runtime-api/drawing.md#lightshape)
 
 ##### `position`
 Type: [`f32`; 3]
@@ -176,7 +194,7 @@ Type: [`f32`; 3]
 Type: [`f32`; 3]
 
 ##### `color`
-Type: [`Color`](/api/pax-runtime-api/color.md#color)
+Type: [`Color`](../../../api/pax-runtime-api/color.md#color)
 
 ##### `intensity`
 Type: `f32`
@@ -197,13 +215,13 @@ Type: `bool`
 Type: `bool`
 
 ##### `ambient_color`
-Type: [`Color`](/api/pax-runtime-api/color.md#color)
+Type: [`Color`](../../../api/pax-runtime-api/color.md#color)
 
 ##### `ambient_intensity`
 Type: `f32`
 
 ##### `lights`
-Type: `Vec`<[`SceneLight`](/api/pax-runtime-api/drawing.md#scenelight)>
+Type: `Vec`<[`SceneLight`](../../../api/pax-runtime-api/drawing.md#scenelight)>
 
 ---
 
@@ -212,16 +230,16 @@ Stroke style for a tessellated vector path.
 
 #### Properties
 ##### `fill`
-Type: [`Fill`](/api/pax-runtime-api/drawing.md#fill)
+Type: [`Fill`](../../../api/pax-runtime-api/drawing.md#fill)
 
 ##### `weight`
 Type: `f32`
 
 ##### `cap`
-Type: [`StrokeCap`](/api/pax-runtime-api/drawing.md#strokecap)
+Type: [`StrokeCap`](../../../api/pax-runtime-api/drawing.md#strokecap)
 
 ##### `join`
-Type: [`StrokeJoin`](/api/pax-runtime-api/drawing.md#strokejoin)
+Type: [`StrokeJoin`](../../../api/pax-runtime-api/drawing.md#strokejoin)
 
 ---
 
@@ -229,33 +247,38 @@ Type: [`StrokeJoin`](/api/pax-runtime-api/drawing.md#strokejoin)
 Retained scene renderer that records Pax vector/image commands and flushes them through wgpu.
 
 #### Implementations
+##### `clip_alpha`
+<pre><code class="api-signature language-rust ignore">pub fn clip_alpha(&amp;mut self, paints: Vec&lt;<a href="../../../api/pax-runtime-api/rendering.md#alphamaskpaint">AlphaMaskPaint</a>&gt;, feather: f32)</code></pre>
+
+Installs a painted alpha mask in the current save/restore scope.
+
 ##### `current_transform`
-<pre><code class="api-signature language-rust ignore">pub fn current_transform(&amp;self) -&gt; <a href="/api/pax-runtime-api/transform.md#transform2d">Transform2D</a></code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn current_transform(&amp;self) -&gt; <a href="../../../api/pax-runtime-api/transform.md#transform2d">Transform2D</a></code></pre>
 
 Current transform at the top of the render-state stack.
 
 ##### `fill_path`
-<pre><code class="api-signature language-rust ignore">pub fn fill_path(&amp;mut self, path: <a href="/api/pax-std/drawing/path.md#path">Path</a>, fill: <a href="/api/pax-runtime-api/drawing.md#fill">Fill</a>)</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn fill_path(&amp;mut self, path: <a href="../../../api/pax-std/drawing/path.md#path">Path</a>, fill: <a href="../../../api/pax-runtime-api/drawing.md#fill">Fill</a>)</code></pre>
 
 Queue a filled vector path into the current retained node.
 
 ##### `fill_path_with_material_and_opacity`
-<pre><code class="api-signature language-rust ignore">pub fn fill_path_with_material_and_opacity(&amp;mut self, path: <a href="/api/pax-std/drawing/path.md#path">Path</a>, fill: <a href="/api/pax-runtime-api/drawing.md#fill">Fill</a>, material: <a href="/api/pax-runtime-api/drawing.md#material">Material</a>, opacity: f32)</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn fill_path_with_material_and_opacity(&amp;mut self, path: <a href="../../../api/pax-std/drawing/path.md#path">Path</a>, fill: <a href="../../../api/pax-runtime-api/drawing.md#fill">Fill</a>, material: <a href="../../../api/pax-runtime-api/drawing.md#material">Material</a>, opacity: f32)</code></pre>
 
 Queue a filled vector path with material response and an extra opacity multiplier.
 
 ##### `fill_path_with_material_and_opacity_and_smoothing`
-<pre><code class="api-signature language-rust ignore">pub fn fill_path_with_material_and_opacity_and_smoothing(&amp;mut self, path: <a href="/api/pax-std/drawing/path.md#path">Path</a>, fill: <a href="/api/pax-runtime-api/drawing.md#fill">Fill</a>, material: <a href="/api/pax-runtime-api/drawing.md#material">Material</a>, opacity: f32, smoothing: <a href="/api/pax-runtime-api/drawing.md#pathsmoothing">PathSmoothing</a>)</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn fill_path_with_material_and_opacity_and_smoothing(&amp;mut self, path: <a href="../../../api/pax-std/drawing/path.md#path">Path</a>, fill: <a href="../../../api/pax-runtime-api/drawing.md#fill">Fill</a>, material: <a href="../../../api/pax-runtime-api/drawing.md#material">Material</a>, opacity: f32, smoothing: <a href="../../../api/pax-runtime-api/drawing.md#pathsmoothing">PathSmoothing</a>)</code></pre>
 
 Queue a filled vector path with material response, opacity, and optional smoothing.
 
 ##### `fill_path_with_opacity`
-<pre><code class="api-signature language-rust ignore">pub fn fill_path_with_opacity(&amp;mut self, path: <a href="/api/pax-std/drawing/path.md#path">Path</a>, fill: <a href="/api/pax-runtime-api/drawing.md#fill">Fill</a>, opacity: f32)</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn fill_path_with_opacity(&amp;mut self, path: <a href="../../../api/pax-std/drawing/path.md#path">Path</a>, fill: <a href="../../../api/pax-runtime-api/drawing.md#fill">Fill</a>, opacity: f32)</code></pre>
 
 Queue a filled vector path with an extra opacity multiplier.
 
 ##### `new`
-<pre><code class="api-signature language-rust ignore">pub fn new(render_backend: <a href="/api/internal/pax-gpu/render_backend.md#renderbackend">RenderBackend</a>&lt;&#39;w&gt;) -&gt; Self</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn new(render_backend: <a href="../../../api/internal/pax-gpu/render_backend.md#renderbackend">RenderBackend</a>&lt;&#39;w&gt;) -&gt; Self</code></pre>
 
 Create a retained renderer around a low-level `RenderBackend`.
 
@@ -265,7 +288,7 @@ Create a retained renderer around a low-level `RenderBackend`.
 Drop retained scene state for a surface that has been rebound to a new tile origin.
 
 ##### `set_surface_transform`
-<pre><code class="api-signature language-rust ignore">pub fn set_surface_transform(&amp;mut self, transform: <a href="/api/pax-runtime-api/transform.md#transform2d">Transform2D</a>)</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn set_surface_transform(&amp;mut self, transform: <a href="../../../api/pax-runtime-api/transform.md#transform2d">Transform2D</a>)</code></pre>
 
 Set the base transform for the physical surface tile being rendered.
 
@@ -275,37 +298,37 @@ Set the base transform for the physical surface tile being rendered.
 Share vector resource caches with another renderer for the same logical layer.
 
 ##### `stroke_path`
-<pre><code class="api-signature language-rust ignore">pub fn stroke_path(&amp;mut self, path: <a href="/api/pax-std/drawing/path.md#path">Path</a>, stroke: <a href="/api/pax-runtime-api/drawing.md#stroke">Stroke</a>)</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn stroke_path(&amp;mut self, path: <a href="../../../api/pax-std/drawing/path.md#path">Path</a>, stroke: <a href="../../../api/pax-runtime-api/drawing.md#stroke">Stroke</a>)</code></pre>
 
 Queue a stroked vector path into the current retained node.
 
 ##### `stroke_path_with_draw_range_and_material_and_opacity`
-<pre><code class="api-signature language-rust ignore">pub fn stroke_path_with_draw_range_and_material_and_opacity(&amp;mut self, path: <a href="/api/pax-std/drawing/path.md#path">Path</a>, stroke: <a href="/api/pax-runtime-api/drawing.md#stroke">Stroke</a>, material: <a href="/api/pax-runtime-api/drawing.md#material">Material</a>, opacity: f32, draw_range: <a href="/api/internal/pax-gpu/render_context.md#drawrange">DrawRange</a>)</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn stroke_path_with_draw_range_and_material_and_opacity(&amp;mut self, path: <a href="../../../api/pax-std/drawing/path.md#path">Path</a>, stroke: <a href="../../../api/pax-runtime-api/drawing.md#stroke">Stroke</a>, material: <a href="../../../api/pax-runtime-api/drawing.md#material">Material</a>, opacity: f32, draw_range: <a href="../../../api/internal/pax-gpu/render_context.md#drawrange">DrawRange</a>)</code></pre>
 
 Queue a draw-ranged stroked vector path with material response and an extra opacity multiplier.
 
 ##### `stroke_path_with_draw_range_and_material_and_opacity_and_smoothing`
-<pre><code class="api-signature language-rust ignore">pub fn stroke_path_with_draw_range_and_material_and_opacity_and_smoothing(&amp;mut self, path: <a href="/api/pax-std/drawing/path.md#path">Path</a>, stroke: <a href="/api/pax-runtime-api/drawing.md#stroke">Stroke</a>, material: <a href="/api/pax-runtime-api/drawing.md#material">Material</a>, opacity: f32, draw_range: <a href="/api/internal/pax-gpu/render_context.md#drawrange">DrawRange</a>, smoothing: <a href="/api/pax-runtime-api/drawing.md#pathsmoothing">PathSmoothing</a>)</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn stroke_path_with_draw_range_and_material_and_opacity_and_smoothing(&amp;mut self, path: <a href="../../../api/pax-std/drawing/path.md#path">Path</a>, stroke: <a href="../../../api/pax-runtime-api/drawing.md#stroke">Stroke</a>, material: <a href="../../../api/pax-runtime-api/drawing.md#material">Material</a>, opacity: f32, draw_range: <a href="../../../api/internal/pax-gpu/render_context.md#drawrange">DrawRange</a>, smoothing: <a href="../../../api/pax-runtime-api/drawing.md#pathsmoothing">PathSmoothing</a>)</code></pre>
 
 Queue a draw-ranged stroked vector path with material response, opacity, and optional smoothing.
 
 ##### `stroke_path_with_material_and_opacity`
-<pre><code class="api-signature language-rust ignore">pub fn stroke_path_with_material_and_opacity(&amp;mut self, path: <a href="/api/pax-std/drawing/path.md#path">Path</a>, stroke: <a href="/api/pax-runtime-api/drawing.md#stroke">Stroke</a>, material: <a href="/api/pax-runtime-api/drawing.md#material">Material</a>, opacity: f32)</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn stroke_path_with_material_and_opacity(&amp;mut self, path: <a href="../../../api/pax-std/drawing/path.md#path">Path</a>, stroke: <a href="../../../api/pax-runtime-api/drawing.md#stroke">Stroke</a>, material: <a href="../../../api/pax-runtime-api/drawing.md#material">Material</a>, opacity: f32)</code></pre>
 
 Queue a stroked vector path with material response and an extra opacity multiplier.
 
 ##### `stroke_path_with_material_and_opacity_and_smoothing`
-<pre><code class="api-signature language-rust ignore">pub fn stroke_path_with_material_and_opacity_and_smoothing(&amp;mut self, path: <a href="/api/pax-std/drawing/path.md#path">Path</a>, stroke: <a href="/api/pax-runtime-api/drawing.md#stroke">Stroke</a>, material: <a href="/api/pax-runtime-api/drawing.md#material">Material</a>, opacity: f32, smoothing: <a href="/api/pax-runtime-api/drawing.md#pathsmoothing">PathSmoothing</a>)</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn stroke_path_with_material_and_opacity_and_smoothing(&amp;mut self, path: <a href="../../../api/pax-std/drawing/path.md#path">Path</a>, stroke: <a href="../../../api/pax-runtime-api/drawing.md#stroke">Stroke</a>, material: <a href="../../../api/pax-runtime-api/drawing.md#material">Material</a>, opacity: f32, smoothing: <a href="../../../api/pax-runtime-api/drawing.md#pathsmoothing">PathSmoothing</a>)</code></pre>
 
 Queue a stroked vector path with material response, opacity, and optional smoothing.
 
 ##### `stroke_path_with_opacity`
-<pre><code class="api-signature language-rust ignore">pub fn stroke_path_with_opacity(&amp;mut self, path: <a href="/api/pax-std/drawing/path.md#path">Path</a>, stroke: <a href="/api/pax-runtime-api/drawing.md#stroke">Stroke</a>, opacity: f32)</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn stroke_path_with_opacity(&amp;mut self, path: <a href="../../../api/pax-std/drawing/path.md#path">Path</a>, stroke: <a href="../../../api/pax-runtime-api/drawing.md#stroke">Stroke</a>, opacity: f32)</code></pre>
 
 Queue a stroked vector path with an extra opacity multiplier.
 
 ##### `take_resource_churn_stats`
-<pre><code class="api-signature language-rust ignore">pub fn take_resource_churn_stats(&amp;mut self) -&gt; <a href="/api/internal/pax-gpu/render_context.md#resourcechurnstats">ResourceChurnStats</a></code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn take_resource_churn_stats(&amp;mut self) -&gt; <a href="../../../api/internal/pax-gpu/render_context.md#resourcechurnstats">ResourceChurnStats</a></code></pre>
 
 Return and reset accumulated resource churn counters.
 
@@ -314,8 +337,8 @@ Return and reset accumulated resource churn counters.
 Fill style for a tessellated vector path.
 
 #### Variants
-##### `Solid`([`Color`](/api/pax-runtime-api/color.md#color))
-##### `Gradient` { `gradient_type`: [`GradientType`](/api/internal/pax-gpu/render_context.md#gradienttype), `pos`: [`Point2D`](/api/internal/pax-gpu/index.md#point2d), `main_axis`: [`Vector2D`](/api/internal/pax-gpu/index.md#vector2d), `off_axis`: [`Vector2D`](/api/internal/pax-gpu/index.md#vector2d), `stops`: `Vec`<[`GradientStop`](/api/pax-runtime-api/drawing.md#gradientstop)> }
+##### `Solid`([`Color`](../../../api/pax-runtime-api/color.md#color))
+##### `Gradient` { `gradient_type`: [`GradientType`](../../../api/internal/pax-gpu/render_context.md#gradienttype), `pos`: [`Point2D`](../../../api/internal/pax-gpu/index.md#point2d), `main_axis`: [`Vector2D`](../../../api/internal/pax-gpu/index.md#vector2d), `off_axis`: [`Vector2D`](../../../api/internal/pax-gpu/index.md#vector2d), `stops`: `Vec`<[`GradientStop`](../../../api/pax-runtime-api/drawing.md#gradientstop)> }
 ---
 
 ### `GradientType`

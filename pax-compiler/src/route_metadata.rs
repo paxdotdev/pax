@@ -337,7 +337,29 @@ impl RouteCollector<'_> {
                 route_depth: next_depth,
                 dynamic_topology: context.dynamic_topology,
             };
-            self.walk_nodes(template, &branch.child_ids, &child_context)?;
+            for child_id in &branch.child_ids {
+                let node = template
+                    .get_node(child_id)
+                    .ok_or_else(|| eyre!("Route metadata analysis lost branch node {child_id}"))?;
+                let is_route_shell = self
+                    .manifest
+                    .components
+                    .get(&node.type_id)
+                    .and_then(|component| component.route_branch.as_ref())
+                    .is_some();
+                if is_route_shell {
+                    // The parser retains the declared branch's presentation shell. Its
+                    // caller content is already scoped by this static route selection;
+                    // it is not an arbitrary component projection boundary. Analyze the
+                    // shell's own template too, without relaxing its internal if/slots.
+                    self.walk_component(&node.type_id, &child_context)?;
+                    if let Some(children) = template.get_children(child_id) {
+                        self.walk_nodes(template, &children, &child_context)?;
+                    }
+                } else {
+                    self.walk_nodes(template, std::slice::from_ref(child_id), &child_context)?;
+                }
+            }
         }
         Ok(())
     }
@@ -663,10 +685,20 @@ fn set_or_insert_base_href(html: &str, href: &str) -> String {
         .filter(|line| !line.to_ascii_lowercase().contains("<base "))
         .collect::<Vec<_>>()
         .join("\n");
-    insert_before_head_end(
-        &without_base,
-        &format!("        <base href=\"{}\">\n", escape_html_attr(href)),
-    )
+    let base = format!("        <base href=\"{}\">\n", escape_html_attr(href));
+    // Establish the base before relative resources and the embedded-host bootstrap.
+    // That bootstrap can then update this element instead of creating a second one.
+    if let Some(head) = without_base.to_ascii_lowercase().find("<head>") {
+        let after_head = head + "<head>".len();
+        format!(
+            "{}\n{}{}",
+            &without_base[..after_head],
+            base,
+            &without_base[after_head..]
+        )
+    } else {
+        insert_before_head_end(&without_base, &base)
+    }
 }
 
 fn set_or_insert_html_title(html: &str, title: &str) -> String {
@@ -995,6 +1027,108 @@ mod tests {
     }
 
     #[test]
+    fn nested_metadata_crosses_only_the_declared_route_shell() {
+        use pax_manifest::RouteBranchDescriptor;
+        let main = TypeId::build_singleton("crate::App", Some("App"));
+        let shell = TypeId::build_singleton("crate::PanelRoute", Some("PanelRoute"));
+        let mut template = ComponentTemplate::new(main.clone(), None);
+        let root = template
+            .add_root_node_back(TemplateNodeDefinition {
+                type_id: TypeId::build_router(),
+                control_flow_settings: Some(ControlFlowSettingsDefinition::default()),
+                ..Default::default()
+            })
+            .get_template_node_id();
+        let shell_node = template
+            .add_child_back(
+                root.clone(),
+                TemplateNodeDefinition {
+                    type_id: shell.clone(),
+                    ..Default::default()
+                },
+            )
+            .get_template_node_id();
+        let nested = template
+            .add_child_back(
+                shell_node.clone(),
+                TemplateNodeDefinition {
+                    type_id: TypeId::build_router(),
+                    control_flow_settings: Some(ControlFlowSettingsDefinition {
+                        route_branches: vec![ControlFlowRouteBranchDefinition {
+                            path: Some("about".into()),
+                            default: false,
+                            modal: false,
+                            child_ids: vec![],
+                            metadata: None,
+                        }],
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                },
+            )
+            .get_template_node_id();
+        let mut root_node = template.get_node(&root).unwrap().clone();
+        root_node
+            .control_flow_settings
+            .as_mut()
+            .unwrap()
+            .route_branches = vec![ControlFlowRouteBranchDefinition {
+            path: Some("/notes/*".into()),
+            default: false,
+            modal: false,
+            child_ids: vec![shell_node.clone()],
+            metadata: Some(metadata("Notes", true)),
+        }];
+        template.set_node(root, root_node);
+        let mut manifest = manifest_with_template(main.clone(), template);
+        let mut shell_component = manifest.components[&main].clone();
+        shell_component.type_id = shell.clone();
+        shell_component.is_main_component = false;
+        shell_component.template = Some(ComponentTemplate::new(shell.clone(), None));
+        shell_component.route_branch = Some(RouteBranchDescriptor {
+            path_property: "pattern".into(),
+            default_property: "fallback".into(),
+            modal: false,
+        });
+        manifest.components.insert(shell.clone(), shell_component);
+        let catalog = collect_web_route_catalog(&manifest, test_site()).unwrap();
+        assert_eq!(catalog.routes.len(), 2);
+        assert_eq!(
+            catalog.routes[1].concrete_path.as_deref(),
+            Some("/notes/about")
+        );
+        assert_eq!(catalog.routes[1].metadata.title, "Notes");
+        assert_eq!(catalog.routes[1].depth, 2);
+
+        // Ordinary component input still has unknown slot topology.
+        manifest.components.get_mut(&shell).unwrap().route_branch = None;
+        assert!(collect_web_route_catalog(&manifest, test_site())
+            .unwrap_err()
+            .to_string()
+            .contains("slot topology"));
+        manifest.components.get_mut(&shell).unwrap().route_branch =
+            Some(RouteBranchDescriptor::default());
+        let template = manifest
+            .components
+            .get_mut(&main)
+            .unwrap()
+            .template
+            .as_mut()
+            .unwrap();
+        let mut dynamic = template.get_node(&nested).unwrap().clone();
+        dynamic.type_id = TypeId::build_if();
+        // Wrap a fresh nested router in an actual conditional instead of its static site.
+        let router = template.get_node(&nested).unwrap().clone();
+        dynamic.control_flow_settings = Some(ControlFlowSettingsDefinition::default());
+        template.set_node(nested.clone(), dynamic);
+        template.add_child_back(nested, router);
+        assert!(collect_web_route_catalog(&manifest, test_site())
+            .unwrap_err()
+            .to_string()
+            .contains("dynamic `if`"));
+    }
+
+    #[test]
     fn route_metadata_is_removed_from_runtime_program_ir() {
         let manifest = manifest_with_routes(vec![ControlFlowRouteBranchDefinition {
             path: Some("/".to_string()),
@@ -1017,6 +1151,17 @@ mod tests {
             .route_branches[0];
 
         assert!(route.metadata.is_none());
+    }
+
+    #[test]
+    fn generated_base_precedes_the_embedded_bootstrap() {
+        let html = include_str!("../files/interfaces/web/public/index.html");
+        let generated = set_or_insert_base_href(html, "/");
+        assert!(generated.find("<base href=").unwrap() < generated.find("<script>").unwrap());
+        assert_eq!(generated.matches("<base ").count(), 1);
+        let regenerated = set_or_insert_base_href(&generated, "/prefix/");
+        assert_eq!(regenerated.matches("<base ").count(), 1);
+        assert!(regenerated.contains("<base href=\"/prefix/\">"));
     }
 
     #[test]

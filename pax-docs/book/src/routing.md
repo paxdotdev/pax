@@ -20,9 +20,8 @@ and team routes, and an inspector for the active route data. Open
 `src/route_outlet.pax` to find the outer router; `src/team_panel.pax` shows
 the nested router and its navigation links.
 
-In the embedded view, choose **Menu → Landing** to begin, or **Landing** in
-the wider layout. Its initial frame URL belongs to the docs, so the playground
-first shows its fallback route.
+The example starts at Landing. Open **Menu** in the narrow layout to find
+the guide, team screens, and fallback routes.
 
 <pax-example
   path="router-playground"
@@ -39,11 +38,12 @@ address bar:
 2. Follow a team settings link. The outer team remains selected while the
    inner route and remainder change.
 3. Visit an unknown path and inspect the fallback's unconsumed segments.
-4. Use Back and Forward, then test a direct reload with the intended hosting
-   fallback in place.
+4. Use Back and Forward, then reload the selected screen.
 
-The embedded app has its own frame location; its navigation does not change
-the address of this documentation page. The playground demonstrates runtime
+The docs host keeps the example's route in its `pax_route` URL query parameter,
+so navigation and reload stay inside the example's directory. Its navigation
+does not change the address of this documentation page. A regular standalone
+Pax application uses browser paths, as described below. The playground demonstrates runtime
 routing. Its responsive route trees are not a template for indexable static
 metadata; see [Web route metadata](#web-route-metadata) for that purpose.
 
@@ -499,7 +499,9 @@ A nested route inherits the nearest metadata block until it declares its own.
 A replacement block must still provide all required fields. Keep indexable
 route topology static: placing it behind an `if`, `for`, or projected slot
 prevents deterministic metadata generation and causes the web build to fail.
-Responsive layout can remain inside a statically declared route.
+This includes passing an indexable router as projected children to a
+template-backed layout component. Keep the router outside that projection;
+responsive layout can remain inside a statically declared route.
 
 ### Site-wide values
 

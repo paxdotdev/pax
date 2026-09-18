@@ -8,11 +8,11 @@ A confirmation dialog, a modal dialog that asks the user to confirm an action wi
 
 #### Properties
 ##### `text`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`String`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`String`>
 
 Prompt text shown in the dialog.
 
 ##### `open`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`bool`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`bool`>
 
 Whether the dialog is visible.

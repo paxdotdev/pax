@@ -25,7 +25,7 @@ stack frame to enable evaluation of properties & dependencies
 
 #### Properties
 ##### `stack_frame`
-Type: `Rc`<[`RuntimePropertiesStackFrame`](/api/internal/pax-runtime/properties.md#runtimepropertiesstackframe)>
+Type: `Rc`<[`RuntimePropertiesStackFrame`](../../../api/internal/pax-runtime/properties.md#runtimepropertiesstackframe)>
 
 ---
 
@@ -46,12 +46,12 @@ Type: `Rc`<`RefCell`<`Vec`<`bool`>>>
 Add a node to runtime lookup caches.
 
 ##### `canvas_node_light_mask`
-<pre><code class="api-signature language-rust ignore">pub fn canvas_node_light_mask(&amp;self, id: <a href="/api/internal/pax-runtime/properties.md#expandednodeidentifier">ExpandedNodeIdentifier</a>) -&gt; u32</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn canvas_node_light_mask(&amp;self, id: <a href="../../../api/internal/pax-runtime/properties.md#expandednodeidentifier">ExpandedNodeIdentifier</a>) -&gt; u32</code></pre>
 
 Return the direct-light membership mask resolved for a retained canvas node.
 
 ##### `capture_touch_target`
-<pre><code class="api-signature language-rust ignore">pub fn capture_touch_target(&amp;self, identifier: i64, target: <a href="/api/internal/pax-runtime/properties.md#expandednodeidentifier">ExpandedNodeIdentifier</a>)</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn capture_touch_target(&amp;self, identifier: i64, target: <a href="../../../api/internal/pax-runtime/properties.md#expandednodeidentifier">ExpandedNodeIdentifier</a>)</code></pre>
 
 Route a touch sequence to the node hit at touch-down, even after the finger moves away.
 
@@ -81,7 +81,7 @@ Clear the registered root expanded node.
 Clear cached visual viewport state.
 
 ##### `get_elements_beneath_ray`
-<pre><code class="api-signature language-rust ignore">pub fn get_elements_beneath_ray(&amp;self, root: Option&lt;Rc&lt;ExpandedNode&gt;&gt;, ray: Point2&lt;<a href="/api/pax-runtime-api/platform.md#window">Window</a>&gt;, limit_one: bool, accum: Vec&lt;Rc&lt;ExpandedNode&gt;&gt;, hit_invisible: bool) -&gt; Vec&lt;Rc&lt;ExpandedNode&gt;&gt;</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn get_elements_beneath_ray(&amp;self, root: Option&lt;Rc&lt;ExpandedNode&gt;&gt;, ray: Point2&lt;<a href="../../../api/pax-runtime-api/platform.md#window">Window</a>&gt;, limit_one: bool, accum: Vec&lt;Rc&lt;ExpandedNode&gt;&gt;, hit_invisible: bool) -&gt; Vec&lt;Rc&lt;ExpandedNode&gt;&gt;</code></pre>
 
 Simple 2D raycasting: the coordinates of the ray represent a
 ray running orthogonally to the view plane, intersecting at
@@ -89,12 +89,12 @@ the specified point `ray`.  Areas outside of clipping bounds will
 not register a `hit`, nor will elements that suppress input events.
 
 ##### `get_expanded_node_by_eid`
-<pre><code class="api-signature language-rust ignore">pub fn get_expanded_node_by_eid(&amp;self, id: <a href="/api/internal/pax-runtime/properties.md#expandednodeidentifier">ExpandedNodeIdentifier</a>) -&gt; Option&lt;Rc&lt;ExpandedNode&gt;&gt;</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn get_expanded_node_by_eid(&amp;self, id: <a href="../../../api/internal/pax-runtime/properties.md#expandednodeidentifier">ExpandedNodeIdentifier</a>) -&gt; Option&lt;Rc&lt;ExpandedNode&gt;&gt;</code></pre>
 
 Look up an expanded node by runtime id.
 
 ##### `get_expanded_nodes_by_global_ids`
-<pre><code class="api-signature language-rust ignore">pub fn get_expanded_nodes_by_global_ids(&amp;self, uni: &amp;<a href="/api/internal/pax-manifest/index.md#uniquetemplatenodeidentifier">UniqueTemplateNodeIdentifier</a>) -&gt; Vec&lt;Rc&lt;ExpandedNode&gt;&gt;</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn get_expanded_nodes_by_global_ids(&amp;self, uni: &amp;<a href="../../../api/internal/pax-manifest/index.md#uniquetemplatenodeidentifier">UniqueTemplateNodeIdentifier</a>) -&gt; Vec&lt;Rc&lt;ExpandedNode&gt;&gt;</code></pre>
 
 Finds all ExpandedNodes with corresponding UniqueTemplateNodeIdentifier
 
@@ -104,7 +104,7 @@ Finds all ExpandedNodes with corresponding UniqueTemplateNodeIdentifier
 Finds all ExpandedNodes with the CommonProperty#id matching the provided string
 
 ##### `get_layer_scroller_owner`
-<pre><code class="api-signature language-rust ignore">pub fn get_layer_scroller_owner(&amp;self, layer_id: usize) -&gt; Option&lt;<a href="/api/internal/pax-runtime/properties.md#expandednodeidentifier">ExpandedNodeIdentifier</a>&gt;</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn get_layer_scroller_owner(&amp;self, layer_id: usize) -&gt; Option&lt;<a href="../../../api/internal/pax-runtime/properties.md#expandednodeidentifier">ExpandedNodeIdentifier</a>&gt;</code></pre>
 
 Find the scroller that owns a render layer, when one exists.
 
@@ -114,7 +114,7 @@ Find the scroller that owns a render layer, when one exists.
 Current page-scroll-backed root scroller id.
 
 ##### `get_screenshot_map`
-<pre><code class="api-signature language-rust ignore">pub fn get_screenshot_map(&amp;self) -&gt; Rc&lt;RefCell&lt;HashMap&lt;u32, <a href="/api/internal/pax-message/index.md#screenshotdata">ScreenshotData</a>&gt;&gt;&gt;</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn get_screenshot_map(&amp;self) -&gt; Rc&lt;RefCell&lt;HashMap&lt;u32, <a href="../../../api/internal/pax-message/index.md#screenshotdata">ScreenshotData</a>&gt;&gt;&gt;</code></pre>
 
 Shared screenshot capture map keyed by request id.
 
@@ -125,17 +125,17 @@ Fetch the presentation scroll offset for a native scroller surface, falling back
 authoritative scroll position when presentation scroll is unavailable.
 
 ##### `get_scroller_surface_state`
-<pre><code class="api-signature language-rust ignore">pub fn get_scroller_surface_state(&amp;self, id: u32) -&gt; Option&lt;<a href="/api/internal/pax-runtime/properties.md#scrollersurfacestate">ScrollerSurfaceState</a>&gt;</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn get_scroller_surface_state(&amp;self, id: u32) -&gt; Option&lt;<a href="../../../api/internal/pax-runtime/properties.md#scrollersurfacestate">ScrollerSurfaceState</a>&gt;</code></pre>
 
 Fetch cached scroller surface state by node id.
 
 ##### `get_topmost_element_beneath_ray`
-<pre><code class="api-signature language-rust ignore">pub fn get_topmost_element_beneath_ray(self: &amp;Rc&lt;Self&gt;, ray: Point2&lt;<a href="/api/pax-runtime-api/platform.md#window">Window</a>&gt;) -&gt; Option&lt;Rc&lt;ExpandedNode&gt;&gt;</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn get_topmost_element_beneath_ray(self: &amp;Rc&lt;Self&gt;, ray: Point2&lt;<a href="../../../api/pax-runtime-api/platform.md#window">Window</a>&gt;) -&gt; Option&lt;Rc&lt;ExpandedNode&gt;&gt;</code></pre>
 
 Alias for `get_elements_beneath_ray` with `limit_one = true`
 
 ##### `get_visual_viewport_state`
-<pre><code class="api-signature language-rust ignore">pub fn get_visual_viewport_state(&amp;self) -&gt; Option&lt;<a href="/api/internal/pax-runtime/properties.md#visualviewportstate">VisualViewportState</a>&gt;</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn get_visual_viewport_state(&amp;self) -&gt; Option&lt;<a href="../../../api/internal/pax-runtime/properties.md#visualviewportstate">VisualViewportState</a>&gt;</code></pre>
 
 Return cached browser visual viewport state, if available.
 
@@ -150,17 +150,17 @@ Check whether a canvas layer needs redraw.
 Return whether a render layer currently has canvas work to paint.
 
 ##### `load_screenshot`
-<pre><code class="api-signature language-rust ignore">pub fn load_screenshot(&amp;self, id: u32, data: <a href="/api/internal/pax-message/index.md#screenshotdata">ScreenshotData</a>) -&gt; bool</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn load_screenshot(&amp;self, id: u32, data: <a href="../../../api/internal/pax-message/index.md#screenshotdata">ScreenshotData</a>) -&gt; bool</code></pre>
 
 Store a screenshot payload delivered by the chassis.
 
 ##### `new`
-<pre><code class="api-signature language-rust ignore">pub fn new(globals: <a href="/api/internal/pax-runtime/engine.md#globals">Globals</a>) -&gt; Self</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn new(globals: <a href="../../../api/internal/pax-runtime/engine.md#globals">Globals</a>) -&gt; Self</code></pre>
 
 Create a runtime context for normal app execution.
 
 ##### `register_layer_scroller_owner`
-<pre><code class="api-signature language-rust ignore">pub fn register_layer_scroller_owner(&amp;self, layer_id: usize, scroller_id: <a href="/api/internal/pax-runtime/properties.md#expandednodeidentifier">ExpandedNodeIdentifier</a>)</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn register_layer_scroller_owner(&amp;self, layer_id: usize, scroller_id: <a href="../../../api/internal/pax-runtime/properties.md#expandednodeidentifier">ExpandedNodeIdentifier</a>)</code></pre>
 
 Record that a render layer is owned by a particular scroller.
 
@@ -205,17 +205,17 @@ Replace the set of render layers that currently contain canvas drawables.
 Mark which node currently delegates root scrolling behavior to the page.
 
 ##### `set_scroller_surface_state`
-<pre><code class="api-signature language-rust ignore">pub fn set_scroller_surface_state(&amp;self, id: u32, state: <a href="/api/internal/pax-runtime/properties.md#scrollersurfacestate">ScrollerSurfaceState</a>) -&gt; <a href="/api/internal/pax-runtime/properties.md#scrollersurfacestatechange">ScrollerSurfaceStateChange</a></code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn set_scroller_surface_state(&amp;self, id: u32, state: <a href="../../../api/internal/pax-runtime/properties.md#scrollersurfacestate">ScrollerSurfaceState</a>) -&gt; <a href="../../../api/internal/pax-runtime/properties.md#scrollersurfacestatechange">ScrollerSurfaceStateChange</a></code></pre>
 
 Remember browser-owned scroller state for native compositing and scroll transforms.
 
 ##### `set_visual_viewport_state`
-<pre><code class="api-signature language-rust ignore">pub fn set_visual_viewport_state(&amp;self, state: <a href="/api/internal/pax-runtime/properties.md#visualviewportstate">VisualViewportState</a>)</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn set_visual_viewport_state(&amp;self, state: <a href="../../../api/internal/pax-runtime/properties.md#visualviewportstate">VisualViewportState</a>)</code></pre>
 
 Cache the browser visual viewport state for root scroller math.
 
 ##### `update_scroller_surface_scroll`
-<pre><code class="api-signature language-rust ignore">pub fn update_scroller_surface_scroll(&amp;self, id: u32, scroll_x: f64, scroll_y: f64, presentation_scroll_x: f64, presentation_scroll_y: f64) -&gt; <a href="/api/internal/pax-runtime/properties.md#scrollersurfacestatechange">ScrollerSurfaceStateChange</a></code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn update_scroller_surface_scroll(&amp;self, id: u32, scroll_x: f64, scroll_y: f64, presentation_scroll_x: f64, presentation_scroll_y: f64) -&gt; <a href="../../../api/internal/pax-runtime/properties.md#scrollersurfacestatechange">ScrollerSurfaceStateChange</a></code></pre>
 
 Update hot scroll offsets for an existing native scroller surface without touching
 structural state.

@@ -11,12 +11,12 @@ Divides slotted content into resizable horizontal or vertical sections.
 
 #### Properties
 ##### `dividers`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`Vec`<[`Size`](/api/pax-runtime-api/layout.md#size)>>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`Vec`<[`Size`](../../../api/pax-runtime-api/layout.md#size)>>
 
 Divider positions along the main axis.
 
 ##### `direction`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`ResizableDirection`](/api/pax-std/layout/resizable.md#resizabledirection)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`ResizableDirection`](../../../api/pax-std/layout/resizable.md#resizabledirection)>
 
 Whether sections are split horizontally or vertically.
 

@@ -7,6 +7,15 @@
             content="width=device-width, initial-scale=1.0, viewport-fit=cover"
         >
         <title>Pax Web</title>
+        <script>
+            // Query-backed embeds load the bundle beside their physical entry document,
+            // regardless of the public site's canonical URL or the selected app route.
+            if (new URLSearchParams(window.location.search).has("pax_route")) {
+                const base = document.querySelector("base") || document.createElement("base");
+                base.href = new URL(".", window.location.href).href;
+                document.head.prepend(base);
+            }
+        </script>
     </head>
     <body>
         <link rel="stylesheet" href="https://use.typekit.net/ivu7epf.css">

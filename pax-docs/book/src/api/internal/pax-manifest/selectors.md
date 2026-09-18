@@ -11,17 +11,17 @@ as well as PAXEL expressions all cross the manifest/runtime boundary here.
 
 #### Properties
 ##### `source_location`
-Type: `Option`<[`LocationInfo`](/api/internal/pax-manifest/index.md#locationinfo)>
+Type: `Option`<[`LocationInfo`](../../../api/internal/pax-manifest/index.md#locationinfo)>
 
 Source span of the authored node, when available.
 
 ##### `id`
-Type: `Option`<[`Token`](/api/internal/pax-manifest/index.md#token)>
+Type: `Option`<[`Token`](../../../api/internal/pax-manifest/index.md#token)>
 
 The node's authored id selector.
 
 ##### `class_binding`
-Type: `Option`<[`ValueDefinition`](/api/internal/pax-manifest/index.md#valuedefinition)>
+Type: `Option`<[`ValueDefinition`](../../../api/internal/pax-manifest/index.md#valuedefinition)>
 
 The complete `class` attribute value. Literal and expression-backed classes share this
 representation so runtime selector resolution has a single source of truth.

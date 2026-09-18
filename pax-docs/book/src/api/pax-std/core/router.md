@@ -12,7 +12,7 @@ provide the fallback branch when no explicit path matches.
 
 #### Properties
 ##### `path`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`String`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`String`>
 
 Static route pattern, e.g. `/docs/:slug` or `/settings/*`.
 
@@ -20,7 +20,7 @@ Patterns are matched against the current router scope, not always the
 full global path. At the root router, that scope is the full location.
 
 ##### `default`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`bool`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`bool`>
 
 Fallback branch used when no `path` branch matches.
 
@@ -38,34 +38,34 @@ lifecycle transitions.
 
 #### Properties
 ##### `path`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`String`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`String`>
 
 Static route pattern, e.g. `/details/:id`.
 
 ##### `default`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`bool`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`bool`>
 
 Fallback card branch used when no `path` branch matches.
 
 ##### `edge`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`RouteCardEdge`](/api/pax-std/core/router.md#routecardedge)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`RouteCardEdge`](../../../api/pax-std/core/router.md#routecardedge)>
 
 Edge used by the generated card enter/exit transition.
 
 ##### `duration`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Duration`](/api/pax-runtime-api/animation.md#duration)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Duration`](../../../api/pax-runtime-api/animation.md#duration)>
 
 Duration for the generated card enter/exit transition.
 
 ##### `scrim_opacity`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Opacity`](/api/pax-runtime-api/color.md#opacity)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Opacity`](../../../api/pax-runtime-api/color.md#opacity)>
 
 Maximum opacity for the black scrim over the retained background.
 Unitless values are normalized alpha (`0.3` is 30%); percentages such
 as `30%` are also supported.
 
 ##### `curve`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`RouteCardCurve`](/api/pax-std/core/router.md#routecardcurve)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`RouteCardCurve`](../../../api/pax-std/core/router.md#routecardcurve)>
 
 Reserved easing tuning for the card enter/exit transition.
 
@@ -81,22 +81,22 @@ responsible for any modal-specific enter/exit transition.
 
 #### Properties
 ##### `path`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`String`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`String`>
 
 Static route pattern, e.g. `/tools`.
 
 ##### `default`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<`bool`>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`bool`>
 
 Fallback modal branch used when no `path` branch matches.
 
 ##### `duration`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Duration`](/api/pax-runtime-api/animation.md#duration)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Duration`](../../../api/pax-runtime-api/animation.md#duration)>
 
 Duration for the generated modal scrim enter/exit transition.
 
 ##### `scrim_opacity`
-Type: [`Property`](/api/pax-runtime-api/properties.md#property)<[`Opacity`](/api/pax-runtime-api/color.md#opacity)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Opacity`](../../../api/pax-runtime-api/color.md#opacity)>
 
 Maximum opacity for the black scrim over the retained background.
 Unitless values are normalized alpha (`0.3` is 30%); percentages such

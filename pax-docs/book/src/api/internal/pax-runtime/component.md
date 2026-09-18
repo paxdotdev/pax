@@ -13,10 +13,10 @@ properties attached to each of Repeat's virtual nodes.
 
 #### Properties
 ##### `template`
-Type: [`InstanceNodePtrList`](/api/internal/pax-runtime/rendering.md#instancenodeptrlist)
+Type: `InstanceNodePtrList`
 
 ##### `timelines`
-Type: `Vec`<`Rc`<`RefCell`<[`Timeline`](/api/pax-runtime-api/animation.md#timeline)>>>
+Type: `Vec`<`Rc`<`RefCell`<[`Timeline`](../../../api/pax-runtime-api/animation.md#timeline)>>>
 
 ---
 
@@ -32,6 +32,6 @@ Type: `f64`
 
 #### Implementations
 ##### `create_builtin_if_exists`
-<pre><code class="api-signature language-rust ignore">pub fn create_builtin_if_exists(property_scope: Ref&lt;&#39;_, HashMap&lt;String, <a href="/api/pax-runtime-api/variables.md#variable">Variable</a>&gt;&gt;) -&gt; Option&lt;HashMap&lt;String, <a href="/api/pax-runtime-api/variables.md#variable">Variable</a>&gt;&gt;</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn create_builtin_if_exists(property_scope: Ref&lt;&#39;_, HashMap&lt;String, <a href="../../../api/pax-runtime-api/variables.md#variable">Variable</a>&gt;&gt;) -&gt; Option&lt;HashMap&lt;String, <a href="../../../api/pax-runtime-api/variables.md#variable">Variable</a>&gt;&gt;</code></pre>
 
 Create a stack frame containing `$scroll_position` when scroll properties are present.

@@ -10,53 +10,53 @@ A sugared representation of an Affine transform combined with an `anchor` layout
 
 #### Properties
 ##### `previous`
-Type: `Option`<`Box`<[`Transform2D`](/api/pax-runtime-api/transform.md#transform2d)>>
+Type: `Option`<`Box`<[`Transform2D`](../../api/pax-runtime-api/transform.md#transform2d)>>
 
 Linked list of ancestral Transform2Ds
 
 ##### `rotate`
-Type: `Option`<[`Rotation`](/api/pax-runtime-api/transform.md#rotation)>
+Type: `Option`<[`Rotation`](../../api/pax-runtime-api/transform.md#rotation)>
 
 Represents affine rotation over z axis (single-dimensional for 2D rendering)
 
 ##### `translate`
-Type: `Option`<[[`Size`](/api/pax-runtime-api/layout.md#size); 2]>
+Type: `Option`<[[`Size`](../../api/pax-runtime-api/layout.md#size); 2]>
 
 Represents affine translation across the x-y plane
 
 ##### `anchor`
-Type: `Option`<[[`Size`](/api/pax-runtime-api/layout.md#size); 2]>
+Type: `Option`<[[`Size`](../../api/pax-runtime-api/layout.md#size); 2]>
 
 Represents the alignment of the (0,0) position of this element as it relates to its own bounding box. (origin offset)
 
 ##### `scale`
-Type: `Option`<[[`Size`](/api/pax-runtime-api/layout.md#size); 2]>
+Type: `Option`<[[`Size`](../../api/pax-runtime-api/layout.md#size); 2]>
 
 Represents affine scale coefficients across the x-y plane
 
 ##### `skew`
-Type: `Option`<[[`Rotation`](/api/pax-runtime-api/transform.md#rotation); 2]>
+Type: `Option`<[[`Rotation`](../../api/pax-runtime-api/transform.md#rotation); 2]>
 
 Represents affine skew over x and y axes
 
 #### Implementations
 ##### `anchor`
-<pre><code class="api-signature language-rust ignore">pub fn anchor(x: <a href="/api/pax-runtime-api/layout.md#size">Size</a>, y: <a href="/api/pax-runtime-api/layout.md#size">Size</a>) -&gt; Self</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn anchor(x: <a href="../../api/pax-runtime-api/layout.md#size">Size</a>, y: <a href="../../api/pax-runtime-api/layout.md#size">Size</a>) -&gt; Self</code></pre>
 
 Transform origin point for this element, relative to its own bounding box.
 
 ##### `rotate`
-<pre><code class="api-signature language-rust ignore">pub fn rotate(z: <a href="/api/pax-runtime-api/transform.md#rotation">Rotation</a>) -&gt; Self</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn rotate(z: <a href="../../api/pax-runtime-api/transform.md#rotation">Rotation</a>) -&gt; Self</code></pre>
 
 Rotation over the z axis.
 
 ##### `scale`
-<pre><code class="api-signature language-rust ignore">pub fn scale(x: <a href="/api/pax-runtime-api/layout.md#size">Size</a>, y: <a href="/api/pax-runtime-api/layout.md#size">Size</a>) -&gt; Self</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn scale(x: <a href="../../api/pax-runtime-api/layout.md#size">Size</a>, y: <a href="../../api/pax-runtime-api/layout.md#size">Size</a>) -&gt; Self</code></pre>
 
 Scale coefficients over the x-y plane.
 
 ##### `translate`
-<pre><code class="api-signature language-rust ignore">pub fn translate(x: <a href="/api/pax-runtime-api/layout.md#size">Size</a>, y: <a href="/api/pax-runtime-api/layout.md#size">Size</a>) -&gt; Self</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn translate(x: <a href="../../api/pax-runtime-api/layout.md#size">Size</a>, y: <a href="../../api/pax-runtime-api/layout.md#size">Size</a>) -&gt; Self</code></pre>
 
 Translation over the x-y plane.
 
@@ -65,13 +65,13 @@ Translation over the x-y plane.
 Encodes a rotation in various units
 
 #### Variants
-##### `Radians`([`Numeric`](/api/pax-runtime-api/pax_value/numeric.md#numeric))
+##### `Radians`([`Numeric`](../../api/pax-runtime-api/pax_value/numeric.md#numeric))
 Radian units (2π rad for one full rotation)
 
-##### `Degrees`([`Numeric`](/api/pax-runtime-api/pax_value/numeric.md#numeric))
+##### `Degrees`([`Numeric`](../../api/pax-runtime-api/pax_value/numeric.md#numeric))
 Degree units (360 deg for one full rotation)
 
-##### `Percent`([`Numeric`](/api/pax-runtime-api/pax_value/numeric.md#numeric))
+##### `Percent`([`Numeric`](../../api/pax-runtime-api/pax_value/numeric.md#numeric))
 Percentage units (100% for one full rotation)
 
 #### Implementations
