@@ -258,12 +258,13 @@ def verify_archive_parity(args, record, *, package=None):
     check_inputs()
     # Keep the reviewed archives separate from Cargo's scratch/target output.
     # Compilation was already verified in prepare; this pass checks assembly.
+    # Cargo treats explicitly included, Git-ignored build outputs as dirty.
+    # The wrapper binds them by inventory/hash and separately gates source cleanliness.
     with tempfile.TemporaryDirectory(prefix="pax-release-parity-") as tmp:
         command = ["cargo", "package", *[flag for item in record["packages"]
                     if item["name"] in selected for flag in ("-p", item["name"])],
-                   "--registry", "crates-io", "--locked", "--no-verify", "--target-dir", tmp]
-        if args.phase != "publish":
-            command.append("--allow-dirty")
+                   "--registry", "crates-io", "--locked", "--allow-dirty",
+                   "--no-verify", "--target-dir", tmp]
         run(command, cwd=args.workspace)
         for item in record["packages"]:
             if item["name"] not in selected:
@@ -490,8 +491,9 @@ def publish(args):
         write_json(journal_path, journal)
         # Cargo reassembles the archive. Keep this checkout/toolchain untouched
         # during publication; parity and input checks precede every upload.
+        # Match preparation/parity's treatment of reviewed generated outputs.
         run(["cargo", "publish", "-p", name, "--registry", "crates-io", "--locked",
-             "--target-dir", target_dir], cwd=args.workspace)
+             "--allow-dirty", "--target-dir", target_dir], cwd=args.workspace)
         existing = registry_version(name, args.version)
         if not existing or existing["cksum"] != package["sha256"]:
             raise ReleaseError(f"Registry checksum/visibility not confirmed for {name}; stop and inspect before retrying.")

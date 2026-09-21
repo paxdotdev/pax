@@ -112,6 +112,14 @@ metadata and the candidate record identify it. The script refuses a dirty
 candidate, changed source/lockfile/bundles, modified archives/site, or a commit
 other than `--approved-commit`. A merge/rebase requires fresh preparation.
 
+All Cargo packaging/parity/publication commands use `--allow-dirty` because the
+compiler explicitly packages Git-ignored generated interface JS, CSS, and its
+fingerprint. Cargo considers those outputs dirty even in a clean Git checkout.
+The wrapper still requires the exact approved clean source commit and checks
+every generated input against the prepared inventory and archive bytes. An
+archive's `.cargo_vcs_info.json` may therefore record `dirty: true` for these
+included generated files; the candidate's `source_dirty` must remain false.
+
 Only after explicit publication approval:
 
 ```sh
@@ -125,7 +133,7 @@ The command reruns read-only preflight and full-set repackaging parity before
 the first upload. Immediately before each missing crate's upload, it also checks
 single-crate packaging against the live registry, now that its prerequisites
 are published. Changed inputs, Cargo version, or archive bytes stop before that
-upload. It publishes each crate in dependency order using `cargo publish --locked`
+upload. It publishes each crate in dependency order using `cargo publish --locked --allow-dirty`
 with build verification enabled. Preparation and publication explicitly use the
 workspace's `target/` directory, overriding Cargo target-directory configuration.
 Immediately before each upload command, the script removes that crate/version's

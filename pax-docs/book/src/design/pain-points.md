@@ -1855,3 +1855,15 @@ preparation or publication command, and explicitly use the same target directory
 for cleanup and Cargo. Preserve compilation caches, reviewed candidate copies,
 and strict archive checksum checks; ignoring trailing bytes would hide the
 artifact mismatch rather than prevent it.
+
+## 2026-09-21 — Cargo cleanliness includes ignored generated package inputs
+
+A clean `git status` does not guarantee Cargo will accept a package without
+`--allow-dirty`: explicitly included, Git-ignored interface JS, CSS, and the
+build fingerprint count as uncommitted package inputs. Preparation and
+standalone verification allowed these files, but publication originally omitted
+that flag and failed before the first upload. Use the same Cargo flags through
+all phases while retaining the wrapper's clean approved-commit gate and its
+complete input inventory/checksum checks. Cover the publication path with a
+real Cargo fixture containing ignored generated artifacts; mocked commands and
+a standalone verification pass do not establish this boundary.

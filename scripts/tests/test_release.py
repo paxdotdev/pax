@@ -1,4 +1,4 @@
-"""Release boundary tests: no network access, publication, or git mutation."""
+"""Release boundary tests: no network/uploads; Git writes only in temporary fixtures."""
 import argparse
 import hashlib
 import importlib.util
@@ -235,6 +235,102 @@ pax-message = { version = "0.38.3" }
             cargo(*command)
             self.assertEqual(archive.read_bytes(), expected)
 
+    @unittest.skipUnless(shutil.which("cargo") and shutil.which("git"), "Cargo and Git are required")
+    def test_publication_accepts_reviewed_ignored_outputs_but_rejects_source_and_input_drift(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            target = root / "target"
+            args = release.parse_args(["publish", "0.39.0", "--approved-commit", "pending"])
+            args.workspace, args.output = root, target / "candidate"
+            (root / "src").mkdir()
+            (root / "src/lib.rs").write_text("pub fn fixture() {}\n")
+            (root / "Cargo.toml").write_text(
+                '[package]\nname="release-fixture"\nversion="0.39.0"\nedition="2021"\n'
+                'description="Local release regression"\nlicense="MIT"\n'
+                'include=["Cargo.toml", "src/**", "generated.js"]\n[workspace]\n')
+            (root / ".gitignore").write_text("/target/\n/generated.js\n")
+            generated = root / "generated.js"
+            generated.write_text("// reviewed generated output\n")
+            env = {**{key: value for key, value in os.environ.items() if not key.startswith("GIT_")},
+                   "CARGO_HOME": str(target / "cargo-home"), "CARGO_NET_OFFLINE": "true",
+                   "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+            with patch.dict(os.environ, env, clear=True):
+                def command(*argv):
+                    result = subprocess.run(argv, cwd=root, text=True, stdout=subprocess.PIPE,
+                                            stderr=subprocess.STDOUT)
+                    self.assertEqual(result.returncode, 0, result.stdout)
+                    return result.stdout.strip()
+                command("cargo", "generate-lockfile", "--offline")
+                command("git", "init", "--quiet")
+                command("git", "add", "Cargo.toml", "Cargo.lock", ".gitignore", "src/lib.rs")
+                command("git", "-c", "user.name=Release Test", "-c", "user.email=release@example.invalid",
+                        "-c", "commit.gpgsign=false", "-c", f"core.hooksPath={root / 'no-hooks'}",
+                        "commit", "--quiet", "-m", "Temporary release fixture")
+                args.approved_commit = command("git", "rev-parse", "HEAD")
+                self.assertEqual(command("git", "status", "--porcelain"), "")
+                package_command = ["cargo", "package", "--offline", "--locked", "--no-verify",
+                                   "--registry", "crates-io", "--target-dir", str(target)]
+                rejected = subprocess.run(package_command, cwd=root, text=True,
+                                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                self.assertNotEqual(rejected.returncode, 0)
+                self.assertIn("generated.js", rejected.stdout)
+                command(*package_command, "--allow-dirty")
+                packages = release.release_packages(release.metadata(root))
+                record = {"schema": 2, "version": args.version, "source_commit": args.approved_commit,
+                          "source_dirty": False, "source_sha256": release.source_digest(root),
+                          "docs_sha256": "fixture-docs", "docs_no_latest": False,
+                          "cargo": command("cargo", "--version"),
+                          "package_smoke": {"checks": ["fixture only"]},
+                          "packages": release.inspect_archives(root, packages, args.version, args.output),
+                          "package_inputs": release.packaging_inputs(root, packages)}
+                release.write_json(args.output / "candidate.json", record)
+                docs = argparse.Namespace(validate_build_record=lambda _: None, output_digest=lambda: "fixture-docs")
+                real_run, uploads = release.run, []
+                def no_upload(command, **kwargs):
+                    if command[:2] == ["cargo", "publish"]:
+                        self.assertIn("--allow-dirty", command)
+                        self.assertIn("--locked", command)
+                        self.assertNotIn("--no-verify", command)
+                        uploads.append(command)
+                        return ""
+                    if len(command) > 1 and Path(command[1]).name == "publish_versioned_docs.py":
+                        return ""
+                    return real_run(command, **kwargs)
+                with patch.object(release, "docs_module", return_value=docs), patch.object(
+                    release, "run", no_upload
+                ), patch.object(release, "preflight"), patch.object(release.time, "sleep"), patch.object(
+                    release, "registry_version", side_effect=[None, None, {"cksum": record["packages"][0]["sha256"]}]
+                ):
+                    # Real validation and both real Cargo parity passes use phase=publish.
+                    # Only external publication/preflight/registry operations are intercepted.
+                    release.publish(args)
+                    self.assertEqual(len(uploads), 1)
+                    self.assertEqual(command("git", "status", "--porcelain"), "")
+                    record["source_dirty"] = True
+                    release.write_json(args.output / "candidate.json", record)
+                    with self.assertRaisesRegex(release.ReleaseError, "exact approved clean commit"):
+                        release.validate_candidate(args, publishing=True)
+                    record["source_dirty"] = False
+                    release.write_json(args.output / "candidate.json", record)
+                    args.approved_commit = "wrong-commit"
+                    with self.assertRaisesRegex(release.ReleaseError, "exact approved clean commit"):
+                        release.validate_candidate(args, publishing=True)
+                    args.approved_commit = record["source_commit"]
+                    for relative in ("src/lib.rs", "untracked-source.txt"):
+                        path = root / relative
+                        original = path.read_bytes() if path.exists() else None
+                        path.write_text("unreviewed source\n")
+                        with self.assertRaisesRegex(release.ReleaseError, "Source or bundled artifacts changed"):
+                            release.validate_candidate(args, publishing=True)
+                        if original is None:
+                            path.unlink()
+                        else:
+                            path.write_bytes(original)
+                    generated.write_text("// unreviewed generated output\n")
+                    with self.assertRaisesRegex(release.ReleaseError, "Packaging inputs changed"):
+                        release.validate_candidate(args, publishing=True)
+                    self.assertEqual(len(uploads), 1)
+
     def test_repackaging_mismatch_and_input_drift_abort_without_upload(self):
         with tempfile.TemporaryDirectory() as tmp:
             args = release.parse_args(["verify", "0.39.0"])
@@ -281,6 +377,7 @@ pax-message = { version = "0.38.3" }
             def run(command, **kwargs):
                 events.append(("command", command[:2]))
                 if command[:2] == ["cargo", "publish"]:
+                    self.assertIn("--allow-dirty", command)
                     self.assertFalse(stale.exists())
                     self.assertEqual(Path(command[command.index("--target-dir") + 1]), args.workspace / "target")
             with patch.object(release, "validate_candidate", return_value=record), patch.object(release, "preflight"), patch.object(
