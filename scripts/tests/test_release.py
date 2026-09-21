@@ -4,7 +4,9 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
+import shutil
 import subprocess
 import tarfile
 import tempfile
@@ -188,6 +190,51 @@ pax-message = { version = "0.38.3" }
             archive.write_bytes(b"overwritten by Cargo")
             self.assertEqual(release.sha256(retained), inventory[0]["sha256"])
 
+    def test_archive_cleanup_preserves_other_versions_caches_and_candidates(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            target = root / "target"
+            stale = target / "package/example-0.39.0.crate"
+            preserved = [target / "package/example-0.38.3.crate",
+                         target / "package/other-0.39.0.crate",
+                         target / "package/example-0.39.0/src/lib.rs",
+                         target / "debug/deps/compiled.rlib",
+                         target / "release-candidate/0.39.0/archives/example-0.39.0.crate"]
+            for path in [stale, *preserved]:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(b"preserved")
+            release.clear_package_archives(target, ["example"], "0.39.0")
+            self.assertFalse(stale.exists())
+            for path in preserved:
+                self.assertEqual(path.read_bytes(), b"preserved")
+            release.clear_package_archives(target, ["example", "missing"], "0.39.0")
+
+    @unittest.skipUnless(shutil.which("cargo"), "Cargo is required for the real archive regression")
+    def test_real_cargo_repackaging_discards_stale_trailing_bytes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "src").mkdir()
+            (root / "src/lib.rs").write_text("pub fn example() {}\n")
+            (root / "Cargo.toml").write_text(
+                '[package]\nname="archive-fixture"\nversion="0.39.0"\nedition="2021"\n'
+                'description="Local archive regression"\nlicense="MIT"\n[workspace]\n')
+            env = {**os.environ, "CARGO_HOME": str(root / "cargo-home"), "CARGO_NET_OFFLINE": "true"}
+            def cargo(*args):
+                result = subprocess.run(["cargo", *map(str, args)], cwd=root, env=env,
+                                        text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                self.assertEqual(result.returncode, 0, result.stdout)
+            cargo("generate-lockfile", "--offline")
+            target = root / "target"
+            command = ["package", "--offline", "--locked", "--no-verify", "--allow-dirty",
+                       "--registry", "crates-io", "--target-dir", target]
+            cargo(*command)
+            archive = target / "package/archive-fixture-0.39.0.crate"
+            expected = archive.read_bytes()
+            archive.write_bytes(expected + b"stale bytes from a longer previous archive")
+            release.clear_package_archives(target, ["archive-fixture"], "0.39.0")
+            cargo(*command)
+            self.assertEqual(archive.read_bytes(), expected)
+
     def test_repackaging_mismatch_and_input_drift_abort_without_upload(self):
         with tempfile.TemporaryDirectory() as tmp:
             args = release.parse_args(["verify", "0.39.0"])
@@ -223,18 +270,26 @@ pax-message = { version = "0.38.3" }
     def test_publish_checks_full_set_and_each_crate_before_upload(self):
         with tempfile.TemporaryDirectory() as tmp:
             args = release.parse_args(["publish", "0.39.0", "--approved-commit", "abc", "--output", tmp])
+            args.workspace = Path(tmp)
             record = {"packages": [{"name": "example", "sha256": "approved"}]}
+            stale = args.workspace / "target/package/example-0.39.0.crate"
+            stale.parent.mkdir(parents=True)
+            stale.write_bytes(b"old archive with trailing bytes")
             events = []
             def parity(*args, **kwargs):
                 events.append(("parity", kwargs.get("package")))
             def run(command, **kwargs):
                 events.append(("command", command[:2]))
+                if command[:2] == ["cargo", "publish"]:
+                    self.assertFalse(stale.exists())
+                    self.assertEqual(Path(command[command.index("--target-dir") + 1]), args.workspace / "target")
             with patch.object(release, "validate_candidate", return_value=record), patch.object(release, "preflight"), patch.object(
                 release, "registry_version", side_effect=[None, None, {"cksum": "approved"}]
             ), patch.object(release, "verify_archive_parity", parity), patch.object(release, "run", run), patch.object(release.time, "sleep"):
                 release.publish(args)
             self.assertEqual(events[:3], [("parity", None), ("parity", "example"), ("command", ["cargo", "publish"])])
             for failed_package in (None, "example"):
+                stale.write_bytes(b"leave untouched on pre-upload failure")
                 def fail_parity(*args, **kwargs):
                     if kwargs.get("package") == failed_package:
                         raise release.ReleaseError("parity mismatch")
@@ -244,6 +299,7 @@ pax-message = { version = "0.38.3" }
                     with self.assertRaisesRegex(release.ReleaseError, "parity mismatch"):
                         release.publish(args)
                     run.assert_not_called()
+                self.assertEqual(stale.read_bytes(), b"leave untouched on pre-upload failure")
 
 
 if __name__ == "__main__":

@@ -47,6 +47,10 @@ removed so an old command cannot accidentally publish. Preparation:
    packages. Checks normalized dependency versions, required bundled files, and
    absence of transient build files in every `.crate` archive. Retains copies in
    the candidate's `archives/` directory, outside Cargo's packaging output.
+   Before packaging, removes only the selected version's generated `.crate`
+   files from `target/package/`. Cargo 1.93 can leave stale trailing bytes when
+   overwriting a longer archive; starting each output afresh prevents this.
+   Other versions, retained candidate copies, and compilation caches are preserved.
 6. Unpacks the actual archives into a temporary directory outside the checkout,
    builds the CLI there, reads embedded example sources, creates Living Quilt,
    and checks web build/run while blocking Node/npm. Registry patches point only
@@ -122,7 +126,11 @@ the first upload. Immediately before each missing crate's upload, it also checks
 single-crate packaging against the live registry, now that its prerequisites
 are published. Changed inputs, Cargo version, or archive bytes stop before that
 upload. It publishes each crate in dependency order using `cargo publish --locked`
-with build verification enabled. Cargo reassembles archives when publishing;
+with build verification enabled. Preparation and publication explicitly use the
+workspace's `target/` directory, overriding Cargo target-directory configuration.
+Immediately before each upload command, the script removes that crate/version's
+generated archive from `target/package/` so Cargo cannot reuse a longer file.
+Cargo reassembles archives when publishing;
 keep the checkout, generated inputs, toolchain, and Cargo configuration untouched
 throughout the operation. These checks do not lock out concurrent writers.
 The default

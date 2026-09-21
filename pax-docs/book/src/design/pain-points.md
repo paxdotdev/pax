@@ -1843,3 +1843,15 @@ dynamic imports, styles, and assets. The publisher now compares the complete
 prepared docs tree at both public URL layouts, including search assets, with
 cache and essential MIME checks. Keep the live browser pass for interaction,
 rendering, and navigation behavior that byte comparisons cannot establish.
+
+## 2026-09-21 — Shorter release archives can retain stale trailing bytes
+
+Moving from a dirty rehearsal to a clean checkpoint made most crate archives
+slightly shorter. Cargo 1.93 reused the existing output files without truncating
+their old ends, leaving 1–17 trailing bytes even though the decompressed contents
+matched fresh packaging. The release parity check correctly stopped before any
+upload. Remove only the selected crate/version's generated archive before each
+preparation or publication command, and explicitly use the same target directory
+for cleanup and Cargo. Preserve compilation caches, reviewed candidate copies,
+and strict archive checksum checks; ignoring trailing bytes would hide the
+artifact mismatch rather than prevent it.

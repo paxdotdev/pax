@@ -188,6 +188,13 @@ def sha256(path):
     return digest.hexdigest()
 
 
+def clear_package_archives(target_dir, names, version):
+    # Cargo 1.93 can leave trailing bytes when overwriting a longer .crate.
+    # Remove only selected outputs; retain compilation caches and candidate copies.
+    for name in names:
+        (target_dir / "package" / f"{name}-{version}.crate").unlink(missing_ok=True)
+
+
 def source_digest(workspace):
     digest = hashlib.sha256()
     extra = {Path("Cargo.lock"), *(Path("pax-compiler") / p for p in REQUIRED_FILES["pax-compiler"])}
@@ -348,6 +355,7 @@ def prepare(args):
     # Workspace packaging stages unpublished siblings in Cargo's temporary local
     # registry and verifies the actual archives without any crates.io upload.
     selection = [flag for name in publication_order(packages) for flag in ("-p", name)]
+    clear_package_archives(workspace / "target", packages, args.version)
     run(["cargo", "package", *selection, "--registry", "crates-io", "--locked",
          "--allow-dirty", "--target-dir", workspace / "target"], cwd=workspace)
     inventory = inspect_archives(workspace, packages, args.version, args.output)
@@ -476,11 +484,14 @@ def publish(args):
         # Now that prerequisites are public, also compare the single-crate
         # registry resolution used by cargo publish with the reviewed archive.
         verify_archive_parity(args, record, package=name)
+        target_dir = args.workspace / "target"
+        clear_package_archives(target_dir, [name], args.version)
         journal["crates"][name] = "upload started; recheck registry if interrupted"
         write_json(journal_path, journal)
         # Cargo reassembles the archive. Keep this checkout/toolchain untouched
         # during publication; parity and input checks precede every upload.
-        run(["cargo", "publish", "-p", name, "--registry", "crates-io", "--locked"], cwd=args.workspace)
+        run(["cargo", "publish", "-p", name, "--registry", "crates-io", "--locked",
+             "--target-dir", target_dir], cwd=args.workspace)
         existing = registry_version(name, args.version)
         if not existing or existing["cksum"] != package["sha256"]:
             raise ReleaseError(f"Registry checksum/visibility not confirmed for {name}; stop and inspect before retrying.")
