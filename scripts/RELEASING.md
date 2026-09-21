@@ -48,8 +48,9 @@ removed so an old command cannot accidentally publish. Preparation:
    absence of transient build files in every `.crate` archive. Retains copies in
    the candidate's `archives/` directory, outside Cargo's packaging output.
    Before packaging, removes only the selected version's generated `.crate`
-   files from `target/package/`. Cargo 1.93 can leave stale trailing bytes when
-   overwriting a longer archive; starting each output afresh prevents this.
+   files from `target/package/` and `target/package/tmp-registry/`. Cargo 1.93
+   can leave stale trailing bytes in both locations when overwriting a longer
+   archive; starting each output afresh prevents this.
    Other versions, retained candidate copies, and compilation caches are preserved.
 6. Unpacks the actual archives into a temporary directory outside the checkout,
    builds the CLI there, reads embedded example sources, creates Living Quilt,
@@ -69,9 +70,11 @@ removed so an old command cannot accidentally publish. Preparation:
    checks. A failed prepare removes the ready record. Older candidate records
    without this inventory must be prepared again.
 
-Use `CARGO_BUILD_JOBS=4` to bound resource use. `CARGO_NET_OFFLINE=true` is useful
-with pre-populated caches; record that choice because it restricts dependency
-resolution to cached versions. Do not confuse archive verification or local
+Use `CARGO_BUILD_JOBS=4` to bound resource use. Full archive compilation during
+preparation explicitly enables registry access with `--config net.offline=false`:
+Cargo 1.93 can report `no hash listed` for unpublished workspace siblings in
+offline mode even with valid archives and populated caches. The preparation
+stage performs registry reads, never uploads. Do not confuse archive verification or local
 candidate smoke results with proof from crates.io. Inspect the ignored archive
 and site outputs before deleting them: they are the review/recovery artifacts.
 
@@ -95,6 +98,12 @@ Preflight checks AWS identity, bucket access, the enabled/deployed distribution,
 HTTPS hostname/aliases, bucket-root routing, and zero minimum TTL across cache
 behaviors/policies. It reads the deployed S3 catalog and rejects local history
 omissions or moved version paths (and a changed latest pointer with `--no-latest`).
+For an S3 website origin, it also reads the existing homepage's object ACL. If
+that site uses public-read ACLs, docs publication preserves them on every file
+it uploads, including the final catalog. It does not change bucket policies or
+permissions on unrelated objects. REST/OAC origins keep default private ACLs.
+For a first publication to a website without an existing homepage, explicitly
+select `--docs-public-read` when public object ACLs are the intended access model.
 It also checks whether a crates.io token is configured,
 without printing it. Token presence does not prove publish permission or new
 crate-name ownership. AWS read permissions do not prove write permissions.
@@ -138,6 +147,7 @@ with build verification enabled. Preparation and publication explicitly use the
 workspace's `target/` directory, overriding Cargo target-directory configuration.
 Immediately before each upload command, the script removes that crate/version's
 generated archive from `target/package/` so Cargo cannot reuse a longer file.
+The matching temporary-registry archive is also removed.
 Cargo reassembles archives when publishing;
 keep the checkout, generated inputs, toolchain, and Cargo configuration untouched
 throughout the operation. These checks do not lock out concurrent writers.
@@ -145,9 +155,13 @@ The default
 interval is 60 seconds. It verifies registry checksums and journals progress in
 `target/release-candidate/0.39.0/publication.json` before advancing. It then invokes
 the checked-in docs publisher with `--skip-build --verify-live`, reusing the exact
-prepared site. Versioned content uploads first, root content next, and the root
+prepared site. The publisher now requires preflight, invalidation and live
+verification for every upload, including standalone docs-only releases;
+`--verify-live` remains accepted for compatibility. A missing distribution ID
+is rejected before local catalog changes or uploads. Versioned content uploads
+first, root content next, and the root
 catalog last. CloudFront invalidation must finish before live HTTPS verification.
-Every prepared file is checked at root and `/<version>/`, including app bootstrap
+Every prepared file and both directory homepages are checked at root and `/<version>/`, including app bootstrap
 scripts and dynamic imports, styles, search indexes, fonts, images, source
 manifests, and Wasm. All bytes and `no-cache` headers must match; HTML, JavaScript,
 CSS, JSON, and Wasm also require their serving MIME types. A version-only release

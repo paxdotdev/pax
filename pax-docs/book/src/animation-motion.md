@@ -348,6 +348,7 @@ The runtime enforces a five-second exit timeout to avoid retaining a node
 indefinitely. An exit that exceeds that limit can be truncated with a warning.
 Keep lifecycle exits short; use ordinary playback for a longer presentation.
 
+<a id="interrupted-in-out"></a>
 <a id="interrupted-in--out"></a>
 
 Toggle the same conditional back before the exit completes and Pax can

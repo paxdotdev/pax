@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 
 const book = fileURLToPath(new URL('../book/', import.meta.url));
@@ -19,6 +20,24 @@ const read = relative => {
 const errors = new Set();
 let links = 0;
 for (const prefix of ['/', '/0.39.0/']) {
+    // Public website/README directory URLs must retain their version, query,
+    // and fragment when they redirect to mdBook's rendered article filenames.
+    for (const name of ['getting-started', 'template-language', 'targets-build-deploy']) {
+        const alias = read(`${name}/index.html`);
+        const script = alias.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+        assert(script, `Missing redirect script for ${name}/`);
+        let redirected;
+        vm.runInNewContext(script, { window: { location: {
+            search: '?from=website', hash: '#section',
+            replace: value => { redirected = value; },
+        } } });
+        for (const suffix of ['', 'index.html']) {
+            const result = new URL(redirected, `https://docs.example${prefix}${name}/${suffix}`);
+            assert.equal(result.href, `https://docs.example${prefix}${name}.html?from=website#section`);
+        }
+        assert(fs.existsSync(path.join(output, `${name}.html`)));
+    }
+    assert(read('animation-motion.html').includes('id="interrupted-in-out"'));
     for (const page of pages) {
         const html = read(page);
         const main = html.match(/<main>([\s\S]*?)<\/main>/)?.[1];

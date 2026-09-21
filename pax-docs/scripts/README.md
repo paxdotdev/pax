@@ -53,29 +53,66 @@ local preparation and publication.
 
 ## Publication contract
 
-After release and deployment approval, the same command without `--no-upload`
-publishes; `--skip-build` can reuse the exact preflight output. Supply `--bucket`
-and `--distribution-id`, or `PAX_DOCS_S3_BUCKET` and
+After release and deployment approval, publish the exact preflight output with:
+
+```sh
+AWS_PROFILE=pax python3 pax-docs/scripts/publish_versioned_docs.py 0.39.0 \
+  --skip-build --distribution-id E2EYK7TMGOPCYY
+```
+
+Omit `--skip-build` to build before publishing. Supply `--bucket` and
+`--distribution-id`, or `PAX_DOCS_S3_BUCKET` and
 `PAX_DOCS_CLOUDFRONT_DISTRIBUTION_ID`. The bucket defaults to `docs.pax.dev`.
-The integrated release requires the actual distribution ID. It waits for
-invalidation completion and uses `--verify-live` to preflight AWS identity,
-bucket routing, hostname and cache policy, then compare every file in the
-prepared tree with its deployed copy at both the root and version prefix.
+Every upload, including standalone docs-only publication, requires the actual
+distribution ID and verifies the deployment. A missing ID is rejected before
+building or changing the local catalog. Use `--no-upload` for a local build;
+it needs no distribution ID or AWS access. The old `--verify-live` flag remains
+accepted for compatibility; verification is always required for uploads.
+
+Publication preflights AWS identity, bucket routing, hostname, cache policy and
+object access before uploading. It then waits for invalidation completion and
+compares every file in the prepared tree with its deployed copy at both the
+root and version prefix.
 This includes all articles, JS bootstrap/dynamic imports, CSS, search assets,
 fonts, images, example source manifests, and Wasm. Every file must have matching
 bytes and `no-cache`; HTML, JavaScript, CSS, JSON, and Wasm must also have an
 appropriate MIME type. JavaScript accepts `text/javascript` or
 `application/javascript`. Under `--no-latest`, only the version tree and root
-catalog are checked. Missing or incorrectly served dependencies fail publication
+catalog are checked. Directory homepages (`/` and `/<version>/`, as applicable)
+must also match the prepared `index.html`. Verification reports progress every
+50 URLs and identifies the failing URL on HTTP/network errors.
+Missing or incorrectly served dependencies fail publication
 even when the example's HTML and Wasm succeed. This verifies delivery; interactive
 browser acceptance is still required. A publication receipt in
 `target/docs-publication/<version>.json` records progress and verified URLs.
-Standalone publication without a distribution ID still has no invalidation; it
-does not satisfy the integrated release completion gate.
+Standalone commands that previously omitted the distribution ID must now supply
+it. There is no upload mode that skips preflight or live verification.
 
 AWS CLI calls inherit the environment. Use `AWS_PROFILE=pax` on this workstation
 and `--distribution-id E2EYK7TMGOPCYY` for the docs distribution. Its
 `PaxDocsCachePolicy` has minimum TTL zero so origin `no-cache` is honored.
+
+The current distribution uses an S3 website origin with public-read object ACLs.
+Publication reads the existing homepage ACL and preserves that access
+model by adding `--acl public-read` to both tree copies, the version sync, and
+the final catalog upload. S3 uploads otherwise replace those ACLs with private
+ones, causing HTTP 403 even after a successful upload and invalidation. This
+affects only the files being published; bucket policies and unrelated objects
+are unchanged. REST/OAC origins keep default private ACLs, and website origins
+whose homepage uses default ACLs continue to rely on their bucket policy.
+Use `--public-read` (release wrapper: `--docs-public-read`) for an explicitly
+approved first publication that needs public object ACLs without an existing
+homepage to inspect. This flag does not skip preflight or live verification.
+The bucket must already permit that ACL model; the publisher does not weaken
+Block Public Access or change object ownership settings. Receipts record the
+selected object ACL. See [AWS object ACL configuration](https://docs.aws.amazon.com/AmazonS3/latest/userguide/managing-acls.html).
+
+The README and website use `/getting-started/`, `/template-language/`, and
+`/targets-build-deploy/`. Checked-in `index.html` compatibility pages redirect
+these URLs to mdBook's `.html` articles while preserving query strings,
+fragments, and the current version prefix. The publication link check exercises
+these redirects in both URL layouts. Keep them in the published tree: testing
+only sidebar links misses these external entry points.
 
 - `/<version>/` is the release-specific tree. Same-semver ghost patches are
   allowed. Strict SemVer is required, without a `v` prefix; stable versions sort

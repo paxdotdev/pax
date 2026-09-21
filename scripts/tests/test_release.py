@@ -101,6 +101,10 @@ pax-message = { version = "0.38.3" }
         self.assertIn("--no-latest", published)
         self.assertIn("--verify-live", published)
         self.assertIn("--skip-build", published)
+        self.assertNotIn("--public-read", published)
+        args.docs_public_read = True
+        self.assertIn("--public-read", release.docs_command(args, prepared=True))
+        self.assertNotIn("--public-read", release.docs_command(args))
 
     def test_publish_requires_explicit_commit_and_preflight_stops_before_mutations(self):
         with self.assertRaises(SystemExit):
@@ -194,17 +198,20 @@ pax-message = { version = "0.38.3" }
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             target = root / "target"
-            stale = target / "package/example-0.39.0.crate"
+            stale = [target / "package/example-0.39.0.crate",
+                     target / "package/tmp-registry/example-0.39.0.crate"]
             preserved = [target / "package/example-0.38.3.crate",
                          target / "package/other-0.39.0.crate",
+                         target / "package/tmp-registry/example-0.38.3.crate",
+                         target / "package/tmp-registry/other-0.39.0.crate",
                          target / "package/example-0.39.0/src/lib.rs",
                          target / "debug/deps/compiled.rlib",
                          target / "release-candidate/0.39.0/archives/example-0.39.0.crate"]
-            for path in [stale, *preserved]:
+            for path in [*stale, *preserved]:
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_bytes(b"preserved")
             release.clear_package_archives(target, ["example"], "0.39.0")
-            self.assertFalse(stale.exists())
+            self.assertTrue(all(not path.exists() for path in stale))
             for path in preserved:
                 self.assertEqual(path.read_bytes(), b"preserved")
             release.clear_package_archives(target, ["example", "missing"], "0.39.0")
@@ -234,6 +241,42 @@ pax-message = { version = "0.38.3" }
             release.clear_package_archives(target, ["archive-fixture"], "0.39.0")
             cargo(*command)
             self.assertEqual(archive.read_bytes(), expected)
+
+    @unittest.skipUnless(shutil.which("cargo"), "Cargo is required for the temporary-registry regression")
+    def test_real_workspace_repackaging_clears_temporary_registry_trailing_bytes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            names = ["archive-base", "archive-user"]
+            (root / "Cargo.toml").write_text(
+                '[workspace]\nmembers=["archive-base", "archive-user"]\nresolver="2"\n')
+            for name in names:
+                directory = root / name
+                (directory / "src").mkdir(parents=True)
+                (directory / "src/lib.rs").write_text("pub fn example() {}\n")
+                (directory / "Cargo.toml").write_text(
+                    f'[package]\nname="{name}"\nversion="0.39.0"\nedition="2021"\n'
+                    'description="Local workspace archive regression"\nlicense="MIT"\n' +
+                    ('[dependencies]\narchive-base={path="../archive-base",version="0.39.0"}\n'
+                     if name == "archive-user" else ''))
+            env = {**os.environ, "CARGO_HOME": str(root / "cargo-home"), "CARGO_NET_OFFLINE": "true"}
+            def cargo(*args):
+                result = subprocess.run(["cargo", *map(str, args)], cwd=root, env=env,
+                                        text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+                self.assertEqual(result.returncode, 0, result.stdout)
+            cargo("generate-lockfile", "--offline")
+            target = root / "target"
+            command = ["package", "-p", names[0], "-p", names[1], "--offline", "--locked",
+                       "--no-verify", "--allow-dirty", "--registry", "crates-io", "--target-dir", target]
+            cargo(*command)
+            archives = [directory / f"{name}-0.39.0.crate"
+                        for directory in (target / "package", target / "package/tmp-registry")
+                        for name in names]
+            expected = {path: path.read_bytes() for path in archives}
+            for path, contents in expected.items():
+                path.write_bytes(contents + b"stale bytes from a longer previous archive")
+            release.clear_package_archives(target, names, "0.39.0")
+            cargo(*command)
+            self.assertEqual({path: path.read_bytes() for path in archives}, expected)
 
     @unittest.skipUnless(shutil.which("cargo") and shutil.which("git"), "Cargo and Git are required")
     def test_publication_accepts_reviewed_ignored_outputs_but_rejects_source_and_input_drift(self):

@@ -1,13 +1,16 @@
 """Publication regressions. All external commands are intercepted; no AWS access."""
 
 import argparse
+from email.message import Message
 import importlib.util
+import io
 import json
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
 import unittest
+import urllib.parse
 from unittest.mock import patch
 
 
@@ -39,9 +42,13 @@ class PublicationTests(unittest.TestCase):
         }.items():
             self.enterContext(patch.object(publisher, name, value))
         self.commands = []
+        self.requests = []
         self.objects = {"0.38.3/old.html": (b"historical", "immutable")}
+        self.origin = "test-bucket.s3.amazonaws.com"
+        self.acl = {"Grants": []}
         self.fail_destination = None
         self.enterContext(patch.object(publisher, "run", self.run_command))
+        self.enterContext(patch.object(publisher.urllib.request, "urlopen", self.fetch))
 
     def create_output(self, text="new docs"):
         for name in ("index.html", "getting-started.html", "theme/pax-version.js"):
@@ -55,9 +62,24 @@ class PublicationTests(unittest.TestCase):
         self.commands.append(command)
         if command[0] != "aws":
             return
+        if command[1:3] in (["sts", "get-caller-identity"], ["s3api", "head-bucket"]):
+            return "{}"
+        if command[1:3] == ["cloudfront", "get-distribution"]:
+            return json.dumps({"Distribution": {"Status": "Deployed", "DistributionConfig": {
+                "Enabled": True, "Aliases": {"Items": ["docs.pax.dev"]},
+                "Origins": {"Items": [{"Id": "docs", "DomainName": self.origin}]},
+                "DefaultCacheBehavior": {"TargetOriginId": "docs", "MinTTL": 0},
+            }}})
+        if command[1:3] == ["s3api", "get-object-acl"]:
+            return json.dumps(self.acl)
+        if command[1:3] == ["s3api", "list-objects-v2"]:
+            return json.dumps({"Contents": [{"Key": key} for key in self.objects if key == "versions.json"]})
         if command[1] == "cloudfront":
             return json.dumps({"Invalidation": {"Id": "TEST-INVALIDATION"}})
+        self.assertEqual(command[1], "s3")
         destination = command[4]
+        if destination == "-":
+            return self.objects[command[3].removeprefix("s3://test-bucket/")][0].decode()
         if destination == self.fail_destination:
             raise subprocess.CalledProcessError(1, command)
         prefix = destination.removeprefix("s3://test-bucket/")
@@ -76,6 +98,22 @@ class PublicationTests(unittest.TestCase):
                     del self.objects[key]
         for name, path in names.items():
             self.objects[prefix + name] = (path.read_bytes(), cache)
+
+    def fetch(self, request, timeout):
+        self.assertEqual(self.commands[-1][1:4], ["cloudfront", "wait", "invalidation-completed"])
+        self.requests.append(request.full_url)
+        key = urllib.parse.unquote(urllib.parse.urlparse(request.full_url).path.lstrip("/"))
+        if not key or key.endswith("/"):
+            key += "index.html"
+        contents, cache = self.objects[key]
+        response = io.BytesIO(contents)
+        response.headers = Message()
+        response.headers["Cache-Control"] = cache
+        response.headers["Content-Type"] = {
+            ".html": "text/html", ".js": "application/javascript", ".json": "application/json",
+        }.get(Path(key).suffix, "application/octet-stream")
+        response.geturl = lambda: request.full_url
+        return response
 
     def main(self, *flags, version="0.39.0"):
         argv = ["publish", version, "--workspace", str(self.workspace),
@@ -177,7 +215,7 @@ class PublicationTests(unittest.TestCase):
                 self.main()
         self.assertNotIn("versions.json", self.objects)
         self.assertNotIn("index.html", self.objects)
-        self.assertEqual(len(self.commands), 1)
+        self.assertEqual(len([c for c in self.commands if c[1] == "s3"]), 1)
 
     def test_failed_root_upload_does_not_promote_catalog(self):
         self.fail_destination = "s3://test-bucket/"
@@ -185,7 +223,7 @@ class PublicationTests(unittest.TestCase):
             with self.assertRaises(subprocess.CalledProcessError):
                 self.main()
         self.assertNotIn("versions.json", self.objects)
-        self.assertFalse(any(command[1] == "cloudfront" for command in self.commands))
+        self.assertFalse(any(command[1:3] == ["cloudfront", "create-invalidation"] for command in self.commands))
 
     def test_skip_build_refuses_missing_or_wrong_version_record_before_manifest_write(self):
         self.create_output()
@@ -261,13 +299,27 @@ class PublicationTests(unittest.TestCase):
             with self.subTest(name=name), self.assertRaisesRegex(SystemExit, "Invalid embedded example path"):
                 publisher.validate_output()
 
-    def test_no_distribution_id_skips_invalidation(self):
+    def test_no_distribution_id_stops_before_any_upload(self):
         self.create_output()
         publisher.write_build_record("0.39.0")
-        publisher.publish_docs(argparse.Namespace(version="0.39.0", workspace=self.workspace,
-                                                 bucket="test-bucket", no_latest=True,
-                                                 distribution_id=None))
-        self.assertFalse(any(command[1] == "cloudfront" for command in self.commands))
+        with self.assertRaisesRegex(SystemExit, "distribution ID"):
+            publisher.publish_docs(argparse.Namespace(version="0.39.0", workspace=self.workspace,
+                                                     bucket="test-bucket", no_latest=True,
+                                                     distribution_id=None))
+        self.assertEqual(self.commands, [])
+
+    def test_cli_requires_distribution_before_local_changes_but_not_for_no_upload(self):
+        original = self.source_manifest.read_bytes()
+        with patch.object(publisher, "DEFAULT_DISTRIBUTION_ID", None), patch.object(sys, "argv", [
+            "publish", "0.39.0", "--workspace", str(self.workspace),
+        ]):
+            with self.assertRaises(SystemExit):
+                publisher.main()
+        self.assertEqual(self.source_manifest.read_bytes(), original)
+        self.assertFalse(self.output.exists())
+        self.assertEqual(self.commands, [])
+        self.main("--distribution-id", "", "--skip-build", "--no-upload")
+        self.assertEqual(self.commands, [])
 
 
     def test_invalidation_failure_keeps_receipt_pending_and_retry_completes(self):
@@ -283,7 +335,7 @@ class PublicationTests(unittest.TestCase):
         receipt = self.workspace / "target/docs-publication/0.39.0.json"
         self.assertEqual(json.loads(receipt.read_text())["status"], "invalidation pending")
         self.main("--skip-build")
-        self.assertEqual(json.loads(receipt.read_text())["status"], "invalidation completed")
+        self.assertEqual(json.loads(receipt.read_text())["status"], "live content verified")
 
     def test_live_check_failure_is_not_reported_as_success(self):
         self.create_output()
@@ -292,16 +344,58 @@ class PublicationTests(unittest.TestCase):
             publisher, "verify_live_output", side_effect=SystemExit("stale live content")
         ):
             with self.assertRaisesRegex(SystemExit, "stale live content"):
-                self.main("--skip-build", "--verify-live")
+                self.main("--skip-build")
         receipt = json.loads((self.workspace / "target/docs-publication/0.39.0.json").read_text())
         self.assertEqual(receipt["status"], "invalidation completed")
+
+    def test_public_read_applies_to_both_trees_sync_and_final_catalog_only(self):
+        for explicit in (True, False):
+            with self.subTest(explicit=explicit):
+                self.commands.clear()
+                self.create_output()
+                publisher.write_build_record("0.39.0")
+                self.origin = "test-bucket.s3-website-us-west-2.amazonaws.com"
+                self.acl = {"Grants": [{"Permission": "READ", "Grantee": {
+                    "URI": "http://acs.amazonaws.com/groups/global/AllUsers"}}]}
+                flags = ["--public-read"] if explicit else []
+                self.main("--skip-build", *flags)
+                uploads = [c for c in self.commands if c[1:2] == ["s3"] and c[4] != "-"]
+                self.assertEqual(len(uploads), 4)
+                for command in uploads:
+                    self.assertEqual(command[command.index("--acl") + 1], "public-read")
+                self.assertIn(["cloudfront", "get-distribution"], [c[1:3] for c in self.commands])
+                if not explicit:
+                    acl_index = next(i for i, c in enumerate(self.commands) if c[1:3] == ["s3api", "get-object-acl"])
+                    self.assertLess(acl_index, self.commands.index(uploads[0]))
+                self.assertFalse(any("put-" in str(c) for c in self.commands))
+                receipt = json.loads((self.workspace / "target/docs-publication/0.39.0.json").read_text())
+                self.assertEqual(receipt["object_acl"], "public-read")
+                self.assertEqual(receipt["status"], "live content verified")
+                self.assertIn("https://docs.pax.dev/0.39.0/", receipt["verified_urls"])
+                self.assertIn("https://docs.pax.dev/", receipt["verified_urls"])
+
+    def test_default_rest_uploads_remain_private_and_verify_live_content(self):
+        self.create_output()
+        publisher.write_build_record("0.39.0")
+        self.main("--skip-build")
+        self.assertFalse(any("--acl" in c for c in self.commands))
+        receipt = json.loads((self.workspace / "target/docs-publication/0.39.0.json").read_text())
+        self.assertEqual(receipt["object_acl"], "default")
+        self.assertEqual(receipt["status"], "live content verified")
+        self.assertEqual(receipt["verified_urls"], self.requests)
+
+    def test_verify_live_flag_remains_compatible(self):
+        self.create_output()
+        publisher.write_build_record("0.39.0")
+        self.main("--skip-build", "--verify-live")
+        self.assertTrue(self.requests)
 
     def test_failed_preflight_uploads_nothing(self):
         self.create_output()
         publisher.write_build_record("0.39.0")
         with patch.object(publisher, "preflight_publication", side_effect=SystemExit("bad credentials")):
             with self.assertRaisesRegex(SystemExit, "bad credentials"):
-                self.main("--skip-build", "--verify-live")
+                self.main("--skip-build")
         self.assertEqual(self.commands, [])
 
 

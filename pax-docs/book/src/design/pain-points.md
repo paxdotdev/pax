@@ -1856,6 +1856,13 @@ for cleanup and Cargo. Preserve compilation caches, reviewed candidate copies,
 and strict archive checksum checks; ignoring trailing bytes would hide the
 artifact mismatch rather than prevent it.
 
+The same overwrite issue also affects `target/package/tmp-registry/*.crate`;
+removing only the final archives is insufficient. Clear the selected version's
+archives in both locations. A separate Cargo 1.93 offline workspace-packaging
+failure reported `no hash listed` even with fresh archives whose hashes matched
+the temporary index. Full preparation now explicitly enables registry reads
+for archive compilation; populated caches do not make this offline path safe.
+
 ## 2026-09-21 — Cargo cleanliness includes ignored generated package inputs
 
 A clean `git status` does not guarantee Cargo will accept a package without
@@ -1867,3 +1874,39 @@ all phases while retaining the wrapper's clean approved-commit gate and its
 complete input inventory/checksum checks. Cover the publication path with a
 real Cargo fixture containing ignored generated artifacts; mocked commands and
 a standalone verification pass do not establish this boundary.
+
+## 2026-09-21 — Docs uploads replace S3 website object ACLs
+
+The existing docs website served public-read objects without a bucket policy.
+Uploading the new site with default private ACLs succeeded but caused HTTP 403
+after invalidation. Publication now detects the website homepage's
+public-read ACL and preserves it on the exact uploaded files, including both
+trees, sync, and the final version catalog. Do not broaden the entire bucket's
+permissions to repair a bounded publication. Check directory homepages as well
+as explicit `index.html` URLs, and retain the live browser acceptance pass.
+
+The first repair only enabled this preflight when `--verify-live` was supplied,
+leaving standalone docs-only commands able to reproduce the outage. Every
+upload now requires preflight, ACL-policy preservation, a distribution ID,
+completed invalidation, and live verification. Keep the old flag compatible,
+but do not let its omission bypass the publication contract. Cover the actual
+standalone invocation in regression tests, including failure before uploads
+and verification failure after invalidation; `--no-upload` stays local.
+
+## 2026-09-21 — Use documented color literals in hot-reload probes
+
+A bare CSS-style `fill=#FF00FF` probe is not valid Pax syntax. Use a documented
+form such as `fill=rgb(255, 0, 255)`. The iOS watcher reports the parse error and
+keeps the previous scene running; a rejected edit does not establish that hot
+reload is broken. Check the CLI output, correct the source, and verify both the
+visible change and the unchanged application process.
+
+## 2026-09-21 — Check external docs entry points, not only the built sidebar
+
+All generated article links passed while the README and live website's
+`/getting-started/` CTA returned 403: mdBook emits `getting-started.html`, not a
+directory homepage. Preserve established directory URLs with checked-in HTML
+redirect pages, including query strings, section fragments, and version
+prefixes. Audit website feature anchors too; `interrupted-in-out` needed an
+alias alongside the existing `interrupted-in--out` anchor. Public-byte checks
+and internal link checks alone do not validate these inbound contracts.

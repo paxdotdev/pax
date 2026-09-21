@@ -190,9 +190,11 @@ def sha256(path):
 
 def clear_package_archives(target_dir, names, version):
     # Cargo 1.93 can leave trailing bytes when overwriting a longer .crate.
-    # Remove only selected outputs; retain compilation caches and candidate copies.
+    # It reuses both final outputs and temporary-registry archives. Retain
+    # compilation caches, other versions, and reviewed candidate copies.
     for name in names:
-        (target_dir / "package" / f"{name}-{version}.crate").unlink(missing_ok=True)
+        for directory in (target_dir / "package", target_dir / "package/tmp-registry"):
+            (directory / f"{name}-{version}.crate").unlink(missing_ok=True)
 
 
 def source_digest(workspace):
@@ -286,6 +288,8 @@ def docs_command(args, *, prepared=False):
         command += ["--skip-build", "--bucket", args.docs_bucket,
                     "--distribution-id", args.docs_distribution_id,
                     "--site-url", args.docs_site_url, "--verify-live"]
+        if args.docs_public_read:
+            command.append("--public-read")
     else:
         command.append("--no-upload")
     return command
@@ -357,7 +361,10 @@ def prepare(args):
     # registry and verifies the actual archives without any crates.io upload.
     selection = [flag for name in publication_order(packages) for flag in ("-p", name)]
     clear_package_archives(workspace / "target", packages, args.version)
+    # Cargo 1.93 can fail sibling-package verification in offline mode even
+    # with valid temporary-registry archives and populated dependency caches.
     run(["cargo", "package", *selection, "--registry", "crates-io", "--locked",
+         "--config", "net.offline=false",
          "--allow-dirty", "--target-dir", workspace / "target"], cwd=workspace)
     inventory = inspect_archives(workspace, packages, args.version, args.output)
     if source_digest(workspace) != expected_source or docs.output_digest() != expected_docs:
@@ -441,7 +448,7 @@ def preflight(args):
     docs = docs_module(args.workspace)
     docs.preflight_publication(argparse.Namespace(
         workspace=args.workspace, bucket=args.docs_bucket, distribution_id=args.docs_distribution_id,
-        site_url=args.docs_site_url, no_latest=args.docs_no_latest))
+        site_url=args.docs_site_url, no_latest=args.docs_no_latest, public_read=args.docs_public_read))
     # Never print credentials. Presence is a local configuration check, not a
     # claim that crates.io will authorize every crate or a new crate name.
     credentials = Path(os.environ.get("CARGO_HOME", str(Path.home() / ".cargo"))) / "credentials.toml"
@@ -523,6 +530,8 @@ def parse_args(argv=None):
     parser.add_argument("--docs-bucket", default=os.environ.get("PAX_DOCS_S3_BUCKET", "docs.pax.dev"))
     parser.add_argument("--docs-distribution-id", default=os.environ.get("PAX_DOCS_CLOUDFRONT_DISTRIBUTION_ID"))
     parser.add_argument("--docs-site-url", default="https://docs.pax.dev")
+    parser.add_argument("--docs-public-read", action="store_true",
+                        help="Set public-read ACLs on uploaded docs files (auto-preserved for an existing ACL-based S3 website)")
     parser.add_argument("--approved-commit", help="Exact full commit approved by Zack; required for publish")
     parser.add_argument("--publish-interval", type=int, default=60, help="Seconds between uploads (default: 60)")
     args = parser.parse_args(argv)

@@ -25,6 +25,7 @@ class PreflightTests(unittest.TestCase):
                        'Origins': {'Items': [{'Id': 'docs', 'DomainName': 'docs.pax.dev.s3.amazonaws.com'}]},
                        'DefaultCacheBehavior': {'TargetOriginId': 'docs', 'CachePolicyId': 'CACHE'}}
         self.ttl = 0
+        self.acl = {'Grants': []}
         self.commands = []
         self.enterContext(patch.object(publisher, 'run', self.run_command))
 
@@ -36,14 +37,43 @@ class PreflightTests(unittest.TestCase):
             return json.dumps({'CachePolicy': {'CachePolicyConfig': {'MinTTL': self.ttl}}})
         if command[1:3] == ['s3api', 'list-objects-v2']:
             return '{}'
+        if command[1:3] == ['s3api', 'get-object-acl']:
+            return json.dumps(self.acl)
         return ''
 
     def test_accepts_matching_origin_and_only_reads_aws(self):
-        publisher.preflight_publication(self.args)
+        self.assertFalse(publisher.preflight_publication(self.args))
         self.assertEqual([c[1:3] for c in self.commands], [
             ['sts', 'get-caller-identity'], ['s3api', 'head-bucket'],
             ['cloudfront', 'get-distribution'], ['cloudfront', 'get-cache-policy'],
             ['s3api', 'list-objects-v2']])
+
+    def test_website_preserves_public_read_without_changing_bucket_permissions(self):
+        self.config['Origins']['Items'][0]['DomainName'] = 'docs.pax.dev.s3-website-us-west-2.amazonaws.com'
+        self.acl = {'Grants': [{'Permission': 'READ', 'Grantee': {
+            'URI': 'http://acs.amazonaws.com/groups/global/AllUsers'}}]}
+        self.assertTrue(publisher.preflight_publication(self.args))
+        self.assertIn(['aws', 's3api', 'get-object-acl', '--bucket', 'docs.pax.dev',
+                       '--key', 'index.html', '--output', 'json'], self.commands)
+        self.assertFalse(any('put-' in str(command) for command in self.commands))
+
+    def test_private_or_policy_based_origins_do_not_implicitly_grant_public_acls(self):
+        self.config['Origins']['Items'][0]['DomainName'] = 'docs.pax.dev.s3-website-us-west-2.amazonaws.com'
+        self.assertFalse(publisher.preflight_publication(self.args))
+        self.acl = {'Grants': [{'Permission': 'READ_ACP', 'Grantee': {
+            'URI': 'http://acs.amazonaws.com/groups/global/AllUsers'}}]}
+        self.assertFalse(publisher.preflight_publication(self.args))
+        self.acl['Grants'][0]['Permission'] = 'READ'
+        self.config['Origins']['Items'][0]['DomainName'] = 'docs.pax.dev.s3.amazonaws.com'
+        self.commands.clear()
+        self.assertFalse(publisher.preflight_publication(self.args))
+        self.assertFalse(any(c[1:3] == ['s3api', 'get-object-acl'] for c in self.commands))
+
+    def test_explicit_public_read_does_not_require_an_existing_homepage(self):
+        self.config['Origins']['Items'][0]['DomainName'] = 'docs.pax.dev.s3-website-us-west-2.amazonaws.com'
+        self.args.public_read = True
+        self.assertTrue(publisher.preflight_publication(self.args))
+        self.assertFalse(any(c[1:3] == ['s3api', 'get-object-acl'] for c in self.commands))
 
     def test_catalog_cannot_drop_history_or_move_latest_with_no_latest(self):
         remote = {'latest': '0.38.3', 'versions': [{'version': '0.38.3', 'path': '/0.38.3/'}]}
@@ -105,6 +135,8 @@ class LiveVerificationTests(unittest.TestCase):
 
     def fetch(self, request, timeout):
         relative = urllib.parse.unquote(request.full_url.removeprefix(self.args.site_url + '/').removeprefix('0.39.0/'))
+        if not relative or relative.endswith('/'):
+            relative += 'index.html'
         if relative == self.missing:
             raise urllib.error.HTTPError(request.full_url, 404, 'missing asset', {}, None)
         response = io.BytesIO(b'stale' if relative == self.stale else self.files[relative].encode())
@@ -120,6 +152,7 @@ class LiveVerificationTests(unittest.TestCase):
     def test_checks_entire_tree_at_both_roots_and_accepts_javascript_mime_variants(self):
         expected = {self.args.site_url + '/' + prefix + urllib.parse.quote(path, safe='/')
                     for prefix in ('', '0.39.0/') for path in self.files}
+        expected.update([self.args.site_url + '/', self.args.site_url + '/0.39.0/'])
         for mime in ('text/javascript', 'application/javascript'):
             self.javascript_mime = mime
             self.assertEqual(set(publisher.verify_live_output(self.args)), expected)
@@ -127,8 +160,20 @@ class LiveVerificationTests(unittest.TestCase):
     def test_no_latest_checks_version_tree_and_root_catalog_only(self):
         self.args.no_latest = True
         urls = publisher.verify_live_output(self.args)
-        self.assertEqual(len(urls), len(self.files) + 1)
+        self.assertEqual(len(urls), len(self.files) + 2)
         self.assertEqual([url for url in urls if '/0.39.0/' not in url], [self.args.site_url + '/versions.json'])
+
+    def test_external_directory_entry_points_are_verified(self):
+        for name in ('getting-started', 'template-language', 'targets-build-deploy'):
+            relative = f'{name}/index.html'
+            self.files[relative] = 'redirect page'
+            target = publisher.BOOK_OUTPUT / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(self.files[relative])
+        urls = publisher.verify_live_output(self.args)
+        for prefix in ('', '0.39.0/'):
+            for name in ('getting-started', 'template-language', 'targets-build-deploy'):
+                self.assertIn(self.args.site_url + '/' + prefix + name + '/', urls)
 
     def test_missing_stale_or_wrong_type_assets_fail(self):
         for path in ('_pax_examples/demo/app/pax-cartridge.js', '_pax_examples/demo/app/snippets/inline0.js',
@@ -136,7 +181,7 @@ class LiveVerificationTests(unittest.TestCase):
                      '_pax_examples/demo/app/demo.wasm', 'getting-started.html'):
             with self.subTest(path=path):
                 self.missing = path
-                with self.assertRaises(urllib.error.HTTPError):
+                with self.assertRaisesRegex(SystemExit, 'Unable to fetch live docs https://docs.pax.dev/'):
                     publisher.verify_live_output(self.args)
                 self.missing = None
                 self.stale = path

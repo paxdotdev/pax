@@ -15,6 +15,7 @@ import json
 import os
 import re
 import subprocess
+import urllib.error
 import urllib.parse
 import urllib.request
 from html.parser import HTMLParser
@@ -90,7 +91,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--verify-live", action="store_true",
-        help="Require AWS configuration preflight, completed CDN invalidation, and live content verification",
+        help="Compatibility flag: all uploads require AWS preflight, completed CDN invalidation, and live verification",
+    )
+    parser.add_argument(
+        "--public-read", action="store_true",
+        help="Set public-read ACLs only on uploaded files; publication also preserves an existing S3 website's public-read ACL model",
     )
     parser.add_argument(
         "--workspace",
@@ -106,7 +111,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--distribution-id",
         default=DEFAULT_DISTRIBUTION_ID,
-        help="CloudFront distribution to invalidate (default: PAX_DOCS_CLOUDFRONT_DISTRIBUTION_ID)",
+        help="CloudFront distribution to invalidate; required for uploads (default: PAX_DOCS_CLOUDFRONT_DISTRIBUTION_ID)",
     )
     parser.add_argument(
         "--skip-examples",
@@ -128,7 +133,10 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Publish only /<version>/ and versions.json, leaving the root latest docs untouched",
     )
-    return parser.parse_args()
+    args = parser.parse_args()
+    if not args.no_upload and not args.distribution_id:
+        parser.error("publication requires --distribution-id or PAX_DOCS_CLOUDFRONT_DISTRIBUTION_ID; use --no-upload for a local build")
+    return args
 
 
 def update_versions_manifest(version: str, *, promote: bool = True) -> None:
@@ -305,14 +313,16 @@ def validate_build_record(version: str) -> None:
 
 def publish_docs(args: argparse.Namespace) -> None:
     validate_build_record(args.version)
-    if getattr(args, "verify_live", False):
-        preflight_publication(args)
+    # Standalone ghost patches must preserve the same access and verification
+    # contract as integrated releases; omitting a flag cannot privatize the site.
+    public_read = preflight_publication(args)
+    acl_options = ["--acl", "public-read"] if public_read else []
 
     version_prefix = f"s3://{args.bucket}/{args.version}/"
     root_prefix = f"s3://{args.bucket}/"
     # Copy every file so unchanged objects also receive the new cache policy.
     # A sync alone skips those objects and can retain a previous immutable header.
-    copy_tree(version_prefix, args.workspace)
+    copy_tree(version_prefix, args.workspace, public_read=public_read)
     run(
         [
             "aws",
@@ -324,6 +334,7 @@ def publish_docs(args: argparse.Namespace) -> None:
             "--cache-control",
             "no-cache",
             "--no-follow-symlinks",
+            *acl_options,
         ],
         cwd=args.workspace,
     )
@@ -331,7 +342,7 @@ def publish_docs(args: argparse.Namespace) -> None:
     if not args.no_latest:
         # Never delete at the bucket root: it also contains historical versions.
         # The root catalog is promoted only after both content uploads succeed.
-        copy_tree(root_prefix, args.workspace, exclude_catalog=True)
+        copy_tree(root_prefix, args.workspace, exclude_catalog=True, public_read=public_read)
 
     run(
         [
@@ -342,44 +353,44 @@ def publish_docs(args: argparse.Namespace) -> None:
             f"s3://{args.bucket}/versions.json",
             "--cache-control",
             "no-cache",
+            *acl_options,
         ],
         cwd=args.workspace,
     )
 
-    if args.distribution_id:
-        paths = [f"/{args.version}/*", "/versions.json"] if args.no_latest else ["/*"]
-        result = run(
-            [
-                "aws",
-                "cloudfront",
-                "create-invalidation",
-                "--distribution-id",
-                args.distribution_id,
-                "--paths",
-                *paths,
-                "--output", "json",
-            ],
-            cwd=args.workspace,
-            capture=True,
-        )
-        invalidation_id = json.loads(result)["Invalidation"]["Id"]
-        receipt = {
-            "version": args.version, "content_sha256": output_digest(),
-            "bucket": args.bucket, "distribution_id": args.distribution_id,
-            "invalidation_id": invalidation_id, "no_latest": args.no_latest,
-            "status": "invalidation pending",
-        }
-        receipt_path = args.workspace / "target/docs-publication" / f"{args.version}.json"
-        write_receipt(receipt_path, receipt)
-        run(["aws", "cloudfront", "wait", "invalidation-completed",
-             "--distribution-id", args.distribution_id, "--id", invalidation_id], cwd=args.workspace)
-        receipt["status"] = "invalidation completed"
-        write_receipt(receipt_path, receipt)
-        if getattr(args, "verify_live", False):
-            receipt["verified_urls"] = verify_live_output(args)
-            receipt["status"] = "live content verified"
-            receipt["verified_at"] = dt.datetime.now(dt.timezone.utc).isoformat()
-            write_receipt(receipt_path, receipt)
+    paths = [f"/{args.version}/*", "/versions.json"] if args.no_latest else ["/*"]
+    result = run(
+        [
+            "aws",
+            "cloudfront",
+            "create-invalidation",
+            "--distribution-id",
+            args.distribution_id,
+            "--paths",
+            *paths,
+            "--output", "json",
+        ],
+        cwd=args.workspace,
+        capture=True,
+    )
+    invalidation_id = json.loads(result)["Invalidation"]["Id"]
+    receipt = {
+        "version": args.version, "content_sha256": output_digest(),
+        "bucket": args.bucket, "distribution_id": args.distribution_id,
+        "invalidation_id": invalidation_id, "no_latest": args.no_latest,
+        "object_acl": "public-read" if public_read else "default",
+        "status": "invalidation pending",
+    }
+    receipt_path = args.workspace / "target/docs-publication" / f"{args.version}.json"
+    write_receipt(receipt_path, receipt)
+    run(["aws", "cloudfront", "wait", "invalidation-completed",
+         "--distribution-id", args.distribution_id, "--id", invalidation_id], cwd=args.workspace)
+    receipt["status"] = "invalidation completed"
+    write_receipt(receipt_path, receipt)
+    receipt["verified_urls"] = verify_live_output(args)
+    receipt["status"] = "live content verified"
+    receipt["verified_at"] = dt.datetime.now(dt.timezone.utc).isoformat()
+    write_receipt(receipt_path, receipt)
 
 
 def write_receipt(path: Path, receipt: dict) -> None:
@@ -389,10 +400,10 @@ def write_receipt(path: Path, receipt: dict) -> None:
     temporary.replace(path)
 
 
-def preflight_publication(args: argparse.Namespace) -> None:
+def preflight_publication(args: argparse.Namespace) -> bool:
     """Read-only origin, identity, routing, and cache-policy checks."""
     if not args.distribution_id:
-        raise SystemExit("A CloudFront distribution ID is required for verified publication.")
+        raise SystemExit("A CloudFront distribution ID is required for publication.")
     site = urllib.parse.urlparse(args.site_url)
     if site.scheme != "https" or not site.hostname or site.path not in ("", "/"):
         raise SystemExit("--site-url must be an HTTPS origin without a path.")
@@ -408,11 +419,13 @@ def preflight_publication(args: argparse.Namespace) -> None:
         raise SystemExit("Docs hostname is not an alias of the selected CloudFront distribution.")
     origins = {origin["Id"]: origin for origin in config["Origins"]["Items"]}
     policies = {}
+    website_origin = False
     for behavior in [config["DefaultCacheBehavior"], *config.get("CacheBehaviors", {}).get("Items", [])]:
         origin = origins.get(behavior["TargetOriginId"], {})
         domain = origin.get("DomainName", "")
         if not (domain == args.bucket or domain.startswith(args.bucket + ".s3")) or origin.get("OriginPath", ""):
             raise SystemExit("Docs cache behavior does not route to the selected bucket root.")
+        website_origin |= domain.startswith(args.bucket + ".s3-website")
         policy_id = behavior.get("CachePolicyId")
         if policy_id and policy_id not in policies:
             raw = run(["aws", "cloudfront", "get-cache-policy", "--id", policy_id,
@@ -421,6 +434,20 @@ def preflight_publication(args: argparse.Namespace) -> None:
         policy = policies[policy_id] if policy_id else behavior
         if policy.get("MinTTL", 0) != 0:
             raise SystemExit("CloudFront minimum TTL overrides no-cache; set it to zero before publication.")
+    public_read = getattr(args, "public_read", False)
+    if website_origin and not public_read:
+        # Uploads replace object ACLs. Preserve this site's established public
+        # read model only for the files being published, never by widening its
+        # bucket policy. REST/OAC origins keep their default private ACLs.
+        raw = run(["aws", "s3api", "get-object-acl", "--bucket", args.bucket,
+                   "--key", "index.html", "--output", "json"], cwd=args.workspace, capture=True)
+        public_read = any(
+            grant.get("Permission") in ("READ", "FULL_CONTROL") and
+            grant.get("Grantee", {}).get("URI") == "http://acs.amazonaws.com/groups/global/AllUsers"
+            for grant in json.loads(raw).get("Grants", [])
+        )
+    if public_read:
+        print("Publication will apply public-read ACLs only to its uploaded documentation files.")
     listing = json.loads(run(["aws", "s3api", "list-objects-v2", "--bucket", args.bucket,
                               "--prefix", "versions.json", "--output", "json"],
                              cwd=args.workspace, capture=True))
@@ -429,6 +456,7 @@ def preflight_publication(args: argparse.Namespace) -> None:
                                 cwd=args.workspace, capture=True))
         validate_catalog_history(read_manifest(), remote, no_latest=getattr(args, "no_latest", False))
     print("Read-only docs publication preflight passed.")
+    return public_read
 
 
 def validate_catalog_history(local: dict, remote: dict, *, no_latest: bool) -> None:
@@ -456,12 +484,23 @@ def verify_live_output(args: argparse.Namespace) -> list[str]:
         raise SystemExit(f"Missing live verification inputs: {sorted(missing)}")
     prefixes = [args.version + "/"] if args.no_latest else [args.version + "/", ""]
     requests = {(prefix + path, path) for prefix in prefixes for path in paths}
+    requests.update((prefix, "index.html") for prefix in prefixes)
+    # Directory aliases are external entry points even when no sidebar links
+    # point at them. Verify S3's index-document routing as well as file bytes.
+    for name in ("getting-started", "template-language", "targets-build-deploy"):
+        local = f"{name}/index.html"
+        if local in paths:
+            requests.update((prefix + name + "/", local) for prefix in prefixes)
     requests.add(("versions.json", "versions.json"))
     verified = []
     for remote, local in sorted(requests):
         url = args.site_url.rstrip("/") + "/" + urllib.parse.quote(remote, safe="/")
         request = urllib.request.Request(url, headers={"Cache-Control": "no-cache"})
-        with urllib.request.urlopen(request, timeout=60) as response:
+        try:
+            response = urllib.request.urlopen(request, timeout=60)
+        except urllib.error.URLError as error:
+            raise SystemExit(f"Unable to fetch live docs {url}: {error}") from error
+        with response:
             if urllib.parse.urlparse(response.geturl()).scheme != "https":
                 raise SystemExit(f"Docs redirected away from HTTPS: {url}")
             if "no-cache" not in response.headers.get("Cache-Control", ""):
@@ -474,17 +513,22 @@ def verify_live_output(args: argparse.Namespace) -> list[str]:
         if actual != expected:
             raise SystemExit(f"Live docs differ from the approved build: {url}")
         verified.append(url)
+        if len(verified) % 50 == 0:
+            print(f"Verified {len(verified)}/{len(requests)} live documentation URLs...", flush=True)
     print(f"Verified {len(verified)} live documentation/example URLs.")
     return verified
 
 
-def copy_tree(destination: str, workspace: Path, *, exclude_catalog: bool = False) -> None:
+def copy_tree(destination: str, workspace: Path, *, exclude_catalog: bool = False,
+              public_read: bool = False) -> None:
     command = [
         "aws", "s3", "cp", str(BOOK_OUTPUT), destination, "--recursive",
         "--no-follow-symlinks", "--cache-control", "no-cache",
     ]
     if exclude_catalog:
         command.extend(["--exclude", "versions.json"])
+    if public_read:
+        command.extend(["--acl", "public-read"])
     run(command, cwd=workspace)
 
 
