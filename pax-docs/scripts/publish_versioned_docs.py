@@ -15,6 +15,8 @@ import json
 import os
 import re
 import subprocess
+import urllib.parse
+import urllib.request
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -25,6 +27,14 @@ VERSIONS_MANIFEST = BOOK_DIR / "src" / "versions.json"
 DEFAULT_BUCKET = os.environ.get("PAX_DOCS_S3_BUCKET", "docs.pax.dev")
 DEFAULT_DISTRIBUTION_ID = os.environ.get("PAX_DOCS_CLOUDFRONT_DISTRIBUTION_ID")
 BUILD_RECORD = "_pax_docs_build.json"
+CONTENT_TYPES = {
+    ".html": {"text/html"},
+    ".js": {"text/javascript", "application/javascript"},
+    ".mjs": {"text/javascript", "application/javascript"},
+    ".css": {"text/css"},
+    ".json": {"application/json"},
+    ".wasm": {"application/wasm"},
+}
 SEMVER = re.compile(
     r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
     r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
@@ -74,6 +84,14 @@ def main() -> int:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build and publish versioned Pax docs")
     parser.add_argument("version", type=release_version, help="Release SemVer, e.g. 0.39.0 (no v prefix)")
+    parser.add_argument(
+        "--site-url", default="https://docs.pax.dev",
+        help="HTTPS origin to verify after publication",
+    )
+    parser.add_argument(
+        "--verify-live", action="store_true",
+        help="Require AWS configuration preflight, completed CDN invalidation, and live content verification",
+    )
     parser.add_argument(
         "--workspace",
         type=Path,
@@ -287,6 +305,8 @@ def validate_build_record(version: str) -> None:
 
 def publish_docs(args: argparse.Namespace) -> None:
     validate_build_record(args.version)
+    if getattr(args, "verify_live", False):
+        preflight_publication(args)
 
     version_prefix = f"s3://{args.bucket}/{args.version}/"
     root_prefix = f"s3://{args.bucket}/"
@@ -328,7 +348,7 @@ def publish_docs(args: argparse.Namespace) -> None:
 
     if args.distribution_id:
         paths = [f"/{args.version}/*", "/versions.json"] if args.no_latest else ["/*"]
-        run(
+        result = run(
             [
                 "aws",
                 "cloudfront",
@@ -337,9 +357,125 @@ def publish_docs(args: argparse.Namespace) -> None:
                 args.distribution_id,
                 "--paths",
                 *paths,
+                "--output", "json",
             ],
             cwd=args.workspace,
+            capture=True,
         )
+        invalidation_id = json.loads(result)["Invalidation"]["Id"]
+        receipt = {
+            "version": args.version, "content_sha256": output_digest(),
+            "bucket": args.bucket, "distribution_id": args.distribution_id,
+            "invalidation_id": invalidation_id, "no_latest": args.no_latest,
+            "status": "invalidation pending",
+        }
+        receipt_path = args.workspace / "target/docs-publication" / f"{args.version}.json"
+        write_receipt(receipt_path, receipt)
+        run(["aws", "cloudfront", "wait", "invalidation-completed",
+             "--distribution-id", args.distribution_id, "--id", invalidation_id], cwd=args.workspace)
+        receipt["status"] = "invalidation completed"
+        write_receipt(receipt_path, receipt)
+        if getattr(args, "verify_live", False):
+            receipt["verified_urls"] = verify_live_output(args)
+            receipt["status"] = "live content verified"
+            receipt["verified_at"] = dt.datetime.now(dt.timezone.utc).isoformat()
+            write_receipt(receipt_path, receipt)
+
+
+def write_receipt(path: Path, receipt: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(".tmp")
+    temporary.write_text(json.dumps(receipt, indent=2) + "\n")
+    temporary.replace(path)
+
+
+def preflight_publication(args: argparse.Namespace) -> None:
+    """Read-only origin, identity, routing, and cache-policy checks."""
+    if not args.distribution_id:
+        raise SystemExit("A CloudFront distribution ID is required for verified publication.")
+    site = urllib.parse.urlparse(args.site_url)
+    if site.scheme != "https" or not site.hostname or site.path not in ("", "/"):
+        raise SystemExit("--site-url must be an HTTPS origin without a path.")
+    run(["aws", "sts", "get-caller-identity", "--query", "Arn", "--output", "text"], cwd=args.workspace)
+    run(["aws", "s3api", "head-bucket", "--bucket", args.bucket], cwd=args.workspace)
+    result = run(["aws", "cloudfront", "get-distribution", "--id", args.distribution_id,
+                  "--output", "json"], cwd=args.workspace, capture=True)
+    distribution = json.loads(result)["Distribution"]
+    config = distribution["DistributionConfig"]
+    if not config["Enabled"] or distribution["Status"] != "Deployed":
+        raise SystemExit("Docs CloudFront distribution is disabled or still deploying.")
+    if site.hostname not in config.get("Aliases", {}).get("Items", []):
+        raise SystemExit("Docs hostname is not an alias of the selected CloudFront distribution.")
+    origins = {origin["Id"]: origin for origin in config["Origins"]["Items"]}
+    policies = {}
+    for behavior in [config["DefaultCacheBehavior"], *config.get("CacheBehaviors", {}).get("Items", [])]:
+        origin = origins.get(behavior["TargetOriginId"], {})
+        domain = origin.get("DomainName", "")
+        if not (domain == args.bucket or domain.startswith(args.bucket + ".s3")) or origin.get("OriginPath", ""):
+            raise SystemExit("Docs cache behavior does not route to the selected bucket root.")
+        policy_id = behavior.get("CachePolicyId")
+        if policy_id and policy_id not in policies:
+            raw = run(["aws", "cloudfront", "get-cache-policy", "--id", policy_id,
+                       "--output", "json"], cwd=args.workspace, capture=True)
+            policies[policy_id] = json.loads(raw)["CachePolicy"]["CachePolicyConfig"]
+        policy = policies[policy_id] if policy_id else behavior
+        if policy.get("MinTTL", 0) != 0:
+            raise SystemExit("CloudFront minimum TTL overrides no-cache; set it to zero before publication.")
+    listing = json.loads(run(["aws", "s3api", "list-objects-v2", "--bucket", args.bucket,
+                              "--prefix", "versions.json", "--output", "json"],
+                             cwd=args.workspace, capture=True))
+    if any(item["Key"] == "versions.json" for item in listing.get("Contents", [])):
+        remote = json.loads(run(["aws", "s3", "cp", f"s3://{args.bucket}/versions.json", "-"],
+                                cwd=args.workspace, capture=True))
+        validate_catalog_history(read_manifest(), remote, no_latest=getattr(args, "no_latest", False))
+    print("Read-only docs publication preflight passed.")
+
+
+def validate_catalog_history(local: dict, remote: dict, *, no_latest: bool) -> None:
+    entries = {entry["version"]: entry for entry in normalize_version_entries(local.get("versions", []))}
+    for historical in normalize_version_entries(remote.get("versions", [])):
+        version = historical["version"]
+        if version not in entries or entries[version].get("path") != historical.get("path"):
+            raise SystemExit(f"Local docs catalog omits or relocates deployed {version}; reconcile source before publication.")
+    if no_latest and local.get("latest") != remote.get("latest"):
+        raise SystemExit("--no-latest requires preserving the deployed latest catalog pointer.")
+
+
+def verify_live_output(args: argparse.Namespace) -> list[str]:
+    """Verify every prepared file, including dynamically loaded app/search assets."""
+    # Following HTML references alone misses JS imports, CSS fonts, and assets
+    # constructed at runtime. The complete prepared tree is the publication set.
+    paths = set()
+    for path in BOOK_OUTPUT.rglob("*"):
+        if path.is_symlink():
+            raise SystemExit(f"Docs output must not contain symlinks: {path}")
+        if path.is_file():
+            paths.add(path.relative_to(BOOK_OUTPUT).as_posix())
+    required = {"index.html", "getting-started.html", "theme/pax-version.js", "versions.json", BUILD_RECORD}
+    if missing := required - paths:
+        raise SystemExit(f"Missing live verification inputs: {sorted(missing)}")
+    prefixes = [args.version + "/"] if args.no_latest else [args.version + "/", ""]
+    requests = {(prefix + path, path) for prefix in prefixes for path in paths}
+    requests.add(("versions.json", "versions.json"))
+    verified = []
+    for remote, local in sorted(requests):
+        url = args.site_url.rstrip("/") + "/" + urllib.parse.quote(remote, safe="/")
+        request = urllib.request.Request(url, headers={"Cache-Control": "no-cache"})
+        with urllib.request.urlopen(request, timeout=60) as response:
+            if urllib.parse.urlparse(response.geturl()).scheme != "https":
+                raise SystemExit(f"Docs redirected away from HTTPS: {url}")
+            if "no-cache" not in response.headers.get("Cache-Control", ""):
+                raise SystemExit(f"Live docs do not revalidate: {url}")
+            allowed_types = CONTENT_TYPES.get(Path(local).suffix.lower())
+            if allowed_types and response.headers.get_content_type() not in allowed_types:
+                raise SystemExit(f"Incorrect MIME type for {url}: {response.headers.get_content_type()}; expected {sorted(allowed_types)}")
+            actual = hashlib.sha256(response.read()).hexdigest()
+        expected = hashlib.sha256((BOOK_OUTPUT / local).read_bytes()).hexdigest()
+        if actual != expected:
+            raise SystemExit(f"Live docs differ from the approved build: {url}")
+        verified.append(url)
+    print(f"Verified {len(verified)} live documentation/example URLs.")
+    return verified
 
 
 def copy_tree(destination: str, workspace: Path, *, exclude_catalog: bool = False) -> None:
@@ -352,9 +488,10 @@ def copy_tree(destination: str, workspace: Path, *, exclude_catalog: bool = Fals
     run(command, cwd=workspace)
 
 
-def run(command: list[str], cwd: Path) -> None:
+def run(command: list[str], cwd: Path, *, capture: bool = False) -> str | None:
     print("+", " ".join(command))
-    subprocess.run(command, cwd=cwd, check=True)
+    return subprocess.run(command, cwd=cwd, check=True, text=True,
+                          stdout=subprocess.PIPE if capture else None).stdout
 
 
 if __name__ == "__main__":

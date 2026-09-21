@@ -1,6 +1,6 @@
 [package]
 name = "pax-gpu"
-version = "0.38.3"
+version = "0.39.0"
 edition = "2021"
 authors = ["Samuel Selleck <sellecksamuel@gmail.com>"]
 license = "MIT OR Apache-2.0"
@@ -9,7 +9,7 @@ repository = "https://www.github.com/paxproject/pax"
 description = "WGPU rendering library for the pax framework"
 
 [dependencies]
-pax-runtime-api = {path = "../pax-runtime-api", version="0.38.3"}
+pax-runtime-api = {path = "../pax-runtime-api", version="0.39.0"}
 log = "0.4.20"
 bytemuck = { version = "1.14", features = ["derive"] }
 anyhow = "1.0"

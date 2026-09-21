@@ -1,13 +1,13 @@
 [package]
 name = "paxel-regressions"
-version = "0.38.3"
+version = "0.39.0"
 edition = "2021"
 
 [package.metadata.pax]
 title = "PAXEL regressions"
 
 [dependencies]
-pax-kit = { version = "0.38.3", path = "../../../pax-kit" }
+pax-kit = { version = "0.39.0", path = "../../../pax-kit" }
 
 [lib]
 crate-type = ["cdylib", "rlib"]

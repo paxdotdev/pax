@@ -1,6 +1,6 @@
 [package]
 name = "pax-runtime"
-version = "0.38.3"
+version = "0.39.0"
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -15,14 +15,14 @@ kurbo = "0.11.1"
 lazy_static = "1.4.0"
 log = "0.4.20"
 mut_static = "5.0.0"
-pax-message = {path = "../pax-message", version="0.38.3"}
-pax-manifest = {version="0.38.3", path = "../pax-manifest"}
-pax-language = {version="0.38.3", path = "../pax-language", default-features = false}
-pax-designtime = {version="0.38.3", path = "../pax-designtime", optional = true}
-pax-runtime-api = {version="0.38.3", path = "../pax-runtime-api"}
+pax-message = {path = "../pax-message", version="0.39.0"}
+pax-manifest = {version="0.39.0", path = "../pax-manifest"}
+pax-language = {version="0.39.0", path = "../pax-language", default-features = false}
+pax-designtime = {version="0.39.0", path = "../pax-designtime", optional = true}
+pax-runtime-api = {version="0.39.0", path = "../pax-runtime-api"}
 piet = "0.7.0"
 piet-common = "0.7.0"
-pax-gpu = {path = "../pax-gpu", version = "0.38.3"}
+pax-gpu = {path = "../pax-gpu", version = "0.39.0"}
 serde = {version="1.0.196", features=["derive"]}
 serde_json = { version = "1.0.114", optional = true }
 wasm-bindgen = "0.2.93"
@@ -33,4 +33,4 @@ pollster = "0.4.0"
 designtime = ["dep:pax-designtime", "dep:serde_json", "pax-language/parser", "pax-manifest/designtime"]
 
 [dev-dependencies]
-pax-language = {version="0.38.3", path = "../pax-language", default-features = false, features = ["parser"]}
+pax-language = {version="0.39.0", path = "../pax-language", default-features = false, features = ["parser"]}

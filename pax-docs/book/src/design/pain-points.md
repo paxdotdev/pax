@@ -1812,3 +1812,34 @@ the virtual route in `pax_route`, including query/fragment and browser history.
 Set the base before bootstrap scripts execute, and test both iframe and Open
 standalone reloads. Do not solve this with generated-bundle substitutions or an
 unconditional mount-time redirect that discards legitimate app locations.
+
+## 2026-09-18 — Release graph and candidate packaging
+
+A hand-maintained release list omitted `pax-docs` even though `pax-cli` depends
+on it. Derive release membership from Cargo metadata and make the root harness
+explicitly unpublishable. Rewrite all dependency forms, including dependencies
+between local examples, before snapshotting either bundled source artifact.
+A matching package version is not a reason to skip stale dependency versions.
+
+The web chassis's test-only `pax-std` dependency creates a publication cycle
+through `pax-engine`. Keep it path-only, without a registry version: Cargo omits
+that development dependency from the published manifest while local workspace
+tests retain it. Verify the entire coordinated archive set with Cargo workspace
+packaging; an in-workspace build or `cargo package --list` alone cannot establish
+that normalized registry manifests resolve or that all required files ship.
+
+## 2026-09-21 — Publication checks must include generated inputs and app assets
+
+Git's source inventory omitted the ignored web-interface fingerprint even though
+Cargo's explicit include rules packaged it. `cargo publish` reassembles archives;
+a checksum check after upload detects differences too late. Use Cargo's package
+file inventory to bind all inputs, retain candidate archives outside Cargo's
+output, enforce the prepared Cargo version, and compare freshly assembled
+archives before publication. Keep the checkout and toolchain untouched while
+publishing; boundary checks are not a lock against concurrent edits.
+
+Checking an embedded app's entry HTML and Wasm misses its JavaScript bootstrap,
+dynamic imports, styles, and assets. The publisher now compares the complete
+prepared docs tree at both public URL layouts, including search assets, with
+cache and essential MIME checks. Keep the live browser pass for interaction,
+rendering, and navigation behavior that byte comparisons cannot establish.

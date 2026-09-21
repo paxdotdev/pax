@@ -1,13 +1,13 @@
 [package]
 name = "playground"
-version = "0.22.0"
+version = "0.39.0"
 edition = "2021"
 default-run = "run"
 
 [dependencies]
-pax-engine = { version = "0.23.0", path="../../../pax-engine" }
-pax-std = { version = "0.23.0", path="../../../pax-std"}
-pax-designtime = {version = "0.23.0", path="../../../pax-designtime"}
+pax-engine = { version = "0.39.0", path="../../../pax-engine" }
+pax-std = { version = "0.39.0", path="../../../pax-std"}
+pax-designtime = {version = "0.39.0", path="../../../pax-designtime"}
 
 [lib]
 crate-type = ["cdylib", "rlib"]

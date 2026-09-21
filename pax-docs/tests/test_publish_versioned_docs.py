@@ -1,7 +1,6 @@
 """Publication regressions. All external commands are intercepted; no AWS access."""
 
 import argparse
-import ast
 import importlib.util
 import json
 from pathlib import Path
@@ -51,13 +50,13 @@ class PublicationTests(unittest.TestCase):
             path.write_text(text)
         (self.output / "versions.json").write_bytes(self.source_manifest.read_bytes())
 
-    def run_command(self, command, cwd):
+    def run_command(self, command, cwd, *, capture=False):
         """Emulate object copies/deletes, capturing bytes at upload time."""
         self.commands.append(command)
         if command[0] != "aws":
             return
         if command[1] == "cloudfront":
-            return
+            return json.dumps({"Invalidation": {"Id": "TEST-INVALIDATION"}})
         destination = command[4]
         if destination == self.fail_destination:
             raise subprocess.CalledProcessError(1, command)
@@ -146,8 +145,10 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(uploaded["versions"][0]["version"], "0.39.0")
         self.assertEqual(self.objects["0.39.0/index.html"][0], b"new docs")
         self.assertNotIn("index.html", self.objects)
-        self.assertEqual(self.commands[-1][-3:],
-                         ["--paths", "/0.39.0/*", "/versions.json"])
+        invalidation = next(c for c in self.commands if c[1:3] == ["cloudfront", "create-invalidation"])
+        self.assertEqual(invalidation[invalidation.index("--paths") + 1:-2],
+                         ["/0.39.0/*", "/versions.json"])
+        self.assertEqual(self.commands[-1][1:4], ["cloudfront", "wait", "invalidation-completed"])
 
     def test_promotion_and_ghost_patch_refresh_headers_preserve_other_versions(self):
         self.objects["0.39.0/index.html"] = (b"new docs", "immutable")
@@ -160,7 +161,8 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(self.objects["0.38.3/old.html"], (b"historical", "immutable"))
         self.assertNotIn("0.39.0/removed.html", self.objects)
         self.assertEqual(json.loads(self.objects["versions.json"][0])["latest"], "0.39.0")
-        self.assertEqual(self.commands[-1][-2:], ["--paths", "/*"])
+        invalidation = next(c for c in self.commands if c[1:3] == ["cloudfront", "create-invalidation"])
+        self.assertEqual(invalidation[invalidation.index("--paths") + 1:-2], ["/*"])
         for command in self.commands:
             if command[1:3] == ["s3", "cp"] and "--recursive" in command:
                 self.assertIn("--no-follow-symlinks", command)
@@ -268,27 +270,39 @@ class PublicationTests(unittest.TestCase):
         self.assertFalse(any(command[1] == "cloudfront" for command in self.commands))
 
 
-class ReleaseWrapperTests(unittest.TestCase):
-    def test_no_latest_forwarded_to_both_manifest_preparation_and_publication(self):
-        # release.py has intentional top-level release side effects. Compile only
-        # this function's AST; never import or run the release script in a test.
-        tree = ast.parse((ROOT / "scripts/release.py").read_text())
-        function = next(node for node in tree.body
-                        if isinstance(node, ast.FunctionDef) and node.name == "docs_publish_command")
-        module = ast.Module(body=[function], type_ignores=[])
-        namespace = {"DOCS_PUBLISHER": "publisher.py", "WORKSPACE_DIR": "/workspace",
-                     "args": argparse.Namespace(docs_no_latest=True, skip_docs_examples=True,
-                                                docs_bucket="bucket", docs_distribution_id="cdn")}
-        exec(compile(module, "release-wrapper-under-test", "exec"), namespace)
-        command = namespace["docs_publish_command"]
-        prepared = command("0.39.0", manifest_only=True)
-        self.assertIn("--no-latest", prepared)
-        self.assertEqual(prepared[-2:], ["--skip-build", "--no-upload"])
-        published = command("0.39.0")
-        for flag in ("--no-latest", "--skip-examples", "--bucket", "--distribution-id"):
-            self.assertIn(flag, published)
-        namespace["args"].docs_no_latest = False
-        self.assertNotIn("--no-latest", command("0.39.0", manifest_only=True))
+    def test_invalidation_failure_keeps_receipt_pending_and_retry_completes(self):
+        self.create_output()
+        publisher.write_build_record("0.39.0")
+        def fail_wait(command, cwd, **kwargs):
+            if command[1:3] == ["cloudfront", "wait"]:
+                raise subprocess.CalledProcessError(1, command)
+            return self.run_command(command, cwd, **kwargs)
+        with patch.object(publisher, "run", fail_wait):
+            with self.assertRaises(subprocess.CalledProcessError):
+                self.main("--skip-build")
+        receipt = self.workspace / "target/docs-publication/0.39.0.json"
+        self.assertEqual(json.loads(receipt.read_text())["status"], "invalidation pending")
+        self.main("--skip-build")
+        self.assertEqual(json.loads(receipt.read_text())["status"], "invalidation completed")
+
+    def test_live_check_failure_is_not_reported_as_success(self):
+        self.create_output()
+        publisher.write_build_record("0.39.0")
+        with patch.object(publisher, "preflight_publication"), patch.object(
+            publisher, "verify_live_output", side_effect=SystemExit("stale live content")
+        ):
+            with self.assertRaisesRegex(SystemExit, "stale live content"):
+                self.main("--skip-build", "--verify-live")
+        receipt = json.loads((self.workspace / "target/docs-publication/0.39.0.json").read_text())
+        self.assertEqual(receipt["status"], "invalidation completed")
+
+    def test_failed_preflight_uploads_nothing(self):
+        self.create_output()
+        publisher.write_build_record("0.39.0")
+        with patch.object(publisher, "preflight_publication", side_effect=SystemExit("bad credentials")):
+            with self.assertRaisesRegex(SystemExit, "bad credentials"):
+                self.main("--skip-build", "--verify-live")
+        self.assertEqual(self.commands, [])
 
 
 if __name__ == "__main__":

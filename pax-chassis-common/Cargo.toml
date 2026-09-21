@@ -1,6 +1,6 @@
 [package]
 name = "pax-chassis-common"
-version = "0.38.3"
+version = "0.39.0"
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 description = "Shared resources for Pax Chassis"
@@ -17,11 +17,11 @@ env_logger = "0.11.1"
 log = "0.4.21"
 piet = "0.7.0"
 piet-coregraphics = "0.7.0"
-pax-runtime = { path = "../pax-runtime", version="0.38.3" }
-pax-message = {path = "../pax-message", version="0.38.3"}
-pax-gpu = { path = "../pax-gpu", version="0.38.3" }
-pax-designtime = { path = "../pax-designtime", version="0.38.3", optional = true }
-pax-manifest = { path = "../pax-manifest", version="0.38.3", optional = true }
+pax-runtime = { path = "../pax-runtime", version="0.39.0" }
+pax-message = {path = "../pax-message", version="0.39.0"}
+pax-gpu = { path = "../pax-gpu", version="0.39.0" }
+pax-designtime = { path = "../pax-designtime", version="0.39.0", optional = true }
+pax-manifest = { path = "../pax-manifest", version="0.39.0", optional = true }
 serde = { version = "1.0.196", features = ["derive"] }
 serde_json = "1.0.95"
 lazy_static = "1.4.0"

@@ -1,380 +1,551 @@
 #!/usr/bin/env python3
+"""Prepare and publish Pax releases. No command stages, commits, tags, or pushes.
 
-# SETUP:
-# `pip3 install tomlkit`
-# `cargo login`
+Requires Python 3.11+, tomlkit, and Cargo 1.93+ (workspace packaging).
+See scripts/RELEASING.md for the approval boundary and recovery procedure.
+"""
+from __future__ import annotations
 
-import os
-import glob
-import subprocess
-import tomlkit
-import time
 import argparse
-from collections import defaultdict
+import hashlib
+import importlib.util
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tarfile
+import tempfile
+import time
+import tomllib
+import urllib.error
+import urllib.request
 
-parser = argparse.ArgumentParser(description='Release Pax crates and release-bound docs')
-parser.add_argument('--turbo', action='store_true', help='Enable turbo mode')
-parser.add_argument(
-    '--skip-docs',
-    action='store_true',
-    help='Skip docs version manifest updates and docs publishing',
-)
-parser.add_argument(
-    '--skip-docs-publish',
-    action='store_true',
-    help='Update the docs version manifest, but skip uploading docs to S3/CloudFront',
-)
-parser.add_argument(
-    '--skip-docs-examples',
-    action='store_true',
-    help='Skip rebuilding runnable example bundles while publishing docs',
-)
-parser.add_argument(
-    '--docs-bucket',
-    help='S3 bucket for docs output (default: publish_versioned_docs.py default)',
-)
-parser.add_argument(
-    '--docs-distribution-id',
-    help='CloudFront distribution id for docs invalidation',
-)
-parser.add_argument(
-    '--docs-no-latest',
-    action='store_true',
-    help='Publish versioned docs only, leaving the mutable latest docs at the bucket root untouched',
-)
-parser.add_argument('new_version', help='The new version string')
-args = parser.parse_args()
+import tomlkit
 
-NEW_VERSION = args.new_version
-WORKSPACE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-DOCS_PUBLISHER = os.path.join(
-    WORKSPACE_DIR, "pax-docs", "scripts", "publish_versioned_docs.py"
-)
-# Use NEW_VERSION as needed
-print('New version is:', NEW_VERSION)
-print('Turbo mode is:', args.turbo)
-print('Docs publishing skipped:', args.skip_docs or args.skip_docs_publish)
+sys.dont_write_bytecode = True
 
-os.chdir(WORKSPACE_DIR)
-
-
-PACKAGES = [
-    "pax-gpu",
-    "pax-chassis-common",
-    "pax-chassis-ios",
-    "pax-chassis-macos",
-    "pax-chassis-web",
-    "pax-cli",
-    "pax-compiler",
-    "pax-designtime",
-    "pax-kit",
-    "pax-runtime",
-    "pax-runtime-api",
-    "pax-engine",
-    "pax-language-server",
-    "pax-macro",
-    "pax-manifest",
-    "pax-message",
-    "pax-std",
-    "pax-language",
-]
-
-
-def docs_publish_command(new_version, manifest_only=False):
-    cmd_args = [
-        DOCS_PUBLISHER,
-        new_version,
-        "--workspace",
-        WORKSPACE_DIR,
-    ]
-
-    if args.docs_no_latest:
-        cmd_args.append("--no-latest")
-
-    if manifest_only:
-        cmd_args.extend(["--skip-build", "--no-upload"])
-        return cmd_args
-
-    if args.skip_docs_examples:
-        cmd_args.append("--skip-examples")
-    if args.docs_bucket:
-        cmd_args.extend(["--bucket", args.docs_bucket])
-    if args.docs_distribution_id:
-        cmd_args.extend(["--distribution-id", args.docs_distribution_id])
-
-    return cmd_args
-
-
-def update_docs_version_manifest(new_version):
-    if args.skip_docs:
-        print("Skipping docs version manifest update.")
-        return
-
-    subprocess.run(docs_publish_command(new_version, manifest_only=True), check=True)
-
-
-def publish_docs(new_version):
-    if args.skip_docs:
-        print("Skipping docs publish.")
-        return
-    if args.skip_docs_publish:
-        print("Skipping docs publish; docs version manifest was still updated.")
-        return
-
-    subprocess.run(docs_publish_command(new_version), check=True)
-
-
-def verify_web_interface_release_artifacts():
-    required_paths = {
+ROOT = Path(__file__).resolve().parents[1]
+DEPENDENCIES = ("dependencies", "build-dependencies", "dev-dependencies")
+REQUIRED_FILES = {
+    "pax-compiler": {
         "files/interfaces/web/public/pax-interface-web.js",
         "files/interfaces/web/public/pax-interface-web.css",
+        "files/new-project/bundled-examples.paxbundle",
+        "files/new-project/AGENTS.md",
+        "files/swift/pax-swift-common/Package.swift",
+        "files/interfaces/ios/pax-app-ios/pax-app-ios/Assets.xcassets/AppIcon.appiconset/pax-icon-ios-1024.png",
+    },
+    "pax-docs": {"bundled-example-sources.json", "build.rs", "book/src/SUMMARY.md",
+                 "book/src/getting-started.md", "book/src/versions.json"},
+}
+
+
+class ReleaseError(RuntimeError):
+    pass
+
+
+class DocsPublicationError(ReleaseError):
+    pass
+
+
+def run(command, *, cwd=ROOT, capture=False):
+    print("+", " ".join(map(str, command)), flush=True)
+    return subprocess.run(list(map(str, command)), cwd=cwd, check=True, text=True,
+                          stdout=subprocess.PIPE if capture else None).stdout
+
+
+def docs_module(workspace):
+    spec = importlib.util.spec_from_file_location(
+        "pax_docs_publisher", workspace / "pax-docs/scripts/publish_versioned_docs.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    module.BOOK_DIR = workspace / "pax-docs/book"
+    module.BOOK_OUTPUT = module.BOOK_DIR / "book"
+    module.VERSIONS_MANIFEST = module.BOOK_DIR / "src/versions.json"
+    return module
+
+
+def metadata(workspace):
+    return json.loads(run(["cargo", "metadata", "--no-deps", "--format-version", "1"],
+                          cwd=workspace, capture=True))
+
+
+def release_packages(meta):
+    members = set(meta["workspace_members"])
+    packages = {p["name"]: p for p in meta["packages"]
+                if p["id"] in members and p.get("publish") != []}
+    if not packages:
+        raise ReleaseError("Workspace contains no publishable packages")
+    for name, package in packages.items():
+        if package.get("publish") and "crates-io" not in package["publish"]:
+            raise ReleaseError(f"{name} cannot publish to crates.io")
+        for dep in package["dependencies"]:
+            if dep.get("path") and dep["name"] not in packages and dep["kind"] != "dev":
+                raise ReleaseError(f"{name} depends on unpublished local crate {dep['name']}")
+    return packages
+
+
+def publication_order(packages):
+    """Include every target and optional/build edge, plus versioned dev edges."""
+    visiting, visited, order = [], set(), []
+
+    def visit(name):
+        if name in visiting:
+            raise ReleaseError("Publication cycle: " + " -> ".join(visiting + [name]))
+        if name in visited:
+            return
+        visiting.append(name)
+        after = (packages[name].get("metadata") or {}).get("pax", {}).get("release", {}).get("after", [])
+        for prerequisite in after:
+            if prerequisite not in packages:
+                raise ReleaseError(f"{name} has unknown release prerequisite {prerequisite}")
+            visit(prerequisite)
+        for dep in sorted(packages[name]["dependencies"], key=lambda d: d["name"]):
+            if dep["name"] not in packages:
+                continue
+            # Cargo drops path-only development dependencies when packaging.
+            if dep["kind"] == "dev" and dep.get("path") and dep["req"] == "*":
+                continue
+            visit(dep["name"])
+        visiting.pop()
+        visited.add(name)
+        order.append(name)
+
+    for name in sorted(packages):
+        visit(name)
+    return order
+
+
+def dependency_tables(doc):
+    for owner in [doc, doc.get("workspace", {}), *doc.get("target", {}).values()]:
+        for kind in DEPENDENCIES:
+            if kind in owner:
+                yield kind, owner[kind]
+
+
+def source_files(workspace):
+    # Include new source files during candidate review; ignored build trees stay out.
+    names = run(["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+                cwd=workspace, capture=True)
+    return sorted({Path(name) for name in names.split("\0") if name})
+
+
+def rewrite_versions(workspace, packages, version):
+    changed = []
+    manifests = [p for p in source_files(workspace) if p.name == "Cargo.toml"]
+    local_names = {tomlkit.parse((workspace / p).read_text()).get("package", {}).get("name")
+                   for p in manifests}
+    for relative in manifests:
+        path = workspace / relative
+        original = path.read_text()
+        doc = tomlkit.parse(original)
+        package = doc.get("package", {})
+        # All repository examples/fixtures are kept at the coordinated version.
+        if package and not isinstance(package.get("version"), dict):
+            package["version"] = version
+        if "package" in doc.get("workspace", {}) and "version" in doc["workspace"]["package"]:
+            doc["workspace"]["package"]["version"] = version
+        for kind, table in dependency_tables(doc):
+            for alias, dep in table.items():
+                name = dep.get("package", alias) if isinstance(dep, dict) else alias
+                local_example = isinstance(dep, dict) and dep.get("path") and name in local_names
+                if name not in packages and not local_example:
+                    if name == "pax-pixels":
+                        raise ReleaseError(f"Retired pax-pixels dependency in {relative}")
+                    continue
+                if isinstance(dep, str):
+                    table[alias] = version
+                elif not dep.get("workspace"):
+                    if kind == "dev-dependencies" and "path" in dep and "version" not in dep:
+                        continue
+                    dep["version"] = version
+        updated = tomlkit.dumps(doc)
+        if updated != original:
+            path.write_text(updated)
+            changed.append(str(relative))
+    return changed
+
+
+def assert_versions(packages, version):
+    for name, package in packages.items():
+        if package["version"] != version:
+            raise ReleaseError(f"{name} is {package['version']}, expected {version}")
+        for dep in package["dependencies"]:
+            if dep["name"] in packages:
+                if dep["kind"] == "dev" and dep.get("path") and dep["req"] == "*":
+                    continue
+                if dep["req"] != "^" + version:
+                    raise ReleaseError(f"{name} -> {dep['name']} has unexpected requirement {dep['req']}")
+
+
+def sha256(path):
+    digest = hashlib.sha256()
+    with path.open("rb") as file:
+        for chunk in iter(lambda: file.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def source_digest(workspace):
+    digest = hashlib.sha256()
+    extra = {Path("Cargo.lock"), *(Path("pax-compiler") / p for p in REQUIRED_FILES["pax-compiler"])}
+    for relative in sorted(set(source_files(workspace)) | extra):
+        path = workspace / relative
+        digest.update(relative.as_posix().encode() + b"\0")
+        digest.update((sha256(path) if path.is_file() else "missing").encode())
+    return digest.hexdigest()
+
+
+def packaging_inputs(workspace, packages):
+    """Inventory Cargo's actual inputs, including ignored, explicitly included files."""
+    result = {}
+    for name, package in sorted(packages.items()):
+        root = Path(package["manifest_path"]).parent
+        listing = run(["cargo", "package", "-p", name, "--list", "--allow-dirty", "--locked"],
+                      cwd=workspace, capture=True)
+        entries = []
+        for filename in sorted(listing.splitlines()):
+            if filename in (".cargo_vcs_info.json", "Cargo.lock"):
+                # Git state and the workspace lockfile are bound separately.
+                entries.append({"archive_path": filename, "generated": True})
+                continue
+            source = root / ("Cargo.toml" if filename == "Cargo.toml.orig" else filename)
+            # Cargo can copy an explicitly named README/license from outside
+            # the package root and rename it to its basename in the archive.
+            for field in ("readme", "license_file"):
+                external = package.get(field)
+                if external and filename == Path(external).name:
+                    source = root / external
+            if not source.is_file() or not source.resolve().is_relative_to(workspace.resolve()):
+                raise ReleaseError(f"Cannot bind packaging input {name}/{filename}: {source}")
+            entries.append({"archive_path": filename,
+                            "source_path": source.relative_to(workspace).as_posix(),
+                            "sha256": sha256(source),
+                            "executable": bool(source.stat().st_mode & 0o111),
+                            "symlink": os.readlink(source) if source.is_symlink() else None})
+        result[name] = entries
+    return result
+
+
+def assert_cargo_version(workspace, record):
+    current = run(["cargo", "--version"], cwd=workspace, capture=True).strip()
+    if current != record.get("cargo"):
+        raise ReleaseError(f"Cargo changed since preparation ({record.get('cargo')} -> {current}); run prepare again.")
+
+
+def verify_archive_parity(args, record, *, package=None):
+    """Repackage without uploading; compare bytes before publication can begin."""
+    assert_cargo_version(args.workspace, record)
+    packages = release_packages(metadata(args.workspace))
+    selected = {name: value for name, value in packages.items() if package is None or name == package}
+    if not selected:
+        raise ReleaseError(f"No candidate packages selected for parity: {package}")
+    expected = {name: record["package_inputs"][name] for name in selected}
+
+    def check_inputs():
+        if source_digest(args.workspace) != record["source_sha256"] or packaging_inputs(args.workspace, selected) != expected:
+            raise ReleaseError("Packaging inputs changed; run prepare again before publishing.")
+
+    check_inputs()
+    # Keep the reviewed archives separate from Cargo's scratch/target output.
+    # Compilation was already verified in prepare; this pass checks assembly.
+    with tempfile.TemporaryDirectory(prefix="pax-release-parity-") as tmp:
+        command = ["cargo", "package", *[flag for item in record["packages"]
+                    if item["name"] in selected for flag in ("-p", item["name"])],
+                   "--registry", "crates-io", "--locked", "--no-verify", "--target-dir", tmp]
+        if args.phase != "publish":
+            command.append("--allow-dirty")
+        run(command, cwd=args.workspace)
+        for item in record["packages"]:
+            if item["name"] not in selected:
+                continue
+            archive = Path(tmp) / "package" / f"{item['name']}-{args.version}.crate"
+            if not archive.is_file() or sha256(archive) != item["sha256"]:
+                raise ReleaseError(f"Repackaged archive differs from candidate: {item['name']}; nothing uploaded by this check.")
+    check_inputs()
+    assert_cargo_version(args.workspace, record)
+    print(f"Repackaging parity passed for {len(selected)} crate(s); no upload performed.")
+
+
+def docs_command(args, *, prepared=False):
+    command = [sys.executable, args.workspace / "pax-docs/scripts/publish_versioned_docs.py",
+               args.version, "--workspace", args.workspace]
+    if args.docs_no_latest:
+        command.append("--no-latest")
+    if prepared:
+        command += ["--skip-build", "--bucket", args.docs_bucket,
+                    "--distribution-id", args.docs_distribution_id,
+                    "--site-url", args.docs_site_url, "--verify-live"]
+    else:
+        command.append("--no-upload")
+    return command
+
+
+def inspect_archives(workspace, packages, version, destination):
+    inventory = []
+    destination.mkdir(parents=True, exist_ok=True)
+    for name in publication_order(packages):
+        archive = workspace / "target/package" / f"{name}-{version}.crate"
+        if not archive.is_file():
+            raise ReleaseError(f"Missing candidate archive: {archive}")
+        with tarfile.open(archive) as tar:
+            prefix = f"{name}-{version}/"
+            files = {member.name.removeprefix(prefix) for member in tar.getmembers() if member.isfile()}
+            missing = REQUIRED_FILES.get(name, set()) - files
+            if missing:
+                raise ReleaseError(f"{name} missing packaged files: {sorted(missing)}")
+            doc = tomllib.loads(tar.extractfile(prefix + "Cargo.toml").read().decode())
+            if doc["package"]["name"] != name or doc["package"]["version"] != version:
+                raise ReleaseError(f"Archive identity differs from the release plan: {name}")
+            for _, table in dependency_tables(doc):
+                for alias, dep in table.items():
+                    actual = dep.get("package", alias)
+                    if "path" in dep or "git" in dep:
+                        raise ReleaseError(f"{name} has a non-registry dependency: {alias}")
+                    if actual in packages and dep.get("version") != version:
+                        raise ReleaseError(f"{name} packaged stale dependency {actual}")
+            if any("node_modules/" in file or "/.pax/" in file or "/target/" in file for file in files):
+                raise ReleaseError(f"{name} contains transient build files")
+            (destination / f"{name}.files.txt").write_text("\n".join(sorted(files)) + "\n")
+        retained = destination / "archives" / archive.name
+        retained.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(archive, retained)
+        inventory.append({"name": name, "version": version, "archive": str(retained),
+                          "sha256": sha256(archive), "files": len(files), "bytes": archive.stat().st_size})
+    return inventory
+
+
+def write_json(path, value):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(".tmp")
+    temporary.write_text(json.dumps(value, indent=2) + "\n")
+    temporary.replace(path)
+
+
+def prepare(args):
+    workspace = args.workspace
+    packages = release_packages(metadata(workspace))
+    publication_order(packages)  # Fail before rewriting on incomplete/cyclic graphs.
+    record_path = args.output / "candidate.json"
+    record_path.unlink(missing_ok=True)  # A failed retry must not leave a ready stamp.
+    changed = rewrite_versions(workspace, packages, args.version)
+    print(f"Updated {len(changed)} manifests.")
+    run(["bash", "./build-interface.sh"], cwd=workspace / "pax-compiler/files/interfaces/web")
+    for script in ("sync-cli-examples.py", "sync-docs-examples.py"):
+        run([sys.executable, workspace / "scripts" / script], cwd=workspace)
+        run([sys.executable, workspace / "scripts" / script, "--check"], cwd=workspace)
+    run(docs_command(args), cwd=workspace)
+    packages = release_packages(metadata(workspace))
+    assert_versions(packages, args.version)
+    expected_source = source_digest(workspace)
+    expected_inputs = packaging_inputs(workspace, packages)
+    cargo_version = run(["cargo", "--version"], cwd=workspace, capture=True).strip()
+    docs = docs_module(workspace)
+    docs.validate_build_record(args.version)
+    expected_docs = docs.output_digest()
+    # Workspace packaging stages unpublished siblings in Cargo's temporary local
+    # registry and verifies the actual archives without any crates.io upload.
+    selection = [flag for name in publication_order(packages) for flag in ("-p", name)]
+    run(["cargo", "package", *selection, "--registry", "crates-io", "--locked",
+         "--allow-dirty", "--target-dir", workspace / "target"], cwd=workspace)
+    inventory = inspect_archives(workspace, packages, args.version, args.output)
+    if source_digest(workspace) != expected_source or docs.output_digest() != expected_docs:
+        raise ReleaseError("Sources/docs changed during archive verification; run prepare again.")
+    record = {
+        "schema": 2, "version": args.version,
+        "source_commit": run(["git", "rev-parse", "HEAD"], cwd=workspace, capture=True).strip(),
+        "source_dirty": bool(run(["git", "status", "--porcelain"], cwd=workspace, capture=True).strip()),
+        "source_sha256": expected_source,
+        "docs_sha256": expected_docs,
+        "docs_no_latest": args.docs_no_latest,
+        "packages": inventory,
+        "package_inputs": expected_inputs,
+        "cargo": cargo_version,
     }
-    package_root = os.path.join(WORKSPACE_DIR, "pax-compiler")
-    missing_on_disk = [
-        path for path in required_paths
-        if not os.path.isfile(os.path.join(package_root, path))
-    ]
-    if missing_on_disk:
-        print("ERROR: missing built web interface artifacts:")
-        for path in missing_on_disk:
-            print("  " + os.path.join("pax-compiler", path))
-        exit(1)
-
-    package_list = subprocess.run(
-        ["cargo", "package", "--list", "--allow-dirty"],
-        cwd=package_root,
-        check=True,
-        text=True,
-        stdout=subprocess.PIPE,
-    ).stdout.splitlines()
-    package_files = set(package_list)
-    missing_from_package = sorted(required_paths - package_files)
-    if missing_from_package:
-        print("ERROR: built web interface artifacts are missing from pax-compiler package:")
-        for path in missing_from_package:
-            print("  " + path)
-        exit(1)
+    smoke_input = args.output / "package-input.json"
+    write_json(smoke_input, record)
+    run([sys.executable, workspace / "scripts/smoke-release-packages.py", smoke_input,
+         "--target-dir", workspace / "target"], cwd=workspace)
+    record["package_smoke"] = json.loads((args.output / "package-smoke.json").read_text())
+    if source_digest(workspace) != expected_source or docs.output_digest() != expected_docs:
+        raise ReleaseError("Sources/docs changed during candidate smoke; run prepare again.")
+    verify_archive_parity(args, record)
+    write_json(record_path, record)
+    print(f"Prepared locally: {record_path}. No publication or git write performed.")
 
 
-def sync_and_verify_bundled_docs_examples():
-    """Keep registry-built CLI docs independent of a monorepo checkout."""
-    sync_script = os.path.join(WORKSPACE_DIR, "scripts", "sync-docs-examples.py")
-    bundle_path = os.path.join(WORKSPACE_DIR, "pax-docs", "bundled-example-sources.json")
-    subprocess.run(["python3", sync_script], check=True, cwd=WORKSPACE_DIR)
-    subprocess.run(["python3", sync_script, "--check"], check=True, cwd=WORKSPACE_DIR)
-    package_files = subprocess.run(
-        ["cargo", "package", "--list", "--allow-dirty"],
-        cwd=os.path.join(WORKSPACE_DIR, "pax-docs"), check=True,
-        text=True, stdout=subprocess.PIPE,
-    ).stdout.splitlines()
-    if "bundled-example-sources.json" not in package_files:
-        raise SystemExit("Docs example source snapshot is missing from pax-docs package")
-    # The release commit uses -am; include this generated source artifact even
-    # on the first release that introduces it.
-    subprocess.run(["git", "add", bundle_path], check=True, cwd=WORKSPACE_DIR)
+def validate_candidate(args, *, publishing=False):
+    path = args.output / "candidate.json"
+    if not path.is_file():
+        raise ReleaseError("No complete candidate record; run prepare first.")
+    record = json.loads(path.read_text())
+    if record.get("schema") != 2 or not record.get("package_inputs"):
+        raise ReleaseError("Candidate lacks the packaging-input inventory; run prepare again.")
+    assert_cargo_version(args.workspace, record)
+    if record.get("version") != args.version or record.get("docs_no_latest") != args.docs_no_latest:
+        raise ReleaseError("Candidate version/latest policy differs; run prepare again.")
+    if not record.get("package_smoke"):
+        raise ReleaseError("Candidate package smoke has not completed; run prepare again.")
+    if record["source_sha256"] != source_digest(args.workspace):
+        raise ReleaseError("Source or bundled artifacts changed; run prepare again.")
+    packages = release_packages(metadata(args.workspace))
+    assert_versions(packages, args.version)
+    if [p["name"] for p in record["packages"]] != publication_order(packages):
+        raise ReleaseError("Candidate package graph changed")
+    if packaging_inputs(args.workspace, packages) != record["package_inputs"]:
+        raise ReleaseError("Packaging inputs changed; run prepare again.")
+    for package in record["packages"]:
+        if sha256(Path(package["archive"])) != package["sha256"]:
+            raise ReleaseError(f"Candidate archive changed: {package['name']}")
+    docs = docs_module(args.workspace)
+    docs.validate_build_record(args.version)
+    if record["docs_sha256"] != docs.output_digest():
+        raise ReleaseError("Candidate docs changed")
+    if publishing:
+        current = run(["git", "rev-parse", "HEAD"], cwd=args.workspace, capture=True).strip()
+        if current != args.approved_commit or record["source_commit"] != current or record["source_dirty"]:
+            raise ReleaseError("Publish requires preparation from the exact approved clean commit.")
+        if run(["git", "status", "--porcelain"], cwd=args.workspace, capture=True).strip():
+            raise ReleaseError("Publish requires a clean source checkout.")
+    return record
 
 
-def sync_and_verify_bundled_cli_examples():
-    """Snapshot rewritten canonical examples before the release commit/package checks."""
-    sync_script = os.path.join(WORKSPACE_DIR, "scripts", "sync-cli-examples.py")
-    bundle_path = os.path.join(
-        WORKSPACE_DIR,
-        "pax-compiler",
-        "files",
-        "new-project",
-        "bundled-examples.paxbundle",
-    )
-    subprocess.run([sync_script], check=True, cwd=WORKSPACE_DIR)
-    subprocess.run([sync_script, "--check"], check=True, cwd=WORKSPACE_DIR)
-
-    package_files = set(subprocess.run(
-        ["cargo", "package", "--list", "--allow-dirty"],
-        cwd=os.path.join(WORKSPACE_DIR, "pax-compiler"),
-        check=True,
-        text=True,
-        stdout=subprocess.PIPE,
-    ).stdout.splitlines())
-    bundled_relative = "files/new-project/bundled-examples.paxbundle"
-    if bundled_relative not in package_files:
-        print("ERROR: bundled CLI examples are missing from pax-compiler package:")
-        print("  " + bundled_relative)
-        exit(1)
-
-    # release.py historically commits with `git commit -am`; explicitly staging
-    # the single generated artifact prevents a newly introduced bundle from being
-    # silently omitted during the release that first adds it.
-    subprocess.run(["git", "add", bundle_path], check=True, cwd=WORKSPACE_DIR)
-
-    status = subprocess.run(
-        ["git", "status", "--short", "--", bundle_path],
-        check=True,
-        cwd=WORKSPACE_DIR,
-        text=True,
-        stdout=subprocess.PIPE,
-    ).stdout.strip()
-    if not status:
-        print("Bundled CLI example artifact is unchanged and already tracked.")
-    elif status[0] not in {"A", "M"}:
-        print("ERROR: bundled CLI example artifact was not staged as expected:")
-        print("  " + status)
-        exit(1)
+def registry_version(name, version):
+    prefix = name[:2] + "/" + name[2:4] if len(name) >= 4 else ("3/" + name[0] if len(name) == 3 else str(len(name)))
+    url = f"https://index.crates.io/{prefix}/{name}"
+    request = urllib.request.Request(url, headers={"User-Agent": "pax-release-preflight", "Cache-Control": "no-cache"})
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            entries = response.read().decode().splitlines()
+    except urllib.error.HTTPError as error:
+        if error.code == 404:
+            return None
+        raise
+    return next((json.loads(line) for line in entries if json.loads(line)["vers"] == version), None)
 
 
-# Compile ts to js and css for the web chassis
-original_dir = WORKSPACE_DIR
-try:
-    target_dir = os.path.join(original_dir, 'pax-compiler', 'files', 'interfaces', 'web')
-    os.chdir(target_dir)
-    subprocess.run(['./build-interface.sh'], check=True)
-except: 
-    print("ERROR: failed to build ts files")
-    exit(1)
-
-os.chdir(original_dir)
-verify_web_interface_release_artifacts()
-
-# Create a mapping from package name to path
-PACKAGE_NAMES = {}
-for elem in PACKAGES:
-    with open("{}/Cargo.toml".format(elem), 'r') as file:
-        doc = tomlkit.parse(file.read())
-        PACKAGE_NAMES[doc['package']['name']] = elem
-
+def preflight(args):
+    if not args.docs_distribution_id:
+        raise ReleaseError("Set --docs-distribution-id (required for complete docs publication).")
+    docs = docs_module(args.workspace)
+    docs.preflight_publication(argparse.Namespace(
+        workspace=args.workspace, bucket=args.docs_bucket, distribution_id=args.docs_distribution_id,
+        site_url=args.docs_site_url, no_latest=args.docs_no_latest))
+    # Never print credentials. Presence is a local configuration check, not a
+    # claim that crates.io will authorize every crate or a new crate name.
+    credentials = Path(os.environ.get("CARGO_HOME", str(Path.home() / ".cargo"))) / "credentials.toml"
+    token = bool(os.environ.get("CARGO_REGISTRY_TOKEN") or os.environ.get("CARGO_REGISTRIES_CRATES_IO_TOKEN"))
+    if credentials.is_file():
+        config = tomllib.loads(credentials.read_text())
+        token |= bool(config.get("registry", {}).get("token") or
+                      config.get("registries", {}).get("crates-io", {}).get("token"))
+    if not token:
+        raise ReleaseError("No crates.io token configured; run cargo login before publication.")
+    print("crates.io token configured (authorization is checked by Cargo during publication).")
 
 
-def update_crate_versions_in_examples(new_version, package_names, examples_dir):
-    """
-    Update the crate versions in all Cargo.toml files within the examples directory.
-    :param new_version: The new version to set for the crates.
-    :param package_names: A set of package names whose versions need to be updated.
-    :param examples_dir: Path to the examples directory.
-    """
-    # Find all Cargo.toml files in the examples/src/**/ directories
-    cargo_toml_paths = glob.glob(os.path.join(examples_dir, '**', 'Cargo.toml'), recursive=True)
-
-    for cargo_toml_path in cargo_toml_paths:
-        # Read the Cargo.toml file
-        with open(cargo_toml_path, 'r') as file:
-            doc = tomlkit.parse(file.read())
-
-        doc['package']['version'] = new_version
-
-        # Check and update dependencies
-        if 'dependencies' in doc:
-            for dep in doc['dependencies']:
-                if dep in package_names:
-                    dep_table = doc['dependencies'][dep]
-                    if isinstance(dep_table, tomlkit.items.InlineTable):
-                        dep_table['version'] = new_version
-
-        # Write the updated document back to the file
-        with open(cargo_toml_path, 'w') as file:
-            file.write(tomlkit.dumps(doc))
-
-# Create a dependency graph
-graph = defaultdict(list)
-dependency_set = set()
-for elem in PACKAGES:
-    with open("{}/Cargo.toml".format(elem), 'r') as file:
-        doc = tomlkit.parse(file.read())
-        for dep in doc['dependencies']:
-            if dep in PACKAGE_NAMES:
-                graph[elem].append(PACKAGE_NAMES[dep])
-                dependency_set.add(PACKAGE_NAMES[dep])
-
-# The root packages are those in the graph keys but not in the dependency set
-root_packages = [package for package in graph if package not in dependency_set]
-
-def topological_sort(source):
-    visited = set()
-    order = []
-
-    def dfs(node):
-        visited.add(node)
-        for neighbor in graph[node]:
-            if neighbor not in visited:
-                dfs(neighbor)
-        order.insert(0,node)
-
-    dfs(source)
-    return order[::-1]
-
-
-# First pass to update the versions
-for root in root_packages:
-    order = topological_sort(root)
-
-    for elem in ["."] + order:
-        with open("{}/Cargo.toml".format(elem), 'r') as file:
-            doc = tomlkit.parse(file.read())
-
-        # If the current version is the same as NEW_VERSION, skip this package
-        if doc['package']['version'] == NEW_VERSION:
+def publish(args):
+    record = validate_candidate(args, publishing=True)
+    preflight(args)  # All read-only checks precede the first irreversible operation.
+    # Detect a conflicting partial release anywhere in the set before uploading
+    # its first missing dependency. Recheck each entry at its own upload boundary.
+    for package in record["packages"]:
+        existing = registry_version(package["name"], args.version)
+        if existing and (existing["cksum"] != package["sha256"] or existing.get("yanked")):
+            raise ReleaseError(f"Existing {package['name']} {args.version} differs from approved artifact or is yanked.")
+    verify_archive_parity(args, record)
+    validate_candidate(args, publishing=True)
+    journal_path = args.output / "publication.json"
+    if journal_path.exists():
+        journal = json.loads(journal_path.read_text())
+        if journal["commit"] != args.approved_commit or journal["version"] != args.version:
+            raise ReleaseError("Publication journal belongs to a different release.")
+    else:
+        journal = {"version": args.version, "commit": args.approved_commit, "crates": {}, "docs": "pending"}
+    for package in record["packages"]:
+        name = package["name"]
+        existing = registry_version(name, args.version)
+        if existing:
+            if existing["cksum"] != package["sha256"] or existing.get("yanked"):
+                raise ReleaseError(f"Existing {name} {args.version} differs from approved artifact or is yanked.")
+            journal["crates"][name] = "verified in registry"
+            write_json(journal_path, journal)
             continue
-
-        doc['package']['version'] = NEW_VERSION
-
-        if 'dependencies' in doc:
-            for dep in doc['dependencies']:
-                if dep in PACKAGE_NAMES:
-                    dep_table = doc['dependencies'][dep]
-                    if isinstance(dep_table, tomlkit.items.InlineTable):
-                        dep_table['version'] = NEW_VERSION
-
-        with open("{}/Cargo.toml".format(elem), 'w') as file:
-            file.write(tomlkit.dumps(doc))
-
-# Also update the versions in the examples directory
-EXAMPLES_DIR = "examples/src"
-update_crate_versions_in_examples(NEW_VERSION, PACKAGE_NAMES, EXAMPLES_DIR)
-
-# Version rewriting changes the hand-edited canonical examples. Snapshot only
-# after that pass, and verify/stage the crate-owned artifact before committing.
-sync_and_verify_bundled_cli_examples()
-sync_and_verify_bundled_docs_examples()
-
-# Also update the docs version manifest, so the release commit records the
-# newly published docs version before any S3/CloudFront upload happens.
-update_docs_version_manifest(NEW_VERSION)
-
-
-# Set to keep track of already published packages
-published = set()
-
-# Perform git commit
-subprocess.run(["git", "commit", "-am", "Release " + NEW_VERSION], check=True)
-
-# Second pass to publish the crates
-for root in root_packages:
-    order = topological_sort(root)
-
-    for elem in order:
-        # Only publish the package if it has not been published in this run
-        if elem not in published:
-            cmd_args = ["cargo", "publish", "--no-verify", "--allow-dirty"]
-
-            # Run `cargo publish` within the current package directory
-            subprocess.run(cmd_args, cwd=os.path.join(os.getcwd(), elem), check=True)
-            # Mark this package as published
-            published.add(elem)
-            # Wait one minute, to satisfy crates.io's throttling mechanism.
-            # This can be overridden with the --turbo flag, as we have some burst
-            # allowance with crates.io.  Once the burst allowance is used, the publish
-            # script may fail with some crates left unpublished, which breaks the entire
-            # publish (all crates must be published together.) Thus, turbo is off by default.
-            if not args.turbo:
-                time.sleep(60)
+        # Now that prerequisites are public, also compare the single-crate
+        # registry resolution used by cargo publish with the reviewed archive.
+        verify_archive_parity(args, record, package=name)
+        journal["crates"][name] = "upload started; recheck registry if interrupted"
+        write_json(journal_path, journal)
+        # Cargo reassembles the archive. Keep this checkout/toolchain untouched
+        # during publication; parity and input checks precede every upload.
+        run(["cargo", "publish", "-p", name, "--registry", "crates-io", "--locked"], cwd=args.workspace)
+        existing = registry_version(name, args.version)
+        if not existing or existing["cksum"] != package["sha256"]:
+            raise ReleaseError(f"Registry checksum/visibility not confirmed for {name}; stop and inspect before retrying.")
+        journal["crates"][name] = "verified in registry"
+        write_json(journal_path, journal)
+        time.sleep(args.publish_interval)
+    journal["docs"] = "upload started; retry exact prepared tree if interrupted"
+    write_json(journal_path, journal)
+    try:
+        run(docs_command(args, prepared=True), cwd=args.workspace)
+    except (subprocess.CalledProcessError, OSError) as error:
+        journal["docs"] = "failed; crate publication may be complete"
+        write_json(journal_path, journal)
+        raise DocsPublicationError("Docs publication/verification failed; rerun the same approved publish command. " + str(error)) from error
+    journal["docs"] = "uploaded, invalidation completed, HTTPS content verified"
+    write_json(journal_path, journal)
+    print("Crates and docs published. Complete the public-channel workstation/iOS/AI smoke handoffs before closing the release.")
 
 
-# Build for macos in order to update Cargo.lock
-subprocess.run(['cargo', 'build'])
+def parse_args(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("phase", choices=["plan", "prepare", "verify", "preflight", "publish"])
+    parser.add_argument("version")
+    parser.add_argument("--workspace", type=Path, default=ROOT)
+    parser.add_argument("--output", type=Path, help="Ignored local evidence directory (default: target/release-candidate/VERSION)")
+    parser.add_argument("--docs-no-latest", action="store_true")
+    parser.add_argument("--docs-bucket", default=os.environ.get("PAX_DOCS_S3_BUCKET", "docs.pax.dev"))
+    parser.add_argument("--docs-distribution-id", default=os.environ.get("PAX_DOCS_CLOUDFRONT_DISTRIBUTION_ID"))
+    parser.add_argument("--docs-site-url", default="https://docs.pax.dev")
+    parser.add_argument("--approved-commit", help="Exact full commit approved by Zack; required for publish")
+    parser.add_argument("--publish-interval", type=int, default=60, help="Seconds between uploads (default: 60)")
+    args = parser.parse_args(argv)
+    args.workspace = args.workspace.resolve()
+    args.output = (args.output or args.workspace / "target/release-candidate" / args.version).resolve()
+    docs_module(args.workspace).release_version(args.version)
+    if args.phase == "publish" and not args.approved_commit:
+        parser.error("publish requires --approved-commit after Zack's explicit approval")
+    if args.publish_interval < 0:
+        parser.error("--publish-interval must be nonnegative")
+    return args
 
-# Fixup git commit, to include updates to Cargo.lock
-subprocess.run(["git", "commit", "-a", "--amend", "--no-edit"], check=True)
 
-# Publish the mutable latest docs plus the /<version>/ snapshot after
-# the release commit has been amended into its final state.
-publish_docs(NEW_VERSION)
+def main(argv=None):
+    args = parse_args(argv)
+    if args.phase == "plan":
+        meta = metadata(args.workspace)
+        packages = release_packages(meta)
+        print(json.dumps({"version": args.version, "publication_order": publication_order(packages),
+                          "excluded": [p["name"] for p in meta["packages"] if p.get("publish") == []]}, indent=2))
+    elif args.phase == "prepare":
+        prepare(args)
+    elif args.phase == "verify":
+        record = validate_candidate(args)
+        verify_archive_parity(args, record)
+        print("Candidate source, crate archives, and docs match the completed preparation record.")
+    elif args.phase == "preflight":
+        preflight(args)
+    else:
+        publish(args)
+    return 0
 
-# Perform git tag
-# subprocess.run(["git", "tag", "-a", "v" + NEW_VERSION, "-m", "Release v" + NEW_VERSION], check=True)
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except (ReleaseError, subprocess.CalledProcessError, OSError, ValueError) as error:
+        print(f"Release stopped: {error}", file=sys.stderr)
+        raise SystemExit(3 if isinstance(error, DocsPublicationError) else 1)

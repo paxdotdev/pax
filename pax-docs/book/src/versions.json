@@ -1,5 +1,12 @@
 {
   "schema": 1,
-  "latest": null,
-  "versions": []
+  "latest": "0.39.0",
+  "versions": [
+    {
+      "version": "0.39.0",
+      "label": "0.39.0",
+      "path": "/0.39.0/",
+      "released": "2026-09-18"
+    }
+  ]
 }

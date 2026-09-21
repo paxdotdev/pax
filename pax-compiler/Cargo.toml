@@ -1,6 +1,6 @@
 [package]
 name = "pax-compiler"
-version = "0.38.3"
+version = "0.39.0"
 authors = ["Zack Brown <zack@pax.dev>", "Warfa Jibril <warfa@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -44,13 +44,13 @@ libc = "0.2"
 log = "0.4"
 miniz_oxide = "0.8"
 notify = "6.1.1"
-pax-manifest = {version= "0.38.3", path="../pax-manifest", features=["compiler"]}
-pax-message = {version = "0.38.3", path="../pax-message"}
-pax-runtime = {path = "../pax-runtime", version="0.38.3" }
-pax-runtime-api = {path = "../pax-runtime-api", version="0.38.3" }
-pax-designtime = { path = "../pax-designtime", version = "0.38.3" }
+pax-manifest = {version= "0.39.0", path="../pax-manifest", features=["compiler"]}
+pax-message = {version = "0.39.0", path="../pax-message"}
+pax-runtime = {path = "../pax-runtime", version="0.39.0" }
+pax-runtime-api = {path = "../pax-runtime-api", version="0.39.0" }
+pax-designtime = { path = "../pax-designtime", version = "0.39.0" }
 proc-macro2 = { version = "1.0", features = ["span-locations"] }
-pax-language = {version = "0.38.3", path="../pax-language"}
+pax-language = {version = "0.39.0", path="../pax-language"}
 rand = "0.8.4"
 regex = "1"
 reqwest = { version = "0.11.18", features = ["blocking"] }

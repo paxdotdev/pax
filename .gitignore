@@ -1,4 +1,5 @@
 node_modules
+__pycache__/
 pax-compiler/files/interfaces/web/public/pax-interface-web.js
 pax-compiler/files/interfaces/web/package-lock.json
 target/

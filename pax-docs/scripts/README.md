@@ -45,10 +45,11 @@ refreshed from source immediately before upload. Missing, modified, or different
 versioned output requires rebuilding; there is no bypass flag. This checks build
 reuse integrity, not compatibility with the public crate registry.
 
-`--skip-build --no-upload` has a separate, manifest-only meaning used by
-`scripts/release.py` before its release commit. It performs no build validation
-and is not a substitute for the full preflight above. The release wrapper
-forwards `--docs-no-latest` in both its manifest-preparation and upload phases.
+`--skip-build --no-upload` has a separate, manifest-only meaning used by legacy
+integrations. That combination performs no build validation and is not a
+substitute for the full preflight above. `scripts/release.py prepare` runs the
+full build instead. The release wrapper forwards `--docs-no-latest` during both
+local preparation and publication.
 
 ## Publication contract
 
@@ -56,8 +57,25 @@ After release and deployment approval, the same command without `--no-upload`
 publishes; `--skip-build` can reuse the exact preflight output. Supply `--bucket`
 and `--distribution-id`, or `PAX_DOCS_S3_BUCKET` and
 `PAX_DOCS_CLOUDFRONT_DISTRIBUTION_ID`. The bucket defaults to `docs.pax.dev`.
-Without a distribution ID there is no automated invalidation: production
-operators must supply it or explicitly handle cache invalidation themselves.
+The integrated release requires the actual distribution ID. It waits for
+invalidation completion and uses `--verify-live` to preflight AWS identity,
+bucket routing, hostname and cache policy, then compare every file in the
+prepared tree with its deployed copy at both the root and version prefix.
+This includes all articles, JS bootstrap/dynamic imports, CSS, search assets,
+fonts, images, example source manifests, and Wasm. Every file must have matching
+bytes and `no-cache`; HTML, JavaScript, CSS, JSON, and Wasm must also have an
+appropriate MIME type. JavaScript accepts `text/javascript` or
+`application/javascript`. Under `--no-latest`, only the version tree and root
+catalog are checked. Missing or incorrectly served dependencies fail publication
+even when the example's HTML and Wasm succeed. This verifies delivery; interactive
+browser acceptance is still required. A publication receipt in
+`target/docs-publication/<version>.json` records progress and verified URLs.
+Standalone publication without a distribution ID still has no invalidation; it
+does not satisfy the integrated release completion gate.
+
+AWS CLI calls inherit the environment. Use `AWS_PROFILE=pax` on this workstation
+and `--distribution-id E2EYK7TMGOPCYY` for the docs distribution. Its
+`PaxDocsCachePolicy` has minimum TTL zero so origin `no-cache` is honored.
 
 - `/<version>/` is the release-specific tree. Same-semver ghost patches are
   allowed. Strict SemVer is required, without a `v` prefix; stable versions sort
@@ -113,8 +131,10 @@ properties established by the local mocks.
    first-touch results and hand off to PAX-997 as specified by PAX-906.
 5. PAX-987 reruns the full no-upload docs build from that exact release state,
    reviews the catalog/latest selection and complete example payloads, then
-   obtains production upload approval. If deploying separately, PAX-906 should
-   use `--skip-docs-publish`; the release script otherwise publishes docs too.
+   obtains production upload approval. The release script always includes docs
+   publication and returns a distinct failure if that stage fails. See
+   [the release procedure](../../scripts/RELEASING.md)
+   for the exact approval, retry, and recovery commands.
 6. After the approved upload, wait for invalidation completion and verify HTTPS,
    cache headers, Wasm MIME type, version switching, direct article links,
    source tabs, and runnable examples at both root and the version prefix.

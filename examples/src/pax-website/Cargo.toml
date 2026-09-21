@@ -1,6 +1,6 @@
 [package]
 name = "pax-website"
-version = "0.38.3"
+version = "0.39.0"
 edition = "2021"
 default-run = "run"
 description = "The Pax declarative UI language and Rust GUI framework website"
@@ -18,8 +18,8 @@ social_image = "pax-favicon.png"
 social_image_alt = "Pax logo"
 
 [dependencies]
-pax-kit = { version = "0.38.3", path = "../../../pax-kit" }
-living-quilt = { version = "0.38.3", path = "../living-quilt" }
+pax-kit = { version = "0.39.0", path = "../../../pax-kit" }
+living-quilt = { version = "0.39.0", path = "../living-quilt" }
 
 [lib]
 crate-type = ["cdylib", "rlib"]

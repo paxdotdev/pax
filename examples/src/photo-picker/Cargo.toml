@@ -1,6 +1,6 @@
 [package]
 name = "photo-picker"
-version = "0.38.3"
+version = "0.39.0"
 edition = "2021"
 default-run = "run"
 
@@ -11,7 +11,7 @@ title = "Photo Picker"
 NSCameraUsageDescription = "Capture photos when the camera source is selected."
 
 [dependencies]
-pax-kit = { version = "0.38.3", path="../../../pax-kit" }
+pax-kit = { version = "0.39.0", path="../../../pax-kit" }
 
 [lib]
 crate-type = ["cdylib", "rlib"]

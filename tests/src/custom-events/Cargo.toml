@@ -1,12 +1,12 @@
 [package]
 name = "custom-events"
-version = "0.15.2"
+version = "0.39.0"
 edition = "2021"
 default-run = "run"
 
 [dependencies]
-pax-engine = { version = "0.15.2" , path = ".pax/pkg/pax-engine" }
-pax-std = { version = "0.15.2" , path = ".pax/pkg/pax-std" }
+pax-engine = { version = "0.39.0",  path = ".pax/pkg/pax-engine" }
+pax-std = { version = "0.39.0",  path = ".pax/pkg/pax-std" }
 
 [[bin]]
 name = "run"

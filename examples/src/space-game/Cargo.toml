@@ -1,6 +1,6 @@
 [package]
 name = "space-game"
-version = "0.38.3"
+version = "0.39.0"
 edition = "2021"
 default-run = "run"
 
@@ -11,7 +11,7 @@ icon = "assets/app-icon.png"
 [dependencies]
 rand = { version = "0.8.5" }
 getrandom = { version = "0.2.15", features = ["js"] }
-pax-kit = { version = "0.38.3", path="../../../pax-kit" }
+pax-kit = { version = "0.39.0", path="../../../pax-kit" }
 
 [lib]
 crate-type = ["cdylib", "rlib"]

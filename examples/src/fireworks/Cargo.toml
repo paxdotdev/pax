@@ -1,6 +1,6 @@
 [package]
 name = "fireworks"
-version = "0.38.3"
+version = "0.39.0"
 edition = "2021"
 default-run = "run"
 
@@ -9,7 +9,7 @@ title = "Fireworks"
 icon = "assets/app-icon.png"
 
 [dependencies]
-pax-kit = { version = "0.38.3", path="../../../pax-kit" }
+pax-kit = { version = "0.39.0", path="../../../pax-kit" }
 
 [lib]
 crate-type = ["cdylib", "rlib"]
