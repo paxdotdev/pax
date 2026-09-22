@@ -1910,3 +1910,43 @@ redirect pages, including query strings, section fragments, and version
 prefixes. Audit website feature anchors too; `interrupted-in-out` needed an
 alias alongside the existing `interrupted-in--out` anchor. Public-byte checks
 and internal link checks alone do not validate these inbound contracts.
+
+## 2026-09-22 — Responsive calculator authoring
+
+Percentage positions inherit a matching percentage anchor. A second tab at
+`x={50% + 5px}` overlapped the first until it explicitly set `anchor_x=0%`.
+Use a zero anchor when a percentage position denotes a left edge. Keep LCD
+cell size and graph pixels-per-unit fixed as the viewport grows; compute more
+rows/columns and preserve the graph's world center when deriving new offsets.
+
+A broad, low-intensity point light alone left the silver face unexpectedly
+dark because eligible surfaces also use the default ambient contribution.
+An explicit ambient level plus a much weaker direct light preserved the base
+silver while providing subtle movement. AmbientLight is layer-wide; mark the
+LCD, graph, and background unlit. For a pointer light inside a scrolled device,
+use the LightFrame handler's `local_point`, which includes ancestor scrolling.
+
+Nested TextStyle fields need explicit dynamic expressions, e.g.
+`font: {self.mono_font}`. A bare property path inside that object is not an
+expression. Also use the CLI built from the current checkout for unreleased
+features: a globally installed older CLI can lack `dev` and reload controls.
+
+The web `pax-cli dev look` capture returned native text over transparent
+canvas regions for this WebGPU scene, although the browser screenshot showed
+the complete calculator. Inspect the capture before using it as visual
+evidence; use a browser/computer-use screenshot to verify the composited result
+when the dev capture omits GPU surfaces. This observation does not establish
+that the application failed to render.
+
+## 2026-09-22 — Calculator history and overlay scrollbars
+
+Moving the calculator's right-aligned answers into a native Scroller made
+the overlay scrollbar cover the last digit at some LCD widths and text zooms.
+Clipping the text to the viewport did not help because the scrollbar occupies
+space inside that same viewport. Solved by reserving 12 pixels at the right
+when deriving Calculate's character grid, before wrapping and aligning rows.
+The editor uses that same grid so its column count remains consistent.
+
+Recommendations: give edge-aligned native Scroller content an explicit gutter
+and inspect the thumb while actively scrolling, when an overlay scrollbar is
+visible. Preserve full numerical results by wrapping at the usable width.

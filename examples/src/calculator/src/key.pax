@@ -1,0 +1,36 @@
+<Group width=100% height=100%>
+    <Group y={(self.pressed)px} width=100% height={100% - 5px}>
+        <Text x=50% y=50% anchor=50% width=100% height=100% text={self.label} selectable=false wrap=false style={
+            font: {
+                family: "Arial"
+                weight: 500
+            }
+            font_size: {self.tone == 0 ? 23px : 16px}
+            fill: {self.tone == 0 ? rgb(48, 55, 59) : rgb(244, 245, 236)}
+            align_horizontal: TextAlignHorizontal::Center
+            align_vertical: TextAlignVertical::Center
+        }/>
+        <Rectangle width=100% height=100% corner_radius=9 fill={self.tone == 0
+            ? (self.hovered ? rgb(239, 240, 228) : rgb(222, 225, 213))
+            : (self.tone == 2 ? (self.hovered ? rgb(77, 116, 109) : rgb(65, 100, 96)) : (self.hovered ? rgb(65, 79, 95) : rgb(48, 61, 78)))}
+            stroke={
+                color: rgba(19, 25, 30, 100)
+                width: 1px
+            } material={self.surface}/>
+    </Group>
+    <Rectangle y=3px width=100% height={100% - 2px} corner_radius=10 fill={self.tone == 0 ? rgb(118, 125, 125) : rgb(24, 34, 46)}
+        material={self.unlit}/>
+    <Rectangle x=-2px y=-2px width={100% + 4px} height={100% + 5px} corner_radius=12 fill=rgba(30, 37, 42, 80) material={self.unlit}/>
+</Group>
+
+@settings {
+    @mount: mount
+    @click: activate
+    @mouse_down: down
+    @mouse_up: up
+    @mouse_over: over
+    @mouse_out: out
+    @touch_start: touch
+    @touch_end: touch_end
+    @touch_cancel: cancel
+}

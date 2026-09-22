@@ -177,6 +177,47 @@ They are not a cancellable, cross-platform “before scrolling” hook. Likewise
 `@wheel` describes wheel input and does not cover every way someone can scroll.
 See [Event Handling](event-handling-rust.md) for event binding and propagation.
 
+### A resizable two-dimensional graph
+
+The canonical `calculator` example uses both scroll axes for a function plot.
+Its visible graph grows with the LCD, while zoom changes the content pane
+size. The important template relationship is:
+
+```pax
+<Scroller width={(self.graph_width)px} height={(self.graph_height)px}
+    scroll_width={(self.graph_extent)px} scroll_height={(self.graph_extent)px}
+    scroll_pos_x=bind:self.scroll_x scroll_pos_y=bind:self.scroll_y>
+    <Group width={(self.graph_extent)px} height={(self.graph_extent)px}>
+        <!-- Axes, labels, and bounded curve geometry share this coordinate space. -->
+    </Group>
+</Scroller>
+```
+
+The Rust component supplies the five numeric properties shown here. It starts
+at 16 logical pixels per graph unit and keeps the chosen scale on resize,
+so a larger window reveals more data. Zoom changes the scale and the pane
+extent together. Both operations preserve the world-space center where the
+finite boundary permits, derive the new scroll offsets, and
+regenerate visible geometry with a small overscan margin. Native scroll
+position bindings drive subsequent updates; the application does not accumulate
+a second position from scroll events. Sampling the viewport rather than the
+whole pane keeps work bounded as the person explores.
+
+Run `pax-cli run --path examples/src/calculator --target web` from a source
+checkout and switch to Graph. Try `1/x`, pan, then resize the window. The Rust
+expression engine deliberately leaves gaps across undefined domains and caps
+sampling work. Its finite world is −256 through 256 on each axis; this example
+has one function, calculator-style editing, and zoom from 0.25× to 16×.
+Press GRAPH again to center the origin without changing scale. The example's README
+documents the complete grammar, controls, and numerical limits.
+
+Calculate mode demonstrates a second, vertical Scroller for history, with a
+fixed editor outside the viewport. Its content height comes from wrapped
+character rows. Changing Calculate text size reflows those rows without
+changing Graph zoom. New results set the bound history offset to the new
+bottom; ordinary frame updates leave native scrolling in control. This keeps
+a long history reachable even when the LCD is small.
+
 ## Horizontal regions and snapping
 
 For a horizontal shelf, make `scroll_width` larger than `width` and keep the
