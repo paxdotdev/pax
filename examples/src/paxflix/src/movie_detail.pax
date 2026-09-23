@@ -1,0 +1,81 @@
+<ImportSettings>
+    <CinemaTheme is_dark={!light_mode}/>
+</ImportSettings>
+<Group anchor=0% width=100% height=100%>
+    <Group anchor=0% id=panel width=100% height=100%>
+        <Group anchor=0% x={100% - 60px} y=16px width=44px height=44px @click=self.close>
+            <Text class="button_text" width=100% height=100% text="×"/>
+            <Ellipse class="image_control_surface" width=100% height=100%/>
+        </Group>
+        <Frame anchor=0% width=100% height=100% corner_radius=12>
+            <Group anchor=0% x={($viewport.width > 650 && $viewport.height < 620) ? 44% : 28px} 
+                y={($viewport.width > 650 && $viewport.height < 620) ? 22px : ($viewport.height < 700 ? 23% : 41%)} 
+                width={($viewport.width > 650 && $viewport.height < 620) ? (56% - 28px) : (100% - 56px)} 
+                height={($viewport.width > 650 && $viewport.height < 620) ? (100% - 44px) : ($viewport.height < 700 ? 77% : 59%)}>
+                <Text class="eyebrow" width=100% height=18px text="Paxflix / FEATURE"/>
+                <Text class="film_title" anchor=0% y=24px width=100% height=52px text={movie.title}/>
+                <Text class="label" anchor=0% y={($viewport.width > 650 && $viewport.height < 620) ? 70px : 80px} width=100% height=22px 
+                    text={movie.year + "   ·   " + movie.rating + "   ·   " + movie.runtime}/>
+                <Text class="muted" anchor=0% y={($viewport.width > 650 && $viewport.height < 620) ? 96px : 108px} width=100% height=22px 
+                    text={movie.genres}/>
+                <Text class="synopsis" anchor=0% y={($viewport.width > 650 && $viewport.height < 620) ? 126px : 144px} width=100% 
+                    height={$viewport.width < 700 ? 112px : 76px} text={movie.synopsis}/>
+                <Group anchor=0% y={$viewport.width < 700 ? 268px : 222px} width={$viewport.width < 360 ? 104px : 126px} height=44px 
+                    @click=self.play>
+                    <Text class="primary_text" width=100% height=100% text="▶   Play"/>
+                    <Rectangle class="primary_surface" width=100% height=100% corner_radius=5/>
+                </Group>
+                <Group anchor=0% x={$viewport.width < 360 ? 116px : 138px} y={$viewport.width < 700 ? 268px : 222px} 
+                    width={$viewport.width < 360 ? 116px : 140px} height=44px @click=self.download>
+                    <Text class="button_text" width=100% height=100% text="↓   Download"/>
+                    <Rectangle class="secondary_surface" width=100% height=100% corner_radius=5/>
+                </Group>
+                <Text class="muted" anchor=0% y={$viewport.width < 700 ? 320px : 274px} width=100% height=36px text={feedback}/>
+            </Group>
+            <FilmArtwork anchor=0% width={($viewport.width > 650 && $viewport.height < 620) ? 44% : 100%} 
+                height={($viewport.width > 650 && $viewport.height < 620) ? 100% : ($viewport.height < 700 ? 43% : 64%)} 
+                still={movie.still} thumbnail={movie.thumbnail} light_mode={light_mode} 
+                fade_right={$viewport.width > 650 && $viewport.height < 620}/>
+            <Rectangle class="page_surface" width=100% height=100%/>
+        </Frame>
+        <Rectangle class="detail_surface" width=100% height=100% corner_radius=12/>
+    </Group>
+</Group>
+
+@settings {
+    @in: arrive
+    @out: depart
+}
+
+@timeline arrive {
+    interruption: Takeover,
+    duration: 320ms,
+    self {
+        opacity: {
+            0%: 0, InOutQuad,
+            100%: {$base},
+        }
+    }
+    #panel {
+        y: {
+            0: 30px, OutQuad,
+            100%: 0px,
+        }
+    }
+}
+@timeline depart {
+    interruption: Takeover,
+    duration: 220ms,
+    self {
+        opacity: {
+            0%: {$base}, InOutQuad,
+            100%: 0,
+        }
+    }
+    #panel {
+        y: {
+            0: 0px, InQuad,
+            100%: 18px,
+        }
+    }
+}

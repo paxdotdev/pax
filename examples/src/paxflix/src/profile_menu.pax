@@ -1,0 +1,65 @@
+<ImportSettings>
+    <CinemaTheme is_dark={!light_mode}/>
+</ImportSettings>
+<Group anchor=0% id=menu_panel width=100% height=100%>
+    <Group anchor=0% x={100% - 48px} y=8px width=40px height=40px @click=self.close>
+        <Text class="button_text" width=100% height=100% text="×"/>
+    </Group>
+    <Text class="eyebrow" anchor=0% x=20px y=20px width={100% - 72px} height=20px text="YOUR Paxflix"/>
+    <Text class="muted" anchor=0% x=20px y=44px width={100% - 40px} height=20px text="Demo profile"/>
+    <Group anchor=0% x=12px y=76px width={100% - 24px} height=40px @click=self.toggle_theme>
+        <Ellipse class="switch_thumb" anchor=0% x={100% - (light_mode ? 54px : 34px)} y=11px width=18px height=18px/>
+        <Rectangle class="switch_track" anchor=0% x={100% - 58px} y=7px width=46px height=26px corner_radius=13/>
+        <Text class="label" anchor=0% x=12px width={100% - 84px} height=100% text={light_mode ? "Light mode" : "Dark mode"}/>
+        <Rectangle class="menu_item_surface" width=100% height=100% corner_radius=5/>
+    </Group>
+    <Group anchor=0% x=12px y=122px width={100% - 24px} height=40px @click=self.profiles>
+        <Text class="button_text" anchor=0% x={100% - 32px} width=20px height=100% text="›"/>
+        <Text class="label" anchor=0% x=12px width={100% - 24px} height=100% text="Manage profiles"/>
+        <Rectangle class="menu_item_surface" width=100% height=100% corner_radius=5/>
+    </Group>
+    <Group anchor=0% x=12px y=168px width={100% - 24px} height=40px @click=self.account>
+        <Text class="button_text" anchor=0% x={100% - 32px} width=20px height=100% text="›"/>
+        <Text class="label" anchor=0% x=12px width={100% - 24px} height=100% text="Account"/>
+        <Rectangle class="menu_item_surface" width=100% height=100% corner_radius=5/>
+    </Group>
+    <Group anchor=0% x=12px y=214px width={100% - 24px} height=40px @click=self.help>
+        <Text class="button_text" anchor=0% x={100% - 32px} width=20px height=100% text="›"/>
+        <Text class="label" anchor=0% x=12px width={100% - 24px} height=100% text="Help center"/>
+        <Rectangle class="menu_item_surface" width=100% height=100% corner_radius=5/>
+    </Group>
+    <Text class="muted" anchor=0% x=20px y=264px width={100% - 40px} height=40px text={feedback}/>
+    <Rectangle class="menu_surface" width=100% height=100% corner_radius=10/>
+</Group>
+
+@settings {
+    @in: arrive
+    @out: depart
+}
+
+@timeline arrive {
+    duration: 180ms,
+    #menu_panel {
+        y: {
+            0%: -8px, OutQuad,
+            100%: 0px,
+        }
+        opacity: {
+            0%: 0, OutQuad,
+            100%: 1,
+        }
+    }
+}
+@timeline depart {
+    duration: 120ms,
+    #menu_panel {
+        y: {
+            0%: 0px, InQuad,
+            100%: -6px,
+        }
+        opacity: {
+            0%: 1, InQuad,
+            100%: 0,
+        }
+    }
+}

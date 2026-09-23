@@ -224,6 +224,12 @@ reactive state. It is a useful next step when one shared class has grown into
 a theme. Keep event handlers responsible for state changes and let bindings
 select the visual values, as described in [PAXEL](data-binding-expressions.md).
 
+`examples/src/paxflix` shows a shared runtime dark/light choice across nested
+components. Each visual component imports `CinemaTheme is_dark={!light_mode}`
+and uses its semantic classes for text, surfaces, controls, and image fades.
+The profile menu changes the root's bound mode; the imported provider updates
+reactively while the catalog's Scrollers remain mounted.
+
 ## Paths and SVG
 
 ### Describe a path

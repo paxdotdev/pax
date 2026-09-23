@@ -289,6 +289,13 @@ Image source. The web canvas loader prefixes the app's document directory,
 and the Apple canvas loaders resolve bundled assets. Use app-relative assets
 for this path. Web NativeImage has a separate browser URL path, described below.
 
+For portable Apple bundles, use distinct resource basenames even across
+subdirectories. For example, name a large still `stills/film.jpg` and its small
+derivative `thumbs/film-thumb.jpg`. Apple's Swift resource processing rejects
+two processed resources named `film.jpg`. Reuse each path for repeated image
+nodes, and use the smaller derivative when full-resolution pixels are unnecessary.
+The `paxflix` example demonstrates this catalog pattern.
+
 ### Fit an image into its bounds
 
 Choose whether preserving the whole image, covering the area, or stretching

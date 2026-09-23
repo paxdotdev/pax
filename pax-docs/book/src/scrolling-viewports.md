@@ -420,6 +420,26 @@ mixed content; `scroll-matrix` exercises nesting, transforms, and controls;
 `scroll-garden` explores scroll-driven scenes. Their source lives under
 `examples/src/` and remains the place to follow the complete applications.
 
+### A cinematic catalog
+
+`examples/src/paxflix` combines a large hero with ten horizontal movie shelves
+inside one vertical Scroller. Its 100 cards reuse 35 local images through stable
+thumbnail paths; a selected film opens a full-resolution root-level detail panel.
+Each shelf's viewport spans the screen, with gutter space inside its scrolling
+content. At zero scroll the first card aligns with the heading; scrolling lets
+the cards cross the fixed layout gutters and clip only at the viewport edges.
+Card titles and metadata sit over a dense lower image gradient that follows
+the selected dark or light theme.
+The shelves remain mounted while the panel opens, preserving their scroll
+positions. Short landscape windows use a side-by-side detail layout.
+Its previous/next controls animate the bound scroll position with `ease_to`;
+wheel or touch input cancels that animation so direct scrolling takes over.
+
+Run it with `pax-cli run --path examples/src/paxflix --target web`. The example's
+README documents the asset inventory and a repeatable culling/interaction check.
+All 100 cards participate in tree expansion: use it to inspect viewport-aware
+drawing and asset reuse, not as an example of list virtualization.
+
 ## Read more
 
 - [Layout and Responsiveness](layout-responsiveness.md): parent frames,

@@ -1,0 +1,26 @@
+[package]
+name = "paxflix"
+version = "0.39.0"
+edition = "2021"
+default-run = "run"
+
+[package.metadata.pax]
+title = "Paxflix — A cinema library"
+
+[dependencies]
+pax-kit = { version = "0.39.0", path = "../../../pax-kit" }
+serde_json = "1"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "run"
+path = "bin/run.rs"
+
+[profile.dev]
+opt-level = 1
+debug = 0
+
+[profile.dev.package.paxflix]
+opt-level = 0

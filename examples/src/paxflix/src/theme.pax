@@ -1,0 +1,319 @@
+// Every visual component imports this provider with the shared mode.
+
+@settings {
+    .label {
+        selectable: false
+        style: {
+            font: "Arial"
+            font_size: 15px
+            fill: {self.is_dark ? rgb(247, 245, 242) : rgb(31, 29, 28)}
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .card_title {
+        selectable: false
+        style: {
+            font: {
+                family: "Arial"
+                weight: 700
+            }
+            font_size: 16px
+            fill: {self.is_dark ? rgb(247, 245, 242) : rgb(31, 29, 28)}
+            align_vertical: TextAlignVertical::Bottom
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .muted {
+        selectable: false
+        style: {
+            font: "Arial"
+            font_size: 12px
+            fill: {self.is_dark ? rgb(160, 160, 170) : rgb(101, 96, 91)}
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .eyebrow {
+        selectable: false
+        style: {
+            font: {
+                family: "Arial"
+                weight: 700
+            }
+            font_size: 11px
+            fill: {self.is_dark ? rgb(242, 98, 77) : rgb(174, 49, 34)}
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .heading {
+        selectable: false
+        style: {
+            font: {
+                family: "Arial"
+                weight: 700
+            }
+            font_size: 21px
+            fill: {self.is_dark ? rgb(247, 245, 242) : rgb(31, 29, 28)}
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .button_text {
+        selectable: false
+        style: {
+            font: {
+                family: "Arial"
+                weight: 700
+            }
+            font_size: 14px
+            fill: {self.is_dark ? rgb(247, 245, 242) : rgb(31, 29, 28)}
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+        }
+    }
+    .primary_text {
+        selectable: false
+        style: {
+            font: {
+                family: "Arial"
+                weight: 700
+            }
+            font_size: 14px
+            fill: {self.is_dark ? rgb(16, 16, 20) : rgb(255, 253, 250)}
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+        }
+    }
+    .profile_text {
+        selectable: false
+        style: {
+            font: {
+                family: "Arial"
+                weight: 700
+            }
+            font_size: 14px
+            fill: {self.is_dark ? rgb(247, 245, 242) : rgb(96, 42, 32)}
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+        }
+    }
+    .hero_title {
+        selectable: false
+        style: {
+            font: {
+                family: "Georgia"
+                weight: 700
+            }
+            font_size: {$viewport.width < 700 ? 43px : 52px}
+            fill: {self.is_dark ? rgb(247, 245, 242) : rgb(31, 29, 28)}
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .hero_copy {
+        selectable: false
+        style: {
+            font: "Arial"
+            font_size: 17px
+            fill: {self.is_dark ? rgb(201, 200, 203) : rgb(70, 65, 60)}
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .film_title {
+        selectable: false
+        style: {
+            font: {
+                family: "Georgia"
+                weight: 700
+            }
+            font_size: {($viewport.width > 650 && $viewport.height < 620) ? 26px : ($viewport.width < 700 ? 29px : 37px)}
+            fill: {self.is_dark ? rgb(247, 245, 242) : rgb(31, 29, 28)}
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .synopsis {
+        selectable: false
+        style: {
+            font: "Arial"
+            font_size: 15px
+            fill: {self.is_dark ? rgb(201, 200, 203) : rgb(70, 65, 60)}
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .page_surface {
+        fill: {self.is_dark ? rgb(0, 0, 0) : rgb(248, 246, 242)}
+    }
+    .primary_surface {
+        fill: {self.is_dark ? rgb(247, 245, 242) : rgb(35, 32, 30)}
+    }
+    .secondary_surface {
+        fill: {self.is_dark ? rgb(47, 47, 55) : rgb(226, 222, 216)}
+    }
+    .control_surface {
+        fill: {self.is_dark ? rgb(28, 28, 34) : rgb(229, 225, 219)}
+    }
+    .profile_surface {
+        fill: {self.is_dark ? rgb(104, 66, 64) : rgb(235, 210, 200)}
+    }
+    .menu_item_surface {
+        fill: {self.is_dark ? rgb(30, 30, 36) : rgb(235, 231, 225)}
+    }
+    .image_placeholder {
+        fill: {self.is_dark ? rgb(27, 27, 33) : rgb(223, 218, 211)}
+    }
+    .switch_track {
+        fill: {self.is_dark ? rgb(211, 72, 53) : rgb(188, 181, 172)}
+    }
+    .switch_thumb {
+        fill: {self.is_dark ? rgb(255, 250, 245) : rgb(248, 246, 242)}
+    }
+    .detail_surface {
+        fill: {self.is_dark ? rgb(0, 0, 0) : rgb(248, 246, 242)}
+        stroke: {
+            color: {self.is_dark ? rgb(59, 59, 66) : rgb(200, 191, 181)}
+            width: 1px
+        }
+    }
+    .menu_surface {
+        fill: {self.is_dark ? rgb(16, 16, 20) : rgb(253, 251, 248)}
+        stroke: {
+            color: {self.is_dark ? rgb(59, 59, 66) : rgb(200, 191, 181)}
+            width: 1px
+        }
+    }
+    .image_control_surface {
+        fill: {self.is_dark ? rgba(14, 14, 18, 230) : rgba(248, 246, 242, 242)}
+        stroke: {
+            color: {self.is_dark ? rgba(255, 255, 255, 110) : rgba(67, 55, 45, 130)}
+            width: 1px
+        }
+    }
+    .card_hover {
+        fill: {self.is_dark ? rgba(255, 255, 255, 12) : rgba(0, 0, 0, 8)}
+        stroke: {
+            color: {self.is_dark ? rgb(242, 98, 77) : rgb(174, 49, 34)}
+            width: 2px
+        }
+    }
+    .modal_backdrop {
+        background: {self.is_dark ? rgba(0, 0, 0, 190) : rgba(38, 30, 24, 115)}
+    }
+    if self.is_dark {
+        .card_scrim {
+            fill: @gradient {
+                linear: {
+                    start: [0%, 0%],
+                    end: [0%, 100%],
+                },
+                0%: rgba(0, 0, 0, 0),
+                25%: rgba(0, 0, 0, 90),
+                45%: rgba(0, 0, 0, 230),
+                70%: rgba(0, 0, 0, 253),
+                100%: rgba(0, 0, 0, 255),
+            }
+        }
+        .artwork_bottom {
+            fill: @gradient {
+                linear: {
+                    start: [0%, 0%],
+                    end: [0%, 100%],
+                },
+                0%: rgba(0, 0, 0, 0),
+                38%: rgba(0, 0, 0, 0),
+                64%: rgba(0, 0, 0, 90),
+                84%: rgba(0, 0, 0, 210),
+                100%: rgba(0, 0, 0, 255),
+            }
+        }
+        .artwork_right {
+            fill: @gradient {
+                linear: {
+                    start: [0%, 0%],
+                    end: [100%, 0%],
+                },
+                0%: rgba(0, 0, 0, 0),
+                58%: rgba(0, 0, 0, 0),
+                82%: rgba(0, 0, 0, 120),
+                100%: rgba(0, 0, 0, 255),
+            }
+        }
+        .hero_scrim {
+            fill: @gradient {
+                linear: {
+                    start: [0%, 0%],
+                    end: [100%, 0%],
+                },
+                0%: rgba(0, 0, 0, 230),
+                48%: rgba(0, 0, 0, 100),
+                100%: rgba(0, 0, 0, 0),
+            }
+        }
+    } else {
+        .card_scrim {
+            fill: @gradient {
+                linear: {
+                    start: [0%, 0%],
+                    end: [0%, 100%],
+                },
+                0%: rgba(248, 246, 242, 0),
+                25%: rgba(248, 246, 242, 90),
+                45%: rgba(248, 246, 242, 230),
+                70%: rgba(248, 246, 242, 253),
+                100%: rgba(248, 246, 242, 255),
+            }
+        }
+        .artwork_bottom {
+            fill: @gradient {
+                linear: {
+                    start: [0%, 0%],
+                    end: [0%, 100%],
+                },
+                0%: rgba(248, 246, 242, 0),
+                35%: rgba(248, 246, 242, 0),
+                58%: rgba(248, 246, 242, 185),
+                82%: rgba(248, 246, 242, 245),
+                100%: rgba(248, 246, 242, 255),
+            }
+        }
+        .artwork_right {
+            fill: @gradient {
+                linear: {
+                    start: [0%, 0%],
+                    end: [100%, 0%],
+                },
+                0%: rgba(248, 246, 242, 0),
+                58%: rgba(248, 246, 242, 0),
+                82%: rgba(248, 246, 242, 120),
+                100%: rgba(248, 246, 242, 255),
+            }
+        }
+        .hero_scrim {
+            fill: @gradient {
+                linear: {
+                    start: [0%, 0%],
+                    end: [100%, 0%],
+                },
+                0%: rgba(248, 246, 242, 250),
+                48%: rgba(248, 246, 242, 228),
+                100%: rgba(248, 246, 242, 0),
+            }
+        }
+    }
+}

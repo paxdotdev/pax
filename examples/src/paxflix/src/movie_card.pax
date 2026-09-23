@@ -1,0 +1,20 @@
+<ImportSettings>
+    <CinemaTheme is_dark={!light_mode}/>
+</ImportSettings>
+<Group anchor=0% width=100% height=100% @click=self.open @mouse_over=self.over @mouse_out=self.out>
+    <Frame anchor=0% width=100% height=100% corner_radius=6>
+        <Text class="card_title" anchor=0% x=16px y={100% - 74px} width={100% - 32px} height=40px text={movie.title}/>
+        <Text class="muted" anchor=0% x=16px y={100% - 30px} width={100% - 32px} height=18px 
+            text={movie.year + "   ·   " + movie.runtime + "   ·   " + movie.rating}/>
+        if hover {
+            <Group anchor=0% x={100% - 40px} y=10px width=30px height=30px>
+                <Text class="button_text" anchor=0% width=100% height=100% text="+"/>
+                <Ellipse class="image_control_surface" anchor=0% width=100% height=100%/>
+            </Group>
+            <Rectangle class="card_hover" anchor=0% width=100% height=100% corner_radius=6/>
+        }
+        <Rectangle class="card_scrim" anchor=0% y={100% - 124px} width=100% height=126px/>
+        <Image anchor=0% width=100% height=100% source={ImageSource::Url(movie.thumbnail)} fit=ImageFit::Fill/>
+        <Rectangle class="image_placeholder" anchor=0% width=100% height=100%/>
+    </Frame>
+</Group>

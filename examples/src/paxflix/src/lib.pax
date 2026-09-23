@@ -1,0 +1,77 @@
+<ImportSettings>
+    <CinemaTheme is_dark={!light_mode}/>
+</ImportSettings>
+<Group anchor=0% width=100% height=100%>
+    if modal_open {
+        <MovieDetail x=50% y={50% + (top_inset / 2)px} anchor=50% width={(Math::min(880, $viewport.width - 32))px} 
+            height={(Math::min(670, $viewport.height - top_inset - 32))px} movie={selected} modal_open=bind:modal_open light_mode={light_mode}/>
+        <EventBlocker class="modal_backdrop" width=100% height=100% @click=self.close @in=@timeline {
+            duration: 320ms,
+            opacity: {
+                0: 0, InOutQuad,
+                100%: 1,
+            }
+        } 
+            @out=@timeline {
+                duration: 220ms,
+                opacity: {
+                    0: 1, InOutQuad,
+                    100%: 0,
+                }
+            }/>
+    }
+    if profile_open {
+        <ProfileMenu anchor=0% x={100% - (gutter + 264)px} y={(top_inset + 60)px} width=264px height=316px open=bind:profile_open light_mode=bind:light_mode/>
+        <EventBlocker width=100% height=100% background=rgba(0, 0, 0, 0) @click=self.close_profile/>
+    }
+    <Group anchor=0% width=100% height={(top_inset + 68)px}>
+        // Crop the PNG's transparent margin so the visible lettering follows the layout gutter.
+        <Frame anchor=0% x={(gutter)px} y={(top_inset + 13)px} width=134px height=42px>
+            <Image anchor=0% x=-9px y=-4px width=150px height=50px source={ImageSource::Url("assets/paxflix-logo.png")} fit=ImageFit::Fit/>
+        </Frame>
+        <Group anchor=0% x={100% - (gutter + 32)px} y={(top_inset + 19)px} width=32px height=32px @click=self.toggle_profile>
+            <Text class="profile_text" anchor=0% width=100% height=100% text="P"/>
+            <Rectangle class="profile_surface" anchor=0% width=100% height=100% corner_radius=8/>
+        </Group>
+        <Rectangle class="page_surface" anchor=0% width=100% height=100%/>
+    </Group>
+    <Scroller anchor=0% id=catalog_page x=0px y={(top_inset + 68)px} width=100% height={100% - (top_inset + 68)px} scroll_width=100% 
+        scroll_height={(hero_height + row_height * 10 + 128)px} scroll_pos_y=bind:scroll_y>
+        <Group anchor=0% width=100% height={(hero_height + row_height * 10 + 128)px}>
+            for shelf in shelves {
+                <MovieShelf anchor=0% y={(hero_height + 20 + shelf.id * row_height)px} width=100% height={(row_height)px} shelf={shelf} 
+                    selected_id=bind:selected_id modal_open=bind:modal_open card_width={card_width} gutter={gutter} light_mode={light_mode}/>
+            }
+            <Text class="muted" anchor=0% x={(gutter)px} y={(hero_height + row_height * 10 + 40)px} width={100% - (gutter * 2)px} 
+                height=32px text="Paxflix  /  Original stories. An imaginary cinema. Built with Pax."/>
+            <Group anchor=0% width=100% height={(hero_height)px}>
+                <Group anchor=0% x={(gutter)px} y={compact ? 44px : 48px} width={compact ? (100% - 40px) : 540px} height={100% - 56px}>
+                    <Text class="eyebrow" anchor=0% width=100% height=20px text="Paxflix ORIGINAL"/>
+                    <Text class="hero_title" anchor=0% y=30px width=100% height=60px text="THE LAST"/>
+                    <Text class="hero_title" anchor=0% y={compact ? 78px : 88px} width=100% height=60px text="SIGNAL"/>
+                    <Text class="label" anchor=0% y={compact ? 140px : 160px} width=100% height=24px 
+                        text="2026    ·    PG-13    ·    2h 08m    ·    Sci-fi"/>
+                    <Text class="hero_copy" anchor=0% y={compact ? 178px : 198px} width={compact ? 100% : 425px} height=58px 
+                        text="A message from tomorrow. One night to change everything."/>
+                    <Group anchor=0% y={compact ? 246px : 268px} width=132px height=44px @click=self.open_feature>
+                        <Text class="primary_text" anchor=0% width=100% height=100% text="▶   Play film"/>
+                        <Rectangle class="primary_surface" anchor=0% width=100% height=100% corner_radius=5/>
+                    </Group>
+                    <Group anchor=0% x=144px y={compact ? 246px : 268px} width=138px height=44px @click=self.open_feature>
+                        <Text class="button_text" anchor=0% width=100% height=100% text="+   More info"/>
+                        <Rectangle class="secondary_surface" anchor=0% width=100% height=100% corner_radius=5/>
+                    </Group>
+                </Group>
+                <Rectangle class="hero_scrim" anchor=0% width=100% height=100%/>
+                <FilmArtwork anchor=0% width=100% height=100% still="assets/stills/the-last-signal.jpg" 
+                    thumbnail="assets/thumbs/the-last-signal-thumb.jpg" light_mode={light_mode}/>
+            </Group>
+        </Group>
+    </Scroller>
+    <Rectangle class="page_surface" anchor=0% width=100% height=100%/>
+</Group>
+
+@settings {
+    @mount: mount
+    @key_down: key_down
+}

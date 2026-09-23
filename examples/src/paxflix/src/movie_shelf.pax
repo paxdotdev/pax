@@ -1,0 +1,24 @@
+<ImportSettings>
+    <CinemaTheme is_dark={!light_mode}/>
+</ImportSettings>
+<Group anchor=0% width=100% height=100% @wheel=self.wheel @touch_start=self.touch_start>
+    <Group anchor=0% x={100% - (gutter + 76)px} y=0px width=36px height=32px @click=self.previous>
+        <Text class="button_text" anchor=0% width=100% height=100% text="‹"/>
+        <Rectangle class="control_surface" anchor=0% width=100% height=100% corner_radius=16/>
+    </Group>
+    <Group anchor=0% x={100% - (gutter + 36)px} y=0px width=36px height=32px @click=self.next>
+        <Text class="button_text" anchor=0% width=100% height=100% text="›"/>
+        <Rectangle class="control_surface" anchor=0% width=100% height=100% corner_radius=16/>
+    </Group>
+    <Text class="heading" anchor=0% x={(gutter)px} width={100% - (gutter * 2 + 90)px} height=32px text={shelf.title}/>
+    // Gutters live inside the scrolling content; its viewport reaches both screen edges.
+    <Scroller anchor=0% id=film_shelf x=0px y=46px width=100% height={(card_width * 0.75)px} scroll_height=100% 
+        scroll_width={((card_width + 16) * 10 - 16 + gutter * 2)px} scroll_pos_x=bind:scroll_x>
+        <Group anchor=0% width={((card_width + 16) * 10 - 16 + gutter * 2)px} height=100%>
+            for (movie, index) in shelf.movies {
+                <MovieCard anchor=0% x={(gutter + index * (card_width + 16))px} y=0px width={(card_width)px} height=100% 
+                    movie={movie} selected_id=bind:selected_id modal_open=bind:modal_open light_mode={light_mode}/>
+            }
+        </Group>
+    </Scroller>
+</Group>

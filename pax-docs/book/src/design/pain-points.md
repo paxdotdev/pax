@@ -791,6 +791,13 @@ viewport data. Until then, edge-to-edge examples with top-level controls must
 explicitly reserve the native status region, and visual bounds alone are not a
 reliable test of iOS hit accessibility there.
 
+`paxflix` encountered the same issue on iPad: the status bar overlapped the
+navigation logo and profile control. Its explicit native header spacing is
+32px on iPad, 64px on portrait iPhone and 12px on landscape iPhone, with 64px
+landscape iPhone side gutters. Menu, content and detail positioning follow the
+same top margin. These are example layout choices, not measured safe-area
+insets or a substitute for exposing chassis-provided inset data.
+
 ## 2026-07-20
 
 Wrapping canvas-interactive content in a `Scroller` changed input ownership on
@@ -2075,3 +2082,59 @@ from its metadata. Remove that entry before staging a real public blog document:
 Pax deliberately rejects public files that overwrite generated entries. The
 blog belongs in `pax-blog/`; its output can be staged beneath the website's
 `public/blog/` for a local integration check.
+
+## 2026-09-23 — Cinematic catalogs: anchors, responsive state, and asset names
+
+When building `examples/src/paxflix`, percentage positions inherited matching
+percentage anchors: `y={100% - 46px}` lifted a caption by its own height and
+`y=41%` moved an entire modal content group upward. Use explicit `anchor=0%`
+for top-left placement; reserve `anchor=50%` for deliberately centered panels.
+A literal `\n` in a Pax template string rendered literally, so the two-line
+hero uses two Text nodes. Component property assignments are not top-level
+`@settings` entries; derive responsive component state with computed Properties
+from `ctx.bounds_self`, then bind those values in the template.
+
+The detail component's named enter/exit timelines target its `#panel` child.
+Binding them through the component's `@settings` (`@in: arrive`, `@out: depart`)
+removed conflicting ordinary-timeline warnings seen when the same names were
+bound on a wrapping Group. Verify the fresh runtime log as well as the final
+animation pose when adapting transition examples.
+
+Apple's generated Swift resource package processes image resources by basename.
+`stills/film.jpg` and `thumbs/film.jpg` collide even though their directories differ.
+Name the derivative `film-thumb.jpg` and keep all repeated cards bound to that
+same path. After renaming assets, remove only the obsolete copies in the
+example's generated `.pax/interface/common/pax-swift-cartridge/…/Resources/assets/`
+tree before retrying; an incremental asset copy can retain removed filenames.
+
+The same example exposed a web modal input-ordering gap in an exploratory
+layout: a native Scroller inside a root detail panel rendered above a sibling
+EventBlocker, but `document.elementsFromPoint` placed the blocker ahead of the
+Scroller and wheel input could not scroll the panel. The Scroller had a 670px
+content height in a 358px viewport, so missing overflow was not the cause.
+This needs a focused compositor/input investigation before relying on that
+composition. Paxflix's final panel uses a responsive side-by-side layout
+for short landscape windows and has no inner Scroller; its catalog still uses
+all eleven real Scrollers. No engine changes were made for this example.
+
+Web `dev look` captures showed centered button labels aligned left, while
+the live browser rendered them centered. Compare a dev capture with the live
+browser before changing correct template alignment to compensate for a capture
+artifact. Paxflix's visual review used both views; this capture difference
+still needs investigation.
+
+When a later review showed blank detail artwork while catalog thumbnails still
+rendered, the browser log reported failed fetches for the larger stills and
+the preview server was no longer listening. Cached thumbnails made the page
+look healthy. Keep the preview server alive between review turns, and verify
+a previously unopened still. Paxflix also layers the already-loaded thumbnail
+under its full-resolution Image so asynchronous loading does not expose an
+empty panel.
+
+In the subsequent profile/modal and viewport-resize pass, trace logs reported
+`pax-tile-window-escape` as bounds changed and render-filter
+`fallback=missing_dirty_node` afterward. The final views rendered correctly and
+three repeated scroll cycles had stable canvas counts, but that does not prove
+all culling paths stayed efficient. Keep these diagnostics visible in the
+example's validation notes for a focused renderer follow-up rather than
+claiming a warning-free resize stress test.
