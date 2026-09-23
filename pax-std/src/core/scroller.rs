@@ -391,13 +391,42 @@ impl InstanceNode for ScrollerHostInstance {
                             .collect();
                         let scroll_enabled_x = scroll_width > width + 0.5;
                         let scroll_enabled_y = scroll_height > height + 0.5;
-                        let presentation_scroll =
-                            context.get_scroller_surface_scroll(id).unwrap_or_else(|| {
+                        let logical_scroll =
+                            (properties.scroll_pos_x.get(), properties.scroll_pos_y.get());
+                        // A property write is a new scroll request, not a replay of the last
+                        // native observation. Move presentation by the same delta, preserving
+                        // any host-relative offset. Before the first observation, start at the
+                        // authored position so native hosts and tile plans agree on the viewport.
+                        let presentation_scroll = context
+                            .get_scroller_surface_state(id)
+                            .map(|previous| {
+                                let advance = |requested: f64, logical: f64, presented: f64| {
+                                    if presented.is_finite() {
+                                        presented + (requested - logical)
+                                    } else {
+                                        requested
+                                    }
+                                };
                                 (
-                                    properties._presentation_scroll_x.get(),
-                                    properties._presentation_scroll_y.get(),
+                                    advance(
+                                        logical_scroll.0,
+                                        previous.scroll_x,
+                                        previous.presentation_scroll_x,
+                                    ),
+                                    advance(
+                                        logical_scroll.1,
+                                        previous.scroll_y,
+                                        previous.presentation_scroll_y,
+                                    ),
                                 )
-                            });
+                            })
+                            .unwrap_or(logical_scroll);
+                        properties
+                            ._presentation_scroll_x
+                            .set_if_neq(presentation_scroll.0);
+                        properties
+                            ._presentation_scroll_y
+                            .set_if_neq(presentation_scroll.1);
                         let presentation_changed =
                             (presentation_scroll.0 - previous_presentation_scroll.0).abs() > 1e-4
                                 || (presentation_scroll.1 - previous_presentation_scroll.1).abs()
@@ -858,6 +887,9 @@ fn sync_scroller_autosize(
         resolved_scroll_height.set(resolved_height);
     }
 }
+
+#[cfg(test)]
+mod scroll_position_tests;
 
 #[cfg(test)]
 mod tests {

@@ -1,4 +1,9 @@
-<Scroller width=100% height=100% scroll_width=100% scroll_height={(self.page_height)px}>
+<DynamicIslandSpacer inset=bind:self.safe_top/>
+<DynamicIslandSpacer edge=SafeAreaEdge::Right x=100% anchor_x=100% inset=bind:self.safe_right/>
+<DynamicIslandSpacer edge=SafeAreaEdge::Bottom y=100% anchor_y=100% inset=bind:self.safe_bottom/>
+<DynamicIslandSpacer edge=SafeAreaEdge::Left inset=bind:self.safe_left/>
+<Scroller x={(self.safe_left)px} y={(self.safe_top)px} width={100% - (self.safe_left + self.safe_right)px}
+    height={100% - (self.safe_top + self.safe_bottom)px} scroll_width=100% scroll_height={(self.page_height)px}>
     <Group width=100% height={(self.page_height)px}>
         <LightFrame x=50% y={(self.body_top)px} anchor_x=50% width={(self.body_width)px} height={(self.body_height)px}
             @mouse_move=light_move>
@@ -200,50 +205,73 @@
                         label={button.label} action={button.action} tone={button.tone}/>
                 }
             </Group>
-            <Rectangle x=7px y=7px width={100% - 14px} height={100% - 20px} corner_radius=[31, 31, 40, 40] fill=@gradient {
-                linear: {
-                    start: [0%, 0%],
-                    end: [100%, 100%],
-                },
-                0%: rgb(225, 227, 221),
-                42%: rgb(190, 196, 195),
-                100%: rgb(173, 181, 181),
+            if !self.native_full_screen {
+                <Rectangle x=7px y=7px width={100% - 14px} height={100% - 20px} corner_radius=[31, 31, 40, 40] fill=@gradient {
+                    linear: {
+                        start: [0%, 0%],
+                        end: [100%, 100%],
+                    },
+                    0%: rgb(225, 227, 221),
+                    42%: rgb(190, 196, 195),
+                    100%: rgb(173, 181, 181),
+                }
+                    stroke={
+                        color: rgba(255, 255, 248, 170)
+                        width: 1px
+                    } material={self.silver}/>
+                <Rectangle x=2px y=2px width={100% - 4px} height={100% - 8px} corner_radius=[36, 36, 44, 44] fill=@gradient {
+                    linear: {
+                        start: [0%, 0%],
+                        end: [100%, 100%],
+                    },
+                    0%: rgb(242, 241, 232),
+                    28%: rgb(151, 164, 167),
+                    52%: rgb(207, 211, 207),
+                    100%: rgb(83, 101, 107),
+                }
+                    material={self.unlit}/>
+                <Rectangle width=100% height=100% corner_radius=[38, 38, 46, 46] fill=rgb(94, 107, 112) material={self.unlit}/>
             }
-                stroke={
-                    color: rgba(255, 255, 248, 170)
-                    width: 1px
-                } material={self.silver}/>
-            <Rectangle x=2px y=2px width={100% - 4px} height={100% - 8px} corner_radius=[36, 36, 44, 44] fill=@gradient {
+            if !self.native_full_screen {
+                <LightSource x={(self.light_x)px} y={(self.light_y)px} width=1px height=1px z={(self.body_width * 0.65)px}
+                    radius={(self.body_width * 2.4)px} intensity=0.82 color=rgb(255, 251, 236)/>
+                <AmbientLight intensity=0.70 color=rgb(255, 255, 250)/>
+            }
+        </LightFrame>
+        if !self.native_full_screen {
+            <Rectangle x=50% y={(self.body_top + 11)px} anchor_x=50% width={(self.body_width + 8)px} height={(self.body_height + 4)px}
+                corner_radius=46 fill=rgba(20, 29, 31, 30) material={self.unlit}/>
+            <Rectangle x=50% y={(self.body_top + 22)px} anchor_x=50% width={(self.body_width + 24)px} height={(self.body_height + 5)px}
+                corner_radius=50 fill=rgba(20, 29, 31, 12) material={self.unlit}/>
+            <Rectangle width=100% height=100% fill=@gradient {
                 linear: {
                     start: [0%, 0%],
                     end: [100%, 100%],
                 },
-                0%: rgb(242, 241, 232),
-                28%: rgb(151, 164, 167),
-                52%: rgb(207, 211, 207),
-                100%: rgb(83, 101, 107),
+                0%: rgb(238, 237, 227),
+                100%: rgb(198, 207, 202),
             }
                 material={self.unlit}/>
-            <Rectangle width=100% height=100% corner_radius=[38, 38, 46, 46] fill=rgb(94, 107, 112) material={self.unlit}/>
-            <LightSource x={(self.light_x)px} y={(self.light_y)px} width=1px height=1px z={(self.body_width * 0.65)px}
-                radius={(self.body_width * 2.4)px} intensity=0.82 color=rgb(255, 251, 236)/>
-            <AmbientLight intensity=0.70 color=rgb(255, 255, 250)/>
-        </LightFrame>
-        <Rectangle x=50% y={(self.body_top + 11)px} anchor_x=50% width={(self.body_width + 8)px} height={(self.body_height + 4)px}
-            corner_radius=46 fill=rgba(20, 29, 31, 30) material={self.unlit}/>
-        <Rectangle x=50% y={(self.body_top + 22)px} anchor_x=50% width={(self.body_width + 24)px} height={(self.body_height + 5)px}
-            corner_radius=50 fill=rgba(20, 29, 31, 12) material={self.unlit}/>
+        }
+    </Group>
+</Scroller>
+if self.native_full_screen {
+    <LightFrame width=100% height=100%>
         <Rectangle width=100% height=100% fill=@gradient {
             linear: {
                 start: [0%, 0%],
                 end: [100%, 100%],
             },
-            0%: rgb(238, 237, 227),
-            100%: rgb(198, 207, 202),
+            0%: rgb(225, 227, 221),
+            42%: rgb(190, 196, 195),
+            100%: rgb(173, 181, 181),
         }
-            material={self.unlit}/>
-    </Group>
-</Scroller>
+            material={self.silver}/>
+        <LightSource x=22% y=15% width=1px height=1px z={(self.body_width * 0.65)px} radius={(self.body_width * 2.4)px} intensity=0.82
+            color=rgb(255, 251, 236)/>
+        <AmbientLight intensity=0.70 color=rgb(255, 255, 250)/>
+    </LightFrame>
+}
 
 @settings {
     @mount: mount

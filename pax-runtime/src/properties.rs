@@ -4,7 +4,7 @@ use crate::constants::{ACCEL_HANDLERS, GYRO_HANDLERS, PRE_RENDER_HANDLERS, TICK_
 use pax_language::interpreter::property_resolution::IdentifierResolver;
 use pax_manifest::cartridge_generation::{TRANSITION_PHASE_ENTER, TRANSITION_PHASE_EXIT};
 use pax_manifest::UniqueTemplateNodeIdentifier;
-use pax_message::{NativeMessage, ScreenshotData};
+use pax_message::{NativeMessage, SafeAreaInsets, ScreenshotData};
 use pax_runtime_api::properties::{
     drain_effects, drain_effects_with_report, property_has_direct_outbound,
     property_outbound_debug_names, register_effect_property, register_effect_property_with_name,
@@ -130,6 +130,7 @@ pub struct RuntimeContext {
     layer_scroller_owners: RefCell<HashMap<usize, ExpandedNodeIdentifier>>,
     root_scroller_id: Cell<Option<u32>>,
     visual_viewport_state: Cell<Option<VisualViewportState>>,
+    safe_area_insets: Property<SafeAreaInsets>,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -257,6 +258,7 @@ impl RuntimeContext {
             layer_scroller_owners: Default::default(),
             root_scroller_id: Cell::new(None),
             visual_viewport_state: Cell::new(None),
+            safe_area_insets: Property::default(),
         }
     }
 
@@ -295,6 +297,7 @@ impl RuntimeContext {
             layer_scroller_owners: Default::default(),
             root_scroller_id: Cell::new(None),
             visual_viewport_state: Cell::new(None),
+            safe_area_insets: Property::default(),
         }
     }
 
@@ -333,6 +336,7 @@ impl RuntimeContext {
             layer_scroller_owners: Default::default(),
             root_scroller_id: Cell::new(None),
             visual_viewport_state: Cell::new(None),
+            safe_area_insets: Property::default(),
         }
     }
 
@@ -858,6 +862,22 @@ impl RuntimeContext {
     /// Current page-scroll-backed root scroller id.
     pub fn get_root_scroller_id(&self) -> Option<u32> {
         self.root_scroller_id.get()
+    }
+
+    /// Live native safe-area data used by opt-in layout primitives. Defaults to zero.
+    pub fn safe_area_insets(&self) -> Property<SafeAreaInsets> {
+        self.safe_area_insets.clone()
+    }
+
+    /// Update native safe-area data without changing the viewport or root layout.
+    pub fn set_safe_area_insets(&self, insets: SafeAreaInsets) {
+        let valid = |value: f64| if value.is_finite() { value.max(0.0) } else { 0.0 };
+        self.safe_area_insets.set_if_neq(SafeAreaInsets {
+            top: valid(insets.top),
+            right: valid(insets.right),
+            bottom: valid(insets.bottom),
+            left: valid(insets.left),
+        });
     }
 
     /// Cache the browser visual viewport state for root scroller math.

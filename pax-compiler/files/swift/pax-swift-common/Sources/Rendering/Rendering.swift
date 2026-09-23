@@ -1795,7 +1795,7 @@ public struct NativeRenderingLayer: View {
     }
 
 #if os(iOS) || os(tvOS) || os(watchOS)
-    private protocol PlatformScrollerDelegate: UIScrollViewDelegate, UIGestureRecognizerDelegate {}
+    private protocol PlatformScrollerDelegate: UIScrollViewDelegate {}
 #elseif os(macOS)
     private protocol PlatformScrollerDelegate {}
 #endif
@@ -1870,6 +1870,22 @@ public struct NativeRenderingLayer: View {
                 by preventingGestureRecognizer: UIGestureRecognizer
             ) -> Bool {
                 false
+            }
+
+            func gestureRecognizer(
+                _ gestureRecognizer: UIGestureRecognizer,
+                shouldReceive touch: UITouch
+            ) -> Bool {
+                // Only the innermost scroller owns a sequence. Native controls dispatch
+                // their own actions; forwarding their touches would activate twice too.
+                var candidate = touch.view
+                while let current = candidate, current !== view {
+                    if current is UIControl || current is UIScrollView {
+                        return false
+                    }
+                    candidate = current.superview
+                }
+                return candidate === view
             }
 
             func gestureRecognizer(
@@ -2050,7 +2066,6 @@ public struct NativeRenderingLayer: View {
 
         private let scrollView = TouchForwardingScrollView(frame: .zero)
         private let innerContentView = UIView()
-        private let paxTapGestureRecognizer = UITapGestureRecognizer()
 #elseif os(macOS)
         private final class FlippedContentView: NSView {
             override var isFlipped: Bool { true }
@@ -2191,12 +2206,6 @@ public struct NativeRenderingLayer: View {
             scrollView.clipsToBounds = true
             scrollView.layer.masksToBounds = true
             scrollView.contentInsetAdjustmentBehavior = .never
-            // The native scroll surface sits above the Pax canvas. Forward taps only after
-            // UIKit has distinguished them from pans so canvas descendants remain interactive.
-            paxTapGestureRecognizer.addTarget(self, action: #selector(handleIOSTap(_:)))
-            paxTapGestureRecognizer.delegate = self
-            paxTapGestureRecognizer.cancelsTouchesInView = false
-            scrollView.addGestureRecognizer(paxTapGestureRecognizer)
             innerContentView.backgroundColor = .clear
             innerContentView.isOpaque = false
             scrollView.addSubview(innerContentView)
@@ -2849,31 +2858,6 @@ public struct NativeRenderingLayer: View {
         }
 
 #if os(iOS) || os(tvOS) || os(watchOS)
-        @objc private func handleIOSTap(_ recognizer: UITapGestureRecognizer) {
-            let point = recognizer.location(in: nil)
-            dispatchTap(x: Double(point.x), y: Double(point.y))
-        }
-
-        func gestureRecognizer(
-            _ gestureRecognizer: UIGestureRecognizer,
-            shouldReceive touch: UITouch
-        ) -> Bool {
-            guard gestureRecognizer === paxTapGestureRecognizer else {
-                return true
-            }
-
-            // Let nested native controls and nested scrollers own their gestures. An inner Pax
-            // scroller installs the same forwarding recognizer on its own scroll view.
-            var candidate = touch.view
-            while let view = candidate, view !== scrollView {
-                if view is UIControl || view is UIScrollView {
-                    return false
-                }
-                candidate = view.superview
-            }
-            return true
-        }
-
         private func cancelIOSSnap() {
             iosSnapGeneration &+= 1
             iosSnapDisplayLink?.invalidate()

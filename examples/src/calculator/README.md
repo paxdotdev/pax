@@ -116,6 +116,16 @@ three keypad columns; the D-pad centers over the remaining two. Narrow layouts
 omit its center Edit key to preserve arrow hit targets; tapping the expression
 still places its cursor. Short windows scroll the whole calculator.
 
+Native iOS and iPadOS use a viewport-width silver surface with no artificial
+outer rim, shadow, or rounded corners; the device supplies the outer outline.
+The web and macOS presentation retains its freestanding case. Four explicit
+`DynamicIslandSpacer` components bind the live top, right, bottom, and left
+insets. The content viewport reserves those edges for the status bar, island,
+and home indicator, including after rotation. The silver background remains
+fixed and fills the whole window. On a tall native viewport the LCD grows to
+use the available height; short viewports scroll while preserving key sizes.
+The spacers contribute zero inset on web and macOS.
+
 The graph starts at 16 logical pixels per unit on both axes. Zoom ranges
 from 4 to 256 pixels per unit. On resize it keeps the chosen scale, redraws
 for the larger viewport, preserves its center where the finite boundary
@@ -141,11 +151,43 @@ requires page/body focus. Text uses local Courier-family fonts; rasterization
 can vary between platforms. WGPU provides a broad pointer-following highlight on the chassis; Piet keeps
 the authored colors and bevels without lighting. The LCD stays unlit.
 
-Native verification is incomplete. An earlier macOS build compiled, but testing
-found an initially blank window that appeared after resize, fallback
-proportional text, and missing centered graph geometry after native scrolling.
-These need chassis investigation before treating the native example as ready.
-iOS and iPadOS have not yet been validated for this example.
+Debug and baked release builds were visually checked on the iPhone 16 Pro Max
+simulator (iOS 18.2), in portrait and landscape: the heading stays below the
+island in portrait, the LCD clears it in landscape, and the silver background
+remains edge to edge. Runtime tests cover safe-area changes, parent resizing,
+content-sized Stacker layout, and zero spacing on unsupported platforms.
+Family-only font decoding and regular-face matching were repaired in the
+Apple chassis; the LCD uses Courier New.
+
+The iOS Scroller's duplicate tap recognizer was removed, leaving one
+activation path through its touch observer and excluding nested scrollers
+and native controls from ancestor forwarding. Simulator input automation did
+not activate the calculator keys, so the tap fix, calculation, graph
+interaction, and history scrolling still need a manual iOS interaction pass.
+A release build was subsequently installed and launched on Argus, an iPhone
+17 Pro Max; no physical iPad was tested.
+
+The graph's initial blank viewport was traced to stale Scroller presentation
+offsets: the app requested the origin, but the native host and tile planner
+received zero. The shared Scroller now advances presentation with programmatic
+scroll changes. A temporary Graph-first debug launch verified that `sin(x)`
+draws before any gesture and stays centered after rotation; the normal
+Calculate startup mode was restored afterward. Regression tests cover initial
+positioning, recentering after native scrolling, zoom/content-extent updates,
+and host-relative presentation offsets. An earlier macOS build also showed
+an initially blank window until resize; that separate observation has not
+been retested. Do not treat the native example as fully verified yet.
+
+Argus then exposed a crash when zooming out from the default graph. The native
+surface planner allowed a 4,096-point world to become one surface by assuming
+downsampling, while the Apple host allocated it at the phone's 3x scale:
+12,288 pixels square. Native plans now require the actual screen density,
+retaining tiles until the content fits within the backing limits. Tests cover
+zoom transitions and viewport coverage at 1x, 2x, and 3x. A temporary scripted
+iOS release build completed zoom-out to 0.25x and zoom-in back through 2x,
+with the graph still rendering afterward. The test driver was removed.
+The simulator did not reproduce the physical crash; the corrected build
+still needs verification on Argus, which was disconnected during this fix.
 
 ## Checks
 

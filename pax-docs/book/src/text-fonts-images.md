@@ -156,7 +156,9 @@ renderer approximation; it does not supply a missing font file. Oblique is
 accepted by the API, but the current Apple text path does not apply an oblique
 transformation.
 
-Supplying `family` without `url` keeps the URL empty. Omitting the entire font
+Supplying `family` without `url` keeps the URL empty. On Apple native targets,
+this resolves the installed family and its requested style and weight without
+starting a font download, in both debug and release builds. Omitting the entire font
 uses Pax's current default: Roboto with a Google Fonts URL. Set a family or
 source explicitly when offline behavior and repeatable typography matter.
 `Font::Web(family, url, style, weight)` remains the explicit longhand; the

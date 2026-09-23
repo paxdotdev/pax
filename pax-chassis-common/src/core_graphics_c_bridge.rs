@@ -508,6 +508,20 @@ pub fn native_scroller_tiling_policy() -> ScrollerTilingPolicy {
     policy
 }
 
+fn native_surface_tiling_policy(
+    mut policy: ScrollerTilingPolicy,
+    dpr: f64,
+) -> ScrollerTilingPolicy {
+    // Apple SurfaceManager allocates every drawable at the current screen scale.
+    // The browser's single-surface downsampling allowance would otherwise turn a
+    // shrinking scroller into a drawable larger than our native backing budget.
+    policy.min_untiled_render_dpr = policy.min_untiled_render_dpr.max(dpr.max(1.0));
+    policy
+}
+
+#[cfg(all(test, any(target_os = "ios", target_os = "macos")))]
+mod surface_tests;
+
 fn serialize_message_queue(messages: Vec<NativeMessage>) -> *mut NativeMessageQueue {
     let wrapped_queue = MessageQueue { messages };
     let mut serializer = flexbuffers::FlexbufferSerializer::new();
@@ -1202,6 +1216,9 @@ pub extern "C" fn pax_interrupt(
                 );
             }
         }
+        NativeInterrupt::SafeAreaInsets(insets) => {
+            engine.runtime_context.set_safe_area_insets(*insets);
+        }
         NativeInterrupt::VisualViewportUpdate(_args) => {}
         NativeInterrupt::RouteChange(args) => {
             globals.route_location.set(args.into());
@@ -1349,6 +1366,7 @@ pub extern "C" fn pax_get_layer_canvas_plan(
     let engine = unsafe { Box::from_raw(engine_container._engine) };
     let ctx = &engine.runtime_context;
     let dpr = (dpr as f64).max(1.0);
+    let tiling_policy = native_surface_tiling_policy(engine.scroller_tiling_policy, dpr);
     let layer = layer_id as usize;
 
     let plan = if let Some(owner) = ctx.get_layer_scroller_owner(layer) {
@@ -1385,7 +1403,7 @@ pub extern "C" fn pax_get_layer_canvas_plan(
                 scroll_x,
                 scroll_y,
                 dpr,
-                engine.scroller_tiling_policy,
+                tiling_policy,
             ))
         } else {
             None
@@ -1405,7 +1423,7 @@ pub extern "C" fn pax_get_layer_canvas_plan(
             0.0,
             0.0,
             dpr,
-            engine.scroller_tiling_policy,
+            tiling_policy,
         ))
     } else {
         None

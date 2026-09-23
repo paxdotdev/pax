@@ -89,6 +89,8 @@ const PAX_STD_DESIGNTIME_SEED_IDENTIFIERS: &[&str] = &[
     "Stacker",
     "StackerCell",
     "StackerDirection",
+    "DynamicIslandSpacer",
+    "SafeAreaEdge",
     "ContainerExitMode",
     "ContainerReflowTransition",
     "ContainerReflowCurve",

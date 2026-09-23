@@ -727,6 +727,8 @@ impl PaxChassisWeb {
                 engine.set_viewport_size((args.width, args.height));
                 false
             }
+            // Safe-area spacers currently opt into UIKit's native layout contract only.
+            NativeInterrupt::SafeAreaInsets(_) => false,
             NativeInterrupt::RouteChange(args) => {
                 globals.route_location.set(args.into());
                 false

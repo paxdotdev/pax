@@ -1,5 +1,19 @@
 # Pain points
 
+## 2026-09-23: Native graph zoom and surface density
+
+The calculator's first graph zoom-out shrank its world from 8,192 to 4,096
+logical pixels square. The shared tile planner accepted one surface by
+assuming browser-style downsampling to 1x, but Apple's SurfaceManager creates
+drawables at the actual screen scale. On a 3x iPhone this requested a
+12,288-pixel-square surface, exceeding the native 4,096-pixel backing budget.
+
+The native bridge now requires the current screen density when deciding
+whether content fits on one surface. Regression tests cover graph zoom
+transitions at 1x, 2x, and 3x, checking both allocation bounds and viewport
+coverage. When validating a tile policy, check the dimensions the chassis
+actually allocates, especially at tiled-to-single-surface transitions.
+
 Example (structure is not rigid but this showcases the style of notes we should be gathering.
 
 ## 2026-05-19
@@ -1950,3 +1964,49 @@ The editor uses that same grid so its column count remains consistent.
 Recommendations: give edge-aligned native Scroller content an explicit gutter
 and inspect the thumb while actively scrolling, when an overlay scrollbar is
 visible. Preserve full numerical results by wrapping at the usable width.
+
+## 2026-09-23 — Family-only fonts on Apple targets
+
+The calculator's native LCD used proportional Helvetica despite an explicit
+monospace family. The Swift font decoder required a valid download URL even
+for family-only font patches, so an empty URL silently kept the default font.
+Resolve an empty-source patch against installed fonts while retaining its
+family, style, and weight. This also restores family-only heading weights.
+
+Font matching then preferred a bold Courier New face over its regular face:
+`CourierNewPSMT` has no weight suffix and received no weight-matching score.
+Treat unsuffixed regular faces like named regular faces when ranking weights.
+Use `Courier New` for the calculator's Apple LCD and verify the actual device's
+font result, rather than assuming a desktop family is available on iOS.
+
+## 2026-09-23 — Explicit safe-area layout and duplicate scroller taps
+
+An edge-to-edge calculator needs different clearances in portrait and
+landscape. Fixed top padding cannot model side cutouts or the home indicator.
+The native iOS host now publishes the window's safe rectangle relative to the
+Pax canvas. Opt in with `DynamicIslandSpacer`; use its measured extent in a
+content-sized Stacker or bind its `inset` output for explicit positioning.
+The calculator binds all four edges while leaving its silver background
+full-screen. No implicit root padding is applied.
+
+The iOS Scroller also dispatched each key activation twice: both its touch
+observer and a separate tap recognizer emitted Tap. Keep one activation path
+through the observer, which already rejects pans and cancellations. Nested
+scrollers must forward only their own touch sequences, and native controls
+must retain their own action delivery. Debouncing calculator keys would hide
+the chassis bug and reject intentional rapid input.
+
+## 2026-09-23 — Programmatic scroll positions and native graph tiles
+
+The calculator requested a graph viewport near `(4000, 4000)`, but the Scroller
+sent its separate presentation offsets as zero. Apple hosts prefer the
+presentation offsets, and the renderer used those same stale values to plan
+tiles. The initial curve was therefore outside the rendered tiles; the first
+swipe then reported a position near the world's corner, where `sin(x)` really
+was outside the visible y range.
+
+Initialize presentation from the authored scroll position. On subsequent
+property writes, advance it by the change from the last cached logical
+position, retaining any host-relative presentation delta. Update the host
+patch, surface cache, and node's scroll transform together. A calculator-only
+retry of its center command would leave the shared Scroller contract broken.

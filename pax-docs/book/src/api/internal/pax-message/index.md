@@ -1075,6 +1075,27 @@ Type: `Option`<`String`>
 
 ---
 
+### `SafeAreaInsets`
+Insets of the platform's safe rectangle, in logical window pixels.
+
+Reported by the native iOS/iPadOS host. These are live window data, not
+persisted program state, and do not automatically inset any application.
+
+#### Properties
+##### `top`
+Type: `f64`
+
+##### `right`
+Type: `f64`
+
+##### `bottom`
+Type: `f64`
+
+##### `left`
+Type: `f64`
+
+---
+
 ### `ScreenshotData`
 Completed screenshot bytes returned by the chassis.
 
@@ -1754,6 +1775,7 @@ Events and data packets sent from the chassis back into the Pax runtime.
 ##### `BrowserConfig`([`BrowserConfigInterruptArgs`](../../../api/internal/pax-message/index.md#browserconfiginterruptargs))
 ##### `RenderSurfaceUpdate`([`RenderSurfaceUpdateArgs`](../../../api/internal/pax-message/index.md#rendersurfaceupdateargs))
 ##### `ViewportResize`([`ViewportResizeArgs`](../../../api/internal/pax-message/index.md#viewportresizeargs))
+##### `SafeAreaInsets`([`SafeAreaInsets`](../../../api/internal/pax-message/index.md#safeareainsets))
 ##### `RouteChange`([`RouteChangeInterruptArgs`](../../../api/internal/pax-message/index.md#routechangeinterruptargs))
 ##### `VisualViewportUpdate`([`VisualViewportUpdateArgs`](../../../api/internal/pax-message/index.md#visualviewportupdateargs))
 ##### `Gyro`([`GyroInterruptArgs`](../../../api/internal/pax-message/index.md#gyrointerruptargs))

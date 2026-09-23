@@ -517,6 +517,11 @@ disqualifies tap activation without requiring cancellation of that lower-level
 stream. This allows a child to light up on contact, follow the touch, and
 clear its feedback when the finger lifts.
 
+A qualifying release emits one tap. The innermost native Scroller owns the
+touch sequence; ancestor Scrollers do not forward it again. Native controls
+keep their own action delivery. Bind either `@click` or `@tap` for a custom
+key's activation, and use touch end/cancel only to clear pressed feedback.
+
 Because local conversion includes the moving content transform, a contact
 that moves with the scroll stays approximately fixed on its original child
 in that direction. Native controls and platform gestures can impose further

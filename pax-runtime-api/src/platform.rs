@@ -2,6 +2,8 @@
 
 use super::*;
 
+impl Interpolatable for SafeAreaInsets {}
+
 /// Describes known operating systems / targets.
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OS {

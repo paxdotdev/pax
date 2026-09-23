@@ -56,13 +56,33 @@ pub struct Layout {
 }
 impl Layout {
     pub fn for_window(w: f64, h: f64) -> Self {
-        let width = (w - 24.)
-            .min(420. + (w - 444.).max(0.) * 0.58)
-            .clamp(296., 1280.);
-        let screen_height = (h - BODY_BELOW_SCREEN - 48.).clamp(188., 1000.);
+        Self::for_viewport(w, h, false)
+    }
+
+    pub fn for_ios(w: f64, h: f64) -> Self {
+        Self::for_viewport(w, h, true)
+    }
+
+    fn for_viewport(w: f64, h: f64, full_screen: bool) -> Self {
+        let width = if full_screen {
+            w.max(296.)
+        } else {
+            (w - 24.)
+                .min(420. + (w - 444.).max(0.) * 0.58)
+                .clamp(296., 1280.)
+        };
+        let screen_height = if full_screen {
+            (h - BODY_BELOW_SCREEN).max(188.)
+        } else {
+            (h - BODY_BELOW_SCREEN - 48.).clamp(188., 1000.)
+        };
         let height = screen_height + BODY_BELOW_SCREEN;
         let screen_width = width - 56.;
-        let top = ((h - height) * 0.5).max(24.);
+        let top = if full_screen {
+            0.
+        } else {
+            ((h - height) * 0.5).max(24.)
+        };
         Self {
             width,
             height,
@@ -73,13 +93,29 @@ impl Layout {
             columns: ((screen_width - 28.) / CELL).floor() as usize - 2,
             rows: ((screen_height - 60.) / LINE).floor() as usize,
             top,
-            page_height: (height + 48.).max(h),
+            page_height: (height + if full_screen { 0. } else { 48. }).max(h),
         }
     }
 }
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn ios_fills_the_surface_without_shrinking_touch_targets() {
+        for (w, h) in [(320., 568.), (440., 956.), (956., 440.), (1024., 1366.)] {
+            let l = Layout::for_ios(w, h);
+            assert_eq!(l.width, w);
+            assert!(l.page_height >= h);
+            assert_eq!(l.page_height, l.height);
+            assert_eq!(l.top, 0.);
+            assert!((l.width - 44. - 32.) / 5. >= 44.);
+            assert!(l.screen_height >= 188.);
+        }
+        assert_eq!(Layout::for_ios(440., 956.).page_height, 956.);
+        let safe = Layout::for_ios(440., 956. - 62. - 34.);
+        assert_eq!(safe.page_height, 860.);
+        assert!(safe.screen_height >= 188.);
+    }
     #[test]
     fn calculate_text_zoom_keeps_input_and_history_usable() {
         for width in [320., 390., 1440.] {

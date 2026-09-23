@@ -106,6 +106,7 @@ pub enum NativeInterrupt {
     BrowserConfig(BrowserConfigInterruptArgs),
     RenderSurfaceUpdate(RenderSurfaceUpdateArgs),
     ViewportResize(ViewportResizeArgs),
+    SafeAreaInsets(SafeAreaInsets),
     RouteChange(RouteChangeInterruptArgs),
     VisualViewportUpdate(VisualViewportUpdateArgs),
     Gyro(GyroInterruptArgs),
@@ -285,6 +286,19 @@ pub struct RenderSurfaceUpdateArgs {
 pub struct ViewportResizeArgs {
     pub width: f64,
     pub height: f64,
+}
+
+/// Insets of the platform's safe rectangle, in logical window pixels.
+///
+/// Reported by the native iOS/iPadOS host. These are live window data, not
+/// persisted program state, and do not automatically inset any application.
+#[derive(Deserialize, Default, Debug, Clone, Copy, PartialEq)]
+#[repr(C)]
+pub struct SafeAreaInsets {
+    pub top: f64,
+    pub right: f64,
+    pub bottom: f64,
+    pub left: f64,
 }
 
 #[derive(Deserialize)]

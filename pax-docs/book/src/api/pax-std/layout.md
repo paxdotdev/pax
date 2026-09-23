@@ -4,6 +4,7 @@
 
 ## Submodules
 - [layout::carousel](layout/carousel.md)
+- [layout::dynamic_island_spacer](layout/dynamic_island_spacer.md)
 - [layout::resizable](layout/resizable.md)
 - [layout::stacker](layout/stacker.md)
 - [layout::table](layout/table.md)

@@ -464,6 +464,52 @@ to the app window. Percentage sizes still use the relevant parent area.
 The default `LayoutRole::Default` participates normally in flow and
 measurement.
 
+## Opt into native safe-area spacing
+
+The iOS and iPadOS chassis draw edge to edge. Add a standard-library
+`DynamicIslandSpacer` where content should avoid the status bar or top cutout:
+
+```pax
+<Stacker width=100% autosize=true gutter=0px>
+    <DynamicIslandSpacer />
+    <Text width=100% height=40px text="Below the safe area" />
+</Stacker>
+```
+
+With no explicit dimensions, the spacer fills its container's width and
+measures its height from UIKit's current top safe-area inset, in logical
+pixels. It renders nothing and does not intercept input. A content-sized
+Stacker gives that measured space its own cell. In a plain Group, siblings
+are positioned independently, so adding a spacer alone does not move them.
+
+The optional `edge` selects `SafeAreaEdge::Top` (the default), `Bottom`, `Left`,
+or `Right`. Top and Bottom fill width and measure height; Left and Right fill
+height and measure width. Explicit width or height overrides that axis's
+measurement. The read-only `inset` output supports deliberate positioning:
+
+```pax
+<DynamicIslandSpacer inset=bind:self.safe_top />
+<Group y={(self.safe_top)px} width=100% height={100% - (self.safe_top)px}>
+    <Text width=100% height=40px text="A safe heading" />
+</Group>
+```
+
+Declare `pub safe_top: Property<f64>` on the owning Rust component. The
+[calculator example](https://github.com/paxproject/pax/tree/main/examples/src/calculator) binds all four edges to keep its
+content clear while its background covers the whole window.
+
+Insets come from the visible window's safe rectangle, including devices
+without a Dynamic Island, and update on rotation and window resizing in both
+debug and release. Landscape often needs side spacing instead of top spacing;
+use the corresponding edge when that side contains content. The spacer does
+not inset the root or detect padding already applied by an ancestor. Add it
+once at the relevant window edge to avoid reserving the same space twice.
+
+Currently this component reserves space on **native iOS and iPadOS only**.
+Web (including Safari), macOS, and other platforms contribute zero on the
+inset axis. A Stacker's separately authored gutter still applies around a
+zero-sized child.
+
 ## Read more
 
 You can now predict an element's area, choose how it aligns within that area,

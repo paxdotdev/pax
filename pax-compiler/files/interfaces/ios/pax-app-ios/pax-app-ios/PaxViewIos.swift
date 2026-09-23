@@ -137,6 +137,7 @@ struct PaxViewIos: View {
         let glassSurfaceElements = GlassSurfaceElements.singleton
         private var displayLink: CADisplayLink?
         private var previousViewportSize: CGSize = .zero
+        private var publishedSafeAreaInsets: UIEdgeInsets?
         private let viewportSizeEpsilon: CGFloat = 0.5
         private let surfaceManager = SurfaceManager()
         private var lastTouchPositions: [ObjectIdentifier: CGPoint] = [:]
@@ -457,6 +458,27 @@ struct PaxViewIos: View {
                     phases.totalMs = Self.elapsedMilliseconds(since: totalStart)
                 }
                 return phases
+            }
+
+            // The SwiftUI content intentionally ignores safe areas. Read the owning
+            // window's safe rectangle and convert it to the canvas coordinate space.
+            // Check before every tick so rotation/window changes reach the same frame's
+            // layout, without emitting unchanged geometry or modifying the root bounds.
+            if let window {
+                let safeRect = convert(window.safeAreaLayoutGuide.layoutFrame, from: window)
+                let insets = UIEdgeInsets(
+                    top: max(0, safeRect.minY - bounds.minY),
+                    left: max(0, safeRect.minX - bounds.minX),
+                    bottom: max(0, bounds.maxY - safeRect.maxY),
+                    right: max(0, bounds.maxX - safeRect.maxX)
+                )
+                if publishedSafeAreaInsets != insets {
+                    dispatchSafeAreaInsets(
+                        top: Double(insets.top), right: Double(insets.right),
+                        bottom: Double(insets.bottom), left: Double(insets.left)
+                    )
+                    publishedSafeAreaInsets = insets
+                }
             }
 
             let nativeMessageQueue = pax_tick(

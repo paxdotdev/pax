@@ -189,6 +189,11 @@ Remove cached scroller surface state.
 
 Ensure the dirty-canvas table has entries up to the requested layer count.
 
+##### `safe_area_insets`
+<pre><code class="api-signature language-rust ignore">pub fn safe_area_insets(&amp;self) -&gt; <a href="../../../api/pax-runtime-api/properties.md#property">Property</a>&lt;<a href="../../../api/internal/pax-message/index.md#safeareainsets">SafeAreaInsets</a>&gt;</code></pre>
+
+Live native safe-area data used by opt-in layout primitives. Defaults to zero.
+
 ##### `set_canvas_dirty`
 <pre><code class="api-signature language-rust ignore">pub fn set_canvas_dirty(&amp;self, id: usize)</code></pre>
 
@@ -203,6 +208,11 @@ Replace the set of render layers that currently contain canvas drawables.
 <pre><code class="api-signature language-rust ignore">pub fn set_root_scroller_id(&amp;self, id: Option&lt;u32&gt;)</code></pre>
 
 Mark which node currently delegates root scrolling behavior to the page.
+
+##### `set_safe_area_insets`
+<pre><code class="api-signature language-rust ignore">pub fn set_safe_area_insets(&amp;self, insets: <a href="../../../api/internal/pax-message/index.md#safeareainsets">SafeAreaInsets</a>)</code></pre>
+
+Update native safe-area data without changing the viewport or root layout.
 
 ##### `set_scroller_surface_state`
 <pre><code class="api-signature language-rust ignore">pub fn set_scroller_surface_state(&amp;self, id: u32, state: <a href="../../../api/internal/pax-runtime/properties.md#scrollersurfacestate">ScrollerSurfaceState</a>) -&gt; <a href="../../../api/internal/pax-runtime/properties.md#scrollersurfacestatechange">ScrollerSurfaceStateChange</a></code></pre>

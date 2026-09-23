@@ -616,6 +616,18 @@ public func dispatchTextInput(id: PaxNodeId, text: String) {
     }
 }
 
+/// Publish live UIKit window geometry; applications opt in through layout components.
+public func dispatchSafeAreaInsets(top: Double, right: Double, bottom: Double, left: Double) {
+    dispatchNativeInterrupt { builder in
+        builder.addMapWithStringKey("SafeAreaInsets") { message in
+            message.addWithStringKey("top", top)
+            message.addWithStringKey("right", right)
+            message.addWithStringKey("bottom", bottom)
+            message.addWithStringKey("left", left)
+        }
+    }
+}
+
 public func dispatchScrollbarChange(
     id: PaxNodeId,
     scrollX: Double,
@@ -1473,7 +1485,7 @@ public class PaxFont {
         "\(normalizedFontToken(fontFamily))|\(style.rawValue)|\(weight.rawValue)"
     }
 
-    private static func candidateScore(
+    static func candidateScore(
         candidateName: String,
         requestedFamily: String,
         style: FontStyle,
@@ -1497,12 +1509,13 @@ public class PaxFont {
             3_000 - styleSelectionRank(candidateName: candidateName, requested: style) * 1_000
         )
 
-        if let inferredWeight = inferredWeight(for: candidate) {
-            score += max(
-                0,
-                900 - weightSelectionRank(candidate: inferredWeight, requested: weight) * 100
-            )
-        }
+        // Regular PostScript faces often omit a weight suffix (ArialMT, CourierNewPSMT).
+        // Omitting their weight score makes even a mismatched bold face rank above them.
+        let candidateWeight = inferredWeight(for: candidate) ?? .normal
+        score += max(
+            0,
+            900 - weightSelectionRank(candidate: candidateWeight, requested: weight) * 100
+        )
 
         if isFamilyName {
             score -= 120
@@ -1790,13 +1803,18 @@ public class PaxFont {
                 self.type = .system(SystemFont(family: family, style: styleMessage, weight: weightMessage))
             }
         } else if let webFontMessage = fb["Web"] {
-            if let family = webFontMessage["family"]?.asString,
-               let urlString = webFontMessage["url"]?.asString,
-               let url = URL(string: urlString) {
+            if let family = webFontMessage["family"]?.asString {
                 let style = FontStyle(rawValue: webFontMessage["style"]?.asString ?? "normal") ?? .normal
                 let weight = FontWeight(rawValue: webFontMessage["weight"]?.asString ?? "normal") ?? .normal
-
-                self.type = .web(WebFont(family: family, url: url, style: style, weight: weight))
+                if let urlString = webFontMessage["url"]?.asString,
+                   !urlString.isEmpty,
+                   let url = URL(string: urlString) {
+                    self.type = .web(WebFont(family: family, url: url, style: style, weight: weight))
+                } else {
+                    // Family-only Pax fonts use an empty URL. Keep their family and traits
+                    // instead of silently retaining the default Helvetica selection.
+                    self.type = .system(SystemFont(family: family, style: style, weight: weight))
+                }
             }
         } else if let localFontMessage = fb["Local"] {
             if let family = localFontMessage["family"]?.asString,

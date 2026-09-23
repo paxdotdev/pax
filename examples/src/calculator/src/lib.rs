@@ -50,6 +50,11 @@ pub struct KeyData {
 #[main]
 #[file("lib.pax")]
 pub struct Example {
+    pub native_full_screen: Property<bool>,
+    pub safe_top: Property<f64>,
+    pub safe_right: Property<f64>,
+    pub safe_bottom: Property<f64>,
+    pub safe_left: Property<f64>,
     pub body_width: Property<f64>,
     pub body_height: Property<f64>,
     pub body_top: Property<f64>,
@@ -103,6 +108,8 @@ pub struct Example {
 
 impl Example {
     pub fn mount(&mut self, ctx: &NodeContext) {
+        let target = ctx.target.get();
+        self.native_full_screen.set(target.native && target.ios);
         self.unlit.set(Material::unlit());
         self.silver.set(Material::Lit(MaterialParams {
             ambient: Property::new(0.88),
@@ -115,7 +122,7 @@ impl Example {
         let family = if matches!(ctx.platform, Platform::Web) {
             "Courier New, Courier, monospace"
         } else {
-            "Courier"
+            "Courier New"
         };
         self.mono_font.set(Font::Web(
             family.into(),
@@ -135,7 +142,14 @@ impl Example {
     }
     pub fn frame(&mut self, ctx: &NodeContext) {
         let (w, h) = ctx.bounds_self.get();
-        let next = Layout::for_window(w, h);
+        let next = if self.native_full_screen.get() {
+            Layout::for_ios(
+                (w - self.safe_left.get() - self.safe_right.get()).max(0.),
+                (h - self.safe_top.get() - self.safe_bottom.get()).max(0.),
+            )
+        } else {
+            Layout::for_window(w, h)
+        };
         let _ = ctx.peek_local_store(|store: &mut CalculatorStore| {
             let scale = graph::zoom_scale(store.model.zoom_level);
             let old = store.layout;

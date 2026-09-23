@@ -107,6 +107,15 @@ Use `bind:` to share the Scroller's position with a component property. User
 scrolling updates that property; setting it from Rust requests a new position.
 This also gives buttons and visual indicators one place to read the state.
 
+An initial nonzero position applies when the Scroller mounts, including when
+it appears inside an `if` branch. Later property writes move the native host
+and the renderer's viewport together; no user scroll is needed to reveal the
+new position. This matters for large two-dimensional panes such as a graph:
+center with `(content extent - viewport extent) / 2` on each axis, and update
+the offsets together with the content extent when zooming. Keep requested
+offsets inside the available range; active native gestures and platform
+bounce still control their normal interaction behavior.
+
 In `src/lib.rs`:
 
 ```rust
@@ -361,6 +370,13 @@ Pax uses viewport-aware drawing and tiled surfaces to limit rendering work
 for scrollable content. That does not make `for` a virtualized list: repeated
 children still participate in tree expansion, properties, and lifecycle.
 Offscreen components may still cost startup time and perform application work.
+
+On native iOS, iPadOS, and macOS, surface sizing uses the current screen's
+pixel density. Shrinking `scroll_width` or `scroll_height` (for example, when
+zooming out on a graph) keeps the content tiled until a single surface fits
+the native backing limits at that density. This avoids a sudden oversized
+GPU allocation when the content crosses a tile-size threshold; it requires
+no application-level zoom restriction.
 
 Start with realistic collection sizes and measure first paint as well as
 scrolling. For a large data set, consider application-level paging or loading

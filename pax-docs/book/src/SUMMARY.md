@@ -77,6 +77,7 @@
       - [forms::tooltip](api/pax-std/forms/tooltip.md)
     - [layout](api/pax-std/layout.md)
       - [layout::carousel](api/pax-std/layout/carousel.md)
+      - [layout::dynamic_island_spacer](api/pax-std/layout/dynamic_island_spacer.md)
       - [layout::resizable](api/pax-std/layout/resizable.md)
       - [layout::stacker](api/pax-std/layout/stacker.md)
       - [layout::table](api/pax-std/layout/table.md)
