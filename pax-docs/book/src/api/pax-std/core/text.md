@@ -52,6 +52,8 @@ Whether long text lines should wrap inside the node bounds.
 
 ### `TextStyle`
 Struct describing platform-agnostic text display properties.
+Interpolation eases font size and fill; font selection, underline, and
+alignment switch to the destination immediately. Glyphs do not morph.
 
 #### Properties
 ##### `font`

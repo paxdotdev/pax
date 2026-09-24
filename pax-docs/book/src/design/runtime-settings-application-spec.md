@@ -5,6 +5,23 @@ Authoring Date: 2026-04-22
 <!-- summary: Long-term design for runtime-applied selector settings and ImportSettings. -->
 <!-- tags: runtime, settings, selectors, theming -->
 
+## Implementation status (September 2026)
+
+Runtime selector layers and transitive `ImportSettings` providers are implemented.
+`ImportSettings.transition=SettingsTransition::Ease(duration, curve)` now drives
+receiver-owned interpolation of changed effective values. It preserves the
+reactive target separately from the displayed value, so interruption and
+provider rebinding do not destroy the source expression. All properties use
+the import's shared policy; see the canonical
+[authoring guide](../animation-motion.md#automatic-settings-transitions).
+
+The timeline export described below remains a future design. Imported named
+timelines, per-property transition tracks, and an `@change` hook are outside
+the current implementation. Existing local timelines and lifecycle transitions
+keep their own property ownership. The policy is ordinary typed component
+data in both rich and baked programs; transient clocks and frozen endpoints
+belong only to mounted runtime receivers.
+
 ## Problem
 
 Pax currently treats `@settings` as a compile-time merge step. During node construction, the runtime asks the manifest for `get_inline_properties(...)`, which has already folded selector blocks into a flat property map for the host node. That works for local styling, but it breaks the longer-term theming/plugin model in PAX-864:

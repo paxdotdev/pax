@@ -395,6 +395,9 @@ where
     ///
     /// The default implementation acts like a `None` ease: the first value is
     /// simply retained until the transition completes.
+    /// Vectors interpolate element by element when lengths match and switch
+    /// to the destination immediately when their lengths differ. Integer
+    /// interpolation uses floating-point arithmetic and truncates the result.
     fn interpolate(&self, _other: &Self, _t: f64) -> Self {
         self.clone()
     }
@@ -414,12 +417,9 @@ impl<T: Interpolatable> Interpolatable for Weak<T> {}
 impl<T1: Interpolatable, T2: Interpolatable> Interpolatable for (T1, T2) {}
 impl<I: Interpolatable> Interpolatable for Vec<I> {
     fn interpolate(&self, other: &Self, t: f64) -> Self {
-        //FUTURE: could revisit the following assertion/constraint, perhaps with a "don't-care" approach to disjoint vec elements
-        assert_eq!(
-            self.len(),
-            other.len(),
-            "cannot interpolate between vecs of different lengths"
-        );
+        if self.len() != other.len() {
+            return other.clone();
+        }
 
         self.iter()
             .enumerate()
@@ -544,6 +544,23 @@ mod tests {
         assert_eq!(start.interpolate(&end, 0.5), Some(5.0));
         assert_eq!(start.interpolate(&end, 1.0), Some(10.0));
     }
+
+    #[test]
+    fn integers_interpolate_in_both_directions_without_overflow() {
+        assert_eq!(100_u64.interpolate(&0, 0.5), 50);
+        assert_eq!(100_u8.interpolate(&0, 0.5), 50);
+        assert_eq!(i64::MIN.interpolate(&i64::MAX, 0.5), 0);
+        assert_eq!(0_u32.interpolate(&100, 0.5), 50);
+    }
+
+    #[test]
+    fn changed_vector_topology_switches_discretely() {
+        assert_eq!(vec![0.0].interpolate(&vec![2.0, 3.0], 0.5), vec![2.0, 3.0]);
+        assert_eq!(
+            vec![0.0, 2.0].interpolate(&vec![2.0, 4.0], 0.5),
+            vec![1.0, 3.0]
+        );
+    }
 }
 
 impl Interpolatable for bool {
@@ -554,73 +571,73 @@ impl Interpolatable for bool {
 
 impl Interpolatable for usize {
     fn interpolate(&self, other: &usize, t: f64) -> usize {
-        (*self as f64 + (*other - self) as f64 * t) as usize
+        (*self as f64 + (*other as f64 - *self as f64) * t) as usize
     }
 }
 
 impl Interpolatable for isize {
     fn interpolate(&self, other: &isize, t: f64) -> isize {
-        (*self as f64 + (*other - self) as f64 * t) as isize
+        (*self as f64 + (*other as f64 - *self as f64) * t) as isize
     }
 }
 
 impl Interpolatable for i64 {
     fn interpolate(&self, other: &i64, t: f64) -> i64 {
-        (*self as f64 + (*other - self) as f64 * t) as i64
+        (*self as f64 + (*other as f64 - *self as f64) * t) as i64
     }
 }
 
 impl Interpolatable for i128 {
     fn interpolate(&self, other: &i128, t: f64) -> i128 {
-        (*self as f64 + (*other - self) as f64 * t) as i128
+        (*self as f64 + (*other as f64 - *self as f64) * t) as i128
     }
 }
 
 impl Interpolatable for u128 {
     fn interpolate(&self, other: &u128, t: f64) -> u128 {
-        (*self as f64 + (*other - self) as f64 * t) as u128
+        (*self as f64 + (*other as f64 - *self as f64) * t) as u128
     }
 }
 
 impl Interpolatable for u64 {
     fn interpolate(&self, other: &u64, t: f64) -> u64 {
-        (*self as f64 + (*other - self) as f64 * t) as u64
+        (*self as f64 + (*other as f64 - *self as f64) * t) as u64
     }
 }
 
 impl Interpolatable for u8 {
     fn interpolate(&self, other: &u8, t: f64) -> u8 {
-        (*self as f64 + (*other - *self) as f64 * t) as u8
+        (*self as f64 + (*other as f64 - *self as f64) * t) as u8
     }
 }
 
 impl Interpolatable for u16 {
     fn interpolate(&self, other: &u16, t: f64) -> u16 {
-        (*self as f64 + (*other - *self) as f64 * t) as u16
+        (*self as f64 + (*other as f64 - *self as f64) * t) as u16
     }
 }
 
 impl Interpolatable for u32 {
     fn interpolate(&self, other: &u32, t: f64) -> u32 {
-        (*self as f64 + (*other - *self) as f64 * t) as u32
+        (*self as f64 + (*other as f64 - *self as f64) * t) as u32
     }
 }
 
 impl Interpolatable for i8 {
     fn interpolate(&self, other: &i8, t: f64) -> i8 {
-        (*self as f64 + (*other - *self) as f64 * t) as i8
+        (*self as f64 + (*other as f64 - *self as f64) * t) as i8
     }
 }
 
 impl Interpolatable for i16 {
     fn interpolate(&self, other: &i16, t: f64) -> i16 {
-        (*self as f64 + (*other - *self) as f64 * t) as i16
+        (*self as f64 + (*other as f64 - *self as f64) * t) as i16
     }
 }
 
 impl Interpolatable for i32 {
     fn interpolate(&self, other: &i32, t: f64) -> i32 {
-        (*self as f64 + (*other - *self) as f64 * t) as i32
+        (*self as f64 + (*other as f64 - *self as f64) * t) as i32
     }
 }
 

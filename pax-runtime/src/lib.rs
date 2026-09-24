@@ -14,6 +14,7 @@ pub mod properties;
 pub mod rendering;
 pub mod repeat;
 pub mod router;
+pub mod settings_motion;
 pub mod slot;
 
 pub use crate::cartridge::*;
@@ -26,6 +27,7 @@ pub use crate::properties::*;
 pub use crate::rendering::*;
 pub use crate::repeat::*;
 pub use crate::router::*;
+pub use crate::settings_motion::*;
 pub use crate::slot::*;
 
 #[allow(unused)]

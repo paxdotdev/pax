@@ -157,6 +157,8 @@ pub enum NavigationTarget {
 }
 
 /// Describes how to fill vector geometry.
+/// Solid fills interpolate their RGBA channels. Gradients currently change
+/// discretely at the end of an interpolation.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(crate = "crate::serde")]
 pub enum Fill {
@@ -696,9 +698,17 @@ impl Interpolatable for SceneLighting {}
 impl HelperFunctions for SceneLighting {}
 
 impl Interpolatable for Fill {
-    fn interpolate(&self, _other: &Self, _t: f64) -> Self {
-        // TODO interpolation
-        self.clone()
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        match (self, other) {
+            (Self::Solid(from), Self::Solid(to)) => Self::Solid(from.interpolate(to, t)),
+            _ => {
+                if t < 1.0 {
+                    self.clone()
+                } else {
+                    other.clone()
+                }
+            }
+        }
     }
 }
 
@@ -934,6 +944,16 @@ impl Fill {
 
 #[cfg(test)]
 mod fill_coverage_tests {
+    #[test]
+    fn solid_fill_interpolates_rgba_channels() {
+        use super::*;
+        let from = Fill::Solid(Color::BLACK);
+        let to = Fill::Solid(Color::WHITE);
+        assert_eq!(
+            from.interpolate(&to, 0.5),
+            Fill::Solid(Color::BLACK.interpolate(&Color::WHITE, 0.5))
+        );
+    }
     use super::{Color, ColorChannel, Fill, GradientStop, LinearGradient, Numeric, Size};
 
     fn rgba_alpha(alpha: u8) -> Color {

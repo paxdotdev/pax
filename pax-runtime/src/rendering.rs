@@ -183,6 +183,7 @@ impl PropertiesInit {
                         &mut inner_ref,
                         &property_columns_from_defined_properties(defined_properties),
                         &stack_frame,
+                        Some(&expanded_node),
                     );
                     None
                 } else {
@@ -192,6 +193,7 @@ impl PropertiesInit {
                         &mut properties,
                         &property_columns_from_defined_properties(defined_properties),
                         &stack_frame,
+                        None,
                     );
                     Some(Rc::new(RefCell::new(properties)))
                 }
@@ -205,6 +207,7 @@ impl PropertiesInit {
                         &mut properties.borrow_mut(),
                         &columns,
                         &stack_frame,
+                        Some(&node),
                     );
                     None
                 } else {
@@ -214,6 +217,7 @@ impl PropertiesInit {
                         &mut properties,
                         &columns,
                         &stack_frame,
+                        None,
                     );
                     Some(Rc::new(RefCell::new(properties)))
                 }
@@ -637,6 +641,7 @@ impl BaseInstance {
                     &mut properties.borrow_mut(),
                     &columns,
                     &node.stack,
+                    Some(node),
                 );
                 return;
             }

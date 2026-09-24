@@ -801,4 +801,59 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn imported_settings_policy_survives_rich_and_baked_programs() -> BinaryResult<()> {
+        let policy = PaxValue::Enum(Box::new((
+            "SettingsTransition".into(),
+            "Ease".into(),
+            vec![
+                PaxValue::Duration(pax_runtime_api::Duration::Milliseconds(400.into())),
+                PaxValue::Enum(Box::new((
+                    "TransitionCurve".into(),
+                    "InOutQuad".into(),
+                    vec![],
+                ))),
+            ],
+        )));
+        let mut manifest = build_manifest();
+        manifest
+            .components
+            .get_mut(&manifest.main_component_type_id)
+            .unwrap()
+            .settings = Some(vec![SettingsBlockElement::SelectorBlock(
+            Token::new("#import".into(), test_location()),
+            LiteralBlockDefinition {
+                explicit_type_pascal_identifier: None,
+                elements: vec![crate::SettingElement::Setting(
+                    Token::new("transition".into(), test_location()),
+                    ValueDefinition::LiteralValue(policy.clone()),
+                )],
+            },
+        )]);
+        let rich = crate::binary::from_slice(&crate::binary::to_vec(&manifest)?)?;
+        let decoded =
+            super::binary::from_slice(&super::binary::to_vec(&ProgramIR::from_manifest(&rich))?)?;
+        let settings = decoded.components[&decoded.main_component_type_id]
+            .settings
+            .as_ref()
+            .unwrap();
+        let SettingsBlockElement::SelectorBlock(_, block) = &settings[0] else {
+            panic!("missing import settings");
+        };
+        let crate::SettingElement::Setting(_, ValueDefinition::LiteralValue(value)) =
+            &block.elements[0]
+        else {
+            panic!("missing transition policy");
+        };
+        assert_eq!(value, &policy);
+        #[cfg(feature = "compiler")]
+        {
+            let rust = crate::rust_manifest::to_rust_expression(&manifest);
+            assert!(rust.contains("SettingsTransition"));
+            assert!(rust.contains("InOutQuad"));
+            assert!(rust.contains("Duration::Milliseconds"));
+        }
+        Ok(())
+    }
 }

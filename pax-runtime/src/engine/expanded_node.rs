@@ -85,6 +85,7 @@ pub struct RuntimeSettingsLayer {
     /// resulting values are applied to a different node.
     pub provider_stack: Rc<RuntimePropertiesStackFrame>,
     pub settings: Vec<SettingsBlockElement>,
+    pub transition: Option<Property<Option<crate::SettingsTransitionConfig>>>,
 }
 
 impl fmt::Debug for RuntimeSettingsLayer {
@@ -100,6 +101,7 @@ impl fmt::Debug for RuntimeSettingsLayer {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct RuntimeSettingsSignatureEntry {
+    pub transition_enabled: bool,
     pub provider_id: ExpandedNodeIdentifier,
     pub provider_type_id: TypeId,
 }
@@ -122,6 +124,7 @@ pub struct RuntimeSettingsCondition {
 
 #[derive(Clone)]
 pub struct RuntimeResolvedPropertyEntry {
+    pub transition: Option<Property<Option<crate::SettingsTransitionConfig>>>,
     pub source: RuntimeSettingsSource,
     pub selector: Option<SelectorExpr>,
     pub source_location: Option<LocationInfo>,
@@ -385,6 +388,10 @@ pub struct ExpandedNode {
     pub exit_cleanup_active: Cell<bool>,
     /// Imported provider layers currently active for this component instance.
     pub imported_settings_layers: RefCell<Vec<RuntimeSettingsLayer>>,
+    pub import_settings_transition:
+        RefCell<Option<Property<Option<crate::SettingsTransitionConfig>>>>,
+    pub(crate) settings_motion: Rc<RefCell<HashMap<String, Box<dyn std::any::Any>>>>,
+    pub(crate) settings_birth_frame: u64,
     /// Ordered provider-node ids used to detect when the imported layer stack changed.
     pub imported_settings_signature: RefCell<Vec<RuntimeSettingsSignatureEntry>>,
     /// Layered property entries ordered from lowest to highest precedence.
@@ -912,6 +919,9 @@ impl ExpandedNode {
             exit_cleanup_listener: Property::default(),
             exit_cleanup_active: Cell::new(false),
             imported_settings_layers: RefCell::new(Vec::new()),
+            import_settings_transition: RefCell::new(None),
+            settings_motion: Rc::new(RefCell::new(HashMap::new())),
+            settings_birth_frame: context.globals().elapsed_frames.get(),
             imported_settings_signature: RefCell::new(Vec::new()),
             resolved_property_columns: RefCell::new(BTreeMap::new()),
             resolved_property_provenance: RefCell::new(BTreeMap::new()),
@@ -2499,6 +2509,8 @@ impl ExpandedNode {
             borrow_mut!(self.exiting_children).clear();
             borrow_mut!(self.exiting_child_generations).clear();
             borrow_mut!(self.mounted_children).clear();
+            borrow_mut!(self.settings_motion).clear();
+            borrow_mut!(self.import_settings_transition).take();
             borrow_mut!(self.imported_settings_layers).clear();
             borrow_mut!(self.imported_settings_signature).clear();
             borrow_mut!(self.resolved_property_columns).clear();
@@ -2544,11 +2556,20 @@ impl ExpandedNode {
         in_import_settings: bool,
         descend_components: bool,
         providers: &mut Vec<RuntimeSettingsLayer>,
+        transition: Option<Property<Option<crate::SettingsTransitionConfig>>>,
     ) {
         if node.is_import_settings_node() {
             let sidecar_children = borrow!(node.sidecar_children).clone();
             for child in sidecar_children.iter() {
-                Self::collect_imported_settings_from_node(child, true, true, providers);
+                Self::collect_imported_settings_from_node(
+                    child,
+                    true,
+                    true,
+                    providers,
+                    transition
+                        .clone()
+                        .or_else(|| node.import_settings_transition.borrow().clone()),
+                );
             }
             return;
         }
@@ -2570,16 +2591,29 @@ impl ExpandedNode {
                             provider_type_id,
                             provider_stack: node.stack.push(borrow!(node.properties_scope).clone()),
                             settings,
+                            transition: transition.clone(),
                         });
                     }
                 }
                 let children = node.children.get();
                 for child in children.iter() {
-                    Self::collect_imported_settings_from_node(child, false, true, providers);
+                    Self::collect_imported_settings_from_node(
+                        child,
+                        false,
+                        true,
+                        providers,
+                        transition.clone(),
+                    );
                 }
                 let sidecar_children = borrow!(node.sidecar_children).clone();
                 for child in sidecar_children.iter() {
-                    Self::collect_imported_settings_from_node(child, false, true, providers);
+                    Self::collect_imported_settings_from_node(
+                        child,
+                        false,
+                        true,
+                        providers,
+                        transition.clone(),
+                    );
                 }
                 return;
             }
@@ -2595,6 +2629,7 @@ impl ExpandedNode {
                 in_import_settings,
                 descend_components,
                 providers,
+                transition.clone(),
             );
         }
         let sidecar_children = borrow!(node.sidecar_children).clone();
@@ -2604,6 +2639,7 @@ impl ExpandedNode {
                 in_import_settings,
                 descend_components,
                 providers,
+                transition.clone(),
             );
         }
     }
@@ -2612,16 +2648,21 @@ impl ExpandedNode {
         let mut providers = Vec::new();
         let children = self.children.get();
         for child in children.iter() {
-            Self::collect_imported_settings_from_node(child, false, false, &mut providers);
+            Self::collect_imported_settings_from_node(child, false, false, &mut providers, None);
         }
         let sidecar_children = borrow!(self.sidecar_children).clone();
         for child in sidecar_children.iter() {
-            Self::collect_imported_settings_from_node(child, false, false, &mut providers);
+            Self::collect_imported_settings_from_node(child, false, false, &mut providers, None);
         }
 
         let signature = providers
             .iter()
             .map(|layer| RuntimeSettingsSignatureEntry {
+                transition_enabled: layer
+                    .transition
+                    .as_ref()
+                    .and_then(|policy| policy.get())
+                    .is_some(),
                 provider_id: layer.provider_id,
                 provider_type_id: layer.provider_type_id.clone(),
             })

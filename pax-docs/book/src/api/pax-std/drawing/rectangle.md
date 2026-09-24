@@ -23,6 +23,7 @@ A contextual named object remains available as explicit longhand:
 The fully type-qualified constructor also remains valid when explicit type
 syntax is useful: `corner_radius=CornerRadii { top_left: 12 top_right: 8
 bottom_right: 4 bottom_left: 2 }`.
+Interpolation treats each radius independently; zero produces an angular corner.
 
 #### Properties
 ##### `top_left`

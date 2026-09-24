@@ -14,4 +14,5 @@
 - [rendering](rendering.md)
 - [repeat](repeat.md)
 - [router](router.md)
+- [settings_motion](settings_motion.md)
 - [slot](slot.md)

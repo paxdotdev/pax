@@ -428,9 +428,11 @@ fn text_measurement_key(
 }
 
 /// Struct describing platform-agnostic text display properties.
+/// Interpolation eases font size and fill; font selection, underline, and
+/// alignment switch to the destination immediately. Glyphs do not morph.
 #[pax]
 #[engine_import_path("pax_engine")]
-#[custom(Default)]
+#[custom(Default, Interpolatable)]
 pub struct TextStyle {
     #[serde(default)]
     /// Font family/source/style/weight configuration.
@@ -454,6 +456,20 @@ pub struct TextStyle {
     #[serde(default)]
     /// Horizontal text alignment within its bounds.
     pub align_horizontal: Property<TextAlignHorizontal>,
+}
+
+impl pax_engine::api::Interpolatable for TextStyle {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        Self {
+            font: Property::new(other.font.get()),
+            font_size: Property::new(self.font_size.get().interpolate(&other.font_size.get(), t)),
+            fill: Property::new(self.fill.get().interpolate(&other.fill.get(), t)),
+            underline: Property::new(other.underline.get()),
+            align_multiline: Property::new(other.align_multiline.get()),
+            align_vertical: Property::new(other.align_vertical.get()),
+            align_horizontal: Property::new(other.align_horizontal.get()),
+        }
+    }
 }
 
 impl Default for TextStyle {
@@ -781,6 +797,32 @@ impl Font {
 
 #[cfg(test)]
 mod font_coercion_tests {
+    #[test]
+    fn text_style_interpolates_continuous_fields_and_switches_discrete_fields() {
+        use super::*;
+        use pax_engine::api::Interpolatable;
+        let from = TextStyle::default();
+        from.font_size.set(Size::Pixels(10.into()));
+        from.fill.set(Fill::Solid(Color::BLACK));
+        let to = TextStyle::default();
+        to.font_size.set(Size::Pixels(30.into()));
+        to.fill.set(Fill::Solid(Color::WHITE));
+        to.underline.set(true);
+        to.align_horizontal.set(TextAlignHorizontal::Right);
+        let mid = from.interpolate(&to, 0.5);
+        assert_eq!(mid.font_size.get().expect_pixels().to_float(), 20.0);
+        assert_eq!(
+            mid.fill.get(),
+            Fill::Solid(Color::BLACK.interpolate(&Color::WHITE, 0.5))
+        );
+        assert!(mid.underline.get());
+        assert!(matches!(
+            mid.align_horizontal.get(),
+            TextAlignHorizontal::Right
+        ));
+        to.font_size.set(Size::Pixels(100.into()));
+        assert_eq!(mid.font_size.get().expect_pixels().to_float(), 20.0);
+    }
     use super::*;
 
     fn string(value: &str) -> PaxValue {

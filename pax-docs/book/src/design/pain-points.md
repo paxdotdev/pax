@@ -2259,3 +2259,19 @@ the rows, while gutters show it directly. This can resemble changing z-order
 even with a fixed intermediate opacity and synchronous masks. A correctly
 ordered composited surface is needed for faithful translucent overlays across
 these native/canvas boundaries; changing fade timings cannot establish that.
+
+## 2026-09-24 — Keep automatic settings targets separate from animated values
+
+Calling `ease_to` directly on a computed settings property loses the reactive
+target when the transition settles. Keep a stable receiver output, a separate
+resolved target, and an owned progress clock. Rebinding must update the target
+without replacing that output. At interruption, sample the current clock before
+replacing endpoints, even if rendering has not pulled the old value that tick.
+
+Cloning compound values such as `TextStyle`, `Stroke`, and `CornerRadii` keeps
+their nested `Property` handles live. Freeze interpolation endpoints through
+the typed PaxValue roundtrip; otherwise a theme edit can change both endpoints
+of an in-flight transition. Give compound styles explicit interpolation: their
+derived implementation is discrete. Also subtract integer endpoints after
+conversion to floating point so decreasing unsigned settings do not overflow;
+a vector length change must switch discretely instead of panicking.

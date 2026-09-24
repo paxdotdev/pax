@@ -319,8 +319,23 @@ The provider can expose reactive properties of its own. Expressions in its
 settings use that provider's `self` and state, so a shared palette can change
 reactively. See [Drawing and Styling](drawing-styling.md) for visual design
 choices and [PAXEL's `$base`](data-binding-expressions.md#base) for building on
-an earlier property value. Timelines add animation-specific behavior covered
-in [Animation and Motion](animation-motion.md).
+an earlier property value.
+
+Add a transition to ease changes to the effective imported settings:
+
+```pax
+<ImportSettings transition=SettingsTransition::Ease(400ms, TransitionCurve::InOutQuad)>
+    <PaperTheme />
+</ImportSettings>
+```
+
+All changed settings use that duration and curve. The initial appearance is
+immediate; subsequent provider changes animate from each receiver's current
+value. Omitting `transition` (or using `SettingsTransition::None`) preserves
+immediate updates. Inline values still win over imported settings. See
+[Automatic settings transitions](animation-motion.md#automatic-settings-transitions)
+for interruption, supported types, and ownership rules. Imported providers do
+not currently export named timeline tracks.
 
 ## Read more
 

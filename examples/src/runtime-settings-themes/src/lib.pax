@@ -1,5 +1,5 @@
 <Group width=100% height=100%>
-    <ImportSettings>
+    <ImportSettings transition=SettingsTransition::Ease(400ms, TransitionCurve::InOutQuad)>
         if self.color_mode == 0 {
             <LightModeTheme />
         } else {
@@ -25,7 +25,7 @@
             y=0px
             width=100%
             height=24px
-            text="IMPORTSETTINGS // CONDITIONAL THEME STACK"
+            text="IMPORTSETTINGS // AUTOMATIC THEME TRANSITIONS"
         />
 
         <Text class="hero_title"
@@ -41,7 +41,7 @@
             y=168px
             width=78%
             height=40px
-            text="Each control below toggles one ImportSettings branch. The root template stays fixed; only the imported selector layers change."
+            text="Each control toggles a theme layer. Switch again mid-motion: every changed setting starts from its current value."
         />
 
         <Group x=0px y=236px width=360px height={100% - 236px}>

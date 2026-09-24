@@ -314,6 +314,8 @@ Constructs a 3D vector.
 ## Enums
 ### `Fill`
 Describes how to fill vector geometry.
+Solid fills interpolate their RGBA channels. Gradients currently change
+discretely at the end of an interpolation.
 
 #### Variants
 ##### `Solid`([`Color`](../../api/pax-runtime-api/color.md#color))

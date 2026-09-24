@@ -206,10 +206,11 @@ impl InstanceNode for RectangleInstance {
 /// The fully type-qualified constructor also remains valid when explicit type
 /// syntax is useful: `corner_radius=CornerRadii { top_left: 12 top_right: 8
 /// bottom_right: 4 bottom_left: 2 }`.
+/// Interpolation treats each radius independently; zero produces an angular corner.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[has_helpers]
-#[custom(CoercionRules)]
+#[custom(CoercionRules, Interpolatable)]
 pub struct CornerRadii {
     /// Top-left corner radius.
     pub top_left: Property<Numeric>,
@@ -219,6 +220,21 @@ pub struct CornerRadii {
     pub bottom_right: Property<Numeric>,
     /// Bottom-left corner radius.
     pub bottom_left: Property<Numeric>,
+}
+
+impl pax_engine::api::Interpolatable for CornerRadii {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        Self::radii(
+            self.top_left.get().interpolate(&other.top_left.get(), t),
+            self.top_right.get().interpolate(&other.top_right.get(), t),
+            self.bottom_right
+                .get()
+                .interpolate(&other.bottom_right.get(), t),
+            self.bottom_left
+                .get()
+                .interpolate(&other.bottom_left.get(), t),
+        )
+    }
 }
 
 impl CoercionRules for CornerRadii {
@@ -336,6 +352,19 @@ impl CornerRadii {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn corners_interpolate_independently_through_zero() {
+        use pax_engine::api::Interpolatable;
+        let from = super::CornerRadii::radii(0.into(), 20.into(), 10.into(), 30.into());
+        let to = super::CornerRadii::radii(20.into(), 0.into(), 30.into(), 10.into());
+        let mid = from.interpolate(&to, 0.5);
+        assert_eq!(mid.top_left.get().to_float(), 10.0);
+        assert_eq!(mid.top_right.get().to_float(), 10.0);
+        assert_eq!(mid.bottom_right.get().to_float(), 20.0);
+        assert_eq!(mid.bottom_left.get().to_float(), 20.0);
+        to.top_left.set(100.into());
+        assert_eq!(mid.top_left.get().to_float(), 10.0);
+    }
     use super::*;
 
     fn numeric(value: i64) -> PaxValue {

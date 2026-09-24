@@ -12,7 +12,7 @@ const {{component.symbol_identifier}}PropertyDescriptors: [{{ engine_import_path
     {% for property in component.properties %}
     {{ engine_import_path }}::pax_runtime::ComponentPropertyDescriptor::new(
         "{{property.name}}",
-        |properties: &mut {{component.type_id.import_path}}, entries, stack_frame| {
+        |properties: &mut {{component.type_id.import_path}}, entries, stack_frame, node| {
             let default_properties = <{{component.type_id.import_path}} as std::default::Default>::default();
             let mut layered_property = {{ engine_import_path }}::api::Property::new(default_properties.{{property.name}}.get());
             let mut direct_binding_property: Option<{{ engine_import_path }}::api::Property<{{property.property_type.type_id._type_id}}>> = None;
@@ -65,9 +65,12 @@ const {{component.symbol_identifier}}PropertyDescriptors: [{{ engine_import_path
                 );
             }
             if let Some(bound_property) = direct_binding_property {
+                {{ engine_import_path }}::pax_runtime::clear_settings_motion(node, "{{property.name}}");
                 properties.{{property.name}} = bound_property;
             } else {
-                properties.{{property.name}}.replace_with(layered_property);
+                {{ engine_import_path }}::pax_runtime::bind_settings_property(
+                    &properties.{{property.name}}, layered_property, "{{property.name}}", entries, stack_frame, node,
+                );
             }
         },
     ),

@@ -34,7 +34,7 @@ static SCOPE: [PropertyScopeDescriptor<Probe>; 2] = [
     }),
 ];
 static FIELDS: [ComponentPropertyDescriptor<Probe>; 2] = [
-    ComponentPropertyDescriptor::new("value", |p, entries, stack| {
+    ComponentPropertyDescriptor::new("value", |p, entries, stack, node| {
         let mut layered = Property::new(Probe::default().value.get());
         let mut alias = None;
         for entry in entries {
@@ -74,12 +74,13 @@ static FIELDS: [ComponentPropertyDescriptor<Probe>; 2] = [
             );
         }
         if let Some(alias) = alias {
+            clear_settings_motion(node, "value");
             p.value = alias;
         } else {
-            p.value.replace_with(layered);
+            crate::bind_settings_property(&p.value, layered, "value", entries, stack, node);
         }
     }),
-    ComponentPropertyDescriptor::new("untouched", |p, entries, stack| {
+    ComponentPropertyDescriptor::new("untouched", |p, entries, stack, node| {
         if let Some(entry) = entries.last() {
             let candidate = build_component_property(
                 "untouched",
@@ -91,7 +92,7 @@ static FIELDS: [ComponentPropertyDescriptor<Probe>; 2] = [
             if matches!(entry.value, ValueDefinition::DoubleBinding(_)) {
                 p.untouched = candidate;
             } else {
-                p.untouched.replace_with(candidate);
+                bind_settings_property(&p.untouched, candidate, "untouched", entries, stack, node);
             }
         }
     }),
@@ -107,9 +108,9 @@ static ERASED: ErasedComponentDescriptor = ErasedComponentDescriptor::new(
         CREATES.with(|c| c.set(c.get() + 1));
         erased_create_properties::<Probe>()
     },
-    |descriptor, props, columns, stack| {
+    |descriptor, props, columns, stack, node| {
         BINDS.with(|c| c.set(c.get() + 1));
-        erased_apply_defined_properties::<Probe>(descriptor, props, columns, stack);
+        erased_apply_defined_properties::<Probe>(descriptor, props, columns, stack, node);
     },
     |descriptor, props| {
         SCOPES.with(|c| c.set(c.get() + 1));
@@ -571,6 +572,7 @@ fn imported_provider_scope_and_inline_base_remain_reactive() {
     root.imported_settings_layers
         .borrow_mut()
         .push(RuntimeSettingsLayer {
+            transition: None,
             provider_id: root.id,
             provider_type_id: TypeId::build_singleton("test::Theme", Some("Theme")),
             provider_stack: engine
@@ -600,6 +602,111 @@ fn imported_provider_scope_and_inline_base_remain_reactive() {
 }
 
 struct Traverser(RefCell<pax_manifest::PaxManifest>);
+
+fn animated_layer(
+    root: &ExpandedNode,
+    theme: &Property<f64>,
+    settings: Vec<SettingElement>,
+) -> RuntimeSettingsLayer {
+    RuntimeSettingsLayer {
+        provider_id: root.id,
+        provider_type_id: TypeId::build_singleton("test::Theme", Some("Theme")),
+        provider_stack: RuntimePropertiesStackFrame::new(HashMap::from([(
+            "theme".into(),
+            Variable::new_from_typed_property(theme.clone()),
+        )])),
+        settings: vec![SettingsBlockElement::SelectorBlock(
+            pax_manifest::Token::new_without_location("Probe".into()),
+            LiteralBlockDefinition::new(settings),
+        )],
+        transition: Some(Property::new(Some(SettingsTransitionConfig {
+            duration: Duration::Milliseconds(100.into()),
+            curve: "Linear",
+        }))),
+    }
+}
+
+#[test]
+fn imported_motion_survives_rebinding_and_removal_for_common_and_component_properties() {
+    let (engine, root) = fixture();
+    let context = &engine.runtime_context;
+    let theme = Property::new(0.0);
+    root.imported_settings_layers
+        .borrow_mut()
+        .push(animated_layer(
+            &root,
+            &theme,
+            vec![
+                setting("value", expression("theme")),
+                setting("x", expression("(theme)px")),
+            ],
+        ));
+    let plan = plan(vec![], None, None);
+    let node = child(&root, context, template(&plan), HashMap::new());
+    assert_eq!(values(&node).0, 0.0);
+    let common = node.common_properties.borrow().clone();
+    let x = common.as_ref().borrow().x.clone();
+    let value_id = node.with_properties_unwrapped(|p: &mut Probe| p.value.untyped().get_id());
+    theme.set(10.0);
+    context.drain_node_effects();
+    context.globals().elapsed_millis.set(40);
+    theme.set(20.0);
+    node.instance_node.borrow().base().bind_properties(&node);
+    context.drain_node_effects();
+    assert_eq!(values(&node).0, 4.0);
+    assert_eq!(x.get().unwrap().get_pixels(100.0), 4.0);
+    assert_eq!(
+        value_id,
+        node.with_properties_unwrapped(|p: &mut Probe| p.value.untyped().get_id())
+    );
+    context.globals().elapsed_millis.set(90);
+    assert_eq!(values(&node).0, 12.0);
+    assert_eq!(x.get().unwrap().get_pixels(100.0), 12.0);
+    root.imported_settings_layers.borrow_mut().clear();
+    node.reset_removed_runtime_properties.set(true);
+    node.instance_node.borrow().base().bind_properties(&node);
+    context.drain_node_effects();
+    context.globals().elapsed_millis.set(140);
+    assert_eq!(values(&node).0, 9.5); // Probe's default is 7.
+    assert_eq!(x.get().unwrap().get_pixels(100.0), 6.0); // Unset x resolves to zero.
+    context.globals().elapsed_millis.set(190);
+    assert_eq!(values(&node).0, 7.0);
+    assert!(x.get().is_none());
+}
+
+#[test]
+fn explicit_settings_win_without_allocating_motion_and_animated_nodes_release_state() {
+    let (engine, root) = fixture();
+    let context = &engine.runtime_context;
+    let theme = Property::new(10.0);
+    root.imported_settings_layers
+        .borrow_mut()
+        .push(animated_layer(
+            &root,
+            &theme,
+            vec![setting("value", expression("theme"))],
+        ));
+    let explicit = plan(vec![setting("value", literal(42.0))], None, None);
+    let node = child(&root, context, template(&explicit), HashMap::new());
+    assert_eq!(values(&node).0, 42.0);
+    assert!(node.settings_motion.as_ref().borrow().is_empty());
+    drop(node);
+    context.drain_node_effects();
+    let initial = pax_runtime_api::properties::property_table_total_properties_count();
+    let animated = plan(vec![], None, None);
+    for _ in 0..8 {
+        let node = child(&root, context, template(&animated), HashMap::new());
+        theme.update(|value| *value += 1.0);
+        context.drain_node_effects();
+        assert!(!node.settings_motion.as_ref().borrow().is_empty());
+        drop(node);
+        context.drain_node_effects();
+    }
+    assert_eq!(
+        pax_runtime_api::properties::property_table_total_properties_count(),
+        initial
+    );
+}
 impl DefinitionToInstanceTraverser for Traverser {
     fn new(manifest: pax_manifest::PaxManifest) -> Self {
         Self(RefCell::new(manifest))

@@ -101,6 +101,7 @@ fn runtime_property_entry(
     axis_index: Option<usize>,
 ) -> RuntimeResolvedPropertyEntry {
     RuntimeResolvedPropertyEntry {
+        transition: None,
         source,
         selector,
         source_location,
@@ -595,8 +596,9 @@ fn resolve_runtime_settings_with_layers_for_node(
         None,
     );
     for layer in imported_layers {
+        let mut imported_columns = BTreeMap::new();
         append_selector_layer_entries(
-            &mut columns,
+            &mut imported_columns,
             tnd,
             classes,
             &Some(layer.settings.clone()),
@@ -606,6 +608,12 @@ fn resolve_runtime_settings_with_layers_for_node(
             },
             Some(Rc::clone(&layer.provider_stack)),
         );
+        for (name, mut entries) in imported_columns {
+            for entry in &mut entries {
+                entry.transition = layer.transition.clone();
+            }
+            columns.entry(name).or_default().extend(entries);
+        }
     }
     append_timeline_selector_entries(
         &mut columns,
@@ -819,8 +827,12 @@ pub struct ComponentPropertyDescriptor<T> {
     /// Property name as it appears in Pax templates and settings.
     pub name: &'static str,
     /// Generated applicator for all resolved layers of this property.
-    pub apply_entries:
-        fn(&mut T, &[RuntimeResolvedPropertyEntry], &Rc<RuntimePropertiesStackFrame>),
+    pub apply_entries: fn(
+        &mut T,
+        &[RuntimeResolvedPropertyEntry],
+        &Rc<RuntimePropertiesStackFrame>,
+        Option<&ExpandedNode>,
+    ),
     marker: PhantomData<fn(&T)>,
 }
 
@@ -832,6 +844,7 @@ impl<T> ComponentPropertyDescriptor<T> {
             &mut T,
             &[RuntimeResolvedPropertyEntry],
             &Rc<RuntimePropertiesStackFrame>,
+            Option<&ExpandedNode>,
         ),
     ) -> Self {
         Self {
@@ -879,6 +892,7 @@ pub struct ErasedComponentDescriptor {
         &mut PaxAny,
         &RuntimeResolvedPropertyColumns,
         &Rc<RuntimePropertiesStackFrame>,
+        Option<&ExpandedNode>,
     ),
     pub build_property_scope: fn(&'static (dyn Any + Sync), &PaxAny) -> HashMap<String, Variable>,
     pub handler_descriptors: &'static [HandlerDescriptor],
@@ -895,6 +909,7 @@ impl ErasedComponentDescriptor {
             &mut PaxAny,
             &RuntimeResolvedPropertyColumns,
             &Rc<RuntimePropertiesStackFrame>,
+            Option<&ExpandedNode>,
         ),
         build_property_scope: fn(&'static (dyn Any + Sync), &PaxAny) -> HashMap<String, Variable>,
         handler_descriptors: &'static [HandlerDescriptor],
@@ -1056,6 +1071,7 @@ pub fn apply_component_descriptor_properties<T: Default + ToFromPaxAny + 'static
     descriptor: &'static ComponentDescriptor<T>,
     property_columns: &RuntimeResolvedPropertyColumns,
     stack_frame: &Rc<RuntimePropertiesStackFrame>,
+    node: Option<&ExpandedNode>,
 ) {
     thread_local! {
         static WARNED_INCOMPATIBLE_SELECTOR_PROPERTIES: RefCell<std::collections::HashSet<String>> =
@@ -1106,7 +1122,7 @@ pub fn apply_component_descriptor_properties<T: Default + ToFromPaxAny + 'static
 
     for property_descriptor in descriptor.property_descriptors {
         if let Some(entries) = property_columns.get(property_descriptor.name) {
-            (property_descriptor.apply_entries)(properties, entries, stack_frame);
+            (property_descriptor.apply_entries)(properties, entries, stack_frame, node);
         }
     }
 }
@@ -1131,6 +1147,7 @@ pub fn erased_apply_defined_properties<T: Default + ToFromPaxAny + 'static>(
     pax_any: &mut PaxAny,
     property_columns: &RuntimeResolvedPropertyColumns,
     stack_frame: &Rc<RuntimePropertiesStackFrame>,
+    node: Option<&ExpandedNode>,
 ) {
     let descriptor = (typed_descriptor as &dyn Any)
         .downcast_ref::<ComponentDescriptor<T>>()
@@ -1141,7 +1158,13 @@ pub fn erased_apply_defined_properties<T: Default + ToFromPaxAny + 'static>(
             descriptor.type_id, err
         )
     });
-    apply_component_descriptor_properties(properties, descriptor, property_columns, stack_frame);
+    apply_component_descriptor_properties(
+        properties,
+        descriptor,
+        property_columns,
+        stack_frame,
+        node,
+    );
 }
 
 pub fn erased_build_property_scope<T: Default + ToFromPaxAny + 'static>(
@@ -2584,7 +2607,9 @@ where
     // type default. For example, unset `y` lays out at 0px while `Size::default()`
     // is 100%.
     let value = match name {
-        "x" | "y" | "anchor_x" | "anchor_y" => Some(PaxValue::Size(Size::ZERO())),
+        "x" | "y" | "anchor_x" | "anchor_y" | "padding_x" | "padding_y" => {
+            Some(PaxValue::Size(Size::ZERO()))
+        }
         "rotate" | "skew_x" | "skew_y" => Some(PaxValue::Rotation(Rotation::ZERO())),
         "opacity" => Some(PaxValue::Numeric(1.0.into())),
         _ => None,
@@ -2879,7 +2904,7 @@ fn evaluate_settings_condition_expression(
     }
 }
 
-fn settings_condition_is_active(
+pub(crate) fn settings_condition_is_active(
     condition: &RuntimeSettingsCondition,
     stack: &Rc<RuntimePropertiesStackFrame>,
 ) -> bool {
@@ -2893,7 +2918,7 @@ fn settings_condition_is_active(
             .all(|expression| evaluate_settings_condition_expression(expression, stack))
 }
 
-fn collect_settings_condition_dependencies(
+pub(crate) fn collect_settings_condition_dependencies(
     condition: &RuntimeSettingsCondition,
     stack: &Rc<RuntimePropertiesStackFrame>,
     dependents: &mut Vec<UntypedProperty>,
@@ -2937,7 +2962,7 @@ where
     )
 }
 
-fn easing_curve_from_name(name: Option<&str>) -> EasingCurve {
+pub(crate) fn easing_curve_from_name(name: Option<&str>) -> EasingCurve {
     match name {
         Some("Linear") | None => EasingCurve::Linear,
         Some("Hold") => EasingCurve::Hold,
@@ -4468,6 +4493,7 @@ mod base_symbol_tests {
 
     fn entry(value: ValueDefinition) -> RuntimeResolvedPropertyEntry {
         RuntimeResolvedPropertyEntry {
+            transition: None,
             source: RuntimeSettingsSource::Inline,
             selector: None,
             source_location: None,
@@ -4603,6 +4629,7 @@ mod base_symbol_tests {
             Variable::new_from_typed_property(is_dark.clone()),
         )]));
         let imported_entry = RuntimeResolvedPropertyEntry {
+            transition: None,
             source: RuntimeSettingsSource::ImportedLayer {
                 provider_id: crate::ExpandedNodeIdentifier(1),
                 provider_type_id: pax_manifest::TypeId::build_singleton(
@@ -4630,6 +4657,7 @@ mod base_symbol_tests {
             Variable::new_from_typed_property(is_dark.clone()),
         )]));
         let imported_entry = RuntimeResolvedPropertyEntry {
+            transition: None,
             source: RuntimeSettingsSource::ImportedLayer {
                 provider_id: crate::ExpandedNodeIdentifier(1),
                 provider_type_id: pax_manifest::TypeId::build_singleton(
@@ -4883,13 +4911,12 @@ pub fn update_existing_common_properties_from_columns(
     property_columns: &RuntimeResolvedPropertyColumns,
     stack_frame: &Rc<RuntimePropertiesStackFrame>,
 ) {
-    let expanded_node = borrow!(**expanded_node);
     let outer_ref = expanded_node.common_properties.borrow();
     let rc = Rc::clone(&outer_ref);
     let inner_ref = (*rc).borrow_mut();
     let mut cp = inner_ref;
 
-    update_common_properties(&mut cp, property_columns, stack_frame);
+    update_common_properties(&mut cp, property_columns, stack_frame, Some(expanded_node));
 }
 
 /// Applies a flattened common-property map to an existing expanded node.
@@ -4965,60 +4992,128 @@ pub fn create_new_common_properties(
     )
 }
 
+fn bind_common_setting<T: CoercionRules + PropertyValue + ToPaxValue>(
+    output: &Property<Option<T>>,
+    name: &str,
+    columns: &RuntimeResolvedPropertyColumns,
+    stack: &Rc<RuntimePropertiesStackFrame>,
+    node: Option<&ExpandedNode>,
+) {
+    let target = resolve_property(name, columns, stack);
+    let fallback = common_property_base_fallback::<T>(name);
+    let has_numeric_fallback = matches!(
+        name,
+        "x" | "y"
+            | "anchor_x"
+            | "anchor_y"
+            | "rotate"
+            | "skew_x"
+            | "skew_y"
+            | "opacity"
+            | "padding_x"
+            | "padding_y"
+            | "scale_x"
+            | "scale_y"
+    );
+    crate::bind_settings_property_with(
+        output,
+        target,
+        &format!("common:{name}"),
+        columns.get(name).map(Vec::as_slice).unwrap_or_default(),
+        stack,
+        node,
+        move |from, to, t| match (from, to) {
+            (Some(from), Some(to)) => Some(from.interpolate(to, t)),
+            _ if has_numeric_fallback => Some(
+                from.as_ref()
+                    .unwrap_or(&fallback)
+                    .interpolate(to.as_ref().unwrap_or(&fallback), t),
+            ),
+            _ => to.clone(),
+        },
+    );
+}
+
 fn update_common_properties(
     cp: &mut CommonProperties,
     property_columns: &RuntimeResolvedPropertyColumns,
     stack_frame: &Rc<RuntimePropertiesStackFrame>,
+    node: Option<&ExpandedNode>,
 ) {
     cp.id.replace_with(create_id_property(property_columns));
-    cp.x.replace_with(resolve_property("x", property_columns, stack_frame));
-    cp.y.replace_with(resolve_property("y", property_columns, stack_frame));
-    cp.padding_x
-        .replace_with(resolve_property("padding_x", property_columns, stack_frame));
-    cp.padding_y
-        .replace_with(resolve_property("padding_y", property_columns, stack_frame));
-    cp.width
-        .replace_with(resolve_property("width", property_columns, stack_frame));
-    cp.height
-        .replace_with(resolve_property("height", property_columns, stack_frame));
-    cp.scale_x
-        .replace_with(resolve_property("scale_x", property_columns, stack_frame));
-    cp.scale_y
-        .replace_with(resolve_property("scale_y", property_columns, stack_frame));
-    cp.skew_x
-        .replace_with(resolve_property("skew_x", property_columns, stack_frame));
-    cp.skew_y
-        .replace_with(resolve_property("skew_y", property_columns, stack_frame));
-    cp.rotate
-        .replace_with(resolve_property("rotate", property_columns, stack_frame));
-    cp.transform
-        .replace_with(resolve_property("transform", property_columns, stack_frame));
-    cp.opacity
-        .replace_with(resolve_property("opacity", property_columns, stack_frame));
-    cp.layout_role.replace_with(resolve_property(
+    bind_common_setting(&cp.x, "x", property_columns, stack_frame, node);
+    bind_common_setting(&cp.y, "y", property_columns, stack_frame, node);
+    bind_common_setting(
+        &cp.padding_x,
+        "padding_x",
+        property_columns,
+        stack_frame,
+        node,
+    );
+    bind_common_setting(
+        &cp.padding_y,
+        "padding_y",
+        property_columns,
+        stack_frame,
+        node,
+    );
+    bind_common_setting(&cp.width, "width", property_columns, stack_frame, node);
+    bind_common_setting(&cp.height, "height", property_columns, stack_frame, node);
+    bind_common_setting(&cp.scale_x, "scale_x", property_columns, stack_frame, node);
+    bind_common_setting(&cp.scale_y, "scale_y", property_columns, stack_frame, node);
+    bind_common_setting(&cp.skew_x, "skew_x", property_columns, stack_frame, node);
+    bind_common_setting(&cp.skew_y, "skew_y", property_columns, stack_frame, node);
+    bind_common_setting(&cp.rotate, "rotate", property_columns, stack_frame, node);
+    bind_common_setting(
+        &cp.transform,
+        "transform",
+        property_columns,
+        stack_frame,
+        node,
+    );
+    bind_common_setting(&cp.opacity, "opacity", property_columns, stack_frame, node);
+    bind_common_setting(
+        &cp.layout_role,
         "layout_role",
         property_columns,
         stack_frame,
-    ));
-    cp.anchor_x
-        .replace_with(resolve_property("anchor_x", property_columns, stack_frame));
-    cp.anchor_y
-        .replace_with(resolve_property("anchor_y", property_columns, stack_frame));
-    cp.unclippable.replace_with(resolve_property(
+        node,
+    );
+    bind_common_setting(
+        &cp.anchor_x,
+        "anchor_x",
+        property_columns,
+        stack_frame,
+        node,
+    );
+    bind_common_setting(
+        &cp.anchor_y,
+        "anchor_y",
+        property_columns,
+        stack_frame,
+        node,
+    );
+    bind_common_setting(
+        &cp.unclippable,
         "unclippable",
         property_columns,
         stack_frame,
-    ));
-    cp._raycastable.replace_with(resolve_property(
+        node,
+    );
+    bind_common_setting(
+        &cp._raycastable,
         "_raycastable",
         property_columns,
         stack_frame,
-    ));
-    cp._suspended.replace_with(resolve_property(
+        node,
+    );
+    bind_common_setting(
+        &cp._suspended,
         "_suspended",
         property_columns,
         stack_frame,
-    ));
+        node,
+    );
 }
 
 #[cfg(test)]
@@ -5079,6 +5174,7 @@ mod runtime_settings_tests {
         )]);
         let imported_layers = vec![
             RuntimeSettingsLayer {
+                transition: None,
                 provider_id: ExpandedNodeIdentifier(10),
                 provider_type_id: TypeId::build_singleton("example::BaseTheme", Some("BaseTheme")),
                 provider_stack: RuntimePropertiesStackFrame::new(HashMap::new()),
@@ -5088,6 +5184,7 @@ mod runtime_settings_tests {
                 )],
             },
             RuntimeSettingsLayer {
+                transition: None,
                 provider_id: ExpandedNodeIdentifier(11),
                 provider_type_id: TypeId::build_singleton(
                     "example::AccentTheme",

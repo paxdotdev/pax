@@ -329,3 +329,9 @@ pub fn register_time(prop: &Property<u64>) {
 pub fn register_millis(prop: &Property<u64>) {
     PROPERTY_MILLIS.with_borrow_mut(|time| *time = prop.clone());
 }
+
+/// Current runtime frame used to distinguish initial binding from later changes.
+#[doc(hidden)]
+pub fn current_frame() -> u64 {
+    PROPERTY_TIME.with_borrow(|time| time.get())
+}

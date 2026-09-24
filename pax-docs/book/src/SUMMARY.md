@@ -115,6 +115,7 @@
     - [rendering](api/internal/pax-runtime/rendering.md)
     - [repeat](api/internal/pax-runtime/repeat.md)
     - [router](api/internal/pax-runtime/router.md)
+    - [settings_motion](api/internal/pax-runtime/settings_motion.md)
     - [slot](api/internal/pax-runtime/slot.md)
   - [pax-manifest](api/internal/pax-manifest/index.md)
     - [cartridge_generation](api/internal/pax-manifest/cartridge_generation.md)

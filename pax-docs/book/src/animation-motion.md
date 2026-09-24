@@ -232,6 +232,78 @@ Also avoid animating a state property while a handler continually sets it,
 or trying to ease a derived value whose formula keeps recomputing. Animate
 an owned source property and let its dependents follow.
 
+## Automatic settings transitions
+
+An `ImportSettings` instance can ease changes to the settings it exports.
+For example, with `LightTheme` and `DarkTheme` components that export
+`.surface` rules and a boolean `is_dark` property on the host:
+
+```pax
+<ImportSettings transition=SettingsTransition::Ease(400ms, TransitionCurve::InOutQuad)>
+    if self.is_dark {
+        <DarkTheme />
+    } else {
+        <LightTheme />
+    }
+</ImportSettings>
+<Rectangle class="surface" width=100% height=100% />
+```
+
+Use `use pax_kit::*;` in the Rust module. The default is
+`SettingsTransition::None`, which applies changes immediately. `Ease` accepts
+the same time or frame [durations](#markers-duration-and-loops) and
+[built-in curves](#easing) as other Pax motion, with the curve written as
+`TransitionCurve::Linear`, `TransitionCurve::OutQuad`, and so on. Zero,
+negative, and non-finite durations apply the target immediately.
+
+The first resolved appearance snaps into place. After that, changing a
+provider's reactive values, replacing a provider, or changing selector
+membership animates each affected receiver property toward its new effective
+value. A change hidden by a later settings layer does not start motion.
+Interrupting motion samples its current value and starts a fresh transition
+with the full duration. An unchanged target does not restart it. Receivers
+keep independent playback state, even when they share a theme provider.
+
+The winning import supplies the policy. Removing its setting uses the outgoing
+policy to return to the surviving local value or default. An incoming import
+with `None` applies immediately, and switching an active import to `None`
+finishes its motion immediately. Changing only a nonzero duration or curve
+affects the next target change. The outer import's policy also applies to
+settings exported through its transitive providers.
+
+Interpolation follows each property's `Interpolatable` implementation:
+
+| Value | Behavior |
+| --- | --- |
+| Numbers, sizes, rotations, colors | Continuous interpolation; colors use RGBA channels |
+| Solid fills | Continuous RGBA interpolation |
+| Gradient fills | Discrete change at the end; gradient crossfading is not implemented |
+| `TextStyle` | Font size and fill interpolate; font selection, weight, style, underline, and alignment switch immediately |
+| `CornerRadii` | Each corner interpolates independently; zero is an angular corner |
+| Vectors | Equal-length vectors interpolate element by element; a changed length switches immediately |
+| Other data | Uses the type's interpolation implementation, which may be discrete |
+
+Common layout settings also participate. Unset positions, padding, rotation,
+scale, and opacity interpolate using their layout defaults. Switching width
+or height between a value and intrinsic sizing is discrete. Native text still
+uses the chassis's text rendering; glyph shapes do not morph, and existing
+platform font and fill restrictions continue to apply.
+
+An inline value, two-way binding, explicit property timeline, or lifecycle
+transition retains ownership of its property. Avoid imperatively easing the
+same receiver property while automatic settings motion owns it. Animate a
+separate source or use an explicit timeline when you need that control.
+
+This API applies one transition to all changed properties. Imported named
+timelines, per-property transition policies, and an `@change` lifecycle hook
+are not implemented. Receiver-owned playback and preserved settings provenance
+leave room for those additions without sharing clocks between theme consumers.
+The behavior is the same in debug and release cartridges; release builds do
+not gain hot reload from this feature.
+
+The canonical `runtime-settings-themes` example lets you switch color,
+typography, and corner providers independently and interrupt their motion.
+
 ## Imperative easing
 
 Rust can animate a property directly with `ease_to`. It replaces that
