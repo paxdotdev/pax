@@ -21,7 +21,7 @@ pub use framework_section::FrameworkSection;
 pub use hero_section::HeroSection;
 pub use home_page::HomePage;
 pub use resource_section::ResourceSection;
-pub use route_pages::{BlogRouteSeam, NotFoundPage};
+pub use route_pages::NotFoundPage;
 pub use runtime_section::RuntimeSection;
 pub use site_shell::SiteShell;
 pub use site_theme::SiteTheme;

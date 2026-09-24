@@ -1,0 +1,8 @@
+{# Supply the self-canonical absent from the pinned theme's defaults. #}
+{% if current_url and not page?.extra?.canonical_url and not section?.extra?.canonical_url and not config.extra.base_canonical_url %}
+<link rel="canonical" href="{{ current_url }}">
+{% endif %}
+{% if page?.draft or config.base_url is starting_with(pat="http://127.0.0.1") or config.base_url is starting_with(pat="http://localhost") %}
+<meta name="robots" content="noindex, nofollow">
+{% endif %}
+

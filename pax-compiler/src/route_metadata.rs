@@ -1169,7 +1169,7 @@ mod tests {
         let dir = tempdir().unwrap();
         fs::write(
             dir.path().join("index.html"),
-            "<html><head><title>Base</title></head><body>app</body></html>",
+            "<html><head><title>Base</title><script type=\"application/json\" id=\"pax-web-config\">{\"server_owned_prefixes\":[\"/downloads\"]}</script></head><body>app</body></html>",
         )
         .unwrap();
         let catalog = WebRouteCatalog {
@@ -1203,6 +1203,10 @@ mod tests {
         assert!(blog.contains("<title>Blog</title>"));
         assert!(blog.contains("https://example.com/blog"));
         assert!(blog.contains("<base href=\"/\">"));
+        for document in [&root, &blog] {
+            assert_eq!(document.matches("id=\"pax-web-config\"").count(), 1);
+            assert!(document.contains(r#"{"server_owned_prefixes":["/downloads"]}"#));
+        }
         assert!(!dir.path().join("404.html").exists());
     }
 }

@@ -60,10 +60,11 @@ subtree. Your event handler does not need to hide the old page and show the
 new one manually.
 
 On the web, same-origin navigation in the current tab updates browser history
-without restarting Pax. Back and Forward feed location changes into the same
-router. A fresh visit or browser reload starts a new application at the
-requested URL, so [direct-link hosting](#hosting-the-generated-routes) is part
-of making a routed app usable.
+without restarting Pax, except for [server-owned paths](#server-owned-web-paths).
+Back and Forward feed application-location changes into the same router.
+A fresh visit or browser reload asks the host for the requested document, so
+[direct-link hosting](#hosting-the-generated-routes) is part of making a routed
+app usable.
 
 ## Basic shape
 
@@ -194,10 +195,61 @@ URL, **not** the nearest router's scope. Navigating to `settings` from
 `/teams/design/`.
 
 For a web `Current` destination, matching scheme, host, and port keep the
-navigation in the Pax session. Other origins and `New` destinations use
-ordinary browser navigation. The URL should describe the intended location;
+navigation in the Pax session unless its path is configured as server-owned.
+Other origins and `New` destinations use ordinary browser navigation. The URL should describe the intended location;
 route matching does not validate that a user may access its data. Perform
 authorization in the systems that own that data.
+
+### Server-owned web paths
+
+A site can combine a Pax application with standalone documents such as a
+static blog. Declare the paths that the HTTP server or CDN should resolve in
+the application's `Cargo.toml`:
+
+```toml
+[package.metadata.pax.web]
+server_owned_prefixes = ["/blog", "/downloads"]
+```
+
+Existing links and Rust handlers then use their ordinary URLs:
+
+```pax
+<Link url="/blog/pax-0-39-0/" target=Target::Current>
+    <Text text="Read the announcement" />
+</Link>
+```
+
+The same policy applies to `ctx.navigate_to("/blog/", NavigationTarget::Current)`.
+On the web, Pax initiates ordinary current-tab browser navigation before
+changing application history or notifying Router. The destination may be a
+document, redirect, download, or another application. Queries and fragments are
+preserved. Leaving for a document unloads the current app; Back may restore it
+from the browser cache or start it again. In a query-backed embed, this navigates
+the current frame to the real URL instead of changing its `pax_route` parameter.
+
+Prefixes match complete, case-sensitive path segments. `/blog` covers `/blog`,
+`/blog/`, and descendants, but not `/blogger` or `/Blog`. A trailing slash is
+normalized away; `/` delegates every path. Entries must be root-relative paths,
+without wildcards, query strings, fragments, backslashes, whitespace, empty
+segments, or `.`/`..` segments. Unicode paths and valid percent escapes are
+accepted. Unreserved ASCII escapes compare equivalently (`/%62log` is `/blog`);
+encoded separators stay encoded (`/blog%2Fpost` is not beneath `/blog`). This is
+a navigation policy, not an authorization boundary.
+
+The default is an empty list. The setting applies only to web builds, in both
+debug and release; native routing and new-tab links retain their usual behavior.
+Rebuild and restart after changing Cargo metadata. The compiler embeds the
+policy as JSON in every generated application entry and writes
+`pax-web-config.json` for local serving. Custom entry documents must retain the
+generated `pax-web-config` script element for client navigation to use it.
+
+The setting does not configure a production server or reverse proxy. Serve the
+declared paths separately, using [web public files](targets-build-deploy.md#web-public-files)
+or a CDN origin. `pax-cli run` serves existing generated/public files there and
+returns 404 for missing files instead of the application history fallback.
+Remove conflicting Router metadata entries: a public document cannot overwrite
+a generated application entry. The HTTP host handles direct links without
+initializing Pax first.
 
 ### Native locations
 

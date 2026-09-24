@@ -19,3 +19,13 @@ while routing and document metadata use the application location encoded in
 preserve the host path. Without the parameter, normal pathname routing and
 the generated site's base URL are unchanged. Custom HTML hosts must retain
 the embedded-base setup before loading scripts or styles.
+
+## Server-owned paths
+
+The compiler embeds the validated Cargo web setting `server_owned_prefixes`
+in `<script type="application/json" id="pax-web-config">`. Keep that element
+in custom entry documents. `utils/navigation.ts` reads it synchronously and
+delegates matching current-tab, same-origin destinations to browser navigation
+before app history or metadata updates. The current frame navigates even when
+its app normally uses `pax_route`. The sibling `pax-web-config.json` lets local
+servers apply the same policy to their history fallback without loading Wasm.

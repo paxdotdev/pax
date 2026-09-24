@@ -48,7 +48,7 @@ import { DropdownUpdatePatch } from "./messages/dropdown-update-patch";
 import { SliderUpdatePatch } from "./messages/slider-update-patch";
 import { EventBlockerUpdatePatch } from "./messages/event-blocker-update-patch";
 import { NavigationPatch } from "./messages/navigation-patch";
-import { updateDocumentRouteMetadata } from "../utils/route-metadata";
+import { navigateBrowser } from "../utils/navigation";
 import { NativeImageUpdatePatch } from "./messages/native-image-update-patch";
 import { YoutubeVideoUpdatePatch } from "./messages/youtube-video-update-patch";
 import { SetCursorPatch } from "./messages/set-cursor-patch";
@@ -63,7 +63,7 @@ import {
 } from "./surface-host-policy";
 import type { LayerCanvasPlan } from "./surface-host-policy";
 import { CanvasPool } from "./canvas-pool";
-import { browserRouteLocation, pushRouteHistoryState, serializeRouteLocation } from "../utils/route-location";
+import { serializeRouteLocation } from "../utils/route-location";
 
 const SCREENSHOT_FONT_STYLE_ATTRIBUTE = 'data-pax-screenshot-font-style';
 const SCROLLER_CHROME_STYLE_ATTRIBUTE = 'data-pax-scroller-chrome-style';
@@ -3460,39 +3460,9 @@ export class NativeElementPool {
     }
 
     navigate(patch: NavigationPatch) {
-        let destination = patch.url;
-        if (!destination) {
-            console.error("no valid url target!");
-            return;
-        }
-
-        try {
-            let url = new URL(destination, browserRouteLocation());
-            if (patch.target === "current" && url.origin === window.location.origin) {
-                pushRouteHistoryState(url);
-                this.chassis?.interrupt({
-                    "RouteChange": serializeRouteLocation(url),
-                }, []);
-                void updateDocumentRouteMetadata(url);
-                return;
-            }
-        } catch (_err) {
-            // Fall back to ordinary browser navigation for malformed or unsupported URLs.
-        }
-
-        let name: string;
-        switch (patch.target) {
-            case "current":
-                name = "_self";
-                break;
-            case "new":
-                name = "_blank";
-                break;
-            default:
-                console.error("no valid url target!");
-                name = "_self";
-        }
-        window.open(destination, name);
+        navigateBrowser(patch.url, patch.target, url => {
+            this.chassis?.interrupt({ "RouteChange": serializeRouteLocation(url) }, []);
+        });
     }
 
     setCursor(patch: SetCursorPatch) {

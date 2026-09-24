@@ -17,6 +17,7 @@ pub(crate) fn start_server_with_ready_callback(
     public_dir: Option<PathBuf>,
     ready_callback: Option<Box<dyn FnOnce() + Send>>,
 ) -> std::io::Result<()> {
+    let server_owned_prefixes = crate::project_metadata::load_web_server_owned_prefixes(&fs_path)?;
     // Initialize logging
     std::env::set_var("RUST_LOG", "actix_web=info");
     env_logger::Builder::from_env(env_logger::Env::default())
@@ -42,7 +43,11 @@ pub(crate) fn start_server_with_ready_callback(
                 break HttpServer::new(move || {
                     App::new()
                         .wrap(Logger::new("| %s | %U"))
-                        .service(static_files_service(fs_path.clone(), public_dir.clone()))
+                        .service(static_files_service(
+                            fs_path.clone(),
+                            public_dir.clone(),
+                            server_owned_prefixes.clone(),
+                        ))
                 })
                 .bind((DEFAULT_BIND_HOST, port))?
                 .workers(2);

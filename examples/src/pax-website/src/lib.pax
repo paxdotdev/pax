@@ -8,16 +8,6 @@
             <HomePage />
         </SiteShell>
     </Route>
-    // PAX-984 owns the publishing implementation behind this stable route seam.
-    <Route path="/blog/*" metadata=RouteMetadata {
-        title: "Pax Notes"
-        description: "Build notes, technical essays, and project updates from the people building Pax."
-        index: true
-    }>
-        <SiteShell>
-            <BlogRouteSeam />
-        </SiteShell>
-    </Route>
     <Route default=true metadata=RouteMetadata {
         title: "Page not found — Pax"
         description: "This page could not be found."

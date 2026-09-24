@@ -2010,3 +2010,18 @@ property writes, advance it by the change from the last cached logical
 position, retaining any host-relative presentation delta. Update the host
 patch, surface cache, and node's scroll transform together. A calculator-only
 retry of its center command would leave the shared Scroller contract broken.
+
+## 2026-09-22 — Serving a static blog beside a Pax app
+
+A normal same-origin `Link` to `/blog` was captured by web routing, so a static
+server never saw the request. An absolute URL with the same origin had the same
+problem. Declaring `server_owned_prefixes = ["/blog"]` in Cargo's Pax web
+metadata now makes both `Link` and Rust navigation load the destination normally.
+The HTTP host still needs its own path routing; missing server-owned documents
+must not receive the Pax history fallback.
+
+The website's placeholder `/blog/*` route also generated `blog/index.html`
+from its metadata. Remove that entry before staging a real public blog document:
+Pax deliberately rejects public files that overwrite generated entries. The
+blog belongs in `pax-blog/`; its output can be staged beneath the website's
+`public/blog/` for a local integration check.

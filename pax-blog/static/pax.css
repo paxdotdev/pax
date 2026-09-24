@@ -1,0 +1,16 @@
+html:root, html:root[data-theme="dark"] {
+  --background-color: #11110f;
+  --text-color: #fcf9f2;
+  --text-color-high-contrast: #fcf9f2;
+  --meta-color: #b3b3b3;
+  --primary-color: #f2f32b;
+  --divider-color: #41413d;
+  --sans-serif-font: system-ui, sans-serif;
+}
+body { font-family: system-ui, sans-serif; }
+h1, h2, h3 { letter-spacing: -0.035em; }
+h1 { line-height: 1.12; }
+article { line-height: 1.75; }
+pre { border: 1px solid #41413d; }
+nav a, time { font-family: ui-monospace, monospace; }
+a:focus-visible { outline: 2px solid #f2f32b; outline-offset: 5px; }

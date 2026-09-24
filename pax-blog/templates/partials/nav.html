@@ -1,0 +1,21 @@
+{# Keep the product link on the current origin, including integrated previews. #}
+<header>
+    <nav class="navbar" aria-label="Main navigation">
+        <div class="nav-title">
+            <a class="home-title" href="{{ get_url(path='/', trailing_slash=true) }}">{{ config.title }}</a>
+        </div>
+        <div class="nav-navs">
+            <ul>
+                {% for menu in config.extra.menu %}
+                <li>
+                    {% if menu.root_relative or menu.url is starting_with(pat="http") %}
+                    <a class="nav-links no-hover-padding" href="{{ menu.url }}">{{ menu.name }}</a>
+                    {% else %}
+                    <a class="nav-links no-hover-padding" href="{{ get_url(path=menu.url, trailing_slash=true) }}">{{ menu.name }}</a>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </nav>
+</header>

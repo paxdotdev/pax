@@ -83,7 +83,11 @@ pub(crate) fn local_network_ip() -> Option<IpAddr> {
     (!ip.is_loopback()).then_some(ip)
 }
 
-fn static_files_service(fs_path: PathBuf, public_dir: Option<PathBuf>) -> Files {
+fn static_files_service(
+    fs_path: PathBuf,
+    public_dir: Option<PathBuf>,
+    server_owned_prefixes: Vec<String>,
+) -> Files {
     let index_path = fs_path.join("index.html");
     let generated_files = Files::new("/*", fs_path)
         .index_file("index.html")
@@ -101,13 +105,15 @@ fn static_files_service(fs_path: PathBuf, public_dir: Option<PathBuf>) -> Files 
                 .path_filter(move |relative, _| is_servable_public_path(&filter_root, relative))
                 .default_handler(fn_service(move |req: ServiceRequest| {
                     let index_path = index_path.clone();
-                    async move { history_api_fallback(req, index_path).await }
+                    let prefixes = server_owned_prefixes.clone();
+                    async move { history_api_fallback(req, index_path, &prefixes).await }
                 })),
         )
     } else {
         generated_files.default_handler(fn_service(move |req: ServiceRequest| {
             let index_path = index_path.clone();
-            async move { history_api_fallback(req, index_path).await }
+            let prefixes = server_owned_prefixes.clone();
+            async move { history_api_fallback(req, index_path, &prefixes).await }
         }))
     }
 }
@@ -115,8 +121,11 @@ fn static_files_service(fs_path: PathBuf, public_dir: Option<PathBuf>) -> Files 
 async fn history_api_fallback(
     req: ServiceRequest,
     index_path: PathBuf,
+    server_owned_prefixes: &[String],
 ) -> Result<ServiceResponse, actix_web::Error> {
-    if should_serve_history_api_fallback(&req) {
+    if should_serve_history_api_fallback(&req)
+        && !crate::project_metadata::is_server_owned_path(req.path(), server_owned_prefixes)
+    {
         let (req, _) = req.into_parts();
         let html = tokio::fs::read_to_string(index_path).await?;
         let response = HttpResponse::Ok()
@@ -1360,6 +1369,7 @@ pub(crate) fn start_server_with_ready_callback(
     initial_state.set_app_ready_marker(app_ready_marker);
     let fs_path = initial_state.serve_dir.lock().unwrap().clone();
     let public_dir = existing_project_public_dir(Path::new(src_folder_to_watch));
+    let server_owned_prefixes = crate::project_metadata::load_web_server_owned_prefixes(&fs_path)?;
     let state = Data::new(initial_state);
     let _watcher =
         setup_file_watcher(state.clone(), src_folder_to_watch).map_err(std::io::Error::other)?;
@@ -1404,7 +1414,11 @@ pub(crate) fn start_server_with_ready_callback(
                 .wrap(Logger::new("| %s | %U"))
                 .app_data(state.clone())
                 .service(web_socket)
-                .service(static_files_service(fs_path.clone(), public_dir.clone()))
+                .service(static_files_service(
+                    fs_path.clone(),
+                    public_dir.clone(),
+                    server_owned_prefixes.clone(),
+                ))
         })
         .listen(listener)?
         .workers(2);
@@ -2283,9 +2297,11 @@ mod tests {
         )
         .expect("failed to write index");
 
-        let app = actix_test::init_service(
-            App::new().service(static_files_service(dir.path().to_path_buf(), None)),
-        )
+        let app = actix_test::init_service(App::new().service(static_files_service(
+            dir.path().to_path_buf(),
+            None,
+            vec![],
+        )))
         .await;
 
         let req = actix_test::TestRequest::get()
@@ -2310,9 +2326,11 @@ mod tests {
         )
         .expect("failed to write index");
 
-        let app = actix_test::init_service(
-            App::new().service(static_files_service(dir.path().to_path_buf(), None)),
-        )
+        let app = actix_test::init_service(App::new().service(static_files_service(
+            dir.path().to_path_buf(),
+            None,
+            vec![],
+        )))
         .await;
 
         let req = actix_test::TestRequest::get()
@@ -2337,6 +2355,7 @@ mod tests {
         let app = actix_test::init_service(App::new().service(static_files_service(
             generated_dir,
             Some(public_dir.clone()),
+            vec![],
         )))
         .await;
 
@@ -2378,9 +2397,11 @@ mod tests {
         fs::write(public_dir.join("guide.html"), "<html>guide</html>").unwrap();
         fs::write(public_dir.join("runtime.js"), "public").unwrap();
 
-        let app = actix_test::init_service(
-            App::new().service(static_files_service(generated_dir, Some(public_dir))),
-        )
+        let app = actix_test::init_service(App::new().service(static_files_service(
+            generated_dir,
+            Some(public_dir),
+            vec![],
+        )))
         .await;
 
         let public = actix_test::TestRequest::get()
@@ -2418,9 +2439,11 @@ mod tests {
         fs::write(public_dir.join("ai/index.html"), "<html>primer</html>").unwrap();
         fs::write(public_dir.join(".well-known/pax.txt"), "pax").unwrap();
 
-        let app = actix_test::init_service(
-            App::new().service(static_files_service(generated_dir, Some(public_dir))),
-        )
+        let app = actix_test::init_service(App::new().service(static_files_service(
+            generated_dir,
+            Some(public_dir),
+            vec![],
+        )))
         .await;
 
         let directory = actix_test::TestRequest::get()
@@ -2452,6 +2475,49 @@ mod tests {
     }
 
     #[actix_web::test]
+    async fn server_owned_paths_serve_files_and_never_use_app_fallback() {
+        let dir = tempdir().unwrap();
+        let generated = dir.path().join("generated");
+        let public = dir.path().join("public");
+        fs::create_dir_all(&generated).unwrap();
+        fs::create_dir_all(public.join("blog/post")).unwrap();
+        fs::write(generated.join("index.html"), "<html>pax app</html>").unwrap();
+        fs::write(
+            public.join("blog/post/index.html"),
+            "<html>static article</html>",
+        )
+        .unwrap();
+        for public_dir in [Some(public.clone()), None] {
+            let has_public = public_dir.is_some();
+            let app = actix_test::init_service(App::new().service(static_files_service(
+                generated.clone(),
+                public_dir,
+                vec!["/blog".into()],
+            )))
+            .await;
+            for (path, status) in [
+                ("/blog", 404),
+                ("/blog/missing", 404),
+                ("/%62log/missing", 404),
+                ("/blog/post/", if has_public { 200 } else { 404 }),
+                ("/blogger", 200),
+                ("/settings", 200),
+            ] {
+                let request = actix_test::TestRequest::get()
+                    .uri(path)
+                    .insert_header((header::ACCEPT, "text/html"))
+                    .to_request();
+                let response = actix_test::call_service(&app, request).await;
+                assert_eq!(response.status().as_u16(), status, "{path}");
+                let body = actix_test::read_body(response).await;
+                if path == "/blog/post/" && has_public {
+                    assert_eq!(body.as_ref(), b"<html>static article</html>");
+                }
+            }
+        }
+    }
+
+    #[actix_web::test]
     async fn public_directories_without_indexes_use_history_fallback() {
         let dir = tempdir().expect("failed to create temp dir");
         let generated_dir = dir.path().join("generated");
@@ -2460,9 +2526,11 @@ mod tests {
         fs::create_dir_all(public_dir.join("app-route")).unwrap();
         fs::write(generated_dir.join("index.html"), "<html>pax app</html>").unwrap();
 
-        let app = actix_test::init_service(
-            App::new().service(static_files_service(generated_dir, Some(public_dir))),
-        )
+        let app = actix_test::init_service(App::new().service(static_files_service(
+            generated_dir,
+            Some(public_dir),
+            vec![],
+        )))
         .await;
 
         let route = actix_test::TestRequest::get()

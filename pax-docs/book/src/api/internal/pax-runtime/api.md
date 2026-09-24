@@ -201,7 +201,10 @@ Ask the chassis to navigate to a URL.
 
 On web targets, same-origin navigation in the current tab can be handled
 through the browser History API and routed back into Pax without a full
-page reload. Other targets use the active chassis navigation behavior.
+page reload. Cargo metadata's
+`[package.metadata.pax.web].server_owned_prefixes` delegates matching paths
+to ordinary browser navigation before changing application history.
+Other targets use the active chassis navigation behavior.
 
 ##### `peek_local_store`
 <pre><code class="api-signature language-rust ignore">pub fn peek_local_store&lt;T: <a href="../../../api/pax-runtime-api/store.md#store">Store</a>, V&gt;(&amp;self, f: impl FnOnce(&amp;mut T) -&gt; V) -&gt; Result&lt;V, String&gt;</code></pre>

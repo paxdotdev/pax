@@ -31,7 +31,11 @@ use pax_runtime::{
 /// `Link` remains router-agnostic: it writes a URL, while `Router` and `Route`
 /// declaratively read the current location. On web targets, same-origin
 /// `target=Current` navigation can be serviced through client-side history
-/// updates instead of a full document reload.
+/// updates instead of a full document reload. Paths declared in Cargo metadata's
+/// `[package.metadata.pax.web].server_owned_prefixes` use ordinary browser
+/// navigation instead, preserving the query and fragment. The hosting server
+/// must separately serve those paths. This web setting does not change native
+/// routing or `target=New` behavior.
 pub struct Link {
     /// Destination URL.
     pub url: Property<String>,

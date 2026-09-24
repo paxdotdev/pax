@@ -195,6 +195,12 @@ and social previews tied to application routes, use
 those entry documents from the route declarations. Avoid a public-file path
 that conflicts with a generated route entry.
 
+For navigation from Pax to these same-origin documents, declare their paths in
+`[package.metadata.pax.web].server_owned_prefixes`. See
+[Server-owned web paths](routing.md#server-owned-web-paths) for the complete
+navigation and local-server contract. Production hosting must also serve those
+paths directly and exclude them from any application fallback.
+
 ## Deploy web
 
 A web build needs a static host. It does not need a running Pax CLI on the
@@ -502,6 +508,7 @@ configuration portable between workstations.
 | `icon` | Common, web, Apple | Image used for generated icons, including the fallback web favicon |
 | `favicon` | Web | Explicit favicon file; takes priority over icon-derived favicon generation |
 | `site_name` | Web | Open Graph site name; defaults to the resolved web title |
+| `server_owned_prefixes` | Web | Root-relative path prefixes delegated to ordinary browser navigation; defaults to `[]`. See [Server-owned web paths](routing.md#server-owned-web-paths). |
 | `site_url` | Web | Absolute public HTTP(S) URL, without query or fragment; required for release builds with indexable concrete routes |
 | `social_image` | Web | Default social-preview image: an absolute HTTP(S) URL or a path relative to `site_url` |
 | `social_image_alt` | Web | Description of the social image; configure both image fields together |

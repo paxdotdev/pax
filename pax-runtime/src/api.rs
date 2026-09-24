@@ -179,7 +179,10 @@ impl NodeContext {
     ///
     /// On web targets, same-origin navigation in the current tab can be handled
     /// through the browser History API and routed back into Pax without a full
-    /// page reload. Other targets use the active chassis navigation behavior.
+    /// page reload. Cargo metadata's
+    /// `[package.metadata.pax.web].server_owned_prefixes` delegates matching paths
+    /// to ordinary browser navigation before changing application history.
+    /// Other targets use the active chassis navigation behavior.
     pub fn navigate_to(&self, url: &str, target: NavigationTarget) {
         self.runtime_context
             .enqueue_native_message(NativeMessage::Navigate(NavigationPatch {

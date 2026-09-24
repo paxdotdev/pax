@@ -1,0 +1,30 @@
+base_url = "https://blog.pax.dev"
+title = "Pax Notes"
+description = "Build notes, technical essays, and project updates."
+author = "Pax"
+theme = "tabi"
+compile_sass = true
+generate_feeds = true
+feed_filenames = ["atom.xml", "rss.xml"]
+build_search_index = false
+taxonomies = [{ name = "tags", feed = true }]
+
+[markdown.highlighting]
+theme = "catppuccin-frappe"
+style = "class"
+
+[extra]
+default_theme = "dark"
+theme_switcher = false
+enable_subset = false
+override_serif_with_sans = true
+stylesheets = ["pax-scope.css"]
+show_author = true
+show_reading_time = false
+copy_button = false
+full_content_in_feed = false
+menu = [
+    { name = "Archive", url = "archive", trailing_slash = true },
+    { name = "Tags", url = "tags", trailing_slash = true },
+    { name = "Docs", url = "https://docs.pax.dev", trailing_slash = true },
+]

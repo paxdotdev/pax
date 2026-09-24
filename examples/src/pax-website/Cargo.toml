@@ -10,6 +10,7 @@ repository = "https://github.com/paxdotdev/pax"
 title = "Pax — A declarative language for native and web UI"
 
 [package.metadata.pax.web]
+server_owned_prefixes = ["/blog", "/ai", "/ai.md"]
 title = "Pax — A declarative language for native and web UI"
 favicon = "../../../pax-compiler/files/interfaces/macos/pax-app-macos/pax-app-macos/Assets.xcassets/AppIcon.appiconset/pax-logo-1024.png"
 site_name = "Pax"

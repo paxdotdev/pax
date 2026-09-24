@@ -1,0 +1,10 @@
+/themes/
+/.tools/
+/public/
+/preview/
+/infra/.terraform/
+/infra/*.tfstate*
+/infra/*.tfplan
+/infra/*.tfvars
+!/infra/example.tfvars
+

@@ -15,6 +15,7 @@ xcuserdata
 examples/src/*/.pax/
 tests/src/*/.pax/
 examples/src/pax-website/public/ai/index.html
+examples/src/pax-website/public/blog/
 
 pax-compiler/files/interfaces/web/public/pax-interface-web.css
 pax-compiler/files/interfaces/web/public/pax-interface-web.js

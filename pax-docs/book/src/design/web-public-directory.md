@@ -143,7 +143,10 @@ that runs only after the application has loaded.
 
 ## Deferred Extensions
 
-If applications later need extensionless aliases, redirects, custom response
-headers, cache policies, or generated static responses, those features should
-use a first-class, validated Pax project configuration surface. They should not
-be hidden in Cargo metadata or modeled as runtime Router nodes.
+The 22 September routing decision adds validated
+`[package.metadata.pax.web].server_owned_prefixes` for paths where Pax yields to
+ordinary browser navigation. It also excludes missing files beneath those paths
+from the local server's application fallback. This uses the existing Cargo web
+namespace; it supersedes this proposal's earlier recommendation against Cargo
+metadata for future serving configuration. Production origin routing, redirects,
+response headers, and cache policies still belong to the hosting configuration.

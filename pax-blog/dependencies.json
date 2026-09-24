@@ -1,0 +1,13 @@
+{
+  "zola_version": "0.23.6",
+  "zola_darwin_arm64": {
+    "url": "https://github.com/getzola/zola/releases/download/v0.23.6/zola-v0.23.6-aarch64-apple-darwin.tar.gz",
+    "sha256": "cbffbd29b3f59c3f52633507c8cb945a7a02d8b1399b43b235f5932912297aa3"
+  },
+  "tabi": {
+    "version": "5.0.0",
+    "commit": "606f4b28aef052e8a716fe947c0166913731e339",
+    "url": "https://api.github.com/repos/welpo/tabi/tarball/a43c682b084aadd631be7b9861d6e483fe5ced01",
+    "sha256": "6218e3f157cf213c53bc62ffd2945776e2b2d002d116b2904d829778b7e39fee"
+  }
+}

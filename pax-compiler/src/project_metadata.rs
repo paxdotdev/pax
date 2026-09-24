@@ -47,6 +47,7 @@ struct WebMetadata {
     site_url: Option<String>,
     social_image: Option<String>,
     social_image_alt: Option<String>,
+    server_owned_prefixes: Vec<String>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -90,6 +91,10 @@ pub fn apply_copied_interface_metadata(
 }
 
 impl PaxProjectMetadata {
+    pub(crate) fn web_server_owned_prefixes(&self) -> &[String] {
+        &self.web.server_owned_prefixes
+    }
+
     pub(crate) fn manifest_dir(&self) -> &Path {
         &self.manifest_dir
     }
@@ -372,6 +377,7 @@ fn parse_common_metadata(table: &Table, path: &str) -> Result<CommonMetadata, ey
 
 fn parse_web_metadata(table: &Table, path: &str) -> Result<WebMetadata, eyre::Report> {
     let metadata = WebMetadata {
+        server_owned_prefixes: parse_server_owned_prefixes(table, path)?,
         title: string_field(table, "title", &format!("{path}.title"))?,
         icon: string_field(table, "icon", &format!("{path}.icon"))?,
         favicon: string_field(table, "favicon", &format!("{path}.favicon"))?,
@@ -395,6 +401,102 @@ fn parse_web_metadata(table: &Table, path: &str) -> Result<WebMetadata, eyre::Re
         ));
     }
     Ok(metadata)
+}
+
+fn parse_server_owned_prefixes(table: &Table, path: &str) -> Result<Vec<String>, eyre::Report> {
+    let Some(item) = table.get("server_owned_prefixes") else {
+        return Ok(Vec::new());
+    };
+    let field = format!("{path}.server_owned_prefixes");
+    let values = item
+        .as_array()
+        .ok_or_else(|| eyre!("`{field}` must be an array of paths"))?;
+    let mut prefixes = Vec::new();
+    for value in values {
+        let value = value
+            .as_str()
+            .ok_or_else(|| eyre!("`{field}` entries must be strings"))?;
+        let invalid = || {
+            eyre!("Invalid `{field}` entry `{value}`: expected a root-relative path without wildcards, query, fragment, backslashes, whitespace, empty segments, or dot segments")
+        };
+        if !value.starts_with('/')
+            || value.contains("//")
+            || value
+                .chars()
+                .any(|c| c.is_whitespace() || c.is_control() || matches!(c, '?' | '#' | '\\' | '*'))
+        {
+            return Err(invalid());
+        }
+        let normalized = normalize_url_path(value);
+        if normalized
+            .split('/')
+            .any(|segment| matches!(segment, "." | ".."))
+        {
+            return Err(invalid());
+        }
+        // Require well-formed escapes; keep reserved characters encoded so an
+        // encoded slash does not become a path-segment boundary.
+        let bytes = value.as_bytes();
+        for (i, byte) in bytes.iter().enumerate() {
+            if *byte == b'%'
+                && (i + 2 >= bytes.len()
+                    || !bytes[i + 1].is_ascii_hexdigit()
+                    || !bytes[i + 2].is_ascii_hexdigit())
+            {
+                return Err(invalid());
+            }
+        }
+        let url = reqwest::Url::parse(&format!("https://pax.invalid{normalized}"))?;
+        let prefix = normalize_url_path(url.path());
+        let prefix = if prefix == "/" {
+            prefix
+        } else {
+            prefix.trim_end_matches('/').to_string()
+        };
+        if !prefixes.contains(&prefix) {
+            prefixes.push(prefix);
+        }
+    }
+    Ok(prefixes)
+}
+
+// Match URL spellings consistently with the web chassis: decode unreserved
+// ASCII escapes, but preserve encoded separators and other reserved bytes.
+pub(crate) fn normalize_url_path(path: &str) -> String {
+    let bytes = path.as_bytes();
+    let mut output = Vec::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            if let (Some(a), Some(b)) = (
+                (bytes[i + 1] as char).to_digit(16),
+                (bytes[i + 2] as char).to_digit(16),
+            ) {
+                let decoded = (a * 16 + b) as u8;
+                if decoded.is_ascii_alphanumeric() || b"-._~".contains(&decoded) {
+                    output.push(decoded);
+                } else {
+                    output.extend_from_slice(format!("%{decoded:02X}").as_bytes());
+                }
+                i += 3;
+                continue;
+            }
+        }
+        output.push(bytes[i]);
+        i += 1;
+    }
+    String::from_utf8(output).expect("normalizing ASCII escapes preserves UTF-8")
+}
+
+pub(crate) fn is_server_owned_path(path: &str, prefixes: &[String]) -> bool {
+    let path = normalize_url_path(path);
+    prefixes.iter().any(|prefix| {
+        prefix == "/"
+            || path == *prefix
+            || path
+                .strip_prefix(prefix)
+                .is_some_and(|tail| tail.starts_with('/'))
+    })
 }
 
 fn parse_apple_metadata(table: &Table, path: &str) -> Result<AppleMetadata, eyre::Report> {
@@ -462,8 +564,61 @@ fn apply_web_metadata(pax_dir: &Path, metadata: &PaxProjectMetadata) -> Result<(
     if let Some(favicon_href) = materialize_web_favicon(&interface_path, metadata)? {
         html = set_or_insert_favicon_link(&html, &favicon_href);
     }
+    html = set_web_navigation_config(&html, metadata.web_server_owned_prefixes())?;
+    fs::write(
+        interface_path.join("pax-web-config.json"),
+        serde_json::to_vec(&json!({
+            "server_owned_prefixes": metadata.web_server_owned_prefixes()
+        }))?,
+    )?;
     fs::write(index_path, html)?;
     Ok(())
+}
+
+pub(crate) fn load_web_server_owned_prefixes(output: &Path) -> std::io::Result<Vec<String>> {
+    let bytes = match fs::read(output.join("pax-web-config.json")) {
+        Ok(bytes) => bytes,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(error),
+    };
+    #[derive(serde::Deserialize)]
+    struct NavigationConfig {
+        server_owned_prefixes: Vec<String>,
+    }
+    let config: NavigationConfig = serde_json::from_slice(&bytes).map_err(std::io::Error::other)?;
+    Ok(config.server_owned_prefixes)
+}
+
+fn set_web_navigation_config(html: &str, prefixes: &[String]) -> Result<String, eyre::Report> {
+    const START: &str = "<!-- pax-web-config:start -->";
+    const END: &str = "<!-- pax-web-config:end -->";
+    // JSON is data, not executable bootstrap code. Escape '<' so a configured
+    // path cannot terminate the script element, including in custom interfaces.
+    let json =
+        serde_json::to_string(&json!({"server_owned_prefixes": prefixes}))?.replace('<', "\\u003c");
+    let block = format!(
+        "{START}\n<script type=\"application/json\" id=\"pax-web-config\">{json}</script>\n{END}\n"
+    );
+    if let Some(start) = html.find(START) {
+        let end = html[start..]
+            .find(END)
+            .ok_or_else(|| eyre!("Unclosed Pax web configuration block"))?
+            + start
+            + END.len();
+        return Ok(format!(
+            "{}{}{}",
+            &html[..start],
+            block.trim_end(),
+            &html[end..]
+        ));
+    }
+    let position = html.to_ascii_lowercase().find("</head>").unwrap_or(0);
+    Ok(format!(
+        "{}{}{}",
+        &html[..position],
+        block,
+        &html[position..]
+    ))
 }
 
 fn materialize_web_favicon(
@@ -732,6 +887,119 @@ fn image_has_transparency(image: &image::DynamicImage) -> bool {
 mod tests {
     use super::*;
 
+    #[test]
+    fn server_owned_prefixes_are_validated_and_normalized() {
+        let metadata = load(
+            r#"[package.metadata.pax.web]
+            server_owned_prefixes = ["/blog/", "/%62log", "/café", "/downloads/a%2fb"]"#,
+        );
+        assert_eq!(
+            metadata.web_server_owned_prefixes(),
+            &["/blog", "/caf%C3%A9", "/downloads/a%2Fb"]
+        );
+        for path in [
+            "/blog",
+            "/blog/",
+            "/blog/post",
+            "/%62log/post",
+            "/caf%c3%a9/post",
+        ] {
+            assert!(
+                is_server_owned_path(path, metadata.web_server_owned_prefixes()),
+                "{path}"
+            );
+        }
+        for path in ["/blogger", "/Blog", "/blog%2fpost", "/downloads/a/b"] {
+            assert!(
+                !is_server_owned_path(path, metadata.web_server_owned_prefixes()),
+                "{path}"
+            );
+        }
+        assert!(load("[package]\nname = \"app\"")
+            .web_server_owned_prefixes()
+            .is_empty());
+        for value in [
+            "false",
+            "[42]",
+            r#"["blog"]"#,
+            r#"["//other.example/blog"]"#,
+            r#"["/blog?x=1"]"#,
+            r#"["/blog#part"]"#,
+            r#"["/blog/*"]"#,
+            r#"["/blog/../other"]"#,
+            r#"["/blog/%2e%2e"]"#,
+            r#"["/blog//post"]"#,
+            r#"["/blog with spaces"]"#,
+            r#"["/blog/%xx"]"#,
+            r#"["/blog\\post"]"#,
+        ] {
+            let source = format!("[package.metadata.pax.web]\nserver_owned_prefixes = {value}");
+            assert!(
+                load_project_metadata_from_toml(Path::new("/tmp"), &source).is_err(),
+                "{source}"
+            );
+        }
+        let root = load(
+            r#"[package.metadata.pax.web]
+            server_owned_prefixes = ["/"]"#,
+        );
+        assert!(is_server_owned_path(
+            "/anything",
+            root.web_server_owned_prefixes()
+        ));
+    }
+
+    #[test]
+    fn navigation_config_is_safe_json_and_replaced_on_rebuild() {
+        let html = "<html><head></head><body>app</body></html>";
+        let updated =
+            set_web_navigation_config(html, &["/</script><script>alert(1)</script>".into()])
+                .unwrap();
+        assert_eq!(updated.matches("</script>").count(), 1);
+        assert!(updated.contains("\\u003c/script>"));
+        let updated = set_web_navigation_config(&updated, &["/blog".into()]).unwrap();
+        assert_eq!(updated.matches("id=\"pax-web-config\"").count(), 1);
+        assert!(updated.contains(r#"{"server_owned_prefixes":["/blog"]}"#));
+        assert!(!updated.contains("alert"));
+        assert_eq!(
+            updated,
+            set_web_navigation_config(&updated, &["/blog".into()]).unwrap()
+        );
+    }
+
+    #[test]
+    fn web_interface_and_local_server_receive_the_same_navigation_policy() {
+        let dir = tempfile::tempdir().unwrap();
+        let interface = dir.path().join(INTERFACE_DIR_NAME).join("web");
+        fs::create_dir_all(&interface).unwrap();
+        fs::write(
+            interface.join("index.html"),
+            "<html><head></head><body>app</body></html>",
+        )
+        .unwrap();
+        assert!(load_web_server_owned_prefixes(&interface)
+            .unwrap()
+            .is_empty());
+        let metadata = load(
+            r#"[package.metadata.pax.web]
+            server_owned_prefixes = ["/blog/"]"#,
+        );
+        apply_web_metadata(dir.path(), &metadata).unwrap();
+        assert_eq!(
+            load_web_server_owned_prefixes(&interface).unwrap(),
+            vec!["/blog"]
+        );
+        let html = fs::read_to_string(interface.join("index.html")).unwrap();
+        assert!(html.contains(r#"{"server_owned_prefixes":["/blog"]}"#));
+        apply_web_metadata(dir.path(), &load("[package]\nname = \"app\"")).unwrap();
+        assert!(load_web_server_owned_prefixes(&interface)
+            .unwrap()
+            .is_empty());
+        assert!(!fs::read_to_string(interface.join("index.html"))
+            .unwrap()
+            .contains("/blog"));
+    }
+
     fn load(contents: &str) -> PaxProjectMetadata {
         load_project_metadata_from_toml(Path::new("/tmp/example"), contents)
             .expect("metadata should parse")
@@ -996,10 +1264,11 @@ mod tests {
             crate::helpers::PAX_IOS_INTERFACE_TEMPLATE
                 .extract(&interface)
                 .unwrap();
-            let iconset = interface.join("pax-app-ios/pax-app-ios/Assets.xcassets/AppIcon.appiconset");
-            let contents: serde_json::Value = serde_json::from_str(
-                &fs::read_to_string(iconset.join("Contents.json")).unwrap(),
-            ).unwrap();
+            let iconset =
+                interface.join("pax-app-ios/pax-app-ios/Assets.xcassets/AppIcon.appiconset");
+            let contents: serde_json::Value =
+                serde_json::from_str(&fs::read_to_string(iconset.join("Contents.json")).unwrap())
+                    .unwrap();
             let icon = iconset.join(contents["images"][0]["filename"].as_str().unwrap());
             let default_bytes = fs::read(&icon).unwrap();
             let image = image::load_from_memory(&default_bytes).unwrap();
@@ -1013,8 +1282,10 @@ mod tests {
                 .save(dir.path().join("custom.png"))
                 .unwrap();
             let metadata = load_project_metadata_from_toml(
-                dir.path(), "[package.metadata.pax]\nicon = 'custom.png'\n",
-            ).unwrap();
+                dir.path(),
+                "[package.metadata.pax]\nicon = 'custom.png'\n",
+            )
+            .unwrap();
             apply_apple_icon_metadata(&target, dir.path(), &metadata).unwrap();
             let overridden = image::open(&icon).unwrap().to_rgb8();
             assert_eq!(overridden.dimensions(), (1024, 1024));

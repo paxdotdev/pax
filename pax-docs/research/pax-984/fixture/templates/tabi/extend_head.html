@@ -1,0 +1,6 @@
+{# Tabi emits og:url by default, but needs an explicit self-canonical. #}
+{% if current_url and not page?.extra?.canonical_url and not section?.extra?.canonical_url and not config.extra.base_canonical_url %}
+<link rel="canonical" href="{{ current_url }}">
+{% endif %}
+<meta name="robots" content="noindex, nofollow">
+<meta name="pax-scope-fixture" content="PAX-984">
