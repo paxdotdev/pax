@@ -50,6 +50,51 @@ intervals as gaps. Regression tests check all quarters and the right edge of
 dense graphs across viewport widths and zoom scales. Polar plots distribute
 their budget over the angular domain and cull projected Cartesian bounds.
 
+## 2026-09-24: Popup compositing artifacts can coexist with dropped frames
+
+Paxflix's mixed native/canvas popup looked staggered on Argus even after native
+publication and masks became synchronous. Release frame timing separated two
+problems: per-descendant opacity changes the appearance of overlapping layers,
+while native update and render stalls also delay display-link callbacks.
+The physical iPhone returned to about 120 callbacks/sec while idle, but popup
+interaction produced gaps around 60–140ms. Temporary raster-only timing found
+two repeated alpha masks at 1320×2478 and 1320×2868 pixels, each with eight paths,
+taking about 18.5ms apiece. Synchronizing publication fixed ordering but did not
+make CPU rasterization cheap.
+
+Measure frame phases and expensive mask operations separately before replacing
+an animation or attributing all unevenness to compositing. Opacity/geometry
+changes invalidate mask signatures, so caching unchanged raster results alone
+does not solve animated masks. Preserve atomic presentation when optimizing
+mask generation; moving work asynchronously again would reintroduce stale
+occlusion. Isolated group opacity and cheaper animated occlusion are related
+but distinct work. A slide also changes mask geometry and needs measurement.
+See the Paxflix README for the bounded scenario and measurement limitations.
+
+## 2026-09-24: Nested shelf surfaces exceed the iPhone memory limit
+
+Paxflix's sixteen rows started successfully on an iPad but were killed just
+after initialization on Argus. `devicectl` reported signal 9 without exposing
+a recent crash report. Streaming the device in Console revealed
+`jetsam / per-process-limit`. Temporary frame-phase measurements showed a
+251 MiB footprint after native/surface setup and 3,242 MiB after GPU rendering:
+the native chassis allocated large Metal targets for every shelf, including
+those outside all ancestor viewports.
+
+The iOS SurfaceManager now intersects each planned tile's presented bounds
+with the root viewport and ancestor native clips, retaining a nearby warm
+region. It unregisters distant GPU surfaces while keeping native hosts and
+application state mounted; the existing renderer layout-refresh path releases
+and recreates the backing resources. The corrected physical startup measured
+about 773 MiB after settling. This is one device/example observation, not a
+general memory bound. Geometry regressions cover nested clips, long catalogs,
+horizontal re-entry, invalid rectangles, and viewport rotation.
+
+Renderer backing allocation and image loading are separate costs. PAX-1002's
+viewport/prewarm events can support application-driven deferred image loading;
+they do not remove the need to bound native backing surfaces. Do not conclude
+that all decoded images caused a GPU-phase memory jump without measuring it.
+
 ## 2026-09-23: Native graph zoom and surface density
 
 The calculator's first graph zoom-out shrank its world from 8,192 to 4,096
@@ -786,17 +831,16 @@ Solved locally by deriving an iOS-only top inset from `NodeContext::os` and
 using the same resulting header height for the controls, drawer, underlay, and
 content outlet. Mobile web retains its original header geometry.
 
-Recommendations: expose chassis-provided safe-area insets through runtime
-viewport data. Until then, edge-to-edge examples with top-level controls must
-explicitly reserve the native status region, and visual bounds alone are not a
-reliable test of iOS hit accessibility there.
+At the time, this required estimated margins. The native chassis now exposes
+measured safe-area insets through `DynamicIslandSpacer` (see the September 23
+entry below). Visual bounds alone remain an unreliable test of iOS hit
+accessibility beneath system UI.
 
 `paxflix` encountered the same issue on iPad: the status bar overlapped the
-navigation logo and profile control. Its explicit native header spacing is
-32px on iPad, 64px on portrait iPhone and 12px on landscape iPhone, with 64px
-landscape iPhone side gutters. Menu, content and detail positioning follow the
-same top margin. These are example layout choices, not measured safe-area
-insets or a substitute for exposing chassis-provided inset data.
+navigation logo and profile control. Its initial fixed native margins have
+been replaced with `DynamicIslandSpacer` bindings. Menu, content and detail
+positioning follow the measured top inset; symmetric side gutters include the
+larger of the left/right safe insets, while catalog rows remain edge-to-edge.
 
 ## 2026-07-20
 
@@ -2094,6 +2138,11 @@ hero uses two Text nodes. Component property assignments are not top-level
 `@settings` entries; derive responsive component state with computed Properties
 from `ctx.bounds_self`, then bind those values in the template.
 
+Adding catalog shelves also requires updating the page Scroller's content bounds,
+not just its repeated children. Paxflix now publishes the count from its shelf
+data and uses that value for content height and footer placement, so additional
+rows remain reachable instead of extending beyond a fixed ten-row scroll range.
+
 The detail component's named enter/exit timelines target its `#panel` child.
 Binding them through the component's `@settings` (`@in: arrive`, `@out: depart`)
 removed conflicting ordinary-timeline warnings seen when the same names were
@@ -2138,3 +2187,75 @@ three repeated scroll cycles had stable canvas counts, but that does not prove
 all culling paths stayed efficient. Keep these diagnostics visible in the
 example's validation notes for a focused renderer follow-up rather than
 claiming a warning-free resize stress test.
+
+## 2026-09-24 — Native modal underlays must forward touches
+
+Opening Paxflix's profile menu on iPad made every control appear frozen.
+The native EventBlocker owned the UIKit hit but was a plain UIView: it consumed
+all touches without forwarding them to Pax. GPU-rendered menu controls above
+that underlay and its own backdrop dismiss handler therefore never activated.
+
+Keep native hit ownership to stop the underlying UIScrollView, but forward
+canvas-coordinate touch start/move/end/cancel events to Pax's scene hit test.
+Emit exactly one Tap for a single-finger sequence within the movement tolerance;
+reject drags (including return-to-start), cancellations, and multiple fingers.
+Fixing the shared native view also covers detail-modal underlays; removing the
+blocker or adding example-specific event handling would hide the input bug.
+
+Run Swift package tests with `--scratch-path` outside the compiler's embedded
+resource tree. A default `.build` under `pax-swift-common` is included by the
+compiler's `include_dir!`; concurrent cache writes can fail a CLI rebuild on a
+vanished module-cache lock and unnecessarily embed generated artifacts.
+
+## 2026-09-24 — Native text and Metal must share presentation timing
+
+Paxflix's detail transition exposed two independent presentation paths on iOS:
+native scene changes waited for SwiftUI's update cycle, while CAMetalLayer
+presented outside Core Animation transactions. Apply the native tree during
+scene publication, ignore deferred stale snapshots, and present Metal drawables
+inside the same frame transaction. wgpu's Metal backend already supports this
+mode, including waiting for command scheduling before drawable presentation;
+an additional wait for GPU completion is unnecessary.
+
+Disabling actions only around text property assignment also leaves the later
+CATextLayer display pass unprotected. The Pax-owned static text layer now
+refuses implicit actions, including contents redraws, so theme changes do not
+acquire a native crossfade. Explicit Pax timelines still animate sampled values.
+Frame-by-frame simulator captures also exposed asynchronously published
+occlusion masks: underlying Scroller tiles could cover the popup while its
+artwork appeared only through the row gutters. Applying each mask through a
+later main-queue callback allowed different rows to show different generations.
+Native leaf and Scroller masks now resolve synchronously during scene updates,
+using the existing raster cache and unchanged-signature fast path. The popup's
+explicit fade remains enabled. Raster cache misses now cost time in the frame
+update; this change establishes ordering without making a performance claim.
+
+The Play triangle can select Apple's emoji font and disrupt the button's line
+metrics. Paxflix now uses plain Play labels; general emoji clipping and baseline
+layout are separate work. Detail artwork uses a short fade reaching full opacity
+before its lower edge, with the heading on the solid surface below it.
+
+## 2026-09-24 — Image opacity must reach the retained draw
+
+Paxflix still appeared to change z-order during popup transitions on both web
+and iPad after synchronizing native masks. Pausing the popup at partial opacity
+exposed an independent bug: Image ignored `computed_opacity`, while its covering
+gradient, text and native occlusion coverage faded. The fully opaque artwork
+therefore appeared ahead of its gradient and lingered as the underlying rows
+returned. Check per-primitive paint alpha before assuming a shared visual symptom
+is a platform presentation race.
+
+Image now invalidates on inherited opacity changes and passes the multiplier
+through the render contract into GPU image vertices or browser canvas drawing.
+The source texture remains cached across fade frames. Regression coverage checks
+opacity-only updates without movement, multiplication with source pixel alpha,
+zero-to-full retained updates, clipping, and absence of texture reuploads.
+This repairs image opacity; it does not add isolated group compositing.
+
+Slowing the same popup over visible shelf rows also exposed a separate,
+remaining limitation. The root canvas is below native scroll surfaces, and
+partially punching through those surfaces attenuates its artwork again over
+the rows, while gutters show it directly. This can resemble changing z-order
+even with a fixed intermediate opacity and synchronous masks. A correctly
+ordered composited surface is needed for faithful translucent overlays across
+these native/canvas boundaries; changing fade timings cannot establish that.

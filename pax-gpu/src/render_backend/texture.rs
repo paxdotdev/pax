@@ -226,18 +226,22 @@ impl TextureRenderer {
             TextureVertex {
                 position: points[0].to_array(),
                 texture_coord: [0.0, 0.0],
+                opacity: 1.0,
             },
             TextureVertex {
                 position: points[1].to_array(),
                 texture_coord: [1.0, 0.0],
+                opacity: 1.0,
             },
             TextureVertex {
                 position: points[2].to_array(),
                 texture_coord: [0.0, 1.0],
+                opacity: 1.0,
             },
             TextureVertex {
                 position: points[3].to_array(),
                 texture_coord: [1.0, 1.0],
+                opacity: 1.0,
             },
         ];
         queue.write_buffer(&self.vertices_buffer, 0, bytemuck::cast_slice(&verts));
@@ -506,12 +510,13 @@ impl TextureRenderer {
 pub(crate) struct TextureVertex {
     pub position: [f32; 2],
     pub texture_coord: [f32; 2],
+    pub opacity: f32,
 }
 
 impl TextureVertex {
     pub(crate) fn desc() -> wgpu::VertexBufferLayout<'static> {
-        const ATTRIBS: [wgpu::VertexAttribute; 2] =
-            wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2];
+        const ATTRIBS: [wgpu::VertexAttribute; 3] =
+            wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2, 2 => Float32];
         wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<TextureVertex>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
@@ -520,23 +525,30 @@ impl TextureVertex {
     }
 }
 
-pub(crate) fn corners_to_texture_vertices(points: [[f32; 2]; 4]) -> [TextureVertex; 4] {
+pub(crate) fn corners_to_texture_vertices(
+    points: [[f32; 2]; 4],
+    opacity: f32,
+) -> [TextureVertex; 4] {
     [
         TextureVertex {
             position: points[0],
             texture_coord: [0.0, 0.0],
+            opacity,
         },
         TextureVertex {
             position: points[1],
             texture_coord: [1.0, 0.0],
+            opacity,
         },
         TextureVertex {
             position: points[2],
             texture_coord: [0.0, 1.0],
+            opacity,
         },
         TextureVertex {
             position: points[3],
             texture_coord: [1.0, 1.0],
+            opacity,
         },
     ]
 }

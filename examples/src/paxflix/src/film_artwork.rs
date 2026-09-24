@@ -10,4 +10,5 @@ pub struct FilmArtwork {
     pub still: Property<String>,
     pub thumbnail: Property<String>,
     pub fade_right: Property<bool>,
+    pub detail_fade: Property<bool>,
 }

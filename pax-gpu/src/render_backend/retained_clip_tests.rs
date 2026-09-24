@@ -155,3 +155,68 @@ fn retained_clip_pixels() {
         }
     }
 }
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn retained_image_opacity_pixels() {
+    for mirror in [false, true] {
+        let layer = MetalLayer::new();
+        let mut backend = pollster::block_on(unsafe {
+            RenderBackend::to_core_animation_layer(
+                layer.0.cast(),
+                RenderConfig::new(true, 64, 64, [1.0, 1.0]),
+            )
+        })
+        .expect("Metal backend");
+        let device = backend.device.clone();
+        if mirror {
+            backend.surface_config.usage.remove(TextureUsages::COPY_SRC);
+        }
+        let mut renderer = WgpuRenderer::new(backend);
+        // Transparent clear makes alpha directly measurable without color-space rounding.
+        // Revisit full opacity after zero to catch stale retained draw data as well.
+        for (frame_id, opacity) in [1.0, 0.5, 0.0, 1.0].into_iter().enumerate() {
+            for (id, x, source_alpha) in [(1, 0.0, 255), (2, 32.0, 128)] {
+                renderer.begin_node(id, id as i32, 0);
+                renderer.save();
+                renderer.clip(rect(x + 4.0, 4.0, 24.0, 56.0));
+                renderer.draw_image_with_opacity(
+                    &format!("opacity-{id}"),
+                    0,
+                    &Image {
+                        rgba: vec![255, 255, 255, source_alpha],
+                        pixel_width: 1,
+                        pixel_height: 1,
+                    },
+                    Box2D::new(point(x, 0.0), point(x + 32.0, 64.0)),
+                    opacity,
+                );
+                renderer.restore();
+                renderer.end_node(id);
+            }
+            renderer.request_screenshot_capture(frame_id as u32);
+            renderer.flush();
+            device
+                .poll(wgpu::PollType::wait_indefinitely())
+                .expect("GPU readback");
+            let frame = renderer
+                .take_screenshot_capture(frame_id as u32)
+                .expect("captured frame");
+            for (x, source_alpha) in [(16, 255.0), (48, 128.0)] {
+                let alpha = frame.rgba[(32 * frame.width as usize + x) * 4 + 3];
+                let expected = (source_alpha * opacity).round() as u8;
+                assert!(
+                    alpha.abs_diff(expected) <= 1,
+                    "mirror={mirror}, opacity={opacity}: {alpha} != {expected}"
+                );
+            }
+            assert_pixel(&frame, 1, 32, [0, 0, 0, 0]);
+            let stats = renderer.take_resource_churn_stats();
+            assert_eq!(stats.texture_creates, if frame_id == 0 { 2 } else { 0 });
+            assert_eq!(
+                stats.texture_upload_bytes,
+                if frame_id == 0 { 8 } else { 0 }
+            );
+        }
+    }
+}

@@ -5,7 +5,12 @@
     if fade_right {
         <Rectangle class="artwork_right" anchor=0% width=100% height=100%/>
     }
-    <Rectangle class="artwork_bottom" anchor=0% width=100% height={100% + 2px}/>
+    if detail_fade {
+        // A short fade reaches solid surface before the image's bottom edge.
+        <Rectangle class="detail_artwork_bottom" anchor=0% y=70% width=100% height={30% + 2px}/>
+    } else {
+        <Rectangle class="artwork_bottom" anchor=0% width=100% height={100% + 2px}/>
+    }
     <Image anchor=0% width=100% height=100% source={ImageSource::Url(still)} fit=ImageFit::Fill/>
     // Keep the already-loaded card image visible while its larger still arrives.
     <Image anchor=0% width=100% height=100% source={ImageSource::Url(thumbnail)} fit=ImageFit::Fill/>

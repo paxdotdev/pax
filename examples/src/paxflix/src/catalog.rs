@@ -26,7 +26,7 @@ pub fn catalog() -> Vec<Movie> {
 }
 
 pub fn shelves(movies: &[Movie]) -> Vec<Shelf> {
-    [
+    let mut shelves: Vec<Shelf> = [
         "Your next great watch",
         "New to Paxflix",
         "Stories that stay with you",
@@ -48,7 +48,37 @@ pub fn shelves(movies: &[Movie]) -> Vec<Shelf> {
             .map(|col| movies[(id * 10 + col) % movies.len()].clone())
             .collect(),
     })
-    .collect()
+    .collect();
+
+    // Keep the original browsing order, then add collections with deliberate
+    // selections rather than repeating another rotation of the same ten cards.
+    for (title, film_ids) in [
+        ("Worlds beyond ours", [0, 3, 8, 18, 20, 23, 27, 30, 32, 11]),
+        (
+            "Love and other detours",
+            [6, 13, 21, 29, 33, 4, 2, 9, 16, 26],
+        ),
+        ("Keep you guessing", [1, 7, 11, 14, 18, 27, 28, 30, 33, 0]),
+        ("The great wide open", [5, 15, 17, 19, 24, 26, 34, 3, 9, 32]),
+        ("One more chance", [12, 22, 25, 4, 16, 5, 15, 10, 21, 31]),
+        ("Together, somehow", [2, 6, 9, 10, 13, 21, 26, 29, 31, 32]),
+    ] {
+        shelves.push(Shelf {
+            id: shelves.len(),
+            title: title.into(),
+            movies: film_ids
+                .iter()
+                .map(|id| {
+                    movies
+                        .iter()
+                        .find(|movie| movie.id == *id)
+                        .expect("curated film belongs to the catalog")
+                        .clone()
+                })
+                .collect(),
+        });
+    }
+    shelves
 }
 
 #[cfg(test)]
@@ -79,12 +109,20 @@ mod tests {
     }
 
     #[test]
-    fn shelves_preserve_identity_and_distribute_every_film_evenly() {
+    fn shelves_preserve_identity_and_include_every_film() {
         let movies = catalog();
         let rows = shelves(&movies);
         let mut counts = vec![0; movies.len()];
-        assert_eq!(rows.len(), 10);
-        for row in rows {
+        assert_eq!(rows.len(), 16);
+        assert_eq!(
+            rows.iter()
+                .map(|row| &row.title)
+                .collect::<HashSet<_>>()
+                .len(),
+            16
+        );
+        for (id, row) in rows.iter().enumerate() {
+            assert_eq!(row.id, id);
             assert_eq!(row.movies.len(), 10);
             assert_eq!(
                 row.movies
@@ -94,7 +132,7 @@ mod tests {
                     .len(),
                 10
             );
-            for movie in row.movies {
+            for movie in &row.movies {
                 counts[movie.id] += 1;
                 let original = &movies[movie.id];
                 assert_eq!(movie.title, original.title);
@@ -103,7 +141,22 @@ mod tests {
                 assert_eq!(movie.synopsis, original.synopsis);
             }
         }
-        assert_eq!(counts.iter().sum::<usize>(), 100);
-        assert!(counts.iter().all(|count| (2..=3).contains(count)));
+        assert_eq!(counts.iter().sum::<usize>(), 160);
+        assert!(counts.iter().all(|count| *count >= 2));
+        for (index, row) in rows.iter().enumerate().skip(10) {
+            let selection: HashSet<_> = row.movies.iter().map(|movie| movie.id).collect();
+            assert!(
+                rows[..index].iter().all(|other| {
+                    other
+                        .movies
+                        .iter()
+                        .map(|movie| movie.id)
+                        .collect::<HashSet<_>>()
+                        != selection
+                }),
+                "new collection repeats an existing selection: {}",
+                row.title
+            );
+        }
     }
 }

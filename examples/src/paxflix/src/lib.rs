@@ -19,6 +19,7 @@ pub struct Paxflix {
     // The default false value starts the app in dark mode.
     pub light_mode: Property<bool>,
     pub shelves: Property<Vec<Shelf>>,
+    pub shelf_count: Property<usize>,
     pub selected_id: Property<usize>,
     pub selected: Property<Movie>,
     pub modal_open: Property<bool>,
@@ -27,6 +28,9 @@ pub struct Paxflix {
     pub compact: Property<bool>,
     pub gutter: Property<f64>,
     pub top_inset: Property<f64>,
+    pub safe_left: Property<f64>,
+    pub safe_right: Property<f64>,
+    pub safe_bottom: Property<f64>,
     pub hero_height: Property<f64>,
     pub card_width: Property<f64>,
     pub row_height: Property<f64>,
@@ -34,46 +38,24 @@ pub struct Paxflix {
 
 impl Paxflix {
     pub fn mount(&mut self, ctx: &NodeContext) {
-        let native_iphone = ctx.platform.is_native() && ctx.os.is_iphone();
-        let native_ipad = ctx.platform.is_native() && ctx.os.is_ipad();
-        let bounds = ctx.bounds_self.clone();
-        // Explicit native header spacing; Pax does not yet expose device safe-area insets.
-        self.top_inset.replace_with(Property::computed(
-            move || {
-                let (width, height) = bounds.get();
-                if native_ipad {
-                    32.0
-                } else if native_iphone {
-                    if width > height {
-                        12.0
-                    } else {
-                        64.0
-                    }
-                } else {
-                    0.0
-                }
-            },
-            &[ctx.bounds_self.untyped()],
-        ));
         let bounds = ctx.bounds_self.clone();
         self.compact.replace_with(Property::computed(
             move || bounds.get().0 < 700.0,
             &[ctx.bounds_self.untyped()],
         ));
         let compact = self.compact.clone();
-        let bounds = ctx.bounds_self.clone();
+        let safe_left = self.safe_left.clone();
+        let safe_right = self.safe_right.clone();
         self.gutter.replace_with(Property::computed(
             move || {
-                let (width, height) = bounds.get();
-                if native_iphone && width > height {
-                    64.0
-                } else if compact.get() {
-                    20.0
-                } else {
-                    48.0
-                }
+                let base = if compact.get() { 20.0 } else { 48.0 };
+                base + safe_left.get().max(safe_right.get())
             },
-            &[self.compact.untyped(), ctx.bounds_self.untyped()],
+            &[
+                self.compact.untyped(),
+                self.safe_left.untyped(),
+                self.safe_right.untyped(),
+            ],
         ));
         let compact = self.compact.clone();
         self.card_width.replace_with(Property::computed(
@@ -94,11 +76,13 @@ impl Paxflix {
         ));
         let width = self.card_width.clone();
         self.row_height.replace_with(Property::computed(
-            move || width.get() * 0.75 + 90.0,
+            move || width.get() * 0.75 + 126.0,
             &[self.card_width.untyped()],
         ));
         let movies = catalog();
-        self.shelves.set(shelves(&movies));
+        let rows = shelves(&movies);
+        self.shelf_count.set(rows.len());
+        self.shelves.set(rows);
         let id = self.selected_id.clone();
         self.selected.replace_with(Property::computed(
             move || movies[id.get()].clone(),

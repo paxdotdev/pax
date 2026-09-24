@@ -14,6 +14,12 @@ This chapter builds on [Properties](state-properties.md),
 Start with a property timeline, then give several tracks a shared playhead.
 Later sections cover enter/exit transitions and moving siblings in a Stacker.
 
+A property change applies immediately unless you give it an explicit animation
+or transition. Native static text follows the same rule: changing a theme's
+text color does not request an extra Core Animation crossfade on iOS or macOS.
+Pax samples the values for explicit timelines, including opacity and movement
+on entering or leaving components.
+
 For a hands-on preview, try [Transition Grid](#try-it-transition-grid):
 insert, remove, and reorder tiles while comparing their motion policies.
 

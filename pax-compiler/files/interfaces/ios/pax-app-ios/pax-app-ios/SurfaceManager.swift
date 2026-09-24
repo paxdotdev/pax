@@ -183,6 +183,9 @@ final class SurfaceManager {
                 guard let hostView = hostView(for: descriptor.hostSignature, rootView: rootView) else {
                     continue
                 }
+                guard surfaceIsNearViewport(descriptor, hostView: hostView, rootView: rootView) else {
+                    continue
+                }
                 let surfaceView = state.surfaceViews[descriptor.id] ?? PaxMetalSurfaceView()
                 state.surfaceViews[descriptor.id] = surfaceView
                 activeIds.insert(descriptor.id)
@@ -269,6 +272,32 @@ final class SurfaceManager {
         return planSignature(layerId: layerId, active: active, surfaces: registered)
     }
 
+    private func surfaceIsNearViewport(
+        _ descriptor: SurfaceCanvasDescriptor,
+        hostView: UIView,
+        rootView: UIView
+    ) -> Bool {
+        guard let window = rootView.window, hostView.window === window else { return false }
+        let surface = hostView.convert(CGRect(
+            x: descriptor.left, y: descriptor.top,
+            width: descriptor.width, height: descriptor.height
+        ), to: rootView)
+        var clips = [rootView.bounds]
+        var ancestor: UIView? = hostView
+        while let view = ancestor {
+            if view.clipsToBounds {
+                clips.append(view.convert(view.bounds, to: rootView))
+            }
+            ancestor = view.superview
+        }
+        // Tile planning is local to each Scroller. Bound allocation by its presented
+        // ancestor clips too, so offscreen shelves do not each retain Metal targets.
+        // Keep a warm margin for scrolling; native hosts and scroll state stay mounted.
+        return PaxSurfaceVisibility.intersectsPrewarmRegion(
+            surface: surface, clippingBounds: clips, padding: 384
+        )
+    }
+
     private func hostView(for hostSignature: String, rootView: UIView) -> UIView? {
         if let scrollerId = scrollerId(for: hostSignature) {
             return NativeScrollerHostRegistry.shared.canvasHost(for: scrollerId)
@@ -342,7 +371,9 @@ final class PaxMetalSurfaceView: UIView {
         isUserInteractionEnabled = false
         metalLayer.framebufferOnly = false
         metalLayer.isOpaque = false
-        metalLayer.presentsWithTransaction = false
+        // Keep GPU artwork in the same Core Animation commit as native text.
+        // wgpu's Metal backend waits until scheduled before presenting the drawable.
+        metalLayer.presentsWithTransaction = true
         metalLayer.colorspace = CGColorSpace(name: CGColorSpace.sRGB)
     }
 

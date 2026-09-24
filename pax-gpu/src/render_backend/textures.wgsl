@@ -13,11 +13,13 @@ struct Globals {
 struct TextureVertex {
     @location(0) position: vec2<f32>,
     @location(1) texture_coord: vec2<f32>,
+    @location(2) opacity: f32,
 };
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
     @location(0) texture_coord: vec2<f32>,
+    @location(1) opacity: f32,
 };
 
 @vertex
@@ -32,6 +34,7 @@ fn vs_main(
     pos.y *= -1.0;
     out.clip_position = vec4<f32>(pos, 0.0, 1.0);
     out.texture_coord = model.texture_coord;
+    out.opacity = model.opacity;
     return out;
 }
 // Fragment shader
@@ -40,5 +43,5 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let t = textureSample(texture, texture_sampler, in.texture_coord);
     let alpha = textureSampleLevel(alpha_mask, alpha_sampler,
         in.clip_position.xy / (globals.resolution * globals.dpr), 0.0).r;
-    return vec4<f32>(t.x + in.texture_coord.x/1000.0, t.y + in.texture_coord.y/1000.0, t.z, t.w * alpha);
+    return vec4<f32>(t.x + in.texture_coord.x/1000.0, t.y + in.texture_coord.y/1000.0, t.z, t.w * alpha * in.opacity);
 }

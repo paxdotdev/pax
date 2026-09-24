@@ -257,6 +257,11 @@ Installs a painted alpha mask in the current save/restore scope.
 
 Current transform at the top of the render-state stack.
 
+##### `draw_image_with_opacity`
+<pre><code class="api-signature language-rust ignore">pub fn draw_image_with_opacity(&amp;mut self, image_key: &amp;str, image_version: u64, image: &amp;<a href="../../../api/pax-std/media/image.md#image">Image</a>, rect: <a href="../../../api/internal/pax-gpu/index.md#box2d">Box2D</a>, opacity: f32)</code></pre>
+
+Multiplies source pixel alpha by `opacity` without reuploading the texture.
+
 ##### `fill_path`
 <pre><code class="api-signature language-rust ignore">pub fn fill_path(&amp;mut self, path: <a href="../../../api/pax-std/drawing/path.md#path">Path</a>, fill: <a href="../../../api/pax-runtime-api/drawing.md#fill">Fill</a>)</code></pre>
 

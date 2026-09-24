@@ -1,9 +1,10 @@
 # Paxflix
 
 A fictional cinema library built in Pax for PAX-1000. It contains **35 original
-ImageGen films, 100 real cards, ten horizontal Scrollers, and one vertical page
+ImageGen films, 160 real cards, sixteen horizontal Scrollers, and one vertical page
 Scroller**. Clicking a card opens its full-resolution still, synopsis and local
 Play/Download feedback. It has no media backend or real download action.
+The package title is `Paxflix`, also used for the native home-screen label.
 
 ## Run
 
@@ -60,9 +61,13 @@ The selection lasts for the current app session and resets to dark on reload.
 `FilmArtwork` places the card thumbnail beneath its full-size still, keeping
 the selected artwork visible while the larger image loads. A multi-stop linear
 gradient fades into the active theme's surface at the bottom of both the hero
-and detail image: black in dark mode, ivory in light mode. The surrounding
-surface continues the fade without a hard edge. Short landscape details also
-fade at the right edge. The original film images retain their colors.
+and detail image: black in dark mode, ivory in light mode. The detail variant
+limits the fade to the bottom 30% of the artwork and reaches full opacity before
+the image edge and heading. Portrait copy and actions use the bottom 320px
+with 20px side insets. The surrounding surface continues the fade without a
+hard edge. Short landscape details give artwork 40% of the panel, fade at its
+right edge, and vertically center the copy/action block in the remaining space.
+The original film images retain their colors.
 
 ```text
 Fixed masthead: Paxflix / profile mark
@@ -71,7 +76,7 @@ Vertical page Scroller
   Half-viewport hero: full-size still + title + summary + two actions
   Category title and previous/next controls
     Edge-to-edge horizontal Scroller: ten cards with text over a lower image fade
-  …nine more independent shelves…
+  …fifteen more independent shelves…
   Small closing credit
 Root overlay, when selected
   Detail panel: same film, full-size still, synopsis, Play / Download / close
@@ -79,21 +84,22 @@ Root overlay, when selected
 ```
 
 Desktop cards are 292px wide with 16px gaps and 48px page gutters. Below 700px,
-cards are 236px wide and gutters become 20px. The 4:3 card frames crop the stills
-to fill; a 124px lower gradient reaches near-opaque black or ivory behind the
-title and metadata. Titles have room for two lines, and the hover indicator sits
+cards are 236px wide and gutters become 20px. Card height is three quarters of
+its width plus 36px, retaining more artwork above the text. A lower scrim fades
+to fully opaque black or ivory over 39px, then stays solid behind the title and
+metadata. Titles have room for two lines, and the hover indicator sits
 in the upper-right corner. Shelf Scrollers span the viewport. Their content has
 leading and trailing gutter space: the first card aligns with the heading at
 zero scroll, while cards can cross either gutter as the row moves.
 
 The logo's transparent source margin is cropped by a Pax Frame so the visible
 lettering aligns with the same gutter. Profile controls and row arrows use an
-equal right gutter. Native iPad headers reserve 32px above the usual 68px bar;
-native iPhone headers reserve 64px in portrait and 12px in landscape. Landscape
-iPhone fixed content uses symmetric 64px side gutters. These are explicit
-example layout margins, not measured safe-area insets, which Pax does not yet
-expose. Web header geometry is unchanged. The menu, page viewport and detail
-placement share the native top spacing so their controls remain below it.
+equal right gutter. `DynamicIslandSpacer` binds the native safe-area insets;
+the header adds its usual 68px below the measured top inset. Both side gutters
+include the larger of the left/right insets, keeping fixed content symmetric
+in landscape. The menu, page viewport and detail placement share these measured
+margins; details and the end of the catalog also reserve the bottom safe area.
+Web insets remain zero. Category rows still bleed to the viewport edges.
 
 The hero is 52% of viewport height
 within a 360–520px desktop range, and 354px on compact screens. Short landscape
@@ -104,9 +110,13 @@ The backdrop uses matching fade durations. Hover adds a fine accent outline and
 detail indicator without changing the shelf geometry.
 
 `catalog.json` owns stable film IDs, titles, years, runtimes, ratings, genres,
-synopses and image paths. `src/catalog.rs` deterministically places every film
-two or three times, with ten different films per shelf. This is a curated fixture,
-not a recommendation system. Shelf arrow controls ease their bound native
+synopses and image paths. `src/catalog.rs` retains ten evenly distributed shelves
+and adds six thematic collections with ten different films each: Worlds beyond
+ours, Love and other detours, Keep you guessing, The great wide open, One more
+chance, and Together, somehow. Every film appears at least twice, and the new
+collections have distinct selections. Page height and footer placement use the
+actual shelf count. This is a curated fixture, not a recommendation system.
+Shelf arrow controls ease their bound native
 scroll position by two cards over 360ms with `OutQuad`, clamped at either end.
 A new arrow press retargets from the current position; wheel or touch input
 cancels the pending animation. Opening a modal changes only selection and modal
@@ -149,8 +159,8 @@ API credentials or image-generation service is needed to run the finished app.
 2. Read `target/debug/pax-cli dev status --path examples/src/paxflix` and
    copy the **web** session ID. Use `--session <id>` for subsequent commands,
    especially if a native session is also running.
-3. Use `dev inspect tree --session <id>` to verify 100 MovieCard components,
-   103 Image nodes including the logo and both hero layers, and 11 ScrollerHost nodes with the
+3. Use `dev inspect tree --session <id>` to verify 160 MovieCard components,
+   163 Image nodes including the logo and both hero layers, and 17 ScrollerHost nodes with the
    modal closed. `for` expands the full collection; it is not list virtualization.
 4. Move the first shelf from start to end and back, then jump to the bottom of
    the page and return. Repeat three times, alternating axes quickly. Test real
@@ -201,26 +211,103 @@ Escape/outside/profile clicks, and sampling intermediate scroll offsets in
 both arrow directions. Use a fresh session for reproduction rather than a long
 template-editing session with accumulated hot-reload state.
 
+### Recorded Argus transition profiling
+
+On September 24, 2026, a release build on the physical iPhone 17 Pro Max
+returned to roughly 120 display-link callbacks per second when idle, with
+about 4ms of engine/native/render CPU work. Repeated detail opening and closing
+produced real callback gaps around 60–140ms, in addition to the visible
+per-descendant opacity compositing effect. These are callback/CPU measurements,
+not GPU timestamps or a count of displayed frames. The one-second windows
+include idle time and should not be read as transition-only FPS.
+
+A temporary probe around native mask rasterization recorded 139 calls above
+4ms at each of two sizes: 1320×2478 and 1320×2868 pixels, with eight cutout paths
+each. Their median raster times were 18.50ms and 18.55ms. During that pass the
+native-update phase peaked at 65.3ms and the render call at 48.1ms, excluding
+startup. The mask pair alone regularly exceeds a 60Hz frame budget. Changing
+opacity and geometry changes mask signatures, so the existing raster cache
+cannot reuse those intermediate images.
+
+The temporary probe was removed afterward. Optimizing native mask generation
+while preserving synchronous presentation is a separate follow-up from
+[PAX-1004's isolated group compositing](https://linear.app/paxdev/issue/PAX-1004/add-isolated-group-compositing-for-mixed-nativecanvas-content).
+A translation-only transition would avoid translucent descendant stacking,
+but moving occlusion can still regenerate masks; it is not yet a measured
+performance fix. The example keeps the existing fade/motion for comparison.
+
 ## Validation and remaining checks
 
-- Catalog tests verify unique identities, all asset files, 100 placements,
-  ten unique films per row, and two or three references to each film.
+- Catalog tests verify unique identities, all asset files, 160 placements,
+  ten unique films per row, complete catalog coverage, contiguous row positions,
+  and distinct selections for the six added collections.
 - Debug and release-baked web builds pass. Browser verification covers desktop,
   compact portrait, short landscape, horizontal/vertical scrolling, repeated
   modal selection and dismissal, backdrop input blocking, profile menu feedback
   and dismissal, and animated row paging.
 - The iPadOS app builds, installs and launches on the iPad Pro 11-inch (M5)
-  simulator running iOS 26.4. The initial catalog and logo were visually checked.
-  The revised card overlays and native header spacing were rebuilt and launched;
-  their final native visual/interaction check was interrupted by the Mac lock
-  screen. Native iPhone, real touch and diagonal trackpad gestures remain
-  unverified. The earlier macOS build passed, but its initial blank window still
-  needs a separate native inspection.
+  simulator running iOS 26.4. The September 24 rebuild visually confirms the
+  card overlays, measured header spacing, and restored Georgia/Arial font
+  selection. Profile theme toggles in both directions, close and outside
+  dismissal, detail opening/closing, and row-arrow paging were checked after
+  fixing the shared native EventBlocker touch forwarding. Automated drags and
+  wheel input did not move the page even in a fresh session before opening any
+  menu, so swipe scrolling still needs manual verification. Hardware touch and
+  diagonal trackpad gestures remain unverified. The earlier
+  macOS build passed, but its initial blank window needs separate inspection.
+- The later September 24 pass removes the emoji-selecting Play glyph, moves
+  the detail heading below a shorter opaque-ended image fade, and checks both
+  themes in the iPad simulator and release web preview, including compact and
+  short-landscape layouts. Static native text refuses implicit Core Animation
+  actions. iOS native-tree publication is synchronous with the engine frame and
+  Metal presentation joins that frame's Core Animation transaction. Native leaf
+  and Scroller occlusion masks now resolve synchronously in that update, using
+  the raster cache and unchanged-mask fast path. The example retains its 320ms
+  entrance and 220ms exit timelines. Raster cache misses now contribute to the
+  frame update; this pass does not make a frame-rate or profiling claim.
+- The synchronous-mask release, including all sixteen shelves, is installed and
+  running on Molino (2), with its new process verified after launch. Physical
+  popup transitions are ready for visual evaluation; Argus deployment is deferred.
+- A subsequent shared-renderer fix makes Image honor inherited opacity and
+  invalidate on opacity-only changes, without reuploading its texture. Primitive
+  regression, Metal pixel tests (source alpha, clipping and retained fades),
+  shader validation and retained-transition tests pass. Debug and release web
+  builds passed; the release is also installed and launched on Molino (2).
+  The popup retains its normal 320ms entrance and 220ms dismissal.
+  Slowed web captures over shelf rows still expose a separate native/canvas
+  blending limitation: artwork fades differently over native Scroller surfaces
+  than over their gutters. Isolated group compositing is deferred to
+  [PAX-1004](https://linear.app/paxdev/issue/PAX-1004/add-isolated-group-compositing-for-mixed-nativecanvas-content),
+  a low-priority Pax Core backlog item; Paxflix keeps the current transitions
+  and accepts the remaining optical staggering. Synchronous masks and correct
+  Image opacity alone do not provide isolated group compositing. See
+  [coverage limits](../../../pax-docs/book/src/compositing-effects.md#coverage-has-limits).
+- Updated standalone release builds installed and launched on Argus (iPhone)
+  and Molino (2) (iPad). Argus's running process was verified; Molino became
+  unavailable before a separate process check. Interaction and animation checks
+  above were performed on the simulator/web.
+- The subsequent card pass shortens the fade and lowers the text, verified in
+  both themes on the iPhone 17 Pro Max simulator. That simulator survived both
+  landscape orientations and returned to portrait. Argus's earlier console
+  reports termination by signal 9, but the device's crash-report listing has no
+  corresponding Pax or recent jetsam report. The physical rotation failure's
+  cause is not established; simulator survival does not verify that hardware bug.
+- All 17 Swift package tests pass, including six native touch-sequence
+  regressions, presentation/action regressions and the incoming family-only font tests. The docs book builds.
+- The later Argus startup failure is confirmed by device Console logs as
+  `jetsam / per-process-limit`. The shared iOS surface allocator now releases
+  distant GPU backing surfaces using presented ancestor clips, preserving all
+  sixteen shelves and their native state. A diagnostic release measured about
+  773 MiB after settling, compared with 3,242 MiB during the failing startup.
+  The iPhone simulator starts and survives rotation; all 21 Swift tests pass.
+  This bounds backing-surface allocation, not image decoding or application
+  lifecycle work. PAX-1002 remains the separate path to deferred image loading.
 - A scrolling detail panel was investigated for short windows. On web, a root
   EventBlocker intercepted wheel input above the panel's nested Scroller even
   though that Scroller rendered above it. The delivered panel uses responsive
-  geometry and contains no Scroller. No engine workaround or engine changes
-  are included; the layering finding is recorded in the authoring pain points.
+  geometry and contains no Scroller. That web layering finding is recorded in
+  the authoring pain points; the iOS touch-forwarding fix addresses a separate
+  native input problem.
 
 Run focused tests with:
 
@@ -228,4 +315,5 @@ Run focused tests with:
 cargo test --manifest-path examples/src/paxflix/Cargo.toml --lib
 ```
 
-No recording, publication, commits or merge are part of this example task.
+Validation recordings are temporary files outside the repository. No publication
+or new commits are part of this iteration.

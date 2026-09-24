@@ -392,6 +392,17 @@ the native backing limits at that density. This avoids a sudden oversized
 GPU allocation when the content crosses a tile-size threshold; it requires
 no application-level zoom restriction.
 
+On iOS and iPadOS, GPU backing surfaces are also limited to a nearby region
+around the screen and the presented clips of ancestor native views. A shelf
+far down a vertical page does not allocate GPU surfaces merely because its
+own horizontal viewport contains cards. Surfaces outside that region are
+released and recreated as they approach view; native Scrollers, their scroll
+positions, and the Pax component tree stay mounted. The warm margin is a
+renderer implementation detail, not an application lifecycle event. This
+does not defer image decoding or application data loading, and it is not
+a bound on all application memory. Check rapid scrolling and rotation on
+the physical device as well as the simulator.
+
 Start with realistic collection sizes and measure first paint as well as
 scrolling. For a large data set, consider application-level paging or loading
 bounded batches. Stable keys preserve item identity during changes; they

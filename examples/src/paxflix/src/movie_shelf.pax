@@ -12,7 +12,7 @@
     </Group>
     <Text class="heading" anchor=0% x={(gutter)px} width={100% - (gutter * 2 + 90)px} height=32px text={shelf.title}/>
     // Gutters live inside the scrolling content; its viewport reaches both screen edges.
-    <Scroller anchor=0% id=film_shelf x=0px y=46px width=100% height={(card_width * 0.75)px} scroll_height=100% 
+    <Scroller anchor=0% id=film_shelf x=0px y=46px width=100% height={(card_width * 0.75 + 36)px} scroll_height=100%
         scroll_width={((card_width + 16) * 10 - 16 + gutter * 2)px} scroll_pos_x=bind:scroll_x>
         <Group anchor=0% width={((card_width + 16) * 10 - 16 + gutter * 2)px} height=100%>
             for (movie, index) in shelf.movies {

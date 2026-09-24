@@ -18,6 +18,7 @@ use crate::common::{begin_bounded_canvas_node, patch_if_needed};
 /// `Image` draws into the node bounds and participates in the same canvas
 /// rendering path as vectors. Use `NativeImage` when a platform-native image
 /// element is preferable.
+/// Node and inherited opacity multiply the source pixels' alpha at draw time.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[primitive("pax_std::media::image::ImageInstance")]
@@ -201,7 +202,7 @@ impl InstanceNode for ImageInstance {
             expanded_node.with_properties_unwrapped(|props: &mut Image| props.source.clone());
 
         let tab = expanded_node.transform_and_bounds.clone();
-        let deps = [tab.untyped()];
+        let deps = [tab.untyped(), expanded_node.computed_opacity.untyped()];
         let cloned_context = context.clone();
         let occlusion = expanded_node.occlusion.clone();
         let expanded_node_id = expanded_node.id;
@@ -349,7 +350,12 @@ impl InstanceNode for ImageInstance {
             rc.save(scope.layer_id);
             rc.transform(scope.layer_id, scope.surface_transform);
             rc.clip(scope.layer_id, clip_path.into_path(0.01));
-            rc.draw_image(scope.layer_id, &path, transformed_bounds);
+            rc.draw_image_with_opacity(
+                scope.layer_id,
+                &path,
+                transformed_bounds,
+                expanded_node.computed_opacity.get(),
+            );
             rc.restore(scope.layer_id);
             did_draw = true;
             self.initial_load
@@ -389,3 +395,6 @@ pub enum ImageFit {
     /// Stretch the image to exactly match the container.
     Stretch,
 }
+
+#[cfg(test)]
+mod tests;

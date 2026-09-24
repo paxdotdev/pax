@@ -136,8 +136,19 @@ pub trait RenderContext {
     // Images
     /// Loads raw RGBA image bytes under an identifier.
     fn load_image(&mut self, identifier: &str, image: &[u8], width: usize, height: usize);
-    /// Draws a previously loaded image into `rect`.
-    fn draw_image(&mut self, layer: usize, image_path: &str, rect: kurbo::Rect);
+    /// Draws a previously loaded image into `rect` at full opacity.
+    fn draw_image(&mut self, layer: usize, image_path: &str, rect: kurbo::Rect) {
+        self.draw_image_with_opacity(layer, image_path, rect, 1.0);
+    }
+    /// Draws an image with an opacity multiplier, in addition to source pixel alpha.
+    /// Backends must apply this at draw time without changing the cached source image.
+    fn draw_image_with_opacity(
+        &mut self,
+        layer: usize,
+        image_path: &str,
+        rect: kurbo::Rect,
+        opacity: f64,
+    );
     /// Returns the loaded image size, if known.
     fn get_image_size(&mut self, image_path: &str) -> Option<(usize, usize)>;
     /// Returns true when the image is available for drawing.

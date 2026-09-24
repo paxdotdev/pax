@@ -32,6 +32,15 @@ mode. Its motion is driven by frame-based Rust updates.
   files="src/lib.pax,src/lib.rs">
 </pax-example>
 
+On iOS and iPadOS, the chassis applies native scene updates and presents Metal
+surfaces in the same Core Animation transaction. Native text and Scroller
+occlusion masks are also resolved and applied synchronously in that update,
+so a new popup does not wait on separate mask callbacks to cover underlying
+rows. Unchanged masks reuse their applied image; changed masks use a raster
+cache or are generated before presentation. Cache misses therefore contribute
+to frame time. Image loading remains asynchronous; supply a placeholder if
+an image must be visible immediately.
+
 ## Choose the boundary
 
 Earlier siblings in a Pax template appear in front of later siblings. Put
@@ -257,6 +266,14 @@ Rectangle `opacity=1` would preserve the inherited 50%; it would not undo
 the parent's attenuation. Drawing explains
 [paint alpha](drawing-styling.md#color-and-transparency), including `rgba` units.
 
+`Image` uses the same multiplier: its source pixel alpha is multiplied by
+its own opacity and every ancestor's opacity. Changing only opacity redraws
+the retained image without reloading or reuploading its pixels. This applies
+to the GPU backend on web and native targets, and to the browser canvas fallback.
+For example, an Image with `opacity=50%` inside a `Group opacity=50%` draws an
+opaque source pixel at 25% alpha. Earlier builds omitted the image multiplier,
+which could leave artwork visible after the text and gradient above it faded.
+
 This is per-descendant opacity. Group, Frame, and Mask do not provide a
 general “render the subtree to one image, then fade that image” isolation
 operation. Overlapping translucent descendants can build up opacity where
@@ -306,6 +323,13 @@ Native punch-through uses coverage geometry and an opacity estimate;
 it does not sample every final rendered pixel. This matters for subtle
 cross-surface blends:
 
+In particular, a translucent canvas popup above a native Scroller does not
+behave like an isolated composited surface above that Scroller. The underlying
+canvas is attenuated again where the partially masked native scroll surface
+covers it. During a fade, artwork can therefore appear stronger in row gutters
+than over the rows themselves, even when the masks update synchronously.
+Per-primitive opacity does not correct this cross-surface blending limitation.
+
 - A gradient with changing alpha has one estimated coverage opacity for
   the native mask, rather than a separate alpha value at each pixel.
 - A rendered Image's coverage is rectangular, including transparent pixels
@@ -351,6 +375,12 @@ dismissal and focus behavior. EventBlocker's background is transparent by
 default. It is a native surface that absorbs pointer input; it does not
 establish a keyboard focus trap. [Routing](routing.md) covers route-driven
 panels and their lifecycle.
+
+On native iOS and iPadOS, the blocker retains UIKit touch ownership so the
+content behind it cannot scroll. It forwards touch sequences into Pax's scene
+hit test, allowing GPU-rendered panel controls above it and an `@click` handler
+on the blocker itself to work. A single-finger tap activates once; drags,
+cancelled touches, and multi-finger sequences do not become backdrop clicks.
 
 ## Platform-specific effects
 

@@ -481,6 +481,12 @@ struct PaxViewIos: View {
                 }
             }
 
+            // Native property updates and all Metal drawables belong to one frame.
+            // The Metal backend honors presentsWithTransaction when presenting them.
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            defer { CATransaction.commit() }
+
             let nativeMessageQueue = pax_tick(
                 engineContainer,
                 nil,

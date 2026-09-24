@@ -1,7 +1,7 @@
 use pax_runtime_api::{Fill, Stroke, StrokeCap, StrokeJoin};
 use piet::{
     kurbo::{self, Affine, Shape},
-    InterpolationMode, LineCap, LineJoin, LinearGradient, RadialGradient, StrokeStyle,
+    LineCap, LineJoin, LinearGradient, RadialGradient, StrokeStyle,
 };
 use std::{
     cell::RefCell,
@@ -46,6 +46,7 @@ struct ImgData<R: piet::RenderContext> {
 
 type ClearFn = Box<dyn Fn()>;
 type ConfigureFn = Box<dyn Fn(f32, f32, u32, u32, [f32; 2], bool)>;
+type DrawImageFn<R> = Box<dyn Fn(&mut R, &<R as piet::RenderContext>::Image, kurbo::Rect, f64)>;
 type LayerDef<R> = (PietLayerTarget<R>, Box<dyn Fn() -> LayerSurfaceLayout>);
 
 /// Retained metadata for one piet-backed browser canvas surface.
@@ -55,6 +56,7 @@ pub struct PietLayerRenderer<R: piet::RenderContext> {
     context: R,
     clear_fn: ClearFn,
     configure_fn: ConfigureFn,
+    draw_image_fn: DrawImageFn<R>,
     origin_x: f32,
     origin_y: f32,
     logical_width: f32,
@@ -71,6 +73,7 @@ impl<R: piet::RenderContext> PietLayerRenderer<R> {
         context: R,
         clear_fn: ClearFn,
         configure_fn: ConfigureFn,
+        draw_image_fn: DrawImageFn<R>,
         surface: &LayerSurfaceEntry,
     ) -> Self {
         Self {
@@ -79,6 +82,7 @@ impl<R: piet::RenderContext> PietLayerRenderer<R> {
             context,
             clear_fn,
             configure_fn,
+            draw_image_fn,
             origin_x: surface.origin_x,
             origin_y: surface.origin_y,
             logical_width: surface.surface.logical_width,
@@ -591,7 +595,13 @@ impl<R: piet::RenderContext> api::RenderContext for PietRenderer<R> {
         self.image_map.get(image_path).map(|img| img.size)
     }
 
-    fn draw_image(&mut self, layer: usize, image_path: &str, rect: kurbo::Rect) {
+    fn draw_image_with_opacity(
+        &mut self,
+        layer: usize,
+        image_path: &str,
+        rect: kurbo::Rect,
+        opacity: f64,
+    ) {
         let Some(data) = self.image_map.get(image_path) else {
             return;
         };
@@ -609,16 +619,22 @@ impl<R: piet::RenderContext> api::RenderContext for PietRenderer<R> {
         if let Some(indices) = scoped_indices {
             for index in indices {
                 if let Some(renderer) = target.renderers.get_mut(index) {
-                    renderer
-                        .context_mut()
-                        .draw_image(&data.img, rect, InterpolationMode::Bilinear);
+                    (renderer.draw_image_fn)(
+                        &mut renderer.context,
+                        &data.img,
+                        rect,
+                        opacity.clamp(0.0, 1.0),
+                    );
                 }
             }
         } else {
             for renderer in &mut target.renderers {
-                renderer
-                    .context_mut()
-                    .draw_image(&data.img, rect, InterpolationMode::Bilinear);
+                (renderer.draw_image_fn)(
+                    &mut renderer.context,
+                    &data.img,
+                    rect,
+                    opacity.clamp(0.0, 1.0),
+                );
             }
         }
     }

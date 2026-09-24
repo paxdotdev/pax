@@ -5,7 +5,7 @@ edition = "2021"
 default-run = "run"
 
 [package.metadata.pax]
-title = "Paxflix — A cinema library"
+title = "Paxflix"
 
 [dependencies]
 pax-kit = { version = "0.39.0", path = "../../../pax-kit" }

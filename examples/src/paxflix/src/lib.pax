@@ -1,10 +1,14 @@
 <ImportSettings>
     <CinemaTheme is_dark={!light_mode}/>
 </ImportSettings>
+<DynamicIslandSpacer inset=bind:top_inset/>
+<DynamicIslandSpacer edge=SafeAreaEdge::Left inset=bind:safe_left/>
+<DynamicIslandSpacer edge=SafeAreaEdge::Right x=100% anchor_x=100% inset=bind:safe_right/>
+<DynamicIslandSpacer edge=SafeAreaEdge::Bottom y=100% anchor_y=100% inset=bind:safe_bottom/>
 <Group anchor=0% width=100% height=100%>
     if modal_open {
-        <MovieDetail x=50% y={50% + (top_inset / 2)px} anchor=50% width={(Math::min(880, $viewport.width - 32))px} 
-            height={(Math::min(670, $viewport.height - top_inset - 32))px} movie={selected} modal_open=bind:modal_open light_mode={light_mode}/>
+        <MovieDetail x=50% y={50% + ((top_inset - safe_bottom) / 2)px} anchor=50% width={(Math::min(880, $viewport.width - 32 - 2 * Math::max(safe_left, safe_right)))px}
+            height={(Math::min(670, $viewport.height - top_inset - safe_bottom - 32))px} movie={selected} modal_open=bind:modal_open light_mode={light_mode}/>
         <EventBlocker class="modal_backdrop" width=100% height=100% @click=self.close @in=@timeline {
             duration: 320ms,
             opacity: {
@@ -36,13 +40,13 @@
         <Rectangle class="page_surface" anchor=0% width=100% height=100%/>
     </Group>
     <Scroller anchor=0% id=catalog_page x=0px y={(top_inset + 68)px} width=100% height={100% - (top_inset + 68)px} scroll_width=100% 
-        scroll_height={(hero_height + row_height * 10 + 128)px} scroll_pos_y=bind:scroll_y>
-        <Group anchor=0% width=100% height={(hero_height + row_height * 10 + 128)px}>
+        scroll_height={(hero_height + row_height * shelf_count + 128 + safe_bottom)px} scroll_pos_y=bind:scroll_y>
+        <Group anchor=0% width=100% height={(hero_height + row_height * shelf_count + 128 + safe_bottom)px}>
             for shelf in shelves {
                 <MovieShelf anchor=0% y={(hero_height + 20 + shelf.id * row_height)px} width=100% height={(row_height)px} shelf={shelf} 
                     selected_id=bind:selected_id modal_open=bind:modal_open card_width={card_width} gutter={gutter} light_mode={light_mode}/>
             }
-            <Text class="muted" anchor=0% x={(gutter)px} y={(hero_height + row_height * 10 + 40)px} width={100% - (gutter * 2)px} 
+            <Text class="muted" anchor=0% x={(gutter)px} y={(hero_height + row_height * shelf_count + 40)px} width={100% - (gutter * 2)px}
                 height=32px text="Paxflix  /  Original stories. An imaginary cinema. Built with Pax."/>
             <Group anchor=0% width=100% height={(hero_height)px}>
                 <Group anchor=0% x={(gutter)px} y={compact ? 44px : 48px} width={compact ? (100% - 40px) : 540px} height={100% - 56px}>
@@ -54,7 +58,7 @@
                     <Text class="hero_copy" anchor=0% y={compact ? 178px : 198px} width={compact ? 100% : 425px} height=58px 
                         text="A message from tomorrow. One night to change everything."/>
                     <Group anchor=0% y={compact ? 246px : 268px} width=132px height=44px @click=self.open_feature>
-                        <Text class="primary_text" anchor=0% width=100% height=100% text="▶   Play film"/>
+                        <Text class="primary_text" anchor=0% width=100% height=100% text="Play film"/>
                         <Rectangle class="primary_surface" anchor=0% width=100% height=100% corner_radius=5/>
                     </Group>
                     <Group anchor=0% x=144px y={compact ? 246px : 268px} width=138px height=44px @click=self.open_feature>

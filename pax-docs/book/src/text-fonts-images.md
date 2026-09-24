@@ -326,6 +326,12 @@ Use a Frame around an Image for rounded clipping; an Image's own fit policy
 only defines how pixels occupy its box. Read [Compositing](compositing-effects.md)
 for clipping and masks.
 
+An Image's `opacity` and inherited opacity multiply its source pixel alpha.
+Animate opacity on the Image or a shared ancestor to fade artwork with the rest
+of a component; this does not reload its source pixels. See
+[subtree opacity](compositing-effects.md#opacity-through-a-subtree) for how
+overlapping translucent elements compose.
+
 ### Raw pixel data
 
 Rust can provide an `ImageSource::Data(width, height, bytes)` for generated

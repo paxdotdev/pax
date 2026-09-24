@@ -1367,11 +1367,17 @@ impl RenderContext for PaxGpuRenderer {
             .or_insert(0) += 1;
     }
 
-    fn draw_image(&mut self, layer: usize, image_path: &str, rect: kurbo::Rect) {
+    fn draw_image_with_opacity(
+        &mut self,
+        layer: usize,
+        image_path: &str,
+        rect: kurbo::Rect,
+        opacity: f64,
+    ) {
         self.with_layer_context(layer, |context| {
             if let Some(image) = self.image_map.get(image_path) {
                 let version = *self.image_versions.get(image_path).unwrap_or(&0);
-                context.draw_image(
+                context.draw_image_with_opacity(
                     image_path,
                     version,
                     image,
@@ -1379,6 +1385,7 @@ impl RenderContext for PaxGpuRenderer {
                         min: point(rect.x0 as f32, rect.y0 as f32),
                         max: point(rect.x1 as f32, rect.y1 as f32),
                     },
+                    opacity as f32,
                 );
             }
         });

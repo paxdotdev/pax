@@ -899,6 +899,18 @@ impl<'w> WgpuRenderer<'w> {
     }
 
     pub fn draw_image(&mut self, image_key: &str, image_version: u64, image: &Image, rect: Box2D) {
+        self.draw_image_with_opacity(image_key, image_version, image, rect, 1.0);
+    }
+
+    /// Multiplies source pixel alpha by `opacity` without reuploading the texture.
+    pub fn draw_image_with_opacity(
+        &mut self,
+        image_key: &str,
+        image_version: u64,
+        image: &Image,
+        rect: Box2D,
+        opacity: f32,
+    ) {
         let needs_upload = self
             .cached_images
             .get(image_key)
@@ -922,9 +934,12 @@ impl<'w> WgpuRenderer<'w> {
         let transform = self.current_transform();
         let clip_stack = self.clip_stack.clone();
         let bounds = transform_box(rect, &transform);
-        let draw = self
-            .render_backend
-            .create_image_draw(image_key.to_owned(), transform, rect);
+        let draw = self.render_backend.create_image_draw(
+            image_key.to_owned(),
+            transform,
+            rect,
+            opacity.clamp(0.0, 1.0),
+        );
         let Some(current_node) = self.current_node.as_mut() else {
             return;
         };

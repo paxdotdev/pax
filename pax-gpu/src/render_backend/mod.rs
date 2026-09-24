@@ -1967,9 +1967,10 @@ impl<'w> RenderBackend<'w> {
         image_key: String,
         transform: Transform2D,
         rect: Box2D,
+        opacity: f32,
     ) -> RetainedImageDraw {
         let corners = transformed_corners(&rect, &transform);
-        let verts = corners_to_texture_vertices(corners);
+        let verts = corners_to_texture_vertices(corners, opacity);
         let resource =
             self.texture_renderer
                 .create_retained_image_resource(&self.device, image_key, verts);
@@ -1982,9 +1983,10 @@ impl<'w> RenderBackend<'w> {
         draw: &RetainedImageDraw,
         transform: Transform2D,
         rect: Box2D,
+        opacity: f32,
     ) {
         let corners = transformed_corners(&rect, &transform);
-        let verts = corners_to_texture_vertices(corners);
+        let verts = corners_to_texture_vertices(corners, opacity);
         self.texture_renderer
             .update_retained_image_resource(&self.queue, &draw.resource, verts);
     }

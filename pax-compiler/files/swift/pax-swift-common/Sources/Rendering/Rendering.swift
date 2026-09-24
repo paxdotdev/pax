@@ -319,17 +319,6 @@ private enum NativeMaskDebug {
     }
 }
 
-private struct PendingMaskRender {
-    let generation: UInt64
-    let scale: CGFloat
-    let payload: RasterizedNativeMaskPayload
-}
-
-private let nativeMaskRasterQueue = DispatchQueue(
-    label: "dev.pax.apple.native-mask-raster",
-    qos: .userInitiated
-)
-
 private func currentNativeMaskScale() -> CGFloat {
 #if os(iOS) || os(tvOS) || os(watchOS)
     #if targetEnvironment(simulator)
@@ -381,7 +370,11 @@ private func disableNativeLayerImplicitActions(_ layer: CALayer?) {
 private func performWithoutNativeLayerActions(_ body: () -> Void) {
     CATransaction.begin()
     CATransaction.setDisableActions(true)
+#if os(iOS) || os(tvOS) || os(watchOS)
+    UIView.performWithoutAnimation(body)
+#else
     body()
+#endif
     CATransaction.commit()
 }
 
@@ -1498,11 +1491,6 @@ public struct NativeRenderingLayer: View {
 #endif
         private var appliedMaskSignature: UInt64?
         private var appliedMaskSize: CGSize = .zero
-        private var requestedMaskSignature: UInt64?
-        private var requestedMaskSize: CGSize = .zero
-        private var nextMaskGeneration: UInt64 = 0
-        private var inFlightMaskRender: PendingMaskRender?
-        private var queuedMaskRender: PendingMaskRender?
         private var contentKey: String?
         private var contentView: PlatformBaseView?
         private var appliedContentSignature: Int?
@@ -1517,14 +1505,6 @@ public struct NativeRenderingLayer: View {
             return hitView === self ? nil : hitView
         }
 #endif
-
-        private static func shouldRasterizeMaskAsynchronously() -> Bool {
-#if os(macOS)
-            false
-#else
-            true
-#endif
-        }
 
         func update(item: NativeRenderItem) {
             debugLeafId = item.id
@@ -1646,56 +1626,6 @@ public struct NativeRenderingLayer: View {
             currentNativeMaskScale()
         }
 
-        private func enqueueMaskRender(payload: RasterizedNativeMaskPayload, scale: CGFloat) {
-            nextMaskGeneration &+= 1
-            let render = PendingMaskRender(
-                generation: nextMaskGeneration,
-                scale: scale,
-                payload: payload
-            )
-            queuedMaskRender = render
-            startNextMaskRenderIfNeeded()
-        }
-
-        private func startNextMaskRenderIfNeeded() {
-            guard inFlightMaskRender == nil, let render = queuedMaskRender else {
-                return
-            }
-            queuedMaskRender = nil
-            inFlightMaskRender = render
-
-            nativeMaskRasterQueue.async { [weak self] in
-                let image = cachedRasterizedMaskImage(payload: render.payload, scale: render.scale)
-                DispatchQueue.main.async {
-                    guard let self else {
-                        return
-                    }
-                    guard self.inFlightMaskRender?.generation == render.generation else {
-                        return
-                    }
-                    self.inFlightMaskRender = nil
-                    if self.requestedMaskSignature == render.payload.signature,
-                       self.requestedMaskSize == render.payload.size,
-                       let image
-                    {
-                        let nextMaskLayer = CALayer()
-                        nextMaskLayer.frame = CGRect(origin: .zero, size: render.payload.size)
-                        nextMaskLayer.contents = image
-                        nextMaskLayer.contentsScale = render.scale
-                        nextMaskLayer.contentsGravity = .resize
-                        CATransaction.begin()
-                        CATransaction.setDisableActions(true)
-                        self.backingLayer.mask = nextMaskLayer
-                        CATransaction.commit()
-                        self.currentMaskLayer = nextMaskLayer
-                        self.appliedMaskSignature = render.payload.signature
-                        self.appliedMaskSize = render.payload.size
-                    }
-                    self.startNextMaskRenderIfNeeded()
-                }
-            }
-        }
-
         private func applyRasterizedMaskImage(
             _ image: CGImage?,
             payload: RasterizedNativeMaskPayload,
@@ -1748,8 +1678,6 @@ public struct NativeRenderingLayer: View {
             let layer = backingLayer
             guard let mask else {
                 NativeMaskDebug.log("clear id=\(debugLeafId) key=\(contentKey ?? "?")")
-                requestedMaskSignature = nil
-                requestedMaskSize = .zero
                 appliedMaskSignature = nil
                 appliedMaskSize = .zero
                 currentMaskLayer = nil
@@ -1763,34 +1691,16 @@ public struct NativeRenderingLayer: View {
                 return
             }
 
-            requestedMaskSignature = mask.signature
-            requestedMaskSize = mask.size
             NativeMaskDebug.log("request id=\(debugLeafId) key=\(contentKey ?? "?") sig=\(mask.signature) holes=\(mask.holes.count) size=\(mask.size.width)x\(mask.size.height)")
             if appliedMaskSignature == mask.signature && appliedMaskSize == mask.size {
                 return
             }
-            if let inFlightMaskRender,
-               inFlightMaskRender.payload.signature == mask.signature,
-               inFlightMaskRender.payload.size == mask.size
-            {
-                return
-            }
-            if let queuedMaskRender,
-               queuedMaskRender.payload.signature == mask.signature,
-               queuedMaskRender.payload.size == mask.size
-            {
-                return
-            }
             let payload = rasterPayload(from: mask)
             let scale = Self.currentMaskScale()
-            if Self.shouldRasterizeMaskAsynchronously() {
-                enqueueMaskRender(payload: payload, scale: scale)
-            } else {
-                inFlightMaskRender = nil
-                queuedMaskRender = nil
-                let image = cachedRasterizedMaskImage(payload: payload, scale: scale)
-                applyRasterizedMaskImage(image, payload: payload, scale: scale)
-            }
+            // Occlusion is part of this frame's presentation. Publishing a raster
+            // later lets native text show through an already-visible GPU panel.
+            let image = cachedRasterizedMaskImage(payload: payload, scale: scale)
+            applyRasterizedMaskImage(image, payload: payload, scale: scale)
         }
     }
 
@@ -2161,11 +2071,6 @@ public struct NativeRenderingLayer: View {
 #endif
         private var appliedMaskSignature: UInt64?
         private var appliedMaskSize: CGSize = .zero
-        private var requestedMaskSignature: UInt64?
-        private var requestedMaskSize: CGSize = .zero
-        private var nextMaskGeneration: UInt64 = 0
-        private var inFlightMaskRender: PendingMaskRender?
-        private var queuedMaskRender: PendingMaskRender?
         private var currentNativeMaskLayer: CALayer?
         private let positiveClipMaskLayer = CAShapeLayer()
         private var appliedPositiveClipSignature: Int?
@@ -2173,14 +2078,6 @@ public struct NativeRenderingLayer: View {
         private var hasAppliedInitialScrollPosition = false
 
         var contentHostView: PlatformContainerView { contentHostViewInternal }
-
-        private static func shouldRasterizeMaskAsynchronously() -> Bool {
-#if os(macOS)
-            false
-#else
-            true
-#endif
-        }
 
         private func applyScrollerMaskOpacityMultiplier(_ multiplier: Double) {
             canvasHostViewInternal.applyNativeMaskOpacityMultiplier(1.0)
@@ -2407,9 +2304,6 @@ public struct NativeRenderingLayer: View {
                 NativeMaskDebug.log("scroller clear id=\(scrollerId)")
                 applyScrollerMaskOpacityMultiplier(1.0)
                 let hadAppliedMask = appliedMaskSignature != nil || currentNativeMaskLayer != nil
-                requestedMaskSignature = nil
-                requestedMaskSize = .zero
-                queuedMaskRender = nil
                 guard hadAppliedMask else {
                     return
                 }
@@ -2431,9 +2325,6 @@ public struct NativeRenderingLayer: View {
             applyScrollerMaskOpacityMultiplier(splitMask.opacityMultiplier)
             guard let mask = splitMask.residualMask else {
                 let hadAppliedMask = appliedMaskSignature != nil || currentNativeMaskLayer != nil
-                requestedMaskSignature = nil
-                requestedMaskSize = .zero
-                queuedMaskRender = nil
                 guard hadAppliedMask else {
                     return
                 }
@@ -2447,76 +2338,15 @@ public struct NativeRenderingLayer: View {
                 return
             }
 
-            requestedMaskSignature = mask.signature
-            requestedMaskSize = mask.size
             if appliedMaskSignature == mask.signature && appliedMaskSize == mask.size {
                 return
             }
-            if let inFlightMaskRender,
-               inFlightMaskRender.payload.signature == mask.signature,
-               inFlightMaskRender.payload.size == mask.size
-            {
-                return
-            }
-            if let queuedMaskRender,
-               queuedMaskRender.payload.signature == mask.signature,
-               queuedMaskRender.payload.size == mask.size
-            {
-                return
-            }
-
             let payload = rasterPayload(from: mask)
             let scale = currentNativeMaskScale()
-            if Self.shouldRasterizeMaskAsynchronously() {
-                enqueueMaskRender(payload: payload, scale: scale)
-                return
-            }
-
-            inFlightMaskRender = nil
-            queuedMaskRender = nil
             guard let image = cachedRasterizedMaskImage(payload: payload, scale: scale) else {
                 return
             }
             applyNativeMaskImage(image, payload: payload, scale: scale)
-        }
-
-        private func enqueueMaskRender(payload: RasterizedNativeMaskPayload, scale: CGFloat) {
-            nextMaskGeneration &+= 1
-            let render = PendingMaskRender(
-                generation: nextMaskGeneration,
-                scale: scale,
-                payload: payload
-            )
-            queuedMaskRender = render
-            startNextMaskRenderIfNeeded()
-        }
-
-        private func startNextMaskRenderIfNeeded() {
-            guard inFlightMaskRender == nil, let render = queuedMaskRender else {
-                return
-            }
-            queuedMaskRender = nil
-            inFlightMaskRender = render
-
-            nativeMaskRasterQueue.async { [weak self] in
-                let image = cachedRasterizedMaskImage(payload: render.payload, scale: render.scale)
-                DispatchQueue.main.async {
-                    guard let self else {
-                        return
-                    }
-                    guard self.inFlightMaskRender?.generation == render.generation else {
-                        return
-                    }
-                    self.inFlightMaskRender = nil
-                    if self.requestedMaskSignature == render.payload.signature,
-                       self.requestedMaskSize == render.payload.size,
-                       let image
-                    {
-                        self.applyNativeMaskImage(image, payload: render.payload, scale: render.scale)
-                    }
-                    self.startNextMaskRenderIfNeeded()
-                }
-            }
         }
 
         private func applyNativeMaskImage(
@@ -3023,9 +2853,32 @@ public struct NativeRenderingLayer: View {
         private var currentNodes: [NativeRenderNode] = []
 
 #if os(iOS) || os(tvOS) || os(watchOS)
+        private var sceneObserver: NSObjectProtocol?
+        private var appliedGeneration: UInt64?
+
         override init(frame: CGRect) {
             super.init(frame: frame)
             autoresizingMask = NativeRenderingLayer.fillAutoresizingMask()
+            // Publish the native tree in the engine's frame transaction. Waiting for
+            // SwiftUI's next update can put text and Metal artwork in different frames.
+            sceneObserver = NotificationCenter.default.addObserver(
+                forName: NativeSceneInvalidation.didInvalidate, object: nil, queue: nil
+            ) { [weak self] _ in
+                self?.updateCurrentScene()
+            }
+        }
+
+        deinit {
+            if let sceneObserver {
+                NotificationCenter.default.removeObserver(sceneObserver)
+            }
+        }
+
+        func updateCurrentScene() {
+            let generation = NativeSceneInvalidation.singleton.generation
+            guard appliedGeneration != generation else { return }
+            appliedGeneration = generation
+            update(nodes: NativeRenderingLayer().renderTree(for: generation))
         }
 
         required init?(coder: NSCoder) {
@@ -3244,14 +3097,13 @@ public struct NativeRenderingLayer: View {
 
 #if os(iOS) || os(tvOS) || os(watchOS)
     private struct PlatformNativeSceneView: UIViewRepresentable {
-        let nodes: [NativeRenderNode]
-
         func makeUIView(context: Context) -> NativeSceneHostView {
             NativeSceneHostView(frame: .zero)
         }
 
         func updateUIView(_ view: NativeSceneHostView, context: Context) {
-            view.update(nodes: nodes)
+            // A deferred SwiftUI update must never reapply an older tree snapshot.
+            view.updateCurrentScene()
         }
     }
 #elseif os(macOS)
@@ -3627,8 +3479,13 @@ public struct NativeRenderingLayer: View {
     }
 
     public var body: some View {
-        let generation = nativeSceneInvalidation.generation
-        PlatformNativeSceneView(nodes: renderTree(for: generation))
+        Group {
+#if os(iOS) || os(tvOS) || os(watchOS)
+            PlatformNativeSceneView()
+#else
+            PlatformNativeSceneView(nodes: renderTree(for: nativeSceneInvalidation.generation))
+#endif
+        }
             .allowsHitTesting(hasInteractiveNativeContent())
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .transaction { transaction in
@@ -3676,9 +3533,11 @@ private final class FontRegistrationObserver {
 public class NativeSceneInvalidation: ObservableObject {
     public static let singleton = NativeSceneInvalidation()
     @Published public var generation: UInt64 = 0
+    static let didInvalidate = Notification.Name("PaxNativeSceneDidInvalidate")
 
     public func invalidate() {
         generation &+= 1
+        NotificationCenter.default.post(name: Self.didInvalidate, object: self)
     }
 }
 
@@ -3996,11 +3855,14 @@ fileprivate extension NativeRenderingLayer {
 
 #if os(iOS) || os(tvOS) || os(watchOS)
 private final class PaxNativeEventBlockerView: UIView {
+    private let touchSequence = PaxTouchSequence()
+
     override init(frame: CGRect) {
         super.init(frame: frame)
         backgroundColor = .clear
         isOpaque = false
         isUserInteractionEnabled = true
+        isMultipleTouchEnabled = true
     }
 
     required init?(coder: NSCoder) {
@@ -4009,6 +3871,41 @@ private final class PaxNativeEventBlockerView: UIView {
 
     func apply(element: EventBlockerElement) {
         backgroundColor = platformColor(element.background)
+    }
+
+    private func forward(_ phase: PaxTouchSequence.Phase, touches: Set<UITouch>) {
+        let contacts = touches.map { touch in
+            let touchWindow = touch.view?.window ?? window
+            let windowPoint = touch.preciseLocation(in: touchWindow)
+            let point = NativeInterruptDispatcher.shared.convertWindowPoint(
+                windowPoint, in: touchWindow
+            ) ?? windowPoint
+            return PaxTouchSequence.Contact(
+                identifier: Int64(bitPattern: UInt64(UInt(
+                    bitPattern: Unmanaged.passUnretained(touch).toOpaque()
+                ))),
+                x: Double(point.x), y: Double(point.y)
+            )
+        }
+        touchSequence.forward(phase, contacts: contacts)
+    }
+
+    // Retain the native hit so the underlying UIScrollView cannot pan. Pax still
+    // needs the sequence to hit-test GPU controls above this native underlay.
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        forward(.began, touches: touches)
+    }
+
+    override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        forward(.moved, touches: touches)
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        forward(.ended, touches: touches)
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        forward(.cancelled, touches: touches)
     }
 }
 
@@ -4124,7 +4021,7 @@ private func configureLiquidGlassEffectView(
 }
 
 private final class PaxNativeTextLeafView: UIView, UITextViewDelegate {
-    private let staticTextLayer = CATextLayer()
+    private let staticTextLayer = PaxImmediateTextLayer()
     private let selectableView = UITextView()
     private var usingSelectableView = false
     private var suppressChange = false
@@ -5071,7 +4968,7 @@ private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
     override var isOpaque: Bool { false }
     override var preservesContentDuringLiveResize: Bool { false }
 
-    private let staticTextLayer = CATextLayer()
+    private let staticTextLayer = PaxImmediateTextLayer()
     private let scrollView = NSScrollView()
     private let textView = NSTextView()
     private var usingTextView = false
@@ -5915,10 +5812,7 @@ private func loadPlatformImage(path: String) -> NSImage? {
 #if os(iOS) || os(tvOS) || os(watchOS)
 private struct EventBlockerPlatformView: UIViewRepresentable {
     func makeUIView(context: Context) -> UIView {
-        let view = UIView()
-        view.backgroundColor = .clear
-        view.isUserInteractionEnabled = true
-        return view
+        PaxNativeEventBlockerView(frame: .zero)
     }
 
     func updateUIView(_ uiView: UIView, context: Context) {}

@@ -141,7 +141,7 @@ impl RenderContext for RecordingRenderer {
     fn load_image(&mut self, _: &str, _: &[u8], _: usize, _: usize) {
         unreachable!()
     }
-    fn draw_image(&mut self, _: usize, _: &str, _: Rect) {
+    fn draw_image_with_opacity(&mut self, _: usize, _: &str, _: Rect, _: f64) {
         unreachable!()
     }
     fn get_image_size(&mut self, _: &str) -> Option<(usize, usize)> {

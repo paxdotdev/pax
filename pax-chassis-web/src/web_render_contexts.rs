@@ -163,12 +163,32 @@ fn get_piet_render_context(
                         );
                     }
                 });
+                // Piet's generic API has no image opacity parameter. Apply it on
+                // the existing canvas, preserving the source image and canvas state.
+                let draw_image_fn = Box::new({
+                    let context = context.clone();
+                    move |renderer: &mut WebRenderContext,
+                          image: &piet_web::WebImage,
+                          rect,
+                          opacity| {
+                        let previous = context.global_alpha();
+                        context.set_global_alpha(opacity);
+                        piet::RenderContext::draw_image(
+                            renderer,
+                            image,
+                            rect,
+                            piet::InterpolationMode::Bilinear,
+                        );
+                        context.set_global_alpha(previous);
+                    }
+                });
                 PietLayerRenderer::new(
                     target.key.clone(),
                     target.host_signature.clone(),
                     WebRenderContext::new(context, window.clone()),
                     clear_fn,
                     configure_fn,
+                    draw_image_fn,
                     &entry,
                 )
             })

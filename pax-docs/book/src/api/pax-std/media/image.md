@@ -9,6 +9,7 @@ A GPU/canvas-rendered image decoded by the active chassis.
 `Image` draws into the node bounds and participates in the same canvas
 rendering path as vectors. Use `NativeImage` when a platform-native image
 element is preferable.
+Node and inherited opacity multiply the source pixels' alpha at draw time.
 
 #### Properties
 ##### `source`

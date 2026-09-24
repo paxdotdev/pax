@@ -99,7 +99,7 @@ impl RenderContext for Recorder {
     }
     fn transform(&mut self, _: usize, _: kurbo::Affine) {}
     fn load_image(&mut self, _: &str, _: &[u8], _: usize, _: usize) {}
-    fn draw_image(&mut self, _: usize, _: &str, _: kurbo::Rect) {}
+    fn draw_image_with_opacity(&mut self, _: usize, _: &str, _: kurbo::Rect, _: f64) {}
     fn get_image_size(&mut self, _: &str) -> Option<(usize, usize)> {
         None
     }
