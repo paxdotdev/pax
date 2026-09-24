@@ -781,18 +781,6 @@ impl PaxGpuRenderer {
             .targeted_or_all_indices(layer, renderer_count)
     }
 
-    fn remember_canvas_node_coverage(&self, layer: usize, node_id: u32, coverage_bounds: Rect) {
-        self.surface_replay
-            .borrow_mut()
-            .remember_canvas_node_coverage(layer, node_id, coverage_bounds);
-    }
-
-    fn forget_canvas_node_coverage(&self, layer: usize, node_id: u32) {
-        self.surface_replay
-            .borrow_mut()
-            .forget_canvas_node_coverage(layer, node_id);
-    }
-
     fn mark_clean_skipped_node(&self, layer: usize, node_id: u32) {
         self.clean_skipped_canvas_nodes
             .borrow_mut()
@@ -817,15 +805,12 @@ impl PaxGpuRenderer {
             })
     }
 
-    fn spatial_replay_node_ids(&self, layer: usize) -> Option<Vec<u32>> {
+    fn replay_region_bounds(&self, layer: usize) -> Option<Vec<kurbo::Rect>> {
         let backends = self.backends.borrow();
         let Some(RenderLayerState::Ready((target, _))) = backends.get(layer) else {
             return None;
         };
-        let surface_bounds = self.targeted_replay_surface_bounds(layer, target)?;
-        self.surface_replay
-            .borrow()
-            .spatial_replay_node_ids_for_surface_bounds(layer, &surface_bounds)
+        self.targeted_replay_surface_bounds(layer, target)
     }
 
     fn take_replay_layer_ids(&mut self) -> Vec<usize> {
@@ -1557,7 +1542,7 @@ impl RenderContext for PaxGpuRenderer {
             .into_iter()
             .map(|layer| ReplayCanvasLayerUpdate {
                 layer,
-                node_ids: self.spatial_replay_node_ids(layer),
+                regions: self.replay_region_bounds(layer),
             })
             .collect()
     }
@@ -1649,16 +1634,6 @@ impl RenderContext for PaxGpuRenderer {
                 if !target.active {
                     return false;
                 }
-                self.remember_canvas_node_coverage(
-                    layer,
-                    node_id,
-                    Rect::new(
-                        f64::NEG_INFINITY,
-                        f64::NEG_INFINITY,
-                        f64::INFINITY,
-                        f64::INFINITY,
-                    ),
-                );
                 target.prepare_for_render();
                 let candidate_indices = self.targeted_or_all_indices(layer, target.renderers.len());
                 let mut selected = Vec::new();
@@ -1710,7 +1685,6 @@ impl RenderContext for PaxGpuRenderer {
                 if !target.active {
                     return false;
                 }
-                self.remember_canvas_node_coverage(layer, node_id, coverage_bounds);
                 target.prepare_for_render();
                 let renderer_count = target.renderers.len();
                 let candidate_indices = self.targeted_or_all_indices(layer, renderer_count);
@@ -1811,7 +1785,6 @@ impl RenderContext for PaxGpuRenderer {
                 if !target.active {
                     return false;
                 }
-                self.forget_canvas_node_coverage(layer, node_id);
                 target.prepare_for_render();
                 let candidate_indices = 0..target.renderers.len();
                 let mut removed_indices = Vec::new();

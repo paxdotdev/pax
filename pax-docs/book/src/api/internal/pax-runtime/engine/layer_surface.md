@@ -75,8 +75,9 @@ Type: `i32`
 ### `SurfaceReplayCoordinator`
 Shared coordinator for physical-surface replay after a layer layout retarget.
 
-This intentionally tracks renderer-agnostic surface indices and coverage bounds only. Backends
-remain responsible for applying the selected indices to their own renderer objects.
+This tracks surface indices and replay regions, not scene-node coverage. The
+runtime scene index selects nodes; backends apply surface indices to their own
+renderer objects.
 
 ## Functions
 ### `replay_batches_by_directional_priority`

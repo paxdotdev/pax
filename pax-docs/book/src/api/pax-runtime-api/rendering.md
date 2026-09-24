@@ -44,10 +44,11 @@ Replay invalidation for one logical canvas layer.
 ##### `layer`
 Type: `usize`
 
-##### `node_ids`
-Type: `Option`<`Vec`<`u32`>>
+##### `regions`
+Type: `Option`<`Vec`<`Rect`>>
 
-`None` means the layer should fall back to region/full-layer dirtification.
+Canvas-content regions requiring replay. The runtime selects nodes from its
+shared scene geometry; `None` requests full-layer dirtification.
 
 ## Enums
 ### `Layer`

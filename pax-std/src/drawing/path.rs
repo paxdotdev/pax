@@ -10,7 +10,7 @@ use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
 
-use crate::common::{begin_canvas_node_with_local_bounds, to_kurbo_point};
+use crate::common::{begin_bounded_canvas_node, to_kurbo_point};
 use pax_engine::*;
 
 use_RefCell!();
@@ -301,16 +301,10 @@ impl InstanceNode for PathInstance {
         !matches!(property_name, "draw_start" | "draw_end" | "material")
     }
 
-    fn render(
+    fn prepare_canvas_geometry(
         &self,
         expanded_node: &ExpandedNode,
-        rtc: &Rc<RuntimeContext>,
-        rc: &mut dyn RenderContext,
-    ) {
-        if !rtc.is_canvas_node_dirty(&expanded_node.id) {
-            return;
-        }
-
+    ) -> pax_runtime::scene_geometry::CanvasGeometry {
         let bounds = expanded_node.transform_and_bounds.get().bounds;
         let layout_bounds = Rect::new(0.0, 0.0, bounds.0, bounds.1);
         let (bez_path, local_coverage_bounds) =
@@ -331,9 +325,25 @@ impl InstanceNode for PathInstance {
                 (bez_path, local_coverage_bounds)
             });
 
-        let Some(scope) =
-            begin_canvas_node_with_local_bounds(rc, expanded_node, rtc, local_coverage_bounds)
-        else {
+        pax_runtime::scene_geometry::CanvasGeometry {
+            local_bounds: Some(local_coverage_bounds),
+            path: bez_path.map(Rc::new),
+        }
+    }
+
+    fn render(
+        &self,
+        expanded_node: &ExpandedNode,
+        rtc: &Rc<RuntimeContext>,
+        rc: &mut dyn RenderContext,
+    ) {
+        if !rtc.is_canvas_node_dirty(&expanded_node.id) {
+            return;
+        }
+
+        let geometry = rtc.canvas_geometry_for_node(expanded_node);
+        let bez_path = geometry.local.path.as_deref();
+        let Some(scope) = begin_bounded_canvas_node(rc, expanded_node, rtc) else {
             return;
         };
 
@@ -364,7 +374,7 @@ impl InstanceNode for PathInstance {
                     if draw_start <= f64::EPSILON && draw_end >= 1.0 - f64::EPSILON {
                         rc.stroke_with_material_and_opacity_and_smoothing(
                             scope.layer_id,
-                            bez_path,
+                            bez_path.clone(),
                             &stroke,
                             &material,
                             opacity,
@@ -373,7 +383,7 @@ impl InstanceNode for PathInstance {
                     } else {
                         rc.stroke_with_draw_range_and_material_and_opacity_and_smoothing(
                             scope.layer_id,
-                            bez_path,
+                            bez_path.clone(),
                             &stroke,
                             &material,
                             opacity,

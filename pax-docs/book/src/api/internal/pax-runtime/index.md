@@ -14,5 +14,6 @@
 - [rendering](rendering.md)
 - [repeat](repeat.md)
 - [router](router.md)
+- [scene_geometry](scene_geometry.md)
 - [settings_motion](settings_motion.md)
 - [slot](slot.md)

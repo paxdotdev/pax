@@ -16,8 +16,9 @@ pub struct AlphaMaskPaint {
 #[derive(Clone, Debug)]
 pub struct ReplayCanvasLayerUpdate {
     pub layer: usize,
-    /// `None` means the layer should fall back to region/full-layer dirtification.
-    pub node_ids: Option<Vec<u32>>,
+    /// Canvas-content regions requiring replay. The runtime selects nodes from its
+    /// shared scene geometry; `None` requests full-layer dirtification.
+    pub regions: Option<Vec<kurbo::Rect>>,
 }
 
 /// One authored opacity boundary, ordered from the outermost ancestor to the painted node.
@@ -191,13 +192,13 @@ pub trait RenderContext {
         vec![]
     }
 
-    /// Returns canvas layer replay work, optionally narrowed to exact retained node ids.
+    /// Returns canvas layer replay work, optionally narrowed to canvas-content regions.
     fn take_replay_canvas_layer_updates(&mut self) -> Vec<ReplayCanvasLayerUpdate> {
         self.take_replay_canvas_layers()
             .into_iter()
             .map(|layer| ReplayCanvasLayerUpdate {
                 layer,
-                node_ids: None,
+                regions: None,
             })
             .collect()
     }

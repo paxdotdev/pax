@@ -289,13 +289,13 @@ fn rect_is_finite(bounds: &Rect) -> bool {
 
 /// Shared coordinator for physical-surface replay after a layer layout retarget.
 ///
-/// This intentionally tracks renderer-agnostic surface indices and coverage bounds only. Backends
-/// remain responsible for applying the selected indices to their own renderer objects.
+/// This tracks surface indices and replay regions, not scene-node coverage. The
+/// runtime scene index selects nodes; backends apply surface indices to their own
+/// renderer objects.
 #[derive(Default)]
 pub struct SurfaceReplayCoordinator {
     targeted_replay_queues: Vec<VecDeque<Vec<usize>>>,
     targeted_replay_bounds: Vec<HashMap<usize, Vec<Rect>>>,
-    canvas_node_coverage: Vec<HashMap<u32, Rect>>,
 }
 
 impl SurfaceReplayCoordinator {
@@ -402,29 +402,9 @@ impl SurfaceReplayCoordinator {
         has_more
     }
 
-    pub fn remember_canvas_node_coverage(
-        &mut self,
-        layer: usize,
-        node_id: u32,
-        coverage_bounds: Rect,
-    ) {
-        if self.canvas_node_coverage.len() <= layer {
-            self.canvas_node_coverage
-                .resize_with(layer + 1, HashMap::new);
-        }
-        self.canvas_node_coverage[layer].insert(node_id, coverage_bounds);
-    }
-
-    pub fn forget_canvas_node_coverage(&mut self, layer: usize, node_id: u32) {
-        if let Some(coverage) = self.canvas_node_coverage.get_mut(layer) {
-            coverage.remove(&node_id);
-        }
-    }
-
     pub fn truncate_layers(&mut self, layer_count: usize) {
         self.targeted_replay_queues.truncate(layer_count);
         self.targeted_replay_bounds.truncate(layer_count);
-        self.canvas_node_coverage.truncate(layer_count);
     }
 
     pub fn targeted_replay_surface_bounds(
@@ -447,49 +427,6 @@ impl SurfaceReplayCoordinator {
             }
         }
         (!bounds.is_empty()).then_some(bounds)
-    }
-
-    pub fn spatial_replay_node_ids(
-        &self,
-        layer: usize,
-        fallback_bounds: impl FnMut(usize) -> Option<Rect>,
-    ) -> Option<Vec<u32>> {
-        let surface_bounds = self.targeted_replay_surface_bounds(layer, fallback_bounds)?;
-        self.spatial_replay_node_ids_for_surface_bounds(layer, &surface_bounds)
-    }
-
-    pub fn spatial_replay_node_ids_for_surface_bounds(
-        &self,
-        layer: usize,
-        surface_bounds: &[Rect],
-    ) -> Option<Vec<u32>> {
-        let layer_coverage = self.canvas_node_coverage.get(layer)?;
-        if layer_coverage.is_empty() {
-            return None;
-        }
-
-        let mut node_ids: Vec<_> = layer_coverage
-            .iter()
-            .filter_map(|(node_id, bounds)| {
-                surface_bounds
-                    .iter()
-                    .any(|surface| {
-                        surface_intersects_coverage_bounds(
-                            bounds,
-                            surface.x0,
-                            surface.y0,
-                            surface.width(),
-                            surface.height(),
-                        )
-                    })
-                    .then_some(*node_id)
-            })
-            .collect();
-        node_ids.sort_unstable();
-        if node_ids.is_empty() {
-            return None;
-        }
-        Some(node_ids)
     }
 }
 
@@ -650,32 +587,6 @@ mod replay_priority_tests {
         assert_eq!(bounds, vec![Rect::new(0.0, 0.0, 10.0, 10.0)]);
         assert!(coordinator.advance_targeted_replay_queue(0));
         assert_eq!(coordinator.targeted_replay_scope(0), Some(vec![1]));
-    }
-
-    #[test]
-    fn coordinator_selects_spatial_replay_nodes_by_surface_bounds() {
-        let mut coordinator = SurfaceReplayCoordinator::default();
-        coordinator.remember_canvas_node_coverage(0, 10, Rect::new(0.0, 0.0, 5.0, 5.0));
-        coordinator.remember_canvas_node_coverage(0, 20, Rect::new(50.0, 50.0, 60.0, 60.0));
-        coordinator.set_targeted_replay_batches(0, vec![vec![0]], HashMap::new());
-
-        let node_ids = coordinator
-            .spatial_replay_node_ids(0, |_| Some(Rect::new(0.0, 0.0, 10.0, 10.0)))
-            .expect("spatial replay nodes");
-
-        assert_eq!(node_ids, vec![10]);
-    }
-
-    #[test]
-    fn coordinator_falls_back_when_targeted_replay_has_no_cached_coverage() {
-        let mut coordinator = SurfaceReplayCoordinator::default();
-        coordinator.remember_canvas_node_coverage(0, 10, Rect::new(0.0, 0.0, 5.0, 5.0));
-        coordinator.set_targeted_replay_batches(0, vec![vec![0]], HashMap::new());
-
-        let node_ids =
-            coordinator.spatial_replay_node_ids(0, |_| Some(Rect::new(50.0, 50.0, 60.0, 60.0)));
-
-        assert!(node_ids.is_none());
     }
 
     fn test_surface(

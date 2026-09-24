@@ -258,19 +258,7 @@ impl PaxChassisWeb {
             // A retained surface was reused for a different tile origin or resized host; force the
             // runtime to replay affected canvas nodes before the frame renders.
             let engine = borrow!(self.engine);
-            if let Some(node_ids) = update.node_ids {
-                engine
-                    .runtime_context
-                    .mark_targeted_canvas_replay_nodes(update.layer, &node_ids);
-                engine
-                    .runtime_context
-                    .mark_canvas_nodes_on_layer_dirty_by_id(update.layer, &node_ids);
-            } else {
-                engine
-                    .runtime_context
-                    .mark_canvas_nodes_on_layer_dirty(update.layer);
-            }
-            engine.runtime_context.set_canvas_dirty(update.layer);
+            engine.runtime_context.request_canvas_replay(update);
         }
     }
 

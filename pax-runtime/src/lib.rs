@@ -14,6 +14,7 @@ pub mod properties;
 pub mod rendering;
 pub mod repeat;
 pub mod router;
+pub mod scene_geometry;
 pub mod settings_motion;
 pub mod slot;
 

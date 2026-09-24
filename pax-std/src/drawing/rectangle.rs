@@ -119,6 +119,15 @@ impl InstanceNode for RectangleInstance {
         })
     }
 
+    fn prepare_canvas_geometry(
+        &self,
+        node: &ExpandedNode,
+    ) -> pax_runtime::scene_geometry::CanvasGeometry {
+        pax_runtime::scene_geometry::CanvasGeometry::for_layout(
+            node.transform_and_bounds.get().bounds,
+        )
+    }
+
     fn render(
         &self,
         expanded_node: &ExpandedNode,

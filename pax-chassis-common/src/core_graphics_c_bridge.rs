@@ -1563,19 +1563,7 @@ pub extern "C" fn pax_render(engine_container: *mut PaxEngineContainer) {
                 .mark_canvas_nodes_on_layer_dirty(layer_id);
         }
         for update in renderer.take_replay_canvas_layer_updates() {
-            engine.runtime_context.set_canvas_dirty(update.layer);
-            if let Some(node_ids) = update.node_ids {
-                engine
-                    .runtime_context
-                    .mark_targeted_canvas_replay_nodes(update.layer, &node_ids);
-                engine
-                    .runtime_context
-                    .mark_canvas_nodes_on_layer_dirty_by_id(update.layer, &node_ids);
-            } else {
-                engine
-                    .runtime_context
-                    .mark_canvas_nodes_on_layer_dirty(update.layer);
-            }
+            engine.runtime_context.request_canvas_replay(update);
         }
         engine.render(renderer as &mut dyn RenderContext);
     }

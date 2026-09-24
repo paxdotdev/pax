@@ -416,21 +416,6 @@ impl<S: PietSurface> PietRenderer<S> {
         self.surface_replay.advance_targeted_replay_queue(layer)
     }
 
-    fn remember_canvas_node_coverage(
-        &mut self,
-        layer: usize,
-        node_id: u32,
-        coverage_bounds: kurbo::Rect,
-    ) {
-        self.surface_replay
-            .remember_canvas_node_coverage(layer, node_id, coverage_bounds);
-    }
-
-    fn forget_canvas_node_coverage(&mut self, layer: usize, node_id: u32) {
-        self.surface_replay
-            .forget_canvas_node_coverage(layer, node_id);
-    }
-
     fn targeted_replay_surface_bounds(
         &self,
         layer: usize,
@@ -445,13 +430,11 @@ impl<S: PietSurface> PietRenderer<S> {
             })
     }
 
-    fn spatial_replay_node_ids(&self, layer: usize) -> Option<Vec<u32>> {
+    fn replay_region_bounds(&self, layer: usize) -> Option<Vec<kurbo::Rect>> {
         let Some((target, _)) = self.layers.get(layer) else {
             return None;
         };
-        let surface_bounds = self.targeted_replay_surface_bounds(layer, target)?;
-        self.surface_replay
-            .spatial_replay_node_ids_for_surface_bounds(layer, &surface_bounds)
+        self.targeted_replay_surface_bounds(layer, target)
     }
 
     fn refresh_layer_layouts<I>(&mut self, layer_indices: I)
@@ -870,7 +853,7 @@ impl<S: PietSurface> api::RenderContext for PietRenderer<S> {
             .into_iter()
             .map(|layer| pax_runtime_api::ReplayCanvasLayerUpdate {
                 layer,
-                node_ids: self.spatial_replay_node_ids(layer),
+                regions: self.replay_region_bounds(layer),
             })
             .collect()
     }
@@ -889,16 +872,6 @@ impl<S: PietSurface> api::RenderContext for PietRenderer<S> {
             }
             target.renderers.len()
         };
-        self.remember_canvas_node_coverage(
-            layer,
-            _node_id,
-            kurbo::Rect::new(
-                f64::NEG_INFINITY,
-                f64::NEG_INFINITY,
-                f64::INFINITY,
-                f64::INFINITY,
-            ),
-        );
         let selected = self.targeted_or_all_indices(layer, renderer_count);
         let began = !selected.is_empty();
         if began {
@@ -924,7 +897,6 @@ impl<S: PietSurface> api::RenderContext for PietRenderer<S> {
             }
             target.renderers.len()
         };
-        self.remember_canvas_node_coverage(layer, node_id, coverage_bounds);
         let candidate_indices = self.targeted_or_all_indices(layer, renderer_count);
         let Some((target, _)) = self.layers.get(layer) else {
             return false;
@@ -958,8 +930,7 @@ impl<S: PietSurface> api::RenderContext for PietRenderer<S> {
         true
     }
 
-    fn remove_node(&mut self, layer: usize, node_id: u32) -> bool {
-        self.forget_canvas_node_coverage(layer, node_id);
+    fn remove_node(&mut self, _layer: usize, _node_id: u32) -> bool {
         true
     }
 }

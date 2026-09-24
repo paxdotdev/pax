@@ -1,4 +1,4 @@
-use kurbo::{Affine, Shape};
+use kurbo::Affine;
 pub use pax_engine::api::Size;
 use pax_message::AppleLiquidGlassPatch;
 use pax_runtime::api as pax_runtime_api;
@@ -62,36 +62,7 @@ pub fn native_surface_opacity(expanded_node: &ExpandedNode, context: &RuntimeCon
 
 // Resolves the transform a canvas primitive should use inside its owning canvas surface.
 pub fn canvas_surface_transform(expanded_node: &ExpandedNode, context: &RuntimeContext) -> Affine {
-    let transform = Affine::from(expanded_node.transform_and_bounds.get().transform);
-    let own_layer = expanded_node.occlusion.get().render_layer_id;
-    let mut parent_frame_id = expanded_node.parent_frame.get();
-    while let Some(current_parent_frame_id) = parent_frame_id {
-        let Some(parent_frame) = context.get_expanded_node_by_eid(current_parent_frame_id) else {
-            break;
-        };
-        if parent_frame.occlusion.get().render_layer_id != own_layer {
-            // Descendant canvas layers can be mounted into browser-owned scroller hosts whose DOM
-            // coordinate space is local to the owning ancestor frame, not to the root canvas. We
-            // originally tried compensating at the scroller traversal layer, but retained
-            // vector/image nodes still carried world-space transforms into those nested surfaces.
-            // Walk up to the nearest ancestor on a different render layer so nested same-layer
-            // groups still localize into the browser-hosted canvas that actually owns them.
-            return Affine::from(parent_frame.transform_and_bounds.get().transform.inverse())
-                * transform;
-        }
-        parent_frame_id = parent_frame.parent_frame.get();
-    }
-    transform
-}
-
-fn canvas_surface_bounds_for_transform(
-    transform: Affine,
-    local_bounds: kurbo::Rect,
-) -> kurbo::Rect {
-    const TILE_CULL_BOUNDS_PAD: f64 = 64.0;
-    (transform * local_bounds.to_path(0.1))
-        .bounding_box()
-        .inflate(TILE_CULL_BOUNDS_PAD, TILE_CULL_BOUNDS_PAD)
+    context.canvas_surface_transform_for_node(expanded_node)
 }
 
 // Values a primitive needs after the render context has selected live tile surfaces.
@@ -106,39 +77,22 @@ pub struct CanvasNodeRenderScope {
 
 // Begin a bounded retained vector/image node.
 //
-// The render context owns tile selection and stale-node removal, but `pax-std`
-// owns deriving conservative canvas-space coverage from an expanded node.
+// The runtime prepares coverage before replay selection. Drawing consumes that
+// same record while the render context owns tile selection and stale-node removal.
 pub fn begin_bounded_canvas_node(
     rc: &mut dyn RenderContext,
     expanded_node: &ExpandedNode,
     context: &RuntimeContext,
 ) -> Option<CanvasNodeRenderScope> {
-    let bounds = expanded_node.transform_and_bounds.get().bounds;
-    begin_canvas_node_with_local_bounds(
-        rc,
-        expanded_node,
-        context,
-        kurbo::Rect::new(0.0, 0.0, bounds.0, bounds.1),
-    )
-}
-
-// Begin a retained vector/image node using explicit local-space coverage.
-//
-// Most primitives are bounded by their layout rectangle and use
-// `begin_bounded_canvas_node`. Paths may intentionally draw outside that
-// rectangle, so their tile coverage follows their actual geometry instead.
-pub(crate) fn begin_canvas_node_with_local_bounds(
-    rc: &mut dyn RenderContext,
-    expanded_node: &ExpandedNode,
-    context: &RuntimeContext,
-    local_coverage_bounds: kurbo::Rect,
-) -> Option<CanvasNodeRenderScope> {
-    let layer_id = expanded_node.occlusion.get().render_layer_id;
+    let geometry = context.canvas_geometry_for_node(expanded_node);
+    let layer_id = geometry.layer;
     let node_id = expanded_node.id.to_u32();
-    let tab = expanded_node.transform_and_bounds.get();
-    let surface_transform = canvas_surface_transform(expanded_node, context);
-    let coverage_bounds =
-        canvas_surface_bounds_for_transform(surface_transform, local_coverage_bounds);
+    let coverage_bounds = geometry.coverage_bounds.unwrap_or(kurbo::Rect::new(
+        f64::NEG_INFINITY,
+        f64::NEG_INFINITY,
+        f64::INFINITY,
+        f64::INFINITY,
+    ));
 
     if !rc.begin_node_with_bounds(
         layer_id,
@@ -166,8 +120,8 @@ pub(crate) fn begin_canvas_node_with_local_bounds(
     Some(CanvasNodeRenderScope {
         layer_id,
         node_id,
-        surface_transform,
-        bounds: tab.bounds,
+        surface_transform: geometry.surface_transform,
+        bounds: geometry.bounds,
         paint_opacity,
     })
 }

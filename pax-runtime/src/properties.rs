@@ -113,6 +113,7 @@ pub struct RuntimeContext {
     pub layer_count: Cell<usize>,
     pub dirty_canvases: Rc<RefCell<Vec<bool>>>,
     dirty_canvas_nodes: RefCell<HashSet<ExpandedNodeIdentifier>>,
+    scene_geometry: RefCell<crate::scene_geometry::SceneGeometry>,
     canvas_node_light_masks: RefCell<HashMap<ExpandedNodeIdentifier, u32>>,
     lighting_overflow_counts: RefCell<HashMap<usize, usize>>,
     targeted_canvas_replay_node_ids: RefCell<HashMap<usize, HashSet<u32>>>,
@@ -241,6 +242,7 @@ impl RuntimeContext {
             last_topmost_element: Default::default(),
             dirty_canvases: Default::default(),
             dirty_canvas_nodes: Default::default(),
+            scene_geometry: Default::default(),
             canvas_node_light_masks: Default::default(),
             lighting_overflow_counts: Default::default(),
             targeted_canvas_replay_node_ids: Default::default(),
@@ -280,6 +282,7 @@ impl RuntimeContext {
             last_topmost_element: Default::default(),
             dirty_canvases: Default::default(),
             dirty_canvas_nodes: Default::default(),
+            scene_geometry: Default::default(),
             canvas_node_light_masks: Default::default(),
             lighting_overflow_counts: Default::default(),
             targeted_canvas_replay_node_ids: Default::default(),
@@ -319,6 +322,7 @@ impl RuntimeContext {
             last_topmost_element: Default::default(),
             dirty_canvases: Default::default(),
             dirty_canvas_nodes: Default::default(),
+            scene_geometry: Default::default(),
             canvas_node_light_masks: Default::default(),
             lighting_overflow_counts: Default::default(),
             targeted_canvas_replay_node_ids: Default::default(),
@@ -354,6 +358,9 @@ impl RuntimeContext {
     pub fn add_to_cache(&self, node: &Rc<ExpandedNode>) {
         borrow_mut!(self.node_cache).add_to_cache(node);
         self.register_node_lifecycle_handlers(node);
+        if borrow!(node.instance_node).base().flags().layer == crate::api::Layer::Canvas {
+            borrow_mut!(self.scene_geometry).invalidate(node.id.to_u32());
+        }
         if node.is_import_settings_node() {
             self.import_settings_node_count
                 .set(self.import_settings_node_count.get() + 1);
@@ -364,6 +371,7 @@ impl RuntimeContext {
     /// Remove a node from runtime lookup caches.
     pub fn remove_from_cache(&self, node: &Rc<ExpandedNode>) {
         borrow_mut!(self.node_cache).remove_from_cache(node);
+        borrow_mut!(self.scene_geometry).remove(node.id.to_u32());
         borrow_mut!(self.canvas_node_light_masks).remove(&node.id);
         borrow_mut!(self.active_touch_targets).retain(|_, target| *target != node.id);
         self.unregister_node_lifecycle_handlers(node.id);
@@ -999,6 +1007,7 @@ impl RuntimeContext {
     }
 
     pub fn mark_canvas_node_dirty(&self, id: ExpandedNodeIdentifier) {
+        borrow_mut!(self.scene_geometry).invalidate(id.to_u32());
         borrow_mut!(self.dirty_canvas_nodes).insert(id);
     }
 
@@ -1224,7 +1233,8 @@ impl RuntimeContext {
         transform
     }
 
-    fn canvas_surface_transform_for_node(&self, node: &ExpandedNode) -> Affine {
+    /// Resolve a node transform in its owning canvas content coordinates.
+    pub fn canvas_surface_transform_for_node(&self, node: &ExpandedNode) -> Affine {
         let transform = Affine::from(node.transform_and_bounds.get().transform);
         let own_layer = node.occlusion.get().render_layer_id;
         let mut parent_frame_id = node.parent_frame.get();
@@ -1239,6 +1249,77 @@ impl RuntimeContext {
             parent_frame_id = parent_frame.parent_frame.get();
         }
         transform
+    }
+
+    /// Prepare geometry dirtied by scene changes. Surface replay alone does not invalidate it.
+    pub fn prepare_scene_geometry(&self) {
+        let dirty = borrow_mut!(self.scene_geometry).take_dirty();
+        for id in dirty {
+            // A primitive may have requested another pending record while preparing.
+            if borrow!(self.scene_geometry).get(id).is_some() {
+                continue;
+            }
+            if let Some(node) = self.get_expanded_node_by_eid(ExpandedNodeIdentifier(id)) {
+                if borrow!(node.instance_node).base().flags().layer == crate::api::Layer::Canvas {
+                    self.prepare_canvas_geometry(&node);
+                }
+            }
+        }
+    }
+
+    fn prepare_canvas_geometry(
+        &self,
+        node: &ExpandedNode,
+    ) -> Rc<crate::scene_geometry::PreparedCanvasGeometry> {
+        let tab = node.transform_and_bounds.get();
+        let local = borrow!(node.instance_node).prepare_canvas_geometry(node);
+        let prepared = crate::scene_geometry::PreparedCanvasGeometry::new(
+            node.occlusion.get().render_layer_id,
+            tab.bounds,
+            self.canvas_surface_transform_for_node(node),
+            local,
+        );
+        borrow_mut!(self.scene_geometry).insert(node.id.to_u32(), prepared)
+    }
+
+    /// Obtain the same prepared record used by spatial replay selection.
+    pub fn canvas_geometry_for_node(
+        &self,
+        node: &ExpandedNode,
+    ) -> Rc<crate::scene_geometry::PreparedCanvasGeometry> {
+        let cached = borrow!(self.scene_geometry).get(node.id.to_u32());
+        cached.unwrap_or_else(|| self.prepare_canvas_geometry(node))
+    }
+
+    /// Work counters for geometry preparation and spatial queries.
+    pub fn scene_geometry_stats(&self) -> crate::scene_geometry::SceneGeometryStats {
+        borrow!(self.scene_geometry).stats
+    }
+
+    /// Select canvas nodes using settled runtime geometry, even before their first draw.
+    /// Call after draining scene effects; querying does not advance layout or dispatch events.
+    pub fn canvas_nodes_intersecting(
+        &self,
+        layer: usize,
+        regions: &[kurbo::Rect],
+    ) -> Option<Vec<u32>> {
+        self.prepare_scene_geometry();
+        borrow_mut!(self.scene_geometry).query(layer, regions)
+    }
+
+    /// Apply a backend's replay region request through the shared scene index.
+    pub fn request_canvas_replay(&self, update: pax_runtime_api::ReplayCanvasLayerUpdate) {
+        if let Some(ids) = update
+            .regions
+            .as_deref()
+            .and_then(|regions| self.canvas_nodes_intersecting(update.layer, regions))
+        {
+            self.mark_targeted_canvas_replay_nodes(update.layer, &ids);
+            self.mark_canvas_nodes_on_layer_dirty_by_id(update.layer, &ids);
+        } else {
+            self.mark_canvas_nodes_on_layer_dirty(update.layer);
+        }
+        self.set_canvas_dirty(update.layer);
     }
 
     pub fn mark_canvas_nodes_on_layer_dirty_by_id(&self, layer: usize, node_ids: &[u32]) {

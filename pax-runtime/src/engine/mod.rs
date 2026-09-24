@@ -577,6 +577,7 @@ impl PaxEngine {
             }
             ctx.drain_node_effects();
         }
+        ctx.prepare_scene_geometry();
         let native_messages = ctx.take_native_messages();
         native_messages
     }
@@ -655,6 +656,7 @@ impl PaxEngine {
 
     pub fn render(&mut self, rcs: &mut dyn RenderContext) {
         self.update_layer_count(rcs);
+        self.runtime_context.prepare_scene_geometry();
 
         if !self.runtime_context.has_canvas_render_work() {
             return;

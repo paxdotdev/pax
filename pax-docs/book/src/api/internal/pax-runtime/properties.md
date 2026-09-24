@@ -45,10 +45,26 @@ Type: `Rc`<`RefCell`<`Vec`<`bool`>>>
 
 Add a node to runtime lookup caches.
 
+##### `canvas_geometry_for_node`
+<pre><code class="api-signature language-rust ignore">pub fn canvas_geometry_for_node(&amp;self, node: &amp;ExpandedNode) -&gt; Rc&lt;<a href="../../../api/internal/pax-runtime/scene_geometry.md#preparedcanvasgeometry">PreparedCanvasGeometry</a>&gt;</code></pre>
+
+Obtain the same prepared record used by spatial replay selection.
+
 ##### `canvas_node_light_mask`
 <pre><code class="api-signature language-rust ignore">pub fn canvas_node_light_mask(&amp;self, id: <a href="../../../api/internal/pax-runtime/properties.md#expandednodeidentifier">ExpandedNodeIdentifier</a>) -&gt; u32</code></pre>
 
 Return the direct-light membership mask resolved for a retained canvas node.
+
+##### `canvas_nodes_intersecting`
+<pre><code class="api-signature language-rust ignore">pub fn canvas_nodes_intersecting(&amp;self, layer: usize, regions: &amp;[Rect]) -&gt; Option&lt;Vec&lt;u32&gt;&gt;</code></pre>
+
+Select canvas nodes using settled runtime geometry, even before their first draw.
+Call after draining scene effects; querying does not advance layout or dispatch events.
+
+##### `canvas_surface_transform_for_node`
+<pre><code class="api-signature language-rust ignore">pub fn canvas_surface_transform_for_node(&amp;self, node: &amp;ExpandedNode) -&gt; Affine</code></pre>
+
+Resolve a node transform in its owning canvas content coordinates.
 
 ##### `capture_touch_target`
 <pre><code class="api-signature language-rust ignore">pub fn capture_touch_target(&amp;self, identifier: i64, target: <a href="../../../api/internal/pax-runtime/properties.md#expandednodeidentifier">ExpandedNodeIdentifier</a>)</code></pre>
@@ -159,6 +175,11 @@ Store a screenshot payload delivered by the chassis.
 
 Create a runtime context for normal app execution.
 
+##### `prepare_scene_geometry`
+<pre><code class="api-signature language-rust ignore">pub fn prepare_scene_geometry(&amp;self)</code></pre>
+
+Prepare geometry dirtied by scene changes. Surface replay alone does not invalidate it.
+
 ##### `register_layer_scroller_owner`
 <pre><code class="api-signature language-rust ignore">pub fn register_layer_scroller_owner(&amp;self, layer_id: usize, scroller_id: <a href="../../../api/internal/pax-runtime/properties.md#expandednodeidentifier">ExpandedNodeIdentifier</a>)</code></pre>
 
@@ -184,6 +205,11 @@ Remove a node from runtime lookup caches.
 
 Remove cached scroller surface state.
 
+##### `request_canvas_replay`
+<pre><code class="api-signature language-rust ignore">pub fn request_canvas_replay(&amp;self, update: <a href="../../../api/pax-runtime-api/rendering.md#replaycanvaslayerupdate">ReplayCanvasLayerUpdate</a>)</code></pre>
+
+Apply a backend's replay region request through the shared scene index.
+
 ##### `resize_canvas_layers_to`
 <pre><code class="api-signature language-rust ignore">pub fn resize_canvas_layers_to(&amp;self, id: usize)</code></pre>
 
@@ -193,6 +219,11 @@ Ensure the dirty-canvas table has entries up to the requested layer count.
 <pre><code class="api-signature language-rust ignore">pub fn safe_area_insets(&amp;self) -&gt; <a href="../../../api/pax-runtime-api/properties.md#property">Property</a>&lt;<a href="../../../api/internal/pax-message/index.md#safeareainsets">SafeAreaInsets</a>&gt;</code></pre>
 
 Live native safe-area data used by opt-in layout primitives. Defaults to zero.
+
+##### `scene_geometry_stats`
+<pre><code class="api-signature language-rust ignore">pub fn scene_geometry_stats(&amp;self) -&gt; <a href="../../../api/internal/pax-runtime/scene_geometry.md#scenegeometrystats">SceneGeometryStats</a></code></pre>
+
+Work counters for geometry preparation and spatial queries.
 
 ##### `set_canvas_dirty`
 <pre><code class="api-signature language-rust ignore">pub fn set_canvas_dirty(&amp;self, id: usize)</code></pre>

@@ -374,6 +374,21 @@ pub trait InstanceNode {
         //no-op default implementation
     }
 
+    /// Prepare primitive-local paint geometry independently of drawing or surface readiness.
+    ///
+    /// The default is conservatively unbounded. Bounded primitives should return their
+    /// actual local coverage; the runtime shares its transformed result with replay selection.
+    /// This must be a side-effect-free read of settled properties. Results are retained
+    /// until `RuntimeContext::mark_canvas_node_dirty` invalidates the node, so a primitive's
+    /// reactive drawing dependencies must include every input used here. Surface replay
+    /// reuses the prepared record without invoking this method again.
+    fn prepare_canvas_geometry(
+        &self,
+        _node: &ExpandedNode,
+    ) -> crate::scene_geometry::CanvasGeometry {
+        Default::default()
+    }
+
     /// Third lifecycle method during each render loop, occurs
     /// after all descendents have been rendered.
     /// Occurs in a post-order traversal of the render tree. Most primitives
