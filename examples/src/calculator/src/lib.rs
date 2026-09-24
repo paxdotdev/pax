@@ -41,6 +41,8 @@ pub struct KeyData {
     pub id: usize,
     pub label: String,
     pub action: String,
+    pub secondary_label: String,
+    pub secondary_action: String,
     pub tone: usize,
     pub column: f64,
     pub row: f64,
@@ -51,6 +53,7 @@ pub struct KeyData {
 #[file("lib.pax")]
 pub struct Example {
     pub native_full_screen: Property<bool>,
+    pub edge_to_edge: Property<bool>,
     pub safe_top: Property<f64>,
     pub safe_right: Property<f64>,
     pub safe_bottom: Property<f64>,
@@ -67,6 +70,14 @@ pub struct Example {
     pub graph_extent: Property<f64>,
     pub key_width: Property<f64>,
     pub dpad_width: Property<f64>,
+    pub second_active: Property<bool>,
+    pub key_pitch: Property<f64>,
+    pub key_height: Property<f64>,
+    pub utility_top: Property<f64>,
+    pub keypad_top: Property<f64>,
+    pub keypad_height: Property<f64>,
+    pub graph_top: Property<f64>,
+    pub polar: Property<bool>,
     pub graph_mode: Property<bool>,
     pub graph_editing: Property<bool>,
     pub grid_label: Property<String>,
@@ -151,9 +162,14 @@ impl Example {
             Layout::for_window(w, h)
         };
         let _ = ctx.peek_local_store(|store: &mut CalculatorStore| {
-            let scale = graph::zoom_scale(store.model.zoom_level);
             let old = store.layout;
             let resized = old != next;
+            if resized {
+                store
+                    .model
+                    .fit_opening_view(next.plot_width, next.plot_height);
+            }
+            let scale = graph::zoom_scale(store.model.zoom_level);
             let zoomed = self.graph_scale.get() != scale;
             if resized || zoomed {
                 let view = graph::View {
@@ -175,6 +191,7 @@ impl Example {
             }
             if resized {
                 store.layout = next;
+                self.edge_to_edge.set(next.edge_to_edge);
                 self.body_width.set(next.width);
                 self.body_height.set(next.height);
                 self.body_top.set(next.top);
@@ -186,6 +203,12 @@ impl Example {
                 self.key_width.set((next.width - 44. - 32.) / 5.);
                 self.dpad_width
                     .set((2. * self.key_width.get() + 8.).min(140.));
+                self.key_pitch.set(layout::KEY_PITCH);
+                self.key_height.set(layout::KEY_TARGET);
+                self.utility_top.set(layout::UTILITY_TOP);
+                self.keypad_top.set(layout::KEYPAD_TOP);
+                self.keypad_height.set(layout::KEYPAD_HEIGHT);
+                self.graph_top.set(layout::GRAPH_TOP);
                 self.light_x.set(next.width * 0.22);
                 self.light_y.set(next.height * 0.15);
             }
@@ -214,7 +237,7 @@ impl Example {
                 let pos = (self.scroll_x.get(), self.scroll_y.get());
                 if store.model.plot_dirty
                     || store.graph_cache.map_or(true, |(x, y)| {
-                        (pos.0 - x).abs() > 28. || (pos.1 - y).abs() > 28.
+                        (pos.0 - x).abs() > 0.5 || (pos.1 - y).abs() > 0.5
                     })
                 {
                     self.refresh_plot(&store.model, next);
@@ -250,6 +273,8 @@ impl Example {
 
     fn refresh_display(&mut self, m: &mut Model, l: Layout) {
         self.graph_mode.set(m.graph_mode);
+        self.polar.set(m.polar);
+        self.second_active.set(m.second);
         self.graph_editing.set(m.graph_editing);
         let metrics = TextGrid::new(
             // Keep the shared Calculate character grid clear of overlay scrollbars.
@@ -261,7 +286,9 @@ impl Example {
         self.cell_width.set(metrics.cell);
         self.line_height.set(metrics.line);
         self.text_columns.set(metrics.columns);
-        self.grid_label.set(if m.graph_mode {
+        self.grid_label.set(if m.second {
+            "2ND".into()
+        } else if m.graph_mode {
             format!(
                 "{}× · {} × {}",
                 graph::zoom_scale(m.zoom_level) / graph::DEFAULT_SCALE,
@@ -275,7 +302,7 @@ impl Example {
         let chars: Vec<_> = b.text.chars().collect();
         let columns = metrics.columns;
         let input_lines = if m.graph_mode {
-            2
+            1
         } else {
             metrics.input_lines(chars.len(), l.screen_height)
         };
@@ -307,7 +334,11 @@ impl Example {
                     "{}{}",
                     if row == 0 {
                         if m.graph_mode {
-                            "y="
+                            if m.polar {
+                                "r="
+                            } else {
+                                "y="
+                            }
                         } else {
                             "› "
                         }
@@ -327,14 +358,8 @@ impl Example {
         self.error.set(b.error.is_some());
         let status = if let Some(error) = &b.error {
             format!("{} · col {}", error.message, error.start + 1)
-        } else if m.graph_mode {
-            if m.graph_editing {
-                "ENTER TO PLOT · ESC TO PAN".into()
-            } else {
-                "DRAG OR SCROLL TO EXPLORE · GRAPH TO CENTER".into()
-            }
         } else {
-            "RAD · SCROLL HISTORY · ↑ ↓ RECALL".into()
+            String::new()
         };
         self.status.set(status);
         if !m.graph_mode {
@@ -375,25 +400,30 @@ impl Example {
     fn refresh_plot(&mut self, m: &Model, l: Layout) {
         let scale = self.graph_scale.get();
         let extent = self.graph_extent.get();
-        let left = (self.scroll_x.get() - 64.).max(0.);
-        let top = (self.scroll_y.get() - 64.).max(0.);
+        let left = self.scroll_x.get().max(0.);
+        let top = self.scroll_y.get().max(0.);
         let v = graph::View {
             left,
             top,
-            width: (l.plot_width + 128.).min(extent - left),
-            height: (l.plot_height + 128.).min(extent - top),
+            width: l.plot_width.min(extent - left),
+            height: l.plot_height.min(extent - top),
             scale,
         };
         self.graph_origin_x.set(left);
         self.graph_origin_y.set(top);
-        let plot = graph::plot(&m.plotted, v);
+        let plot = graph::plot_mode(&m.plotted, v, m.polar);
         let mut curve = Vec::new();
         for pair in &plot.segments {
             line(&mut curve, pair[0], pair[1]);
         }
         self.curve.set(curve);
         self.graph_status.set(if plot.limited {
-            "DETAIL LIMIT".into()
+            if plot.enveloped {
+                "PIXEL ENVELOPE"
+            } else {
+                "DETAIL LIMIT"
+            }
+            .into()
         } else if plot.segments.is_empty() {
             "NO RESOLVED CURVE".into()
         } else if self.scroll_x.get() <= 0.5
@@ -481,7 +511,7 @@ impl Example {
             "=" => "enter",
             s if s.chars().count() == 1
                 && s.chars()
-                    .all(|c| c.is_ascii_alphanumeric() || ".+-*/^() π×÷−".contains(c)) =>
+                    .all(|c| c.is_ascii_alphanumeric() || ".+-*/^() πθ×÷−".contains(c)) =>
             {
                 s
             }
@@ -506,6 +536,7 @@ impl Example {
     }
     pub fn graph_down(&mut self, ctx: &NodeContext, event: Event<MouseDown>) {
         let _ = ctx.peek_local_store(|store: &mut CalculatorStore| {
+            store.model.opening_view = false;
             store.model.graph_editing = false;
             store.model.dirty = true;
             store.drag = Some((
@@ -518,8 +549,14 @@ impl Example {
     }
     pub fn graph_touch(&mut self, ctx: &NodeContext, _event: Event<TouchStart>) {
         let _ = ctx.peek_local_store(|store: &mut CalculatorStore| {
+            store.model.opening_view = false;
             store.model.graph_editing = false;
             store.model.dirty = true;
+        });
+    }
+    pub fn graph_wheel(&mut self, ctx: &NodeContext, _event: Event<Wheel>) {
+        let _ = ctx.peek_local_store(|store: &mut CalculatorStore| {
+            store.model.opening_view = false;
         });
     }
     pub fn mouse_up(&mut self, ctx: &NodeContext, _event: Event<MouseUp>) {
@@ -559,18 +596,11 @@ fn line(path: &mut Vec<PathElement>, a: (f64, f64), b: (f64, f64)) {
 fn key_data() -> Vec<KeyData> {
     let rows = [
         [
-            ("ln", "ln", 1),
-            ("log", "log", 1),
             ("(", "(", 1),
             (")", ")", 1),
-            ("⌫", "backspace", 1),
-        ],
-        [
-            ("x²", "square", 1),
-            ("1/x", "reciprocal", 1),
             ("xʸ", "^", 1),
             ("π", "π", 1),
-            ("e", "e", 1),
+            ("⌫", "backspace", 1),
         ],
         [
             ("7", "7", 0),
@@ -584,7 +614,7 @@ fn key_data() -> Vec<KeyData> {
             ("5", "5", 0),
             ("6", "6", 0),
             ("×", "×", 1),
-            ("x", "x", 1),
+            ("x θ", "variable", 1),
         ],
         [
             ("1", "1", 0),
@@ -606,39 +636,46 @@ fn key_data() -> Vec<KeyData> {
         .flat_map(|(r, row)| {
             row.into_iter()
                 .enumerate()
-                .map(move |(c, (label, action, tone))| KeyData {
-                    id: r * 5 + c,
-                    label: label.into(),
-                    action: action.into(),
-                    tone,
-                    column: c as f64,
-                    row: r as f64,
-                })
+                .map(move |(c, spec)| key_spec(r * 5 + c, r, c, spec))
         })
         .collect()
 }
 
 fn utility_data() -> Vec<KeyData> {
-    [
-        ("+", "zoom-in"),
-        ("−", "zoom-out"),
-        ("√", "sqrt"),
-        ("sin", "sin"),
-        ("cos", "cos"),
-        ("tan", "tan"),
-        ("sec", "sec"),
-        ("csc", "csc"),
-        ("atan", "atan"),
-    ]
-    .into_iter()
-    .enumerate()
-    .map(|(id, (label, action))| KeyData {
+    let rows = [
+        [
+            ("2nd", "second", 3),
+            ("+", "zoom-in", 1),
+            ("−", "zoom-out", 1),
+        ],
+        [("sin", "sin", 1), ("cos", "cos", 1), ("tan", "tan", 1)],
+        [("ln", "ln", 1), ("log", "log", 1), ("√", "sqrt", 1)],
+    ];
+    rows.into_iter()
+        .enumerate()
+        .flat_map(|(r, row)| {
+            row.into_iter()
+                .enumerate()
+                .map(move |(c, spec)| key_spec(r * 3 + c, r, c, spec))
+        })
+        .collect()
+}
+
+fn key_spec(
+    id: usize,
+    row: usize,
+    column: usize,
+    (label, action, tone): (&str, &str, usize),
+) -> KeyData {
+    let (secondary_label, secondary_action) = model::secondary_key(action);
+    KeyData {
         id,
         label: label.into(),
         action: action.into(),
-        tone: 1,
-        column: (id / 3) as f64,
-        row: (id % 3) as f64,
-    })
-    .collect()
+        tone,
+        secondary_label: secondary_label.into(),
+        secondary_action: secondary_action.into(),
+        column: column as f64,
+        row: row as f64,
+    }
 }

@@ -497,6 +497,11 @@ measurement. The read-only `inset` output supports deliberate positioning:
 Declare `pub safe_top: Property<f64>` on the owning Rust component. The
 [calculator example](https://github.com/paxproject/pax/tree/main/examples/src/calculator) binds all four edges to keep its
 content clear while its background covers the whole window.
+It also uses an edge-to-edge case below 600 logical pixels of window width
+on web and macOS; native iOS and iPadOS always use that presentation. This
+width breakpoint belongs to the example's layout, independently of safe-area
+insets. The keypad keeps its touch sizes, and the LCD receives the remaining
+height; short windows scroll the calculator.
 
 Insets come from the visible window's safe rectangle, including devices
 without a Dynamic Island, and update on rotation and window resizing in both

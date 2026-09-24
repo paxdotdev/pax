@@ -202,12 +202,14 @@ size. The important template relationship is:
 </Scroller>
 ```
 
-The Rust component supplies the five numeric properties shown here. It starts
-at 16 logical pixels per graph unit and keeps the chosen scale on resize,
+The Rust component supplies the five numeric properties shown here. Its 1×
+magnification is 16 logical pixels per graph unit. The opening polar rosette,
+`1+3*cos(11*θ)`, selects a zoom step that fits the viewport until the first
+interaction. After that it keeps the chosen scale on resize,
 so a larger window reveals more data. Zoom changes the scale and the pane
 extent together. Both operations preserve the world-space center where the
 finite boundary permits, derive the new scroll offsets, and
-regenerate visible geometry with a small overscan margin. Native scroll
+regenerate geometry for the exact visible viewport, with no overscan margin. Native scroll
 position bindings drive subsequent updates; the application does not accumulate
 a second position from scroll events. Sampling the viewport rather than the
 whole pane keeps work bounded as the person explores.
@@ -216,9 +218,21 @@ Run `pax-cli run --path examples/src/calculator --target web` from a source
 checkout and switch to Graph. Try `1/x`, pan, then resize the window. The Rust
 expression engine deliberately leaves gaps across undefined domains and caps
 sampling work. Its finite world is −256 through 256 on each axis; this example
-has one function, calculator-style editing, and zoom from 0.25× to 16×.
-Press GRAPH again to center the origin without changing scale. The example's README
+has one visible function, calculator-style editing, and zoom from 0.25× to 16×.
+Its `2nd` → `x θ` (MODE) sequence selects Cartesian or polar plotting; polar formulas use `θ` over
+0…2π radians. It preserves separate drafts and valid plots for both modes.
+While graphing, GRAPH submits the current expression, centers the origin,
+and focuses the editor without changing scale. Invalid input preserves the
+last valid curve and displays an error inside the LCD.
+The sampler reserves work across the viewport, culls off-screen bounds, and
+represents unresolved continuous subpixel detail with a disclosed range envelope
+instead of spending the whole budget on the first dense region. The example's README
 documents the complete grammar, controls, and numerical limits.
+For polar curves, refinement measures geometric deviation from a chord in
+screen pixels, not how evenly the parameter moves along it. Conservative
+range checks cover the whole interval, and a bounded second pass reuses
+budget left by simpler or culled angular slices. Both passes share the same
+work and geometry caps; unresolved detail can still appear at extreme complexity.
 
 Calculate mode demonstrates a second, vertical Scroller for history, with a
 fixed editor outside the viewport. Its content height comes from wrapped

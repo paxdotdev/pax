@@ -5,6 +5,14 @@ two-dimensional Scroller. Calculate and Graph share a small Rust expression
 engine. This calculator language is application logic, not PAXEL; it does not
 execute arbitrary Rust or JavaScript.
 
+The opening screen is a polar rosette, `r=1+3*cos(11*θ)`: eleven outer petals
+and eleven nested inner petals, closed over 0…2π. Its outer radius is 4 and
+inner lobes reach radius 2. The opening view chooses the largest existing zoom
+step that fits the whole flower with a margin, including when native safe-area
+insets settle. It refits on resize until the first keypad, editor, or graph
+interaction; afterward resizing preserves the user's chosen scale and center.
+CALCULATE opens an empty calculation history, and Cartesian mode retains `sin(x)`.
+
 From the monorepo root:
 
 ```sh
@@ -32,9 +40,11 @@ its character cursor. Function keys insert the opening parenthesis too.
 | Clear key | Clear the active expression and error |
 | Tab | Switch between Calculate and Graph |
 | Escape | Finish graph editing, or dismiss a Calculate error |
-| GRAPH while already in Graph / keyboard Home while panning | Center on the origin, keeping the current zoom |
+| GRAPH | Switch to Graph; while already graphing, submit the expression; center the origin and focus the editor |
 | Zoom + / − | Enlarge / shrink Calculate text; double / halve Graph magnification |
-| D-pad center `edit` (when space permits) | Return to expression editing |
+| 2nd | Arm the next key’s secondary function; press again to cancel |
+| 2nd → x θ (MODE) | Toggle Cartesian/polar in Graph; no action in Calculate |
+| x θ | Insert the active graph variable; no action in Calculate |
 
 Calculate keeps the latest 20 successful expressions and answers in a scrollable
 LCD history. Scroll or swipe above the fixed input area to read older entries.
@@ -62,17 +72,40 @@ A repeated calculation that fails leaves its formula editable and preserves
 the last valid answer. Before the first successful calculation, empty Enter
 is a no-op.
 
-Graph starts with `sin(x)`. Edit its formula, then press Enter. Until a valid
+The calculator starts in polar Graph mode. Edit its formula, then press Enter or GRAPH. Until a valid
 submission, the last plotted function remains visible. Errors retain the
 draft, move the cursor to the problem, and report its character column.
 Drag with a mouse, scroll with a trackpad, or swipe the graph with touch.
-The D-pad and arrow keys pan once the plot has focus. There is one curve.
+The D-pad and arrow keys pan once the plot has focus. There is one visible curve. `2nd` → `x θ` (MODE) switches between Cartesian `y=f(x)` and
+polar `r=f(θ)`, preserving each formula draft and last valid plot separately.
+The `x θ` key inserts the active variable and does nothing in Calculate.
+Polar mode starts with `1+3*cos(11*θ)` and samples **0 ≤ θ ≤ 2π** in radians;
+negative radii are supported. The angular interval is currently fixed, so
+spirals and nonperiodic formulas display only that single revolution.
 Zoom has seven levels from 0.25× to 16×; the LCD shows the current level.
-Zooming and recentering retain the formula draft without submitting it.
-The `x²` and `1/x` keys insert `^2` and `^(-1)` after the current operand,
+Zooming retains the draft without submitting it. GRAPH submits when already
+in Graph mode, then centers and focuses the expression. A failed submission
+retains the last valid curve and shows its error inside the LCD.
+The secondary `x²` and `1/x` functions insert `^2` and `^(-1)` after the current operand,
 or apply to `ans` immediately after a successful calculation.
-Keys always retain their opaque face and press feedback. `x` does nothing in
+Keys always retain their opaque face and press feedback. `x θ` and its secondary MODE do nothing in
 Calculate, and zoom keys do nothing at their respective limits.
+
+The amber `2nd` key arms one subsequent keypad press. The LCD shows `2ND`
+and secondary legends change color while armed. Press `2nd` again or Escape
+to cancel; a key without a secondary function performs its primary action and
+clears the latch. Hardware typing remains literal and also clears the latch.
+
+| Primary key | Secondary function |
+| --- | --- |
+| sin / cos / tan | asin / acos / atan (inverse trigonometry, radians) |
+| ln / log | eˣ / 10ˣ (insert `e^(` / `10^(`) |
+| √ | x² (append `^2`) |
+| xʸ | 1/x (append `^(-1)`) |
+| π | e |
+| x θ | MODE (Cartesian/polar) |
+
+`sec` and `csc` remain available when typed, but no longer occupy keys.
 
 ## Expression language
 
@@ -83,14 +116,15 @@ Calculate, and zoom keys do nothing at their respective limits.
 | Grouping and sign | `(2+3)*4`, `-2^2` → `-4`, `2^-3` → `0.125` |
 | Powers | Right associative: `2^3^2` → `512` |
 | Constants | `pi` / `π`, `e`, and the latest successful Calculate `ans` |
-| Functions | `sin(...)`, `cos(...)`, `tan(...)`, `sec(...)`, `csc(...)`, `atan(...)`, `sqrt(...)` / `√(...)`, `ln(...)`, `log(...)` / `log10(...)` |
-| Variable | `x`, in Graph only; e.g. `sin(x)*x` |
+| Functions | `sin(...)`, `cos(...)`, `tan(...)`, `sec(...)`, `csc(...)`, `asin(...)`, `acos(...)`, `atan(...)`, `sqrt(...)` / `√(...)`, `ln(...)`, `log(...)` / `log10(...)` |
+| Variable | Cartesian: `x`; polar: `θ` or `theta`. Only the active Graph variable is accepted. |
 
 All trigonometry uses **radians**. The previous basic calculator used degrees;
 convert degree inputs explicitly, for example `sin(30*pi/180)`. Function names
 are case insensitive. Parentheses and explicit multiplication are required:
 write `2*pi` and `2*sin(x)`. `sec` and `csc` are reciprocal cosine and sine;
-`atan` is inverse tangent and returns radians. `ln` is natural log; `log` is
+`asin`, `acos`, and `atan` are inverse trigonometric functions and return
+radians. `asin` and `acos` require inputs in −1…1. `ln` is natural log; `log` is
 base 10.
 Scientific notation requires an exponent after `e`, so use `2*e` for twice
 Euler's constant. Graph snapshots `ans` when submitted; later calculations
@@ -111,14 +145,23 @@ keeps 16-pixel formula text and its own independent plot zoom. A larger window
 adds columns and rows at the chosen text size. History reflows and the editor
 follows its cursor, reserving at least one history row on a short LCD. The body grows up to 1,280
 pixels wide and the screen up to 1,000 pixels tall. At 320-pixel phone width,
-keys remain at least 44 × 44 pixels. The upper bank aligns with the first
-three keypad columns; the D-pad centers over the remaining two. Narrow layouts
-omit its center Edit key to preserve arrow hit targets; tapping the expression
-still places its cursor. Short windows scroll the whole calculator.
+key touch areas remain at least 44 × 44 pixels. The three-column upper bank
+contains 2nd/zoom, trig, and log/root rows; the D-pad centers over the final
+two keypad columns and has no center key. Secondary functions reduce the
+main keypad to five rows. Each key has a 31.5-pixel face below a 9.2-pixel secondary
+legend, inside a 47-pixel touch area, with a 51-pixel row pitch. The bevel depth
+and press travel are 40% of the previous design. CALCULATE and GRAPH use
+approximately half-height faces with smaller type, retaining 44-pixel hit
+areas. The helper-text row is removed and errors appear inside the LCD.
+The layout reserves the keypad and its gutters before assigning remaining height to the LCD.
+Bottom clearance matches the visible side clearance, accounting for the
+key bevel and the case's thicker bottom rim.
+The graph editor uses one line that follows its cursor. Short windows scroll the whole calculator.
 
 Native iOS and iPadOS use a viewport-width silver surface with no artificial
 outer rim, shadow, or rounded corners; the device supplies the outer outline.
-The web and macOS presentation retains its freestanding case. Four explicit
+Web and macOS use the same edge-to-edge surface below 600 logical pixels of
+window width, and retain the freestanding case at larger widths. Four explicit
 `DynamicIslandSpacer` components bind the live top, right, bottom, and left
 insets. The content viewport reserves those edges for the status bar, island,
 and home indicator, including after rotation. The silver background remains
@@ -126,21 +169,39 @@ fixed and fills the whole window. On a tall native viewport the LCD grows to
 use the available height; short viewports scroll while preserving key sizes.
 The spacers contribute zero inset on web and macOS.
 
-The graph starts at 16 logical pixels per unit on both axes. Zoom ranges
+Graph magnification 1× is 16 logical pixels per unit on both axes. Zoom ranges
 from 4 to 256 pixels per unit. On resize it keeps the chosen scale, redraws
 for the larger viewport, preserves its center where the finite boundary
 permits, and shows more of the function. The native Scroller covers world
 coordinates −256 through 256 on each axis; its pixel extent grows with zoom
-(from 2,048 to 131,072 pixels square). Geometry is sampled only around the
-visible viewport, with a small overscan margin. Scroll offsets are the source
+(from 2,048 to 131,072 pixels square). Geometry is sampled only for the
+visible viewport, with no overscan margin, and refreshed after scroll movement. Scroll offsets are the source
 of truth for both axes.
 
 Input is limited to 256 characters and parser nesting to 32. Each plot refresh
 is bounded to 4,096 output points and 250,000 expression-node visits. Interval
 checks and adaptive refinement leave gaps across poles and undefined domains.
-`DETAIL LIMIT` means some finite detail could not be resolved within these
-bounds; rapid oscillation and ill-conditioned expressions can be incomplete.
+Each initial screen interval receives a fair share of the remaining work and
+geometry budget, so dense detail cannot consume the right side's allocation.
+Off-screen bounds are discarded before point sampling. At pixel resolution,
+unresolved continuous Cartesian detail is shown as a conservative vertical
+range envelope; `PIXEL ENVELOPE` identifies this approximation. It can include
+values within an interval's enclosure that the curve does not actually attain.
+Polar intervals use projected Cartesian bounds for culling; only narrow bounds
+can become envelopes. Polar chord acceptance measures screen-space geometric
+deviation, enclosing the whole interval in coordinates aligned with the chord.
+Smaller range checks tighten that enclosure without adding drawing vertices;
+uneven speed along a nearly straight stroke does not require extra segments.
+A bounded second pass shares unused budget with unresolved angular slices.
+The work and output caps remain unchanged. `DETAIL LIMIT` indicates remaining unresolved detail,
+including overly complex expressions or broad unresolved polar intervals.
 The plot is not a proof that every root or singularity has been found.
+
+For example, `4*cos(3*θ^2)` has a wide first sweep: at θ=0 the radius is 4,
+and its first zero is θ=√(π/6), about 41.46°. Subsequent sweeps narrow because
+the cosine's phase grows quadratically. Negative radii lie on the opposite ray.
+This formula is not 2π-periodic, so its endpoints do not meet; the plot never
+adds an artificial closing segment.
 `NO RESOLVED CURVE` can mean an empty real domain, a curve outside the viewport,
 or an expression whose bounds could not establish continuous segments.
 `WORLD EDGE` identifies the finite scrolling boundary.
@@ -151,43 +212,28 @@ requires page/body focus. Text uses local Courier-family fonts; rasterization
 can vary between platforms. WGPU provides a broad pointer-following highlight on the chassis; Piet keeps
 the authored colors and bevels without lighting. The LCD stays unlit.
 
-Debug and baked release builds were visually checked on the iPhone 16 Pro Max
-simulator (iOS 18.2), in portrait and landscape: the heading stays below the
-island in portrait, the LCD clears it in landscape, and the silver background
-remains edge to edge. Runtime tests cover safe-area changes, parent resizing,
-content-sized Stacker layout, and zero spacing on unsupported platforms.
-Family-only font decoding and regular-face matching were repaired in the
-Apple chassis; the LCD uses Courier New.
+Earlier debug and baked release builds were visually checked on the iPhone
+16 Pro Max simulator (iOS 18.2), in portrait and landscape, including safe-area
+clearance and initial graph positioning. Native tap routing has one activation
+path through the touch observer. Scroller presentation offsets follow authored
+position changes so the initial plot, recentering, and zoom reach the renderer.
+An earlier macOS observation of a blank initial window has not been retested.
 
-The iOS Scroller's duplicate tap recognizer was removed, leaving one
-activation path through its touch observer and excluding nested scrollers
-and native controls from ancestor forwarding. Simulator input automation did
-not activate the calculator keys, so the tap fix, calculation, graph
-interaction, and history scrolling still need a manual iOS interaction pass.
-A release build was subsequently installed and launched on Argus, an iPhone
-17 Pro Max; no physical iPad was tested.
+The previous physical iPhone zoom-out crash was a separate native surface
+allocation bug: a 4,096-point pane became a 12,288-pixel texture at 3x density.
+Native tiling now accounts for the actual screen density. Runtime regressions
+cover allocation bounds and viewport coverage at 1x, 2x, and 3x, and a scripted
+iOS release check completed zoom-out to 0.25x and back through 2x. The dense
+curve cutoff fixed here was the application sampler's work allocation; it
+required no change to the GPU budget or tiling policy.
 
-The graph's initial blank viewport was traced to stale Scroller presentation
-offsets: the app requested the origin, but the native host and tile planner
-received zero. The shared Scroller now advances presentation with programmatic
-scroll changes. A temporary Graph-first debug launch verified that `sin(x)`
-draws before any gesture and stays centered after rotation; the normal
-Calculate startup mode was restored afterward. Regression tests cover initial
-positioning, recentering after native scrolling, zoom/content-extent updates,
-and host-relative presentation offsets. An earlier macOS build also showed
-an initially blank window until resize; that separate observation has not
-been retested. Do not treat the native example as fully verified yet.
-
-Argus then exposed a crash when zooming out from the default graph. The native
-surface planner allowed a 4,096-point world to become one surface by assuming
-downsampling, while the Apple host allocated it at the phone's 3x scale:
-12,288 pixels square. Native plans now require the actual screen density,
-retaining tiles until the content fits within the backing limits. Tests cover
-zoom transitions and viewport coverage at 1x, 2x, and 3x. A temporary scripted
-iOS release build completed zoom-out to 0.25x and zoom-in back through 2x,
-with the graph still rendering afterward. The test driver was removed.
-The simulator did not reproduce the physical crash; the corrected build
-still needs verification on Argus, which was disconnected during this fix.
+For this iteration, the core suite passes in debug and optimized builds,
+including dense-curve coverage, poles, enormous finite slopes, polar circles
+and roses, mode/draft preservation, second-function latching, inverse trig, and editing. Phone-width web interaction
+checks cover polar plotting, `sin(x^2)` after zoom-out, second-function
+calculation, GRAPH submission, and visible error recovery. Physical iOS gestures
+and appearance still need a hands-on device pass; web checks do not establish
+native interaction correctness. Pinch zoom is not implemented yet.
 
 ## Checks
 

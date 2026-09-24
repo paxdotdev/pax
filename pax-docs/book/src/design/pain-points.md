@@ -1,5 +1,55 @@
 # Pain points
 
+## 2026-09-24 — Polar resolution and parameter speed
+
+The polar curve `4*cos(3*θ^2)` developed dotted petals as zoom increased.
+Comparing the sampled parameter midpoint to the geometric chord midpoint
+spent vertices on changing traversal speed, even along almost straight radial
+strokes. Per-angle budgets could then leave gaps despite unused global budget.
+
+Measure deviation perpendicular to the chord and bound progress along it.
+Rotate conservative polar range enclosures into that coordinate system;
+subdivide the enclosure checks separately from drawing geometry to reduce
+radius/angle dependency overestimation. Check the whole interval rather than
+trusting isolated samples that can alias oscillations. A bounded retry shares
+unused budget without increasing the hard work or output limits. Validate
+visible coverage against independently evaluated dense references at every
+zoom, plus poles, domain holes, and curves too complex for the budget.
+
+## 2026-09-24 — Compact key faces with usable touch areas
+
+Shrinking a calculator key's component bounds to match its face also shrinks
+its touch target. Keep the interactive component at least 44 pixels high;
+place a shorter face and secondary legend inside it, with a transparent full
+size Rectangle behind them to retain hit testing in the gaps. The calculator
+uses 31.5-pixel faces inside 47-pixel targets and 51-pixel row spacing. Its mode
+buttons retain 44-pixel touch height around their half-height visible faces.
+This recovers screen space without requiring precise taps on small bevels.
+
+Measure visible gutters from painted bounds, not component hit rectangles.
+The calculator's key bevel extends outside its target, and its case's inner
+face ends 13 pixels above the bottom but only 7 pixels inside the sides.
+Equal numeric padding therefore looked unequal. Reserve the painted key
+extent and the extra 6 pixels of bottom rim before deriving LCD height;
+omit that rim adjustment for the flat, edge-to-edge presentation.
+
+## 2026-09-24 — A bounded plotter can still starve half the viewport
+
+The calculator's `sin(x^2)` graph stopped halfway across the iPhone LCD with
+`DETAIL LIMIT`. This was an application sampling limit, not a Metal allocation
+failure: depth-first, left-to-right refinement spent the entire point budget
+resolving oscillations far below the pixel scale. Overscan spent additional
+work on invisible detail. A single global cap protects memory but does not
+ensure spatially fair output.
+
+Reserve work and output slots for each remaining screen interval, cull from
+conservative bounds before sampling points, and stop refinement at pixel
+resolution. The calculator now samples the exact viewport and discloses narrow
+range envelopes for unresolved continuous detail, while keeping undefined
+intervals as gaps. Regression tests check all quarters and the right edge of
+dense graphs across viewport widths and zoom scales. Polar plots distribute
+their budget over the angular domain and cull projected Cartesian bounds.
+
 ## 2026-09-23: Native graph zoom and surface density
 
 The calculator's first graph zoom-out shrank its world from 8,192 to 4,096

@@ -30,6 +30,8 @@ enum Function {
     Tan,
     Sec,
     Csc,
+    Asin,
+    Acos,
     Atan,
     Sqrt,
     Ln,
@@ -77,6 +79,18 @@ struct Lexeme {
 
 impl Expression {
     pub fn parse(source: &str, graph: bool, answer: Option<f64>) -> Result<Self, Error> {
+        Self::parse_variable(source, graph.then_some("x"), answer)
+    }
+
+    pub fn parse_polar(source: &str, answer: Option<f64>) -> Result<Self, Error> {
+        Self::parse_variable(source, Some("theta"), answer)
+    }
+
+    fn parse_variable(
+        source: &str,
+        variable: Option<&str>,
+        answer: Option<f64>,
+    ) -> Result<Self, Error> {
         let chars: Vec<_> = source.chars().collect();
         if chars.len() > MAX_INPUT {
             return Err(Error::at(
@@ -145,6 +159,7 @@ impl Expression {
             } else {
                 p += 1;
                 match c {
+                    'θ' => Token::Name("theta".into()),
                     'π' => Token::Name("pi".into()),
                     '√' => Token::Name("sqrt".into()),
                     '×' => Token::Symbol('*'),
@@ -173,7 +188,7 @@ impl Expression {
             tokens,
             at: 0,
             nodes: Vec::new(),
-            graph,
+            variable,
             answer,
         };
         let root = parser.expression(0, 0)?;
@@ -211,6 +226,8 @@ impl Expression {
                     Function::Tan => "tan",
                     Function::Sec => "sec",
                     Function::Csc => "csc",
+                    Function::Asin => "asin",
+                    Function::Acos => "acos",
                     Function::Atan => "atan",
                     Function::Sqrt => "sqrt",
                     Function::Ln => "ln",
@@ -277,6 +294,11 @@ impl Expression {
                     }
                     Function::Sec => 1.0 / a.cos(),
                     Function::Csc => 1.0 / a.sin(),
+                    Function::Asin | Function::Acos if !(-1. ..=1.).contains(&a) => {
+                        return Err(fail("Inverse sine/cosine needs −1…1"));
+                    }
+                    Function::Asin => a.asin(),
+                    Function::Acos => a.acos(),
                     Function::Atan => a.atan(),
                     Function::Sqrt if a < 0.0 => {
                         return Err(fail("sqrt needs a nonnegative value"))
@@ -358,6 +380,9 @@ impl Expression {
                         .sin()?
                         .reciprocal(),
                     Function::Csc => a.sin()?.reciprocal(),
+                    Function::Asin | Function::Acos if a.lo < -1. || a.hi > 1. => None,
+                    Function::Asin => Range::new(a.lo.asin(), a.hi.asin()),
+                    Function::Acos => Range::new(a.hi.acos(), a.lo.acos()),
                     Function::Atan => Range::new(a.lo.atan(), a.hi.atan()),
                     Function::Tan => {
                         if a.lo.abs().max(a.hi.abs()) > 1e12
@@ -378,15 +403,15 @@ impl Expression {
     }
 }
 
-struct Parser {
+struct Parser<'a> {
     tokens: Vec<Lexeme>,
     at: usize,
     nodes: Vec<Node>,
-    graph: bool,
+    variable: Option<&'a str>,
     answer: Option<f64>,
 }
 
-impl Parser {
+impl Parser<'_> {
     fn push(&mut self, kind: Kind, start: usize, end: usize) -> Result<usize, Error> {
         if self.nodes.len() >= MAX_NODES {
             return Err(Error::at("Too many terms", start, end));
@@ -426,9 +451,13 @@ impl Parser {
                 };
                 if let Some(v) = number {
                     self.push(Kind::Number(v), t.start, t.end)?
-                } else if name == "x" {
-                    if !self.graph {
-                        return Err(Error::at("Use x in Graph mode", t.start, t.end));
+                } else if name == "x" || name == "theta" {
+                    if self.variable != Some(name.as_str()) {
+                        return Err(Error::at(
+                            "Use the active Graph variable (x or θ)",
+                            t.start,
+                            t.end,
+                        ));
                     }
                     self.push(Kind::X, t.start, t.end)?
                 } else {
@@ -438,6 +467,8 @@ impl Parser {
                         "tan" => Function::Tan,
                         "sec" => Function::Sec,
                         "csc" => Function::Csc,
+                        "asin" => Function::Asin,
+                        "acos" => Function::Acos,
                         "atan" => Function::Atan,
                         "sqrt" => Function::Sqrt,
                         "ln" => Function::Ln,
@@ -534,7 +565,7 @@ impl Range {
         let hi = hi + pad;
         (lo.is_finite() && hi.is_finite()).then_some(Self { lo, hi })
     }
-    fn multiply(self, b: Self) -> Option<Self> {
+    pub(crate) fn multiply(self, b: Self) -> Option<Self> {
         let v = [
             self.lo * b.lo,
             self.lo * b.hi,
@@ -549,7 +580,7 @@ impl Range {
             v.iter().copied().fold(f64::NEG_INFINITY, f64::max),
         )
     }
-    fn sin(self) -> Option<Self> {
+    pub(crate) fn sin(self) -> Option<Self> {
         if self.lo.abs().max(self.hi.abs()) > 1e12 {
             return None;
         }
@@ -600,6 +631,44 @@ mod tests {
             .unwrap()
             .evaluate(0.0)
             .unwrap()
+    }
+    #[test]
+    fn inverse_trig_domains_ranges_and_repeat_are_consistent() {
+        for (source, expected) in [
+            ("asin(1)", FRAC_PI_2),
+            ("acos(-1)", PI),
+            ("acos(1)", 0.),
+            ("asin(0)", 0.),
+        ] {
+            assert!(
+                (Expression::parse(source, false, None)
+                    .unwrap()
+                    .evaluate(0.)
+                    .unwrap()
+                    - expected)
+                    .abs()
+                    < 1e-12
+            );
+        }
+        for source in ["asin(1.0001)", "acos(-1.0001)"] {
+            assert!(Expression::parse(source, false, None)
+                .unwrap()
+                .evaluate(0.)
+                .is_err());
+        }
+        for name in ["asin", "acos"] {
+            let e = Expression::parse(&format!("{name}(x)"), true, None).unwrap();
+            let r = e.range(Range { lo: -1., hi: 1. }, &mut 100).unwrap();
+            for i in 0..=100 {
+                let y = e.evaluate(-1. + i as f64 / 50.).unwrap();
+                assert!(r.lo <= y && y <= r.hi);
+            }
+            assert!(e.range(Range { lo: -1.1, hi: 0. }, &mut 100).is_none());
+            assert_eq!(
+                e.repeat_source(&format!("{name}(x)")),
+                format!("{name}(ans)")
+            );
+        }
     }
     #[test]
     fn precedence_and_functions() {

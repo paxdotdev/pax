@@ -1,8 +1,27 @@
 //! Calculator editing and history, independent of rendering and platform events.
 
 use crate::expression::{format_number, Error, Expression, MAX_INPUT};
-use crate::graph::{MAX_ZOOM, MIN_ZOOM};
+use crate::graph::{zoom_scale, MAX_ZOOM, MIN_ZOOM};
 use crate::layout::{MAX_TEXT_ZOOM, MIN_TEXT_ZOOM};
+
+pub const DEFAULT_POLAR_SOURCE: &str = "1+3*cos(11*θ)";
+const DEFAULT_POLAR_RADIUS: f64 = 4.0;
+
+/// Secondary legends and actions are shared by the keypad and its state tests.
+pub fn secondary_key(action: &str) -> (&'static str, &'static str) {
+    match action {
+        "sin" => ("asin", "asin"),
+        "cos" => ("acos", "acos"),
+        "tan" => ("atan", "atan"),
+        "ln" => ("eˣ", "exp"),
+        "log" => ("10ˣ", "pow10"),
+        "sqrt" => ("x²", "square"),
+        "^" => ("1/x", "reciprocal"),
+        "π" => ("e", "e"),
+        "variable" => ("MODE", "mode"),
+        _ => ("", ""),
+    }
+}
 
 #[derive(Clone, Default)]
 pub struct Buffer {
@@ -55,6 +74,12 @@ pub struct Model {
     pub calculate: Buffer,
     pub graph: Buffer,
     pub graph_mode: bool,
+    pub opening_view: bool,
+    pub second: bool,
+    pub polar: bool,
+    alternate_graph: Buffer,
+    alternate_plotted: Expression,
+    alternate_source: String,
     pub graph_editing: bool,
     pub zoom_level: i32,
     pub text_zoom_level: i32,
@@ -77,16 +102,22 @@ impl Default for Model {
     fn default() -> Self {
         Self {
             calculate: Buffer::default(),
-            graph: Buffer::new("sin(x)"),
-            graph_mode: false,
+            graph: Buffer::new(DEFAULT_POLAR_SOURCE),
+            graph_mode: true,
+            opening_view: true,
+            second: false,
+            polar: true,
+            alternate_graph: Buffer::new("sin(x)"),
+            alternate_plotted: Expression::parse("sin(x)", true, None).unwrap(),
+            alternate_source: "sin(x)".into(),
             graph_editing: false,
             zoom_level: 0,
             text_zoom_level: 0,
             history_follow_requested: false,
             history: Vec::new(),
             answer: None,
-            plotted: Expression::parse("sin(x)", true, None).unwrap(),
-            plotted_source: "sin(x)".into(),
+            plotted: Expression::parse_polar(DEFAULT_POLAR_SOURCE, None).unwrap(),
+            plotted_source: DEFAULT_POLAR_SOURCE.into(),
             dirty: true,
             plot_dirty: true,
             home_requested: true,
@@ -100,6 +131,22 @@ impl Default for Model {
 }
 
 impl Model {
+    pub fn fit_opening_view(&mut self, width: f64, height: f64) {
+        if !self.opening_view || !width.is_finite() || !height.is_finite() {
+            return;
+        }
+        // Frame the whole flower while initial bounds and native safe-area
+        // insets settle. The first interaction hands zoom back to the user.
+        let diameter = width.min(height) * 0.95;
+        self.zoom_level = (MIN_ZOOM..=MAX_ZOOM)
+            .rev()
+            .find(|&level| 2. * DEFAULT_POLAR_RADIUS * zoom_scale(level) <= diameter)
+            .unwrap_or(MIN_ZOOM);
+        self.home_requested = true;
+        self.dirty = true;
+        self.plot_dirty = true;
+    }
+
     pub fn history_rows(&self, columns: usize) -> Vec<(String, bool)> {
         let columns = columns.max(1);
         let mut rows = Vec::new();
@@ -130,18 +177,6 @@ impl Model {
                 ));
             }
         }
-        if rows.is_empty() {
-            for (text, subdued) in [
-                ("READY WHEN YOU ARE.", false),
-                ("Try sin(π/4)^2", true),
-                ("or explore y = sin(x).", true),
-            ] {
-                let chars: Vec<_> = text.chars().collect();
-                for chunk in chars.chunks(columns + 2) {
-                    rows.push((chunk.iter().collect(), subdued));
-                }
-            }
-        }
         rows
     }
 
@@ -160,7 +195,25 @@ impl Model {
         }
     }
 
+    /// Consume 2nd once per on-screen key. Hardware text entry is never remapped.
+    pub fn press_key(&mut self, primary: &str, secondary: &str) {
+        self.opening_view = false;
+        if primary == "second" {
+            self.second = !self.second;
+            self.dirty = true;
+            return;
+        }
+        let action = if self.second && !secondary.is_empty() {
+            secondary
+        } else {
+            primary
+        };
+        self.action(action);
+    }
+
     pub fn action(&mut self, action: &str) {
+        self.opening_view = false;
+        self.second = false;
         self.dirty = true;
         match action {
             "calculate" => {
@@ -168,11 +221,23 @@ impl Model {
             }
             "graph" => {
                 if self.graph_mode {
-                    self.home_requested = true;
-                    self.graph_editing = false;
+                    self.execute();
                 }
+                self.home_requested = true;
+                self.graph_editing = true;
                 self.graph_mode = true;
                 self.plot_dirty = true;
+            }
+            "mode" => {
+                if self.graph_mode {
+                    self.polar = !self.polar;
+                    std::mem::swap(&mut self.graph, &mut self.alternate_graph);
+                    std::mem::swap(&mut self.plotted, &mut self.alternate_plotted);
+                    std::mem::swap(&mut self.plotted_source, &mut self.alternate_source);
+                    self.graph_editing = true;
+                    self.home_requested = true;
+                    self.plot_dirty = true;
+                }
             }
             "zoom-in" | "zoom-out" => {
                 let delta = if action == "zoom-in" { 1 } else { -1 };
@@ -245,12 +310,23 @@ impl Model {
             "enter" => self.execute(),
             value => {
                 let value = match value {
+                    "variable" => {
+                        if self.polar {
+                            "θ"
+                        } else {
+                            "x"
+                        }
+                    }
                     "sin" => "sin(",
                     "cos" => "cos(",
                     "tan" => "tan(",
                     "sec" => "sec(",
                     "csc" => "csc(",
+                    "asin" => "asin(",
+                    "acos" => "acos(",
                     "atan" => "atan(",
+                    "exp" => "e^(",
+                    "pow10" => "10^(",
                     "ln" => "ln(",
                     "log" => "log(",
                     "sqrt" => "sqrt(",
@@ -258,7 +334,7 @@ impl Model {
                     "reciprocal" => "^(-1)",
                     other => other,
                 };
-                if value == "x" && !self.graph_mode {
+                if matches!(value, "x" | "θ") && !self.graph_mode {
                     return;
                 }
                 if self.fresh && !self.graph_mode {
@@ -292,7 +368,12 @@ impl Model {
             self.calculate = Buffer::new(repeat);
         }
         let text = self.buffer().text.clone();
-        let expression = match Expression::parse(&text, self.graph_mode, self.answer) {
+        let parsed = if self.graph_mode && self.polar {
+            Expression::parse_polar(&text, self.answer)
+        } else {
+            Expression::parse(&text, self.graph_mode, self.answer)
+        };
+        let expression = match parsed {
             Ok(e) => e,
             Err(e) => {
                 self.fail(e);
@@ -361,6 +442,7 @@ impl Model {
     }
 
     pub fn place_cursor(&mut self, index: usize) {
+        self.opening_view = false;
         self.buffer_mut().cursor = index.min(self.buffer().text.chars().count());
         self.graph_editing = self.graph_mode;
         self.fresh = false;
@@ -371,9 +453,164 @@ impl Model {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn calculate_cartesian() -> Model {
+        let mut m = Model::default();
+        m.action("mode");
+        m.action("calculate");
+        m
+    }
+
+    #[test]
+    fn opening_rosette_is_closed_and_fits_until_the_first_interaction() {
+        let mut m = Model::default();
+        assert!(m.graph_mode && m.polar && !m.graph_editing);
+        assert_eq!(m.graph.text, DEFAULT_POLAR_SOURCE);
+        let start = m.plotted.evaluate(0.).unwrap();
+        let end = m.plotted.evaluate(std::f64::consts::TAU).unwrap();
+        assert!((start - 4.).abs() < 1e-12 && (end - start).abs() < 1e-12);
+        for (width, height) in [(240., 116.), (313., 240.), (940., 700.)] {
+            m.fit_opening_view(width, height);
+            assert!(8. * zoom_scale(m.zoom_level) <= width.min(height) * 0.95);
+        }
+        m.action("zoom-out");
+        let chosen = m.zoom_level;
+        m.fit_opening_view(240., 116.);
+        assert_eq!(m.zoom_level, chosen);
+        m.action("calculate");
+        assert!(m.calculate.text.is_empty());
+        m.action("7*6");
+        m.action("enter");
+        assert_eq!(m.answer, Some(42.));
+        m.action("graph");
+        assert_eq!(m.graph.text, DEFAULT_POLAR_SOURCE);
+    }
+
+    fn key(m: &mut Model, action: &str) {
+        m.press_key(action, secondary_key(action).1);
+    }
+
+    #[test]
+    fn second_is_one_shot_cancellable_and_preserves_normal_keys() {
+        let mut m = calculate_cartesian();
+        key(&mut m, "second");
+        assert!(m.second);
+        key(&mut m, "sin");
+        assert_eq!(m.calculate.text, "asin(");
+        assert!(!m.second);
+        m.action("clear");
+        key(&mut m, "second");
+        key(&mut m, "second");
+        assert!(!m.second);
+        key(&mut m, "cos");
+        assert_eq!(m.calculate.text, "cos(");
+        m.action("clear");
+        key(&mut m, "second");
+        key(&mut m, "7");
+        assert_eq!(m.calculate.text, "7");
+        assert!(!m.second);
+        key(&mut m, "second");
+        m.action("escape");
+        assert!(!m.second);
+        key(&mut m, "second");
+        m.action("s");
+        assert_eq!(m.calculate.text, "7s");
+        assert!(!m.second);
+    }
+
+    #[test]
+    fn secondary_functions_evaluate_and_mode_keeps_its_drafts() {
+        for (primary, suffix, result) in [
+            ("sin", "1)", std::f64::consts::FRAC_PI_2),
+            ("cos", "1)", 0.),
+            ("tan", "1)", std::f64::consts::FRAC_PI_4),
+            ("ln", "2)", std::f64::consts::E.powi(2)),
+            ("log", "2)", 100.),
+        ] {
+            let mut m = calculate_cartesian();
+            key(&mut m, "second");
+            key(&mut m, primary);
+            m.action(suffix);
+            key(&mut m, "enter");
+            assert!((m.answer.unwrap() - result).abs() < 1e-12, "{primary}");
+        }
+        let mut m = calculate_cartesian();
+        m.action("4");
+        m.action("enter");
+        key(&mut m, "second");
+        key(&mut m, "sqrt");
+        m.action("enter");
+        assert_eq!(m.answer, Some(16.));
+        key(&mut m, "second");
+        key(&mut m, "^");
+        m.action("enter");
+        assert_eq!(m.answer, Some(0.0625));
+        key(&mut m, "second");
+        key(&mut m, "variable");
+        assert!(!m.polar && !m.second);
+        key(&mut m, "graph");
+        key(&mut m, "second");
+        key(&mut m, "variable");
+        assert!(m.polar && !m.second);
+        key(&mut m, "clear");
+        key(&mut m, "variable");
+        assert_eq!(m.graph.text, "θ");
+        key(&mut m, "graph");
+        assert_eq!(m.plotted_source, "θ");
+        assert!(m.graph_editing);
+    }
+
+    #[test]
+    fn graph_button_submits_when_already_graphing_and_retains_errors() {
+        let mut m = calculate_cartesian();
+        m.action("7*6");
+        m.action("graph");
+        assert_eq!(m.calculate.text, "7*6");
+        m.action("clear");
+        m.action("cos(x)");
+        m.action("graph");
+        assert_eq!(m.plotted_source, "cos(x)");
+        assert!(m.home_requested && m.graph_editing);
+        m.action("+");
+        m.action("graph");
+        assert!(m.graph.error.is_some());
+        assert_eq!(m.plotted_source, "cos(x)");
+        assert_eq!(m.graph.text, "cos(x)+");
+        assert!(m.graph_editing);
+    }
+
+    #[test]
+    fn polar_mode_preserves_drafts_and_uses_the_active_variable() {
+        let mut m = calculate_cartesian();
+        m.action("mode");
+        assert!(!m.polar);
+        m.action("graph");
+        m.action("clear");
+        m.action("variable");
+        assert_eq!(m.graph.text, "x");
+        m.action("enter");
+        m.action("+1");
+        m.action("mode");
+        assert!(m.polar && m.graph_editing && m.home_requested);
+        assert_eq!(m.graph.text, DEFAULT_POLAR_SOURCE);
+        m.action("clear");
+        m.action("variable");
+        assert_eq!(m.graph.text, "θ");
+        m.action("enter");
+        assert_eq!(m.plotted.evaluate(2.).unwrap(), 2.);
+        m.action("+x");
+        m.action("enter");
+        assert!(m.graph.error.is_some());
+        assert_eq!(m.plotted_source, "θ");
+        m.action("mode");
+        assert_eq!(m.graph.text, "x+1");
+        assert_eq!(m.plotted_source, "x");
+        m.action("mode");
+        assert_eq!(m.graph.text, "θ+x");
+        assert!(m.graph.error.is_some());
+    }
     #[test]
     fn repeat_enter_uses_the_latest_answer() {
-        let mut m = Model::default();
+        let mut m = calculate_cartesian();
         m.action("enter");
         assert!(m.history.is_empty());
         m.action("7×6");
@@ -405,14 +642,14 @@ mod tests {
             ("-3", -3., 3.),
             ("7", 7., 7.),
         ] {
-            let mut m = Model::default();
+            let mut m = calculate_cartesian();
             m.action(source);
             m.action("enter");
             assert_eq!(m.answer, Some(first), "{source}");
             m.action("enter");
             assert_eq!(m.answer, Some(second), "{source}: {}", m.calculate.text);
         }
-        let mut m = Model::default();
+        let mut m = calculate_cartesian();
         m.action("1e300*10");
         m.action("enter");
         for _ in 0..8 {
@@ -424,7 +661,7 @@ mod tests {
     }
     #[test]
     fn calculate_zoom_is_independent_and_history_reflows_without_loss() {
-        let mut m = Model::default();
+        let mut m = calculate_cartesian();
         for _ in 0..8 {
             m.action("zoom-in");
         }
@@ -459,12 +696,12 @@ mod tests {
     }
     #[test]
     fn graph_controls_preserve_drafts_and_zoom() {
-        let mut m = Model::default();
+        let mut m = calculate_cartesian();
         m.home_requested = false;
         m.action("zoom-in");
         assert_eq!(m.zoom_level, 0);
         m.action("graph");
-        assert!(!m.home_requested);
+        assert!(m.home_requested);
         m.action("clear");
         m.action("x^2");
         m.action("zoom-in");
@@ -474,8 +711,7 @@ mod tests {
         m.action("graph");
         assert!(m.home_requested);
         assert_eq!(m.zoom_level, 1);
-        assert!(!m.graph_editing);
-        m.action("edit");
+        assert!(m.graph_editing);
         m.action("left");
         assert_eq!(m.graph.cursor, 2);
         assert_eq!(m.pan, (0., 0.));
@@ -494,7 +730,7 @@ mod tests {
     }
     #[test]
     fn power_shortcuts_continue_the_last_answer() {
-        let mut m = Model::default();
+        let mut m = calculate_cartesian();
         m.action("4");
         m.action("square");
         m.action("enter");
@@ -507,7 +743,7 @@ mod tests {
     }
     #[test]
     fn unicode_edit_and_error_recovery() {
-        let mut m = Model::default();
+        let mut m = calculate_cartesian();
         m.action("π");
         m.action("+");
         m.action("sqrt");
@@ -531,7 +767,7 @@ mod tests {
     }
     #[test]
     fn history_and_mode_buffers_survive() {
-        let mut m = Model::default();
+        let mut m = calculate_cartesian();
         m.action("25");
         m.action("enter");
         m.action("7");
@@ -555,7 +791,7 @@ mod tests {
     }
     #[test]
     fn graph_answer_is_frozen() {
-        let mut m = Model::default();
+        let mut m = calculate_cartesian();
         m.action("2");
         m.action("enter");
         m.action("graph");
@@ -569,7 +805,7 @@ mod tests {
     }
     #[test]
     fn cursor_limits_history_cap_and_graph_focus() {
-        let mut m = Model::default();
+        let mut m = calculate_cartesian();
         m.action("12π");
         m.place_cursor(1);
         m.action("delete");
@@ -592,6 +828,8 @@ mod tests {
         assert_eq!(m.history[0].result, "5");
         m.action("graph");
         m.home_requested = false;
+        assert!(m.graph_editing);
+        m.action("escape");
         m.action("right");
         assert_eq!(m.pan, (48., 0.));
         m.action("home");

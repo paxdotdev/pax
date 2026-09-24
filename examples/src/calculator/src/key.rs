@@ -6,6 +6,10 @@ use pax_kit::*;
 pub struct CalculatorKey {
     pub label: Property<String>,
     pub action: Property<String>,
+    pub secondary_label: Property<String>,
+    pub secondary_action: Property<String>,
+    pub second_active: Property<bool>,
+    pub compact: Property<bool>,
     pub tone: Property<usize>,
     pub pressed: Property<f64>,
     pub hovered: Property<bool>,
@@ -18,8 +22,11 @@ impl CalculatorKey {
         self.unlit.set(Material::unlit());
     }
     pub fn activate(&mut self, ctx: &NodeContext, _event: Event<Click>) {
-        let _ = ctx
-            .peek_local_store(|store: &mut CalculatorStore| store.model.action(&self.action.get()));
+        let _ = ctx.peek_local_store(|store: &mut CalculatorStore| {
+            store
+                .model
+                .press_key(&self.action.get(), &self.secondary_action.get())
+        });
     }
     pub fn down(&mut self, _ctx: &NodeContext, _event: Event<MouseDown>) {
         self.press();
@@ -45,7 +52,7 @@ impl CalculatorKey {
     }
     fn press(&mut self) {
         self.pressed
-            .ease_to(2., Duration::Milliseconds(55.into()), EasingCurve::OutQuad);
+            .ease_to(0.8, Duration::Milliseconds(55.into()), EasingCurve::OutQuad);
     }
     fn release(&mut self) {
         self.pressed

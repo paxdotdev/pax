@@ -3,10 +3,21 @@ pub const CELL: f64 = 9.6;
 pub const LINE: f64 = 22.0;
 pub const MIN_TEXT_ZOOM: i32 = -2;
 pub const MAX_TEXT_ZOOM: i32 = 2;
+pub const GRAPH_TOP: f64 = 54.0;
+pub const MOBILE_BREAKPOINT: f64 = 600.0;
 pub const GUTTER: f64 = 22.0;
-pub const KEYPAD_TOP: f64 = 331.0;
-pub const KEYPAD_HEIGHT: f64 = 304.0;
-pub const BODY_BELOW_SCREEN: f64 = KEYPAD_TOP + KEYPAD_HEIGHT + GUTTER + 1.0;
+// Measure visible gutters from the key's outer bevel, not its hit rectangle.
+pub const KEY_SIDE_OUTSET: f64 = 2.0;
+pub const KEY_PAINT_BOTTOM: f64 = 13.5 + 31.5 + 3.2;
+pub const CASE_FACE_SIDE_INSET: f64 = 7.0;
+pub const CASE_FACE_BOTTOM_INSET: f64 = 13.0;
+pub const KEY_TARGET: f64 = 47.0;
+pub const KEY_PITCH: f64 = 51.0;
+pub const UTILITY_TOP: f64 = 118.0;
+pub const KEYPAD_TOP: f64 = UTILITY_TOP + 3.0 * KEY_PITCH;
+pub const KEYPAD_HEIGHT: f64 = 4.0 * KEY_PITCH + KEY_TARGET;
+pub const BODY_BELOW_SCREEN: f64 =
+    KEYPAD_TOP + KEYPAD_HEIGHT + (KEY_PAINT_BOTTOM - KEY_TARGET) + GUTTER - KEY_SIDE_OUTSET;
 
 #[derive(Clone, Copy)]
 pub struct TextGrid {
@@ -43,6 +54,7 @@ impl TextGrid {
 
 #[derive(Clone, Copy, Default, PartialEq)]
 pub struct Layout {
+    pub edge_to_edge: bool,
     pub width: f64,
     pub height: f64,
     pub screen_width: f64,
@@ -56,7 +68,7 @@ pub struct Layout {
 }
 impl Layout {
     pub fn for_window(w: f64, h: f64) -> Self {
-        Self::for_viewport(w, h, false)
+        Self::for_viewport(w, h, w < MOBILE_BREAKPOINT)
     }
 
     pub fn for_ios(w: f64, h: f64) -> Self {
@@ -67,16 +79,23 @@ impl Layout {
         let width = if full_screen {
             w.max(296.)
         } else {
-            (w - 24.)
-                .min(420. + (w - 444.).max(0.) * 0.58)
-                .clamp(296., 1280.)
+            // Keep the LCD from shrinking as the window crosses the breakpoint.
+            (420. + (w - 444.).max(0.) * 0.58)
+                .clamp(MOBILE_BREAKPOINT, 1280.)
+                .min(w)
         };
+        let body_below_screen = BODY_BELOW_SCREEN
+            + if full_screen {
+                0.
+            } else {
+                CASE_FACE_BOTTOM_INSET - CASE_FACE_SIDE_INSET
+            };
         let screen_height = if full_screen {
-            (h - BODY_BELOW_SCREEN).max(188.)
+            (h - body_below_screen).max(188.)
         } else {
-            (h - BODY_BELOW_SCREEN - 48.).clamp(188., 1000.)
+            (h - body_below_screen - 48.).clamp(188., 1000.)
         };
-        let height = screen_height + BODY_BELOW_SCREEN;
+        let height = screen_height + body_below_screen;
         let screen_width = width - 56.;
         let top = if full_screen {
             0.
@@ -84,12 +103,13 @@ impl Layout {
             ((h - height) * 0.5).max(24.)
         };
         Self {
+            edge_to_edge: full_screen,
             width,
             height,
             screen_width,
             screen_height,
             plot_width: screen_width - 24.,
-            plot_height: screen_height - 94.,
+            plot_height: screen_height - GRAPH_TOP - 18.,
             columns: ((screen_width - 28.) / CELL).floor() as usize - 2,
             rows: ((screen_height - 60.) / LINE).floor() as usize,
             top,
@@ -100,6 +120,46 @@ impl Layout {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn compact_keypad_keeps_touch_targets_and_gives_height_to_the_lcd() {
+        assert!(KEY_TARGET >= 44.);
+        assert!(KEY_PITCH - KEY_TARGET >= 4.);
+        let phone = Layout::for_ios(440., 860.);
+        assert!(phone.screen_height >= 310.);
+        assert!(phone.plot_height >= 240.);
+        assert_eq!(phone.height, 860.);
+        let last_key_bottom = phone.screen_height + KEYPAD_TOP + 4. * KEY_PITCH + KEY_PAINT_BOTTOM;
+        assert!((phone.height - last_key_bottom - (GUTTER - KEY_SIDE_OUTSET)).abs() < 1e-9);
+    }
+    #[test]
+    fn mobile_windows_fill_the_surface_and_boxed_gutters_match() {
+        for w in [320., 393., 599., 600., 601., 900.] {
+            let l = Layout::for_window(w, 960.);
+            assert_eq!(l.edge_to_edge, w < MOBILE_BREAKPOINT);
+            if l.edge_to_edge {
+                assert_eq!(l.width, w);
+                assert_eq!(l.top, 0.);
+                assert_eq!(l.page_height, 960.);
+            } else {
+                assert!(l.top >= 24.);
+            }
+            let side_inset = if l.edge_to_edge {
+                0.
+            } else {
+                CASE_FACE_SIDE_INSET
+            };
+            let bottom_inset = if l.edge_to_edge {
+                0.
+            } else {
+                CASE_FACE_BOTTOM_INSET
+            };
+            let side_gap = GUTTER - KEY_SIDE_OUTSET - side_inset;
+            let key_bottom = l.screen_height + KEYPAD_TOP + 4. * KEY_PITCH + KEY_PAINT_BOTTOM;
+            let bottom_gap = l.height - bottom_inset - key_bottom;
+            assert!((bottom_gap - side_gap).abs() < 1e-9, "width {w}");
+        }
+        assert!(Layout::for_ios(1024., 1366.).edge_to_edge);
+    }
     #[test]
     fn ios_fills_the_surface_without_shrinking_touch_targets() {
         for (w, h) in [(320., 568.), (440., 956.), (956., 440.), (1024., 1366.)] {
@@ -144,7 +204,7 @@ mod tests {
         for w in [320., 390., 600., 1440.] {
             let l = Layout::for_window(w, 700.);
             assert!((l.width - 44. - 32.) / 5. >= 44.);
-            assert!(l.page_height >= l.height + 48.);
+            assert!(l.page_height >= l.height + if l.edge_to_edge { 0. } else { 48. });
         }
         for w in 320..2400 {
             assert!(
