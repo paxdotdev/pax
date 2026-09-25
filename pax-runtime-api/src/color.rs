@@ -346,6 +346,27 @@ impl Color {
         self.to_rgba_0_1()[3]
     }
 
+    /// Adds weighted colors in premultiplied RGBA, then returns straight RGBA.
+    /// Weights should sum to one. This retains the current RGB encoding; it does
+    /// not perform a linear-light conversion or blend against a backdrop.
+    pub fn blend_premultiplied(colors: impl IntoIterator<Item = (Color, f64)>) -> Self {
+        let mut sum = [0.0; 4];
+        for (color, weight) in colors {
+            let rgba = color.to_rgba_0_1();
+            let alpha = rgba[3] * weight;
+            for i in 0..3 {
+                sum[i] += rgba[i] * alpha;
+            }
+            sum[3] += alpha;
+        }
+        if sum[3] > 0.0 {
+            for i in 0..3 {
+                sum[i] /= sum[3];
+            }
+        }
+        Self::from_rgba_0_1(sum)
+    }
+
     /// Multiplies this color's alpha channel by `factor`.
     pub fn with_alpha_factor(&self, factor: f64) -> Self {
         let mut rgba = self.to_rgba_0_1();

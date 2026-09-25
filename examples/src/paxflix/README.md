@@ -58,6 +58,22 @@ imports do not automatically reach inside child component templates. Switching
 the provider's reactive property leaves the catalog and its scroll state mounted.
 The selection lasts for the current app session and resets to dark on reload.
 
+Each import opts into `SettingsTransition::Ease(400ms, TransitionCurve::InOutQuad)`.
+The toggle is the PAX-1001 testbed: its thumb position, text colors, surfaces, outlines, and the
+artwork's transparent gradients transition together. A subtle hero highlight
+crossfades an offset cool radial gradient into a concentric warm one; their
+210/260 radii are local logical pixels on both GPU and Piet. A second toggle during the
+fade continues from the visible mixture. New cards or a newly opened panel use
+the current theme immediately. The explicit menu/detail entrance and exit
+timelines retain ownership of their animated properties. Gradient crossfading
+is a paint operation and does not change the group-opacity limits below.
+
+To check it, open the profile mark, switch Dark/Light mode in both directions,
+then click again before the 400 ms fade finishes. Check the hero and card fades
+against their surrounding surfaces, and open a film after switching to confirm
+it begins in the selected theme. Repeat after scrolling a shelf and verify the
+scroll position stays put.
+
 `FilmArtwork` places the card thumbnail beneath its full-size still, keeping
 the selected artwork visible while the larger image loads. A multi-stop linear
 gradient fades into the active theme's surface at the bottom of both the hero

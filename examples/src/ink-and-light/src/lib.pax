@@ -108,7 +108,7 @@
             opacity={0.72 + seal_progress * 0.28}
         />
 
-        // This authored radial glow works on every backend; real lights can enhance it.
+        // A concentric glow with a 68-logical-pixel radius; real lights can enhance it.
         <Ellipse
             x={is_compact ? 55% : 64%}
             y={is_compact ? 64% : 68%}

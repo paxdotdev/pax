@@ -157,8 +157,8 @@ pub enum NavigationTarget {
 }
 
 /// Describes how to fill vector geometry.
-/// Solid fills interpolate their RGBA channels. Gradients currently change
-/// discretely at the end of an interpolation.
+/// Solid fills interpolate their RGBA channels. Other pairs crossfade sampled
+/// paints in premultiplied RGBA, preserving each gradient's geometry and stops.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(crate = "crate::serde")]
 pub enum Fill {
@@ -168,6 +168,10 @@ pub enum Fill {
     LinearGradient(LinearGradient),
     /// A radial gradient.
     RadialGradient(RadialGradient),
+    /// A weighted paint mixture produced by interpolation. Weights are finite,
+    /// nonnegative, and sum to one. Use [`Fill::blend`] to normalize weights,
+    /// flatten nested mixtures, and combine repeated endpoints.
+    Blend(Vec<(Fill, f64)>),
 }
 
 impl Hash for Fill {
@@ -189,6 +193,14 @@ impl Hash for Fill {
                 radial.end.hash(state);
                 radial.radius.to_bits().hash(state);
                 radial.stops.hash(state);
+            }
+            Fill::Blend(terms) => {
+                state.write_u8(3);
+                terms.len().hash(state);
+                for (fill, weight) in terms {
+                    fill.hash(state);
+                    weight.to_bits().hash(state);
+                }
             }
         }
     }
@@ -699,16 +711,16 @@ impl HelperFunctions for SceneLighting {}
 
 impl Interpolatable for Fill {
     fn interpolate(&self, other: &Self, t: f64) -> Self {
-        match (self, other) {
-            (Self::Solid(from), Self::Solid(to)) => Self::Solid(from.interpolate(to, t)),
-            _ => {
-                if t < 1.0 {
-                    self.clone()
-                } else {
-                    other.clone()
-                }
-            }
+        if let (Self::Solid(from), Self::Solid(to)) = (self, other) {
+            return Self::Solid(from.interpolate(to, t));
         }
+        if t <= 0.0 || self == other {
+            return self.clone();
+        }
+        if t >= 1.0 {
+            return other.clone();
+        }
+        Self::blend(vec![(self.clone(), 1.0 - t), (other.clone(), t)])
     }
 }
 
@@ -727,21 +739,68 @@ pub struct LinearGradient {
     pub stops: Vec<GradientStop>,
 }
 
-/// Describes a radial gradient fill with a start and end point, a radius, and a list of color stops.
+/// A focal radial gradient, growing from `start` to the circle at `end` with `radius`.
 ///
 /// Pax templates canonically author each point as `[x, y]`: magic index `0`
 /// is the horizontal coordinate and index `1` is the vertical coordinate.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(crate = "crate::serde")]
 pub struct RadialGradient {
-    /// Outer radius endpoint in the primitive's local coordinate space.
+    /// Center of the outer circle in the primitive's local coordinate space.
     pub end: (Size, Size),
-    /// Gradient center point in the primitive's local coordinate space.
+    /// Focal point (0% stop). Equal start/end points give concentric circles.
     pub start: (Size, Size),
-    /// Radial gradient radius.
+    /// Outer radius in local logical pixels. Nonpositive/nonfinite radii paint nothing.
     pub radius: f64,
     /// Ordered color stops along the gradient.
     pub stops: Vec<GradientStop>,
+}
+
+/// Runtime geometry shared by radial color fills and painted alpha masks.
+/// Coordinates are local logical pixels, before the element's affine transform.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ResolvedRadialGradient {
+    /// Point corresponding to the 0% stop.
+    pub focal_point: kurbo::Point,
+    /// Center of the circle corresponding to the 100% stop.
+    pub center: kurbo::Point,
+    /// Radius of the 100% circle in local logical pixels.
+    pub radius: f64,
+}
+
+impl RadialGradient {
+    /// Resolves points against the actual shape bounds, including their origin.
+    /// Invalid geometry paints nothing on all backends. The authored radius is
+    /// independent of the distance between the focal point and the center.
+    pub fn resolve_geometry(&self, rect: kurbo::Rect) -> Option<ResolvedRadialGradient> {
+        let bounds = (rect.width(), rect.height());
+        let resolve = |p: (Size, Size)| {
+            kurbo::Point::new(
+                rect.x0 + p.0.evaluate(bounds, Axis::X),
+                rect.y0 + p.1.evaluate(bounds, Axis::Y),
+            )
+        };
+        let focal_point = resolve(self.start);
+        let center = resolve(self.end);
+        if self.radius <= 0.0
+            || ![
+                self.radius,
+                focal_point.x,
+                focal_point.y,
+                center.x,
+                center.y,
+            ]
+            .into_iter()
+            .all(f64::is_finite)
+        {
+            return None;
+        }
+        Some(ResolvedRadialGradient {
+            focal_point,
+            center,
+            radius: self.radius,
+        })
+    }
 }
 
 /// A color stop for a gradient fill, defined by a position (% or px) and a color.
@@ -776,6 +835,73 @@ impl Default for Fill {
 }
 
 impl Fill {
+    /// Constructs a normalized mixture of paints. Nested mixtures are flattened
+    /// and identical endpoints merged, so repeated interruptions between a fixed
+    /// set of themes do not accumulate a history of blend nodes. Nonpositive or
+    /// nonfinite weights are ignored; an empty mixture is transparent.
+    ///
+    /// Sampling cost grows with the number of distinct endpoints still visible.
+    /// A completed interpolation returns its destination paint directly.
+    pub fn blend(terms: Vec<(Fill, f64)>) -> Self {
+        fn append(out: &mut Vec<(Fill, f64)>, terms: Vec<(Fill, f64)>, scale: f64) {
+            let max = terms
+                .iter()
+                .map(|(_, w)| *w)
+                .filter(|w| w.is_finite())
+                .fold(0.0, f64::max);
+            if max <= 0.0 {
+                return;
+            }
+            let sum: f64 = terms
+                .iter()
+                .map(|(_, w)| *w)
+                .filter(|w| w.is_finite() && *w > 0.0)
+                .map(|w| w / max)
+                .sum();
+            for (fill, weight) in terms {
+                if !weight.is_finite() || weight <= 0.0 {
+                    continue;
+                }
+                let weight = scale * (weight / max) / sum;
+                if weight == 0.0 {
+                    continue;
+                }
+                if let Fill::Blend(terms) = fill {
+                    append(out, terms, weight);
+                } else if let Some((_, existing)) = out.iter_mut().find(|(f, _)| *f == fill) {
+                    *existing += weight;
+                } else {
+                    out.push((fill, weight));
+                }
+            }
+        }
+        let mut result = Vec::new();
+        append(&mut result, terms, 1.0);
+        if result.is_empty() {
+            return Fill::Solid(Color::from_rgba_0_1([0.0; 4]));
+        }
+        if result.len() == 1 {
+            result.pop().unwrap().0
+        } else {
+            Fill::Blend(result)
+        }
+    }
+
+    /// Representative solid color for native text, which currently uses the
+    /// first stop of a gradient. Mixtures crossfade those representative colors.
+    pub fn representative_color(&self) -> Color {
+        match self {
+            Self::Solid(color) => color.clone(),
+            Self::LinearGradient(g) => g.stops.first().map(|s| s.color.clone()).unwrap_or_default(),
+            Self::RadialGradient(g) => g.stops.first().map(|s| s.color.clone()).unwrap_or_default(),
+            Self::Blend(terms) => Color::blend_premultiplied(
+                terms
+                    .iter()
+                    .map(|(fill, weight)| (fill.representative_color(), *weight)),
+            ),
+        }
+    }
+
     fn gradient_stop_position_0_1(position: &Size) -> Option<f64> {
         match position {
             Size::Percent(p) => Some((p.to_float() / 100.0).clamp(0.0, 1.0)),
@@ -892,6 +1018,12 @@ impl Fill {
     /// Returns a copy of this fill with alpha multiplied by `factor`.
     pub fn with_alpha_factor(&self, factor: f64) -> Fill {
         match self {
+            Fill::Blend(terms) => Fill::Blend(
+                terms
+                    .iter()
+                    .map(|(fill, weight)| (fill.with_alpha_factor(factor), *weight))
+                    .collect(),
+            ),
             Fill::Solid(color) => Fill::Solid(color.with_alpha_factor(factor)),
             Fill::LinearGradient(gradient) => Fill::LinearGradient(LinearGradient {
                 start: gradient.start.clone(),
@@ -915,9 +1047,15 @@ impl Fill {
         }
     }
 
-    /// Returns the maximum alpha used by this fill.
+    /// Returns a conservative upper bound for this fill's alpha. For mixtures,
+    /// endpoint maxima need not occur at the same point.
     pub fn max_alpha_0_1(&self) -> f64 {
         match self {
+            Fill::Blend(terms) => terms
+                .iter()
+                .map(|(fill, weight)| fill.max_alpha_0_1() * weight)
+                .sum::<f64>()
+                .clamp(0.0, 1.0),
             Fill::Solid(color) => color.alpha_0_1(),
             Fill::LinearGradient(gradient) => gradient
                 .stops
@@ -935,6 +1073,11 @@ impl Fill {
     /// Estimates the alpha coverage contributed by this fill.
     pub fn coverage_alpha_0_1(&self) -> f64 {
         match self {
+            Fill::Blend(terms) => terms
+                .iter()
+                .map(|(fill, weight)| fill.coverage_alpha_0_1() * weight)
+                .sum::<f64>()
+                .clamp(0.0, 1.0),
             Fill::Solid(color) => color.alpha_0_1(),
             Fill::LinearGradient(gradient) => Self::integrated_gradient_alpha_0_1(&gradient.stops),
             Fill::RadialGradient(gradient) => Self::integrated_gradient_alpha_0_1(&gradient.stops),
@@ -944,6 +1087,88 @@ impl Fill {
 
 #[cfg(test)]
 mod fill_coverage_tests {
+    fn gradient(color: Color) -> Fill {
+        Fill::linearGradient(
+            (Size::Percent(0.into()), Size::Percent(0.into())),
+            (Size::Percent(100.into()), Size::Percent(100.into())),
+            vec![GradientStop::get(color, Size::Percent(0.into()))],
+        )
+    }
+
+    #[test]
+    fn transparent_paint_crossfade_uses_premultiplied_color_and_alpha() {
+        use super::*;
+        let from = gradient(Color::from_rgba_0_1([1.0, 0.0, 0.0, 0.0]));
+        let to = Fill::Solid(Color::from_rgba_0_1([0.0, 0.0, 1.0, 0.5]));
+        let halfway = from.interpolate(&to, 0.5);
+        assert_eq!(
+            halfway.representative_color().to_rgba_0_1(),
+            [0.0, 0.0, 1.0, 0.25]
+        );
+        assert_eq!(halfway.max_alpha_0_1(), 0.25);
+        assert_eq!(halfway.with_alpha_factor(0.5).max_alpha_0_1(), 0.125);
+        assert_eq!(from.interpolate(&to, 0.0), from);
+        assert_eq!(from.interpolate(&to, 1.0), to);
+    }
+
+    #[test]
+    fn interrupted_gradient_reversals_remain_flat_continuous_and_bounded() {
+        use super::*;
+        let dark = gradient(Color::BLACK);
+        let light = gradient(Color::WHITE);
+        let mut displayed = dark.clone();
+        for i in 0..1000 {
+            let target = if i % 2 == 0 { &light } else { &dark };
+            assert_eq!(displayed.interpolate(target, 0.0), displayed);
+            let before = displayed.representative_color().to_rgba_0_1();
+            displayed = displayed.interpolate(target, 0.07);
+            let after = displayed.representative_color().to_rgba_0_1();
+            let expected = target.representative_color().to_rgba_0_1();
+            for channel in 0..4 {
+                assert!(
+                    (after[channel] - (before[channel] * 0.93 + expected[channel] * 0.07)).abs()
+                        < 1e-12
+                );
+            }
+            let Fill::Blend(terms) = &displayed else {
+                panic!("expected mixture");
+            };
+            assert_eq!(terms.len(), 2);
+            assert!(terms
+                .iter()
+                .all(|(fill, _)| !matches!(fill, Fill::Blend(_))));
+            let roundtrip = Fill::try_coerce(displayed.clone().to_pax_value()).unwrap();
+            for (a, b) in roundtrip
+                .representative_color()
+                .to_rgba_0_1()
+                .into_iter()
+                .zip(after)
+            {
+                assert!((a - b).abs() < 1e-12);
+            }
+        }
+        assert_eq!(displayed.interpolate(&light, 1.0), light);
+    }
+
+    #[test]
+    fn crossfade_keeps_different_gradient_kinds_geometry_and_stop_lists() {
+        use super::*;
+        let from = gradient(Color::BLACK);
+        let to = Fill::RadialGradient(RadialGradient {
+            start: (Size::Pixels(12.into()), Size::Percent(50.into())),
+            end: (Size::Percent(100.into()), Size::Percent(50.into())),
+            radius: 0.5,
+            stops: vec![
+                GradientStop::get(Color::WHITE, Size::Percent(20.into())),
+                GradientStop::get(Color::BLACK, Size::Percent(80.into())),
+            ],
+        });
+        assert_eq!(
+            from.interpolate(&to, 0.25),
+            Fill::Blend(vec![(from, 0.75), (to, 0.25)])
+        );
+    }
+
     #[test]
     fn solid_fill_interpolates_rgba_channels() {
         use super::*;

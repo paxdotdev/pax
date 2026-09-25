@@ -122,7 +122,7 @@ Additive emissive intensity.
 ---
 
 ### `RadialGradient`
-Describes a radial gradient fill with a start and end point, a radius, and a list of color stops.
+A focal radial gradient, growing from `start` to the circle at `end` with `radius`.
 
 Pax templates canonically author each point as `[x, y]`: magic index `0`
 is the horizontal coordinate and index `1` is the vertical coordinate.
@@ -131,22 +131,52 @@ is the horizontal coordinate and index `1` is the vertical coordinate.
 ##### `end`
 Type: ([`Size`](../../api/pax-runtime-api/layout.md#size), [`Size`](../../api/pax-runtime-api/layout.md#size))
 
-Outer radius endpoint in the primitive's local coordinate space.
+Center of the outer circle in the primitive's local coordinate space.
 
 ##### `start`
 Type: ([`Size`](../../api/pax-runtime-api/layout.md#size), [`Size`](../../api/pax-runtime-api/layout.md#size))
 
-Gradient center point in the primitive's local coordinate space.
+Focal point (0% stop). Equal start/end points give concentric circles.
 
 ##### `radius`
 Type: `f64`
 
-Radial gradient radius.
+Outer radius in local logical pixels. Nonpositive/nonfinite radii paint nothing.
 
 ##### `stops`
 Type: `Vec`<[`GradientStop`](../../api/pax-runtime-api/drawing.md#gradientstop)>
 
 Ordered color stops along the gradient.
+
+#### Implementations
+##### `resolve_geometry`
+<pre><code class="api-signature language-rust ignore">pub fn resolve_geometry(&amp;self, rect: Rect) -&gt; Option&lt;<a href="../../api/pax-runtime-api/drawing.md#resolvedradialgradient">ResolvedRadialGradient</a>&gt;</code></pre>
+
+Resolves points against the actual shape bounds, including their origin.
+Invalid geometry paints nothing on all backends. The authored radius is
+independent of the distance between the focal point and the center.
+
+---
+
+### `ResolvedRadialGradient`
+Runtime geometry shared by radial color fills and painted alpha masks.
+Coordinates are local logical pixels, before the element's affine transform.
+
+#### Properties
+##### `focal_point`
+Type: `Point`
+
+Point corresponding to the 0% stop.
+
+##### `center`
+Type: `Point`
+
+Center of the circle corresponding to the 100% stop.
+
+##### `radius`
+Type: `f64`
+
+Radius of the 100% circle in local logical pixels.
 
 ---
 
@@ -314,8 +344,8 @@ Constructs a 3D vector.
 ## Enums
 ### `Fill`
 Describes how to fill vector geometry.
-Solid fills interpolate their RGBA channels. Gradients currently change
-discretely at the end of an interpolation.
+Solid fills interpolate their RGBA channels. Other pairs crossfade sampled
+paints in premultiplied RGBA, preserving each gradient's geometry and stops.
 
 #### Variants
 ##### `Solid`([`Color`](../../api/pax-runtime-api/color.md#color))
@@ -327,7 +357,23 @@ A linear gradient.
 ##### `RadialGradient`([`RadialGradient`](../../api/pax-runtime-api/drawing.md#radialgradient))
 A radial gradient.
 
+##### `Blend`(`Vec`<([`Fill`](../../api/pax-runtime-api/drawing.md#fill), `f64`)>)
+A weighted paint mixture produced by interpolation. Weights are finite,
+nonnegative, and sum to one. Use [`Fill::blend`] to normalize weights,
+flatten nested mixtures, and combine repeated endpoints.
+
 #### Implementations
+##### `blend`
+<pre><code class="api-signature language-rust ignore">pub fn blend(terms: Vec&lt;(<a href="../../api/pax-runtime-api/drawing.md#fill">Fill</a>, f64)&gt;) -&gt; Self</code></pre>
+
+Constructs a normalized mixture of paints. Nested mixtures are flattened
+and identical endpoints merged, so repeated interruptions between a fixed
+set of themes do not accumulate a history of blend nodes. Nonpositive or
+nonfinite weights are ignored; an empty mixture is transparent.
+
+Sampling cost grows with the number of distinct endpoints still visible.
+A completed interpolation returns its destination paint directly.
+
 ##### `coverage_alpha_0_1`
 <pre><code class="api-signature language-rust ignore">pub fn coverage_alpha_0_1(&amp;self) -&gt; f64</code></pre>
 
@@ -344,7 +390,14 @@ needed explicitly, pass `start` and `end` as `[x, y]` lists.
 ##### `max_alpha_0_1`
 <pre><code class="api-signature language-rust ignore">pub fn max_alpha_0_1(&amp;self) -&gt; f64</code></pre>
 
-Returns the maximum alpha used by this fill.
+Returns a conservative upper bound for this fill's alpha. For mixtures,
+endpoint maxima need not occur at the same point.
+
+##### `representative_color`
+<pre><code class="api-signature language-rust ignore">pub fn representative_color(&amp;self) -&gt; <a href="../../api/pax-runtime-api/color.md#color">Color</a></code></pre>
+
+Representative solid color for native text, which currently uses the
+first stop of a gradient. Mixtures crossfade those representative colors.
 
 ##### `with_alpha_factor`
 <pre><code class="api-signature language-rust ignore">pub fn with_alpha_factor(&amp;self, factor: f64) -&gt; <a href="../../api/pax-runtime-api/drawing.md#fill">Fill</a></code></pre>

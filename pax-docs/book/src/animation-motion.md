@@ -277,11 +277,34 @@ Interpolation follows each property's `Interpolatable` implementation:
 | --- | --- |
 | Numbers, sizes, rotations, colors | Continuous interpolation; colors use RGBA channels |
 | Solid fills | Continuous RGBA interpolation |
-| Gradient fills | Discrete change at the end; gradient crossfading is not implemented |
+| Gradient fills, including solid↔gradient | Crossfade sampled paints in premultiplied RGBA; geometry and stop lists may differ |
 | `TextStyle` | Font size and fill interpolate; font selection, weight, style, underline, and alignment switch immediately |
 | `CornerRadii` | Each corner interpolates independently; zero is an angular corner |
 | Vectors | Equal-length vectors interpolate element by element; a changed length switches immediately |
 | Other data | Uses the type's interpolation implementation, which may be discrete |
+
+Paint crossfades preserve each endpoint's gradient instead of pairing stops.
+Transparent colors mix with their alpha premultiplied, then the resulting paint
+is composited once. This is separate from group opacity and blend modes. Paint
+mix weights stay between zero and one, including with overshooting curves;
+colors retain the renderer's existing RGB encoding rather than switching to HSL
+or linear-light interpolation. Existing gradient limits still apply: the GPU
+uses at most eight stops per endpoint.
+[Radial gradients](drawing-styling.md#radial-gradients) resolve the same focal
+geometry in GPU color fills, painted masks, and the Piet browser fallback.
+
+An interrupted crossfade starts with the visible mixture. Repeated toggles
+between a fixed set of themes combine repeated endpoints, so their paint cost
+stays bounded by that set. Continually introducing distinct gradients before
+motion completes retains those visible endpoints; sampling cost grows with
+their count until a transition finishes. WebGPU mixes them in the paint shader.
+The Piet browser fallback accumulates them in a reusable canvas limited to the
+current surface, then clips and draws the resulting paint once.
+
+`examples/src/paxflix` demonstrates the 400 ms policy on every visual component's
+`CinemaTheme` import. Open the profile menu and toggle Dark/Light mode; text,
+surfaces, outlines, artwork fades, and the hero's radial highlight transition while the catalog and scroll
+positions remain mounted. Toggle again during a fade to reverse it continuously.
 
 Common layout settings also participate. Unset positions, padding, rotation,
 scale, and opacity interpolate using their layout defaults. Switching width

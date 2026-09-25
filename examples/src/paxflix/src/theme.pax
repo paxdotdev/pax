@@ -182,6 +182,7 @@
         fill: {self.is_dark ? rgb(211, 72, 53) : rgb(188, 181, 172)}
     }
     .switch_thumb {
+        x: {100% - (self.is_dark ? 34px : 54px)}
         fill: {self.is_dark ? rgb(255, 250, 245) : rgb(248, 246, 242)}
     }
     .detail_surface {
@@ -265,6 +266,18 @@
                 100%: rgba(0, 0, 0, 255),
             }
         }
+        .hero_glow {
+            fill: @gradient {
+                radial: {
+                    start: [72%, 32%],
+                    end: [68%, 44%],
+                    radius: 210,
+                },
+                0%: rgba(137, 179, 213, 38),
+                60%: rgba(137, 179, 213, 14),
+                100%: rgba(137, 179, 213, 0),
+            }
+        }
         .hero_scrim {
             fill: @gradient {
                 linear: {
@@ -324,6 +337,18 @@
                 58%: rgba(248, 246, 242, 0),
                 82%: rgba(248, 246, 242, 120),
                 100%: rgba(248, 246, 242, 255),
+            }
+        }
+        .hero_glow {
+            fill: @gradient {
+                radial: {
+                    start: [68%, 40%],
+                    end: [68%, 40%],
+                    radius: 260,
+                },
+                0%: rgba(249, 199, 137, 36),
+                60%: rgba(249, 199, 137, 12),
+                100%: rgba(249, 199, 137, 0),
             }
         }
         .hero_scrim {

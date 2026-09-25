@@ -295,6 +295,14 @@ impl CoercionRules for Fill {
             PaxValue::Enum(contents) => {
                 let (_, variant, args) = *contents;
                 match variant.as_str() {
+                    "Blend" => {
+                        if args.len() != 1 {
+                            return Err("Fill::Blend requires one list of weighted paints".into());
+                        }
+                        Fill::blend(Vec::<(Fill, f64)>::try_coerce(
+                            args.into_iter().next().unwrap(),
+                        )?)
+                    }
                     "Solid" => {
                         let color = Color::try_coerce(args.into_iter().next().unwrap())?;
                         Fill::Solid(color)

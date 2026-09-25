@@ -182,6 +182,7 @@ fn get_piet_render_context(
                         context.set_global_alpha(previous);
                     }
                 });
+                let draw_blend_fn = paint_blend_callback(&context, &target.canvas, &window);
                 PietLayerRenderer::new(
                     target.key.clone(),
                     target.host_signature.clone(),
@@ -189,6 +190,7 @@ fn get_piet_render_context(
                     clear_fn,
                     configure_fn,
                     draw_image_fn,
+                    draw_blend_fn,
                     &entry,
                 )
             })
@@ -212,6 +214,147 @@ fn get_piet_render_context(
             PietLayerTarget::new(renderers, layout.active),
             layout_provider,
         )
+    })
+}
+
+// One scratch canvas per surface, allocated only while a paint is transitioning.
+// Add premultiplied endpoint colors on transparent black, then clip and composite
+// the resulting paint once. Native elements and group boundaries are not involved.
+fn paint_blend_callback(
+    target: &web_sys::CanvasRenderingContext2d,
+    canvas: &HtmlCanvasElement,
+    window: &Window,
+) -> Box<
+    dyn FnMut(
+        &mut piet_web::WebRenderContext,
+        &piet::kurbo::BezPath,
+        &[(pax_runtime::api::Fill, f64)],
+        f64,
+    ),
+> {
+    use pax_runtime::piet_render_context::fill_to_piet_brush;
+    use piet::{
+        kurbo::{Affine, Rect, Shape},
+        IntoBrush, RenderContext,
+    };
+    let target = target.clone();
+    let canvas = canvas.clone();
+    let window = window.clone();
+    let mut scratch: Option<(HtmlCanvasElement, web_sys::CanvasRenderingContext2d)> = None;
+    Box::new(move |renderer, path, terms, opacity| {
+        let rect = path.bounding_box();
+        let matrix = target.get_transform().expect("canvas transform");
+        let transform = Affine::new([
+            matrix.a(),
+            matrix.b(),
+            matrix.c(),
+            matrix.d(),
+            matrix.e(),
+            matrix.f(),
+        ]);
+        if transform.determinant().abs() < f64::EPSILON {
+            return;
+        }
+        let bounds = transform
+            .transform_rect_bbox(rect)
+            .inflate(1.0, 1.0)
+            .intersect(Rect::new(
+                0.0,
+                0.0,
+                canvas.width() as f64,
+                canvas.height() as f64,
+            ))
+            .expand();
+        if bounds.width() <= 0.0 || bounds.height() <= 0.0 {
+            return;
+        }
+        let (scratch_canvas, context) = scratch.get_or_insert_with(|| {
+            let canvas: HtmlCanvasElement = window
+                .document()
+                .unwrap()
+                .create_element("canvas")
+                .unwrap()
+                .dyn_into()
+                .unwrap();
+            let context = canvas
+                .get_context("2d")
+                .unwrap()
+                .unwrap()
+                .dyn_into()
+                .unwrap();
+            (canvas, context)
+        });
+        let width = bounds.width() as u32;
+        let height = bounds.height() as u32;
+        // Grow geometrically within the surface's existing allocation limit.
+        if scratch_canvas.width() < width || scratch_canvas.width() > canvas.width() {
+            scratch_canvas.set_width(width.next_power_of_two().min(canvas.width()));
+        }
+        if scratch_canvas.height() < height || scratch_canvas.height() > canvas.height() {
+            scratch_canvas.set_height(height.next_power_of_two().min(canvas.height()));
+        }
+        context.reset_transform().unwrap();
+        context.clear_rect(
+            0.0,
+            0.0,
+            scratch_canvas.width() as f64,
+            scratch_canvas.height() as f64,
+        );
+        context
+            .set_transform(
+                matrix.a(),
+                matrix.b(),
+                matrix.c(),
+                matrix.d(),
+                matrix.e() - bounds.x0,
+                matrix.f() - bounds.y0,
+            )
+            .unwrap();
+        context.set_global_composite_operation("lighter").unwrap();
+        let mut painter = piet_web::WebRenderContext::new(context.clone(), window.clone());
+        // Resolve brushes against the original bounds, but extend their painted
+        // area past the path edge: antialiasing belongs to the final clip only.
+        let inverse = transform.inverse().as_coeffs();
+        let inset =
+            2.0 * (inverse[0].abs() + inverse[1].abs() + inverse[2].abs() + inverse[3].abs());
+        fn accumulate(
+            painter: &mut piet_web::WebRenderContext,
+            context: &web_sys::CanvasRenderingContext2d,
+            rect: Rect,
+            inset: f64,
+            terms: &[(pax_runtime::api::Fill, f64)],
+            weight: f64,
+        ) {
+            for (fill, inner_weight) in terms {
+                let weight = weight * inner_weight;
+                if let pax_runtime::api::Fill::Blend(terms) = fill {
+                    accumulate(painter, context, rect, inset, terms, weight);
+                } else if let Some(brush) = fill_to_piet_brush(fill, rect) {
+                    context.set_global_alpha(weight.clamp(0.0, 1.0));
+                    let brush = brush.make_brush(painter, || rect).into_owned();
+                    painter.fill(rect.inflate(inset, inset), &brush);
+                }
+            }
+        }
+        accumulate(&mut painter, context, rect, inset, terms, 1.0);
+        renderer.save().unwrap();
+        renderer.clip(path.clone());
+        target.reset_transform().unwrap();
+        target.set_global_alpha(target.global_alpha() * opacity.clamp(0.0, 1.0));
+        target
+            .draw_image_with_html_canvas_element_and_sw_and_sh_and_dx_and_dy_and_dw_and_dh(
+                scratch_canvas,
+                0.0,
+                0.0,
+                width as f64,
+                height as f64,
+                bounds.x0,
+                bounds.y0,
+                width as f64,
+                height as f64,
+            )
+            .unwrap();
+        renderer.restore().unwrap();
     })
 }
 

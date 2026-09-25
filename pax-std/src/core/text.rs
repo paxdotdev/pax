@@ -491,19 +491,9 @@ impl<'a> Into<TextStyleMessage> for &'a TextStyle {
         TextStyleMessage {
             font: Some(self.font.get().clone().into()),
             font_size: Some(self.font_size.get().expect_pixels().to_float()),
-            fill: Some(Into::<ColorMessage>::into(&match self.fill.get() {
-                Fill::Solid(color) => color,
-                Fill::LinearGradient(lgrad) => lgrad
-                    .stops
-                    .first()
-                    .map(|f| f.color.clone())
-                    .unwrap_or_default(),
-                Fill::RadialGradient(rgrad) => rgrad
-                    .stops
-                    .first()
-                    .map(|f| f.color.clone())
-                    .unwrap_or_default(),
-            })),
+            fill: Some(Into::<ColorMessage>::into(
+                &self.fill.get().representative_color(),
+            )),
             underline: Some(self.underline.get().clone()),
             align_multiline: Some(Into::<TextAlignHorizontalMessage>::into(
                 &self.align_multiline.get(),
@@ -540,20 +530,7 @@ impl PartialEq<TextStyleMessage> for TextStyle {
         });
 
         let fill_equal = other.fill.as_ref().map_or(false, |fill| {
-            match self.fill.get() {
-                Fill::Solid(color) => color,
-                Fill::LinearGradient(lgrad) => lgrad
-                    .stops
-                    .first()
-                    .map(|f| f.color.clone())
-                    .unwrap_or_default(),
-                Fill::RadialGradient(rgrad) => rgrad
-                    .stops
-                    .first()
-                    .map(|f| f.color.clone())
-                    .unwrap_or_default(),
-            }
-            .eq(fill)
+            self.fill.get().representative_color().eq(fill)
         });
 
         let underline_equal = other

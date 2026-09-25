@@ -157,6 +157,18 @@ impl<T: ToPaxValue + PropertyValue> ToPaxValue for Property<T> {
 impl ToPaxValue for Fill {
     fn to_pax_value(self) -> PaxValue {
         match self {
+            Fill::Blend(terms) => PaxValue::Enum(Box::new((
+                "Fill".to_string(),
+                "Blend".to_string(),
+                vec![PaxValue::Vec(
+                    terms
+                        .into_iter()
+                        .map(|(fill, weight)| {
+                            PaxValue::Vec(vec![fill.to_pax_value(), weight.to_pax_value()])
+                        })
+                        .collect(),
+                )],
+            ))),
             Fill::Solid(color) => PaxValue::Enum(Box::new((
                 "Fill".to_string(),
                 "Solid".to_string(),

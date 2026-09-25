@@ -1833,6 +1833,12 @@ fn to_pax_gpu_fill(
     let bounds = (rect.width(), rect.height());
     let orig = rect.origin();
     match fill {
+        pax_runtime_api::Fill::Blend(terms) => pax_gpu::Fill::Blend(
+            terms
+                .iter()
+                .map(|(fill, weight)| (to_pax_gpu_fill(fill, rect, transform), *weight as f32))
+                .collect(),
+        ),
         pax_runtime_api::Fill::Solid(color) => pax_gpu::Fill::Solid(to_pax_gpu_color(color)),
         pax_runtime_api::Fill::LinearGradient(gradient) => {
             let start_x = gradient.start.0.evaluate(bounds, Axis::X);
@@ -1864,39 +1870,45 @@ fn to_pax_gpu_fill(
             }
         }
         pax_runtime_api::Fill::RadialGradient(gradient) => {
-            let start_x = gradient.start.0.evaluate(bounds, Axis::X);
-            let start_y = gradient.start.1.evaluate(bounds, Axis::Y);
-            let end_x = gradient.end.0.evaluate(bounds, Axis::X);
-            let end_y = gradient.end.1.evaluate(bounds, Axis::Y);
-            let r = gradient.radius as f32;
-            let local_pos =
-                pax_gpu::Point2D::new((orig.x + start_x) as f32, (orig.y + start_y) as f32);
-            let local_main_axis =
-                pax_gpu::Vector2D::new(r * (end_x - start_x) as f32, r * (end_y - start_y) as f32);
-            let local_off_axis = pax_gpu::Vector2D::new(-local_main_axis.y, local_main_axis.x);
-            let world_pos = transform.transform_point(local_pos);
-            let world_main_axis = transform.transform_point(pax_gpu::Point2D::new(
-                local_pos.x + local_main_axis.x,
-                local_pos.y + local_main_axis.y,
-            )) - world_pos;
-            let world_off_axis = transform.transform_point(pax_gpu::Point2D::new(
-                local_pos.x + local_off_axis.x,
-                local_pos.y + local_off_axis.y,
-            )) - world_pos;
+            let Some(g) = gradient.resolve_geometry(rect) else {
+                return pax_gpu::Fill::Solid(pax_gpu::Color::rgba(0.0, 0.0, 0.0, 0.0));
+            };
+            let center = point(g.center.x as f32, g.center.y as f32);
+            let pos = transform.transform_point(center);
+            let main_axis =
+                transform.transform_vector(pax_gpu::Vector2D::new(g.radius as f32, 0.0));
+            let off_axis = transform.transform_vector(pax_gpu::Vector2D::new(0.0, g.radius as f32));
+            let focal_point = point(
+                ((g.focal_point.x - g.center.x) / g.radius) as f32,
+                ((g.focal_point.y - g.center.y) / g.radius) as f32,
+            );
+            // Check after f64 -> f32 conversion too; GPU paint must remain finite.
+            if ![
+                pos.x,
+                pos.y,
+                main_axis.x,
+                main_axis.y,
+                off_axis.x,
+                off_axis.y,
+                focal_point.x,
+                focal_point.y,
+            ]
+            .into_iter()
+            .all(f32::is_finite)
+            {
+                return pax_gpu::Fill::Solid(pax_gpu::Color::rgba(0.0, 0.0, 0.0, 0.0));
+            }
             pax_gpu::Fill::Gradient {
-                gradient_type: pax_gpu::GradientType::Radial,
-                pos: world_pos,
-                main_axis: world_main_axis,
-                off_axis: world_off_axis,
+                gradient_type: pax_gpu::GradientType::Radial { focal_point },
+                pos,
+                main_axis,
+                off_axis,
                 stops: gradient
                     .stops
                     .iter()
-                    .map(|g| pax_gpu::GradientStop {
-                        color: to_pax_gpu_color(&g.color),
-                        stop: g
-                            .position
-                            .evaluate((world_main_axis.length() as f64, 0.0), Axis::X)
-                            as f32,
+                    .map(|s| pax_gpu::GradientStop {
+                        color: to_pax_gpu_color(&s.color),
+                        stop: (s.position.evaluate((g.radius, 0.0), Axis::X) / g.radius) as f32,
                     })
                     .collect(),
             }
@@ -1909,48 +1921,18 @@ fn to_pax_gpu_alpha_fill(
     rect: Rect,
     transform: Transform2D,
 ) -> pax_gpu::Fill {
-    // Preserve a complete gradient basis so alpha stays attached to a sheared
-    // or nonuniformly scaled mask source. A concentric radial gradient has no
-    // direction vector; its authored radius still defines a valid circle.
+    // Linear masks retain both basis vectors under shear; radial masks use
+    // exactly the same focal geometry and normalized stops as color fills.
     let bounds = (rect.width(), rect.height());
     match fill {
-        pax_runtime_api::Fill::RadialGradient(g) => {
-            let center = point(
-                (rect.x0 + g.start.0.evaluate(bounds, Axis::X)) as f32,
-                (rect.y0 + g.start.1.evaluate(bounds, Axis::Y)) as f32,
-            );
-            let direction = pax_gpu::Vector2D::new(
-                (g.end.0.evaluate(bounds, Axis::X) - g.start.0.evaluate(bounds, Axis::X)) as f32,
-                (g.end.1.evaluate(bounds, Axis::Y) - g.start.1.evaluate(bounds, Axis::Y)) as f32,
-            );
-            let unit = if direction.length() > 0.0001 {
-                direction / direction.length()
-            } else {
-                pax_gpu::Vector2D::new(1.0, 0.0)
-            };
-            let axis = unit * (g.radius as f32).max(0.0001);
-            let off = pax_gpu::Vector2D::new(-axis.y, axis.x);
-            let pos = transform.transform_point(center);
-            let main_axis = transform.transform_point(center + axis) - pos;
-            let off_axis = transform.transform_point(center + off) - pos;
-            pax_gpu::Fill::Gradient {
-                gradient_type: pax_gpu::GradientType::Radial,
-                pos,
-                main_axis,
-                off_axis,
-                stops: g
-                    .stops
-                    .iter()
-                    .map(|s| pax_gpu::GradientStop {
-                        color: to_pax_gpu_color(&s.color),
-                        stop: s
-                            .position
-                            .evaluate((main_axis.length() as f64, 0.0), Axis::X)
-                            as f32,
-                    })
-                    .collect(),
-            }
-        }
+        pax_runtime_api::Fill::Blend(terms) => pax_gpu::Fill::Blend(
+            terms
+                .iter()
+                .map(|(fill, weight)| {
+                    (to_pax_gpu_alpha_fill(fill, rect, transform), *weight as f32)
+                })
+                .collect(),
+        ),
         pax_runtime_api::Fill::LinearGradient(g) => {
             let mut resolved = to_pax_gpu_fill(fill, rect, transform);
             if let pax_gpu::Fill::Gradient { off_axis, .. } = &mut resolved {
@@ -2120,6 +2102,48 @@ mod tests {
         assert_eq!(pos, point(150.0, 150.0));
         assert_eq!(main_axis, pax_gpu::Vector2D::new(50.0, 0.0));
         assert_eq!(off_axis, pax_gpu::Vector2D::new(25.0, 75.0));
+    }
+
+    #[test]
+    fn radial_color_and_mask_share_focal_geometry_and_local_pixel_stops() {
+        use pax_runtime_api::{Color, Fill, GradientStop, RadialGradient, Size};
+        let fill = Fill::RadialGradient(RadialGradient {
+            start: (Size::Percent(75.into()), Size::Percent(25.into())),
+            end: (Size::Percent(50.into()), Size::Percent(50.into())),
+            radius: 50.0,
+            stops: vec![
+                GradientStop::get(Color::BLACK, Size::Pixels(25.into())),
+                GradientStop::get(Color::WHITE, Size::Percent(100.into())),
+            ],
+        });
+        let rect = Rect::new(10.0, 20.0, 210.0, 120.0);
+        let transform = Transform2D::new(-2.0, 0.0, 1.0, 3.0, 5.0, 7.0);
+        for paint in [
+            to_pax_gpu_fill(&fill, rect, transform),
+            to_pax_gpu_alpha_fill(&fill, rect, transform),
+        ] {
+            let pax_gpu::Fill::Gradient {
+                gradient_type,
+                pos,
+                main_axis,
+                off_axis,
+                stops,
+            } = paint
+            else {
+                panic!("expected radial paint")
+            };
+            let pax_gpu::GradientType::Radial { focal_point } = gradient_type else {
+                panic!("radial")
+            };
+            assert_eq!(focal_point, point(1.0, -0.5));
+            assert_eq!(pos, point(-145.0, 217.0));
+            assert_eq!(main_axis, pax_gpu::Vector2D::new(-100.0, 0.0));
+            assert_eq!(off_axis, pax_gpu::Vector2D::new(50.0, 150.0));
+            assert_eq!(
+                stops.iter().map(|s| s.stop).collect::<Vec<_>>(),
+                vec![0.5, 1.0]
+            );
+        }
     }
 
     #[test]

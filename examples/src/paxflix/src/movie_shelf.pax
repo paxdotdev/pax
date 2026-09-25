@@ -1,4 +1,4 @@
-<ImportSettings>
+<ImportSettings transition=SettingsTransition::Ease(400ms, TransitionCurve::InOutQuad)>
     <CinemaTheme is_dark={!light_mode}/>
 </ImportSettings>
 <Group anchor=0% width=100% height=100% @wheel=self.wheel @touch_start=self.touch_start>

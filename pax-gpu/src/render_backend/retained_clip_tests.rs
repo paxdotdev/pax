@@ -220,3 +220,277 @@ fn retained_image_opacity_pixels() {
         }
     }
 }
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn paint_blend_pixels_preserve_alpha_geometry_and_retained_updates() {
+    use crate::{GradientStop, GradientType, Vector2D};
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 64, 64, [1.0, 1.0]),
+        )
+    })
+    .expect("Metal backend");
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    let gradient = |reverse: bool, color0: Color, color1: Color| Fill::Gradient {
+        gradient_type: GradientType::Linear,
+        pos: point(if reverse { 64.0 } else { 0.0 }, 0.0),
+        main_axis: Vector2D::new(if reverse { -64.0 } else { 64.0 }, 0.0),
+        off_axis: Vector2D::zero(),
+        stops: vec![
+            GradientStop {
+                color: color0,
+                stop: 0.0,
+            },
+            GradientStop {
+                color: color1,
+                stop: 64.0,
+            },
+        ],
+    };
+    for (frame_id, opacity) in [1.0, 0.5, 0.25].into_iter().enumerate() {
+        renderer.begin_node(1, 0, 0);
+        renderer.fill_path(
+            rect(0.0, 0.0, 64.0, 32.0),
+            Fill::Blend(vec![
+                (
+                    gradient(
+                        false,
+                        Color::rgba(1.0, 0.0, 0.0, 0.0),
+                        Color::rgba(1.0, 0.0, 0.0, 0.0),
+                    ),
+                    0.5,
+                ),
+                (Fill::Solid(Color::rgba(0.0, 0.0, 1.0, opacity)), 0.5),
+            ]),
+        );
+        renderer.end_node(1);
+        renderer.begin_node(2, 1, 0);
+        // More than a uniform batch's former 64-gradient ceiling. This is one
+        // paint, not 160 source-over draws; reversing the axes cancels the ramp.
+        let black = Color::rgba(0.0, 0.0, 0.0, 1.0);
+        let white = Color::rgba(1.0, 1.0, 1.0, 1.0);
+        renderer.fill_path(
+            rect(0.0, 32.0, 64.0, 32.0),
+            Fill::Blend(
+                (0..160)
+                    .map(|i| (gradient(i % 2 == 0, black, white), 1.0 / 160.0))
+                    .collect(),
+            ),
+        );
+        renderer.end_node(2);
+        renderer.request_screenshot_capture(frame_id as u32);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let frame = renderer.take_screenshot_capture(frame_id as u32).unwrap();
+        for x in [4, 32, 60] {
+            let pixel = &frame.rgba[(16 * 64 + x) * 4..(16 * 64 + x) * 4 + 4];
+            assert_eq!(
+                pixel[0], 0,
+                "transparent red must not contaminate the mixture"
+            );
+            assert!(
+                pixel[2].abs_diff(pixel[3]) <= 1,
+                "premultiplied blue: {pixel:?}"
+            );
+            assert!(
+                pixel[3].abs_diff((opacity * 0.5 * 255.0).round() as u8) <= 1,
+                "{pixel:?}"
+            );
+            let gray = &frame.rgba[(48 * 64 + x) * 4..(48 * 64 + x) * 4 + 4];
+            for channel in &gray[..3] {
+                assert!(channel.abs_diff(128) <= 1, "{gray:?}");
+            }
+            assert_eq!(gray[3], 255);
+        }
+    }
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn radial_pixels_cover_focus_transforms_masks_and_crossfades() {
+    use crate::{AlphaMaskPaint, GradientStop, GradientType, Vector2D};
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 128, 128, [1.0, 1.0]),
+        )
+    })
+    .expect("Metal backend");
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    // Expected positions follow circles at known t: center=(1-t)*focus, radius=t.
+    // Negative t below denotes the unpainted region outside the radial cone.
+    let cases = [
+        (
+            point(0.0, 0.0),
+            Vector2D::new(24.0, 0.0),
+            Vector2D::new(0.0, 24.0),
+            vec![
+                (64, 64, 0.0),
+                (76, 64, 0.5),
+                (64, 76, 0.5),
+                (52, 64, 0.5),
+                (40, 64, 1.0),
+            ],
+        ),
+        (
+            point(0.5, 0.0),
+            Vector2D::new(24.0, 0.0),
+            Vector2D::new(0.0, 24.0),
+            vec![
+                (76, 64, 0.0),
+                (64, 64, 1.0 / 3.0),
+                (70, 76, 0.5),
+                (82, 64, 0.5),
+                (40, 64, 1.0),
+            ],
+        ),
+        // Reflection + shear + nonuniform scale must preserve the signed inverse basis.
+        (
+            point(0.5, 0.0),
+            Vector2D::new(-32.0, 0.0),
+            Vector2D::new(16.0, 16.0),
+            vec![
+                (48, 64, 0.0),
+                (64, 72, 0.5),
+                (40, 64, 0.5),
+                (72, 64, 0.5),
+                (80, 80, 1.0),
+            ],
+        ),
+        // Focus on the outer circle uses the linear limit of the quadratic.
+        (
+            point(1.0, 0.0),
+            Vector2D::new(24.0, 0.0),
+            Vector2D::new(0.0, 24.0),
+            vec![(64, 64, 0.5), (76, 76, 0.5), (40, 64, 1.0), (100, 64, -1.0)],
+        ),
+        (
+            point(2.0, 0.0),
+            Vector2D::new(24.0, 0.0),
+            Vector2D::new(0.0, 24.0),
+            vec![
+                (64, 64, 2.0),
+                (88, 64, 1.0),
+                (40, 64, 3.0),
+                (100, 64, 0.5),
+                (112, 64, -1.0),
+                (112, 88, -1.0),
+            ],
+        ),
+        // A collapsed transform paints nothing, rather than a spuriously huge circle.
+        (
+            point(0.0, 0.0),
+            Vector2D::new(24.0, 0.0),
+            Vector2D::new(12.0, 0.0),
+            vec![(64, 64, -1.0), (76, 64, -1.0), (64, 76, -1.0)],
+        ),
+    ];
+    let mut capture = 0;
+    for dpr in [[1.0, 1.0], [2.0, 3.0]] {
+        renderer.resize_surface(128.0 * dpr[0], 128.0 * dpr[1]);
+        renderer.set_viewport(128.0, 128.0, dpr);
+        for (focus, axis, off, samples) in cases.clone() {
+            let radial = Fill::Gradient {
+                gradient_type: GradientType::Radial { focal_point: focus },
+                pos: point(64.0 + 0.5 / dpr[0], 64.0 + 0.5 / dpr[1]),
+                main_axis: axis,
+                off_axis: off,
+                stops: vec![
+                    GradientStop {
+                        color: Color::rgba(1.0, 0.0, 0.0, 1.0),
+                        stop: 0.0,
+                    },
+                    GradientStop {
+                        color: Color::rgba(1.0, 0.0, 0.0, 0.0),
+                        stop: 1.0,
+                    },
+                ],
+            };
+            let linear = Fill::Gradient {
+                gradient_type: GradientType::Linear,
+                pos: point(0.0, 0.0),
+                main_axis: Vector2D::new(128.0, 0.0),
+                off_axis: Vector2D::zero(),
+                stops: vec![
+                    GradientStop {
+                        color: Color::rgba(0.0, 0.0, 1.0, 0.5),
+                        stop: 0.0,
+                    },
+                    GradientStop {
+                        color: Color::rgba(0.0, 0.0, 1.0, 0.5),
+                        stop: 128.0,
+                    },
+                ],
+            };
+            // Reuse the same retained node as geometry, focus, weights and masking change.
+            // The reversal visits an earlier displayed mixture, then returns to radial.
+            for weight in [1.0, 0.375, 0.75, 1.0] {
+                let paint = if weight == 1.0 {
+                    radial.clone()
+                } else {
+                    Fill::Blend(vec![
+                        (radial.clone(), weight),
+                        (linear.clone(), 1.0 - weight),
+                    ])
+                };
+                for masked in [false, true] {
+                    renderer.begin_node(1, 0, 0);
+                    renderer.save();
+                    if masked {
+                        renderer.clip_alpha(
+                            vec![AlphaMaskPaint {
+                                path: rect(0.0, 0.0, 128.0, 128.0),
+                                transform: Transform2D::identity(),
+                                fill: paint.clone(),
+                                opacity: 1.0,
+                            }],
+                            0.0,
+                        );
+                    }
+                    renderer.fill_path(
+                        rect(0.0, 0.0, 128.0, 128.0),
+                        if masked {
+                            Fill::Solid(Color::rgba(1.0, 1.0, 1.0, 1.0))
+                        } else {
+                            paint.clone()
+                        },
+                    );
+                    renderer.restore();
+                    renderer.end_node(1);
+                    renderer.request_screenshot_capture(capture);
+                    renderer.flush();
+                    device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+                    let frame = renderer.take_screenshot_capture(capture).unwrap();
+                    capture += 1;
+                    for &(x, y, t) in &samples {
+                        let red = if t < 0.0 {
+                            0.0
+                        } else {
+                            (1.0_f32 - t).clamp(0.0, 1.0) * weight
+                        };
+                        let blue = 0.5 * (1.0 - weight);
+                        let alpha = red + blue;
+                        let expected = if masked {
+                            [alpha; 4]
+                        } else {
+                            [red, 0.0, blue, alpha]
+                        };
+                        let offset =
+                            (y * dpr[1] as usize * frame.width as usize + x * dpr[0] as usize) * 4;
+                        let pixel = &frame.rgba[offset..offset + 4];
+                        for (actual, expected) in pixel.iter().zip(expected) {
+                            assert!(actual.abs_diff((expected*255.0).round() as u8)<=2,
+                            "focus={focus:?} axis={axis:?} off={off:?} weight={weight} mask={masked} ({x},{y}) t={t}: {pixel:?}");
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

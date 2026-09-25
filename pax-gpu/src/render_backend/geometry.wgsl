@@ -10,7 +10,7 @@ struct Primitive {
     transform_id: u32,
     draw_range: vec4<f32>,
     light_mask: u32,
-    _padding_0: u32,
+    paint_count: u32,
     _padding_1: u32,
     _padding_2: u32,
 };
@@ -51,11 +51,14 @@ struct Gradient {
     off_axis: vec2<f32>,
     stop_count: u32,
     type_id: u32,
-    _pad: array<vec4<u32>, 4>,
+    weight: f32,
+    _pad0: u32,
+    focal_point: vec2<f32>,
+    _pad: array<vec4<u32>, 3>,
 }
 
 struct Gradients {
-    gradients: array<Gradient, 64>,
+    gradients: array<Gradient>,
 }
 
 struct Material {
@@ -85,7 +88,7 @@ struct SceneLighting {
 @group(0) @binding(1) var<uniform> u_primitives: Primitives;
 @group(0) @binding(2) var<uniform> transforms: Transforms;
 @group(0) @binding(3) var<uniform> colors: Colors;
-@group(0) @binding(4) var<uniform> gradients: Gradients;
+@group(0) @binding(4) var<storage, read> gradients: Gradients;
 @group(0) @binding(5) var<uniform> materials: Materials;
 @group(0) @binding(6) var<uniform> scene_lighting: SceneLighting;
 @group(1) @binding(0) var alpha_mask: texture_2d<f32>;
@@ -155,9 +158,19 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     var color: vec4<f32>;
     if fill_type == 0u {
         color = colors.colors[fill_id];
+    } else if fill_type == 1u {
+        color = gradient(fill_id, in.clip_position.xy);
     } else {
-        let p = in.clip_position.xy;
-        color = gradient(fill_id, p);
+        var premultiplied = vec4<f32>(0.0);
+        for (var i = 0u; i < primitive.paint_count; i++) {
+            let sample = gradient(fill_id + i, in.clip_position.xy);
+            let weight = gradients.gradients[fill_id + i].weight;
+            premultiplied += vec4<f32>(sample.rgb * sample.a, sample.a) * weight;
+        }
+        color = vec4<f32>(0.0);
+        if premultiplied.a > 0.0 {
+            color = vec4<f32>(premultiplied.rgb / premultiplied.a, premultiplied.a);
+        }
     }
     color.a *= transforms.transforms[primitive.transform_id].opacity;
     color.a *= textureSampleLevel(alpha_mask, alpha_sampler,
@@ -239,6 +252,8 @@ fn apply_lighting(
 
 fn gradient(fill_id: u32, coord: vec2<f32>) -> vec4<f32> {
     let gradient = gradients.gradients[fill_id];
+    if gradient.type_id == 2u { return gradient.colors[0]; }
+    if gradient.stop_count == 0u { return vec4<f32>(0.0); }
     
     // Calculate color space position
     let g_p = gradient.position * globals.dpr;
@@ -247,7 +262,12 @@ fn gradient(fill_id: u32, coord: vec2<f32>) -> vec4<f32> {
     let m_a_l = max(length(g_a), 0.0001);
     let n = g_a / m_a_l;
     let stop_scale = m_a_l / max(length(gradient.main_axis), 0.0001);
-    let color_space = dot(p_t, n) / stop_scale;
+    var color_space = dot(p_t, n) / stop_scale;
+    if gradient.type_id == 1u {
+        color_space = radial_coordinate(coord / globals.dpr - gradient.position,
+            gradient.main_axis, gradient.off_axis, gradient.focal_point);
+        if color_space < 0.0 { return vec4<f32>(0.0); }
+    }
 
     // Find the appropriate stop segment
     var left_idx = 0u;

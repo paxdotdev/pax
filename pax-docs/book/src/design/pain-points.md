@@ -2275,3 +2275,31 @@ of an in-flight transition. Give compound styles explicit interpolation: their
 derived implementation is discrete. Also subtract integer endpoints after
 conversion to floating point so decreasing unsigned settings do not overflow;
 a vector length change must switch discretely instead of panicking.
+
+
+## Retained paint buffers and interrupted gradient transitions
+
+A gradient crossfade may contain more than two endpoint paints after interruption.
+Flatten mixtures and merge repeated endpoints so a dark/light toggle does not
+retain an ever-growing expression tree. The GPU's old retained-gradient upload
+padded with `Vec::resize(64, ...)`, which also truncated longer inputs; storage
+buffers for paint mixtures must retain their actual endpoint count. A Metal
+pixel test with 160 endpoints caught the truncation even though shader validation
+and ordinary two-theme fades passed. Alpha-mask endpoints must be summed within
+one source shape, not rendered as separate source-over mask shapes.
+
+
+### Radial geometry must have one coordinate contract
+
+PAX-1001 found three incompatible interpretations of `RadialGradient`: GPU
+color sampled a linear axis scaled by endpoint distance, GPU masks used an
+independent circular sampler, and Piet's relative brush multiplied radius by
+shape size while moving points into a square. Resolve authored geometry once:
+`start` is the focus, `end` is the outer center, and `radius` is local logical
+pixels. Use a fixed Piet brush and a shared GPU focal-circle function for color
+and alpha. Normalized radial stops keep pixel stops local under transforms;
+retain the signed inverse basis for reflection and shear. Test offset/external
+foci and singular transforms as well as the easy concentric case. At an exact
+boundary/external focus, Canvas leaves the pixel transparent; returning the
+first stop there creates an isolated bright speck. A direct Canvas comparison
+and a Metal pixel regression cover that degenerate root.

@@ -1170,31 +1170,43 @@ impl<'w> WgpuRenderer<'w> {
         let transform = self.current_transform();
         let mut draws = Vec::new();
         for source in paints {
-            let mut paint = Paint::default();
-            paint.params[1] = source.opacity;
-            match source.fill {
-                Fill::Solid(color) => paint.params[0] = color.rgba[3],
-                Fill::Gradient {
-                    gradient_type,
-                    pos,
-                    main_axis,
-                    off_axis,
-                    stops,
-                } => {
-                    paint.axis = [pos.x, pos.y, main_axis.x, main_axis.y];
-                    paint.off_axis = [off_axis.x, off_axis.y, 0.0, 0.0];
-                    paint.params[2] = stops.len().min(8) as f32;
-                    paint.params[3] = if matches!(gradient_type, GradientType::Radial) {
-                        1.0
-                    } else {
-                        0.0
-                    };
-                    for (slot, stop) in paint.stops.iter_mut().zip(stops.iter()) {
-                        *slot = [stop.stop, stop.color.rgba[3], 0.0, 0.0];
+            fn append(out: &mut Vec<Paint>, fill: Fill, opacity: f32) {
+                let mut paint = Paint::default();
+                paint.params[1] = opacity;
+                match fill {
+                    Fill::Blend(terms) => {
+                        for (fill, weight) in terms {
+                            append(out, fill, opacity * weight);
+                        }
+                        return;
+                    }
+                    Fill::Solid(color) => paint.params[0] = color.rgba[3],
+                    Fill::Gradient {
+                        gradient_type,
+                        pos,
+                        main_axis,
+                        off_axis,
+                        stops,
+                    } => {
+                        paint.axis = [pos.x, pos.y, main_axis.x, main_axis.y];
+                        paint.off_axis = [off_axis.x, off_axis.y, 0.0, 0.0];
+                        paint.params[2] = stops.len().min(8) as f32;
+                        if let GradientType::Radial { focal_point } = gradient_type {
+                            paint.params[3] = 1.0;
+                            paint.off_axis[2] = focal_point.x;
+                            paint.off_axis[3] = focal_point.y;
+                        }
+                        for (slot, stop) in paint.stops.iter_mut().zip(stops.iter()) {
+                            *slot = [stop.stop, stop.color.rgba[3], 0.0, 0.0];
+                        }
                     }
                 }
+                out.push(paint);
             }
-            bytemuck::bytes_of(&paint).hash(&mut hash);
+            let mut paints = Vec::new();
+            append(&mut paints, source.fill, source.opacity);
+            paints.len().hash(&mut hash);
+            bytemuck::cast_slice::<_, u8>(&paints).hash(&mut hash);
             let mut geometry: VertexBuffers<[f32; 2], u32> = VertexBuffers::new();
             let mapping = source.transform.then(&transform);
             let mut builder = BuffersBuilder::new(&mut geometry, |v: FillVertex| {
@@ -1216,7 +1228,7 @@ impl<'w> WgpuRenderer<'w> {
             draws.push(Draw {
                 vertices: geometry.vertices,
                 indices: geometry.indices,
-                paint,
+                paints,
             });
         }
         feather.to_bits().hash(&mut hash);
@@ -2817,6 +2829,14 @@ fn hash_transform_bits<H: Hasher>(transform: &Transform2D, opacity: f32, state: 
 
 fn hash_fill_bits<H: Hasher>(fill: &Fill, state: &mut H) {
     match fill {
+        Fill::Blend(terms) => {
+            2u8.hash(state);
+            terms.len().hash(state);
+            for (fill, weight) in terms {
+                hash_fill_bits(fill, state);
+                weight.to_bits().hash(state);
+            }
+        }
         Fill::Solid(color) => {
             0u8.hash(state);
             hash_color_bits(color, state);
@@ -2831,7 +2851,11 @@ fn hash_fill_bits<H: Hasher>(fill: &Fill, state: &mut H) {
             1u8.hash(state);
             match gradient_type {
                 GradientType::Linear => 0u8.hash(state),
-                GradientType::Radial => 1u8.hash(state),
+                GradientType::Radial { focal_point } => {
+                    1u8.hash(state);
+                    focal_point.x.to_bits().hash(state);
+                    focal_point.y.to_bits().hash(state);
+                }
             }
             pos.x.to_bits().hash(state);
             pos.y.to_bits().hash(state);
@@ -2927,21 +2951,23 @@ fn to_gpu_scene_lighting(lighting: &SceneLighting) -> GpuSceneLighting {
     out
 }
 
-fn push_primitive_def(
-    buffers: &mut CpuBuffers,
-    fill: Fill,
-    material: Material,
-    transform_id: u32,
-    draw_range: DrawRange,
-    light_mask: u32,
-) -> u32 {
-    let fill_id;
-    let fill_type_flag;
+// Every mixture is sampled in one fragment invocation; drawing its leaves over
+// each other would apply source-over repeatedly and change transparent colors.
+fn append_gradient_paints(out: &mut Vec<GpuGradient>, fill: Fill, weight: f32) {
     match fill {
+        Fill::Blend(terms) => {
+            for (fill, inner_weight) in terms {
+                append_gradient_paints(out, fill, weight * inner_weight);
+            }
+        }
         Fill::Solid(color) => {
-            fill_id = buffers.colors.len() as u16;
-            fill_type_flag = 0;
-            buffers.colors.push(GpuColor { color: color.rgba });
+            let mut paint = GpuGradient {
+                type_id: 2,
+                weight,
+                ..Default::default()
+            };
+            paint.colors[0] = color.rgba;
+            out.push(paint);
         }
         Fill::Gradient {
             gradient_type,
@@ -2950,33 +2976,57 @@ fn push_primitive_def(
             off_axis,
             stops,
         } => {
-            fill_id = buffers.gradients.len() as u16;
-            fill_type_flag = 1;
             if stops.len() > 8 {
-                log::warn!("can't draw graidents with more than 8 stops. truncating.");
+                log::warn!("can't draw gradients with more than 8 stops. truncating.");
             }
-            let len = stops.len().min(8);
-            let mut colors_buff = [[0.0; 4]; 8];
-            let mut stops_buff = [0.0; 8];
-            for i in 0..len {
-                colors_buff[i] = stops[i].color.rgba;
-                stops_buff[i] = stops[i].stop;
-            }
-            buffers.gradients.push(GpuGradient {
+            let mut paint = GpuGradient {
                 type_id: match gradient_type {
                     GradientType::Linear => 0,
-                    GradientType::Radial => 1,
+                    GradientType::Radial { .. } => 1,
+                },
+                focal_point: match gradient_type {
+                    GradientType::Radial { focal_point } => focal_point.to_array(),
+                    GradientType::Linear => [0.0; 2],
                 },
                 position: pos.to_array(),
                 main_axis: main_axis.to_array(),
                 off_axis: off_axis.to_array(),
-                stop_count: len as u32,
-                colors: colors_buff,
-                stops: stops_buff,
-                _padding: [0; 16],
-            });
+                stop_count: stops.len().min(8) as u32,
+                weight,
+                ..Default::default()
+            };
+            for (i, stop) in stops.iter().take(8).enumerate() {
+                paint.colors[i] = stop.color.rgba;
+                paint.stops[i] = stop.stop;
+            }
+            out.push(paint);
         }
     }
+}
+
+fn push_primitive_def(
+    buffers: &mut CpuBuffers,
+    fill: Fill,
+    material: Material,
+    transform_id: u32,
+    draw_range: DrawRange,
+    light_mask: u32,
+) -> u32 {
+    let (fill_id, fill_type_flag, paint_count) = match fill {
+        Fill::Solid(color) => {
+            let fill_id = buffers.colors.len() as u16;
+            buffers.colors.push(GpuColor { color: color.rgba });
+            (fill_id, 0, 1)
+        }
+        fill => {
+            let fill_id =
+                u16::try_from(buffers.gradients.len()).expect("paint buffer index overflow");
+            let is_blend = matches!(fill, Fill::Blend(_));
+            append_gradient_paints(&mut buffers.gradients, fill, 1.0);
+            let count = buffers.gradients.len() - usize::from(fill_id);
+            (fill_id, if is_blend { 2 } else { 1 }, count as u32)
+        }
+    };
     let material_id = buffers.materials.len() as u32;
     buffers.materials.push(to_gpu_material(material));
     let primitive = GpuPrimitive {
@@ -2987,7 +3037,8 @@ fn push_primitive_def(
         z_index: 0,
         draw_range: draw_range.as_gpu_range(),
         light_mask,
-        _padding: [0; 3],
+        paint_count,
+        _padding: [0; 2],
     };
     let prim_id = buffers.primitives.len() as u32;
     buffers.primitives.push(primitive);
@@ -3004,16 +3055,24 @@ fn push_primitive_with_existing_fill(
     draw_range: DrawRange,
     light_mask: u32,
 ) -> u32 {
-    let (fill_id, fill_type_flag) = match fill {
+    let (fill_id, fill_type_flag, paint_count) = match fill {
         Fill::Solid(_) => {
             let fill_id = *next_color_id;
             *next_color_id = next_color_id.saturating_add(1);
-            (fill_id, 0)
+            (fill_id, 0, 1)
+        }
+        Fill::Blend(_) => {
+            let fill_id = *next_gradient_id;
+            let count = fill.paint_count();
+            *next_gradient_id = next_gradient_id
+                .checked_add(u16::try_from(count).expect("paint count overflow"))
+                .expect("paint buffer index overflow");
+            (fill_id, 2, count as u32)
         }
         Fill::Gradient { .. } => {
             let fill_id = *next_gradient_id;
             *next_gradient_id = next_gradient_id.saturating_add(1);
-            (fill_id, 1)
+            (fill_id, 1, 1)
         }
     };
     let material_id = *next_material_id;
@@ -3027,7 +3086,8 @@ fn push_primitive_with_existing_fill(
         z_index: 0,
         draw_range: draw_range.as_gpu_range(),
         light_mask,
-        _padding: [0; 3],
+        paint_count,
+        _padding: [0; 2],
     });
     prim_id
 }
@@ -3300,7 +3360,11 @@ pub struct GradientStop {
 /// Shape of a GPU gradient fill.
 pub enum GradientType {
     Linear,
-    Radial,
+    /// Unit outer circle centered at `pos`, mapped by `main_axis`/`off_axis`.
+    /// Stops are normalized (0..1); the focal point is in that unit circle's space.
+    Radial {
+        focal_point: Point2D,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -3392,6 +3456,8 @@ impl Color {
 #[derive(Debug, Clone)]
 /// Fill style for a tessellated vector path.
 pub enum Fill {
+    /// Weighted premultiplied paint mixture, sampled before compositing.
+    Blend(Vec<(Fill, f32)>),
     Solid(Color),
     Gradient {
         gradient_type: GradientType,
@@ -3400,6 +3466,15 @@ pub enum Fill {
         off_axis: Vector2D,
         stops: Vec<GradientStop>,
     },
+}
+
+impl Fill {
+    fn paint_count(&self) -> usize {
+        match self {
+            Self::Blend(terms) => terms.iter().map(|(f, _)| f.paint_count()).sum(),
+            _ => 1,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

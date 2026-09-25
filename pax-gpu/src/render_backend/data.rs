@@ -21,7 +21,8 @@ pub(crate) struct GpuPrimitive {
     pub transform_id: u32,
     pub draw_range: [f32; 4],
     pub light_mask: u32,
-    pub _padding: [u32; 3],
+    pub paint_count: u32,
+    pub _padding: [u32; 2],
 }
 
 #[repr(C)]
@@ -68,7 +69,10 @@ pub(crate) struct GpuGradient {
     pub off_axis: [f32; 2],
     pub stop_count: u32,
     pub type_id: u32,
-    pub _padding: [u32; 16],
+    pub weight: f32,
+    pub _padding_0: u32,
+    pub focal_point: [f32; 2],
+    pub _padding: [u32; 12],
 }
 
 #[repr(C)]
@@ -106,6 +110,7 @@ mod tests {
     fn gpu_primitive_matches_wgsl_storage_stride() {
         assert_eq!(std::mem::size_of::<GpuPrimitive>(), 48);
         assert_eq!(std::mem::align_of::<GpuPrimitive>(), 4);
+        assert_eq!(std::mem::size_of::<GpuGradient>(), 256);
     }
 }
 

@@ -1,4 +1,4 @@
-<ImportSettings>
+<ImportSettings transition=SettingsTransition::Ease(400ms, TransitionCurve::InOutQuad)>
     <CinemaTheme is_dark={!light_mode}/>
 </ImportSettings>
 <Group anchor=0% width=100% height=100% @click=self.open @mouse_over=self.over @mouse_out=self.out>

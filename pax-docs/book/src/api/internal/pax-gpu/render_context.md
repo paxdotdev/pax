@@ -342,6 +342,9 @@ Return and reset accumulated resource churn counters.
 Fill style for a tessellated vector path.
 
 #### Variants
+##### `Blend`(`Vec`<([`Fill`](../../../api/pax-runtime-api/drawing.md#fill), `f32`)>)
+Weighted premultiplied paint mixture, sampled before compositing.
+
 ##### `Solid`([`Color`](../../../api/pax-runtime-api/color.md#color))
 ##### `Gradient` { `gradient_type`: [`GradientType`](../../../api/internal/pax-gpu/render_context.md#gradienttype), `pos`: [`Point2D`](../../../api/internal/pax-gpu/index.md#point2d), `main_axis`: [`Vector2D`](../../../api/internal/pax-gpu/index.md#vector2d), `off_axis`: [`Vector2D`](../../../api/internal/pax-gpu/index.md#vector2d), `stops`: `Vec`<[`GradientStop`](../../../api/pax-runtime-api/drawing.md#gradientstop)> }
 ---
@@ -351,7 +354,10 @@ Shape of a GPU gradient fill.
 
 #### Variants
 ##### `Linear`
-##### `Radial`
+##### `Radial` { `focal_point`: [`Point2D`](../../../api/internal/pax-gpu/index.md#point2d) }
+Unit outer circle centered at `pos`, mapped by `main_axis`/`off_axis`.
+Stops are normalized (0..1); the focal point is in that unit circle's space.
+
 ---
 
 ### `LightShape`

@@ -6,7 +6,8 @@ struct Paint {
 };
 struct Globals { resolution: vec2<f32>, dpr: vec2<f32> };
 @group(0) @binding(0) var<uniform> globals: Globals;
-@group(0) @binding(1) var<uniform> paint: Paint;
+@group(0) @binding(1) var<uniform> paint_range: vec4<u32>;
+@group(0) @binding(2) var<storage, read> paints: array<Paint>;
 struct VertexOutput {
     @builtin(position) position: vec4<f32>,
     @location(0) world: vec2<f32>,
@@ -19,10 +20,17 @@ struct VertexOutput {
     return out;
 }
 @fragment fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
+    var alpha = 0.0;
+    for (var i = 0u; i < paint_range.y; i++) {
+        alpha += sample_alpha(paints[paint_range.x + i], in.world);
+    }
+    return vec4<f32>(clamp(alpha, 0.0, 1.0));
+}
+fn sample_alpha(paint: Paint, world: vec2<f32>) -> f32 {
     var alpha = paint.params.x;
     let count = u32(paint.params.z);
     if count > 0u {
-        let delta = in.world - paint.axis.xy;
+        let delta = world - paint.axis.xy;
         let axis = paint.axis.zw;
         var coordinate = dot(delta, axis) / max(length(axis), 0.0001);
         let off = paint.off_axis.xy;
@@ -31,9 +39,8 @@ struct VertexOutput {
             coordinate = (delta.x * off.y - delta.y * off.x) / determinant * length(axis);
         }
         if paint.params.w > 0.5 {
-            let uv = vec2<f32>(delta.x * off.y - delta.y * off.x,
-                axis.x * delta.y - axis.y * delta.x) / max(abs(determinant), 0.0001);
-            coordinate = length(uv) * length(axis);
+            coordinate = radial_coordinate(delta, axis, off, paint.off_axis.zw);
+            if coordinate < 0.0 { return 0.0; }
         }
         alpha = paint.stops[0].y;
         for (var i = 1u; i < 8u; i++) {
@@ -47,6 +54,5 @@ struct VertexOutput {
             } else { break; }
         }
     }
-    alpha = clamp(alpha * paint.params.y, 0.0, 1.0);
-    return vec4<f32>(alpha);
+    return alpha * paint.params.y;
 }

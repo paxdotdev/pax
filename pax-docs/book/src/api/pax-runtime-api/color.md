@@ -117,6 +117,13 @@ Non-rendering transparent, RGB (255, 255, 255).
 
 Returns this color's alpha channel normalized to the `[0.0, 1.0]` range.
 
+##### `blend_premultiplied`
+<pre><code class="api-signature language-rust ignore">pub fn blend_premultiplied(colors: impl IntoIterator) -&gt; Self</code></pre>
+
+Adds weighted colors in premultiplied RGBA, then returns straight RGBA.
+Weights should sum to one. This retains the current RGB encoding; it does
+not perform a linear-light conversion or blend against a backdrop.
+
 ##### `from_hex`
 <pre><code class="api-signature language-rust ignore">pub fn from_hex(hex: &amp;str) -&gt; Self</code></pre>
 

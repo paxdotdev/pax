@@ -74,6 +74,7 @@ struct UploadLayout {
     vertex_bytes: u64,
     index_bytes: u64,
     paint_bytes: u64,
+    term_bytes: u64,
     stride: u64,
 }
 
@@ -95,20 +96,31 @@ impl UploadLayout {
         if vertices > u32::MAX as u64 || indices > u32::MAX as u64 {
             return None;
         }
-        let stride = (std::mem::size_of::<Paint>() as u64)
-            .div_ceil(limits.min_uniform_buffer_offset_alignment as u64)
+        let stride = 16u64.div_ceil(limits.min_uniform_buffer_offset_alignment as u64)
             * limits.min_uniform_buffer_offset_alignment as u64;
         let layout = Self {
             vertex_bytes: vertices.checked_mul(8)?,
             index_bytes: indices.checked_mul(4)?,
             paint_bytes: stride.checked_mul(draws.len().max(1).try_into().ok()?)?,
+            term_bytes: (draws
+                .iter()
+                .try_fold(0usize, |sum, draw| sum.checked_add(draw.paints.len()))?
+                .max(1) as u64)
+                .checked_mul(std::mem::size_of::<Paint>() as u64)?,
             stride,
         };
         // Dynamic offsets are u32 even on platforms with larger buffer limits.
-        if layout.paint_bytes > u32::MAX as u64 {
+        if layout.paint_bytes > u32::MAX as u64
+            || layout.term_bytes > limits.max_storage_buffer_binding_size as u64
+        {
             return None;
         }
-        for bytes in [layout.vertex_bytes, layout.index_bytes, layout.paint_bytes] {
+        for bytes in [
+            layout.vertex_bytes,
+            layout.index_bytes,
+            layout.paint_bytes,
+            layout.term_bytes,
+        ] {
             usize::try_from(bytes).ok()?;
             buffer_capacity(bytes, 0, limits.max_buffer_size)?;
         }
@@ -120,6 +132,7 @@ struct MaskBuffers {
     vertices: UploadBuffer,
     indices: UploadBuffer,
     paints: UploadBuffer,
+    terms: UploadBuffer,
     globals: UploadBuffer,
     filters: [UploadBuffer; 2],
     paint_group: wgpu::BindGroup,
@@ -130,6 +143,7 @@ fn paint_group(
     layout: &wgpu::BindGroupLayout,
     globals: &wgpu::Buffer,
     paints: &wgpu::Buffer,
+    terms: &wgpu::Buffer,
 ) -> wgpu::BindGroup {
     device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("Alpha mask paints"),
@@ -144,8 +158,12 @@ fn paint_group(
                 resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
                     buffer: paints,
                     offset: 0,
-                    size: wgpu::BufferSize::new(std::mem::size_of::<Paint>() as u64),
+                    size: wgpu::BufferSize::new(16),
                 }),
+            },
+            wgpu::BindGroupEntry {
+                binding: 2,
+                resource: terms.as_entire_binding(),
             },
         ],
     })
@@ -161,7 +179,19 @@ impl MaskBuffers {
             sizes.paint_bytes,
         );
         let globals = UploadBuffer::new(device, "Alpha mask globals", Usage::UNIFORM, 16);
-        let paint_group = paint_group(device, layout, &globals.buffer, &paints.buffer);
+        let terms = UploadBuffer::new(
+            device,
+            "Alpha mask paint terms",
+            Usage::STORAGE,
+            sizes.term_bytes,
+        );
+        let paint_group = paint_group(
+            device,
+            layout,
+            &globals.buffer,
+            &paints.buffer,
+            &terms.buffer,
+        );
         Self {
             vertices: UploadBuffer::new(
                 device,
@@ -176,6 +206,7 @@ impl MaskBuffers {
                 sizes.index_bytes,
             ),
             paints,
+            terms,
             globals,
             filters: std::array::from_fn(|_| {
                 UploadBuffer::new(device, "Alpha mask feather", Usage::UNIFORM, 16)
@@ -203,14 +234,26 @@ impl MaskBuffers {
             Usage::INDEX,
             sizes.index_bytes,
         );
+        let terms_changed = self.terms.resize(
+            device,
+            "Alpha mask paint terms",
+            Usage::STORAGE,
+            sizes.term_bytes,
+        );
         if self.paints.resize(
             device,
             "Alpha mask paints",
             Usage::UNIFORM,
             sizes.paint_bytes,
-        ) {
-            self.paint_group =
-                paint_group(device, layout, &self.globals.buffer, &self.paints.buffer);
+        ) || terms_changed
+        {
+            self.paint_group = paint_group(
+                device,
+                layout,
+                &self.globals.buffer,
+                &self.paints.buffer,
+                &self.terms.buffer,
+            );
         }
     }
 }
@@ -227,7 +270,7 @@ pub(crate) struct Paint {
 pub(crate) struct Draw {
     pub vertices: Vec<[f32; 2]>,
     pub indices: Vec<u32>,
-    pub paint: Paint,
+    pub paints: Vec<Paint>,
 }
 
 pub(crate) struct MaskResource {
@@ -414,7 +457,17 @@ impl AlphaMasks {
             label: Some("Alpha mask paint layout"),
             entries: &[
                 uniform_entry(0, false, 16),
-                uniform_entry(1, true, std::mem::size_of::<Paint>() as u64),
+                uniform_entry(1, true, 16),
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
             ],
         });
         let filter_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -426,7 +479,16 @@ impl AlphaMasks {
                 uniform_entry(3, false, 16),
             ],
         });
-        let paint_pipeline = pipeline(device, &paint_layout, include_str!("alpha_mask.wgsl"), true);
+        let paint_pipeline = pipeline(
+            device,
+            &paint_layout,
+            concat!(
+                include_str!("radial_gradient.wgsl"),
+                "\n",
+                include_str!("alpha_mask.wgsl")
+            ),
+            true,
+        );
         let filter_pipeline = pipeline(
             device,
             &filter_layout,
@@ -535,6 +597,7 @@ impl AlphaMasks {
         let mut ranges = Vec::with_capacity(draws.len());
         let stride = sizes.stride;
         let mut paints = vec![0u8; sizes.paint_bytes as usize];
+        let mut terms = Vec::new();
         for (i, draw) in draws.iter().enumerate() {
             let base = vertices.len() as u32;
             vertices.extend(&draw.vertices);
@@ -542,8 +605,13 @@ impl AlphaMasks {
             indices.extend(draw.indices.iter().map(|index| index + base));
             ranges.push(start..indices.len() as u32);
             let offset = i * stride as usize;
-            let bytes = bytemuck::bytes_of(&draw.paint);
+            let range = [terms.len() as u32, draw.paints.len() as u32, 0, 0];
+            let bytes = bytemuck::bytes_of(&range);
             paints[offset..offset + bytes.len()].copy_from_slice(bytes);
+            terms.extend_from_slice(&draw.paints);
+        }
+        if terms.is_empty() {
+            terms.push(Paint::default());
         }
         let buffers = &target.buffers;
         // Copies belong to this command stream, not Queue::write_buffer's
@@ -553,6 +621,7 @@ impl AlphaMasks {
             (&buffers.vertices.buffer, bytemuck::cast_slice(&vertices)),
             (&buffers.indices.buffer, bytemuck::cast_slice(&indices)),
             (&buffers.paints.buffer, paints.as_slice()),
+            (&buffers.terms.buffer, bytemuck::cast_slice(&terms)),
             (&buffers.globals.buffer, bytemuck::bytes_of(&globals)),
         ] {
             write_staged_buffer(staging_belt, encoder, buffer, bytes);
@@ -837,6 +906,26 @@ mod tests {
 
     #[test]
     #[ignore = "requires a native GPU adapter"]
+    fn alpha_mask_gpu_blended_paint_is_one_source_shape() {
+        let mut rig = GpuRig::new();
+        let mut draw = square(0.0, 64.0, 0.0);
+        // Weighted alpha is .5, whereas repeated source-over would be .4375.
+        draw.paints = vec![
+            Paint {
+                params: [0.5, 0.5, 0.0, 0.0],
+                ..Default::default()
+            };
+            2
+        ];
+        rig.draw(1, 1, &[draw], [64, 64], 0.0, None);
+        let capture = rig.capture(1);
+        rig.submit();
+        let bytes = rig.read(&capture);
+        assert!(bytes[32 * 256 + 32].abs_diff(128) <= 1);
+    }
+
+    #[test]
+    #[ignore = "requires a native GPU adapter"]
     fn alpha_mask_gpu_viewport_updates_burst_shrink_and_abandoned_uploads() {
         let mut rig = GpuRig::new();
         let error_scope = rig.device.push_error_scope(wgpu::ErrorFilter::Validation);
@@ -998,10 +1087,10 @@ mod tests {
         Draw {
             vertices: vec![[x0, 0.0], [x1, 0.0], [x1, 64.0], [x0, 64.0]],
             indices: vec![0, 1, 2, 0, 2, 3],
-            paint: Paint {
+            paints: vec![Paint {
                 params: [alpha, 1.0, 0.0, 0.0],
                 ..Default::default()
-            },
+            }],
         }
     }
 
@@ -1088,9 +1177,9 @@ mod tests {
             None,
         );
         let mut gradient = square(0.0, 64.0, 1.0);
-        gradient.paint.params = [0.0, 1.0, 2.0, 0.0];
-        gradient.paint.axis = [0.0, 0.0, 64.0, 0.0];
-        gradient.paint.stops[1] = [64.0, 1.0, 0.0, 0.0];
+        gradient.paints[0].params = [0.0, 1.0, 2.0, 0.0];
+        gradient.paints[0].axis = [0.0, 0.0, 64.0, 0.0];
+        gradient.paints[0].stops[1] = [64.0, 1.0, 0.0, 0.0];
         masks.render(
             &device,
             &mut encoder,

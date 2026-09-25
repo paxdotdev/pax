@@ -803,7 +803,8 @@ mod tests {
     }
 
     #[test]
-    fn imported_settings_policy_survives_rich_and_baked_programs() -> BinaryResult<()> {
+    fn imported_settings_policy_and_blended_paint_survive_rich_and_baked_programs(
+    ) -> BinaryResult<()> {
         let policy = PaxValue::Enum(Box::new((
             "SettingsTransition".into(),
             "Ease".into(),
@@ -816,6 +817,24 @@ mod tests {
                 ))),
             ],
         )));
+        use pax_runtime_api::{
+            CoercionRules, Color, Fill, GradientStop, Interpolatable, Size, ToPaxValue,
+        };
+        let paint = Fill::linearGradient(
+            (Size::Percent(0.into()), Size::Percent(0.into())),
+            (Size::Percent(100.into()), Size::Percent(100.into())),
+            vec![GradientStop::get(Color::BLACK, Size::Percent(0.into()))],
+        )
+        .interpolate(
+            &Fill::RadialGradient(pax_runtime_api::RadialGradient {
+                start: (Size::Percent(60.into()), Size::Percent(40.into())),
+                end: (Size::Percent(50.into()), Size::Percent(50.into())),
+                radius: 68.0,
+                stops: vec![GradientStop::get(Color::WHITE, Size::Percent(100.into()))],
+            }),
+            0.375,
+        );
+        let paint_value = paint.clone().to_pax_value();
         let mut manifest = build_manifest();
         manifest
             .components
@@ -825,10 +844,16 @@ mod tests {
             Token::new("#import".into(), test_location()),
             LiteralBlockDefinition {
                 explicit_type_pascal_identifier: None,
-                elements: vec![crate::SettingElement::Setting(
-                    Token::new("transition".into(), test_location()),
-                    ValueDefinition::LiteralValue(policy.clone()),
-                )],
+                elements: vec![
+                    crate::SettingElement::Setting(
+                        Token::new("transition".into(), test_location()),
+                        ValueDefinition::LiteralValue(policy.clone()),
+                    ),
+                    crate::SettingElement::Setting(
+                        Token::new("fill".into(), test_location()),
+                        ValueDefinition::LiteralValue(paint_value.clone()),
+                    ),
+                ],
             },
         )]);
         let rich = crate::binary::from_slice(&crate::binary::to_vec(&manifest)?)?;
@@ -847,10 +872,19 @@ mod tests {
             panic!("missing transition policy");
         };
         assert_eq!(value, &policy);
+        let crate::SettingElement::Setting(_, ValueDefinition::LiteralValue(value)) =
+            &block.elements[1]
+        else {
+            panic!("missing paint mixture");
+        };
+        assert_eq!(value, &paint_value);
+        assert_eq!(Fill::try_coerce(value.clone()).unwrap(), paint);
+
         #[cfg(feature = "compiler")]
         {
             let rust = crate::rust_manifest::to_rust_expression(&manifest);
             assert!(rust.contains("SettingsTransition"));
+            assert!(rust.contains("Blend"));
             assert!(rust.contains("InOutQuad"));
             assert!(rust.contains("Duration::Milliseconds"));
         }

@@ -102,7 +102,12 @@ impl GpuContext {
         // Keep wgpu's conservative downlevel browser preset as the common WebGPU baseline. The
         // preset name reflects its upstream compatibility tier; it does not enable a GL backend.
         #[cfg(target_arch = "wasm32")]
-        let required_limits = wgpu::Limits::downlevel_webgl2_defaults();
+        let required_limits = wgpu::Limits {
+            // Interrupted paint mixtures have a variable number of endpoints.
+            max_storage_buffers_per_shader_stage: 1,
+            max_storage_buffer_binding_size: 128 * 1024 * 1024,
+            ..wgpu::Limits::downlevel_webgl2_defaults()
+        };
         #[cfg(not(target_arch = "wasm32"))]
         let required_limits = adapter.limits();
         let (device, queue) = adapter
@@ -595,7 +600,7 @@ fn create_primitive_bind_group_layout(device: &Device) -> BindGroupLayout {
                 binding: 4,
                 visibility: wgpu::ShaderStages::FRAGMENT,
                 ty: wgpu::BindingType::Buffer {
-                    ty: wgpu::BufferBindingType::Uniform,
+                    ty: wgpu::BufferBindingType::Storage { read_only: true },
                     has_dynamic_offset: false,
                     min_binding_size: None,
                 },
@@ -736,7 +741,7 @@ impl<'w> RenderBackend<'w> {
             self.gradients_buffer = self.device.create_buffer(&wgpu::BufferDescriptor {
                 label: Some("Gradients Buffer"),
                 size: self.config.gradients_buffer_size * std::mem::size_of::<GpuGradient>() as u64,
-                usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+                usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
                 mapped_at_creation: false,
             });
             rebind_main_group = true;
@@ -1044,7 +1049,7 @@ impl<'w> RenderBackend<'w> {
             &device,
             "Gradients Buffer",
             config.gradients_buffer_size,
-            BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+            BufferUsages::STORAGE | BufferUsages::COPY_DST,
         );
         let (_, materials_buffer) = create_buffer::<GpuMaterial>(
             &device,
@@ -1185,7 +1190,14 @@ impl<'w> RenderBackend<'w> {
     ) -> RenderPipeline {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("geometry.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(
+                concat!(
+                    include_str!("radial_gradient.wgsl"),
+                    "\n",
+                    include_str!("geometry.wgsl")
+                )
+                .into(),
+            ),
         });
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -1450,7 +1462,7 @@ impl<'w> RenderBackend<'w> {
         buffers: &mut CpuBuffers,
         retained_primitives: &[GpuPrimitive],
     ) -> (Rc<SharedRetainedVectorResource>, u64) {
-        let (vertices, indices, _, _, mut colors, mut gradients, mut materials) =
+        let (vertices, indices, _, _, mut colors, gradients, mut materials) =
             aligned_cpu_buffers(buffers);
         let vertex_capacity = vertices.len();
         let index_capacity = indices.len();
@@ -1464,10 +1476,6 @@ impl<'w> RenderBackend<'w> {
             GpuPrimitive::default(),
         );
         colors.resize(self.config.colors_buffer_size as usize, GpuColor::default());
-        gradients.resize(
-            self.config.gradients_buffer_size as usize,
-            GpuGradient::default(),
-        );
         materials.resize(
             self.config.materials_buffer_size as usize,
             GpuMaterial::default(),
@@ -1511,7 +1519,7 @@ impl<'w> RenderBackend<'w> {
             .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("Retained Gradient Buffer"),
                 contents: bytemuck::cast_slice(&gradients),
-                usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+                usage: BufferUsages::STORAGE | BufferUsages::COPY_DST,
             });
         let materials_buffer = self
             .device
@@ -2973,7 +2981,11 @@ mod shader_tests {
     #[test]
     fn alpha_mask_shaders_parse_and_validate() {
         for source in [
-            include_str!("alpha_mask.wgsl"),
+            concat!(
+                include_str!("radial_gradient.wgsl"),
+                "\n",
+                include_str!("alpha_mask.wgsl")
+            ),
             include_str!("alpha_blur.wgsl"),
             include_str!("textures.wgsl"),
         ] {
@@ -2988,8 +3000,12 @@ mod shader_tests {
     }
     #[test]
     fn geometry_shader_parses_and_validates() {
-        let module = naga::front::wgsl::parse_str(include_str!("geometry.wgsl"))
-            .expect("geometry shader should parse");
+        let module = naga::front::wgsl::parse_str(concat!(
+            include_str!("radial_gradient.wgsl"),
+            "\n",
+            include_str!("geometry.wgsl")
+        ))
+        .expect("geometry shader should parse");
         naga::valid::Validator::new(
             naga::valid::ValidationFlags::all(),
             naga::valid::Capabilities::all(),

@@ -159,9 +159,10 @@ positions along it; the renderer blends between those stops:
 
 Points are `[x, y]` pairs in the shape's local coordinate space. Here the
 gradient runs from the top-left to the bottom-right. Percent coordinates
-follow the shape's bounds as it resizes. Use at least two stops in ascending
-order and write their positions as percentages; the Piet fallback requires
-percentage stops even though the GPU renderer can also interpret pixels.
+follow the shape's bounds as it resizes. For linear gradients, use at least two
+stops in ascending order and write their positions as percentages; the Piet
+fallback requires percentage stops even though the GPU renderer can also
+interpret pixels.
 
 Omitting the `linear` block gives a left-to-right gradient, from `[0%, 0%]`
 to `[100%, 0%]`:
@@ -179,13 +180,56 @@ Put transparency in each stop's color, such as `rgba(255, 255, 255, 0)`.
 There is no separate stop-opacity field. A translucent gradient over a
 surface can supply a highlight while preserving the underlying color.
 
-Radial gradients are also available through a `radial` block with `start`,
-`end`, and `radius`. Their geometry currently differs between the GPU and
-Piet renderers: GPU uses the start-to-end vector scaled by radius; Piet uses
-origin/center points and a radius. In particular, equal start/end points
-collapse the GPU gradient's axis. Treat radial fills as backend-sensitive
-and verify their appearance on your shipping targets; the linear examples
-above are the starting point for this chapter.
+Fills also participate in [automatic settings transitions](animation-motion.md#automatic-settings-transitions).
+Gradient changes crossfade the two sampled paints, even with different stop
+counts or positions; transparent stops preserve their alpha. Solid colors
+interpolate their RGBA channels. This paint behavior does not require isolated
+group compositing or change how neighboring elements blend with each other.
+
+### Radial gradients
+
+A `radial` block grows from a focal point (`start`) to an outer circle whose
+center is `end`. Its numeric `radius` is in local logical pixels. Equal start
+and end points produce concentric circles. Points resolve against the actual
+shape bounds, so percentages remain useful on non-square shapes:
+
+```pax
+<Rectangle width=280px height=180px
+    fill=@gradient {
+        radial: {
+            start: [55%, 40%]
+            end: [50%, 50%]
+            radius: 90
+        }
+        0%: rgba(137, 179, 213, 180)
+        60%: rgba(137, 179, 213, 60)
+        100%: rgba(137, 179, 213, 0)
+    }
+/>
+```
+
+The 0% stop is at the focus; the 100% stop lies on the outer circle. Moving the
+focus creates directional highlights. A focus outside the outer circle creates
+a cone of paint, with transparent pixels outside that cone. Rotation, reflection,
+shear, and nonuniform scaling transform the whole gradient with its shape.
+GPU color fills and painted alpha masks share the same radial sampler; the Piet
+browser fallback resolves the same local geometry through a fixed radial brush.
+
+Radial stops accept percentages or logical pixels measured against the radius:
+with `radius: 90`, a stop at `45px` equals `50%`. Use ascending stops within
+0–100% (or the equivalent pixel range). Empty stops, nonpositive/nonfinite radii,
+nonfinite points, and singular transforms paint nothing. GPU gradients still use
+at most eight stops. Radial fills also participate in paint crossfades, including
+transitions to linear gradients and solids.
+
+**Migration:** radial color fills previously differed between backends. GPU
+color fills projected along an axis whose length depended on `start`/`end`;
+Piet multiplied the radius by shape size and resolved points in a square.
+Painted GPU masks previously treated `start` as the center and used `end` only
+for orientation. Recheck existing radial artwork and masks: use equal points
+for a centered glow, set `end` to the intended outer center, and express the
+radius directly in local logical pixels. The serialized fields and Pax syntax
+are unchanged in both debug and release cartridges.
 
 ## Reusable visual settings
 

@@ -10,6 +10,7 @@
             radial: {
                 start: [100%, 0%]
                 end: [97%, 3%]
+                // Local logical pixels; start is the focus, end the outer center.
                 radius: 30
             }
             0%: rgba(255, 255, 255, 180)
