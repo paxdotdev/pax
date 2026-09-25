@@ -1,0 +1,45 @@
+<Group width=100% height=100%>
+    <Text class="headline" width=100% height={(self.font_px * 1.3)px} text="A declarative language" wrap=false/>
+    <Group y={(self.font_px * 1.18)px} width=100% height={(self.font_px * 1.3)px}>
+        <Text class="headline" width={(self.font_px * 1.6)px} height=100% text="for" wrap=false/>
+        <Frame x={(self.font_px * 1.65)px} y={(self.font_px * -0.1)px} width={100% - (self.font_px * 1.65)px}
+            height={(self.font_px * 1.5)px}>
+            <Group x={(self.word_x * self.font_px)px} y={(self.font_px * (0.75 + self.word_y))px} anchor_y=50% width=100% height=100%
+                scale_x={(self.word_scale_x)%} scale_y={(self.word_scale_y)%} rotate={(self.word_rotate)deg} opacity={self.word_opacity}>
+                if self.word == "creative" {
+                    // EMS League's "creative" has source bounds 4060.8 x 815.55.
+                    // Handwriter normalizes each axis, so preserve that ratio in its box.
+                    <Handwriter x={(self.font_px * 0.05)px} y={(self.font_px * 0.29)px} width={(self.font_px * 0.86 * 4060.8 / 815.55)px}
+                        height={(self.font_px * 0.86)px} text="creative" alt_text="creative" font=HandwriterFont::EMSLeague
+                        smoothing=PathSmoothing::Strong draw_end={self.writing_progress} stroke=Stroke {
+                            color: {SiteTheme::paper()}
+                            width: {(Math::max(1.6, self.font_px * 0.038) + 1.0)px}
+                        }/>
+                } else {
+                    <Text class="headline" width=100% height=100% text={self.word} wrap=false/>
+                }
+            </Group>
+        </Frame>
+    </Group>
+    <Text class="headline" y={(self.font_px * 2.36)px} width=100% height={(self.font_px * 1.3)px} text="user interfaces"
+        wrap=false/>
+</Group>
+
+@settings {
+    @mount: mount
+    @pre_render: tick
+    .headline {
+        style: TextStyle {
+            font: Font::Web(
+                "Manrope",
+                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
+                FontStyle::Normal,
+                FontWeight::ExtraBold)
+            font_size: {(self.font_px)px}
+            fill: {SiteTheme::paper()}
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+}

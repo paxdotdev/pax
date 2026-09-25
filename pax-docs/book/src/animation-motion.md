@@ -593,7 +593,9 @@ tracks sample. Keep the mapping explicit and bounded: translate the input
 into the timeline's position range, then let the tracks own the visuals.
 
 The `marionette` example uses shared and per-part playheads;
-`pax-logo` exposes progress for coordinated vector motion; and
+`pax-logo` exposes progress for coordinated vector motion (its reusable
+`AnimatedPaxLogo` also accepts `background_mode=LogoBackgroundMode::Light` or
+`Dark` to invert the signboard against the surrounding surface); and
 `mouse-animation` derives a moving shape from a parametric path.
 `timeline-playground` explores longer sequences and mixed duration units.
 These are deeper source references after the small examples here.

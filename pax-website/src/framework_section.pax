@@ -21,7 +21,7 @@
         <Text class="editorial_body" width={self.compact ? 100% : 78%}
             text="Components, state, and routing share a scene with paths, gradients, masks, and motion. A custom interaction doesn't need to become a separate rendering project. You can keep building on the same foundation as your idea becomes more ambitious."/>
         <Text class="editorial_note" width={self.compact ? 100% : 78%}
-            text="You're already inside a Pax app. The quilt, this page, and the feature gallery all use the same framework. Open View Source on a section to see how it is made."/>
+            text="You're already inside a Pax app. The animated logo, this page, and the feature gallery all use the same framework. Open View Source on a section to see how it is made."/>
     </Stacker>
     <Rectangle class="site_rule" x=50% y={100% - 1px} width={self.compact ? (100% - 40px) : 88%} height=1px/>
     <Rectangle class="site_ink" width=100% height=100%/>

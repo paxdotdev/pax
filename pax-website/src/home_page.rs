@@ -7,6 +7,7 @@ const COMPACT_BREAKPOINT_PX: f64 = 760.0;
 #[pax]
 #[file("home_page.pax")]
 pub struct HomePage {
+    pub hero_height: Property<f64>,
     pub framework_height: Property<f64>,
     pub authoring_height: Property<f64>,
     pub runtime_height: Property<f64>,
@@ -30,16 +31,29 @@ impl HomePage {
         );
         // include_str! is relative to this source file, not the build's cwd.
         hero_sources.extend(section_sources(
-            "living-quilt/src/lib.pax",
-            include_str!("../../examples/src/living-quilt/src/lib.pax"),
-            "living-quilt/src/lib.rs",
-            include_str!("../../examples/src/living-quilt/src/lib.rs"),
+            "src/rotating_headline.pax",
+            include_str!("rotating_headline.pax"),
+            "src/rotating_headline.rs",
+            include_str!("rotating_headline.rs"),
         ));
-        hero_sources.push(ExampleSource {
-            label: "living-quilt/src/quilt_tile.rs".to_string(),
-            language: "rust".to_string(),
-            code: include_str!("../../examples/src/living-quilt/src/quilt_tile.rs").to_string(),
-        });
+        hero_sources.extend(section_sources(
+            "pax-logo/src/animated_pax_logo.pax",
+            include_str!("../../examples/src/pax-logo/src/animated_pax_logo.pax"),
+            "pax-logo/src/animated_pax_logo.rs",
+            include_str!("../../examples/src/pax-logo/src/animated_pax_logo.rs"),
+        ));
+        hero_sources.extend(section_sources(
+            "pax-logo/src/animated_pax_logo_banner.pax",
+            include_str!("../../examples/src/pax-logo/src/animated_pax_logo_banner.pax"),
+            "pax-logo/src/animated_pax_logo_banner.rs",
+            include_str!("../../examples/src/pax-logo/src/animated_pax_logo_banner.rs"),
+        ));
+        hero_sources.extend(section_sources(
+            "pax-logo/src/animated_pax_logo_post.pax",
+            include_str!("../../examples/src/pax-logo/src/animated_pax_logo_post.pax"),
+            "pax-logo/src/animated_pax_logo_post.rs",
+            include_str!("../../examples/src/pax-logo/src/animated_pax_logo_post.rs"),
+        ));
         self.hero_sources.set(hero_sources);
         self.authoring_sources.set(section_sources(
             "src/authoring_section.pax",

@@ -1,4 +1,100 @@
-# Living Quilt + chromatic contour website
+# Pax website design notes
+
+## September 25 — Inverse logo, handwriting, and supporting copy
+
+The hero now selects `LogoBackgroundMode::Dark` in the canonical `pax-logo`
+component: light signboard/post with dark letters/counters against the dark
+page. The component's default Light mode preserves existing consumers; its
+two configurable fills are swapped consistently by Dark mode. The standalone
+logo example has a light/dark background toggle for inspection.
+
+“Creative” uses the bundled EMS League single-stroke font through Handwriter,
+with a 1.6-second draw-range reveal and an em-relative box preserving the
+source word's 4060.8:815.55 aspect ratio. The stroke is 1px heavier than the
+initial treatment at every viewport size. Its paths are
+generated on mounting, not retraced per frame; only draw progress changes.
+The existing clock drives writing, pauses offscreen, and finishes the writing
+when the user pauses. Other words retain their native-text treatment pending
+art direction for traced typography. Handwriter already supplies `alt_text`
+via a transparent native Text layer; no duplicate ordinary Text is mounted
+for creative. This is a useful text alternative, not a complete heading or
+screen-reader contract.
+
+CMY banding through the writing is pending a mask-component lifecycle fix:
+an alpha-mask prototype rendered blank because the off-tree Handwriter never
+runs its mount handler or expands its component template. Alpha sources already
+trim primitive Path strokes, but this does not establish support for a component
+that generates those paths at mount. The prototype was removed; no extra color
+animation is active. Once component mask sources are supported, use moving CMY
+strips behind the revealed stroke with the same pause/offscreen clock, retaining
+a native text alternative outside the off-tree mask source.
+
+The logo's left edge shares the content gutter on desktop and mobile. Two light,
+intrinsically measured paragraphs read: “Write application logic in Rust,
+alongside Pax: a declarative language designed from scratch for expressive user
+interfaces.” and “Ship to native macOS, iOS, iPadOS, and the web. This website is
+built in Pax.”
+
+Rust Hot Reload leads the feature carousel, followed by Path Drawing Animations.
+Automatic advance pauses offscreen so the lead card is still first when the
+visitor reaches the section. The template uses the 30px/s default directly.
+
+Gutter/copy/carousel follow-up validation: debug web build, 15 website tests,
+docs book build, and whitespace checks pass. Browser checks cover the hero at
+1280px and 390px and confirm Hot Reload is first on reaching the mobile rail.
+The attempted Handwriter mask was blank and removed, as described above; the
+current preview retains white handwriting. This follow-up did not rerun release.
+
+Earlier hero validation: debug and release web builds pass, as do 15 website and 23 logo
+tests. Debug browser checks cover 1280px and 390px; the release smoke test
+confirms the inverse palette, handwriting, paragraph, and pause control with
+no warning/error logs in that fresh session. One `creative` text alternative
+is present, but the current web reading tree places the conditionally mounted
+Handwriter text after other hero content; semantic heading/reading order still
+needs follow-up. No screen-reader or native Apple audit is claimed. The docs
+book, bundled example snapshot check, formatting, and whitespace checks pass.
+
+The notes below describe earlier stages of this iteration.
+
+## September 25 — Logo and signboard hero
+
+Concept: the mark and typography take the lead, without the quilt or the long
+introductory paragraph. Desktop wireframe: animated logo in the left 28% column,
+6% gutter, three-line headline and compact CLI actions in the remaining 66%.
+Below 900px the logo sits above the headline. The content hull sizes ExampleHost
+and its source drawer; the logo's natural-coordinate drawing is a breakout child
+inside an explicitly reserved layout footprint.
+
+The fixed headline grid reads “A declarative language” / “for [adjective]” /
+“user interfaces”. Its font size follows the available column width. Each word
+has a 4.2-second reading hold and a 0.9-second change: horizontal slide to
+performant, flattened signboard flip to native, vertical roll to portable, and
+tilt/scale recovery to creative. One native Text changes at the invisible
+midpoint, avoiding duplicate words or per-letter reading order. Geometry stays
+fixed as the words change; offscreen playback stops advancing. The logo plays
+once from the existing `pax-logo` crate, with no copied animation source.
+
+A native browser Button pauses/resumes both hero motions. Pausing resolves any
+in-between word to a legible resting pose and completes the logo. This is not
+automatic OS reduced-motion support or a full accessibility audit: Pax currently
+has no unified reduced-motion query, general heading/ARIA authoring contract,
+or image alt-text property. Keep the words as real native text, not an image
+with an assumed alternative. Rich traced-letter experiments should wait for a
+deliberate semantic counterpart.
+
+The carousel's default speed is 30px/s (1.25× the previous 24px/s), with unchanged
+native scrolling, pause, and culling behavior. The removed gallery footer stays
+removed. The notes below are historical and do not imply Living Quilt or the
+contour experiment is currently mounted.
+
+Validation: the debug web build and all 14 website tests pass, including word
+order/looping, hidden handoffs, legible paused poses, and distinct transforms.
+Browser checks cover 1440px, 1280px, the normal 816px panel, and 390px mobile;
+the native pause button responds to Enter, and the source drawer includes the
+headline and original logo sources. The docs book and whitespace checks pass.
+CLI scene inspection and timed captures were exercised; the scaled CLI captures
+omit some GPU background/chrome, so browser screenshots are the visual layout
+reference. This is not a release-build, screen-reader, or frame-time audit.
 
 ## Current baseline — September 25
 

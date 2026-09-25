@@ -221,6 +221,14 @@ repeated subtree can combine supported source shapes; overlapping paints
 combine with source-over alpha, so two half-opacity shapes give 75%
 coverage where they overlap.
 
+Path strokes used as alpha sources respect `draw_start` and `draw_end`.
+However, a mask source is off-tree and does not run the ordinary component
+mount lifecycle. Components such as Handwriter that generate paths in a mount
+handler currently cannot be used directly as mask sources; use primitive
+vector sources with already-authored geometry. A mask source also does not
+provide visible native text, so keep a text equivalent outside the mask when
+a vector reveal carries meaning.
+
 Add `feather=2.0` to the Mask to soften its painted coverage. `feather` is the
 Gaussian standard deviation in logical pixels, rather than a percentage or a
 Pax length literal. It defaults to zero; negative values are treated as zero.

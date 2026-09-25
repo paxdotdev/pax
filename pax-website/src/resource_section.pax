@@ -29,7 +29,7 @@
                 <Text class="editorial_body" width=100%
                     text="Pax has been in development since 2021. Today's framework is coherent and runnable, but still pre-1.0: APIs will evolve and capabilities vary by target. Try it against the needs of your project, and help shape what comes next."/>
                 <Text class="editorial_note" width=100%
-                    text="Native text, controls, and image alternatives provide accessibility foundations. Reading order, tab order, annotations, and broader accessibility audits remain ongoing work."/>
+                    text="Native text and controls provide an accessibility foundation. Reading order, tab order, semantic annotations, image alternatives, and broader accessibility audits remain ongoing work."/>
                 <Text class="editorial_note" width=100% text="The current framework and tooling are MIT / Apache-2.0 licensed."/>
             </Stacker>
         </Stacker>

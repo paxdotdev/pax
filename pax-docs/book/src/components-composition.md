@@ -190,6 +190,12 @@ of the component's intended interface. See
 [PAXEL](data-binding-expressions.md#bindings) for the binding syntax and
 [property handles](state-properties.md#property-handles) for the Rust model.
 
+For example, ExampleHost's source tabs bind to their own host's
+`selected_source` property. Clicking a tab changes that drawer only; sibling
+hosts keep independent selections. They do not need a local store for this
+direct parent/child connection. Callers can deliberately bind multiple hosts
+to the same selection property when synchronized selection is wanted.
+
 State used only inside one card can stay on that card. State shared by several
 cards usually belongs in their common owner. For an action such as “advance
 this note,” a named event can let the owner decide how state should change;
@@ -472,6 +478,15 @@ one. Lookup follows runtime scope, including component and projection scope,
 so visual proximity alone does not establish access. Keep the borrowed-store
 closure short: cloning a needed property handle lets subsequent work happen
 after the borrow ends, as above.
+
+**Current scope limitation:** a component's mount handler registers through its
+incoming runtime stack frame. Sibling instances that share that frame can
+overwrite each other's stores of the same type; a provider is not yet guaranteed
+a private store scope merely by being a separate component. Ordinary component
+properties are allocated per instance and do not have this collision. Prefer
+explicit inputs, events, or `bind:` for direct parent/child communication, and
+avoid relying on sibling store-provider isolation until this runtime limitation
+is resolved.
 
 The store supplies access to state; the `Property` inside it supplies reactive
 updates. A plain Rust field in a store does not become reactive just by being

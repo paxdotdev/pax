@@ -21,17 +21,26 @@ pub use pax_logo_post::*;
 #[file("lib.pax")]
 pub struct Example {
     pub logo_progress: Property<f64>,
+    pub background_mode: Property<LogoBackgroundMode>,
 }
 
 impl Default for Example {
     fn default() -> Self {
         Self {
             logo_progress: Property::new(0.0),
+            background_mode: Property::new(LogoBackgroundMode::Light),
         }
     }
 }
 
 impl Example {
+    pub fn toggle_background(&mut self, _ctx: &NodeContext, _event: Event<ButtonClick>) {
+        self.background_mode.set(match self.background_mode.get() {
+            LogoBackgroundMode::Light => LogoBackgroundMode::Dark,
+            LogoBackgroundMode::Dark => LogoBackgroundMode::Light,
+        });
+    }
+
     pub fn handle_mount(&mut self, _ctx: &NodeContext) {
         self.play_logo();
     }

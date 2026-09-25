@@ -21,7 +21,7 @@ social_image_alt = "Pax logo"
 
 [dependencies]
 pax-kit = { version = "0.39.0", path = "../pax-kit" }
-living-quilt = { version = "0.39.0", path = "../examples/src/living-quilt" }
+pax-logo = { version = "0.39.0", path = "../examples/src/pax-logo" }
 
 [lib]
 crate-type = ["cdylib", "rlib"]

@@ -1,18 +1,7 @@
 // The post and banner remain independently inspectable components.
 <Group width=100% height=100%>
-    <AnimatedPaxLogoPost
-        width=137.23px
-        height=463.95px
-        fill={self.fill}
-        backing_fill={self.letter_fill}
-        progress={self.progress}
-    />
-
-    <AnimatedPaxLogoBanner
-        width=920.72px
-        height=100%
-        fill={self.fill}
-        letter_fill={self.letter_fill}
-        progress={self.progress}
-    />
+    <AnimatedPaxLogoPost width=137.23px height=463.95px fill={self.background_mode == LogoBackgroundMode::Dark ? self.letter_fill : self.fill}
+        backing_fill={self.background_mode == LogoBackgroundMode::Dark ? self.fill : self.letter_fill} progress={self.progress}/>
+    <AnimatedPaxLogoBanner width=920.72px height=100% fill={self.background_mode == LogoBackgroundMode::Dark ? self.letter_fill : self.fill}
+        letter_fill={self.background_mode == LogoBackgroundMode::Dark ? self.fill : self.letter_fill} progress={self.progress}/>
 </Group>

@@ -1,8 +1,8 @@
 <Scroller width=100% height=100% autosize=true>
     <Stacker width=100% autosize=true direction=StackerDirection::Vertical gutter=0px>
-        <ExampleHost width=100% height={self.compact ? 1120px : ($viewport.width < 1100 ? 1020px : 902px)} title="Living Quilt"
-            sources={self.hero_sources} drawer_open=false>
-            <HeroSection />
+        <ExampleHost width=100% height={(Math::max(580, self.hero_height))px} title="A declarative language" sources={self.hero_sources}
+            drawer_open=false>
+            <HeroSection content_height=bind:self.hero_height/>
         </ExampleHost>
         <ExampleHost width=100% height={(Math::max(640, self.framework_height))px} title="Creative freedom" sources={self.framework_sources}
             drawer_open=false>

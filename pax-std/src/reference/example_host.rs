@@ -3,7 +3,7 @@
 use crate::*;
 use pax_engine::api::{
     cursor::CursorStyle, Click, Duration, EasingCurve, Event, MouseDown, MouseMove, MouseOut,
-    MouseOver, MouseUp, Store,
+    MouseOver, MouseUp,
 };
 use pax_engine::*;
 use pax_runtime::api::NodeContext;
@@ -70,9 +70,8 @@ impl Default for ExampleHost {
 }
 
 impl ExampleHost {
-    // Wires selected-source lookup and makes child tabs update this host.
+    // Derive the source pane from this host's selected index.
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        ctx.push_local_store(SelectedSourceStore(self.selected_source.clone()));
         let drawer_open = self.drawer_open.get();
         self._drawer_target_open.set(drawer_open);
         self._drawer_progress
@@ -322,22 +321,16 @@ pub struct ExampleHostSourceTab {
     pub source: Property<ExampleSource>,
     // Source index represented by this tab.
     pub index: Property<usize>,
-    // Currently selected source index.
+    // Two-way bound to the owning ExampleHost's selected_source.
     pub selected: Property<usize>,
 }
 
 impl ExampleHostSourceTab {
     // Updates the parent ExampleHost's selected source.
-    pub fn select_source(&mut self, ctx: &NodeContext, _event: Event<Click>) {
-        let index = self.index.get();
-        let _ = ctx.peek_local_store(|SelectedSourceStore(selected): &mut SelectedSourceStore| {
-            selected.set(index);
-        });
+    pub fn select_source(&mut self, _ctx: &NodeContext, _event: Event<Click>) {
+        self.selected.set(self.index.get());
     }
 }
-
-struct SelectedSourceStore(Property<usize>);
-impl Store for SelectedSourceStore {}
 
 fn active_source(sources: &[ExampleSource], selected: usize) -> ExampleSource {
     if sources.is_empty() {

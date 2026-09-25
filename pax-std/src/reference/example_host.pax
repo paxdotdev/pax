@@ -30,7 +30,7 @@
             <Scroller x=24px y=95px width={100% - 48px} height=30px scroll_width={(Math::len(self.sources) * 112)px} scroll_height=30px>
                 <Group width={(Math::len(self.sources) * 112)px} height=30px>
                     for (source, i) in self.sources {
-                        <ExampleHostSourceTab x={(i * 112)px} y=0px width=112px height=30px source={source} index={i} selected={self.selected_source} />
+                        <ExampleHostSourceTab x={(i * 112)px} y=0px width=112px height=30px source={source} index={i} selected=bind:selected_source />
                     }
                 </Group>
             </Scroller>

@@ -6,8 +6,20 @@
             <Text class="gallery_copy" width={self.compact ? 100% : 78%}
                 text="From the language to the renderer to the tools: explore what you can build with Pax. Hover or touch to pause; scroll horizontally or swipe to explore."/>
         </Stacker>
-        <MarqueeCarousel width=100% height={self.compact ? 546px : 522px} card_width_px={self.card_width_px} gap_px=24 speed_px_per_second=24
+        <MarqueeCarousel width=100% height={self.compact ? 546px : 522px} card_width_px={self.card_width_px} gap_px=24
             hover_paused=bind:marquee_hovered touch_paused=bind:marquee_touch_active>
+            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
+                category="DEV TOOLING" title="Rust Hot Reload"
+                summary="Reload Pax templates on supported targets and Rust application logic on web and macOS while keeping the running feedback loop alive."
+                proof="TEMPLATE + LOGIC LANES" docs_label="HOT RELOADING"
+                docs_url="https://docs.pax.dev/getting-started.html#hot-reloading">
+                <Group class="poster">
+                    <Text class="poster_code" x=26px y=24px width={100% - 52px} height=24px text="src/lib.rs"/>
+                    <Rectangle class="poster_code_line" x=26px y=62px width=68% height=7px/>
+                    <Rectangle class="poster_signal" x=26px y=84px width=82% height=7px/>
+                    <Rectangle class="poster_code_line" x=26px y=106px width=54% height=7px/>
+                </Group>
+            </FeatureCard>
             <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
                 category="ANIMATION" title="Path Drawing Animations"
                 summary="Animate a path's visible stroke range for signatures, diagrams, handwriting, and line art that draws itself into the interface."
@@ -52,18 +64,6 @@
                     <Ellipse class="poster_orbit" x=50% y=74px width=124px height=124px anchor=50%/>
                     <Ellipse class="poster_gloss" x=50% y=74px width=82px height=82px anchor=50%/>
                     <Ellipse class="poster_highlight" x=42% y=58px width=20px height=20px anchor=50%/>
-                </Group>
-            </FeatureCard>
-            <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="DEV TOOLING" title="Rust Hot Reload"
-                summary="Reload Pax templates on supported targets and Rust application logic on web and macOS while keeping the running feedback loop alive."
-                proof="TEMPLATE + LOGIC LANES" docs_label="HOT RELOADING"
-                docs_url="https://docs.pax.dev/getting-started.html#hot-reloading">
-                <Group class="poster">
-                    <Text class="poster_code" x=26px y=24px width={100% - 52px} height=24px text="src/lib.rs"/>
-                    <Rectangle class="poster_code_line" x=26px y=62px width=68% height=7px/>
-                    <Rectangle class="poster_signal" x=26px y=84px width=82% height=7px/>
-                    <Rectangle class="poster_code_line" x=26px y=106px width=54% height=7px/>
                 </Group>
             </FeatureCard>
             <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
@@ -484,8 +484,6 @@
                 </Group>
             </FeatureCard>
         </MarqueeCarousel>
-        <Text class="gallery_note" x=50% anchor_x=50% width={self.compact ? (100% - 48px) : 88%}
-            text="41 CURRENT FEATURES  /  AUTO-SCROLL PAUSES ON HOVER OR TOUCH  /  DRAG OR SWIPE TO EXPLORE"/>
     </Stacker>
     <Rectangle class="gallery_rule" x=50% y={100% - 1px} width={self.compact ? (100% - 40px) : 88%} height=1px anchor_x=50%/>
     <Rectangle class="gallery_bg" width=100% height=100%/>
@@ -538,20 +536,6 @@
             font_size: {self.compact ? 13px : 15px}
             fill: {SiteTheme::muted()}
             align_vertical: TextAlignVertical::Top
-            align_horizontal: TextAlignHorizontal::Left
-            align_multiline: TextAlignHorizontal::Left
-        }
-    }
-    .gallery_note {
-        style: TextStyle {
-            font: Font::Web(
-                "IBM Plex Mono",
-                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
-                FontStyle::Normal,
-                FontWeight::Medium)
-            font_size: {self.compact ? 8px : 10px}
-            fill: {SiteTheme::muted()}
-            align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
         }

@@ -300,6 +300,48 @@ fn template_allocates_binds_and_publishes_scope_once_before_mount() {
 }
 
 #[test]
+fn sibling_components_isolate_state_and_their_template_scopes() {
+    let (engine, root) = fixture();
+    let child_plan = plan(vec![setting("value", expression("self.value"))], None, None);
+    let mut component_args = args();
+    component_args.component_template = Some(RefCell::new(vec![template(&child_plan)]));
+    let component = ComponentInstance::instantiate(component_args);
+    let shared_incoming_scope = root.stack.clone();
+    let siblings = root.generate_children(
+        [
+            (
+                component.clone() as Rc<dyn InstanceNode>,
+                shared_incoming_scope.clone(),
+            ),
+            (component as Rc<dyn InstanceNode>, shared_incoming_scope),
+        ],
+        &engine.runtime_context,
+        &root.parent_frame,
+        true,
+    );
+    let first = &siblings[0];
+    let second = &siblings[1];
+    assert!(Rc::ptr_eq(&first.stack, &second.stack));
+    assert_ne!(
+        first.properties_scope.borrow()["value"]
+            .get_untyped_property()
+            .get_id(),
+        second.properties_scope.borrow()["value"]
+            .get_untyped_property()
+            .get_id()
+    );
+    let first_child = first.children.get()[0].clone();
+    let second_child = second.children.get()[0].clone();
+    assert!(!Rc::ptr_eq(&first_child.stack, &second_child.stack));
+    first.with_properties_unwrapped(|p: &mut Probe| p.value.set(42.0));
+    assert_eq!(values(first).0, 42.0);
+    assert_eq!(values(&first_child).0, 42.0);
+    assert_eq!(values(second).0, 7.0);
+    assert_eq!(values(&second_child).0, 7.0);
+    assert_eq!(values(&root).0, 7.0);
+}
+
+#[test]
 fn shared_plan_keeps_nodes_independent_and_publishes_final_double_binding_alias() {
     let (engine, root) = fixture();
     let plan = plan(
@@ -346,6 +388,14 @@ fn shared_plan_keeps_nodes_independent_and_publishes_final_double_binding_alias(
     a.set(30.0);
     assert_eq!(values(&first).0, 30.0);
     assert_eq!(values(&second).0, 20.0);
+    // A tab-like child write must go back only to its explicitly bound owner.
+    first.with_properties_unwrapped(|p: &mut Probe| p.value.set(2.0));
+    assert_eq!(a.get(), 2.0);
+    assert_eq!(b.get(), 20.0);
+    second.with_properties_unwrapped(|p: &mut Probe| p.value.set(3.0));
+    assert_eq!(a.get(), 2.0);
+    assert_eq!(b.get(), 3.0);
+    assert_eq!(values(&first).0, 2.0);
 }
 
 #[test]

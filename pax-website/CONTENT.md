@@ -5,9 +5,10 @@ the facts and mental model; the website is an invitation, not a second manual.
 
 ## Content spine
 
-1. Living Quilt and "A declarative language for native and web UI": identify
-   the open-source Rust GUI framework, the language's focused role, current
-   delivery targets, and primary CLI path.
+1. Animated Pax logo and "A declarative language for creative / performant /
+   native / portable user interfaces": a three-line rotating headline, compact
+   paragraphs connecting declarative Pax, Rust application logic, and the four shipping
+   targets, followed by the primary CLI path. Deeper explanation stays below.
 2. Give your software a character of its own: application architecture and
    creative expression belong together.
 3. Describe your interface. Power it with Rust: explain the two source layers,
@@ -15,29 +16,30 @@ the facts and mental model; the website is an invitation, not a second manual.
 4. One project, native and web: name current targets, explain native composition,
    and give architectural performance evidence without numeric promises.
 5. Feature gallery: preserve all authored cards, artwork, qualifications, and
-   local marquee behavior. This is the detailed proof inventory.
+   local marquee behavior. Hot reloading leads, followed by path drawing;
+   offscreen auto-advance pauses to preserve that first impression.
 6. Your next interface starts here: install/create/run, project maturity,
    the self-contained OSS boundary, and useful destinations.
 
 ## Layout and production boundary
 
-The September 17 intro uses the literal, category-first message in the hero and
-the complementary authoring-model message in the language section. Declarative
-templates describe the interface; Rust owns application logic. Avoid introducing
-"UI Description Language" as a branded category or implying there is no new
-syntax to learn. The quilt supplies the expressiveness without an abstract
-headline. Homepage preview metadata follows the same message.
+The September 25 hero keeps the literal, category-first message and makes the
+logo and type its visual focus. Declarative templates describe the interface;
+Rust owns application logic. Avoid introducing "UI Description Language" as a
+branded category or implying there is no new syntax to learn. Preview metadata
+keeps a stable category description rather than following the animated word.
 
-Keep the quilt-derived dark palette, Manrope headings, mono labels, fine rules,
-and yellow actions. Use wide headings, readable paragraph measures, open
+Keep the dark palette, Manrope headings, mono labels, fine rules,
+and neutral actions. Use wide headings, readable paragraph measures, open
 two-column explanations on desktop, and stacked content on mobile. Text measures
 its own height; Stacker owns paragraph flow. Each section remains inspectable
 through ExampleHost. Fixed host envelopes are separate from internal text flow.
 
-No new decorative motion, fake terminals, staged animation explanations, or
-placeholder proof graphics. The quilt and feature gallery carry demonstrations
-until Zack directs the next creative pass. The removed builder-proof component
-remains recoverable from Git history.
+The hero uses native text with affine word transitions; “creative” uses
+Handwriter's bundled EMS League strokes and native text alternative.
+The animated logo is imported from its canonical example. Decorative contours
+remain unplugged; the feature gallery and device studies carry the deeper
+demonstrations. Removed experiments remain recoverable from Git history.
 
 ## Claims boundaries
 

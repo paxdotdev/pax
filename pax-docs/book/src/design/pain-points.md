@@ -2666,3 +2666,86 @@ Keep the standalone implementation and tests for later, but leave active source
 drawers and demo playback independent of it. Before reintroduction, profile a
 single instance against the content/demo baseline, then scale to visible-card
 counts. Removing the workload does not itself diagnose the original bottleneck.
+
+## 2026-09-25 — Rotating display text without vector-only semantics
+
+For an animated website headline, first try affine transforms on a native Text
+node. A fixed line grid prevents the surrounding layout from jumping as words
+change, and swapping one node's string at the hidden midpoint avoids duplicate
+outgoing/incoming text in the reading tree. Give the native text box enough
+vertical room for its font metrics, and keep affine scales positive even at a
+flip's narrowest point. A native Button can pause playback and restore a fully
+legible pose instead of freezing an unreadable half-transition.
+
+Do not assume Image alt text solves traced-letter accessibility: Image and
+NativeImage currently expose no alt property, and general heading/ARIA and
+OS reduced-motion authoring APIs are also not yet available. Native text and a
+manual motion control are a useful baseline, not a complete accessibility
+contract. The website keeps this limitation explicit rather than adding private
+DOM mutations or claiming decorative paths have semantic equivalents.
+
+Handwriter is a useful exception to the vector-only case: it already has
+`alt_text` backed by a transparent native Text layer. Use that supported
+mechanism for stroked words instead of adding a second Text at the call site.
+Its glyph paths normalize to the supplied rectangle, so author a deliberate
+aspect ratio and baseline for a display word instead of stretching it across
+the entire line. Drive `draw_end` from the same pausable clock as the word
+rotation; finishing the stroke on pause preserves readability. This does not
+add a general alternative-text API to arbitrary Path or Image elements.
+
+The current static compiler's built-in Stroke descriptor lists only `color`
+and `width`, even though the runtime Stroke also has `cap` and `join`. An
+explicit template block using the latter can compile and then panic with
+“Unknown property name cap” when mounted. The website's Handwriter treatment
+uses color/width and the default cap/join; no round-cap requirement was needed.
+The compiler descriptor and baked path need a focused follow-up before teaching
+explicit cap/join blocks as reliable on the static pipeline. Do not infer runtime
+success from a successful web compile alone.
+
+## 2026-09-25 — Revealing color through handwriting
+
+Putting Handwriter directly in the second child of `Mask alpha=true` currently
+produces an empty mask. `attach_sidecar_children` binds the source without
+mounting it, and `ComponentInstance` does not expand through the control-flow
+hook. Handwriter's mount-generated paths never exist. This is a component-source
+lifecycle gap, not a gradient or stroke-color issue; preserve the ordinary
+Handwriter until a focused runtime fix supports sidecar component initialization
+without mounting unwanted native surfaces. The website prototype was removed.
+
+The geometric mask path also checks whether a draw range is empty but otherwise
+uses the whole stroke outline; the alpha source path trims the range, as a
+writing reveal requires. When the lifecycle fix is available, keep one equivalent
+native Text outside the off-tree mask source and drive color movement from the
+existing pausable/offscreen clock. Do not copy generated glyph data or regenerate
+it each frame to work around the missing lifecycle.
+
+## 2026-09-25 — ExampleHost selection and sibling store scope
+
+The website's source tabs received clicks, but the hero's Rust tab changed the
+last ExampleHost's source pane instead of its own. Each host registered the
+same `SelectedSourceStore` type in `@mount`. `NodeContext.local_stack_frame`
+uses the node's incoming stack, and the component's child scope is pushed only
+after the user mount handler. Sibling hosts shared that incoming frame; the
+last registration replaced the others. This was not native occlusion or a
+missed hit target.
+
+For this direct connection, bind each ExampleHostSourceTab's `selected` to its
+host's `selected_source` and write the bound property in the click handler.
+Remove the selection store completely. Ordinary component property allocation
+and child scopes remain separate; the regression tests exercise siblings made
+from the same component template and reverse writes through explicit aliases.
+
+The light audit also found the same mount-store pattern in ComboBox and Table;
+these remain candidates for a separate store-isolation fix, not silently fixed
+by the ExampleHost change. Path's primitive uses an explicitly pushed child
+frame for its PathContext, so it does not use that same unsafe registration
+pattern. A general solution must distinguish lexical expression/projection
+scope from provider ownership and cover nested providers, sibling providers,
+projection, remount, and hot reload. No runtime store semantics changed here.
+
+Validation: 10 runtime initialization tests, 7 typed-binding tests, and 2
+ExampleHost layout tests pass. Debug web checks cover independent selections in
+two drawers, closing/reopening a selected drawer, and a 390px source pane.
+The optimized release build also switches each host independently, with no
+warning/error logs in the fresh release smoke-test session. Both web builds,
+the docs book build, Rust formatting, and whitespace checks pass.

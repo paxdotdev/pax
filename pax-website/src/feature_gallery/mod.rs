@@ -1,13 +1,14 @@
 #![allow(unused_imports)]
 
 use crate::SiteTheme;
+use pax_kit::math::Point2;
 use pax_kit::*;
 
 const COMPACT_BREAKPOINT_PX: f64 = 760.0;
 const DESKTOP_CARD_WIDTH_PX: f64 = 350.0;
 const COMPACT_CARD_WIDTH_PX: f64 = 286.0;
 const CARD_GAP_PX: f64 = 14.0;
-const MARQUEE_SPEED_PX_PER_SECOND: f64 = 24.0;
+const MARQUEE_SPEED_PX_PER_SECOND: f64 = 30.0;
 const CULL_OVERSCAN_CARDS: i64 = 2;
 const SCROLLER_CHROME_PX: f64 = 12.0;
 const TOUCH_MOMENTUM_SETTLE_MILLIS: f64 = 600.0;
@@ -150,7 +151,13 @@ impl MarqueeCarousel {
 
         let previous = self._last_frame_millis.get();
         self._last_frame_millis.set(now);
-        let paused = self.hover_paused.get()
+        // Keep the lead card at the start until the rail actually enters view.
+        let origin = ctx.local_point(Point2::new(0.0, 0.0));
+        let height = ctx.bounds_self.get().1;
+        let offscreen =
+            -origin.y * height >= ctx.viewport.get().height || (1.0 - origin.y) * height <= 0.0;
+        let paused = offscreen
+            || self.hover_paused.get()
             || self.touch_paused.get()
             || now < self._resume_after_millis.get();
         if paused {
