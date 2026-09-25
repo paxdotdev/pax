@@ -2,14 +2,25 @@
     <ImportSettings>
         <SiteTheme />
     </ImportSettings>
-    <Stacker x=50% y=80px width={self.compact ? (100% - 40px) : 88%} autosize=true gutter=28px>
-        <Text class="editorial_kicker" width=100% text="THE LANGUAGE / THE LOGIC"/>
-        <Stacker width=100% autosize=true gutter=0px>
-            <Text class="editorial_title" width=100% text="Describe your interface."/>
-            <Text class="editorial_title" width=100% text="Power it with Rust."/>
+    <Stacker id=authoring_content x=50% y=80px width={self.compact ? (100% - 48px) : 88%} autosize=true gutter=40px>
+        <Stacker width=100% autosize=true autosize_x=false autosize_y=true gutter={self.compact ? 48px : 6%}
+            direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal}
+            sizes={self.compact ? [] : [Some(48%), None]}>
+            <Stacker width=100% autosize=true gutter=24px>
+                <Text class="editorial_kicker" width=100% text="THE LANGUAGE / THE LOGIC"/>
+                <Stacker width=100% autosize=true gutter=0px>
+                    <Text class="editorial_title" width=100% text="Describe your interface."/>
+                    <Text class="editorial_title" width=100% text="Power it with Rust."/>
+                </Stacker>
+                <Text class="editorial_lead" width=100%
+                    text="Pax pairs a declarative UI language with Rust application logic. Compose layout, graphics, and motion, then bring the same application to macOS, iOS, iPadOS, and the web."/>
+            </Stacker>
+            <Group width=100% height={self.compact ? 310px : 420px}>
+                <DeviceFrame x=50% y=12px width=92% height={100% - 30px} anchor_x=50% kind="desktop">
+                    <PathStudy width=100% height=100%/>
+                </DeviceFrame>
+            </Group>
         </Stacker>
-        <Text class="editorial_lead" width={self.compact ? 100% : 82%}
-            text="Pax pairs a declarative UI language with Rust application logic. Compose layout, graphics, and motion, then bring the same application to macOS, iOS, iPadOS, and the web."/>
         <Stacker width=100% autosize=true autosize_x=false autosize_y=true gutter=32px
             direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal}>
             <Stacker width=100% autosize=true gutter=12px>

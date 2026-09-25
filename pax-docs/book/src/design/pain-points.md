@@ -2574,3 +2574,95 @@ attributed to caching. Keep native scroll ownership independent of these tests.
   This retains the compact raster without another pixel buffer. Pixel tests
   cover zero, partial, and full coverage multiplied by source alpha, in addition
   to the separate Core Animation mask path.
+
+## 2026-09-24 — Moving a Pax app out of the examples tree
+
+Moving `pax-website/` to the monorepo root crosses more than Cargo dependency
+paths: favicon metadata is manifest-relative, View Source's `include_str!`
+paths are source-relative, and launcher scripts must resolve their own location
+rather than rely on the caller's working directory. Update each boundary
+explicitly. The root workspace's `examples` exclusion no longer applies; add
+`pax-website` to exclusions to retain the site's standalone optimization profile,
+and mark the site non-publishable.
+
+The docs source snapshot discovers only `examples/src/`; regenerate it so the
+moved website is not advertised as a bundled example. Keep Living Quilt there as
+the shared runnable example. Blog staging must use the sibling site's new
+`public/blog/` path, remain gitignored, and retain its generated-directory marker
+checks so unstage cannot delete authored content.
+
+## 2026-09-24 — Intrinsic website sections and decorative scroll motion
+
+Fixed heading heights and independent y offsets break when real text wraps.
+Use intrinsic Text height inside an autosized vertical Stacker so the subtitle,
+rail, and footer move together. A percentage-sized ExampleHost still needs a
+concrete outer height; the website reads its own content stack through the
+release-available NodeInterface tree and publishes that measured height. Avoid
+the global `get_nodes_by_id` helper for shipped layout: it is designtime-only.
+Attaching a component-owned `@pre_render` handler directly to the child Stacker
+also hit a handler-property downcast failure; keep the lifecycle handler on its
+own component and inspect its shallow content tree there.
+
+`NodeContext::local_point` returns normalized local coordinates (including native
+scroll presentation), not pixels. Multiply by the local bounds before doing
+pixel-based viewport checks. CMY contour underlays use this to skip offscreen
+geometry, and observe bound scroll coordinates without competing with native
+scrolling. Mark decorative nodes non-raycastable and exclude them from autosize
+with Breakout so motion cannot feed back into document dimensions. Dynamic
+values inside a Stroke literal need their own expression braces, such as
+`width: {(self.stroke_width)px}`.
+
+`Property::replace_with` copies the target evaluator/value; it does not alias a
+literal property's future updates. To observe a shared scroll property while
+retaining the destination's dependents, replace it with a computed property
+that reads the source and lists the source as a dependency. A regression test
+now checks that the contour follows later scroll and pause changes.
+
+Embedded lighting studies must not introduce an `AmbientLight` casually:
+ambient lighting is scene-wide even when that node sits inside a `LightFrame`.
+Keep the study's point light scoped, and use `Material::unlit()` for decorative
+contours and device chrome that should not react to the hero's lighting.
+Give percentage-positioned point lights explicit small bounds and an anchor:
+an unconstrained light inherits the whole parent size, and Pax's implicit
+percentage anchor can cancel the apparent movement of its `x` coordinate.
+
+For a fixed-size device mockup inside an autosized section, mark its internal
+scene `layout_role=LayoutRole::Breakout`. Otherwise a nested native scroller's
+long content can contribute to the outer content hull despite the visible
+screen being clipped, inserting hundreds of pixels of unwanted page spacing.
+The caller's explicit device/layout bounds own its flow footprint; the inner
+scene still clips, scrolls, and receives input normally.
+
+The current Pax formatter leaves trailing spaces on some wrapped element
+attributes. Run it first, then remove trailing whitespace before the final
+`git diff --check`; this pass does not change formatter behavior.
+
+## 2026-09-24 — Continuous decorative noise instead of flickering phases
+
+Before attributing animated-path flicker to the renderer, check authored
+opacity and phase boundaries. The website contours explicitly blanked on
+duplicate timestamps and frames over 200ms, then jumped between separate
+settling and idle shapes. Hold the previous picture when the engine timestamp
+does not advance; clamp the integration step on long frames without hiding the
+geometry. Native mouse events can also share a frame timestamp: do not zero
+their velocity or discard accumulated displacement on that duplicate sample.
+
+For the quieter waveform treatment, keep one periodic noise field with smooth
+spatial and temporal interpolation. Integrate its phase when pointer motion
+changes the speed; multiplying absolute time by a changing speed introduces
+discontinuities. Blend a directional scroll envelope into the same contour.
+An underlay that contracts beneath an opaque card can appear to flicker even
+with perfectly smooth geometry, so keep the small resting waves outside its
+edge and stretch only the trailing side. Visibility culling should skip work,
+not act as a second opacity animation.
+
+## 2026-09-25 — Park visual experiments outside the active scene
+
+When decorative contour motion caused reported website performance hiccups,
+the content-first baseline removed the contour instances and their page/gallery
+scroll stores, pointer handler, and global control. Hiding strokes or pausing
+an already-mounted component would leave avoidable scene and handler work.
+Keep the standalone implementation and tests for later, but leave active source
+drawers and demo playback independent of it. Before reintroduction, profile a
+single instance against the content/demo baseline, then scale to visible-card
+counts. Removing the workload does not itself diagnose the original bottleneck.

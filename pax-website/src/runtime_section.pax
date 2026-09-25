@@ -2,11 +2,21 @@
     <ImportSettings>
         <SiteTheme />
     </ImportSettings>
-    <Stacker x=50% y=80px width={self.compact ? (100% - 40px) : 88%} autosize=true gutter=28px>
+    <Stacker id=runtime_content x=50% y=80px width={self.compact ? (100% - 48px) : 88%} autosize=true gutter=36px>
         <Text class="editorial_kicker" width=100% text="A PORTABLE RUNTIME"/>
         <Text class="editorial_title" width=100% text="One project. Native and web."/>
         <Text class="editorial_lead" width={self.compact ? 100% : 82%}
             text="Take the same Pax templates and Rust logic to macOS, iOS, iPadOS, and the browser. Share the interface model, while each platform supplies the integration it needs."/>
+        <Group width=100% height={self.compact ? 600px : 520px}>
+            <DeviceFrame x={self.compact ? 52% : 86%} y={self.compact ? 300px : 100px} anchor_x=50% width={self.compact ? 180px : 202px}
+                height={self.compact ? 290px : 398px} kind="phone">
+                <NativeScrollStudy width=100% height=100%/>
+            </DeviceFrame>
+            <DeviceFrame x={self.compact ? 50% : 0px} y=24px anchor_x={self.compact ? 50% : 0%} width={self.compact ? 96% : 76%}
+                height={self.compact ? 310px : 460px} kind="tablet">
+                <MaterialStudy width=100% height=100%/>
+            </DeviceFrame>
+        </Group>
         <Stacker width=100% autosize=true autosize_x=false autosize_y=true gutter=32px
             direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal}>
             <Stacker width=100% autosize=true gutter=14px>

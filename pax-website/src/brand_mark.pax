@@ -1,7 +1,9 @@
 <Group width=100% height=100%>
     <Text id=brand_word x=0px y=0px width=66px height=32px text="PAX" selectable=false/>
     <Text id=brand_note x=76px y=0px width=124px height=32px text="BUILT IN PAX" selectable=false/>
-    <Rectangle x=62px y=5px width=3px height=22px fill={SiteTheme::signal()}/>
+    <Rectangle x=62px y=5px width=1px height=22px fill={SiteTheme::cyan()}/>
+    <Rectangle x=64px y=5px width=1px height=22px fill={SiteTheme::pink()}/>
+    <Rectangle x=66px y=5px width=1px height=22px fill=rgb(244, 242, 57)/>
 </Group>
 
 @settings {

@@ -425,7 +425,7 @@ After the chapters are individually accepted:
 
 ## F. Website-gallery awareness and ownership boundary
 
-The 2026-08-12 rebase adds 41 authored `FeatureCard` records under `examples/src/pax-website/src/feature_gallery/`. They are useful discovery evidence: they confirm the breadth builders may want to explore and reinforce that Drawing/Styling and Developer Workflow are among the current prose gaps. They do not create a parallel documentation backlog.
+The 2026-08-12 rebase adds 41 authored `FeatureCard` records (now under `pax-website/src/feature_gallery/`). They are useful discovery evidence: they confirm the breadth builders may want to explore and reinforce that Drawing/Styling and Developer Workflow are among the current prose gaps. They do not create a parallel documentation backlog.
 
 Zack's 2026-08-12 direction makes the ownership boundary explicit:
 

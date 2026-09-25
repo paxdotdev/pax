@@ -31,6 +31,7 @@ members = [
 
 exclude = [
     "pax-compiler/files",
+    "pax-website",
     "examples",
     "tests",
 ]

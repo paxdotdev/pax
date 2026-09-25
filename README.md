@@ -106,6 +106,9 @@ rendering work, including the minimal set of necessary GPU uploads (when using a
 Browse the [repository examples](examples/src), or open a live example on the
 [Pax website](https://www.pax.dev/) and click the **View Source** button on any of the page sections.
 
+The first-party [website](pax-website/README.md) and [blog](pax-blog/README.md)
+live in sibling root-level projects, separate from the reusable examples.
+
 ## Build your imagination
 
 Pax combines the building blocks of an application: components, reactive state,

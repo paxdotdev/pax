@@ -65,7 +65,7 @@ def main():
     parser.add_argument("command", choices=["setup", "serve", "build", "preview-build", "stage", "unstage", "check"])
     parser.add_argument("--port", type=int, default=8095)
     args = parser.parse_args()
-    staged = ROOT.parent / "examples/src/pax-website/public/blog"
+    staged = ROOT.parent / "pax-website/public/blog"
     marker = staged / ".pax-blog-preview"
     if args.command == "unstage":
         if staged.exists():

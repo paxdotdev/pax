@@ -1,0 +1,33 @@
+<Group width=100% height=100%>
+    <ImportSettings>
+        <SiteTheme />
+    </ImportSettings>
+    <Stacker id=framework_content x=50% y=80px width={self.compact ? (100% - 48px) : 88%} autosize=true gutter=48px>
+        <Stacker width=100% autosize=true autosize_x=false autosize_y=true gutter={self.compact ? 56px : 8%}
+            direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal}
+            sizes={self.compact ? [] : [Some(54%), None]}>
+            <Stacker width=100% autosize=true gutter=26px>
+                <Text class="editorial_kicker" width=100% text="BUILT FOR CREATIVE FREEDOM"/>
+                <Text class="editorial_title" width=100% text="Give your software a character of its own."/>
+                <Text class="editorial_lead" width=100%
+                    text="A useful interface can also be playful, tactile, expressive—even a little strange. Pax gives you the structure to build an application and the freedom to decide how it should feel."/>
+            </Stacker>
+            <Group width=100% height=570px>
+                <DeviceFrame x=50% width=264px height=550px anchor_x=50% kind="phone">
+                    <PathStudy width=100% height=100%/>
+                </DeviceFrame>
+            </Group>
+        </Stacker>
+        <Text class="editorial_body" width={self.compact ? 100% : 78%}
+            text="Components, state, and routing share a scene with paths, gradients, masks, and motion. A custom interaction doesn't need to become a separate rendering project. You can keep building on the same foundation as your idea becomes more ambitious."/>
+        <Text class="editorial_note" width={self.compact ? 100% : 78%}
+            text="You're already inside a Pax app. The quilt, this page, and the feature gallery all use the same framework. Open View Source on a section to see how it is made."/>
+    </Stacker>
+    <Rectangle class="site_rule" x=50% y={100% - 1px} width={self.compact ? (100% - 40px) : 88%} height=1px/>
+    <Rectangle class="site_ink" width=100% height=100%/>
+</Group>
+
+@settings {
+    @mount: handle_mount
+    @pre_render: handle_pre_render
+}

@@ -29,9 +29,9 @@ impl SiteTheme {
         Color::rgba(252.into(), 249.into(), 242.into(), 42.into())
     }
 
-    /// Accents sampled from Living Quilt; color is reserved for actions and proof.
+    /// Neutral action color; chromatic accents belong to contours and proof.
     pub fn signal() -> Color {
-        Color::from_hex("F2F32B")
+        Self::paper()
     }
     pub fn cyan() -> Color {
         Color::from_hex("40F3FF")
@@ -40,8 +40,7 @@ impl SiteTheme {
         Color::from_hex("FE32BF")
     }
     pub fn violet() -> Color {
-        // Lift the quilt's violet for small category labels on dark surfaces.
-        Color::from_hex("B49BFF")
+        Self::pink()
     }
 }
 

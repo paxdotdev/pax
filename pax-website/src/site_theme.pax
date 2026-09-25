@@ -1,6 +1,22 @@
 <Group />
 
 @settings {
+    .demo_label {
+        style: TextStyle {
+            font: "monospace"
+            font_size: 11px
+            fill: {SiteTheme::paper()}
+            align_vertical: TextAlignVertical::Center
+        }
+    }
+    .demo_note {
+        style: TextStyle {
+            font: "monospace"
+            font_size: 9px
+            fill: {SiteTheme::muted()}
+            align_vertical: TextAlignVertical::Center
+        }
+    }
     .editorial_title {
         style: TextStyle {
             font: Font::Web(
@@ -114,15 +130,18 @@
         }
     }
     .site_ink {
+        material: {Material::unlit()}
         fill: {SiteTheme::ink()}
     }
     .site_paper {
+        material: {Material::unlit()}
         fill: {SiteTheme::paper()}
     }
     .site_signal {
         fill: {SiteTheme::signal()}
     }
     .site_rule {
+        material: {Material::unlit()}
         fill: {SiteTheme::rule()}
     }
     .site_display {

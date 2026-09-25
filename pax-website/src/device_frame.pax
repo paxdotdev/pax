@@ -1,0 +1,28 @@
+<Group width=100% height=100% layout_role=LayoutRole::Breakout>
+    <Frame x=12px y={self.kind == "phone" ? 42px : 30px} width={100% - 24px}
+        height={self.kind == "phone" ? (100% - 70px) : (100% - 44px)} border_radius={self.kind == "phone" ? 26 : 10}>
+        slot()
+        <Rectangle material={Material::unlit()} width=100% height=100% fill={SiteTheme::surface()}/>
+    </Frame>
+    if self.kind == "phone" {
+        <Rectangle material={Material::unlit()} x=50% y=14px width=62px height=15px anchor_x=50% corner_radius=8 fill=BLACK/>
+        <Rectangle material={Material::unlit()} x=50% y={100% - 13px} width=72px height=3px anchor_x=50% corner_radius=2
+            fill={SiteTheme::muted()}/>
+    } else {
+        <Ellipse material={Material::unlit()} x=50% y=14px width=4px height=4px anchor=50% fill={SiteTheme::muted()}/>
+    }
+    if self.kind == "desktop" {
+        <Rectangle material={Material::unlit()} x=-5% y={100% - 2px} width=110% height=10px corner_radius=[1, 1, 8, 8] fill=rgb(74, 74, 74)/>
+        <Rectangle material={Material::unlit()} x=40% y={100% - 2px} width=20% height=3px corner_radius=2 fill=rgb(24, 24, 24)/>
+    }
+    <Rectangle material={Material::unlit()} x=4px y=4px width={100% - 8px} height={100% - 8px}
+        corner_radius={self.kind == "phone" ? 39 : 20} fill={SiteTheme::ink()} stroke={
+            color: rgb(70, 70, 70)
+            width: 1px
+        }/>
+    <Rectangle material={Material::unlit()} width=100% height=100% corner_radius={self.kind == "phone" ? 43 : 24} fill=rgb(38, 38, 38)
+        stroke={
+            color: rgb(158, 158, 158)
+            width: 1px
+        }/>
+</Group>

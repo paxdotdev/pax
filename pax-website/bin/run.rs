@@ -6,10 +6,10 @@ fn main() {
     let mut pax_args = vec!["run"];
     pax_args.extend(args.iter().map(String::as_str));
 
-    let current_dir = env::current_dir().expect("Failed to get current directory");
-    let status = Command::new("./pax")
+    let project_dir = env!("CARGO_MANIFEST_DIR");
+    let status = Command::new(std::path::Path::new(project_dir).join("pax"))
         .args(&pax_args)
-        .current_dir(current_dir)
+        .current_dir(project_dir)
         .status()
         .expect("Failed to execute pax-cli");
 

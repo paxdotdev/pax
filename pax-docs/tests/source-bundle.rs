@@ -35,6 +35,7 @@ fn packaged_snapshot_preserves_example_catalog_and_inline_sources() {
     let paths = examples::discover_example_paths(&unpacked).unwrap();
     assert!(paths.iter().any(|path| path == "living-quilt"));
     assert!(paths.iter().any(|path| path == "space-game"));
+    assert!(!paths.iter().any(|path| path == "pax-website"));
     let entries = pax_docs::entries().unwrap();
     assert_eq!(
         entries

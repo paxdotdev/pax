@@ -1,0 +1,7 @@
+#!/bin/bash
+
+set -euo pipefail
+project_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+repo_root="$(cd -- "$project_dir/.." && pwd)"
+cargo build --manifest-path "$repo_root/Cargo.toml" --package pax-cli
+PAX_WORKSPACE_ROOT="$repo_root" "$repo_root/target/debug/pax-cli" "$@" --path="$project_dir" --libdev

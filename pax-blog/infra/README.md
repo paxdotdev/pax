@@ -10,7 +10,7 @@ configuration, upload, or invalidation has been performed by PAX-984.
 The existing publisher was found in the canonical Pax checkout's sibling repo:
 `../www.pax.dev/deploy.prod.sh` (on the inspected workstation,
 `/Users/zack/code/www.pax.dev/deploy.prod.sh`). No deployment script was found in
-this checkout's `examples/src/pax-website/`.
+this checkout's website (now at root-level `pax-website/`).
 
 The script builds with npm, then runs:
 
@@ -43,13 +43,13 @@ filtered objects from deletion. Do not replace this with a recursive bucket-root
 removal. Test both a destination-only blog object and a colliding local preview
 file so preservation covers deletion and overwrites.
 
-The proposed root-level `pax-website/` move belongs to PAX-869 and remains a
-recommendation for Zack's decision. Keep `pax-blog/` as its sibling; site-wide
-hosting configuration and combined publication orchestration belong to the
-website. On a move, update Cargo workspace membership/exclusion, relative crate
-and favicon paths, launcher paths, docs/example source discovery, and `blog.py`'s
-local stage/unstage location. The current `examples` workspace exclusion does not
-automatically cover a root-level website. The site should be non-publishable.
+PAX-869 has moved the website to root-level `pax-website/`, beside `pax-blog/`.
+Site-wide hosting configuration and future combined publication orchestration
+belong to the website. It is explicitly excluded from the Cargo workspace to
+retain its standalone build profiles and marked non-publishable. Local blog
+stage/unstage now targets `pax-website/public/blog/`; the site is no longer part
+of the CLI's bundled example-source catalog. This directory move does not
+implement or authorize the publication contract below.
 
 ## Existing hosting snapshot
 

@@ -306,6 +306,7 @@ fn normalize_loop_scroll(scroll_x: f64, content_width: f64) -> f64 {
 #[pax]
 #[file("feature_gallery/gallery.pax")]
 pub struct FeatureGallery {
+    pub content_height: Property<f64>,
     pub compact: Property<bool>,
     pub card_width_px: Property<f64>,
     pub marquee_hovered: Property<bool>,
@@ -322,6 +323,7 @@ impl FeatureGallery {
     }
 
     fn sync_layout(&mut self, ctx: &NodeContext) {
+        crate::section_layout::publish_height(ctx, "gallery_content", &self.content_height);
         let compact = ctx.bounds_self.get().0 < COMPACT_BREAKPOINT_PX;
         self.compact.set_if_neq(compact);
         self.card_width_px.set_if_neq(if compact {

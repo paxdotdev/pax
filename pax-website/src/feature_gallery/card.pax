@@ -56,11 +56,7 @@
                 FontStyle::Normal,
                 FontWeight::SemiBold)
             font_size: 10px
-            fill: {self.category == "LANGUAGE"
-                ? SiteTheme::signal()
-                : (self.category == "RENDERING"
-                    ? SiteTheme::pink()
-                    : (self.category == "DEV TOOLING" ? SiteTheme::violet() : SiteTheme::cyan()))}
+            fill: {SiteTheme::muted()}
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left

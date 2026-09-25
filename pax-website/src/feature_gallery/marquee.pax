@@ -3,7 +3,7 @@
         <ScrollerHost width=100% height={100% + 12px} scroll_width={(self._scroll_width_px)px} scroll_height=100%
             scroll_pos_x=bind:_scroll_pos_x scroll_pos_y=0 _clip_content=true>
             for cell in self._visible_cells {
-                <Group x={(cell.x_px)px} y=0px width={(self.card_width_px)px} height={(self._card_height_px)px}>
+                <Group x={(cell.x_px)px} y=18px width={(self.card_width_px)px} height={(self._card_height_px - 36)px}>
                     slot(cell.slot_index)
                 </Group>
             }

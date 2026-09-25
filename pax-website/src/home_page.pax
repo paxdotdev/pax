@@ -4,21 +4,21 @@
             sources={self.hero_sources} drawer_open=false>
             <HeroSection />
         </ExampleHost>
-        <ExampleHost width=100% height={self.compact ? 720px : ($viewport.width < 1100 ? 700px : 580px)} title="Creative freedom"
-            sources={self.framework_sources} drawer_open=false>
-            <FrameworkSection />
+        <ExampleHost width=100% height={(Math::max(640, self.framework_height))px} title="Creative freedom" sources={self.framework_sources}
+            drawer_open=false>
+            <FrameworkSection content_height=bind:self.framework_height/>
         </ExampleHost>
-        <ExampleHost width=100% height={self.compact ? 1360px : ($viewport.width < 1100 ? 1160px : 900px)} title="The language and the logic"
+        <ExampleHost width=100% height={(Math::max(900, self.authoring_height))px} title="The language and the logic"
             sources={self.authoring_sources} drawer_open=false>
-            <AuthoringSection />
+            <AuthoringSection content_height=bind:self.authoring_height/>
         </ExampleHost>
-        <ExampleHost width=100% height={self.compact ? 1100px : ($viewport.width < 1100 ? 1040px : 790px)} title="Native and web"
-            sources={self.runtime_sources} drawer_open=false>
-            <RuntimeSection />
+        <ExampleHost width=100% height={(Math::max(790, self.runtime_height))px} title="Native and web" sources={self.runtime_sources}
+            drawer_open=false>
+            <RuntimeSection content_height=bind:self.runtime_height/>
         </ExampleHost>
-        <ExampleHost width=100% height={self.compact ? 870px : 760px} title="Feature gallery — breadth worth exploring"
+        <ExampleHost width=100% height={(Math::max(760, self.gallery_height))px} title="Meet your creative toolkit"
             sources={self.feature_gallery_sources} drawer_open=false>
-            <FeatureGallery />
+            <FeatureGallery content_height=bind:self.gallery_height/>
         </ExampleHost>
         <ExampleHost width=100% height={self.compact ? 1400px : ($viewport.width < 1100 ? 1400px : 990px)} title="Start building"
             sources={self.resource_sources} drawer_open=false>

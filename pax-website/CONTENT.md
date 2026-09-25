@@ -48,5 +48,6 @@ remains recoverable from Git history.
   opt-in on web/macOS; Apple mobile logic changes need rebuilding.
 - Performance describes architecture, not frame-rate, idle-work, or size guarantees.
 - PAX-973's final decision keeps the current framework and tooling OSS.
-- Pre-1.0 and accessibility limitations stay explicit. The blog route seam stays
-  intact; publishing it is not part of this editorial pass.
+- Pre-1.0 and accessibility limitations stay explicit. `/blog` belongs to the
+  sibling Zola site in `pax-blog/`, not a Pax Router placeholder. Preserve the
+  server-owned navigation boundary; publication needs separate approval.

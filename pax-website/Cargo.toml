@@ -5,6 +5,7 @@ edition = "2021"
 default-run = "run"
 description = "The Pax declarative UI language and Rust GUI framework website"
 repository = "https://github.com/paxdotdev/pax"
+publish = false
 
 [package.metadata.pax]
 title = "Pax — A declarative language for native and web UI"
@@ -12,15 +13,15 @@ title = "Pax — A declarative language for native and web UI"
 [package.metadata.pax.web]
 server_owned_prefixes = ["/blog", "/ai", "/ai.md"]
 title = "Pax — A declarative language for native and web UI"
-favicon = "../../../pax-compiler/files/interfaces/macos/pax-app-macos/pax-app-macos/Assets.xcassets/AppIcon.appiconset/pax-logo-1024.png"
+favicon = "../pax-compiler/files/interfaces/macos/pax-app-macos/pax-app-macos/Assets.xcassets/AppIcon.appiconset/pax-logo-1024.png"
 site_name = "Pax"
 site_url = "https://pax.dev"
 social_image = "pax-favicon.png"
 social_image_alt = "Pax logo"
 
 [dependencies]
-pax-kit = { version = "0.39.0", path = "../../../pax-kit" }
-living-quilt = { version = "0.39.0", path = "../living-quilt" }
+pax-kit = { version = "0.39.0", path = "../pax-kit" }
+living-quilt = { version = "0.39.0", path = "../examples/src/living-quilt" }
 
 [lib]
 crate-type = ["cdylib", "rlib"]

@@ -80,7 +80,7 @@ Build the CLI from this checkout so it includes `server_owned_prefixes`:
 ```sh
 source ~/.zshrc
 nvm use
-cargo run -p pax-cli -- run --path examples/src/pax-website --target web --hot-reload=off
+cargo run -p pax-cli -- run --path pax-website --target web --libdev --hot-reload=off
 ```
 
 In another terminal, use the port printed by Pax (shown here as `59881`):
@@ -121,18 +121,19 @@ Terraform is deferred; the earlier private-origin draft is superseded. The
 publication commands are not implemented by `blog.py`; running a local build
 does not deploy anything.
 
-Keep `pax-blog/` independent of the Rust workspace. The proposed move of the
-website to root-level `pax-website/` belongs to PAX-869. Sibling projects can share
+Keep `pax-blog/` independent of the Rust workspace. The website lives beside it
+at root-level [`pax-website/`](../pax-website/README.md), explicitly excluded from
+the Cargo workspace to preserve its standalone profiles. Sibling projects can share
 a publishing command that builds both production outputs before uploading either,
 while retaining fast blog-only builds and publication. Nesting the blog is not
-required for that workflow. Until the move lands, local staging still uses
-`examples/src/pax-website/public/blog/`.
+required for that workflow. Local staging uses `pax-website/public/blog/`.
 
 [Verification results](VERIFICATION.md) record the checks and known limits of this foundation.
 
 Focused checks from the monorepo root:
 
 ```sh
+python3 -B -m unittest discover -s pax-blog -p 'test_*.py' -v
 source ~/.zshrc
 nvm use
 node --test pax-compiler/files/interfaces/web/tests/navigation.test.mjs

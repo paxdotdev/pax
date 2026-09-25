@@ -7,6 +7,10 @@ const COMPACT_BREAKPOINT_PX: f64 = 760.0;
 #[pax]
 #[file("home_page.pax")]
 pub struct HomePage {
+    pub framework_height: Property<f64>,
+    pub authoring_height: Property<f64>,
+    pub runtime_height: Property<f64>,
+    pub gallery_height: Property<f64>,
     pub compact: Property<bool>,
     pub hero_sources: Property<Vec<ExampleSource>>,
     pub authoring_sources: Property<Vec<ExampleSource>>,
@@ -27,14 +31,14 @@ impl HomePage {
         // include_str! is relative to this source file, not the build's cwd.
         hero_sources.extend(section_sources(
             "living-quilt/src/lib.pax",
-            include_str!("../../living-quilt/src/lib.pax"),
+            include_str!("../../examples/src/living-quilt/src/lib.pax"),
             "living-quilt/src/lib.rs",
-            include_str!("../../living-quilt/src/lib.rs"),
+            include_str!("../../examples/src/living-quilt/src/lib.rs"),
         ));
         hero_sources.push(ExampleSource {
             label: "living-quilt/src/quilt_tile.rs".to_string(),
             language: "rust".to_string(),
-            code: include_str!("../../living-quilt/src/quilt_tile.rs").to_string(),
+            code: include_str!("../../examples/src/living-quilt/src/quilt_tile.rs").to_string(),
         });
         self.hero_sources.set(hero_sources);
         self.authoring_sources.set(section_sources(
@@ -83,6 +87,40 @@ impl HomePage {
             "resource_section.rs",
             include_str!("resource_section.rs"),
         ));
+        for sources in [
+            &self.framework_sources,
+            &self.authoring_sources,
+            &self.runtime_sources,
+        ] {
+            sources.update(|files| {
+                files.extend(section_sources(
+                    "device_frame.pax",
+                    include_str!("device_frame.pax"),
+                    "device_frame.rs",
+                    include_str!("device_frame.rs"),
+                ));
+                for (label, code) in [
+                    ("path_study.pax", include_str!("path_study.pax")),
+                    ("material_study.pax", include_str!("material_study.pax")),
+                    (
+                        "native_scroll_study.pax",
+                        include_str!("native_scroll_study.pax"),
+                    ),
+                    ("demo_studies.rs", include_str!("demo_studies.rs")),
+                ] {
+                    files.push(ExampleSource {
+                        label: label.into(),
+                        language: if label.ends_with(".rs") {
+                            "rust"
+                        } else {
+                            "pax"
+                        }
+                        .into(),
+                        code: code.into(),
+                    });
+                }
+            });
+        }
         self.sync_layout(ctx);
     }
 

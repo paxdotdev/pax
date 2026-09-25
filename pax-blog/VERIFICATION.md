@@ -46,7 +46,7 @@ navigation module. The production bundler and focused executable tests pass.
 The local Zola preview is at `http://127.0.0.1:8095/blog/pax-0-39-0/`; the integrated
 Pax preview used `http://127.0.0.1:59881/`. These addresses are workstation-local
 and last only while their processes run. The integrated preview uses generated
-draft files in `examples/src/pax-website/public/blog/`; run `blog.py unstage`
+draft files in the website's `public/blog/` (now `pax-website/public/blog/`); run `blog.py unstage`
 before any later website release build intended for publication. The debug and
 release artifacts verified here contain no bundled draft blog.
 

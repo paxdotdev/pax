@@ -1,0 +1,22 @@
+<Group width=100% height=100%>
+    <ImportSettings>
+        <SiteTheme />
+    </ImportSettings>
+    <Text class="demo_label" x=16px y=16px width={100% - 32px} height=24px text="NATIVE SCROLLING"/>
+    <Scroller x=12px y=52px width={100% - 24px} height={100% - 76px} autosize=true corner_radius=10>
+        <Stacker width=100% autosize=true gutter=12px>
+            for i in 0..6 {
+                <Group width=100% height=148px>
+                    <Text class="demo_note" x=16px y=116px width={100% - 32px} height=20px text={"STUDY 0" + (i + 1)}/>
+                    <Path material={Material::unlit()} x=16px y=12px width={100% - 32px} height=88px fill=TRANSPARENT stroke={
+                        color: rgb(225, 225, 225)
+                        width: 1.5px
+                    }
+                        elements={[PathElement::Point(0%, 76%), PathElement::Cubic(30%, (i * 12)%, 60%, 12%), PathElement::Point(100%, 60%)]}/>
+                    <Ellipse material={Material::unlit()} x=65% y=45px width=44px height=44px fill={SiteTheme::muted()} opacity=0.3/>
+                    <Rectangle material={Material::unlit()} width=100% height=100% corner_radius=10 fill={SiteTheme::raised()}/>
+                </Group>
+            }
+        </Stacker>
+    </Scroller>
+</Group>

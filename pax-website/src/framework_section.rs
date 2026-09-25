@@ -1,13 +1,12 @@
 #![allow(unused_imports)]
 
-use crate::SiteTheme;
+use crate::{DeviceFrame, PathStudy, SiteTheme};
 use pax_kit::*;
-
-const COMPACT_BREAKPOINT_PX: f64 = 760.0;
 
 #[pax]
 #[file("framework_section.pax")]
 pub struct FrameworkSection {
+    pub content_height: Property<f64>,
     pub compact: Property<bool>,
 }
 
@@ -21,7 +20,7 @@ impl FrameworkSection {
     }
 
     fn sync_layout(&mut self, ctx: &NodeContext) {
-        self.compact
-            .set_if_neq(ctx.bounds_self.get().0 < COMPACT_BREAKPOINT_PX);
+        crate::section_layout::publish_height(ctx, "framework_content", &self.content_height);
+        self.compact.set_if_neq(ctx.bounds_self.get().0 < 900.0);
     }
 }
