@@ -342,3 +342,70 @@ fn initially_empty_repeated_mask_invalidates_without_unrelated_input() {
         "retired sources must release their subscriptions"
     );
 }
+
+#[test]
+fn mask_source_opacity_is_relative_even_when_ancestor_is_zero() {
+    let context = context();
+    let parent_opacity = Property::new(Some(0.0.into()));
+    let source_opacity = Property::new(Some(0.5.into()));
+    let mut source_args = args();
+    let opacity = source_opacity.clone();
+    source_args.prototypical_common_properties =
+        CommonPropertiesInit::Factory(Box::new(move |_, _| {
+            Some(Rc::new(RefCell::new(CommonProperties {
+                opacity: opacity.clone(),
+                ..Default::default()
+            })))
+        }));
+    let mut source = CountingSource::instantiate(source_args);
+    Rc::get_mut(&mut source)
+        .unwrap()
+        .paints
+        .push(AlphaMaskPaint {
+            path: Rect::new(0.0, 0.0, 20.0, 20.0).to_path(0.1),
+            transform: Affine::IDENTITY,
+            fill: Fill::default(),
+            opacity: 0.5,
+        });
+    let mut mask_args = args();
+    mask_args.children = Some(RefCell::new(vec![
+        CountingSource::instantiate(args()),
+        source,
+    ]));
+    mask_args.prototypical_properties = PropertiesInit::Factory(Box::new(|_, _| {
+        Some(Rc::new(RefCell::new(
+            Mask {
+                alpha: Property::new(true),
+                feather: Property::new(0.0),
+            }
+            .to_pax_any(),
+        )))
+    }));
+    let mask = MaskInstance::instantiate(mask_args);
+    let mut root_args = args();
+    root_args.component_template = Some(RefCell::new(vec![mask.clone()]));
+    let opacity = parent_opacity.clone();
+    root_args.prototypical_common_properties =
+        CommonPropertiesInit::Factory(Box::new(move |_, _| {
+            Some(Rc::new(RefCell::new(CommonProperties {
+                opacity: opacity.clone(),
+                ..Default::default()
+            })))
+        }));
+    let root = ExpandedNode::initialize_root(ComponentInstance::instantiate(root_args), &context);
+    for (parent, source, expected) in [
+        (0.0, 0.5, 0.25),
+        (0.0, 0.25, 0.125),
+        (0.5, 0.25, 0.125),
+        (1.0, 0.5, 0.25),
+    ] {
+        parent_opacity.set(Some(parent.into()));
+        source_opacity.set(Some(source.into()));
+        root.recurse_update(&context);
+        let node = root.children.get()[0].clone();
+        let mut renderer = RecordingRenderer::default();
+        mask.handle_pre_render(&node, &context, &mut renderer);
+        mask.handle_post_render(&node, &context, &mut renderer);
+        assert_eq!(renderer.alpha_clips[0][0].opacity, expected);
+    }
+}

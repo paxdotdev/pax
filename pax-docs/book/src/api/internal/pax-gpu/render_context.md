@@ -91,6 +91,12 @@ Resource churn counters for renderer profiling.
 ##### `flushes`
 Type: `u64`
 
+##### `opacity_group_renders`
+Type: `u64`
+
+##### `opacity_group_cache_hits`
+Type: `u64`
+
 ##### `retained_scene_resets`
 Type: `u64`
 
@@ -155,6 +161,9 @@ Type: `u64`
 Type: `u64`
 
 ##### `texture_creates`
+Type: `u64`
+
+##### `image_draw_creates`
 Type: `u64`
 
 ##### `texture_upload_bytes`
@@ -291,6 +300,11 @@ Create a retained renderer around a low-level `RenderBackend`.
 <pre><code class="api-signature language-rust ignore">pub fn reset_retained_scene(&amp;mut self)</code></pre>
 
 Drop retained scene state for a surface that has been rebound to a new tile origin.
+
+##### `set_node_opacity_scopes`
+<pre><code class="api-signature language-rust ignore">pub fn set_node_opacity_scopes(&amp;mut self, node_id: u32, scopes: &amp;[<a href="../../../api/pax-runtime-api/rendering.md#opacityscope">OpacityScope</a>])</code></pre>
+
+Updates group presentation without changing a node's paint or image resources.
 
 ##### `set_surface_transform`
 <pre><code class="api-signature language-rust ignore">pub fn set_surface_transform(&amp;mut self, transform: <a href="../../../api/pax-runtime-api/transform.md#transform2d">Transform2D</a>)</code></pre>

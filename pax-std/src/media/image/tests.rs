@@ -52,9 +52,22 @@ fn args() -> InstantiationArgs {
 struct RecordingRenderer {
     opacities: Vec<f64>,
     loads: usize,
+    subtree_opacity: bool,
+    scopes: Vec<pax_runtime::api::OpacityScope>,
 }
 
 impl RenderContext for RecordingRenderer {
+    fn supports_subtree_opacity(&self) -> bool {
+        self.subtree_opacity
+    }
+    fn set_node_opacity_scopes(
+        &mut self,
+        _: usize,
+        _: u32,
+        scopes: &[pax_runtime::api::OpacityScope],
+    ) {
+        self.scopes = scopes.to_vec();
+    }
     fn save(&mut self, _: usize) {}
     fn restore(&mut self, _: usize) {}
     fn clip(&mut self, _: usize, _: BezPath) {}
@@ -111,64 +124,90 @@ impl RenderContext for RecordingRenderer {
 
 #[test]
 fn image_inherits_opacity_and_repaints_without_moving_or_reloading() {
-    let context = context();
-    context.resize_canvas_layers_to(1);
-    let parent_opacity = Property::new(Some(0.5.into()));
-    let own_opacity = Property::new(Some(0.5.into()));
-    let mut image_args = args();
-    let own = own_opacity.clone();
-    image_args.prototypical_common_properties =
-        CommonPropertiesInit::Factory(Box::new(move |_, _| {
-            Some(Rc::new(RefCell::new(CommonProperties {
-                opacity: own.clone(),
-                ..Default::default()
-            })))
+    for subtree_opacity in [false, true] {
+        let context = context();
+        context.resize_canvas_layers_to(1);
+        let parent_opacity = Property::new(Some(0.5.into()));
+        let own_opacity = Property::new(Some(0.5.into()));
+        let mut image_args = args();
+        let own = own_opacity.clone();
+        image_args.prototypical_common_properties =
+            CommonPropertiesInit::Factory(Box::new(move |_, _| {
+                Some(Rc::new(RefCell::new(CommonProperties {
+                    opacity: own.clone(),
+                    ..Default::default()
+                })))
+            }));
+        image_args.prototypical_properties = PropertiesInit::Factory(Box::new(|_, _| {
+            Some(Rc::new(RefCell::new(
+                Image {
+                    source: Property::new(ImageSource::Data(1, 1, vec![255, 255, 255, 255])),
+                    ..Default::default()
+                }
+                .to_pax_any(),
+            )))
         }));
-    image_args.prototypical_properties = PropertiesInit::Factory(Box::new(|_, _| {
-        Some(Rc::new(RefCell::new(
-            Image {
-                source: Property::new(ImageSource::Data(1, 1, vec![255, 255, 255, 255])),
-                ..Default::default()
-            }
-            .to_pax_any(),
-        )))
-    }));
-    let image = ImageInstance::instantiate(image_args);
-    let mut root_args = args();
-    root_args.component_template = Some(RefCell::new(vec![image.clone()]));
-    let parent = parent_opacity.clone();
-    root_args.prototypical_common_properties =
-        CommonPropertiesInit::Factory(Box::new(move |_, _| {
-            Some(Rc::new(RefCell::new(CommonProperties {
-                opacity: parent.clone(),
-                ..Default::default()
-            })))
-        }));
-    let root = ExpandedNode::initialize_root(ComponentInstance::instantiate(root_args), &context);
-    root.recurse_mount(&context);
-    root.recurse_update(&context);
-    let node = root.children.get()[0].clone();
-    let initial_layout = node.transform_and_bounds.get();
-    let mut renderer = RecordingRenderer::default();
-    for (parent, own, expected) in [
-        (0.5, 0.5, 0.25),
-        (0.2, 0.5, 0.1),
-        (0.2, 0.0, 0.0),
-        (1.0, 1.0, 1.0),
-    ] {
-        parent_opacity.set(Some(parent.into()));
-        own_opacity.set(Some(own.into()));
+        let image = ImageInstance::instantiate(image_args);
+        let mut root_args = args();
+        root_args.component_template = Some(RefCell::new(vec![image.clone()]));
+        let parent = parent_opacity.clone();
+        root_args.prototypical_common_properties =
+            CommonPropertiesInit::Factory(Box::new(move |_, _| {
+                Some(Rc::new(RefCell::new(CommonProperties {
+                    opacity: parent.clone(),
+                    ..Default::default()
+                })))
+            }));
+        let root =
+            ExpandedNode::initialize_root(ComponentInstance::instantiate(root_args), &context);
+        root.recurse_mount(&context);
         root.recurse_update(&context);
-        node.changed_listener.get();
-        assert!(
-            context.is_canvas_node_dirty(&node.id),
-            "opacity must invalidate the retained image"
-        );
-        assert_eq!(node.transform_and_bounds.get(), initial_layout);
-        image.render(&node, &context, &mut renderer);
-        assert_eq!(renderer.opacities.last(), Some(&expected));
-        assert!(!context.is_canvas_node_dirty(&node.id));
+        let node = root.children.get()[0].clone();
+        let initial_layout = node.transform_and_bounds.get();
+        let mut renderer = RecordingRenderer {
+            subtree_opacity,
+            ..Default::default()
+        };
+        for (parent, own, expected) in [
+            (0.5, 0.5, 0.25),
+            (0.2, 0.5, 0.1),
+            (0.2, 0.0, 0.0),
+            (0.0, 0.5, 0.0),
+            (0.0, 0.25, 0.0),
+            (1.0, 1.0, 1.0),
+        ] {
+            parent_opacity.set(Some(parent.into()));
+            own_opacity.set(Some(own.into()));
+            root.recurse_update(&context);
+            node.changed_listener.get();
+            assert!(
+                context.is_canvas_node_dirty(&node.id),
+                "opacity must invalidate the retained image"
+            );
+            assert_eq!(node.transform_and_bounds.get(), initial_layout);
+            image.render(&node, &context, &mut renderer);
+            assert_eq!(
+                renderer.opacities.last(),
+                Some(&if subtree_opacity { 1.0 } else { expected })
+            );
+            if subtree_opacity {
+                assert_eq!(
+                    renderer.scopes,
+                    vec![
+                        pax_runtime::api::OpacityScope {
+                            node_id: root.id.to_u32(),
+                            opacity: parent as f32
+                        },
+                        pax_runtime::api::OpacityScope {
+                            node_id: node.id.to_u32(),
+                            opacity: own as f32
+                        },
+                    ]
+                );
+            }
+            assert!(!context.is_canvas_node_dirty(&node.id));
+        }
+        assert_eq!(renderer.loads, 1, "opacity must not reload source pixels");
+        assert_eq!(renderer.opacities.len(), 6);
     }
-    assert_eq!(renderer.loads, 1, "opacity must not reload source pixels");
-    assert_eq!(renderer.opacities.len(), 4);
 }

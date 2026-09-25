@@ -168,6 +168,7 @@ impl InstanceNode for PathInstance {
             draw_start.untyped(),
             draw_end.untyped(),
             expanded_node.computed_opacity.untyped(),
+            expanded_node.computed_opacity_scopes.untyped(),
         ];
         let cloned_expanded_node = expanded_node.clone();
         let cloned_context = context.clone();
@@ -338,7 +339,7 @@ impl InstanceNode for PathInstance {
 
         if let Some(bez_path) = bez_path {
             expanded_node.with_properties_unwrapped(|properties: &mut Path| {
-                let opacity = expanded_node.computed_opacity.get();
+                let opacity = scope.paint_opacity;
                 let fill = properties.fill.get();
                 let stroke = properties.stroke.get();
                 let material = properties.material.get();

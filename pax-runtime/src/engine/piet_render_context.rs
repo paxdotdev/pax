@@ -1,7 +1,7 @@
-use pax_runtime_api::{Fill, Stroke, StrokeCap, StrokeJoin};
+use pax_runtime_api::{Fill, OpacityScope, Stroke, StrokeCap, StrokeJoin};
 use piet::{
     kurbo::{self, Affine, Shape},
-    FixedRadialGradient, LineCap, LineJoin, LinearGradient, StrokeStyle,
+    FixedRadialGradient, LineCap, LineJoin, LinearGradient, RenderContext as _, StrokeStyle,
 };
 use std::{
     cell::RefCell,
@@ -16,6 +16,10 @@ use super::layer_surface::{
 #[cfg(debug_assertions)]
 use super::layer_surface::{visible_surface_escape, VisibleSurfaceEscape};
 use crate::api;
+
+#[cfg(test)]
+#[path = "piet_compositing_tests.rs"]
+mod compositing_tests;
 
 #[cfg(debug_assertions)]
 fn log_visible_surface_escape(layer: usize, escape: VisibleSurfaceEscape) {
@@ -44,21 +48,129 @@ struct ImgData<R: piet::RenderContext> {
     size: (usize, usize),
 }
 
-type ClearFn = Box<dyn Fn()>;
-type ConfigureFn = Box<dyn Fn(f32, f32, u32, u32, [f32; 2], bool)>;
-type DrawBlendFn<R> = Box<dyn FnMut(&mut R, &kurbo::BezPath, &[(Fill, f64)], f64)>;
-type DrawImageFn<R> = Box<dyn Fn(&mut R, &<R as piet::RenderContext>::Image, kurbo::Rect, f64)>;
-type LayerDef<R> = (PietLayerTarget<R>, Box<dyn Fn() -> LayerSurfaceLayout>);
+/// Chassis operations missing from Piet's portable API: reusable transparent
+/// surfaces and source-over composition with one opacity for the complete image.
+pub trait PietSurface: Sized {
+    type Context: piet::RenderContext;
+
+    fn context(&mut self) -> &mut Self::Context;
+    fn clear(&mut self);
+    fn configure(&mut self, origin: (f32, f32), size: (u32, u32), dpr: [f32; 2]);
+    /// Create a transparent surface with the same dimensions and coordinate space.
+    fn create_group(&self) -> Self;
+    /// Composite physical pixels without applying the current primitive transform
+    /// or clip again. Each recorded draw already carries its complete clip state.
+    fn composite(&mut self, source: &Self, opacity: f64);
+    /// Accumulate a paint mixture before applying its shape coverage and opacity.
+    fn draw_blend(&mut self, path: &kurbo::BezPath, terms: &[(Fill, f64)], opacity: f64);
+    fn draw_image(
+        &mut self,
+        image: &<Self::Context as piet::RenderContext>::Image,
+        rect: kurbo::Rect,
+        opacity: f64,
+    );
+}
+
+type LayerDef<S> = (PietLayerTarget<S>, Box<dyn Fn() -> LayerSurfaceLayout>);
+
+#[derive(Clone, Default)]
+struct DrawState {
+    transform: Affine,
+    // Paths are captured in surface coordinates when clip() is called, not when
+    // a later draw changes its transform. Rc keeps per-draw snapshots inexpensive.
+    clips: Vec<Rc<kurbo::BezPath>>,
+}
+
+enum PietPaint<I> {
+    Fill(kurbo::BezPath, piet::PaintBrush),
+    Blend(kurbo::BezPath, Vec<(Fill, f64)>, f64),
+    Stroke(kurbo::BezPath, piet::PaintBrush, f64, StrokeStyle),
+    Image(I, kurbo::Rect, f64),
+}
+
+struct PietDraw<I> {
+    state: DrawState,
+    scopes: Vec<OpacityScope>,
+    paint: PietPaint<I>,
+}
+
+// One reusable surface per simultaneously active nesting level, shared by sibling
+// runs. Unlike WGPU, Piet replays dirty content; no cross-frame content cache here.
+struct GroupSurface<S> {
+    surface: S,
+    child: Option<Box<GroupSurface<S>>>,
+}
+
+fn paint_draws<S: PietSurface>(
+    surface: &mut S,
+    scratch: &mut Option<Box<GroupSurface<S>>>,
+    draws: &[PietDraw<<S::Context as piet::RenderContext>::Image>],
+    depth: usize,
+) {
+    let mut index = 0;
+    while index < draws.len() {
+        if let Some(scope) = draws[index].scopes.get(depth) {
+            let end = index
+                + draws[index..]
+                    .iter()
+                    .take_while(|draw| {
+                        draw.scopes
+                            .get(depth)
+                            .is_some_and(|next| next.node_id == scope.node_id)
+                    })
+                    .count();
+            let opacity = scope.opacity.clamp(0.0, 1.0) as f64;
+            if opacity == 1.0 {
+                paint_draws(surface, scratch, &draws[index..end], depth + 1);
+            } else if opacity > 0.0 {
+                let group = scratch.get_or_insert_with(|| {
+                    Box::new(GroupSurface {
+                        surface: surface.create_group(),
+                        child: None,
+                    })
+                });
+                group.surface.clear();
+                paint_draws(
+                    &mut group.surface,
+                    &mut group.child,
+                    &draws[index..end],
+                    depth + 1,
+                );
+                surface.composite(&group.surface, opacity);
+            }
+            index = end;
+            continue;
+        }
+        let draw = &draws[index];
+        let context = surface.context();
+        let _ = context.save();
+        for clip in &draw.state.clips {
+            context.clip(clip.as_ref());
+        }
+        context.transform(draw.state.transform);
+        match &draw.paint {
+            PietPaint::Fill(path, brush) => context.fill(path, brush),
+            PietPaint::Blend(path, terms, opacity) => surface.draw_blend(path, terms, *opacity),
+            PietPaint::Stroke(path, brush, width, style) => {
+                context.stroke_styled(path, brush, *width, style)
+            }
+            PietPaint::Image(image, rect, opacity) => surface.draw_image(image, *rect, *opacity),
+        }
+        let _ = surface.context().restore();
+        index += 1;
+    }
+}
 
 /// Retained metadata for one piet-backed browser canvas surface.
-pub struct PietLayerRenderer<R: piet::RenderContext> {
+pub struct PietLayerRenderer<S: PietSurface> {
     key: String,
     host_signature: String,
-    context: R,
-    clear_fn: ClearFn,
-    configure_fn: ConfigureFn,
-    draw_image_fn: DrawImageFn<R>,
-    draw_blend_fn: DrawBlendFn<R>,
+    surface: S,
+    scratch: Option<Box<GroupSurface<S>>>,
+    state: DrawState,
+    saves: Vec<DrawState>,
+    scopes: Vec<OpacityScope>,
+    draws: Vec<PietDraw<<S::Context as piet::RenderContext>::Image>>,
     origin_x: f32,
     origin_y: f32,
     logical_width: f32,
@@ -68,25 +180,22 @@ pub struct PietLayerRenderer<R: piet::RenderContext> {
     dpr: [f32; 2],
 }
 
-impl<R: piet::RenderContext> PietLayerRenderer<R> {
+impl<S: PietSurface> PietLayerRenderer<S> {
     pub fn new(
         key: String,
         host_signature: String,
-        context: R,
-        clear_fn: ClearFn,
-        configure_fn: ConfigureFn,
-        draw_image_fn: DrawImageFn<R>,
-        draw_blend_fn: DrawBlendFn<R>,
+        canvas: S,
         surface: &LayerSurfaceEntry,
     ) -> Self {
         Self {
             key,
             host_signature,
-            context,
-            clear_fn,
-            configure_fn,
-            draw_image_fn,
-            draw_blend_fn,
+            surface: canvas,
+            scratch: None,
+            state: DrawState::default(),
+            saves: Vec::new(),
+            scopes: Vec::new(),
+            draws: Vec::new(),
             origin_x: surface.origin_x,
             origin_y: surface.origin_y,
             logical_width: surface.surface.logical_width,
@@ -97,12 +206,29 @@ impl<R: piet::RenderContext> PietLayerRenderer<R> {
         }
     }
 
-    fn context_mut(&mut self) -> &mut R {
-        &mut self.context
+    fn context_mut(&mut self) -> &mut S::Context {
+        self.surface.context()
     }
 
-    fn clear(&self) {
-        (self.clear_fn)();
+    fn clear(&mut self) {
+        self.surface.clear();
+        self.draws.clear();
+        self.state = DrawState::default();
+        self.saves.clear();
+        self.scopes.clear();
+    }
+
+    fn record(&mut self, paint: PietPaint<<S::Context as piet::RenderContext>::Image>) {
+        self.draws.push(PietDraw {
+            state: self.state.clone(),
+            scopes: self.scopes.clone(),
+            paint,
+        });
+    }
+
+    fn flush(&mut self) {
+        paint_draws(&mut self.surface, &mut self.scratch, &self.draws, 0);
+        self.draws.clear();
     }
 
     fn intersects_coverage_bounds(&self, bounds: &kurbo::Rect) -> bool {
@@ -142,14 +268,12 @@ impl<R: piet::RenderContext> PietLayerRenderer<R> {
         self.dpr = surface.surface.dpr;
 
         if size_changed || origin_changed {
-            (self.configure_fn)(
-                self.origin_x,
-                self.origin_y,
-                self.surface_width,
-                self.surface_height,
+            self.surface.configure(
+                (self.origin_x, self.origin_y),
+                (self.surface_width, self.surface_height),
                 self.dpr,
-                size_changed,
             );
+            self.scratch = None;
         }
 
         if size_changed {
@@ -167,13 +291,13 @@ impl<R: piet::RenderContext> PietLayerRenderer<R> {
 }
 
 /// Current piet surface set for one logical layer.
-pub struct PietLayerTarget<R: piet::RenderContext> {
-    renderers: Vec<PietLayerRenderer<R>>,
+pub struct PietLayerTarget<S: PietSurface> {
+    renderers: Vec<PietLayerRenderer<S>>,
     active: bool,
 }
 
-impl<R: piet::RenderContext> PietLayerTarget<R> {
-    pub fn new(renderers: Vec<PietLayerRenderer<R>>, active: bool) -> Self {
+impl<S: PietSurface> PietLayerTarget<S> {
+    pub fn new(renderers: Vec<PietLayerRenderer<S>>, active: bool) -> Self {
         Self { renderers, active }
     }
 
@@ -189,10 +313,10 @@ impl<R: piet::RenderContext> PietLayerTarget<R> {
 }
 
 /// `RenderContext` implementation backed by piet.
-pub struct PietRenderer<R: piet::RenderContext> {
-    layers: Vec<LayerDef<R>>,
-    image_map: HashMap<String, ImgData<R>>,
-    layer_factory: Box<dyn Fn(usize) -> LayerDef<R>>,
+pub struct PietRenderer<S: PietSurface> {
+    layers: Vec<LayerDef<S>>,
+    image_map: HashMap<String, ImgData<S::Context>>,
+    layer_factory: Box<dyn Fn(usize) -> LayerDef<S>>,
     ready_layers: Vec<usize>,
     replay_layers: Vec<usize>,
     surface_replay: SurfaceReplayCoordinator,
@@ -200,9 +324,9 @@ pub struct PietRenderer<R: piet::RenderContext> {
     clean_skipped_canvas_nodes: HashSet<(usize, u32)>,
 }
 
-impl<R: piet::RenderContext> PietRenderer<R> {
+impl<S: PietSurface> PietRenderer<S> {
     /// Create a piet renderer with a chassis-provided logical layer factory.
-    pub fn new(layer_factory: impl Fn(usize) -> LayerDef<R> + 'static) -> Self {
+    pub fn new(layer_factory: impl Fn(usize) -> LayerDef<S> + 'static) -> Self {
         Self {
             layer_factory: Box::new(layer_factory),
             layers: Vec::new(),
@@ -215,18 +339,14 @@ impl<R: piet::RenderContext> PietRenderer<R> {
         }
     }
 
-    fn first_context_mut(&mut self) -> Option<&mut R> {
+    fn first_context_mut(&mut self) -> Option<&mut S::Context> {
         self.layers
             .iter_mut()
             .find_map(|(target, _)| target.renderers.first_mut())
             .map(PietLayerRenderer::context_mut)
     }
 
-    fn with_layer_context(&mut self, layer: usize, mut f: impl FnMut(&mut R)) {
-        self.with_layer_renderer(layer, |renderer| f(renderer.context_mut()));
-    }
-
-    fn with_layer_renderer(&mut self, layer: usize, mut f: impl FnMut(&mut PietLayerRenderer<R>)) {
+    fn with_layer_renderer(&mut self, layer: usize, mut f: impl FnMut(&mut PietLayerRenderer<S>)) {
         let scoped_indices = self
             .active_render_scopes
             .get(layer)
@@ -314,7 +434,7 @@ impl<R: piet::RenderContext> PietRenderer<R> {
     fn targeted_replay_surface_bounds(
         &self,
         layer: usize,
-        target: &PietLayerTarget<R>,
+        target: &PietLayerTarget<S>,
     ) -> Option<Vec<kurbo::Rect>> {
         self.surface_replay
             .targeted_replay_surface_bounds(layer, |index| {
@@ -454,8 +574,8 @@ fn piet_replay_batches_for_retarget(entries: Vec<ReplayPriorityEntry>) -> Vec<Ve
     coalesced_batches
 }
 
-fn layer_layout_matches_target<R: piet::RenderContext>(
-    target: &PietLayerTarget<R>,
+fn layer_layout_matches_target<S: PietSurface>(
+    target: &PietLayerTarget<S>,
     layout: &LayerSurfaceLayout,
 ) -> bool {
     layout.surfaces.len() == target.renderers.len()
@@ -514,16 +634,18 @@ mod tests {
     }
 }
 
-impl<R: piet::RenderContext> api::RenderContext for PietRenderer<R> {
+impl<S: PietSurface> api::RenderContext for PietRenderer<S> {
     fn fill_with_opacity(&mut self, layer: usize, path: kurbo::BezPath, fill: &Fill, opacity: f64) {
         if let Fill::Blend(terms) = fill {
             self.with_layer_renderer(layer, |renderer| {
-                (renderer.draw_blend_fn)(&mut renderer.context, &path, terms, opacity);
+                renderer.record(PietPaint::Blend(path.clone(), terms.clone(), opacity))
             });
         } else if let Some(brush) =
             fill_to_piet_brush(&fill.with_alpha_factor(opacity), path.bounding_box())
         {
-            self.with_layer_context(layer, |context| context.fill(path.clone(), &brush));
+            self.with_layer_renderer(layer, |renderer| {
+                renderer.record(PietPaint::Fill(path.clone(), brush.clone()))
+            });
         }
     }
 
@@ -542,8 +664,13 @@ impl<R: piet::RenderContext> api::RenderContext for PietRenderer<R> {
         .expect("solid strokes have a Piet brush");
         let width = stroke.width.get().expect_pixels().to_float();
         let style = stroke_to_piet_style(stroke);
-        self.with_layer_context(layer, |context| {
-            context.stroke_styled(path.clone(), &brush, width, &style)
+        self.with_layer_renderer(layer, |renderer| {
+            renderer.record(PietPaint::Stroke(
+                path.clone(),
+                brush.clone(),
+                width,
+                style.clone(),
+            ))
         });
     }
 
@@ -571,22 +698,29 @@ impl<R: piet::RenderContext> api::RenderContext for PietRenderer<R> {
     }
 
     fn save(&mut self, layer: usize) {
-        self.with_layer_context(layer, |context| {
-            let _ = context.save();
+        self.with_layer_renderer(layer, |renderer| {
+            renderer.saves.push(renderer.state.clone())
         });
     }
 
     fn transform(&mut self, layer: usize, affine: Affine) {
-        self.with_layer_context(layer, |context| context.transform(affine));
+        self.with_layer_renderer(layer, |renderer| renderer.state.transform *= affine);
     }
 
     fn clip(&mut self, layer: usize, path: kurbo::BezPath) {
-        self.with_layer_context(layer, |context| context.clip(path.clone()));
+        self.with_layer_renderer(layer, |renderer| {
+            renderer
+                .state
+                .clips
+                .push(Rc::new(renderer.state.transform * &path))
+        });
     }
 
     fn restore(&mut self, layer: usize) {
-        self.with_layer_context(layer, |context| {
-            let _ = context.restore();
+        self.with_layer_renderer(layer, |renderer| {
+            if let Some(state) = renderer.saves.pop() {
+                renderer.state = state;
+            }
         });
     }
 
@@ -620,38 +754,14 @@ impl<R: piet::RenderContext> api::RenderContext for PietRenderer<R> {
         let Some(data) = self.image_map.get(image_path) else {
             return;
         };
-        let scoped_indices = self
-            .active_render_scopes
-            .get(layer)
-            .and_then(|scopes| scopes.last())
-            .cloned();
-        let Some((target, _)) = self.layers.get_mut(layer) else {
-            return;
-        };
-        if !target.active {
-            return;
-        }
-        if let Some(indices) = scoped_indices {
-            for index in indices {
-                if let Some(renderer) = target.renderers.get_mut(index) {
-                    (renderer.draw_image_fn)(
-                        &mut renderer.context,
-                        &data.img,
-                        rect,
-                        opacity.clamp(0.0, 1.0),
-                    );
-                }
-            }
-        } else {
-            for renderer in &mut target.renderers {
-                (renderer.draw_image_fn)(
-                    &mut renderer.context,
-                    &data.img,
-                    rect,
-                    opacity.clamp(0.0, 1.0),
-                );
-            }
-        }
+        let image = data.img.clone();
+        self.with_layer_renderer(layer, |renderer| {
+            renderer.record(PietPaint::Image(
+                image.clone(),
+                rect,
+                opacity.clamp(0.0, 1.0),
+            ));
+        });
     }
 
     fn layers(&self) -> usize {
@@ -706,18 +816,27 @@ impl<R: piet::RenderContext> api::RenderContext for PietRenderer<R> {
         }
         if let Some(indices) = scoped_indices {
             for index in indices {
-                if let Some(renderer) = target.renderers.get(index) {
+                if let Some(renderer) = target.renderers.get_mut(index) {
                     renderer.clear();
                 }
             }
         } else {
-            for renderer in &target.renderers {
+            for renderer in &mut target.renderers {
                 renderer.clear();
             }
         }
     }
 
+    fn supports_subtree_opacity(&self) -> bool {
+        true
+    }
+
+    fn set_node_opacity_scopes(&mut self, layer: usize, _node_id: u32, scopes: &[OpacityScope]) {
+        self.with_layer_renderer(layer, |renderer| renderer.scopes = scopes.to_vec());
+    }
+
     fn flush(&mut self, layer: usize, _dirty_canvases: Rc<RefCell<Vec<bool>>>) {
+        self.with_layer_renderer(layer, |renderer| renderer.flush());
         if self.advance_targeted_replay_queue(layer) {
             self.replay_layers.push(layer);
         }

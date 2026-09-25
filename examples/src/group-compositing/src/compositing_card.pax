@@ -1,0 +1,66 @@
+<Frame anchor=0% width=100% height=100% corner_radius=16>
+    <Textbox anchor=0% x=16px y=202px width={100% - 32px} height=36px text=bind:note/>
+    <Text class="card_heading" anchor=0% x=16px y=140px width={100% - 32px} height=30px text="Native text / GPU artwork"/>
+    <Text class="card_label" anchor=0% x=16px y=174px width={100% - 32px} height=22px text="Move across row tiles and gutters"/>
+    <Rectangle anchor=0% width=100% height=190px fill=@gradient {
+        linear: {
+            start: [0%, 0%],
+            end: [0%, 100%],
+        },
+        0%: rgba(16, 24, 40, 0),
+        100%: rgba(16, 24, 40, 255),
+    }/>
+    if show_image {
+        <Image anchor=0% width=100% height=190px source={ImageSource::Data(2, 2, pixels)} fit=ImageFit::Fill/>
+    }
+    <Rectangle anchor=0% width=100% height=190px fill=rgb(20, 160, 210)/>
+    <Rectangle anchor=0% width=100% height=100% fill={alternate_theme ? rgb(105, 40, 90) : rgb(16, 24, 40)}/>
+</Frame>
+
+@settings {
+    @mount: mount
+    @unmount: unmount
+    @in: enter
+    @out: exit
+    .card_heading {
+        style: {
+            font: "Arial"
+            font_size: 18px
+            fill: WHITE
+        }
+    }
+    .card_label {
+        style: {
+            font: "Arial"
+            font_size: 13px
+            fill: WHITE
+        }
+    }
+}
+
+@timeline enter {
+    duration: 600ms,
+    self {
+        opacity: {
+            0%: 0, OutQuad,
+            100%: {$base},
+        }
+        y: {
+            0%: {$base + 30px}, OutQuad,
+            100%: {$base},
+        }
+    }
+}
+@timeline exit {
+    duration: 800ms,
+    self {
+        opacity: {
+            0%: {$base}, InQuad,
+            100%: 0,
+        }
+        y: {
+            0%: {$base}, InQuad,
+            100%: {$base + 18px},
+        }
+    }
+}

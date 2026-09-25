@@ -296,13 +296,13 @@ private func textAlignment(from alignment: TextAlignment) -> TextAlignment {
     alignment
 }
 
-private struct RasterizedMaskHolePayload {
+struct RasterizedMaskHolePayload {
     let cgPath: CGPath
     let clipCGPaths: [CGPath]
     let opacity: CGFloat
 }
 
-private struct RasterizedNativeMaskPayload {
+struct RasterizedNativeMaskPayload {
     let signature: UInt64
     let size: CGSize
     let holes: [RasterizedMaskHolePayload]
@@ -437,24 +437,35 @@ private func rasterPayload(from mask: ResolvedNativeMask) -> RasterizedNativeMas
     )
 }
 
-private func rasterizedMaskImage(
+// Opt-in CPU timing, also available in local release builds. Keep this outside
+// the raster loop so ordinary presentation does not read environment variables.
+private let nativeMaskInstrumentationEnabled =
+    ProcessInfo.processInfo.environment["PAX_NATIVE_MASK_INSTRUMENTATION"] == "1"
+
+func rasterizedMaskImage(
     payload: RasterizedNativeMaskPayload,
     scale: CGFloat
 ) -> CGImage? {
+    let rasterStart = nativeMaskInstrumentationEnabled ? CFAbsoluteTimeGetCurrent() : 0
     let pixelWidth = max(Int(ceil(payload.size.width * scale)), 1)
     let pixelHeight = max(Int(ceil(payload.size.height * scale)), 1)
-    let bytesPerRow = pixelWidth * 4
-    let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue
-        | CGBitmapInfo.byteOrder32Big.rawValue
-
+    defer {
+        if nativeMaskInstrumentationEnabled {
+            let milliseconds = (CFAbsoluteTimeGetCurrent() - rasterStart) * 1_000
+            print(String(format: "[PaxNativeMask] size=%dx%d paths=%d raster_ms=%.3f",
+                pixelWidth, pixelHeight, payload.holes.count, milliseconds))
+        }
+    }
+    // Native masks consume coverage only. An alpha-only bitmap avoids computing,
+    // and storing three unused color channels on every animated frame.
     guard let context = CGContext(
         data: nil,
         width: pixelWidth,
         height: pixelHeight,
         bitsPerComponent: 8,
-        bytesPerRow: bytesPerRow,
-        space: CGColorSpaceCreateDeviceRGB(),
-        bitmapInfo: bitmapInfo
+        bytesPerRow: pixelWidth,
+        space: nil,
+        bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.alphaOnly.rawValue)
     ) else {
         return nil
     }

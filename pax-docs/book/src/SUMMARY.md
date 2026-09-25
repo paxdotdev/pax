@@ -44,6 +44,7 @@
     - [unit_value](api/pax-runtime-api/unit_value.md)
     - [variables](api/pax-runtime-api/variables.md)
   - [pax-std](api/pax-std/index.md)
+    - [common](api/pax-std/common.md)
     - [core](api/pax-std/core.md)
       - [core::event_blocker](api/pax-std/core/event_blocker.md)
       - [core::frame](api/pax-std/core/frame.md)

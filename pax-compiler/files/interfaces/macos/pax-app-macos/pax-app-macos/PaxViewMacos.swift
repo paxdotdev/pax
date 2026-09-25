@@ -1085,6 +1085,12 @@ struct PaxViewMacos: View {
 
             guard let engineContainer = PaxEngineContainer.paxEngineContainer else { return }
 
+            // Publish native properties, occlusion masks and Metal drawables in
+            // the same transaction, including during a subtree opacity fade.
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            defer { CATransaction.commit() }
+
             let nativeMessageQueue = PaxCartridgeRuntime.shared.tick(
                 engineContainer,
                 cgContext: nil,

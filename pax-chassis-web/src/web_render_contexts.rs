@@ -93,11 +93,138 @@ pub(crate) fn get_render_context(
     surface_policy: BrowserSurfacePolicy,
 ) -> Box<dyn RenderContext> {
     if cfg!(feature = "piet") || surface_policy.use_piet_fallback() {
-        log::info!("render backend: using Piet/CPU browser renderer");
+        log::info!("render backend: using Piet/Canvas2D browser renderer");
         Box::new(get_piet_render_context(window, surface_policy))
     } else {
         log::info!("render backend: using WebGPU browser renderer");
         Box::new(get_gpu_render_context(window, surface_policy))
+    }
+}
+
+type PaintBlendFn = Box<
+    dyn FnMut(
+        &mut piet_web::WebRenderContext,
+        &piet::kurbo::BezPath,
+        &[(pax_runtime::api::Fill, f64)],
+        f64,
+    ),
+>;
+
+// Canvas-to-canvas drawing avoids CPU readback and preserves live native hosts.
+struct WebPietSurface {
+    canvas: HtmlCanvasElement,
+    context: web_sys::CanvasRenderingContext2d,
+    renderer: piet_web::WebRenderContext<'static>,
+    paint_blend: PaintBlendFn,
+    window: Window,
+    origin: (f32, f32),
+    dpr: [f32; 2],
+}
+
+impl WebPietSurface {
+    fn new(
+        canvas: HtmlCanvasElement,
+        window: Window,
+        origin: (f32, f32),
+        size: (u32, u32),
+        dpr: [f32; 2],
+    ) -> Self {
+        let context = canvas
+            .get_context("2d")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::CanvasRenderingContext2d>()
+            .unwrap();
+        configure_piet_canvas_context(
+            &context, &canvas, origin.0, origin.1, size.0, size.1, dpr, true,
+        );
+        let renderer = piet_web::WebRenderContext::new(context.clone(), window.clone());
+        let paint_blend = paint_blend_callback(&context, &canvas, &window);
+        Self {
+            canvas,
+            context,
+            renderer,
+            paint_blend,
+            window,
+            origin,
+            dpr,
+        }
+    }
+}
+
+impl pax_runtime::piet_render_context::PietSurface for WebPietSurface {
+    type Context = piet_web::WebRenderContext<'static>;
+
+    fn context(&mut self) -> &mut Self::Context {
+        &mut self.renderer
+    }
+
+    fn clear(&mut self) {
+        clear_piet_canvas_context(&self.context, &self.canvas);
+    }
+
+    fn configure(&mut self, origin: (f32, f32), size: (u32, u32), dpr: [f32; 2]) {
+        self.origin = origin;
+        self.dpr = dpr;
+        configure_piet_canvas_context(
+            &self.context,
+            &self.canvas,
+            origin.0,
+            origin.1,
+            size.0,
+            size.1,
+            dpr,
+            false,
+        );
+    }
+
+    fn create_group(&self) -> Self {
+        let canvas = self
+            .window
+            .document()
+            .unwrap()
+            .create_element("canvas")
+            .unwrap()
+            .dyn_into::<HtmlCanvasElement>()
+            .unwrap();
+        Self::new(
+            canvas,
+            self.window.clone(),
+            self.origin,
+            (self.canvas.width(), self.canvas.height()),
+            self.dpr,
+        )
+    }
+
+    fn composite(&mut self, source: &Self, opacity: f64) {
+        self.context.save();
+        let _ = self.context.set_transform(1.0, 0.0, 0.0, 1.0, 0.0, 0.0);
+        self.context.set_global_alpha(opacity);
+        self.context
+            .draw_image_with_html_canvas_element(&source.canvas, 0.0, 0.0)
+            .expect("compose Piet group surface");
+        self.context.restore();
+    }
+
+    fn draw_blend(
+        &mut self,
+        path: &piet::kurbo::BezPath,
+        terms: &[(pax_runtime::api::Fill, f64)],
+        opacity: f64,
+    ) {
+        (self.paint_blend)(&mut self.renderer, path, terms, opacity);
+    }
+
+    fn draw_image(&mut self, image: &piet_web::WebImage, rect: piet::kurbo::Rect, opacity: f64) {
+        let previous = self.context.global_alpha();
+        self.context.set_global_alpha(opacity);
+        piet::RenderContext::draw_image(
+            &mut self.renderer,
+            image,
+            rect,
+            piet::InterpolationMode::Bilinear,
+        );
+        self.context.set_global_alpha(previous);
     }
 }
 
@@ -106,7 +233,6 @@ fn get_piet_render_context(
     surface_policy: BrowserSurfacePolicy,
 ) -> impl RenderContext {
     use pax_runtime::piet_render_context::{PietLayerRenderer, PietLayerTarget, PietRenderer};
-    use piet_web::WebRenderContext;
 
     PietRenderer::new(move |layer| {
         let document = window.document().unwrap();
@@ -122,75 +248,18 @@ fn get_piet_render_context(
         let renderers = targets
             .into_iter()
             .map(|target| {
-                let context: web_sys::CanvasRenderingContext2d = target
-                    .canvas
-                    .get_context("2d")
-                    .unwrap()
-                    .unwrap()
-                    .dyn_into::<web_sys::CanvasRenderingContext2d>()
-                    .unwrap();
-                configure_piet_canvas_context(
-                    &context,
-                    &target.canvas,
-                    target.origin_x,
-                    target.origin_y,
-                    target.surface.surface_width,
-                    target.surface.surface_height,
-                    target.surface.dpr,
-                    true,
-                );
                 let entry = layer_surface_entry_from_target(&target);
-                let clear_fn = Box::new({
-                    let context = context.clone();
-                    let canvas = target.canvas.clone();
-                    move || {
-                        clear_piet_canvas_context(&context, &canvas);
-                    }
-                });
-                let configure_fn = Box::new({
-                    let context = context.clone();
-                    let canvas = target.canvas.clone();
-                    move |origin_x, origin_y, surface_width, surface_height, dpr, resize_surface| {
-                        configure_piet_canvas_context(
-                            &context,
-                            &canvas,
-                            origin_x,
-                            origin_y,
-                            surface_width,
-                            surface_height,
-                            dpr,
-                            resize_surface,
-                        );
-                    }
-                });
-                // Piet's generic API has no image opacity parameter. Apply it on
-                // the existing canvas, preserving the source image and canvas state.
-                let draw_image_fn = Box::new({
-                    let context = context.clone();
-                    move |renderer: &mut WebRenderContext,
-                          image: &piet_web::WebImage,
-                          rect,
-                          opacity| {
-                        let previous = context.global_alpha();
-                        context.set_global_alpha(opacity);
-                        piet::RenderContext::draw_image(
-                            renderer,
-                            image,
-                            rect,
-                            piet::InterpolationMode::Bilinear,
-                        );
-                        context.set_global_alpha(previous);
-                    }
-                });
-                let draw_blend_fn = paint_blend_callback(&context, &target.canvas, &window);
+                let surface = WebPietSurface::new(
+                    target.canvas.clone(),
+                    window.clone(),
+                    (target.origin_x, target.origin_y),
+                    (target.surface.surface_width, target.surface.surface_height),
+                    target.surface.dpr,
+                );
                 PietLayerRenderer::new(
                     target.key.clone(),
                     target.host_signature.clone(),
-                    WebRenderContext::new(context, window.clone()),
-                    clear_fn,
-                    configure_fn,
-                    draw_image_fn,
-                    draw_blend_fn,
+                    surface,
                     &entry,
                 )
             })
@@ -224,14 +293,7 @@ fn paint_blend_callback(
     target: &web_sys::CanvasRenderingContext2d,
     canvas: &HtmlCanvasElement,
     window: &Window,
-) -> Box<
-    dyn FnMut(
-        &mut piet_web::WebRenderContext,
-        &piet::kurbo::BezPath,
-        &[(pax_runtime::api::Fill, f64)],
-        f64,
-    ),
-> {
+) -> PaintBlendFn {
     use pax_runtime::piet_render_context::fill_to_piet_brush;
     use piet::{
         kurbo::{Affine, Rect, Shape},

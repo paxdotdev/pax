@@ -81,12 +81,14 @@ impl InstanceNode for ComponentInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RuntimeContext>,
     ) {
-        let mut properties_scope = borrow_mut!(expanded_node.properties_scope);
-        properties_scope.insert(
-            "$suspended".to_string(),
-            Variable::new_from_typed_property(expanded_node.suspended.clone()),
-        );
-        let new_env = expanded_node.stack.push(properties_scope.clone());
+        let new_env = {
+            let mut properties_scope = borrow_mut!(expanded_node.properties_scope);
+            properties_scope.insert(
+                "$suspended".to_string(),
+                Variable::new_from_typed_property(expanded_node.suspended.clone()),
+            );
+            expanded_node.stack.push(properties_scope.clone())
+        };
         let children = borrow!(self.template);
         let children_with_envs = children.iter().cloned().zip(iter::repeat(new_env));
         expanded_node.children.replace_with(Property::new_with_name(
@@ -98,6 +100,11 @@ impl InstanceNode for ComponentInstance {
             ),
             &format!("component (node id: {})", expanded_node.id.0),
         ));
+        drop(children);
+        // A component can mount after the tick's settings pass (for example in
+        // @pre_render). Bind its initial theme before it can be presented or the
+        // frame clock advances, which would turn defaults into animation endpoints.
+        expanded_node.sync_imported_settings(context);
     }
 
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {

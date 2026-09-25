@@ -1,3 +1,4 @@
+mod opacity;
 use anyhow::anyhow;
 use bytemuck::Pod;
 use std::cell::RefCell;
@@ -417,6 +418,7 @@ pub struct RenderBackend<'w> {
     clear_color: wgpu::Color,
     active_frame: Option<ActiveFrame>,
     capture_target: Option<CaptureTarget>,
+    opacity_surfaces: Option<opacity::OpacitySurfaces>,
     pending_clear: bool,
     pending_command_buffers: Vec<CommandBuffer>,
     staging_belt_pending_recall: bool,
@@ -1153,6 +1155,7 @@ impl<'w> RenderBackend<'w> {
             clear_color: surface_clear_color(alpha_mode),
             active_frame: None,
             capture_target: None,
+            opacity_surfaces: None,
             pending_clear: false,
             pending_command_buffers: Vec::new(),
             staging_belt_pending_recall: false,
@@ -2450,6 +2453,17 @@ impl<'w> RenderBackend<'w> {
     }
 
     fn take_color_load_op(&mut self) -> wgpu::LoadOp<wgpu::Color> {
+        if let Some(target) = self
+            .opacity_surfaces
+            .as_mut()
+            .and_then(|s| s.stack.last_mut())
+        {
+            return if std::mem::replace(&mut target.initialized, true) {
+                wgpu::LoadOp::Load
+            } else {
+                wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT)
+            };
+        }
         if std::mem::take(&mut self.pending_clear) {
             wgpu::LoadOp::Clear(self.clear_color)
         } else {
@@ -2604,6 +2618,10 @@ impl<'w> RenderBackend<'w> {
     }
 
     fn current_color_attachment_view_clones(&self) -> (TextureView, Option<TextureView>) {
+        if let Some(target) = self.opacity_surfaces.as_ref().and_then(|s| s.stack.last()) {
+            let (view, resolve) = target.color_attachment_views();
+            return (view.clone(), resolve.cloned());
+        }
         let surface_view = self
             .active_frame
             .as_ref()
@@ -2622,7 +2640,11 @@ impl<'w> RenderBackend<'w> {
     }
 
     fn should_render_capture_target(&self) -> bool {
-        !self.surface_supports_copy_src() && !self.pending_capture_ids.is_empty()
+        self.opacity_surfaces
+            .as_ref()
+            .is_none_or(|s| s.stack.is_empty())
+            && !self.surface_supports_copy_src()
+            && !self.pending_capture_ids.is_empty()
     }
 
     fn ensure_capture_target(&mut self) {

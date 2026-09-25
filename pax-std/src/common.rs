@@ -100,6 +100,8 @@ pub struct CanvasNodeRenderScope {
     pub node_id: u32,
     pub surface_transform: Affine,
     pub bounds: (f64, f64),
+    /// Paint opacity within the canvas composition; the backend applies outer scopes once.
+    pub paint_opacity: f64,
 }
 
 // Begin a bounded retained vector/image node.
@@ -151,11 +153,22 @@ pub(crate) fn begin_canvas_node_with_local_bounds(
         return None;
     }
 
+    let paint_opacity = if rc.supports_subtree_opacity() {
+        rc.set_node_opacity_scopes(
+            layer_id,
+            node_id,
+            &expanded_node.computed_opacity_scopes.get(),
+        );
+        1.0
+    } else {
+        expanded_node.computed_opacity.get()
+    };
     Some(CanvasNodeRenderScope {
         layer_id,
         node_id,
         surface_transform,
         bounds: tab.bounds,
+        paint_opacity,
     })
 }
 /// Extracts fill and stroke alpha with the same local geometry as visible paint.
@@ -167,7 +180,7 @@ pub(crate) fn alpha_mask_paints(
 ) -> Vec<pax_runtime_api::AlphaMaskPaint> {
     use pax_runtime_api::drawing::stroke_utils::stroked_outline_path;
     let transform = kurbo::Affine::from(node.transform_and_bounds.get().transform);
-    let opacity = node.computed_opacity.get();
+    let opacity = 1.0;
     let mut paints = Vec::new();
     if fill.coverage_alpha_0_1() > f64::EPSILON {
         paints.push(pax_runtime_api::AlphaMaskPaint {

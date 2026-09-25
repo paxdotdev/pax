@@ -20,7 +20,17 @@ pub struct ReplayCanvasLayerUpdate {
     pub node_ids: Option<Vec<u32>>,
 }
 
-/// The Pax render trait, used as a layer of indirection and contract for backend-agnostic rendering.
+/// One authored opacity boundary, ordered from the outermost ancestor to the painted node.
+/// Native surfaces can present independently while a canvas backend composes each scope.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct OpacityScope {
+    pub node_id: u32,
+    pub opacity: f32,
+}
+
+impl crate::Interpolatable for OpacityScope {}
+
+/// The drawing contract shared by Pax runtime backends.
 pub trait RenderContext {
     // Drawing
     /// Fills a path at full opacity.
@@ -255,6 +265,15 @@ pub trait RenderContext {
     fn take_clean_skipped_node(&mut self, _layer: usize, _node_id: u32) -> bool {
         false
     }
+
+    /// Whether canvas opacity is applied after composing each subtree's canvas
+    /// content. This does not imply that the backend caches content across frames.
+    fn supports_subtree_opacity(&self) -> bool {
+        false
+    }
+
+    /// Assigns stable opacity ancestry to the currently recorded canvas node.
+    fn set_node_opacity_scopes(&mut self, _layer: usize, _node_id: u32, _scopes: &[OpacityScope]) {}
 
     /// Ends rendering a node and returns true when the node was recorded.
     fn end_node(&mut self, _layer: usize, _node_id: u32) -> bool {

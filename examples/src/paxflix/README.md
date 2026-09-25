@@ -68,6 +68,20 @@ the current theme immediately. The explicit menu/detail entrance and exit
 timelines retain ownership of their animated properties. Gradient crossfading
 is a paint operation and does not change the group-opacity limits below.
 
+Ordinary opacity now composes each canvas portion of the detail subtree before
+fading it, on WGPU and browser Piet. Native text/controls and separate Scroller
+surfaces still fade independently, so the mixed-content result remains an
+approximation. The historical measurements below predate this group-compositing
+change. See [subtree opacity](../../../pax-docs/book/src/compositing-effects.md#opacity-through-a-subtree)
+for current behavior and backend costs.
+
+The September 25 release comparison on Molino's M4 iPad Pro measures roughly
+57–58% less CPU rasterization time for the large native occlusion masks with
+alpha-only bitmaps (about 6.4 ms versus 15.1 ms per mask). Bitmap storage is one
+quarter of RGBA. Cold artwork/rendering stalls remain; this is not a displayed
+frame-rate claim. The [controlled catalog measurements](../../../pax-docs/book/src/design/isolated-compositing.md#catalog-scale-native-mask-measurements)
+describe the workload, repeated runs, and limits.
+
 To check it, open the profile mark, switch Dark/Light mode in both directions,
 then click again before the 400 ms fade finishes. Check the hero and card fades
 against their surrounding surfaces, and open a film after switching to confirm

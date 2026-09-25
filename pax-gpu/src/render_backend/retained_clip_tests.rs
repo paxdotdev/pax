@@ -494,3 +494,428 @@ fn radial_pixels_cover_focus_transforms_masks_and_crossfades() {
         }
     }
 }
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn retained_subtree_opacity_pixels_and_reuse() {
+    use pax_runtime_api::OpacityScope;
+    for mirror in [false, true] {
+        let layer = MetalLayer::new();
+        let mut backend = pollster::block_on(unsafe {
+            RenderBackend::to_core_animation_layer(
+                layer.0.cast(),
+                RenderConfig::new(true, 96, 64, [1.0, 1.0]),
+            )
+        })
+        .expect("Metal backend");
+        let device = backend.device.clone();
+        if mirror {
+            backend.surface_config.usage.remove(TextureUsages::COPY_SRC);
+        }
+        let mut renderer = WgpuRenderer::new(backend);
+        for (frame_id, opacity) in [0.75, 1.0, 0.5, 0.25, 0.0, 1.0].into_iter().enumerate() {
+            for (id, x) in [(1, 0.0), (2, 16.0)] {
+                renderer.begin_node(id, id as i32, 0);
+                renderer.set_node_opacity_scopes(
+                    id,
+                    &[OpacityScope {
+                        node_id: 100,
+                        opacity,
+                    }],
+                );
+                renderer.save();
+                renderer.clip(rect(4.0, 4.0, 52.0, 56.0));
+                renderer.fill_path(
+                    rect(x, 0.0, 40.0, 64.0),
+                    Fill::Solid(Color::rgba(1.0, 1.0, 1.0, 1.0)),
+                );
+                renderer.restore();
+                renderer.end_node(id);
+            }
+            // A nested group containing an image and an overlapping vector. Half source alpha
+            // tests transparent-on-transparent composition: .5 over .5 = .75, then two fades.
+            for id in [3, 4] {
+                renderer.begin_node(id, id as i32, 0);
+                renderer.set_node_opacity_scopes(
+                    id,
+                    &[
+                        OpacityScope {
+                            node_id: 200,
+                            opacity,
+                        },
+                        OpacityScope {
+                            node_id: 201,
+                            opacity: 0.5,
+                        },
+                    ],
+                );
+                if id == 3 {
+                    renderer.draw_image(
+                        "translucent",
+                        0,
+                        &Image {
+                            rgba: vec![255, 255, 255, 128],
+                            pixel_width: 1,
+                            pixel_height: 1,
+                        },
+                        Box2D::new(point(64.0, 0.0), point(96.0, 64.0)),
+                    );
+                } else {
+                    renderer.fill_path(
+                        rect(64.0, 0.0, 32.0, 64.0),
+                        Fill::Solid(Color::rgba(1.0, 1.0, 1.0, 0.5)),
+                    );
+                }
+                renderer.end_node(id);
+            }
+            renderer.request_screenshot_capture(frame_id as u32);
+            renderer.flush();
+            device
+                .poll(wgpu::PollType::wait_indefinitely())
+                .expect("readback");
+            let frame = renderer
+                .take_screenshot_capture(frame_id as u32)
+                .expect("capture");
+            let expected = (255.0 * opacity).round() as u8;
+            for x in [8, 24, 48] {
+                let actual = frame.rgba[(32 * frame.width as usize + x) * 4 + 3];
+                assert!(actual.abs_diff(expected) <= 1, "mirror={mirror}, opacity={opacity}, x={x}, alpha={actual}, expected={expected}");
+            }
+            let nested = frame.rgba[(32 * frame.width as usize + 80) * 4 + 3];
+            let expected_nested =
+                (255.0 * (0.5 + (128.0 / 255.0) * 0.5) * 0.5 * opacity).round() as u8;
+            assert!(
+                nested.abs_diff(expected_nested) <= 2,
+                "nested alpha {nested} != {expected_nested}"
+            );
+            assert_pixel(&frame, 1, 32, [0, 0, 0, 0]);
+            let stats = renderer.take_resource_churn_stats();
+            assert_eq!(
+                stats.opacity_group_renders,
+                if frame_id == 0 { 3 } else { 0 }
+            );
+            assert_eq!(stats.texture_creates, if frame_id == 0 { 1 } else { 0 });
+            if frame_id > 0 {
+                assert_eq!(stats.vector_buffer_rebuilds, 0);
+                assert_eq!(stats.texture_upload_bytes, 0);
+                assert_eq!(stats.image_draw_creates, 0);
+                assert_eq!(
+                    stats.retained_draws, 0,
+                    "cached fades must not replay their contents"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn retained_subtree_content_invalidation_and_color() {
+    use pax_runtime_api::OpacityScope;
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 128, 64, [1.0, 1.0]),
+        )
+    })
+    .expect("Metal backend");
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    for frame_id in 0..5 {
+        let color = if frame_id < 2 {
+            Color::rgba(0.2, 0.7, 0.4, 1.0)
+        } else {
+            Color::rgba(0.8, 0.3, 0.1, 1.0)
+        };
+        let shift = if frame_id >= 3 { 8.0 } else { 0.0 };
+        for id in [1, 2, 3] {
+            renderer.begin_node(id, id as i32, 0);
+            if id < 3 {
+                renderer.set_node_opacity_scopes(
+                    id,
+                    &[OpacityScope {
+                        node_id: 100,
+                        opacity: 0.5,
+                    }],
+                );
+            }
+            renderer.save();
+            let x = if id == 3 { 64.0 } else { 0.0 };
+            renderer.transform(Transform2D::translation(x + 32.0, 32.0));
+            renderer.transform(Transform2D::rotation(Angle::degrees(20.0)));
+            // Nonrectangular stencil, changing independently of the node's paint transform.
+            renderer.clip(rect(-20.0 + shift, -20.0, 32.0, 32.0));
+            renderer.fill_path_with_opacity(
+                rect(-32.0, -32.0, 64.0, 64.0),
+                Fill::Solid(color),
+                if id == 3 { 0.5 } else { 1.0 },
+            );
+            renderer.restore();
+            renderer.end_node(id);
+        }
+        if frame_id == 4 {
+            renderer.remove_node(1);
+        }
+        renderer.request_screenshot_capture(frame_id);
+        renderer.flush();
+        device
+            .poll(wgpu::PollType::wait_indefinitely())
+            .expect("readback");
+        let frame = renderer.take_screenshot_capture(frame_id).expect("capture");
+        for y in 4..60 {
+            for x in 4..60 {
+                let a = (y * 128 + x) * 4;
+                let b = (y * 128 + x + 64) * 4;
+                // Antialiased overlapping edges accumulate coverage before the group fade;
+                // compare only the fully covered interior and exterior to the single paint.
+                let alpha = frame.rgba[b + 3];
+                if alpha == 128 || alpha == 0 {
+                    for channel in 0..4 {
+                        assert!(
+                            frame.rgba[a + channel].abs_diff(frame.rgba[b + channel]) <= 2,
+                            "frame={frame_id} pixel=({x},{y}) grouped={:?} reference={:?}",
+                            &frame.rgba[a..a + 4],
+                            &frame.rgba[b..b + 4]
+                        );
+                    }
+                }
+            }
+        }
+        let stats = renderer.take_resource_churn_stats();
+        assert_eq!(
+            stats.opacity_group_renders,
+            u64::from(frame_id != 1),
+            "content changes must invalidate the cache"
+        );
+    }
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn retained_subtree_shared_image_refresh_and_final_removal() {
+    use pax_runtime_api::OpacityScope;
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 64, 32, [1.0, 1.0]),
+        )
+    })
+    .expect("Metal backend");
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    for frame_id in 0..5 {
+        // Only the outside consumer replays when new shared artwork arrives.
+        // The group must notice the new texture version despite retaining its draw.
+        for id in [1, 2] {
+            if id == 1 && frame_id > 0 {
+                continue;
+            }
+            if frame_id >= 3 {
+                continue;
+            }
+            renderer.begin_node(id, id as i32, 0);
+            if id == 1 {
+                renderer.set_node_opacity_scopes(
+                    id,
+                    &[OpacityScope {
+                        node_id: 100,
+                        opacity: 0.5,
+                    }],
+                );
+            }
+            let changed = frame_id >= 1;
+            renderer.draw_image(
+                "shared",
+                u64::from(changed),
+                &Image {
+                    rgba: if changed {
+                        vec![0, 255, 0, 255]
+                    } else {
+                        vec![255, 0, 0, 255]
+                    },
+                    pixel_width: 1,
+                    pixel_height: 1,
+                },
+                Box2D::new(
+                    point((id - 1) as f32 * 32.0, 0.0),
+                    point(id as f32 * 32.0, 32.0),
+                ),
+            );
+            renderer.end_node(id);
+        }
+        if frame_id == 3 {
+            renderer.remove_node(1);
+            renderer.remove_node(2);
+        }
+        renderer.request_screenshot_capture(frame_id);
+        renderer.flush();
+        device
+            .poll(wgpu::PollType::wait_indefinitely())
+            .expect("readback");
+        let frame = renderer.take_screenshot_capture(frame_id).expect("capture");
+        if frame_id < 3 {
+            let pixel = &frame.rgba[(16 * 64 + 16) * 4..(16 * 64 + 16) * 4 + 4];
+            let channel = usize::from(frame_id > 0);
+            assert!(
+                pixel[channel] > 100,
+                "shared image color at frame {frame_id}: {pixel:?}"
+            );
+            assert!(pixel[1 - channel] <= 1);
+            assert!(pixel[3].abs_diff(128) <= 1);
+        } else {
+            assert_pixel(&frame, 16, 16, [0, 0, 0, 0]);
+            assert_pixel(&frame, 48, 16, [0, 0, 0, 0]);
+        }
+        let stats = renderer.take_resource_churn_stats();
+        assert_eq!(stats.opacity_group_renders, u64::from(frame_id <= 1));
+        assert_eq!(stats.texture_creates, u64::from(frame_id <= 1));
+    }
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn retained_subtree_gradient_image_seam_at_fractional_translation() {
+    use crate::{GradientStop, GradientType, Vector2D};
+    use pax_runtime_api::OpacityScope;
+    for dpr in [1.0, 1.25, 2.0, 3.0] {
+        let layer = MetalLayer::new();
+        let backend = pollster::block_on(unsafe {
+            RenderBackend::to_core_animation_layer(
+                layer.0.cast(),
+                RenderConfig::new(true, (64.0 * dpr) as u32, (80.0 * dpr) as u32, [dpr, dpr]),
+            )
+        })
+        .expect("Metal backend");
+        let device = backend.device.clone();
+        let mut renderer = WgpuRenderer::new(backend);
+        for step in 0..256 {
+            let y = 8.0 + (step % 64) as f32 / 64.0;
+            // Start opaque to cover the uncached path before introducing a group surface.
+            let opacity = [1.0, 0.25, 0.5, 0.75][step as usize / 64];
+            for id in [1, 2, 3] {
+                renderer.begin_node(id, id as i32, 0);
+                renderer.set_node_opacity_scopes(
+                    id,
+                    &[OpacityScope {
+                        node_id: 100,
+                        opacity,
+                    }],
+                );
+                renderer.save();
+                renderer.transform(Transform2D::translation(8.0, y));
+                match id {
+                    1 => renderer.fill_path(
+                        rect(0.0, 0.0, 48.0, 64.0),
+                        Fill::Solid(Color::rgba(0.0, 0.0, 0.0, 1.0)),
+                    ),
+                    2 => {
+                        // ImageFit::Fill draws a larger image through the element's clip.
+                        renderer.clip(rect(0.0, 0.0, 48.0, 40.0));
+                        renderer.draw_image(
+                            "bright",
+                            0,
+                            &Image {
+                                rgba: vec![255, 255, 255, 255],
+                                pixel_width: 1,
+                                pixel_height: 1,
+                            },
+                            Box2D::new(point(0.0, -4.0), point(48.0, 44.0)),
+                        );
+                    }
+                    _ => renderer.fill_path(
+                        rect(0.0, 0.0, 48.0, 40.0),
+                        Fill::Gradient {
+                            gradient_type: GradientType::Linear,
+                            pos: point(8.0, y),
+                            main_axis: Vector2D::new(0.0, 40.0),
+                            off_axis: Vector2D::new(1.0, 0.0),
+                            stops: vec![
+                                GradientStop {
+                                    stop: 0.0,
+                                    color: Color::rgba(0.0, 0.0, 0.0, 0.0),
+                                },
+                                GradientStop {
+                                    stop: 40.0,
+                                    color: Color::rgba(0.0, 0.0, 0.0, 1.0),
+                                },
+                            ],
+                        },
+                    ),
+                }
+                renderer.restore();
+                renderer.end_node(id);
+            }
+            renderer.request_screenshot_capture(step);
+            renderer.flush();
+            device
+                .poll(wgpu::PollType::wait_indefinitely())
+                .expect("readback");
+            let frame = renderer.take_screenshot_capture(step).expect("capture");
+            let seam_y = ((y + 40.0) * dpr).floor() as usize;
+            for py in seam_y.saturating_sub(1)..=seam_y + 1 {
+                let offset = (py * frame.width as usize + (32.0 * dpr) as usize) * 4;
+                let pixel = &frame.rgba[offset..offset + 4];
+                // At most one pixel above the edge, the gradient has already almost
+                // reached opaque black. An exposed white-image fringe is a regression.
+                assert!(
+                    pixel[0] < 40,
+                    "dpr={dpr} opacity={opacity} step={step} y={py} seam={seam_y}: {pixel:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn paint_blend_updates_invalidate_composed_group_pixels() {
+    use pax_runtime_api::OpacityScope;
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 32, 32, [1.0, 1.0]),
+        )
+    })
+    .expect("Metal backend");
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    for (frame_id, weight) in [0.25, 0.75, 0.25, 0.25].into_iter().enumerate() {
+        renderer.begin_node(1, 0, 0);
+        renderer.set_node_opacity_scopes(
+            1,
+            &[OpacityScope {
+                node_id: 100,
+                opacity: 0.5,
+            }],
+        );
+        renderer.fill_path(
+            rect(0.0, 0.0, 32.0, 32.0),
+            Fill::Blend(vec![
+                (Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)), weight),
+                (Fill::Solid(Color::rgba(0.0, 0.0, 1.0, 1.0)), 1.0 - weight),
+            ]),
+        );
+        renderer.end_node(1);
+        renderer.request_screenshot_capture(frame_id as u32);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let frame = renderer.take_screenshot_capture(frame_id as u32).unwrap();
+        let pixel = &frame.rgba[(16 * 32 + 16) * 4..(16 * 32 + 16) * 4 + 4];
+        for (actual, expected) in pixel
+            .iter()
+            .zip([weight * 0.5, 0.0, (1.0 - weight) * 0.5, 0.5])
+        {
+            assert!(
+                actual.abs_diff((expected * 255.0).round() as u8) <= 1,
+                "{pixel:?}"
+            );
+        }
+        assert_eq!(
+            renderer.take_resource_churn_stats().opacity_group_renders,
+            u64::from(frame_id != 3)
+        );
+    }
+}

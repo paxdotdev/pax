@@ -109,6 +109,44 @@ transitions at 1x, 2x, and 3x, checking both allocation bounds and viewport
 coverage. When validating a tile policy, check the dimensions the chassis
 actually allocates, especially at tiled-to-single-surface transitions.
 
+## 2026-09-25 — Keep performance fixtures isolated without duplicating build caches
+
+A temporary example nested under `target/` can still be claimed by the outer
+Cargo workspace. Add an empty `[workspace]` to the temporary example's manifest
+when it needs to build independently; directory placement alone does not isolate it.
+
+The Apple build accepted `CARGO_TARGET_DIR`, but the packaging step still looked
+for its dylib under the example's local `target/`. For this temporary measurement
+fixture, pointing that local `target` symlink at the shared build directory let
+packaging find the compiled library. The CLI should eventually resolve the same
+target directory for compilation and packaging. Take care not to delete the
+shared directory when removing a fixture that uses this workaround.
+
+Catalog validation also required the catalog branch's committed safe-area and
+Dynamic Island support. A temporary source integration preserved those features
+while testing this branch's rendering changes; stripping the spacer would have
+changed the workload and hidden a missing dependency.
+
+## 2026-09-24 — Separate baseline defects in compositing fixtures
+
+The PAX-1004 worktree starts before the separate Paxflix Image-opacity and
+synchronous iOS presentation fixes. A mixed card alone therefore cannot
+distinguish inherited-opacity overlap from an Image that ignores opacity or
+a stale native mask. The `group-compositing` fixture includes a fixed-alpha
+vector overlap beside a one-paint reference and an Image toggle, so the
+descendant-opacity behavior can be reproduced independently. Port and verify
+the prerequisite fixes before using the mixed card for isolation acceptance.
+
+The installed `pax-cli` here reports 0.38.2 and has no `dev` command. Build and
+use this worktree's `target/debug/pax-cli` for its 0.39.0 compiler and dev tools;
+do not infer that a command documented by the repository is unavailable from
+the older global binary.
+
+Before this fixture had a live session, `dev status --path` returned a live
+session from another worktree. Check `project_root` in discovery output and
+use the fixture's explicit `--session` ID for captures or mutations; a supplied
+path alone is not proof that the selected session belongs to this task.
+
 Example (structure is not rigid but this showcases the style of notes we should be gathering.
 
 ## 2026-05-19
@@ -2303,3 +2341,27 @@ foci and singular transforms as well as the easy concentric case. At an exact
 boundary/external focus, Canvas leaves the pixel transparent; returning the
 first stop there creates an isolated bright speck. A direct Canvas comparison
 and a Metal pixel regression cover that degenerate root.
+
+### Inline lifecycle handlers can receive the child's properties
+
+The group-compositing fixture initially put `@mount=self.card_mount` and
+`@unmount=self.card_unmount` on a Group inside Example. The generated handler
+expects Example properties, but `ExpandedNode::recurse_mount` and
+`recurse_unmount` currently pass the Group's properties without checking
+`HandlerLocation`; the web fixture panicked on downcast. Ordinary event dispatch
+already distinguishes inline and component handlers. For this fixture, put the
+card in a component and declare its lifecycle handlers in that component's
+`@settings`, binding the counters to the parent. Inline lifecycle dispatch still
+needs its own fix; moving the fixture does not repair that runtime behavior.
+
+### Late mounts must resolve their initial imported settings
+
+Paxflix's dark detail panel appeared gray while entering on Molino. Tracing the
+Rectangle's actual fill showed its default RGB(100, 116, 139) easing toward black;
+the alpha-only native mask was not producing white. A component opened from
+`@pre_render` missed the tick's earlier imported-settings pass. On the next tick,
+its birth frame was already past, so automatic settings motion treated its first
+theme as a later change. Resolve a component's imports when mounting its template,
+before presentation or clock advancement. The regression covers tick/pre-render
+handlers and frame/millisecond-driven mounts, plus subsequent animated theme
+changes. This adds no traversal to idle frames.

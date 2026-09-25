@@ -90,7 +90,8 @@ Full composed transform.
 ##### `opacity`
 Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<`Option`<[`Opacity`](../../api/pax-runtime-api/color.md#opacity)>>
 
-Node opacity, applied to the node and its descendants.
+Opacity of this node's subtree. WGPU and browser Piet compose each canvas
+portion before fading it; live native surfaces currently fade separately.
 
 ##### `layout_role`
 Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<`Option`<[`LayoutRole`](../../api/pax-runtime-api/layout.md#layoutrole)>>

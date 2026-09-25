@@ -1,0 +1,72 @@
+<Group anchor=0% y={$target.ios ? 60px : 0px} width=100% height={100% - ($target.ios ? 60px : 0px)}>
+    <Text class="heading" anchor=0% x=20px y=12px width={100% - 40px} height=28px text={"Group opacity / " + (alpha * 100) + "%"}/>
+    <Button anchor=0% x=20px y=50px width=106px height=34px label="+25%" @button_click=self.step_alpha/>
+    <Button anchor=0% x=134px y=50px width=100px height=34px label="Move 30px" @button_click=self.move_card/>
+    <Button anchor=0% x=242px y=50px width=106px height=34px label="Image" @button_click=self.toggle_image/>
+    <Button anchor=0% x=20px y=92px width=106px height=34px label={show_card ? "Hide" : "Show"} @button_click=self.toggle_card/>
+    <Button anchor=0% x=134px y=92px width=100px height=34px label="Reverse" @button_click=self.reverse_exit/>
+    <Button anchor=0% x=242px y=92px width=106px height=34px label="Theme" @button_click=self.toggle_theme/>
+    <Button anchor=0% x=20px y=134px width=106px height=34px label="Late art" @button_click=self.late_artwork/>
+    <Text class="label" anchor=0% x=134px y=138px width=214px height=26px text={"Mounts " + mounts + " / exits " + unmounts}/>
+    <Text class="label" anchor=0% x=20px y=184px width=148px height=24px text="Composed overlap"/>
+    <Text class="label" anchor=0% x=190px y=184px width=158px height=24px text="One-paint reference"/>
+    <Group anchor=0% x=20px y=216px width=140px height=54px opacity={alpha}>
+        <Rectangle anchor=0% width=100px height=36px fill=rgb(40, 165, 150)/>
+        <Rectangle anchor=0% x=40px y=18px width=100px height=36px fill=rgb(40, 165, 150)/>
+    </Group>
+    <Path anchor=0% x=190px y=216px width=140px height=54px opacity={alpha} fill=rgb(40, 165, 150) elements={[
+        PathElement::Point(0px, 0px),
+        PathElement::Line,
+        PathElement::Point(100px, 0px),
+        PathElement::Line,
+        PathElement::Point(100px, 18px),
+        PathElement::Line,
+        PathElement::Point(140px, 18px),
+        PathElement::Line,
+        PathElement::Point(140px, 54px),
+        PathElement::Line,
+        PathElement::Point(40px, 54px),
+        PathElement::Line,
+        PathElement::Point(40px, 36px),
+        PathElement::Line,
+        PathElement::Point(0px, 36px),
+        PathElement::Close
+    ]}/>
+    if show_card {
+        <CompositingCard id=card anchor=0% x=36px y={moved ? 374px : 344px} width={$viewport.width < 520 ? (100% - 72px) : 420px} height=260px
+            opacity={alpha} show_image={show_image} pixels={pixels} note=bind:note alternate_theme={alternate_theme}
+            mounts=bind:mounts unmounts=bind:unmounts/>
+    }
+    <Scroller anchor=0% x=20px y=304px width={100% - 40px} height={100% - 324px} scroll_height=1050px>
+        for row in 0..5 {
+            <Scroller anchor=0% y={(row * 210)px} width=100% height=150px scroll_width=1000px>
+                for column in 0..5 {
+                    <Frame anchor=0% x={(column * 200)px} width=180px height=150px corner_radius=10>
+                        <Text class="label" anchor=0% x=12px y=104px width=156px height=26px text={"Row " + row + " / Tile " + column}/>
+                        <Rectangle width=100% height=100% fill=rgb(195, 210, 225)/>
+                    </Frame>
+                }
+            </Scroller>
+        }
+    </Scroller>
+    <Rectangle width=100% height=100% fill=rgb(245, 247, 250)/>
+</Group>
+
+@settings {
+    @mount: mount
+    @pre_render: pre_render
+    .heading {
+        style: {
+            font: "Arial"
+            font_size: 22px
+            fill: rgb(16, 24, 40)
+        }
+    }
+    .label {
+        style: {
+            font: "Arial"
+            font_size: 14px
+            fill: rgb(40, 50, 65)
+        }
+    }
+}

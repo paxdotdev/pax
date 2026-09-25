@@ -256,8 +256,11 @@ the same time or frame [durations](#markers-duration-and-loops) and
 `TransitionCurve::Linear`, `TransitionCurve::OutQuad`, and so on. Zero,
 negative, and non-finite durations apply the target immediately.
 
-The first resolved appearance snaps into place. After that, changing a
-provider's reactive values, replacing a provider, or changing selector
+The first resolved appearance snaps into place, including components inserted
+by input, lifecycle handlers, or a clock-driven conditional. Their imported
+settings resolve during mounting, so an entrance fade uses the current theme
+from its first frame rather than fading from primitive defaults. After that,
+changing a provider's reactive values, replacing a provider, or changing selector
 membership animates each affected receiver property toward its new effective
 value. A change hidden by a later settings layer does not start motion.
 Interrupting motion samples its current value and starts a fresh transition

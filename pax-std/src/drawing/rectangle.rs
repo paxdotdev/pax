@@ -71,6 +71,7 @@ impl InstanceNode for RectangleInstance {
             fill.untyped(),
             material.untyped(),
             expanded_node.computed_opacity.untyped(),
+            expanded_node.computed_opacity_scopes.untyped(),
         ];
         let cloned_expanded_node = expanded_node.clone();
         let cloned_context = context.clone();
@@ -136,7 +137,7 @@ impl InstanceNode for RectangleInstance {
         expanded_node.with_properties_unwrapped(|properties: &mut Rectangle| {
             let rect = RoundedRect::new(0.0, 0.0, width, height, &properties.corner_radius.get());
             let bez_path = rect.to_path(0.1);
-            let opacity = expanded_node.computed_opacity.get();
+            let opacity = scope.paint_opacity;
             let fill = properties.fill.get();
             let stroke = properties.stroke.get();
             let material = properties.material.get();

@@ -3,6 +3,7 @@
 <!-- tags: api, pax-std -->
 
 ## Submodules
+- [common](common.md)
 - [core](core.md)
 - [drawing](drawing.md)
 - [forms](forms.md)

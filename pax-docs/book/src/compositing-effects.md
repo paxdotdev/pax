@@ -1,7 +1,7 @@
 <a id="compositing--effects"></a>
 
 # Compositing and Effects
-<!-- summary: Compose rendered and native content with clipping, geometric and alpha masks, inherited opacity, and platform-specific effects. -->
+<!-- summary: Compose rendered and native content with clipping, geometric and alpha masks, subtree opacity, and platform-specific effects. -->
 <!-- tags: compositing, masking, clipping, opacity, native, effects -->
 
 A note card might combine a photograph, a vector border, editable text,
@@ -248,43 +248,54 @@ not change hit testing.
 ## Opacity through a subtree
 
 `opacity` accepts a normalized value such as `0.5`, or a percentage such as
-`50%`. Each node inherits its render parent's opacity and multiplies it by
-its own value. Paint alpha is another multiplier:
+`50%`. On WGPU and the browser's Piet/Canvas2D renderer, it fades the composed
+canvas content in a subtree. There is
+no separate isolation setting. For example, these overlapping rectangles
+form one silhouette with uniform 50% opacity:
 
 ```pax
 <Group x=24px y=24px width=280px height=120px opacity=50%>
     <Rectangle x=0px y=0px width=160px height=100px
         fill=rgb(56, 100, 78) />
     <Rectangle x=100px y=20px width=160px height=100px
-        fill=rgb(56, 100, 78) opacity=50% />
+        fill=rgb(56, 100, 78) />
 </Group>
 ```
 
-The first Rectangle paints at 50% opacity. The second inherits that 50%
-and multiplies it by another 50%, so it paints at 25%. Giving the second
-Rectangle `opacity=1` would preserve the inherited 50%; it would not undo
-the parent's attenuation. Drawing explains
+The rectangles compose at their own paint alpha first; the Group then fades
+that result once. Nested opacity works the same way: a child with `opacity=50%`
+fades inside its parent, and a parent at 50% fades the assembled result again.
+Setting a child to `opacity=1` cannot cancel an ancestor's fade. A Group does
+not add clipping; use a Frame or Mask to restrict overflow.
+
+Paint alpha remains useful for a different purpose. Lower a background's fill
+alpha to let content behind it show through while its label stays crisp. Set
+the container's opacity to fade its assembled canvas artwork. See
 [paint alpha](drawing-styling.md#color-and-transparency), including `rgba` units.
+Independent sibling fades still overlap using source-over; complementary
+opacities do not keep a crossfading silhouette fully opaque.
 
-`Image` uses the same multiplier: its source pixel alpha is multiplied by
-its own opacity and every ancestor's opacity. Changing only opacity redraws
-the retained image without reloading or reuploading its pixels. This applies
-to the GPU backend on web and native targets, and to the browser canvas fallback.
-For example, an Image with `opacity=50%` inside a `Group opacity=50%` draws an
-opaque source pixel at 25% alpha. Earlier builds omitted the image multiplier,
-which could leave artwork visible after the text and gradient above it faded.
+**Current backend limits:** both renderers compose each canvas portion
+separately. Live native text and controls, and content in separate native
+Scroller surfaces, fade independently. Their overlap can therefore differ
+from an exact image of the whole mixed subtree. The native coverage masks
+below remain approximate. The focused `examples/src/group-compositing` fixture
+has matching overlap probes on web WGPU, native macOS, iPhone/iPad simulators
+and a physical iPad. Its interrupted exit preserves edited native text on
+web, macOS and that iPad. These checks do not establish full accessibility
+coverage or performance for larger applications. Piet's browser fixture also
+matches the overlap reference and preserves native input during reversal.
+There is no author-selectable legacy mode.
 
-This is per-descendant opacity. Group, Frame, and Mask do not provide a
-general “render the subtree to one image, then fade that image” isolation
-operation. Overlapping translucent descendants can build up opacity where
-they overlap. Adding another Group does not remove that buildup.
-
-Choose the property that matches the visual intent. To soften a card's
-background while keeping its label crisp, lower the background fill's
-alpha. To fade the card's individual pieces together, change a shared
-ancestor's opacity and inspect their overlaps. Two overlapping copies at
-50% each do not produce one fully opaque copy; avoid complementary
-crossfades when a silhouette must stay solid throughout the handoff.
+WGPU retains visible group content across opacity changes. Source image,
+paint, transform, clip and lighting changes invalidate that content; outer
+translation and native mask updates still perform work. Group surfaces add
+memory and composition passes, so caching is not a guarantee of faster frames.
+Piet replays dirty canvas content and reuses temporary canvases for composition;
+it does not retain composed group pixels between dirty frames. Fully opaque
+scopes bypass the temporary canvas, and fully transparent scopes skip painting.
+Each simultaneously nested translucent scope can require another tile-sized
+canvas. The browser still owns live native text and controls.
 
 Opacity does not unmount a component, disable a control, or manage keyboard
 focus. Keep those state and interaction decisions explicit. Likewise, a
@@ -316,6 +327,13 @@ The ellipse is earlier in the template, so its overlapping area appears in
 front of the Button. The later Rectangle stays behind both. Moving the
 ellipse updates that relationship; wrapping the composition in a Mask
 adds another visible boundary.
+
+On Apple targets, changing coverage can require CPU rasterization of native
+punch-through masks. These masks store one coverage byte per pixel, and unchanged
+results are cached. A moving or fading overlay can invalidate that cache every
+frame, so a large masked surface can still be expensive. Native and rendered
+content are published synchronously to keep their coverage aligned. The browser
+uses SVG/CSS masks; the Apple rasterization cost is not a measurement of that path.
 
 ### Coverage has limits
 
@@ -454,7 +472,7 @@ interface mixes native and rendered content; an all-vector mockup does
 not exercise that boundary.
 
 When something disappears, inspect source order and ancestor clips first,
-then Mask child order and source coverage, followed by inherited opacity.
+then Mask child order and source coverage, followed by subtree opacity and the current native/canvas limits.
 If the issue appears only while crossing a native surface or Scroller,
 compare the surface arrangement as well as the element's local geometry.
 

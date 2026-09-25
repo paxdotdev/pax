@@ -545,6 +545,8 @@ pub trait InstanceNode {
 
     /// Resolves vector paint for an alpha-mask source without rendering or
     /// mutating the source's retained canvas state.
+    /// Paint-local coverage without common node/ancestor opacity. The Mask consumer
+    /// applies the source subtree's opacity factors relative to its own boundary.
     fn resolve_alpha_mask_paints(
         &self,
         _expanded_node: &ExpandedNode,

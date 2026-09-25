@@ -85,6 +85,7 @@ impl InstanceNode for LineInstance {
             stroke.untyped(),
             material.untyped(),
             expanded_node.computed_opacity.untyped(),
+            expanded_node.computed_opacity_scopes.untyped(),
         ];
         let cloned_expanded_node = expanded_node.clone();
         let cloned_context = context.clone();
@@ -156,7 +157,7 @@ impl InstanceNode for LineInstance {
                     bez_path,
                     &stroke,
                     &material,
-                    expanded_node.computed_opacity.get(),
+                    scope.paint_opacity,
                 );
                 rc.restore(scope.layer_id);
             }

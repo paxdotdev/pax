@@ -24,6 +24,19 @@ Type: `f64`
 
 ---
 
+### `OpacityScope`
+One authored opacity boundary, ordered from the outermost ancestor to the painted node.
+Native surfaces can present independently while a canvas backend composes each scope.
+
+#### Properties
+##### `node_id`
+Type: `u32`
+
+##### `opacity`
+Type: `f32`
+
+---
+
 ### `ReplayCanvasLayerUpdate`
 Replay invalidation for one logical canvas layer.
 
@@ -55,7 +68,7 @@ Runtime can choose the appropriate layer.
 
 ## Traits
 ### `RenderContext`
-The Pax render trait, used as a layer of indirection and contract for backend-agnostic rendering.
+The drawing contract shared by Pax runtime backends.
 
 ## Functions
 ### `bez_path_to_svg_path_data`

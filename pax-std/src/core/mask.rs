@@ -71,11 +71,26 @@ impl MaskInstance {
 
     fn collect_alpha_paints(
         node: &ExpandedNode,
+        inherited_scope_count: usize,
         paints: &mut Vec<pax_runtime_api::AlphaMaskPaint>,
     ) {
-        paints.extend(borrow!(node.instance_node).resolve_alpha_mask_paints(node));
+        let relative_opacity = node
+            .computed_opacity_scopes
+            .get()
+            .iter()
+            .skip(inherited_scope_count)
+            .fold(1.0, |alpha, scope| alpha * scope.opacity as f64);
+        paints.extend(
+            borrow!(node.instance_node)
+                .resolve_alpha_mask_paints(node)
+                .into_iter()
+                .map(|mut paint| {
+                    paint.opacity *= relative_opacity;
+                    paint
+                }),
+        );
         for child in node.children.get().iter().rev() {
-            Self::collect_alpha_paints(child, paints);
+            Self::collect_alpha_paints(child, inherited_scope_count, paints);
         }
     }
     fn sync_mask_source_layout(expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {
@@ -163,6 +178,7 @@ impl MaskInstance {
             source.children.untyped(),
             source.transform_and_bounds.untyped(),
             source.computed_opacity.untyped(),
+            source.computed_opacity_scopes.untyped(),
         ];
         deps.extend(
             borrow!(source.properties_scope)
@@ -485,15 +501,13 @@ impl InstanceNode for MaskInstance {
         let mut paints = Vec::new();
         if alpha {
             if let Some(source) = borrow!(expanded_node.sidecar_children).first() {
-                Self::collect_alpha_paints(source, &mut paints);
-            }
-            // The mask's own ancestor opacity already applies to its content.
-            // Only source-relative opacity should modulate that content again.
-            let inherited_opacity = expanded_node.computed_opacity.get();
-            if inherited_opacity > f64::EPSILON {
-                for paint in &mut paints {
-                    paint.opacity = (paint.opacity / inherited_opacity).clamp(0.0, 1.0);
-                }
+                // Resolve source factors directly. Dividing world opacities loses source
+                // coverage at zero, forcing otherwise unchanged masks to repaint during a fade.
+                Self::collect_alpha_paints(
+                    source,
+                    expanded_node.computed_opacity_scopes.get().len(),
+                    &mut paints,
+                );
             }
         }
 

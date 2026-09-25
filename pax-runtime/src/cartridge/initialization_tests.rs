@@ -626,6 +626,176 @@ fn animated_layer(
     }
 }
 
+// Models the ImportSettings primitive's sidecar provider without depending on
+// pax-std (which itself depends on this crate).
+struct ThemeImport {
+    base: BaseInstance,
+}
+impl InstanceNode for ThemeImport {
+    fn instantiate(mut args: InstantiationArgs) -> Rc<Self> {
+        args.template_node_type_id = Some(TypeId::build_singleton(
+            "test::ImportSettings",
+            Some("ImportSettings"),
+        ));
+        Rc::new(Self {
+            base: BaseInstance::new(
+                args,
+                InstanceFlags {
+                    layer: Layer::DontCare,
+                    invisible_to_slot: true,
+                    invisible_to_raycasting: true,
+                    is_component: false,
+                    is_slot: false,
+                },
+            ),
+        })
+    }
+    fn base(&self) -> &BaseInstance {
+        &self.base
+    }
+    fn handle_mount(self: Rc<Self>, node: &Rc<ExpandedNode>, ctx: &Rc<RuntimeContext>) {
+        *node.import_settings_transition.borrow_mut() =
+            Some(Property::new(Some(SettingsTransitionConfig {
+                duration: Duration::Milliseconds(100.into()),
+                curve: "Linear",
+            })));
+        let mut provider_args = args();
+        provider_args.template_node_type_id =
+            Some(TypeId::build_singleton("test::Theme", Some("Theme")));
+        provider_args.component_settings = Some(vec![SettingsBlockElement::SelectorBlock(
+            pax_manifest::Token::new_without_location("Probe".into()),
+            LiteralBlockDefinition::new(vec![setting("value", expression("untouched"))]),
+        )]);
+        let provider = child(
+            node,
+            ctx,
+            ComponentInstance::instantiate(provider_args),
+            HashMap::new(),
+        );
+        node.attach_sidecar_children(vec![provider], ctx, &node.parent_frame);
+    }
+    fn resolve_debug(
+        &self,
+        f: &mut std::fmt::Formatter,
+        _: Option<&ExpandedNode>,
+    ) -> std::fmt::Result {
+        f.write_str("ThemeImport")
+    }
+}
+
+#[test]
+fn late_mounted_components_resolve_their_theme_before_the_first_presentation() {
+    use crate::constants::{PRE_RENDER_HANDLERS, TICK_HANDLERS};
+
+    fn open_detail(properties: Rc<RefCell<PaxAny>>, _: &NodeContext, _: Option<PaxAny>) {
+        Probe::ref_from_pax_any(&properties.as_ref().borrow())
+            .unwrap()
+            .value
+            .set(1.0);
+    }
+
+    for phase in [TICK_HANDLERS, PRE_RENDER_HANDLERS, "frame", "millis"] {
+        let clock = Rc::new(Cell::new(0_u128));
+        let clock_read = clock.clone();
+        let mut engine = PaxEngine::new_empty(
+            (320.0, 240.0),
+            Platform::Web,
+            OS::Mac,
+            Box::new(move || clock_read.get()),
+            Default::default(),
+        );
+        let mut root_args = args();
+        let mut registry = HandlerRegistry::default();
+        registry
+            .handlers
+            .insert(phase.into(), vec![Handler::new_inline_handler(open_detail)]);
+        root_args.handler_registry = Some(Rc::new(RefCell::new(registry)));
+        let root = engine.mount_root_component(ComponentInstance::instantiate(root_args));
+        let context = engine.runtime_context.clone();
+        let open = match phase {
+            "frame" => {
+                let frames = context.globals().elapsed_frames;
+                let dependencies = [frames.untyped()];
+                Property::computed(
+                    move || if frames.get() > 0 { 1.0 } else { 0.0 },
+                    &dependencies,
+                )
+            }
+            "millis" => {
+                let millis = context.globals().elapsed_millis;
+                let dependencies = [millis.untyped()];
+                Property::computed(
+                    move || if millis.get() > 0 { 1.0 } else { 0.0 },
+                    &dependencies,
+                )
+            }
+            _ => root.with_properties_unwrapped(|p: &mut Probe| p.value.clone()),
+        };
+        let detail = Rc::new(RefCell::new(None));
+        let effect = {
+            let root = Rc::downgrade(&root);
+            let weak_context = Rc::downgrade(&context);
+            let detail = detail.clone();
+            let dependencies = [open.untyped()];
+            context.register_node_effect(root.upgrade().unwrap().id, &dependencies, move || {
+                if open.get() != 1.0 || detail.as_ref().borrow().is_some() {
+                    return;
+                }
+                let (Some(root), Some(context)) = (root.upgrade(), weak_context.upgrade()) else {
+                    return;
+                };
+                let mut detail_args = args();
+                detail_args.component_template = Some(RefCell::new(vec![
+                    ThemeImport::instantiate(args()) as Rc<dyn InstanceNode>,
+                    template(&plan(vec![], None, None)),
+                ]));
+                let nodes = root.generate_children(
+                    [(
+                        ComponentInstance::instantiate(detail_args) as Rc<dyn InstanceNode>,
+                        context.globals().stack_frame(),
+                    )],
+                    &context,
+                    &root.parent_frame,
+                    true,
+                );
+                *detail.as_ref().borrow_mut() = Some(Rc::downgrade(&nodes[0]));
+                root.children.set(nodes);
+            })
+        };
+        clock.set(10);
+        engine.tick();
+        let detail = detail
+            .as_ref()
+            .borrow()
+            .as_ref()
+            .and_then(std::rc::Weak::upgrade)
+            .expect("late handler mounted detail");
+        let children = detail.children.get();
+        let receiver = &children[1];
+        assert_eq!(values(receiver).0, 19.0, "first presentation after {phase}");
+        engine.tick();
+        assert_eq!(
+            values(receiver).0,
+            19.0,
+            "no default-to-theme fade after {phase}"
+        );
+
+        // A later provider update must retain the ordinary animated behavior.
+        children[0].sidecar_children.borrow()[0]
+            .with_properties_unwrapped(|p: &mut Probe| p.untouched.set(27.0));
+        context.drain_node_effects();
+        assert_eq!(values(receiver).0, 19.0);
+        context.globals().elapsed_millis.set(60);
+        assert_eq!(
+            values(receiver).0,
+            23.0,
+            "theme changes still animate after {phase}"
+        );
+        drop(effect);
+        engine.unmount();
+    }
+}
+
 #[test]
 fn imported_motion_survives_rebinding_and_removal_for_common_and_component_properties() {
     let (engine, root) = fixture();

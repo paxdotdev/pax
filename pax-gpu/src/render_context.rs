@@ -1,3 +1,4 @@
+mod opacity;
 use crate::render_backend::stencil;
 use crate::render_backend::CpuBuffers;
 use crate::render_backend::RetainedImageDraw;
@@ -31,7 +32,8 @@ use lyon::tessellation::StrokeOptions;
 use lyon::tessellation::StrokeTessellator;
 use lyon::tessellation::StrokeVertex;
 use lyon::tessellation::VertexSource;
-use pax_runtime_api::PathSmoothing;
+use opacity::collect_opacity_group_keys;
+use pax_runtime_api::{OpacityScope, PathSmoothing};
 
 use crate::point;
 use crate::render_backend::data::GpuColor;
@@ -76,6 +78,8 @@ type SharedVectorResourceCache = Rc<RefCell<VectorResourceCache>>;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ResourceChurnStats {
     pub flushes: u64,
+    pub opacity_group_renders: u64,
+    pub opacity_group_cache_hits: u64,
     pub retained_scene_resets: u64,
     pub vector_batch_flushes: u64,
     pub vector_buffer_rebuilds: u64,
@@ -98,6 +102,7 @@ pub struct ResourceChurnStats {
     pub vector_resource_cache_evictions: u64,
     pub vector_resource_cache_bytes: u64,
     pub texture_creates: u64,
+    pub image_draw_creates: u64,
     pub texture_upload_bytes: u64,
     pub retained_nodes_considered: u64,
     pub retained_nodes_visible: u64,
@@ -110,6 +115,8 @@ pub struct ResourceChurnStats {
 impl ResourceChurnStats {
     pub fn merge(&mut self, other: Self) {
         self.flushes += other.flushes;
+        self.opacity_group_renders += other.opacity_group_renders;
+        self.opacity_group_cache_hits += other.opacity_group_cache_hits;
         self.retained_scene_resets += other.retained_scene_resets;
         self.vector_batch_flushes += other.vector_batch_flushes;
         self.vector_buffer_rebuilds += other.vector_buffer_rebuilds;
@@ -136,6 +143,7 @@ impl ResourceChurnStats {
             .vector_resource_cache_bytes
             .max(other.vector_resource_cache_bytes);
         self.texture_creates += other.texture_creates;
+        self.image_draw_creates += other.image_draw_creates;
         self.texture_upload_bytes += other.texture_upload_bytes;
         self.retained_nodes_considered += other.retained_nodes_considered;
         self.retained_nodes_visible += other.retained_nodes_visible;
@@ -148,6 +156,8 @@ impl ResourceChurnStats {
     pub fn has_resource_churn(&self) -> bool {
         let mut stats = *self;
         stats.flushes = 0;
+        stats.opacity_group_renders = 0;
+        stats.opacity_group_cache_hits = 0;
         stats.retained_nodes_considered = 0;
         stats.retained_nodes_visible = 0;
         stats.retained_draw_batches = 0;
@@ -162,12 +172,14 @@ impl ResourceChurnStats {
 pub struct WgpuRenderer<'w> {
     render_backend: RenderBackend<'w>,
     scene: HashMap<u32, RetainedNode>,
+    opacity_scopes: HashMap<u32, Vec<OpacityScope>>,
     transform_arena: TransformArena,
     clip_arena: ClipArena,
     clip_owner_keys: HashMap<u32, Vec<ClipArenaKey>>,
     sorted_nodes: Vec<(i32, u32)>,
     order_dirty: bool,
     scene_dirty: bool,
+    lighting_signature: u64,
     cached_images: HashMap<String, CachedImageEntry>,
     transform_stack: Vec<Transform2D>,
     clip_stack: Vec<ClipReference>,
@@ -634,12 +646,14 @@ impl<'w> WgpuRenderer<'w> {
             render_backend,
             tolerance: DEFAULT_TESSELLATION_TOLERANCE, // TODO expose as option
             scene: HashMap::new(),
+            opacity_scopes: HashMap::new(),
             transform_arena: TransformArena::new(),
             clip_arena: ClipArena::new(),
             clip_owner_keys: HashMap::new(),
             sorted_nodes: Vec::new(),
             order_dirty: false,
             scene_dirty: false,
+            lighting_signature: 0,
             cached_images: HashMap::new(),
             transform_stack: vec![Transform2D::identity()],
             clip_stack: Vec::new(),
@@ -705,6 +719,8 @@ impl<'w> WgpuRenderer<'w> {
         // per-node transforms/resources against the previous slot assignment, so drop that state
         // and let the engine replay dirty canvas nodes into the reassigned surface.
         self.scene.clear();
+        self.opacity_scopes.clear();
+        self.render_backend.reset_opacity_groups();
         self.transform_arena = TransformArena::new();
         self.clip_arena = ClipArena::new();
         self.clip_owner_keys.clear();
@@ -888,8 +904,11 @@ impl<'w> WgpuRenderer<'w> {
     }
 
     pub fn set_scene_lighting(&mut self, lighting: SceneLighting) {
-        self.render_backend
-            .set_scene_lighting(to_gpu_scene_lighting(&lighting));
+        let lighting = to_gpu_scene_lighting(&lighting);
+        let mut hash = DefaultHasher::new();
+        bytemuck::bytes_of(&lighting).hash(&mut hash);
+        self.lighting_signature = hash.finish();
+        self.render_backend.set_scene_lighting(lighting);
         self.scene_dirty = true;
     }
 
@@ -934,16 +953,34 @@ impl<'w> WgpuRenderer<'w> {
         let transform = self.current_transform();
         let clip_stack = self.clip_stack.clone();
         let bounds = transform_box(rect, &transform);
-        let draw = self.render_backend.create_image_draw(
-            image_key.to_owned(),
-            transform,
-            rect,
-            opacity.clamp(0.0, 1.0),
-        );
+        let mut signature = DefaultHasher::new();
+        image_key.hash(&mut signature);
+        image_version.hash(&mut signature);
+        for value in transform
+            .to_array()
+            .into_iter()
+            .chain([rect.min.x, rect.min.y, rect.max.x, rect.max.y, opacity])
+        {
+            value.to_bits().hash(&mut signature);
+        }
         let Some(current_node) = self.current_node.as_mut() else {
             return;
         };
+        let signature = signature.finish();
+        let unchanged = matches!(self.scene.get(&current_node.id), Some(RetainedNode::Image(node)) if node.signature == signature);
+        let draw = if unchanged {
+            None
+        } else {
+            self.resource_churn_stats.image_draw_creates += 1;
+            Some(self.render_backend.create_image_draw(
+                image_key.to_owned(),
+                transform,
+                rect,
+                opacity.clamp(0.0, 1.0),
+            ))
+        };
         current_node.kind = PendingNodeKind::Image(PendingImageNode {
+            signature,
             draw,
             clip_stack,
             bounds,
@@ -990,6 +1027,7 @@ impl<'w> WgpuRenderer<'w> {
             self.order_dirty = false;
         }
         if self.should_use_vector_scene_batch() {
+            self.render_backend.retain_opacity_groups(&HashSet::new());
             self.resource_churn_stats.vector_batch_flushes += 1;
             self.flush_vector_scene_batch(defer_submit);
             self.scene_dirty = false;
@@ -1007,12 +1045,39 @@ impl<'w> WgpuRenderer<'w> {
         // Each retained renderer represents one physical surface tile. Cull retained nodes against
         // that tile-local viewport before batching so newly revealed tiles do not replay the full
         // layer scene.
+        let plan = self.opacity_plan();
+        let mut active = HashSet::new();
+        collect_opacity_group_keys(&plan, &mut active);
+        self.draw_opacity_plan(&plan);
+        self.render_backend.retain_opacity_groups(&active);
+        self.cached_images.retain(|image_key, _| {
+            self.scene.values().any(|node| {
+                matches!(
+                    node,
+                    RetainedNode::Image(image_node)
+                        if image_node.draw.resource.image_key == *image_key
+                )
+            })
+        });
+        let (active_clip_signatures, active_clip_ids) =
+            collect_active_clip_resources(&self.scene, &self.clip_arena);
+        self.render_backend
+            .retain_stencil_resources(&active_clip_signatures, &active_clip_ids);
+        self.finish_backend_frame(defer_submit);
+        self.scene_dirty = false;
+        self.transform_stack.truncate(1);
+        self.clip_stack.clear();
+        self.saves.clear();
+        self.current_node = None;
+    }
+
+    fn draw_retained_nodes(&mut self, node_ids: &[u32]) {
         let viewport_bounds = self.viewport_bounds();
         let mut current_clip_stack: Vec<u32> = Vec::new();
         let mut current_batch: Vec<RetainedDraw<'_>> = Vec::new();
         let mut retained_runs: Vec<RetainedBatchRun<'_>> = Vec::new();
         let mut current_batch_clip_stack: Option<Vec<ClipReference>> = None;
-        for (_, node_id) in &self.sorted_nodes {
+        for node_id in node_ids {
             let Some(node) = self.scene.get(node_id) else {
                 continue;
             };
@@ -1088,25 +1153,14 @@ impl<'w> WgpuRenderer<'w> {
             }
         }
         self.render_backend.draw_retained_batch_runs(&retained_runs);
-        self.cached_images.retain(|image_key, _| {
-            self.scene.values().any(|node| {
-                matches!(
-                    node,
-                    RetainedNode::Image(image_node)
-                        if image_node.draw.resource.image_key == *image_key
-                )
-            })
-        });
-        let (active_clip_signatures, active_clip_ids) =
-            collect_active_clip_resources(&self.scene, &self.clip_arena);
-        self.render_backend
-            .retain_stencil_resources(&active_clip_signatures, &active_clip_ids);
-        self.finish_backend_frame(defer_submit);
-        self.scene_dirty = false;
-        self.transform_stack.truncate(1);
-        self.clip_stack.clear();
-        self.saves.clear();
-        self.current_node = None;
+    }
+
+    /// Updates group presentation without changing a node's paint or image resources.
+    pub fn set_node_opacity_scopes(&mut self, node_id: u32, scopes: &[OpacityScope]) {
+        if self.opacity_scopes.get(&node_id).map(Vec::as_slice) != Some(scopes) {
+            self.opacity_scopes.insert(node_id, scopes.to_vec());
+            self.scene_dirty = true;
+        }
     }
 
     pub fn save(&mut self) {
@@ -1134,7 +1188,9 @@ impl<'w> WgpuRenderer<'w> {
             log::warn!("clip called without an active node");
             return;
         };
-        if let Some(scissor) = axis_aligned_rect_scissor(&path, &transform) {
+        if let Some(scissor) =
+            axis_aligned_rect_scissor(&path, &transform, self.render_backend.globals.dpr)
+        {
             self.clip_stack.push(ClipReference::Scissor(scissor));
             return;
         }
@@ -1492,8 +1548,13 @@ impl<'w> WgpuRenderer<'w> {
                 if let Some(RetainedNode::Vector(existing)) = previous.as_ref() {
                     self.transform_arena.release_keys(&existing.transform_keys);
                 }
+                let draw = image_node.draw.unwrap_or_else(|| match previous {
+                    Some(RetainedNode::Image(node)) => node.draw,
+                    _ => unreachable!("unchanged image retains its draw resource"),
+                });
                 Some(RetainedNode::Image(RetainedImageNode {
-                    draw: image_node.draw,
+                    signature: image_node.signature,
+                    draw,
                     clip_stack: image_node.clip_stack,
                     z_index: pending_z_index,
                     bounds: image_node.bounds,
@@ -1531,6 +1592,7 @@ impl<'w> WgpuRenderer<'w> {
     }
 
     pub fn remove_node(&mut self, node_id: u32) -> bool {
+        self.opacity_scopes.remove(&node_id);
         let mut removed = false;
         if let Some(node) = self.scene.remove(&node_id) {
             if let RetainedNode::Vector(node) = &node {
@@ -1561,7 +1623,8 @@ impl<'w> WgpuRenderer<'w> {
     }
 
     fn should_use_vector_scene_batch(&self) -> bool {
-        self.scene.len() >= 64
+        self.opacity_scopes.values().all(Vec::is_empty)
+            && self.scene.len() >= 64
             && self
                 .scene
                 .values()
@@ -1858,7 +1921,8 @@ enum PendingVectorOpKind {
 }
 
 struct PendingImageNode {
-    draw: RetainedImageDraw,
+    signature: u64,
+    draw: Option<RetainedImageDraw>,
     clip_stack: Vec<ClipReference>,
     bounds: Box2D,
 }
@@ -1910,6 +1974,7 @@ struct RetainedVectorNode {
 }
 
 struct RetainedImageNode {
+    signature: u64,
     draw: RetainedImageDraw,
     clip_stack: Vec<ClipReference>,
     z_index: i32,
@@ -2732,7 +2797,11 @@ fn boxes_intersect(left: &Box2D, right: &Box2D) -> bool {
         && left.max.y >= right.min.y
 }
 
-fn axis_aligned_rect_scissor(path: &Path, transform: &Transform2D) -> Option<ScissorRect> {
+fn axis_aligned_rect_scissor(
+    path: &Path,
+    transform: &Transform2D,
+    dpr: [f32; 2],
+) -> Option<ScissorRect> {
     const EPSILON: f32 = 0.001;
     let mut points = Vec::new();
     for event in path.iter() {
@@ -2777,6 +2846,20 @@ fn axis_aligned_rect_scissor(path: &Path, transform: &Transform2D) -> Option<Sci
         max_y: ys[1],
     };
     if rect.max_x - rect.min_x <= EPSILON || rect.max_y - rect.min_y <= EPSILON {
+        return None;
+    }
+    // Scissors cover whole physical pixels. Rounding a fractional edge outward
+    // leaks oversized ImageFit::Fill artwork beyond an adjacent gradient. Use
+    // stencil coverage there so clips and painted edges share the same samples.
+    if ![
+        rect.min_x * dpr[0],
+        rect.max_x * dpr[0],
+        rect.min_y * dpr[1],
+        rect.max_y * dpr[1],
+    ]
+    .iter()
+    .all(|edge| edge.is_finite() && edge.fract() == 0.0)
+    {
         return None;
     }
     let has_all_corners = [
@@ -3685,7 +3768,8 @@ mod tests {
     #[test]
     fn axis_aligned_rect_clip_becomes_scissor() {
         let transform = Transform2D::from_array([2.0, 0.0, 0.0, 3.0, 5.0, 7.0]);
-        let scissor = axis_aligned_rect_scissor(&rect_path(10.0, 5.0), &transform).unwrap();
+        let scissor =
+            axis_aligned_rect_scissor(&rect_path(10.0, 5.0), &transform, [1.0, 1.0]).unwrap();
         assert_eq!(scissor.min_x, 5.0);
         assert_eq!(scissor.min_y, 7.0);
         assert_eq!(scissor.max_x, 25.0);
@@ -3695,7 +3779,18 @@ mod tests {
     #[test]
     fn sheared_rect_clip_stays_on_stencil_path() {
         let transform = Transform2D::from_array([1.0, 0.5, 0.0, 1.0, 0.0, 0.0]);
-        assert!(axis_aligned_rect_scissor(&rect_path(10.0, 5.0), &transform).is_none());
+        assert!(axis_aligned_rect_scissor(&rect_path(10.0, 5.0), &transform, [1.0, 1.0]).is_none());
+    }
+
+    #[test]
+    fn fractional_rect_clip_uses_physical_pixel_alignment() {
+        let path = rect_path(10.0, 6.0);
+        let transform = Transform2D::translation(0.5, 0.5);
+        assert!(axis_aligned_rect_scissor(&path, &transform, [1.0, 1.0]).is_none());
+        assert!(axis_aligned_rect_scissor(&path, &transform, [2.0, 2.0]).is_some());
+        assert!(axis_aligned_rect_scissor(&path, &transform, [2.0, 3.0]).is_none());
+        let transform = Transform2D::translation(1.0, 1.0);
+        assert!(axis_aligned_rect_scissor(&path, &transform, [1.25, 1.25]).is_none());
     }
 
     #[derive(Default)]

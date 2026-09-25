@@ -89,7 +89,7 @@ impl BrowserSurfacePolicy {
         policy.tile_overscan_columns = WEB_TILE_OVERSCAN_COLUMNS;
         policy.tile_overscan_rows = WEB_TILE_OVERSCAN_ROWS;
         if self.use_piet_fallback {
-            // Piet does immediate CPU raster into browser canvases. Spend more canvas memory on
+            // Piet replays dirty draws into browser canvases. Spend more canvas memory on
             // warm runway so fast scrolls are less likely to expose tiles before replay catches up.
             policy.target_tile_backing_dimension = PIET_TARGET_TILE_BACKING_DIMENSION;
             policy.prewarm_viewport_pad_x_multiplier = PIET_PREWARM_VIEWPORT_PAD_X_MULTIPLIER;

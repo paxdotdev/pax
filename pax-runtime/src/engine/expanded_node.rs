@@ -4,7 +4,7 @@ use pax_language::Computable;
 use pax_runtime_api::pax_value::{ImplToFromPaxAny, PaxAny, ToFromPaxAny};
 use pax_runtime_api::{
     borrow, borrow_mut, use_RefCell, Focus, Interpolatable, Layer, NativeLiquidGlassScope,
-    PaxValue, Percent, Property, SelectStart, Variable,
+    OpacityScope, PaxValue, Percent, Property, SelectStart, Variable,
 };
 
 use crate::api::math::Point2;
@@ -262,6 +262,9 @@ pub struct ExpandedNode {
     /// The accumulated opacity inherited from render ancestors and this node's
     /// own common opacity value.
     pub computed_opacity: Property<f64>,
+    /// Authored opacity scopes retained independently of their multiplied world opacity.
+    /// Keeping the factors avoids division by zero and detects changes under a hidden ancestor.
+    pub computed_opacity_scopes: Property<Vec<OpacityScope>>,
 
     /// For nodes that own projection, tracks projected children in their
     /// expanded, non-collapsed form.
@@ -873,6 +876,7 @@ impl ExpandedNode {
             subtree_layout_hull: Property::new(LayoutHull::default()),
             container_frame: Property::new(None),
             computed_opacity: Property::new(1.0),
+            computed_opacity_scopes: Property::new(Vec::new()),
             expanded_projected_children: Default::default(),
             expanded_and_flattened_projected_children: Default::default(),
             flattened_projected_children_count: Property::new(0),
@@ -1793,6 +1797,7 @@ impl ExpandedNode {
                 parent.suspended.untyped(),
                 parent.transform_and_bounds.untyped(),
                 parent.computed_opacity.untyped(),
+                parent.computed_opacity_scopes.untyped(),
                 parent_cp.padding_x.untyped(),
                 parent_cp.padding_y.untyped(),
                 self.container_frame.untyped(),
@@ -1942,6 +1947,27 @@ impl ExpandedNode {
             .unwrap_or_else(|| Property::new(1.0));
         let common_props = self.get_common_properties();
         let self_opacity = borrow!(common_props).opacity.clone();
+        let parent_scopes = render_parent
+            .as_ref()
+            .map(|n| n.computed_opacity_scopes.clone())
+            .unwrap_or_else(|| Property::new(Vec::new()));
+        let local_opacity = self_opacity.clone();
+        let node_id = self.id.to_u32();
+        let scope_deps = [parent_scopes.untyped(), local_opacity.untyped()];
+        self.computed_opacity_scopes
+            .replace_with(Property::computed(
+                move || {
+                    let mut scopes = parent_scopes.get();
+                    if let Some(opacity) = local_opacity.get() {
+                        scopes.push(OpacityScope {
+                            node_id,
+                            opacity: opacity.to_float_0_1().clamp(0.0, 1.0) as f32,
+                        });
+                    }
+                    scopes
+                },
+                &scope_deps,
+            ));
         let deps = [parent_opacity.untyped(), self_opacity.untyped()];
         self.computed_opacity.replace_with(Property::computed(
             move || {

@@ -1,0 +1,19 @@
+[package]
+name = "group-compositing"
+version = "0.39.0"
+edition = "2021"
+
+[package.metadata.pax]
+title = "Group Compositing"
+
+[dependencies]
+pax-kit = { version = "0.39.0", path = "../../../pax-kit" }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package.group-compositing]
+opt-level = 0

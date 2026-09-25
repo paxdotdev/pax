@@ -70,6 +70,7 @@ impl InstanceNode for EllipseInstance {
             fill.untyped(),
             material.untyped(),
             expanded_node.computed_opacity.untyped(),
+            expanded_node.computed_opacity_scopes.untyped(),
         ];
         let cloned_expanded_node = expanded_node.clone();
         let cloned_context = context.clone();
@@ -135,7 +136,7 @@ impl InstanceNode for EllipseInstance {
             let rect = Rect::from_points((0.0, 0.0), (width, height));
             let ellipse = kurbo::Ellipse::from_rect(rect);
             let bez_path = ellipse.to_path(ELLIPSE_PATH_ACCURACY);
-            let opacity = expanded_node.computed_opacity.get();
+            let opacity = scope.paint_opacity;
             let fill = properties.fill.get();
             let stroke = properties.stroke.get();
             let material = properties.material.get();

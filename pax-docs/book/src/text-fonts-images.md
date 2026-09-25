@@ -326,11 +326,15 @@ Use a Frame around an Image for rounded clipping; an Image's own fit policy
 only defines how pixels occupy its box. Read [Compositing](compositing-effects.md)
 for clipping and masks.
 
-An Image's `opacity` and inherited opacity multiply its source pixel alpha.
-Animate opacity on the Image or a shared ancestor to fade artwork with the rest
-of a component; this does not reload its source pixels. See
+Animate `opacity` on the Image or a shared ancestor to fade artwork with the
+rest of a component. Source pixel alpha remains part of the composed content;
+changing opacity does not reload its source pixels. See
 [subtree opacity](compositing-effects.md#opacity-through-a-subtree) for how
 overlapping translucent elements compose.
+
+On WGPU, the image's crop follows fractional transformed coordinates. Moving a
+Fill image by a fraction of a pixel keeps excess artwork clipped to its bounds,
+including where an overlaid gradient meets the edge of the image.
 
 ### Raw pixel data
 

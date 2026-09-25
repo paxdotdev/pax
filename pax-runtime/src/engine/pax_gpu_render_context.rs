@@ -1618,6 +1618,21 @@ impl RenderContext for PaxGpuRenderer {
         screenshots
     }
 
+    fn supports_subtree_opacity(&self) -> bool {
+        true
+    }
+
+    fn set_node_opacity_scopes(
+        &mut self,
+        layer: usize,
+        node_id: u32,
+        scopes: &[pax_runtime_api::OpacityScope],
+    ) {
+        self.with_layer_context(layer, |context| {
+            context.set_node_opacity_scopes(node_id, scopes)
+        });
+    }
+
     fn begin_node(&mut self, layer: usize, node_id: u32, z_index: i32, light_mask: u32) -> bool {
         let mut backends = self.backends.borrow_mut();
         match backends.get_mut(layer) {

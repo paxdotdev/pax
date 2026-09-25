@@ -152,8 +152,10 @@ The main implementation responsibilities depend on the capability:
   `requires_non_reactive_update`.
 - **Canvas drawing:** implement `render` through `RenderContext`. Follow the
   retained-node begin/end protocol, use the correct surface-local transform,
-  apply inherited opacity, and invalidate drawing when its inputs change.
-  The current `EllipseInstance` demonstrates
+  register the node's opacity scopes, and invalidate drawing when its inputs
+  change. `begin_bounded_canvas_node` supplies `paint_opacity`: use that value
+  for drawing so a backend that composes subtrees does not apply ancestor
+  opacity twice. The current `EllipseInstance` demonstrates
   `begin_bounded_canvas_node` and clearing the dirty flag only after
   `end_node` succeeds. Unbounded geometry needs suitable coverage bounds.
 - **Coverage and interaction:** keep coverage paths, coverage opacity, and

@@ -18,7 +18,8 @@ use crate::common::{begin_bounded_canvas_node, patch_if_needed};
 /// `Image` draws into the node bounds and participates in the same canvas
 /// rendering path as vectors. Use `NativeImage` when a platform-native image
 /// element is preferable.
-/// Node and inherited opacity multiply the source pixels' alpha at draw time.
+/// On WGPU and browser Piet, common opacity fades the composed canvas subtree;
+/// source pixel alpha remains part of the content. Native surfaces fade separately.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[primitive("pax_std::media::image::ImageInstance")]
@@ -202,7 +203,11 @@ impl InstanceNode for ImageInstance {
             expanded_node.with_properties_unwrapped(|props: &mut Image| props.source.clone());
 
         let tab = expanded_node.transform_and_bounds.clone();
-        let deps = [tab.untyped(), expanded_node.computed_opacity.untyped()];
+        let deps = [
+            tab.untyped(),
+            expanded_node.computed_opacity.untyped(),
+            expanded_node.computed_opacity_scopes.untyped(),
+        ];
         let cloned_context = context.clone();
         let occlusion = expanded_node.occlusion.clone();
         let expanded_node_id = expanded_node.id;
@@ -354,7 +359,7 @@ impl InstanceNode for ImageInstance {
                 scope.layer_id,
                 &path,
                 transformed_bounds,
-                expanded_node.computed_opacity.get(),
+                scope.paint_opacity,
             );
             rc.restore(scope.layer_id);
             did_draw = true;

@@ -1,12 +1,13 @@
 #![cfg(not(feature = "designtime"))]
 
 // Exercises retained rendering without a GPU so a one-frame branch gap is deterministic.
+use pax_manifest::cartridge_generation::ComponentTransitionConfig;
 use pax_runtime::api::*;
 use pax_runtime::*;
 use pax_runtime_api::pax_value::{PaxAny, ToFromPaxAny};
 use std::{
     cell::{Cell, RefCell},
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     rc::Rc,
 };
 
@@ -59,6 +60,7 @@ impl InstanceNode for Leaf {
     }
     fn render(&self, node: &ExpandedNode, ctx: &Rc<RuntimeContext>, rc: &mut dyn RenderContext) {
         rc.begin_node(0, node.id.to_u32(), node.occlusion.get().z_index, 0);
+        rc.set_node_opacity_scopes(0, node.id.to_u32(), &node.computed_opacity_scopes.get());
         rc.end_node(0, node.id.to_u32());
         ctx.clear_canvas_node_dirty(&node.id);
     }
@@ -67,15 +69,23 @@ impl InstanceNode for Leaf {
 #[derive(Default)]
 struct Recorder {
     nodes: HashSet<u32>,
+    scopes: HashMap<u32, Vec<OpacityScope>>,
     layers: usize,
 }
 impl RenderContext for Recorder {
+    fn supports_subtree_opacity(&self) -> bool {
+        true
+    }
+    fn set_node_opacity_scopes(&mut self, _: usize, id: u32, scopes: &[OpacityScope]) {
+        self.scopes.insert(id, scopes.to_vec());
+    }
     fn begin_node(&mut self, _: usize, id: u32, _: i32, _: u32) -> bool {
         self.nodes.insert(id);
         true
     }
     fn remove_node(&mut self, _: usize, id: u32) -> bool {
         self.nodes.remove(&id);
+        self.scopes.remove(&id);
         true
     }
     fn save(&mut self, _: usize) {}
@@ -111,6 +121,7 @@ impl RenderContext for Recorder {
     }
     fn clear(&mut self, _: usize) {
         self.nodes.clear();
+        self.scopes.clear();
     }
     fn flush(&mut self, _: usize, _: Rc<RefCell<Vec<bool>>>) {}
     fn resize(&mut self, _: usize, _: usize) {}
@@ -254,4 +265,126 @@ fn clock_driven_handoff_does_not_need_unrelated_redraws() {
             (1500, 1)
         ]
     );
+}
+
+#[test]
+fn opacity_scope_identity_survives_exit_rescue_and_retires_with_its_content() {
+    let clock = Rc::new(Cell::new(0u128));
+    let clock_source = clock.clone();
+    let mut engine = PaxEngine::new_empty(
+        (320.0, 240.0),
+        Platform::Web,
+        OS::Mac,
+        Box::new(move || clock_source.get()),
+        Default::default(),
+    );
+    let visible = Property::new(true);
+    let alpha = Property::new(Some(0.5.into()));
+    let mut card_args = args();
+    card_args.component_template = Some(RefCell::new(vec![
+        Leaf::instantiate(args()),
+        Leaf::instantiate(args()),
+    ]));
+    card_args.transition_config = ComponentTransitionConfig {
+        has_enter: true,
+        enter_millis_count: Some(600),
+        has_exit: true,
+        exit_millis_count: Some(800),
+        timeout_ms: 5_000,
+        ..Default::default()
+    };
+    card_args.prototypical_common_properties = CommonPropertiesInit::Factory(Box::new({
+        let alpha = alpha.clone();
+        move |_, node| {
+            node.is_none().then(|| {
+                let mut common = CommonProperties::default();
+                common.opacity = alpha.clone();
+                Rc::new(RefCell::new(common))
+            })
+        }
+    }));
+    let mut conditional_args = args();
+    conditional_args.children = Some(RefCell::new(vec![ComponentInstance::instantiate(
+        card_args,
+    )]));
+    conditional_args.prototypical_properties = PropertiesInit::Factory(Box::new({
+        let visible = visible.clone();
+        move |_, node| {
+            node.is_none().then(|| {
+                Rc::new(RefCell::new(
+                    ConditionalProperties {
+                        boolean_expression: visible.clone(),
+                        conditional_branches: Vec::new(),
+                    }
+                    .to_pax_any(),
+                ))
+            })
+        }
+    }));
+    let mut root_args = args();
+    root_args.component_template = Some(RefCell::new(vec![ConditionalInstance::instantiate(
+        conditional_args,
+    )]));
+    let root = engine.mount_root_component(ComponentInstance::instantiate(root_args));
+    engine.runtime_context.resize_canvas_layers_to(1);
+    let mut renderer = Recorder::default();
+    let mut original_nodes = HashSet::new();
+    let mut original_scope = None;
+    // Sample opacity independently of the lifecycle clock: the renderer must retain
+    // the same boundary and children throughout rescue, even at zero alpha.
+    for (time, shown, opacity) in [
+        (0, true, 0.5),
+        (100, false, 0.4),
+        (250, false, 0.25),
+        (300, true, 0.25),
+        (400, true, 0.0),
+        (450, true, 0.5),
+        (500, false, 0.5),
+        (1299, false, 0.0),
+    ] {
+        clock.set(time);
+        engine
+            .runtime_context
+            .globals()
+            .elapsed_millis
+            .set(time as u64);
+        visible.set(shown);
+        alpha.set(Some(opacity.into()));
+        engine.tick();
+        engine.runtime_context.set_canvas_dirty(0);
+        engine.runtime_context.mark_canvas_nodes_on_layer_dirty(0);
+        engine.render(&mut renderer);
+        assert_eq!(renderer.nodes.len(), 2, "content retained at {time}ms");
+        let card = root.children.get()[0].children.get()[0].clone();
+        if original_scope.is_none() {
+            original_nodes = renderer.nodes.clone();
+            original_scope = Some(card.id.to_u32());
+        }
+        assert_eq!(
+            renderer.nodes, original_nodes,
+            "rescue must preserve draw IDs"
+        );
+        for scopes in renderer.scopes.values() {
+            assert_eq!(
+                scopes,
+                &vec![OpacityScope {
+                    node_id: original_scope.unwrap(),
+                    opacity: opacity as f32,
+                }],
+                "scope ancestry at {time}ms"
+            );
+        }
+    }
+    clock.set(1301);
+    engine.tick();
+    engine.render(&mut renderer);
+    assert!(
+        renderer.nodes.is_empty(),
+        "completed exit removes retained draws"
+    );
+    assert!(
+        renderer.scopes.is_empty(),
+        "completed exit removes scope metadata"
+    );
+    assert!(root.children.get()[0].children.get().is_empty());
 }

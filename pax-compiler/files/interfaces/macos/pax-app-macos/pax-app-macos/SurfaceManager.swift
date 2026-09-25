@@ -385,7 +385,7 @@ final class PaxMetalSurfaceView: NSView {
     private func configureMetalLayer(_ metalLayer: CAMetalLayer) {
         metalLayer.framebufferOnly = false
         metalLayer.isOpaque = false
-        metalLayer.presentsWithTransaction = false
+        metalLayer.presentsWithTransaction = true
         metalLayer.colorspace = CGColorSpace(name: CGColorSpace.sRGB)
         metalLayer.contentsGravity = .topLeft
         metalLayer.needsDisplayOnBoundsChange = true
