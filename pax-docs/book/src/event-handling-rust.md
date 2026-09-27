@@ -277,6 +277,18 @@ elapsed time for behavior that should progress at a stable real-time rate;
 For ordinary visual transitions, start with the facilities in
 [Motion](animation-motion.md).
 
+Register [subtree stores](components-composition.md#shared-state-farther-down-the-tree)
+in the provider component's own mount handler with `ctx.provide_store(...)`.
+The context's node owns the registration, even when an inline handler's Rust
+`self` belongs to another component. Descendants can look up a parent's store
+once that parent has published it during mount.
+
+Final unmount clears the node's store registrations after unmount handlers
+run, so those handlers can still access the departing scope. A later mount
+starts fresh state; a saved context cannot access that new mount's stores.
+Exit transitions can delay final unmount, as described in
+[conditional content](components-composition.md#conditional-content).
+
 Subscriptions registered through `NodeContext::subscribe` are automatically
 cleared when their node unmounts. Other resources owned by your application
 still need the cleanup appropriate to that integration. See

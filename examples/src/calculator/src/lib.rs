@@ -143,12 +143,13 @@ impl Example {
         ));
         self.keys.set(key_data());
         self.utility_keys.set(utility_data());
-        ctx.push_local_store(CalculatorStore {
+        ctx.provide_store(CalculatorStore {
             model: Model::default(),
             layout: Layout::default(),
             graph_cache: None,
             drag: None,
-        });
+        })
+        .expect("Calculator is mounting");
         self.frame(ctx);
     }
     pub fn frame(&mut self, ctx: &NodeContext) {
@@ -161,7 +162,7 @@ impl Example {
         } else {
             Layout::for_window(w, h)
         };
-        let _ = ctx.peek_local_store(|store: &mut CalculatorStore| {
+        let _ = ctx.with_store(|store: &mut CalculatorStore| {
             let old = store.layout;
             let resized = old != next;
             if resized {
@@ -518,12 +519,12 @@ impl Example {
             _ => return,
         };
         event.prevent_default();
-        let _ = ctx.peek_local_store(|store: &mut CalculatorStore| store.model.action(action));
+        let _ = ctx.with_store(|store: &mut CalculatorStore| store.model.action(action));
     }
     pub fn input_click(&mut self, ctx: &NodeContext, event: Event<Click>) {
         let p = ctx.local_point(Point2::new(event.mouse.x, event.mouse.y));
         let (w, h) = ctx.bounds_self.get();
-        let _ = ctx.peek_local_store(|store: &mut CalculatorStore| {
+        let _ = ctx.with_store(|store: &mut CalculatorStore| {
             let columns = self.text_columns.get();
             let column = ((p.x * w / self.cell_width.get()).round() as usize)
                 .saturating_sub(2)
@@ -535,7 +536,7 @@ impl Example {
         });
     }
     pub fn graph_down(&mut self, ctx: &NodeContext, event: Event<MouseDown>) {
-        let _ = ctx.peek_local_store(|store: &mut CalculatorStore| {
+        let _ = ctx.with_store(|store: &mut CalculatorStore| {
             store.model.opening_view = false;
             store.model.graph_editing = false;
             store.model.dirty = true;
@@ -548,19 +549,19 @@ impl Example {
         });
     }
     pub fn graph_touch(&mut self, ctx: &NodeContext, _event: Event<TouchStart>) {
-        let _ = ctx.peek_local_store(|store: &mut CalculatorStore| {
+        let _ = ctx.with_store(|store: &mut CalculatorStore| {
             store.model.opening_view = false;
             store.model.graph_editing = false;
             store.model.dirty = true;
         });
     }
     pub fn graph_wheel(&mut self, ctx: &NodeContext, _event: Event<Wheel>) {
-        let _ = ctx.peek_local_store(|store: &mut CalculatorStore| {
+        let _ = ctx.with_store(|store: &mut CalculatorStore| {
             store.model.opening_view = false;
         });
     }
     pub fn mouse_up(&mut self, ctx: &NodeContext, _event: Event<MouseUp>) {
-        let _ = ctx.peek_local_store(|store: &mut CalculatorStore| store.drag = None);
+        let _ = ctx.with_store(|store: &mut CalculatorStore| store.drag = None);
     }
     pub fn light_move(&mut self, ctx: &NodeContext, event: Event<MouseMove>) {
         // Local coordinates include the outer Scroller's presentation offset.
@@ -574,7 +575,7 @@ impl Example {
             .ease_to(ly, Duration::Milliseconds(180.into()), EasingCurve::OutQuad);
     }
     pub fn mouse_move(&mut self, ctx: &NodeContext, event: Event<MouseMove>) {
-        let _ = ctx.peek_local_store(|store: &mut CalculatorStore| {
+        let _ = ctx.with_store(|store: &mut CalculatorStore| {
             if let Some((x, y, sx, sy)) = store.drag {
                 self.set_scroll(sx + x - event.mouse.x, sy + y - event.mouse.y, store.layout);
             }

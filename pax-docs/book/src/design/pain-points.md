@@ -2883,17 +2883,19 @@ A minimal PAX-1007 runtime reproduction mounted sibling components with separate
 property values `(1, 2)` and the same incoming expression frame. Both descendant
 store lookups returned `2`; the parent could also see that child registration,
 and unmounting the second provider left its store reachable from the first.
-`push_local_store` currently writes into the incoming frame before the component
-creates its private template scope. Separate component fields do not establish
-separate store ownership, and unmounting the provider does not clear that shared
+The old `push_local_store` wrote into the incoming frame before the component
+created its private template scope. Separate component fields did not establish
+separate store ownership, and unmounting the provider did not clear that shared
 frame's entry.
 
 For a direct parent/child editing connection, use explicit `bind:` and write the
 bound property, as in the website checkpoint's ExampleHost fix. For contextual
 composition such as Table/Row, replacing all stores with bindings would discard
-the intended API. The [PAX-1007 proposal](PAX-1007-store-ownership.md) separates
-provider ownership from expression and render scope; those runtime semantics
-remain pending review. Include changed binding aliases in reload tests: a store
+the intended API. The implemented
+[store ownership model](../components-composition.md#shared-state-farther-down-the-tree)
+separates providers from expression and render scope, clears them at final
+unmount, and invalidates old contexts. Include changed binding aliases in
+reload tests: a store
 can retain an old cloned handle when a node rebinds without rerunning mount.
 
 ## 2026-09-27 — Exercise designtime fixtures and layer teardown during reload

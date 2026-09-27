@@ -3,21 +3,29 @@ use pax_runtime::{Globals, RouteLocation, RuntimeContext, TransformAndBounds};
 use std::rc::Rc;
 
 pub(crate) fn runtime_context() -> RuntimeContext {
+    runtime_context_with_target((100.0, 100.0), Platform::Unknown, OS::Unknown)
+}
+
+pub(crate) fn runtime_context_with_target(
+    bounds: (f64, f64),
+    platform: Platform,
+    os: OS,
+) -> RuntimeContext {
     let globals = Globals {
         elapsed_frames: Property::new(0),
         elapsed_millis: Property::new(0),
         viewport: Property::new(TransformAndBounds {
             transform: Transform2::identity(),
-            bounds: (100.0, 100.0),
+            bounds,
         }),
         gyro: Property::default(),
         accel: Property::default(),
         route_location: Property::new(RouteLocation::root()),
         browser_allows_scroller_vector_layers: Property::new(true),
         browser_allows_nested_scroller_vector_layers: Property::new(true),
-        platform: Platform::Unknown,
-        os: OS::Unknown,
-        target: TargetInfo::new(Platform::Unknown, OS::Unknown),
+        platform,
+        os,
+        target: TargetInfo::new(platform, os),
         get_elapsed_millis: Rc::new(|| 0),
         #[cfg(feature = "designtime")]
         designtime: Rc::new(std::cell::RefCell::new(

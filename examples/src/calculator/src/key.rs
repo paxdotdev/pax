@@ -22,7 +22,7 @@ impl CalculatorKey {
         self.unlit.set(Material::unlit());
     }
     pub fn activate(&mut self, ctx: &NodeContext, _event: Event<Click>) {
-        let _ = ctx.peek_local_store(|store: &mut CalculatorStore| {
+        let _ = ctx.with_store(|store: &mut CalculatorStore| {
             store
                 .model
                 .press_key(&self.action.get(), &self.secondary_action.get())

@@ -208,9 +208,13 @@ an existing field is computed while keeping its graph identity.
 
 Shared handles are also useful across components. Continue with
 [Components and Composition](components-composition.md) for ownership,
-parent/child bindings, and scoped state. Property handles belong to the
-runtime's thread-local graph; use an appropriate application messaging
-boundary when work runs on another thread.
+parent/child bindings, and
+[stores shared within a subtree](components-composition.md#shared-state-farther-down-the-tree).
+A store locates shared handles by Rust type; the properties provide reactivity.
+Final unmount clears a component's local state and store registrations.
+Explicitly retained handles still refer to the old state, not a later mount.
+Property handles belong to the runtime's thread-local graph; use an appropriate
+application messaging boundary when work runs on another thread.
 
 ## Computed properties
 

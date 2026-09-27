@@ -1,11 +1,7 @@
 use super::*;
-use pax_runtime::api::math::Transform2;
 use pax_runtime::api::pax_value::ToFromPaxAny;
-use pax_runtime::api::{CommonProperties, TargetInfo, OS};
-use pax_runtime::{
-    CommonPropertiesInit, ComponentInstance, Globals, PropertiesInit, PropertiesScopeInit,
-    RouteLocation, TransformAndBounds,
-};
+use pax_runtime::api::{CommonProperties, OS};
+use pax_runtime::{CommonPropertiesInit, ComponentInstance, PropertiesInit, PropertiesScopeInit};
 use std::cell::RefCell;
 
 fn args(spacer: DynamicIslandSpacer) -> InstantiationArgs {
@@ -40,23 +36,11 @@ fn mount_in_container(
     os: OS,
     stacked: bool,
 ) -> (Rc<RuntimeContext>, Rc<ExpandedNode>, DynamicIslandSpacer) {
-    let context = Rc::new(RuntimeContext::new(Globals {
-        elapsed_frames: Property::new(0),
-        elapsed_millis: Property::new(0),
-        viewport: Property::new(TransformAndBounds {
-            transform: Transform2::identity(),
-            bounds: (440.0, 956.0),
-        }),
-        gyro: Property::default(),
-        accel: Property::default(),
-        route_location: Property::new(RouteLocation::root()),
-        browser_allows_scroller_vector_layers: Property::new(true),
-        browser_allows_nested_scroller_vector_layers: Property::new(true),
+    let context = Rc::new(crate::test_support::runtime_context_with_target(
+        (440.0, 956.0),
         platform,
         os,
-        target: TargetInfo::new(platform, os),
-        get_elapsed_millis: Rc::new(|| 0),
-    }));
+    ));
     let spacer = DynamicIslandSpacer::default();
     let mut instance: Rc<dyn InstanceNode> =
         DynamicIslandSpacerInstance::instantiate(args(spacer.clone()));

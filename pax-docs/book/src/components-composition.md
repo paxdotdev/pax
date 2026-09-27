@@ -427,10 +427,14 @@ what makes that connection reusable.
 ## Shared state farther down the tree
 
 Explicit inputs and actions keep a small component easy to reuse. For state
-needed throughout a larger subtree, a local store lets descendants find a
-shared value without passing it through every intermediate component.
+needed throughout a larger subtree, a store lets descendants find a shared
+value without passing it through every intermediate component. The provider
+owns that registration for its mounted lifetime.
 
-Define a type that names the store's purpose in `lib.rs`:
+### Provide and borrow a store
+
+Define a type that names the store's purpose in `lib.rs`, alongside `Notes`.
+`Store`, `Property`, and `NodeContext` are available through `use pax_kit::*;`:
 
 ```rust
 pub struct NotesStore {
@@ -438,63 +442,163 @@ pub struct NotesStore {
 }
 
 impl Store for NotesStore {}
-```
 
-Provide it from the owning component's mount method:
-
-```rust
 impl Notes {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        ctx.push_local_store(NotesStore {
+        ctx.provide_store(NotesStore {
             progress: self.progress.clone(),
-        });
+        })
+        .expect("Notes is mounting");
     }
 }
 ```
 
 If `Notes` already has `on_mount`, add this registration to that method.
-Cloning the property shares the owner's handle. The store does not need
-`#[pax]` because it is accessed from Rust rather than used as a template
-component or value.
+Cloning the property shares the owner's handle. The store is ordinary Rust
+data; it does not need `#[pax]` or expose every field on `Notes`.
 
-A descendant handler with a `ctx: &NodeContext` argument can obtain the
-handle and reset progress:
+A descendant can borrow the store to obtain that handle. Add this component
+to `lib.rs`:
 
 ```rust
-let progress = ctx
-    .peek_local_store(|store: &mut NotesStore| store.progress.clone())
-    .expect("this component must be inside a NotesStore provider");
-progress.set(0.0);
+#[pax]
+#[inlined(
+    <Button label="Reset progress" @button_click=self.reset />
+)]
+pub struct ResetProgress {}
+
+impl ResetProgress {
+    pub fn reset(&mut self, ctx: &NodeContext, _event: Event<ButtonClick>) {
+        let progress = ctx
+            .with_store(|store: &mut NotesStore| store.progress.clone())
+            .expect("ResetProgress needs a NotesStore provider");
+        progress.set(0.0);
+    }
+}
 ```
 
-Import `NotesStore` from its defining module in the consumer. The lookup walks
-the runtime property stack and finds the nearest store of that Rust type;
-it returns `Err` when none is available. This example requires a provider.
-Handle the error explicitly if the consumer should also work on its own.
+Place two instances in the `Notes` template, wherever the layout has room:
 
-Use a distinct store type for each role. Inserting the same type again in one
-stack frame replaces that frame's store; a nearer provider shadows an outer
-one. Lookup follows runtime scope, including component and projection scope,
-so visual proximity alone does not establish access. Keep the borrowed-store
-closure short: cloning a needed property handle lets subsequent work happen
-after the borrow ends, as above.
+```pax
+<Group width=360px height=36px>
+    <ResetProgress width=172px height=36px />
+    <ResetProgress x=188px width=172px height=36px />
+</Group>
+```
 
-**Current scope limitation:** a component's mount handler registers through its
-incoming runtime stack frame. Sibling instances that share that frame can
-overwrite each other's stores of the same type; a provider is not yet guaranteed
-a private store scope merely by being a separate component. Ordinary component
-properties are allocated per instance and do not have this collision. Prefer
-explicit inputs, events, or `bind:` for direct parent/child communication, and
-avoid relying on sibling store-provider isolation until this runtime limitation
-is resolved.
+Both find the same `NotesStore` registration and clone the same progress
+handle. Either button resets the owner's progress, including the existing
+label and bar bound to it. Intermediate components need no forwarding code.
 
-The store supplies access to state; the `Property` inside it supplies reactive
-updates. A plain Rust field in a store does not become reactive just by being
-stored there. The
-[`router-playground` example](https://github.com/paxproject/pax/tree/dev/examples/src/router-playground)
-uses a scoped store to share its mobile-menu state with navigation components.
-Read [Properties](state-properties.md#property-handles) for handle lifetime
-and thread constraints.
+Keep the borrowed-store closure short. It exclusively borrows that store
+until it returns; cloning a property inside the closure lets later reads,
+writes, and callbacks happen after the borrow ends. To display store state
+in another component, connect the handle to one of that component's fields
+using a [computed property](state-properties.md#computed-properties), as the
+[store-ownership example](https://github.com/paxproject/pax/tree/dev/examples/src/store-ownership)
+does in `CounterConsumer::mount`. Stores are looked up from Rust, not directly
+from PAXEL. Plain Rust fields in a store do not become reactive automatically.
+
+### Types, sharing, and shadowing
+
+The concrete Rust type is the lookup key: the `&mut NotesStore` annotation
+selects the provider. No string ID, child position, or traversal path is
+needed. A store's contents can use your own enums, record IDs, or maps; they
+are not tied to indices in the rendered tree.
+
+Lookup starts at the context's node and walks its logical ancestors. The
+nearest provider of the requested type wins. It never searches siblings or
+children. That gives these composition rules:
+
+| Arrangement | Result |
+| --- | --- |
+| Two consumers below one Notes provider | Both share its progress handle. |
+| Two sibling Notes providers | Each owns its own store; their descendants remain independent. |
+| A Notes provider nested inside another | The inner provider shadows `NotesStore` for its subtree. The outer state is unchanged. |
+| An ancestor provides a different store type | It remains available through the inner provider. |
+
+Shadowing makes a reusable subtree independent without making its consumers
+know where it is placed. For example, each editor panel can provide its own
+selection store, while all panels still find a shared application theme.
+
+Use distinct structs or newtypes when two roles need separate stores with
+the same payload. A Rust `type` alias does not create a different lookup key:
+
+```rust
+pub struct PrimaryProgress(pub Property<f64>);
+pub struct ComparisonProgress(pub Property<f64>);
+impl Store for PrimaryProgress {}
+impl Store for ComparisonProgress {}
+```
+
+Providing the same type again on the **same owner** replaces its entry for
+future lookups. Already cloned handles still refer to their original state;
+replacement does not retarget consumers. Prefer publishing once at mount
+and updating properties inside that stable store. If two providers should
+intentionally share state, give them the same handle through `bind:` or Rust
+before publishing it.
+
+### Context and projected children
+
+Registration belongs to the exact node identified by `ctx`. Register in the
+component's own mount handler to make that component the owner. In an inline
+handler on a descendant Button, Rust `self` can be the containing component
+while `ctx` identifies the Button; publishing there would make the Button
+the owner. See [binding scope](event-handling-rust.md#choose-the-bindings-scope).
+
+A provider is visible to both its private template descendants and content
+supplied by its caller. For example, in `<Table><Row /></Table>`, Row can
+find Table's store while expressions and inline handlers on that invocation
+retain the caller's scope. A private wrapper around Table's `slot()` does not become
+a provider ancestor of that Row. Forwarding slots or moving their rendered
+position also leaves provider ancestry unchanged. To expose state from a
+private implementation component, the receiving component must publish the
+intended interface itself.
+
+### Lifetime and lookup errors
+
+Stores follow component identity. In a [keyed list](#keyed-lists), reordering
+an item preserves its provider and state; an unkeyed list reuses positions.
+Final unmount clears the owner's providers and local state. A later mount
+starts fresh. Exit transitions retain providers until final unmount, and a
+return before the exit completes can reuse that instance. Unmount handlers
+can still access the departing scope before it is cleared.
+
+A cloned property handle can keep its old state alive after unmount, but it
+does not connect to a new instance. A saved `NodeContext` cannot access a
+later mount's providers. For state that should outlive a view, own it in a
+longer-lived component above that view or in application-managed persistence.
+
+During template hot reload, a reused provider with stable property handles
+keeps its registration. A changed property alias, such as changing a
+`bind:` target, remounts the affected provider subtree so its consumers
+receive the new handles. Recreated regions and successful logic reloads
+start fresh stores. These development rules are not a persistence API;
+see [Hot reloading](developer-workflow.md#hot-reloading).
+
+Both APIs return `Result`; [`StoreError`](api/pax-runtime-api/store.md#storeerror)
+distinguishes these failures:
+
+| Error | Meaning |
+| --- | --- |
+| `Missing { type_name }` | No provider of the requested type exists here or above. |
+| `ExpiredScope` | The context is not mounted, its mount ended, or its provider ancestry expired. |
+| `BorrowConflict { type_name }` | The chosen provider is already borrowed by a `with_store` closure. |
+
+`provide_store` can report expiration or a conflict when replacing an entry.
+A conflict or expired scope does not fall back to a different outer provider.
+The reset example uses `expect` because its provider is required; a component
+that also works independently should handle `Missing` explicitly. Keep
+expiration and conflicting borrows distinct from optional absence.
+
+Try the [store-ownership example](https://github.com/paxproject/pax/tree/dev/examples/src/store-ownership)
+for shared private/projected consumers, sibling isolation, nested shadowing,
+keyed reorder, and remove/remount controls. The
+[router-playground example](https://github.com/paxproject/pax/tree/dev/examples/src/router-playground)
+uses a store for mobile-menu state. Read
+[Property handles](state-properties.md#property-handles) for sharing and thread
+constraints, and the [`NodeContext` reference](api/internal/pax-runtime/api.md#nodecontext)
+for the method signatures.
 
 <a id="authoring-primitives"></a>
 <a id="declare-and-connect-a-runtime-node"></a>

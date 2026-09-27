@@ -10,6 +10,16 @@ use pax_engine::*;
 use pax_runtime::api::NodeContext;
 
 /// A text-filtered list control for selecting one item, with optional "new item" behavior.
+///
+/// Clicking or tapping the input opens the list. Filtering is case-sensitive,
+/// with prefix matches first and alphabetical order within each group. Selecting
+/// a row commits its index in `options`, copies its label to `text`, and closes
+/// the list. Editing or blurring the input does not commit a selection or clear
+/// the previous one. Bind `text` for the query and `selected` for the last choice.
+///
+/// This composed control uses a native Textbox and Pax list rows. It does not
+/// implement arrow-key/Enter list selection or a complete accessible combobox
+/// contract.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[inlined(
@@ -78,7 +88,7 @@ use pax_runtime::api::NodeContext;
             PathElement::Close
         ]},
         stroke: {
-            color: TRANSPARENT,
+            paint: TRANSPARENT,
             width: 0
         },
         fill: rgb(200, 200, 200)
@@ -92,7 +102,10 @@ pub struct ComboBox {
     /// Index of the last selected option, or `None`. Editing `text` filters the
     /// list; clicking a row commits its original index in `options`.
     pub selected: Property<Option<usize>>,
-    /// Available option labels.
+    /// Available option labels; duplicate labels retain distinct indices.
+    /// Changing this list refreshes the selected label at the existing index.
+    /// An out-of-range selection becomes `None` and clears the text. Reordering
+    /// options does not preserve an application's item identity automatically.
     pub options: Property<Vec<String>>,
     /// Behavior when the typed text does not match any option.
     pub new_item: Property<NewItem>,
@@ -119,12 +132,14 @@ pub struct ComboBox {
 #[pax]
 #[engine_import_path("pax_engine")]
 pub enum NewItem {
-    /// Show "No items found" and do not allow adding a new item.
+    /// Show a disabled "No Results Found" row. This is the default.
     #[default]
     Disallow,
-    /// Allows unmatched text without showing a no-results row.
+    /// Allow unmatched text without showing a no-results row. Initial free text
+    /// is preserved when `selected` is `None`; this does not commit a new item.
     AllowInvalid,
-    /// Shows custom text when there are no matches; clicking it triggers the `@new_item` event.
+    /// Show custom text when there are no matches; clicking or tapping the row
+    /// triggers `@new_item`. The application must add/select the item itself.
     Text(String),
 }
 

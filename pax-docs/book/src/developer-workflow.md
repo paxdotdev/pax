@@ -60,7 +60,11 @@ Reloading can replace component instances or the application. Do not rely on
 arbitrary local state, focus, or scroll position surviving every kind of
 reload. Reproduce important test state explicitly. A failed logic build keeps
 the previously active revision available; read the error, correct the source,
-and wait for a successful activation.
+and wait for a successful activation. Component-owned stores follow the
+[provider lifetime rules](components-composition.md#lifetime-and-lookup-errors):
+stable handles can survive template updates, while changed binding aliases or
+recreated providers remount their affected subtrees. Successful logic reloads
+create fresh stores.
 
 Release builds disable both lanes. Use a debug session for editing and tools,
 then check the actual release output before shipping. [How Pax Runs](how-pax-runs.md#debug-and-release)

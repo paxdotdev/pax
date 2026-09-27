@@ -180,10 +180,72 @@ adding a click handler to a drawing does not supply a button's keyboard and
 assistive-technology behavior. PhotoPicker's slotted design below is a
 specific API for a custom visible affordance.
 
-[ComboBox](api/pax-std/forms/combo_box.md), [Tabs](api/pax-std/forms/tabs.md),
-and [dialog components](api/pax-std/forms/dialogs.md) combine Pax elements and
-controls into larger patterns. Their presence in the library does not imply
-an operating-system dialog or a complete accessible widget contract.
+### Filtered selection with ComboBox
+
+[ComboBox](api/pax-std/forms/combo_box.md) combines an editable Textbox with a
+Pax list. Add these fields to your form component, initializing them in its
+`Default` implementation if it has one:
+
+```rust
+pub query: Property<String>,
+pub choice: Property<Option<usize>>,
+```
+
+Use `Property::new(String::new())` and `Property::new(None)` for an initially
+empty control. Then place it in the template:
+
+```pax
+<ComboBox width=240px height=36px
+    options=["Alpha", "Beta", "Gamma"]
+    text=bind:self.query selected=bind:self.choice
+    background=WHITE stroke={color: rgb(155, 170, 153), width: 1px}
+    style={font_size: 16px, fill: rgb(36, 54, 47)} />
+```
+
+Click or tap the input to open the list, then type to filter it. Matching is
+case-sensitive and uses substrings; prefix matches appear first, with
+alphabetical order within each group. Selecting a row commits its original
+zero-based index in `options`, copies its label to `query`, and closes the
+list. For example, filtering to Gamma and choosing it sets `choice` to
+`Some(2)`, even though only one row is visible. Separate ComboBox instances
+keep their own selection unless you explicitly bind them to shared state.
+
+`query` is the editable text, while `choice` is the **last committed
+selection**. Typing, including an exact label match, does not select a row
+or clear the previous selection. Leaving the field does not commit it either.
+Do not treat a nonempty query as a valid selection or assume it still matches
+the last choice. The clear icon resets both values.
+
+Changing `options` updates the label at the selected index. An out-of-range
+index becomes `None` and clears the text. Duplicate labels are supported,
+but reordering the source list keeps the index, not an application's item
+identity. If records have stable IDs, translate between those IDs and option
+indices in your application when updating the list.
+
+`new_item` controls the no-match row:
+
+| Value | Behavior |
+| --- | --- |
+| `NewItem::Disallow` (default) | Shows a disabled “No Results Found” row. It does not prevent typing unmatched text. |
+| `NewItem::AllowInvalid` | Shows no no-match row and preserves initial free text when no option is selected. It does not commit a new selection. |
+| `NewItem::Text("Create item")` | Shows a custom row that dispatches `@new_item` when clicked or tapped. |
+
+For the custom row, set `new_item=NewItem::Text("Create item")` and
+`@new_item=self.create_item` on ComboBox. Define
+`pub fn create_item(&mut self, ctx: &NodeContext)` on the containing component.
+The handler reads the bound query and decides whether to add an option and
+select it. The event carries no payload and does not add anything automatically.
+See [custom events](event-handling-rust.md#dispatch-custom-events).
+
+The composed list supports pointer selection on web and Apple chassis, but
+it does not implement arrow-key/Enter list selection or a complete accessible
+combobox contract. Native text editing does not supply those list behaviors.
+Use [Dropdown](api/pax-std/forms/dropdown.md) when a native fixed-choice control
+fits the task, and evaluate the accessibility needs of any editable selector.
+[Tabs](api/pax-std/forms/tabs.md) and
+[dialog components](api/pax-std/forms/dialogs.md) are also compositions; their
+presence does not imply an operating-system widget or a complete accessible
+interaction contract.
 
 ## Focus and keyboard interaction
 

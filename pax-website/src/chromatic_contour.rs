@@ -78,7 +78,7 @@ pub struct ChromaticContour {
 
 impl ChromaticContour {
     pub fn mount(&mut self, ctx: &NodeContext) {
-        let _ = ctx.peek_local_store(|motion: &mut ScrollMotion| self.observe_motion(motion));
+        let _ = ctx.with_store(|motion: &mut ScrollMotion| self.observe_motion(motion));
         self._previous_x.set(self._scroll_x.get());
         self._previous_y.set(self._scroll_y.get());
         self._last_ms.set(ctx.elapsed_time_millis() as f64);
@@ -155,7 +155,7 @@ impl ChromaticContour {
         self._lag_x.set(lag_x);
         self._lag_y.set(lag_y);
         let (pointer, energy) = ctx
-            .peek_local_store(|motion: &mut PointerMotion| {
+            .with_store(|motion: &mut PointerMotion| {
                 let p = ctx.local_point(Point2::new(motion.x, motion.y));
                 ((p.x * width, p.y * height), motion.energy(now))
             })

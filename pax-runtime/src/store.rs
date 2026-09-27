@@ -85,6 +85,25 @@ impl NodeStores {
 }
 
 impl NodeContext {
+    /// Publish a store on this context's mounted node, keyed by its concrete Rust type.
+    ///
+    /// Register in the component's own mount handler to give each component
+    /// instance an independent provider. In an inline descendant handler, the
+    /// context identifies that descendant even when Rust `self` is its authoring
+    /// component. The context's node, not `self`, owns the registration.
+    ///
+    /// The owner and its logical descendants can find the value with `with_store`.
+    /// This includes private template children and caller-supplied children;
+    /// private wrappers around a slot do not change projected content's ancestry.
+    /// Siblings and ancestors cannot discover this registration.
+    ///
+    /// Providing the same type again on the same owner replaces its entry for
+    /// future lookups. Previously cloned handles keep their original state; the
+    /// registry is not reactive. Prefer updating properties in a stable store.
+    /// Providers are cleared at final unmount, after unmount handlers run.
+    ///
+    /// Returns `StoreError::ExpiredScope` for an unmounted or stale context, or
+    /// `StoreError::BorrowConflict` if the entry being replaced is borrowed.
     pub fn provide_store<T: Store>(&self, store: T) -> Result<(), StoreError> {
         let node = self
             .expanded_node
@@ -108,6 +127,24 @@ impl NodeContext {
         Ok(())
     }
 
+    /// Borrow the nearest provider of `T`, starting with this context's node.
+    ///
+    /// Lookup follows logical template ancestry, independently of expression
+    /// scope and render parents. A nearer same-type provider shadows an outer
+    /// one; unrelated types remain visible. It never searches siblings or
+    /// descendants. Two consumers share state when they resolve the same provider.
+    ///
+    /// The closure exclusively borrows that store for its duration. Clone a
+    /// needed `Property` handle inside the closure, then read or update it after
+    /// the borrow ends. This avoids conflicts if subsequent work looks up the
+    /// same store. The returned value can be a handle or an owned snapshot, but
+    /// cannot borrow from the store.
+    ///
+    /// Returns `StoreError::Missing` when no provider exists,
+    /// `StoreError::ExpiredScope` when the context or an ancestor's mount has
+    /// ended, and `StoreError::BorrowConflict` when the nearest provider is
+    /// already borrowed. A conflict or expired scope never falls back to an
+    /// outer provider. Saved contexts cannot discover a later mount's stores.
     pub fn with_store<T: Store, V>(&self, f: impl FnOnce(&mut T) -> V) -> Result<V, StoreError> {
         let mut node = self
             .expanded_node

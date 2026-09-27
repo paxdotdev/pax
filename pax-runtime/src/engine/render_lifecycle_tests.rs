@@ -1,6 +1,6 @@
 use super::*;
 use kurbo::{Affine, BezPath, Rect};
-use pax_runtime_api::{Fill, Material, SceneLighting, Stroke};
+use pax_runtime_api::{Material, Paint, SceneLighting, Stroke};
 
 #[derive(Default)]
 struct RecordingRenderer {
@@ -30,7 +30,7 @@ impl RenderContext for RecordingRenderer {
         self.removals.push((layer, node));
         !self.pending
     }
-    fn fill_with_opacity(&mut self, _: usize, _: BezPath, _: &Fill, _: f64) {
+    fn fill_with_opacity(&mut self, _: usize, _: BezPath, _: &Paint, _: f64) {
         unreachable!()
     }
     fn stroke_with_opacity(&mut self, _: usize, _: BezPath, _: &Stroke, _: f64) {
@@ -64,6 +64,9 @@ impl RenderContext for RecordingRenderer {
         unreachable!()
     }
     fn draw_image(&mut self, _: usize, _: &str, _: Rect) {
+        unreachable!()
+    }
+    fn draw_image_with_opacity(&mut self, _: usize, _: &str, _: Rect, _: f64) {
         unreachable!()
     }
     fn get_image_size(&mut self, _: &str) -> Option<(usize, usize)> {

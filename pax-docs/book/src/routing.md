@@ -377,8 +377,9 @@ active route instance.
 
 This is why a team shell can keep local state while its inner router switches
 from members to settings. State that must survive leaving the team should
-have an owner outside that route: a longer-lived component, a local store
-provided above the router, or your application's persistence layer.
+have an owner outside that route: a longer-lived component providing a store
+above the router, or your application's persistence layer. A store provided
+inside the departing route is cleared at final unmount along with its owner.
 [Components and Composition](components-composition.md#shared-state-farther-down-the-tree)
 explains the store pattern.
 

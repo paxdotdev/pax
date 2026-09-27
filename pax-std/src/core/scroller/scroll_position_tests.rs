@@ -1,11 +1,7 @@
 use super::*;
-use pax_runtime::api::math::Transform2;
 use pax_runtime::api::pax_value::ToFromPaxAny;
-use pax_runtime::api::{CommonProperties, Platform, TargetInfo, Variable, OS};
-use pax_runtime::{
-    CommonPropertiesInit, ComponentInstance, Globals, PropertiesInit, PropertiesScopeInit,
-    RouteLocation, TransformAndBounds,
-};
+use pax_runtime::api::{CommonProperties, Platform, Variable, OS};
+use pax_runtime::{CommonPropertiesInit, ComponentInstance, PropertiesInit, PropertiesScopeInit};
 
 fn args(props: ScrollerHost) -> InstantiationArgs {
     let scope = props.clone();
@@ -57,23 +53,11 @@ fn args(props: ScrollerHost) -> InstantiationArgs {
 }
 
 fn mount() -> (Rc<RuntimeContext>, Rc<ExpandedNode>, ScrollerHost) {
-    let context = Rc::new(RuntimeContext::new(Globals {
-        elapsed_frames: Property::new(0),
-        elapsed_millis: Property::new(0),
-        viewport: Property::new(TransformAndBounds {
-            transform: Transform2::identity(),
-            bounds: (360.0, 120.0),
-        }),
-        gyro: Property::default(),
-        accel: Property::default(),
-        route_location: Property::new(RouteLocation::root()),
-        browser_allows_scroller_vector_layers: Property::new(true),
-        browser_allows_nested_scroller_vector_layers: Property::new(true),
-        platform: Platform::Native,
-        os: OS::IPhone,
-        target: TargetInfo::new(Platform::Native, OS::IPhone),
-        get_elapsed_millis: Rc::new(|| 0),
-    }));
+    let context = Rc::new(crate::test_support::runtime_context_with_target(
+        (360.0, 120.0),
+        Platform::Native,
+        OS::IPhone,
+    ));
     let props = ScrollerHost {
         scroll_pos_x: Property::new(3916.0),
         scroll_pos_y: Property::new(4036.0),

@@ -441,8 +441,7 @@ mod tests {
         bind_content_measurement_effect, measured_size_needs_update, sync_content_autosize,
         sync_content_autosize_with_axes, BaseInstance, ComponentInstance, ContainerFrame,
         ContentMeasurementGeometry, ExpandedNode, Globals, InstanceFlags, InstanceNode,
-        InstantiationArgs, RouteLocation, RuntimePropertiesStackFrame,
-        TransformAndBounds,
+        InstantiationArgs, RouteLocation, RuntimePropertiesStackFrame, TransformAndBounds,
     };
     use pax_runtime_api::pax_value::PaxAny;
     use pax_runtime_api::{Platform, Property, TargetInfo, OS};

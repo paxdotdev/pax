@@ -750,7 +750,7 @@ fn late_mounted_components_resolve_their_theme_before_the_first_presentation() {
     for phase in [TICK_HANDLERS, PRE_RENDER_HANDLERS, "frame", "millis"] {
         let clock = Rc::new(Cell::new(0_u128));
         let clock_read = clock.clone();
-        let mut engine = PaxEngine::new_empty(
+        let mut engine = crate::test_support::empty_engine(
             (320.0, 240.0),
             Platform::Web,
             OS::Mac,

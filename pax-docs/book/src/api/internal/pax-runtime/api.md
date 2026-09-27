@@ -28,10 +28,8 @@ Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`Option`
 
 slot index of this node in its container
 
-##### `local_stack_frame`
+##### `expression_stack`
 Type: `Rc`<[`RuntimePropertiesStackFrame`](../../../api/internal/pax-runtime/properties.md#runtimepropertiesstackframe)>
-
-Stack frame of this component, used to look up stores
 
 ##### `containing_component`
 Type: `Weak`<`ExpandedNode`>
@@ -206,16 +204,6 @@ page reload. Cargo metadata's
 to ordinary browser navigation before changing application history.
 Other targets use the active chassis navigation behavior.
 
-##### `peek_local_store`
-<pre><code class="api-signature language-rust ignore">pub fn peek_local_store&lt;T: <a href="../../../api/pax-runtime-api/store.md#store">Store</a>, V&gt;(&amp;self, f: impl FnOnce(&amp;mut T) -&gt; V) -&gt; Result&lt;V, String&gt;</code></pre>
-
-Borrow the nearest stack-local store of type `T`.
-
-##### `push_local_store`
-<pre><code class="api-signature language-rust ignore">pub fn push_local_store&lt;T: <a href="../../../api/pax-runtime-api/store.md#store">Store</a>&gt;(&amp;self, store: T)</code></pre>
-
-Push component-local state onto the runtime stack for descendants to find.
-
 ##### `screenshot`
 <pre><code class="api-signature language-rust ignore">pub fn screenshot(&amp;self, id: u32)</code></pre>
 
@@ -230,3 +218,48 @@ Ask the chassis to display the requested cursor over the app surface.
 <pre><code class="api-signature language-rust ignore">pub fn subscribe(&amp;self, dependencies: &amp;[UntypedProperty], f: impl Fn() + &#39;static)</code></pre>
 
 Attach a dependency subscription whose callback runs when any dependency dirties.
+
+##### `provide_store`
+<pre><code class="api-signature language-rust ignore">pub fn provide_store&lt;T: <a href="../../../api/pax-runtime-api/store.md#store">Store</a>&gt;(&amp;self, store: T) -&gt; Result&lt;(), <a href="../../../api/pax-runtime-api/store.md#storeerror">StoreError</a>&gt;</code></pre>
+
+Publish a store on this context's mounted node, keyed by its concrete Rust type.
+
+Register in the component's own mount handler to give each component
+instance an independent provider. In an inline descendant handler, the
+context identifies that descendant even when Rust `self` is its authoring
+component. The context's node, not `self`, owns the registration.
+
+The owner and its logical descendants can find the value with `with_store`.
+This includes private template children and caller-supplied children;
+private wrappers around a slot do not change projected content's ancestry.
+Siblings and ancestors cannot discover this registration.
+
+Providing the same type again on the same owner replaces its entry for
+future lookups. Previously cloned handles keep their original state; the
+registry is not reactive. Prefer updating properties in a stable store.
+Providers are cleared at final unmount, after unmount handlers run.
+
+Returns `StoreError::ExpiredScope` for an unmounted or stale context, or
+`StoreError::BorrowConflict` if the entry being replaced is borrowed.
+
+##### `with_store`
+<pre><code class="api-signature language-rust ignore">pub fn with_store&lt;T: <a href="../../../api/pax-runtime-api/store.md#store">Store</a>, V&gt;(&amp;self, f: impl FnOnce(&amp;mut T) -&gt; V) -&gt; Result&lt;V, <a href="../../../api/pax-runtime-api/store.md#storeerror">StoreError</a>&gt;</code></pre>
+
+Borrow the nearest provider of `T`, starting with this context's node.
+
+Lookup follows logical template ancestry, independently of expression
+scope and render parents. A nearer same-type provider shadows an outer
+one; unrelated types remain visible. It never searches siblings or
+descendants. Two consumers share state when they resolve the same provider.
+
+The closure exclusively borrows that store for its duration. Clone a
+needed `Property` handle inside the closure, then read or update it after
+the borrow ends. This avoids conflicts if subsequent work looks up the
+same store. The returned value can be a handle or an owned snapshot, but
+cannot borrow from the store.
+
+Returns `StoreError::Missing` when no provider exists,
+`StoreError::ExpiredScope` when the context or an ancestor's mount has
+ended, and `StoreError::BorrowConflict` when the nearest provider is
+already borrowed. A conflict or expired scope never falls back to an
+outer provider. Saved contexts cannot discover a later mount's stores.

@@ -1,7 +1,12 @@
 # PAX-1007 — Component-local store ownership
 
-Status: proposal for Zack's review; runtime behavior is unchanged.
-Date: 2026-09-25. Base: `090348859`.
+Status: implemented and checkpointed; public documentation approved for drafting
+on 2026-09-27. The proposal below records the original design discussion against
+base `090348859` on 2026-09-25. The approved decisions use `provide_store` /
+`with_store` without compatibility aliases, and clear local state and providers
+at final unmount. See the current
+[public store guide](../components-composition.md#shared-state-farther-down-the-tree)
+and API reference for the implemented contract.
 Issue: [PAX-1007](https://linear.app/paxdev/issue/PAX-1007/define-and-implement-component-local-store-ownership-and-isolation).
 
 ## Recommendation
