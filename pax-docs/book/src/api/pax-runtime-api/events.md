@@ -487,6 +487,90 @@ Active touch points at the start of this touch sequence.
 
 ---
 
+### `ViewportProximityChange`
+A settled geometry change during a continuous proximity visit.
+
+First admission/re-entry has no previous sample. Departure sends one final
+change outside proximity before exit. Unchanged frames emit nothing.
+
+#### Properties
+##### `previous`
+Type: `Option`<[`ViewportProximitySnapshot`](../../api/pax-runtime-api/events.md#viewportproximitysnapshot)>
+
+Last delivered sample in this visit; `None` on admission/re-entry.
+
+##### `current`
+Type: [`ViewportProximitySnapshot`](../../api/pax-runtime-api/events.md#viewportproximitysnapshot)
+
+Current frozen geometry, including the terminal outside sample.
+
+---
+
+### `ViewportProximityEnter`
+Entry into global viewport proximity, including initially nearby targets.
+Delivered before the initial change event. This local event does not bubble.
+
+#### Properties
+##### `current`
+Type: [`ViewportProximitySnapshot`](../../api/pax-runtime-api/events.md#viewportproximitysnapshot)
+
+Frozen sample shared with the initial change notification.
+
+---
+
+### `ViewportProximityExit`
+Departure from global viewport proximity, after the terminal change event.
+Unmount cancels observation without synthesizing a geometric exit.
+
+#### Properties
+##### `previous`
+Type: [`ViewportProximitySnapshot`](../../api/pax-runtime-api/events.md#viewportproximitysnapshot)
+
+Last sample inside proximity.
+
+##### `current`
+Type: [`ViewportProximitySnapshot`](../../api/pax-runtime-api/events.md#viewportproximitysnapshot)
+
+Terminal outside sample shared with the final change notification.
+
+---
+
+### `ViewportProximitySnapshot`
+One settled viewport-proximity sample in logical window coordinates.
+
+Bounds are transformed layout AABBs, not padded paint coverage. Rectangular
+clips are intersected; curved/rotated clips use their bounding envelopes.
+Opacity, alpha coverage, sibling occlusion and external windows are ignored.
+
+#### Properties
+##### `in_proximity`
+Type: `bool`
+
+Whether the target intersects the proximity region with positive area.
+
+##### `bounds`
+Type: `Rect`
+
+Presented layout bounds relative to the global visual viewport's origin.
+
+##### `viewport_intersection`
+Type: `Option`<`Rect`>
+
+Positive-area intersection with the global viewport and ancestor clips.
+
+#### Implementations
+##### `intersection_ratio`
+<pre><code class="api-signature language-rust ignore">pub fn intersection_ratio(&amp;self) -&gt; f64</code></pre>
+
+Fraction of the layout AABB inside the effective viewport, from zero to one.
+
+##### `is_in_viewport`
+<pre><code class="api-signature language-rust ignore">pub fn is_in_viewport(&amp;self) -&gt; bool</code></pre>
+
+Whether any positive-area viewport intersection exists.
+
+---
+
 ### `Wheel`
 User scrolls the mouse wheel over an element.
 

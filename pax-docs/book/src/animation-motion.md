@@ -375,6 +375,20 @@ value-type contracts.
 <a id="in-transitions"></a>
 <a id="out-transitions"></a>
 
+### Animate around viewport crossings
+
+A local `@viewport_proximity_change` handler can compare previous/current
+intersection heights and ease a property bound to a named timeline's playhead.
+This supports first-visible reveals, an early departure at 40px remaining, and
+restoration when direction reverses. Bind `@viewport_proximity_enter` and
+`@viewport_proximity_exit` for preparation and cleanup.
+
+Observe a stable wrapper and animate its contents to avoid feeding animated
+bounds back into the threshold. These events observe mounted geometry; they
+do not start structural `@in`/`@out` transitions or retain unmounted nodes.
+See [viewport proximity](scrolling-viewports.md#observe-viewport-proximity) for
+the runnable `viewport-proximity` example, sampling limits, and handler code.
+
 ## Enter and exit transitions
 
 Use `@in` and `@out` for motion tied to an instance entering or leaving the

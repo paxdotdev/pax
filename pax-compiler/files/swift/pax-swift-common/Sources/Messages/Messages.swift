@@ -1309,26 +1309,26 @@ public enum FontWeight: String {
 }
 
 public class PaxFont {
-    public enum PaxFontType {
+    public enum PaxFontType: Hashable {
         case system(SystemFont)
         case web(WebFont)
         case local(LocalFont)
     }
 
-    public struct SystemFont {
+    public struct SystemFont: Hashable {
         let family: String
         let style: FontStyle
         let weight: FontWeight
     }
 
-    public struct WebFont {
+    public struct WebFont: Hashable {
         let family: String
         let url: URL
         let style: FontStyle
         let weight: FontWeight
     }
 
-    public struct LocalFont {
+    public struct LocalFont: Hashable {
         let family: String
         let path: URL
         let style: FontStyle

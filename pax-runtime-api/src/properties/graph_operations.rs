@@ -50,7 +50,14 @@ impl PropertyTable {
         self.with_property_data_mut(id, |property_data| {
             for inbound_id in &property_data.inbound {
                 self.with_property_data_mut(*inbound_id, |property_dependency| {
-                    property_dependency.outbound.retain(|s| s != &id);
+                    // connect_inbound appends one edge per inbound occurrence. Remove
+                    // one matching edge here too, preserving the remaining scheduling
+                    // order. Short-lived handler contexts usually own the last edge;
+                    // searching backward avoids scanning every mounted sibling.
+                    if let Some(index) = property_dependency.outbound.iter().rposition(|s| s == &id)
+                    {
+                        property_dependency.outbound.remove(index);
+                    }
                 });
             }
         });

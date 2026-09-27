@@ -48,6 +48,38 @@ final class PaxSwiftCommonTests: XCTestCase {
         XCTAssertEqual(web.weight, .medium)
     }
 
+    func testNativeSceneChangesCoalesceWithoutConsumingOtherHosts() {
+        var journal = NativeSceneChangeJournal(capacity: 2)
+        XCTAssertTrue(journal.changes(since: nil).rebuild)
+        journal.append(ids: [1, 2], rebuild: false)
+        journal.append(ids: [2, 3], rebuild: false)
+        XCTAssertEqual(journal.changes(since: 0).ids, [1, 2, 3])
+        XCTAssertEqual(journal.changes(since: 1).ids, [2, 3])
+        XCTAssertEqual(journal.changes(since: 0).ids, [1, 2, 3])
+        XCTAssertTrue(journal.changes(since: 2).ids.isEmpty)
+        journal.append(ids: [4], rebuild: false)
+        XCTAssertTrue(journal.changes(since: 0).rebuild)
+        XCTAssertFalse(journal.changes(since: 1).rebuild)
+        journal.append(ids: [], rebuild: true)
+        XCTAssertTrue(journal.changes(since: 3).rebuild)
+    }
+
+    func testFontValueIdentityIncludesSourceAndTypography() {
+        let system = PaxFont.PaxFontType.system(.init(family: "Inter", style: .normal, weight: .normal))
+        let same = PaxFont.PaxFontType.system(.init(family: "Inter", style: .normal, weight: .normal))
+        let variants: Set<PaxFont.PaxFontType> = [
+            system, same,
+            .system(.init(family: "Georgia", style: .normal, weight: .normal)),
+            .system(.init(family: "Inter", style: .italic, weight: .normal)),
+            .system(.init(family: "Inter", style: .normal, weight: .bold)),
+            .web(.init(family: "Inter", url: URL(string: "https://example.com/a.ttf")!, style: .normal, weight: .normal)),
+            .web(.init(family: "Inter", url: URL(string: "https://example.com/b.ttf")!, style: .normal, weight: .normal)),
+            .local(.init(family: "Inter", path: URL(fileURLWithPath: "/a.ttf"), style: .normal, weight: .normal)),
+        ]
+        XCTAssertEqual(variants.count, 7)
+        XCTAssertEqual(system, same)
+    }
+
     func testFontFamilyMatchingRejectsPartialNameCollisions() {
         XCTAssertTrue(PaxFont.fontFamilyNamesMatch(
             candidate: "Times New-Roman",

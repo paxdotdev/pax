@@ -471,6 +471,12 @@ still applies, and `AmbientLight` is layer-wide rather than confined by
 LightFrame. A primitive without eligible direct lights or authored ambient
 keeps its unlit appearance.
 
+Light contributions stay live as their properties animate or their containers
+scroll. Offscreen lights can still affect visible surfaces; viewport culling
+does not disable them. The runtime tracks light contributors and reuses direct
+light membership until light selection or scene structure changes. Scenes
+without authored lights do not scan their elements for lighting on redraw.
+
 This feature is backend-dependent. GPU/WGPU rendering supports the material
 response, with a current limit of eight active direct lights in each canvas
 layer's lighting set, shared across its LightFrames. The Piet fallback draws

@@ -1,25 +1,18 @@
 # PAX-1002 - Viewport lifecycle events
 
-Design checkpoint, 2026-09-24. **Proximity APIs remain proposed, not implemented.**
-Zack authorized the rendering-only foundation migration after this design discussion.
-That migration is implemented and validated below; event/configuration syntax is still a proposal.
+Implementation checkpoint, 2026-09-25. The rendering foundation and opt-in event
+trio are implemented. Public usage is taught in
+[Scrolling and Viewports](../scrolling-viewports.md#observe-viewport-proximity).
 
-## Current recommendation
+## Current contract
 
-Zack proposed restricting detailed geometry-change delivery to an active proximity
-region, with previous/current snapshots supplied by the runtime. This addresses
-the custom 80px departure policy while avoiding global fine-grained observation.
-Recommend this as the core MVP:
+- `@viewport_proximity_enter`: initially nearby content and each reentry.
+- `@viewport_proximity_change`: initial sample, changes during a visit, and a terminal outside sample.
+- `@viewport_proximity_exit`: cleanup following the terminal change.
 
-- `@viewport_proximity_change`: initial admission, subsequent effective geometry changes
-  while nearby, and one final change when leaving proximity.
-- `@viewport_proximity_exit`: a convenient cleanup notification following that final change.
-
-Separate viewport_proximity_enter is redundant because admission is explicit in the first
-change. Viewport enter/exit can be derived from the snapshots' intersection state;
-standalone bindings remain possible convenience filters, not required core
-machinery. This updates the prior four-event recommendation in response to the
-latest design discussion, without committing to final syntax yet.
+Enter precedes initial change and uses the same frozen current sample. Any
+subset can be bound independently. The explicit enter event avoids requiring
+coordination between handlers for ordinary preparation work.
 
 Use `change`, matching existing `textbox_change`, `slider_change`, and
 `checkbox_change`, not `changed`. Both leave and exit are uninflected forms; prefer
@@ -146,9 +139,15 @@ needed. PAX-996 remains parked.
 
 ## Event and payload contract
 
-Candidate payload shape (schematic types):
+Payload shape (schematic types; public fields use `kurbo::Rect`):
 
 ```rust
+struct ViewportProximityEnter { current: ViewportProximitySnapshot }
+struct ViewportProximityExit {
+    previous: ViewportProximitySnapshot,
+    current: ViewportProximitySnapshot,
+}
+
 struct ViewportProximityChange {
     previous: Option<ViewportProximitySnapshot>,
     current: ViewportProximitySnapshot,
@@ -176,9 +175,9 @@ silently presented as a fresh previous observation.
 
 | Situation | Delivery |
 | --- | --- |
-| Initially inside proximity, whether visible or not | change(None, current) after usable layout |
+| Initially inside proximity, whether visible or not | enter(current), then change(None, current) after usable layout |
 | Initially outside proximity | None |
-| Enters or reenters proximity | change(None, current) |
+| Enters or reenters proximity | enter(current), then change(None, current) |
 | Effective geometry changes while nearby | change(previous, current) |
 | No effective change | None |
 | Leaves proximity | final change(previous, outside), then viewport_proximity_exit with the same snapshots |
@@ -206,12 +205,10 @@ consumer before expanding the payload.
 
 ## Proximity configuration and geometry
 
-A useful candidate proximity range is one viewport length on each side of the
-relevant scroll axis: for a vertical viewport of height H, the region spans 3H
-in total. Use logical units/percentages, e.g. an explicit y margin of 100% for a
-vertical list. A horizontal Scroller uses its width; nested owners resolve against
-their own viewport dimensions. The exact default and whether axis choice is
-inferred or explicit still need alignment. Explicit x/y margins keep it predictable.
+The approved MVP uses one global viewport width on each horizontal side and one
+global viewport height on each vertical side. Apply those same margins to scroll
+clips; do not resolve them against each nested owner's dimensions. No axis or
+margin configuration is exposed in this pass.
 
 This is stable application policy, independent of tile size, renderer prewarm
 multipliers, surface budgets, backend caps, and scroll velocity. Enlarging it
@@ -265,7 +262,7 @@ actual viewport exit: reset the visit's animation policy
 proximity exit or unmount: release proximity-owned application work
 ```
 
-Use a small deliberate numerical tolerance in the example. Entering through the
+The example compares sampled heights directly. Entering through the
 80px band does not pop out; holding still does not retrigger or restore. A short
 initially clipped tile establishes a baseline before direction is inferred.
 Reversal can restore while still visible without fabricating a physical entry.
@@ -283,7 +280,7 @@ Property easing; each component instance owns its state. Direct string lookup vi
 There is no theme-owned controller, declarative threshold DSL, or engine-owned
 animation reversal policy in this MVP.
 
-For lazy data, first proximity change requests data through an application service
+For lazy data, proximity enter can request data through an application service
 keyed by data ID. Deduplicate ready/in-flight requests; previous/current samples
 must not repeatedly fetch. Completion returns on the runtime thread and checks
 target lifetime, current data ID, and request generation. Stale results can still
@@ -363,8 +360,9 @@ cannot solve that bootstrap problem. Do not implement PAX-839 or reopen PAX-996.
    Document proximity budget and previous=None after cold gaps. Record concrete
    authoring pain points and build the book. No theme documentation changes.
 
-No proximity APIs have been implemented. Rendering migration validation is tracked
-separately below; book validation does not establish runtime/performance behavior.
+The rendering validation below predates the event implementation. Event validation
+is recorded in the subsequent milestone; book validation alone does not establish
+runtime/performance behavior.
 
 
 ## Authorized rendering-only migration
@@ -438,3 +436,468 @@ Initial registration/preparation still scales with mounted canvas nodes. Custom
 primitives with unknown coverage remain conservative candidates, and empty/unknown
 queries preserve the existing full-replay fallback. These checks do not establish
 a universal query bound or an end-to-end 10k-element performance guarantee.
+
+
+## Event milestone, 2026-09-25
+
+The three explicit bindings use the existing typed handler generation and local
+component/inline routing. Registration is deferred until mount/layout has settled:
+component mount can hold its property-scope borrow while mounting descendants.
+Only registered targets and their shared ancestors acquire observation effects.
+Full snapshots live in the active set, not every cold registration. Template
+replacement revokes the old registration generation and rebuilds dependency chains;
+reparenting retains instance history while rebinding scroll domains.
+
+Observation consumes the renderer's prepared geometry records and the same sparse
+spatial-index implementation. Non-canvas targets/ancestors get records only on
+demand, without entering the paint-coverage index. Layout bounds have separate
+scroll-domain indices because they are not padded canvas paint coverage. Nested
+queries prune cold scroll owners; unclippable and unclipped-scroll branches remain
+conservative candidates. Clip-envelope intersection is still consumer-specific;
+this does not claim every rectangle comparison is shared with rasterization.
+
+Fixed margins use global viewport dimensions on both axes, independent of warm
+tiles. Enter/change and terminal change/exit use frozen pairs. Suspension clears
+history, unmount cancels delivery, and handler mutations classify next tick. The
+example observes a wrapper, eases a named timeline's local playhead, restores on
+reversal, requests a shared page of field notes on enter, and releases a consumer
+lease on exit or unmount. Web uses a bundled HTTP fixture; native uses a worker
+thread. Completion returns through one root tick drain, with lease and data-ID
+checks before touching card properties. This is application-owned example code,
+not an engine async-loading framework.
+
+The enabled/disabled runtime measurement also exposed an existing handler-context
+cost: removing a temporary reactive dependency scanned all upstream siblings.
+Dependency teardown now removes one reciprocal edge per inbound occurrence by
+searching backward, retaining the remaining effect order and duplicate-edge
+semantics. Short-lived contexts normally own the newest edge. This avoids the
+full sibling scan on this dispatch path without caching contexts or changing their
+reactive semantics. A regression test checks duplicate edges and remaining order.
+
+### Measurements
+
+Run `cargo run -p pax-runtime --example scene_geometry_bench --release` for the
+renderer geometry service and the ignored `observation_workload_measurement`
+integration test for full mounted-runtime scrolling (set `PAX_BENCH_N=1000` or
+`10000`, and `PAX_BENCH_OBSERVE=0` or `1`, in a fresh process). Timings are local
+measurements, not FPS guarantees; GPU raster/compositing is excluded. Allocation
+counts include application-handler dispatch, and live bytes exclude allocator
+metadata/RSS. Initial mounting and whole-list relayout remain linear work.
+
+The final flat-list run with fixed nearby density measured:
+
+| Mounted targets | Bindings | Live requested bytes after mount | Scroll microseconds/tick | Samples/tick | Index updates during 200 scroll ticks |
+| --- | --- | --- | --- | --- | --- |
+| 1,000 | none | 35,469,882 | 0.53 | 0 | 0 |
+| 1,000 | trio | 36,776,442 | 23.86 | 5.47 | 0 |
+| 10,000 | none | 326,754,666 | 0.54 | 0 | 0 |
+| 10,000 | trio | 339,759,482 | 24.76 | 5.47 | 0 |
+
+The observed delta is about 1.3KB per registered target, including registry,
+dependencies, index, and handlers. Native scrolling sampled the same nearby set
+at both sizes, with roughly 135 allocations/tick including handler contexts.
+Initial timings varied with concurrent builds and are not used for a speedup
+claim. The separate nested-list regression also checks identical domain,
+candidate, and sample counts at 1k/10k, with fewer than 60 detailed samples.
+
+### Validation
+
+Twelve runtime integration tests cover initial/repeated admission, first-pixel
+intersection, the 80px decrease (the example now uses 40px), terminal pairs, large jumps, idle/no-subscription
+work, frozen callbacks, teardown, suspension, replacement, reparenting, nested
+native scroll, page-backed visual viewport, clipping/escapes, zero-area transforms,
+resize, and 1k/10k query scaling. They pass in debug and release. Runtime, runtime
+API, and standard-library tests pass (316 tests, plus the ignored manual benchmark).
+Rich-manifest and ProgramIR binary roundtrips retain all three inline/component
+bindings; generated Rust retains the handler names. No binary schema change is
+needed: only existing event-name/handler representations cross that boundary.
+
+The wider manifest suite has three existing failures, reproduced using the
+unmodified HEAD version of pax-manifest in a temporary crate: two route-metadata
+panic expectations and the type-qualified object-constructor expectation. Its
+other 49 integration tests and all eight current manifest unit tests pass.
+
+Browser checks cover initial display, early departure, reversal, cold cleanup,
+and fresh visits after returning. Public articles and generated API reference
+explain the fixed region and approximation. Web debug and baked release builds
+pass, and the macOS debug application builds through the shared native bridge
+and Xcode host. The book builds and 468 local links/anchors on affected pages
+resolve. The baked release browser reports no warning/error from its own origin.
+The native interaction/profiling follow-up below supersedes the build-only macOS
+check. iOS/iPadOS interaction and an end-to-end frame-rate guarantee remain unverified.
+
+### Native profiling follow-up, 2026-09-25
+
+Time Profiler captures of the 270-card macOS debug example identified several
+distinct costs. In a five-second scrolling segment, main-thread samples included
+655ms in SwiftUI/AppKit intrinsic scene measurement and 320ms in native text
+content signatures. Viewport-proximity dispatch itself accounted for 6ms, about
+0.2% of the 2542ms main-thread total. This does not include downstream rendering
+work triggered by handlers, and roughly 497ms of the total included accessibility
+inspection stacks from the test driver.
+
+The native scene now accepts SwiftUI's viewport proposal on macOS 13+, avoiding
+intrinsic-size traversal through the native descendants. Font/alignment signatures
+use typed hashing instead of reflection; color signatures hash their values rather
+than converting them through AppKit/ColorSync. In a later five-second scrolling
+segment, intrinsic measurement was absent and content signatures accounted for
+53ms. These are sampled CPU costs, not equal-frame benchmarks or FPS measurements.
+Native layout, view-tree rebuilding/sync, occlusion, and GPU work still have costs.
+macOS 12 retains the older representable-sizing fallback.
+
+The runtime also performed occlusion twice when clock-driven animation changed
+geometry before observation and proximity handlers changed visuals afterward.
+A regression test first failed with coverage sampled at both the pre-handler and
+post-handler positions. Occlusion now runs once after handlers settle, while the
+observation batch stays frozen. The test verifies final paint geometry and initial
+scroller layer assignment as well as the next tick's terminal events. Presentation
+setters explicitly invalidate observations; renderer-plan invalidation alone no
+longer schedules geometry sampling.
+
+After these changes, 290 runtime/runtime-API/standard-library unit tests and all
+12 proximity integration tests pass; the integration suite also passes in release.
+Six shared Swift tests pass, including font identity across family, typography,
+and font sources. Web release and macOS debug/release builds pass. The documentation
+example was regenerated through the repository tooling; its embedded app loads
+the asynchronous field notes. The book builds and all 119 local article links
+and anchors checked across the three affected learning articles resolve.
+
+The final release build was launched and visually judged smoother, but still near
+60fps during scrolling. A temporary host-only cadence probe measured a 120Hz
+display-link source and approximately 120 engine ticks/second at rest. During
+automated sustained scrolling, complete two-second windows measured 61.6, 69.5,
+and 70.2 ticks/second. Median tick execution was 3.8–4.5ms; median main-queue delay
+was 2.6–4.1ms, with much longer tail delays. These are engine tick measurements,
+not displayed-frame or GPU completion counts. The instrumentation was removed
+after capture.
+
+A release Time Profiler capture during the same twelve-scroll workload sampled
+6813ms of main-thread CPU over the active eight seconds, including 1134ms in
+accessibility inspection stacks. Of the remaining 5679ms, occlusion accounted for
+1068ms, AppKit layout for 990ms, native scene sync for 778ms, and native render-tree
+construction for 315ms. These inclusive categories can overlap and must not be
+summed as separate frame phases. The evidence identifies remaining scene-wide
+CPU work and does not establish a 60Hz timer cap or guaranteed 120fps presentation.
+Further work should reuse prepared geometry for bounded occlusion/mask queries
+and avoid rebuilding/synchronizing unchanged native scene branches. A human-input
+capture is still useful to separate real scrolling from automation overhead.
+
+
+### Incremental native compositing, 2026-09-25
+
+Native bounds now join canvas coverage in the runtime-owned geometry service.
+Structural reconciliation retains layer/order/clip metadata and exact coverage;
+leaf invalidation refreshes only the changed record and queries native bounds
+under both its old and new coverage. Native mask evaluation queries the shared
+canvas index, then applies exact paths, clips, opacity, and stacking order.
+Exact empty queries are distinct from canvas replay's full-replay fallback.
+Native render consumers retain geometry independently of proximity bindings.
+Removed nodes release compositing records, and root unmount clears the cache.
+
+Scrolling a leaf-only island queries native bounds in the old and new viewport
+regions without rewriting content-coordinate indices. Inherited clip/container
+changes, unclippable escape layers, and scroll domains that mix independently
+scrolling content without islands retain complete reconciliation. Unclipped scrolling and nested scroll
+presentation containers also keep the complete path. These are correctness
+boundaries for the initial incremental migration.
+
+The Swift bridge preserves changed element IDs in a bounded, non-destructive
+journal. Native hosts update retained leaves directly; new hosts, missed
+history, structural/order/container changes, and glass-container updates reconcile
+from current models. Fonts and reset retain global invalidation. Existing view-backed transforms
+continue to control native hit testing; native containers already disable child
+autoresizing.
+
+Regression coverage compares incremental native-mask hashes with full
+reconciliation for movement, opacity, clipping, native rotation, ordering,
+removal, scrolling, nested domains, and disabled islands. A 2,000-node fixture
+checks bounded work for one animated shape and nearby scroll queries with no
+scroll-induced index updates. Swift tests check coalesced independent journal
+readers, history overflow, retained native controls, selection during scaling,
+and ordering fallback.
+
+An instrumented release run measured
+approximately 1.7–2.0ms median tick work in fully active two-second scroll windows,
+versus the earlier 3.8–4.5ms. Main-queue delays still limited those windows to
+roughly 66–70 ticks/second. These are engine tick measurements, not presented
+frame counts. In an eight-second active CPU interval, occlusion accounted for
+31ms (earlier 1,068ms), whole-tree native construction/sync was absent from the
+sample, and direct native updates accounted for 436ms. AppKit layout remained
+1,444ms and Core Animation commit 2,937ms inclusive; these categories overlap.
+The runs use accessibility-driven scrolling and are diagnostic samples, not a
+normalized throughput benchmark. AppKit layout remains a follow-up bottleneck.
+The clean macOS release passed a visual check on 2026-09-26: early exit at 26px
+of remaining overlap, restoration on reverse scrolling, a jump to the final
+cards, and return to the beginning. This check did not measure frame cadence.
+Structural layer classification uses a single pass,
+and hot scroll queries use cached layer ownership rather than scanning layers.
+Scenes without native mask targets retain their scroll-only presentation path,
+including nested scroll grids.
+
+
+Validation: 290 runtime/runtime-API/standard-library unit tests passed; all 17
+viewport/compositing integration tests passed in debug and release (one manual
+benchmark remains ignored). All eight Swift tests passed. The shared Swift
+renderer compiled for the iOS simulator, and clean macOS and web release builds
+completed. Generated API references and the mdBook build succeeded; 82 local
+links/anchors in the affected compositing and viewport articles were checked.
+The refreshed web preview was exercised through the final cards and returned
+to the beginning. No compiler/program-IR or baked representation change is
+needed for this runtime-owned cache and chassis reconciliation change.
+
+### Native property application and controlled scrolling, 2026-09-27
+
+Native geometry now compares individual fields. Opacity and stacking patches do
+not write frame/bounds/rotation; translation uses AppKit's origin setter. Scaling
+still repairs logical bounds when AppKit changes them with the frame, and the
+shear/reflection fallback restores view-backed rotation when switching modes.
+Unchanged mask/snapshot state avoids repeated clears and visibility assignments.
+Updating snapshot pixels also reapplies an unchanged punch-through mask.
+
+Ten Swift regressions pass in debug and release, including coordinate conversion
+through scale/rotation and shear-to-rotation transitions, selection retention,
+zero geometry writes for opacity/stacking patches, and pixel assertions for
+changed text under a stable mask followed by unmasking.
+
+A temporary release probe compared 18 and 270 otherwise-identical cards with no
+animation, opacity only, and the current scale/translation/opacity animation.
+All modes retained the same proximity handlers, text updates, and loading logic.
+The 900×900-point window followed the same native scroll path from y=400 to 2800
+and back at 1,200 points/second. Each 15-second phase had three warm-up seconds,
+ten scrolling seconds, and two settling seconds. The measurements below retain
+whole one-second windows ending between seconds 4 and 12. Each case ran twice,
+in forward then reverse order, without Instruments or accessibility polling.
+
+| Cards | Animation | Callback rate | Inner text-scroll layouts per callback |
+| --- | --- | ---: | ---: |
+| 18 | None | 107.8/s | 47.5 |
+| 18 | Opacity | 112.5/s | 49.4 |
+| 18 | Current | 101.7/s | 44.0 |
+| 270 | None | 23.8/s | 682.7 |
+| 270 | Opacity | 25.2/s | 647.6 |
+| 270 | Current | 23.9/s | 655.5 |
+
+Both non-scaling cases recorded zero native geometry writes during the measured
+windows. The current animation updated about six native leaf geometries per
+callback in either list size, while inner NSScrollView layout work grew with the
+mounted scene. The strong size dependence persists without card animation;
+bounding the attached native hierarchy is the next architectural candidate.
+
+These are display-link callback rates, not presented FPS. The probe includes
+programmatic scrolling and native layout counters, so its callback durations and
+rates are not directly comparable to earlier accessibility-driven measurements.
+An initial long Animation Hitches capture exhausted temporary disk space and was
+discarded; its stalled recorder/service were stopped to reclaim the open trace.
+The complete table comes from the subsequent lightweight run.
+
+A separate Time Profiler capture confirmed the source of the cost. In an
+eight-second 270-card opacity-only interval, native scrolling's
+`NSClipView.setBoundsOrigin` occupied 2,388ms, AppKit layout 2,011ms, and tracking
+area updates 870ms of sampled main-thread CPU. Engine tick work accounted for
+109ms, incremental native leaf updates 9ms, and occlusion 14ms. Core Animation
+commit accounted for 4,795ms inclusive of overlapping AppKit work; the categories
+must not be added together. These stacks point to native hierarchy maintenance,
+not repeated scene reconstruction or animation geometry writes.
+
+A later eight-second Animation Hitches capture completed after the active matrix
+and had no app-scoped update rows; it does not establish presented-frame cadence.
+The temporary example properties, native scroll driver, and release counters were
+removed. The normal macOS release build and iOS simulator compilation passed.
+
+
+### Native culling follow-up (2026-09-27)
+
+macOS now uses the existing native layer index and scroller prewarm policy to
+issue advisory `NativeCullUpdate` membership deltas. Only the clipped leaf-only
+islands already classified by compositing participate. Structural reconciliation
+initializes membership; scroll and leaf-animation ticks query nearby geometry
+and compare warm ID sets. No second spatial index or per-scroll cold-node scan
+was added. User-facing viewport proximity margins remain unchanged.
+
+The Swift host detaches eligible Text and NativeImage views, retaining their
+models and native instances. Cold views receive patches and regain their original
+subview order on re-entry. Editable/focused/selected text, overflowing text, glass
+content, and other controls stay attached. Focus/selection pins are reconsidered
+on subsequent scene updates. VoiceOver and Switch Control restore all views via
+the existing scene invalidation path; accessibility virtualization is outside
+this change. Live assistive-technology navigation has not been exercised; the
+fallback state transition is covered in the native host regression test.
+
+The new protocol message is serialized by the existing native message queue in
+both debug and release. It adds no manifest fields or baked-program semantics.
+Web/iOS/iPadOS do not emit this message or use the macOS detachment path. The
+public compositing and native-control articles and generated protocol reference
+are updated.
+
+
+A temporary release-only probe compared the unchanged 270-card example with
+culling disabled/enabled/enabled/disabled in four 15-second phases. Each phase
+used the same 900×900-point window, a 1,200-point/sec triangular native scroll
+between y=400 and y=2,800, three seconds of warmup and ten seconds of motion.
+One-second windows ending 5–12 seconds into each phase were analyzed. There
+were no concurrent builds, Instruments recording, or accessibility polling
+during these measured windows. Disabling culling used only the probe's internal
+host fallback; it did not change system accessibility settings or the example.
+
+| Culling | Updates/sec | Attached native text views in scroller | Inner scroll layouts/update | Median update work (ms) |
+| --- | ---: | ---: | ---: | ---: |
+| Disabled, first pass | 20.8 | 810 | 691.2 | 16.44 |
+| Enabled, first pass | 117.8 | 18 | 13.2 | 3.13 |
+| Enabled, second pass | 115.7 | 18 | 12.8 | 3.12 |
+| Disabled, second pass | 21.1 | 810 | 682.1 | 16.10 |
+
+These are main-thread app update callbacks, not presented-frame measurements.
+The work timing includes the injected scroll driver; it does not include all
+subsequent Core Animation work. Both paths retained identical models, original
+card animations, geometry/mask updates, and proximity handlers. The probe was
+removed before rebuilding the normal example. Raw windows are retained locally
+at `/private/tmp/pax-native-culling-profile.json`.
+
+Validation: 170 runtime unit tests, 19 runtime/proximity integration tests in
+debug and release (one manual measurement ignored), and 11 Swift tests in debug
+and release pass. The shared Swift package compiles for the iOS simulator. The
+culling tests cover large-scene query work, scroll jumps, cold-to-warm geometry
+changes, conservative fallback, real FlexBuffers decoding, detached content
+updates, retained identity, stacking, focus, selection, overflow, accessibility
+fallback, and deletion. Native visual checks include fast scroll jumps and
+re-entry. API references regenerate and the documentation book builds.
+
+### Post-culling profile and next candidates (2026-09-27)
+
+A temporary release probe measured the unchanged 270-card example in a
+900×900-point window. Each 60-second cycle contained 12 seconds idle, 18 seconds
+of native triangular scrolling from y=400 to 2,800 at 1,200 points/sec, 18 seconds
+at 4,800 points/sec, then 12 seconds idle. The first four seconds of each phase
+were excluded. Timings include the synthetic scroll driver; deferred AppKit/Core
+Animation work is outside the timed update. The probe also counted attached text
+views, full native rebuilds, layout calls, and time in each update stage.
+
+Concurrent builds and other applications materially affected cadence: the first
+cycle delivered only 65 updates/sec at normal speed and 55 at fast speed. Later
+complete cycles 8–10, after our stack sampling ended and before rebuilding,
+produced the following results. Other workstation activity was not controlled;
+these are repeat observations, not an isolated benchmark or presented FPS.
+
+| Phase | Updates/sec across three cycles | Median update work (ms) | Mean runtime tick (ms) | Mean native bridge (ms) | Mean render call (ms) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Idle | 120 | 0.23–0.27 | 0.08–0.10 | 0.01–0.02 | <0.01 |
+| 1,200 points/sec | 113.3–118.1 | 2.87–3.03 | 0.52–0.60 | 0.09 | 2.15–2.22 |
+| 4,800 points/sec | 107.0–108.6 | 2.94–3.01 | 0.78 | 0.12 | 2.05–2.10 |
+
+The median-work column is the median of each phase's one-second-window medians;
+stage means are weighted by update count. About 17–19 text views were attached,
+and full native rebuilds remained at the two startup rebuilds. Normal-speed gaps
+over 12.5ms occurred in 1.1–3.3% of updates; fast-speed gaps in 8.4–8.8%. This
+confirms that culling remains effective while leaving less headroom at fast
+scroll speeds. Idle updates perform no native layout in these windows.
+
+An eight-second `sample` capture at 12:48:07 local time covered normal-speed
+scrolling in cycle 7. Of 5,404 main-thread stack observations:
+
+- `pax_render` accounted for 1,190; lighting collection for 545 of those
+  (45.8% of the render observations, 10.1% of all main-thread observations).
+- Core Animation transaction commit accounted for 2,135 (39.5%). AppKit subtree
+  layout accounted for 1,276 (23.6%), mostly within those commits; NSTextView
+  layout accounted for 771 (14.3%). These inclusive categories overlap.
+- Runtime engine tick accounted for 361 (6.7%); native message handling for 63
+  (1.2%). `CAMetalLayer.nextDrawable` accounted for 144 (2.7%); only one of those
+  observations was in its semaphore wait, so this sample does not point to
+  drawable starvation as the primary problem.
+
+These are stack-occupancy samples, including waits, not GPU timings or a
+CPU-only Instruments trace. The attempted Time Profiler recording stalled while
+saving and was discarded. Raw timing windows and the independent stack sample
+are retained locally in `/private/tmp/pax-native-followup-all-windows.json` and
+`/private/tmp/pax-native-followup-active-sample.txt`.
+
+The first recommended follow-up is lighting collection. Source inspection shows
+that each dirty canvas layer scans the node cache twice and builds light-frame
+ancestry even when no lights are authored, as in this example. A proposed bounded
+change is light/ambient membership maintained through existing node lifecycle
+hooks, a no-light fast path, and invalidation of cached membership masks when
+light scope or scene structure changes. Correctness must include removing the
+last light, authored ambient-only scenes, animated light properties, ancestor
+lights across scroller layers, and reparenting. Visibility culling must not
+exclude an offscreen light that affects onscreen content. This is a proposal,
+not an implemented cache or a measured speedup.
+
+The second follow-up is a controlled text-layout experiment: hold the example's
+live diagnostic labels constant, then separately remove animation geometry, to
+distinguish content invalidation from scroll/transform-driven TextKit viewport
+maintenance. Use the result to narrow changes to the existing native text host;
+preserve selection, editing, accessibility, and visual behavior. Replacing the
+native text architecture is not justified by this profile alone. Presented-frame
+pacing and GPU timing still need a successful short capture on a quieter system
+before changing display-link or Metal presentation policy.
+
+No public behavior changed during this profiling pass. Temporary probes were
+confined to generated chassis files and removed by rebuilding the normal macOS
+example; the example source and canonical renderer were unchanged.
+
+### Lighting contributor registry and mask reuse (2026-09-27)
+
+The runtime now records lighting contributors through the existing node cache
+mount, unmount, and replacement hooks. `InstanceNode::has_scene_lighting()` is a
+stable capability, independent of a light's current enabled state. Both standard
+light primitives opt in. Custom primitives implementing either light resolver
+must add the same opt-in; the primitive-authoring article explains this change.
+There are no new manifest fields or serialized/baked program semantics: the
+capability is part of the Rust primitive implementation in debug and release.
+
+Rendering resolves values only for registered contributors. Per-layer selected
+light IDs and lexical owners key the retained direct-light masks; ordinary
+geometry changes, native scrolling, and animated intensity/color/position do not
+rescan recipients. Existing structural compositing invalidation discards those
+keys for reparenting, layer changes, and node replacement. A changed selection or
+structure can still require a recipient scan in a lit scene. Unlit scenes take
+an immediate empty-light path, and zero masks are implicit. Removing the last
+light clears prior retained masks and dirties affected drawing. Offscreen lights
+remain eligible; no spatial visibility test was introduced for contributors.
+
+The broader retained-rendering tests exposed an old incidental dependency:
+inserting initial zero lighting masks also scheduled a canvas node's first draw.
+Mount now explicitly marks canvas nodes dirty. Idle conditional branch handoffs
+therefore remain correct without either lights or an unrelated animated sibling.
+
+Validation: all 265 runtime/standard-library unit and integration tests passed in
+debug; all 205 runtime tests passed in release, with one manual benchmark ignored
+in each configuration. Six new lighting regressions cover a 1,024-node unlit
+scene with zero scan visits, mask reuse under geometry/value changes, scope
+changes, disabled/enabled and removed lights, ambient-only scenes, replacement,
+and ancestor lights across scrolling/layer moves. Existing scope and overflow
+tests remain passing. The designtime runtime configuration also compiles.
+
+The same temporary native probe ran unchanged 270-card animations at 900×900
+points, using the preceding profile's 60-second workload. Complete unprofiled
+cycles 0 and 2 were measured; cycle 1 contained an eight-second stack capture
+and was excluded. Whole one-second windows ending at least four seconds into
+each scrolling phase were retained, fourteen windows per phase per cycle.
+
+| Phase | First cycle updates/sec | Repeat updates/sec | Gaps over 12.5ms, first / repeat |
+| --- | ---: | ---: | ---: |
+| 1,200 points/sec | 119.5 | 119.6 | 0.48% / 0.24% |
+| 4,800 points/sec | 116.1 | 119.5 | 0.98% / 0.24% |
+
+Only 18–19 text views remained attached and the native host recorded no full
+rebuilds beyond its two startup rebuilds. Prior observations were 113–118 and
+107–109 updates/sec respectively. These are app callback rates, not presented
+FPS or an isolated A/B speedup: workstation load differed between sessions.
+Median callback work was about 3.6ms at normal speed and 2.1–2.5ms at fast speed;
+render-call wall time includes graphics acquisition and is not a CPU-work metric.
+
+The new eight-second stack sample contained zero lighting-collection observations
+among 4,768 main-thread observations, versus 545 among 5,404 previously. Rendering
+accounted for 688 observations, of which 349 were in `CAMetalLayer.nextDrawable`.
+Core Animation commit accounted for 2,151 and AppKit subtree layout for 1,292;
+these are overlapping inclusive stacks. The removed lighting work is no longer
+a sampled hotspot, while native layout and presentation remain the next areas
+to investigate. No changes to either were made in this step.
+
+Raw windows and the sample are retained locally at
+`/private/tmp/pax-lighting-profile.json` and
+`/private/tmp/pax-lighting-active-sample.txt`. Temporary probes are removed from
+the generated host before delivery. The canonical example source is unchanged.
+Clean macOS and web release builds passed and were exercised through scrolling
+and return to the beginning; the web check also reached the final cards. API
+references regenerated, the documentation book built, and `git diff --check`
+passed. The normal macOS release is left running.

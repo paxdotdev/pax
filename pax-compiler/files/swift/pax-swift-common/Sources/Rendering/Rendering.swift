@@ -244,23 +244,9 @@ private func combineFloat(_ value: Float, into hasher: inout Hasher) {
 }
 
 private func combineColor(_ color: Color, into hasher: inout Hasher) {
-#if os(iOS) || os(tvOS) || os(watchOS)
-    let platform = platformColor(color).cgColor
-#elseif os(macOS)
-    let platform = (platformColor(color).usingColorSpace(.deviceRGB) ?? platformColor(color)).cgColor
-#endif
-    if let converted = platform.converted(to: CGColorSpaceCreateDeviceRGB(), intent: .defaultIntent, options: nil),
-       let components = converted.components {
-        for component in components {
-            combineCGFloat(component, into: &hasher)
-        }
-    } else if let components = platform.components {
-        for component in components {
-            combineCGFloat(component, into: &hasher)
-        }
-    } else {
-        hasher.combine(String(describing: platform))
-    }
+    // This signature detects value changes; resolving a color through AppKit
+    // and ColorSync here repeats rendering work for every unchanged leaf.
+    hasher.combine(color)
 }
 
 private func combineLiquidGlass(_ glass: AppleLiquidGlassPatchMessage?, into hasher: inout Hasher) {
@@ -281,13 +267,13 @@ private func combineLiquidGlass(_ glass: AppleLiquidGlassPatchMessage?, into has
 }
 
 private func combineFont(_ font: PaxFont, into hasher: inout Hasher) {
-    hasher.combine(String(describing: font.type))
+    hasher.combine(font.type)
 }
 
 private func combineTextStyle(_ style: TextStyle, into hasher: inout Hasher) {
     combineFont(style.font, into: &hasher)
     combineColor(style.fill, into: &hasher)
-    hasher.combine(String(describing: style.alignmentMultiline))
+    hasher.combine(style.alignmentMultiline)
     hasher.combine(style.font_size.bitPattern)
     hasher.combine(style.underline)
 }
@@ -817,9 +803,53 @@ public enum PaxNativeHostState {
         ScrollerElements.singleton.reset()
         NativeScrollerHostRegistry.shared.reset()
         NativeLayerCountTracker.shared.reset()
+#if os(macOS)
+        NativeCullingState.shared.reset()
+#endif
         NativeSceneInvalidation.singleton.invalidate()
     }
 }
+
+#if os(macOS)
+// Residency is independent of models and lifecycle: a detached leaf continues
+// receiving patches and keeps its native instance for the next warm window.
+internal final class NativeCullingState {
+    static let shared = NativeCullingState()
+    private(set) var cold: Set<PaxNodeId> = []
+    private(set) var accessibilityActive = false
+    private var observations: [NSKeyValueObservation] = []
+
+    private init() {
+        accessibilityActive = NSWorkspace.shared.isVoiceOverEnabled || NSWorkspace.shared.isSwitchControlEnabled
+        observations = [
+            NSWorkspace.shared.observe(\.isVoiceOverEnabled) { [weak self] _, _ in self?.refreshAccessibility() },
+            NSWorkspace.shared.observe(\.isSwitchControlEnabled) { [weak self] _, _ in self?.refreshAccessibility() }
+        ]
+    }
+
+    private func refreshAccessibility() {
+        DispatchQueue.main.async { [weak self] in
+            self?.setAccessibilityActive(NSWorkspace.shared.isVoiceOverEnabled || NSWorkspace.shared.isSwitchControlEnabled)
+        }
+    }
+
+    func setAccessibilityActive(_ value: Bool) {
+        guard accessibilityActive != value else { return }
+        accessibilityActive = value
+        NativeSceneInvalidation.singleton.invalidate()
+    }
+
+    func apply(cull: [PaxNodeId], restore: [PaxNodeId]) {
+        cold.formUnion(cull)
+        cold.subtract(restore)
+    }
+
+    func reset() {
+        cold.removeAll()
+        accessibilityActive = NSWorkspace.shared.isVoiceOverEnabled || NSWorkspace.shared.isSwitchControlEnabled
+    }
+}
+#endif
 
 public struct NativeRenderingLayer: View {
     public init() {}
@@ -1087,13 +1117,6 @@ public struct NativeRenderingLayer: View {
         let children: [NativeRenderNode]
     }
 
-    private final class RenderTreeCache {
-        var generation: UInt64 = .max
-        var nodes: [NativeRenderNode] = []
-    }
-
-    private static let renderTreeCache = RenderTreeCache()
-
     private enum NativeRenderNode: Identifiable {
         case item(NativeRenderItem)
         case frame(FrameRenderNode)
@@ -1161,6 +1184,9 @@ public struct NativeRenderingLayer: View {
             let opacity: Double
         }
         private var appliedGeometry: AppliedGeometry?
+#if os(macOS)
+        private var appliedViewBackedTransform: ViewBackedTransform?
+#endif
         private var appliedClipSignature: Int?
         private var nativeMaskOpacityMultiplier: Double = 1.0
 
@@ -1381,27 +1407,89 @@ public struct NativeRenderingLayer: View {
 #endif
             CATransaction.begin()
             CATransaction.setDisableActions(true)
-            frame = CGRect(origin: rect.origin, size: rectSize)
-            bounds = boundsRect
             let layer = backingLayer
+            let layoutChanged = appliedGeometry?.size != size
+                || appliedGeometry?.localTransform != localTransform
+            if layoutChanged {
 #if os(macOS)
-            if let layerTransform = viewBackedTransform.layerTransform {
-                frameRotation = viewBackedTransform.frameRotationDegrees
-                layer.setAffineTransform(layerTransform)
-            } else {
-                // Clear stale layer transforms before using AppKit's transform-aware
-                // frame rotation path. Setting this after frameRotation can erase the
-                // visual rotation on layer-backed views.
-                layer.setAffineTransform(.identity)
-                frameRotation = viewBackedTransform.frameRotationDegrees
-            }
-#else
-            layer.setAffineTransform(linearTransform)
+                // Moving a retained control must not take AppKit's resize path.
+                if frame.origin != rect.origin {
+                    setFrameOrigin(rect.origin)
+#if DEBUG
+                    NativeSceneInvalidation.singleton.geometryWrites.origin += 1
 #endif
-            layer.zPosition = CGFloat(zIndex)
-            layer.opacity = Float(Self.clampedOpacity(opacity * nativeMaskOpacityMultiplier))
+                }
+                if frame.size != rectSize {
+                    setFrameSize(rectSize)
+#if DEBUG
+                    NativeSceneInvalidation.singleton.geometryWrites.size += 1
+#endif
+                }
+#else
+                let nextFrame = CGRect(origin: rect.origin, size: rectSize)
+                if frame != nextFrame { frame = nextFrame }
+#endif
+                // AppKit can resize bounds with the frame. Restore logical content
+                // coordinates after scaling; opacity/stacking updates never enter here.
+                let boundsChanged = appliedGeometry == nil || bounds != boundsRect
+                if boundsChanged {
+                    bounds = boundsRect
+#if DEBUG
+                    NativeSceneInvalidation.singleton.geometryWrites.bounds += 1
+#endif
+                }
+#if os(macOS)
+                if let layerTransform = viewBackedTransform.layerTransform {
+                    if frameRotation != viewBackedTransform.frameRotationDegrees {
+                        frameRotation = viewBackedTransform.frameRotationDegrees
+#if DEBUG
+                        NativeSceneInvalidation.singleton.geometryWrites.rotation += 1
+#endif
+                    }
+                    // AppKit geometry setters may replace its backing transform.
+                    if layer.affineTransform() != layerTransform {
+                        layer.setAffineTransform(layerTransform)
+#if DEBUG
+                        NativeSceneInvalidation.singleton.geometryWrites.transform += 1
+#endif
+                    }
+                } else {
+                    let leavingLayerTransform = appliedViewBackedTransform?.layerTransform != nil
+                    if leavingLayerTransform {
+                        // Clear a shear/reflection before re-establishing AppKit's
+                        // rotation. Clearing afterwards erases the visible rotation.
+                        layer.setAffineTransform(.identity)
+#if DEBUG
+                        NativeSceneInvalidation.singleton.geometryWrites.transform += 1
+#endif
+                    }
+                    if leavingLayerTransform || frameRotation != viewBackedTransform.frameRotationDegrees {
+                        frameRotation = viewBackedTransform.frameRotationDegrees
+#if DEBUG
+                        NativeSceneInvalidation.singleton.geometryWrites.rotation += 1
+#endif
+                    }
+                }
+                appliedViewBackedTransform = viewBackedTransform
+#else
+                if layer.affineTransform() != linearTransform { layer.setAffineTransform(linearTransform) }
+#endif
+            }
+            if layer.zPosition != CGFloat(zIndex) {
+                layer.zPosition = CGFloat(zIndex)
+#if DEBUG
+                NativeSceneInvalidation.singleton.geometryWrites.stacking += 1
+#endif
+            }
+            let effectiveOpacity = Float(Self.clampedOpacity(opacity * nativeMaskOpacityMultiplier))
+            if layer.opacity != effectiveOpacity {
+                layer.opacity = effectiveOpacity
+#if DEBUG
+                NativeSceneInvalidation.singleton.geometryWrites.opacity += 1
+#endif
+            }
             CATransaction.commit()
-            syncGlassContainerFrame()
+            if appliedGeometry?.size != size { syncGlassContainerFrame() }
             appliedGeometry = geometry
         }
 
@@ -1506,6 +1594,29 @@ public struct NativeRenderingLayer: View {
         private var contentView: PlatformBaseView?
         private var appliedContentSignature: Int?
         private var debugLeafId: PaxNodeId = 0
+#if os(macOS)
+        var siblingOrder = 0
+
+        var hasActiveNativeInteraction: Bool {
+            if let responder = window?.firstResponder as? NSView,
+               responder.isDescendant(of: self) { return true }
+            return (contentView as? PaxNativeTextLeafView)?.hasSelection ?? false
+        }
+
+        func canDetach(item: NativeRenderItem) -> Bool {
+            guard item.kind.liquidGlass == nil, !hasActiveNativeInteraction else { return false }
+            switch item.kind {
+            case .text(let element):
+                guard !element.editable, let text = contentView as? PaxNativeTextLeafView else { return false }
+                return text.canDetachFromScene(clip: element.clip)
+            case .nativeImage:
+                return true
+            default:
+                // Form controls keep their keyboard-navigation and native state.
+                return false
+            }
+        }
+#endif
 
 #if os(macOS)
         override func hitTest(_ point: NSPoint) -> NSView? {
@@ -1524,8 +1635,8 @@ public struct NativeRenderingLayer: View {
                 let rect = CGRect(origin: .zero, size: item.size)
                 if contentView.frame != rect {
                     contentView.frame = rect
-                    contentView.bounds = rect
                 }
+                if contentView.bounds != rect { contentView.bounds = rect }
             }
             let contentSignature = item.kind.contentSignature(size: item.size)
             if let contentView, appliedContentSignature != contentSignature {
@@ -1569,14 +1680,15 @@ public struct NativeRenderingLayer: View {
             }
             let shouldUseSnapshot = item.mask != nil
             if !shouldUseSnapshot {
+                guard snapshotLayer.superlayer != nil || appliedSnapshotSignature != nil else { return }
                 snapshotLayer.removeFromSuperlayer()
                 snapshotLayer.contents = nil
                 snapshotLayer.mask = nil
                 appliedSnapshotSignature = nil
                 snapshotSourceImage = nil
-                contentView.isHidden = false
-                contentView.alphaValue = 1.0
-                contentView.layer?.opacity = 1.0
+                if contentView.isHidden { contentView.isHidden = false }
+                if contentView.alphaValue != 1.0 { contentView.alphaValue = 1.0 }
+                if contentView.layer?.opacity != 1.0 { contentView.layer?.opacity = 1.0 }
                 return
             }
 
@@ -1592,9 +1704,9 @@ public struct NativeRenderingLayer: View {
             if appliedSnapshotSignature != snapshotSignature {
                 let previousAlpha = contentView.alphaValue
                 let previousHidden = contentView.isHidden
-                contentView.isHidden = false
-                contentView.alphaValue = 1.0
-                contentView.layer?.opacity = 1.0
+                if contentView.isHidden { contentView.isHidden = false }
+                if contentView.alphaValue != 1.0 { contentView.alphaValue = 1.0 }
+                if contentView.layer?.opacity != 1.0 { contentView.layer?.opacity = 1.0 }
                 contentView.layoutSubtreeIfNeeded()
                 let pixelWidth = max(Int(ceil(item.size.width * scale)), 1)
                 let pixelHeight = max(Int(ceil(item.size.height * scale)), 1)
@@ -1616,20 +1728,22 @@ public struct NativeRenderingLayer: View {
                     snapshotSourceImage = rep.cgImage
                     snapshotLayer.contents = rep.cgImage
                     appliedSnapshotSignature = snapshotSignature
+                    // New pixels need the existing mask reapplied even when its geometry is unchanged.
+                    appliedMaskSignature = nil
                 }
-                contentView.isHidden = previousHidden
-                contentView.alphaValue = previousAlpha
+                if contentView.isHidden != previousHidden { contentView.isHidden = previousHidden }
+                if contentView.alphaValue != previousAlpha { contentView.alphaValue = previousAlpha }
             }
 
             CATransaction.begin()
             CATransaction.setDisableActions(true)
-            snapshotLayer.frame = rect
-            snapshotLayer.contentsScale = scale
-            snapshotLayer.isHidden = false
+            if snapshotLayer.frame != rect { snapshotLayer.frame = rect }
+            if snapshotLayer.contentsScale != scale { snapshotLayer.contentsScale = scale }
+            if snapshotLayer.isHidden { snapshotLayer.isHidden = false }
             CATransaction.commit()
-            contentView.isHidden = false
-            contentView.alphaValue = 0.0
-            contentView.layer?.opacity = 0.0
+            if contentView.isHidden { contentView.isHidden = false }
+            if contentView.alphaValue != 0.0 { contentView.alphaValue = 0.0 }
+            if contentView.layer?.opacity != 0.0 { contentView.layer?.opacity = 0.0 }
         }
 #endif
 
@@ -1688,6 +1802,8 @@ public struct NativeRenderingLayer: View {
         private func updateMask(_ mask: ResolvedNativeMask?) {
             let layer = backingLayer
             guard let mask else {
+                guard appliedMaskSignature != nil || currentMaskLayer != nil
+                    || layer.mask != nil else { return }
                 NativeMaskDebug.log("clear id=\(debugLeafId) key=\(contentKey ?? "?")")
                 appliedMaskSignature = nil
                 appliedMaskSize = .zero
@@ -2861,7 +2977,30 @@ public struct NativeRenderingLayer: View {
         private var frameViews: [PaxNodeId: PlatformContainerView] = [:]
         private var leafViews: [PaxNodeId: PlatformMaskedLeafView] = [:]
         private var scrollerViews: [PaxNodeId: PlatformScrollerView] = [:]
-        private var currentNodes: [NativeRenderNode] = []
+        private var generation: UInt64?
+        private var leafPlacements: [PaxNodeId: (parent: PaxNodeId?, z: Int)] = [:]
+#if os(macOS)
+        private var leafParents: [PaxNodeId: NSView] = [:]
+        private var pinnedColdLeaves: Set<PaxNodeId> = []
+
+        private func updateResidency(_ view: PlatformMaskedLeafView, item: NativeRenderItem) {
+            let cold = NativeCullingState.shared.cold.contains(item.id)
+                && !NativeCullingState.shared.accessibilityActive
+            if cold && view.canDetach(item: item) {
+                view.removeFromSuperview()
+                pinnedColdLeaves.remove(item.id)
+            } else {
+                if cold && view.hasActiveNativeInteraction { pinnedColdLeaves.insert(item.id) }
+                else { pinnedColdLeaves.remove(item.id) }
+                guard let parent = leafParents[item.id], view.superview !== parent else { return }
+                // Only leaf-only islands are culled. Preserve subview order as
+                // well as layer zPosition when a retained leaf is reattached.
+                let next = parent.subviews.compactMap { $0 as? PlatformMaskedLeafView }
+                    .first { $0.siblingOrder > view.siblingOrder }
+                parent.addSubview(view, positioned: next == nil ? .above : .below, relativeTo: next)
+            }
+        }
+#endif
 
 #if os(iOS) || os(tvOS) || os(watchOS)
         private var sceneObserver: NSObjectProtocol?
@@ -2889,7 +3028,7 @@ public struct NativeRenderingLayer: View {
             let generation = NativeSceneInvalidation.singleton.generation
             guard appliedGeneration != generation else { return }
             appliedGeneration = generation
-            update(nodes: NativeRenderingLayer().renderTree(for: generation))
+            update(scene: NativeRenderingLayer(), generation: generation)
         }
 
         required init?(coder: NSCoder) {
@@ -2921,33 +3060,74 @@ public struct NativeRenderingLayer: View {
         }
 #endif
 
-        func update(nodes: [NativeRenderNode]) {
-            currentNodes = nodes
+        func update(scene: NativeRenderingLayer, generation: UInt64) {
+            guard self.generation != generation else { return }
 #if os(iOS) || os(tvOS) || os(watchOS)
             syncToSuperviewBoundsIfNeeded()
 #endif
-            refreshScene()
-        }
-
-        private func refreshScene() {
-            performWithoutNativeLayerActions {
-                var activeFrames = Set<PaxNodeId>()
-                var activeLeaves = Set<PaxNodeId>()
-                var activeScrollers = Set<PaxNodeId>()
-                sync(
-                    nodes: currentNodes,
-                    parentView: self,
-                    activeFrames: &activeFrames,
-                    activeLeaves: &activeLeaves,
-                    activeScrollers: &activeScrollers,
-                    positiveClipPaths: []
-                )
-                pruneInactiveNodes(
-                    activeFrames: activeFrames,
-                    activeLeaves: activeLeaves,
-                    activeScrollers: activeScrollers
-                )
+            let changes = scene.nativeSceneInvalidation.changes(since: self.generation)
+            var items: [NativeRenderItem] = []
+            var rebuild = changes.rebuild
+            if !rebuild {
+                var changedIds = changes.ids
+#if os(macOS)
+                // Focus/selection can change without a runtime model patch.
+                // Reconsider just the pinned cold set on the next scene update.
+                changedIds.formUnion(pinnedColdLeaves)
+#endif
+                for id in changedIds {
+                    // Container changes can affect inherited clips and local transforms.
+                    // Reconcile their hierarchy until those dependencies have a branch journal.
+                    guard let item = scene.item(for: id),
+                          let placement = leafPlacements[id],
+                          placement.parent == item.parentFrame,
+                          placement.z == item.zIndex,
+                          item.kind.liquidGlass == nil,
+                          leafViews[id] != nil else {
+                        rebuild = true
+                        break
+                    }
+                    items.append(item)
+                }
             }
+            performWithoutNativeLayerActions {
+                if rebuild {
+                    scene.nativeSceneInvalidation.fullReconciliations &+= 1
+                    var activeFrames = Set<PaxNodeId>()
+                    var activeLeaves = Set<PaxNodeId>()
+                    var activeScrollers = Set<PaxNodeId>()
+                    leafPlacements.removeAll(keepingCapacity: true)
+#if os(macOS)
+                    leafParents.removeAll(keepingCapacity: true)
+                    pinnedColdLeaves.removeAll(keepingCapacity: true)
+#endif
+                    sync(
+                        nodes: scene.buildRenderTree(),
+                        parentView: self,
+                        activeFrames: &activeFrames,
+                        activeLeaves: &activeLeaves,
+                        activeScrollers: &activeScrollers,
+                        positiveClipPaths: []
+                    )
+                    pruneInactiveNodes(
+                        activeFrames: activeFrames,
+                        activeLeaves: activeLeaves,
+                        activeScrollers: activeScrollers
+                    )
+                } else {
+                    for item in items {
+                        guard let view = leafViews[item.id] else { continue }
+                        view.applyGeometry(size: item.size, localTransform: item.localTransform,
+                                           zIndex: item.zIndex, opacity: item.opacity)
+                        view.update(item: item)
+#if os(macOS)
+                        updateResidency(view, item: item)
+#endif
+                        scene.nativeSceneInvalidation.leafUpdates &+= 1
+                    }
+                }
+            }
+            self.generation = generation
         }
 
         private func containsScroller(_ nodes: [NativeRenderNode]) -> Bool {
@@ -2986,7 +3166,7 @@ public struct NativeRenderingLayer: View {
             parentView.applyGlassContainerSpacing(glassContainerSpacing(for: nodes))
             let parentContentView = parentView.childHostView
             var orderedChildViews: [PlatformBaseView] = []
-            for node in nodes {
+            for (siblingOrder, node) in nodes.enumerated() {
                 switch node {
                 case .frame(let frame):
                     let inheritedFrameClips = transformedClipPaths(
@@ -3066,6 +3246,7 @@ public struct NativeRenderingLayer: View {
                     )
                 case .item(let item):
                     activeLeaves.insert(item.id)
+                    leafPlacements[item.id] = (item.parentFrame, item.zIndex)
                     let leafView = leafViews[item.id] ?? {
                         let view = PlatformMaskedLeafView(frame: .zero)
                         leafViews[item.id] = view
@@ -3080,6 +3261,12 @@ public struct NativeRenderingLayer: View {
                         opacity: item.opacity
                     )
                     leafView.update(item: item)
+#if os(macOS)
+                    leafParents[item.id] = parentContentView
+                    leafView.siblingOrder = siblingOrder
+                    updateResidency(leafView, item: item)
+                    if leafView.superview == nil { orderedChildViews.removeLast() }
+#endif
                 }
             }
             NativeRenderingLayer.orderPlatformSubviews(orderedChildViews, in: parentContentView)
@@ -3119,14 +3306,23 @@ public struct NativeRenderingLayer: View {
     }
 #elseif os(macOS)
     private struct PlatformNativeSceneView: NSViewRepresentable {
-        let nodes: [NativeRenderNode]
+        let scene: NativeRenderingLayer
+        let generation: UInt64
 
         func makeNSView(context: Context) -> NativeSceneHostView {
             NativeSceneHostView(frame: .zero)
         }
 
         func updateNSView(_ view: NativeSceneHostView, context: Context) {
-            view.update(nodes: nodes)
+            view.update(scene: scene, generation: generation)
+        }
+
+        @available(macOS 13.0, *)
+        func sizeThatFits(_ proposal: ProposedViewSize, nsView: NativeSceneHostView, context: Context) -> CGSize? {
+            // Pax already lays out this scene in the viewport. Asking AppKit for
+            // its intrinsic size walks every native descendant, including cold
+            // scroll content, on each SwiftUI update.
+            proposal.replacingUnspecifiedDimensions(by: .zero)
         }
     }
 #endif
@@ -3408,13 +3604,20 @@ public struct NativeRenderingLayer: View {
         return buildChildren(parent: nil)
     }
 
-    private func renderTree(for generation: UInt64) -> [NativeRenderNode] {
-        let cache = Self.renderTreeCache
-        if cache.generation != generation {
-            cache.nodes = buildRenderTree()
-            cache.generation = generation
-        }
-        return cache.nodes
+    private func item(for id: PaxNodeId) -> NativeRenderItem? {
+        if let element = textElements.elements[id] { return textItem(for: element) }
+        if let element = glassSurfaceElements.elements[id] { return glassSurfaceItem(for: element) }
+        if let element = buttonElements.elements[id] { return buttonItem(for: element) }
+        if let element = photoPickerElements.elements[id] { return photoPickerItem(for: element) }
+        if let element = checkboxElements.elements[id] { return checkboxItem(for: element) }
+        if let element = sliderElements.elements[id] { return sliderItem(for: element) }
+        if let element = dropdownElements.elements[id] { return dropdownItem(for: element) }
+        if let element = radioListElements.elements[id] { return radioListItem(for: element) }
+        if let element = textboxElements.elements[id] { return textboxItem(for: element) }
+        if let element = nativeImageElements.elements[id] { return nativeImageItem(for: element) }
+        if let element = youtubeVideoElements.elements[id] { return youtubeVideoItem(for: element) }
+        if let element = eventBlockerElements.elements[id] { return eventBlockerItem(for: element) }
+        return nil
     }
 
     private func textItem(for element: TextElement) -> NativeRenderItem {
@@ -3494,7 +3697,7 @@ public struct NativeRenderingLayer: View {
 #if os(iOS) || os(tvOS) || os(watchOS)
             PlatformNativeSceneView()
 #else
-            PlatformNativeSceneView(nodes: renderTree(for: nativeSceneInvalidation.generation))
+            PlatformNativeSceneView(scene: self, generation: nativeSceneInvalidation.generation)
 #endif
         }
             .allowsHitTesting(hasInteractiveNativeContent())
@@ -3541,14 +3744,43 @@ private final class FontRegistrationObserver {
     }
 }
 
+#if DEBUG
+// Counts setter calls, not changed models: an opacity patch must never resize a control.
+internal struct NativeGeometryWrites: Equatable {
+    var origin = 0
+    var size = 0
+    var bounds = 0
+    var rotation = 0
+    var transform = 0
+    var opacity = 0
+    var stacking = 0
+}
+#endif
+
 public class NativeSceneInvalidation: ObservableObject {
     public static let singleton = NativeSceneInvalidation()
     @Published public var generation: UInt64 = 0
     static let didInvalidate = Notification.Name("PaxNativeSceneDidInvalidate")
+    private var journal = NativeSceneChangeJournal()
+    // Work counters keep tests sensitive to accidental whole-tree reconciliation.
+    internal var fullReconciliations: UInt64 = 0
+    internal var leafUpdates: UInt64 = 0
+#if DEBUG
+    internal var geometryWrites = NativeGeometryWrites()
+#endif
 
     public func invalidate() {
-        generation &+= 1
+        invalidate(ids: [], rebuild: true)
+    }
+
+    public func invalidate(ids: Set<PaxNodeId>, rebuild: Bool) {
+        journal.append(ids: ids, rebuild: rebuild)
+        generation = journal.generation
         NotificationCenter.default.post(name: Self.didInvalidate, object: self)
+    }
+
+    func changes(since generation: UInt64?) -> NativeSceneChangeJournal.Changes {
+        journal.changes(since: generation)
     }
 }
 
@@ -4975,6 +5207,15 @@ private func configuredLiquidGlassView(
 }
 
 private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
+    var hasSelection: Bool {
+        usingTextView && textView.selectedRanges.contains(where: { $0.rangeValue.length > 0 })
+    }
+
+    func canDetachFromScene(clip: Bool) -> Bool {
+        // The shared index contains layout bounds. Unclipped glyph overflow is
+        // measured here already; conservatively keep it attached when it escapes.
+        return clip || bounds.contains(usingTextView ? scrollView.frame : staticTextLayer.frame)
+    }
     override var isFlipped: Bool { true }
     override var isOpaque: Bool { false }
     override var preservesContentDuringLiveResize: Bool { false }

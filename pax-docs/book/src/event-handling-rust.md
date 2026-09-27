@@ -102,6 +102,9 @@ starting points:
 | `@textbox_input`, `@textbox_change` | `Event<TextboxInput>`, `Event<TextboxChange>` | `event.text` |
 | `@checkbox_change` | `Event<CheckboxChange>` | `event.checked` |
 | `@slider_change` | `Event<SliderChange>` | `event.value` |
+| `@viewport_proximity_enter` | `Event<ViewportProximityEnter>` | Initial nearby `current` sample |
+| `@viewport_proximity_change` | `Event<ViewportProximityChange>` | `previous` and `current` geometry |
+| `@viewport_proximity_exit` | `Event<ViewportProximityExit>` | Last inside and terminal outside samples |
 
 `Event<T>` exposes its payload fields directly, so `event.text` is a
 convenient way to read `event.args.text`. The
@@ -279,6 +282,20 @@ cleared when their node unmounts. Other resources owned by your application
 still need the cleanup appropriate to that integration. See
 [Subscriptions and effects](state-properties.md#subscriptions-and-effects)
 for callback scheduling and lifetime details.
+
+### Viewport proximity is opt-in
+
+Use explicit element bindings for `@viewport_proximity_enter`,
+`@viewport_proximity_change`, and `@viewport_proximity_exit`. These use the
+three-argument `Event<T>` handler form; naming a method `on_viewport_proximity_enter`
+does not automatically subscribe it. The observed element can be a Group, but
+the reference remains the global viewport.
+
+Events are local, do not bubble, and have no cancellable default. Initially
+nearby content receives enter followed by change. Unmount does not synthesize
+exit, so resource-owning components also need their normal unmount cleanup.
+[Observe viewport proximity](scrolling-viewports.md#observe-viewport-proximity)
+explains snapshots, clipping, fixed margins, and a complete animation policy.
 
 ## Dispatch custom events
 

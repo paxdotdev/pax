@@ -632,3 +632,27 @@ fn test_cutoff_work_obeys_drain_budget() {
     assert_eq!(effect_runs.get(), 1);
     assert!(!report.budget_exhausted);
 }
+
+#[test]
+fn disconnect_temporary_and_duplicate_dependencies_preserves_other_edge_order() {
+    let source = Property::new(1);
+    let dependencies = [source.untyped(), source.untyped()];
+    let first = Property::computed(|| 1, &dependencies);
+    let middle = Property::computed(|| 2, &dependencies);
+    let last = Property::computed(|| 3, &dependencies);
+    let outbound = || {
+        properties_table::PROPERTY_TABLE.with(|table| {
+            table.with_property_data(source.untyped().get_id(), |data| data.outbound.clone())
+        })
+    };
+    let original = outbound();
+    assert_eq!(original.len(), 6);
+    drop(last);
+    assert_eq!(outbound(), original[..4]);
+    drop(first);
+    assert_eq!(outbound(), original[2..4]);
+    source.set(4);
+    assert_eq!(middle.get(), 2);
+    drop(middle);
+    assert!(outbound().is_empty());
+}

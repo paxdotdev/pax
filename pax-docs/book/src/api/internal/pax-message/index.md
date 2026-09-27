@@ -826,6 +826,20 @@ Type: `Vec`<[`ModifierKeyMessage`](../../../api/internal/pax-message/index.md#mo
 
 ---
 
+### `NativeCullPatch`
+Advisory native-view residency changes from the shared geometry index.
+The macOS host retains models and view instances, and may keep a cold view
+attached to preserve editing, selection, overflow, or accessibility.
+
+#### Properties
+##### `cull`
+Type: `Vec`<`u32`>
+
+##### `restore`
+Type: `Vec`<`u32`>
+
+---
+
 ### `NativeImagePatch`
 Create/update patch for a native image element.
 
@@ -1833,6 +1847,7 @@ Messages emitted by the runtime to create, update, delete, or configure native/c
 ##### `ImageLoad`([`ImagePatch`](../../../api/internal/pax-message/index.md#imagepatch))
 ##### `ShrinkLayersTo`(`u32`)
 ##### `NativeMaskUpdate`([`NativeMaskPatch`](../../../api/internal/pax-message/index.md#nativemaskpatch))
+##### `NativeCullUpdate`([`NativeCullPatch`](../../../api/internal/pax-message/index.md#nativecullpatch))
 ##### `Navigate`([`NavigationPatch`](../../../api/internal/pax-message/index.md#navigationpatch))
 ##### `SetCursor`([`SetCursorPatch`](../../../api/internal/pax-message/index.md#setcursorpatch))
 ##### `Screenshot`([`ScreenshotPatch`](../../../api/internal/pax-message/index.md#screenshotpatch))

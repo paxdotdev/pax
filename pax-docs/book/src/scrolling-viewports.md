@@ -341,6 +341,175 @@ example binds a vertical Carousel to a playhead for its articulated scenes.
 ownership, easing, and playback; [Drawing](drawing-styling.md#paths-and-svg)
 owns Path and Handwriter reveals.
 
+## Observe viewport proximity
+
+Bind `@viewport_proximity_enter`, `@viewport_proximity_change`, and
+`@viewport_proximity_exit` to prepare nearby content, animate a first visible
+sample, or release work after departure. Bind any subset; enter works on its
+own. The element carrying the binding is the observed target, including when
+it is a Group. The reference is always the **global viewport**, with ancestor
+clipping and native scroll presentation applied.
+
+```pax
+<Group width=100% height=200px
+    @viewport_proximity_enter=self.prepare
+    @viewport_proximity_change=self.measure
+    @viewport_proximity_exit=self.release>
+    <Group id=card x=50% y=80px anchor_x=50% anchor_y=50% width=100% height=160px>
+        <Rectangle width=100% height=100% fill=rgb(49, 96, 201)/>
+    </Group>
+</Group>
+
+@timeline reveal {
+    duration: 100,
+    playhead: {self.playhead},
+    loop: false,
+    #card {
+        opacity: { 0%: 0, Linear, 35%: 1, 100%: 1, },
+        y: { 0%: 98px, OutQuad, 100%: 80px, },
+    },
+}
+```
+
+Declare `playhead: Property<f64>` and `departing: Property<bool>` on the
+owning component. These handlers reveal the contents at the first sampled
+positive overlap, and reverse the timeline when at most 40 logical pixels
+remain visible and the visible height is decreasing:
+
+```rust
+pub fn prepare(&mut self, _ctx: &NodeContext, _event: Event<ViewportProximityEnter>) {
+    // Acquire application resources here; this also runs for initially nearby content.
+}
+
+pub fn measure(&mut self, _ctx: &NodeContext, event: Event<ViewportProximityChange>) {
+    let visible = event.current.viewport_intersection.map_or(0.0, |r| r.height());
+    let previous = event.previous.and_then(|p| p.viewport_intersection)
+        .map_or(0.0, |r| r.height());
+    if visible > 0.0 && (previous == 0.0 || (self.departing.get() && visible > previous)) {
+        self.departing.set(false);
+        self.playhead.cancel_transitions();
+        self.playhead.ease_to(100.0, Duration::Milliseconds(420.into()), EasingCurve::Linear);
+    } else if visible <= 40.0 && visible < previous && !self.departing.get() {
+        self.departing.set(true);
+        self.playhead.cancel_transitions();
+        self.playhead.ease_to(0.0, Duration::Milliseconds(180.into()), EasingCurve::Linear);
+    }
+}
+
+pub fn release(&mut self, _ctx: &NodeContext, _event: Event<ViewportProximityExit>) {
+    self.departing.set(false);
+    self.playhead.cancel_transitions();
+    self.playhead.set(0.0);
+    // Release this target's resource lease here, and separately on unmount.
+}
+```
+
+This policy compares two samples; it does not infer a physical scroll velocity.
+Layout, resizing, and transforms can also change the visible height. Observe a
+stable wrapper and animate its children so the animation does not change its
+own measurement. The runnable `examples/src/viewport-proximity` example adds
+270 cards with visit/sample counters, a small uniform scale from 92% to 100%,
+and restoration when scrolling reverses. The explicit 50% anchors keep scaling
+centered inside the stable 200px observation wrapper. At rest, `y=80px` locates
+the center of the 160px card.
+The example also loads field notes asynchronously when a page approaches the
+viewport. Six adjacent cards share one request and a retained cache entry.
+Web fetches the bundled `field-notes.txt` over HTTP; native targets decode the
+same bundled fixture on a worker thread. Both introduce 350ms of latency so
+scrolling away before completion is reproducible, without an external service.
+
+`notes.rs` owns the application cache and revocable request leases. Exit and
+unmount release a consumer; the shared request may finish and populate the cache.
+A completion writes to a card only if its lease, nearby state, and data identity
+still match. One root `on_tick` drains the completion channel on the Pax thread;
+card geometry is never polled. Worker threads send plain data, not `Property`
+values. The example uses fixed data IDs and a bounded session cache (45 pages),
+including error results; restarting the example retries failures. In an app with
+changing data IDs, release and reacquire on those changes too, and choose a cache
+expiry/retry policy appropriate to the data.
+
+Scroll inside the example to reveal cards, then reverse direction to restore
+departing cards. The counters show proximity visits, delivered geometry samples,
+and the current visible height.
+
+<pax-example
+  path="viewport-proximity"
+  title="Close Enough — Viewport Proximity"
+  height="720"
+  files="src/lib.pax,src/card.pax,src/lib.rs,src/notes.rs,public/field-notes.txt">
+</pax-example>
+
+### Samples and delivery
+
+Each `current` is a `ViewportProximitySnapshot`: `bounds` is the transformed
+layout bounding rectangle, `viewport_intersection` is the positive-area
+intersection after clipping (or `None`), and `in_proximity` reports proximity
+membership. Coordinates are logical pixels relative to the global visual
+viewport's origin. `is_in_viewport()` and `intersection_ratio()` provide
+convenient derived values. The ratio uses bounding rectangle area, not opaque
+pixel coverage.
+
+| Situation | Delivery, for the handlers that are bound |
+| --- | --- |
+| Initially nearby, or reentering proximity | Enter with `current`, then change with `previous: None` |
+| Changed bounds or intersection while nearby | Change with `previous` and `current` |
+| Unchanged sample | No event |
+| Leaves proximity | Final change, then exit; both share the last inside and terminal outside samples |
+| Remains outside, including a jump across the entire region | No event |
+| Unmounts | Observation stops; use unmount for cleanup, with no synthetic exit |
+
+Sampling happens once per engine tick after layout settles. Enter and change
+share the same frozen initial sample. Handlers can update properties; those
+updates settle for rendering and are observed on the next tick. Events are
+local and do not bubble or have a cancellable default action. Suspension
+clears the visit history; resuming nearby produces a fresh enter/change pair.
+Only the previous and current samples are retained. Keep longer histories in
+application state if needed, and do not infer movement across a cold gap.
+
+These are sampled observations. Fast scrolling can skip a first-pixel position
+or the 40px band, and native scrolling may present pixels before its notification
+reaches Pax. Author initial animation state in the template; this API does not
+guarantee a callback before the first physical pixel appears.
+
+### Region and cost
+
+The MVP uses fixed margins: one **global viewport width on each horizontal
+side**, and one **global viewport height on each vertical side**. Scroll clips
+receive the same expansion for proximity; ordinary Frame and hard-mask clips
+remain strict. Viewport intersection always uses the unexpanded clips.
+`unclippable` retains its escape behavior. There is no margin or alternate
+observation-root setting yet. Renderer warm-tile sizes do not affect this
+public region, so backend tile policies cannot change the margin.
+
+Contact alone and zero-area layout are outside. Rounded, rotated, and path clips
+use bounding envelopes; opacity, alpha coverage, sibling occlusion, and other
+windows are ignored. Use the API for geometry and preparation, not impression
+or pixel-visibility measurement.
+
+Observation is demand-driven: bindings register targets and share ancestor
+and prepared geometry records. Native scrolling queries nearby content in
+scroll-owner coordinates instead of rewriting every descendant's bounds.
+Nested cold scroll domains are pruned, with conservative fallback for escaping
+branches. Initial registration and whole-list relayout still scale with the
+registered collection, and each registration uses memory. Many overlapping or
+unclippable targets can increase query work. This does not virtualize the scene
+or defer mount/tick handlers. With no proximity bindings, no observation
+records or detailed samples are installed.
+
+Efficient observation does not make the rest of a large scene free. Updating
+labels or animating cards also exercises text layout, native view updates,
+compositing, and drawing. See [updating native content](compositing-effects.md#updating-native-content)
+for the incremental compositing path and its current boundaries. Profile the complete app on its intended target;
+query timings alone do not establish a frame-rate guarantee. Sample collection
+precedes final compositing, so handler changes can settle into the same rendered
+frame without an extra full compositing pass.
+
+Run the example from the repository root:
+
+```sh
+pax-cli run --path examples/src/viewport-proximity --target web
+```
+
 ## Nested viewports and native content
 
 A horizontal shelf can live inside a vertical document. Give each Scroller a

@@ -101,6 +101,10 @@ pub struct LightSourceInstance {
 }
 
 impl InstanceNode for LightSourceInstance {
+    fn has_scene_lighting(&self) -> bool {
+        true
+    }
+
     fn instantiate(args: InstantiationArgs) -> Rc<Self>
     where
         Self: Sized,
@@ -230,6 +234,10 @@ pub struct AmbientLightInstance {
 }
 
 impl InstanceNode for AmbientLightInstance {
+    fn has_scene_lighting(&self) -> bool {
+        true
+    }
+
     fn instantiate(args: InstantiationArgs) -> Rc<Self>
     where
         Self: Sized,

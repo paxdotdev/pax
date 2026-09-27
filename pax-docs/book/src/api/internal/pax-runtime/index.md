@@ -17,3 +17,4 @@
 - [scene_geometry](scene_geometry.md)
 - [settings_motion](settings_motion.md)
 - [slot](slot.md)
+- [viewport_proximity](viewport_proximity.md)

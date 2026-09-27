@@ -571,13 +571,22 @@ impl PaxEngine {
         // Settle those effects before final layout and the retained render plan;
         // otherwise a replay can clear the old subtree but omit its replacement.
         ctx.drain_node_effects();
+        ctx.prepare_scene_geometry();
+        ctx.dispatch_viewport_proximity();
+        // Handler mutations settle for drawing, but observation samples at most once
+        // per tick. Their invalidations remain pending for the next display tick.
+        // Observation uses layout/scroll geometry, not compositing assignments.
+        // Finalize occlusion only after handlers settle, so animation plus a
+        // proximity callback does not traverse the whole scene twice in one tick.
+        ctx.drain_node_effects();
         if ctx.take_occlusion_dirty() {
-            if let Some(root_expanded_node) = &self.root_expanded_node {
-                occlusion::update_node_occlusion(root_expanded_node, ctx);
+            if let Some(root) = &self.root_expanded_node {
+                occlusion::update_node_occlusion(root, ctx);
             }
             ctx.drain_node_effects();
         }
         ctx.prepare_scene_geometry();
+        occlusion::update_native_culling(ctx, self.scroller_tiling_policy);
         let native_messages = ctx.take_native_messages();
         native_messages
     }
@@ -811,6 +820,7 @@ impl PaxEngine {
                 .viewport
                 .update(|t_and_b| t_and_b.bounds = new_viewport_size);
         });
+        self.runtime_context.invalidate_viewport_presentation();
         self.runtime_context.mark_layer_canvas_plans_dirty();
         self.runtime_context.mark_occlusion_dirty();
     }

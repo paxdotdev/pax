@@ -760,6 +760,68 @@ mod tests {
     }
 
     #[test]
+    fn proximity_bindings_survive_rich_and_release_program_paths() -> BinaryResult<()> {
+        let mut manifest = build_manifest();
+        let events = [
+            ("viewport_proximity_enter", "ViewportProximityEnter"),
+            ("viewport_proximity_change", "ViewportProximityChange"),
+            ("viewport_proximity_exit", "ViewportProximityExit"),
+        ];
+        let component = manifest
+            .components
+            .get_mut(&manifest.main_component_type_id)
+            .unwrap();
+        let template = component.template.as_mut().unwrap();
+        let id = template
+            .get_root()
+            .into_iter()
+            .find(|id| template.get_node(id).unwrap().raw_comment_string.is_none())
+            .unwrap();
+        let mut node = template.get_node(&id).unwrap().clone();
+        for (event, _) in events {
+            component
+                .settings
+                .as_mut()
+                .unwrap()
+                .push(SettingsBlockElement::Handler(
+                    Token::new(event.into(), test_location()),
+                    vec![Token::new(format!("handle_{event}"), test_location())],
+                ));
+            node.settings
+                .as_mut()
+                .unwrap()
+                .push(crate::SettingElement::Setting(
+                    Token::new(event.into(), test_location()),
+                    ValueDefinition::EventBindingTarget(PaxIdentifier::new(&format!(
+                        "self.handle_{event}"
+                    ))),
+                ));
+        }
+        template.set_node(id, node);
+        let rich = crate::binary::from_slice(&crate::binary::to_vec(&manifest)?)?;
+        let ir = ProgramIR::from_manifest(&rich);
+        let decoded = super::binary::from_slice(&super::binary::to_vec(&ir)?)?;
+        #[cfg(feature = "compiler")]
+        let generated_rust = crate::rust_manifest::to_rust_expression(&rich);
+        let component = &decoded.components[&decoded.main_component_type_id];
+        let template = component.template.as_ref().unwrap();
+        let node = template.get_node(&template.get_root()[0]).unwrap();
+        for (event, payload) in events {
+            assert_eq!(rich.event_to_args_map()[event].as_deref(), Some(payload));
+            assert!(component.settings.as_ref().unwrap().iter().any(|setting| matches!(setting,
+                SettingsBlockElement::Handler(key, handlers) if key.token_value == event && handlers[0].token_value == format!("handle_{event}"))));
+            assert!(node.settings.as_ref().unwrap().iter().any(|setting| matches!(setting,
+                crate::SettingElement::Setting(key, ValueDefinition::EventBindingTarget(_)) if key.token_value == event)));
+            #[cfg(feature = "compiler")]
+            {
+                assert!(generated_rust.contains(event));
+                assert!(generated_rust.contains(&format!("handle_{event}")));
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
     fn program_ir_binary_round_trips() -> BinaryResult<()> {
         let manifest = build_manifest();
         let ir = ProgramIR::from_manifest(&manifest);

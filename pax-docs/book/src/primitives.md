@@ -162,6 +162,12 @@ The main implementation responsibilities depend on the capability:
   hit testing consistent with what the node draws. These hooks affect masks,
   native/canvas ordering, and pointer selection. The default hit test uses
   layout bounds; unusual shapes may need `ray_cast_test`.
+- **Lighting resources:** return `true` from `has_scene_lighting()` when the
+  primitive implements `resolve_scene_light` or `resolve_scene_ambient_light`.
+  This capability stays true even when the resource's `enabled` property is
+  false. Existing custom lighting primitives must add this opt-in; resolvers
+  alone no longer register a contributor. Follow `LightSourceInstance`'s
+  reactive invalidation so changed light values redraw affected canvases.
 - **Children and cleanup:** a container must manage child expansion and scope;
   overriding mount behavior also means preserving the needed child setup.
   Release subscriptions, resources, and native surfaces on unmount. Respect

@@ -1,0 +1,25 @@
+[package]
+name = "viewport-proximity"
+version = "0.39.0"
+edition = "2021"
+
+[package.metadata.pax]
+title = "Close Enough — Viewport Proximity"
+
+[dependencies]
+pax-kit = { version = "0.39.0", path = "../../../pax-kit" }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package.viewport-proximity]
+opt-level = 0
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = ["Window", "Response"] }

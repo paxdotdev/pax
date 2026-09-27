@@ -4,6 +4,69 @@ use super::*;
 
 // Unified events
 
+/// One settled viewport-proximity sample in logical window coordinates.
+///
+/// Bounds are transformed layout AABBs, not padded paint coverage. Rectangular
+/// clips are intersected; curved/rotated clips use their bounding envelopes.
+/// Opacity, alpha coverage, sibling occlusion and external windows are ignored.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ViewportProximitySnapshot {
+    /// Whether the target intersects the proximity region with positive area.
+    pub in_proximity: bool,
+    /// Presented layout bounds relative to the global visual viewport's origin.
+    pub bounds: kurbo::Rect,
+    /// Positive-area intersection with the global viewport and ancestor clips.
+    pub viewport_intersection: Option<kurbo::Rect>,
+}
+
+impl ViewportProximitySnapshot {
+    /// Whether any positive-area viewport intersection exists.
+    pub fn is_in_viewport(&self) -> bool {
+        self.viewport_intersection.is_some()
+    }
+
+    /// Fraction of the layout AABB inside the effective viewport, from zero to one.
+    pub fn intersection_ratio(&self) -> f64 {
+        let area = self.bounds.area();
+        if area.is_finite() && area > 0.0 {
+            self.viewport_intersection
+                .map_or(0.0, |r| (r.area() / area).clamp(0.0, 1.0))
+        } else {
+            0.0
+        }
+    }
+}
+
+/// Entry into global viewport proximity, including initially nearby targets.
+/// Delivered before the initial change event. This local event does not bubble.
+#[derive(Clone, Debug)]
+pub struct ViewportProximityEnter {
+    /// Frozen sample shared with the initial change notification.
+    pub current: ViewportProximitySnapshot,
+}
+
+/// A settled geometry change during a continuous proximity visit.
+///
+/// First admission/re-entry has no previous sample. Departure sends one final
+/// change outside proximity before exit. Unchanged frames emit nothing.
+#[derive(Clone, Debug)]
+pub struct ViewportProximityChange {
+    /// Last delivered sample in this visit; `None` on admission/re-entry.
+    pub previous: Option<ViewportProximitySnapshot>,
+    /// Current frozen geometry, including the terminal outside sample.
+    pub current: ViewportProximitySnapshot,
+}
+
+/// Departure from global viewport proximity, after the terminal change event.
+/// Unmount cancels observation without synthesizing a geometric exit.
+#[derive(Clone, Debug)]
+pub struct ViewportProximityExit {
+    /// Last sample inside proximity.
+    pub previous: ViewportProximitySnapshot,
+    /// Terminal outside sample shared with the final change notification.
+    pub current: ViewportProximitySnapshot,
+}
+
 /// Event wrapper passed to Pax event handlers.
 ///
 /// `Event<T>` carries the typed event payload and shared cancellation state,

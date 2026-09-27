@@ -17,6 +17,7 @@ pub mod router;
 pub mod scene_geometry;
 pub mod settings_motion;
 pub mod slot;
+pub mod viewport_proximity;
 
 pub use crate::cartridge::*;
 pub use crate::component::*;

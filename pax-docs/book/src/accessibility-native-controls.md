@@ -188,6 +188,13 @@ an operating-system dialog or a complete accessible widget contract.
 ## Focus and keyboard interaction
 
 Native text fields own editing, selection, and keyboard input while focused.
+On macOS, native rendering may detach distant Text and NativeImage views inside
+eligible scrollers, while retaining their instances. Editable, focused, and
+selected text and form controls stay attached. VoiceOver or Switch Control
+disables this culling and restores the full hierarchy. See
+[Updating native content](compositing-effects.md#updating-native-content) for
+the scope of this optimization.
+
 To request focus when a Textbox appears, set `focus_on_mount=true`. This can
 be useful for a deliberate editing action; avoid taking focus automatically
 from someone already navigating the page. On a mobile device, focusing a

@@ -47,6 +47,33 @@ impl Default for ScrollerTilingPolicy {
     }
 }
 
+impl ScrollerTilingPolicy {
+    // Canvas tiles and native residency share the warm-window policy, without
+    // tying user-facing viewport proximity events to platform tiling choices.
+    pub(crate) fn prewarm_padding(
+        self,
+        viewport_width: f64,
+        viewport_height: f64,
+        horizontal_scrollable: bool,
+        vertical_scrollable: bool,
+    ) -> (f64, f64) {
+        (
+            if horizontal_scrollable {
+                (viewport_width * self.prewarm_viewport_pad_x_multiplier)
+                    .max(self.prewarm_viewport_pad_min_x)
+            } else {
+                0.0
+            },
+            if vertical_scrollable {
+                (viewport_height * self.prewarm_viewport_pad_y_multiplier)
+                    .max(self.prewarm_viewport_pad_min_y)
+            } else {
+                0.0
+            },
+        )
+    }
+}
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 /// One physical canvas surface used to render a logical Pax layer tile.
@@ -171,18 +198,12 @@ pub fn scroller_canvas_plan_with_policy(
 
     let max_column = ((content_width / tile_dimensions.width).ceil() as i32 - 1).max(0);
     let max_row = ((content_height / tile_dimensions.height).ceil() as i32 - 1).max(0);
-    let pad_x = if horizontal_scrollable {
-        (viewport_width * policy.prewarm_viewport_pad_x_multiplier)
-            .max(policy.prewarm_viewport_pad_min_x)
-    } else {
-        0.0
-    };
-    let pad_y = if vertical_scrollable {
-        (viewport_height * policy.prewarm_viewport_pad_y_multiplier)
-            .max(policy.prewarm_viewport_pad_min_y)
-    } else {
-        0.0
-    };
+    let (pad_x, pad_y) = policy.prewarm_padding(
+        viewport_width,
+        viewport_height,
+        horizontal_scrollable,
+        vertical_scrollable,
+    );
     let padded_viewport_width = viewport_width + pad_x * 2.0;
     let padded_viewport_height = viewport_height + pad_y * 2.0;
     let padded_scroll_x = clamp_offset(scroll_x - pad_x, content_width, padded_viewport_width);

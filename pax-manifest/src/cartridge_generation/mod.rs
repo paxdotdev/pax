@@ -184,6 +184,9 @@ impl PaxManifest {
         add("mouse_move", "MouseMove");
         add("mouse_over", "MouseOver");
         add("mouse_out", "MouseOut");
+        add("viewport_proximity_enter", "ViewportProximityEnter");
+        add("viewport_proximity_change", "ViewportProximityChange");
+        add("viewport_proximity_exit", "ViewportProximityExit");
         add("double_click", "DoubleClick");
         add("context_menu", "ContextMenu");
         add("wheel", "Wheel");

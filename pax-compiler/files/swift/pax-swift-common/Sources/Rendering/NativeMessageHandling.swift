@@ -7,6 +7,9 @@ import AppKit
 #endif
 
 public struct DirtyCollections {
+    public var elementIds: Set<PaxNodeId> = []
+    public var requiresRebuild = false
+    public var culling = false
     public var text = false
     public var frame = false
     public var scroller = false
@@ -23,7 +26,7 @@ public struct DirtyCollections {
     public var glassSurface = false
 
     public var hasAny: Bool {
-        text || frame || scroller || button || photoPicker || checkbox || nativeImage || youtubeVideo || dropdown || radioList || slider || textbox || eventBlocker || glassSurface
+        culling || text || frame || scroller || button || photoPicker || checkbox || nativeImage || youtubeVideo || dropdown || radioList || slider || textbox || eventBlocker || glassSurface
     }
 
     public init() {}
@@ -262,16 +265,19 @@ public extension NativeMessageHandling {
         guard dirty.hasAny else {
             return
         }
-        NativeSceneInvalidation.singleton.invalidate()
+        NativeSceneInvalidation.singleton.invalidate(ids: dirty.elementIds, rebuild: dirty.requiresRebuild || dirty.elementIds.isEmpty)
     }
 
     func handleTextCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        dirty.elementIds.insert(patch.id)
+        dirty.requiresRebuild = true
         textElements.add(element: TextElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, renderLayerId: patch.renderLayerId))
         masks.mark(patch.id)
         dirty.text = true
     }
 
     func handleTextUpdate(patch: TextUpdatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        dirty.elementIds.insert(patch.id)
         if let textElement = textElements.elements[patch.id] {
             let previousTransform = textElement.transform
             let previousSizeX = textElement.size_x
@@ -292,17 +298,22 @@ public extension NativeMessageHandling {
     }
 
     func handleTextDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
+        dirty.elementIds.insert(patch.id)
+        dirty.requiresRebuild = true
         textElements.remove(id: patch.id)
         removeResolvedNativeMask(id: patch.id)
         dirty.text = true
     }
 
     func handleFrameCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections) {
+        dirty.elementIds.insert(patch.id)
+        dirty.requiresRebuild = true
         frameElements.add(element: FrameElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame))
         dirty.frame = true
     }
 
     func handleFrameUpdate(patch: FrameUpdatePatch, dirty: inout DirtyCollections, masks _: inout DirtyResolvedMasks) {
+        dirty.elementIds.insert(patch.id)
         if let frame = frameElements.elements[patch.id] {
             frame.applyPatch(patch: patch)
             frame.applyResolvedPlacement(patch)
@@ -311,6 +322,8 @@ public extension NativeMessageHandling {
     }
 
     func handleScrollerCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        dirty.elementIds.insert(patch.id)
+        dirty.requiresRebuild = true
         scrollerElements.add(element: ScrollerElement.makeDefault(
             id: patch.id,
             parentFrame: patch.parentFrame,
@@ -373,6 +386,7 @@ public extension NativeMessageHandling {
                 && applyScrollerScrollPosition(scroller)
             if hasScrollUpdate && !structuralChanged {
                 if !appliedScrollPosition {
+                    dirty.elementIds.insert(patch.id)
                     dirty.scroller = true
                 }
                 return
@@ -381,10 +395,13 @@ public extension NativeMessageHandling {
                 masks.mark(patch.id)
             }
         }
+        dirty.elementIds.insert(patch.id)
         dirty.scroller = true
     }
 
     func handleScrollerDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
+        dirty.elementIds.insert(patch.id)
+        dirty.requiresRebuild = true
         scrollerElements.remove(id: patch.id)
         removeResolvedNativeMask(id: patch.id)
         NativeScrollerHostRegistry.shared.setCanvasOpacityMultiplier(id: patch.id, multiplier: 1.0)
@@ -392,17 +409,22 @@ public extension NativeMessageHandling {
     }
 
     func handleFrameDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections, masks _: inout DirtyResolvedMasks) {
+        dirty.elementIds.insert(patch.id)
+        dirty.requiresRebuild = true
         frameElements.remove(id: patch.id)
         dirty.frame = true
     }
 
     func handleButtonCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        dirty.elementIds.insert(patch.id)
+        dirty.requiresRebuild = true
         buttonElements.add(element: ButtonElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, renderLayerId: patch.renderLayerId))
         masks.mark(patch.id)
         dirty.button = true
     }
 
     func handleButtonUpdate(patch: ButtonUpdatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        dirty.elementIds.insert(patch.id)
         if let element = buttonElements.elements[patch.id] {
             let previousTransform = element.transform
             let previousSizeX = element.size_x
@@ -422,18 +444,23 @@ public extension NativeMessageHandling {
     }
 
     func handleButtonDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
+        dirty.elementIds.insert(patch.id)
+        dirty.requiresRebuild = true
         buttonElements.remove(id: patch.id)
         removeResolvedNativeMask(id: patch.id)
         dirty.button = true
     }
 
     func handlePhotoPickerCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        dirty.elementIds.insert(patch.id)
+        dirty.requiresRebuild = true
         photoPickerElements.add(element: PhotoPickerElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, renderLayerId: patch.renderLayerId))
         masks.mark(patch.id)
         dirty.photoPicker = true
     }
 
     func handlePhotoPickerUpdate(patch: PhotoPickerUpdatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        dirty.elementIds.insert(patch.id)
         if let element = photoPickerElements.elements[patch.id] {
             let previousTransform = element.transform
             let previousSizeX = element.size_x
@@ -453,18 +480,23 @@ public extension NativeMessageHandling {
     }
 
     func handlePhotoPickerDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
+        dirty.elementIds.insert(patch.id)
+        dirty.requiresRebuild = true
         photoPickerElements.remove(id: patch.id)
         removeResolvedNativeMask(id: patch.id)
         dirty.photoPicker = true
     }
 
     func handleCheckboxCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        dirty.elementIds.insert(patch.id)
+        dirty.requiresRebuild = true
         checkboxElements.add(element: CheckboxElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, renderLayerId: patch.renderLayerId))
         masks.mark(patch.id)
         dirty.checkbox = true
     }
 
     func handleCheckboxUpdate(patch: CheckboxUpdatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        dirty.elementIds.insert(patch.id)
         if let element = checkboxElements.elements[patch.id] {
             let previousTransform = element.transform
             let previousSizeX = element.size_x
@@ -484,18 +516,23 @@ public extension NativeMessageHandling {
     }
 
     func handleCheckboxDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
+        dirty.elementIds.insert(patch.id)
+        dirty.requiresRebuild = true
         checkboxElements.remove(id: patch.id)
         removeResolvedNativeMask(id: patch.id)
         dirty.checkbox = true
     }
 
     func handleNativeImageCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        dirty.elementIds.insert(patch.id)
+        dirty.requiresRebuild = true
         nativeImageElements.add(element: NativeImageElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, renderLayerId: patch.renderLayerId))
         masks.mark(patch.id)
         dirty.nativeImage = true
     }
 
     func handleNativeImageUpdate(patch: NativeImageUpdatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        dirty.elementIds.insert(patch.id)
         if let element = nativeImageElements.elements[patch.id] {
             let previousTransform = element.transform
             let previousSizeX = element.size_x
@@ -515,18 +552,23 @@ public extension NativeMessageHandling {
     }
 
     func handleNativeImageDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
+        dirty.elementIds.insert(patch.id)
+        dirty.requiresRebuild = true
         nativeImageElements.remove(id: patch.id)
         removeResolvedNativeMask(id: patch.id)
         dirty.nativeImage = true
     }
 
     func handleYoutubeVideoCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        dirty.elementIds.insert(patch.id)
+        dirty.requiresRebuild = true
         youtubeVideoElements.add(element: YoutubeVideoElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, renderLayerId: patch.renderLayerId))
         masks.mark(patch.id)
         dirty.youtubeVideo = true
     }
 
     func handleYoutubeVideoUpdate(patch: YoutubeVideoUpdatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        dirty.elementIds.insert(patch.id)
         if let element = youtubeVideoElements.elements[patch.id] {
             let previousTransform = element.transform
             let previousSizeX = element.size_x
@@ -546,18 +588,23 @@ public extension NativeMessageHandling {
     }
 
     func handleYoutubeVideoDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
+        dirty.elementIds.insert(patch.id)
+        dirty.requiresRebuild = true
         youtubeVideoElements.remove(id: patch.id)
         removeResolvedNativeMask(id: patch.id)
         dirty.youtubeVideo = true
     }
 
     func handleDropdownCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        dirty.elementIds.insert(patch.id)
+        dirty.requiresRebuild = true
         dropdownElements.add(element: DropdownElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, renderLayerId: patch.renderLayerId))
         masks.mark(patch.id)
         dirty.dropdown = true
     }
 
     func handleDropdownUpdate(patch: DropdownUpdatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        dirty.elementIds.insert(patch.id)
         if let element = dropdownElements.elements[patch.id] {
             let previousTransform = element.transform
             let previousSizeX = element.size_x
@@ -577,18 +624,23 @@ public extension NativeMessageHandling {
     }
 
     func handleDropdownDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
+        dirty.elementIds.insert(patch.id)
+        dirty.requiresRebuild = true
         dropdownElements.remove(id: patch.id)
         removeResolvedNativeMask(id: patch.id)
         dirty.dropdown = true
     }
 
     func handleRadioListCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        dirty.elementIds.insert(patch.id)
+        dirty.requiresRebuild = true
         radioListElements.add(element: RadioListElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, renderLayerId: patch.renderLayerId))
         masks.mark(patch.id)
         dirty.radioList = true
     }
 
     func handleRadioListUpdate(patch: RadioListUpdatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        dirty.elementIds.insert(patch.id)
         if let element = radioListElements.elements[patch.id] {
             let previousTransform = element.transform
             let previousSizeX = element.size_x
@@ -608,18 +660,23 @@ public extension NativeMessageHandling {
     }
 
     func handleRadioListDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
+        dirty.elementIds.insert(patch.id)
+        dirty.requiresRebuild = true
         radioListElements.remove(id: patch.id)
         removeResolvedNativeMask(id: patch.id)
         dirty.radioList = true
     }
 
     func handleSliderCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        dirty.elementIds.insert(patch.id)
+        dirty.requiresRebuild = true
         sliderElements.add(element: SliderElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, renderLayerId: patch.renderLayerId))
         masks.mark(patch.id)
         dirty.slider = true
     }
 
     func handleSliderUpdate(patch: SliderUpdatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        dirty.elementIds.insert(patch.id)
         if let element = sliderElements.elements[patch.id] {
             let previousTransform = element.transform
             let previousSizeX = element.size_x
@@ -639,18 +696,23 @@ public extension NativeMessageHandling {
     }
 
     func handleSliderDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
+        dirty.elementIds.insert(patch.id)
+        dirty.requiresRebuild = true
         sliderElements.remove(id: patch.id)
         removeResolvedNativeMask(id: patch.id)
         dirty.slider = true
     }
 
     func handleTextboxCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        dirty.elementIds.insert(patch.id)
+        dirty.requiresRebuild = true
         textboxElements.add(element: TextboxElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, renderLayerId: patch.renderLayerId))
         masks.mark(patch.id)
         dirty.textbox = true
     }
 
     func handleTextboxUpdate(patch: TextboxUpdatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        dirty.elementIds.insert(patch.id)
         if let element = textboxElements.elements[patch.id] {
             let previousTransform = element.transform
             let previousSizeX = element.size_x
@@ -670,18 +732,23 @@ public extension NativeMessageHandling {
     }
 
     func handleTextboxDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
+        dirty.elementIds.insert(patch.id)
+        dirty.requiresRebuild = true
         textboxElements.remove(id: patch.id)
         removeResolvedNativeMask(id: patch.id)
         dirty.textbox = true
     }
 
     func handleEventBlockerCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        dirty.elementIds.insert(patch.id)
+        dirty.requiresRebuild = true
         eventBlockerElements.add(element: EventBlockerElement.makeDefault(id: patch.id, parentFrame: patch.parentFrame, renderLayerId: patch.renderLayerId))
         masks.mark(patch.id)
         dirty.eventBlocker = true
     }
 
     func handleEventBlockerUpdate(patch: EventBlockerPatchMessage, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        dirty.elementIds.insert(patch.id)
         if let element = eventBlockerElements.elements[patch.id] {
             let previousTransform = element.transform
             let previousSizeX = element.size_x
@@ -701,12 +768,16 @@ public extension NativeMessageHandling {
     }
 
     func handleEventBlockerDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
+        dirty.elementIds.insert(patch.id)
+        dirty.requiresRebuild = true
         eventBlockerElements.remove(id: patch.id)
         removeResolvedNativeMask(id: patch.id)
         dirty.eventBlocker = true
     }
 
     func handleGlassSurfaceCreate(patch: AnyCreatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        dirty.elementIds.insert(patch.id)
+        dirty.requiresRebuild = true
         glassSurfaceElements.add(element: GlassSurfaceElement.makeDefault(
             id: patch.id,
             parentFrame: patch.parentFrame,
@@ -717,6 +788,7 @@ public extension NativeMessageHandling {
     }
 
     func handleGlassSurfaceUpdate(patch: GlassSurfaceUpdatePatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        dirty.elementIds.insert(patch.id)
         if let element = glassSurfaceElements.elements[patch.id] {
             let previousTransform = element.transform
             let previousSizeX = element.size_x
@@ -736,12 +808,15 @@ public extension NativeMessageHandling {
     }
 
     func handleGlassSurfaceDelete(patch: AnyDeletePatch, dirty: inout DirtyCollections) {
+        dirty.elementIds.insert(patch.id)
+        dirty.requiresRebuild = true
         glassSurfaceElements.remove(id: patch.id)
         removeResolvedNativeMask(id: patch.id)
         dirty.glassSurface = true
     }
 
     func handleNativeMaskUpdate(patch: NativeMaskPatch, dirty: inout DirtyCollections, masks: inout DirtyResolvedMasks) {
+        dirty.elementIds.insert(patch.id)
         if let textElement = textElements.elements[patch.id] {
             textElement.applyNativeMaskPatch(patch)
             masks.mark(patch.id)
@@ -972,6 +1047,16 @@ public extension NativeMessageHandling {
             if let nativeMaskUpdateMessage = message["NativeMaskUpdate"] {
                 handleNativeMaskUpdate(patch: NativeMaskPatch(fb: nativeMaskUpdateMessage), dirty: &dirty, masks: &masks)
             }
+#if os(macOS)
+            if let patch = message["NativeCullUpdate"] {
+                let cull = patch["cull"]?.asVector?.makeIterator().compactMap { $0.asUInt64.map { PaxNodeId($0) } } ?? []
+                let restore = patch["restore"]?.asVector?.makeIterator().compactMap { $0.asUInt64.map { PaxNodeId($0) } } ?? []
+                NativeCullingState.shared.apply(cull: cull, restore: restore)
+                dirty.elementIds.formUnion(cull)
+                dirty.elementIds.formUnion(restore)
+                dirty.culling = true
+            }
+#endif
             if let imageLoadMessage = message["ImageLoad"] {
                 handleImageLoad(patch: ImageLoadPatch(fb: imageLoadMessage))
             }

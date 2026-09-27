@@ -3,10 +3,11 @@ use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 
-use kurbo::{Affine, BezPath, Shape};
+use kurbo::{Affine, BezPath, Rect, Shape};
 use pax_message::{borrow, MaskPathPatch, NativeMaskPatch, ScrollerPatch};
 use pax_runtime_api::{bez_path_to_svg_path_data, Layer, Window};
 
+use crate::scene_geometry::PreparedCanvasGeometry;
 use crate::{node_interface::NodeLocal, ExpandedNode, RuntimeContext, TransformAndBounds};
 
 use super::expanded_node::Occlusion;
@@ -166,8 +167,451 @@ struct NativeMaskStats {
 #[derive(Default)]
 struct NativeMaskStats;
 
-/// Recompute z-order, native masks, and logical render-layer assignments for the tree.
+/// Cumulative native-compositing work, independent of canvas replay counters.
+#[derive(Clone, Copy, Default, Debug)]
+pub struct OcclusionStats {
+    /// Full structural/presentation reconciliations.
+    pub rebuilds: u64,
+    /// Dirty records refreshed outside structural reconciliation.
+    pub records_updated: u64,
+    /// Native masks evaluated by the incremental path.
+    pub masks_evaluated: u64,
+    /// Canvas candidates examined for those masks.
+    pub mask_candidates: u64,
+}
+
+struct OcclusionRecord {
+    layer: Layer,
+    render_layer_id: usize,
+    scrolls: bool,
+    clips_content: bool,
+    before_children: bool,
+    unclippable: bool,
+    // Exact coverage and clips remain in unscrolled world coordinates. Geometry
+    // preparation and the shared spatial index supply stable layer coordinates.
+    clip: Option<BezPath>,
+    clips: Vec<u32>,
+    path: Option<BezPath>,
+    opacity: f64,
+    geometry: Option<Rc<PreparedCanvasGeometry>>,
+}
+
+#[derive(Default)]
+pub(crate) struct OcclusionState {
+    pub(crate) structural: bool,
+    pub(crate) dirty: HashSet<u32>,
+    pub(crate) scrolled: HashSet<u32>,
+    records: HashMap<u32, OcclusionRecord>,
+    scroll_regions: HashMap<u32, (usize, Rect)>,
+    owned_layers: HashMap<u32, usize>,
+    has_native_targets: bool,
+    unsafe_layers: HashSet<usize>,
+    canvas_counts: HashMap<usize, usize>,
+    culling_dirty: bool,
+    culling_rebuild: bool,
+    culled: HashSet<u32>,
+    warm_native: HashMap<usize, HashSet<u32>>,
+    pub(crate) stats: OcclusionStats,
+}
+
+impl OcclusionState {
+    pub(crate) fn remove(&mut self, id: u32) {
+        self.records.remove(&id);
+        self.dirty.remove(&id);
+        self.scrolled.remove(&id);
+        self.scroll_regions.remove(&id);
+        self.owned_layers.remove(&id);
+    }
+}
+
+/// Reconcile structural changes, otherwise update only dirty geometry and overlapping masks.
 pub fn update_node_occlusion(root_node: &Rc<ExpandedNode>, ctx: &RuntimeContext) {
+    let mut state_guard = ctx.occlusion_state.borrow_mut();
+    let state = &mut *state_guard;
+    state.culling_dirty = true;
+    let dirty = std::mem::take(&mut state.dirty);
+    let mut scrolled = std::mem::take(&mut state.scrolled);
+    // Scroll islands present canvas-only content without a native-mask pass.
+    // Preserve that fast path even for large grids of nested scrollers.
+    if !state.has_native_targets {
+        scrolled.clear();
+    }
+    let rebuild = std::mem::take(&mut state.structural)
+        || state.records.is_empty()
+        || dirty.iter().any(|id| {
+            let Some(record) = state.records.get(id) else {
+                return true;
+            };
+            let Some(node) = ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(*id))
+            else {
+                return true;
+            };
+            let instance = borrow!(node.instance_node);
+            let layer = if instance.materializes_native_surface(&node) {
+                Layer::Native
+            } else {
+                instance.base().flags().layer
+            };
+            // Clip/container changes have inherited effects. They retain the
+            // complete reconciliation path; leaf geometry does not change topology.
+            state.unsafe_layers.contains(&record.render_layer_id)
+                || record.scrolls
+                || record.clip.is_some()
+                || instance.scrolls_content(&node)
+                || instance.resolve_effect_clip_path(&node).is_some()
+                || record.layer != layer
+                || record.before_children
+                    != (instance.materializes_native_surface(&node)
+                        && instance.materializes_native_surface_before_children(&node))
+                || record.unclippable
+                    != node
+                        .get_common_properties()
+                        .borrow()
+                        .unclippable
+                        .get()
+                        .unwrap_or(false)
+        })
+        || scrolled.iter().any(|id| {
+            // Scroll islands with inherited presentation containers need their
+            // Frame/Scroller presentation patches reconciled together. The common
+            // leaf-only content island can update masks using two region queries.
+            !state.scroll_regions.contains_key(id)
+        });
+    if rebuild {
+        state.culling_rebuild = true;
+        state.records.clear();
+        state.canvas_counts.clear();
+        state.scroll_regions.clear();
+        state.owned_layers.clear();
+        state.unsafe_layers.clear();
+        rebuild_node_occlusion(root_node, ctx, state);
+        ctx.prepare_scene_geometry();
+        let ids: Vec<_> = state.records.keys().copied().collect();
+        for id in ids {
+            let Some(node) = ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(id)) else {
+                state.records.remove(&id);
+                continue;
+            };
+            let record = state.records.get_mut(&id).unwrap();
+            if record.layer != Layer::DontCare {
+                let geometry = ctx.canvas_geometry_for_node(&node);
+                if record.path.is_some() && record.opacity > f64::EPSILON {
+                    *state.canvas_counts.entry(geometry.layer).or_default() += 1;
+                }
+                state.records.get_mut(&id).unwrap().geometry = Some(geometry);
+            }
+        }
+        // Classify each layer once. Searching all records for every scroller
+        // makes the initial mount quadratic for grids of nested scroll regions.
+        let mut container_layers = HashSet::new();
+        state.has_native_targets = false;
+        for (&id, record) in &state.records {
+            state.has_native_targets |= record.layer == Layer::Native;
+            if record.scrolls || record.clip.is_some() || record.unclippable {
+                container_layers.insert(record.render_layer_id);
+            }
+            if record.unclippable || (record.scrolls && !state.owned_layers.contains_key(&id)) {
+                // These layers mix presentation domains or escaped content.
+                state.unsafe_layers.insert(record.render_layer_id);
+            }
+        }
+        for (&id, &layer) in &state.owned_layers {
+            if state.records.get(&id).is_some_and(|r| r.clips_content)
+                && !container_layers.contains(&layer)
+            {
+                if let Some(region) = scroll_region(id, ctx) {
+                    state.scroll_regions.insert(id, (layer, region));
+                }
+            }
+        }
+        state.stats.rebuilds += 1;
+        return;
+    }
+
+    ctx.prepare_scene_geometry();
+    let mut affected = HashSet::new();
+    for id in dirty {
+        let Some(node) = ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(id)) else {
+            continue;
+        };
+        let record = state.records.get_mut(&id).unwrap();
+        state.stats.records_updated += 1;
+        if record.layer == Layer::DontCare {
+            continue;
+        }
+        let geometry = ctx.canvas_geometry_for_node(&node);
+        if record.layer == Layer::Canvas {
+            if let (Some(path), Some(old)) = (&record.path, &record.geometry) {
+                let bounds = path_in_surface_bounds(path, old);
+                affected.extend(ctx.compositing_nodes_intersecting(old.layer, &[bounds], true));
+                if record.opacity > f64::EPSILON {
+                    *state.canvas_counts.entry(old.layer).or_default() -= 1;
+                }
+            }
+            record.path = borrow!(node.instance_node)
+                .resolve_occlusion_path(&node)
+                .filter(|path| OcclusionBox::new_from_path(path).is_some());
+            record.opacity = borrow!(node.instance_node).resolve_coverage_opacity(&node);
+            if let Some(path) = &record.path {
+                let bounds = path_in_surface_bounds(path, &geometry);
+                affected.extend(ctx.compositing_nodes_intersecting(
+                    geometry.layer,
+                    &[bounds],
+                    true,
+                ));
+                if record.opacity > f64::EPSILON {
+                    *state.canvas_counts.entry(geometry.layer).or_default() += 1;
+                }
+            }
+        } else {
+            affected.insert(id);
+        }
+        record.geometry = Some(geometry);
+    }
+    for id in scrolled {
+        if let Some(region) = scroll_region(id, ctx) {
+            let (layer, previous) = state.scroll_regions.get_mut(&id).unwrap();
+            let previous = std::mem::replace(previous, region);
+            affected.extend(ctx.compositing_nodes_intersecting(*layer, &[previous, region], true));
+        }
+    }
+    ctx.set_canvas_drawable_layers(
+        state
+            .canvas_counts
+            .iter()
+            .filter_map(|(layer, count)| (*count > 0).then_some(*layer))
+            .collect(),
+    );
+    for id in affected {
+        update_indexed_mask(id, ctx, state);
+    }
+}
+
+// Native view detachment is currently a macOS optimization. Only the already
+// classified leaf-only, clipped scroll islands are eligible; containers and
+// escaped content retain their existing presentation path.
+pub(crate) fn update_native_culling(
+    ctx: &RuntimeContext,
+    policy: super::layer_tiling::ScrollerTilingPolicy,
+) {
+    let globals = ctx.globals();
+    if globals.platform != pax_runtime_api::Platform::Native || !globals.os.is_macos() {
+        return;
+    }
+    let mut state = ctx.occlusion_state.borrow_mut();
+    if !std::mem::take(&mut state.culling_dirty) {
+        return;
+    }
+    let mut warm = HashMap::<usize, HashSet<u32>>::new();
+    for (&id, &(layer, _)) in &state.scroll_regions {
+        let Some(surface) = ctx.get_scroller_surface_state(id) else {
+            continue;
+        };
+        let Some(region) = scroll_region(id, ctx) else {
+            continue;
+        };
+        let (pad_x, pad_y) = policy.prewarm_padding(
+            region.width(),
+            region.height(),
+            surface.content_width > region.width() + 0.5,
+            surface.content_height > region.height() + 0.5,
+        );
+        let region = Rect::new(
+            region.x0 - pad_x,
+            region.y0 - pad_y,
+            region.x1 + pad_x,
+            region.y1 + pad_y,
+        );
+        warm.insert(
+            layer,
+            ctx.compositing_nodes_intersecting(layer, &[region], true)
+                .into_iter()
+                .collect(),
+        );
+    }
+    let mut patch = pax_message::NativeCullPatch::default();
+    if std::mem::take(&mut state.culling_rebuild)
+        || warm
+            .keys()
+            .any(|layer| !state.warm_native.contains_key(layer))
+        || state
+            .warm_native
+            .keys()
+            .any(|layer| !warm.contains_key(layer))
+    {
+        // Topology changes already traverse the scene. Ordinary scroll/animation
+        // ticks below compare only the small warm sets, never all cold nodes.
+        let culled: HashSet<_> = state
+            .records
+            .iter()
+            .filter_map(|(&id, record)| {
+                (record.geometry.as_ref().is_some_and(|g| g.is_native)
+                    && warm
+                        .get(&record.render_layer_id)
+                        .is_some_and(|ids| !ids.contains(&id)))
+                .then_some(id)
+            })
+            .collect();
+        patch.cull.extend(culled.difference(&state.culled).copied());
+        patch
+            .restore
+            .extend(state.culled.difference(&culled).copied());
+        state.culled = culled;
+    } else {
+        for (&layer, ids) in &warm {
+            let previous = &state.warm_native[&layer];
+            patch.cull.extend(previous.difference(ids).copied());
+            patch.restore.extend(ids.difference(previous).copied());
+        }
+        for id in &patch.cull {
+            state.culled.insert(*id);
+        }
+        for id in &patch.restore {
+            state.culled.remove(id);
+        }
+    }
+    state.warm_native = warm;
+    if !patch.cull.is_empty() || !patch.restore.is_empty() {
+        patch.cull.sort_unstable();
+        patch.restore.sort_unstable();
+        ctx.enqueue_native_message(pax_message::NativeMessage::NativeCullUpdate(patch));
+    }
+}
+
+fn scroll_region(id: u32, ctx: &RuntimeContext) -> Option<Rect> {
+    let node = ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(id))?;
+    let bounds = node.transform_and_bounds.get().bounds;
+    let scroll = ctx
+        .get_scroller_surface_scroll(id)
+        .or_else(|| borrow!(node.instance_node).resolve_scroll_offset(&node))
+        .unwrap_or_default();
+    Some(Rect::new(
+        scroll.0,
+        scroll.1,
+        scroll.0 + bounds.0,
+        scroll.1 + bounds.1,
+    ))
+}
+
+fn path_in_surface_bounds(path: &BezPath, geometry: &PreparedCanvasGeometry) -> Rect {
+    (geometry.surface_transform * geometry.world_transform.inverse() * path.clone()).bounding_box()
+}
+
+fn update_indexed_mask(id: u32, ctx: &RuntimeContext, state: &mut OcclusionState) {
+    let Some(record) = state.records.get(&id) else {
+        return;
+    };
+    let Some(node) = ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(id)) else {
+        return;
+    };
+    let geometry = ctx.canvas_geometry_for_node(&node);
+    let tab = node.transform_and_bounds.get();
+    let presentation = ctx.presentation_scroll_transform_for_node(&node);
+    let native_bounds = OcclusionBox::new_from_transform_and_bounds_with_affine(tab, presentation);
+    let inverse = Affine::from(tab.transform.inverse()) * presentation.inverse();
+    let query_bounds = geometry.surface_transform.transform_rect_bbox(Rect::new(
+        0.0,
+        0.0,
+        geometry.bounds.0,
+        geometry.bounds.1,
+    ));
+    let candidates = if record.layer == Layer::Native {
+        ctx.compositing_nodes_intersecting(geometry.layer, &[query_bounds], false)
+    } else {
+        Vec::new()
+    };
+    state.stats.masks_evaluated += 1;
+    state.stats.mask_candidates += candidates.len() as u64;
+    let mut entries = Vec::new();
+    for candidate in candidates {
+        let Some(coverage) = state.records.get(&candidate) else {
+            continue;
+        };
+        if !(coverage.opacity > f64::EPSILON) {
+            continue;
+        }
+        let Some(path) = &coverage.path else { continue };
+        let Some(occluder) = ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(candidate))
+        else {
+            continue;
+        };
+        if occluder.occlusion.get().z_index <= node.occlusion.get().z_index {
+            continue;
+        }
+        let transform = ctx.presentation_scroll_transform_for_node(&occluder);
+        let path = transform * path.clone();
+        let Some(bounds) = OcclusionBox::new_from_path(&path) else {
+            continue;
+        };
+        let clips: Vec<_> = coverage
+            .clips
+            .iter()
+            .filter_map(|clip_id| {
+                let clip = state.records.get(clip_id)?.clip.as_ref()?;
+                let owner =
+                    ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(*clip_id))?;
+                Some(ctx.presentation_scroll_transform_for_node(&owner) * clip.clone())
+            })
+            .collect();
+        if !clipped_coverage_bounds(bounds, &clips).is_some_and(|b| b.intersects(&native_bounds)) {
+            continue;
+        }
+        entries.push(MaskPathPatch {
+            path: bez_path_to_svg_path_data(&(inverse * path)),
+            clips: clips
+                .into_iter()
+                .map(|clip| bez_path_to_svg_path_data(&(inverse * clip)))
+                .collect(),
+            opacity: Some(coverage.opacity),
+        });
+    }
+    sort_mask_entries(&mut entries);
+    emit_mask(&node, tab.bounds, entries, ctx);
+}
+
+fn sort_mask_entries(entries: &mut [MaskPathPatch]) {
+    entries.sort_by(|lhs, rhs| {
+        lhs.path
+            .cmp(&rhs.path)
+            .then_with(|| lhs.clips.cmp(&rhs.clips))
+            .then_with(|| {
+                lhs.opacity
+                    .map(f64::to_bits)
+                    .cmp(&rhs.opacity.map(f64::to_bits))
+            })
+    });
+}
+
+fn emit_mask(
+    node: &ExpandedNode,
+    size: (f64, f64),
+    entries: Vec<MaskPathPatch>,
+    ctx: &RuntimeContext,
+) {
+    let hash = if entries.is_empty() {
+        0
+    } else {
+        hash_mask_entries(size, &entries)
+    };
+    if node.native_mask_hash.get() != hash {
+        node.native_mask_hash.set(hash);
+        ctx.enqueue_native_message(pax_message::NativeMessage::NativeMaskUpdate(
+            NativeMaskPatch {
+                id: node.id.to_u32(),
+                size_x: size.0,
+                size_y: size.1,
+                entries,
+            },
+        ));
+    }
+}
+
+/// Recompute z-order, native masks, and logical render-layer assignments for the tree.
+fn rebuild_node_occlusion(
+    root_node: &Rc<ExpandedNode>,
+    ctx: &RuntimeContext,
+    state: &mut OcclusionState,
+) {
     #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
     let pass_start = std::time::Instant::now();
 
@@ -189,6 +633,8 @@ pub fn update_node_occlusion(root_node: &Rc<ExpandedNode>, ctx: &RuntimeContext)
         &mut z_index,
         &mut next_layer_id,
         &mut drawables,
+        &[],
+        state,
     );
     let canvas_drawable_layers = drawables
         .iter()
@@ -257,6 +703,8 @@ fn update_node_occlusion_recursive(
     z_index: &mut i32,
     next_layer_id: &mut usize,
     drawables: &mut Vec<DrawableInfo>,
+    active_clip_ids: &[u32],
+    state: &mut OcclusionState,
 ) {
     fn clamp_offset(value: f64, content: f64, viewport: f64) -> f64 {
         if content <= viewport {
@@ -269,8 +717,9 @@ fn update_node_occlusion_recursive(
     }
 
     let instance_node = borrow!(node.instance_node);
-    let effect_clip_path = instance_node
-        .resolve_effect_clip_path(node)
+    let world_clip = instance_node.resolve_effect_clip_path(node);
+    let effect_clip_path = world_clip
+        .clone()
         .map(|clip| active_scroll_transform * clip);
     let has_effect_clip = effect_clip_path.is_some();
     let scrolls_content = instance_node.scrolls_content(node);
@@ -344,6 +793,27 @@ fn update_node_occlusion_recursive(
     } else {
         instance_node.base().flags().layer
     };
+    state.records.insert(
+        node.id.to_u32(),
+        OcclusionRecord {
+            layer,
+            render_layer_id: current_layer_id,
+            scrolls: scrolls_content,
+            clips_content: instance_node.clips_content(node),
+            before_children: materializes_native_surface_before_children,
+            unclippable: node
+                .get_common_properties()
+                .borrow()
+                .unclippable
+                .get()
+                .unwrap_or(false),
+            clip: world_clip,
+            clips: active_clip_ids.to_vec(),
+            path: None,
+            opacity: 0.0,
+            geometry: None,
+        },
+    );
     drop(instance_node);
 
     let descendant_layer_id = if scrolls_content && allow_scroller_vector_layers {
@@ -355,6 +825,9 @@ fn update_node_occlusion_recursive(
     };
     if scrolls_content && allow_scroller_vector_layers {
         ctx.register_layer_scroller_owner(descendant_layer_id, node.id);
+        state
+            .owned_layers
+            .insert(node.id.to_u32(), descendant_layer_id);
     }
     let descendant_container = if scrolls_content {
         Some(node.id.to_u32())
@@ -382,9 +855,11 @@ fn update_node_occlusion_recursive(
             .intersect(&effect_clip_bounds)
             .unwrap_or(descendant_clip_bounds);
     }
+    let mut descendant_clip_ids = active_clip_ids.to_vec();
     let mut descendant_clips = active_clips.to_vec();
     if let Some(clip_path) = effect_clip_path.clone() {
         descendant_clips.push(clip_path);
+        descendant_clip_ids.push(node.id.to_u32());
     }
 
     let presented_clip_bounds = if has_effect_clip || scrolls_content {
@@ -401,6 +876,7 @@ fn update_node_occlusion_recursive(
         };
 
         if new_occlusion != node.occlusion.get() {
+            ctx.invalidate_scene_geometry(node.id.to_u32());
             let previous_occlusion = node.occlusion.get();
             let prev_layer = previous_occlusion.render_layer_id;
             ctx.set_canvas_dirty(prev_layer);
@@ -444,6 +920,12 @@ fn update_node_occlusion_recursive(
             z_index,
             next_layer_id,
             drawables,
+            if unclippable {
+                &[]
+            } else {
+                &descendant_clip_ids
+            },
+            state,
         );
     }
 
@@ -496,6 +978,7 @@ fn update_node_occlusion_recursive(
     }
 
     if new_occlusion != node.occlusion.get() {
+        ctx.invalidate_scene_geometry(node.id.to_u32());
         let previous_occlusion = node.occlusion.get();
         let prev_layer = previous_occlusion.render_layer_id;
         if layer == Layer::Canvas && prev_layer != new_occlusion.render_layer_id {
@@ -512,6 +995,10 @@ fn update_node_occlusion_recursive(
     match layer {
         Layer::Canvas => {
             if let Some(coverage_path) = borrow!(node.instance_node).resolve_occlusion_path(node) {
+                let record = state.records.get_mut(&node.id.to_u32()).unwrap();
+                record.path =
+                    OcclusionBox::new_from_path(&coverage_path).map(|_| coverage_path.clone());
+                record.opacity = borrow!(node.instance_node).resolve_coverage_opacity(node);
                 let coverage_path = active_scroll_transform * coverage_path;
                 if let Some(bounds) = OcclusionBox::new_from_path(&coverage_path) {
                     let opacity = borrow!(node.instance_node).resolve_coverage_opacity(node);

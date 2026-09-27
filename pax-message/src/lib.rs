@@ -60,6 +60,7 @@ pub enum NativeMessage {
     ImageLoad(ImagePatch),
     ShrinkLayersTo(u32),
     NativeMaskUpdate(NativeMaskPatch),
+    NativeCullUpdate(NativeCullPatch),
     Navigate(NavigationPatch),
     SetCursor(SetCursorPatch),
     Screenshot(ScreenshotPatch),
@@ -675,6 +676,16 @@ pub struct NativeMaskPatch {
     pub size_x: f64,
     pub size_y: f64,
     pub entries: Vec<MaskPathPatch>,
+}
+
+#[cfg_attr(debug_assertions, derive(Debug))]
+#[derive(Default, Serialize)]
+/// Advisory native-view residency changes from the shared geometry index.
+/// The macOS host retains models and view instances, and may keep a cold view
+/// attached to preserve editing, selection, overflow, or accessibility.
+pub struct NativeCullPatch {
+    pub cull: Vec<u32>,
+    pub restore: Vec<u32>,
 }
 
 #[cfg_attr(debug_assertions, derive(Debug))]

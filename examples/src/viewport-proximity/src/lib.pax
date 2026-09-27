@@ -1,0 +1,18 @@
+<Text x=32px y=22px width={100% - 64px} height=18px text="PAX / MOTION STUDY 01"
+    style={font: "Arial", font_size: 11px, fill: rgb(49, 96, 201)}/>
+<Text x=30px y=45px width={100% - 60px} height=58px text="Close enough."
+    style={font: "Georgia", font_size: 44px, fill: rgb(27, 35, 51)}/>
+<Text x=32px y=112px width={100% - 64px} height=48px
+    text="Scroll slowly. Cards arrive at first overlap and say goodbye when 40px remains and shrinking. Reverse to welcome them back."
+    style={font: "Arial", font_size: 14px, fill: rgb(79, 88, 104)}/>
+<Text x=32px y=174px width={100% - 64px} height=20px
+    text="ENTER prepares     /     CHANGE measures     /     EXIT releases"
+    style={font: "Courier New", font_size: 11px, fill: rgb(49, 96, 201)}/>
+<Scroller x=0px y=216px width=100% height={100% - 216px} scroll_height=64860px>
+    <Group width=100% height=64860px>
+        for item in 0..270 {
+            <ProximityCard x=32px y={(24 + item * 240)px} width={100% - 64px} height=200px index=item/>
+        }
+    </Group>
+</Scroller>
+<Rectangle width=100% height=100% fill=rgb(244, 241, 232)/>

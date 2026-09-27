@@ -28,11 +28,18 @@ impl CanvasGeometry {
     }
 }
 
-/// Geometry shared by render candidate selection and primitive drawing.
+/// Geometry shared by render selection, primitive drawing, and viewport observation.
+/// Native surfaces use a separate bounds lookup in the same geometry service.
+/// Observed layout-only targets and their ancestors share these records without
+/// entering either rendering index.
 ///
 /// Coverage is in the owning canvas's content coordinates, so native scrolling
 /// changes the queried region without invalidating every descendant record.
 pub struct PreparedCanvasGeometry {
+    /// Layout transform in unscrolled scene coordinates, shared with viewport observation.
+    pub world_transform: Affine,
+    pub(crate) is_canvas: bool,
+    pub(crate) is_native: bool,
     /// Owning logical canvas layer.
     pub layer: usize,
     /// Layout dimensions, kept separate from overflowing paint coverage.
@@ -61,6 +68,9 @@ impl PreparedCanvasGeometry {
                 .inflate(TILE_CULL_BOUNDS_PAD, TILE_CULL_BOUNDS_PAD)
         });
         Self {
+            world_transform: surface_transform,
+            is_canvas: true,
+            is_native: false,
             layer,
             bounds,
             surface_transform,
@@ -89,6 +99,7 @@ pub(crate) struct SceneGeometry {
     dirty: HashSet<u32>,
     pending: Vec<u32>,
     layers: HashMap<usize, SpatialIndex>,
+    native_layers: HashMap<usize, SpatialIndex>,
     pub stats: SceneGeometryStats,
 }
 
@@ -96,6 +107,12 @@ impl SceneGeometry {
     pub fn invalidate(&mut self, id: u32) {
         if self.dirty.insert(id) {
             self.pending.push(id);
+        }
+    }
+
+    pub(crate) fn invalidate_existing(&mut self, id: u32) {
+        if self.records.contains_key(&id) {
+            self.invalidate(id);
         }
     }
 
@@ -122,10 +139,22 @@ impl SceneGeometry {
         self.dirty.remove(&id);
         self.stats.preparations += 1;
         let changed = self.records.get(&id).is_none_or(|old| {
-            old.layer != geometry.layer || old.coverage_bounds != geometry.coverage_bounds
+            old.layer != geometry.layer
+                || old.coverage_bounds != geometry.coverage_bounds
+                || old.is_canvas != geometry.is_canvas
+                || old.is_native != geometry.is_native
+                || (geometry.is_native
+                    && (old.bounds != geometry.bounds
+                        || old.surface_transform != geometry.surface_transform))
         });
         if changed {
             if let Some(old) = self.records.get(&id) {
+                if let Some(index) = self.native_layers.get_mut(&old.layer) {
+                    index.remove(id);
+                    if index.is_empty() {
+                        self.native_layers.remove(&old.layer);
+                    }
+                }
                 if let Some(index) = self.layers.get_mut(&old.layer) {
                     index.remove(id);
                     if index.is_empty() {
@@ -133,10 +162,26 @@ impl SceneGeometry {
                     }
                 }
             }
-            self.layers
-                .entry(geometry.layer)
-                .or_default()
-                .insert(id, geometry.coverage_bounds);
+            if geometry.is_canvas {
+                self.layers
+                    .entry(geometry.layer)
+                    .or_default()
+                    .insert(id, geometry.coverage_bounds);
+            }
+            if geometry.is_native {
+                self.native_layers
+                    .entry(geometry.layer)
+                    .or_default()
+                    .insert(
+                        id,
+                        Some(geometry.surface_transform.transform_rect_bbox(Rect::new(
+                            0.0,
+                            0.0,
+                            geometry.bounds.0,
+                            geometry.bounds.1,
+                        ))),
+                    );
+            }
             self.stats.index_updates += 1;
         }
         let geometry = Rc::new(geometry);
@@ -147,6 +192,12 @@ impl SceneGeometry {
     pub fn remove(&mut self, id: u32) {
         self.dirty.remove(&id);
         if let Some(old) = self.records.remove(&id) {
+            if let Some(index) = self.native_layers.get_mut(&old.layer) {
+                index.remove(id);
+                if index.is_empty() {
+                    self.native_layers.remove(&old.layer);
+                }
+            }
             if let Some(index) = self.layers.get_mut(&old.layer) {
                 index.remove(id);
                 if index.is_empty() {
@@ -157,8 +208,22 @@ impl SceneGeometry {
     }
 
     pub fn query(&mut self, layer: usize, regions: &[Rect]) -> Option<Vec<u32>> {
+        let ids = self.query_exact(layer, regions, false);
+        // Canvas replay retains its historical full-replay fallback. Compositing
+        // uses the exact query so an empty result means no affected elements.
+        (!ids.is_empty()).then_some(ids)
+    }
+
+    pub(crate) fn query_exact(&mut self, layer: usize, regions: &[Rect], native: bool) -> Vec<u32> {
         self.stats.queries += 1;
-        let index = self.layers.get(&layer)?;
+        let indices = if native {
+            &self.native_layers
+        } else {
+            &self.layers
+        };
+        let Some(index) = indices.get(&layer) else {
+            return Vec::new();
+        };
         let mut candidates = HashSet::new();
         for region in regions {
             index.candidates(*region, &mut candidates);
@@ -167,13 +232,13 @@ impl SceneGeometry {
         let mut ids: Vec<_> = candidates
             .into_iter()
             .filter(|id| {
-                let bounds = index.bounds[id];
-                regions.iter().any(|region| intersects(bounds, *region))
+                regions
+                    .iter()
+                    .any(|region| intersects(index.bounds[id], *region))
             })
             .collect();
         ids.sort_unstable();
-        // Keep the existing full-replay fallback for empty/unknown layer coverage.
-        (!ids.is_empty()).then_some(ids)
+        ids
     }
 }
 
@@ -238,7 +303,7 @@ impl CellRange {
 }
 
 #[derive(Default)]
-struct SpatialIndex {
+pub(crate) struct SpatialIndex {
     bounds: HashMap<u32, Option<Rect>>,
     levels: BTreeMap<u32, Columns>,
     unbounded: HashSet<u32>,
@@ -249,7 +314,7 @@ impl SpatialIndex {
         self.bounds.is_empty()
     }
 
-    fn insert(&mut self, id: u32, bounds: Option<Rect>) {
+    pub(crate) fn insert(&mut self, id: u32, bounds: Option<Rect>) {
         self.bounds.insert(id, bounds);
         let Some(range) = bounds.and_then(CellRange::for_bounds) else {
             self.unbounded.insert(id);
@@ -264,7 +329,7 @@ impl SpatialIndex {
         }
     }
 
-    fn remove(&mut self, id: u32) {
+    pub(crate) fn remove(&mut self, id: u32) {
         let Some(bounds) = self.bounds.remove(&id) else {
             return;
         };
@@ -295,7 +360,7 @@ impl SpatialIndex {
         }
     }
 
-    fn candidates(&self, region: Rect, result: &mut HashSet<u32>) {
+    pub(crate) fn candidates(&self, region: Rect, result: &mut HashSet<u32>) {
         if !finite(region) {
             result.extend(self.bounds.keys().copied());
             return;
@@ -321,6 +386,9 @@ mod tests {
 
     fn geometry(layer: usize, bounds: Option<Rect>) -> PreparedCanvasGeometry {
         PreparedCanvasGeometry {
+            world_transform: Affine::IDENTITY,
+            is_canvas: true,
+            is_native: false,
             layer,
             bounds: (10.0, 10.0),
             surface_transform: Affine::IDENTITY,

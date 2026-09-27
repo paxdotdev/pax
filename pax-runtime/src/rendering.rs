@@ -333,7 +333,16 @@ pub trait InstanceNode {
         false
     }
 
-    /// Returns a resolved light contribution for non-rendering lighting primitives.
+    /// Whether this primitive can contribute direct or ambient scene lighting.
+    ///
+    /// Lighting primitives must return `true` even while disabled. The runtime uses
+    /// this stable capability at mount/replacement to register contributors without
+    /// polling every scene node during rendering.
+    fn has_scene_lighting(&self) -> bool {
+        false
+    }
+
+    /// Returns a resolved light contribution for a primitive with `has_scene_lighting()`.
     fn resolve_scene_light(
         &self,
         _expanded_node: &ExpandedNode,
@@ -342,7 +351,7 @@ pub trait InstanceNode {
         None
     }
 
-    /// Returns a resolved ambient contribution for non-rendering lighting primitives.
+    /// Returns a resolved ambient contribution for a primitive with `has_scene_lighting()`.
     fn resolve_scene_ambient_light(
         &self,
         _expanded_node: &ExpandedNode,
@@ -481,8 +490,9 @@ pub trait InstanceNode {
         false
     }
 
-    /// Returns whether changes to a named typed property require recomputing the full
-    /// occlusion/native-mask/layer-partition pass.
+    /// Returns whether changes to a named typed property invalidate native compositing.
+    /// Leaf changes update indexed coverage; changes to clipping or layer ownership
+    /// reconcile the inherited structure.
     ///
     /// Common geometry, transform, opacity, and child-list dependencies are tracked separately
     /// for every node. Override this for typed properties that only affect local content or

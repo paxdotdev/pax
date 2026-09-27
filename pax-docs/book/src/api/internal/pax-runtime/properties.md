@@ -96,6 +96,15 @@ Clear the registered root expanded node.
 
 Clear cached visual viewport state.
 
+##### `collect_scene_lighting_for_layer`
+<pre><code class="api-signature language-rust ignore">pub fn collect_scene_lighting_for_layer(&amp;self, layer: usize) -&gt; <a href="../../../api/pax-runtime-api/drawing.md#scenelighting">SceneLighting</a></code></pre>
+
+Resolve registered direct/ambient contributors in the target layer's coordinates.
+
+Light values remain live on every render; retained node masks are rebuilt only
+when selected light slots, lexical scope, or scene structure changes. Contributors
+are independent of viewport visibility, and an unlit scene needs no node scan.
+
 ##### `get_elements_beneath_ray`
 <pre><code class="api-signature language-rust ignore">pub fn get_elements_beneath_ray(&amp;self, root: Option&lt;Rc&lt;ExpandedNode&gt;&gt;, ray: Point2&lt;<a href="../../../api/pax-runtime-api/platform.md#window">Window</a>&gt;, limit_one: bool, accum: Vec&lt;Rc&lt;ExpandedNode&gt;&gt;, hit_invisible: bool) -&gt; Vec&lt;Rc&lt;ExpandedNode&gt;&gt;</code></pre>
 
@@ -174,6 +183,11 @@ Store a screenshot payload delivered by the chassis.
 <pre><code class="api-signature language-rust ignore">pub fn new(globals: <a href="../../../api/internal/pax-runtime/engine.md#globals">Globals</a>) -&gt; Self</code></pre>
 
 Create a runtime context for normal app execution.
+
+##### `occlusion_stats`
+<pre><code class="api-signature language-rust ignore">pub fn occlusion_stats(&amp;self) -&gt; <a href="../../../api/internal/pax-runtime/engine/occlusion.md#occlusionstats">OcclusionStats</a></code></pre>
+
+Cumulative work performed by native compositing, including conservative rebuilds.
 
 ##### `prepare_scene_geometry`
 <pre><code class="api-signature language-rust ignore">pub fn prepare_scene_geometry(&amp;self)</code></pre>
@@ -260,6 +274,11 @@ Cache the browser visual viewport state for root scroller math.
 
 Update hot scroll offsets for an existing native scroller surface without touching
 structural state.
+
+##### `viewport_proximity_stats`
+<pre><code class="api-signature language-rust ignore">pub fn viewport_proximity_stats(&amp;self) -&gt; <a href="../../../api/internal/pax-runtime/viewport_proximity.md#viewportproximitystats">ViewportProximityStats</a></code></pre>
+
+Observation counters. With no proximity bindings, no observation records are installed.
 
 ---
 

@@ -335,6 +335,42 @@ frame, so a large masked surface can still be expensive. Native and rendered
 content are published synchronously to keep their coverage aligned. The browser
 uses SVG/CSS masks; the Apple rasterization cost is not a measurement of that path.
 
+### Updating native content
+
+Ordinary leaf animation updates shared scene geometry and queries nearby native
+surfaces to refresh punch-through masks. Both the old and new coverage matter:
+a moving or disappearing shape must uncover the surface it leaves behind.
+Scroll-content geometry stays indexed in content coordinates, so scrolling a
+leaf-only native scroller queries the old and new visible regions without
+reindexing every descendant.
+
+On macOS and iOS, the Swift native host also applies leaf patches to retained
+views by element ID. An unchanged native control keeps its view, selection, and
+focus. Opacity and stacking updates avoid rewriting native geometry; actual
+scale changes still use the platform's geometry path. On macOS, updated native
+content keeps its punch-through mask even when the mask geometry is unchanged.
+On macOS, clipped scroller islands containing native leaves can also detach
+offscreen Text and NativeImage views outside the renderer's warm region. This
+uses the same geometry index and platform prewarm margins as canvas rendering;
+it does not change the fixed margins of `@viewport_proximity_*` events. The
+runtime keeps the Pax nodes alive, and the native host retains each view and
+continues applying its patches. Re-entry restores that instance with its latest
+content, geometry, mask, and stacking order. This reduces the attached AppKit
+hierarchy, rather than the number of Pax nodes or retained native instances.
+
+Editable text, focused or selected text, text overflowing its layout bounds,
+glass-backed content, and other native controls stay attached. Enabling VoiceOver
+or Switch Control restores the full native hierarchy. This culling optimization
+is currently macOS-only; web, iOS, and iPadOS retain their existing behavior.
+Nested presentation containers and unclipped/escaping content keep the
+conservative rendering path.
+
+Structural changes, inherited clip/container
+changes, escaping unclippable branches, and scroll domains with nested
+presentation containers, disabled clipping, or disabled scroll islands currently use full
+reconciliation. These optimizations do not guarantee a particular frame
+rate; layout, native controls, and GPU work still contribute to frame time.
+
 ### Coverage has limits
 
 Native punch-through uses coverage geometry and an opacity estimate;

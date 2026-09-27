@@ -760,6 +760,82 @@ impl ExpandedNode {
         }
     }
 
+    fn run_viewport_event_handlers<T: Clone + 'static>(
+        self: &Rc<Self>,
+        key: &str,
+        event: Event<T>,
+        ctx: &Rc<RuntimeContext>,
+    ) {
+        let handlers: Vec<_> = borrow!(self.instance_node)
+            .base()
+            .get_handler_registry()
+            .map(|registry| {
+                borrow!(registry)
+                    .handlers
+                    .get(key)
+                    .map(|handlers| {
+                        handlers
+                            .iter()
+                            .map(|h| (h.function, matches!(h.location, HandlerLocation::Component)))
+                            .collect()
+                    })
+                    .unwrap_or_default()
+            })
+            .unwrap_or_default();
+        for (function, component) in handlers {
+            if self.attached.get() == 0 || self.suspended.get() {
+                break;
+            }
+            let properties = if component {
+                Rc::clone(&borrow!(self.properties))
+            } else {
+                self.containing_component
+                    .upgrade()
+                    .map(|owner| Rc::clone(&borrow!(owner.properties)))
+                    .unwrap_or_else(|| Rc::clone(&borrow!(self.properties)))
+            };
+            function(
+                properties,
+                &self.get_node_context(ctx),
+                Some(event.clone().to_pax_any()),
+            );
+        }
+    }
+
+    pub(crate) fn dispatch_viewport_proximity_enter(
+        self: &Rc<Self>,
+        event: Event<crate::api::ViewportProximityEnter>,
+        ctx: &Rc<RuntimeContext>,
+    ) {
+        self.run_viewport_event_handlers(
+            crate::constants::VIEWPORT_PROXIMITY_ENTER_HANDLERS,
+            event,
+            ctx,
+        );
+    }
+    pub(crate) fn dispatch_viewport_proximity_change(
+        self: &Rc<Self>,
+        event: Event<crate::api::ViewportProximityChange>,
+        ctx: &Rc<RuntimeContext>,
+    ) {
+        self.run_viewport_event_handlers(
+            crate::constants::VIEWPORT_PROXIMITY_CHANGE_HANDLERS,
+            event,
+            ctx,
+        );
+    }
+    pub(crate) fn dispatch_viewport_proximity_exit(
+        self: &Rc<Self>,
+        event: Event<crate::api::ViewportProximityExit>,
+        ctx: &Rc<RuntimeContext>,
+    ) {
+        self.run_viewport_event_handlers(
+            crate::constants::VIEWPORT_PROXIMITY_EXIT_HANDLERS,
+            event,
+            ctx,
+        );
+    }
+
     fn new(
         template: Rc<dyn InstanceNode>,
         env: Rc<RuntimePropertiesStackFrame>,
@@ -950,6 +1026,9 @@ impl ExpandedNode {
         template: Rc<dyn InstanceNode>,
         context: &Rc<RuntimeContext>,
     ) {
+        // A replacement may change bindings or clipping dependencies. Revoke the
+        // old generation before it can receive more of a frozen event batch.
+        context.unregister_viewport_proximity(self.id.to_u32());
         *borrow_mut!(self.instance_node) = Rc::clone(&template);
         template.base().bind_properties(self);
         let common_properties = Rc::clone(&*borrow!(self.common_properties));
@@ -963,6 +1042,12 @@ impl ExpandedNode {
         self.mark_non_reactive_update_subtree_dirty();
         context.mark_occlusion_dirty();
         context.set_canvas_dirty(self.occlusion.get().render_layer_id);
+        if self.attached.get() > 0 {
+            context.refresh_scene_lighting_node(self);
+            context.viewport_structure_changed();
+            context.register_viewport_proximity(self);
+            context.invalidate_scene_geometry(self.id.to_u32());
+        }
     }
 
     pub fn fully_recreate_with_new_data(
@@ -1832,6 +1917,9 @@ impl ExpandedNode {
         {
             return false;
         }
+        if self.attached.get() > 0 && context.viewport_dependency(self.id.to_u32()) {
+            context.viewport_structure_changed();
+        }
         *borrow_mut!(self.render_parent) = Rc::downgrade(parent);
         let frame = frame.clone();
         let deps = [frame.untyped()];
@@ -1998,13 +2086,15 @@ impl ExpandedNode {
             self.transform_and_bounds.untyped(),
             self.computed_opacity.untyped(),
             self.liquid_glass_scope.untyped(),
+            self.get_common_properties().borrow().unclippable.untyped(),
         ]);
 
         let context = Rc::clone(ctx);
+        let id = self.id.to_u32();
         self.occlusion_listener
             .replace_with(Property::computed_with_name(
                 move || {
-                    context.mark_occlusion_dirty();
+                    context.mark_node_occlusion_dirty(id);
                 },
                 &deps,
                 "occlusion listener",
@@ -2487,6 +2577,7 @@ impl ExpandedNode {
                 &self.changed_listener,
                 "changed listener",
             );
+            context.register_viewport_proximity(self);
         }
     }
 

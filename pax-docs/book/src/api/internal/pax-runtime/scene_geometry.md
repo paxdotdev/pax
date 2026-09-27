@@ -32,12 +32,20 @@ Use the layout rectangle for a bounded primitive.
 ---
 
 ### `PreparedCanvasGeometry`
-Geometry shared by render candidate selection and primitive drawing.
+Geometry shared by render selection, primitive drawing, and viewport observation.
+Native surfaces use a separate bounds lookup in the same geometry service.
+Observed layout-only targets and their ancestors share these records without
+entering either rendering index.
 
 Coverage is in the owning canvas's content coordinates, so native scrolling
 changes the queried region without invalidating every descendant record.
 
 #### Properties
+##### `world_transform`
+Type: `Affine`
+
+Layout transform in unscrolled scene coordinates, shared with viewport observation.
+
 ##### `layer`
 Type: `usize`
 

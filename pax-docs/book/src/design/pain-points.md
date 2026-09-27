@@ -2365,3 +2365,127 @@ theme as a later change. Resolve a component's imports when mounting its templat
 before presentation or clock advancement. The regression covers tick/pre-render
 handlers and frame/millisecond-driven mounts, plus subsequent animated theme
 changes. This adds no traversal to idle frames.
+
+### Timeline easing names are a closed set (viewport-proximity example)
+
+A timeline authored with `OutCubic` compiled but logged a warning and fell back
+to Linear at runtime. Use the supported names listed in
+[Animation and Motion](../animation-motion.md#easing), such as `OutQuad` or
+`OutBack`; do not assume names from other animation libraries are available.
+The viewport-proximity example now uses `OutQuad`. Earlier validation of easing
+identifiers would make this mistake easier to catch during authoring.
+
+When rebuilding from a separate `pax-cli build` while an older `pax-cli run`
+process is still serving, its in-memory designtime manifest can keep supplying
+the earlier template after a browser reload. Restart the run session to refresh
+that manifest, or verify the self-contained release bundle on a separate local
+server. Reloading the page alone does not establish that the latest template
+is executing.
+
+## 2026-09-25 — Profile native host work as well as viewport observation
+
+The 270-card viewport example exposed expensive native work even though proximity
+dispatch itself occupied very little sampled CPU time. SwiftUI asked AppKit to
+infer the scene's size through hundreds of native text descendants, while content
+signatures reflected font/alignment values and converted unchanged colors through
+ColorSync. On macOS 13 and newer the native scene now accepts the proposed viewport
+size; signatures use value hashing. Keep native sizing and content identity cheap
+before considering more complex caches or virtualization.
+
+The event phase also finalized occlusion before and after handlers, duplicating
+the scene traversal when animation and handler-driven visuals both changed.
+Observation needs settled layout/scroll geometry, so compositing can run once
+after the frozen observation batch and its handlers. Keep presentation invalidation
+separate from renderer-plan invalidation: rebuilding layer assignments alone is
+not a reason to sample viewport geometry again. A regression test checks one
+compositing pass, frozen samples, final geometry, and first-frame layer ownership.
+
+Accessibility inspection can itself take substantial main-thread time in a large
+native scene. Identify those stacks in automated profiling captures and do not
+present raw CPU totals as frame-rate measurements.
+
+A smooth-looking release build can still miss a high-refresh display's budget.
+On the 120Hz Mac, the display-link source and idle engine loop both measured
+about 120Hz, while sustained automated scrolling delivered about 62–70 ticks/s.
+Measure callback cadence, queue delay, and tick execution separately before
+assuming a fixed 60Hz cap. For a temporary sandboxed native probe, write results
+through `FileManager.default.temporaryDirectory`; a hard-coded `/private/tmp`
+destination is outside the app container and can fail even when the shell can
+write there. Remove instrumentation and rebuild the ordinary app after capture.
+
+
+### Incremental native rendering must retain patch identity
+
+Native messages already identify changed elements, but reducing a batch to a
+single global generation loses the information needed to avoid reconstructing
+and traversing every native leaf. Preserve changed IDs through a bounded,
+non-destructive journal; reconcile from current models if a native host misses
+retained history. Check stable view identity as well as patch output in tests.
+
+Spatial replay's `None` historically means full replay, including empty query
+results. Native compositing needs an exact empty result instead: no overlap
+must mean no work. Keep that distinction at the query boundary, and compare
+incremental mask hashes against complete reconciliation after movement,
+opacity, clipping, scrolling, removal, and ordering changes.
+
+
+Native AppKit containers already set `autoresizesSubviews = false`. Check that
+invariant before attributing scaling cost to child autoresizing. Retaining
+view-backed frame/bounds transforms preserves native hit testing; regression
+checks should retain native control identity and text selection through scale
+changes. Profile AppKit layout separately from runtime mask computation and
+native-tree reconciliation.
+
+Classify presentation containers by layer in a single structural pass. Searching
+all nodes once per scroller makes initial mounting quadratic for a grid of nested
+scrollers, even if the later leaf-update path is incremental. Retain the owner-to-
+layer mapping for hot scroll queries too.
+
+## 2026-09-27 — Compare native fields and verify transformed coordinates
+
+A retained native view can still trigger unnecessary AppKit work if an opacity
+change reapplies its frame, bounds, and rotation. Compare individual properties,
+use the origin setter for translation, and only switch backing-transform modes
+when needed. Do not assume unchanged logical size means bounds need no repair:
+AppKit can change bounds when resizing the frame for scale. Check coordinate
+conversion after scaling, rotation, and shear-to-rotation transitions, along
+with native selection and setter counts. Bounds can include floating-point
+rounding, so coordinate tests should use a small numerical tolerance.
+
+A native snapshot's pixel identity is separate from its mask identity. Replacing
+the pixels must reapply an unchanged mask; otherwise text changes can silently
+remove punch-through coverage. Test actual pixels through masked content changes
+and restoration of the live control when the mask clears.
+
+For repeated native profiling, the CLI builds the Xcode project under
+`.pax/interface/macos`, whose relative Swift package references resolve to
+`.pax/interface/common`. The copied release project is an output artifact; using
+its original relative package paths as a build entry point does not work.
+
+
+### Native culling must retain interaction and overflow state
+
+Use the shared geometry index for native residency candidates, but let the host
+reject detachment when its native state requires attachment. Layout bounds alone
+do not enclose all unclipped text: use the existing native text measurement to
+keep overflowing text attached. Focus, selection, editing, glass scopes, and
+form-control keyboard navigation also need conservative handling. Reuse retained
+view instances on re-entry and restore subview order, not only layer zPosition.
+Keep VoiceOver and Switch Control on the complete native hierarchy until there
+is a separate accessibility representation for detached content.
+
+Build temporary profiling hosts from `.pax/interface`, with an isolated Xcode
+cache when switching project locations. The copied release project also flattens
+framework symlinks; changing its package paths alone can still break framework
+module resolution and code signing. Do not repair exported copies into a second
+source project. Restore the generated host from canonical templates and rebuild
+through the CLI after profiling.
+
+### Initial drawing must not depend on lighting bookkeeping
+
+Removing scene-wide lighting scans exposed canvas primitives whose first draw
+depended on inserting an initial zero light mask. Registering a canvas node must
+mark it dirty at mount, even in a completely unlit scene. Keep first-draw
+invalidation in the lifecycle path and test idle conditional branches without an
+unrelated animated sibling forcing replay. Lighting mask changes should only
+dirty nodes whose effective mask actually changes.
