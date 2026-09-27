@@ -54,6 +54,8 @@ fn args() -> InstantiationArgs {
 struct CountingSource {
     base: BaseInstance,
     coverage_calls: Cell<usize>,
+    mount_calls: Cell<usize>,
+    unmount_calls: Cell<usize>,
     paints: Vec<AlphaMaskPaint>,
 }
 
@@ -71,11 +73,19 @@ impl InstanceNode for CountingSource {
                 },
             ),
             coverage_calls: Cell::new(0),
+            mount_calls: Cell::new(0),
+            unmount_calls: Cell::new(0),
             paints: Vec::new(),
         })
     }
     fn base(&self) -> &BaseInstance {
         &self.base
+    }
+    fn handle_mount(self: Rc<Self>, _: &Rc<ExpandedNode>, _: &Rc<RuntimeContext>) {
+        self.mount_calls.set(self.mount_calls.get() + 1);
+    }
+    fn handle_unmount(&self, _: &Rc<ExpandedNode>, _: &Rc<RuntimeContext>) {
+        self.unmount_calls.set(self.unmount_calls.get() + 1);
     }
     fn resolve_debug(
         &self,
@@ -99,6 +109,239 @@ struct RecordingRenderer {
     restores: usize,
     clips: usize,
     alpha_clips: Vec<Vec<AlphaMaskPaint>>,
+}
+
+#[test]
+fn component_mask_source_initializes_handwriter_and_expands_its_template() {
+    use crate::drawing::handwriter::Handwriter;
+    use pax_runtime::api::pax_value::PaxAny;
+    use pax_runtime::api::NodeContext;
+    use pax_runtime::{Handler, HandlerRegistry};
+
+    fn mount_handwriter(
+        properties: Rc<RefCell<PaxAny>>,
+        context: &NodeContext,
+        _event: Option<PaxAny>,
+    ) {
+        Handwriter::mut_from_pax_any(&mut borrow_mut!(properties))
+            .unwrap()
+            .on_mount(context);
+    }
+
+    // The visible control proves that the same component/handler construction
+    // is valid before exercising its use as the detached mask source.
+    for as_mask_source in [false, true] {
+        let context = context();
+        let mut source_args = args();
+        source_args.prototypical_properties = PropertiesInit::Factory(Box::new(|_, _| {
+            Some(Rc::new(RefCell::new(Handwriter::default().to_pax_any())))
+        }));
+        source_args.component_template =
+            Some(RefCell::new(vec![CountingSource::instantiate(args())]));
+        let mut handlers = HandlerRegistry::default();
+        handlers.handlers.insert(
+            "mount".into(),
+            vec![Handler::new_component_handler(mount_handwriter)],
+        );
+        source_args.handler_registry = Some(Rc::new(RefCell::new(handlers)));
+        let source = ComponentInstance::instantiate(source_args);
+        let mut root_args = args();
+        if as_mask_source {
+            let mut mask_args = args();
+            mask_args.children = Some(RefCell::new(vec![
+                CountingSource::instantiate(args()),
+                source,
+            ]));
+            root_args.component_template =
+                Some(RefCell::new(vec![MaskInstance::instantiate(mask_args)]));
+        } else {
+            root_args.component_template = Some(RefCell::new(vec![source]));
+        }
+        let root =
+            ExpandedNode::initialize_root(ComponentInstance::instantiate(root_args), &context);
+        root.recurse_update(&context);
+        let first = root.children.get()[0].clone();
+        let source_node = if as_mask_source {
+            borrow!(first.sidecar_children)[0].clone()
+        } else {
+            first
+        };
+        assert!(
+            source_node
+                .with_properties_unwrapped(|p: &mut Handwriter| !p._elements.get().is_empty()),
+            "Handwriter's mount-generated geometry is absent (mask source: {as_mask_source})"
+        );
+        assert_eq!(source_node.children.get().len(), 1);
+        assert_eq!(source_node.is_render_source(), as_mask_source);
+        let original =
+            source_node.with_properties_unwrapped(|p: &mut Handwriter| p._elements.get());
+        source_node.with_properties_unwrapped(|p: &mut Handwriter| p.text.set("Pax".into()));
+        context.drain_node_effects();
+        assert_ne!(
+            source_node.with_properties_unwrapped(|p: &mut Handwriter| p._elements.get()),
+            original
+        );
+        let source_id = source_node.id;
+        let child_id = source_node.children.get()[0].id;
+        root.recurse_unmount(&context);
+        assert!(context.get_expanded_node_by_eid(source_id).is_none());
+        assert!(context.get_expanded_node_by_eid(child_id).is_none());
+        assert!(borrow!(source_node.mounted_children).is_empty());
+    }
+}
+
+#[test]
+fn component_sources_do_not_present_native_leaves_or_containers() {
+    use crate::core::frame::{Frame, FrameInstance};
+    use crate::core::group::{Group, GroupInstance};
+    use crate::core::text::{Text, TextInstance};
+
+    let context = context();
+    let mut text_args = args();
+    text_args.prototypical_properties = PropertiesInit::Factory(Box::new(|_, _| {
+        Some(Rc::new(RefCell::new(Text::default().to_pax_any())))
+    }));
+    let mut group_args = args();
+    group_args.prototypical_properties = PropertiesInit::Factory(Box::new(|_, _| {
+        Some(Rc::new(RefCell::new(Group::default().to_pax_any())))
+    }));
+    group_args.children = Some(RefCell::new(vec![
+        TextInstance::instantiate(text_args),
+        CountingSource::instantiate(args()),
+    ]));
+    let mut frame_args = args();
+    frame_args.prototypical_properties = PropertiesInit::Factory(Box::new(|_, _| {
+        Some(Rc::new(RefCell::new(Frame::default().to_pax_any())))
+    }));
+    frame_args.children = Some(RefCell::new(vec![GroupInstance::instantiate(group_args)]));
+    let mut source_args = args();
+    source_args.component_template =
+        Some(RefCell::new(vec![FrameInstance::instantiate(frame_args)]));
+    let source_instance = ComponentInstance::instantiate(source_args);
+    let mut mask_args = args();
+    mask_args.children = Some(RefCell::new(vec![
+        CountingSource::instantiate(args()),
+        source_instance.clone(),
+    ]));
+    let mut root_args = args();
+    root_args.component_template = Some(RefCell::new(vec![MaskInstance::instantiate(mask_args)]));
+    let root = ExpandedNode::initialize_root(ComponentInstance::instantiate(root_args), &context);
+    root.recurse_update(&context);
+    let mask = root.children.get()[0].clone();
+    let source = borrow!(mask.sidecar_children)[0].clone();
+    let frame = source.children.get()[0].clone();
+    let group = frame.children.get()[0].clone();
+    let text = group.children.get()[0].clone();
+    let canvas = group.children.get()[1].clone();
+    for node in [&source, &frame, &group, &text, &canvas] {
+        assert!(node.is_render_source());
+        assert!(context.get_expanded_node_by_eid(node.id).is_some());
+        assert!(!node.ray_cast_test(pax_runtime::api::math::Point2::new(10.0, 10.0)));
+    }
+    let messages = context.take_native_messages();
+    assert!(
+        messages.iter().all(|message| match message {
+            pax_message::NativeMessage::FrameCreate(patch) => patch.id == mask.id.to_u32(),
+            pax_message::NativeMessage::FrameUpdate(patch) => patch.id == mask.id.to_u32(),
+            _ => false,
+        }),
+        "source nodes must not create native resources: {messages:?}"
+    );
+
+    // Whole-component replacement uses the same source role and balances old
+    // native-free descendants, rather than remounting them as visible nodes.
+    let old_ids = [frame.id, group.id, text.id, canvas.id];
+    source.fully_recreate_with_new_data(source_instance, &context);
+    context.drain_node_effects();
+    assert!(source.is_render_source());
+    assert!(context
+        .take_native_messages()
+        .iter()
+        .all(|message| matches!(
+            message,
+            pax_message::NativeMessage::FrameUpdate(patch) if patch.id == mask.id.to_u32()
+        )));
+    for id in old_ids {
+        assert!(context.get_expanded_node_by_eid(id).is_none());
+    }
+    root.recurse_unmount(&context);
+    assert!(context.get_expanded_node_by_eid(source.id).is_none());
+    let messages = context.take_native_messages();
+    assert!(
+        messages.iter().all(|message| matches!(
+            message,
+            pax_message::NativeMessage::FrameDelete(id) if *id == mask.id.to_u32()
+        )),
+        "source teardown must not delete resources it never created: {messages:?}"
+    );
+}
+
+#[test]
+fn projected_conditional_source_keeps_its_role_and_balances_lifetimes() {
+    use pax_runtime::{ConditionalInstance, ConditionalProperties, Slot, SlotInstance};
+
+    let context = context();
+    let shown = Property::new(false);
+    let leaf = CountingSource::instantiate(args());
+    let mut conditional_args = args();
+    let condition = shown.clone();
+    conditional_args.prototypical_properties = PropertiesInit::Factory(Box::new(move |_, _| {
+        Some(Rc::new(RefCell::new(
+            ConditionalProperties {
+                boolean_expression: condition.clone(),
+                conditional_branches: Vec::new(),
+            }
+            .to_pax_any(),
+        )))
+    }));
+    conditional_args.children = Some(RefCell::new(vec![leaf.clone()]));
+    let mut slot_args = args();
+    slot_args.prototypical_properties = PropertiesInit::Factory(Box::new(|_, _| {
+        Some(Rc::new(RefCell::new(
+            Slot {
+                is_remainder: Property::new(true),
+                ..Default::default()
+            }
+            .to_pax_any(),
+        )))
+    }));
+    let mut source_args = args();
+    source_args.children = Some(RefCell::new(vec![ConditionalInstance::instantiate(
+        conditional_args,
+    )]));
+    source_args.component_template = Some(RefCell::new(vec![SlotInstance::instantiate(slot_args)]));
+    let mut mask_args = args();
+    mask_args.children = Some(RefCell::new(vec![
+        CountingSource::instantiate(args()),
+        ComponentInstance::instantiate(source_args),
+    ]));
+    let mut root_args = args();
+    root_args.component_template = Some(RefCell::new(vec![MaskInstance::instantiate(mask_args)]));
+    let root = ExpandedNode::initialize_root(ComponentInstance::instantiate(root_args), &context);
+    root.recurse_update(&context);
+    let mask = root.children.get()[0].clone();
+    let source = borrow!(mask.sidecar_children)[0].clone();
+    let slot = source.children.get()[0].clone();
+    assert!(slot.children.get().is_empty());
+    assert_eq!(leaf.mount_calls.get(), 0);
+
+    shown.set(true);
+    root.recurse_update(&context);
+    let projected = slot.children.get()[0].clone();
+    assert!(projected.is_render_source());
+    assert_eq!(leaf.mount_calls.get(), 1);
+    shown.set(false);
+    root.recurse_update(&context);
+    assert!(slot.children.get().is_empty());
+    assert_eq!(leaf.unmount_calls.get(), 1);
+    assert!(context.get_expanded_node_by_eid(projected.id).is_none());
+
+    shown.set(true);
+    root.recurse_update(&context);
+    assert!(slot.children.get()[0].is_render_source());
+    assert_eq!(leaf.mount_calls.get(), 2);
+    root.recurse_unmount(&context);
+    assert_eq!(leaf.unmount_calls.get(), 2);
 }
 
 impl RenderContext for RecordingRenderer {

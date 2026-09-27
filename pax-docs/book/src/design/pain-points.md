@@ -95,6 +95,59 @@ viewport/prewarm events can support application-driven deferred image loading;
 they do not remove the need to bound native backing surfaces. Do not conclude
 that all decoded images caused a GPU-phase memory jump without measuring it.
 
+## 2026-09-27: Live components as mask sources (PAX-1008)
+
+A Handwriter used directly as a Mask's second child produced no coverage.
+The off-tree source already had component properties and layout bindings, but
+only control-flow expansion ran: neither its mount-generated glyph data nor
+its internal Path template existed. A runtime reproduction succeeds as visible
+content and fails as a source before the fix.
+
+Mask sources now use ordinary logical mount/expand/update/unmount machinery
+with inherited source ownership. This preserves direct Path sources while
+allowing reusable vector components to initialize and animate. Source nodes
+remain out of visible render/hit-test paths; native leaves and container
+presentation are suppressed at setup, not by dropping their native patches
+afterward. Teardown releases mounted sidecars as well as source subscriptions.
+
+Keep accessible text outside the mask: Handwriter's native text equivalent is
+not a source. Source-side Frame/Mask clipping and native alpha remain separate
+limitations. Capturing complete GPU source compositions with the retained
+surface machinery from PAX-1004 is a separate integration step; lifecycle
+initialization alone does not provide arbitrary subtree rasterization.
+
+The web fixture also exposed a pre-existing alpha-mask/Scroller coordinate
+failure on base `0b5c68be1`: both direct Path and component-source reveals were
+blank inside a Scroller but rendered correctly under a root Group. Restoring the
+old source initialization still reproduced the direct Path failure. The content
+primitive treated the nearest different-layer Frame/Mask as its canvas origin,
+while mask coverage used the registered Scroller owner. A translated Mask thus
+moved the content to its own origin without moving the mask there.
+
+Resolve canvas coordinates through the render layer's registered Scroller owner,
+not a layer-number difference on an arbitrary structural ancestor. Drawing and
+lighting now share that calculation; a layer without a Scroller owner stays in
+window coordinates. The regression covers an intervening structural frame,
+translated/scaled/rotated nested owners, and a root canvas. Keep an actual
+Scroller in the canonical fixture so root-level success cannot hide this bug.
+
+For visual verification, the current `pax-cli dev look` capture at a fractional
+scale clipped canvas content, and a capture after scrolling misplaced native
+button overlays. Browser screenshots showed the actual page correctly. Use a
+scale of 1 for canvas inspection and verify scrolling/native alignment in the
+browser before treating these capture artifacts as renderer failures.
+
+The related stroke-paint audit found that public Stroke still exposes only
+Color while the GPU already stores Fill paint. Any gradient extension must
+preserve a stable complete-path coordinate domain before draw-range trimming:
+Piet currently resolves bounds after trimming, while alpha extraction resolves
+them after converting the stroke to an outline. Radial conversion also differs
+between visible GPU, alpha GPU and Piet. These are explicit follow-up design
+constraints, not implemented gradient-stroke support.
+
+The fixture also reinforces a basic PAXEL distinction: conditional values use
+`condition ? first : second`, not Rust `if { ... } else { ... }` expressions.
+
 ## 2026-09-23: Native graph zoom and surface density
 
 The calculator's first graph zoom-out shrank its world from 8,192 to 4,096

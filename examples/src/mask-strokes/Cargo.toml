@@ -1,0 +1,19 @@
+[package]
+name = "mask-strokes"
+version = "0.39.0"
+edition = "2021"
+
+[package.metadata.pax]
+title = "Component Mask Sources"
+
+[dependencies]
+pax-kit = { version = "0.39.0", path = "../../../pax-kit" }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package.mask-strokes]
+opt-level = 0

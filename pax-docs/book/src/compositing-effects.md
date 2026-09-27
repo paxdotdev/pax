@@ -222,12 +222,33 @@ combine with source-over alpha, so two half-opacity shapes give 75%
 coverage where they overlap.
 
 Path strokes used as alpha sources respect `draw_start` and `draw_end`.
-However, a mask source is off-tree and does not run the ordinary component
-mount lifecycle. Components such as Handwriter that generate paths in a mount
-handler currently cannot be used directly as mask sources; use primitive
-vector sources with already-authored geometry. A mask source also does not
-provide visible native text, so keep a text equivalent outside the mask when
-a vector reveal carries meaning.
+A reusable vector-producing component can supply the source too. Its template
+expands and its mount handler runs normally; reactive properties, timelines and
+tick/pre-render handlers remain live until the source is removed. For example,
+Handwriter can reveal a colored surface as its generated stroke is drawn:
+
+```pax
+<Mask width=300px height=100px alpha=true>
+    <Rectangle width=100% height=100% fill=rgb(0, 220, 235)/>
+    <Handwriter width=100% height=100% text="Pax"
+        stroke={color: WHITE, width: 5px}
+        draw_end=@timeline { duration: 2s, 0: 0%, 100%: 100% }/>
+</Mask>
+```
+
+The source is a live component tree, but its output goes only to the mask. It
+does not create visible native surfaces or input targets. Native Text and
+controls—including Handwriter's invisible selectable text equivalent—do not
+contribute mask pixels. Keep a text equivalent outside the mask when a vector
+reveal carries meaning. Source mount handlers can still perform application
+side effects, so use the same lifetime/cleanup discipline as visible components.
+
+This does not make every component a supported source: the rendered leaves
+must still be supported vector shapes, and the source-side clipping limitations
+above still apply. The default geometric mode also differs from painted alpha:
+a Path's nonempty draw range contributes its complete stroke outline to
+geometric coverage, not the progressively drawn segment. Use `alpha=true` for
+handwriting reveals.
 
 Add `feather=2.0` to the Mask to soften its painted coverage. `feather` is the
 Gaussian standard deviation in logical pixels, rather than a percentage or a
@@ -244,6 +265,13 @@ geometric clips further restrict the result. An empty or fully transparent
 alpha source hides all content. Alpha masking modulates individual canvas
 draws; it does not flatten the content into an isolated group before applying
 transparency.
+
+Alpha masks can reveal canvas content inside a Scroller, including a nested
+Scroller with intervening Frames or Masks. The source and content use the
+owning Scroller's content coordinates, so their authored offsets stay aligned
+as the viewport scrolls. The `mask-strokes` example includes live handwriting,
+a direct Path source, and a nested scrolling ring to exercise this boundary.
+This does not add support for Scrollers or clipping inside the source subtree.
 
 The current alpha path requires the GPU renderer. Native text and controls
 are not supported as content inside an alpha mask, and Piet does not support

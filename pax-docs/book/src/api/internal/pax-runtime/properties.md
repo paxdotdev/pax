@@ -64,7 +64,9 @@ Call after draining scene effects; querying does not advance layout or dispatch 
 ##### `canvas_surface_transform_for_node`
 <pre><code class="api-signature language-rust ignore">pub fn canvas_surface_transform_for_node(&amp;self, node: &amp;ExpandedNode) -&gt; Affine</code></pre>
 
-Resolve a node transform in its owning canvas content coordinates.
+Resolve a node's local coordinates into its owning canvas's content space.
+Scroller-owned layers use the registered owner's origin; root layers use
+window coordinates. Physical tile offsets are applied later by the renderer.
 
 ##### `capture_touch_target`
 <pre><code class="api-signature language-rust ignore">pub fn capture_touch_target(&amp;self, identifier: i64, target: <a href="../../../api/internal/pax-runtime/properties.md#expandednodeidentifier">ExpandedNodeIdentifier</a>)</code></pre>

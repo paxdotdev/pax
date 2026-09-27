@@ -30,6 +30,14 @@ ordinary geometric clips continue to intersect them. An empty alpha source
 hides all content. Cached surface-sized GPU textures are reused until paint,
 feather, enclosing alpha, or surface dimensions change.
 
+Source components have a normal logical lifetime: their templates expand,
+mount handlers initialize state, reactive changes and animation remain live,
+and unmount releases their descendants and subscriptions. This allows a
+`Handwriter` (including its animated draw range) to supply the mask directly.
+Source nodes are not presented or hit-tested. Native leaves, including
+Handwriter's selectable text equivalent, do not create native surfaces; keep
+meaningful accessible text outside the mask. User mount side effects still run.
+
 Current boundary: WGPU canvas rendering, verified on web. Native controls and
 the legacy Piet renderer do not support alpha masks. Source-side `Frame`/`Mask`
 clipping, images, text, and native elements are not alpha sources; use vector

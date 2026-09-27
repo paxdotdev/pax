@@ -1097,6 +1097,14 @@ impl RuntimeContext {
 
     pub fn mark_canvas_node_dirty(&self, id: ExpandedNodeIdentifier) {
         borrow_mut!(self.scene_geometry).invalidate(id.to_u32());
+        let owner = self
+            .get_expanded_node_by_eid(id)
+            .and_then(|node| node.render_source_owner())
+            .and_then(|id| self.get_expanded_node_by_eid(id));
+        if let Some(owner) = owner {
+            owner.changed_listener.invalidate();
+            return;
+        }
         borrow_mut!(self.dirty_canvas_nodes).insert(id);
     }
 
@@ -1116,7 +1124,8 @@ impl RuntimeContext {
         let node_cache = borrow!(self.node_cache);
         let dirty_nodes = &mut *borrow_mut!(self.dirty_canvas_nodes);
         for node in node_cache.eid_to_node.values() {
-            if node.occlusion.get().render_layer_id == layer
+            if !node.is_render_source()
+                && node.occlusion.get().render_layer_id == layer
                 && borrow!(node.instance_node).base().flags().layer == crate::api::Layer::Canvas
             {
                 dirty_nodes.insert(node.id);
@@ -1154,6 +1163,9 @@ impl RuntimeContext {
             let Some(node) = node_cache.eid_to_node.get(id) else {
                 continue;
             };
+            if node.is_render_source() {
+                continue;
+            }
             let occlusion = node.occlusion.get();
             let source_layer = occlusion.render_layer_id;
             let Some(source_to_root) = layer_to_root_transforms.get(&source_layer) else {
@@ -1353,22 +1365,20 @@ impl RuntimeContext {
         transform
     }
 
-    /// Resolve a node transform in its owning canvas content coordinates.
+    /// Resolve a node's local coordinates into its owning canvas's content space.
+    /// Scroller-owned layers use the registered owner's origin; root layers use
+    /// window coordinates. Physical tile offsets are applied later by the renderer.
     pub fn canvas_surface_transform_for_node(&self, node: &ExpandedNode) -> Affine {
         let transform = Affine::from(node.transform_and_bounds.get().transform);
         let own_layer = node.occlusion.get().render_layer_id;
-        let mut parent_frame_id = node.parent_frame.get();
-        while let Some(current_parent_frame_id) = parent_frame_id {
-            let Some(parent_frame) = self.get_expanded_node_by_eid(current_parent_frame_id) else {
-                break;
-            };
-            if parent_frame.occlusion.get().render_layer_id != own_layer {
-                return Affine::from(parent_frame.transform_and_bounds.get().transform.inverse())
-                    * transform;
-            }
-            parent_frame_id = parent_frame.parent_frame.get();
-        }
-        transform
+        // Structural Frame/Mask ancestors can retain a different/default layer
+        // without owning a canvas. Using them as the origin displaces content
+        // relative to clips and alpha masks in the actual Scroller surface.
+        self.get_layer_scroller_owner(own_layer)
+            .and_then(|owner| self.get_expanded_node_by_eid(owner))
+            .map_or(transform, |owner| {
+                Affine::from(owner.transform_and_bounds.get().transform.inverse()) * transform
+            })
     }
 
     pub(crate) fn invalidate_scene_geometry(&self, id: u32) {
@@ -1510,7 +1520,9 @@ impl RuntimeContext {
         let node_cache = borrow!(self.node_cache);
         let dirty_nodes = &mut *borrow_mut!(self.dirty_canvas_nodes);
         for node in node_cache.eid_to_node.values() {
-            if borrow!(node.instance_node).base().flags().layer == crate::api::Layer::Canvas {
+            if !node.is_render_source()
+                && borrow!(node.instance_node).base().flags().layer == crate::api::Layer::Canvas
+            {
                 dirty_nodes.insert(node.id);
             }
         }
@@ -1590,6 +1602,9 @@ impl RuntimeContext {
         while let Some((node, clipped, active_scroll_transform, retained_for_exit)) =
             to_process.pop()
         {
+            if node.is_render_source() {
+                continue;
+            }
             // make sure slot sources are updated for this node
             node.compute_flattened_projected_children();
             if !hit_invisible
@@ -2610,6 +2625,64 @@ mod light_scope_tests {
         context.clear_all_dirty_canvases();
         nodes[0].clone().recurse_unmount(&context);
         assert!(context.is_canvas_dirty(&1));
+    }
+
+    #[test]
+    fn canvas_surface_transform_uses_the_layer_owner_not_intermediate_frames() {
+        let leaf = TestLightingNode::new(TestLightingRole::Surface, Vec::new());
+        let mask = TestLightingNode::new(TestLightingRole::Frame, vec![leaf.as_instance()]);
+        let inner = TestLightingNode::new(TestLightingRole::Frame, vec![mask.as_instance()]);
+        let outer = TestLightingNode::new(TestLightingRole::Frame, vec![inner.as_instance()]);
+        let (context, root) = mount_test_tree(vec![outer.as_instance()]);
+        let outer = root.children.get()[0].clone();
+        let inner = outer.children.get()[0].clone();
+        let mask = inner.children.get()[0].clone();
+        let leaf = mask.children.get()[0].clone();
+
+        let outer_transform = Affine::translate((40.0, 70.0)) * Affine::scale(1.5);
+        let inner_local = Affine::translate((25.0, 35.0)) * Affine::rotate(0.3);
+        let inner_transform = outer_transform * inner_local;
+        let mask_transform = inner_transform * Affine::translate((60.0, 90.0));
+        let leaf_local = Affine::translate((8.0, 12.0));
+        let leaf_transform = mask_transform * leaf_local;
+        for (node, transform, layer, parent_frame) in [
+            (&outer, outer_transform, 0, None),
+            (&inner, inner_transform, 1, Some(outer.id)),
+            // Like a Mask in a Scroller, this structural frame stays on layer zero.
+            (&mask, mask_transform, 0, Some(inner.id)),
+            (&leaf, leaf_transform, 2, Some(mask.id)),
+        ] {
+            node.transform_and_bounds
+                .replace_with(Property::new(TransformAndBounds {
+                    transform: Transform2::new(transform.as_coeffs()),
+                    bounds: (100.0, 100.0),
+                }));
+            let mut occlusion = node.occlusion.get();
+            occlusion.render_layer_id = layer;
+            node.occlusion.set(occlusion);
+            node.parent_frame.replace_with(Property::new(parent_frame));
+        }
+        context.register_layer_scroller_owner(1, outer.id);
+        context.register_layer_scroller_owner(2, inner.id);
+
+        let assert_transform = |actual: Affine, expected: Affine| {
+            for (actual, expected) in actual.as_coeffs().into_iter().zip(expected.as_coeffs()) {
+                assert!((actual - expected).abs() < 1e-9, "{actual} != {expected}");
+            }
+        };
+        assert_transform(
+            context.canvas_surface_transform_for_node(&leaf),
+            Affine::translate((60.0, 90.0)) * leaf_local,
+        );
+        assert_transform(context.layer_to_root_transform(2), inner_transform);
+
+        // A root canvas may also contain structural frames from another layer.
+        // Without a surface owner its coordinates must remain in window space.
+        context.clear_layer_scroller_owners();
+        assert_transform(
+            context.canvas_surface_transform_for_node(&leaf),
+            leaf_transform,
+        );
     }
 
     #[test]

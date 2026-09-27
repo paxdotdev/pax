@@ -237,8 +237,13 @@ pub struct ExpandedNode {
     /// Reactive mirror of `exiting_children` for consumers that need retained exits.
     pub exiting_children_view: Property<Vec<Rc<ExpandedNode>>>,
 
-    /// Auxiliary children participate in update/layout but are not mounted or rendered directly.
+    /// Auxiliary children are not presented directly. Mask sources have a normal
+    /// logical mount lifetime; other sidecar consumers choose their own lifetime.
     pub sidecar_children: RefCell<Vec<Rc<ExpandedNode>>>,
+
+    /// Mask receiving this node's visual output, rather than the visible scene.
+    /// The identifier avoids keeping the owner alive through its descendants.
+    render_source_owner: Cell<Option<ExpandedNodeIdentifier>>,
 
     /// Each ExpandedNode has a unique "stamp" of computed properties
     pub properties: RefCell<Rc<RefCell<PaxAny>>>,
@@ -687,6 +692,9 @@ macro_rules! dispatch_event_handler {
             globals: &Globals,
             ctx: &Rc<RuntimeContext>,
         ) -> bool {
+            if self.is_render_source() {
+                return event.cancelled();
+            }
             self.run_event_handlers_for_key($handler_key, &event, ctx);
 
             if $recurse {
@@ -700,6 +708,31 @@ macro_rules! dispatch_event_handler {
 }
 
 impl ExpandedNode {
+    /// Whether this live node supplies a mask rather than visible scene content.
+    pub fn is_render_source(&self) -> bool {
+        self.render_source_owner.get().is_some()
+    }
+
+    /// Initialize a detached source using ordinary component lifetime machinery.
+    /// Presentation and native-resource allocation remain disabled for this tree.
+    pub fn mount_as_render_source(self: &Rc<Self>, owner: &Rc<Self>, context: &Rc<RuntimeContext>) {
+        assert_eq!(
+            self.attached.get(),
+            0,
+            "a mask cannot borrow a mounted scene node"
+        );
+        self.render_source_owner.set(Some(owner.id));
+        self.recurse_mount(context);
+    }
+
+    pub(crate) fn render_source_owner(&self) -> Option<ExpandedNodeIdentifier> {
+        self.render_source_owner.get()
+    }
+
+    fn suppresses_native_presentation(&self) -> bool {
+        self.is_render_source() && borrow!(self.instance_node).base().flags().layer == Layer::Native
+    }
+
     pub fn initialize_root(template: Rc<ComponentInstance>, ctx: &Rc<RuntimeContext>) -> Rc<Self> {
         let root_node = Self::new(
             template,
@@ -731,6 +764,9 @@ impl ExpandedNode {
         event: &Event<T>,
         ctx: &Rc<RuntimeContext>,
     ) {
+        if self.is_render_source() {
+            return;
+        }
         if let Some(registry) = borrow!(self.instance_node).base().get_handler_registry() {
             let borrowed_registry = &borrow!(*registry);
             if let Some(handlers) = borrowed_registry.handlers.get(handler_key) {
@@ -919,6 +955,9 @@ impl ExpandedNode {
         };
 
         let id = context.gen_uid();
+        let render_source_owner = parent
+            .upgrade()
+            .and_then(|parent| parent.render_source_owner.get());
         let res = Rc::new(ExpandedNode {
             id,
             stack: env,
@@ -948,6 +987,7 @@ impl ExpandedNode {
             exiting_child_generations: RefCell::new(HashMap::new()),
             exiting_children_view: Property::new(Vec::new()),
             sidecar_children: RefCell::new(Vec::new()),
+            render_source_owner: Cell::new(render_source_owner),
             transform_and_bounds: Property::new(TransformAndBounds::default()),
             subtree_layout_hull: Property::new(LayoutHull::default()),
             container_frame: Property::new(None),
@@ -1871,6 +1911,9 @@ impl ExpandedNode {
         frame: &Property<Option<ExpandedNodeIdentifier>>,
         glass: &Property<Option<NativeLiquidGlassScope>>,
     ) -> bool {
+        if let Some(owner) = parent.render_source_owner.get() {
+            self.render_source_owner.set(Some(owner));
+        }
         let properties = {
             let parent_cp = parent.get_common_properties();
             let parent_cp = borrow!(parent_cp);
@@ -2467,11 +2510,13 @@ impl ExpandedNode {
             return;
         }
         let instance_node = Rc::clone(&*borrow!(self.instance_node));
-        if instance_node.requires_non_reactive_update(self) {
+        if !self.suppresses_native_presentation()
+            && instance_node.requires_non_reactive_update(self)
+        {
             instance_node.update(&self, context);
         }
-        let mut subtree_requires_non_reactive_update =
-            Rc::clone(&*borrow!(self.instance_node)).requires_non_reactive_update(self);
+        let mut subtree_requires_non_reactive_update = !self.suppresses_native_presentation()
+            && Rc::clone(&*borrow!(self.instance_node)).requires_non_reactive_update(self);
         let children = borrow!(self.mounted_children).clone();
         for child in children.iter() {
             child.recurse_update_mounted(context);
@@ -2569,9 +2614,14 @@ impl ExpandedNode {
                     )
                 }
             }
-            borrow!(self.instance_node)
-                .clone()
-                .handle_mount(&self, context);
+            // Native source leaves have no GPU coverage. Keep their properties
+            // available to component logic, but create no native surfaces or
+            // native update subscriptions.
+            if !self.suppresses_native_presentation() {
+                borrow!(self.instance_node)
+                    .clone()
+                    .handle_mount(&self, context);
+            }
             context.register_expanded_node_effect_property_named(
                 self,
                 &self.changed_listener,
@@ -2592,7 +2642,9 @@ impl ExpandedNode {
             for child in borrow!(self.mounted_children).iter() {
                 Rc::clone(child).recurse_unmount(context);
             }
-            borrow!(self.instance_node).handle_unmount(&self, context);
+            if !self.suppresses_native_presentation() {
+                borrow!(self.instance_node).handle_unmount(&self, context);
+            }
             if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
                 for handler in borrow!(registry)
                     .handlers
@@ -2607,7 +2659,9 @@ impl ExpandedNode {
                 }
             }
 
-            if self.instance_node.borrow().base().flags().layer == Layer::Canvas {
+            if !self.is_render_source()
+                && self.instance_node.borrow().base().flags().layer == Layer::Canvas
+            {
                 context.enqueue_canvas_node_removal(
                     self.occlusion.get().render_layer_id,
                     self.id.to_u32(),
@@ -2806,6 +2860,9 @@ impl ExpandedNode {
         ctx: &Rc<RuntimeContext>,
         rcs: &mut dyn RenderContext,
     ) {
+        if self.is_render_source() {
+            return;
+        }
         let cp = self.get_common_properties();
         let cp = borrow!(cp);
         if cp.unclippable.get().unwrap_or(false) {
@@ -2833,6 +2890,9 @@ impl ExpandedNode {
         dirty_nodes: &HashSet<ExpandedNodeIdentifier>,
         stats: &mut FilteredRenderStats,
     ) {
+        if self.is_render_source() {
+            return;
+        }
         stats.path_nodes_visited += 1;
         borrow!(self.instance_node).handle_pre_render(&self, ctx, rcs);
         for child in self.children.get().iter().rev() {
@@ -2850,6 +2910,9 @@ impl ExpandedNode {
     }
 
     pub fn recurse_render(self: &Rc<Self>, ctx: &Rc<RuntimeContext>, rcs: &mut dyn RenderContext) {
+        if self.is_render_source() {
+            return;
+        }
         borrow!(self.instance_node).handle_pre_render(&self, ctx, rcs);
         for child in self.children.get().iter().rev() {
             child.recurse_render_queue(ctx, rcs);
@@ -3088,6 +3151,9 @@ impl ExpandedNode {
     /// Determines whether the provided ray, orthogonal to the view plane,
     /// intersects this `ExpandedNode`.
     pub fn ray_cast_test(&self, ray: Point2<Window>) -> bool {
+        if self.is_render_source() {
+            return false;
+        }
         let cp = borrow!(self.common_properties);
 
         // skip raycast if false

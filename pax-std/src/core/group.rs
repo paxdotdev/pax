@@ -125,7 +125,8 @@ impl InstanceNode for GroupInstance {
         context: &Rc<RuntimeContext>,
     ) {
         let id = expanded_node.id.to_u32();
-        let initially_active = expanded_node.liquid_glass_scope.get().is_some();
+        let initially_active =
+            !expanded_node.is_render_source() && expanded_node.liquid_glass_scope.get().is_some();
         let created = Rc::new(Cell::new(initially_active));
         if initially_active {
             context.enqueue_native_message(pax_message::NativeMessage::GlassSurfaceCreate(
@@ -147,6 +148,12 @@ impl InstanceNode for GroupInstance {
             true,
         );
         expanded_node.children.set(new_children);
+
+        // Sources use Group's ordinary layout/children, never its optional
+        // native LiquidGlass presentation or associated patch subscriptions.
+        if expanded_node.is_render_source() {
+            return;
+        }
 
         let last_patch = Rc::new(RefCell::new(GlassSurfacePatch {
             id,
@@ -282,7 +289,7 @@ impl InstanceNode for GroupInstance {
         expanded_node
             .changed_listener
             .replace_with(Property::default());
-        if expanded_node.liquid_glass_scope.get().is_some() {
+        if !expanded_node.is_render_source() && expanded_node.liquid_glass_scope.get().is_some() {
             context.enqueue_native_message(pax_message::NativeMessage::GlassSurfaceDelete(
                 expanded_node.id.to_u32(),
             ));

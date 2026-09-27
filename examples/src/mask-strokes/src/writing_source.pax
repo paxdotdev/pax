@@ -1,0 +1,10 @@
+<Handwriter width=100% height=100% text="creative" font=HandwriterFont::EMSLeague smoothing=PathSmoothing::Strong 
+    draw_end={self.progress} stroke={
+        color: WHITE
+        width: 5px
+    }/>
+
+@settings {
+    @mount: mount
+    @pre_render: tick
+}

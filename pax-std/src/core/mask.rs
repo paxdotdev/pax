@@ -40,6 +40,14 @@ use_RefCell!();
 /// hides all content. Cached surface-sized GPU textures are reused until paint,
 /// feather, enclosing alpha, or surface dimensions change.
 ///
+/// Source components have a normal logical lifetime: their templates expand,
+/// mount handlers initialize state, reactive changes and animation remain live,
+/// and unmount releases their descendants and subscriptions. This allows a
+/// `Handwriter` (including its animated draw range) to supply the mask directly.
+/// Source nodes are not presented or hit-tested. Native leaves, including
+/// Handwriter's selectable text equivalent, do not create native surfaces; keep
+/// meaningful accessible text outside the mask. User mount side effects still run.
+///
 /// Current boundary: WGPU canvas rendering, verified on web. Native controls and
 /// the legacy Piet renderer do not support alpha masks. Source-side `Frame`/`Mask`
 /// clipping, images, text, and native elements are not alpha sources; use vector
@@ -330,11 +338,15 @@ impl InstanceNode for MaskInstance {
         context: &Rc<RuntimeContext>,
     ) {
         let id = expanded_node.id.to_u32();
-        context.enqueue_native_message(pax_message::NativeMessage::FrameCreate(AnyCreatePatch {
-            id,
-            parent_frame: expanded_node.parent_frame.get().map(|v| v.to_u32()),
-            render_layer_id: 0,
-        }));
+        if !expanded_node.is_render_source() {
+            context.enqueue_native_message(pax_message::NativeMessage::FrameCreate(
+                AnyCreatePatch {
+                    id,
+                    parent_frame: expanded_node.parent_frame.get().map(|v| v.to_u32()),
+                    render_layer_id: 0,
+                },
+            ));
+        }
 
         let env = Rc::clone(&expanded_node.stack);
         let children = borrow!(self.base().get_instance_children());
@@ -371,7 +383,7 @@ impl InstanceNode for MaskInstance {
                 &expanded_node.parent_frame,
             );
             for child in sidecar.iter() {
-                child.recurse_control_flow_expansion(context);
+                child.mount_as_render_source(expanded_node, context);
             }
         }
 
@@ -458,8 +470,11 @@ impl InstanceNode for MaskInstance {
                     ];
 
                     if updates.into_iter().any(|updated| updated) {
-                        context
-                            .enqueue_native_message(pax_message::NativeMessage::FrameUpdate(patch));
+                        if !expanded_node.is_render_source() {
+                            context.enqueue_native_message(
+                                pax_message::NativeMessage::FrameUpdate(patch),
+                            );
+                        }
                         Self::mark_canvas_descendants_dirty(&expanded_node, &context);
                     }
                 },
@@ -468,12 +483,18 @@ impl InstanceNode for MaskInstance {
     }
 
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {
+        let sources = std::mem::take(&mut *borrow_mut!(expanded_node.sidecar_children));
+        for source in sources {
+            source.recurse_unmount(context);
+        }
         expanded_node
             .changed_listener
             .replace_with(Property::default());
-        context.enqueue_native_message(pax_message::NativeMessage::FrameDelete(
-            expanded_node.id.to_u32(),
-        ));
+        if !expanded_node.is_render_source() {
+            context.enqueue_native_message(pax_message::NativeMessage::FrameDelete(
+                expanded_node.id.to_u32(),
+            ));
+        }
     }
 
     fn handle_pre_render(

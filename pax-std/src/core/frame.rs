@@ -216,11 +216,15 @@ impl InstanceNode for FrameInstance {
         context: &Rc<RuntimeContext>,
     ) {
         let id = expanded_node.id.clone();
-        context.enqueue_native_message(pax_message::NativeMessage::FrameCreate(AnyCreatePatch {
-            id: id.to_u32(),
-            parent_frame: expanded_node.parent_frame.get().map(|v| v.to_u32()),
-            render_layer_id: 0,
-        }));
+        if !expanded_node.is_render_source() {
+            context.enqueue_native_message(pax_message::NativeMessage::FrameCreate(
+                AnyCreatePatch {
+                    id: id.to_u32(),
+                    parent_frame: expanded_node.parent_frame.get().map(|v| v.to_u32()),
+                    render_layer_id: 0,
+                },
+            ));
+        }
 
         // below is the same as default impl for adding children in instance_node
         let env = Rc::clone(&expanded_node.stack);
@@ -232,6 +236,11 @@ impl InstanceNode for FrameInstance {
         let new_children =
             expanded_node.generate_children(children_with_envs, context, &this_frame_prop, true);
         expanded_node.children.set(new_children);
+
+        // A source Frame has logical children/layout but no native container.
+        if expanded_node.is_render_source() {
+            return;
+        }
 
         // send update message when relevant properties change
         let weak_self_ref = Rc::downgrade(&expanded_node);
@@ -340,7 +349,9 @@ impl InstanceNode for FrameInstance {
         expanded_node
             .changed_listener
             .replace_with(Property::default());
-        context.enqueue_native_message(pax_message::NativeMessage::FrameDelete(id.to_u32()));
+        if !expanded_node.is_render_source() {
+            context.enqueue_native_message(pax_message::NativeMessage::FrameDelete(id.to_u32()));
+        }
     }
 
     fn resolve_debug(

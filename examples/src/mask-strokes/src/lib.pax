@@ -1,0 +1,97 @@
+<Scroller width=100% height=100% autosize=true>
+    <Stacker x=50% anchor_x=50% width={(self.panel_width)px} autosize=true gutter=24px>
+        <Group height=24px width=100%/>
+        <Text height=64px width=100% text="Component mask sources" style={
+            font: "Arial"
+            font_size: 30px
+            fill: WHITE
+        }/>
+        <Text height=60px width=100% 
+            text="Live handwriting reveals moving CMY paint. The source is a regular component with its own writing clock." style={
+                font: "Arial"
+                font_size: 16px
+                fill: rgb(180, 180, 180)
+            }/>
+        <Group width=100% height=44px>
+            <Button width=46% height=40px label={self.playing ? "Pause" : "Resume"} @click=toggle_playing/>
+            <Button x=50% anchor_x=0% width=50% height=40px label={self.mounted ? "Remove source" : "Remount source"} @click=toggle_mounted/>
+        </Group>
+        <Group width=100% height={(self.word_height + 64.0)px}>
+            <Text height=20px width=100% text="HANDWRITER / COMPONENT SOURCE" style={
+                font: "Arial"
+                font_size: 12px
+                fill: rgb(170, 170, 170)
+            }/>
+            if self.mounted {
+                <Mask x=24px y=40px width={100% - 48px} height={(self.word_height)px} alpha=true>
+                    <Group width=100% height=100%>
+                        <Rectangle x={(self.band_x)%} anchor_x=0% width=200% height=100% fill=@gradient {
+                            0%: rgb(0, 225, 235),
+                            16.666%: rgb(240, 0, 185),
+                            33.333%: rgb(250, 230, 0),
+                            50%: rgb(0, 225, 235),
+                            66.666%: rgb(240, 0, 185),
+                            83.333%: rgb(250, 230, 0),
+                            100%: rgb(0, 225, 235),
+                        }/>
+                    </Group>
+                    <WritingSource width=100% height=100% playing={self.playing}/>
+                </Mask>
+            }
+        </Group>
+        <Text height=40px width=100% text="The written word is ‘creative’. Native accessible text stays outside the mask." style={
+            font: "Arial"
+            font_size: 14px
+            fill: rgb(170, 170, 170)
+        }/>
+        <Group width=100% height=140px>
+            <Text height=20px width=100% text="PATH / PRIMITIVE SOURCE" style={
+                font: "Arial"
+                font_size: 12px
+                fill: rgb(170, 170, 170)
+            }/>
+            <Mask x=24px y=40px width={100% - 48px} height=80px alpha=true>
+                <Rectangle width=100% height=100% fill=WHITE/>
+                <Path width=100% height=100% fill=TRANSPARENT stroke={
+                    color: WHITE
+                    width: 8px
+                } draw_end=65% elements=[
+                    PathElement::Point(0%, 65%),
+                    PathElement::Cubic(25%, 0%, 35%, 100%),
+                    PathElement::Point(50%, 40%),
+                    PathElement::Cubic(65%, 0%, 75%, 100%),
+                    PathElement::Point(100%, 40%)
+                ]/>
+            </Mask>
+        </Group>
+        <Text height=24px width=100% text="NESTED SCROLLER / OFFSET FRAME" style={
+            font: "Arial"
+            font_size: 12px
+            fill: rgb(170, 170, 170)
+        }/>
+        <Scroller x=24px width={100% - 48px} height=180px scroll_height=480px>
+            <Frame x=16px y=40px width={100% - 32px} height=300px>
+                <Mask x=12px y=48px width={100% - 24px} height=160px alpha=true>
+                    <Rectangle width=100% height=100% fill=rgb(0, 225, 235)/>
+                    <Ellipse x=50% y=50% anchor=50% width=80% height=80% fill=TRANSPARENT stroke={
+                        color: WHITE
+                        width: 12px
+                    }/>
+                </Mask>
+                <Rectangle width=100% height=100% fill=rgb(30, 30, 30)/>
+            </Frame>
+        </Scroller>
+        <Text height=48px width=100% text="Scroll the cyan ring, then the page. Its mask and paint should stay aligned." style={
+            font: "Arial"
+            font_size: 14px
+            fill: rgb(170, 170, 170)
+        }/>
+        <Group width=100% height=360px/>
+    </Stacker>
+</Scroller>
+<Rectangle width=100% height=100% fill=rgb(18, 18, 18)/>
+
+@settings {
+    @mount: mount
+    @pre_render: tick
+}
