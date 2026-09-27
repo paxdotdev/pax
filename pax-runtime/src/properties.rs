@@ -12,11 +12,10 @@ use pax_runtime_api::properties::{
 };
 use pax_runtime_api::{
     borrow, borrow_mut, use_RefCell, Event, Interpolatable, LightShape, MouseOut, MouseOver,
-    Property, RenderContext, SceneLight, SceneLighting, Store, Variable,
+    Property, RenderContext, SceneLight, SceneLighting, Variable,
 };
 use_RefCell!();
 use kurbo::{Affine, Point};
-use std::any::{Any, TypeId};
 use std::cell::Cell;
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
@@ -1847,7 +1846,6 @@ fn template_path_from_root(node: &Option<Rc<ExpandedNode>>) -> Vec<Rc<ExpandedNo
 
 pub struct RuntimePropertiesStackFrame {
     symbols_within_frame: HashMap<String, Variable>,
-    local_stores: Rc<RefCell<HashMap<TypeId, Box<dyn Any>>>>,
     parent: Option<Rc<RuntimePropertiesStackFrame>>,
 }
 
@@ -1855,7 +1853,6 @@ impl RuntimePropertiesStackFrame {
     pub fn new(symbols_within_frame: HashMap<String, Variable>) -> Rc<Self> {
         Rc::new(Self {
             symbols_within_frame,
-            local_stores: Default::default(),
             parent: None,
         })
     }
@@ -1863,39 +1860,12 @@ impl RuntimePropertiesStackFrame {
     pub fn push(self: &Rc<Self>, symbols_within_frame: HashMap<String, Variable>) -> Rc<Self> {
         Rc::new(RuntimePropertiesStackFrame {
             symbols_within_frame,
-            local_stores: Default::default(),
             parent: Some(Rc::clone(self)),
         })
     }
 
     pub fn pop(self: &Rc<Self>) -> Option<Rc<Self>> {
         self.parent.clone()
-    }
-
-    pub fn insert_stack_local_store<T: Store>(&self, store: T) {
-        let type_id = TypeId::of::<T>();
-        borrow_mut!(self.local_stores).insert(type_id, Box::new(store));
-    }
-
-    pub fn peek_stack_local_store<T: Store, V>(
-        self: &Rc<Self>,
-        f: impl FnOnce(&mut T) -> V,
-    ) -> Result<V, String> {
-        let mut current = Rc::clone(self);
-        let type_id = TypeId::of::<T>();
-
-        while !borrow!(current.local_stores).contains_key(&type_id) {
-            current = current
-                .parent
-                .clone()
-                .ok_or_else(|| format!("couldn't find store in local stack"))?;
-        }
-        let v = {
-            let mut stores = borrow_mut!(current.local_stores);
-            let store = stores.get_mut(&type_id).unwrap().downcast_mut().unwrap();
-            f(store)
-        };
-        Ok(v)
     }
 
     pub fn resolve_symbol_as_variable(&self, symbol: &str) -> Option<Variable> {
@@ -2119,6 +2089,8 @@ mod light_scope_tests {
             platform: Platform::Unknown,
             os: OS::Unknown,
             target: TargetInfo::new(Platform::Unknown, OS::Unknown),
+            #[cfg(feature = "designtime")]
+            designtime: crate::test_support::designtime(),
             get_elapsed_millis: Rc::new(|| 0),
         }
     }
@@ -2167,7 +2139,7 @@ mod light_scope_tests {
         children: Vec<Rc<dyn InstanceNode>>,
     ) -> (Rc<RuntimeContext>, Rc<ExpandedNode>) {
         let root_component = ComponentInstance::instantiate(component_args(children));
-        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
         let root = ExpandedNode::initialize_root(root_component, &context);
         root.recurse_update(&context);
         crate::engine::occlusion::update_node_occlusion(&root, &context);

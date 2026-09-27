@@ -154,7 +154,7 @@ fn new_cell(id: usize) -> CellData {
 }
 
 fn clicked_cell_id(ctx: &NodeContext) -> Option<usize> {
-    ctx.local_stack_frame
+    ctx.expression_stack
         .resolve_symbol("cell")
         .map(|variable| variable.get_as_pax_value())
         .and_then(extract_cell_id_from_value)

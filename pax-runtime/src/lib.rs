@@ -18,6 +18,9 @@ pub mod scene_geometry;
 pub mod settings_motion;
 pub mod slot;
 pub mod viewport_proximity;
+mod store;
+#[cfg(test)]
+mod test_support;
 
 pub use crate::cartridge::*;
 pub use crate::component::*;

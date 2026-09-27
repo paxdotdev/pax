@@ -1,0 +1,3 @@
+<Button width=130px height=30px label={self.label} style={font_size: 14px, fill: WHITE, align_horizontal: TextAlignHorizontal::Center, align_vertical: TextAlignVertical::Center} @button_click=self.increment/>
+<Text x=144px width={100% - 144px} height=30px text={"Observed: " + self.observed} style={font_size: 14px, fill: rgb(57, 65, 86)}/>
+@settings { @mount: mount }

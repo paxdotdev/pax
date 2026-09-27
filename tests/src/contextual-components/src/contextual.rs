@@ -1,9 +1,9 @@
 use pax_engine::api::*;
 use pax_engine::*;
 use pax_std::components::Stacker;
-use pax_std::*;
 use pax_std::types::text::*;
 use pax_std::types::*;
+use pax_std::*;
 
 pub struct ContextStore {
     data: Property<Vec<String>>,
@@ -25,7 +25,8 @@ pub struct ContextualParent {
 impl ContextualParent {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let data: Property<Vec<String>> = Property::default();
-        ctx.push_local_store(ContextStore { data: data.clone() });
+        ctx.provide_store(ContextStore { data: data.clone() })
+            .expect("context provider is mounting");
         let deps = [data.untyped()];
         self.on_data_change.replace_with(Property::computed(
             move || {
@@ -61,7 +62,7 @@ pub struct ContextualChild {
 impl ContextualChild {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let parent_data = ctx
-            .peek_local_store(|store: &mut ContextStore| store.data.clone())
+            .with_store(|store: &mut ContextStore| store.data.clone())
             .expect("child contextual element should exist under a parent");
         let text = self.text.clone();
         let id = self.id.clone();

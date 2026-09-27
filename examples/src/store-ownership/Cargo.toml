@@ -1,0 +1,24 @@
+[package]
+name = "store-ownership"
+version = "0.39.0"
+edition = "2021"
+default-run = "run"
+
+[package.metadata.pax]
+title = "Store Ownership"
+
+[dependencies]
+pax-kit = { version = "0.39.0", path = "../../../pax-kit" }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "run"
+path = "bin/run.rs"
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package.store-ownership]
+opt-level = 0

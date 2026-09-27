@@ -441,7 +441,7 @@ mod tests {
         bind_content_measurement_effect, measured_size_needs_update, sync_content_autosize,
         sync_content_autosize_with_axes, BaseInstance, ComponentInstance, ContainerFrame,
         ContentMeasurementGeometry, ExpandedNode, Globals, InstanceFlags, InstanceNode,
-        InstantiationArgs, RouteLocation, RuntimeContext, RuntimePropertiesStackFrame,
+        InstantiationArgs, RouteLocation, RuntimePropertiesStackFrame,
         TransformAndBounds,
     };
     use pax_runtime_api::pax_value::PaxAny;
@@ -466,6 +466,8 @@ mod tests {
             platform: Platform::Unknown,
             os: OS::Unknown,
             target: TargetInfo::new(Platform::Unknown, OS::Unknown),
+            #[cfg(feature = "designtime")]
+            designtime: crate::test_support::designtime(),
             get_elapsed_millis: Rc::new(|| 0),
         }
     }
@@ -578,7 +580,7 @@ mod tests {
             TestDirectNode::instantiate(direct_node_args(vec![leaf]));
         let root_component =
             ComponentInstance::instantiate(component_args(Some(vec![Rc::clone(&direct)]), None));
-        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
         let root = ExpandedNode::initialize_root(root_component, &context);
 
         root.recurse_update(&context);
@@ -601,7 +603,7 @@ mod tests {
             Some(vec![Rc::clone(&slotted_component)]),
             None,
         ));
-        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
         let root = ExpandedNode::initialize_root(root_component, &context);
 
         root.recurse_update(&context);
@@ -627,7 +629,7 @@ mod tests {
             TestDirectNode::instantiate(direct_node_args(Vec::new()));
         let root_component =
             ComponentInstance::instantiate(component_args(Some(vec![Rc::clone(&direct)]), None));
-        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
         let root = ExpandedNode::initialize_root(root_component, &context);
 
         root.recurse_update(&context);
@@ -645,7 +647,7 @@ mod tests {
             TestDirectNode::instantiate(direct_node_args(Vec::new()));
         let root_component =
             ComponentInstance::instantiate(component_args(Some(vec![Rc::clone(&direct)]), None));
-        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
         let root = ExpandedNode::initialize_root(root_component, &context);
 
         root.recurse_update(&context);
@@ -677,7 +679,7 @@ mod tests {
             TestDirectNode::instantiate(direct_node_args(vec![leaf]));
         let root_component =
             ComponentInstance::instantiate(component_args(Some(vec![Rc::clone(&direct)]), None));
-        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
         let root = ExpandedNode::initialize_root(root_component, &context);
         root.recurse_update(&context);
         let direct_node = root.children.get().first().cloned().unwrap();
@@ -729,7 +731,7 @@ mod tests {
             TestDirectNode::instantiate(direct_node_args(vec![leaf]));
         let root_component =
             ComponentInstance::instantiate(component_args(Some(vec![Rc::clone(&direct)]), None));
-        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
         let root = ExpandedNode::initialize_root(root_component, &context);
         root.recurse_update(&context);
         let direct_node = root.children.get().first().cloned().unwrap();
@@ -785,7 +787,7 @@ mod tests {
             TestDirectNode::instantiate(direct_node_args(vec![leaf]));
         let root_component =
             ComponentInstance::instantiate(component_args(Some(vec![Rc::clone(&direct)]), None));
-        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
         let root = ExpandedNode::initialize_root(root_component, &context);
 
         root.recurse_update(&context);
@@ -815,7 +817,7 @@ mod tests {
             TestDirectNode::instantiate(direct_node_args(vec![leaf]));
         let root_component =
             ComponentInstance::instantiate(component_args(Some(vec![Rc::clone(&direct)]), None));
-        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
         let root = ExpandedNode::initialize_root(root_component, &context);
 
         root.recurse_update(&context);
@@ -850,7 +852,7 @@ mod tests {
             TestDirectNode::instantiate(direct_node_args(vec![leaf]));
         let root_component =
             ComponentInstance::instantiate(component_args(Some(vec![Rc::clone(&direct)]), None));
-        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
         let root = ExpandedNode::initialize_root(root_component, &context);
 
         root.recurse_update(&context);
@@ -886,7 +888,7 @@ mod tests {
             TestDirectNode::instantiate(direct_node_args(vec![leaf]));
         let root_component =
             ComponentInstance::instantiate(component_args(Some(vec![Rc::clone(&direct)]), None));
-        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
         let root = ExpandedNode::initialize_root(root_component, &context);
 
         root.recurse_update(&context);
@@ -916,7 +918,7 @@ mod tests {
             TestDirectNode::instantiate(direct_node_args(vec![leaf]));
         let root_component =
             ComponentInstance::instantiate(component_args(Some(vec![Rc::clone(&direct)]), None));
-        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
         let root = ExpandedNode::initialize_root(root_component, &context);
 
         root.recurse_update(&context);

@@ -4,6 +4,9 @@ use pax_runtime_api::pax_value::ImplToFromPaxAny;
 use pax_runtime_api::{Layer, Platform, OS};
 use std::cell::Cell;
 
+#[path = "store_tests.rs"]
+mod store_tests;
+
 thread_local! {
     static CREATES: Cell<usize> = const { Cell::new(0) };
     static BINDS: Cell<usize> = const { Cell::new(0) };
@@ -170,7 +173,7 @@ fn args() -> InstantiationArgs {
     }
 }
 fn fixture() -> (PaxEngine, Rc<ExpandedNode>) {
-    let mut engine = PaxEngine::new_empty(
+    let mut engine = crate::test_support::empty_engine(
         (320.0, 240.0),
         Platform::Web,
         OS::Mac,
@@ -928,6 +931,15 @@ fn explicit_settings_win_without_allocating_motion_and_animated_nodes_release_st
     );
 }
 impl DefinitionToInstanceTraverser for Traverser {
+    #[cfg(feature = "designtime")]
+    fn get_designtime_manager(
+        &self,
+        _: String,
+    ) -> Option<Rc<RefCell<pax_designtime::DesigntimeManager>>> {
+        Some(Rc::new(RefCell::new(
+            pax_designtime::DesigntimeManager::new_offline(self.0.borrow().clone()),
+        )))
+    }
     fn new(manifest: pax_manifest::PaxManifest) -> Self {
         Self(RefCell::new(manifest))
     }

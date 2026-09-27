@@ -205,6 +205,7 @@ pub struct ExpandedNode {
     /// through the lifetime of the program after the initial expansion; however, if that constraint changes, this should be
     /// explicitly updated to accommodate.)
     pub stack: Rc<RuntimePropertiesStackFrame>,
+    pub(crate) stores: crate::store::NodeStores,
 
     /// Pointers to the ExpandedNode beneath this one. Used for rendering
     /// recursion and other render-tree traversals.
@@ -960,6 +961,7 @@ impl ExpandedNode {
             .and_then(|parent| parent.render_source_owner.get());
         let res = Rc::new(ExpandedNode {
             id,
+            stores: crate::store::NodeStores::new(parent.upgrade().as_deref()),
             stack: env,
             instance_node: RefCell::new(Rc::clone(&template)),
             attached: Cell::new(0),
@@ -1069,8 +1071,29 @@ impl ExpandedNode {
         // A replacement may change bindings or clipping dependencies. Revoke the
         // old generation before it can receive more of a frozen event batch.
         context.unregister_viewport_proximity(self.id.to_u32());
+        let previous = self.stores.has_providers().then(|| {
+            borrow!(self.properties_scope)
+                .iter()
+                .filter(|(name, _)| !name.starts_with('$'))
+                .map(|(name, value)| (name.clone(), value.get_untyped_property().get_id()))
+                .collect::<HashMap<_, _>>()
+        });
         *borrow_mut!(self.instance_node) = Rc::clone(&template);
         template.base().bind_properties(self);
+        self.refresh_properties_scope(&template);
+        if let Some(previous) = previous {
+            // Stores can retain any exposed property handle. Recreate the
+            // provider and its consumers if a template edit changes an alias.
+            let current: HashMap<_, _> = borrow!(self.properties_scope)
+                .iter()
+                .filter(|(name, _)| !name.starts_with('$'))
+                .map(|(name, value)| (name.clone(), value.get_untyped_property().get_id()))
+                .collect();
+            if current != previous {
+                self.fully_recreate_with_new_data(template, context);
+                return;
+            }
+        }
         let common_properties = Rc::clone(&*borrow!(self.common_properties));
         *self.selector_metadata.borrow_mut() =
             RuntimeSelectorMetadata::from_base(template.base(), &common_properties, &self.stack);
@@ -1096,6 +1119,19 @@ impl ExpandedNode {
         context: &Rc<RuntimeContext>,
     ) {
         Rc::clone(self).recurse_unmount(context);
+        *borrow_mut!(self.instance_node) = template;
+        self.prepare_remount(context);
+
+        self.bind_to_parent_bounds(context);
+        self.mark_non_reactive_update_subtree_dirty();
+        context.mark_occlusion_dirty();
+        Rc::clone(self).recurse_mount(context);
+        context.drain_node_effects();
+        self.recurse_emit_mount_updates();
+    }
+
+    fn prepare_remount(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
+        let template = Rc::clone(&*borrow!(self.instance_node));
         let new_expanded_node = Self::new(
             template.clone(),
             Rc::clone(&self.stack),
@@ -1114,11 +1150,9 @@ impl ExpandedNode {
         self.bind_to_parent_bounds(context);
         self.bind_selector_classes_listener(context);
         self.bind_occlusion_listener(context);
-        self.mark_non_reactive_update_subtree_dirty();
-        context.mark_occlusion_dirty();
-        Rc::clone(self).recurse_mount(context);
-        context.drain_node_effects();
-        self.recurse_emit_mount_updates();
+        self.bind_children_listener(context);
+        self.bind_subtree_layout_hull(context);
+        self.stores.mount(self.template_parent.upgrade().as_deref());
     }
 
     fn recurse_emit_mount_updates(self: &Rc<Self>) {
@@ -2585,6 +2619,11 @@ impl ExpandedNode {
 
     pub fn recurse_mount(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
         if self.attached.get() == 0 {
+            if self.stores.is_closed() {
+                self.prepare_remount(context);
+            } else {
+                self.stores.mount(self.template_parent.upgrade().as_deref());
+            }
             // Materialize projected children before mount so Slot can resolve them.
             borrow!(self.instance_node)
                 .clone()
@@ -2698,6 +2737,37 @@ impl ExpandedNode {
                 .replace_with(Property::new_with_name((), "enter transition cleanup"));
             self.exit_cleanup_active.set(false);
             self.exit_cleanup_listener.replace_with(Property::default());
+            self.stores.close();
+            // Final unmount releases component-owned state without evaluating
+            // bindings against potentially removed repeat items. Remount allocates
+            // fresh properties; externally shared handles remain their owner's.
+            self.children.replace_with(Property::new(Vec::new()));
+            self.children_listener.replace_with(Property::default());
+            self.occlusion_listener.replace_with(Property::default());
+            self.subtree_layout_hull_listener
+                .replace_with(Property::default());
+            self.content_measurement_listener
+                .replace_with(Property::default());
+            self.content_measurement_rebind_listener
+                .replace_with(Property::default());
+            self.content_measurement_bound.set(false);
+            borrow_mut!(self.sidecar_children).clear();
+            borrow_mut!(self.expanded_projected_children).take();
+            self.expanded_and_flattened_projected_children
+                .set(Vec::new());
+            self.flattened_projected_children_count.set(0);
+            self.parent_binding_sources.borrow_mut().take();
+            self.transform_and_bounds.replace_with(Property::default());
+            self.computed_opacity.replace_with(Property::new(1.0));
+            self.subtree_layout_hull.replace_with(Property::default());
+            self.measured_size.set(None);
+            *borrow_mut!(self.common_properties) =
+                Rc::new(RefCell::new(CommonProperties::default()));
+            self.selector_metadata.borrow_mut().id = Property::default();
+            self.selector_metadata.borrow_mut().classes = Property::default();
+            borrow_mut!(self.properties_scope).clear();
+            *borrow_mut!(self.properties) =
+                Rc::new(RefCell::new(PaxAny::Builtin(PaxValue::default())));
         }
     }
 
@@ -3156,7 +3226,8 @@ impl ExpandedNode {
         // needed, instead of re-creating/copying
         NodeContext {
             slot_index: self.slot_index.clone(),
-            local_stack_frame: Rc::clone(&self.stack),
+            expression_stack: Rc::clone(&self.stack),
+            store_generation: self.stores.generation(),
             expanded_node: Rc::downgrade(&self),
             containing_component: Weak::clone(&self.containing_component),
             elapsed_frames: elapsed_frames_frozen_if_suspended,

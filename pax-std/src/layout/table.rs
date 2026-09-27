@@ -41,10 +41,11 @@ impl Store for TableContext {}
 impl Table {
     // Publishes row/column counts for child layout helpers.
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        ctx.push_local_store(TableContext {
+        ctx.provide_store(TableContext {
             rows: self.rows.clone(),
             columns: self.columns.clone(),
-        });
+        })
+        .expect("Table is mounting");
         let projected_children = ctx.projected_children_count.clone();
         let deps = [projected_children.untyped()];
         self._slots
@@ -79,7 +80,7 @@ pub struct Row {
 impl Row {
     // Sizes and positions this row from the parent table context.
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        ctx.peek_local_store(|table_ctx: &mut TableContext| {
+        ctx.with_store(|table_ctx: &mut TableContext| {
             let rows = table_ctx.rows.clone();
             let deps = [rows.untyped()];
             self._height.replace_with(Property::computed(
@@ -133,7 +134,7 @@ pub struct Col {
 impl Col {
     // Sizes and positions this column from the parent table context.
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        ctx.peek_local_store(|table_ctx: &mut TableContext| {
+        ctx.with_store(|table_ctx: &mut TableContext| {
             let columns = table_ctx.columns.clone();
             let deps = [columns.untyped()];
             self._width.replace_with(Property::computed(
@@ -205,7 +206,7 @@ pub struct Span {
 impl Span {
     // Sizes and positions this span from the parent table context.
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        ctx.peek_local_store(|table_ctx: &mut TableContext| {
+        ctx.with_store(|table_ctx: &mut TableContext| {
             let rows = table_ctx.rows.clone();
             let h = self.h.clone();
             let deps = [rows.untyped(), h.untyped()];
@@ -300,7 +301,7 @@ pub struct Cell {
 impl Cell {
     // Sizes and positions this cell from the parent table context.
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        ctx.peek_local_store(|table_ctx: &mut TableContext| {
+        ctx.with_store(|table_ctx: &mut TableContext| {
             let rows = table_ctx.rows.clone();
             let deps = [rows.untyped()];
             self._height.replace_with(Property::computed(

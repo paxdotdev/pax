@@ -111,6 +111,8 @@ mod tests {
             platform: Platform::Unknown,
             os: OS::Unknown,
             target: TargetInfo::new(Platform::Unknown, OS::Unknown),
+            #[cfg(feature = "designtime")]
+            designtime: crate::test_support::designtime(),
             get_elapsed_millis: Rc::new(|| 0),
         }
     }
@@ -370,7 +372,7 @@ mod tests {
         let repeat: Rc<dyn InstanceNode> =
             RepeatInstance::instantiate(repeat_args(source, vec![leaf]));
         let root = ComponentInstance::instantiate(component_args(Some(vec![repeat])));
-        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
         let root = ExpandedNode::initialize_root(root, &context);
         root.recurse_update(&context);
         context.drain_node_effects();
@@ -453,7 +455,7 @@ mod tests {
             RepeatInstance::instantiate(repeat_args(source_property.clone(), vec![leaf]));
         let root_component =
             ComponentInstance::instantiate(component_args(Some(vec![Rc::clone(&repeat)])));
-        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
         let root = ExpandedNode::initialize_root(root_component, &context);
 
         root.recurse_update(&context);
@@ -650,7 +652,7 @@ mod tests {
         let outer: Rc<dyn InstanceNode> =
             RepeatInstance::instantiate(repeat_args(source_property.clone(), vec![inner]));
         let root = ComponentInstance::instantiate(component_args(Some(vec![outer])));
-        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
         let root = ExpandedNode::initialize_root(root, &context);
         root.recurse_update(&context);
         context.drain_node_effects();
@@ -726,7 +728,7 @@ mod tests {
         let repeat: Rc<dyn InstanceNode> =
             RepeatInstance::instantiate(repeat_args(source_property.clone(), vec![leaf]));
         let root = ComponentInstance::instantiate(component_args(Some(vec![repeat])));
-        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
         let root = ExpandedNode::initialize_root(root, &context);
         root.recurse_update(&context);
         context.drain_node_effects();
@@ -782,7 +784,7 @@ mod tests {
         }));
         let repeat: Rc<dyn InstanceNode> = RepeatInstance::instantiate(args);
         let root = ComponentInstance::instantiate(component_args(Some(vec![repeat])));
-        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
         let root = ExpandedNode::initialize_root(root, &context);
         root.recurse_update(&context);
         context.drain_node_effects();
@@ -813,7 +815,7 @@ mod tests {
             source_property.clone(),
             vec![leaf.clone(), leaf],
         ));
-        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
         let root = ExpandedNode::initialize_root(
             ComponentInstance::instantiate(component_args(Some(vec![repeat]))),
             &context,
@@ -834,7 +836,7 @@ mod tests {
     #[test]
     fn detached_mask_style_repeat_binds_inserted_children_and_releases_last_child() {
         let source_property = Property::new(source(&[]));
-        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
         let root = ExpandedNode::initialize_root(
             ComponentInstance::instantiate(component_args(None)),
             &context,
@@ -909,7 +911,7 @@ mod tests {
             RepeatInstance::instantiate(unkeyed_repeat_args(source_property.clone(), vec![leaf]));
         let root_component =
             ComponentInstance::instantiate(component_args(Some(vec![Rc::clone(&repeat)])));
-        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
         let root = ExpandedNode::initialize_root(root_component, &context);
 
         root.recurse_update(&context);
@@ -941,7 +943,7 @@ mod tests {
             RepeatInstance::instantiate(repeat_args(source_property, vec![leaf]));
         let root_component =
             ComponentInstance::instantiate(component_args(Some(vec![Rc::clone(&repeat)])));
-        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
         let root = ExpandedNode::initialize_root(root_component, &context);
 
         root.recurse_update(&context);
@@ -971,7 +973,7 @@ mod tests {
             RepeatInstance::instantiate(repeat_args(source_property, vec![leaf]));
         let root_component =
             ComponentInstance::instantiate(component_args(Some(vec![Rc::clone(&repeat)])));
-        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
         let root = ExpandedNode::initialize_root(root_component, &context);
 
         root.recurse_update(&context);
@@ -1008,7 +1010,7 @@ mod tests {
             RepeatInstance::instantiate(repeat_args(source_property, vec![leaf]));
         let root_component =
             ComponentInstance::instantiate(component_args(Some(vec![Rc::clone(&repeat)])));
-        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
         let root = ExpandedNode::initialize_root(root_component, &context);
 
         root.recurse_update(&context);
@@ -1038,7 +1040,7 @@ mod tests {
             RepeatInstance::instantiate(repeat_args(source_property, vec![leaf]));
         let root_component =
             ComponentInstance::instantiate(component_args(Some(vec![Rc::clone(&repeat)])));
-        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
         let root = ExpandedNode::initialize_root(root_component, &context);
 
         root.recurse_update(&context);
@@ -1068,7 +1070,7 @@ mod tests {
             RepeatInstance::instantiate(repeat_args(source_property, vec![leaf]));
         let root_component =
             ComponentInstance::instantiate(component_args(Some(vec![Rc::clone(&repeat)])));
-        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
         let root = ExpandedNode::initialize_root(root_component, &context);
 
         root.recurse_update(&context);
@@ -1099,7 +1101,7 @@ mod tests {
             RepeatInstance::instantiate(repeat_args(source_property, vec![leaf]));
         let root_component =
             ComponentInstance::instantiate(component_args(Some(vec![Rc::clone(&repeat)])));
-        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
         let root = ExpandedNode::initialize_root(root_component, &context);
 
         root.recurse_update(&context);
@@ -1129,7 +1131,7 @@ mod tests {
             RepeatInstance::instantiate(unkeyed_repeat_args(source_property.clone(), vec![leaf]));
         let root_component =
             ComponentInstance::instantiate(component_args(Some(vec![Rc::clone(&repeat)])));
-        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
         let root = ExpandedNode::initialize_root(root_component, &context);
 
         root.recurse_update(&context);

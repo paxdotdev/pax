@@ -399,7 +399,7 @@ fn stroke(color: Color, width: f64) -> Stroke {
 
 fn clicked_repeat_index(ctx: &NodeContext) -> Option<usize> {
     ctx.slot_index.get().or_else(|| {
-        ctx.local_stack_frame
+        ctx.expression_stack
             .resolve_symbol("i")
             .and_then(|variable| Numeric::try_coerce(variable.get_as_pax_value()).ok())
             .map(|numeric| numeric.to_float().round() as usize)

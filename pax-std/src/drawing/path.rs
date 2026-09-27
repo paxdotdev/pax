@@ -13,7 +13,6 @@ use crate::common::{begin_bounded_canvas_node, to_kurbo_point};
 use pax_engine::*;
 
 use_RefCell!();
-use std::collections::HashMap;
 use std::iter;
 use std::rc::Rc;
 
@@ -121,13 +120,14 @@ impl InstanceNode for PathInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RuntimeContext>,
     ) {
-        // create a new stack to be able to insert a local store specific for this node and the
-        // ones bellow. If not done, things above this node could potentially access it
-        let env = expanded_node.stack.push(HashMap::new());
+        let env = Rc::clone(&expanded_node.stack);
         expanded_node.with_properties_unwrapped(|properties: &mut Path| {
-            env.insert_stack_local_store(PathContext {
-                elements: properties.elements.clone(),
-            });
+            expanded_node
+                .get_node_context(context)
+                .provide_store(PathContext {
+                    elements: properties.elements.clone(),
+                })
+                .expect("Path is mounting");
             let children = borrow!(self.base().get_instance_children());
             if !children.is_empty() {
                 let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
@@ -657,7 +657,7 @@ impl PathPoint {
     // Registers this child as a point command in the parent `Path`.
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let path_elems = ctx
-            .peek_local_store(|path_ctx: &mut PathContext| path_ctx.elements.clone())
+            .with_store(|path_ctx: &mut PathContext| path_ctx.elements.clone())
             .expect("path point can only exist in <Path> tag");
 
         let x = self.x.clone();
@@ -682,7 +682,7 @@ impl PathPoint {
     // Removes this child command from the parent `Path`.
     pub fn on_unmount(&mut self, ctx: &NodeContext) {
         let path_elems = ctx
-            .peek_local_store(|path_ctx: &mut PathContext| path_ctx.elements.clone())
+            .with_store(|path_ctx: &mut PathContext| path_ctx.elements.clone())
             .expect("path point can only exist in <Path> tag");
         let id = ctx.slot_index.get().unwrap();
         path_elems.update(|elems| {
@@ -711,7 +711,7 @@ impl PathLine {
     // Registers this child as a line command in the parent `Path`.
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let path_elems = ctx
-            .peek_local_store(|path_ctx: &mut PathContext| path_ctx.elements.clone())
+            .with_store(|path_ctx: &mut PathContext| path_ctx.elements.clone())
             .expect("path line can only exist in <Path> tag");
 
         let id = ctx.slot_index.clone();
@@ -734,7 +734,7 @@ impl PathLine {
     // Removes this child command from the parent `Path`.
     pub fn on_unmount(&mut self, ctx: &NodeContext) {
         let path_elems = ctx
-            .peek_local_store(|path_ctx: &mut PathContext| path_ctx.elements.clone())
+            .with_store(|path_ctx: &mut PathContext| path_ctx.elements.clone())
             .expect("path point can only exist in <Path> tag");
         let id = ctx.slot_index.get().unwrap();
         path_elems.update(|elems| {
@@ -762,7 +762,7 @@ impl PathClose {
     // Registers this child as a close-path command in the parent `Path`.
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let path_elems = ctx
-            .peek_local_store(|path_ctx: &mut PathContext| path_ctx.elements.clone())
+            .with_store(|path_ctx: &mut PathContext| path_ctx.elements.clone())
             .expect("path line can only exist in <Path> tag");
 
         let id = ctx.slot_index.clone();
@@ -784,7 +784,7 @@ impl PathClose {
     // Removes this child command from the parent `Path`.
     pub fn on_unmount(&mut self, ctx: &NodeContext) {
         let path_elems = ctx
-            .peek_local_store(|path_ctx: &mut PathContext| path_ctx.elements.clone())
+            .with_store(|path_ctx: &mut PathContext| path_ctx.elements.clone())
             .expect("path point can only exist in <Path> tag");
         let id = ctx.slot_index.clone();
         path_elems.update(|elems| {
@@ -818,7 +818,7 @@ impl PathCurve {
     // Registers this child as a quadratic curve command in the parent `Path`.
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let path_elems = ctx
-            .peek_local_store(|path_ctx: &mut PathContext| path_ctx.elements.clone())
+            .with_store(|path_ctx: &mut PathContext| path_ctx.elements.clone())
             .expect("path point can only exist in <Path> tag");
 
         let x = self.x.clone();
@@ -843,7 +843,7 @@ impl PathCurve {
     // Removes this child command from the parent `Path`.
     pub fn on_unmount(&mut self, ctx: &NodeContext) {
         let path_elems = ctx
-            .peek_local_store(|path_ctx: &mut PathContext| path_ctx.elements.clone())
+            .with_store(|path_ctx: &mut PathContext| path_ctx.elements.clone())
             .expect("path point can only exist in <Path> tag");
         let id = ctx.slot_index.get().unwrap();
         path_elems.update(|elems| {

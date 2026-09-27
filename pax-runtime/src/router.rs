@@ -690,6 +690,8 @@ mod tests {
             platform: Platform::Unknown,
             os: OS::Unknown,
             target: TargetInfo::new(Platform::Unknown, OS::Unknown),
+            #[cfg(feature = "designtime")]
+            designtime: crate::test_support::designtime(),
             get_elapsed_millis: Rc::new(|| 0),
         }
     }
@@ -902,7 +904,7 @@ mod tests {
         );
         let root_component =
             ComponentInstance::instantiate(component_args(Some(vec![Rc::clone(&router)])));
-        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
         let root = ExpandedNode::initialize_root(root_component, &context);
         root.recurse_update(&context);
         let router_node = root.children.get().remove(0);

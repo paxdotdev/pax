@@ -126,11 +126,14 @@ impl DesigntimeManager {
             .or_else(resolve_default_local_addr);
         match local_addr {
             Some(local_addr) => Self::new_with_local_addr(manifest, &local_addr),
-            None => Self::new_with_connection(
-                manifest,
-                WebSocketConnection::offline("privileged-agent"),
-            ),
+            None => Self::new_offline(manifest),
         }
+    }
+
+    /// Create an in-memory manager without discovering or connecting to a design server.
+    /// Useful for embedded tooling and tests that must not depend on local dev sessions.
+    pub fn new_offline(manifest: PaxManifest) -> Self {
+        Self::new_with_connection(manifest, WebSocketConnection::offline("privileged-agent"))
     }
 
     pub fn set_project(&mut self, project_query: String) {

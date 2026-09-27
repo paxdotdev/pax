@@ -13,3 +13,6 @@ pub use forms::*;
 pub use layout::*;
 pub use media::*;
 pub use reference::*;
+
+#[cfg(test)]
+mod test_support;

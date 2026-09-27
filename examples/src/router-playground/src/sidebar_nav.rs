@@ -57,7 +57,7 @@ impl SidebarNav {
     }
 
     fn set_mobile_menu_closed(&mut self, ctx: &NodeContext) {
-        let _ = ctx.peek_local_store(|store: &mut RouterPlaygroundChromeStore| {
+        let _ = ctx.with_store(|store: &mut RouterPlaygroundChromeStore| {
             store.mobile_menu_open.set_if_neq(false);
         });
     }

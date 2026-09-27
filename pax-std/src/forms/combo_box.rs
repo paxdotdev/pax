@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use crate::{EventBlocker, Group, Path, Rectangle, Scroller, Stacker, Text};
 use crate::{TextStyle, Textbox};
-use pax_engine::api::{Click, Event, MouseDown, Store, Stroke, TextboxChange};
+use pax_engine::api::{Click, Event, Store, Stroke};
 use pax_engine::api::{Color, Property};
 use pax_engine::*;
 use pax_runtime::api::NodeContext;
@@ -23,12 +23,12 @@ use pax_runtime::api::NodeContext;
             scroll_height={(Math::len(self._filtered_options)*100/5)%}
     		unclippable=true
         >
-            <Stacker gutter=1px>
-                for option_data in self._filtered_options {
+            <Stacker gutter=1px height={(Math::len(self._filtered_options)*100/5)%}>
+                for option_data in self._filtered_options key option_data.key {
                     <ComboBoxListItem style=style background=background data={option_data} @new_item=self.dispatch_new_item/>
                 }
             </Stacker>
-            <Rectangle fill={stroke.paint}/>
+            <Rectangle fill={stroke.paint} height={(Math::len(self._filtered_options)*100/5)%}/>
         </Scroller>
     }
     if self.text != "" && self.selected != None && !_options_visible {
@@ -44,7 +44,6 @@ use pax_runtime::api::NodeContext;
         background=background
         stroke=stroke
         corner_radius=corner_radius
-        @textbox_change=self.textbox_change
     />
 
     @settings {
@@ -79,6 +78,7 @@ use pax_runtime::api::NodeContext;
             PathElement::Close
         ]},
         stroke: {
+            color: TRANSPARENT,
             width: 0
         },
         fill: rgb(200, 200, 200)
@@ -89,7 +89,8 @@ use pax_runtime::api::NodeContext;
 pub struct ComboBox {
     /// Text currently shown in the input.
     pub text: Property<String>,
-    /// Selected option index, or `None` when there is no valid selection.
+    /// Index of the last selected option, or `None`. Editing `text` filters the
+    /// list; clicking a row commits its original index in `options`.
     pub selected: Property<Option<usize>>,
     /// Available option labels.
     pub options: Property<Vec<String>>,
@@ -121,7 +122,7 @@ pub enum NewItem {
     /// Show "No items found" and do not allow adding a new item.
     #[default]
     Disallow,
-    /// Allows invalid text in the text box on commit, setting `selected` to `None`.
+    /// Allows unmatched text without showing a no-results row.
     AllowInvalid,
     /// Shows custom text when there are no matches; clicking it triggers the `@new_item` event.
     Text(String),
@@ -135,11 +136,16 @@ impl Store for SelectedIndProp {}
 impl ComboBox {
     // Binds filtered options and selected-text synchronization.
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        ctx.push_local_store(SelectedIndProp(self.selected.clone()));
+        ctx.provide_store(SelectedIndProp(self.selected.clone()))
+            .expect("ComboBox is mounting");
+        self.bind_listeners();
+    }
+
+    fn bind_listeners(&mut self) {
         let options = self.options.clone();
         let text = self.text.clone();
-        let deps = [options.untyped(), text.untyped()];
         let new_item = self.new_item.clone();
+        let deps = [options.untyped(), text.untyped(), new_item.untyped()];
         self._filtered_options.replace_with(Property::computed(
             move || {
                 options.read(|options| {
@@ -151,18 +157,21 @@ impl ComboBox {
                             .into_iter()
                             .filter(|(_, t)| t.contains(text))
                             .map(|(i, v)| ListItemData {
+                                key: i,
                                 text: v.clone(),
                                 event: ComboBoxItemClickEvent::SelectIndex(i),
                             })
                             .collect();
-                        filtered_options.sort_by_key(|v| v.text.starts_with(text));
+                        filtered_options.sort_by_key(|v| !v.text.starts_with(text));
                         if filtered_options.is_empty() {
                             match new_item.get() {
                                 NewItem::Disallow => filtered_options.push(ListItemData {
+                                    key: options.len(),
                                     text: String::from("No Results Found"),
                                     event: ComboBoxItemClickEvent::None,
                                 }),
                                 NewItem::Text(text) => filtered_options.push(ListItemData {
+                                    key: options.len(),
                                     text,
                                     event: ComboBoxItemClickEvent::NewItem,
                                 }),
@@ -181,30 +190,31 @@ impl ComboBox {
         let new_item_behavior = self.new_item.clone();
 
         let selected = self.selected.clone();
-        let deps = [selected.untyped()];
+        // Changing the no-match policy must not reset an in-progress query.
+        let deps = [selected.untyped(), options.untyped()];
 
         let last = Rc::new(Cell::new(None));
         self._selected_listener.replace_with(Property::computed(
             move || {
-                let selected = selected.get();
-                let new_value = if let Some(selected) = selected {
-                    options.read(|options| {
-                        let index = selected.clamp(0, options.len());
-                        options[index].clone()
-                    })
-                } else {
-                    "".to_string()
-                };
-                match new_item_behavior.get() {
-                    NewItem::AllowInvalid => {
-                        if last.get() != selected || text.get().is_empty() {
-                            text.set(new_value)
-                        }
-                    }
-                    _ => text.set(new_value),
-                }
+                // Remove the rows before changing their filter source, so descendants
+                // cannot evaluate bindings to indices removed by selection.
                 options_visible.set(false);
-                last.set(selected);
+                let requested = selected.get();
+                let selected_value =
+                    options.read(|options| requested.and_then(|index| options.get(index).cloned()));
+                let current = requested.filter(|_| selected_value.is_some());
+                if current != requested {
+                    selected.set(current);
+                }
+                let new_value = selected_value.unwrap_or_default();
+                if current.is_some()
+                    || requested.is_some()
+                    || last.get().is_some()
+                    || !matches!(new_item_behavior.get(), NewItem::AllowInvalid)
+                {
+                    text.set(new_value);
+                }
+                last.set(current);
                 true
             },
             &deps,
@@ -214,11 +224,6 @@ impl ComboBox {
     // Opens the option list.
     pub fn on_click(&mut self, ctx: &NodeContext, _event: Event<Click>) {
         self._options_visible.set(true);
-    }
-
-    // Revalidates the current selection after textbox edits.
-    pub fn textbox_change(&mut self, ctx: &NodeContext, _event: Event<TextboxChange>) {
-        self.selected.set(self.selected.get());
     }
 
     // Clears the current selected item.
@@ -246,7 +251,7 @@ impl ComboBox {
     <Rectangle fill=background/>
 
     @settings {
-        @mouse_down: on_click
+        @click: on_click
     }
 )]
 pub struct ComboBoxListItem {
@@ -260,11 +265,11 @@ pub struct ComboBoxListItem {
 
 impl ComboBoxListItem {
     // Applies this row's action to the parent combo box.
-    pub fn on_click(&mut self, ctx: &NodeContext, _event: Event<MouseDown>) {
+    pub fn on_click(&mut self, ctx: &NodeContext, _event: Event<Click>) {
         match self.data.get().event {
             ComboBoxItemClickEvent::None => (),
             ComboBoxItemClickEvent::SelectIndex(index) => {
-                let _ = ctx.peek_local_store(|SelectedIndProp(selected): &mut SelectedIndProp| {
+                let _ = ctx.with_store(|SelectedIndProp(selected): &mut SelectedIndProp| {
                     selected.set(Some(index));
                 });
             }
@@ -279,6 +284,8 @@ impl ComboBoxListItem {
 #[pax]
 #[engine_import_path("pax_engine")]
 pub struct ListItemData {
+    // Source index keeps filtered/reordered rows attached to their own payload.
+    pub key: usize,
     // Row label shown in the dropdown.
     pub text: String,
     // Action dispatched when this row is selected.
@@ -296,4 +303,125 @@ pub enum ComboBoxItemClickEvent {
     SelectIndex(usize),
     // Dispatches `new_item`.
     NewItem,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn combo(options: &[&str]) -> ComboBox {
+        let mut combo = ComboBox::default();
+        combo
+            .options
+            .set(options.iter().map(|s| s.to_string()).collect());
+        combo.bind_listeners();
+        combo._selected_listener.get();
+        combo
+    }
+
+    #[test]
+    fn filtering_preserves_source_indices_and_ranks_prefixes_first() {
+        let combo = combo(&["zBeta", "Beta", "Alpha"]);
+        combo.text.set("Beta".into());
+        let rows = combo._filtered_options.get();
+        assert_eq!(
+            rows.iter().map(|row| row.text.as_str()).collect::<Vec<_>>(),
+            vec!["Beta", "zBeta"]
+        );
+        assert!(matches!(
+            rows[0].event,
+            ComboBoxItemClickEvent::SelectIndex(1)
+        ));
+        assert!(matches!(
+            rows[1].event,
+            ComboBoxItemClickEvent::SelectIndex(0)
+        ));
+        assert_eq!(
+            rows.iter().map(|row| row.key).collect::<Vec<_>>(),
+            vec![1, 0]
+        );
+    }
+
+    #[test]
+    fn selection_closes_the_list_and_options_changes_update_the_label() {
+        let combo = combo(&["Alpha", "Beta"]);
+        combo._options_visible.set(true);
+        combo.selected.set(Some(1));
+        combo._selected_listener.get();
+        assert_eq!(combo.text.get(), "Beta");
+        assert!(!combo._options_visible.get());
+        combo.options.set(vec!["Alpha".into(), "Renamed".into()]);
+        combo._selected_listener.get();
+        assert_eq!(combo.text.get(), "Renamed");
+    }
+
+    #[test]
+    fn missing_and_out_of_range_selections_clear_without_panicking() {
+        let combo = combo(&["Alpha", "Beta"]);
+        for index in [2, usize::MAX] {
+            combo.selected.set(Some(index));
+            combo._selected_listener.get();
+            assert_eq!(combo.selected.get(), None);
+            assert_eq!(combo.text.get(), "");
+        }
+        combo.selected.set(Some(1));
+        combo._selected_listener.get();
+        combo.options.set(Vec::new());
+        combo._selected_listener.get();
+        assert_eq!(combo.selected.get(), None);
+        assert_eq!(combo.text.get(), "");
+    }
+
+    #[test]
+    fn changing_no_match_behavior_refreshes_existing_filter() {
+        let combo = combo(&["Alpha"]);
+        combo.text.set("missing".into());
+        assert!(matches!(
+            combo._filtered_options.get()[0].event,
+            ComboBoxItemClickEvent::None
+        ));
+        combo.new_item.set(NewItem::Text("Create missing".into()));
+        combo._selected_listener.get();
+        assert_eq!(combo.text.get(), "missing");
+        let rows = combo._filtered_options.get();
+        assert_eq!(rows[0].text, "Create missing");
+        assert!(matches!(rows[0].event, ComboBoxItemClickEvent::NewItem));
+        combo.new_item.set(NewItem::AllowInvalid);
+        combo._selected_listener.get();
+        assert_eq!(combo.text.get(), "missing");
+        assert!(combo._filtered_options.get().is_empty());
+    }
+
+    #[test]
+    fn duplicate_labels_keep_distinct_option_keys() {
+        let combo = combo(&["Same", "Same"]);
+        let rows = combo._filtered_options.get();
+        assert_eq!(
+            rows.iter().map(|row| row.key).collect::<Vec<_>>(),
+            vec![0, 1]
+        );
+        combo.text.set("missing".into());
+        assert_eq!(combo._filtered_options.get()[0].key, 2);
+    }
+
+    #[test]
+    fn allow_invalid_preserves_free_text_but_mirrors_committed_labels() {
+        let mut combo = ComboBox::default();
+        combo.options.set(vec!["Alpha".into()]);
+        combo.new_item.set(NewItem::AllowInvalid);
+        combo.text.set("Free text".into());
+        combo.bind_listeners();
+        combo._selected_listener.get();
+        assert_eq!(combo.text.get(), "Free text");
+        combo.selected.set(Some(0));
+        combo._selected_listener.get();
+        assert_eq!(combo.text.get(), "Alpha");
+        combo.options.set(vec!["Renamed".into()]);
+        combo._selected_listener.get();
+        assert_eq!(combo.text.get(), "Renamed");
+        combo.options.set(vec![]);
+        combo._selected_listener.get();
+        assert_eq!(combo.selected.get(), None);
+        assert_eq!(combo.text.get(), "");
+    }
 }

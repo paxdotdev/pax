@@ -22,7 +22,8 @@ impl Store for StoreExample {}
 impl Example {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         self.visible.set(true);
-        ctx.push_local_store(StoreExample { i: 42 });
+        ctx.provide_store(StoreExample { i: 42 })
+            .expect("store provider is mounting");
     }
 
     pub fn custom_event_trigger(&mut self, ctx: &NodeContext) {

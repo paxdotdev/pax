@@ -305,76 +305,94 @@ fn layer_layout_matches_bootstrapped_target(
 
 const MAX_CONCURRENT_LAYER_INITIALIZATIONS: usize = 4;
 
+// A token belongs to one lifetime of a layer index. Removed layers invalidate it,
+// so an async completion cannot overwrite a replacement at the same index.
+struct LayerInitialization {
+    index: usize,
+    cancelled: Cell<bool>,
+    scheduled: Cell<bool>,
+}
+
+impl LayerInitialization {
+    fn new(index: usize) -> Self {
+        Self {
+            index,
+            cancelled: Cell::new(false),
+            scheduled: Cell::new(false),
+        }
+    }
+
+    fn complete(
+        &self,
+        backend: Option<LayerDef>,
+        backends: &RefCell<Vec<RenderLayerState>>,
+        ready_layers: &RefCell<Vec<usize>>,
+    ) -> bool {
+        if self.cancelled.get() {
+            return false;
+        }
+        match backend {
+            Some(layer_def) => {
+                let layout = layer_def.1();
+                let mut states = backends.borrow_mut();
+                let state = &mut states[self.index];
+                if layer_layout_matches_bootstrapped_target(&layer_def.0, &layout) {
+                    *state = RenderLayerState::Ready(layer_def);
+                    ready_layers.borrow_mut().push(self.index);
+                    false
+                } else {
+                    // Host geometry can change during bootstrap without removing the
+                    // logical layer. Retry against its current surfaces.
+                    *state = RenderLayerState::Pending;
+                    true
+                }
+            }
+            None => {
+                backends.borrow_mut()[self.index] = RenderLayerState::Failed;
+                log::warn!(
+                    "failed to initialize render backend for layer {}",
+                    self.index
+                );
+                false
+            }
+        }
+    }
+}
+
 fn pump_layer_initialization_queue(
     factory: Rc<dyn Fn(usize) -> Pin<Box<dyn Future<Output = Option<LayerDef>>>>>,
     backends: Rc<RefCell<Vec<RenderLayerState>>>,
-    queue: Rc<RefCell<VecDeque<usize>>>,
-    scheduled: Rc<RefCell<HashSet<usize>>>,
+    queue: Rc<RefCell<VecDeque<Rc<LayerInitialization>>>>,
     in_flight: Rc<Cell<usize>>,
     ready_layers: Rc<RefCell<Vec<usize>>>,
 ) {
     while in_flight.get() < MAX_CONCURRENT_LAYER_INITIALIZATIONS {
         let next_layer = queue.borrow_mut().pop_front();
-        let Some(layer_index) = next_layer else {
+        let Some(initialization) = next_layer else {
             break;
         };
+        if initialization.cancelled.get() {
+            continue;
+        }
 
         in_flight.set(in_flight.get() + 1);
         let factory = Rc::clone(&factory);
         let backends = Rc::clone(&backends);
         let queue = Rc::clone(&queue);
-        let scheduled = Rc::clone(&scheduled);
         let in_flight_count = Rc::clone(&in_flight);
         let ready_layers = Rc::clone(&ready_layers);
 
         let task = async move {
-            let backend = (factory)(layer_index).await;
-            let mut should_requeue = false;
-            match backend {
-                Some(layer_def) => {
-                    let current_layout = layer_def.1();
-                    let layout_matches =
-                        layer_layout_matches_bootstrapped_target(&layer_def.0, &current_layout);
-                    let mut backend_states = backends.borrow_mut();
-                    match backend_states.get_mut(layer_index) {
-                        Some(change) if layout_matches => {
-                            *change = RenderLayerState::Ready(layer_def);
-                            ready_layers.borrow_mut().push(layer_index);
-                        }
-                        Some(change) => {
-                            // Layer initialization is async relative to host ownership on the
-                            // web. If the DOM host changes while this backend is bootstrapping,
-                            // discard it and retry against the latest layout instead of
-                            // publishing a stale renderer.
-                            *change = RenderLayerState::Pending;
-                            should_requeue = true;
-                        }
-                        None => {
-                            log::warn!(
-                                "failed to set poll state to ready: layer {} doesn't exist anymore",
-                                layer_index
-                            );
-                        }
-                    }
-                }
-                None => match backends.borrow_mut().get_mut(layer_index) {
-                    Some(change) => {
-                        *change = RenderLayerState::Failed;
-                        log::warn!(
-                            "failed to initialize render backend for layer {}",
-                            layer_index
-                        );
-                    }
-                    None => log::warn!(
-                        "failed to set poll state to ready: layer {} doesn't exist and backend failed to initialize",
-                        layer_index
-                    ),
-                },
-            }
-
-            scheduled.borrow_mut().remove(&layer_index);
-            if should_requeue && scheduled.borrow_mut().insert(layer_index) {
-                queue.borrow_mut().push_back(layer_index);
+            let should_requeue = if initialization.cancelled.get() {
+                false
+            } else {
+                let backend = (factory)(initialization.index).await;
+                initialization.complete(backend, &backends, &ready_layers)
+            };
+            initialization.scheduled.set(false);
+            if should_requeue {
+                initialization.scheduled.set(true);
+                queue.borrow_mut().push_back(initialization);
             }
 
             in_flight_count.set(in_flight_count.get().saturating_sub(1));
@@ -382,7 +400,6 @@ fn pump_layer_initialization_queue(
                 factory,
                 backends,
                 queue,
-                scheduled,
                 in_flight_count,
                 ready_layers,
             );
@@ -405,8 +422,8 @@ pub struct PaxGpuRenderer {
     failed_context_gets: RefCell<Vec<bool>>,
     ready_layers: Rc<RefCell<Vec<usize>>>,
     replay_layers: Rc<RefCell<Vec<usize>>>,
-    pending_layer_initializations: Rc<RefCell<VecDeque<usize>>>,
-    scheduled_layer_initializations: Rc<RefCell<HashSet<usize>>>,
+    pending_layer_initializations: Rc<RefCell<VecDeque<Rc<LayerInitialization>>>>,
+    layer_initializations: Vec<Rc<LayerInitialization>>,
     layer_initializations_in_flight: Rc<Cell<usize>>,
     active_render_scopes: RefCell<Vec<Vec<Vec<usize>>>>,
     dirty_render_surfaces: RefCell<Vec<HashSet<usize>>>,
@@ -439,7 +456,7 @@ impl PaxGpuRenderer {
             ready_layers: Default::default(),
             replay_layers: Default::default(),
             pending_layer_initializations: Rc::new(RefCell::new(VecDeque::new())),
-            scheduled_layer_initializations: Rc::new(RefCell::new(HashSet::new())),
+            layer_initializations: Vec::new(),
             layer_initializations_in_flight: Rc::new(Cell::new(0)),
             active_render_scopes: Default::default(),
             dirty_render_surfaces: Default::default(),
@@ -455,14 +472,11 @@ impl PaxGpuRenderer {
 
 impl PaxGpuRenderer {
     fn queue_layer_initialization(&self, layer_index: usize) {
-        if self
-            .scheduled_layer_initializations
-            .borrow_mut()
-            .insert(layer_index)
-        {
+        let initialization = &self.layer_initializations[layer_index];
+        if !initialization.scheduled.replace(true) {
             self.pending_layer_initializations
                 .borrow_mut()
-                .push_back(layer_index);
+                .push_back(Rc::clone(initialization));
         }
     }
 
@@ -876,7 +890,6 @@ impl PaxGpuRenderer {
             Rc::clone(&self.layer_factory),
             Rc::clone(&self.backends),
             Rc::clone(&self.pending_layer_initializations),
-            Rc::clone(&self.scheduled_layer_initializations),
             Rc::clone(&self.layer_initializations_in_flight),
             Rc::clone(&self.ready_layers),
         );
@@ -1383,12 +1396,40 @@ impl RenderContext for PaxGpuRenderer {
         let current_len = self.backends.borrow().len();
         match layer_count.cmp(&current_len) {
             std::cmp::Ordering::Less => {
+                for initialization in self.layer_initializations.drain(layer_count..) {
+                    initialization.cancelled.set(true);
+                }
+                self.pending_layer_initializations
+                    .borrow_mut()
+                    .retain(|initialization| !initialization.cancelled.get());
                 self.backends.borrow_mut().truncate(layer_count);
+                self.ready_layers
+                    .borrow_mut()
+                    .retain(|layer| *layer < layer_count);
+                self.replay_layers
+                    .borrow_mut()
+                    .retain(|layer| *layer < layer_count);
+                self.failed_context_gets.borrow_mut().truncate(layer_count);
+                self.active_render_scopes.borrow_mut().truncate(layer_count);
+                self.dirty_render_surfaces
+                    .borrow_mut()
+                    .truncate(layer_count);
+                self.last_scene_lighting.borrow_mut().truncate(layer_count);
+                self.surface_replay
+                    .borrow_mut()
+                    .truncate_layers(layer_count);
+                self.clean_skipped_canvas_nodes
+                    .borrow_mut()
+                    .retain(|(layer, _)| *layer < layer_count);
+                #[cfg(debug_assertions)]
+                self.tile_cull_stats.borrow_mut().truncate(layer_count);
             }
             std::cmp::Ordering::Equal => return,
             std::cmp::Ordering::Greater => {
                 for i in current_len..layer_count {
                     self.backends.borrow_mut().push(RenderLayerState::Pending);
+                    self.layer_initializations
+                        .push(Rc::new(LayerInitialization::new(i)));
                     self.enqueue_layer_initialization(i);
                 }
             }
@@ -2092,6 +2133,74 @@ pub fn convert_kurbo_to_lyon_path(kurbo_path: &BezPath) -> Path {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn empty_layer(active: bool, current_active: bool) -> LayerDef {
+        (
+            LayerTarget::new(Vec::new(), active),
+            Box::pin(move || LayerSurfaceLayout {
+                active: current_active,
+                surfaces: Vec::new(),
+            }),
+        )
+    }
+
+    #[test]
+    fn removed_layer_initializations_cannot_publish_into_reused_indices() {
+        let mut renderer = PaxGpuRenderer::new(|_| panic!("initialization stays queued"));
+        renderer
+            .layer_initializations_in_flight
+            .set(MAX_CONCURRENT_LAYER_INITIALIZATIONS);
+        let dirty = Rc::new(RefCell::new(Vec::new()));
+        renderer.resize_layers_to(2, Rc::clone(&dirty));
+        let removed = Rc::clone(&renderer.layer_initializations[1]);
+        renderer.ready_layers.borrow_mut().push(1);
+        renderer.replay_layers.borrow_mut().push(1);
+        renderer.resize_layers_to(1, Rc::clone(&dirty));
+        assert!(removed.cancelled.get());
+        assert_eq!(renderer.pending_layer_initializations.borrow().len(), 1);
+        assert!(renderer.ready_layers.borrow().is_empty());
+        assert!(renderer.replay_layers.borrow().is_empty());
+        assert!(!removed.complete(
+            Some(empty_layer(true, true)),
+            &renderer.backends,
+            &renderer.ready_layers
+        ));
+
+        renderer.resize_layers_to(2, dirty);
+        let replacement = &renderer.layer_initializations[1];
+        assert!(!Rc::ptr_eq(&removed, replacement));
+        for stale_result in [Some(empty_layer(true, true)), None] {
+            assert!(!removed.complete(stale_result, &renderer.backends, &renderer.ready_layers));
+            assert!(matches!(
+                renderer.backends.borrow()[1],
+                RenderLayerState::Pending
+            ));
+            assert!(replacement.scheduled.get());
+            assert!(renderer.ready_layers.borrow().is_empty());
+        }
+        assert!(!replacement.complete(
+            Some(empty_layer(true, true)),
+            &renderer.backends,
+            &renderer.ready_layers
+        ));
+        assert!(matches!(
+            renderer.backends.borrow()[1],
+            RenderLayerState::Ready(_)
+        ));
+        assert_eq!(*renderer.ready_layers.borrow(), vec![1]);
+    }
+
+    #[test]
+    fn live_layer_initialization_retries_changed_hosts_and_reports_failure() {
+        let initialization = LayerInitialization::new(0);
+        let backends = RefCell::new(vec![RenderLayerState::Pending]);
+        let ready = RefCell::new(Vec::new());
+        assert!(initialization.complete(Some(empty_layer(true, false)), &backends, &ready));
+        assert!(matches!(backends.borrow()[0], RenderLayerState::Pending));
+        assert!(ready.borrow().is_empty());
+        assert!(!initialization.complete(None, &backends, &ready));
+        assert!(matches!(backends.borrow()[0], RenderLayerState::Failed));
+    }
 
     #[test]
     fn alpha_radial_gradient_retains_radius_with_coincident_endpoints() {

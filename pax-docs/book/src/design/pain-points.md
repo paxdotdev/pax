@@ -2876,3 +2876,69 @@ by its drawing listener and registered as an effect. Dependency edges neither
 own the subscription builder nor evaluate it. Other animation can hide the
 omission; test a nested stroke-width change in isolation and verify that cached
 paint bounds update without replacing the outer stack.
+
+## 2026-09-25 — Diagnose store ownership separately from component fields
+
+A minimal PAX-1007 runtime reproduction mounted sibling components with separate
+property values `(1, 2)` and the same incoming expression frame. Both descendant
+store lookups returned `2`; the parent could also see that child registration,
+and unmounting the second provider left its store reachable from the first.
+`push_local_store` currently writes into the incoming frame before the component
+creates its private template scope. Separate component fields do not establish
+separate store ownership, and unmounting the provider does not clear that shared
+frame's entry.
+
+For a direct parent/child editing connection, use explicit `bind:` and write the
+bound property, as in the website checkpoint's ExampleHost fix. For contextual
+composition such as Table/Row, replacing all stores with bindings would discard
+the intended API. The [PAX-1007 proposal](PAX-1007-store-ownership.md) separates
+provider ownership from expression and render scope; those runtime semantics
+remain pending review. Include changed binding aliases in reload tests: a store
+can retain an old cloned handle when a node rebinds without rerunning mount.
+
+## 2026-09-27 — Exercise designtime fixtures and layer teardown during reload
+
+The default runtime tests passed while `--features designtime` failed to compile:
+fixtures omitted `Globals::designtime`, called constructors with the wrong
+feature-dependent signature, and excluded the initialization/store suite.
+Use offline designtime managers and shared fixture constructors so both feature
+configurations run the same tests without discovering another app's dev server.
+The standard-library Mask and Stacker tests need the same feature coverage.
+
+Repeated template reloads with a ComboBox open exposed renderer lifetime bugs.
+Queued removals for truncated layers were retried forever, and a process-global
+layer count could skip initialization in another engine. Synchronize against the
+actual renderer, discard removals already fulfilled by layer teardown, and keep
+retries for pending live layers. Async GPU initialization also needs a token for
+each layer lifetime: cancellation must prevent old completions from publishing
+into a reused index. Test opening, reloading, and reopening a popup, including
+layer shrink/regrowth, rather than treating a warning-free initial frame as
+sufficient validation.
+
+Native checks must distinguish input delivery from store behavior. The store
+fixture passed sibling sharing, nested shadowing, and remount checks on macOS
+and iOS, while ComboBox exposed two input gaps: macOS text fields consumed the
+click that should open the menu, and `@mouse_down` rows did not select on touch.
+Use the portable release `@click` for selection. On macOS, an `NSTextView` field
+editor consumes mouse-up inside its selection loop, so a non-delaying click
+recognizer never completes. Forward the completed click after native text
+tracking returns, rejecting cancellation and selection drags; keep the whole
+text field, including padding, as the activation bounds.
+
+Do not reset ComboBox selection on textbox blur: blur can precede the option's
+release click and remove that option before selection. Editing filters the
+query; selecting a row commits its original option index. Key filtered rows by
+that source index (not the label, since labels can repeat) to avoid stale
+out-of-range bindings as results shrink. Close the list before mirroring a
+committed label, validate external indices without indexing past the options,
+and include option changes in label synchronization. The clear icon also needs
+an explicit transparent stroke color, even with a zero-width stroke.
+
+The dropdown's row container and background must use the same content height
+as its Scroller. Filling the five-row viewport while declaring only three rows
+of scroll content leaves native text outside the rendered background. Exercise
+one result, several results, no results, selection, clear, and reopen on actual
+chassis controls, not only synthetic handler dispatch. A debug
+`pax-tile-window-escape` message can also describe an ordinary content-height
+increase: the renderer then resizes and replays the layer. Distinguish that
+resize diagnostic from stale initialization/removal warnings and coercion errors.

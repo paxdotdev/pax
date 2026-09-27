@@ -37,7 +37,7 @@ use std::rc::Rc;
 
 pub trait PaxCartridge {}
 
-#[cfg(all(test, not(feature = "designtime")))]
+#[cfg(test)]
 mod initialization_tests;
 #[cfg(test)]
 mod typed_binding_tests;

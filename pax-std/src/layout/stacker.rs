@@ -1536,7 +1536,7 @@ mod tests {
         assert_eq!(measurement.height, Some(72.0));
     }
     use pax_engine::api::pax_value::{PaxAny, ToFromPaxAny};
-    use pax_engine::api::{Platform, Property, TargetInfo, OS};
+    use pax_engine::api::Property;
     use pax_engine::pax_manifest::cartridge_generation::{
         ComponentTransitionConfig, TRANSITION_PHASE_EXIT,
     };
@@ -1545,10 +1545,9 @@ mod tests {
     use pax_runtime::api::CommonProperties;
     use pax_runtime::api::{PaxValue, ToPaxValue};
     use pax_runtime::{
-        BaseInstance, CommonPropertiesInit, ComponentInstance, ExpandedNode, Globals,
-        InstanceFlags, InstanceNode, InstantiationArgs, PropertiesInit, PropertiesScopeInit,
-        RepeatInstance, RepeatProperties, RouteLocation, RuntimeContext,
-        RuntimePropertiesStackFrame, TransformAndBounds,
+        BaseInstance, CommonPropertiesInit, ComponentInstance, ExpandedNode, InstanceFlags,
+        InstanceNode, InstantiationArgs, PropertiesInit, PropertiesScopeInit, RepeatInstance,
+        RepeatProperties, RuntimePropertiesStackFrame,
     };
     use std::fmt;
 
@@ -1556,26 +1555,6 @@ mod tests {
         ContainerFrame {
             transform: Transform2::translate(Vector2::new(x, y)),
             bounds: (width, height),
-        }
-    }
-
-    fn test_globals() -> Globals {
-        Globals {
-            elapsed_frames: Property::new(0),
-            elapsed_millis: Property::new(0),
-            viewport: Property::new(TransformAndBounds {
-                transform: Transform2::identity(),
-                bounds: (100.0, 100.0),
-            }),
-            gyro: Property::new(Default::default()),
-            accel: Property::new(Default::default()),
-            route_location: Property::new(RouteLocation::root()),
-            browser_allows_scroller_vector_layers: Property::new(true),
-            browser_allows_nested_scroller_vector_layers: Property::new(true),
-            platform: Platform::Unknown,
-            os: OS::Unknown,
-            target: TargetInfo::new(Platform::Unknown, OS::Unknown),
-            get_elapsed_millis: Rc::new(|| 0),
         }
     }
 
@@ -2175,7 +2154,7 @@ mod tests {
             horizontal_stacker_properties(),
         ));
         let root_component = ComponentInstance::instantiate(component_args(vec![stacker]));
-        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let context = Rc::new(crate::test_support::runtime_context());
         let root = ExpandedNode::initialize_root(root_component, &context);
 
         root.recurse_update(&context);
@@ -2203,7 +2182,7 @@ mod tests {
             horizontal_stacker_properties(),
         ));
         let root_component = ComponentInstance::instantiate(component_args(vec![stacker]));
-        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let context = Rc::new(crate::test_support::runtime_context());
         let root = ExpandedNode::initialize_root(root_component, &context);
 
         root.recurse_update(&context);
@@ -2234,7 +2213,7 @@ mod tests {
             horizontal_stacker_properties(),
         ));
         let root_component = ComponentInstance::instantiate(component_args(vec![stacker]));
-        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let context = Rc::new(crate::test_support::runtime_context());
         let root = ExpandedNode::initialize_root(root_component, &context);
 
         root.recurse_update(&context);
@@ -2269,7 +2248,7 @@ mod tests {
         let stacker: Rc<dyn InstanceNode> =
             StackerInstance::instantiate(stacker_args(vec![repeat]));
         let root_component = ComponentInstance::instantiate(component_args(vec![stacker]));
-        let context = Rc::new(RuntimeContext::new(test_globals()));
+        let context = Rc::new(crate::test_support::runtime_context());
         let root = ExpandedNode::initialize_root(root_component, &context);
 
         root.recurse_update(&context);

@@ -42,8 +42,8 @@ pub struct NodeContext {
     pub expanded_node: Weak<ExpandedNode>,
     /// slot index of this node in its container
     pub slot_index: Property<Option<usize>>,
-    /// Stack frame of this component, used to look up stores
-    pub local_stack_frame: Rc<RuntimePropertiesStackFrame>,
+    pub expression_stack: Rc<RuntimePropertiesStackFrame>,
+    pub(crate) store_generation: u64,
     /// Reference to the ExpandedNode of the component containing this node
     pub containing_component: Weak<ExpandedNode>,
     /// The current global engine frame count.
@@ -116,16 +116,6 @@ pub struct NodeContext {
 }
 
 impl NodeContext {
-    /// Push component-local state onto the runtime stack for descendants to find.
-    pub fn push_local_store<T: Store>(&self, store: T) {
-        self.local_stack_frame.insert_stack_local_store(store);
-    }
-
-    /// Borrow the nearest stack-local store of type `T`.
-    pub fn peek_local_store<T: Store, V>(&self, f: impl FnOnce(&mut T) -> V) -> Result<V, String> {
-        self.local_stack_frame.peek_stack_local_store(f)
-    }
-
     /// Convert a window-space point into this node's local coordinate space, including any
     /// presentation offsets inherited from ancestor scrollers.
     pub fn local_point(&self, p: Point2<Window>) -> Point2<NodeLocal> {

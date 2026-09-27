@@ -45,9 +45,10 @@ impl Example {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
         self.mobile_top_inset
             .set(if ctx.os.is_ios() { 56.0 } else { 0.0 });
-        ctx.push_local_store(RouterPlaygroundChromeStore {
+        ctx.provide_store(RouterPlaygroundChromeStore {
             mobile_menu_open: self.mobile_menu_open.clone(),
-        });
+        })
+        .expect("router chrome is mounting");
         self.sync_responsive_state(ctx);
     }
 

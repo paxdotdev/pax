@@ -5899,6 +5899,14 @@ private final class PaxNativeRadioListView: NSStackView {
 }
 
 private final class VerticallyCenteredTextFieldCell: NSTextFieldCell {
+    private let paxFieldEditor = PaxTextboxTextView()
+
+    override func fieldEditor(for controlView: NSView) -> NSTextView? {
+        paxFieldEditor.isFieldEditor = true
+        paxFieldEditor.activationView = controlView
+        return paxFieldEditor
+    }
+
     private func verticallyCenteredRect(for rect: NSRect) -> NSRect {
         var drawingRect = super.drawingRect(forBounds: rect)
         let textHeight = min(drawingRect.height, cellSize(forBounds: rect).height)
@@ -6009,7 +6017,7 @@ private final class PaxNativeTextboxFieldView: NSTextField, NSTextFieldDelegate 
 }
 
 private final class PaxNativeTextboxAreaView: NSScrollView, NSTextViewDelegate {
-    private let textView = NSTextView()
+    private let textView = PaxTextboxTextView()
     private var nodeId: PaxNodeId = 0
     private var isProgrammaticChange = false
 

@@ -6,7 +6,6 @@ use crate::{
 use_RefCell!();
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 use pax_message::NativeMessage;
 use pax_runtime_api::{
@@ -26,6 +25,8 @@ pub mod occlusion;
 // TODO move these to not be in engine - make separate crates?
 pub mod pax_gpu_render_context;
 pub mod piet_render_context;
+#[cfg(test)]
+mod render_lifecycle_tests;
 
 /// The atomic unit of rendering; also the container for each unique tuple of computed properties.
 /// Represents an expanded node, that is "expanded" in the context of computed properties and repeat expansion.
@@ -671,7 +672,10 @@ impl PaxEngine {
             return;
         }
 
-        let removals = self.runtime_context.take_canvas_node_removals();
+        let mut removals = self.runtime_context.take_canvas_node_removals();
+        // Resizing drops truncated layers and their retained nodes together.
+        // Retrying their old removals would keep nonexistent layers dirty forever.
+        removals.retain(|(layer, _)| *layer < self.runtime_context.layer_count.get());
         let mut dirty_layers = self.runtime_context.dirty_canvas_layers();
         dirty_layers.extend(removals.iter().map(|(layer, _)| *layer));
         dirty_layers.sort_unstable();
@@ -826,18 +830,17 @@ impl PaxEngine {
     }
 
     pub fn update_layer_count(&self, rcs: &mut dyn RenderContext) {
-        static LAST_LAYER_COUNT: AtomicUsize = AtomicUsize::new(0); // last-patch layer_count
         let curr_layer_count = self.runtime_context.layer_count.get();
-        let old_layer_count = LAST_LAYER_COUNT.load(Ordering::Relaxed);
-        if old_layer_count != curr_layer_count {
+        // A renderer can be replaced or shared across successive app revisions.
+        // Its actual layer set, not process-global history, determines the resize.
+        if rcs.layers() != curr_layer_count {
             rcs.resize_layers_to(
                 curr_layer_count,
                 Rc::clone(&self.runtime_context.dirty_canvases),
             );
-            self.runtime_context
-                .resize_canvas_layers_to(curr_layer_count);
-            LAST_LAYER_COUNT.store(curr_layer_count, Ordering::Relaxed)
         }
+        self.runtime_context
+            .resize_canvas_layers_to(curr_layer_count);
     }
 
     pub fn global_dispatch_focus(&self, args: Focus) -> bool {
@@ -1078,7 +1081,7 @@ mod tests {
 
     #[test]
     fn empty_engine_can_tick_and_mount_later() {
-        let mut engine = PaxEngine::new_empty(
+        let mut engine = crate::test_support::empty_engine(
             (320.0, 240.0),
             Platform::Web,
             OS::Mac,
@@ -1107,7 +1110,7 @@ mod tests {
 
     #[test]
     fn unmount_clears_registered_root() {
-        let mut engine = PaxEngine::new_empty(
+        let mut engine = crate::test_support::empty_engine(
             (320.0, 240.0),
             Platform::Web,
             OS::Mac,
@@ -1124,7 +1127,7 @@ mod tests {
 
     #[test]
     fn globals_expose_sensor_values_to_stack_frame() {
-        let engine = PaxEngine::new_empty(
+        let engine = crate::test_support::empty_engine(
             (320.0, 240.0),
             Platform::Web,
             OS::Mac,
@@ -1181,7 +1184,7 @@ mod tests {
     fn lifecycle_handlers_run_once_per_tick() {
         TICK_CALLS.store(0, Ordering::SeqCst);
         PRE_RENDER_CALLS.store(0, Ordering::SeqCst);
-        let mut engine = PaxEngine::new_empty(
+        let mut engine = crate::test_support::empty_engine(
             (320.0, 240.0),
             Platform::Web,
             OS::Mac,
@@ -1200,7 +1203,7 @@ mod tests {
     fn sensor_handlers_dispatch_through_registered_nodes() {
         GYRO_CALLS.store(0, Ordering::SeqCst);
         ACCEL_CALLS.store(0, Ordering::SeqCst);
-        let mut engine = PaxEngine::new_empty(
+        let mut engine = crate::test_support::empty_engine(
             (320.0, 240.0),
             Platform::Web,
             OS::Mac,
@@ -1220,7 +1223,7 @@ mod tests {
 
     #[test]
     fn globals_expose_clock_aliases_to_stack_frame() {
-        let engine = PaxEngine::new_empty(
+        let engine = crate::test_support::empty_engine(
             (320.0, 240.0),
             Platform::Web,
             OS::Mac,
@@ -1246,7 +1249,7 @@ mod tests {
 
     #[test]
     fn globals_expose_target_aliases_to_stack_frame() {
-        let engine = PaxEngine::new_empty(
+        let engine = crate::test_support::empty_engine(
             (320.0, 240.0),
             Platform::Native,
             OS::IPad,
@@ -1283,7 +1286,7 @@ mod tests {
 
     #[test]
     fn globals_expose_viewport_orientation_aliases_to_stack_frame() {
-        let engine = PaxEngine::new_empty(
+        let engine = crate::test_support::empty_engine(
             (320.0, 240.0),
             Platform::Web,
             OS::Mac,

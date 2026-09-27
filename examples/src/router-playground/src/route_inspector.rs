@@ -19,7 +19,7 @@ pub struct RouteInspector {
 
 impl RouteInspector {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
-        let Some(route) = ctx.local_stack_frame.resolve_symbol("route") else {
+        let Some(route) = ctx.expression_stack.resolve_symbol("route") else {
             self.scope_path.set("route unavailable".to_string());
             self.global_path.set("route unavailable".to_string());
             self.params_summary.set("none".to_string());
