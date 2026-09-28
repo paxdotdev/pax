@@ -13,6 +13,8 @@ Type: `String`
 ##### `host_signature`
 Type: `String`
 
+Host ownership plus backing-surface generation; changes when the physical surface is replaced.
+
 ##### `origin_x`
 Type: `f32`
 
@@ -79,8 +81,15 @@ This tracks surface indices and replay regions, not scene-node coverage. The
 runtime scene index selects nodes; backends apply surface indices to their own
 renderer objects.
 
+#### Implementations
+##### `remap_surfaces`
+<pre><code class="api-signature language-rust ignore">pub fn remap_surfaces(&amp;mut self, layer: usize, old_indices: &amp;[usize])</code></pre>
+
+Remap pending replay work after eviction or reordering, dropping work for removed surfaces.
+`old_indices[new_index]` identifies the surviving renderer in the previous surface vector.
+
 ## Functions
 ### `replay_batches_by_directional_priority`
 <pre><code class="api-signature language-rust ignore">pub fn replay_batches_by_directional_priority(entries: &amp;[<a href="../../../../api/internal/pax-runtime/engine/layer_surface.md#replaypriorityentry">ReplayPriorityEntry</a>]) -&gt; Vec&lt;Vec&lt;usize&gt;&gt;</code></pre>
 
-Batch retargeted surfaces by planner priority, then by the leading row/column of travel.
+Replay visible retargeted surfaces together, then warm tiles by priority and travel direction.

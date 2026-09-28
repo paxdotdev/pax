@@ -26,14 +26,17 @@ mod texture;
 #[cfg(all(test, target_os = "macos"))]
 mod retained_clip_tests;
 
+#[cfg(all(test, target_os = "macos"))]
+mod shared_texture_tests;
+
 pub(crate) use texture::CachedTextureResource;
 
 use data::{GpuGlobals, GpuPrimitive, GpuSceneLighting, GpuVertex};
 
 use crate::{
     render_backend::texture::{
-        corners_to_texture_vertices, RetainedImageResource, TexturePipelineResources,
-        TextureRenderer,
+        corners_to_texture_vertices, ImageTextureCache, RetainedImageResource,
+        TexturePipelineResources, TextureRenderer,
     },
     Box2D, Transform2D,
 };
@@ -65,7 +68,7 @@ struct VectorPipelineKey {
     sample_count: u32,
 }
 
-/// Shared GPU device context used by sibling render surfaces.
+/// GPU device, pipelines, and a weak index of resident image textures shared by sibling surfaces.
 pub struct GpuContext {
     instance: wgpu::Instance,
     adapter: wgpu::Adapter,
@@ -77,6 +80,7 @@ pub struct GpuContext {
     mesh_paint_layout: BindGroupLayout,
     vector_pipelines: RefCell<HashMap<VectorPipelineKey, Rc<RenderPipeline>>>,
     texture_pipelines: RefCell<HashMap<VectorPipelineKey, TexturePipelineResources>>,
+    image_textures: RefCell<ImageTextureCache>,
     stencil_pipelines: RefCell<HashMap<VectorPipelineKey, StencilPipelineResources>>,
 }
 
@@ -144,6 +148,7 @@ impl GpuContext {
             mesh_paint_layout,
             vector_pipelines: RefCell::new(HashMap::new()),
             texture_pipelines: RefCell::new(HashMap::new()),
+            image_textures: RefCell::new(ImageTextureCache::default()),
             stencil_pipelines: RefCell::new(HashMap::new()),
         }))
     }
@@ -1428,6 +1433,10 @@ impl<'w> RenderBackend<'w> {
         Rc::as_ptr(&self.context) as usize
     }
 
+    pub(crate) fn shared_context(&self) -> SharedGpuContext {
+        Rc::clone(&self.context)
+    }
+
     pub(crate) fn request_screenshot_capture(&mut self, request_id: u32) {
         self.pending_capture_ids.push(request_id);
         if !self.surface_supports_copy_src() {
@@ -2208,14 +2217,19 @@ impl<'w> RenderBackend<'w> {
 
     pub(crate) fn create_cached_texture(
         &self,
+        identity: &str,
+        version: u64,
         rgba: &[u8],
         rgba_width: u32,
         rgba_height: u32,
-    ) -> CachedTextureResource {
+    ) -> (CachedTextureResource, bool) {
         self.texture_renderer.create_cached_texture(
             &self.device,
             &self.queue,
             &self.globals_buffer,
+            &mut self.context.image_textures.borrow_mut(),
+            identity,
+            version,
             rgba,
             rgba_width,
             rgba_height,

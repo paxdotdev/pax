@@ -12,6 +12,7 @@ pub mod form_event;
 pub mod layout;
 pub mod properties;
 pub mod rendering;
+mod render_instrumentation;
 pub mod repeat;
 pub mod router;
 pub mod scene_geometry;

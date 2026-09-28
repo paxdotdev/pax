@@ -297,6 +297,50 @@ They do not establish frame rate, memory use, or accessibility. Keep those
 measurements separate, and compare the same workload before and after a
 change.
 
+### Native render phase timings
+
+For native debug or release builds, launch the app process with
+`PAX_RENDER_TIMINGS=1` to emit aggregated `[PaxRender]` diagnostics approximately
+once per second. This flag is off by default and has no effect in WebAssembly.
+For an installed simulator app, for example:
+
+```sh
+SIMCTL_CHILD_PAX_RENDER_TIMINGS=1 xcrun simctl launch --console-pty \
+  <simulator-udid> <bundle-id>
+```
+
+Each phase reports `count/total_ms/avg_ms/max_ms`. `render` measures the runtime
+render call, `lighting` collection, `lighting_upload` delivery to the backend,
+and `prepare` retained-node preparation. On the GPU backend, `flush`, `encode`,
+`submit`, `cleanup`, `present`, and `layer_init` distinguish drawing and renderer
+initialization costs. A render call can collect several layers and flush several
+surfaces, so those phase counts and averages are not per-frame counts. Nested
+timings overlap: layer initialization can occur inside render or flush, and
+encode/submit/present occur inside flush. Do not sum all reported phases.
+
+`[PaxRenderTiles]` reports counters for the same window: renderer creations,
+changes to the keyed tile set, matching key/host tiles discarded during those
+changes, origin retargets, resizes, retained-scene resets, and reused tiles. A matching discarded
+tile identifies potential reuse; it does not prove that its contents or geometry
+were unchanged. Incremental additions should not discard matching survivors;
+`layer_init` can now represent just a batch of missing tiles. Reuse counts include
+survivors moved during set reconciliation, not every unchanged tile on every frame.
+`image_texture_uploaded` and `image_texture_upload_bytes` count new image pixel
+allocations/uploads observed at tile flush, while `image_texture_reused` counts
+new tile bindings that reuse a sibling's resident texture. Repainting a tile with
+its existing binding is not a shared-cache hit. These are work/transfer counters,
+not current GPU memory usage; image bindings are tile-local even when pixels are
+shared. Counts include all logical layers, and startup should be excluded
+when investigating scroll-induced churn. These counters are also disabled unless
+`PAX_RENDER_TIMINGS` is enabled.
+
+These are CPU wall-clock spans, including any waits inside the measured calls,
+not GPU execution timestamps or displayed-frame counts. They exclude the
+chassis's tick, native-view update, and surface synchronization costs. Simulator
+GPU and presentation timings do not predict performance on physical hardware.
+Keep startup separate from interaction captures, and relaunch without the flag
+after measuring to disable the instrumentation.
+
 ## Read more
 
 - [State and Properties](state-properties.md) — reactive values and dependency

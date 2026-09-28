@@ -247,7 +247,7 @@ final class SurfaceManager {
                 }
 
                 descriptor.key.withCString { keyPtr in
-                    descriptor.hostSignature.withCString { hostPtr in
+                    (descriptor.hostSignature + "|surface:" + surfaceView.generation).withCString { hostPtr in
                         PaxCartridgeRuntime.shared.surfaceRegistryRegisterSurface(
                             engineContainer,
                             layerId: layerId,
@@ -337,6 +337,8 @@ final class SurfaceManager {
 }
 
 final class PaxMetalSurfaceView: NSView {
+    // A removed/recreated tile must not inherit a renderer for its predecessor.
+    let generation = UUID().uuidString
     private var appliedScale: CGFloat = 0
     private var appliedPixelSize: CGSize = .zero
     override var preservesContentDuringLiveResize: Bool { false }

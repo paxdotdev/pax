@@ -1615,3 +1615,58 @@ fn captured_empty_and_oversized_sources_fail_closed_independently() {
         assert_pixel(&frame, 50, 16, [255; 4]);
     }
 }
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn unchanged_lighting_does_not_redraw_retained_scene() {
+    for grouped in [false, true] {
+        let layer = MetalLayer::new();
+        let backend = pollster::block_on(unsafe {
+            RenderBackend::to_core_animation_layer(
+                layer.0.cast(),
+                RenderConfig::new(true, 32, 32, [1.0, 1.0]),
+            )
+        })
+        .expect("Metal backend");
+        let mut renderer = WgpuRenderer::new(backend);
+        renderer.begin_node(0, 0, 0);
+        if grouped {
+            renderer.set_node_opacity_scopes(
+                0,
+                &[pax_runtime_api::OpacityScope {
+                    node_id: 100,
+                    opacity: 0.5,
+                }],
+            );
+        }
+        renderer.fill_path(
+            rect(0.0, 0.0, 32.0, 32.0),
+            Fill::Solid(Color::rgba(1.0, 1.0, 1.0, 1.0)),
+        );
+        renderer.end_node(0);
+        let mut lighting = crate::SceneLighting::default();
+        renderer.set_scene_lighting(lighting.clone());
+        renderer.flush();
+        let stats = renderer.take_resource_churn_stats();
+        assert_eq!(stats.retained_nodes_considered, 1);
+        assert_eq!(stats.opacity_group_renders, u64::from(grouped));
+
+        for _ in 0..10 {
+            renderer.set_scene_lighting(lighting.clone());
+            renderer.flush_deferred();
+            assert!(renderer.take_pending_command_buffers().is_empty());
+        }
+        let stats = renderer.take_resource_churn_stats();
+        assert_eq!(stats.retained_nodes_considered, 0);
+        assert_eq!(stats.opacity_group_renders, 0);
+
+        lighting.active = true;
+        lighting.ambient_is_authored = true;
+        lighting.ambient_intensity = 0.5;
+        renderer.set_scene_lighting(lighting);
+        renderer.flush();
+        let stats = renderer.take_resource_churn_stats();
+        assert_eq!(stats.retained_nodes_considered, 1);
+        assert_eq!(stats.opacity_group_renders, u64::from(grouped));
+    }
+}

@@ -317,7 +317,9 @@ their order in the template is their layer order.
 
 The provider can expose reactive properties of its own. Expressions in its
 settings use that provider's `self` and state, so a shared palette can change
-reactively. See [Drawing and Styling](drawing-styling.md) for visual design
+reactively. Stable imports reuse their provider layers on unchanged frames;
+provider-property updates continue through the existing reactive bindings.
+See [Drawing and Styling](drawing-styling.md) for visual design
 choices and [PAXEL's `$base`](data-binding-expressions.md#base) for building on
 an earlier property value.
 

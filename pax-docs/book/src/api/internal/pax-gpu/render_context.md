@@ -198,6 +198,11 @@ Type: `u64`
 ##### `texture_upload_bytes`
 Type: `u64`
 
+##### `texture_cache_hits`
+Type: `u64`
+
+Tile-local bindings created using an already resident sibling image texture.
+
 ##### `retained_nodes_considered`
 Type: `u64`
 
@@ -306,10 +311,18 @@ Installs a painted alpha mask in the current save/restore scope.
 
 Current transform at the top of the render-state stack.
 
+##### `draw_image`
+<pre><code class="api-signature language-rust ignore">pub fn draw_image(&amp;mut self, image_key: &amp;str, image_version: u64, image: &amp;<a href="../../../api/pax-std/media/image.md#image">Image</a>, rect: <a href="../../../api/internal/pax-gpu/index.md#box2d">Box2D</a>)</code></pre>
+
+Image identity and version must identify the same pixels across renderers sharing a GPU
+context. Change the version when replacing image content.
+
 ##### `draw_image_with_opacity`
 <pre><code class="api-signature language-rust ignore">pub fn draw_image_with_opacity(&amp;mut self, image_key: &amp;str, image_version: u64, image: &amp;<a href="../../../api/pax-std/media/image.md#image">Image</a>, rect: <a href="../../../api/internal/pax-gpu/index.md#box2d">Box2D</a>, opacity: f32)</code></pre>
 
 Multiplies source pixel alpha by `opacity` without reuploading the texture.
+Sibling tiles share resident image pixels, but keep their own draw bindings.
+Identity/version follows the same contract as [`Self::draw_image`].
 
 ##### `fill_path`
 <pre><code class="api-signature language-rust ignore">pub fn fill_path(&amp;mut self, path: <a href="../../../api/pax-std/drawing/path.md#path">Path</a>, fill: <a href="../../../api/pax-runtime-api/drawing.md#fill">Fill</a>)</code></pre>
@@ -346,6 +359,13 @@ Drop retained scene state for a surface that has been rebound to a new tile orig
 
 Updates group presentation without changing a node's paint or image resources.
 
+##### `set_scene_lighting`
+<pre><code class="api-signature language-rust ignore">pub fn set_scene_lighting(&amp;mut self, lighting: <a href="../../../api/pax-runtime-api/drawing.md#scenelighting">SceneLighting</a>)</code></pre>
+
+Upload changed surface-local lighting and invalidate retained drawing.
+Repeating the same value does not upload a uniform or dirty the scene.
+Each new renderer receives its own initial upload, even for default lighting.
+
 ##### `set_surface_transform`
 <pre><code class="api-signature language-rust ignore">pub fn set_surface_transform(&amp;mut self, transform: <a href="../../../api/pax-runtime-api/transform.md#transform2d">Transform2D</a>)</code></pre>
 
@@ -355,6 +375,12 @@ Set the base transform for the physical surface tile being rendered.
 <pre><code class="api-signature language-rust ignore">pub fn share_vector_caches_from(&amp;mut self, other: &amp;Self)</code></pre>
 
 Share vector resource caches with another renderer for the same logical layer.
+
+##### `shared_gpu_context`
+<pre><code class="api-signature language-rust ignore">pub fn shared_gpu_context(&amp;self) -&gt; SharedGpuContext</code></pre>
+
+Reuse this logical layer's GPU context when creating another physical tile.
+The returned handle keeps the device and pipelines alive, not this tile's surface or scene.
 
 ##### `stroke_path`
 <pre><code class="api-signature language-rust ignore">pub fn stroke_path(&amp;mut self, path: <a href="../../../api/pax-std/drawing/path.md#path">Path</a>, stroke: <a href="../../../api/pax-runtime-api/drawing.md#stroke">Stroke</a>)</code></pre>

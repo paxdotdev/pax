@@ -2,6 +2,7 @@ use kurbo::Rect;
 use std::collections::{HashMap, HashSet, VecDeque};
 
 /// Logical and backing-pixel dimensions for one physical surface.
+#[derive(Clone, Debug, PartialEq)]
 pub struct LayerSurfaceSize {
     pub logical_width: f32,
     pub logical_height: f32,
@@ -11,8 +12,10 @@ pub struct LayerSurfaceSize {
 }
 
 /// Desired surface geometry for one tile in a layer layout.
+#[derive(Clone, Debug, PartialEq)]
 pub struct LayerSurfaceEntry {
     pub key: String,
+    /// Host ownership plus backing-surface generation; changes when the physical surface is replaced.
     pub host_signature: String,
     pub origin_x: f32,
     pub origin_y: f32,
@@ -21,6 +24,7 @@ pub struct LayerSurfaceEntry {
 }
 
 /// Desired set of physical surfaces for a logical layer.
+#[derive(Clone, Debug, PartialEq)]
 pub struct LayerSurfaceLayout {
     pub surfaces: Vec<LayerSurfaceEntry>,
     pub active: bool,
@@ -109,6 +113,9 @@ pub fn replay_batches_by_priority(mut entries: Vec<(usize, i32)>) -> Vec<Vec<usi
     if entries.is_empty() {
         return Vec::new();
     }
+    for (_, priority) in &mut entries {
+        *priority = (*priority).max(0);
+    }
     entries.sort_by_key(|(index, priority)| (*priority, *index));
 
     // Keep visible tile replay isolated from warm pre-render work. Replaying a warm ring in the
@@ -157,7 +164,7 @@ enum ReplayDirectionAxis {
 
 const REPLAY_DIRECTION_EPSILON: f64 = 0.5;
 
-/// Batch retargeted surfaces by planner priority, then by the leading row/column of travel.
+/// Replay visible retargeted surfaces together, then warm tiles by priority and travel direction.
 pub fn replay_batches_by_directional_priority(entries: &[ReplayPriorityEntry]) -> Vec<Vec<usize>> {
     if entries.is_empty() {
         return Vec::new();
@@ -177,8 +184,14 @@ pub fn replay_batches_by_directional_priority(entries: &[ReplayPriorityEntry]) -
         .map(|entry| {
             (
                 entry.index,
-                entry.priority,
-                directional_lane_key(entry.current_bounds, axis, direction_sign),
+                entry.priority.max(0),
+                // Hosts have already moved these surfaces. Splitting visible lanes across
+                // frames exposes old tile pixels at their new positions until replay catches up.
+                if entry.priority <= 0 {
+                    0
+                } else {
+                    directional_lane_key(entry.current_bounds, axis, direction_sign)
+                },
             )
         })
         .collect();
@@ -299,6 +312,51 @@ pub struct SurfaceReplayCoordinator {
 }
 
 impl SurfaceReplayCoordinator {
+    pub(crate) fn pending_replay_surfaces(&self, layer: usize) -> Vec<(usize, Vec<Rect>)> {
+        self.targeted_replay_queues
+            .get(layer)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|index| {
+                (
+                    *index,
+                    self.targeted_replay_bounds
+                        .get(layer)
+                        .and_then(|bounds| bounds.get(index))
+                        .cloned()
+                        .unwrap_or_default(),
+                )
+            })
+            .collect()
+    }
+
+    /// Remap pending replay work after eviction or reordering, dropping work for removed surfaces.
+    /// `old_indices[new_index]` identifies the surviving renderer in the previous surface vector.
+    pub fn remap_surfaces(&mut self, layer: usize, old_indices: &[usize]) {
+        let remap: HashMap<_, _> = old_indices
+            .iter()
+            .copied()
+            .enumerate()
+            .map(|(new, old)| (old, new))
+            .collect();
+        if let Some(queue) = self.targeted_replay_queues.get_mut(layer) {
+            for batch in queue.iter_mut() {
+                *batch = batch
+                    .iter()
+                    .filter_map(|old| remap.get(old).copied())
+                    .collect();
+            }
+            queue.retain(|batch| !batch.is_empty());
+        }
+        if let Some(bounds) = self.targeted_replay_bounds.get_mut(layer) {
+            *bounds = std::mem::take(bounds)
+                .into_iter()
+                .filter_map(|(old, bounds)| remap.get(&old).map(|new| (*new, bounds)))
+                .collect();
+        }
+    }
+
     pub fn targeted_replay_scope(&self, layer: usize) -> Option<Vec<usize>> {
         self.targeted_replay_queues
             .get(layer)
@@ -486,23 +544,82 @@ mod replay_priority_tests {
     }
 
     #[test]
-    fn directional_batches_start_with_leading_vertical_row() {
+    fn retargeted_visible_tiles_replay_in_one_frame_in_every_scroll_direction() {
+        for (dx, dy) in [(400.0, 0.0), (-400.0, 0.0), (0.0, 400.0), (0.0, -400.0)] {
+            let entries: Vec<_> = (0..4)
+                .map(|index| {
+                    let x = (index % 2) as f64 * 100.0;
+                    let y = (index / 2) as f64 * 100.0;
+                    let current = Rect::new(x, y, x + 100.0, y + 100.0);
+                    ReplayPriorityEntry::new(index, 0, current - kurbo::Vec2::new(dx, dy), current)
+                })
+                .collect();
+            let mut coordinator = SurfaceReplayCoordinator::default();
+            coordinator.set_targeted_replay_batches(
+                0,
+                replay_batches_by_directional_priority(&entries),
+                HashMap::new(),
+            );
+            // Hosts move all recycled surfaces in the same frame. Delaying any visible
+            // repaint would expose that surface's old pixels at its new location.
+            assert_eq!(
+                coordinator.targeted_replay_scope(0),
+                Some(vec![0, 1, 2, 3]),
+                "scroll direction ({dx}, {dy})"
+            );
+            assert!(!coordinator.advance_targeted_replay_queue(0));
+        }
+    }
+
+    #[test]
+    fn visible_tiles_replay_before_directional_warm_work() {
+        for delta in [0.0, 400.0, -400.0] {
+            let entries: Vec<_> = [0, 1, -1, 1, 2]
+                .into_iter()
+                .enumerate()
+                .map(|(index, priority)| {
+                    let y = index as f64 * 100.0;
+                    let bounds = Rect::new(0.0, y, 100.0, y + 100.0);
+                    ReplayPriorityEntry::new(
+                        index,
+                        priority,
+                        bounds - kurbo::Vec2::new(0.0, delta),
+                        bounds,
+                    )
+                })
+                .collect();
+            let batches = replay_batches_by_directional_priority(&entries);
+            assert_eq!(batches[0], vec![0, 2]);
+            let warm: Vec<_> = batches[1..].iter().flatten().copied().collect();
+            assert_eq!(
+                warm,
+                if delta > 0.0 {
+                    vec![3, 1, 4]
+                } else {
+                    vec![1, 3, 4]
+                }
+            );
+        }
+    }
+
+    #[test]
+    fn directional_warm_batches_start_with_leading_vertical_row() {
         let batches = replay_batches_by_directional_priority(&[
             ReplayPriorityEntry::new(
                 0,
-                0,
+                1,
                 Rect::new(0.0, 0.0, 100.0, 100.0),
                 Rect::new(0.0, 100.0, 100.0, 200.0),
             ),
             ReplayPriorityEntry::new(
                 1,
-                0,
+                1,
                 Rect::new(100.0, 100.0, 200.0, 200.0),
                 Rect::new(100.0, 200.0, 200.0, 300.0),
             ),
             ReplayPriorityEntry::new(
                 2,
-                0,
+                1,
                 Rect::new(200.0, -100.0, 300.0, 0.0),
                 Rect::new(200.0, 0.0, 300.0, 100.0),
             ),
@@ -512,23 +629,23 @@ mod replay_priority_tests {
     }
 
     #[test]
-    fn directional_batches_keep_same_leading_row_together() {
+    fn directional_warm_batches_keep_same_leading_row_together() {
         let batches = replay_batches_by_directional_priority(&[
             ReplayPriorityEntry::new(
                 2,
-                0,
+                1,
                 Rect::new(200.0, 100.0, 300.0, 200.0),
                 Rect::new(200.0, 200.0, 300.0, 300.0),
             ),
             ReplayPriorityEntry::new(
                 0,
-                0,
+                1,
                 Rect::new(0.0, 100.0, 100.0, 200.0),
                 Rect::new(0.0, 200.0, 100.0, 300.0),
             ),
             ReplayPriorityEntry::new(
                 1,
-                0,
+                1,
                 Rect::new(100.0, 0.0, 200.0, 100.0),
                 Rect::new(100.0, 100.0, 200.0, 200.0),
             ),
@@ -587,6 +704,33 @@ mod replay_priority_tests {
         assert_eq!(bounds, vec![Rect::new(0.0, 0.0, 10.0, 10.0)]);
         assert!(coordinator.advance_targeted_replay_queue(0));
         assert_eq!(coordinator.targeted_replay_scope(0), Some(vec![1]));
+    }
+
+    #[test]
+    fn remap_preserves_warm_replay_and_drops_evicted_work() {
+        let mut coordinator = SurfaceReplayCoordinator::default();
+        let a = Rect::new(0.0, 0.0, 10.0, 10.0);
+        let b = Rect::new(10.0, 0.0, 20.0, 10.0);
+        let c = Rect::new(20.0, 0.0, 30.0, 10.0);
+        coordinator.set_targeted_replay_batches(
+            0,
+            vec![vec![0], vec![1, 2]],
+            HashMap::from([(0, vec![a]), (1, vec![b]), (2, vec![c])]),
+        );
+        coordinator.remap_surfaces(0, &[2, 1]);
+        assert_eq!(coordinator.targeted_replay_scope(0), Some(vec![1, 0]));
+        assert_eq!(
+            coordinator.targeted_replay_surface_bounds(0, |_| None),
+            Some(vec![b, c])
+        );
+        // Adding a visible surface must retain the not-yet-painted warm survivors.
+        coordinator.set_targeted_replay_batches(0, vec![vec![2]], HashMap::from([(2, vec![a])]));
+        assert_eq!(coordinator.targeted_replay_scope(0), Some(vec![2]));
+        assert!(coordinator.advance_targeted_replay_queue(0));
+        assert_eq!(coordinator.targeted_replay_scope(0), Some(vec![1, 0]));
+        coordinator.remap_surfaces(0, &[]);
+        assert!(coordinator.targeted_replay_scope(0).is_none());
+        assert!(coordinator.pending_replay_surfaces(0).is_empty());
     }
 
     fn test_surface(

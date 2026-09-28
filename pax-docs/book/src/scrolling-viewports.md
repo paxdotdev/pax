@@ -554,6 +554,12 @@ for scrollable content. That does not make `for` a virtualized list: repeated
 children still participate in tree expansion, properties, and lifecycle.
 Offscreen components may still cost startup time and perform application work.
 
+When scrolling reuses drawing tiles at new positions, Pax schedules the visible
+tiles in that layer for repaint together. Offscreen warm tiles can repaint over
+later frames, in travel order. This avoids deliberately splitting visible tile
+updates across frames; it does not guarantee a frame rate or prevent a fast
+gesture from outrunning the prepared region.
+
 On native iOS, iPadOS, and macOS, surface sizing uses the current screen's
 pixel density. Shrinking `scroll_width` or `scroll_height` (for example, when
 zooming out on a graph) keeps the content tiled until a single surface fits
@@ -571,6 +577,37 @@ renderer implementation detail, not an application lifecycle event. This
 does not defer image decoding or application data loading, and it is not
 a bound on all application memory. Check rapid scrolling and rotation on
 the physical device as well as the simulator.
+
+
+On native GPU and WebGPU backends, adding, removing, or reordering physical
+tiles preserves the unchanged survivors and their retained scenes. New tiles
+share the GPU context already used by that logical layer and replay only the
+content they need. Origin or size changes invalidate the affected tile; a
+recreated backing surface receives a new renderer even if its tile key is the
+same. Pending warm replay follows surviving tile identities through reordering,
+and visible affected tiles replay together before deferred warm work.
+
+WebGPU initialization is asynchronous. Existing tiles remain usable while
+additions initialize, and results for removed or replaced surfaces are discarded.
+If an addition fails, survivors remain usable; another attempt waits for a layout
+change. New tiles still incur surface allocation and first-draw costs. Sibling
+tiles using the same GPU context share immutable image textures by image identity,
+version, and pixel dimensions. A tile can reuse an image already held by a sibling
+without uploading its pixels again; transforms, clipping, opacity, and draw bindings
+remain tile-local. This applies to native GPU and WebGPU in debug and release,
+not the Piet fallback or native image controls. It does not share textures across
+separate GPU contexts.
+
+The image index holds weak references: after the last tile drops its binding,
+Pax retains no unused image texture for future scrolling (in-flight GPU work may
+still reference it). Returning later can require another upload. This does not
+change decoded-image ownership or defer application initialization.
+
+Removed surfaces are released, including the shared context when the last tile
+and pending creation release it. The retention region does not grow. These
+optimizations apply in debug and release builds; the Piet fallback still rebuilds
+its layer on tile-set changes. They do not defer component or image initialization
+in application code.
 
 Start with realistic collection sizes and measure first paint as well as
 scrolling. For a large data set, consider application-level paging or loading
@@ -602,8 +639,8 @@ mixed content; `scroll-matrix` exercises nesting, transforms, and controls;
 
 ### A cinematic catalog
 
-`examples/src/paxflix` combines a large hero with ten horizontal movie shelves
-inside one vertical Scroller. Its 100 cards reuse 35 local images through stable
+`examples/src/paxflix` combines a large hero with 21 horizontal movie shelves
+inside one vertical Scroller. Its 210 cards reuse 35 local images through stable
 thumbnail paths; a selected film opens a full-resolution root-level detail panel.
 Each shelf's viewport spans the screen, with gutter space inside its scrolling
 content. At zero scroll the first card aligns with the heading; scrolling lets
@@ -617,7 +654,7 @@ wheel or touch input cancels that animation so direct scrolling takes over.
 
 Run it with `pax-cli run --path examples/src/paxflix --target web`. The example's
 README documents the asset inventory and a repeatable culling/interaction check.
-All 100 cards participate in tree expansion: use it to inspect viewport-aware
+All 210 cards participate in tree expansion: use it to inspect viewport-aware
 drawing and asset reuse, not as an example of list virtualization.
 
 ## Read more

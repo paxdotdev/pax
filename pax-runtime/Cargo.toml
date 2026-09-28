@@ -34,3 +34,6 @@ designtime = ["dep:pax-designtime", "dep:serde_json", "pax-language/parser", "pa
 
 [dev-dependencies]
 pax-language = {version="0.39.0", path = "../pax-language", default-features = false, features = ["parser"]}
+
+[target.'cfg(target_os = "macos")'.dev-dependencies]
+objc2 = "0.6.4"

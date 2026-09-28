@@ -619,6 +619,16 @@ does not disable them. The runtime tracks light contributors and reuses direct
 light membership until light selection or scene structure changes. Scenes
 without authored lights do not scan their elements for lighting on redraw.
 
+Unchanged surface-local lighting also reuses its GPU uniform without marking
+retained drawing dirty.
+
+If you maintain a custom Rust lighting primitive, implement
+`InstanceNode::has_scene_lighting()` as `true` alongside
+`resolve_scene_light` or `resolve_scene_ambient_light`. This capability hook
+must stay true while the primitive is disabled or returns `None`; it describes
+its role, not its current contribution. Existing `.pax` lighting templates
+need no changes.
+
 This feature is backend-dependent. GPU/WGPU rendering supports the material
 response, with a current limit of eight active direct lights in each canvas
 layer's lighting set, shared across its LightFrames. The Piet fallback draws

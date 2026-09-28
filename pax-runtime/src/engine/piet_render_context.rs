@@ -523,46 +523,13 @@ impl<S: PietSurface> PietRenderer<S> {
             } else if !targeted_replay_entries.is_empty() {
                 self.set_targeted_replay_batches(
                     layer_index,
-                    piet_replay_batches_for_retarget(targeted_replay_entries),
+                    replay_batches_by_directional_priority(&targeted_replay_entries),
                     targeted_replay_bounds,
                 );
                 self.replay_layers.push(layer_index);
             }
         }
     }
-}
-
-fn piet_replay_batches_for_retarget(entries: Vec<ReplayPriorityEntry>) -> Vec<Vec<usize>> {
-    let batches = replay_batches_by_directional_priority(&entries);
-    let visible_indices: HashSet<_> = entries
-        .iter()
-        .filter(|entry| entry.priority <= 0)
-        .map(|entry| entry.index)
-        .collect();
-    if visible_indices.is_empty() {
-        return batches;
-    }
-
-    let mut visible_batch = Vec::new();
-    let mut warm_batches = Vec::new();
-    for batch in batches {
-        let mut warm_batch = Vec::new();
-        for index in batch {
-            if visible_indices.contains(&index) {
-                visible_batch.push(index);
-            } else {
-                warm_batch.push(index);
-            }
-        }
-        if !warm_batch.is_empty() {
-            warm_batches.push(warm_batch);
-        }
-    }
-
-    let mut coalesced_batches = Vec::with_capacity(warm_batches.len() + 1);
-    coalesced_batches.push(visible_batch);
-    coalesced_batches.extend(warm_batches);
-    coalesced_batches
 }
 
 fn layer_layout_matches_target<S: PietSurface>(
@@ -581,27 +548,27 @@ fn layer_layout_matches_target<S: PietSurface>(
 
 #[cfg(test)]
 mod tests {
-    use super::piet_replay_batches_for_retarget;
+    use super::replay_batches_by_directional_priority;
     use crate::engine::layer_surface::ReplayPriorityEntry;
     use kurbo::Rect;
 
     #[test]
     fn piet_replay_batches_coalesce_visible_surfaces_first() {
-        let batches = piet_replay_batches_for_retarget(vec![
+        let batches = replay_batches_by_directional_priority(&[
             replay_entry(0, 0, 0.0, 100.0),
             replay_entry(1, 0, 100.0, 200.0),
             replay_entry(2, 1, 200.0, 300.0),
             replay_entry(3, 1, -100.0, 0.0),
         ]);
 
-        assert_eq!(batches[0], vec![1, 0]);
+        assert_eq!(batches[0], vec![0, 1]);
         assert_eq!(batches[1], vec![2]);
         assert_eq!(batches[2], vec![3]);
     }
 
     #[test]
     fn piet_replay_batches_keep_warm_only_directional_batches() {
-        let batches = piet_replay_batches_for_retarget(vec![
+        let batches = replay_batches_by_directional_priority(&[
             replay_entry(0, 1, 0.0, 100.0),
             replay_entry(1, 1, 100.0, 200.0),
             replay_entry(2, 1, -100.0, 0.0),

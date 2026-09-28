@@ -432,7 +432,7 @@ fn get_gpu_render_context(
         Transform2D, WgpuRenderer,
     };
     use pax_runtime::pax_gpu_render_context::{LayerRenderer, LayerTarget, PaxGpuRenderer};
-    PaxGpuRenderer::new(move |layer| {
+    PaxGpuRenderer::new(move |layer, request| {
         let window = window.clone();
         let surface_policy = surface_policy;
         Box::pin(async move {
@@ -442,15 +442,19 @@ fn get_gpu_render_context(
                 &document,
                 layer,
                 window.device_pixel_ratio(),
-                surface_policy.effective_max_surface_dimension(layer, u32::MAX),
+                surface_policy
+                    .effective_max_surface_dimension(layer, request.max_surface_dimension),
                 surface_policy.minimum_dpr(layer),
                 surface_policy.defer_transient_root_host_surfaces(layer),
             )
             .await;
             let mut renderers = Vec::with_capacity(initial_targets.len());
-            let mut backend_limit = u32::MAX;
-            let mut shared_context: Option<SharedGpuContext> = None;
+            let mut backend_limit = request.max_surface_dimension;
+            let mut shared_context: Option<SharedGpuContext> = request.shared_context.clone();
             for target in &initial_targets {
+                if !request.needs_surface(&target.key, &target.host_signature) {
+                    continue;
+                }
                 target.canvas.set_width(target.surface.surface_width);
                 target.canvas.set_height(target.surface.surface_height);
 
@@ -525,11 +529,14 @@ fn get_gpu_render_context(
             // are well outside the viewport. Keep an empty target alive here so later layout syncs
             // can rehydrate the renderer instead of treating "no surfaces right now" as fatal.
             let mut target = LayerTarget::new(renderers, layout.active);
-            for (surface, renderer) in layout
-                .surfaces
-                .iter()
-                .zip(target.renderers_mut().iter_mut())
-            {
+            for renderer in target.renderers_mut() {
+                let Some(surface) = layout
+                    .surfaces
+                    .iter()
+                    .find(|surface| renderer.matches_surface(surface))
+                else {
+                    continue;
+                };
                 renderer
                     .renderer_mut()
                     .set_surface_transform(Transform2D::from_array([
@@ -850,7 +857,33 @@ fn canvas_render_state(canvas: &HtmlCanvasElement) -> String {
         .unwrap_or_else(|| "active".to_string())
 }
 
+thread_local! {
+    static CANVAS_GENERATIONS: (js_sys::WeakMap, std::cell::Cell<u32>) =
+        (js_sys::WeakMap::new(), std::cell::Cell::new(0));
+}
+
 fn canvas_host_signature(canvas: &HtmlCanvasElement) -> String {
+    let generation = CANVAS_GENERATIONS.with(|(generations, next)| {
+        let object: &js_sys::Object = canvas.unchecked_ref();
+        if let Some(generation) = generations.get(object).as_f64() {
+            return generation;
+        }
+        let generation = next
+            .get()
+            .checked_add(1)
+            .expect("canvas generation exhausted");
+        next.set(generation);
+        generations.set(object, &JsValue::from_f64(generation as f64));
+        generation as f64
+    });
+    format!(
+        "{}|surface:{}",
+        canvas_host_owner_signature(canvas),
+        generation
+    )
+}
+
+fn canvas_host_owner_signature(canvas: &HtmlCanvasElement) -> String {
     if let Some(signature) = canvas.get_attribute("data-host-signature") {
         if !signature.is_empty() {
             return signature;

@@ -1944,6 +1944,7 @@ mod light_scope_tests {
         role: TestLightingRole,
         enabled: Cell<bool>,
         intensity_multiplier: Cell<f64>,
+        resolutions: Cell<usize>,
     }
 
     impl TestLightingNode {
@@ -1970,6 +1971,7 @@ mod light_scope_tests {
                 role,
                 enabled: Cell::new(true),
                 intensity_multiplier: Cell::new(1.0),
+                resolutions: Cell::new(0),
             })
         }
 
@@ -2008,6 +2010,7 @@ mod light_scope_tests {
                 role: TestLightingRole::Surface,
                 enabled: Cell::new(true),
                 intensity_multiplier: Cell::new(1.0),
+                resolutions: Cell::new(0),
             })
         }
 
@@ -2025,6 +2028,7 @@ mod light_scope_tests {
             _context: &RuntimeContext,
         ) -> Option<SceneLight> {
             assert!(self.has_scene_lighting());
+            self.resolutions.set(self.resolutions.get() + 1);
             match self.role {
                 TestLightingRole::Light(intensity) if self.enabled.get() => Some(SceneLight {
                     intensity: intensity * self.intensity_multiplier.get(),
@@ -2040,6 +2044,7 @@ mod light_scope_tests {
             _context: &RuntimeContext,
         ) -> Option<SceneAmbientLight> {
             assert!(self.has_scene_lighting());
+            self.resolutions.set(self.resolutions.get() + 1);
             match self.role {
                 TestLightingRole::Ambient(intensity) if self.enabled.get() => {
                     Some(SceneAmbientLight {
@@ -2279,6 +2284,85 @@ mod light_scope_tests {
                 .canvas_node_light_mask(fixture.sibling_surface.id),
             0b011
         );
+    }
+
+    #[test]
+    fn unlit_scene_does_not_resolve_nonproviders_or_store_zero_masks() {
+        let surfaces = (0..1000)
+            .map(|_| TestLightingNode::new(TestLightingRole::Surface, Vec::new()))
+            .collect::<Vec<_>>();
+        let (context, _root) =
+            mount_test_tree(surfaces.iter().map(TestLightingNode::as_instance).collect());
+        clear_dirty_canvas_nodes(&context);
+        for _ in 0..100 {
+            let lighting = context.collect_scene_lighting_for_layer(0);
+            assert!(lighting.lights.is_empty());
+            assert!(!lighting.ambient_is_authored);
+            assert_eq!(
+                lighting.ambient.intensity,
+                SceneLighting::DEFAULT_AMBIENT_INTENSITY
+            );
+        }
+        assert!(surfaces
+            .iter()
+            .all(|surface| surface.resolutions.get() == 0));
+        assert!(borrow!(context.canvas_node_light_masks).is_empty());
+        assert!(context.dirty_canvas_node_ids().is_empty());
+    }
+
+    #[test]
+    fn disabled_provider_enable_remove_and_remount_refresh_memberships() {
+        let light = TestLightingNode::new(TestLightingRole::Light(2.0), Vec::new());
+        light.set_enabled(false);
+        let surface = TestLightingNode::new(TestLightingRole::Surface, Vec::new());
+        let (context, root) = mount_test_tree(vec![light.as_instance(), surface.as_instance()]);
+        let children = root.children.get();
+        let light_node = children[0].clone();
+        let surface_node = &children[1];
+        assert!(context
+            .collect_scene_lighting_for_layer(0)
+            .lights
+            .is_empty());
+        light.set_enabled(true);
+        assert_eq!(context.collect_scene_lighting_for_layer(0).lights.len(), 1);
+        assert_eq!(context.canvas_node_light_mask(surface_node.id), 1);
+        clear_dirty_canvas_nodes(&context);
+        light_node.clone().recurse_unmount(&context);
+        assert!(context
+            .collect_scene_lighting_for_layer(0)
+            .lights
+            .is_empty());
+        assert_eq!(context.canvas_node_light_mask(surface_node.id), 0);
+        assert!(context.is_canvas_node_dirty(&surface_node.id));
+        assert!(borrow!(context.scene_lighting_nodes).is_empty());
+        assert!(borrow!(context.canvas_node_light_masks).is_empty());
+        light_node.recurse_mount(&context);
+        assert_eq!(context.collect_scene_lighting_for_layer(0).lights.len(), 1);
+        assert_eq!(context.canvas_node_light_mask(surface_node.id), 1);
+    }
+
+    #[test]
+    fn template_replacement_refreshes_provider_capability_without_remount() {
+        let surface = TestLightingNode::new(TestLightingRole::Surface, Vec::new());
+        let (context, root) = mount_test_tree(vec![surface.as_instance()]);
+        let node = root.children.get()[0].clone();
+        assert!(context
+            .collect_scene_lighting_for_layer(0)
+            .lights
+            .is_empty());
+        let light = TestLightingNode::new(TestLightingRole::Light(3.0), Vec::new());
+        node.recreate_with_new_data(light.as_instance(), &context);
+        assert_eq!(
+            context.collect_scene_lighting_for_layer(0).lights[0].intensity,
+            3.0
+        );
+        node.recreate_with_new_data(surface.as_instance(), &context);
+        assert!(context
+            .collect_scene_lighting_for_layer(0)
+            .lights
+            .is_empty());
+        assert_eq!(context.canvas_node_light_mask(node.id), 0);
+        assert!(borrow!(context.scene_lighting_nodes).is_empty());
     }
 
     #[test]

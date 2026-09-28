@@ -62,6 +62,11 @@ pub fn shelves(movies: &[Movie]) -> Vec<Shelf> {
         ("The great wide open", [5, 15, 17, 19, 24, 26, 34, 3, 9, 32]),
         ("One more chance", [12, 22, 25, 4, 16, 5, 15, 10, 21, 31]),
         ("Together, somehow", [2, 6, 9, 10, 13, 21, 26, 29, 31, 32]),
+        ("Turn up the volume", [16, 4, 25, 10, 21, 29, 12, 22, 6, 32]),
+        ("Far from familiar", [8, 30, 3, 0, 20, 18, 23, 27, 5, 26]),
+        ("Small moments, big stories", [31, 13, 2, 24, 34, 9, 17, 11, 6, 22]),
+        ("Under cover of night", [1, 7, 14, 28, 18, 33, 11, 0, 4, 30]),
+        ("Take the scenic route", [21, 17, 19, 26, 15, 9, 5, 33, 24, 2]),
     ] {
         shelves.push(Shelf {
             id: shelves.len(),
@@ -113,13 +118,13 @@ mod tests {
         let movies = catalog();
         let rows = shelves(&movies);
         let mut counts = vec![0; movies.len()];
-        assert_eq!(rows.len(), 16);
+        assert_eq!(rows.len(), 21);
         assert_eq!(
             rows.iter()
                 .map(|row| &row.title)
                 .collect::<HashSet<_>>()
                 .len(),
-            16
+            21
         );
         for (id, row) in rows.iter().enumerate() {
             assert_eq!(row.id, id);
@@ -141,7 +146,7 @@ mod tests {
                 assert_eq!(movie.synopsis, original.synopsis);
             }
         }
-        assert_eq!(counts.iter().sum::<usize>(), 160);
+        assert_eq!(counts.iter().sum::<usize>(), 210);
         assert!(counts.iter().all(|count| *count >= 2));
         for (index, row) in rows.iter().enumerate().skip(10) {
             let selection: HashSet<_> = row.movies.iter().map(|movie| movie.id).collect();

@@ -665,6 +665,8 @@ impl PaxEngine {
     }
 
     pub fn render(&mut self, rcs: &mut dyn RenderContext) {
+        use crate::render_instrumentation::{Phase, Span};
+        let _render_timing = Span::new(Phase::Render);
         self.update_layer_count(rcs);
         self.runtime_context.prepare_scene_geometry();
 
@@ -681,11 +683,15 @@ impl PaxEngine {
         dirty_layers.sort_unstable();
         dirty_layers.dedup();
         for layer in &dirty_layers {
+            let collect_timing = Span::new(Phase::Lighting);
             let lighting = self
                 .runtime_context
                 .collect_scene_lighting_for_layer(*layer);
+            drop(collect_timing);
+            let _upload_timing = Span::new(Phase::LightingUpload);
             rcs.set_scene_lighting(*layer, &lighting);
         }
+        let prepare_timing = Span::new(Phase::Prepare);
         let removal_layers: HashSet<_> = removals.iter().map(|(layer, _)| *layer).collect();
         let targeted_replay_node_ids = self.runtime_context.take_targeted_canvas_replay_node_ids();
         let dirty_node_ids_before_expansion = self.runtime_context.dirty_canvas_node_ids();
@@ -799,6 +805,8 @@ impl PaxEngine {
             self.runtime_context.set_canvas_dirty(layer);
         }
 
+        drop(prepare_timing);
+        let _flush_timing = Span::new(Phase::Flush);
         for layer in dirty_layers {
             rcs.flush(layer, Rc::clone(&self.runtime_context.dirty_canvases));
         }

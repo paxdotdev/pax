@@ -126,7 +126,7 @@
         style: {
             font: "Arial"
             font_size: 17px
-            fill: {self.is_dark ? rgb(201, 200, 203) : rgb(70, 65, 60)}
+            fill: {self.is_dark ? rgb(201, 200, 203) : rgb(48, 43, 39)}
             align_vertical: TextAlignVertical::Top
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
@@ -248,9 +248,10 @@
                     end: [0%, 100%],
                 },
                 0%: rgba(0, 0, 0, 0),
-                38%: rgba(0, 0, 0, 0),
-                64%: rgba(0, 0, 0, 90),
-                84%: rgba(0, 0, 0, 210),
+                68%: rgba(0, 0, 0, 0),
+                80%: rgba(0, 0, 0, 35),
+                92%: rgba(0, 0, 0, 185),
+                98%: rgba(0, 0, 0, 255),
                 100%: rgba(0, 0, 0, 255),
             }
         }
@@ -321,9 +322,10 @@
                     end: [0%, 100%],
                 },
                 0%: rgba(248, 246, 242, 0),
-                35%: rgba(248, 246, 242, 0),
-                58%: rgba(248, 246, 242, 185),
-                82%: rgba(248, 246, 242, 245),
+                68%: rgba(248, 246, 242, 0),
+                80%: rgba(248, 246, 242, 35),
+                92%: rgba(248, 246, 242, 185),
+                98%: rgba(248, 246, 242, 255),
                 100%: rgba(248, 246, 242, 255),
             }
         }

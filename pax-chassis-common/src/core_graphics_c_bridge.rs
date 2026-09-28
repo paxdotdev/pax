@@ -349,11 +349,16 @@ impl AppleRenderContext {
     fn new() -> Self {
         let registry = Rc::new(RefCell::new(LayerSurfaceRegistry::default()));
         let registry_factory = Rc::clone(&registry);
-        let renderer = PaxGpuRenderer::new(move |layer| {
+        let renderer = PaxGpuRenderer::new(move |layer, request| {
             let registry = Rc::clone(&registry_factory);
             Box::pin(async move {
                 let initial_layout = registry.borrow().layout_for_layer(layer);
-                let registrations = registry.borrow().registrations_for_layer(layer);
+                let registrations: Vec<_> = registry
+                    .borrow()
+                    .registrations_for_layer(layer)
+                    .into_iter()
+                    .filter(|surface| request.needs_surface(&surface.key, &surface.host_signature))
+                    .collect();
                 if registrations.is_empty() {
                     let layout_provider: Pin<Box<dyn Fn() -> LayerSurfaceLayout>> = Box::pin({
                         let registry = Rc::clone(&registry);
@@ -364,7 +369,7 @@ impl AppleRenderContext {
                 }
 
                 let mut renderers = Vec::with_capacity(registrations.len());
-                let mut shared_context: Option<SharedGpuContext> = None;
+                let mut shared_context: Option<SharedGpuContext> = request.shared_context;
                 for surface in registrations {
                     if surface.layer_ptr.is_null() {
                         log::warn!(
@@ -439,23 +444,7 @@ impl AppleRenderContext {
                     let registry = Rc::clone(&registry);
                     move || registry.borrow().layout_for_layer(layer)
                 });
-                let layout = layout_provider();
-                let mut target = LayerTarget::new(renderers, layout.active);
-                for (surface, renderer) in layout
-                    .surfaces
-                    .iter()
-                    .zip(target.renderers_mut().iter_mut())
-                {
-                    renderer.renderer_mut().resize_surface(
-                        surface.surface.surface_width as f32,
-                        surface.surface.surface_height as f32,
-                    );
-                    renderer.renderer_mut().set_viewport(
-                        surface.surface.logical_width,
-                        surface.surface.logical_height,
-                        surface.surface.dpr,
-                    );
-                }
+                let target = LayerTarget::new(renderers, initial_layout.active);
                 Some((target, layout_provider))
             })
         });

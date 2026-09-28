@@ -22,7 +22,7 @@ Type: `Vec`<`u8`>
 ---
 
 ### `GpuContext`
-Shared GPU device context used by sibling render surfaces.
+GPU device, pipelines, and a weak index of resident image textures shared by sibling surfaces.
 
 ---
 

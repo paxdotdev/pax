@@ -265,11 +265,9 @@ impl PaxChassisWeb {
     fn refresh_render_surface(&mut self, layer_id: Option<u32>) {
         let engine = borrow!(self.engine);
         if let Some(layer_id) = layer_id.map(|layer| layer as usize) {
+            // The renderer queues replay for new/invalidated tiles. Dirtying the whole layer
+            // here would erase the benefit of preserving its clean surviving surfaces.
             self.render_context.refresh_layers(&[layer_id]);
-            engine.runtime_context.set_canvas_dirty(layer_id);
-            engine
-                .runtime_context
-                .mark_canvas_nodes_on_layer_dirty(layer_id);
         } else {
             let window = window().unwrap();
             let width = window.inner_width().unwrap().as_f64().unwrap_or(0.0);
@@ -419,15 +417,6 @@ impl PaxChassisWeb {
         let mut layers = vec![0u32; layer_ids.length() as usize];
         layer_ids.copy_to(&mut layers);
         let layers: Vec<usize> = layers.into_iter().map(|layer| layer as usize).collect();
-        {
-            let engine = self.engine.borrow();
-            for layer in &layers {
-                engine.runtime_context.set_canvas_dirty(*layer);
-                engine
-                    .runtime_context
-                    .mark_canvas_nodes_on_layer_dirty(*layer);
-            }
-        }
         self.render_context.refresh_layers(&layers);
     }
 

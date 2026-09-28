@@ -116,6 +116,8 @@ pub struct ResourceChurnStats {
     pub texture_creates: u64,
     pub image_draw_creates: u64,
     pub texture_upload_bytes: u64,
+    /// Tile-local bindings created using an already resident sibling image texture.
+    pub texture_cache_hits: u64,
     pub retained_nodes_considered: u64,
     pub retained_nodes_visible: u64,
     pub retained_draw_batches: u64,
@@ -165,6 +167,7 @@ impl ResourceChurnStats {
         self.texture_creates += other.texture_creates;
         self.image_draw_creates += other.image_draw_creates;
         self.texture_upload_bytes += other.texture_upload_bytes;
+        self.texture_cache_hits += other.texture_cache_hits;
         self.retained_nodes_considered += other.retained_nodes_considered;
         self.retained_nodes_visible += other.retained_nodes_visible;
         self.retained_draw_batches += other.retained_draw_batches;
@@ -206,6 +209,7 @@ pub struct WgpuRenderer<'w> {
     order_dirty: bool,
     scene_dirty: bool,
     lighting_signature: u64,
+    last_scene_lighting: Option<SceneLighting>,
     cached_images: HashMap<String, CachedImageEntry>,
     transform_stack: Vec<Transform2D>,
     clip_stack: Vec<ClipReference>,
@@ -684,6 +688,7 @@ impl<'w> WgpuRenderer<'w> {
             order_dirty: false,
             scene_dirty: false,
             lighting_signature: 0,
+            last_scene_lighting: None,
             cached_images: HashMap::new(),
             transform_stack: vec![Transform2D::identity()],
             clip_stack: Vec::new(),
@@ -712,6 +717,12 @@ impl<'w> WgpuRenderer<'w> {
 
     pub fn shared_gpu_context_id(&self) -> usize {
         self.render_backend.shared_context_id()
+    }
+
+    /// Reuse this logical layer's GPU context when creating another physical tile.
+    /// The returned handle keeps the device and pipelines alive, not this tile's surface or scene.
+    pub fn shared_gpu_context(&self) -> crate::render_backend::SharedGpuContext {
+        self.render_backend.shared_context()
     }
 
     /// Return and reset accumulated resource churn counters.
@@ -938,12 +949,19 @@ impl<'w> WgpuRenderer<'w> {
         });
     }
 
+    /// Upload changed surface-local lighting and invalidate retained drawing.
+    /// Repeating the same value does not upload a uniform or dirty the scene.
+    /// Each new renderer receives its own initial upload, even for default lighting.
     pub fn set_scene_lighting(&mut self, lighting: SceneLighting) {
-        let lighting = to_gpu_scene_lighting(&lighting);
+        if self.last_scene_lighting.as_ref() == Some(&lighting) {
+            return;
+        }
+        let gpu_lighting = to_gpu_scene_lighting(&lighting);
         let mut hash = DefaultHasher::new();
-        bytemuck::bytes_of(&lighting).hash(&mut hash);
+        bytemuck::bytes_of(&gpu_lighting).hash(&mut hash);
         self.lighting_signature = hash.finish();
-        self.render_backend.set_scene_lighting(lighting);
+        self.render_backend.set_scene_lighting(gpu_lighting);
+        self.last_scene_lighting = Some(lighting);
         self.scene_dirty = true;
     }
 
@@ -952,11 +970,15 @@ impl<'w> WgpuRenderer<'w> {
         self.render_backend.clear();
     }
 
+    /// Image identity and version must identify the same pixels across renderers sharing a GPU
+    /// context. Change the version when replacing image content.
     pub fn draw_image(&mut self, image_key: &str, image_version: u64, image: &Image, rect: Box2D) {
         self.draw_image_with_opacity(image_key, image_version, image, rect, 1.0);
     }
 
     /// Multiplies source pixel alpha by `opacity` without reuploading the texture.
+    /// Sibling tiles share resident image pixels, but keep their own draw bindings.
+    /// Identity/version follows the same contract as [`Self::draw_image`].
     pub fn draw_image_with_opacity(
         &mut self,
         image_key: &str,
@@ -965,24 +987,32 @@ impl<'w> WgpuRenderer<'w> {
         rect: Box2D,
         opacity: f32,
     ) {
-        let needs_upload = self
+        let needs_binding = self
             .cached_images
             .get(image_key)
-            .map(|entry| entry.version != image_version)
+            .map(|entry| {
+                entry.version != image_version
+                    || entry.texture.width != image.pixel_width
+                    || entry.texture.height != image.pixel_height
+            })
             .unwrap_or(true);
-        if needs_upload {
-            self.resource_churn_stats.texture_creates += 1;
-            self.resource_churn_stats.texture_upload_bytes += image.rgba.len() as u64;
+        if needs_binding {
+            let (texture, uploaded) = self.render_backend.create_cached_texture(
+                image_key,
+                image_version,
+                &image.rgba,
+                image.pixel_width,
+                image.pixel_height,
+            );
+            if uploaded {
+                self.resource_churn_stats.texture_creates += 1;
+                self.resource_churn_stats.texture_upload_bytes += image.rgba.len() as u64;
+            } else {
+                self.resource_churn_stats.texture_cache_hits += 1;
+            }
             self.cached_images.insert(
                 image_key.to_owned(),
-                CachedImageEntry {
-                    texture: self.render_backend.create_cached_texture(
-                        &image.rgba,
-                        image.pixel_width,
-                        image.pixel_height,
-                    ),
-                    version: image_version,
-                },
+                CachedImageEntry { texture, version: image_version },
             );
         }
         let transform = self.current_transform();
@@ -1055,6 +1085,16 @@ impl<'w> WgpuRenderer<'w> {
             self.sorted_nodes.sort_unstable();
             self.order_dirty = false;
         }
+        // Prune on both mixed and vector-only paths so removed images release their shared leases.
+        self.cached_images.retain(|image_key, _| {
+            self.scene.values().any(|node| {
+                matches!(
+                    node,
+                    RetainedNode::Image(image_node)
+                        if image_node.draw.resource.image_key == *image_key
+                )
+            })
+        });
         if self.should_use_vector_scene_batch() {
             self.render_backend.retain_captures(&HashSet::new());
             self.resource_churn_stats.vector_batch_flushes += 1;
@@ -1080,15 +1120,6 @@ impl<'w> WgpuRenderer<'w> {
         collect_opacity_group_keys(&plan, &mut active);
         self.draw_opacity_plan(&plan);
         self.render_backend.retain_captures(&active);
-        self.cached_images.retain(|image_key, _| {
-            self.scene.values().any(|node| {
-                matches!(
-                    node,
-                    RetainedNode::Image(image_node)
-                        if image_node.draw.resource.image_key == *image_key
-                )
-            })
-        });
         let (active_clip_signatures, active_clip_ids) =
             collect_active_clip_resources(&self.scene, &self.clip_arena);
         self.render_backend

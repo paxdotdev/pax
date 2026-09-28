@@ -63,6 +63,46 @@ Native buttons provide keyboard access to the schematic's controls, but the web
 chassis skips global Pax key events while a native DOM control has focus. Keep
 explicit Close/Fit/navigation controls and scope shortcuts to sheet focus. A
 touch-accessible title action also exits the toolbar-free sheet view.
+## 2026-09-25 — Unlit scenes still paid for lighting every dirty render
+
+Paxflix's lighting collector scanned every expanded node twice per dirty layer,
+including ancestor walks for canvas nodes even when no lights existed. Index
+provider capabilities and canvas nodes on mount/template replacement, keep
+enabled providers discoverable while disabled, and store only nonzero direct
+light memberships. Removing the last light must still clear old memberships
+and invalidate affected drawing. Resolve light values and scope live so scroll
+transforms and reparenting cannot stale a cached result.
+
+The GPU renderer also uploaded unchanged lighting and set its retained scene
+dirty unconditionally. Compare lighting per renderer before uploading; a new
+renderer must always receive its first value. Opt-in native release render
+timings now separate collection, preparation, encoding, submission, presentation,
+and layer initialization. Simulator measurements identify code paths, but do
+not substitute for a physical-device frame-rate comparison.
+
+## 2026-09-25 — Size popup surfaces from visible content
+
+Paxflix's fixed-height profile menu reserved blank space for demo feedback even
+when the feedback string was empty. Replace positioned menu rows with an
+autosized vertical Stacker, omit the root Group's height, and conditionally mount
+the feedback Text with intrinsic height. Use explicit `padding_x` / `padding_y`
+for breathing room. A full-size background must use `LayoutRole::Breakout` so it
+fills the measured menu without feeding a percentage height back into autosize.
+Check both the empty menu and wrapped feedback: merely shortening a fixed
+container fixes neither its content dependency nor later text wrapping.
+
+## 2026-09-25 — Visible tile replay must not be split into directional lanes
+
+Investigating Paxflix's scrolling judder on Molino exposed a scheduling defect:
+native and browser hosts move recycled surfaces before replay, but the shared
+replay scheduler divided even visible tiles into successive directional lanes.
+The first frame could repaint only half a visible tile grid, leaving old pixels
+at new positions in the rest. A regression reproduces that split in both axes
+and directions. Visible tiles now share the first batch; directional batching
+remains for offscreen warm work. This addresses a verified scheduling failure,
+not a measured attribution of every physical-device flicker. Tile allocation
+churn, native scroll offsets, and GPU presentation still need to be distinguished
+if judder persists; a frame-time profile alone cannot establish visual ordering.
 
 ## 2026-09-24 — Polar resolution and parameter speed
 
@@ -3022,3 +3062,77 @@ binary after changing those tables: invoking an old CLI can report unresolved
 new types even while the runtime crate compiles. Tuple type IDs used for
 code-generated identifiers must omit spaces between types; a space after the
 comma survives identifier escaping and produces invalid generated Rust.
+## 2026-09-25 — Compare imported provider identities before copying settings
+
+Paxflix's mostly idle iPad profile spent most sampled main-thread CPU in imported
+settings discovery. The runtime copied provider settings, including expression
+trees, and lexical scopes on every frame, then discarded those copies when the
+ordered provider signature had not changed. Discovery now retains lightweight
+node and transition-policy handles until after that comparison. Only a changed
+signature materializes settings layers and rebinds receivers.
+
+Retaining a layer must retain its reactive property handles, not freeze provider
+values. Regression coverage checks live theme values, provider order and
+replacement/removal, enabling/disabling or retiming a transition policy, and
+receiver rebinding against a retained provider. The unchanged-discovery test
+drops from 101 materializations to one across initial discovery and 100 repeated
+passes. This is a deterministic allocation-work regression check; physical
+frame-rate improvement still needs a separate capture with exclusive device use.
+
+## 2026-09-25 — Check overlapping fades before replacing hero artwork
+
+A full-bleed hero can look underfilled when its text scrim and bottom fade cover
+most of the image together. Paxflix's light theme kept the horizontal overlay
+nearly opaque through half the viewport while the bottom fade whitened the
+lower half. The image already used `ImageFit::Fill`; more source pixels would
+improve sharpness without restoring the obscured content. Tie the horizontal
+scrim to the copy width and keep the bottom transition near the image edge,
+then check contrast at both wide and compact sizes in both themes.
+
+### Removing tiles recreated surviving GPU renderers
+
+Paxflix's September 25 simulator scroll probe found that changing a layer's
+keyed surface set discarded still-matching GPU renderers. When the new set is
+a host-preserving subset or reorder, keep survivors in the requested order and
+drop only removed surfaces. Clear replay/dirty index scopes and replay surviving
+tiles together so a deferred warm tile cannot lose pending content. Ordinary
+origin/size changes still follow their existing reset paths. Additions and host
+replacements still reinitialize the layer; incremental creation remains a
+separate opportunity. This preserves viewport memory eviction. The probe also
+tried sharing a GPU context across all native layers; setup became modestly
+cheaper, but presentation waits remained noisy, so that experiment was removed.
+
+
+## 2026-09-27 — Incremental tiles require incremental replay and real surface identity
+
+Preserving survivors on eviction left additions going through an all-or-nothing
+layer factory. The GPU factory now receives surviving identities and the logical
+layer's shared context, creates only missing surfaces, and merges valid results
+without taking the layer offline. Web surface notifications must also stop
+marking every node dirty; otherwise resource preservation still redraws clean
+neighbors. Replay queues and dirty sets are remapped by survivor identity rather
+than discarded when vector indices change. New or resized tiles get targeted
+replay, and queued warm work is promoted when it becomes visible.
+
+A tile key plus scroller ID is not a physical surface identity: Swift may recreate
+a Metal view, or the browser may replace a canvas with the same attributes.
+Native views now register a per-view generation and browser canvases use a
+WeakMap object generation. Creation results are checked against the current
+identity, and asynchronous layer-slot reuse has its own lifetime guard. Canvas
+backing dimensions are configured only for new or resized surfaces. All surfaces
+and the layer context still release when they leave the existing retention region;
+this is not a larger cache or application-level lazy image loading.
+
+
+### Shared image pixels versus tile-local bindings
+
+A retained image resource includes both GPU pixel storage and a bind group that
+references that tile's globals. Sharing the complete resource between tiled
+surfaces makes viewport transforms incorrect. Share immutable texture/view data
+within the existing GPU context instead, and build each tile's binding separately.
+Use image identity, version, and dimensions as the key; hold weak cache entries so
+the cache does not retain pixels after the last tile releases them. Prune tile
+image bindings before both mixed and vector-only flush paths, otherwise replacing
+all images with vectors can keep old textures alive. Regression checks should
+cover different tile origins, clipping/opacity, overlapping image versions,
+unrelated contexts, and release when images or tiles disappear.

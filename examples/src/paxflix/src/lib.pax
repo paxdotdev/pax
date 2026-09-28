@@ -1,4 +1,4 @@
-<ImportSettings transition=SettingsTransition::Ease(400ms, TransitionCurve::InOutQuad)>
+<ImportSettings transition=SettingsTransition::Ease(300ms, TransitionCurve::InOutQuad)>
     <CinemaTheme is_dark={!light_mode}/>
 </ImportSettings>
 <DynamicIslandSpacer inset=bind:top_inset/>
@@ -25,7 +25,7 @@
             }/>
     }
     if profile_open {
-        <ProfileMenu anchor=0% x={100% - (gutter + 264)px} y={(top_inset + 60)px} width=264px height=316px open=bind:profile_open light_mode=bind:light_mode/>
+        <ProfileMenu anchor=0% x={100% - (gutter + 264)px} y={(top_inset + 60)px} width=264px open=bind:profile_open light_mode=bind:light_mode/>
         <EventBlocker width=100% height=100% background=rgba(0, 0, 0, 0) @click=self.close_profile/>
     }
     <Group anchor=0% width=100% height={(top_inset + 68)px}>
@@ -55,7 +55,7 @@
                     <Text class="hero_title" anchor=0% y={compact ? 78px : 88px} width=100% height=60px text="SIGNAL"/>
                     <Text class="label" anchor=0% y={compact ? 140px : 160px} width=100% height=24px 
                         text="2026    ·    PG-13    ·    2h 08m    ·    Sci-fi"/>
-                    <Text class="hero_copy" anchor=0% y={compact ? 178px : 198px} width={compact ? 100% : 425px} height=58px 
+                    <Text class="hero_copy" anchor=0% y={compact ? 178px : 198px} width={compact ? (Math::min(282, $viewport.width - 40))px : 425px} height=58px
                         text="A message from tomorrow. One night to change everything."/>
                     <Group anchor=0% y={compact ? 246px : 268px} width=132px height=44px @click=self.open_feature>
                         <Text class="primary_text" anchor=0% width=100% height=100% text="Play film"/>
@@ -67,7 +67,8 @@
                     </Group>
                 </Group>
                 <Rectangle class="hero_glow" anchor=0% width=100% height=100%/>
-                <Rectangle class="hero_scrim" anchor=0% width=100% height=100%/>
+                // Keep the text scrim tied to the copy width, not the whole landscape viewport.
+                <Rectangle class="hero_scrim" anchor=0% width={(Math::min($viewport.width, gutter + 720))px} height=100%/>
                 <FilmArtwork anchor=0% width=100% height=100% still="assets/stills/the-last-signal.jpg" 
                     thumbnail="assets/thumbs/the-last-signal-thumb.jpg" light_mode={light_mode}/>
             </Group>

@@ -106,6 +106,58 @@ pub struct RuntimeSettingsSignatureEntry {
     pub provider_type_id: TypeId,
 }
 
+// Discovery runs every frame. Keep only handles until the ordered provider
+// signature changes; copying settings also copies their entire expression trees.
+struct DiscoveredSettingsProvider {
+    node: Rc<ExpandedNode>,
+    transition: Option<Property<Option<crate::SettingsTransitionConfig>>>,
+}
+
+impl DiscoveredSettingsProvider {
+    fn signature(&self) -> RuntimeSettingsSignatureEntry {
+        RuntimeSettingsSignatureEntry {
+            transition_enabled: self
+                .transition
+                .as_ref()
+                .and_then(|policy| policy.get())
+                .is_some(),
+            provider_id: self.node.id,
+            provider_type_id: borrow!(self.node.instance_node)
+                .base()
+                .template_node_type_id
+                .clone()
+                .unwrap_or_default(),
+        }
+    }
+
+    fn materialize(self) -> RuntimeSettingsLayer {
+        let instance = borrow!(self.node.instance_node);
+        #[cfg(test)]
+        self.node
+            .settings_layer_materializations
+            .set(self.node.settings_layer_materializations.get() + 1);
+        RuntimeSettingsLayer {
+            provider_id: self.node.id,
+            provider_type_id: instance
+                .base()
+                .template_node_type_id
+                .clone()
+                .unwrap_or_default(),
+            provider_stack: self
+                .node
+                .stack
+                .push(borrow!(self.node.properties_scope).clone()),
+            settings: instance
+                .base()
+                .component_settings
+                .as_ref()
+                .expect("discovered provider has settings")
+                .clone(),
+            transition: self.transition,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum RuntimeSettingsSource {
     ComponentSettings,
@@ -397,6 +449,8 @@ pub struct ExpandedNode {
     pub exit_cleanup_active: Cell<bool>,
     /// Imported provider layers currently active for this component instance.
     pub imported_settings_layers: RefCell<Vec<RuntimeSettingsLayer>>,
+    #[cfg(test)]
+    pub(crate) settings_layer_materializations: Cell<usize>,
     pub import_settings_transition:
         RefCell<Option<Property<Option<crate::SettingsTransitionConfig>>>>,
     pub(crate) settings_motion: Rc<RefCell<HashMap<String, Box<dyn std::any::Any>>>>,
@@ -1041,6 +1095,8 @@ impl ExpandedNode {
             exit_cleanup_listener: Property::default(),
             exit_cleanup_active: Cell::new(false),
             imported_settings_layers: RefCell::new(Vec::new()),
+            #[cfg(test)]
+            settings_layer_materializations: Cell::new(0),
             import_settings_transition: RefCell::new(None),
             settings_motion: Rc::new(RefCell::new(HashMap::new())),
             settings_birth_frame: context.globals().elapsed_frames.get(),
@@ -2796,7 +2852,7 @@ impl ExpandedNode {
         node: &Rc<Self>,
         in_import_settings: bool,
         descend_components: bool,
-        providers: &mut Vec<RuntimeSettingsLayer>,
+        providers: &mut Vec<DiscoveredSettingsProvider>,
         transition: Option<Property<Option<crate::SettingsTransitionConfig>>>,
     ) {
         if node.is_import_settings_node() {
@@ -2817,24 +2873,16 @@ impl ExpandedNode {
 
         if borrow!(node.instance_node).base().flags().is_component {
             if in_import_settings {
-                let base = borrow!(node.instance_node);
-                let component_settings = base.base().component_settings.clone();
-                let provider_type_id = base
+                if borrow!(node.instance_node)
                     .base()
-                    .template_node_type_id
-                    .clone()
-                    .unwrap_or_default();
-                drop(base);
-                if let Some(settings) = component_settings {
-                    if !settings.is_empty() {
-                        providers.push(RuntimeSettingsLayer {
-                            provider_id: node.id,
-                            provider_type_id,
-                            provider_stack: node.stack.push(borrow!(node.properties_scope).clone()),
-                            settings,
-                            transition: transition.clone(),
-                        });
-                    }
+                    .component_settings
+                    .as_ref()
+                    .is_some_and(|settings| !settings.is_empty())
+                {
+                    providers.push(DiscoveredSettingsProvider {
+                        node: Rc::clone(node),
+                        transition: transition.clone(),
+                    });
                 }
                 let children = node.children.get();
                 for child in children.iter() {
@@ -2898,22 +2946,17 @@ impl ExpandedNode {
 
         let signature = providers
             .iter()
-            .map(|layer| RuntimeSettingsSignatureEntry {
-                transition_enabled: layer
-                    .transition
-                    .as_ref()
-                    .and_then(|policy| policy.get())
-                    .is_some(),
-                provider_id: layer.provider_id,
-                provider_type_id: layer.provider_type_id.clone(),
-            })
+            .map(DiscoveredSettingsProvider::signature)
             .collect::<Vec<_>>();
         if *borrow!(self.imported_settings_signature) == signature {
             return;
         }
 
         *borrow_mut!(self.imported_settings_signature) = signature;
-        *borrow_mut!(self.imported_settings_layers) = providers;
+        *borrow_mut!(self.imported_settings_layers) = providers
+            .into_iter()
+            .map(DiscoveredSettingsProvider::materialize)
+            .collect();
 
         let root_children = self.children.get();
         for child in root_children.iter() {

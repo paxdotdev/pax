@@ -3,10 +3,38 @@
 <!-- tags: api, pax-runtime -->
 
 ## Structs
+### `LayerCreationRequest`
+Snapshot of surviving tiles supplied to a chassis factory. Return only missing surfaces;
+the runtime keeps survivors ready and validates returned tiles against the current layout.
+
+#### Properties
+##### `shared_context`
+Type: `Option`<`SharedGpuContext`>
+
+Context shared by this logical layer's surviving tiles, if any.
+
+##### `max_surface_dimension`
+Type: `u32`
+
+Adapter limit already established by the surviving tiles.
+
+#### Implementations
+##### `needs_surface`
+<pre><code class="api-signature language-rust ignore">pub fn needs_surface(&amp;self, key: &amp;str, host_signature: &amp;str) -&gt; bool</code></pre>
+
+Whether the factory must create this key and backing-surface generation.
+
+---
+
 ### `LayerRenderer`
 Retained renderer bound to one physical surface tile for a logical layer.
 
 #### Implementations
+##### `matches_surface`
+<pre><code class="api-signature language-rust ignore">pub fn matches_surface(&amp;self, surface: &amp;<a href="../../../../api/internal/pax-runtime/engine/layer_surface.md#layersurfaceentry">LayerSurfaceEntry</a>) -&gt; bool</code></pre>
+
+Whether this renderer belongs to the entry's current physical surface generation.
+
 ##### `new`
 <pre><code class="api-signature language-rust ignore">pub fn new(key: String, host_signature: String, renderer: <a href="../../../../api/internal/pax-gpu/render_context.md#wgpurenderer">WgpuRenderer</a>&lt;&#39;static&gt;, origin_x: f32, origin_y: f32, logical_width: f32, logical_height: f32, surface_width: u32, surface_height: u32, dpr: [f32; 2]) -&gt; Self</code></pre>
 
@@ -46,7 +74,7 @@ Runtime `RenderContext` implementation backed by `pax-gpu`/wgpu.
 
 #### Implementations
 ##### `new`
-<pre><code class="api-signature language-rust ignore">pub fn new(layer_factory: impl Fn(usize) -&gt; Pin&lt;Box&lt;dyn Future&gt;&gt; + &#39;static) -&gt; Self</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn new(layer_factory: impl Fn(usize, <a href="../../../../api/internal/pax-runtime/engine/pax_gpu_render_context.md#layercreationrequest">LayerCreationRequest</a>) -&gt; Pin&lt;Box&lt;dyn Future&gt;&gt; + &#39;static) -&gt; Self</code></pre>
 
 Create a renderer that lazily asks the chassis for layer backends.
 

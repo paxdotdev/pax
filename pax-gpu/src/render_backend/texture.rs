@@ -6,7 +6,8 @@ use wgpu::IndexFormat;
 
 use crate::Box2D;
 use crate::Transform2D;
-use std::rc::Rc;
+use std::collections::HashMap;
+use std::rc::{Rc, Weak};
 use wgpu::util::DeviceExt;
 use wgpu::TextureFormat;
 
@@ -31,11 +32,115 @@ pub(crate) struct TexturePipelineResources {
 
 pub(crate) struct CachedTextureResource {
     pub bind_group: wgpu::BindGroup,
-    #[allow(dead_code)]
     pub width: u32,
-    #[allow(dead_code)]
     pub height: u32,
+    // The binding includes tile-local globals; only its immutable image is shared.
+    _image: Rc<ImageTexture>,
+}
+
+#[derive(Hash, PartialEq, Eq)]
+struct ImageTextureKey {
+    identity: String,
+    version: u64,
+    width: u32,
+    height: u32,
+}
+
+struct ImageTexture {
     _texture: wgpu::Texture,
+    view: wgpu::TextureView,
+    width: u32,
+    height: u32,
+}
+
+/// A context-local index, not an owner: tiles keep textures alive through their bindings.
+#[derive(Default)]
+pub(super) struct ImageTextureCache {
+    entries: HashMap<ImageTextureKey, Weak<ImageTexture>>,
+}
+
+impl ImageTextureCache {
+    fn get_or_upload(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        identity: &str,
+        version: u64,
+        rgba: &[u8],
+        width: u32,
+        height: u32,
+    ) -> (Rc<ImageTexture>, bool) {
+        let key = ImageTextureKey {
+            identity: identity.into(),
+            version,
+            width,
+            height,
+        };
+        if let Some(image) = self.entries.get(&key).and_then(Weak::upgrade) {
+            return (image, false);
+        }
+        // Reclaim dead lookup metadata on misses, without retaining unused pixel storage.
+        self.entries.retain(|_, image| image.strong_count() > 0);
+        let image = Rc::new(ImageTexture::upload(device, queue, rgba, width, height));
+        self.entries.insert(key, Rc::downgrade(&image));
+        (image, true)
+    }
+
+    #[cfg(test)]
+    pub(super) fn live_count(&self) -> usize {
+        self.entries
+            .values()
+            .filter(|image| image.strong_count() > 0)
+            .count()
+    }
+}
+
+impl ImageTexture {
+    fn upload(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        rgba: &[u8],
+        width: u32,
+        height: u32,
+    ) -> Self {
+        let size = wgpu::Extent3d {
+            width,
+            height,
+            depth_or_array_layers: 1,
+        };
+        let texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Shared Retained Image"),
+            size,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+        queue.write_texture(
+            wgpu::TexelCopyTextureInfo {
+                aspect: wgpu::TextureAspect::All,
+                texture: &texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+            },
+            rgba,
+            wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(4 * width),
+                rows_per_image: Some(height),
+            },
+            size,
+        );
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+        Self {
+            _texture: texture,
+            view,
+            width,
+            height,
+        }
+    }
 }
 
 pub(crate) struct RetainedImageResource {
@@ -339,48 +444,27 @@ impl TextureRenderer {
         queue.submit(std::iter::once(encoder.finish()));
     }
 
-    pub fn create_cached_texture(
+    pub(super) fn create_cached_texture(
         &self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         globals: &wgpu::Buffer,
+        cache: &mut ImageTextureCache,
+        identity: &str,
+        version: u64,
         rgba: &[u8],
         rgba_width: u32,
         rgba_height: u32,
-    ) -> CachedTextureResource {
-        let size = wgpu::Extent3d {
-            width: rgba_width,
-            height: rgba_height,
-            depth_or_array_layers: 1,
-        };
-        let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("Retained Texture Creation"),
-            size,
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8UnormSrgb,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-            view_formats: &[],
-        });
-
-        queue.write_texture(
-            wgpu::TexelCopyTextureInfo {
-                aspect: wgpu::TextureAspect::All,
-                texture: &texture,
-                mip_level: 0,
-                origin: wgpu::Origin3d::ZERO,
-            },
+    ) -> (CachedTextureResource, bool) {
+        let (image, uploaded) = cache.get_or_upload(
+            device,
+            queue,
+            identity,
+            version,
             rgba,
-            wgpu::TexelCopyBufferLayout {
-                offset: 0,
-                bytes_per_row: Some(4 * rgba_width),
-                rows_per_image: Some(rgba_height),
-            },
-            size,
+            rgba_width,
+            rgba_height,
         );
-
-        let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: self.texture_bind_group_layout.as_ref(),
             entries: &[
@@ -390,7 +474,7 @@ impl TextureRenderer {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::TextureView(&texture_view),
+                    resource: wgpu::BindingResource::TextureView(&image.view),
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
@@ -400,12 +484,15 @@ impl TextureRenderer {
             label: Some("retained_texture_bind_group"),
         });
 
-        CachedTextureResource {
-            bind_group,
-            width: rgba_width,
-            height: rgba_height,
-            _texture: texture,
-        }
+        (
+            CachedTextureResource {
+                bind_group,
+                width: image.width,
+                height: image.height,
+                _image: image,
+            },
+            uploaded,
+        )
     }
 
     pub fn create_retained_image_resource(
