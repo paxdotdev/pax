@@ -334,6 +334,8 @@ results are cached. A moving or fading overlay can invalidate that cache every
 frame, so a large masked surface can still be expensive. Native and rendered
 content are published synchronously to keep their coverage aligned. The browser
 uses SVG/CSS masks; the Apple rasterization cost is not a measurement of that path.
+macOS text snapshots consume that same coverage, including fully hidden pixels
+and partial opacity; changing text reapplies the mask to the new snapshot.
 
 ### Updating native content
 

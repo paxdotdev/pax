@@ -1,0 +1,55 @@
+<Text x=32px y=20px width={100% - 64px} height=40px class="title"
+    selectable=false text="Native text / compatibility" />
+<Text x=32px y=68px width={100% - 350px} height=38px class="hint"
+    selectable=false text="Selection, composition, and access while scrolling." />
+<Button x={100% - 296px} y=64px width=120px height=36px label="Top"
+    style={font: "Arial", font_size: 16px, fill: rgb(255,255,255)}
+    color=rgb(44,78,110) @button_click=self.top />
+<Button x={100% - 160px} y=64px width=128px height=36px label="Last row"
+    style={font: "Arial", font_size: 16px, fill: rgb(255,255,255)}
+    color=rgb(44,78,110) @button_click=self.bottom />
+<Scroller x=24px y=124px width={100% - 48px} height={100% - 148px}
+    scroll_height=6020px scroll_pos_y=bind:self.scroll_y>
+    <Group width=100% height=6020px>
+        <Text x=16px y=12px width={100% - 32px} height=26px class="caption"
+            text="01 / SELECTABLE LABEL" />
+        <Text x=16px y=48px width={100% - 32px} height=72px clip=true class="body"
+            text="Copy this sentence: Café, fox 🦊, and a little anticipation. This second sentence checks wrapping and keyboard selection." />
+        <Text x=16px y=142px width={100% - 32px} height=26px class="caption"
+            text="02 / READ-ONLY MARKDOWN" />
+        <Text x=16px y=180px width={100% - 32px} height=58px clip=true markdown=true class="body"
+            text="Read **this note**, select its words, and scroll over the [Pax link](https://pax.dev)." />
+        <Text x=16px y=266px width={100% - 32px} height=26px class="caption"
+            text="03 / EDITABLE TEXT — TWO-WAY BINDING" />
+        <Text x=28px y=312px width={100% - 56px} height=36px editable=true clip=true
+            text=bind:self.note class="body" />
+        <Rectangle x=16px y=300px width={100% - 32px} height=60px
+            fill=rgb(255,255,255) corner_radius=8 />
+        <Text x=16px y=370px width={100% - 32px} height=58px class="hint"
+            text={"Bound note: " + self.note} />
+        <Text x=16px y=450px width={100% - 32px} height=26px class="caption"
+            text="04 / MULTILINE EDITOR" />
+        <Text x=28px y=495px width={100% - 56px} height=110px editable=true clip=true
+            text=bind:self.paragraph class="body" />
+        <Rectangle x=16px y=484px width={100% - 32px} height=134px
+            fill=rgb(255,255,255) corner_radius=8 />
+        <Text x=16px y=632px width={100% - 32px} height=90px class="hint"
+            text={"Bound paragraph: " + self.paragraph} />
+        <Text x=16px y=748px width={100% - 32px} height=36px class="caption"
+            text="05 / DISTANT NATIVE LABELS" />
+        for index in 0..80 {
+            <Text x=16px y={(810 + index * 64)px} width={100% - 32px} height=42px
+                clip=true class="body" text={"Row " + (index + 1) + " — a native label to find and copy."} />
+        }
+        <Text x=16px y=5940px width={100% - 32px} height=44px clip=true class="body"
+            text="End marker: Magnolia. All eighty rows are above." />
+    </Group>
+</Scroller>
+<Rectangle width=100% height=100% fill=rgb(239,244,246) />
+
+@settings {
+    .title { style: {font: "Arial", font_size: 28px, fill: rgb(25,44,63)} }
+    .caption { style: {font: "Arial", font_size: 13px, fill: rgb(47,87,116)} }
+    .body { style: {font: "Arial", font_size: 20px, fill: rgb(25,44,63)} }
+    .hint { style: {font: "Arial", font_size: 16px, fill: rgb(72,88,100)} }
+}

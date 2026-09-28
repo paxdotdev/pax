@@ -553,7 +553,7 @@ private func cachedRasterizedMaskImage(
 }
 
 #if os(macOS)
-private func compositedMaskedSnapshotImage(
+func compositedMaskedSnapshotImage(
     snapshot: CGImage,
     mask: CGImage,
     size: CGSize,
@@ -579,9 +579,18 @@ private func compositedMaskedSnapshotImage(
 
     let rect = CGRect(origin: .zero, size: CGSize(width: pixelWidth, height: pixelHeight))
     context.interpolationQuality = .high
+    // Alpha-only raster output is a CGImage mask. Drawing it with destinationIn
+    // leaves zero-coverage pixels untouched. Interpret the same bytes as gray
+    // coverage for clipping instead, without allocating another pixel buffer.
+    guard let provider = mask.dataProvider,
+          let coverage = CGImage(width: mask.width, height: mask.height,
+              bitsPerComponent: 8, bitsPerPixel: 8, bytesPerRow: mask.bytesPerRow,
+              space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGBitmapInfo(rawValue: 0),
+              provider: provider, decode: nil, shouldInterpolate: true, intent: .defaultIntent) else {
+        return nil
+    }
+    context.clip(to: rect, mask: coverage)
     context.draw(snapshot, in: rect)
-    context.setBlendMode(.destinationIn)
-    context.draw(mask, in: rect)
     return context.makeImage()
 }
 #endif
@@ -888,6 +897,10 @@ public struct NativeRenderingLayer: View {
         var contentKey: String {
             switch self {
             case .text(let element):
+#if os(macOS)
+                // Preserve the host across representation/configuration changes.
+                return "text"
+#else
                 if element.editable {
                     return "text-editable"
                 }
@@ -898,6 +911,7 @@ public struct NativeRenderingLayer: View {
                     return "text-selectable"
                 }
                 return "text-static"
+#endif
             case .glassSurface:
                 return "glass-surface"
             case .button:
@@ -984,6 +998,12 @@ public struct NativeRenderingLayer: View {
                 hasher.combine(element.clip)
                 hasher.combine(element.markdown)
                 hasher.combine(element.wrap)
+#if os(macOS)
+                hasher.combine(platformHorizontalTextAlignment(element.textStyle.alignment).rawValue)
+                hasher.combine(element.textStyle.alignment.vertical == .center)
+                hasher.combine(element.textStyle.alignment.vertical == .bottom)
+                hasher.combine(FontRegistrationObserver.shared.revision)
+#endif
                 combineTextStyle(element.textStyle, into: &hasher)
                 if let styleLink = element.style_link {
                     combineTextStyle(styleLink, into: &hasher)
@@ -3713,6 +3733,9 @@ private final class FontRegistrationObserver {
     static let shared = FontRegistrationObserver()
     private var observerInstalled = false
     private var invalidationPending = false
+#if os(macOS)
+    private(set) var revision: UInt64 = 0
+#endif
 
     private init() {
         installIfNeeded()
@@ -3737,6 +3760,9 @@ private final class FontRegistrationObserver {
             return
         }
         invalidationPending = true
+#if os(macOS)
+        revision &+= 1
+#endif
         DispatchQueue.main.async {
             self.invalidationPending = false
             NativeSceneInvalidation.singleton.invalidate()
@@ -5206,242 +5232,302 @@ private func configuredLiquidGlassView(
     return view
 }
 
-private final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
-    var hasSelection: Bool {
-        usingTextView && textView.selectedRanges.contains(where: { $0.rangeValue.length > 0 })
-    }
+// AppKit's cell supplies native selection; the surrounding Pax host owns clipping.
+private final class PaxNativeLabelCell: NSTextFieldCell {
+    override func drawingRect(forBounds rect: NSRect) -> NSRect { rect }
+    override func titleRect(forBounds rect: NSRect) -> NSRect { rect }
+}
 
-    func canDetachFromScene(clip: Bool) -> Bool {
-        // The shared index contains layout bounds. Unclipped glyph overflow is
-        // measured here already; conservatively keep it attached when it escapes.
-        return clip || bounds.contains(usingTextView ? scrollView.frame : staticTextLayer.frame)
+private final class PaxNativeTextScrollView: NSScrollView {
+    var allowsLocalScrolling = false
+
+    override func scrollWheel(with event: NSEvent) {
+        if allowsLocalScrolling {
+            super.scrollWheel(with: event)
+        } else {
+            // A read-only Text is part of its containing Scroller, not a nested scroller.
+            nextResponder?.scrollWheel(with: event)
+        }
     }
+}
+
+final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
+    private enum Content {
+        case label(NSTextField)
+        case document(PaxNativeTextScrollView, NSTextView)
+        case staticText(CATextLayer)
+    }
+    private enum Kind { case label, document, staticText }
+    private var content: Content?
+    private var kind: Kind?
+    private var lastContentSignature: Int?
+    private var lastMeasurementConstraint: CGSize?
+    private var measuredSize = CGSize.zero
+    private var paintFrame = CGRect.zero
+    private var attributedText = NSAttributedString(string: "")
+    private var editableNodeId: PaxNodeId = 0
+    private var suppressChange = false
+
     override var isFlipped: Bool { true }
     override var isOpaque: Bool { false }
     override var preservesContentDuringLiveResize: Bool { false }
 
-    private let staticTextLayer = PaxImmediateTextLayer()
-    private let scrollView = NSScrollView()
-    private let textView = NSTextView()
-    private var usingTextView = false
-    private var suppressChange = false
-    private var editableNodeId: PaxNodeId = 0
-    private var lastContentSignature: Int?
-    private var lastMeasuredTextSignature: Int?
-    private var lastMeasuredTextSize: CGSize?
+    private var editor: NSTextView? {
+        switch content {
+        case .label(let field): return field.currentEditor() as? NSTextView
+        case .document(_, let text): return text
+        default: return nil
+        }
+    }
+
+    private var ownsFirstResponder: Bool {
+        guard let responder = window?.firstResponder as? NSView else { return false }
+        return responder.isDescendant(of: self) || (editor.map { responder === $0 } ?? false)
+    }
+
+    var hasSelection: Bool {
+        // NSTextField's field editor is window-owned, not necessarily our descendant.
+        ownsFirstResponder || (editor?.selectedRanges.contains { $0.rangeValue.length > 0 } ?? false)
+    }
+
+    func canDetachFromScene(clip: Bool) -> Bool {
+        // Use logical paint coverage, excluding the label cell's native alignment insets.
+        clip || bounds.contains(paintFrame)
+    }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
         layerContentsRedrawPolicy = .duringViewResize
         layer?.backgroundColor = NSColor.clear.cgColor
-            layer?.isOpaque = false
-            layer?.masksToBounds = false
-            layer?.contentsGravity = .topLeft
-            layer?.needsDisplayOnBoundsChange = true
-            disableNativeLayerImplicitActions(layer)
-            staticTextLayer.frame = bounds
-            staticTextLayer.isWrapped = true
-            staticTextLayer.truncationMode = .none
-        staticTextLayer.masksToBounds = false
-        staticTextLayer.backgroundColor = NSColor.clear.cgColor
-        staticTextLayer.isOpaque = false
-            staticTextLayer.contentsScale = NSScreen.main?.backingScaleFactor ?? 1.0
-            staticTextLayer.contentsGravity = .topLeft
-            staticTextLayer.needsDisplayOnBoundsChange = true
-            disableNativeLayerImplicitActions(staticTextLayer)
-            layer?.addSublayer(staticTextLayer)
-
-        scrollView.frame = bounds
-        scrollView.autoresizingMask = NativeRenderingLayer.fillAutoresizingMask()
-        scrollView.layerContentsRedrawPolicy = .duringViewResize
-        scrollView.hasVerticalScroller = false
-        scrollView.hasHorizontalScroller = false
-        scrollView.drawsBackground = false
-        scrollView.borderType = .noBorder
-        scrollView.documentView = textView
-        scrollView.wantsLayer = true
-        scrollView.layer?.backgroundColor = NSColor.clear.cgColor
-        scrollView.layer?.isOpaque = false
-            scrollView.layer?.masksToBounds = false
-            scrollView.layer?.contentsGravity = .topLeft
-            scrollView.layer?.needsDisplayOnBoundsChange = true
-            disableNativeLayerImplicitActions(scrollView.layer)
-            scrollView.contentView.drawsBackground = false
-            scrollView.contentView.layerContentsRedrawPolicy = .duringViewResize
-            scrollView.contentView.wantsLayer = true
-            scrollView.contentView.layer?.backgroundColor = NSColor.clear.cgColor
-            scrollView.contentView.layer?.isOpaque = false
-            scrollView.contentView.layer?.contentsGravity = .topLeft
-            scrollView.contentView.layer?.needsDisplayOnBoundsChange = true
-            disableNativeLayerImplicitActions(scrollView.contentView.layer)
-
-        textView.drawsBackground = false
-        textView.backgroundColor = .clear
-        textView.isEditable = false
-        textView.isSelectable = true
-        textView.delegate = self
-        textView.textContainerInset = .zero
-        textView.textContainer?.lineFragmentPadding = 0
-        textView.isVerticallyResizable = false
-        textView.isHorizontallyResizable = false
-        textView.textContainer?.widthTracksTextView = true
-        textView.layerContentsRedrawPolicy = .duringViewResize
-        textView.wantsLayer = true
-        textView.layer?.backgroundColor = NSColor.clear.cgColor
-        textView.layer?.isOpaque = false
-            textView.layer?.masksToBounds = false
-            textView.layer?.contentsGravity = .topLeft
-            textView.layer?.needsDisplayOnBoundsChange = true
-            disableNativeLayerImplicitActions(textView.layer)
-        }
-
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
+        layer?.isOpaque = false
+        layer?.masksToBounds = false
+        disableNativeLayerImplicitActions(layer)
     }
 
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
     override func hitTest(_ point: NSPoint) -> NSView? {
-        guard usingTextView else {
-            return nil
+        guard kind != .staticText else { return nil }
+        let hit = super.hitTest(point)
+        return hit === self ? nil : hit
+    }
+
+    private func makeContent(_ next: Kind) {
+        switch content {
+        case .label(let field): field.removeFromSuperview()
+        case .document(let scroll, let text):
+            text.delegate = nil
+            scroll.documentView = nil
+            scroll.removeFromSuperview()
+        case .staticText(let textLayer): textLayer.removeFromSuperlayer()
+        case nil: break
         }
-        let hitView = super.hitTest(point)
-        return hitView === self ? nil : hitView
+        content = nil
+        switch next {
+        case .label:
+            let field = NSTextField(frame: .zero)
+            field.cell = PaxNativeLabelCell(textCell: "")
+            field.isBordered = false
+            field.isBezeled = false
+            field.drawsBackground = false
+            field.isEditable = false
+            field.isSelectable = true
+            field.allowsEditingTextAttributes = true
+            field.focusRingType = .none
+            field.maximumNumberOfLines = 0
+            field.cell?.truncatesLastVisibleLine = false
+            field.cell?.isScrollable = false
+            field.cell?.usesSingleLineMode = false
+            field.wantsLayer = true
+            field.layer?.masksToBounds = false
+            disableNativeLayerImplicitActions(field.layer)
+            addSubview(field)
+            content = .label(field)
+        case .document:
+            let scroll = PaxNativeTextScrollView()
+            let text = NSTextView()
+            scroll.hasVerticalScroller = false
+            scroll.hasHorizontalScroller = false
+            scroll.drawsBackground = false
+            scroll.borderType = .noBorder
+            scroll.documentView = text
+            scroll.contentView.drawsBackground = false
+            text.drawsBackground = false
+            text.backgroundColor = .clear
+            text.delegate = self
+            text.textContainerInset = .zero
+            text.textContainer?.lineFragmentPadding = 0
+            text.isVerticallyResizable = false
+            for view in [scroll, scroll.contentView, text] {
+                view.wantsLayer = true
+                view.layerContentsRedrawPolicy = .duringViewResize
+                view.layer?.backgroundColor = NSColor.clear.cgColor
+                view.layer?.isOpaque = false
+                view.layer?.contentsGravity = .topLeft
+                view.layer?.needsDisplayOnBoundsChange = true
+                disableNativeLayerImplicitActions(view.layer)
+            }
+            addSubview(scroll)
+            content = .document(scroll, text)
+        case .staticText:
+            let textLayer = PaxImmediateTextLayer()
+            textLayer.truncationMode = .none
+            textLayer.backgroundColor = NSColor.clear.cgColor
+            textLayer.isOpaque = false
+            textLayer.contentsGravity = .topLeft
+            textLayer.needsDisplayOnBoundsChange = true
+            disableNativeLayerImplicitActions(textLayer)
+            layer?.addSublayer(textLayer)
+            content = .staticText(textLayer)
+        }
+        kind = next
+        lastContentSignature = nil
+        lastMeasurementConstraint = nil
+    }
+
+    private func restoreSelection(_ ranges: [NSValue], focused: Bool) {
+        if focused {
+            switch content {
+            case .label(let field): field.selectText(nil)
+            case .document(_, let text): window?.makeFirstResponder(text)
+            default: break
+            }
+        }
+        guard let editor else { return }
+        let length = (editor.string as NSString).length
+        let clamped = ranges.map { value -> NSValue in
+            let range = value.rangeValue
+            let start = min(range.location, length)
+            return NSValue(range: NSRange(location: start, length: min(range.length, length - start)))
+        }
+        if !clamped.isEmpty { editor.selectedRanges = clamped }
     }
 
     func apply(element: TextElement, size: CGSize) {
+        var desired: Kind = element.editable || element.selectable
+            ? (element.editable || element.markdown ? .document : .label) : .staticText
+        // Downgrading is optional. Keep a live document's selection/composition intact.
+        if kind == .document, desired == .label, hasSelection { desired = .document }
+        let focused = ownsFirstResponder
+        let selection = editor?.selectedRanges ?? []
+        let replacing = kind != desired
+        if replacing {
+            if focused { window?.makeFirstResponder(nil) }
+            makeContent(desired)
+        }
         layer?.masksToBounds = element.clip
-        scrollView.layer?.masksToBounds = element.clip
-        textView.layer?.masksToBounds = element.clip
-        staticTextLayer.masksToBounds = element.clip
-        let useTextView = element.editable || element.selectable
-        if useTextView != usingTextView {
-            if useTextView {
-                staticTextLayer.isHidden = true
-                addSubview(scrollView)
-            } else {
-                scrollView.removeFromSuperview()
-                staticTextLayer.isHidden = false
+        editableNodeId = element.id
+        let font = element.textStyle.font.getNSFont(size: element.textStyle.font_size)
+        var hasher = Hasher()
+        hasher.combine(nativeTextMeasurementSignature(for: element))
+        hasher.combine(platformHorizontalTextAlignment(element.textStyle.alignment).rawValue)
+        hasher.combine(element.textStyle.alignment.vertical == .center)
+        hasher.combine(element.textStyle.alignment.vertical == .bottom)
+        hasher.combine(FontRegistrationObserver.shared.revision)
+        hasher.combine(font)
+        let signature = hasher.finalize()
+        let contentChanged = signature != lastContentSignature
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = kind == .staticText
+            ? platformHorizontalTextAlignment(element.textStyle.alignment)
+            : platformTextAlignment(element.textStyle.alignmentMultiline)
+        paragraph.lineBreakMode = element.wrap ? .byWordWrapping : .byClipping
+        if contentChanged {
+            let mutable = NSMutableAttributedString(attributedString: cachedNativeAttributedString(for: element))
+            mutable.addAttributes([.font: font, .paragraphStyle: paragraph],
+                range: NSRange(location: 0, length: mutable.length))
+            if element.textStyle.underline {
+                mutable.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue,
+                    range: NSRange(location: 0, length: mutable.length))
             }
-            usingTextView = useTextView
-            lastContentSignature = nil
-            lastMeasuredTextSignature = nil
-            lastMeasuredTextSize = nil
-        }
-
-        let measurementConstraint = textMeasurementConstraint(for: element, size: size)
-        let contentSignature = nativeTextMeasurementSignature(for: element)
-        if useTextView {
-            editableNodeId = element.id
-            let defaultFont = element.textStyle.font.getNSFont(size: element.textStyle.font_size)
-            let defaultColor = platformColor(element.textStyle.fill)
-            let paragraphStyle = NSMutableParagraphStyle()
-            paragraphStyle.alignment = platformTextAlignment(element.textStyle.alignmentMultiline)
-            paragraphStyle.lineBreakMode = element.wrap ? .byWordWrapping : .byClipping
-            if lastContentSignature != contentSignature {
-                let mutable = NSMutableAttributedString(attributedString: cachedNativeAttributedString(for: element))
-                let fullRange = NSRange(location: 0, length: mutable.length)
-                mutable.addAttributes(
-                    [
-                        .font: defaultFont,
-                        .paragraphStyle: paragraphStyle
-                    ],
-                    range: fullRange
-                )
-                addDefaultForegroundColor(element.textStyle.fill, to: mutable)
-                suppressChange = true
-                textView.textStorage?.setAttributedString(mutable)
-                suppressChange = false
-                lastContentSignature = contentSignature
-                lastMeasuredTextSignature = nil
-                lastMeasuredTextSize = nil
-            }
-            textView.typingAttributes = [
-                .font: defaultFont,
-                .foregroundColor: defaultColor,
-                .paragraphStyle: paragraphStyle
-            ]
-            textView.isEditable = element.editable
-            textView.isSelectable = element.selectable || element.editable
-            textView.textContainer?.lineBreakMode = element.wrap ? .byWordWrapping : .byClipping
-            textView.textContainer?.widthTracksTextView = element.wrap
-            textView.isHorizontallyResizable = !element.wrap
-            textView.textContainer?.containerSize = CGSize(
-                width: element.wrap ? size.width : CGFloat.greatestFiniteMagnitude,
-                height: element.clip ? size.height : CGFloat.greatestFiniteMagnitude
-            )
-            let measureSignature = contentSignature
-            let measured: CGSize
-            if !element.wrap,
-               lastMeasuredTextSignature == measureSignature,
-               let cachedSize = lastMeasuredTextSize {
-                measured = cachedSize
-            } else {
-                // NSTextView.fittingSize returns zero for a newly mounted wrapped document view
-                // on current AppKit, collapsing the selectable text host to a one-pixel strip.
-                // The attributed content is also the source of truth used by the static path.
-                measured = textView.attributedString().boundingRect(
-                    with: measurementConstraint,
-                    options: [.usesLineFragmentOrigin, .usesFontLeading],
-                    context: nil
-                ).integral.size
-                if element.wrap {
-                    lastMeasuredTextSignature = nil
-                    lastMeasuredTextSize = nil
-                } else {
-                    lastMeasuredTextSignature = measureSignature
-                    lastMeasuredTextSize = measured
-                }
-            }
-            let alignedFrame = noWrapOverflowFrame(alignedTextLayerFrame(
-                containerSize: size,
-                measuredTextSize: measured,
-                alignment: element.textStyle.alignment,
-                clip: element.clip
-            ), measured: measured, element: element)
-            scrollView.frame = alignedFrame
-            scrollView.bounds = CGRect(origin: .zero, size: alignedFrame.size)
-            textView.frame = CGRect(origin: .zero, size: alignedFrame.size)
-            textView.bounds = CGRect(origin: .zero, size: alignedFrame.size)
-            reportMeasuredTextSizeIfNeeded(measured, for: element)
-        } else {
-            let attr = cachedNativeAttributedString(for: element)
-            let mutable = NSMutableAttributedString(attributedString: attr)
-            let fullRange = NSRange(location: 0, length: mutable.length)
-            let paragraphStyle = NSMutableParagraphStyle()
-            paragraphStyle.alignment = platformHorizontalTextAlignment(element.textStyle.alignment)
-            paragraphStyle.lineBreakMode = element.wrap ? .byWordWrapping : .byClipping
-            mutable.addAttributes(
-                [
-                    .font: element.textStyle.font.getNSFont(size: element.textStyle.font_size),
-                    .paragraphStyle: paragraphStyle
-                ],
-                range: fullRange
-            )
             addDefaultForegroundColor(element.textStyle.fill, to: mutable)
-            staticTextLayer.contentsScale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 1.0
-            staticTextLayer.alignmentMode = platformLayerTextAlignment(element.textStyle.alignment)
-            staticTextLayer.isWrapped = element.wrap
-            staticTextLayer.string = mutable
-            let measured = mutable.boundingRect(
-                with: measurementConstraint,
-                options: [.usesLineFragmentOrigin, .usesFontLeading],
-                context: nil
-            ).integral.size
-            staticTextLayer.frame = noWrapOverflowFrame(alignedTextLayerFrame(
-                containerSize: size,
-                measuredTextSize: measured,
-                alignment: element.textStyle.alignment,
-                clip: element.clip
-            ), measured: measured, element: element)
-            reportMeasuredTextSizeIfNeeded(measured, for: element)
+            attributedText = mutable
         }
+        let constraint = textMeasurementConstraint(for: element, size: size)
+        if contentChanged || lastMeasurementConstraint != constraint {
+            // Measure before decorative transforms; newly mounted wrapped NSTextView.fittingSize
+            // can return zero. All three representations use the same attributed source/constraint.
+            measuredSize = attributedText.boundingRect(with: constraint,
+                options: [.usesLineFragmentOrigin, .usesFontLeading], context: nil).integral.size
+            if element.editable, attributedText.length == 0,
+               let lineHeight = editor?.layoutManager?.defaultLineHeight(for: font) {
+                // Empty attributed strings carry no font run; their default metrics
+                // are too short for the editor's insertion point and preedit glyphs.
+                measuredSize.height = min(constraint.height, ceil(lineHeight))
+            }
+            lastMeasurementConstraint = constraint
+        }
+        paintFrame = noWrapOverflowFrame(alignedTextLayerFrame(containerSize: size,
+            measuredTextSize: measuredSize, alignment: element.textStyle.alignment, clip: element.clip),
+            measured: measuredSize, element: element)
+        if element.editable {
+            // Uncommitted IME text lives only in AppKit. Reserve the declared editing
+            // area even when the committed model is empty or shorter than preedit.
+            paintFrame.size.height = max(paintFrame.height, max(1, size.height - paintFrame.minY))
+        }
+        switch content {
+        case .label(let field):
+            if contentChanged {
+                field.cell?.wraps = element.wrap
+                // The shared field editor also consults control defaults on focus.
+                field.font = font
+                field.textColor = platformColor(element.textStyle.fill)
+                field.alignment = paragraph.alignment
+                field.attributedStringValue = attributedText
+            }
+            let frame = field.frame(forAlignmentRect: paintFrame)
+            if field.frame != frame { field.frame = frame }
+        case .document(let scroll, let text):
+            scroll.allowsLocalScrolling = element.editable
+            scroll.layer?.masksToBounds = element.clip
+            text.layer?.masksToBounds = element.clip
+            if contentChanged {
+                suppressChange = true
+                text.textStorage?.setAttributedString(attributedText)
+                suppressChange = false
+                text.typingAttributes = [.font: font, .foregroundColor: platformColor(element.textStyle.fill),
+                    .paragraphStyle: paragraph]
+                text.isEditable = element.editable
+                text.isSelectable = element.selectable || element.editable
+                text.textContainer?.lineBreakMode = paragraph.lineBreakMode
+                text.textContainer?.widthTracksTextView = element.wrap
+                text.isHorizontallyResizable = !element.wrap
+            }
+            let container = CGSize(width: element.wrap ? size.width : CGFloat.greatestFiniteMagnitude,
+                height: element.clip ? size.height : CGFloat.greatestFiniteMagnitude)
+            if text.textContainer?.containerSize != container { text.textContainer?.containerSize = container }
+            let rect = CGRect(origin: .zero, size: paintFrame.size)
+            if scroll.frame != paintFrame { scroll.frame = paintFrame }
+            if scroll.bounds != rect { scroll.bounds = rect }
+            if text.frame != rect { text.frame = rect }
+            if text.bounds != rect { text.bounds = rect }
+        case .staticText(let textLayer):
+            textLayer.masksToBounds = element.clip
+            textLayer.contentsScale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 1
+            if contentChanged {
+                textLayer.alignmentMode = platformLayerTextAlignment(element.textStyle.alignment)
+                textLayer.isWrapped = element.wrap
+                textLayer.string = attributedText
+            }
+            textLayer.frame = paintFrame
+        case nil: break
+        }
+        if desired != .staticText && (replacing || contentChanged) {
+            restoreSelection(selection, focused: focused && replacing)
+        }
+        setAccessibilityElement(desired == .staticText)
+        if desired == .staticText {
+            setAccessibilityRole(.staticText)
+            setAccessibilityValue(attributedText.string)
+        }
+        lastContentSignature = signature
+        reportMeasuredTextSizeIfNeeded(measuredSize, for: element)
     }
 
     func textDidChange(_ notification: Notification) {
-        guard !suppressChange, let textView = notification.object as? NSTextView else {
-            return
-        }
-        dispatchTextInput(id: editableNodeId, text: textView.string)
+        guard !suppressChange, let text = notification.object as? NSTextView else { return }
+        dispatchTextInput(id: editableNodeId, text: text.string)
     }
 }
 

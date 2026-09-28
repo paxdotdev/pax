@@ -6,6 +6,8 @@ import FlexBuffers
 
 #if os(macOS)
 final class NativeSceneTests: XCTestCase {
+    // Exercise document fallback interaction and both label/document snapshot compositing.
+    // NativeTextTests covers ordinary label interaction and representation changes.
     @MainActor
     func testCullingDetachesRetainedLeavesAndPreservesInteractionOverflowAndAccessibility() throws {
         PaxNativeHostState.reset()
@@ -19,6 +21,7 @@ final class NativeSceneTests: XCTestCase {
             text.size_y = 40
             text.clip = true
             text.selectable = true
+            text.markdown = true
             text.zIndex = id
             text.transform = [1, 0, 0, 1, 10, Float(id * 50)]
             TextElements.singleton.add(element: text)
@@ -115,11 +118,18 @@ final class NativeSceneTests: XCTestCase {
 
     @MainActor
     func testSnapshotContentChangesKeepMaskAndUnmaskRestoresNativeContent() throws {
+        try checkSnapshotContentChanges(markdown: false)
+        try checkSnapshotContentChanges(markdown: true)
+    }
+
+    @MainActor
+    private func checkSnapshotContentChanges(markdown: Bool) throws {
         PaxNativeHostState.reset()
         defer { PaxNativeHostState.reset() }
         let text = TextElement.makeDefault(id: 1, parentFrame: nil, renderLayerId: 0)
         text.content = String(repeating: "M", count: 60)
         text.selectable = true
+        text.markdown = markdown
         text.clip = true
         text.size_x = 200
         text.size_y = 40
@@ -139,8 +149,8 @@ final class NativeSceneTests: XCTestCase {
         }
         func descendants(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(descendants) }
         flush()
-        let native = try XCTUnwrap(descendants(host).compactMap { $0 as? NSTextView }.first)
-        let content = try XCTUnwrap(native.enclosingScrollView?.superview)
+        let content = try XCTUnwrap(descendants(host).compactMap { $0 as? PaxNativeTextLeafView }.first)
+        let native = try XCTUnwrap(content.subviews.first)
         let leaf = try XCTUnwrap(content.superview)
         let snapshot = try XCTUnwrap(leaf.layer?.sublayers?.first { $0.zPosition == 1_000 })
         func checkMaskedPixels() throws {
@@ -182,6 +192,7 @@ final class NativeSceneTests: XCTestCase {
         let text = TextElement.makeDefault(id: 1, parentFrame: nil, renderLayerId: 0)
         text.content = "Selectable content"
         text.selectable = true
+        text.markdown = true
         text.clip = true
         text.size_x = 200
         text.size_y = 40
@@ -265,6 +276,7 @@ final class NativeSceneTests: XCTestCase {
             let text = TextElement.makeDefault(id: PaxNodeId(id), parentFrame: nil, renderLayerId: 0)
             text.content = "Row \(id)"
             text.selectable = true
+            text.markdown = true
             text.clip = true
             text.size_x = 200
             text.size_y = 20

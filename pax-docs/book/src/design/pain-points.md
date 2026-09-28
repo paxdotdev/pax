@@ -2489,3 +2489,88 @@ mark it dirty at mount, even in a completely unlit scene. Keep first-draw
 invalidation in the lifecycle path and test idle conditional branches without an
 unrelated animated sibling forcing replay. Lighting mask changes should only
 dirty nodes whose effective mask actually changes.
+
+### Validate native text optimizations with a same-process comparison
+
+Live diagnostic labels expose native layout work even when the outer scene
+geometry is incremental. However, skipping unchanged AppKit text/scroll-view
+settings and frame/bounds writes did not materially reduce this example's layout
+cost in a same-process original/candidate comparison. Remove an unproven
+optimization instead of retaining extra cache state on the strength of a noisy
+before/after run. Content and geometry ablations locate costs; they do not by
+themselves establish that a proposed fix removes them.
+
+Do not equate callback rates with presented frames, or sum nested layout timers
+as exclusive CPU time. Native tests must reacquire the active text control when
+clipping or editability changes its existing content key; identity checks belong
+within a stable mode. Keep selection, editing, and accessibility requirements
+explicit before considering a different text presentation strategy.
+
+### Measure native policy hints without changing the text drawing path
+
+Overriding NSTextView.draw(_:) merely to time drawing changed the observed
+AppKit layout/drawing behavior in this experiment. Use probes that preserve the
+framework's drawing implementation. If a live policy-switch sequence does not
+recover its original baseline, compare fresh launches with settings applied
+before first display and repeat the baseline. Confirm the actual policy values
+on retained views; an API assignment alone is not evidence of a performance win.
+
+The current macOS text host did not gain a repeatable pacing improvement from
+on-demand redraw policy, disabling bounds-change redraw, or Core Animation
+rasterization. Stable-label comparisons also need a matching stable-label
+baseline: removing content updates can dominate the improvement otherwise
+attributed to caching. Keep native scroll ownership independent of these tests.
+
+
+- **Borderless macOS label geometry still has native alignment insets.** In the
+  NSTextField prototype, assigning the Pax text rectangle directly to the field's
+  frame shifted painted text two points right. Overriding the cell's drawing and
+  title rectangles did not remove that inset. Place the field using AppKit's
+  `frame(forAlignmentRect:)` and use `alignmentRect(forFrame:)` when comparing
+  its logical coverage with Pax bounds. The native API reports the insets; do not
+  hard-code the observed two-point value. Verify both wrapping and selection
+  after adapting the frame.
+
+
+- **Test native label appearance while selected, not only its selection range.**
+  An NSTextField prototype displayed the attributed font correctly until AppKit
+  installed its shared field editor, which initially used a smaller font. Supplying
+  the control's font/color/alignment defaults and enabling attributed text handling
+  while leaving editing disabled preserved the tested font through selection.
+  Assert the field editor's font attributes and editable state in addition to its
+  selected range and string. Include direct wheel input over the focused label in
+  manual checks, since a text host can otherwise consume the parent list's scroll.
+- **Scrolling probes must relinquish control after capture.** A temporary native
+  benchmark continued resetting its outer scroll offset after the timed motion
+  ended, interfering with manual testing. Bound both motion and capture lifetime,
+  and remove the driver from the build left running for interactive review.
+
+- **A font-loaded notification must invalidate content caches, not just the scene.**
+  Once native Text caches its attributed source and measured size, rebuilding the
+  scene with identical property values can still reuse the fallback font. Include
+  a font-registration revision in the macOS leaf's content invalidation and the
+  resolved font in measurement invalidation. Test the notification without changing
+  the declared string/style, and check both displayed font and autosize output.
+  Horizontal/vertical alignment also belongs in the leaf's cache key.
+- **NSTextField selection lives in the window's shared field editor.** Descendant
+  checks alone cannot reliably decide whether a label owns keyboard focus. Include
+  `currentEditor()` when pinning a cold native leaf or transferring selection to a
+  document backend. Keep the Pax host stable while changing the active native
+  representation, and release unused views rather than hiding eager alternatives.
+
+- **Empty editor measurement is not the editing viewport.** An empty attributed
+  string has no font run and can measure using default metrics. Sizing its native
+  scroll viewport to that result clipped Japanese preedit before commitment,
+  even with ample declared Text height. Use the editor's configured font for the
+  empty line measurement and reserve the declared editing area independently of
+  committed content. Verify real IME conversion/cancellation as well as a native
+  marked-text regression test; pasting Unicode does not exercise composition.
+
+- **Alpha-only masks need explicit coverage semantics in snapshot composition.**
+  The rebase onto main retained its one-byte mask raster, but macOS snapshot
+  compositing still drew that image with `destinationIn`. Fully transparent
+  mask regions left existing snapshot pixels untouched. Reinterpret the same
+  data provider as DeviceGray coverage and clip before drawing the snapshot.
+  This retains the compact raster without another pixel buffer. Pixel tests
+  cover zero, partial, and full coverage multiplied by source alpha, in addition
+  to the separate Core Animation mask path.

@@ -66,4 +66,30 @@ final class PaxNativeMaskRasterTests: XCTestCase {
             XCTAssertLessThanOrEqual(abs(Int(rgba[(6 * 16 + x) * 4 + 3]) - expected), 1)
         }
     }
+
+#if os(macOS)
+    func testSnapshotCompositingUsesAlphaOnlyCoverageIncludingTransparentPixels() throws {
+        let size = CGSize(width: 16, height: 12)
+        for scale: CGFloat in [1, 2] {
+            let mask = try XCTUnwrap(rasterizedMaskImage(payload: RasterizedNativeMaskPayload(
+                signature: 4, size: size, holes: [
+                    RasterizedMaskHolePayload(cgPath: rect(0, 0, 4, 12), clipCGPaths: [], opacity: 1),
+                    RasterizedMaskHolePayload(cgPath: rect(4, 0, 4, 12), clipCGPaths: [], opacity: 0.5),
+                ]), scale: scale))
+            let source = try XCTUnwrap(CGContext(data: nil, width: mask.width, height: mask.height,
+                bitsPerComponent: 8, bytesPerRow: mask.width * 4,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+            source.setFillColor(CGColor(red: 1, green: 0, blue: 0, alpha: 0.5))
+            source.fill(CGRect(x: 0, y: 0, width: mask.width, height: mask.height))
+            let result = try XCTUnwrap(compositedMaskedSnapshotImage(
+                snapshot: XCTUnwrap(source.makeImage()), mask: mask, size: size, scale: scale))
+            let rgba = pixels(result)
+            for (x, expected) in [(2, 0), (6, 64), (10, 128)] {
+                let alpha = rgba[(6 * Int(scale) * result.width + x * Int(scale)) * 4 + 3]
+                XCTAssertLessThanOrEqual(abs(Int(alpha) - expected), 1)
+            }
+        }
+    }
+#endif
 }

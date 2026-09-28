@@ -1,0 +1,20 @@
+[package]
+name = "native-text-compatibility"
+version = "0.39.0"
+edition = "2021"
+publish = false
+
+[package.metadata.pax]
+title = "Native Text — Compatibility"
+
+[dependencies]
+pax-kit = { version = "0.39.0", path = "../../../pax-kit" }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package.native-text-compatibility]
+opt-level = 0

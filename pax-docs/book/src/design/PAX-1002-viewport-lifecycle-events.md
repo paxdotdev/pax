@@ -901,3 +901,380 @@ Clean macOS and web release builds passed and were exercised through scrolling
 and return to the beginning; the web check also reached the final cards. API
 references regenerated, the documentation book built, and `git diff --check`
 passed. The normal macOS release is left running.
+
+### Native text layout investigation (2026-09-27)
+
+The next experiment isolates live label updates from native animation geometry.
+A temporary generated host scrolls the unchanged 270-card example at 4,800
+points/sec in a 900×900-point window. Eight 20-second phases run normal, fixed
+labels, fixed native-leaf geometry, both fixed, then the reverse sequence. Only
+whole one-second windows ending 5–16 seconds into each phase are compared.
+Freezing labels intercepts the native diagnostic string; freezing geometry
+intercepts the existing native leaf placement. Runtime proximity handlers,
+vector animation, culling, and native scrolling continue to run. These are
+profiling ablations, not changes to the example or supported runtime modes.
+
+The baseline's repeated normal phase measured about 12.5 NSTextView layout
+calls per update and 1.64ms inside those calls. Holding label content fixed
+reduced the time to 1.07ms; holding geometry fixed reduced it to 1.14ms; holding
+both fixed reduced it to 0.17ms. Inner NSScrollView layout was separately timed
+at 0.67ms normally and about 0.27–0.32ms with geometry fixed. These timers are
+inclusive and must not be added as exclusive CPU costs. Both content and
+transform/scroll-driven layout remain material.
+
+A candidate change in the existing macOS text host skipped unchanged
+configuration/frame/bounds assignments and cached wrapped measurements by
+content and constraint. Twelve native tests passed in both debug and release,
+but a separate after-run remained noisy. A same-process comparison therefore
+alternated the original and candidate host in four 20-second phases: original,
+candidate, candidate, original. It kept all live labels and geometry enabled and
+used the same warmup exclusion and scroll trajectory.
+
+| Host | Updates/sec | NSTextView layout ms/update | Inner scroll layout ms/update | Gaps over 12.5ms |
+| --- | ---: | ---: | ---: | ---: |
+| Original, pooled repeats | 91.5 | 2.011 | 0.856 | 18.15% |
+| Candidate, pooled repeats | 94.1 | 2.011 | 0.847 | 17.29% |
+
+Text layout cost was essentially identical. The small cadence difference is
+insufficient evidence of a useful performance gain, especially with variable
+workstation load. The speculative implementation and its added test were
+removed. The final code still uses the checkpointed native host. There is no
+public behavior or API change, and the canonical text/accessibility articles
+need no update for this investigation.
+
+The ablations implicate both changing content and native geometry/viewport
+maintenance. Redundant setter elimination alone does not remove that cost.
+Presented-frame and GPU measurements are still missing; callback cadence must
+not be reported as displayed FPS. The remaining architectural decision is how
+to keep native text interaction while reducing its participation in animated
+presentation. A retained presentation layer for non-interacting text could reuse
+the existing native snapshot/compositing path and interaction/culling guards,
+but content invalidation, selection handoff, accessibility, and rasterization
+cost require an explicit design review and prototype. No text-engine switch,
+new snapshot policy, or input behavior change is included in this pass.
+
+Raw captures are retained locally in `/private/tmp/pax-text-matrix-before.json`,
+`/private/tmp/pax-text-matrix-after.json`, and `/private/tmp/pax-text-host-ab.json`.
+The final normal macOS build removes all temporary probes.
+
+Clean macOS and web release builds passed after restoration. The macOS example
+was scrolled in both directions and left running; the web preview was refreshed
+and rendered the loaded cards. Generated native Rendering.swift matches the
+canonical source, probe hooks are absent, and the example source is unchanged.
+The documentation book and `git diff --check` pass. Only these investigation
+notes and the profiling pain-point entry remain as tracked changes.
+
+### Supported native redraw and rasterization controls (2026-09-27)
+
+Before pursuing a separate presentation cache, test AppKit's existing controls:
+`NSView.layerContentsRedrawPolicy = .onSetNeedsDisplay`, disabling
+`CALayer.needsDisplayOnBoundsChange`, and `CALayer.shouldRasterize` with the
+window backing scale. The redraw controls target the scene's native containers
+and text subtrees; rasterization targets each native text host. The list's
+NSScrollView and document/clip views retain their original settings and continue
+to own scrolling. No native text is detached or moved into a separate compositor.
+
+Apple documents the relevant mechanisms in
+[the redraw-policy reference](https://developer.apple.com/documentation/appkit/nsview/layercontentsredrawpolicy-swift.enum),
+[the Core Animation performance guide](https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/CoreAnimation_guide/ImprovingAnimationPerformance/ImprovingAnimationPerformance.html),
+and [the rasterization reference](https://developer.apple.com/documentation/quartzcore/calayer/shouldrasterize).
+These are drawing/compositing controls; they do not promise to eliminate native
+text layout and viewport maintenance.
+
+Measurements use separate fresh launches, with settings applied before the first
+frame. Each launch runs the same 35-second, 4,800-points/sec scroll trajectory in
+a 900×900-point window. Whole one-second windows ending 5–30 seconds after launch
+are retained, 25 windows per run. Counters confirm the requested policy on 4,074
+registered native views and, when enabled, rasterization on 814 retained text
+hosts; only 17–19 text views in the list are attached during sampled windows.
+Detached cold hosts remain retained through the existing culling mechanism.
+The example and runtime animations are unchanged.
+
+An earlier live-switch series failed to recover its original baseline after
+restoring settings, so it is not used to estimate individual policy effects.
+An initial drawing-time probe overrode NSTextView.draw(_:), which changed the
+observed drawing/layout behavior; that capture was discarded and the override
+removed. Final comparisons only time the existing layout path. Concurrent disk,
+virtualization, and build activity limits cross-launch attribution. Do not
+interpret a few percent of callback-rate variation as a demonstrated gain, or
+callback rates as presented FPS.
+
+| Configuration | Updates/sec | Text layout ms/update | Inner scroll layout ms/update | Gaps over 12.5ms |
+| --- | ---: | ---: | ---: | ---: |
+| Original, first | 98.8 | 1.949 | 0.797 | 12.66% |
+| Redraw on explicit invalidation | 100.1 | 1.847 | 0.742 | 14.02% |
+| Disable bounds-change redraw | 102.5 | 1.714 | 0.696 | 16.12% |
+| Both redraw controls | 105.8 | 1.558 | 0.619 | 21.87% |
+| Rasterization only | 104.2 | 1.478 | 0.607 | 24.99% |
+| Original, repeated | 103.7 | 1.481 | 0.620 | 20.62% |
+| All three controls | 99.3 | 1.819 | 0.726 | 13.39% |
+| Fixed diagnostic labels, original settings | 115.9 | 1.036 | 0.787 | 2.20% |
+| Fixed diagnostic labels, rasterization | 116.7 | 1.023 | 0.771 | 1.88% |
+
+The repeated original host and rasterization-only host have essentially identical
+text-layout cost (1.481ms and 1.478ms). Holding diagnostic strings fixed raises
+callback cadence, but adding rasterization then changes it only from 115.9 to
+116.7 updates/sec. The redraw controls and their combination do not establish a
+repeatable pacing improvement. Their apparent reductions in layout time across
+successive launches also appear in the repeated unmodified baseline. No policy
+change is retained on this evidence.
+
+This result does not prove these APIs are ineffective for other workloads. It
+establishes that they are insufficient to justify changing this host under the
+tested conditions. It also does not measure displayed-frame timing, GPU work, or
+raster-cache hit rates. The remaining text layout cost is real; neither these
+hints nor eliminating redundant setters removed it. Selection and native scroll
+ownership remain requirements for any further approach. A separate custom
+presentation cache remains deferred, not selected by elimination.
+
+Raw isolated captures are `/private/tmp/pax-native-policy-<label>.json`, with
+labels `baseline-a`, `redraw-a`, `bounds-a`, `combined-a`, `raster-a`, `baseline-b`,
+`all-a`, `fixed-a`, and `fixed-raster-a`. Counter assertions verify the policy
+actually applied in every retained sample. Screenshots of the redraw-only, bounds-only, and rasterization-only runs
+were checked after scrolling. Frozen diagnostic strings are confined to the
+last two temporary comparisons; the canonical example source is untouched.
+
+All temporary policy code and the launch configuration file were removed. The
+restored generated native renderer matches its canonical source byte-for-byte;
+probe hooks are absent. Clean macOS and web release builds passed. The normal
+macOS app was exercised in both scroll directions and left running, and the
+refreshed web preview renders loaded cards. The book build and whitespace check
+pass. Only internal investigation/pain-point documentation changed; no public
+API, native behavior, example source, or baked-program format changed.
+
+A further platform-native option to review is AppKit's NSTextField label path
+for non-editable text. Apple provides selectable multiline labels through
+[wrappingLabelWithString](https://developer.apple.com/documentation/appkit/nstextfield/init(wrappinglabelwithstring:))
+and styled display through attributed strings. This could avoid maintaining a
+full NSTextView/NSScrollView pair for every display label, but performance and
+Pax's complete text semantics are unproven. Wrapping, clipping/overflow, links,
+measurement, field-editor focus/selection, accessibility, and culling would need
+validation. No control substitution or custom snapshot architecture is approved
+or implemented by this investigation.
+
+
+### Shared scroller and native label prototype (2026-09-27)
+
+A Pax Scroller already owns one shared native NSScrollView whose document host
+contains the scene's native leaves. The additional NSScrollViews are created by
+individual selectable Text leaves to host NSTextView; they are not necessary
+for the outer scroller to move its children. The current native Text class also
+eagerly constructs both its static and document representations.
+
+A temporary generated-source prototype places a noneditable NSTextField directly
+inside the existing Text leaf for plain selectable text. The actual scroller,
+native leaf geometry, masks, and culling journal remain unchanged. Editable and
+Markdown content stay on the existing path. This is an experiment, not a new
+public backend choice or a production default. It currently retains the unused
+legacy allocations so its first comparison isolates the attached view hierarchy;
+allocating only the chosen representation is follow-up implementation work if
+the performance result warrants proceeding.
+
+Six focused AppKit checks exercise wrapping, native painting, width-dependent
+remeasurement, unclipped overflow, clipping without ellipsis, selection through
+scale changes, updates while selected, culling while focused and after releasing
+focus, and restoration of the same field instance. A plain paragraph's painted
+bounds also match the existing NSTextView path in the tested fixture. These
+checks do not establish complete Text API parity: runtime representation changes,
+rich content, accessibility behavior, fonts/scripts beyond the fixture, and the
+full compositing matrix still need validation before adopting a new default.
+
+NSTextField includes horizontal text padding even in its borderless label form.
+Use its public frame(forAlignmentRect:) conversion for placement, and the
+corresponding alignmentRect(forFrame:) for culling coverage, rather than a
+hard-coded two-point shift. This accounts for AppKit's reported alignment insets
+and preserves the logical text width used by the existing measurement path.
+
+The temporary benchmark builds as a release app at
+/private/tmp/pax-label-derived/Build/Products/Release/Pax macOS (Release).app.
+It selects the existing path with mode 0 and the label path with mode 16 using
+the prior fresh-launch configuration file. A baseline was captured, but the
+workstation locked before the candidate could be launched. No performance gain
+or presented-frame claim can be made yet; rerun an unlocked baseline/candidate
+comparison before deciding whether to retain the change. Final experiment
+sources and the six-test fixture are saved under /private/tmp/pax-label-* and
+/private/tmp/NativeLabelPrototypeTests.swift. No canonical renderer changes are
+part of this prototype.
+
+Validation: all six prototype checks pass in debug and release; the corrected
+release experiment builds successfully, and `mdbook build pax-docs/book` passes.
+Generated renderer and app-host sources were restored to their canonical versions
+and the temporary test file removed after saving the experiment under /private/tmp.
+The workstation remains locked, so the built candidate has not been launched or
+visually reviewed and the native performance comparison is blocked on unlocking.
+
+
+### Unlocked NSTextField comparison and wheel routing (2026-09-28)
+
+The example authors exactly one Scroller. The process left running during the
+lock was mode 0 of the temporary benchmark, so its labels still used NSTextView
+inside per-label NSScrollViews. The experimental host had also removed the
+macOS hit-test guard that excluded unclipped selectable Text; that exposed the
+pre-existing inner scroll views to wheel events. The visible wheel capture was
+not evidence of authored nested Scrollers or of the NSTextField branch running.
+The benchmark additionally kept resetting the outer scroll position after its
+35-second capture. Its driver now stops changing scroll position after capture,
+and the manual trial below removes both the driver and profiling hooks entirely.
+
+The actual label candidate has one attached NSScrollView for the list. Manual
+wheel input over a label moves the list, including after selecting text. Visual
+inspection found a missing field-editor configuration: entering selection reduced
+the displayed font size. The candidate now supplies the control's font/color/
+alignment defaults as well as its attributed value, and enables attributed text
+handling while keeping editing disabled. The six regression checks now inspect
+the selected field editor's font and its noneditable state as well as selection
+range. They pass in debug and release.
+
+Fresh launches use the same 270-card release cartridge, 900x900-point window,
+4,800-point/second trajectory, and live diagnostic strings. Each comparison
+retains 25 whole one-second windows ending between seconds 5 and 30. The first
+candidate capture preceded the selection fix; the table uses only corrected
+candidate captures. No rebuild or test compilation runs during these captures.
+
+| Configuration | Updates/sec | Gaps over 12.5ms | Text/field layout ms/update | Inner scroll layout ms/update | Attached scroll views |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Baseline b | 106.69 | 19.49% | 1.478 | 0.614 | 19–20 |
+| Corrected field c | 117.66 | 3.05% | 0.042 | 0 | 1 |
+| Baseline c | 107.60 | 15.39% | 1.402 | 0.584 | 18–20 |
+| Corrected field d | 116.66 | 4.47% | 0.040 | 0 | 1 |
+
+The runs retain 17–19 attached labels and two startup native reconciliations.
+Geometry size writes remain approximately 13.7–13.8 per update. The result
+supports removing the per-label document hierarchy from ordinary labels. These
+are callback cadence and instrumented layout measurements, not presented FPS;
+layout categories are inclusive and must not be added. Workstation load remains
+a limitation. The candidate still constructs unused legacy controls, so these
+results do not measure potential allocation or memory savings.
+
+Raw captures are /private/tmp/pax-native-policy-label-{baseline-b,baseline-c,
+field-c,field-d}.json; /private/tmp/pax-label-summary.py reproduces the table.
+The manual candidate is /private/tmp/pax-label-manual/Pax macOS (Release).app,
+with source saved as /private/tmp/pax-label-manual-Rendering.swift. It retains
+the existing native scroll owner and uses AppKit labels directly inside Text
+leaves. This remains an experiment, pending production integration and the
+broader Text compatibility work identified above; the canonical renderer is
+not switched to the candidate in this investigation.
+
+The manual release candidate also passes all six compatibility checks after
+removing profiling hooks. It is now running. A visual check confirms that selecting
+"anticipation" preserves its font size and position; scrolling with the pointer
+over that selected word moves the entire list. The generated renderer and app
+host were restored to canonical source afterward, the temporary generated test
+removed, and the benchmark configuration deleted. The saved experiment sources
+and standalone trial app remain available under /private/tmp. Documentation
+validation: `mdbook build pax-docs/book` and `git diff --check` pass. No human-facing
+API article changes are required until the candidate is adopted in the library.
+
+### Production macOS label integration (2026-09-28)
+
+Adopted the successful label prototype in the canonical Swift renderer. The text
+host retains its identity across configuration changes and lazily owns exactly
+one representation: NSTextField for ordinary selectable, read-only text; the
+existing NSTextView document path for editing or selectable Markdown; CATextLayer
+for non-selectable, non-editable text. No new public backend setting, native
+scroll owner, rasterizer, or manifest/baked-program field is introduced. The
+UIKit branch is unchanged.
+
+The native label uses AppKit alignment insets and a window-owned field editor.
+Selection/focus pin a cold label in the existing culling machinery. Upgrading a
+selected label to the editor transfers its selection; optional downgrades defer
+while the document has focus/selection. Read-only document fallbacks forward
+wheel events to the parent responder, while editable documents retain their
+local scrolling. Text measurement caches include the layout constraint and
+resolved font; macOS content invalidation also includes alignment and font-loader
+notifications. The host allocates no unused document view or private scroll view
+for ordinary labels.
+
+Twenty Swift tests pass in debug and release, covering the existing culling,
+geometry, incremental updates, and snapshot mask tests plus label wrapping,
+clipping, overflow, painted bounds, field-editor typography, selection through
+transforms/content updates, backend transitions, Markdown link attributes,
+editing interrupts, wheel forwarding, Unicode strings, style/alignment changes,
+autosizing, and late-font invalidation. Snapshot masking is exercised with both
+label and document backends. These are focused compatibility checks, not a claim
+of complete typography, input-method, or screen-reader coverage.
+
+The canonical release example builds via pax-cli for macOS. Manual verification
+of the normal build confirms that selecting “anticipation” preserves its font
+size and position and wheel input over the selected word scrolls the entire
+list; further paging with the pointer over text also moves the list. The human
+article `text-fonts-images.md` documents automatic macOS representation choice,
+selection with and without clipping, and read-only versus editable scrolling.
+
+As requested, sent the iOS findings first to the existing PAX-1000 task as an
+informational memo, with that task retaining authority over iOS priorities and
+implementation. The observed UIKit code already disables UITextView scrolling
+and has no additional per-label UIScrollView wrapper. Potential eager UITextView
+allocation and interactive-path validation are suggestions, not measured iOS
+bottlenecks or assigned work.
+
+Production pacing check uses the same temporary 900×900-point, 4,800-point/second,
+35-second driver and 25 one-second windows from elapsed seconds 5–30 as the
+prototype comparison. An initial integrated run measured 82.30 callbacks/second,
+36.21% callback gaps over 12.5ms, and 6.80ms mean render-stage time. Substantial
+background activity was present, but that observation alone does not establish
+its cause. A freshly rebuilt saved-prototype control then measured 117.76
+callbacks/second, 2.80% long gaps, and 2.79ms render time. Immediately rerunning
+the unchanged integrated binary measured 117.81 callbacks/second, 3.25% long
+gaps, and 2.60ms render time. The initial slowdown did not reproduce; the matched
+control/repeat shows no repeatable integration regression in this workload.
+These are callback timings, not presented FPS, and the gap percentages remain
+sensitive to workstation load.
+
+The integrated repeat spent 0.041ms per callback in NSTextField layout, with no
+document-text or inner-scroll layout. It constructed 814 native labels and zero
+document text views; 18–19 labels and just the outer NSScrollView were attached
+while scrolling. It retained two startup reconciliations and about 13.73 geometry
+size writes per callback. This establishes removal of unused document allocation,
+not a measured byte-level memory reduction. Raw results are saved under
+`/private/tmp/pax-native-policy-{production-first,prototype-control,production}.json`.
+Generated renderer/app-host sources were restored after the temporary probes;
+the normal CLI-built release app has no benchmark driver. Docs and diff checks
+pass. The macOS code and documentation are ready for Zack's checkpoint; iOS
+implementation remains with PAX-1000's assessment.
+
+### Manual macOS compatibility fixture (2026-09-28)
+
+Added `examples/src/native-text-compatibility` with a plain selectable label,
+Markdown, two bound editable Text nodes, and 80 distant labels in one Scroller.
+Its README records repeatable manual steps and distinguishes verified results
+from remaining manual checks. Keyboard selection/copy/paste (including accented
+text and emoji), Markdown appearance, parent wheel forwarding, and actual
+Japanese conversion/commit/cancel were exercised. Marked text survived scrolling
+the containing list away and back without losing focus.
+
+The IME pass found an empty-editor sizing defect: committed-content measurement
+shrank the native editing viewport to default empty-string metrics, clipping
+preedit glyphs before commitment. The macOS leaf now uses its font's line height
+for empty measurement and preserves the declared editing area. A new native
+test verifies marked-text preservation and the editing viewport through a size
+change; all 21 Swift tests pass in debug and release. Both the fixture and the
+normal viewport-proximity app build in release with the fix. Post-fix visual IME
+confirmation remains pending because input-source switching could not be
+reliably repeated through automation after relaunch.
+
+Enabling actual system VoiceOver restored all 80 labels and the end marker to
+the accessibility tree, including while scrolling. Disabling it resumed culling.
+VoiceOver cursor navigation, reading order, and spoken output were not verified:
+inspection of VoiceOver's own UI stalled desktop automation. This is a lifecycle
+check, not complete screen-reader certification. Temporary keyboard/input-method,
+Dictation-language, and VoiceOver settings were restored. No iOS code, manifest,
+baked-program format, public API, or scroll ownership changed in this pass.
+
+### Integration with main (2026-09-28)
+
+The rebase preserves main's group-opacity scopes while consuming shared geometry
+records, safe-area support, synchronous UIKit scene publication, immediate native
+text layers, and compact alpha-only native masks. Scene publication now exposes
+the updated change journal synchronously; a regression checks both generations
+and changed IDs. The lazy macOS static-text backend uses the same immediate layer
+as UIKit. Snapshot compositing required an adaptation: treating the alpha-only
+mask as DeviceGray coverage before drawing preserves fully hidden pixels and
+multiplies partial coverage by source alpha without expanding the mask buffer.
+
+Validation passes: 41 Swift tests in debug and release, the final focused static
+layer assertion, 194 runtime unit tests, 27 runtime integration tests (one optional
+benchmark ignored), 67 standard-library tests, and four rich/baked program tests.
+The merged Rendering package builds for iOS Simulator. Generated API docs match
+the merged sources, and mdBook builds. These checks do not replace the outstanding
+manual IME and VoiceOver checks recorded above.

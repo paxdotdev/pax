@@ -205,6 +205,16 @@ your checks, and make sure the files you ship or host permit that use.
 
 Text is selectable by default and non-editable by default. `selectable=false`
 is useful for decorative labels that should not start a selection gesture.
+On macOS, ordinary selectable text uses a native label; editing and selectable
+Markdown use the native document text view. Pax chooses the representation
+automatically, and selection works with either `clip=true` or `clip=false`.
+Read-only text forwards wheel scrolling to its containing Scroller, including
+when the text is selected; `clip=true` clips the label without giving it an
+independent scroll position. Editable text can scroll within its editing area.
+An empty macOS editor retains its declared editing height, so the insertion
+point and input-method composition have room before any text is committed.
+Give an editor enough height for its font; `clip=true` still clips to its bounds.
+
 Selection is target-dependent: the current iOS/iPadOS path uses an interactive
 selection view for clipped text, while ordinary unclipped, non-editable text
 uses its static rendering path. Test selection on the device rather than

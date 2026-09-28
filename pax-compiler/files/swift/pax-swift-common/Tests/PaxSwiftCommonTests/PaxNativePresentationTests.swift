@@ -1,5 +1,6 @@
 import XCTest
 import QuartzCore
+import Messages
 @testable import Rendering
 
 final class PaxNativePresentationTests: XCTestCase {
@@ -29,17 +30,22 @@ final class PaxNativePresentationTests: XCTestCase {
     func testNativeScenePublicationIsSynchronousAndSeesNewGeneration() {
         let scene = NativeSceneInvalidation()
         var generations: [UInt64] = []
+        var changes: [NativeSceneChangeJournal.Changes] = []
         let observer = NotificationCenter.default.addObserver(
             forName: NativeSceneInvalidation.didInvalidate, object: nil, queue: nil
         ) { notification in
             guard let published = notification.object as? NativeSceneInvalidation,
                   published === scene else { return }
+            changes.append(published.changes(since: generations.last))
             generations.append(published.generation)
         }
         defer { NotificationCenter.default.removeObserver(observer) }
         scene.invalidate()
         XCTAssertEqual(generations, [1])
-        scene.invalidate()
+        scene.invalidate(ids: [42], rebuild: false)
         XCTAssertEqual(generations, [1, 2])
+        XCTAssertTrue(changes[0].rebuild)
+        XCTAssertFalse(changes[1].rebuild)
+        XCTAssertEqual(changes[1].ids, [42])
     }
 }
