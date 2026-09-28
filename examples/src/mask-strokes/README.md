@@ -35,7 +35,9 @@ already used by the website's Handwriter:
 </Mask>
 ```
 
-This is not direct gradient stroke paint; that API remains a separate proposal.
+Direct gradient stroke paint is described in the separate
+[Paint and layer specification](../../../pax-docs/book/src/design/PAX-1008-paint-fill-stroke-layers.md)
+and is not implemented by this fixture yet.
 Source-side Frame/Mask clips and native content are not supported by the current
 paint collector. The Scrollers in this fixture contain the masked content;
 they are not part of the offscreen source trees.

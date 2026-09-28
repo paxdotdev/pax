@@ -1,10 +1,12 @@
 # PAX-1008 — Component mask sources and stroke paint
 
-Design and implementation checkpoint, September 27, 2026. Gradient paint and
-shared capture APIs below are proposals, not shipped APIs. Zack approved normal
-live component-tree lifecycle for mask sources, while excluding native source
-capture. Implementation worktree: `codex/pax-1008-mask-strokes`, starting at
-website checkpoint `0b5c68be1`.
+Design and implementation checkpoint, September 27, 2026, with the stroke
+proposal superseded on September 28 by the
+[Paint and layer specification](PAX-1008-paint-fill-stroke-layers.md).
+The source-lifecycle findings below record the original diagnosis and fix.
+Zack approved normal live component-tree lifecycle for mask sources, while
+excluding native source capture. Implementation worktree:
+`codex/pax-1008-mask-strokes`, starting at website checkpoint `0b5c68be1`.
 
 ## Findings and the missing initialization
 
@@ -71,9 +73,11 @@ unmount its sidecar; a real source lifetime needs balanced teardown.
 2. **Subtree composition:** turn supported initialized GPU content into coverage
    or alpha, with correct transforms, clips, internal opacity, caching and
    ordering. This is where group opacity is relevant.
-3. **Stroke paint:** accept a Fill-like paint at the public Stroke API and carry
-   it into existing renderer paint buffers. This does not require a mask or a
-   new subtree capture pass.
+3. **Paint and appearance layers:** rename the paint enum to Paint, introduce
+   Fill/Stroke layers and ordered stacks, and share paint semantics across
+   them. The September 28 specification includes per-layer material and opacity
+   plus complete-element opacity. General source-subtree capture remains a
+   separate capability.
 
 Zack explicitly excludes native Text and controls as sources unless/until those
 have a GPU rendering implementation. Do not capture DOM/UIKit/AppKit content or
@@ -170,85 +174,23 @@ the landed group-opacity feature in this worktree.
 
 ## Gradient stroke proposal
 
-The low-level `pax_gpu::Stroke` already has `fill`. Retained stroke geometry is
-keyed separately from paint, and material/paint updates have an existing dirty
-buffer path. High-level GPU adapters currently force `Fill::Solid(stroke.color)`;
-Piet has a reusable `fill_to_piet_brush`. No new general paint shader is implied.
+Superseded by [Paint, fill layers, and stroke layers](PAX-1008-paint-fill-stroke-layers.md).
+The agreed direction uses one Paint enum and separate Fill/Stroke layer types,
+each with paint, material, and opacity. Vector elements expose ordered stacks
+under the existing `fill` and `stroke` names, with scalar and mixed-list
+conveniences. All strokes are above all fills. The optional-paint/color-fallback
+proposal is retired; `stroke.color` migrates to `stroke.paint` on each layer.
 
-Recommended authoring addition, subject to review:
-
-```pax
-stroke={
-    paint: @gradient {
-        linear: { start: [0%, 0%] end: [100%, 0%] }
-        0%: rgb(0, 220, 235)
-        50%: rgb(245, 0, 180)
-        100%: rgb(250, 225, 0)
-    }
-    width: 5px
-    cap: StrokeCap::Round
-}
-```
-
-- Add optional `paint: Property<Option<Fill>>`; absent means `Solid(color)`.
-  Explicit paint wins, including transparent paint. Color remains a compatible
-  shorthand/fallback and must not accidentally tint or multiply the gradient.
-- Preserve existing Pax `stroke={color: ..., width: ...}` and color coercion.
-  Adding a Rust struct field requires `..Default::default()` or a new explicit
-  field in exhaustive Rust literals; call that migration out honestly.
-- Prefer `paint` over overloading Color into a different type. `fill` would align
-  with the low-level name but can be confused with the shape's interior fill.
-- Resolve all paint coordinates against the complete local centerline bounds,
-  before draw-range trimming; smooth geometry consistently. On a zero-extent
-  axis expand symmetrically by stroke width (with a finite minimum). Open paths
-  therefore have a stable domain. A spatial gradient is not an arclength rainbow.
-- Keep percent coordinates attached to local geometry through transforms. Paint
-  animation must not regenerate Handwriter glyphs or reset its writing range.
-
-Required parity work goes beyond swapping the solid adapter:
-
-1. Coercion, ToPaxValue, serde defaulting, equality/hash/interpolation, static
-   type descriptors and runtime structured-property adapters. Fix the observed
-   missing cap/join descriptor entries alongside the new field. Audit rich and
-   baked cartridge construction with actual debug/release execution.
-2. Every Stroke consumer: Path, Handwriter, Line, Rectangle and Ellipse; visible
-   paint, coverage/occlusion alpha estimates, and alpha-mask extraction.
-3. Piet currently trims the path and only then derives its brush bounds. Use a
-   fixed brush resolved against the complete path instead. Alpha extraction
-   currently converts stroke to an outline and derives gradient bounds from that
-   outline; preserve the original paint domain independently of coverage.
-4. Existing radial Fill semantics differ between visible GPU, alpha GPU and
-   Piet (documented in Drawing). Reusing those three conversions blindly would
-   introduce mismatched radial strokes. Settle one stroke contract and tests;
-   do not silently change existing Fill radius semantics. Linear paint can ship
-   separately if radial consistency requires a broader migration decision.
-5. Measure geometry cache/tessellation and GPU resource churn while changing only
-   paint stops. The visible retained stroke path separates these concerns, but
-   current alpha collection tessellates outlined paths before its texture-cache
-   check. Do not promise mask-geometry reuse until measured or improved.
+Main already includes shared radial semantics and Paint-mixture behavior under
+the old Fill name. Reuse that base for full solid/linear/radial/interpolated
+paint parity. The older branch's radial discrepancies and stub interpolation
+are not a reason to introduce another stroke-specific contract.
 
 ## Acceptance sequence
 
-1. Source lifetime is approved. Integrate the landed base under Zack's direction
-   before implementing shared capture B. Confirm optional paint syntax and radial
-   scope. No website composition changes in this task.
-2. Implement lifecycle tests for mount/template generation, reactive updates,
-   nested components/slots/if/keyed repeats, remount/reload and full disposal.
-   Assert zero native create/update/delete patches or input/visibility
-   registrations from unsupported source leaves.
-3. Implement source composition and stroke paint in independently reviewable
-   steps. Preserve geometric mask behavior unless separately approved; today a
-   nonempty Path draw range contributes its complete geometric stroke outline,
-   whereas alpha masks use the trimmed stroke.
-4. Verify pixels for CMY-through-Handwriter, gradients directly on Handwriter,
-   caps/joins, zero-area/open paths, transforms, partial alpha, nested clips and
-   group opacity. Exercise pause/resume, resize, removal, hot reload and cached
-   stationary states. Compare desktop/mobile web debug and baked release.
-5. Run focused runtime/API/descriptor/baking tests; inspect GPU churn counters;
-   test Piet where available and state native target limits. Update canonical
-   Drawing and Compositing articles, public comments/generated references,
-   example sources, bundled sources and pain points. Build the book and finish
-   with formatting and `git diff --check`.
-
-Return a small reusable fixture and website integration recipe, not an automatic
-merge or a claim that the current website already has CMY handwriting.
+The source-lifecycle and Scroller work is recorded above and must remain covered
+by its existing regressions. The next feature's implementation sequence,
+migration, documentation, and acceptance matrix are in the
+[layer specification](PAX-1008-paint-fill-stroke-layers.md#12-acceptance-criteria).
+General source-subtree capture B remains a separate follow-up after base
+integration. Website integration acceptance is still outstanding.
