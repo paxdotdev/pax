@@ -1,0 +1,265 @@
+<Scroller width=100% height=100% autosize=true>
+    <Stacker x=50% anchor_x=50% width={(self.panel_width)px} autosize=true gutter=20px>
+        <Group width=100% height=24px/>
+        <Text width=100% height=20px text="PAX / MATERIAL STUDIES / 01" style={
+            font: "Arial"
+            font_size: 12px
+            fill: rgb(130, 153, 180)
+        }/>
+        <Text width=100% height=60px text="Color, in motion." style={
+            font: "Arial"
+            font_size: 38px
+            fill: WHITE
+        }/>
+        <Text width=100% height=56px
+            text="Nine anchors. Independent positions. One continuous field. Move the center without changing its neighbors."
+            style={
+                font: "Arial"
+                font_size: 16px
+                fill: rgb(175, 188, 207)
+            }/>
+        <Group width=100% height=42px>
+            <Button width=30% height=40px label={self.playing ? "Pause" : "Resume"} @button_click=toggle_playing/>
+            <Button x=34% anchor_x=0% width=31% height=40px label={self.overlay ? "Hide anchors" : "Show anchors"}
+                @button_click=toggle_overlay/>
+            <Button x=69% anchor_x=0% width=31% height=40px label={self.compact ? "Expand" : "Narrow"} @button_click=toggle_size/>
+        </Group>
+        <Text width=100% height=22px text="01 — MORPH / NESTED POSITION + COLOR BINDINGS" style={
+            font: "Arial"
+            font_size: 12px
+            fill: rgb(175, 188, 207)
+        }/>
+        <Group width=100% height={(self.field_height)px}>
+            if self.overlay {
+                <Ellipse x={self.center_x} y={self.center_y} anchor=50% width=12px height=12px fill=WHITE stroke={
+                    paint: BLACK
+                    width: 2px
+                }/>
+                <Ellipse x=0% y=0% anchor=0% width=8px height=8px fill=WHITE/>
+                <Ellipse x=50% y=0% anchor_x=50% width=8px height=8px fill=WHITE/>
+                <Ellipse x=100% y=0% anchor_x=100% width=8px height=8px fill=WHITE/>
+                <Ellipse x=0% y=50% anchor_y=50% width=8px height=8px fill=WHITE/>
+                <Ellipse x=100% y=50% anchor_x=100% anchor_y=50% width=8px height=8px fill=WHITE/>
+                <Ellipse x=0% y=100% anchor_y=100% width=8px height=8px fill=WHITE/>
+                <Ellipse x=50% y=100% anchor_x=50% anchor_y=100% width=8px height=8px fill=WHITE/>
+                <Ellipse x=100% y=100% anchor=100% width=8px height=8px fill=WHITE/>
+            }
+            <Rectangle width=100% height=100% fill={
+                paint: @gradient {
+                    mesh: {
+                        rows: [
+                            [
+                                {
+                                    position: [0%, 0%]
+                                    color: CYAN
+                                },
+                                {
+                                    position: [50%, 0%]
+                                    color: FUCHSIA
+                                },
+                                {
+                                    position: [100%, 0%]
+                                    color: YELLOW
+                                }
+                            ],
+                            [
+                                {
+                                    position: [0%, 50%]
+                                    color: FUCHSIA
+                                },
+                                {
+                                    position: [{self.center_x}, {self.center_y}]
+                                    color: {self.accent}
+                                },
+                                {
+                                    position: [100%, 50%]
+                                    color: CYAN
+                                }
+                            ],
+                            [
+                                {
+                                    position: [0%, 100%]
+                                    color: YELLOW
+                                },
+                                {
+                                    position: [50%, 100%]
+                                    color: CYAN
+                                },
+                                {
+                                    position: [100%, 100%]
+                                    color: FUCHSIA
+                                }
+                            ]
+                        ],
+                    },
+                }
+                material: {Material::unlit()}
+            }/>
+        </Group>
+        <Text width=100% height=22px text="02 — CONTINUOUS FIELD / HANDWRITER MASK" style={
+            font: "Arial"
+            font_size: 12px
+            fill: rgb(175, 188, 207)
+        }/>
+        <Mask width=100% height={(self.word_height)px} alpha=true>
+            <Rectangle width=100% height=100% fill={
+                paint: @gradient {
+                    mesh: {
+                        rows: {self.rows},
+                    },
+                }
+                material: {Material::unlit()}
+            }/>
+            <Handwriter width=100% height=100% text="creative" font=HandwriterFont::EMSLeague smoothing=PathSmoothing::Strong
+                draw_end={self.progress} stroke={
+                    paint: WHITE
+                    width: 6px
+                }/>
+        </Mask>
+        <Text width=100% height=42px
+            text="The word ‘creative’ reveals a single field. Its writing progress and paint coordinates stay independent."
+            style={
+                font: "Arial"
+                font_size: 14px
+                fill: rgb(175, 188, 207)
+            }/>
+        <Text width=100% height=42px text="03 — DIRECT STROKE / STABLE DOMAIN THROUGH REVEAL" style={
+            font: "Arial"
+            font_size: 12px
+            fill: rgb(175, 188, 207)
+        }/>
+        <Path width=100% height=140px draw_end={self.progress} fill=TRANSPARENT stroke={
+            paint: @gradient {
+                mesh: {
+                    rows: [
+                        [
+                            {
+                                position: [-10%, -20%]
+                                color: CYAN
+                            },
+                            {
+                                position: [50%, -20%]
+                                color: FUCHSIA
+                            },
+                            {
+                                position: [110%, -20%]
+                                color: YELLOW
+                            }
+                        ],
+                        [
+                            {
+                                position: [-10%, 50%]
+                                color: FUCHSIA
+                            },
+                            {
+                                position: [{self.center_x}, {self.center_y}]
+                                color: {self.accent}
+                            },
+                            {
+                                position: [110%, 50%]
+                                color: CYAN
+                            }
+                        ],
+                        [
+                            {
+                                position: [-10%, 120%]
+                                color: YELLOW
+                            },
+                            {
+                                position: [50%, 120%]
+                                color: CYAN
+                            },
+                            {
+                                position: [110%, 120%]
+                                color: FUCHSIA
+                            }
+                        ]
+                    ],
+                },
+            }
+            width: 14px
+            cap: StrokeCap::Round
+            material: {Material::unlit()}
+        }
+            elements=[
+                PathElement::Point(0%, 70%),
+                PathElement::Cubic(20%, 0%, 30%, 100%),
+                PathElement::Point(50%, 50%),
+                PathElement::Cubic(70%, 0%, 80%, 100%),
+                PathElement::Point(100%, 30%)
+            ]/>
+        <Text width=100% height=22px text="04 — STATIC / TRANSLUCENT ANCHORS" style={
+            font: "Arial"
+            font_size: 12px
+            fill: rgb(175, 188, 207)
+        }/>
+        <Group width=100% height=180px opacity=80%>
+            <Rectangle width=100% height=100% fill={
+                paint: @gradient {
+                    mesh: {
+                        rows: [
+                            [
+                                {
+                                    position: [0%, 0%]
+                                    color: rgba(0, 255, 255, 20%)
+                                },
+                                {
+                                    position: [50%, 0%]
+                                    color: FUCHSIA
+                                },
+                                {
+                                    position: [100%, 0%]
+                                    color: YELLOW
+                                }
+                            ],
+                            [
+                                {
+                                    position: [0%, 50%]
+                                    color: CYAN
+                                },
+                                {
+                                    position: [65%, 35%]
+                                    color: rgba(255, 0, 255, 35%)
+                                },
+                                {
+                                    position: [100%, 50%]
+                                    color: CYAN
+                                }
+                            ],
+                            [
+                                {
+                                    position: [0%, 100%]
+                                    color: YELLOW
+                                },
+                                {
+                                    position: [50%, 100%]
+                                    color: CYAN
+                                },
+                                {
+                                    position: [100%, 100%]
+                                    color: rgba(255, 0, 255, 20%)
+                                }
+                            ]
+                        ],
+                    },
+                }
+                material: {Material::unlit()}
+            }/>
+            <Rectangle width=100% height=100% fill=rgb(32, 40, 54)/>
+        </Group>
+        <Text width=100% height=56px
+            text="WGPU mesh paint • Rows encode connectivity, not alignment. Pause freezes the field; Narrow exercises responsive paint bounds."
+            style={
+                font: "Arial"
+                font_size: 13px
+                fill: rgb(130, 153, 180)
+            }/>
+        <Group width=100% height=24px/>
+    </Stacker>
+</Scroller>
+<Rectangle width=100% height=100% fill=rgb(11, 16, 25)/>
+
+@settings {
+    @mount: mount
+    @pre_render: tick
+}

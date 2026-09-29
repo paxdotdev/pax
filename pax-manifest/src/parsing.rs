@@ -1009,6 +1009,7 @@ fn derive_gradient_shape_definition(gradient_shape_block: Pair<Rule>) -> Gradien
     let mut start = None;
     let mut end = None;
     let mut radius = None;
+    let mut rows = None;
 
     for setting in shape_settings.into_inner() {
         match setting.as_rule() {
@@ -1017,6 +1018,10 @@ fn derive_gradient_shape_definition(gradient_shape_block: Pair<Rule>) -> Gradien
                 let key = setting_pairs.next().unwrap().into_inner().next().unwrap();
                 let value = parse_value_definition(setting_pairs.next().unwrap());
                 match key.as_str() {
+                    "rows" => {
+                        assert!(rows.is_none(), "mesh gradients accept `rows` only once");
+                        rows = Some(Box::new(value));
+                    }
                     "start" => start = Some(Box::new(value)),
                     "end" => end = Some(Box::new(value)),
                     "radius" => radius = Some(Box::new(value)),
@@ -1036,17 +1041,30 @@ fn derive_gradient_shape_definition(gradient_shape_block: Pair<Rule>) -> Gradien
     }
 
     match shape_key.as_str() {
+        "mesh" => {
+            assert!(
+                start.is_none() && end.is_none() && radius.is_none(),
+                "mesh gradients accept only `rows`"
+            );
+            let rows = rows.expect("mesh gradients require `rows`");
+            validate_static_mesh_rows(&rows);
+            GradientShapeDefinition::Mesh { rows }
+        }
         "linear" => {
+            assert!(rows.is_none(), "linear gradients do not support `rows`");
             if radius.is_some() {
                 panic!("linear gradients do not support `radius`");
             }
             GradientShapeDefinition::Linear { start, end }
         }
-        "radial" => GradientShapeDefinition::Radial {
-            start: start.expect("radial gradients require `start`"),
-            end: end.expect("radial gradients require `end`"),
-            radius: radius.expect("radial gradients require `radius`"),
-        },
+        "radial" => {
+            assert!(rows.is_none(), "radial gradients do not support `rows`");
+            GradientShapeDefinition::Radial {
+                start: start.expect("radial gradients require `start`"),
+                end: end.expect("radial gradients require `end`"),
+                radius: radius.expect("radial gradients require `radius`"),
+            }
+        }
         _ => unreachable!("Unexpected gradient shape key: {}", shape_key.as_str()),
     }
 }
@@ -1074,7 +1092,9 @@ fn derive_gradient_definition(gradient_inline_value: Pair<Rule>) -> GradientDefi
         }
     }
 
-    if stop_count < 2 {
+    if matches!(shape, Some(GradientShapeDefinition::Mesh { .. })) {
+        assert_eq!(stop_count, 0, "mesh gradients do not accept stops");
+    } else if stop_count < 2 {
         panic!("@gradient requires at least two stops");
     }
 
@@ -1082,6 +1102,55 @@ fn derive_gradient_definition(gradient_inline_value: Pair<Rule>) -> GradientDefi
         shape: shape.unwrap_or_default(),
         elements,
     }
+}
+
+fn validate_static_mesh_rows(rows: &ValueDefinition) {
+    if let ValueDefinition::LiteralValue(value) = rows {
+        let mesh = pax_runtime_api::MeshGradient::try_coerce(PaxValue::Object(vec![(
+            "rows".into(),
+            value.clone(),
+        )]))
+        .expect("invalid literal mesh gradient");
+        mesh.validate().expect("invalid literal mesh gradient");
+    }
+    // Validate visible list dimensions even when individual coordinates/colors are reactive.
+    let lengths = match rows {
+        ValueDefinition::List(rows) => {
+            assert!(
+                (2..=8).contains(&rows.len()),
+                "mesh gradients require 2–8 rows"
+            );
+            rows.iter()
+                .map(|row| match row {
+                    ValueDefinition::List(points) => Some(points.len()),
+                    ValueDefinition::LiteralValue(PaxValue::Vec(points)) => Some(points.len()),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+        }
+        ValueDefinition::LiteralValue(PaxValue::Vec(rows)) => {
+            assert!(
+                (2..=8).contains(&rows.len()),
+                "mesh gradients require 2–8 rows"
+            );
+            rows.iter()
+                .map(|row| match row {
+                    PaxValue::Vec(points) => Some(points.len()),
+                    _ => None,
+                })
+                .collect()
+        }
+        _ => return,
+    };
+    let known: Vec<_> = lengths.into_iter().flatten().collect();
+    assert!(
+        known.iter().all(|n| (2..=8).contains(n)),
+        "mesh rows require 2–8 anchors"
+    );
+    assert!(
+        known.windows(2).all(|n| n[0] == n[1]),
+        "mesh rows must have equal length"
+    );
 }
 
 fn parse_timeline_marker(marker: Pair<Rule>) -> TimelineMarker {

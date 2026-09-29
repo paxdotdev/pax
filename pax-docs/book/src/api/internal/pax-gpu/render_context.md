@@ -91,6 +91,26 @@ Type: `bool`
 Resource churn counters for renderer profiling.
 
 #### Properties
+##### `mesh_texture_allocations`
+Type: `u64`
+
+##### `mesh_texture_bytes`
+Type: `u64`
+
+Bytes allocated for mesh textures during this sample (not current residency).
+
+##### `mesh_coefficient_upload_bytes`
+Type: `u64`
+
+##### `mesh_raster_passes`
+Type: `u64`
+
+##### `mesh_cache_hits`
+Type: `u64`
+
+##### `mesh_topology_allocations`
+Type: `u64`
+
 ##### `flushes`
 Type: `u64`
 
@@ -376,6 +396,10 @@ Return and reset accumulated resource churn counters.
 Fill style for a tessellated vector path.
 
 #### Variants
+##### `Mesh` { `rows`: `Vec`<`Vec`<([`f32`; 2], [`Color`](../../../api/pax-runtime-api/color.md#color))>>, `pos`: [`Point2D`](../../../api/internal/pax-gpu/index.md#point2d), `main_axis`: [`Vector2D`](../../../api/internal/pax-gpu/index.md#vector2d), `off_axis`: [`Vector2D`](../../../api/internal/pax-gpu/index.md#vector2d) }
+Row-connected mesh in normalized paint coordinates. The axes map that domain to scene
+coordinates; row order fixes connectivity independently of each anchor's x/y position.
+
 ##### `Blend`(`Vec`<([`Fill`](../../../api/pax-runtime-api/drawing.md#fill), `f32`)>)
 Weighted premultiplied paint mixture, sampled before compositing.
 

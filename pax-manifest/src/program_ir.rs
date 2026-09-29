@@ -13,7 +13,7 @@ use crate::{
 };
 
 const MAGIC: &[u8; 8] = b"PAXP\x00IR\x00";
-const VERSION: u8 = 4;
+const VERSION: u8 = 5;
 
 /// Runtime-facing semantic program model derived from a rich `PaxManifest`.
 ///
@@ -333,6 +333,9 @@ fn sanitize_gradient(definition: &GradientDefinition) -> GradientDefinition {
 
 fn sanitize_gradient_shape(shape: &GradientShapeDefinition) -> GradientShapeDefinition {
     match shape {
+        GradientShapeDefinition::Mesh { rows } => GradientShapeDefinition::Mesh {
+            rows: Box::new(sanitize_value_definition(rows)),
+        },
         GradientShapeDefinition::Linear { start, end } => GradientShapeDefinition::Linear {
             start: start
                 .as_ref()

@@ -242,6 +242,8 @@ pub enum Paint {
     /// nonnegative, and sum to one. Use [`Paint::blend`] to normalize weights,
     /// flatten nested mixtures, and combine repeated endpoints.
     Blend(Vec<(Paint, f64)>),
+    /// A row-connected bicubic field with independently positioned colored anchors.
+    MeshGradient(MeshGradient),
 }
 
 impl From<Color> for Paint {
@@ -277,6 +279,10 @@ impl Hash for Paint {
                     fill.hash(state);
                     weight.to_bits().hash(state);
                 }
+            }
+            Paint::MeshGradient(mesh) => {
+                state.write_u8(4);
+                mesh.hash(state);
             }
         }
     }
@@ -806,6 +812,125 @@ pub struct LinearGradient {
     pub stops: Vec<GradientStop>,
 }
 
+/// A colored anchor in a [`MeshGradient`]. Position uses ordinary pixels, percentages,
+/// or combined units, relative to the complete consumer geometry's paint bounds.
+/// Rows describe connectivity; anchors in a row may have different y coordinates.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Hash)]
+#[serde(crate = "crate::serde")]
+pub struct MeshPoint {
+    /// Local x/y coordinates relative to the complete paint bounds.
+    pub position: (Size, Size),
+    /// Anchor color, including alpha.
+    pub color: Color,
+}
+
+impl Interpolatable for MeshPoint {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        Self {
+            position: self.position.interpolate(&other.position, t),
+            color: self.color.interpolate(&other.color, t),
+        }
+    }
+}
+
+/// Smooth mesh paint with 2–8 equally sized rows, each containing 2–8 anchors.
+/// Automatic shared Bézier controls interpolate the anchors and their premultiplied
+/// encoded-sRGB colors. Outside the covered mesh the paint is transparent. Folded
+/// patches replace earlier patches in row-major order. Supported by the WGPU renderer.
+/// Animate positions/colors to morph; whole [`Paint`] transitions remain crossfades.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Hash)]
+#[serde(crate = "crate::serde")]
+pub struct MeshGradient {
+    /// A rectangular lattice; adjacent entries and rows define shared patch edges.
+    pub rows: Vec<Vec<MeshPoint>>,
+}
+
+impl Interpolatable for MeshGradient {}
+
+impl MeshGradient {
+    /// Checks connectivity and finite inputs. An invalid mesh paints nothing; it is never truncated.
+    pub fn validate(&self) -> Result<(), String> {
+        let width = self.rows.first().map_or(0, Vec::len);
+        if !(2..=8).contains(&self.rows.len())
+            || !(2..=8).contains(&width)
+            || self.rows.iter().any(|row| row.len() != width)
+        {
+            return Err("mesh gradients require 2–8 equal-length rows of 2–8 anchors".into());
+        }
+        let finite_size = |size: &Size| match size {
+            Size::Pixels(v) | Size::Percent(v) => v.to_float().is_finite(),
+            Size::Combined(px, percent) => {
+                px.to_float().is_finite() && percent.to_float().is_finite()
+            }
+        };
+        if self.rows.iter().flatten().any(|p| {
+            !finite_size(&p.position.0)
+                || !finite_size(&p.position.1)
+                || p.color.to_rgba_0_1().iter().any(|c| !c.is_finite())
+        }) {
+            return Err("mesh gradient positions and colors must be finite".into());
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod mesh_value_tests {
+    use super::*;
+
+    #[test]
+    fn mesh_values_roundtrip_and_opacity_scales_the_sampled_field() {
+        let point = MeshPoint {
+            position: (
+                Size::Combined(5.into(), 40.into()),
+                Size::Percent(70.into()),
+            ),
+            color: Color::CYAN,
+        };
+        let mesh = MeshGradient {
+            rows: vec![vec![point.clone(); 2]; 2],
+        };
+        assert!(mesh.validate().is_ok());
+        let paint = Paint::MeshGradient(mesh.clone());
+        assert_eq!(
+            Paint::try_coerce(paint.clone().to_pax_value()).unwrap(),
+            paint
+        );
+        assert_eq!(
+            MeshPoint::try_coerce(point.clone().to_pax_value()).unwrap(),
+            point
+        );
+        let Paint::Blend(terms) = paint.with_alpha_factor(0.25) else {
+            panic!("post-sampling opacity")
+        };
+        assert_eq!(terms[0], (paint.clone(), 0.25));
+        assert_eq!(paint.with_alpha_factor(0.0).max_alpha_0_1(), 0.0);
+        assert_eq!(paint.interpolate(&Paint::Solid(Color::WHITE), 0.0), paint);
+        assert!(matches!(
+            paint.interpolate(&Paint::Solid(Color::WHITE), 0.5),
+            Paint::Blend(_)
+        ));
+        let mut invalid = mesh;
+        invalid.rows[0].pop();
+        assert!(invalid.validate().is_err());
+    }
+
+    #[test]
+    fn malformed_mesh_coordinates_never_panic_or_truncate() {
+        for coordinates in [
+            vec![],
+            vec![Size::Percent(0.into())],
+            vec![Size::Percent(0.into()); 3],
+        ] {
+            let value = PaxValue::Object(vec![
+                ("position".into(), coordinates.to_pax_value()),
+                ("color".into(), Color::CYAN.to_pax_value()),
+            ]);
+            assert!(MeshPoint::try_coerce(value).is_err());
+        }
+    }
+}
+
 /// A focal radial gradient, growing from `start` to the circle at `end` with `radius`.
 ///
 /// Pax templates canonically author each point as `[x, y]`: magic index `0`
@@ -961,6 +1086,8 @@ impl Paint {
             Self::Solid(color) => color.clone(),
             Self::LinearGradient(g) => g.stops.first().map(|s| s.color.clone()).unwrap_or_default(),
             Self::RadialGradient(g) => g.stops.first().map(|s| s.color.clone()).unwrap_or_default(),
+            // Native text has no mesh paint support; do not substitute a corner color.
+            Self::MeshGradient(_) => Color::TRANSPARENT,
             Self::Blend(terms) => Color::blend_premultiplied(
                 terms
                     .iter()
@@ -1092,6 +1219,15 @@ impl Paint {
                     .collect(),
             ),
             Paint::Solid(color) => Paint::Solid(color.with_alpha_factor(factor)),
+            Paint::MeshGradient(_) => {
+                // Scale the sampled field after cubic clamping. Scaling anchor alpha would
+                // change overshoot regions and is not equivalent to paint opacity.
+                let factor = factor.clamp(0.0, 1.0);
+                Paint::blend(vec![
+                    (self.clone(), factor),
+                    (Paint::Solid(Color::TRANSPARENT), 1.0 - factor),
+                ])
+            }
             Paint::LinearGradient(gradient) => Paint::LinearGradient(LinearGradient {
                 start: gradient.start.clone(),
                 end: gradient.end.clone(),
@@ -1124,6 +1260,20 @@ impl Paint {
                 .sum::<f64>()
                 .clamp(0.0, 1.0),
             Paint::Solid(color) => color.alpha_0_1(),
+            Paint::MeshGradient(mesh) => {
+                // Cubics can overshoot anchor alpha. Only the all-transparent field is
+                // certainly invisible; max(anchor alpha) is not a conservative bound.
+                if mesh
+                    .rows
+                    .iter()
+                    .flatten()
+                    .any(|p| p.color.alpha_0_1() > 0.0)
+                {
+                    1.0
+                } else {
+                    0.0
+                }
+            }
             Paint::LinearGradient(gradient) => gradient
                 .stops
                 .iter()
@@ -1148,6 +1298,7 @@ impl Paint {
             Paint::Solid(color) => color.alpha_0_1(),
             Paint::LinearGradient(gradient) => Self::integrated_gradient_alpha_0_1(&gradient.stops),
             Paint::RadialGradient(gradient) => Self::integrated_gradient_alpha_0_1(&gradient.stops),
+            Paint::MeshGradient(_) => self.max_alpha_0_1(),
         }
     }
 }

@@ -499,6 +499,10 @@ fn ensure_known_type_definition(ctx: &mut ParsingContext, import_path: &str) -> 
         "pax_engine::api::StrokeCap" => TypeId::build_singleton(import_path, Some("StrokeCap")),
         "pax_engine::api::StrokeJoin" => TypeId::build_singleton(import_path, Some("StrokeJoin")),
         "pax_engine::api::Paint" => TypeId::build_singleton(import_path, Some("Paint")),
+        "pax_engine::api::MeshPoint" => TypeId::build_singleton(import_path, Some("MeshPoint")),
+        "pax_engine::api::MeshGradient" => {
+            TypeId::build_singleton(import_path, Some("MeshGradient"))
+        }
         "pax_engine::api::Stroke" => TypeId::build_singleton(import_path, Some("Stroke")),
         "pax_engine::api::Material" => TypeId::build_singleton(import_path, Some("Material")),
         "pax_engine::api::MaterialParams" => {
@@ -563,6 +567,64 @@ fn ensure_known_type_definition(ctx: &mut ParsingContext, import_path: &str) -> 
                 type_id: type_id.clone(),
                 inner_iterable_type_id: None,
                 property_definitions,
+            },
+        );
+    } else if import_path == "pax_engine::api::MeshPoint" {
+        let size = ensure_known_type_definition(ctx, "pax_engine::api::Size")?;
+        let color = ensure_known_type_definition(ctx, "pax_engine::api::Color")?;
+        let position =
+            TypeId::build_singleton(&format!("({size},{size})"), Some("MeshPointPosition"));
+        ctx.type_table.insert(
+            position.clone(),
+            TypeDefinition {
+                type_id: position.clone(),
+                inner_iterable_type_id: None,
+                property_definitions: vec![],
+            },
+        );
+        ctx.type_table.insert(
+            type_id.clone(),
+            TypeDefinition {
+                type_id: type_id.clone(),
+                inner_iterable_type_id: None,
+                property_definitions: vec![
+                    PropertyDefinition {
+                        name: "position".into(),
+                        type_id: position,
+                        flags: PropertyDefinitionFlags::default(),
+                    },
+                    PropertyDefinition {
+                        name: "color".into(),
+                        type_id: color,
+                        flags: PropertyDefinitionFlags::default(),
+                    },
+                ],
+            },
+        );
+    } else if import_path == "pax_engine::api::MeshGradient" {
+        let point = ensure_known_type_definition(ctx, "pax_engine::api::MeshPoint")?;
+        let row = TypeId::build_vector(&point.to_string());
+        let rows = TypeId::build_vector(&row.to_string());
+        for (vector, inner) in [(row.clone(), point), (rows.clone(), row)] {
+            ctx.type_table.insert(
+                vector.clone(),
+                TypeDefinition {
+                    type_id: vector,
+                    inner_iterable_type_id: Some(inner),
+                    property_definitions: vec![],
+                },
+            );
+        }
+        ctx.type_table.insert(
+            type_id.clone(),
+            TypeDefinition {
+                type_id: type_id.clone(),
+                inner_iterable_type_id: None,
+                property_definitions: vec![PropertyDefinition {
+                    name: "rows".into(),
+                    type_id: rows,
+                    flags: PropertyDefinitionFlags::default(),
+                }],
             },
         );
     } else if import_path == "pax_engine::api::MaterialParams" {
@@ -1425,6 +1487,8 @@ fn canonical_special_import_path_for_ident(ident: &str) -> Option<&'static str> 
         "StrokeCap" => Some("pax_engine::api::StrokeCap"),
         "StrokeJoin" => Some("pax_engine::api::StrokeJoin"),
         "Paint" => Some("pax_engine::api::Paint"),
+        "MeshPoint" => Some("pax_engine::api::MeshPoint"),
+        "MeshGradient" => Some("pax_engine::api::MeshGradient"),
         "Stroke" => Some("pax_engine::api::Stroke"),
         "Material" => Some("pax_engine::api::Material"),
         "MaterialParams" => Some("pax_engine::api::MaterialParams"),
@@ -1464,6 +1528,12 @@ fn canonical_special_import_path_for_path(path: &str) -> Option<&'static str> {
         "pax_engine::api::Paint" | "pax_runtime::api::Paint" | "pax_runtime_api::Paint" => {
             Some("pax_engine::api::Paint")
         }
+        "pax_engine::api::MeshPoint"
+        | "pax_runtime::api::MeshPoint"
+        | "pax_runtime_api::MeshPoint" => Some("pax_engine::api::MeshPoint"),
+        "pax_engine::api::MeshGradient"
+        | "pax_runtime::api::MeshGradient"
+        | "pax_runtime_api::MeshGradient" => Some("pax_engine::api::MeshGradient"),
         "pax_engine::api::Stroke" | "pax_runtime::api::Stroke" | "pax_runtime_api::Stroke" => {
             Some("pax_engine::api::Stroke")
         }
@@ -2077,6 +2147,30 @@ struct PaxConfig {
 mod tests {
     use super::*;
     use tempfile::TempDir;
+
+    #[test]
+    fn mesh_api_descriptors_preserve_value_fields_and_nested_rows() {
+        let mut ctx = ParsingContext::default();
+        let id = ensure_known_type_definition(&mut ctx, "pax_engine::api::MeshGradient").unwrap();
+        let rows = &ctx.type_table[&id].property_definitions[0];
+        assert_eq!(rows.name, "rows");
+        assert!(!rows.flags.is_property_wrapped);
+        assert_eq!(
+            rows.type_id.to_string(),
+            "std::vec::Vec<std::vec::Vec<pax_engine::api::MeshPoint>>"
+        );
+        let point = ensure_known_type_definition(&mut ctx, "pax_engine::api::MeshPoint").unwrap();
+        let fields = &ctx.type_table[&point].property_definitions;
+        assert_eq!(
+            fields[0].type_id.to_string(),
+            "(pax_engine::api::Size,pax_engine::api::Size)"
+        );
+        assert!(fields.iter().all(|field| !field.flags.is_property_wrapped));
+        assert_eq!(
+            canonical_special_import_path_for_path("pax_runtime_api::MeshPoint"),
+            Some("pax_engine::api::MeshPoint")
+        );
+    }
 
     #[test]
     fn increment_static_manifest_contains_expected_core_items() {

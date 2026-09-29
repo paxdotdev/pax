@@ -142,6 +142,45 @@ Additive emissive intensity.
 
 ---
 
+### `MeshGradient`
+Smooth mesh paint with 2–8 equally sized rows, each containing 2–8 anchors.
+Automatic shared Bézier controls interpolate the anchors and their premultiplied
+encoded-sRGB colors. Outside the covered mesh the paint is transparent. Folded
+patches replace earlier patches in row-major order. Supported by the WGPU renderer.
+Animate positions/colors to morph; whole [`Paint`] transitions remain crossfades.
+
+#### Properties
+##### `rows`
+Type: `Vec`<`Vec`<[`MeshPoint`](../../api/pax-runtime-api/drawing.md#meshpoint)>>
+
+A rectangular lattice; adjacent entries and rows define shared patch edges.
+
+#### Implementations
+##### `validate`
+<pre><code class="api-signature language-rust ignore">pub fn validate(&amp;self) -&gt; Result&lt;(), String&gt;</code></pre>
+
+Checks connectivity and finite inputs. An invalid mesh paints nothing; it is never truncated.
+
+---
+
+### `MeshPoint`
+A colored anchor in a [`MeshGradient`]. Position uses ordinary pixels, percentages,
+or combined units, relative to the complete consumer geometry's paint bounds.
+Rows describe connectivity; anchors in a row may have different y coordinates.
+
+#### Properties
+##### `position`
+Type: ([`Size`](../../api/pax-runtime-api/layout.md#size), [`Size`](../../api/pax-runtime-api/layout.md#size))
+
+Local x/y coordinates relative to the complete paint bounds.
+
+##### `color`
+Type: [`Color`](../../api/pax-runtime-api/color.md#color)
+
+Anchor color, including alpha.
+
+---
+
 ### `RadialGradient`
 A focal radial gradient, growing from `start` to the circle at `end` with `radius`.
 
@@ -462,6 +501,9 @@ A radial gradient.
 A weighted paint mixture produced by interpolation. Weights are finite,
 nonnegative, and sum to one. Use [`Paint::blend`] to normalize weights,
 flatten nested mixtures, and combine repeated endpoints.
+
+##### `MeshGradient`([`MeshGradient`](../../api/pax-runtime-api/drawing.md#meshgradient))
+A row-connected bicubic field with independently positioned colored anchors.
 
 #### Implementations
 ##### `blend`

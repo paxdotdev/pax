@@ -2,7 +2,7 @@
 //! Run with `cargo test -p pax-gpu retained_clip_pixels -- --ignored` on macOS.
 
 use super::*;
-use crate::{point, Angle, Color, Fill, Path, WgpuRenderer};
+use crate::{point, Angle, Color, Fill, Path, Vector2D, WgpuRenderer};
 use objc2::{
     msg_send,
     runtime::{AnyClass, AnyObject},
@@ -45,6 +45,176 @@ fn assert_pixel(frame: &CapturedFrame, x: usize, y: usize, expected: [u8; 4]) {
         &expected,
         "pixel ({x}, {y})"
     );
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn mesh_paint_retained_pixels_blends_and_masks() {
+    use crate::{AlphaMaskPaint, Vector2D};
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 96, 64, [1.0, 1.0]),
+        )
+    })
+    .unwrap();
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    let mesh = |color: Color| Fill::Mesh {
+        rows: (0..2)
+            .map(|y| (0..2).map(|x| ([x as f32, y as f32], color)).collect())
+            .collect(),
+        pos: point(8.0, 8.0),
+        main_axis: Vector2D::new(80.0, 0.0),
+        off_axis: Vector2D::new(0.0, 48.0),
+    };
+    for frame in 0..3 {
+        renderer.begin_node(0, 0, 0);
+        renderer.fill_path(
+            rect(0.0, 0.0, 96.0, 64.0),
+            Fill::Solid(Color::rgba(0.0, 0.0, 0.0, 1.0)),
+        );
+        renderer.end_node(0);
+        renderer.begin_node(1, 1, 0);
+        renderer.save();
+        if frame == 2 {
+            renderer.clip_alpha(
+                vec![AlphaMaskPaint {
+                    path: rect(8.0, 8.0, 80.0, 48.0),
+                    transform: Transform2D::identity(),
+                    fill: mesh(Color::rgba(1.0, 1.0, 1.0, 0.5)),
+                    opacity: 1.0,
+                    composition: None,
+                }],
+                0.0,
+            );
+        }
+        let red = mesh(Color::rgba(1.0, 0.0, 0.0, 0.5));
+        let blue = mesh(Color::rgba(0.0, 0.0, 1.0, 0.5));
+        renderer.fill_path(
+            rect(8.0, 8.0, 80.0, 48.0),
+            Fill::Blend(vec![
+                (red, if frame == 0 { 0.25 } else { 0.5 }),
+                (blue, if frame == 0 { 0.75 } else { 0.5 }),
+            ]),
+        );
+        renderer.restore();
+        renderer.end_node(1);
+        renderer.request_screenshot_capture(frame);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let result = renderer.take_screenshot_capture(frame).unwrap();
+        let expected: [u8; 4] = match frame {
+            0 => [32, 0, 96, 255],
+            1 => [64, 0, 64, 255],
+            _ => [32, 0, 32, 255],
+        };
+        let pixel = &result.rgba[(32 * 96 + 48) * 4..][..4];
+        for c in 0..4 {
+            assert!(
+                pixel[c].abs_diff(expected[c]) <= 1,
+                "frame {frame}: {pixel:?} expected {expected:?}"
+            );
+        }
+        assert_pixel(&result, 2, 2, [0, 0, 0, 255]);
+        let stats = renderer.take_resource_churn_stats();
+        if frame == 1 {
+            assert_eq!(stats.mesh_texture_allocations, 0);
+            assert_eq!(
+                stats.mesh_raster_passes, 0,
+                "changing blend weights reuses endpoint fields"
+            );
+            assert_eq!(stats.vector_geometry_rebuilds, 0);
+        }
+    }
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn mesh_retained_pages_cull_share_capture_and_fail_closed() {
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 96, 64, [1.0, 1.0]),
+        )
+    })
+    .unwrap();
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    let mesh = |alpha: f32, x: f32, invalid: bool| Fill::Mesh {
+        rows: if invalid {
+            vec![]
+        } else {
+            (0..2)
+                .map(|y| {
+                    (0..2)
+                        .map(|x| ([x as f32, y as f32], Color::rgba(1.0, 0.0, 0.0, alpha)))
+                        .collect()
+                })
+                .collect()
+        },
+        pos: point(x, 0.0),
+        main_axis: Vector2D::new(12.0, 0.0),
+        off_axis: Vector2D::new(0.0, 64.0),
+    };
+    for frame in 0..3 {
+        // More than the concatenating fast-path threshold: each ordered draw must bind its page.
+        for id in 0..72 {
+            let x = if id < 8 { id as f32 * 12.0 } else { 200.0 };
+            renderer.begin_node(id, id as i32, 0);
+            renderer.fill_path(rect(x, 0.0, 12.0, 64.0), mesh(0.5, x, frame == 2));
+            renderer.end_node(id);
+        }
+        // The same field is also sampled during detached alpha capture, then group opacity.
+        if frame == 1 {
+            renderer.begin_node(80, 80, 0);
+            renderer.save();
+            renderer.begin_alpha_source(Transform2D::identity(), 0.0);
+            renderer.begin_node(81, 0, 0);
+            renderer.fill_path(rect(0.0, 0.0, 12.0, 64.0), mesh(0.5, 0.0, false));
+            renderer.end_node(81);
+            renderer.end_alpha_source();
+            renderer.fill_path(
+                rect(0.0, 0.0, 12.0, 64.0),
+                Fill::Solid(Color::rgba(0.0, 0.0, 1.0, 1.0)),
+            );
+            renderer.restore();
+            renderer.end_node(80);
+        } else {
+            renderer.remove_node(80);
+        }
+        renderer.request_screenshot_capture(frame);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let result = renderer.take_screenshot_capture(frame).unwrap();
+        if frame < 2 {
+            assert_pixel(&result, 20, 32, [128, 0, 0, 128]);
+        } else {
+            assert_pixel(&result, 20, 32, [0; 4]);
+        }
+        let stats = renderer.take_resource_churn_stats();
+        if frame == 0 {
+            assert_eq!(
+                stats.mesh_texture_allocations, 1,
+                "one live shared page, no offscreen allocations"
+            );
+        }
+        if frame == 1 {
+            assert_eq!(
+                stats.mesh_texture_allocations, 0,
+                "source capture shares the field"
+            );
+            assert_eq!(stats.mesh_raster_passes, 0);
+            let pixel = &result.rgba[(32 * 96 + 6) * 4..][..4];
+            assert!(
+                pixel[2] > pixel[0] && pixel[3] > 128,
+                "capture contributes blue over red: {pixel:?}"
+            );
+        }
+    }
+    renderer.reset_retained_scene();
 }
 
 #[test]

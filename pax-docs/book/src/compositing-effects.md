@@ -254,6 +254,8 @@ Path strokes used as alpha sources respect `draw_start` and `draw_end`.
 A reusable vector-producing component can supply the source too. Its template
 expands and its mount handler runs normally; reactive properties, timelines and
 tick/pre-render handlers remain live until the source is removed. For example,
+A [mesh gradient](drawing-styling.md#mesh-gradients) on the painted surface keeps one continuous field across the word while handwriting reveals it.
+
 Handwriter can reveal a colored surface as its generated stroke is drawn:
 
 ```pax

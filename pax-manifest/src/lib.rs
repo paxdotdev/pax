@@ -410,6 +410,9 @@ pub enum GradientShapeDefinition {
         end: Box<ValueDefinition>,
         radius: Box<ValueDefinition>,
     },
+    Mesh {
+        rows: Box<ValueDefinition>,
+    },
 }
 
 impl Default for GradientShapeDefinition {
@@ -2229,6 +2232,9 @@ impl Display for GradientDefinition {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "{{")?;
         match &self.shape {
+            GradientShapeDefinition::Mesh { rows } => {
+                writeln!(f, "mesh: {{ rows: {} }},", rows)?;
+            }
             GradientShapeDefinition::Linear { start, end } => {
                 if start.is_some() || end.is_some() {
                     writeln!(f, "linear: {{")?;

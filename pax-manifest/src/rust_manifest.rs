@@ -447,6 +447,11 @@ impl RustManifestWriter {
 
     fn gradient_shape_definition(&self, shape: &GradientShapeDefinition) -> String {
         match shape {
+            GradientShapeDefinition::Mesh { rows } => format!(
+                "{mp}::GradientShapeDefinition::Mesh {{ rows: Box::new({rows}) }}",
+                mp = self.manifest_path,
+                rows = self.value_definition(rows),
+            ),
             GradientShapeDefinition::Linear { start, end } => format!(
                 "{mp}::GradientShapeDefinition::Linear {{ start: {start}, end: {end} }}",
                 mp = self.manifest_path,

@@ -8,9 +8,9 @@ use crate::{
     impl_default_coercion_rule,
     math::{Transform2, Vector2},
     Color, ColorChannel, Depth, Duration, Fill, GradientStop, LayoutRole, LightShape,
-    LinearGradient, Material, MaterialParams, Numeric, Opacity, Paint, PathElement, PathSmoothing,
-    PaxValue, Percent, Property, RadialGradient, Rotation, Size, Stroke, StrokeCap, StrokeJoin,
-    Transform2D, UnitValue, Vector3,
+    LinearGradient, Material, MaterialParams, MeshGradient, MeshPoint, Numeric, Opacity, Paint,
+    PathElement, PathSmoothing, PaxValue, Percent, Property, RadialGradient, Rotation, Size,
+    Stroke, StrokeCap, StrokeJoin, Transform2D, UnitValue, Vector3,
 };
 
 // Default coercion rules:
@@ -312,7 +312,7 @@ impl CoercionRules for Paint {
                 }
                 if matches!(
                     variant.as_str(),
-                    "Solid" | "LinearGradient" | "RadialGradient"
+                    "Solid" | "LinearGradient" | "RadialGradient" | "MeshGradient"
                 ) && args.len() != 1
                 {
                     return Err(format!("Paint::{variant} requires exactly one argument"));
@@ -330,6 +330,9 @@ impl CoercionRules for Paint {
                         let color = Color::try_coerce(args.into_iter().next().unwrap())?;
                         Paint::Solid(color)
                     }
+                    "MeshGradient" => Paint::MeshGradient(MeshGradient::try_coerce(
+                        args.into_iter().next().unwrap(),
+                    )?),
                     "LinearGradient" => {
                         let gradient =
                             LinearGradient::try_coerce(args.into_iter().next().unwrap())?;
@@ -359,6 +362,52 @@ impl CoercionRules for Paint {
             }
             _ => return Err(format!("{:?} can't be coerced into a Paint", pax_value)),
         })
+    }
+}
+
+impl CoercionRules for MeshPoint {
+    fn try_coerce(value: PaxValue) -> Result<Self, String> {
+        match value {
+            PaxValue::Object(fields) => {
+                if fields
+                    .iter()
+                    .any(|(key, _)| key != "position" && key != "color")
+                {
+                    return Err("mesh anchors accept only `position` and `color`".into());
+                }
+                let [position, color] = extract_options(["position", "color"], fields)?;
+                let coordinates = Vec::<Size>::try_coerce(position)?;
+                let [x, y]: [Size; 2] = coordinates
+                    .try_into()
+                    .map_err(|_| "mesh anchor position requires exactly two coordinates")?;
+                Ok(Self {
+                    position: (x, y),
+                    color: Color::try_coerce(color)?,
+                })
+            }
+            PaxValue::Option(value) => Self::try_coerce(value.ok_or("mesh anchor cannot be None")?),
+            _ => Err("mesh anchor requires {position: [x, y], color: ...}".into()),
+        }
+    }
+}
+
+impl CoercionRules for MeshGradient {
+    fn try_coerce(value: PaxValue) -> Result<Self, String> {
+        match value {
+            PaxValue::Object(fields) => {
+                if fields.iter().any(|(key, _)| key != "rows") {
+                    return Err("mesh gradients accept only `rows`".into());
+                }
+                let [rows] = extract_options(["rows"], fields)?;
+                Ok(Self {
+                    rows: Vec::<Vec<MeshPoint>>::try_coerce(rows)?,
+                })
+            }
+            PaxValue::Option(value) => {
+                Self::try_coerce(value.ok_or("mesh gradient cannot be None")?)
+            }
+            _ => Err("mesh gradient requires {rows: ...}".into()),
+        }
     }
 }
 

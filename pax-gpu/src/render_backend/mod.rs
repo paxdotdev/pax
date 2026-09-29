@@ -19,6 +19,7 @@ use wgpu::{
 pub(crate) mod alpha_mask;
 pub mod data;
 mod gpu_resources;
+pub(crate) mod mesh_paint;
 pub mod stencil;
 mod texture;
 
@@ -73,6 +74,7 @@ pub struct GpuContext {
     max_surface_dimension: u32,
     primitive_bind_group_layout: BindGroupLayout,
     alpha_mask_layout: BindGroupLayout,
+    mesh_paint_layout: BindGroupLayout,
     vector_pipelines: RefCell<HashMap<VectorPipelineKey, Rc<RenderPipeline>>>,
     texture_pipelines: RefCell<HashMap<VectorPipelineKey, TexturePipelineResources>>,
     stencil_pipelines: RefCell<HashMap<VectorPipelineKey, StencilPipelineResources>>,
@@ -129,6 +131,7 @@ impl GpuContext {
         );
         let primitive_bind_group_layout = create_primitive_bind_group_layout(&device);
         let alpha_mask_layout = alpha_mask::sampling_layout(&device);
+        let mesh_paint_layout = mesh_paint::sampling_layout(&device);
 
         Ok(Rc::new(Self {
             instance,
@@ -138,6 +141,7 @@ impl GpuContext {
             max_surface_dimension,
             primitive_bind_group_layout,
             alpha_mask_layout,
+            mesh_paint_layout,
             vector_pipelines: RefCell::new(HashMap::new()),
             texture_pipelines: RefCell::new(HashMap::new()),
             stencil_pipelines: RefCell::new(HashMap::new()),
@@ -159,6 +163,7 @@ impl GpuContext {
             sample_count,
             &self.primitive_bind_group_layout,
             &self.alpha_mask_layout,
+            &self.mesh_paint_layout,
         ));
         self.vector_pipelines
             .borrow_mut()
@@ -403,6 +408,9 @@ pub struct RenderBackend<'w> {
     bind_group: BindGroup,
 
     //buffers
+    mesh_rasterizer: mesh_paint::MeshRasterizer,
+    empty_mesh_page: mesh_paint::PaintPage,
+    pub(crate) alpha_mesh_pages: HashMap<u32, Rc<mesh_paint::PaintPage>>,
     globals_buffer: wgpu::Buffer,
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
@@ -489,6 +497,7 @@ pub(crate) struct SharedRetainedVectorResource {
 
 pub(crate) struct RetainedVectorResource {
     bind_group: BindGroup,
+    pub(crate) mesh_bind_group: Option<BindGroup>,
     shared: Rc<SharedRetainedVectorResource>,
 }
 
@@ -1130,9 +1139,19 @@ impl<'w> RenderBackend<'w> {
         let initial_width = initial_width;
         let initial_height = initial_height;
         let initial_dpr = config.initial_dpr;
-        let alpha_masks =
-            alpha_mask::AlphaMasks::new(&device, &queue, context.alpha_mask_layout.clone());
+        let alpha_masks = alpha_mask::AlphaMasks::new(
+            &device,
+            &queue,
+            context.alpha_mask_layout.clone(),
+            &context.mesh_paint_layout,
+        );
+        let mesh_rasterizer = mesh_paint::MeshRasterizer::new(&device);
+        let empty_mesh_page =
+            mesh_paint::PaintPage::new(&device, &context.mesh_paint_layout, [1, 1, 1]);
         let mut backend = Self {
+            alpha_mesh_pages: HashMap::new(),
+            mesh_rasterizer,
+            empty_mesh_page,
             alpha_masks,
             context: Rc::clone(&context),
             texture_renderer,
@@ -1202,6 +1221,7 @@ impl<'w> RenderBackend<'w> {
         sample_count: u32,
         primitive_bind_group_layout: &BindGroupLayout,
         alpha_mask_layout: &BindGroupLayout,
+        mesh_paint_layout: &BindGroupLayout,
     ) -> RenderPipeline {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
@@ -1217,7 +1237,11 @@ impl<'w> RenderBackend<'w> {
         let render_pipeline_layout =
             device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                 label: Some("Render Pipeline Layout"),
-                bind_group_layouts: &[primitive_bind_group_layout, alpha_mask_layout],
+                bind_group_layouts: &[
+                    primitive_bind_group_layout,
+                    alpha_mask_layout,
+                    mesh_paint_layout,
+                ],
                 immediate_size: 0,
             });
 
@@ -1415,6 +1439,45 @@ impl<'w> RenderBackend<'w> {
         self.completed_captures.lock().ok()?.remove(&request_id)
     }
 
+    pub(crate) fn prepare_mesh_page(
+        &mut self,
+        page: &mut Option<Rc<mesh_paint::PaintPage>>,
+        inputs: &[mesh_paint::MeshInput],
+        stats: &mut crate::ResourceChurnStats,
+    ) {
+        let mut encoder = self.device.create_command_encoder(&Default::default());
+        let mut mesh_stats = mesh_paint::RasterStats::default();
+        if let Err(error) = self.mesh_rasterizer.prepare_page(
+            &self.device,
+            &self.queue,
+            &mut encoder,
+            &self.context.mesh_paint_layout,
+            page,
+            inputs,
+            self.globals.dpr,
+            &mut mesh_stats,
+        ) {
+            *page = None;
+            // Stable deduplication by failure category, without retaining every animated value.
+            thread_local! { static REPORTED: RefCell<HashSet<String>> = RefCell::new(HashSet::new()); }
+            REPORTED.with(|reported| {
+                if reported.borrow_mut().insert(error.clone()) {
+                    log::warn!("{error}; mesh paints no field");
+                }
+            });
+            return;
+        }
+        stats.mesh_texture_allocations += mesh_stats.texture_allocations;
+        stats.mesh_texture_bytes += mesh_stats.texture_bytes;
+        stats.mesh_coefficient_upload_bytes += mesh_stats.coefficient_upload_bytes;
+        stats.mesh_raster_passes += mesh_stats.raster_passes;
+        stats.mesh_cache_hits += mesh_stats.cache_hits;
+        stats.mesh_topology_allocations += mesh_stats.topology_allocations;
+        if mesh_stats.raster_passes > 0 {
+            self.enqueue_command_buffer(encoder.finish());
+        }
+    }
+
     fn create_retained_bind_group(
         &self,
         primitive_buffer: &wgpu::Buffer,
@@ -1463,6 +1526,7 @@ impl<'w> RenderBackend<'w> {
         shared: Rc<SharedRetainedVectorResource>,
     ) -> RetainedVectorResource {
         RetainedVectorResource {
+            mesh_bind_group: None,
             bind_group: self.create_retained_bind_group(
                 &shared._primitive_buffer,
                 &shared._colors_buffer,
@@ -1695,6 +1759,14 @@ impl<'w> RenderBackend<'w> {
             });
             render_pass.set_pipeline(self.pipeline.as_ref());
             render_pass.set_bind_group(0, &resource.bind_group, &[]);
+            render_pass.set_bind_group(
+                2,
+                resource
+                    .mesh_bind_group
+                    .as_ref()
+                    .unwrap_or(&self.empty_mesh_page.bind_group),
+                &[],
+            );
             render_pass.set_bind_group(1, self.alpha_masks.bind_group(None), &[]);
             render_pass.set_vertex_buffer(0, resource.shared.vertex_buffer.slice(..));
             render_pass.set_stencil_reference(stencil_index);
@@ -1734,6 +1806,14 @@ impl<'w> RenderBackend<'w> {
             });
             render_pass.set_pipeline(self.pipeline.as_ref());
             render_pass.set_bind_group(0, &resource.bind_group, &[]);
+            render_pass.set_bind_group(
+                2,
+                resource
+                    .mesh_bind_group
+                    .as_ref()
+                    .unwrap_or(&self.empty_mesh_page.bind_group),
+                &[],
+            );
             render_pass.set_bind_group(1, self.alpha_masks.bind_group(None), &[]);
             render_pass.set_vertex_buffer(0, resource.shared.vertex_buffer.slice(..));
             render_pass.set_stencil_reference(stencil_index);
@@ -1864,6 +1944,7 @@ impl<'w> RenderBackend<'w> {
             feather,
             parent,
             Some((&view, crop)),
+            &self.empty_mesh_page.bind_group,
         ) {
             self.enqueue_staged_command_buffer(encoder);
         }
@@ -1876,7 +1957,14 @@ impl<'w> RenderBackend<'w> {
         draws: &[alpha_mask::Draw],
         feather: f32,
         parent: Option<u32>,
+        meshes: &[mesh_paint::MeshInput],
+        stats: &mut crate::ResourceChurnStats,
     ) {
+        let mut page = self.alpha_mesh_pages.remove(&id);
+        self.prepare_mesh_page(&mut page, meshes, stats);
+        if let Some(page) = page {
+            self.alpha_mesh_pages.insert(id, page);
+        }
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -1897,6 +1985,9 @@ impl<'w> RenderBackend<'w> {
             feather,
             parent,
             None,
+            self.alpha_mesh_pages
+                .get(&id)
+                .map_or(&self.empty_mesh_page.bind_group, |page| &page.bind_group),
         );
         if rendered {
             self.enqueue_staged_command_buffer(encoder);
@@ -1982,6 +2073,14 @@ impl<'w> RenderBackend<'w> {
                             }
                             render_pass.set_pipeline(self.pipeline.as_ref());
                             render_pass.set_bind_group(0, &resource.bind_group, &[]);
+                            render_pass.set_bind_group(
+                                2,
+                                resource
+                                    .mesh_bind_group
+                                    .as_ref()
+                                    .unwrap_or(&self.empty_mesh_page.bind_group),
+                                &[],
+                            );
                             render_pass
                                 .set_vertex_buffer(0, resource.shared.vertex_buffer.slice(..));
                             render_pass.set_index_buffer(
@@ -2050,6 +2149,14 @@ impl<'w> RenderBackend<'w> {
                             }
                             render_pass.set_pipeline(self.pipeline.as_ref());
                             render_pass.set_bind_group(0, &resource.bind_group, &[]);
+                            render_pass.set_bind_group(
+                                2,
+                                resource
+                                    .mesh_bind_group
+                                    .as_ref()
+                                    .unwrap_or(&self.empty_mesh_page.bind_group),
+                                &[],
+                            );
                             render_pass
                                 .set_vertex_buffer(0, resource.shared.vertex_buffer.slice(..));
                             render_pass.set_index_buffer(
@@ -2191,6 +2298,7 @@ impl<'w> RenderBackend<'w> {
             ref mut gradients,
             ref mut materials,
             ref mut transforms,
+            mesh_paints: _,
         } = buffers;
         //Add ghost triangles to follow COPY_BUFFER_ALIGNMENT requirement
         const ALIGNMENT: usize = 16;
@@ -2398,6 +2506,7 @@ impl<'w> RenderBackend<'w> {
                     }
                     render_pass.set_pipeline(self.pipeline.as_ref());
                     render_pass.set_bind_group(0, &self.bind_group, &[]);
+                    render_pass.set_bind_group(2, &self.empty_mesh_page.bind_group, &[]);
                     render_pass.set_bind_group(
                         1,
                         self.alpha_masks.bind_group(plan.alpha_mask),
@@ -2512,6 +2621,7 @@ impl<'w> RenderBackend<'w> {
                     });
                     render_pass.set_pipeline(self.pipeline.as_ref());
                     render_pass.set_bind_group(0, &self.bind_group, &[]);
+                    render_pass.set_bind_group(2, &self.empty_mesh_page.bind_group, &[]);
                     render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
                     render_pass.set_stencil_reference(stencil_reference);
                     render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
@@ -2563,6 +2673,7 @@ impl<'w> RenderBackend<'w> {
                     });
                     render_pass.set_pipeline(self.pipeline.as_ref());
                     render_pass.set_bind_group(0, &self.bind_group, &[]);
+                    render_pass.set_bind_group(2, &self.empty_mesh_page.bind_group, &[]);
                     render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
                     render_pass.set_stencil_reference(stencil_reference);
                     render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
@@ -3003,6 +3114,7 @@ fn aligned_cpu_buffers(
         colors,
         gradients,
         materials,
+        mesh_paints: _,
     } = buffers;
     let mut indices = geometry.indices.clone();
     let mut vertices = geometry.vertices.clone();
@@ -3112,6 +3224,7 @@ pub(crate) struct CpuBuffers {
     pub transforms: Vec<GpuTransform>,
     pub colors: Vec<GpuColor>,
     pub gradients: Vec<GpuGradient>,
+    pub mesh_paints: Vec<mesh_paint::MeshInput>,
     pub materials: Vec<GpuMaterial>,
 }
 
@@ -3124,6 +3237,7 @@ impl CpuBuffers {
             transforms,
             colors,
             gradients,
+            mesh_paints,
             materials,
         } = self;
         geometry.vertices.clear();
@@ -3131,6 +3245,7 @@ impl CpuBuffers {
         primitives.clear();
         colors.clear();
         gradients.clear();
+        mesh_paints.clear();
         materials.clear();
         // leave the identity transform at the start
         transforms.truncate(1);

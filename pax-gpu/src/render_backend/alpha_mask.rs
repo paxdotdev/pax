@@ -404,14 +404,19 @@ fn pipeline(
     shader: &str,
     vertex: bool,
     blend: bool,
+    mesh_layout: Option<&wgpu::BindGroupLayout>,
 ) -> wgpu::RenderPipeline {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("Alpha mask shader"),
         source: wgpu::ShaderSource::Wgsl(shader.into()),
     });
+    let mut layouts = vec![layout];
+    if let Some(mesh) = mesh_layout {
+        layouts.push(mesh);
+    }
     let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
         label: Some("Alpha mask pipeline layout"),
-        bind_group_layouts: &[layout],
+        bind_group_layouts: &layouts,
         immediate_size: 0,
     });
     let attrs = wgpu::vertex_attr_array![0 => Float32x2];
@@ -448,7 +453,12 @@ fn pipeline(
 }
 
 impl AlphaMasks {
-    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, layout: wgpu::BindGroupLayout) -> Self {
+    pub fn new(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        layout: wgpu::BindGroupLayout,
+        mesh_layout: &wgpu::BindGroupLayout,
+    ) -> Self {
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("Alpha mask linear sampler"),
             mag_filter: wgpu::FilterMode::Linear,
@@ -509,6 +519,7 @@ impl AlphaMasks {
             ),
             true,
             true,
+            Some(mesh_layout),
         );
         let filter_pipeline = pipeline(
             device,
@@ -516,6 +527,7 @@ impl AlphaMasks {
             include_str!("alpha_blur.wgsl"),
             false,
             false,
+            None,
         );
         let compose_pipeline = pipeline(
             device,
@@ -523,6 +535,7 @@ impl AlphaMasks {
             include_str!("alpha_blur.wgsl"),
             false,
             true,
+            None,
         );
         let capture_pipeline = pipeline(
             device,
@@ -530,6 +543,7 @@ impl AlphaMasks {
             include_str!("alpha_capture.wgsl"),
             false,
             false,
+            None,
         );
         Self {
             capture_pipeline,
@@ -583,6 +597,7 @@ impl AlphaMasks {
         feather: f32,
         parent: Option<u32>,
         capture: Option<(&wgpu::TextureView, [f32; 4])>,
+        mesh_paints: &wgpu::BindGroup,
     ) -> bool {
         let domain = [
             globals.origin[0],
@@ -747,6 +762,7 @@ impl AlphaMasks {
                         },
                     );
                     pass.set_pipeline(&self.paint_pipeline);
+                    pass.set_bind_group(1, mesh_paints, &[]);
                     pass.set_vertex_buffer(0, buffers.vertices.buffer.slice(..sizes.vertex_bytes));
                     pass.set_index_buffer(
                         buffers.indices.buffer.slice(..sizes.index_bytes),
@@ -955,6 +971,7 @@ mod tests {
         device: wgpu::Device,
         queue: wgpu::Queue,
         masks: AlphaMasks,
+        empty_mesh_page: crate::render_backend::mesh_paint::PaintPage,
         belt: StagingBelt,
         commands: Vec<wgpu::CommandBuffer>,
     }
@@ -968,12 +985,16 @@ mod tests {
             let (device, queue) =
                 block_on(adapter.request_device(&wgpu::DeviceDescriptor::default()))
                     .expect("GPU device");
-            let masks = AlphaMasks::new(&device, &queue, sampling_layout(&device));
+            let mesh_layout = crate::render_backend::mesh_paint::sampling_layout(&device);
+            let empty_mesh_page =
+                crate::render_backend::mesh_paint::PaintPage::new(&device, &mesh_layout, [1, 1, 1]);
+            let masks = AlphaMasks::new(&device, &queue, sampling_layout(&device), &mesh_layout);
             let belt = StagingBelt::new(device.clone(), 4096);
             Self {
                 device,
                 queue,
                 masks,
+                empty_mesh_page,
                 belt,
                 commands: Vec::new(),
             }
@@ -1026,6 +1047,7 @@ mod tests {
                 feather,
                 parent,
                 None,
+                &self.empty_mesh_page.bind_group,
             );
             if changed {
                 self.belt.finish();
@@ -1357,7 +1379,10 @@ mod tests {
             .expect("GPU adapter");
         let (device, queue) = block_on(adapter.request_device(&wgpu::DeviceDescriptor::default()))
             .expect("GPU device");
-        let mut masks = AlphaMasks::new(&device, &queue, sampling_layout(&device));
+        let mesh_layout = crate::render_backend::mesh_paint::sampling_layout(&device);
+        let empty_mesh_page =
+            crate::render_backend::mesh_paint::PaintPage::new(&device, &mesh_layout, [1, 1, 1]);
+        let mut masks = AlphaMasks::new(&device, &queue, sampling_layout(&device), &mesh_layout);
         let mut belt = StagingBelt::new(device.clone(), 4096);
         let globals = GpuGlobals {
             resolution: [64.0, 64.0],
@@ -1377,6 +1402,7 @@ mod tests {
             0.0,
             None,
             None,
+            &empty_mesh_page.bind_group,
         );
         masks.render(
             &device,
@@ -1390,6 +1416,7 @@ mod tests {
             3.0,
             None,
             None,
+            &empty_mesh_page.bind_group,
         );
         let mut gradient = square(0.0, 64.0, 1.0);
         gradient.paints[0].params = [0.0, 1.0, 2.0, 0.0];
@@ -1407,6 +1434,7 @@ mod tests {
             0.0,
             Some(1),
             None,
+            &empty_mesh_page.bind_group,
         );
         masks.render(
             &device,
@@ -1420,6 +1448,7 @@ mod tests {
             0.0,
             None,
             None,
+            &empty_mesh_page.bind_group,
         );
         belt.finish();
         queue.submit([encoder.finish()]);

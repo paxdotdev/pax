@@ -968,6 +968,13 @@ impl<S: PietSurface> api::RenderContext for PietRenderer<S> {
 pub fn fill_to_piet_brush(fill: &Paint, rect: kurbo::Rect) -> Option<piet::PaintBrush> {
     let rect = api::drawing::paint_bounds(rect)?;
     Some(match fill {
+        Paint::MeshGradient(_) => {
+            static WARNING: std::sync::Once = std::sync::Once::new();
+            WARNING.call_once(|| {
+                log::warn!("Mesh-gradient paint requires WGPU; Piet paints no mesh field")
+            });
+            return None;
+        }
         Paint::Blend(_) => return None,
         Paint::Solid(color) => color.to_piet_color().into(),
         Paint::LinearGradient(linear) => {

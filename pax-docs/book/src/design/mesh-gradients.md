@@ -1,13 +1,92 @@
 # PAX-1011 — Animatable mesh-gradient paint: proposal
 
-Status: proposed, September 29, 2026. No public API or renderer implementation
-is approved or present. This note is the design return value for Zack's review,
-not public documentation of a supported capability.
+Status: row approach approved and implemented for WGPU, September 29, 2026.
+The original proposal below records the design exploration. Current builder
+instructions are in [Drawing](../drawing-styling.md#mesh-gradients); implementation
+and measurement notes follow here. Website integration remains a separate task.
 
-Worktree: `/Users/zack/.codex/worktrees/mesh-gradients/pax`, created from
-`226ea7a299706b7c31b867abb392a99f1eae03e5` on `zb/website`. The base includes
-PAX-1008's paint layers and component mask sources. Uncommitted website styling
-is deliberately excluded. PAX-1011 does not block PAX-869's temporary gradient.
+## Implementation and validation
+
+The implementation keeps 2–8 equally sized anchor rows and derives shared
+bicubic controls. Public values, nested template bindings, whole-row bindings,
+rich manifests, ProgramIR, generated Rust, and binary baking carry mesh data.
+The rich-manifest binary schema is version 6 and ProgramIR binary schema is
+version 5; older baked schema versions are rejected explicitly.
+
+Mesh terms occupy layers of a retained RGBA8 texture-array page. The ordinary
+ordered retained draws bind each consumer's page, including all its crossfade
+endpoints. Scenes containing meshes bypass the concatenating vector-scene
+batch optimization; this preserves draw order without rewriting that path.
+There is no per-frame texture allocation for independent animated fields at a
+stable resolution. Identical live fields at the same resolution share pages;
+a consumer changing a shared field gets its own page. Weak cache entries retain
+no historical textures. Translation and rotation leave field pixels reusable;
+scale/DPR use 32-pixel resolution buckets with shrink hysteresis.
+
+The page limit is 64 MiB, also bounded by device texture size and layer limits.
+Exceeding a limit rejects the entire mesh page with a deduplicated diagnostic;
+it does not retain old pixels, truncate blend endpoints, or lower quality.
+Non-mesh terms still render. Separate array layers prevent cross-field texture
+bleed. This first version does not stream oversized mixtures across pages.
+The internal subdivision cap is 128 per patch axis. The conservative parameter
+triangulation budget is 0.125 physical pixels for geometry and 1/1024 per
+unclamped premultiplied channel; texture quantization/filtering and coverage
+are additional sampling errors. The curved translucent 3×3 fixture measured
+maximum byte error 1 and mean byte error 0.00643 against the independent dense
+CPU raster reference, without internal cracks.
+
+Verification covers values/coercion, shared edges and derivatives, malformed
+grids, nested reactive properties, descriptor generation, rich/binary/ProgramIR
+roundtrips, affine/nonzero/zero-area paint bounds, transparent anchors, folded
+replacement, mesh crossfades, painted and captured alpha masks, more than 64
+ordered consumers, culling, copy-on-write, resize/reuse, and invalid updates.
+Web debug and optimized baked release are built and visually inspected in
+Chrome at desktop, narrow layout, and 390×844 viewport sizes. Native Metal tests exercise the
+same renderer; full macOS/iOS application smoke tests are not claimed. Piet
+mesh painting is explicitly unsupported.
+
+All 623 tests in the compiler, language, runtime, runtime API, GPU, and focused
+mesh manifest suites pass. API docs were regenerated, example source bundles
+are current, and `mdbook build pax-docs/book` and `git diff --check` pass.
+
+### Retained paint measurement
+
+Measured on Apple M2 Max / Metal, optimized Rust test build, September 29, 2026.
+The workload covers 3×3 and 8×8 grids, 1 and 16 independent consumers,
+390×256 and 920×256 logical domains, DPR 1/2, paused/color/position updates.
+Each case uses 12 samples, discarding the first for warm medians. The test
+asserts no texture allocation after the first frame and no paint raster passes
+for paused fields. Coefficient uploads are 2,048 bytes per 3×3 field update and
+25,088 per 8×8 update. Parameter-grid index buffers are shared.
+
+Representative DPR-2 color-update measurements:
+
+| Grid | Consumers | Domain | Median CPU preparation | Median submitted completion | Tail completion | Live texture bytes |
+| --- | ---: | --- | ---: | ---: | ---: | ---: |
+| 3×3 | 1 | 390×256 | 0.051 ms | 1.597 ms | 1.629 ms | 1,638,400 |
+| 3×3 | 16 | 920×256 | 0.600 ms | 4.081 ms | 4.213 ms | 60,817,408 |
+| 8×8 | 1 | 390×256 | 0.474 ms | 2.071 ms | 4.151 ms | 1,638,400 |
+| 8×8 | 16 | 920×256 | 3.305 ms | 11.126 ms | 12.681 ms | 60,817,408 |
+
+The paused 16-consumer 8×8 case takes 0.072 ms CPU preparation, with zero warm
+raster passes/uploads/allocations. Identical-consumer sharing is verified
+separately; the measurement intentionally varies each consumer's field.
+Submitted completion includes CPU encoding, queue submission, GPU execution,
+and a blocking device poll (about 1.5 ms even for empty warm submissions).
+It is **not a GPU timestamp or app frame time**, and the tail is the maximum
+of only 11 warm samples. No cross-device FPS claim follows from these numbers.
+Handwriter masks, nested opacity, and scrolling are verified functionally;
+this measurement does not quantify their extra cost or compare full-app
+solid/linear baselines. Large 8×8 animations should be profiled in their actual
+scene, especially where the ordinary retained draw path replaces batching.
+
+Reproduce the measurement with:
+
+```sh
+cargo test -p pax-gpu --release mesh_raster_workload --lib -- --ignored --nocapture
+```
+
+## Original proposal
 
 ## Recommendation
 

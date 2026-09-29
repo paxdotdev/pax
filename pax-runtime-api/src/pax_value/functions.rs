@@ -336,6 +336,9 @@ impl HelperFunctions for crate::UnitValue {}
 impl HelperFunctions for bool {}
 
 impl HelperFunctions for Paint {}
+impl HelperFunctions for crate::MeshPoint {}
+impl HelperFunctions for crate::MeshGradient {}
+impl<A, B> HelperFunctions for (A, B) {}
 impl HelperFunctions for crate::Fill {}
 
 impl HelperFunctions for crate::PaxValue {}

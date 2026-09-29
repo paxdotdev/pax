@@ -184,6 +184,11 @@ impl ToPaxValue for Paint {
                 "Solid".to_string(),
                 vec![color.to_pax_value()],
             ))),
+            Paint::MeshGradient(mesh) => PaxValue::Enum(Box::new((
+                "Paint".into(),
+                "MeshGradient".into(),
+                vec![mesh.to_pax_value()],
+            ))),
             Paint::LinearGradient(gradient) => PaxValue::Enum(Box::new((
                 "Paint".to_string(),
                 "LinearGradient".to_string(),
@@ -455,6 +460,27 @@ impl ToPaxValue for GradientStop {
             .into_iter()
             .collect(),
         )
+    }
+}
+
+impl ToPaxValue for crate::MeshPoint {
+    fn to_pax_value(self) -> PaxValue {
+        PaxValue::Object(vec![
+            (
+                "position".into(),
+                PaxValue::Vec(vec![
+                    self.position.0.to_pax_value(),
+                    self.position.1.to_pax_value(),
+                ]),
+            ),
+            ("color".into(), self.color.to_pax_value()),
+        ])
+    }
+}
+
+impl ToPaxValue for crate::MeshGradient {
+    fn to_pax_value(self) -> PaxValue {
+        PaxValue::Object(vec![("rows".into(), self.rows.to_pax_value())])
     }
 }
 

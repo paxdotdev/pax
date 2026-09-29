@@ -18,7 +18,8 @@ use crate::{
 };
 
 const MAGIC: &[u8; 8] = b"PAXM\x00BIN";
-const VERSION: u8 = 5;
+// Mesh gradient shape/paint variants extend the runtime-bearing schema.
+const VERSION: u8 = 6;
 
 pub type Result<T> = std::result::Result<T, Error>;
 

@@ -979,6 +979,9 @@ fn collect_value_definition(
         }
         ValueDefinition::Gradient(gradient) => {
             match &gradient.shape {
+                GradientShapeDefinition::Mesh { rows } => {
+                    collect_value_definition(rows, seen, collected);
+                }
                 GradientShapeDefinition::Linear { start, end } => {
                     if let Some(start) = start {
                         collect_value_definition(start, seen, collected);

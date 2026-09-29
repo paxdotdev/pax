@@ -2661,6 +2661,9 @@ fn collect_value_definition_dependencies(
         }
         ValueDefinition::Gradient(gradient) => {
             match &gradient.shape {
+                GradientShapeDefinition::Mesh { rows } => {
+                    collect_value_definition_dependencies(rows, stack, dependents);
+                }
                 GradientShapeDefinition::Linear { start, end } => {
                     if let Some(start) = start {
                         collect_value_definition_dependencies(start, stack, dependents);
@@ -2797,6 +2800,18 @@ fn evaluate_gradient_to_pax_value(
     gradient: &GradientDefinition,
     stack: &Rc<RuntimePropertiesStackFrame>,
 ) -> Option<PaxValue> {
+    if let GradientShapeDefinition::Mesh { rows } = &gradient.shape {
+        // An invalid dynamic record must clear the field, rather than falling through
+        // the generic property's default paint (which is an opaque solid).
+        let mesh = evaluate_value_definition_to_pax_value(rows, stack)
+            .and_then(|rows| pax_runtime_api::MeshGradient::try_coerce(PaxValue::Object(vec![("rows".into(), rows)])).ok())
+            .unwrap_or_else(|| {
+                static REPORTED: std::sync::Once = std::sync::Once::new();
+                REPORTED.call_once(|| log::warn!("@gradient mesh rows must contain position/color anchor records; invalid value paints no field"));
+                pax_runtime_api::MeshGradient::default()
+            });
+        return Some(pax_runtime_api::Paint::MeshGradient(mesh).to_pax_value());
+    }
     let stops = gradient
         .elements
         .iter()
@@ -2820,6 +2835,7 @@ fn evaluate_gradient_to_pax_value(
 
     let stops = PaxValue::Vec(stops);
     let (variant, args) = match &gradient.shape {
+        GradientShapeDefinition::Mesh { .. } => unreachable!("mesh handled before stop evaluation"),
         GradientShapeDefinition::Linear { start, end } => {
             let start = start
                 .as_ref()
@@ -4668,6 +4684,119 @@ mod base_symbol_tests {
         assert!(
             mismatch.get().is_empty(),
             "an invalid list must not install a valid prefix"
+        );
+    }
+
+    #[test]
+    fn mesh_nested_bindings_and_whole_rows_invalidate_paint() {
+        use pax_manifest::{
+            GradientDefinition, GradientShapeDefinition, LiteralBlockDefinition, SettingElement,
+        };
+        use pax_runtime_api::{Color, MeshPoint, Paint};
+        let x = Property::new(Size::Percent(35.into()));
+        let accent = Property::new(Color::CYAN);
+        let rows = Property::new(vec![
+            vec![
+                MeshPoint {
+                    position: (Size::default(), Size::default()),
+                    color: Color::RED
+                };
+                2
+            ];
+            2
+        ]);
+        let stack = RuntimePropertiesStackFrame::new(HashMap::from([
+            ("x".into(), Variable::new_from_typed_property(x.clone())),
+            (
+                "accent".into(),
+                Variable::new_from_typed_property(accent.clone()),
+            ),
+            (
+                "rows".into(),
+                Variable::new_from_typed_property(rows.clone()),
+            ),
+        ]));
+        let anchor = ValueDefinition::Block(LiteralBlockDefinition {
+            explicit_type_pascal_identifier: None,
+            elements: vec![
+                SettingElement::Setting(
+                    Token::new_without_location("position".into()),
+                    ValueDefinition::List(vec![expression("x"), percent_literal(100.0)]),
+                ),
+                SettingElement::Setting(
+                    Token::new_without_location("color".into()),
+                    expression("accent"),
+                ),
+            ],
+        });
+        let mesh = |rows| {
+            ValueDefinition::Gradient(GradientDefinition {
+                shape: GradientShapeDefinition::Mesh {
+                    rows: Box::new(rows),
+                },
+                elements: vec![],
+            })
+        };
+        let nested: Property<Paint> = build_component_property(
+            "paint",
+            &mesh(ValueDefinition::List(vec![
+                ValueDefinition::List(vec![
+                    anchor
+                        .clone(
+                        );
+                    2
+                ]);
+                2
+            ])),
+            &stack,
+            stack.clone(),
+            |_, _| unreachable!(),
+        );
+        let bound: Property<Paint> = build_component_property(
+            "paint",
+            &mesh(expression("rows")),
+            &stack,
+            stack.clone(),
+            |_, _| unreachable!(),
+        );
+        let point = |paint: Paint| {
+            let Paint::MeshGradient(mesh) = paint else {
+                panic!("expected mesh")
+            };
+            mesh.rows[0][0].clone()
+        };
+        assert_eq!(point(nested.get()).position.0, x.get());
+        x.set(Size::Combined(10.into(), 60.into()));
+        accent.set(Color::YELLOW);
+        assert_eq!(point(nested.get()).position.0, x.get());
+        assert_eq!(point(nested.get()).color, Color::YELLOW);
+        assert_eq!(point(bound.get()).color, Color::RED);
+        rows.set(vec![vec![point(nested.get()); 3]; 2]);
+        assert_eq!(point(bound.get()), point(nested.get()));
+        let Paint::MeshGradient(mesh) = bound.get() else {
+            unreachable!()
+        };
+        assert_eq!(mesh.rows[0].len(), 3);
+        rows.set(vec![]);
+        let malformed: Property<Paint> = build_component_property(
+            "paint",
+            &ValueDefinition::Gradient(GradientDefinition {
+                shape: GradientShapeDefinition::Mesh {
+                    rows: Box::new(expression("42")),
+                },
+                elements: vec![],
+            }),
+            &stack,
+            stack.clone(),
+            |_, _| unreachable!(),
+        );
+        assert!(matches!(malformed.get(), Paint::MeshGradient(ref value) if value.rows.is_empty()));
+        let Paint::MeshGradient(mesh) = bound.get() else {
+            unreachable!()
+        };
+        assert!(
+            mesh.validate().is_err(),
+            "invalid updates must replace stale valid paint"
         );
     }
 

@@ -96,6 +96,8 @@ struct SceneLighting {
 @group(1) @binding(0) var alpha_mask: texture_2d<f32>;
 @group(1) @binding(1) var alpha_sampler: sampler;
 @group(1) @binding(2) var<uniform> alpha_domain: vec4<f32>;
+@group(2) @binding(0) var mesh_paints: texture_2d_array<f32>;
+@group(2) @binding(1) var mesh_sampler: sampler;
 
 struct GpuVertex {
     @location(0) position: vec2<f32>,
@@ -256,6 +258,20 @@ fn apply_lighting(
 fn gradient(fill_id: u32, coord: vec2<f32>) -> vec4<f32> {
     let gradient = gradients.gradients[fill_id];
     if gradient.type_id == 2u { return gradient.colors[0]; }
+    if gradient.type_id == 3u {
+        let delta = coord / globals.dpr - gradient.position;
+        let a = gradient.main_axis;
+        let b = gradient.off_axis;
+        let determinant = a.x*b.y - a.y*b.x;
+        if abs(determinant) < 0.000001 { return vec4<f32>(0.0); }
+        let local = vec2<f32>(delta.x*b.y - delta.y*b.x, a.x*delta.y - a.y*delta.x) / determinant;
+        let domain = gradient.colors[0];
+        let uv = (local - domain.xy) / domain.zw;
+        if any(uv < vec2<f32>(0.0)) || any(uv > vec2<f32>(1.0)) { return vec4<f32>(0.0); }
+        let value = textureSampleLevel(mesh_paints, mesh_sampler, uv, i32(gradient._pad0), 0.0);
+        if value.a <= 0.0 { return vec4<f32>(0.0); }
+        return vec4<f32>(value.rgb / value.a, value.a);
+    }
     if gradient.stop_count == 0u { return vec4<f32>(0.0); }
     
     // Calculate color space position

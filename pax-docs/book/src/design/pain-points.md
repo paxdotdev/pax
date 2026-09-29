@@ -2944,3 +2944,17 @@ chassis controls, not only synthetic handler dispatch. A debug
 `pax-tile-window-escape` message can also describe an ordinary content-height
 increase: the renderer then resizes and replays the layer. Distinguish that
 resize diagnostic from stale initialization/removal warnings and coercion errors.
+
+
+## 2026-09-29 — Mesh example authoring and static type descriptors
+
+Pax color literals use byte integers or percentages for every channel, including
+alpha. `rgba(255, 0, 255, 0.35)` is not a 35%-alpha template literal; write
+`rgba(255, 0, 255, 35%)`. The parser reports a missing unit for bare decimals.
+
+New public value types need canonical aliases in both static-analysis import
+resolution paths, as well as field descriptors. Rebuild the local `pax-cli`
+binary after changing those tables: invoking an old CLI can report unresolved
+new types even while the runtime crate compiles. Tuple type IDs used for
+code-generated identifiers must omit spaces between types; a space after the
+comma survives identifier escaping and produces invalid generated Rust.

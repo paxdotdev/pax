@@ -1905,6 +1905,59 @@ fn to_pax_gpu_fill(
     let bounds = (rect.width(), rect.height());
     let orig = rect.origin();
     match fill {
+        pax_runtime_api::Paint::MeshGradient(mesh) => {
+            if let Err(error) = mesh.validate() {
+                thread_local! { static REPORTED: std::cell::RefCell<std::collections::HashSet<String>> = std::cell::RefCell::new(std::collections::HashSet::new()); }
+                REPORTED.with(|reported| {
+                    if reported.borrow_mut().insert(error.clone()) {
+                        log::warn!("{error}; mesh paints no field");
+                    }
+                });
+                return pax_gpu::Fill::Solid(pax_gpu::Color::rgba(0.0, 0.0, 0.0, 0.0));
+            }
+            let pos = transform.transform_point(point(orig.x as f32, orig.y as f32));
+            let main_axis =
+                transform.transform_vector(pax_gpu::Vector2D::new(bounds.0 as f32, 0.0));
+            let off_axis = transform.transform_vector(pax_gpu::Vector2D::new(0.0, bounds.1 as f32));
+            let determinant = main_axis.cross(off_axis);
+            if ![
+                pos.x,
+                pos.y,
+                main_axis.x,
+                main_axis.y,
+                off_axis.x,
+                off_axis.y,
+                determinant,
+            ]
+            .iter()
+            .all(|v| v.is_finite())
+                || determinant.abs() < 1e-6
+            {
+                return pax_gpu::Fill::Solid(pax_gpu::Color::rgba(0.0, 0.0, 0.0, 0.0));
+            }
+            pax_gpu::Fill::Mesh {
+                rows: mesh
+                    .rows
+                    .iter()
+                    .map(|row| {
+                        row.iter()
+                            .map(|p| {
+                                (
+                                    [
+                                        (p.position.0.evaluate(bounds, Axis::X) / bounds.0) as f32,
+                                        (p.position.1.evaluate(bounds, Axis::Y) / bounds.1) as f32,
+                                    ],
+                                    to_pax_gpu_color(&p.color),
+                                )
+                            })
+                            .collect()
+                    })
+                    .collect(),
+                pos,
+                main_axis,
+                off_axis,
+            }
+        }
         pax_runtime_api::Paint::Blend(terms) => pax_gpu::Fill::Blend(
             terms
                 .iter()
@@ -2133,6 +2186,57 @@ pub fn convert_kurbo_to_lyon_path(kurbo_path: &BezPath) -> Path {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mesh_paint_resolves_full_bounds_origin_combined_units_and_affine_axes() {
+        use pax_runtime_api::{Color, MeshGradient, MeshPoint, Paint, Size};
+        let paint = Paint::MeshGradient(MeshGradient {
+            rows: vec![
+                vec![
+                    MeshPoint {
+                        position: (
+                            Size::Combined(5.into(), 50.into()),
+                            Size::Percent(100.into())
+                        ),
+                        color: Color::CYAN,
+                    };
+                    2
+                ];
+                2
+            ],
+        });
+        let transform = pax_gpu::Transform2D::new(2.0, 0.5, 1.0, 3.0, 4.0, 7.0);
+        let rect = kurbo::Rect::new(10.0, 20.0, 110.0, 70.0);
+        let pax_gpu::Fill::Mesh {
+            rows,
+            pos,
+            main_axis,
+            off_axis,
+        } = to_pax_gpu_fill(&paint, rect, transform)
+        else {
+            panic!("mesh")
+        };
+        assert_eq!(pos, point(44.0, 72.0));
+        assert_eq!(main_axis, pax_gpu::Vector2D::new(200.0, 50.0));
+        assert_eq!(off_axis, pax_gpu::Vector2D::new(50.0, 150.0));
+        assert_eq!(rows[0][0].0, [0.55, 1.0]);
+        let pax_gpu::Fill::Mesh {
+            rows, main_axis, ..
+        } = to_pax_gpu_fill(
+            &paint,
+            kurbo::Rect::new(10.0, 20.0, 10.0, 70.0),
+            pax_gpu::Transform2D::identity(),
+        )
+        else {
+            panic!("canonical zero axis")
+        };
+        assert_eq!(main_axis.x, 1.0);
+        assert_eq!(rows[0][0].0[0], 5.5);
+        assert!(matches!(
+            to_pax_gpu_fill(&paint, rect, pax_gpu::Transform2D::scale(0.0, 1.0)),
+            pax_gpu::Fill::Solid(_)
+        ));
+    }
 
     fn empty_layer(active: bool, current_active: bool) -> LayerDef {
         (

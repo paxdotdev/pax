@@ -1,5 +1,7 @@
 pub mod render_backend;
 pub mod render_context;
+// Patch construction and subdivision stay independent of consumer geometry.
+mod mesh;
 /// Affine transform type used by the retained GPU renderer.
 pub type Transform2D = lyon::geom::euclid::default::Transform2D<f32>;
 /// Point type used by tessellation and retained scene geometry.

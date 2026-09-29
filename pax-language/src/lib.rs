@@ -104,7 +104,7 @@ fn renamed_rules(rule: &Rule) -> String {
         Rule::gradient_inline_value => "@gradient block".to_string(),
         Rule::gradient_body => "gradient body".to_string(),
         Rule::gradient_shape_block => "gradient shape block".to_string(),
-        Rule::gradient_shape_key => "linear or radial".to_string(),
+            Rule::gradient_shape_key => "linear, radial, or mesh".to_string(),
         Rule::gradient_shape_settings => "gradient shape settings".to_string(),
         Rule::gradient_shape_setting => "gradient shape setting".to_string(),
         Rule::gradient_shape_setting_value => "gradient shape setting value".to_string(),

@@ -167,8 +167,15 @@ impl WgpuRenderer<'_> {
                 gutter = gutter.max(required);
             } else {
                 log::error!("alpha source {owner} exceeds GPU texture limits; hiding its content");
-                self.render_backend
-                    .render_alpha_mask(*owner, 0, &[], 0.0, None);
+                self.render_backend.render_alpha_mask(
+                    *owner,
+                    0,
+                    &[],
+                    0.0,
+                    None,
+                    &[],
+                    &mut self.resource_churn_stats,
+                );
                 visited.insert(*owner);
             }
         }

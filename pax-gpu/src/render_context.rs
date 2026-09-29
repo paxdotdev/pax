@@ -80,6 +80,13 @@ type SharedVectorResourceCache = Rc<RefCell<VectorResourceCache>>;
 /// Resource churn counters for renderer profiling.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ResourceChurnStats {
+    pub mesh_texture_allocations: u64,
+    /// Bytes allocated for mesh textures during this sample (not current residency).
+    pub mesh_texture_bytes: u64,
+    pub mesh_coefficient_upload_bytes: u64,
+    pub mesh_raster_passes: u64,
+    pub mesh_cache_hits: u64,
+    pub mesh_topology_allocations: u64,
     pub flushes: u64,
     pub opacity_group_renders: u64,
     pub opacity_group_cache_hits: u64,
@@ -119,6 +126,12 @@ pub struct ResourceChurnStats {
 
 impl ResourceChurnStats {
     pub fn merge(&mut self, other: Self) {
+        self.mesh_texture_allocations += other.mesh_texture_allocations;
+        self.mesh_texture_bytes += other.mesh_texture_bytes;
+        self.mesh_coefficient_upload_bytes += other.mesh_coefficient_upload_bytes;
+        self.mesh_raster_passes += other.mesh_raster_passes;
+        self.mesh_cache_hits += other.mesh_cache_hits;
+        self.mesh_topology_allocations += other.mesh_topology_allocations;
         self.flushes += other.flushes;
         self.opacity_group_renders += other.opacity_group_renders;
         self.opacity_group_cache_hits += other.opacity_group_cache_hits;
@@ -163,6 +176,7 @@ impl ResourceChurnStats {
     pub fn has_resource_churn(&self) -> bool {
         let mut stats = *self;
         stats.flushes = 0;
+        stats.mesh_cache_hits = 0;
         stats.opacity_group_renders = 0;
         stats.opacity_group_cache_hits = 0;
         stats.alpha_source_renders = 0;
@@ -741,6 +755,7 @@ impl<'w> WgpuRenderer<'w> {
         self.source_captures.clear();
         self.source_recordings.clear();
         self.render_backend.reset_captures();
+        self.render_backend.alpha_mesh_pages.clear();
         self.transform_arena = TransformArena::new();
         self.clip_arena = ClipArena::new();
         self.clip_owner_keys.clear();
@@ -1019,6 +1034,9 @@ impl<'w> WgpuRenderer<'w> {
         self.resource_churn_stats.flushes += 1;
         let active_alpha_masks = self.retain_reachable_sources();
         self.render_backend.alpha_masks.retain(&active_alpha_masks);
+        self.render_backend
+            .alpha_mesh_pages
+            .retain(|id, _| active_alpha_masks.contains(id));
         self.alpha_geometry
             .retain(|owner, _| active_alpha_masks.contains(owner));
         if !self.scene_dirty {
@@ -1237,6 +1255,7 @@ impl<'w> WgpuRenderer<'w> {
             .hash(&mut hash);
         let transform = self.current_transform();
         let mut draws = Vec::new();
+        let mut meshes = Vec::new();
         // Retain only geometry still used by this mask. Paint/order/transform
         // edits reuse local tessellation; removed layers release their entries.
         let mut previous_geometry = self.alpha_geometry.remove(&owner).unwrap_or_default();
@@ -1246,13 +1265,35 @@ impl<'w> WgpuRenderer<'w> {
                 id.hash(&mut hash);
                 opacity.to_bits().hash(&mut hash);
             }
-            fn append(out: &mut Vec<Paint>, fill: Fill, opacity: f32) {
+            fn append(
+                out: &mut Vec<Paint>,
+                meshes: &mut Vec<crate::render_backend::mesh_paint::MeshInput>,
+                fill: Fill,
+                opacity: f32,
+            ) {
                 let mut paint = Paint::default();
                 paint.params[1] = opacity;
                 match fill {
+                    Fill::Mesh {
+                        rows,
+                        pos,
+                        main_axis,
+                        off_axis,
+                    } => {
+                        let input = crate::render_backend::mesh_paint::MeshInput::new(
+                            rows,
+                            [main_axis.to_array(), off_axis.to_array()],
+                        );
+                        paint.params[0] = meshes.len() as f32;
+                        paint.params[3] = 2.0;
+                        paint.axis = [pos.x, pos.y, main_axis.x, main_axis.y];
+                        paint.off_axis = [off_axis.x, off_axis.y, 0.0, 0.0];
+                        paint.stops[0] = input.domain;
+                        meshes.push(input);
+                    }
                     Fill::Blend(terms) => {
                         for (fill, weight) in terms {
-                            append(out, fill, opacity * weight);
+                            append(out, meshes, fill, opacity * weight);
                         }
                         return;
                     }
@@ -1280,7 +1321,8 @@ impl<'w> WgpuRenderer<'w> {
                 out.push(paint);
             }
             let mut paints = Vec::new();
-            append(&mut paints, source.fill, source.opacity);
+            hash_fill_bits(&source.fill, &mut hash);
+            append(&mut paints, &mut meshes, source.fill, source.opacity);
             paints.len().hash(&mut hash);
             bytemuck::cast_slice::<_, u8>(&paints).hash(&mut hash);
             let key = (
@@ -1339,8 +1381,15 @@ impl<'w> WgpuRenderer<'w> {
         {
             value.to_bits().hash(&mut hash);
         }
-        self.render_backend
-            .render_alpha_mask(owner, hash.finish(), &draws, feather, parent);
+        self.render_backend.render_alpha_mask(
+            owner,
+            hash.finish(),
+            &draws,
+            feather,
+            parent,
+            &meshes,
+            &mut self.resource_churn_stats,
+        );
         self.clip_stack.push(ClipReference::Alpha { owner });
         self.scene_dirty = true;
     }
@@ -1533,6 +1582,7 @@ impl<'w> WgpuRenderer<'w> {
                         let retained_primitives =
                             build_retained_primitives(&buffers_out.primitives, &transform_ids);
                         Some(RetainedNode::Vector(RetainedVectorNode {
+                            mesh_page: None,
                             resource: None,
                             buffers: buffers_out,
                             retained_primitives,
@@ -1569,6 +1619,7 @@ impl<'w> WgpuRenderer<'w> {
                         let retained_primitives =
                             build_retained_primitives(&buffers_out.primitives, &transform_ids);
                         Some(RetainedNode::Vector(RetainedVectorNode {
+                            mesh_page: None,
                             resource: None,
                             buffers: buffers_out,
                             retained_primitives,
@@ -1673,7 +1724,11 @@ impl<'w> WgpuRenderer<'w> {
     }
 
     fn should_use_vector_scene_batch(&self) -> bool {
+        // A retained mesh draw binds its own page, including every crossfade endpoint.
+        // The concatenating fast path has one binding for the entire scene; use the
+        // ordinary ordered retained draws whenever pages are present.
         self.source_captures.is_empty()
+            && self.scene.values().all(|node| !matches!(node, RetainedNode::Vector(node) if !node.buffers.mesh_paints.is_empty()))
             && self.opacity_scopes.values().all(Vec::is_empty)
             && self.scene.len() >= 64
             && self
@@ -1703,12 +1758,21 @@ impl<'w> WgpuRenderer<'w> {
                 self.scene.insert(node_id, RetainedNode::Vector(node));
                 continue;
             }
+            self.render_backend.prepare_mesh_page(
+                &mut node.mesh_page,
+                &node.buffers.mesh_paints,
+                &mut self.resource_churn_stats,
+            );
             if !node.resource_dirty.any() && node.resource.is_some() {
+                node.resource.as_mut().unwrap().mesh_bind_group =
+                    node.mesh_page.as_ref().map(|page| page.bind_group.clone());
                 self.scene.insert(node_id, RetainedNode::Vector(node));
                 continue;
             }
 
             self.ensure_vector_resource_for_node(&mut node);
+            node.resource.as_mut().unwrap().mesh_bind_group =
+                node.mesh_page.as_ref().map(|page| page.bind_group.clone());
             self.scene.insert(node_id, RetainedNode::Vector(node));
         }
     }
@@ -2013,6 +2077,7 @@ impl RetainedNode {
 }
 
 struct RetainedVectorNode {
+    mesh_page: Option<Rc<crate::render_backend::mesh_paint::PaintPage>>,
     resource: Option<RetainedVectorResource>,
     buffers: CpuBuffers,
     retained_primitives: Vec<GpuPrimitive>,
@@ -2044,6 +2109,7 @@ fn new_cpu_buffers() -> CpuBuffers {
         primitives: Vec::new(),
         colors: Vec::new(),
         gradients: Vec::new(),
+        mesh_paints: Vec::new(),
         materials: Vec::new(),
         transforms: vec![GpuTransform::default()],
     }
@@ -2125,6 +2191,7 @@ fn rebuild_vector_buffers(
     if !reuse_fill {
         buffers.colors.clear();
         buffers.gradients.clear();
+        buffers.mesh_paints.clear();
         buffers.materials.clear();
     }
     buffers.transforms.truncate(1);
@@ -2969,6 +3036,33 @@ fn hash_transform_bits<H: Hasher>(transform: &Transform2D, opacity: f32, state: 
 
 fn hash_fill_bits<H: Hasher>(fill: &Fill, state: &mut H) {
     match fill {
+        Fill::Mesh {
+            rows,
+            pos,
+            main_axis,
+            off_axis,
+        } => {
+            3u8.hash(state);
+            rows.len().hash(state);
+            for row in rows {
+                row.len().hash(state);
+                for (position, color) in row {
+                    position[0].to_bits().hash(state);
+                    position[1].to_bits().hash(state);
+                    hash_color_bits(color, state);
+                }
+            }
+            for value in [
+                pos.x,
+                pos.y,
+                main_axis.x,
+                main_axis.y,
+                off_axis.x,
+                off_axis.y,
+            ] {
+                value.to_bits().hash(state);
+            }
+        }
         Fill::Blend(terms) => {
             2u8.hash(state);
             terms.len().hash(state);
@@ -3093,11 +3187,40 @@ fn to_gpu_scene_lighting(lighting: &SceneLighting) -> GpuSceneLighting {
 
 // Every mixture is sampled in one fragment invocation; drawing its leaves over
 // each other would apply source-over repeatedly and change transparent colors.
-fn append_gradient_paints(out: &mut Vec<GpuGradient>, fill: Fill, weight: f32) {
+fn append_gradient_paints(
+    out: &mut Vec<GpuGradient>,
+    meshes: &mut Vec<crate::render_backend::mesh_paint::MeshInput>,
+    fill: Fill,
+    weight: f32,
+) {
     match fill {
+        Fill::Mesh {
+            rows,
+            pos,
+            main_axis,
+            off_axis,
+        } => {
+            let index = meshes.len();
+            let input = crate::render_backend::mesh_paint::MeshInput::new(
+                rows,
+                [main_axis.to_array(), off_axis.to_array()],
+            );
+            let mut gradient = GpuGradient {
+                type_id: 3,
+                weight,
+                position: pos.to_array(),
+                main_axis: main_axis.to_array(),
+                off_axis: off_axis.to_array(),
+                _padding_0: index as u32,
+                ..Default::default()
+            };
+            gradient.colors[0] = input.domain;
+            meshes.push(input);
+            out.push(gradient);
+        }
         Fill::Blend(terms) => {
             for (fill, inner_weight) in terms {
-                append_gradient_paints(out, fill, weight * inner_weight);
+                append_gradient_paints(out, meshes, fill, weight * inner_weight);
             }
         }
         Fill::Solid(color) => {
@@ -3162,7 +3285,7 @@ fn push_primitive_def(
             let fill_id =
                 u16::try_from(buffers.gradients.len()).expect("paint buffer index overflow");
             let is_blend = matches!(fill, Fill::Blend(_));
-            append_gradient_paints(&mut buffers.gradients, fill, 1.0);
+            append_gradient_paints(&mut buffers.gradients, &mut buffers.mesh_paints, fill, 1.0);
             let count = buffers.gradients.len() - usize::from(fill_id);
             (fill_id, if is_blend { 2 } else { 1 }, count as u32)
         }
@@ -3209,7 +3332,7 @@ fn push_primitive_with_existing_fill(
                 .expect("paint buffer index overflow");
             (fill_id, 2, count as u32)
         }
-        Fill::Gradient { .. } => {
+        Fill::Gradient { .. } | Fill::Mesh { .. } => {
             let fill_id = *next_gradient_id;
             *next_gradient_id = next_gradient_id.saturating_add(1);
             (fill_id, 1, 1)
@@ -3510,7 +3633,7 @@ pub enum GradientType {
 #[derive(Debug, Clone, Copy, PartialEq)]
 /// Linear RGBA color used by the low-level renderer.
 pub struct Color {
-    rgba: [f32; 4],
+    pub(crate) rgba: [f32; 4],
 }
 
 impl Color {
@@ -3596,6 +3719,14 @@ impl Color {
 #[derive(Debug, Clone)]
 /// Fill style for a tessellated vector path.
 pub enum Fill {
+    /// Row-connected mesh in normalized paint coordinates. The axes map that domain to scene
+    /// coordinates; row order fixes connectivity independently of each anchor's x/y position.
+    Mesh {
+        rows: Vec<Vec<([f32; 2], Color)>>,
+        pos: Point2D,
+        main_axis: Vector2D,
+        off_axis: Vector2D,
+    },
     /// Weighted premultiplied paint mixture, sampled before compositing.
     Blend(Vec<(Fill, f32)>),
     Solid(Color),

@@ -87,7 +87,7 @@ limits, covered in [Text and fonts](text-fonts-images.md#display-text).
 
 ## Paint layers
 
-`Paint` supplies color: a solid, linear gradient, radial gradient, or a mixture
+`Paint` supplies color: a solid, linear gradient, radial gradient, mesh gradient, or a mixture
 produced by a transition. A `Fill` supplies an interior layer; a `Stroke`
 supplies an outline layer. Both own `paint`, `material`, and `opacity`.
 Rectangle, Ellipse, and Path accept ordered lists for `fill` and `stroke`.
@@ -133,7 +133,7 @@ its subpaths, and to Handwriter's complete generated path.
 
 Native Text and controls retain their single-paint interfaces and existing
 solid-color limitations. They do not acquire appearance stacks or materials.
-Piet supports the vector layers and gradient paints but does not apply lighting
+Piet supports the vector layers and linear/radial gradient paints but does not apply lighting
 materials or alpha masks. WGPU web is the end-to-end validation target.
 
 ### Migrating existing drawing code
@@ -293,6 +293,85 @@ for orientation. Recheck existing radial artwork and masks: use equal points
 for a centered glow, set `end` to the intended outer center, and express the
 radius directly in local logical pixels. The serialized fields and Pax syntax
 are unchanged in both debug and release cartridges.
+
+### Mesh gradients
+
+A mesh places colored anchors in a rectangular set of rows. Each anchor has
+independent x and y coordinates: rows determine which anchors connect, and do
+not require a shared y coordinate. Pax joins neighboring anchors with smooth
+bicubic patches and automatic Bézier controls.
+
+```pax
+<Rectangle width=100% height=240px
+    fill={
+        paint: @gradient {
+            mesh: {
+                rows: [
+                    [{position: [0%, 0%], color: CYAN},
+                     {position: [100%, 0%], color: FUCHSIA}],
+                    [{position: [0%, 100%], color: YELLOW},
+                     {position: [100%, 100%], color: CYAN}]
+                ]
+            }
+        }
+        material: {Material::unlit()}
+    }/>
+```
+
+Use 2–8 rows with the same number of anchors in every row, and 2–8 anchors per
+row. A mesh has no percentage color-stop list. Positions accept pixels,
+percentages, or combined units such as `{50% + 10px}`. Alpha belongs in the
+anchor color: for example, `rgba(255, 0, 255, 35%)`.
+
+Bind an individual coordinate or color to animate the field:
+`{position: [{self.center_x}, {self.center_y}], color: {self.accent}}`.
+Alternatively, bind the entire grid with `mesh: {rows: {self.rows}}`, where
+Rust declares `rows: Property<Vec<Vec<MeshPoint>>>`. `MeshPoint` has ordinary
+`position: (Size, Size)` and `color: Color` fields. Rust can also construct
+`Paint::MeshGradient(MeshGradient { rows })` directly. Changing points morphs
+the field; transitioning between complete `Paint` values crossfades the two
+sampled fields, even when their grids have matching dimensions.
+
+Mesh paints work in WGPU fills, layered paints, strokes, and painted alpha
+masks, with normal clipping, material, and group-opacity behavior. For a
+`Path`, percentages resolve against its complete smoothed geometry, including
+its bounds' origin. Changing `draw_start`/`draw_end` or stroke width does not
+reposition the paint. A zero-width or zero-height paint domain uses one logical
+pixel on that axis. Direct Handwriter strokes use each generated path's domain;
+use a single painted rectangle behind a [Handwriter alpha mask](compositing-effects.md#painted-alpha-masks)
+to keep a continuous field across an entire word.
+
+The field is transparent outside the actual mesh coverage. Moving outer
+anchors inward can expose gaps; keep them around the area you want to cover,
+or add a lower fill. Curves can overshoot anchor positions and colors. Color
+interpolation uses premultiplied encoded-sRGB channels, with alpha clamped to
+0–1 and premultiplied color clamped to alpha; it is not linear-light
+interpolation. At folds, later patches in row order replace earlier ones
+without accumulating alpha. Explicit Bézier handles and irregular row lengths
+are not supported yet.
+
+Mesh paint currently requires **WGPU**. Piet emits a diagnostic and paints no
+mesh; native text controls do not support mesh text paint. Debug and baked
+release cartridges accept the same values and syntax. Invalid static grids
+are rejected during compilation; invalid dynamic grids paint nothing with a
+deduplicated diagnostic. GPU storage is bounded to 64 MiB per paint page and
+the device's texture dimensions/layer count. A field or paint mixture that
+exceeds those limits, or cannot meet the subdivision error budget within 128
+steps per patch axis, paints no mesh field and reports the limit rather than
+silently dropping endpoints or reducing quality.
+
+The runnable `examples/src/mesh-gradients` study demonstrates nested bindings,
+whole-row bindings, a continuous Handwriter mask, a revealed stroke, and
+translucent anchors. Its Pause, Show/Hide anchors, and Narrow controls help
+inspect the field as it moves and resizes. The stroke extends its outer anchors
+beyond 0–100% so paint also covers the stroke's outer edges and caps.
+
+<pax-example
+  path="mesh-gradients"
+  title="Mesh gradients"
+  height="840"
+  files="src/lib.pax,src/lib.rs">
+</pax-example>
 
 ## Reusable visual settings
 

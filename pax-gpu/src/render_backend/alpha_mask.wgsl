@@ -8,6 +8,8 @@ struct Globals { resolution: vec2<f32>, dpr: vec2<f32>, origin: vec2<f32>, paddi
 @group(0) @binding(0) var<uniform> globals: Globals;
 @group(0) @binding(1) var<uniform> paint_range: vec4<u32>;
 @group(0) @binding(2) var<storage, read> paints: array<Paint>;
+@group(1) @binding(0) var mesh_paints: texture_2d_array<f32>;
+@group(1) @binding(1) var mesh_sampler: sampler;
 struct VertexOutput {
     @builtin(position) position: vec4<f32>,
     @location(0) world: vec2<f32>,
@@ -27,6 +29,18 @@ struct VertexOutput {
     return vec4<f32>(clamp(alpha, 0.0, 1.0));
 }
 fn sample_alpha(paint: Paint, world: vec2<f32>) -> f32 {
+    if paint.params.w > 1.5 {
+        let delta = world - paint.axis.xy;
+        let a = paint.axis.zw;
+        let b = paint.off_axis.xy;
+        let determinant = a.x*b.y - a.y*b.x;
+        if abs(determinant) < 0.000001 { return 0.0; }
+        let local = vec2<f32>(delta.x*b.y - delta.y*b.x, a.x*delta.y - a.y*delta.x) / determinant;
+        let domain = paint.stops[0];
+        let uv = (local - domain.xy) / domain.zw;
+        if any(uv < vec2<f32>(0.0)) || any(uv > vec2<f32>(1.0)) { return 0.0; }
+        return textureSampleLevel(mesh_paints, mesh_sampler, uv, i32(paint.params.x), 0.0).a * paint.params.y;
+    }
     var alpha = paint.params.x;
     let count = u32(paint.params.z);
     if count > 0u {

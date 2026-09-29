@@ -629,6 +629,7 @@ Shape-specific parameters for a gradient. V1 maps directly to runtime `Paint` va
 #### Variants
 ##### `Linear` { `start`: `Option`<`Box`<[`ValueDefinition`](../../../api/internal/pax-manifest/index.md#valuedefinition)>>, `end`: `Option`<`Box`<[`ValueDefinition`](../../../api/internal/pax-manifest/index.md#valuedefinition)>> }
 ##### `Radial` { `start`: `Box`<[`ValueDefinition`](../../../api/internal/pax-manifest/index.md#valuedefinition)>, `end`: `Box`<[`ValueDefinition`](../../../api/internal/pax-manifest/index.md#valuedefinition)>, `radius`: `Box`<[`ValueDefinition`](../../../api/internal/pax-manifest/index.md#valuedefinition)> }
+##### `Mesh` { `rows`: `Box`<[`ValueDefinition`](../../../api/internal/pax-manifest/index.md#valuedefinition)> }
 ---
 
 ### `InOutInterruption`
