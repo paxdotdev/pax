@@ -19,19 +19,14 @@ Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`Vec`<[`
 The path commands and control points, expressed in local coordinates.
 
 ##### `stroke`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Stroke`](../../../api/pax-runtime-api/drawing.md#stroke)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`Vec`<[`Stroke`](../../../api/pax-runtime-api/drawing.md#stroke)>>
 
 The stroke applied along the path centerline.
 
 ##### `fill`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Fill`](../../../api/pax-runtime-api/drawing.md#fill)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`Vec`<[`Fill`](../../../api/pax-runtime-api/drawing.md#fill)>>
 
 The fill applied to the interior of closed contours.
-
-##### `material`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Material`](../../../api/pax-runtime-api/drawing.md#material)>
-
-Light-reactive surface response.
 
 ##### `smoothing`
 Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`PathSmoothing`](../../../api/pax-runtime-api/drawing.md#pathsmoothing)>

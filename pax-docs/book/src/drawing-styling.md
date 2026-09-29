@@ -26,11 +26,11 @@ Here is a small surface for the Field notes content from the previous chapter:
         style={font: "Arial", font_size: 24px, fill: rgb(36, 54, 47)} />
     <Line x=24px y=80px width=232px height=1px
         x1=0px y1=0px x2=100% y2=0px
-        stroke={color: rgb(152, 168, 146), width: 1px} />
+        stroke={paint: rgb(152, 168, 146), width: 1px} />
     <Ellipse x=24px y=108px width=12px height=12px fill=rgb(67, 112, 86) />
     <Rectangle width=100% height=100% corner_radius=18
         fill=rgb(237, 241, 226)
-        stroke={color: rgb(178, 192, 168), width: 1px} />
+        stroke={paint: rgb(178, 192, 168), width: 1px} />
 </Group>
 ```
 
@@ -75,8 +75,9 @@ palette—`RED`, for example, is not a synonym for `rgb(255, 0, 0)`. Use explici
 channels when matching a design precisely. `TRANSPARENT` provides clear paint.
 
 For a vector, `fill` paints the interior and `stroke` paints its outline.
-An omitted fill uses the default SLATE color; an omitted stroke has zero
-width. Set `fill=TRANSPARENT` when you want only an outline.
+An omitted fill uses one SLATE layer; an omitted stroke is an empty stack.
+Set `fill=[]` when you want only an outline. `fill=TRANSPARENT` also retains
+its existing meaning: one transparent fill layer.
 
 Opacity on a container also affects its descendants. The behavior of
 overlapping children and native elements belongs to
@@ -84,11 +85,72 @@ overlapping children and native elements belongs to
 single flattened image. Text's `style.fill` has its own native-rendering
 limits, covered in [Text and fonts](text-fonts-images.md#display-text).
 
+## Paint layers
+
+`Paint` supplies color: a solid, linear gradient, radial gradient, or a mixture
+produced by a transition. A `Fill` supplies an interior layer; a `Stroke`
+supplies an outline layer. Both own `paint`, `material`, and `opacity`.
+Rectangle, Ellipse, and Path accept ordered lists for `fill` and `stroke`.
+Line and Handwriter accept a stroke list. The property names stay singular.
+
+```pax
+<Rectangle width=240px height=120px fill=[
+    Fill {paint: @gradient {0%: rgba(255, 255, 255, 0), 100%: WHITE}, opacity: 40%},
+    TEAL
+] stroke=[
+    {paint: WHITE, width: 2px},
+    {paint: @gradient {0%: CYAN, 100%: FUCHSIA}, width: 10px}
+]/>
+```
+
+Index zero is on top within each list, matching element ordering. Every stroke
+is above every fill. The thin white outline here overlays the wider gradient.
+`fill=RED`, `fill={paint: RED}`, `fill=Fill {paint: RED}`, and `fill=[RED]`
+are equivalent. Mix paints and typed or untyped layer objects in one flat list.
+Use `[]` for no layers; nested lists, `None`, and mixing Fill with Stroke objects
+are errors. Bindings and settings use the same conversions; see
+[appearance values](data-binding-expressions.md#appearance-values).
+
+Each layer defaults to SLATE paint, matte material, and opacity 1. Stroke also
+defaults to width 1px, butt caps, and miter joins. Handwriter's omitted stroke
+remains one black 3px round stroke; an explicit stroke replaces that default.
+Nonpositive widths draw nothing; nonfinite widths or opacity draw nothing and
+emit a development diagnostic. Finite opacity is clamped to [0, 1].
+
+Layer opacity multiplies paint alpha before source-over composition. Element
+opacity then fades the completed appearance once. Two opaque fills on an
+element at 50% opacity give 50% alpha; two fills each at 50% layer opacity give
+75% alpha. Material is per layer and uses the element's lighting context.
+Blend modes and interleaving fills with strokes are not exposed yet.
+
+Paint coordinates use the complete local shape after smoothing, before stroke
+expansion or reveal trimming. Percentage and pixel endpoints include that
+bounds' origin. Stroke width, caps, joins, and reveal progress do not move the
+paint. A zero-width or zero-height domain expands that axis symmetrically to
+1px solely for sampling; empty geometry still draws nothing. Transforms carry
+paint and geometry together. This applies to all layers of a Path, including
+its subpaths, and to Handwriter's complete generated path.
+
+Native Text and controls retain their single-paint interfaces and existing
+solid-color limitations. They do not acquire appearance stacks or materials.
+Piet supports the vector layers and gradient paints but does not apply lighting
+materials or alpha masks. WGPU web is the end-to-end validation target.
+
+### Migrating existing drawing code
+
+Change `stroke={color: RED, width: 2px}` to `stroke={paint: RED, width: 2px}`.
+Rename the old paint enum's constructors from `Fill::...` to `Paint::...`.
+Move primitive `material` onto each fill/stroke layer that should use it.
+In Rust, vector properties now hold `Vec<Fill>` and `Vec<Stroke>`;
+`Stroke::default()` means a 1px stroke, so use an empty vector for absence.
+Element opacity now applies once after the layers are assembled. Applications
+must rebuild rich and baked cartridges with the matching compiler/runtime.
+
 ## Outlines and corners
 
 ### Strokes
 
-A stroke combines a color, pixel width, cap, and join. It is centered on the
+A stroke combines a paint, pixel width, cap, join, material, and opacity. It is centered on the
 path, so a 4px outline extends about 2px to either side of its centerline.
 Leave room for that extension near a clipping edge.
 
@@ -96,7 +158,7 @@ Leave room for that extension near a clipping edge.
 <Line x=24px y=24px width=240px height=40px
     x1=8px y1=20px x2={100% - 8px} y2=20px
     stroke={
-        color: rgb(56, 120, 91)
+        paint: rgb(56, 120, 91)
         width: 8px
         cap: StrokeCap::Round
     }
@@ -110,7 +172,8 @@ open Path contours.
 
 For joined segments, choose `StrokeJoin::Miter`, `Round`, or `Bevel`. Miter is
 the default and extends edges toward a point; Round softens the turn; Bevel
-cuts the corner across. A stroke's paint is a `Color`, not a gradient `Fill`.
+cuts the corner across. Strokes support the same solid, linear, radial, and
+interpolated paints as fills. A bare `stroke=RED` creates a 1px stroke.
 Use pixel widths such as `2px`; percentage stroke widths are not supported by
 the current vector renderers.
 
@@ -140,7 +203,7 @@ and transforms remain the responsibilities described in Layout.
 
 ## Gradients
 
-A gradient varies the fill across a shape. `@gradient` lists the colors at
+A gradient varies paint across a shape or its outline. `@gradient` lists the colors at
 positions along it; the renderer blends between those stops:
 
 ```pax
@@ -160,9 +223,9 @@ positions along it; the renderer blends between those stops:
 Points are `[x, y]` pairs in the shape's local coordinate space. Here the
 gradient runs from the top-left to the bottom-right. Percent coordinates
 follow the shape's bounds as it resizes. For linear gradients, use at least two
-stops in ascending order and write their positions as percentages; the Piet
-fallback requires percentage stops even though the GPU renderer can also
-interpret pixels.
+stops in ascending order. Percentage stops resolve along the gradient axis;
+pixel stops use its local logical-pixel length on WGPU and Piet. WGPU uses
+at most eight stops.
 
 Omitting the `linear` block gives a left-to-right gradient, from `[0%, 0%]`
 to `[100%, 0%]`:
@@ -245,7 +308,7 @@ roles so that repeated elements stay consistent:
 @settings {
     .paper {
         fill: rgb(237, 241, 226)
-        stroke: {color: rgb(178, 192, 168), width: 1px}
+        stroke: {paint: rgb(178, 192, 168), width: 1px}
         corner_radius: 16
     }
 }
@@ -283,7 +346,7 @@ then add a segment command followed by its endpoint:
 
 ```pax
 <Path x=24px y=24px width=280px height=120px fill=TRANSPARENT
-    stroke={color: rgb(56, 120, 91), width: 4px, cap: StrokeCap::Round}
+    stroke={paint: rgb(56, 120, 91), width: 4px, cap: StrokeCap::Round}
     elements=[
         PathElement::Point(0%, 75%),
         PathElement::Cubic(25%, 0%, 75%, 100%),
@@ -311,7 +374,7 @@ contour deliberately when drawing a filled shape:
 ```pax
 <Path x=24px y=24px width=160px height=100px
     fill=rgb(220, 232, 211)
-    stroke={color: rgb(56, 120, 91), width: 3px, join: StrokeJoin::Round}
+    stroke={paint: rgb(56, 120, 91), width: 3px, join: StrokeJoin::Round}
     elements=[
         PathElement::Point(50%, 8%),
         PathElement::Line, PathElement::Point(92%, 92%),
@@ -341,7 +404,7 @@ line shows its first half:
 
 ```pax
 <Path x=24px y=24px width=280px height=40px fill=TRANSPARENT
-    stroke={color: rgb(56, 120, 91), width: 6px, cap: StrokeCap::Round}
+    stroke={paint: rgb(56, 120, 91), width: 6px, cap: StrokeCap::Round}
     draw_start=0% draw_end=50%
     elements=[
         PathElement::Point(0%, 50%),
@@ -446,7 +509,7 @@ component instances:
 ```pax
 <LightFrame x=24px y=24px width=280px height=160px>
     <Rectangle width=100% height=100% corner_radius=20
-        fill=rgb(67, 112, 86) material={Material::glossy(0.6)} />
+        fill={paint: rgb(67, 112, 86), material: {Material::glossy(0.6)}}  />
     <LightSource x=64px y=40px width=1px height=1px
         z=90px radius=240px intensity=1.5 color=rgb(255, 231, 192) />
 </LightFrame>
@@ -458,7 +521,7 @@ Use pixel values for `radius` and `z`. Depth here affects lighting, not the
 element order established by the template. Directional lights are also
 available through `shape=LightShape::Directional` and a `direction` vector.
 
-The default vector material is matte. `Material::glossy(...)` and
+Each fill and stroke layer has its own material; the default is matte. `Material::glossy(...)` and
 `Material::metallic(...)` adjust the response; `Material::unlit()` preserves
 the authored paint independently of lights. `Material::emissive(...)` adds
 color to its own surface; it does not turn the shape into a light source

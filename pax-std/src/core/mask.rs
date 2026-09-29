@@ -22,7 +22,7 @@ use_RefCell!();
 /// <Mask width=100% height=100% alpha=true feather=12.0>
 ///     <Rectangle width=100% height=100% fill=#FF0088/>
 ///     <Ellipse x=50% y=50% anchor=50% width=240px height=240px
-///         fill=TRANSPARENT stroke={color: WHITE, width: 40px}/>
+///         fill=TRANSPARENT stroke={paint: WHITE, width: 40px}/>
 /// </Mask>
 /// ```
 ///
@@ -31,14 +31,16 @@ use_RefCell!();
 /// zero disables feathering. Both properties default to zero/false, preserving
 /// existing coverage-mask behavior.
 ///
-/// Alpha sources support `Rectangle`, `Ellipse`, and `Path` fills and strokes,
+/// Alpha sources support `Rectangle`, `Ellipse`, `Path`, and `Line` appearance layers,
 /// including source-relative opacity, transforms, and linear/radial gradient alpha
-/// (up to eight ordered stops). Source RGB does not matter. Grouping and keyed
-/// `for` loops combine paints using source-over alpha: overlapping half-opacity
-/// sources yield 75% coverage, not XOR. Nested alpha masks on content multiply;
+/// (up to eight ordered stops). Source RGB does not matter. Retained vector captures
+/// preserve source-side Frame/Mask clips and group opacity. Two opaque shapes in
+/// a half-opacity Group yield 50% coverage even in their overlap; individually
+/// half-opacity shapes yield 75% there. Nested alpha masks on content multiply;
 /// ordinary geometric clips continue to intersect them. An empty alpha source
-/// hides all content. Cached surface-sized GPU textures are reused until paint,
-/// feather, enclosing alpha, or surface dimensions change.
+/// hides all content. Captures share group-opacity surfaces and reuse geometry for
+/// paint and GPU stroke-reveal updates. Feathering has a padded, surface-local
+/// domain; captures exceeding device texture limits hide content with a diagnostic.
 ///
 /// Source components have a normal logical lifetime: their templates expand,
 /// mount handlers initialize state, reactive changes and animation remain live,
@@ -49,9 +51,9 @@ use_RefCell!();
 /// meaningful accessible text outside the mask. User mount side effects still run.
 ///
 /// Current boundary: WGPU canvas rendering, verified on web. Native controls and
-/// the legacy Piet renderer do not support alpha masks. Source-side `Frame`/`Mask`
-/// clipping, images, text, and native elements are not alpha sources; use vector
-/// leaves inside `Group`/repeat containers. Alpha masks modulate canvas draw alpha,
+/// the legacy Piet renderer do not support alpha masks. Images, text, native
+/// elements, and source-side Scrollers are not captured; use vector leaves and
+/// same-surface containers. Alpha masks modulate canvas draw alpha,
 /// not an isolated offscreen group, and do not change hit testing. Keep interactive
 /// hit targets separate from purely visual alpha reveals.
 #[pax]
@@ -93,7 +95,11 @@ impl MaskInstance {
                 .resolve_alpha_mask_paints(node)
                 .into_iter()
                 .map(|mut paint| {
-                    paint.opacity *= relative_opacity;
+                    if let Some((_, opacity)) = paint.composition.as_mut() {
+                        *opacity *= relative_opacity as f32;
+                    } else {
+                        paint.opacity *= relative_opacity;
+                    }
                     paint
                 }),
         );
@@ -314,6 +320,10 @@ impl MaskInstance {
 }
 
 impl InstanceNode for MaskInstance {
+    fn supports_alpha_source_render(&self) -> bool {
+        true
+    }
+
     fn instantiate(args: InstantiationArgs) -> Rc<Self>
     where
         Self: Sized,
@@ -505,7 +515,7 @@ impl InstanceNode for MaskInstance {
     ) {
         let layers = rcs.layers();
         let has_dirty_layer = (0..layers).any(|layer| rtc.is_canvas_dirty(&layer));
-        if !has_dirty_layer {
+        if rcs.alpha_source_layer().is_none() && !has_dirty_layer {
             return;
         }
 
@@ -520,7 +530,7 @@ impl InstanceNode for MaskInstance {
             return;
         }
         let mut paints = Vec::new();
-        if alpha {
+        if alpha && !rcs.supports_alpha_source_capture() {
             if let Some(source) = borrow!(expanded_node.sidecar_children).first() {
                 // Resolve source factors directly. Dividing world opacities loses source
                 // coverage at zero, forcing otherwise unchanged masks to repaint during a fade.
@@ -537,11 +547,16 @@ impl InstanceNode for MaskInstance {
         #[cfg(debug_assertions)]
         let mut scroller_dom_layers = 0;
 
-        for layer in 0..layers {
-            if !rtc.is_canvas_dirty(&layer) {
+        let source_layer = rcs.alpha_source_layer();
+        for layer in
+            source_layer.map_or_else(|| (0..layers).collect::<Vec<_>>(), |layer| vec![layer])
+        {
+            if source_layer.is_none() && !rtc.is_canvas_dirty(&layer) {
                 continue;
             }
-            if Self::layer_clip_is_handled_by_scroller_dom(expanded_node, layer, rtc) {
+            if source_layer.is_none()
+                && Self::layer_clip_is_handled_by_scroller_dom(expanded_node, layer, rtc)
+            {
                 #[cfg(debug_assertions)]
                 {
                     scroller_dom_layers += 1;
@@ -559,7 +574,23 @@ impl InstanceNode for MaskInstance {
                 continue;
             }
             rcs.save(layer);
-            if alpha {
+            if alpha && rcs.supports_alpha_source_capture() {
+                let mapping = if source_layer.is_some() {
+                    Affine::IDENTITY
+                } else {
+                    Self::mask_transform_for_layer(expanded_node, layer, rtc)
+                };
+                rcs.begin_alpha_source(
+                    layer,
+                    mapping,
+                    expanded_node.computed_opacity_scopes.get().len(),
+                    feather,
+                );
+                if let Some(source) = borrow!(expanded_node.sidecar_children).first().cloned() {
+                    source.recurse_render_alpha_source(rtc, rcs);
+                }
+                rcs.end_alpha_source(layer);
+            } else if alpha {
                 let mapping = Self::mask_transform_for_layer(expanded_node, layer, rtc);
                 let mut layer_paints = paints.clone();
                 for paint in &mut layer_paints {
@@ -569,7 +600,11 @@ impl InstanceNode for MaskInstance {
             } else if let Some(path) = &mask_path {
                 rcs.clip(
                     layer,
-                    Self::mask_path_for_layer(path, expanded_node, layer, rtc),
+                    if source_layer.is_some() {
+                        path.clone()
+                    } else {
+                        Self::mask_path_for_layer(path, expanded_node, layer, rtc)
+                    },
                 );
             }
             let _ = rcs.end_node(layer, expanded_node.id.to_u32());
@@ -597,7 +632,7 @@ impl InstanceNode for MaskInstance {
     ) {
         let layers = rcs.layers();
         let has_dirty_layer = (0..layers).any(|layer| rtc.is_canvas_dirty(&layer));
-        if !has_dirty_layer {
+        if rcs.alpha_source_layer().is_none() && !has_dirty_layer {
             return;
         }
         if !Self::alpha_settings(expanded_node).0
@@ -611,11 +646,16 @@ impl InstanceNode for MaskInstance {
         #[cfg(debug_assertions)]
         let mut scroller_dom_layers = 0;
 
-        for layer in 0..layers {
-            if !rtc.is_canvas_dirty(&layer) {
+        let source_layer = rcs.alpha_source_layer();
+        for layer in
+            source_layer.map_or_else(|| (0..layers).collect::<Vec<_>>(), |layer| vec![layer])
+        {
+            if source_layer.is_none() && !rtc.is_canvas_dirty(&layer) {
                 continue;
             }
-            if Self::layer_clip_is_handled_by_scroller_dom(expanded_node, layer, rtc) {
+            if source_layer.is_none()
+                && Self::layer_clip_is_handled_by_scroller_dom(expanded_node, layer, rtc)
+            {
                 #[cfg(debug_assertions)]
                 {
                     scroller_dom_layers += 1;

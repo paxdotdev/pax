@@ -86,7 +86,7 @@ if is_mobile {
         fill: rgba(9, 15, 28, 232)
         corner_radius: 28.0
         stroke: {
-            color: rgba(88, 116, 158, 150)
+            paint: rgba(88, 116, 158, 150)
             width: 1px
         }
     }
@@ -95,7 +95,7 @@ if is_mobile {
         fill: rgba(8, 14, 25, 228)
         corner_radius: 30.0
         stroke: {
-            color: rgba(95, 123, 167, 140)
+            paint: rgba(95, 123, 167, 140)
             width: 1px
         }
     }
@@ -103,7 +103,7 @@ if is_mobile {
     .mobile_top_bar {
         fill: rgba(8, 14, 25, 245)
         stroke: {
-            color: rgba(95, 123, 167, 140)
+            paint: rgba(95, 123, 167, 140)
             width: 1px
         }
     }
@@ -112,7 +112,7 @@ if is_mobile {
         fill: rgba(18, 32, 56, 238)
         corner_radius: 18.0
         stroke: {
-            color: rgba(104, 202, 255, 170)
+            paint: rgba(104, 202, 255, 170)
             width: 1px
         }
     }

@@ -263,7 +263,7 @@
     .panel_back {
         fill: rgba(201, 187, 122, 235),
         stroke: {
-            color: rgba(27, 26, 22, 180),
+            paint: rgba(27, 26, 22, 180),
             width: 1px,
         },
         corner_radius: 24.0,
@@ -272,7 +272,7 @@
     .panel_back_one {
         fill: rgba(242, 201, 170, 235),
         stroke: {
-            color: rgba(79, 23, 34, 170),
+            paint: rgba(79, 23, 34, 170),
             width: 1px,
         },
     }
@@ -280,7 +280,7 @@
     .panel_back_two {
         fill: rgba(224, 196, 106, 235),
         stroke: {
-            color: rgba(33, 30, 22, 170),
+            paint: rgba(33, 30, 22, 170),
             width: 1px,
         },
     }
@@ -288,7 +288,7 @@
     .panel_back_three {
         fill: rgba(242, 230, 184, 235),
         stroke: {
-            color: rgba(34, 59, 63, 170),
+            paint: rgba(34, 59, 63, 170),
             width: 1px,
         },
     }
@@ -296,7 +296,7 @@
     .panel_back_four {
         fill: rgba(205, 214, 164, 235),
         stroke: {
-            color: rgba(31, 45, 33, 170),
+            paint: rgba(31, 45, 33, 170),
             width: 1px,
         },
     }
@@ -304,7 +304,7 @@
     .panel_back_five {
         fill: rgba(220, 210, 234, 235),
         stroke: {
-            color: rgba(58, 59, 91, 170),
+            paint: rgba(58, 59, 91, 170),
             width: 1px,
         },
     }

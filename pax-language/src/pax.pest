@@ -153,7 +153,8 @@ literal_number_float = {"-"? ~ ASCII_DIGIT* ~ "." ~ ASCII_DIGIT+ }
 literal_number_unit = {("%" ~ !"%") | "px" | "deg" | "rad" | "ms" | "s" | "f"}
 literal_tuple = {("(") ~ literal_value ~ ("," ~ literal_value)* ~ (")")}
 literal_tuple_access = {identifier ~ "." ~ literal_number_integer}
-literal_list = {"[" ~ (literal_value  ~ silent_comma?)* ~ "]"}
+literal_list = {"[" ~ (template_list_value ~ silent_comma?)* ~ "]"}
+template_list_value = { gradient_inline_value | literal_value | expression_wrapped | identifier }
 literal_list_access = {identifier ~ "[" ~ literal_number_integer ~ "]"}
 
 //Enums like Orientation::Vertical

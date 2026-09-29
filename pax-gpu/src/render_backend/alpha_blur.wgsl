@@ -1,7 +1,7 @@
 @group(0) @binding(0) var source: texture_2d<f32>;
 @group(0) @binding(1) var source_sampler: sampler;
 @group(0) @binding(2) var parent: texture_2d<f32>;
-struct Filter { axis: vec2<f32>, sigma: f32, multiply_parent: f32 };
+struct Filter { axis: vec2<f32>, sigma: f32, multiply_parent: f32, parent_mapping: vec4<f32> };
 @group(0) @binding(3) var<uniform> blur: Filter;
 struct Output { @builtin(position) position: vec4<f32>, @location(0) uv: vec2<f32> };
 @vertex fn vs_main(@builtin(vertex_index) index: u32) -> Output {
@@ -28,8 +28,9 @@ fn sample_alpha(uv: vec2<f32>) -> f32 {
         }
         alpha /= total;
     }
+    if blur.multiply_parent < 0.0 { alpha *= -blur.multiply_parent; }
     if blur.multiply_parent > 0.5 {
-        alpha *= textureSampleLevel(parent, source_sampler, in.uv, 0.0).r;
+        alpha *= textureSampleLevel(parent, source_sampler, in.uv * blur.parent_mapping.xy + blur.parent_mapping.zw, 0.0).r;
     }
     return vec4<f32>(alpha);
 }

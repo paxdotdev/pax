@@ -22,7 +22,7 @@ Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Handwr
 Bundled stroke font used to draw `text`.
 
 ##### `stroke`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Stroke`](../../../api/pax-runtime-api/drawing.md#stroke)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`Vec`<[`Stroke`](../../../api/pax-runtime-api/drawing.md#stroke)>>
 
 Stroke used for the generated path.
 

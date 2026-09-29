@@ -87,6 +87,10 @@ fn frame_clip_path(bounds: (f64, f64), corner_radius: f64, transform: Affine) ->
 }
 
 impl InstanceNode for FrameInstance {
+    fn supports_alpha_source_render(&self) -> bool {
+        true
+    }
+
     fn instantiate(args: InstantiationArgs) -> Rc<Self>
     where
         Self: Sized,
@@ -160,9 +164,11 @@ impl InstanceNode for FrameInstance {
         // Only clip the node's own render layer; other layers can be hosted in different
         // DOM coordinate spaces (browser-owned scroller islands), so cross-layer clipping
         // can misalign and cull content.
-        let layer_id = expanded_node.occlusion.get().render_layer_id;
+        let layer_id = rcs
+            .alpha_source_layer()
+            .unwrap_or(expanded_node.occlusion.get().render_layer_id);
 
-        if !rtc.is_canvas_dirty(&layer_id) {
+        if rcs.alpha_source_layer().is_none() && !rtc.is_canvas_dirty(&layer_id) {
             return;
         }
 
@@ -200,9 +206,11 @@ impl InstanceNode for FrameInstance {
             return;
         }
 
-        let layer_id = expanded_node.occlusion.get().render_layer_id;
+        let layer_id = rcs
+            .alpha_source_layer()
+            .unwrap_or(expanded_node.occlusion.get().render_layer_id);
 
-        if !rtc.is_canvas_dirty(&layer_id) {
+        if rcs.alpha_source_layer().is_none() && !rtc.is_canvas_dirty(&layer_id) {
             return;
         }
 

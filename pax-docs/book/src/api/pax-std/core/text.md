@@ -67,7 +67,7 @@ Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Size`]
 Font size, in pixels.
 
 ##### `fill`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Fill`](../../../api/pax-runtime-api/drawing.md#fill)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Paint`](../../../api/pax-runtime-api/drawing.md#paint)>
 
 Text color. Native text patches reduce gradient fills to their first
 stop's color; use a solid fill for predictable text color.

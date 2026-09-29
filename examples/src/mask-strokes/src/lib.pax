@@ -1,20 +1,22 @@
 <Scroller width=100% height=100% autosize=true>
     <Stacker x=50% anchor_x=50% width={(self.panel_width)px} autosize=true gutter=24px>
         <Group height=24px width=100%/>
+        <LayerStudies width=100% height=730px/>
+        <CaptureStudies width=100% height=490px/>
         <Text height=64px width=100% text="Component mask sources" style={
             font: "Arial"
             font_size: 30px
             fill: WHITE
         }/>
-        <Text height=60px width=100% 
+        <Text height=60px width=100%
             text="Live handwriting reveals moving CMY paint. The source is a regular component with its own writing clock." style={
                 font: "Arial"
                 font_size: 16px
                 fill: rgb(180, 180, 180)
             }/>
         <Group width=100% height=44px>
-            <Button width=46% height=40px label={self.playing ? "Pause" : "Resume"} @click=toggle_playing/>
-            <Button x=50% anchor_x=0% width=50% height=40px label={self.mounted ? "Remove source" : "Remount source"} @click=toggle_mounted/>
+            <Button width=46% height=40px label={self.playing ? "Pause" : "Resume"} @button_click=toggle_playing/>
+            <Button x=50% anchor_x=0% width=50% height=40px label={self.mounted ? "Remove source" : "Remount source"} @button_click=toggle_mounted/>
         </Group>
         <Group width=100% height={(self.word_height + 64.0)px}>
             <Text height=20px width=100% text="HANDWRITER / COMPONENT SOURCE" style={
@@ -53,7 +55,7 @@
             <Mask x=24px y=40px width={100% - 48px} height=80px alpha=true>
                 <Rectangle width=100% height=100% fill=WHITE/>
                 <Path width=100% height=100% fill=TRANSPARENT stroke={
-                    color: WHITE
+                    paint: WHITE
                     width: 8px
                 } draw_end=65% elements=[
                     PathElement::Point(0%, 65%),
@@ -74,7 +76,7 @@
                 <Mask x=12px y=48px width={100% - 24px} height=160px alpha=true>
                     <Rectangle width=100% height=100% fill=rgb(0, 225, 235)/>
                     <Ellipse x=50% y=50% anchor=50% width=80% height=80% fill=TRANSPARENT stroke={
-                        color: WHITE
+                        paint: WHITE
                         width: 12px
                     }/>
                 </Mask>

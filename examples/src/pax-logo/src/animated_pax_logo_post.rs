@@ -24,8 +24,8 @@ const INITIAL_ROLL_RADIUS_PX: f64 = 13.0;
 #[custom(Default)]
 #[file("animated_pax_logo_post.pax")]
 pub struct AnimatedPaxLogoPost {
-    pub fill: Property<Fill>,
-    pub backing_fill: Property<Fill>,
+    pub fill: Property<Paint>,
+    pub backing_fill: Property<Paint>,
     pub progress: Property<f64>,
     pub rolling: Property<f64>,
     pub extension: Property<f64>,
@@ -45,8 +45,8 @@ impl Default for AnimatedPaxLogoPost {
     fn default() -> Self {
         let motion = motion_from_controls(MotionControls::default());
         Self {
-            fill: Property::new(Fill::Solid(Color::BLACK)),
-            backing_fill: Property::new(Fill::Solid(Color::WHITE)),
+            fill: Property::new(Paint::Solid(Color::BLACK)),
+            backing_fill: Property::new(Paint::Solid(Color::WHITE)),
             progress: Property::new(0.0),
             rolling: Property::new(0.0),
             extension: Property::new(0.0),

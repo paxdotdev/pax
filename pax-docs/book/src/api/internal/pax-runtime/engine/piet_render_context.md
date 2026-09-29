@@ -29,7 +29,7 @@ surfaces and source-over composition with one opacity for the complete image.
 
 ## Functions
 ### `fill_to_piet_brush`
-<pre><code class="api-signature language-rust ignore">pub fn fill_to_piet_brush(fill: &amp;<a href="../../../../api/pax-runtime-api/drawing.md#fill">Fill</a>, rect: Rect) -&gt; Option&lt;PaintBrush&gt;</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn fill_to_piet_brush(fill: &amp;<a href="../../../../api/pax-runtime-api/drawing.md#paint">Paint</a>, rect: Rect) -&gt; Option&lt;PaintBrush&gt;</code></pre>
 
 Resolves a single paint to a Piet brush. Mixtures require the chassis paint
 accumulator, since generic Piet has no additive compositing operation.

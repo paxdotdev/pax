@@ -102,7 +102,7 @@
     }
     .control_bg {
         fill: rgba(43, 80, 142, 235)
-        stroke: { color: rgba(138, 174, 255, 116), width: 1px }
+        stroke: { paint: rgba(138, 174, 255, 116), width: 1px }
         corner_radius: 10.0
     }
 }

@@ -1,6 +1,8 @@
 struct Globals {
     resolution: vec2<f32>,
     dpr: vec2<f32>,
+    origin: vec2<f32>,
+    padding: vec2<f32>,
 };
 
 struct StencilTransform {
@@ -35,7 +37,7 @@ fn vs_main(
     let t_p_x = position.x * stencil_transform.xx + position.y * stencil_transform.yx + stencil_transform.zx;
     let t_p_y = position.x * stencil_transform.xy + position.y * stencil_transform.yy + stencil_transform.zy;
     var pos = vec2<f32>(t_p_x, t_p_y);
-    pos /= globals.resolution;
+    pos = (pos - globals.origin) / globals.resolution;
     pos *= 2.0;
     pos -= 1.0;
     pos.y *= -1.0;

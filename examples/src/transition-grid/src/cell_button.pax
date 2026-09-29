@@ -43,7 +43,7 @@
             height=100%
             fill=rgb(30, 30, 36)
             stroke={
-                color: {hsl((display_hue)deg, 94%, 66%)}
+                paint: {hsl((display_hue)deg, 94%, 66%)}
                 width: 2px
             }
             corner_radius=8.0

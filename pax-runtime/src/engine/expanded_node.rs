@@ -2921,6 +2921,55 @@ impl ExpandedNode {
         borrow!(self.instance_node).handle_post_render(&self, ctx, rcs);
     }
 
+    /// Records a detached source using ordinary vector hooks without presenting it or allocating
+    /// native surfaces. Structural components retain their normal back-to-front child order.
+    pub fn recurse_render_alpha_source(
+        self: &Rc<Self>,
+        ctx: &Rc<RuntimeContext>,
+        rcs: &mut dyn RenderContext,
+    ) {
+        assert!(self.is_render_source() && rcs.alpha_source_layer().is_some());
+        let mut deferred = Vec::new();
+        self.render_alpha_source_inner(ctx, rcs, &mut deferred);
+        let mut next = 0;
+        while next < deferred.len() {
+            let node = Rc::clone(&deferred[next]);
+            next += 1;
+            node.render_alpha_source_inner(ctx, rcs, &mut deferred);
+        }
+    }
+
+    fn render_alpha_source_inner(
+        self: &Rc<Self>,
+        ctx: &Rc<RuntimeContext>,
+        rcs: &mut dyn RenderContext,
+        deferred: &mut Vec<Rc<ExpandedNode>>,
+    ) {
+        let supported = borrow!(self.instance_node).supports_alpha_source_render();
+        let structural = {
+            let instance = borrow!(self.instance_node);
+            let flags = instance.base().flags();
+            flags.layer == Layer::DontCare || flags.is_component
+        };
+        if !supported && !structural {
+            return;
+        }
+        if supported {
+            borrow!(self.instance_node).handle_pre_render(self, ctx, rcs);
+        }
+        for child in self.children.get().iter().rev() {
+            if child.is_unclippable() {
+                deferred.push(Rc::clone(child));
+            } else {
+                child.render_alpha_source_inner(ctx, rcs, deferred);
+            }
+        }
+        if supported {
+            borrow!(self.instance_node).render(self, ctx, rcs);
+            borrow!(self.instance_node).handle_post_render(self, ctx, rcs);
+        }
+    }
+
     /// Manages unpacking an `Rc<RefCell<PaxValue>>`, downcasting into
     /// the parameterized `target_type`, and executing a provided closure `body` in the
     /// context of that unwrapped variant (including support for mutable operations),

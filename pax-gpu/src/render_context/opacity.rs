@@ -1,10 +1,11 @@
 use super::*;
+use crate::render_backend::capture::CaptureKey;
 use crate::render_backend::ScissorRect;
 
 pub(super) enum OpacityPlan {
     Draw(Vec<u32>),
     Group {
-        key: (u32, u32),
+        key: CaptureKey,
         opacity: f32,
         signature: u64,
         bounds: ScissorRect,
@@ -12,7 +13,7 @@ pub(super) enum OpacityPlan {
     },
 }
 
-pub(super) fn collect_opacity_group_keys(plan: &[OpacityPlan], keys: &mut HashSet<(u32, u32)>) {
+pub(super) fn collect_opacity_group_keys(plan: &[OpacityPlan], keys: &mut HashSet<CaptureKey>) {
     for entry in plan {
         if let OpacityPlan::Group { key, children, .. } = entry {
             keys.insert(*key);
@@ -27,6 +28,7 @@ impl WgpuRenderer<'_> {
         let visible: Vec<_> = self
             .sorted_nodes
             .iter()
+            .filter(|(_, id)| !self.source_nodes.contains_key(id))
             .filter_map(|(_, id)| {
                 self.scene
                     .get(id)
@@ -37,7 +39,13 @@ impl WgpuRenderer<'_> {
         self.opacity_plan_at_depth(&visible, 0)
     }
 
-    fn opacity_plan_at_depth(&self, nodes: &[u32], depth: usize) -> Vec<OpacityPlan> {
+    pub(super) fn opacity_plan_at_depth(&self, nodes: &[u32], depth: usize) -> Vec<OpacityPlan> {
+        let visible: Vec<_> = nodes
+            .iter()
+            .copied()
+            .filter(|id| self.scene[id].intersects_bounds(&self.viewport_bounds()))
+            .collect();
+        let nodes = visible.as_slice();
         let mut plan = Vec::new();
         let mut start = 0;
         while start < nodes.len() {
@@ -81,15 +89,15 @@ impl WgpuRenderer<'_> {
                 let viewport = self.viewport_bounds();
                 // Include edge antialiasing, but never allocate outside this physical tile.
                 let bounds = ScissorRect {
-                    min_x: (bounds.min.x - 1.0).max(0.0),
-                    min_y: (bounds.min.y - 1.0).max(0.0),
+                    min_x: (bounds.min.x - 1.0).max(viewport.min.x),
+                    min_y: (bounds.min.y - 1.0).max(viewport.min.y),
                     max_x: (bounds.max.x + 1.0).min(viewport.max.x),
                     max_y: (bounds.max.y + 1.0).min(viewport.max.y),
                 };
                 plan.push(OpacityPlan::Group {
                     // Separate runs preserve ordering for content which escapes its parent's
                     // normal render position (including unclippable descendants).
-                    key: (scope.node_id, run[0]),
+                    key: CaptureKey::Opacity(scope.node_id, run[0]),
                     opacity: scope.opacity,
                     signature: hash.finish(),
                     bounds,
@@ -103,7 +111,7 @@ impl WgpuRenderer<'_> {
         plan
     }
 
-    fn hash_opacity_content(&self, id: u32, hash: &mut DefaultHasher) {
+    pub(super) fn hash_opacity_content(&self, id: u32, hash: &mut DefaultHasher) {
         id.hash(hash);
         let node = &self.scene[&id];
         node.z_index().hash(hash);
@@ -160,23 +168,19 @@ impl WgpuRenderer<'_> {
                 } => {
                     // Fully opaque scopes are equivalent to ordinary source-over on this
                     // canvas. Once a fade has allocated a cache, keep it through alpha one.
-                    if *opacity == 1.0 && !self.render_backend.opacity_group_is_resident(*key) {
+                    if *opacity == 1.0 && !self.render_backend.capture_is_resident(*key) {
                         self.draw_opacity_plan(children);
                         continue;
                     }
-                    if !self
-                        .render_backend
-                        .opacity_group_is_cached(*key, *signature)
-                    {
-                        self.render_backend.begin_opacity_group();
+                    if !self.render_backend.capture_is_cached(*key, *signature) {
+                        self.render_backend.begin_capture();
                         self.draw_opacity_plan(children);
-                        self.render_backend
-                            .end_opacity_group(*key, *signature, *bounds);
+                        self.render_backend.end_capture(*key, *signature, *bounds);
                         self.resource_churn_stats.opacity_group_renders += 1;
                     } else {
                         self.resource_churn_stats.opacity_group_cache_hits += 1;
                     }
-                    self.render_backend.draw_opacity_group(*key, *opacity);
+                    self.render_backend.draw_capture(*key, *opacity);
                 }
             }
         }
@@ -184,7 +188,7 @@ impl WgpuRenderer<'_> {
 }
 
 impl RetainedNode {
-    fn bounds(&self) -> Box2D {
+    pub(super) fn bounds(&self) -> Box2D {
         match self {
             Self::Vector(node) => node.bounds,
             Self::Image(node) => node.bounds,

@@ -8,8 +8,12 @@ use super::*;
 pub struct AlphaMaskPaint {
     pub path: kurbo::BezPath,
     pub transform: kurbo::Affine,
-    pub fill: Fill,
+    pub fill: Paint,
     pub opacity: f64,
+    /// Complete local geometry bounds before stroke expansion or trimming.
+    pub paint_bounds: kurbo::Rect,
+    /// Primitive boundary: compose its paints before applying source-relative opacity.
+    pub composition: Option<(u32, f32)>,
 }
 
 /// Replay invalidation for one logical canvas layer.
@@ -35,17 +39,17 @@ impl crate::Interpolatable for OpacityScope {}
 pub trait RenderContext {
     // Drawing
     /// Fills a path at full opacity.
-    fn fill(&mut self, layer: usize, path: kurbo::BezPath, fill: &Fill) {
+    fn fill(&mut self, layer: usize, path: kurbo::BezPath, fill: &Paint) {
         self.fill_with_opacity(layer, path, fill, 1.0);
     }
     /// Fills a path with an explicit opacity multiplier.
-    fn fill_with_opacity(&mut self, layer: usize, path: kurbo::BezPath, fill: &Fill, opacity: f64);
+    fn fill_with_opacity(&mut self, layer: usize, path: kurbo::BezPath, fill: &Paint, opacity: f64);
     /// Fills a path with a material and explicit opacity multiplier.
     fn fill_with_material_and_opacity(
         &mut self,
         layer: usize,
         path: kurbo::BezPath,
-        fill: &Fill,
+        fill: &Paint,
         _material: &Material,
         opacity: f64,
     ) {
@@ -56,7 +60,7 @@ pub trait RenderContext {
         &mut self,
         layer: usize,
         path: kurbo::BezPath,
-        fill: &Fill,
+        fill: &Paint,
         material: &Material,
         opacity: f64,
         smoothing: PathSmoothing,
@@ -141,6 +145,28 @@ pub trait RenderContext {
     fn clip_alpha(&mut self, _layer: usize, _paints: &[AlphaMaskPaint], _feather: f64) {
         panic!("this rendering backend does not implement alpha masks");
     }
+    /// Whether alpha sources can use ordinary retained vector rendering.
+    fn supports_alpha_source_capture(&self) -> bool {
+        false
+    }
+    /// Destination layer while recording a detached alpha source. Source coordinates are world
+    /// coordinates; `begin_alpha_source` supplies the mapping to the destination surface.
+    fn alpha_source_layer(&self) -> Option<usize> {
+        None
+    }
+    /// Isolates source draws from visible content and inherited clips. The currently open node
+    /// owns the result. Scopes before `inherited_scopes` belong to the consumer, not the source.
+    fn begin_alpha_source(
+        &mut self,
+        _layer: usize,
+        _world_to_surface: kurbo::Affine,
+        _inherited_scopes: usize,
+        _feather: f64,
+    ) {
+        panic!("this rendering backend does not implement alpha-source capture");
+    }
+    /// Completes the source and installs its captured alpha in the consumer's clip stack.
+    fn end_alpha_source(&mut self, _layer: usize) {}
     /// Applies an affine transform to a layer.
     fn transform(&mut self, layer: usize, affine: kurbo::Affine);
 

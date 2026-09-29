@@ -1,7 +1,7 @@
-use pax_runtime_api::{Fill, OpacityScope, Stroke, StrokeCap, StrokeJoin};
+use pax_runtime_api::{OpacityScope, Paint, Stroke, StrokeCap, StrokeJoin};
 use piet::{
     kurbo::{self, Affine, Shape},
-    FixedRadialGradient, LineCap, LineJoin, LinearGradient, RenderContext as _, StrokeStyle,
+    FixedRadialGradient, LineCap, LineJoin, RenderContext as _, StrokeStyle,
 };
 use std::{
     cell::RefCell,
@@ -62,7 +62,13 @@ pub trait PietSurface: Sized {
     /// or clip again. Each recorded draw already carries its complete clip state.
     fn composite(&mut self, source: &Self, opacity: f64);
     /// Accumulate a paint mixture before applying its shape coverage and opacity.
-    fn draw_blend(&mut self, path: &kurbo::BezPath, terms: &[(Fill, f64)], opacity: f64);
+    fn draw_blend(
+        &mut self,
+        path: &kurbo::BezPath,
+        terms: &[(Paint, f64)],
+        opacity: f64,
+        paint_bounds: kurbo::Rect,
+    );
     fn draw_image(
         &mut self,
         image: &<Self::Context as piet::RenderContext>::Image,
@@ -83,7 +89,7 @@ struct DrawState {
 
 enum PietPaint<I> {
     Fill(kurbo::BezPath, piet::PaintBrush),
-    Blend(kurbo::BezPath, Vec<(Fill, f64)>, f64),
+    Blend(kurbo::BezPath, Vec<(Paint, f64)>, f64, kurbo::Rect),
     Stroke(kurbo::BezPath, piet::PaintBrush, f64, StrokeStyle),
     Image(I, kurbo::Rect, f64),
 }
@@ -150,7 +156,9 @@ fn paint_draws<S: PietSurface>(
         context.transform(draw.state.transform);
         match &draw.paint {
             PietPaint::Fill(path, brush) => context.fill(path, brush),
-            PietPaint::Blend(path, terms, opacity) => surface.draw_blend(path, terms, *opacity),
+            PietPaint::Blend(path, terms, opacity, bounds) => {
+                surface.draw_blend(path, terms, *opacity, *bounds)
+            }
             PietPaint::Stroke(path, brush, width, style) => {
                 context.stroke_styled(path, brush, *width, style)
             }
@@ -618,10 +626,21 @@ mod tests {
 }
 
 impl<S: PietSurface> api::RenderContext for PietRenderer<S> {
-    fn fill_with_opacity(&mut self, layer: usize, path: kurbo::BezPath, fill: &Fill, opacity: f64) {
-        if let Fill::Blend(terms) = fill {
+    fn fill_with_opacity(
+        &mut self,
+        layer: usize,
+        path: kurbo::BezPath,
+        fill: &Paint,
+        opacity: f64,
+    ) {
+        if let Paint::Blend(terms) = fill {
             self.with_layer_renderer(layer, |renderer| {
-                renderer.record(PietPaint::Blend(path.clone(), terms.clone(), opacity))
+                renderer.record(PietPaint::Blend(
+                    path.clone(),
+                    terms.clone(),
+                    opacity,
+                    path.bounding_box(),
+                ))
             });
         } else if let Some(brush) =
             fill_to_piet_brush(&fill.with_alpha_factor(opacity), path.bounding_box())
@@ -639,22 +658,15 @@ impl<S: PietSurface> api::RenderContext for PietRenderer<S> {
         stroke: &Stroke,
         opacity: f64,
     ) {
-        let rect = path.bounding_box();
-        let brush = fill_to_piet_brush(
-            &Fill::Solid(stroke.color.get()).with_alpha_factor(opacity),
-            rect,
-        )
-        .expect("solid strokes have a Piet brush");
-        let width = stroke.width.get().expect_pixels().to_float();
-        let style = stroke_to_piet_style(stroke);
-        self.with_layer_renderer(layer, |renderer| {
-            renderer.record(PietPaint::Stroke(
-                path.clone(),
-                brush.clone(),
-                width,
-                style.clone(),
-            ))
-        });
+        self.stroke_with_draw_range_and_material_and_opacity(
+            layer,
+            path,
+            stroke,
+            &stroke.material.get(),
+            opacity,
+            0.0,
+            1.0,
+        );
     }
 
     fn stroke_with_draw_range_and_material_and_opacity(
@@ -667,17 +679,33 @@ impl<S: PietSurface> api::RenderContext for PietRenderer<S> {
         draw_start: f64,
         draw_end: f64,
     ) {
-        let draw_start = draw_start.clamp(0.0, 1.0);
-        let draw_end = draw_end.clamp(0.0, 1.0);
-        if draw_start >= draw_end {
+        if draw_start >= draw_end || stroke.width_pixels() <= f64::EPSILON {
             return;
         }
-        let path = if draw_start <= f64::EPSILON && draw_end >= 1.0 - f64::EPSILON {
-            path
-        } else {
-            api::drawing::path_trim::trim_bez_path(&path, draw_start, draw_end)
-        };
-        self.stroke_with_opacity(layer, path, stroke, opacity);
+        let bounds = path.bounding_box();
+        let path = api::drawing::path_trim::trim_bez_path(&path, draw_start, draw_end);
+        let paint = stroke.paint.get();
+        if let Paint::Blend(terms) = paint {
+            if let Some(outline) = api::drawing::stroke_utils::stroked_outline_path(&path, stroke) {
+                self.with_layer_renderer(layer, |renderer| {
+                    renderer.record(PietPaint::Blend(
+                        outline.clone(),
+                        terms.clone(),
+                        opacity,
+                        bounds,
+                    ))
+                });
+            }
+        } else if let Some(brush) = fill_to_piet_brush(&paint.with_alpha_factor(opacity), bounds) {
+            self.with_layer_renderer(layer, |renderer| {
+                renderer.record(PietPaint::Stroke(
+                    path.clone(),
+                    brush.clone(),
+                    stroke.width_pixels(),
+                    stroke_to_piet_style(stroke),
+                ))
+            });
+        }
     }
 
     fn save(&mut self, layer: usize) {
@@ -937,19 +965,40 @@ impl<S: PietSurface> api::RenderContext for PietRenderer<S> {
 
 /// Resolves a single paint to a Piet brush. Mixtures require the chassis paint
 /// accumulator, since generic Piet has no additive compositing operation.
-pub fn fill_to_piet_brush(fill: &Fill, rect: kurbo::Rect) -> Option<piet::PaintBrush> {
+pub fn fill_to_piet_brush(fill: &Paint, rect: kurbo::Rect) -> Option<piet::PaintBrush> {
+    let rect = api::drawing::paint_bounds(rect)?;
     Some(match fill {
-        Fill::Blend(_) => return None,
-        Fill::Solid(color) => color.to_piet_color().into(),
-        Fill::LinearGradient(linear) => {
-            let linear_gradient = LinearGradient::new(
-                Fill::to_unit_point(linear.start, (rect.width(), rect.height())),
-                Fill::to_unit_point(linear.end, (rect.width(), rect.height())),
-                Fill::to_piet_gradient_stops(linear.stops.clone()),
-            );
-            linear_gradient.into()
+        Paint::Blend(_) => return None,
+        Paint::Solid(color) => color.to_piet_color().into(),
+        Paint::LinearGradient(linear) => {
+            let bounds = (rect.width(), rect.height());
+            let point = |value: (api::Size, api::Size)| {
+                kurbo::Point::new(
+                    rect.x0 + value.0.evaluate(bounds, api::Axis::X),
+                    rect.y0 + value.1.evaluate(bounds, api::Axis::Y),
+                )
+            };
+            let start = point(linear.start);
+            let end = point(linear.end);
+            let length = start.distance(end);
+            if !length.is_finite() || length <= f64::EPSILON {
+                return Some(piet::Color::TRANSPARENT.into());
+            }
+            piet::FixedLinearGradient {
+                start,
+                end,
+                stops: linear
+                    .stops
+                    .iter()
+                    .map(|stop| piet::GradientStop {
+                        pos: (stop.position.evaluate((length, 0.0), api::Axis::X) / length) as f32,
+                        color: stop.color.to_piet_color(),
+                    })
+                    .collect(),
+            }
+            .into()
         }
-        Fill::RadialGradient(radial) => {
+        Paint::RadialGradient(radial) => {
             let Some(g) = radial.resolve_geometry(rect) else {
                 return Some(piet::Color::TRANSPARENT.into());
             };
@@ -999,6 +1048,26 @@ mod radial_tests {
     use pax_runtime_api::{Color, GradientStop, RadialGradient, Size};
 
     #[test]
+    fn linear_brush_keeps_origin_and_pixel_stops_on_collapsed_axes() {
+        let paint = Paint::linearGradient(
+            (Size::Percent(0.into()), Size::Percent(50.into())),
+            (Size::Percent(100.into()), Size::Percent(50.into())),
+            vec![
+                GradientStop::get(Color::RED, Size::Pixels(25.into())),
+                GradientStop::get(Color::BLUE, Size::Percent(100.into())),
+            ],
+        );
+        let Some(piet::PaintBrush::Fixed(piet::FixedGradient::Linear(g))) =
+            fill_to_piet_brush(&paint, kurbo::Rect::new(40.0, 60.0, 140.0, 60.0))
+        else {
+            panic!("linear brush")
+        };
+        assert_eq!(g.start, kurbo::Point::new(40.0, 60.0));
+        assert_eq!(g.end, kurbo::Point::new(140.0, 60.0));
+        assert_eq!(g.stops[0].pos, 0.25);
+    }
+
+    #[test]
     fn radial_brush_uses_local_bounds_radius_and_focal_point() {
         let mut radial = RadialGradient {
             start: (Size::Percent(75.into()), Size::Percent(25.into())),
@@ -1011,7 +1080,7 @@ mod radial_tests {
         };
         let rect = kurbo::Rect::new(10.0, 20.0, 210.0, 120.0);
         let Some(piet::PaintBrush::Fixed(piet::FixedGradient::Radial(g))) =
-            fill_to_piet_brush(&Fill::RadialGradient(radial.clone()), rect)
+            fill_to_piet_brush(&Paint::RadialGradient(radial.clone()), rect)
         else {
             panic!("radial brush")
         };
@@ -1026,7 +1095,7 @@ mod radial_tests {
             radial.radius = radius;
             assert!(radial.resolve_geometry(rect).is_none());
             assert!(
-                matches!(fill_to_piet_brush(&Fill::RadialGradient(radial.clone()), rect),
+                matches!(fill_to_piet_brush(&Paint::RadialGradient(radial.clone()), rect),
                 Some(piet::PaintBrush::Color(c)) if c == piet::Color::TRANSPARENT)
             );
         }

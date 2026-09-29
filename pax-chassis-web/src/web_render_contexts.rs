@@ -105,8 +105,9 @@ type PaintBlendFn = Box<
     dyn FnMut(
         &mut piet_web::WebRenderContext,
         &piet::kurbo::BezPath,
-        &[(pax_runtime::api::Fill, f64)],
+        &[(pax_runtime::api::Paint, f64)],
         f64,
+        piet::kurbo::Rect,
     ),
 >;
 
@@ -209,10 +210,11 @@ impl pax_runtime::piet_render_context::PietSurface for WebPietSurface {
     fn draw_blend(
         &mut self,
         path: &piet::kurbo::BezPath,
-        terms: &[(pax_runtime::api::Fill, f64)],
+        terms: &[(pax_runtime::api::Paint, f64)],
         opacity: f64,
+        paint_bounds: piet::kurbo::Rect,
     ) {
-        (self.paint_blend)(&mut self.renderer, path, terms, opacity);
+        (self.paint_blend)(&mut self.renderer, path, terms, opacity, paint_bounds);
     }
 
     fn draw_image(&mut self, image: &piet_web::WebImage, rect: piet::kurbo::Rect, opacity: f64) {
@@ -303,7 +305,7 @@ fn paint_blend_callback(
     let canvas = canvas.clone();
     let window = window.clone();
     let mut scratch: Option<(HtmlCanvasElement, web_sys::CanvasRenderingContext2d)> = None;
-    Box::new(move |renderer, path, terms, opacity| {
+    Box::new(move |renderer, path, terms, opacity, paint_bounds| {
         let rect = path.bounding_box();
         let matrix = target.get_transform().expect("canvas transform");
         let transform = Affine::new([
@@ -383,22 +385,23 @@ fn paint_blend_callback(
             painter: &mut piet_web::WebRenderContext,
             context: &web_sys::CanvasRenderingContext2d,
             rect: Rect,
+            coverage: Rect,
             inset: f64,
-            terms: &[(pax_runtime::api::Fill, f64)],
+            terms: &[(pax_runtime::api::Paint, f64)],
             weight: f64,
         ) {
             for (fill, inner_weight) in terms {
                 let weight = weight * inner_weight;
-                if let pax_runtime::api::Fill::Blend(terms) = fill {
-                    accumulate(painter, context, rect, inset, terms, weight);
+                if let pax_runtime::api::Paint::Blend(terms) = fill {
+                    accumulate(painter, context, rect, coverage, inset, terms, weight);
                 } else if let Some(brush) = fill_to_piet_brush(fill, rect) {
                     context.set_global_alpha(weight.clamp(0.0, 1.0));
                     let brush = brush.make_brush(painter, || rect).into_owned();
-                    painter.fill(rect.inflate(inset, inset), &brush);
+                    painter.fill(coverage.inflate(inset, inset), &brush);
                 }
             }
         }
-        accumulate(&mut painter, context, rect, inset, terms, 1.0);
+        accumulate(&mut painter, context, paint_bounds, rect, inset, terms, 1.0);
         renderer.save().unwrap();
         renderer.clip(path.clone());
         target.reset_transform().unwrap();

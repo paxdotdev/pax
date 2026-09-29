@@ -674,7 +674,7 @@
             PathElement::Close
         ]
         stroke: {
-            color: rgba(215, 255, 221, 24%)
+            paint: rgba(215, 255, 221, 24%)
             width: 1px
         }
     }
@@ -814,7 +814,7 @@
         ]
         fill: rgba(0, 0, 0, 0)
         stroke: {
-            color: rgba(78, 128, 84, 68%)
+            paint: rgba(78, 128, 84, 68%)
             width: 3px
         }
     }
@@ -837,7 +837,7 @@
         ]
         fill: rgba(0, 0, 0, 0)
         stroke: {
-            color: rgba(78, 128, 84, 68%)
+            paint: rgba(78, 128, 84, 68%)
             width: 3px
         }
     }
@@ -907,7 +907,7 @@
         ]
         fill: rgba(16, 47, 37, 255)
         stroke: {
-            color: rgba(158, 214, 177, 8%)
+            paint: rgba(158, 214, 177, 8%)
             width: 1px
         }
     }
@@ -933,7 +933,7 @@
         ]
         fill: rgba(24, 67, 49, 255)
         stroke: {
-            color: rgba(176, 228, 192, 10%)
+            paint: rgba(176, 228, 192, 10%)
             width: 1px
         }
     }
@@ -959,7 +959,7 @@
         ]
         fill: rgba(14, 40, 32, 255)
         stroke: {
-            color: rgba(158, 214, 177, 7%)
+            paint: rgba(158, 214, 177, 7%)
             width: 1px
         }
     }

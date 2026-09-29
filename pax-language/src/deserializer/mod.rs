@@ -32,13 +32,63 @@ pub fn from_pax(str: &str) -> Result<PaxValue> {
     } else {
         return Err(Error::Message(format!("Could not parse: {}", str)));
     };
-    let deserializer: PaxDeserializer = PaxDeserializer::from(ast);
-    let t = PaxValue::deserialize(deserializer)?;
-    Ok(t)
+    from_pax_ast(ast)
 }
 
 /// Deserialize a parsed literal AST node into a runtime `PaxValue`.
 pub fn from_pax_ast(ast: Pair<Rule>) -> Result<PaxValue> {
+    let ast = if matches!(
+        ast.as_rule(),
+        Rule::literal_value | Rule::template_list_value | Rule::settings_value
+    ) {
+        ast.into_inner().next().unwrap()
+    } else {
+        ast
+    };
+    if matches!(ast.as_rule(), Rule::literal_list | Rule::literal_tuple) {
+        return ast
+            .into_inner()
+            .map(from_pax_ast)
+            .collect::<Result<Vec<_>>>()
+            .map(PaxValue::Vec);
+    }
+    if ast.as_rule() == Rule::literal_object {
+        let mut fields = ast.clone().into_inner();
+        let name = if fields
+            .peek()
+            .is_some_and(|v| v.as_rule() == Rule::pascal_identifier)
+        {
+            Some(fields.next().unwrap().as_str().to_string())
+        } else {
+            None
+        };
+        if name
+            .as_deref()
+            .is_some_and(|name| name == "Fill" || name == "Stroke")
+        {
+            let mut values = Vec::new();
+            for field in fields {
+                if field.as_rule() != Rule::settings_key_value_pair {
+                    continue;
+                }
+                let mut field = field.into_inner();
+                let key = field
+                    .next()
+                    .unwrap()
+                    .into_inner()
+                    .next()
+                    .unwrap()
+                    .as_str()
+                    .to_string();
+                values.push((key, from_pax_ast(field.next().unwrap())?));
+            }
+            return Ok(PaxValue::Enum(Box::new((
+                name.unwrap(),
+                "__layer".into(),
+                vec![PaxValue::Object(values)],
+            ))));
+        }
+    }
     let deserializer: PaxDeserializer = PaxDeserializer::from(ast);
     let t = PaxValue::deserialize(deserializer)?;
     Ok(t)
@@ -60,7 +110,10 @@ impl<'de> PaxDeserializer<'de> {
         V: Visitor<'de>,
     {
         // Flatten settings_value to internal typed rules
-        if let Rule::settings_value = self.ast.as_rule() {
+        if matches!(
+            self.ast.as_rule(),
+            Rule::settings_value | Rule::template_list_value
+        ) {
             self.ast = self.ast.into_inner().next().unwrap();
         }
 

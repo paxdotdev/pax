@@ -375,6 +375,15 @@ impl RustManifestWriter {
                 mp = self.manifest_path,
                 value = self.pax_value(value),
             ),
+            ValueDefinition::List(values) => format!(
+                "{}::ValueDefinition::List(vec![{}])",
+                self.manifest_path,
+                values
+                    .iter()
+                    .map(|value| self.value_definition(value))
+                    .collect::<Vec<_>>()
+                    .join(",")
+            ),
             ValueDefinition::Block(block) => format!(
                 "{mp}::ValueDefinition::Block({block})",
                 mp = self.manifest_path,

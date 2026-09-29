@@ -47,7 +47,7 @@
 
     .preview_frame {
         fill: rgba(8, 14, 28, 232)
-        stroke: { color: rgba(102, 132, 190, 128), width: 1px }
+        stroke: { paint: rgba(102, 132, 190, 128), width: 1px }
         corner_radius: 16.0
     }
 

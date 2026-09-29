@@ -116,7 +116,7 @@
         hover_color: rgb(28, 39, 64)
         corner_radius: 8
         outline: {
-            color: rgba(255, 255, 255, 110)
+            paint: rgba(255, 255, 255, 110)
             width: 1px
         }
         style: {

@@ -25,7 +25,7 @@
         height=100%
         fill={self.color}
         stroke={
-            color: rgba(255, 255, 255, 92)
+            paint: rgba(255, 255, 255, 92)
             width: 1px
         }
         corner_radius=16.0

@@ -25,7 +25,7 @@
                 <Text class="photo_source" x=112px y=70px width={100% - 126px} height=20px text={photo.source}/>
 
                 if photo.has_preview {
-                    <NativeImage x=10px y=10px width=82px height=82px url={photo.handle} fit=ImageFit::Fill/>
+                    <NativeImage x=10px y=10px width=82px height=82px url={photo.handle} fit=ImageFit::Paint/>
                 } else {
                     <Text class="placeholder_label" x=10px y=10px width=82px height=82px text="no preview"/>
                 }
@@ -192,7 +192,7 @@
     .photo_row {
         fill: rgba(24, 31, 42, 255)
         stroke: {
-            color: rgba(72, 86, 103, 255)
+            paint: rgba(72, 86, 103, 255)
             width: 1px
         }
         corner_radius: 8.0
@@ -200,7 +200,7 @@
     .preview_frame {
         fill: rgba(10, 16, 25, 255)
         stroke: {
-            color: rgba(83, 99, 118, 255)
+            paint: rgba(83, 99, 118, 255)
             width: 1px
         }
         corner_radius: 6.0
@@ -208,7 +208,7 @@
     .empty_panel {
         fill: rgba(24, 31, 42, 255)
         stroke: {
-            color: rgba(72, 86, 103, 255)
+            paint: rgba(72, 86, 103, 255)
             width: 1px
         }
         corner_radius: 8.0

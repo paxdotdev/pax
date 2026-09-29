@@ -1,10 +1,8 @@
 # PAX-1008 — Paint, fill layers, and stroke layers
 
-Proposed implementation specification, September 28, 2026. The core API and
-behavioral decisions below incorporate Zack's approval in the design discussion.
-Concrete defaulting, normalization, and degenerate-coordinate rules make that
-contract implementable and reviewable. This document describes intended work;
-the examples are acceptance targets, not a claim of current support.
+Accepted implementation contract, September 28, 2026. The decisions below
+include the approved 1px Stroke default and symmetric 1px paint domain for a
+collapsed axis. The implementation and validation checkpoint is recorded below.
 
 This supersedes the stroke-paint proposal in the
 [component-mask checkpoint](PAX-1008-mask-sources-and-stroke-paint.md#gradient-stroke-proposal).
@@ -39,21 +37,16 @@ Excluded: blend modes, fill/stroke interleaving, stable layer IDs, automatic
 layer matching, per-layer draw ranges, new stroke alignment/dash features,
 image/video/pattern/shader paints, and arbitrary GPU source-subtree capture.
 No website composition changes or documentation publication are implied.
+The approved bounded alpha-source capture extension is specified in section 15.
 
 ## 2. Baseline and dependencies
 
-The current task checkpoint is `b91873242`, based on `0b5c68be1`. Known main
-`a9b7aa7b0` includes the following work that must be integrated before feature
-implementation:
-
-- Shared focal-radial geometry and sampling across visible GPU paint, GPU mask
-  alpha, and the Piet fallback.
-- Fill interpolation through weighted premultiplied paint mixtures, including
-  unlike gradient types and different stop counts.
-- PAX-1004 retained opacity composition and resource retirement.
-
-Use these landed implementations. Do not recreate them from this older branch.
-Zack manages the Git integration; this specification does not perform it.
+The user-initiated rebase onto main `a9b7aa7b0` completed at `961faada2`.
+It preserves the component-mask/Scroller fixes and incorporates main's shared
+focal-radial sampling, premultiplied Paint interpolation, and PAX-1004 retained
+opacity composition. Section 11.1 referred to this base integration. The rebase
+conflicts were overlapping pain-point notes and the generated example source
+bundle; both sets of notes were retained and the bundle was regenerated.
 
 ## 3. Public value model
 
@@ -257,7 +250,7 @@ it is the bounds of its complete centerline segment. Handwriter uses its entire
 generated Path. Neither a partial reveal nor a change to stroke width, cap,
 join, material, or layer order changes the domain.
 
-Proposed concrete degenerate rule: expand each zero-extent axis symmetrically
+Approved degenerate rule: expand each zero-extent axis symmetrically
 to 1 logical pixel about its original coordinate. Leave nonzero axes unchanged.
 This fallback is independent of stroke width and shared by all layers. It is
 only a paint reference frame; it creates no additional coverage. An empty path
@@ -329,9 +322,9 @@ paint alpha, and element opacity. Carry primitive composition boundaries in
 the alpha representation or use equivalent shared rendering. Flattening all
 layers and multiplying element opacity into each paint is incorrect.
 
-This requirement does not enable arbitrary source-side Group/Frame/Mask clips,
-cross-surface capture, native-source capture, or native content inside alpha
-masks. Preserve the separately documented source-subtree limitations. Preserve
+Section 15 adds same-surface vector source capture and its Group/Frame/Mask
+semantics. Cross-surface capture, native-source capture, and native content
+inside alpha masks remain excluded. Preserve
 geometric-mask semantics, including the existing full-stroke outline policy for
 a nonempty draw range; alpha masks continue to follow the painted reveal.
 
@@ -396,7 +389,7 @@ transitions must agree between rich debug execution and baked release execution.
 
 These are reviewable implementation steps within one feature. Multiple layers
 and full Paint parity are part of completion, not deferred after shipping the
-new public model. General subtree capture remains separately scoped.
+new public model. Bounded vector source capture is the approved follow-on in section 15.
 
 ## 12. Acceptance criteria
 
@@ -447,7 +440,7 @@ new public model. General subtree capture remains separately scoped.
 ## 13. Documentation deliverables
 
 Update the public learning path with the implementation, without presenting
-this proposed API as already shipped:
+the API without implying a published release:
 
 - [Drawing and Styling](../drawing-styling.md): Paint versus layer types,
   progressive authoring, stack order/defaults, per-layer materials and opacity,
@@ -467,3 +460,121 @@ Preserve useful anchors and avoid adding a public chapter for this internal
 specification. No CLI syntax change is planned; review first-touch examples and
 README snippets for renamed stroke/material forms. Documentation publishing and
 changes to released snapshots require separate authorization.
+
+## 14. Paint-layer implementation checkpoint (before capture integration)
+
+Implemented Paint plus ordered Fill/Stroke stacks, recursive reactive list
+lowering and rich/baked serialization, static/dynamic layer validation, WGPU and
+Piet vector painting, shared stroke paint domains, primitive alpha-source
+composition, nested-property invalidation and retirement, and repository/API
+migrations. Rich manifest binary is version 5; baked ProgramIR is version 4.
+
+The extended `mask-strokes` fixture passes WGPU web debug and baked release at
+desktop and 390px widths. Paint/reveal animation, stack reversal, removal and
+restoration, nested live paint, opacity comparisons, and Scroller mask output
+were inspected. Template hot reload rebuilt the layered study successfully.
+The migrated website also compiles and renders its existing hero/handwriting;
+this does not introduce new website mask compositions.
+
+Validation includes 640 integrated CPU tests and 16 Metal-backed GPU tests.
+New pixel tests compare fill/stroke gradients, layer order, element/layer alpha,
+and mask paint changes; counters show no new tessellation for warmed paint
+updates or visible GPU stroke reveals. Alpha-source reveals still change their
+CPU-extracted outlines; that existing path rebuilds geometry as the reveal
+changes. Section 15 supersedes this outline-extraction limitation by sharing
+ordinary vector source rendering. Subscription churn returns to the original property count.
+API reference generation, source bundles, and mdBook build are part of this
+checkpoint. Native macOS/iOS applications have not been launched; Metal tests
+exercise the renderer, not complete Apple chassis integration. Arbitrary source
+subtree capture, native paint stacks, blend modes, and stable layer IDs remain
+outside the accepted scope.
+
+
+A forced-Piet, vector-only browser fixture also passed linear/radial stroke,
+mixed-paint stroke, ordering, and opacity checks. The alpha-mask portions are
+excluded from that fixture because Piet rejects alpha masks explicitly.
+Five clock-driven integration tests and nine API/source-bundle tooling tests
+passed in addition to the suites above. The 69 migrated/new templates parse;
+legacy template formatting was retained to keep the migration diff focused.
+Rust formatting and `git diff --check` pass, and 1,582 local links across changed
+book pages resolve, including their anchors. Feature changes are uncommitted.
+
+
+## 15. Approved retained alpha-source integration
+
+Zack approved this extension on September 28. Connect alpha-mask sources to the
+retained subtree surfaces landed in PAX-1004; do not build another vector painter
+or weaken the reveal-performance acceptance criterion.
+
+- Record detached vector sources under explicit mask ownership. Keep their
+  component lifecycle, but never add their draws to visible ordering, hit testing,
+  or native presentation. Preserve source-local unclippable ordering without
+  letting source draws escape into the visible scene.
+- Share retained capture allocation, nesting, cropped texture storage, content
+  signatures, and retirement with group opacity. The opacity consumer samples
+  RGBA; the mask consumer extracts alpha and optionally feathers it.
+- Render existing vector primitives and their layers through ordinary geometry,
+  paint, material, draw-range, and opacity-scope paths. Preserve source-side
+  vector Frame and Mask clips, including nested source masks. Strip consumer
+  ancestry from source opacity; apply enclosing alpha after capture/feathering.
+- Use an explicit surface-local capture domain with sufficient padding for
+  nested feather kernels. Stage projection changes in GPU command order; keep
+  ordinary and source stencil attachments independent. Over-limit domains fail
+  closed with a diagnostic. A coordinate-only change must not reallocate
+  unchanged-size mask textures or upload buffers.
+- Keep image/native sources, source-side Scrollers, cross-surface capture, and
+  Piet alpha masking excluded. Geometric masks keep coverage extraction.
+- Verify source/visible alpha parity for transformed gradient and mixed-paint
+  strokes, 50%-opacity group overlap, nested clips/masks, source disposal, and
+  feathering at tile edges. Warmed paint and reveal updates must not tessellate.
+  Rebuild and inspect WGPU web debug and baked release at desktop/narrow widths;
+  retain the existing Scroller and live-component regressions.
+
+This changes the source-production path, not the content-side alpha-mask
+contract: alpha still modulates individual canvas draws. No new public
+Paint/Fill/Stroke authoring API or manifest/baked value shape is introduced.
+
+### Integration checkpoint
+
+Implemented shared retained captures for ordinary opacity groups and detached
+vector alpha sources. Source rendering now uses ordinary primitive hooks,
+layered paint, GPU stroke ranges, opacity scopes, and vector clips. Captures are
+cropped and cached, and their draws, textures, and stencil resources retire when
+the source is no longer referenced. Padded domains preserve feathering across
+tile edges and nested masks; an oversized source fails closed independently of
+other masks.
+
+Validation passes 642 integrated CPU tests and 20 Metal-backed GPU tests. The
+new pixel regressions cover transformed linear/radial/mixed-paint strokes,
+source group-opacity overlap, nested masks and clips, feathering beyond a tile,
+empty/oversized sources, and resource retirement. Counter assertions establish
+no retessellation during warmed source stroke reveals and reuse of unchanged
+capture pixels.
+
+The expanded `mask-strokes` fixture builds and renders in WGPU web debug and
+baked release at desktop and 390px widths. Visible/captured opacity comparisons,
+nested feathered sources, live handwriting, source removal/remounting, and
+nested Scroller alignment were inspected. Documentation, generated API pages,
+and example source bundles are updated. Native macOS/iOS applications remain
+unlaunched; image/text/native sources, source-side Scrollers, cross-surface
+capture, and Piet alpha masks remain outside this integration.
+
+Five clock-driven integration tests and the documentation/tooling tests also
+pass. API generation, both source-bundle freshness checks, mdBook, Rust
+formatting, and `git diff --check` pass; 1,596 local links across 21 changed book
+pages resolve, including anchors. Changes remain uncommitted.
+
+### Apple debug checkpoint (September 29)
+
+Native macOS and an iPad Pro 13-inch (M5), iOS 26.4 simulator now build and run
+the fixture. Both pass the visible paint-layer studies, capture/group-opacity
+comparison, nested feathered source, and native paint pause/reversal controls.
+macOS additionally passes live handwriting, source removal/remounting, and
+outer/nested scrolling. Fixture Buttons were corrected to use `button_click`
+with `Event<ButtonClick>`; browser `click` activation had hidden that portability
+mistake.
+
+iPad swipe/scroll attempts through native automation did not move the page, so
+the lower handwriting/source-lifecycle/nested-scroll checks remain unverified
+there. No Apple release build or physical-device validation is claimed. This
+supersedes the earlier statement that Apple applications had not been launched.

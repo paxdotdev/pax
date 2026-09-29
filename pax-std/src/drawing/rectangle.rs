@@ -1,12 +1,11 @@
 use kurbo::{Affine, RoundedRect, RoundedRectRadii, Shape};
-use pax_runtime::{api::Fill, BaseInstance};
+use pax_runtime::BaseInstance;
 use pax_runtime_api::use_RefCell;
 
-use crate::common::begin_bounded_canvas_node;
 use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
 
 use pax_runtime::api as pax_runtime_api;
-use pax_runtime::api::{Layer, Material, RenderContext, Stroke};
+use pax_runtime::api::{Layer, RenderContext, Stroke};
 use_RefCell!();
 use pax_engine::{helpers, pax, CoercionRules, PaxValue, Property};
 use pax_manifest::pax_runtime_api::Numeric;
@@ -14,17 +13,26 @@ use std::rc::Rc;
 
 /// A 2D vector rectangle, which covers its bounding box with the specified fill and stroke.
 #[pax]
+#[custom(Default)]
 #[engine_import_path("pax_engine")]
 #[primitive("pax_std::drawing::rectangle::RectangleInstance")]
 pub struct Rectangle {
-    /// Stroke drawn around the rectangle.
-    pub stroke: Property<Stroke>,
-    /// Fill painted inside the rectangle.
-    pub fill: Property<Fill>,
-    /// Light-reactive surface response.
-    pub material: Property<Material>,
+    /// Ordered outline layers above the fills, index zero topmost. Empty by default.
+    pub stroke: Property<Vec<Stroke>>,
+    /// Paint painted inside the rectangle.
+    pub fill: Property<Vec<pax_runtime_api::Fill>>,
     /// Per-corner radii.
     pub corner_radius: Property<CornerRadii>,
+}
+
+impl Default for Rectangle {
+    fn default() -> Self {
+        Self {
+            fill: Property::new(vec![pax_runtime_api::Fill::default()]),
+            stroke: Default::default(),
+            corner_radius: Default::default(),
+        }
+    }
 }
 
 // Runtime instance backing `<Rectangle>`.
@@ -33,6 +41,10 @@ pub struct RectangleInstance {
 }
 
 impl InstanceNode for RectangleInstance {
+    fn supports_alpha_source_render(&self) -> bool {
+        true
+    }
+
     fn instantiate(args: InstantiationArgs) -> Rc<Self> {
         Rc::new(Self {
             base: BaseInstance::new(
@@ -54,22 +66,23 @@ impl InstanceNode for RectangleInstance {
         context: &Rc<RuntimeContext>,
     ) {
         let tab = expanded_node.transform_and_bounds.clone();
-        let (corner_radius, stroke, fill, material) =
+        let (corner_radius, stroke, fill) =
             expanded_node.with_properties_unwrapped(|properties: &mut Rectangle| {
                 (
                     properties.corner_radius.clone(),
                     properties.stroke.clone(),
                     properties.fill.clone(),
-                    properties.material.clone(),
                 )
             });
 
+        let appearance =
+            crate::common::watch_appearance(expanded_node, context, fill.clone(), stroke.clone());
         let deps = &[
+            appearance.untyped(),
             tab.untyped(),
             corner_radius.untyped(),
             stroke.untyped(),
             fill.untyped(),
-            material.untyped(),
             expanded_node.computed_opacity.untyped(),
             expanded_node.computed_opacity_scopes.untyped(),
         ];
@@ -93,7 +106,14 @@ impl InstanceNode for RectangleInstance {
             let tab = expanded_node.transform_and_bounds.get();
             let (width, height) = tab.bounds;
             let rect = RoundedRect::new(0.0, 0.0, width, height, &properties.corner_radius.get());
-            Some(Affine::from(tab.transform) * rect.to_path(0.1))
+            Some(
+                Affine::from(tab.transform)
+                    * crate::common::appearance_coverage_path(
+                        &rect.to_path(0.1),
+                        &properties.fill.get(),
+                        &properties.stroke.get(),
+                    ),
+            )
         })
     }
 
@@ -114,8 +134,11 @@ impl InstanceNode for RectangleInstance {
 
     fn resolve_coverage_opacity(&self, expanded_node: &ExpandedNode) -> f64 {
         expanded_node.with_properties_unwrapped(|properties: &mut Rectangle| {
-            (properties.fill.get().coverage_alpha_0_1() * expanded_node.computed_opacity.get())
-                .clamp(0.0, 1.0)
+            (crate::common::appearance_coverage_alpha(
+                &properties.fill.get(),
+                &properties.stroke.get(),
+            ) * expanded_node.computed_opacity.get())
+            .clamp(0.0, 1.0)
         })
     }
 
@@ -123,9 +146,17 @@ impl InstanceNode for RectangleInstance {
         &self,
         node: &ExpandedNode,
     ) -> pax_runtime::scene_geometry::CanvasGeometry {
-        pax_runtime::scene_geometry::CanvasGeometry::for_layout(
-            node.transform_and_bounds.get().bounds,
-        )
+        let bounds = node.transform_and_bounds.get().bounds;
+        let local_bounds = node.with_properties_unwrapped(|p: &mut Rectangle| {
+            crate::common::stroke_coverage_bounds(
+                kurbo::Rect::new(0.0, 0.0, bounds.0, bounds.1),
+                &p.stroke.get(),
+            )
+        });
+        pax_runtime::scene_geometry::CanvasGeometry {
+            local_bounds: Some(local_bounds),
+            path: None,
+        }
     }
 
     fn render(
@@ -134,11 +165,11 @@ impl InstanceNode for RectangleInstance {
         rtc: &Rc<RuntimeContext>,
         rc: &mut dyn RenderContext,
     ) {
-        if !rtc.is_canvas_node_dirty(&expanded_node.id) {
+        if rc.alpha_source_layer().is_none() && !rtc.is_canvas_node_dirty(&expanded_node.id) {
             return;
         }
 
-        let Some(scope) = begin_bounded_canvas_node(rc, expanded_node, rtc) else {
+        let Some(scope) = crate::common::begin_bounded_canvas_node(rc, expanded_node, rtc) else {
             return;
         };
         let (width, height) = scope.bounds;
@@ -146,30 +177,19 @@ impl InstanceNode for RectangleInstance {
         expanded_node.with_properties_unwrapped(|properties: &mut Rectangle| {
             let rect = RoundedRect::new(0.0, 0.0, width, height, &properties.corner_radius.get());
             let bez_path = rect.to_path(0.1);
-            let opacity = scope.paint_opacity;
-            let fill = properties.fill.get();
-            let stroke = properties.stroke.get();
-            let material = properties.material.get();
             rc.save(scope.layer_id);
             rc.transform(scope.layer_id, scope.surface_transform);
-            rc.fill_with_material_and_opacity(
+            crate::common::draw_appearance(
+                rc,
                 scope.layer_id,
-                bez_path.clone(),
-                &fill,
-                &material,
-                opacity,
+                bez_path,
+                &properties.fill.get(),
+                &properties.stroke.get(),
+                scope.paint_opacity,
+                pax_runtime_api::PathSmoothing::None,
+                0.0,
+                1.0,
             );
-            //hack to address "phantom stroke" bug on Web
-            let width: f64 = stroke.width.get().expect_pixels().to_float();
-            if width > f64::EPSILON {
-                rc.stroke_with_material_and_opacity(
-                    scope.layer_id,
-                    bez_path,
-                    &stroke,
-                    &material,
-                    opacity,
-                );
-            }
             rc.restore(scope.layer_id);
         });
         if rc.end_node(scope.layer_id, scope.node_id) {

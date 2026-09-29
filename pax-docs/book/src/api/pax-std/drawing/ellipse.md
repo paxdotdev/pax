@@ -8,16 +8,11 @@ A 2D vector ellipse, which inscribes its bounding box with the specified fill an
 
 #### Properties
 ##### `stroke`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Stroke`](../../../api/pax-runtime-api/drawing.md#stroke)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`Vec`<[`Stroke`](../../../api/pax-runtime-api/drawing.md#stroke)>>
 
-Stroke drawn around the ellipse.
+Ordered outline layers above the fills, index zero topmost. Empty by default.
 
 ##### `fill`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Fill`](../../../api/pax-runtime-api/drawing.md#fill)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`Vec`<[`Fill`](../../../api/pax-runtime-api/drawing.md#fill)>>
 
-Fill painted inside the ellipse.
-
-##### `material`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Material`](../../../api/pax-runtime-api/drawing.md#material)>
-
-Light-reactive surface response.
+Paint painted inside the ellipse.

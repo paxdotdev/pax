@@ -121,6 +121,7 @@
     - [slot](api/internal/pax-runtime/slot.md)
     - [viewport_proximity](api/internal/pax-runtime/viewport_proximity.md)
   - [pax-manifest](api/internal/pax-manifest/index.md)
+    - [appearance](api/internal/pax-manifest/appearance.md)
     - [cartridge_generation](api/internal/pax-manifest/cartridge_generation.md)
     - [program_ir](api/internal/pax-manifest/program_ir.md)
     - [selectors](api/internal/pax-manifest/selectors.md)

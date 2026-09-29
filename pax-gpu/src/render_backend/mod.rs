@@ -1,4 +1,4 @@
-mod opacity;
+pub(crate) mod capture;
 use anyhow::anyhow;
 use bytemuck::Pod;
 use std::cell::RefCell;
@@ -346,6 +346,7 @@ fn write_staged_buffer(
 fn physical_scissor_rect(
     scissor: Option<ScissorRect>,
     dpr: [f32; 2],
+    origin: [f32; 2],
     surface_width: u32,
     surface_height: u32,
 ) -> Option<(u32, u32, u32, u32)> {
@@ -353,8 +354,14 @@ fn physical_scissor_rect(
         return Some((0, 0, surface_width.max(1), surface_height.max(1)));
     };
 
-    let dpr_x = dpr[0].max(1.0);
-    let dpr_y = dpr[1].max(1.0);
+    let scissor = ScissorRect {
+        min_x: scissor.min_x - origin[0],
+        min_y: scissor.min_y - origin[1],
+        max_x: scissor.max_x - origin[0],
+        max_y: scissor.max_y - origin[1],
+    };
+    let dpr_x = dpr[0].max(f32::EPSILON);
+    let dpr_y = dpr[1].max(f32::EPSILON);
     let min_x = (scissor.min_x.min(scissor.max_x) * dpr_x)
         .floor()
         .clamp(0.0, surface_width as f32) as u32;
@@ -412,13 +419,15 @@ pub struct RenderBackend<'w> {
     // plugins / extensions
     texture_renderer: TextureRenderer,
     stencil_renderer: StencilRenderer,
+    source_stencil: Option<StencilRenderer>,
+    source_domain: Option<(GpuGlobals, u32, u32)>,
     pub(crate) alpha_masks: alpha_mask::AlphaMasks,
     multisampled_target: Option<MultisampledTarget>,
     sample_count: u32,
     clear_color: wgpu::Color,
     active_frame: Option<ActiveFrame>,
     capture_target: Option<CaptureTarget>,
-    opacity_surfaces: Option<opacity::OpacitySurfaces>,
+    retained_surfaces: Option<capture::RetainedSurfaces>,
     pending_clear: bool,
     pending_command_buffers: Vec<CommandBuffer>,
     staging_belt_pending_recall: bool,
@@ -1003,6 +1012,7 @@ impl<'w> RenderBackend<'w> {
         let globals = GpuGlobals {
             resolution: [initial_width as f32, initial_height as f32],
             dpr: config.initial_dpr,
+            ..Default::default()
         };
         let (_, globals_buffer) = create_buffer::<GpuGlobals>(
             &device,
@@ -1127,6 +1137,8 @@ impl<'w> RenderBackend<'w> {
             context: Rc::clone(&context),
             texture_renderer,
             stencil_renderer,
+            source_stencil: None,
+            source_domain: None,
             surface,
             #[cfg(target_arch = "wasm32")]
             browser_canvas: None,
@@ -1155,7 +1167,7 @@ impl<'w> RenderBackend<'w> {
             clear_color: surface_clear_color(alpha_mode),
             active_frame: None,
             capture_target: None,
-            opacity_surfaces: None,
+            retained_surfaces: None,
             pending_clear: false,
             pending_command_buffers: Vec::new(),
             staging_belt_pending_recall: false,
@@ -1303,6 +1315,7 @@ impl<'w> RenderBackend<'w> {
         // staging allocations instead of recalling work that was never submitted.
         // Dropped WGPU handles remain alive for any older in-flight commands.
         self.alpha_masks.invalidate();
+        self.reset_captures();
         self.staging_belt = StagingBelt::new(self.device.clone(), STAGING_BELT_CHUNK_SIZE);
         self.staging_belt_pending_recall = false;
         self.needs_device_poll = false;
@@ -1732,6 +1745,130 @@ impl<'w> RenderBackend<'w> {
         self.enqueue_command_buffer(encoder.finish());
     }
 
+    pub(crate) fn source_domain_fits(&self, margin: f32) -> bool {
+        [self.surface_config.width, self.surface_config.height]
+            .into_iter()
+            .zip(self.globals.dpr)
+            .all(|(size, dpr)| {
+                let extent = size as f64 + 2.0 * ((margin * dpr).ceil() as f64 + 1.0);
+                dpr.is_finite()
+                    && dpr > 0.0
+                    && extent.is_finite()
+                    && extent <= self.max_surface_dimension as f64
+            })
+    }
+
+    pub(crate) fn begin_source_domain(&mut self, margin: f32) -> bool {
+        assert!(self.source_domain.is_none());
+        let dpr = self.globals.dpr;
+        let gutter = [
+            (margin * dpr[0]).ceil() + 1.0,
+            (margin * dpr[1]).ceil() + 1.0,
+        ];
+        let extent = [
+            self.surface_config.width as f64 + 2.0 * gutter[0] as f64,
+            self.surface_config.height as f64 + 2.0 * gutter[1] as f64,
+        ];
+        if extent
+            .iter()
+            .any(|v| !v.is_finite() || *v > self.max_surface_dimension as f64)
+        {
+            log::error!("alpha-source feather domain exceeds GPU texture limits");
+            return false;
+        }
+        let width = extent[0] as u32;
+        let height = extent[1] as u32;
+        let mut stencil = self.source_stencil.take().unwrap_or_else(|| {
+            StencilRenderer::with_pipeline_resources(
+                &self.device,
+                width,
+                height,
+                self.sample_count,
+                &self.globals_buffer,
+                &self.clip_transforms_buffer,
+                self.context
+                    .stencil_pipeline_resources(self.surface_config.format, self.sample_count),
+            )
+        });
+        stencil.resize(&self.device, width, height);
+        std::mem::swap(&mut self.stencil_renderer, &mut stencil);
+        self.source_stencil = Some(stencil);
+        self.source_domain = Some((
+            self.globals,
+            self.surface_config.width,
+            self.surface_config.height,
+        ));
+        self.surface_config.width = width;
+        self.surface_config.height = height;
+        self.globals.origin = [-gutter[0] / dpr[0], -gutter[1] / dpr[1]];
+        self.globals.resolution = [width as f32 / dpr[0], height as f32 / dpr[1]];
+        self.stage_capture_globals();
+        true
+    }
+
+    pub(crate) fn end_source_domain(&mut self) {
+        let (globals, width, height) = self.source_domain.take().expect("source domain is active");
+        self.globals = globals;
+        self.surface_config.width = width;
+        self.surface_config.height = height;
+        std::mem::swap(
+            &mut self.stencil_renderer,
+            self.source_stencil.as_mut().unwrap(),
+        );
+        self.stage_capture_globals();
+    }
+
+    fn stage_capture_globals(&mut self) {
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Capture coordinate domain"),
+            });
+        write_staged_buffer(
+            &mut self.staging_belt,
+            &mut encoder,
+            &self.globals_buffer,
+            bytemuck::bytes_of(&self.globals),
+        );
+        self.stencil_renderer.encode_clear(&mut encoder);
+        self.enqueue_staged_command_buffer(encoder);
+    }
+
+    pub(crate) fn render_captured_alpha(
+        &mut self,
+        id: u32,
+        signature: u64,
+        key: capture::CaptureKey,
+        feather: f32,
+        parent: Option<u32>,
+    ) {
+        let (view, crop) = self
+            .retained_surfaces
+            .as_ref()
+            .unwrap()
+            .texture_view(key, [self.surface_config.width, self.surface_config.height]);
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("Captured alpha"),
+            });
+        if self.alpha_masks.render(
+            &self.device,
+            &mut encoder,
+            &mut self.staging_belt,
+            id,
+            signature,
+            &[],
+            [self.surface_config.width, self.surface_config.height],
+            self.globals,
+            feather,
+            parent,
+            Some((&view, crop)),
+        ) {
+            self.enqueue_staged_command_buffer(encoder);
+        }
+    }
+
     pub(crate) fn render_alpha_mask(
         &mut self,
         id: u32,
@@ -1759,6 +1896,7 @@ impl<'w> RenderBackend<'w> {
             self.globals,
             feather,
             parent,
+            None,
         );
         if rendered {
             self.enqueue_staged_command_buffer(encoder);
@@ -1776,6 +1914,7 @@ impl<'w> RenderBackend<'w> {
                 physical_scissor_rect(
                     run.scissor,
                     self.globals.dpr,
+                    self.globals.origin,
                     self.surface_config.width,
                     self.surface_config.height,
                 )
@@ -1955,6 +2094,9 @@ impl<'w> RenderBackend<'w> {
     ) {
         self.stencil_renderer
             .retain_cached_resources(active_signatures, active_clip_ids);
+        if let Some(stencil) = &mut self.source_stencil {
+            stencil.retain_cached_resources(active_signatures, active_clip_ids);
+        }
     }
 
     pub(crate) fn create_cached_texture(
@@ -2174,6 +2316,7 @@ impl<'w> RenderBackend<'w> {
                 let scissor = physical_scissor_rect(
                     segment.scissor,
                     self.globals.dpr,
+                    self.globals.origin,
                     self.surface_config.width,
                     self.surface_config.height,
                 );
@@ -2328,6 +2471,7 @@ impl<'w> RenderBackend<'w> {
                         physical_scissor_rect(
                             segment.scissor,
                             self.globals.dpr,
+                            self.globals.origin,
                             self.surface_config.width,
                             self.surface_config.height,
                         )
@@ -2454,7 +2598,7 @@ impl<'w> RenderBackend<'w> {
 
     fn take_color_load_op(&mut self) -> wgpu::LoadOp<wgpu::Color> {
         if let Some(target) = self
-            .opacity_surfaces
+            .retained_surfaces
             .as_mut()
             .and_then(|s| s.stack.last_mut())
         {
@@ -2618,7 +2762,7 @@ impl<'w> RenderBackend<'w> {
     }
 
     fn current_color_attachment_view_clones(&self) -> (TextureView, Option<TextureView>) {
-        if let Some(target) = self.opacity_surfaces.as_ref().and_then(|s| s.stack.last()) {
+        if let Some(target) = self.retained_surfaces.as_ref().and_then(|s| s.stack.last()) {
             let (view, resolve) = target.color_attachment_views();
             return (view.clone(), resolve.cloned());
         }
@@ -2640,7 +2784,7 @@ impl<'w> RenderBackend<'w> {
     }
 
     fn should_render_capture_target(&self) -> bool {
-        self.opacity_surfaces
+        self.retained_surfaces
             .as_ref()
             .is_none_or(|s| s.stack.is_empty())
             && !self.surface_supports_copy_src()
@@ -2778,55 +2922,50 @@ impl<'w> RenderBackend<'w> {
         let readback_for_callback = readback.clone();
         // The copy may be submitted later as part of a multi-surface frame. Mapping now would
         // make the buffer unavailable to that copy when its command buffer reaches the queue.
-        encoder.map_buffer_on_submit(
-            &readback,
-            wgpu::MapMode::Read,
-            ..,
-            move |result| {
-                if let Err(err) = result {
-                    log::warn!("failed to map surface screenshot readback buffer: {err}");
-                    return;
-                }
+        encoder.map_buffer_on_submit(&readback, wgpu::MapMode::Read, .., move |result| {
+            if let Err(err) = result {
+                log::warn!("failed to map surface screenshot readback buffer: {err}");
+                return;
+            }
 
-                let mapped = readback_for_callback.slice(..).get_mapped_range();
-                let mut rgba = vec![0; unpadded_bytes_per_row * height as usize];
-                for row in 0..height as usize {
-                    let src_start = row * padded_bytes_per_row;
-                    let dst_start = row * unpadded_bytes_per_row;
-                    rgba[dst_start..dst_start + unpadded_bytes_per_row]
-                        .copy_from_slice(&mapped[src_start..src_start + unpadded_bytes_per_row]);
+            let mapped = readback_for_callback.slice(..).get_mapped_range();
+            let mut rgba = vec![0; unpadded_bytes_per_row * height as usize];
+            for row in 0..height as usize {
+                let src_start = row * padded_bytes_per_row;
+                let dst_start = row * unpadded_bytes_per_row;
+                rgba[dst_start..dst_start + unpadded_bytes_per_row]
+                    .copy_from_slice(&mapped[src_start..src_start + unpadded_bytes_per_row]);
+            }
+            if matches!(
+                surface_format,
+                wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb
+            ) {
+                for pixel in rgba.chunks_exact_mut(4) {
+                    pixel.swap(0, 2);
                 }
-                if matches!(
-                    surface_format,
-                    wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Bgra8UnormSrgb
-                ) {
-                    for pixel in rgba.chunks_exact_mut(4) {
-                        pixel.swap(0, 2);
-                    }
-                }
-                drop(mapped);
-                readback_for_callback.unmap();
+            }
+            drop(mapped);
+            readback_for_callback.unmap();
 
-                let capture = CapturedFrame {
-                    width,
-                    height,
-                    rgba,
-                };
-                match completed_captures.lock() {
-                    Ok(mut completed) => {
-                        for request_id in capture_ids {
-                            completed.insert(request_id, capture.clone());
-                        }
-                    }
-                    Err(err) => {
-                        log::warn!(
-                            "failed to store surface screenshot readback result: {:?}",
-                            err
-                        );
+            let capture = CapturedFrame {
+                width,
+                height,
+                rgba,
+            };
+            match completed_captures.lock() {
+                Ok(mut completed) => {
+                    for request_id in capture_ids {
+                        completed.insert(request_id, capture.clone());
                     }
                 }
-            },
-        );
+                Err(err) => {
+                    log::warn!(
+                        "failed to store surface screenshot readback result: {:?}",
+                        err
+                    );
+                }
+            }
+        });
         self.enqueue_command_buffer(encoder.finish());
         self.needs_device_poll = true;
     }
@@ -3009,6 +3148,7 @@ mod shader_tests {
                 include_str!("alpha_mask.wgsl")
             ),
             include_str!("alpha_blur.wgsl"),
+            include_str!("alpha_capture.wgsl"),
             include_str!("textures.wgsl"),
         ] {
             let module = naga::front::wgsl::parse_str(source).expect("alpha shader parses");

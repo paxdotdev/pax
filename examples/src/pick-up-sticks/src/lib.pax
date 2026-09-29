@@ -19,7 +19,7 @@
                     0%: rgba(88, 18, 36, 240)
                     100%: rgba(42, 10, 20, 232)
                 }
-                stroke={color: rgba(255, 210, 184, 180), width: 2px}
+                stroke={paint: rgba(255, 210, 184, 180), width: 2px}
             />
         </Group>
     }
@@ -44,7 +44,7 @@
                     0%: rgba(20, 74, 64, 236)
                     100%: rgba(10, 36, 31, 228)
                 }
-                stroke={color: rgba(196, 250, 225, 160), width: 2px}
+                stroke={paint: rgba(196, 250, 225, 160), width: 2px}
             />
         </Group>
     }
@@ -74,7 +74,7 @@
                 y1=28px
                 x2=60px
                 y2=28px
-                stroke={color: rgba(255, 236, 196, 255), width: 4px}
+                stroke={paint: rgba(255, 236, 196, 255), width: 4px}
                 _raycastable=false
             />
             <Line
@@ -82,7 +82,7 @@
                 y1=28px
                 x2=42px
                 y2=14px
-                stroke={color: rgba(255, 236, 196, 255), width: 4px}
+                stroke={paint: rgba(255, 236, 196, 255), width: 4px}
                 _raycastable=false
             />
             <Line
@@ -90,12 +90,12 @@
                 y1=28px
                 x2=42px
                 y2=42px
-                stroke={color: rgba(255, 236, 196, 255), width: 4px}
+                stroke={paint: rgba(255, 236, 196, 255), width: 4px}
                 _raycastable=false
             />
             <Rectangle class="chip_outline"
                 fill=TRANSPARENT
-                stroke={color: rgba(255, 225, 168, 90), width: 2px}
+                stroke={paint: rgba(255, 225, 168, 90), width: 2px}
                 _raycastable=false
             />
             <Rectangle class="chip_surface"
@@ -116,7 +116,7 @@
             <Text class="chip_body" x=24px y=50px width=296px height=22px text={chance_text}/>
             <Rectangle class="chip_outline"
                 fill=TRANSPARENT
-                stroke={color: rgba(255, 225, 168, 88), width: 2px}
+                stroke={paint: rgba(255, 225, 168, 88), width: 2px}
             />
             <Rectangle class="chip_surface"
                 fill=@gradient {
@@ -135,7 +135,7 @@
             <Text class="chip_body" x=24px y=50px width=216px height=22px text={progress_text}/>
             <Rectangle class="chip_outline"
                 fill=TRANSPARENT
-                stroke={color: rgba(255, 225, 168, 88), width: 2px}
+                stroke={paint: rgba(255, 225, 168, 88), width: 2px}
             />
             <Rectangle class="chip_surface"
                 fill=@gradient {
@@ -231,7 +231,7 @@
                 y1=86%
                 x2=82%
                 y2=86%
-                stroke={color: rgba(255, 220, 152, 38), width: 2px}
+                stroke={paint: rgba(255, 220, 152, 38), width: 2px}
                 _raycastable=false
             />
             <Ellipse
@@ -247,26 +247,26 @@
 
         <Group class="corner_tl">
             <Ellipse x=0px y=0px width=10px height=10px fill=rgba(255, 224, 156, 190)/>
-            <Line x1=0px y1=0px x2=56px y2=0px stroke={color: rgba(255, 220, 148, 82), width: 2px}/>
-            <Line x1=0px y1=0px x2=0px y2=56px stroke={color: rgba(255, 220, 148, 82), width: 2px}/>
+            <Line x1=0px y1=0px x2=56px y2=0px stroke={paint: rgba(255, 220, 148, 82), width: 2px}/>
+            <Line x1=0px y1=0px x2=0px y2=56px stroke={paint: rgba(255, 220, 148, 82), width: 2px}/>
         </Group>
 
         <Group class="corner_tr">
             <Ellipse x=0px y=0px width=10px height=10px fill=rgba(255, 224, 156, 190)/>
-            <Line x1=0px y1=0px x2=-56px y2=0px stroke={color: rgba(255, 220, 148, 82), width: 2px}/>
-            <Line x1=0px y1=0px x2=0px y2=56px stroke={color: rgba(255, 220, 148, 82), width: 2px}/>
+            <Line x1=0px y1=0px x2=-56px y2=0px stroke={paint: rgba(255, 220, 148, 82), width: 2px}/>
+            <Line x1=0px y1=0px x2=0px y2=56px stroke={paint: rgba(255, 220, 148, 82), width: 2px}/>
         </Group>
 
         <Group class="corner_bl">
             <Ellipse x=0px y=0px width=10px height=10px fill=rgba(255, 224, 156, 190)/>
-            <Line x1=0px y1=0px x2=56px y2=0px stroke={color: rgba(255, 220, 148, 82), width: 2px}/>
-            <Line x1=0px y1=0px x2=0px y2=-56px stroke={color: rgba(255, 220, 148, 82), width: 2px}/>
+            <Line x1=0px y1=0px x2=56px y2=0px stroke={paint: rgba(255, 220, 148, 82), width: 2px}/>
+            <Line x1=0px y1=0px x2=0px y2=-56px stroke={paint: rgba(255, 220, 148, 82), width: 2px}/>
         </Group>
 
         <Group class="corner_br">
             <Ellipse x=0px y=0px width=10px height=10px fill=rgba(255, 224, 156, 190)/>
-            <Line x1=0px y1=0px x2=-56px y2=0px stroke={color: rgba(255, 220, 148, 82), width: 2px}/>
-            <Line x1=0px y1=0px x2=0px y2=-56px stroke={color: rgba(255, 220, 148, 82), width: 2px}/>
+            <Line x1=0px y1=0px x2=-56px y2=0px stroke={paint: rgba(255, 220, 148, 82), width: 2px}/>
+            <Line x1=0px y1=0px x2=0px y2=-56px stroke={paint: rgba(255, 220, 148, 82), width: 2px}/>
         </Group>
 
         <Group x=50% y=50% width=920px height=640px anchor=50% opacity=0.22>
@@ -285,7 +285,7 @@
                         y1=5%
                         x2=50%
                         y2=0%
-                        stroke={color: rgba(255, 236, 202, 110), width: 2px}
+                        stroke={paint: rgba(255, 236, 202, 110), width: 2px}
                     />
                 </Group>
             }
@@ -293,7 +293,7 @@
 
         <Rectangle class="board_inset"
             fill=TRANSPARENT
-            stroke={color: rgba(255, 226, 173, 48), width: 2px}
+            stroke={paint: rgba(255, 226, 173, 48), width: 2px}
         />
         <Rectangle class="board_surface"
             fill=@gradient {
@@ -305,7 +305,7 @@
                 48%: rgba(24, 19, 58, 255)
                 100%: rgba(16, 14, 38, 255)
             }
-            stroke={color: rgba(255, 227, 176, 62), width: 2px}
+            stroke={paint: rgba(255, 227, 176, 62), width: 2px}
         />
         <Rectangle class="board_shadow"
             fill=rgba(4, 6, 14, 148)
@@ -328,7 +328,7 @@
                     y1=7%
                     x2=50%
                     y2=0%
-                    stroke={color: rgba(255, 236, 202, 90), width: 2px}
+                    stroke={paint: rgba(255, 236, 202, 90), width: 2px}
                 />
             </Group>
         }

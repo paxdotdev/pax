@@ -52,8 +52,8 @@ const X_INITIAL_ROTATION_DEG: f64 = -90.0;
 #[custom(Default)]
 #[file("animated_pax_logo_banner.pax")]
 pub struct AnimatedPaxLogoBanner {
-    pub fill: Property<Fill>,
-    pub letter_fill: Property<Fill>,
+    pub fill: Property<Paint>,
+    pub letter_fill: Property<Paint>,
     pub progress: Property<f64>,
     pub curtain_drop_1: Property<f64>,
     pub curtain_drop_2: Property<f64>,
@@ -91,8 +91,8 @@ pub struct AnimatedPaxLogoBanner {
 impl Default for AnimatedPaxLogoBanner {
     fn default() -> Self {
         Self {
-            fill: Property::new(Fill::Solid(Color::BLACK)),
-            letter_fill: Property::new(Fill::Solid(Color::WHITE)),
+            fill: Property::new(Paint::Solid(Color::BLACK)),
+            letter_fill: Property::new(Paint::Solid(Color::WHITE)),
             progress: Property::new(0.0),
             curtain_drop_1: Property::new(0.0),
             curtain_drop_2: Property::new(0.0),

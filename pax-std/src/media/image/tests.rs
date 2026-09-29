@@ -2,7 +2,7 @@ use super::*;
 use kurbo::{BezPath, Rect};
 use pax_runtime::api::math::Transform2;
 use pax_runtime::api::pax_value::ToFromPaxAny;
-use pax_runtime::api::{CommonProperties, Fill, Material, Platform, Stroke, TargetInfo, OS};
+use pax_runtime::api::{CommonProperties, Material, Paint, Platform, Stroke, TargetInfo, OS};
 use pax_runtime::{
     CommonPropertiesInit, ComponentInstance, Globals, PropertiesInit, PropertiesScopeInit,
     RouteLocation, TransformAndBounds,
@@ -74,7 +74,7 @@ impl RenderContext for RecordingRenderer {
     fn layers(&self) -> usize {
         1
     }
-    fn fill_with_opacity(&mut self, _: usize, _: BezPath, _: &Fill, _: f64) {
+    fn fill_with_opacity(&mut self, _: usize, _: BezPath, _: &Paint, _: f64) {
         unreachable!()
     }
     fn stroke_with_opacity(&mut self, _: usize, _: BezPath, _: &Stroke, _: f64) {

@@ -8,7 +8,7 @@
                 anchor_x=50%
                 fill=TRANSPARENT
                 stroke={
-                    color: rgba(37, 111, 190, 255)
+                    paint: rgba(37, 111, 190, 255)
                     width: 8px
                 }
                 draw_start=@timeline {
@@ -45,7 +45,7 @@
                 opacity=0.13
                 fill=TRANSPARENT
                 stroke={
-                    color: rgba(37, 111, 190, 255)
+                    paint: rgba(37, 111, 190, 255)
                     width: 8px
                 }
                 elements=[
@@ -68,7 +68,7 @@
                 anchor_x=50%
                 fill=TRANSPARENT
                 stroke={
-                    color: rgba(39, 143, 116, 255)
+                    paint: rgba(39, 143, 116, 255)
                     width: 8px
                 }
                 draw_start=@timeline {
@@ -105,7 +105,7 @@
                 anchor_x=50%
                 fill=TRANSPARENT
                 stroke={
-                    color: rgba(39, 143, 116, 255)
+                    paint: rgba(39, 143, 116, 255)
                     width: 8px
                 }
                 draw_end=@timeline {
@@ -136,7 +136,7 @@
                 opacity=0.14
                 fill=TRANSPARENT
                 stroke={
-                    color: rgba(39, 143, 116, 255)
+                    paint: rgba(39, 143, 116, 255)
                     width: 8px
                 }
                 elements=[
@@ -190,7 +190,7 @@
                 line_height=1.0
                 smoothing=PathSmoothing::Strong
                 stroke={
-                    color: rgba(226, 153, 35, 255)
+                    paint: rgba(226, 153, 35, 255)
                     width: 8px
                     cap: StrokeCap::Round
                     join: StrokeJoin::Round
@@ -224,7 +224,7 @@
                 font=HandwriterFont::HersheyScript1
                 line_height=1.15
                 stroke={
-                    color: rgba(91, 68, 155, 255)
+                    paint: rgba(91, 68, 155, 255)
                     width: 3px
                     cap: StrokeCap::Round
                     join: StrokeJoin::Round

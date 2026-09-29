@@ -188,28 +188,28 @@
     .detail_surface {
         fill: {self.is_dark ? rgb(0, 0, 0) : rgb(248, 246, 242)}
         stroke: {
-            color: {self.is_dark ? rgb(59, 59, 66) : rgb(200, 191, 181)}
+            paint: {self.is_dark ? rgb(59, 59, 66) : rgb(200, 191, 181)}
             width: 1px
         }
     }
     .menu_surface {
         fill: {self.is_dark ? rgb(16, 16, 20) : rgb(253, 251, 248)}
         stroke: {
-            color: {self.is_dark ? rgb(59, 59, 66) : rgb(200, 191, 181)}
+            paint: {self.is_dark ? rgb(59, 59, 66) : rgb(200, 191, 181)}
             width: 1px
         }
     }
     .image_control_surface {
         fill: {self.is_dark ? rgba(14, 14, 18, 230) : rgba(248, 246, 242, 242)}
         stroke: {
-            color: {self.is_dark ? rgba(255, 255, 255, 110) : rgba(67, 55, 45, 130)}
+            paint: {self.is_dark ? rgba(255, 255, 255, 110) : rgba(67, 55, 45, 130)}
             width: 1px
         }
     }
     .card_hover {
         fill: {self.is_dark ? rgba(255, 255, 255, 12) : rgba(0, 0, 0, 8)}
         stroke: {
-            color: {self.is_dark ? rgb(242, 98, 77) : rgb(174, 49, 34)}
+            paint: {self.is_dark ? rgb(242, 98, 77) : rgb(174, 49, 34)}
             width: 2px
         }
     }

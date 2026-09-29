@@ -547,7 +547,7 @@
     .poster_panel {
         fill: {SiteTheme::surface()}
         stroke: Stroke {
-            color: rgba(252, 249, 242, 58)
+            paint: rgba(252, 249, 242, 58)
             width: 1px
         }
         corner_radius: 0.0
@@ -555,7 +555,7 @@
     .poster_panel_faint {
         fill: rgba(255, 255, 255, 110)
         stroke: Stroke {
-            color: rgba(252, 249, 242, 28)
+            paint: rgba(252, 249, 242, 28)
             width: 1px
         }
         corner_radius: 0.0
@@ -571,7 +571,7 @@
     .poster_native {
         fill: {SiteTheme::surface()}
         stroke: Stroke {
-            color: rgba(64, 243, 255, 130)
+            paint: rgba(64, 243, 255, 130)
             width: 2px
         }
         corner_radius: 6.0
@@ -579,7 +579,7 @@
     .poster_phone {
         fill: {SiteTheme::surface()}
         stroke: Stroke {
-            color: {SiteTheme::raised()}
+            paint: {SiteTheme::raised()}
             width: 2px
         }
         corner_radius: 9.0
@@ -587,7 +587,7 @@
     .poster_outline {
         fill: TRANSPARENT
         stroke: Stroke {
-            color: rgba(64, 243, 255, 118)
+            paint: rgba(64, 243, 255, 118)
             width: 1px
         }
         corner_radius: 4.0
@@ -595,7 +595,7 @@
     .poster_viewport {
         fill: rgba(255, 255, 255, 170)
         stroke: Stroke {
-            color: rgba(252, 249, 242, 54)
+            paint: rgba(252, 249, 242, 54)
             width: 1px
         }
         corner_radius: 12.0
@@ -639,7 +639,7 @@
     .poster_signal_square {
         fill: {SiteTheme::raised()}
         stroke: Stroke {
-            color: {SiteTheme::cyan()}
+            paint: {SiteTheme::cyan()}
             width: 2px
         }
     }
@@ -661,7 +661,7 @@
     .poster_orbit {
         fill: TRANSPARENT
         stroke: Stroke {
-            color: rgba(64, 243, 255, 118)
+            paint: rgba(64, 243, 255, 118)
             width: 1px
         }
     }
@@ -683,7 +683,7 @@
     .poster_dot_alt {
         fill: {SiteTheme::surface()}
         stroke: Stroke {
-            color: {SiteTheme::cyan()}
+            paint: {SiteTheme::cyan()}
             width: 2px
         }
     }
@@ -693,7 +693,7 @@
     .poster_crosshair {
         fill: rgba(255, 255, 255, 120)
         stroke: Stroke {
-            color: {SiteTheme::cyan()}
+            paint: {SiteTheme::cyan()}
             width: 2px
         }
     }
@@ -704,7 +704,7 @@
     .poster_mask_cutout {
         fill: rgba(36, 36, 36, 220)
         stroke: Stroke {
-            color: rgba(255, 255, 255, 220)
+            paint: rgba(255, 255, 255, 220)
             width: 4px
         }
     }

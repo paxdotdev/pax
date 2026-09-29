@@ -937,7 +937,13 @@ impl RuntimeContext {
 
     /// Update native safe-area data without changing the viewport or root layout.
     pub fn set_safe_area_insets(&self, insets: SafeAreaInsets) {
-        let valid = |value: f64| if value.is_finite() { value.max(0.0) } else { 0.0 };
+        let valid = |value: f64| {
+            if value.is_finite() {
+                value.max(0.0)
+            } else {
+                0.0
+            }
+        };
         self.safe_area_insets.set_if_neq(SafeAreaInsets {
             top: valid(insets.top),
             right: valid(insets.right),
@@ -1370,6 +1376,9 @@ impl RuntimeContext {
     /// window coordinates. Physical tile offsets are applied later by the renderer.
     pub fn canvas_surface_transform_for_node(&self, node: &ExpandedNode) -> Affine {
         let transform = Affine::from(node.transform_and_bounds.get().transform);
+        if node.is_render_source() {
+            return transform;
+        }
         let own_layer = node.occlusion.get().render_layer_id;
         // Structural Frame/Mask ancestors can retain a different/default layer
         // without owning a canvas. Using them as the origin displaces content
@@ -1431,12 +1440,15 @@ impl RuntimeContext {
             local,
         );
         prepared.world_transform = Affine::from(tab.transform);
-        prepared.is_canvas =
-            borrow!(node.instance_node).base().flags().layer == crate::api::Layer::Canvas;
-        prepared.is_native = matches!(
-            borrow!(node.instance_node).base().flags().layer,
-            crate::api::Layer::Native | crate::api::Layer::NativeNonOccluding
-        ) || borrow!(node.instance_node).materializes_native_surface(node);
+        // Detached mask sources reuse prepared geometry without entering visible
+        // replay or native-compositing indexes.
+        prepared.is_canvas = !node.is_render_source()
+            && borrow!(node.instance_node).base().flags().layer == crate::api::Layer::Canvas;
+        prepared.is_native = !node.is_render_source()
+            && (matches!(
+                borrow!(node.instance_node).base().flags().layer,
+                crate::api::Layer::Native | crate::api::Layer::NativeNonOccluding
+            ) || borrow!(node.instance_node).materializes_native_surface(node));
         borrow_mut!(self.scene_geometry).insert(node.id.to_u32(), prepared)
     }
 
@@ -1989,7 +2001,10 @@ mod light_scope_tests {
 
     impl InstanceNode for TestLightingNode {
         fn has_scene_lighting(&self) -> bool {
-            matches!(self.role, TestLightingRole::Light(_) | TestLightingRole::Ambient(_))
+            matches!(
+                self.role,
+                TestLightingRole::Light(_) | TestLightingRole::Ambient(_)
+            )
         }
 
         fn instantiate(args: InstantiationArgs) -> Rc<Self>

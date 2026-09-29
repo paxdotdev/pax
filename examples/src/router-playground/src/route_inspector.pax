@@ -37,7 +37,7 @@
         fill=rgba(11, 18, 32, 220)
         corner_radius=22.0
         stroke={
-            color: rgba(120, 137, 163, 150)
+            paint: rgba(120, 137, 163, 150)
             width: 1px
         }
     />

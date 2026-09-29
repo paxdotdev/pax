@@ -314,6 +314,11 @@ impl std::fmt::Debug for dyn InstanceNode {
 ///
 /// (See `RepeatInstance::expand_node` where we visit a singular `InstanceNode` several times, producing multiple [`ExpandedNode`]s.)
 pub trait InstanceNode {
+    /// Whether ordinary render hooks are valid inside a detached vector alpha source.
+    /// Native surfaces and cross-surface containers require separate capture support.
+    fn supports_alpha_source_render(&self) -> bool {
+        false
+    }
     ///Retrieves the base instance, containing common functionality that all instances share
     fn base(&self) -> &BaseInstance;
 

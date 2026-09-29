@@ -21,7 +21,7 @@
             height=100%
             fill=rgb(25, 25, 30)
             stroke={
-                color: rgb(62, 62, 72)
+                paint: rgb(62, 62, 72)
                 width: 1px
             }
             corner_radius=8.0

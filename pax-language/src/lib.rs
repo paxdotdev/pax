@@ -38,6 +38,7 @@ pub struct PaxParser;
 #[cfg(feature = "parser")]
 fn renamed_rules(rule: &Rule) -> String {
     match rule {
+        Rule::template_list_value => "template list entry".to_string(),
         Rule::EOI => "end of file".to_string(),
         Rule::WHITESPACE => " ".to_string(),
         Rule::comment => "comment".to_string(),

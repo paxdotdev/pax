@@ -94,7 +94,7 @@ impl RenderContext for Recorder {
     fn layers(&self) -> usize {
         self.layers
     }
-    fn fill_with_opacity(&mut self, _: usize, _: kurbo::BezPath, _: &Fill, _: f64) {}
+    fn fill_with_opacity(&mut self, _: usize, _: kurbo::BezPath, _: &Paint, _: f64) {}
     fn stroke_with_opacity(&mut self, _: usize, _: kurbo::BezPath, _: &Stroke, _: f64) {}
     fn stroke_with_draw_range_and_material_and_opacity(
         &mut self,

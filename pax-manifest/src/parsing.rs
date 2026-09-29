@@ -896,7 +896,9 @@ fn split_selector_bindings_from_inline_settings(
 
 pub fn parse_value_definition(value: Pair<Rule>) -> ValueDefinition {
     match value.as_rule() {
-        Rule::timeline_keyframe_value
+        Rule::template_list_value
+        | Rule::expression_wrapped
+        | Rule::timeline_keyframe_value
         | Rule::timeline_block_setting_value
         | Rule::gradient_shape_setting_value
         | Rule::gradient_stop_value => parse_value_definition(value.into_inner().next().unwrap()),
@@ -909,6 +911,27 @@ pub fn parse_value_definition(value: Pair<Rule>) -> ValueDefinition {
         Rule::literal_value => {
             let inner = value.into_inner().next().unwrap();
             match inner.as_rule() {
+                Rule::literal_list => {
+                    let entries: Vec<_> = inner.into_inner().map(parse_value_definition).collect();
+                    if entries
+                        .iter()
+                        .all(|v| matches!(v, ValueDefinition::LiteralValue(_)))
+                    {
+                        ValueDefinition::LiteralValue(PaxValue::Vec(
+                            entries
+                                .into_iter()
+                                .map(|v| {
+                                    let ValueDefinition::LiteralValue(v) = v else {
+                                        unreachable!()
+                                    };
+                                    v
+                                })
+                                .collect(),
+                        ))
+                    } else {
+                        ValueDefinition::List(entries)
+                    }
+                }
                 Rule::literal_object => {
                     let has_explicit_type = inner
                         .clone()

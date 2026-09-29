@@ -2,7 +2,7 @@ use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
 
-use pax_engine::api::{Color, Fill, Layer, Numeric, Property, RenderContext, Size};
+use pax_engine::api::{Color, Layer, Numeric, Paint, Property, RenderContext, Size};
 use pax_engine::*;
 
 use pax_message::{
@@ -179,7 +179,7 @@ impl InstanceNode for TextInstance {
             _rc.fill(
                 _expanded_node.occlusion.get().render_layer_id,
                 transformed_bez_path,
-                &Fill::Solid(Color::rgba(0.into(), 255.into(), 0.into(), 100.into())),
+                &Paint::Solid(Color::rgba(0.into(), 255.into(), 0.into(), 100.into())),
             );
         }
     }
@@ -443,7 +443,7 @@ pub struct TextStyle {
     #[serde(default)]
     /// Text color. Native text patches reduce gradient fills to their first
     /// stop's color; use a solid fill for predictable text color.
-    pub fill: Property<Fill>,
+    pub fill: Property<Paint>,
     #[serde(default)]
     /// Whether text should be underlined.
     pub underline: Property<bool>,
@@ -477,7 +477,7 @@ impl Default for TextStyle {
         Self {
             font: Property::new(Font::default()),
             font_size: Property::new(Size::Pixels(Numeric::F64(20.0))),
-            fill: Property::new(Fill::Solid(Color::BLACK)),
+            fill: Property::new(Paint::Solid(Color::BLACK)),
             underline: Property::new(false),
             align_multiline: Property::new(TextAlignHorizontal::Left),
             align_vertical: Property::new(TextAlignVertical::Top),
@@ -780,17 +780,17 @@ mod font_coercion_tests {
         use pax_engine::api::Interpolatable;
         let from = TextStyle::default();
         from.font_size.set(Size::Pixels(10.into()));
-        from.fill.set(Fill::Solid(Color::BLACK));
+        from.fill.set(Paint::Solid(Color::BLACK));
         let to = TextStyle::default();
         to.font_size.set(Size::Pixels(30.into()));
-        to.fill.set(Fill::Solid(Color::WHITE));
+        to.fill.set(Paint::Solid(Color::WHITE));
         to.underline.set(true);
         to.align_horizontal.set(TextAlignHorizontal::Right);
         let mid = from.interpolate(&to, 0.5);
         assert_eq!(mid.font_size.get().expect_pixels().to_float(), 20.0);
         assert_eq!(
             mid.fill.get(),
-            Fill::Solid(Color::BLACK.interpolate(&Color::WHITE, 0.5))
+            Paint::Solid(Color::BLACK.interpolate(&Color::WHITE, 0.5))
         );
         assert!(mid.underline.get());
         assert!(matches!(

@@ -296,6 +296,7 @@ impl PaxManifest {
                     }
                     match value {
                         ValueDefinition::LiteralValue(_)
+                        | ValueDefinition::List(_)
                         | ValueDefinition::Block(_)
                         | ValueDefinition::Timeline(_)
                         | ValueDefinition::Transition(_)
@@ -342,6 +343,7 @@ impl PaxManifest {
                     }
                     match value {
                         ValueDefinition::LiteralValue(_)
+                        | ValueDefinition::List(_)
                         | ValueDefinition::Block(_)
                         | ValueDefinition::Timeline(_)
                         | ValueDefinition::Transition(_)

@@ -164,6 +164,7 @@ fn get_formatting_rules(pest_rule: Rule) -> Vec<Box<dyn FormattingRule>> {
         | Rule::gradient_stop_value => {
             vec![Box::new(WrapExpressionRule), Box::new(ForwardRule)]
         }
+        Rule::template_list_value => vec![Box::new(WrapExpressionRule), Box::new(ForwardRule)],
         Rule::root_tag_pair
         | Rule::xo_literal
         | Rule::literal_value

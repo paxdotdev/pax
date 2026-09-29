@@ -57,7 +57,7 @@
 
     .example_host_drawer_bg {
         fill: BLACK
-        stroke: { color: rgba(96, 125, 172, 132), width: 1px }
+        stroke: { paint: rgba(96, 125, 172, 132), width: 1px }
         corner_radius: 0.0
     }
 
@@ -82,7 +82,7 @@
 
     .example_host_button_bg {
         fill: BLACK
-        stroke: { color: WHITE, width: 3px }
+        stroke: { paint: WHITE, width: 3px }
         corner_radius: 9.0
     }
 

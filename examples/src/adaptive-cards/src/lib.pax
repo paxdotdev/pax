@@ -220,7 +220,7 @@
         }
         corner_radius: 18.0
         stroke: {
-            color: rgba(119, 143, 146, 82)
+            paint: rgba(119, 143, 146, 82)
             width: 1px
         }
     }
@@ -255,7 +255,7 @@
         }
         corner_radius: 28.0
         stroke: {
-            color: rgba(255, 255, 255, 156)
+            paint: rgba(255, 255, 255, 156)
             width: 1px
         }
     }
@@ -501,7 +501,7 @@
         fill: rgba(255, 255, 255, 30)
         corner_radius: 16.0
         stroke: {
-            color: rgba(255, 255, 255, 44)
+            paint: rgba(255, 255, 255, 44)
             width: 1px
         }
     }

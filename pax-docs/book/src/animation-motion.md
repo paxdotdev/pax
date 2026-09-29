@@ -280,7 +280,7 @@ Interpolation follows each property's `Interpolatable` implementation:
 | --- | --- |
 | Numbers, sizes, rotations, colors | Continuous interpolation; colors use RGBA channels |
 | Solid fills | Continuous RGBA interpolation |
-| Gradient fills, including solid↔gradient | Crossfade sampled paints in premultiplied RGBA; geometry and stop lists may differ |
+| Gradient paints on fills and strokes, including solid↔gradient | Crossfade sampled paints in premultiplied RGBA; geometry and stop lists may differ |
 | `TextStyle` | Font size and fill interpolate; font selection, weight, style, underline, and alignment switch immediately |
 | `CornerRadii` | Each corner interpolates independently; zero is an angular corner |
 | Vectors | Equal-length vectors interpolate element by element; a changed length switches immediately |
@@ -628,3 +628,19 @@ cover ordinary container sizing. [Events](event-handling-rust.md) explains the
 handlers and lifecycle that drive state changes, while
 [Accessibility and Native Controls](accessibility-native-controls.md) covers
 keyboard and control behavior.
+
+### Appearance stack transitions
+
+Fill and stroke stacks transition independently and match entries by position.
+Equal-length stacks interpolate each pair's paint, material, opacity, and
+stroke width; cap and join switch at the end. Changing the list length switches
+to the destination immediately, matching other Vec transitions. Reordering
+changes the contents of positions, without matching stable layer identities.
+
+Paint crossfades remain one sampled paint, including linear-to-radial changes
+and unequal stop counts. They are not additional source-over layers. GPU
+paint/material/opacity edits reuse geometry. Visible strokes and captured
+alpha-mask source strokes use the same retained geometry for reveal progress;
+a changing mask reveal redraws its texture without rebuilding CPU outlines.
+Width/cap/join changes may require new tessellation. See
+[Paint layers](drawing-styling.md#paint-layers) for the full value model.

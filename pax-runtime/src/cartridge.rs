@@ -122,6 +122,7 @@ fn setting_value_can_define_property(value: &ValueDefinition) -> bool {
     matches!(
         value,
         ValueDefinition::LiteralValue(_)
+            | ValueDefinition::List(_)
             | ValueDefinition::Block(_)
             | ValueDefinition::Timeline(_)
             | ValueDefinition::Gradient(_)
@@ -781,6 +782,8 @@ impl TemplatePropertyPlan {
 
 pub(crate) fn value_uses_local_property_scope(value: &ValueDefinition) -> bool {
     match value {
+        ValueDefinition::List(values) => values.iter().any(value_uses_local_property_scope),
+        ValueDefinition::Block(block) => block.elements.iter().any(|setting| matches!(setting, SettingElement::Setting(_, value) if value_uses_local_property_scope(value))),
         ValueDefinition::Timeline(track) => track.use_local_property_scope,
         ValueDefinition::Transition(transition) => transition
             .enter
@@ -2208,12 +2211,17 @@ where
             let property_name = name.to_string();
             Property::computed_with_name(
                 move || {
-                    let new_value = cloned_ast
-                        .compute(cloned_stack.clone())
-                        .unwrap_or_else(|_| {
-                            log::warn!("Failed to compute expr: {}", expression_label);
-                            Default::default()
-                        });
+                    let new_value =
+                        cloned_ast
+                            .compute(cloned_stack.clone())
+                            .unwrap_or_else(|error| {
+                                log::warn!(
+                                    "Failed to compute expr: {}: {}",
+                                    expression_label,
+                                    error
+                                );
+                                Default::default()
+                            });
                     Option::<T>::try_coerce(new_value).unwrap_or_else(|err| {
                         log::warn!(
                             "Failed to coerce new value for property {property_name}. Error: {:?}",
@@ -2226,7 +2234,7 @@ where
                 name,
             )
         }
-        pax_manifest::ValueDefinition::Gradient(_) => {
+        pax_manifest::ValueDefinition::List(_) | pax_manifest::ValueDefinition::Gradient(_) => {
             let mut dependents = Vec::new();
             collect_value_definition_dependencies(value_definition, stack, &mut dependents);
             let value_definition = value_definition.clone();
@@ -2528,6 +2536,7 @@ where
             build_axis_transition_property(name, &transition, cloned_stack, axis_index)
         }
         ValueDefinition::LiteralValue(_)
+        | ValueDefinition::List(_)
         | ValueDefinition::Block(_)
         | ValueDefinition::Gradient(_)
         | ValueDefinition::Expression(_)
@@ -2636,6 +2645,11 @@ fn collect_value_definition_dependencies(
         ValueDefinition::Identifier(identifier) | ValueDefinition::DoubleBinding(identifier) => {
             if let Some(property) = stack.resolve_symbol_as_erased_property(&identifier.name) {
                 dependents.push(property);
+            }
+        }
+        ValueDefinition::List(values) => {
+            for value in values {
+                collect_value_definition_dependencies(value, stack, dependents);
             }
         }
         ValueDefinition::Block(block) => {
@@ -2752,7 +2766,17 @@ fn evaluate_literal_block_to_pax_value(
             values.push((token.token_value.clone(), value));
         }
     }
-    Some(PaxValue::Object(values))
+    let object = PaxValue::Object(values);
+    if let Some(name) = &block.explicit_type_pascal_identifier {
+        if name.token_value == "Fill" || name.token_value == "Stroke" {
+            return Some(PaxValue::Enum(Box::new((
+                name.token_value.clone(),
+                "__layer".into(),
+                vec![object],
+            ))));
+        }
+    }
+    Some(object)
 }
 
 fn gradient_default_start() -> PaxValue {
@@ -2816,7 +2840,7 @@ fn evaluate_gradient_to_pax_value(
     };
 
     Some(PaxValue::Enum(Box::new((
-        "Fill".to_string(),
+        "Paint".to_string(),
         variant.to_string(),
         args,
     ))))
@@ -2867,9 +2891,25 @@ fn evaluate_value_definition_to_pax_value(
 ) -> Option<PaxValue> {
     match value_definition {
         ValueDefinition::LiteralValue(value) => Some(resolve_literal_value(value.clone())),
+        ValueDefinition::List(values) => values
+            .iter()
+            .map(|value| evaluate_value_definition_to_pax_value(value, stack))
+            .collect::<Option<Vec<_>>>()
+            .map(PaxValue::Vec),
         ValueDefinition::Block(block) => evaluate_literal_block_to_pax_value(block, stack),
         ValueDefinition::Gradient(gradient) => evaluate_gradient_to_pax_value(gradient, stack),
-        ValueDefinition::Expression(info) => info.expression.compute(stack.clone()).ok(),
+        ValueDefinition::Expression(info) => info
+            .expression
+            .compute(stack.clone())
+            .map_err(|error| {
+                log::warn!(
+                    "Failed to compute expression {}: {}",
+                    info.expression,
+                    error
+                );
+                error
+            })
+            .ok(),
         ValueDefinition::Identifier(identifier) | ValueDefinition::DoubleBinding(identifier) => {
             stack
                 .resolve_symbol_as_variable(&identifier.name)
@@ -3682,12 +3722,17 @@ where
             let property_name = name.to_string();
             Property::computed_with_name(
                 move || {
-                    let new_value = cloned_ast
-                        .compute(cloned_stack.clone())
-                        .unwrap_or_else(|_| {
-                            log::warn!("Failed to compute expr: {}", expression_label);
-                            Default::default()
-                        });
+                    let new_value =
+                        cloned_ast
+                            .compute(cloned_stack.clone())
+                            .unwrap_or_else(|error| {
+                                log::warn!(
+                                    "Failed to compute expr: {}: {}",
+                                    expression_label,
+                                    error
+                                );
+                                Default::default()
+                            });
                     T::try_coerce(new_value).unwrap_or_else(|err| {
                         log::warn!(
                             "Failed to coerce new value for property {property_name}. Error: {:?}",
@@ -3700,7 +3745,7 @@ where
                 name,
             )
         }
-        ValueDefinition::Gradient(_) => {
+        ValueDefinition::List(_) | ValueDefinition::Gradient(_) => {
             let mut dependents = Vec::new();
             collect_value_definition_dependencies(value_definition, stack, &mut dependents);
             let value_definition = value_definition.clone();
@@ -3733,6 +3778,26 @@ where
         ValueDefinition::Transition(transition) => {
             let transition = transition_with_base_starting_value(transition);
             build_transition_property(name, &transition, timeline_stack)
+        }
+        ValueDefinition::Block(block) if T::allows_singleton_stack() => {
+            let mut dependencies = Vec::new();
+            collect_value_definition_dependencies(value_definition, stack, &mut dependencies);
+            let block = block.clone();
+            let stack = stack.clone();
+            let name = name.to_string();
+            Property::computed_with_name(
+                move || {
+                    evaluate_literal_block_to_pax_value(&block, &stack)
+                        .and_then(|value| {
+                            T::try_coerce(value)
+                                .map_err(|e| log::warn!("Layer object: {e}"))
+                                .ok()
+                        })
+                        .unwrap_or_default()
+                },
+                &dependencies,
+                &name,
+            )
         }
         ValueDefinition::Block(block) => build_block(block, stack.clone()),
         _ => unreachable!("Invalid value definition for {name}"),
@@ -3780,7 +3845,7 @@ mod timeline_tests {
         ValueDefinition,
     };
     use pax_runtime_api::pax_value::CoercionRules;
-    use pax_runtime_api::{Color, Duration, Fill, Numeric, PaxValue, Property, Size, Variable};
+    use pax_runtime_api::{Color, Duration, Numeric, Paint, PaxValue, Property, Size, Variable};
     use std::collections::HashMap;
     use std::rc::Rc;
     use std::sync::Arc;
@@ -3863,8 +3928,8 @@ mod timeline_tests {
 
         let value = evaluate_value_definition_to_pax_value(&gradient, &stack)
             .expect("gradient should evaluate");
-        let fill = Fill::try_coerce(value).expect("gradient should coerce to Fill");
-        let Fill::LinearGradient(linear) = fill else {
+        let fill = Paint::try_coerce(value).expect("gradient should coerce to Paint");
+        let Paint::LinearGradient(linear) = fill else {
             panic!("expected linear gradient fill");
         };
 
@@ -4567,6 +4632,43 @@ mod base_symbol_tests {
         assert_eq!(selected.get(), 20);
         items.set(vec![vec![50, 60], vec![70, 80]]);
         assert_eq!(selected.get(), 60);
+    }
+
+    #[test]
+    fn recursive_appearance_list_and_typed_paxel_objects_remain_reactive() {
+        use pax_manifest::{LiteralBlockDefinition, SettingElement};
+        use pax_runtime_api::{Color, Fill, Paint};
+        let accent = Property::new(Color::RED);
+        let stack = RuntimePropertiesStackFrame::new(HashMap::from([(
+            "accent".into(),
+            Variable::new_from_typed_property(accent.clone()),
+        )]));
+        let block = ValueDefinition::Block(LiteralBlockDefinition {
+            explicit_type_pascal_identifier: Some(Token::new_without_location("Fill".into())),
+            elements: vec![SettingElement::Setting(
+                Token::new_without_location("paint".into()),
+                expression("accent"),
+            )],
+        });
+        let value =
+            ValueDefinition::List(vec![block, expression("Fill {paint: BLUE, opacity: 50%}")]);
+        let layers: Property<Vec<Fill>> =
+            build_component_property("fill", &value, &stack, stack.clone(), |_, _| unreachable!());
+        assert_eq!(layers.get()[0].paint.get(), Paint::Solid(Color::RED));
+        assert_eq!(layers.get()[1].opacity.get().to_float_0_1(), 0.5);
+        accent.set(Color::GREEN);
+        assert_eq!(layers.get()[0].paint.get(), Paint::Solid(Color::GREEN));
+        let mismatch: Property<Vec<Fill>> = build_component_property(
+            "fill",
+            &expression("[RED, Stroke {paint: BLUE}]"),
+            &stack,
+            stack.clone(),
+            |_, _| unreachable!(),
+        );
+        assert!(
+            mismatch.get().is_empty(),
+            "an invalid list must not install a valid prefix"
+        );
     }
 
     #[test]

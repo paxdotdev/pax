@@ -3,7 +3,7 @@ use kurbo::{BezPath, Rect, Shape};
 use pax_runtime::api::math::Transform2;
 use pax_runtime::api::pax_value::ToFromPaxAny;
 use pax_runtime::api::{
-    AlphaMaskPaint, CommonProperties, Fill, Material, Platform, Stroke, TargetInfo, OS,
+    AlphaMaskPaint, CommonProperties, Material, Paint, Platform, Stroke, TargetInfo, OS,
 };
 use pax_runtime::{
     CommonPropertiesInit, ComponentInstance, Globals, PropertiesInit, PropertiesScopeInit,
@@ -109,6 +109,10 @@ struct RecordingRenderer {
     restores: usize,
     clips: usize,
     alpha_clips: Vec<Vec<AlphaMaskPaint>>,
+    capture_enabled: bool,
+    capture_stack: Vec<usize>,
+    captures: Vec<(usize, Affine, usize)>,
+    fills: usize,
 }
 
 #[test]
@@ -345,6 +349,26 @@ fn projected_conditional_source_keeps_its_role_and_balances_lifetimes() {
 }
 
 impl RenderContext for RecordingRenderer {
+    fn supports_alpha_source_capture(&self) -> bool {
+        self.capture_enabled
+    }
+    fn alpha_source_layer(&self) -> Option<usize> {
+        self.capture_stack.last().copied()
+    }
+    fn begin_alpha_source(
+        &mut self,
+        layer: usize,
+        mapping: Affine,
+        inherited_scopes: usize,
+        _: f64,
+    ) {
+        self.captures.push((layer, mapping, inherited_scopes));
+        self.capture_stack.push(layer);
+    }
+    fn end_alpha_source(&mut self, layer: usize) {
+        assert_eq!(self.capture_stack.pop(), Some(layer));
+    }
+
     fn save(&mut self, _: usize) {
         self.saves += 1;
     }
@@ -360,8 +384,9 @@ impl RenderContext for RecordingRenderer {
     fn layers(&self) -> usize {
         1
     }
-    fn fill_with_opacity(&mut self, _: usize, _: BezPath, _: &Fill, _: f64) {
-        unreachable!()
+    fn fill_with_opacity(&mut self, layer: usize, _: BezPath, _: &Paint, _: f64) {
+        assert_eq!(self.alpha_source_layer(), Some(layer));
+        self.fills += 1;
     }
     fn stroke_with_opacity(&mut self, _: usize, _: BezPath, _: &Stroke, _: f64) {
         unreachable!()
@@ -378,8 +403,8 @@ impl RenderContext for RecordingRenderer {
     ) {
         unreachable!()
     }
-    fn transform(&mut self, _: usize, _: Affine) {
-        unreachable!()
+    fn transform(&mut self, layer: usize, _: Affine) {
+        assert_eq!(self.alpha_source_layer(), Some(layer));
     }
     fn load_image(&mut self, _: &str, _: &[u8], _: usize, _: usize) {
         unreachable!()
@@ -421,9 +446,11 @@ fn alpha_render_skips_coverage_and_balances_even_an_empty_mask() {
                     .unwrap()
                     .paints
                     .push(AlphaMaskPaint {
+                        paint_bounds: Rect::new(0.0, 0.0, 20.0, 20.0),
+                        composition: None,
                         path: Rect::new(0.0, 0.0, 20.0, 20.0).to_path(0.1),
                         transform: Affine::IDENTITY,
-                        fill: Fill::default(),
+                        fill: Paint::default(),
                         opacity: 0.5,
                     });
             }
@@ -605,9 +632,11 @@ fn mask_source_opacity_is_relative_even_when_ancestor_is_zero() {
         .unwrap()
         .paints
         .push(AlphaMaskPaint {
+            paint_bounds: Rect::new(0.0, 0.0, 20.0, 20.0),
+            composition: None,
             path: Rect::new(0.0, 0.0, 20.0, 20.0).to_path(0.1),
             transform: Affine::IDENTITY,
-            fill: Fill::default(),
+            fill: Paint::default(),
             opacity: 0.5,
         });
     let mut mask_args = args();
@@ -651,4 +680,116 @@ fn mask_source_opacity_is_relative_even_when_ancestor_is_zero() {
         mask.handle_post_render(&node, &context, &mut renderer);
         assert_eq!(renderer.alpha_clips[0][0].opacity, expected);
     }
+}
+
+#[test]
+fn captured_source_uses_vector_render_hooks_and_source_frame_clips() {
+    use crate::core::frame::{Frame, FrameInstance};
+    use crate::drawing::rectangle::{Rectangle, RectangleInstance};
+    let context = context();
+    let mut rect_args = args();
+    rect_args.prototypical_properties = PropertiesInit::Factory(Box::new(|_, _| {
+        Some(Rc::new(RefCell::new(Rectangle::default().to_pax_any())))
+    }));
+    let mut frame_args = args();
+    frame_args.prototypical_properties = PropertiesInit::Factory(Box::new(|_, _| {
+        Some(Rc::new(RefCell::new(Frame::default().to_pax_any())))
+    }));
+    frame_args.children = Some(RefCell::new(vec![RectangleInstance::instantiate(
+        rect_args,
+    )]));
+    let mut mask_args = args();
+    mask_args.prototypical_properties = PropertiesInit::Factory(Box::new(|_, _| {
+        Some(Rc::new(RefCell::new(
+            Mask {
+                alpha: Property::new(true),
+                feather: Property::new(0.0),
+            }
+            .to_pax_any(),
+        )))
+    }));
+    mask_args.children = Some(RefCell::new(vec![
+        CountingSource::instantiate(args()),
+        FrameInstance::instantiate(frame_args),
+    ]));
+    let mask = MaskInstance::instantiate(mask_args);
+    let mut root_args = args();
+    root_args.component_template = Some(RefCell::new(vec![mask.clone()]));
+    let root = ExpandedNode::initialize_root(ComponentInstance::instantiate(root_args), &context);
+    root.recurse_update(&context);
+    let node = root.children.get()[0].clone();
+    let source = borrow!(node.sidecar_children)[0].clone();
+    let leaf = source.children.get()[0].clone();
+    context.clear_canvas_node_dirty(&leaf.id);
+    let mut renderer = RecordingRenderer {
+        capture_enabled: true,
+        ..Default::default()
+    };
+    mask.handle_pre_render(&node, &context, &mut renderer);
+    mask.handle_post_render(&node, &context, &mut renderer);
+    assert_eq!(
+        renderer.fills, 1,
+        "source renders even without a visible-scene dirty flag"
+    );
+    assert_eq!(
+        renderer.clips, 1,
+        "source Frame runs its ordinary clip hooks"
+    );
+    assert_eq!(renderer.captures.len(), 1);
+    assert!(
+        renderer.alpha_clips.is_empty(),
+        "capture must bypass outline extraction"
+    );
+    assert!(renderer.capture_stack.is_empty());
+    assert_eq!(renderer.saves, renderer.restores);
+    root.recurse_unmount(&context);
+}
+
+#[test]
+fn nested_source_changes_invalidate_the_visible_mask_consumer() {
+    let context = context();
+    let opacity = Property::new(Some(0.5.into()));
+    let mut source_args = args();
+    let source_opacity = opacity.clone();
+    source_args.prototypical_common_properties =
+        CommonPropertiesInit::Factory(Box::new(move |_, _| {
+            Some(Rc::new(RefCell::new(CommonProperties {
+                opacity: source_opacity.clone(),
+                ..Default::default()
+            })))
+        }));
+    fn alpha_mask_args() -> InstantiationArgs {
+        let mut value = args();
+        value.prototypical_properties = PropertiesInit::Factory(Box::new(|_, _| {
+            Some(Rc::new(RefCell::new(
+                Mask {
+                    alpha: Property::new(true),
+                    feather: Property::new(0.0),
+                }
+                .to_pax_any(),
+            )))
+        }));
+        value
+    }
+    let mut inner = alpha_mask_args();
+    inner.children = Some(RefCell::new(vec![
+        CountingSource::instantiate(args()),
+        CountingSource::instantiate(source_args),
+    ]));
+    let mut outer = alpha_mask_args();
+    outer.children = Some(RefCell::new(vec![
+        CountingSource::instantiate(args()),
+        MaskInstance::instantiate(inner),
+    ]));
+    let mut root_args = args();
+    root_args.component_template = Some(RefCell::new(vec![MaskInstance::instantiate(outer)]));
+    let root = ExpandedNode::initialize_root(ComponentInstance::instantiate(root_args), &context);
+    root.recurse_update(&context);
+    context.drain_node_effects();
+    let consumer = root.children.get()[0].children.get()[0].clone();
+    context.clear_canvas_node_dirty(&consumer.id);
+    opacity.set(Some(0.25.into()));
+    context.drain_node_effects();
+    assert!(context.is_canvas_node_dirty(&consumer.id));
+    root.recurse_unmount(&context);
 }

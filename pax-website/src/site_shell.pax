@@ -42,7 +42,7 @@
     .shell_nav_bg {
         fill: {SiteTheme::ink()}
         stroke: Stroke {
-            color: rgba(252, 249, 242, 28)
+            paint: rgba(252, 249, 242, 28)
             width: 1px
         }
     }

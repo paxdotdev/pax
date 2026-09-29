@@ -2802,3 +2802,60 @@ two drawers, closing/reopening a selected drawer, and a 390px source pane.
 The optimized release build also switches each host independently, with no
 warning/error logs in the fresh release smoke-test session. Both web builds,
 the docs book build, Rust formatting, and whitespace checks pass.
+
+
+## 2026-09-28: Appearance layers cross more than the renderer (PAX-1008)
+
+Mixed appearance lists cannot be eagerly decoded as literal PaxValues: nested
+`@gradient` definitions and bound layer fields must survive as recursive values.
+Preserve explicit Fill/Stroke identity through PAXEL and source formatting so a
+wrong layer type remains diagnosable. The manifest and baked ProgramIR both
+need updated wire versions and execution/roundtrip coverage. Formatter wrappers
+must forward their children (and retain braces for expressions), not discard
+new list-entry rules.
+
+A live Vec contains nested Properties. Watching only the outer Vec misses
+in-place paint/material edits; own nested subscriptions with the appearance and
+replace them when the stack changes. Verify disposal with the property-table
+count. A mask's raster cache alone also does not prevent tessellation: keep its
+local geometry separately from paint, and retire entries with removed layers.
+
+Use the complete smoothed path bounds for paint, before trim or outline
+expansion. Carry those bounds separately into Piet and alpha extraction. Element
+opacity requires one boundary around the assembled layers; multiplying it into
+each layer changes overlap alpha. Pixel tests distinguish 50% element opacity
+from two 50% layers. The prior stroke-paint constraints above are now addressed
+by the accepted Paint/Fill/Stroke implementation.
+
+For broad mechanical template migrations, check parsing and format the new
+fixtures, but avoid reformatting every legacy template: canonical formatting
+also reorders attributes and adds optional separators, creating unrelated diff
+noise. Regenerate CLI and docs source bundles after the final source edits.
+
+
+### Retained mask sources must share draws as well as textures
+
+Group-opacity capture already supplied reusable GPU attachments, but detached
+mask sources bypassed ordinary rendering and extracted CPU stroke outlines.
+Giving those sources separate retained ownership lets masks reuse ordinary
+paint, geometry, draw-range, clips, and nested-opacity semantics without
+presenting source nodes. A source-local deferred queue preserves unclippable
+ordering without leaking source draws into the main scene.
+
+Feather needs pixels outside a visible tile. Capture projection, stencil
+attachments, alpha sampling coordinates, and gradient coordinates must agree
+on an explicit padded domain. Projection uniform changes must be staged in
+command order, rather than queue-written over earlier encoded captures.
+A domain change at unchanged physical size should replace sampling metadata,
+not reallocate mask textures or their upload buffers; the viewport/buffer
+lifetime regression catches that distinction.
+
+## 2026-09-29 — Native Button activation in cross-platform fixtures
+
+The mask/stroke fixture's controls worked with mouse clicks on web but did
+nothing on macOS because they bound native `Button` nodes to `@click` and
+`Event<Click>`. Apple native Buttons dispatch their activation as `button_click`.
+Use `@button_click` with `Event<ButtonClick>` for native Buttons, as documented
+in [Events & Rust](../event-handling-rust.md#buttons-and-custom-activation).
+Keep `@click`/`@tap` for custom canvas controls, and exercise native activation
+when moving a web fixture to Apple targets.

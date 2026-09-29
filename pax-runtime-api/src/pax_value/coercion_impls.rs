@@ -8,7 +8,7 @@ use crate::{
     impl_default_coercion_rule,
     math::{Transform2, Vector2},
     Color, ColorChannel, Depth, Duration, Fill, GradientStop, LayoutRole, LightShape,
-    LinearGradient, Material, MaterialParams, Numeric, Opacity, PathElement, PathSmoothing,
+    LinearGradient, Material, MaterialParams, Numeric, Opacity, Paint, PathElement, PathSmoothing,
     PaxValue, Percent, Property, RadialGradient, Rotation, Size, Stroke, StrokeCap, StrokeJoin,
     Transform2D, UnitValue, Vector3,
 };
@@ -68,13 +68,19 @@ impl CoercionRules for LayoutRole {
 /// Attempts to coerce a dynamic `PaxValue` into a concrete Rust type.
 ///
 /// Coercion is intentionally broader than exact `ToPaxValue` conversion; for
-/// example a `Color` can be coerced into a `Fill`.
+/// example a `Color` can be coerced into a `Paint`.
 pub trait CoercionRules
 where
     Self: Sized + 'static,
 {
     /// Attempts to coerce `value` into `Self`.
     fn try_coerce(value: PaxValue) -> Result<Self, String>;
+
+    /// Opts appearance layers into scalar-to-singleton stack conversion.
+    /// Ordinary vector values remain list-only.
+    fn allows_singleton_stack() -> bool {
+        false
+    }
 
     /// Whether cloning `Self` preserves the semantics of converting that clone
     /// through `ToPaxValue` and back with `try_coerce`.
@@ -285,43 +291,60 @@ impl CoercionRules for PathElement {
     }
 }
 
-// Fill is a type that other types (Color) can be coerced into, thus the default
+// Paint is a type that other types (Color) can be coerced into, thus the default
 // from to pax macro isn't enough (only translates directly back and forth, and returns
 // an error if it contains any other type)
-impl CoercionRules for Fill {
+impl CoercionRules for Paint {
     fn try_coerce(pax_value: PaxValue) -> Result<Self, String> {
         Ok(match pax_value {
-            PaxValue::Color(color) => Fill::Solid(*color),
+            PaxValue::Color(color) => Paint::Solid(*color),
             PaxValue::Enum(contents) => {
-                let (_, variant, args) = *contents;
+                let (scope, variant, args) = *contents;
+                if scope == "Color" {
+                    return Color::try_coerce(PaxValue::Enum(Box::new((scope, variant, args))))
+                        .map(Paint::Solid);
+                }
+                if scope == "Fill" {
+                    return Err("Fill paint constructors moved to Paint; Fill now describes an appearance layer".into());
+                }
+                if scope != "Paint" {
+                    return Err(format!("expected Paint, received {scope}::{variant}"));
+                }
+                if matches!(
+                    variant.as_str(),
+                    "Solid" | "LinearGradient" | "RadialGradient"
+                ) && args.len() != 1
+                {
+                    return Err(format!("Paint::{variant} requires exactly one argument"));
+                }
                 match variant.as_str() {
                     "Blend" => {
                         if args.len() != 1 {
-                            return Err("Fill::Blend requires one list of weighted paints".into());
+                            return Err("Paint::Blend requires one list of weighted paints".into());
                         }
-                        Fill::blend(Vec::<(Fill, f64)>::try_coerce(
+                        Paint::blend(Vec::<(Paint, f64)>::try_coerce(
                             args.into_iter().next().unwrap(),
                         )?)
                     }
                     "Solid" => {
                         let color = Color::try_coerce(args.into_iter().next().unwrap())?;
-                        Fill::Solid(color)
+                        Paint::Solid(color)
                     }
                     "LinearGradient" => {
                         let gradient =
                             LinearGradient::try_coerce(args.into_iter().next().unwrap())?;
-                        Fill::LinearGradient(gradient)
+                        Paint::LinearGradient(gradient)
                     }
-                    "linearGradient" => Fill::LinearGradient(parse_linear_gradient_args(args)?),
+                    "linearGradient" => Paint::LinearGradient(parse_linear_gradient_args(args)?),
                     "RadialGradient" => {
                         let gradient =
                             RadialGradient::try_coerce(args.into_iter().next().unwrap())?;
-                        Fill::RadialGradient(gradient)
+                        Paint::RadialGradient(gradient)
                     }
-                    "radialGradient" => Fill::RadialGradient(parse_radial_gradient_args(args)?),
+                    "radialGradient" => Paint::RadialGradient(parse_radial_gradient_args(args)?),
                     _ => {
                         return Err(format!(
-                            "failed to coerce Fill: unknown enum variant {:?}",
+                            "failed to coerce Paint: unknown enum variant {:?}",
                             variant
                         ))
                     }
@@ -329,12 +352,12 @@ impl CoercionRules for Fill {
             }
             PaxValue::Option(o) => {
                 if let Some(o) = *o {
-                    Fill::try_coerce(o)?
+                    Paint::try_coerce(o)?
                 } else {
-                    return Err(format!("failed to coerce Fill: can't coerce None"));
+                    return Err(format!("failed to coerce Paint: can't coerce None"));
                 }
             }
-            _ => return Err(format!("{:?} can't be coerced into a Fill", pax_value)),
+            _ => return Err(format!("{:?} can't be coerced into a Paint", pax_value)),
         })
     }
 }
@@ -737,7 +760,7 @@ fn parse_gradient_point(value: PaxValue) -> Result<(Size, Size), String> {
 
 fn parse_linear_gradient_args(args: Vec<PaxValue>) -> Result<LinearGradient, String> {
     if args.len() != 3 {
-        return Err("failed to coerce Fill::linearGradient".to_string());
+        return Err("failed to coerce Paint::linearGradient".to_string());
     }
     let mut args = args.into_iter();
     let start = parse_gradient_point(args.next().unwrap())?;
@@ -748,7 +771,7 @@ fn parse_linear_gradient_args(args: Vec<PaxValue>) -> Result<LinearGradient, Str
 
 fn parse_radial_gradient_args(args: Vec<PaxValue>) -> Result<RadialGradient, String> {
     if args.len() != 4 {
-        return Err("failed to coerce Fill::radialGradient".to_string());
+        return Err("failed to coerce Paint::radialGradient".to_string());
     }
     let mut args = args.into_iter();
     let start = parse_gradient_point(args.next().unwrap())?;
@@ -803,7 +826,7 @@ mod tests {
     #[test]
     fn coerces_fill_linear_gradient_helper_syntax() {
         let pax_value = PaxValue::Enum(Box::new((
-            "Fill".to_string(),
+            "Paint".to_string(),
             "linearGradient".to_string(),
             vec![
                 PaxValue::Vec(vec![pct(0), pct(50)]),
@@ -823,8 +846,8 @@ mod tests {
             ],
         )));
 
-        let fill = Fill::try_coerce(pax_value).expect("helper syntax should coerce");
-        let Fill::LinearGradient(gradient) = fill else {
+        let fill = Paint::try_coerce(pax_value).expect("helper syntax should coerce");
+        let Paint::LinearGradient(gradient) = fill else {
             panic!("expected linear gradient");
         };
 
@@ -888,57 +911,55 @@ mod tests {
     }
 }
 
-impl CoercionRules for Stroke {
-    fn try_coerce(pax_value: PaxValue) -> Result<Self, String> {
-        Ok(match pax_value {
-            PaxValue::Color(color) => Stroke {
-                color: Property::new(*color),
-                width: Property::new(Size::Pixels(1.into())),
-                cap: Property::new(StrokeCap::default()),
-                join: Property::new(StrokeJoin::default()),
-            },
-            PaxValue::Object(map) => {
-                let mut color = None;
-                let mut width = None;
-                let mut cap = None;
-                let mut join = None;
-                for (key, value) in map {
-                    match key.as_str() {
-                        "color" => color = Some(Color::try_coerce(value)?),
-                        "width" => width = Some(Size::try_coerce(value)?),
-                        "cap" => cap = Some(StrokeCap::try_coerce(value)?),
-                        "join" => join = Some(StrokeJoin::try_coerce(value)?),
-                        _ => {}
-                    }
-                }
-                let color =
-                    Property::new(color.ok_or_else(|| {
-                        "failed to convert to Stroke: missing `color`".to_string()
-                    })?);
-                let width =
-                    Property::new(width.ok_or_else(|| {
-                        "failed to convert to Stroke: missing `width`".to_string()
-                    })?);
-                let cap = Property::new(cap.unwrap_or_default());
-                let join = Property::new(join.unwrap_or_default());
-                Stroke {
-                    color,
-                    width,
-                    cap,
-                    join,
-                }
+fn layer_object(value: PaxValue, expected: &str) -> Result<PaxValue, String> {
+    match value {
+        PaxValue::Enum(contents) if contents.0 == "Fill" || contents.0 == "Stroke" => {
+            let (name, variant, mut args) = *contents;
+            if name != expected || variant != "__layer" || args.len() != 1 {
+                return Err(format!("expected {expected} layer, received {name}::{variant}; paint constructors now use Paint"));
             }
-            PaxValue::Option(o) => {
-                if let Some(o) = *o {
-                    Stroke::try_coerce(o)?
-                } else {
-                    return Err(format!("failed to convert to Stroke"));
-                }
-            }
-            _ => return Err(format!("failed to convert to Stroke")),
-        })
+            Ok(args.remove(0))
+        }
+        PaxValue::Option(value) => match *value {
+            Some(value) => layer_object(value, expected),
+            None => Err(format!(
+                "expected {expected}, received None; use [] for no layers"
+            )),
+        },
+        value => Ok(value),
     }
 }
+
+macro_rules! layer_coercion {
+    ($ty:ident, $($field:ident: $field_ty:ty),+) => {
+        impl CoercionRules for $ty {
+            fn allows_singleton_stack() -> bool { true }
+            fn try_coerce(value: PaxValue) -> Result<Self, String> {
+                match layer_object(value, stringify!($ty))? {
+                    PaxValue::Object(fields) => {
+                        let mut layer = Self::default();
+                        for (name, value) in fields {
+                            match name.as_str() {
+                                $(stringify!($field) => {
+                                    layer.$field = Property::new(<$field_ty>::try_coerce(value)
+                                        .map_err(|e| format!("{}.{}: expected {}: {e}", stringify!($ty), name, stringify!($field_ty)))?);
+                                },)+
+                                "color" => return Err(format!("{}.color was renamed to paint", stringify!($ty))),
+                                _ => return Err(format!("unknown {} field `{name}`", stringify!($ty))),
+                            }
+                        }
+                        layer.validate_layer()?;
+                        Ok(layer)
+                    }
+                    value => Paint::try_coerce(value).map(Self::from)
+                        .map_err(|e| format!("expected {} layer or Paint: {e}", stringify!($ty))),
+                }
+            }
+        }
+    }
+}
+layer_coercion!(Fill, paint: Paint, material: Material, opacity: Opacity);
+layer_coercion!(Stroke, paint: Paint, material: Material, opacity: Opacity, width: Size, cap: StrokeCap, join: StrokeJoin);
 
 impl CoercionRules for StrokeCap {
     fn try_coerce(value: PaxValue) -> Result<Self, String> {
@@ -1285,6 +1306,9 @@ impl CoercionRules for Numeric {
 }
 
 impl<T: CoercionRules> CoercionRules for Vec<T> {
+    fn allows_singleton_stack() -> bool {
+        T::allows_singleton_stack()
+    }
     fn is_identity_roundtrip() -> bool {
         is_typed_binding_safe::<T>()
     }
@@ -1292,7 +1316,11 @@ impl<T: CoercionRules> CoercionRules for Vec<T> {
     fn try_coerce(value: PaxValue) -> Result<Self, String> {
         match value {
             PaxValue::Vec(vec) => {
-                let res: Result<Vec<T>, _> = vec.into_iter().map(|v| T::try_coerce(v)).collect();
+                let res: Result<Vec<T>, _> = vec
+                    .into_iter()
+                    .enumerate()
+                    .map(|(i, v)| T::try_coerce(v).map_err(|e| format!("entry [{i}]: {e}")))
+                    .collect();
                 res.map_err(|e| format!("couldn't coerce vec, element {:?}", e))
             }
             PaxValue::Option(mut opt) => {
@@ -1302,6 +1330,7 @@ impl<T: CoercionRules> CoercionRules for Vec<T> {
                     return Err(format!("None can't be coerced into a Vec"));
                 }
             }
+            v if T::allows_singleton_stack() => T::try_coerce(v).map(|layer| vec![layer]),
             v => Err(format!(
                 "{:?} can't be coerced into {:?}",
                 v,
@@ -1552,7 +1581,7 @@ pub fn extract_options<T, const N: usize>(
     // First create array of Options
     let mut intermediate: [Option<T>; N] = std::array::from_fn(|_| None);
 
-    // Fill in the values we find
+    // Paint in the values we find
     for (k, v) in vec {
         if let Some(pos) = keys.iter().position(|&key| k == key) {
             intermediate[pos] = Some(v);

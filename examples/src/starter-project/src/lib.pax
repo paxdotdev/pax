@@ -157,13 +157,13 @@
     <Group x=79.65% scale=[139.99%, 140.00%] height=81.05% y=99.99% width=76.34%>
         <Rectangle y=100.00% height=123.35% x=94.95% corner_radius=30
              stroke={
-                color: rgba(99, 102, 241, 255)
+                paint: rgba(99, 102, 241, 255)
                 width: 15.00px
             } fill=rgba(246, 247, 248, 255) scale=71.42%
             width=132.33%/>
         <Rectangle y=72.04% height=130.98% x=73.65% corner_radius=30
              stroke={
-                color: rgba(99, 102, 241, 255)
+                paint: rgba(99, 102, 241, 255)
                 width: 0.00px
             } fill=rgba(0, 0, 0, 40) width=134.69% rotate=-0.01deg
              scale=71.42% />

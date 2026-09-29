@@ -58,8 +58,10 @@ The same reactive bindings used for layout work here; see
 
 `TextStyle` groups font, size, fill, underline, and alignment settings. Use
 pixel sizes such as `18px` for `font_size`: the current text patch expects a
-pixel value. Use a solid color for `fill`. Although its Rust type is `Fill`,
+pixel value. Use a solid color for `fill`. Although its Rust type is `Paint`,
 native text currently receives only the first stop's color from a gradient.
+It does not accept vector Fill/Stroke stacks or per-layer materials; gradient
+paint mixtures crossfade those representative colors.
 
 Typography classes belong to their component's settings. For a shared type
 scale across components, see [Imported settings](template-language.md#imported-settings)

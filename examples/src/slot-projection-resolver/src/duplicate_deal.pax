@@ -80,7 +80,7 @@
             align_horizontal: TextAlignHorizontal::Center
         }
     }
-    .bucket_bg { fill: rgba(13, 22, 41, 222) stroke: { color: rgba(106, 132, 190, 108), width: 1px } corner_radius: 14.0 }
-    .empty_bucket_bg { fill: rgba(5, 9, 18, 255) stroke: { color: rgba(88, 112, 166, 72), width: 1px } corner_radius: 14.0 }
-    .panel_bg { fill: rgba(7, 12, 24, 238) stroke: { color: rgba(126, 150, 210, 96), width: 1px } corner_radius: 16.0 }
+    .bucket_bg { fill: rgba(13, 22, 41, 222) stroke: { paint: rgba(106, 132, 190, 108), width: 1px } corner_radius: 14.0 }
+    .empty_bucket_bg { fill: rgba(5, 9, 18, 255) stroke: { paint: rgba(88, 112, 166, 72), width: 1px } corner_radius: 14.0 }
+    .panel_bg { fill: rgba(7, 12, 24, 238) stroke: { paint: rgba(126, 150, 210, 96), width: 1px } corner_radius: 16.0 }
 }

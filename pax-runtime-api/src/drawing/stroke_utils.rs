@@ -7,7 +7,7 @@ use super::{Stroke, StrokeCap, StrokeJoin};
 
 /// Resolves a stroke width as pixels.
 pub fn stroke_width_pixels(stroke: &Stroke) -> f64 {
-    stroke.width.get().expect_pixels().to_float()
+    stroke.width_pixels()
 }
 
 /// Builds the filled outline path corresponding to a stroked centerline path.

@@ -233,7 +233,7 @@
     .head_shape {
         fill: rgba(238, 208, 182, 255)
         stroke: {
-            color: rgba(112, 78, 56, 88%)
+            paint: rgba(112, 78, 56, 88%)
             width: 2px
         }
     }
@@ -272,7 +272,7 @@
         ]
         fill: rgba(0, 0, 0, 0)
         stroke: {
-            color: rgba(72, 42, 38, 88%)
+            paint: rgba(72, 42, 38, 88%)
             width: 2px
         }
     }
@@ -300,7 +300,7 @@
         ]
         fill: rgba(0, 0, 0, 0)
         stroke: {
-            color: rgba(110, 56, 52, 82%)
+            paint: rgba(110, 56, 52, 82%)
             width: 2px
         }
     }
@@ -342,7 +342,7 @@
     .torso_piece {
         fill: rgba(34, 92, 88, 255)
         stroke: {
-            color: rgba(244, 226, 196, 36%)
+            paint: rgba(244, 226, 196, 36%)
             width: 2px
         }
         corner_radius: [24, 24, 20, 20]
@@ -426,7 +426,7 @@
     .joint_pin {
         fill: rgba(212, 154, 84, 255)
         stroke: {
-            color: rgba(84, 48, 20, 60%)
+            paint: rgba(84, 48, 20, 60%)
             width: 1px
         }
     }

@@ -771,7 +771,7 @@ fn format_fill(fill: &Paint) -> String {
 
 fn format_stroke(stroke: &StrokeStyle) -> String {
     let mut parts = vec![
-        format!("color: {}", format_color(&stroke.color)),
+        format!("paint: {}", format_color(&stroke.color)),
         format!("width: {}px", format_number(stroke.width_px)),
     ];
     if let Some(cap) = &stroke.cap {
@@ -957,7 +957,7 @@ mod tests {
         let polygon = import.pax_source.find("fill=rgba(0, 0, 255, 255)").unwrap();
         let path = import
             .pax_source
-            .find("color: rgba(255, 0, 0, 255)")
+            .find("paint: rgba(255, 0, 0, 255)")
             .unwrap();
 
         // Pax paints earlier siblings on top, so imported SVG shapes are emitted in reverse.
@@ -1025,7 +1025,7 @@ mod tests {
         let import = import_svg(svg, Path::new("group.svg"), "hash").unwrap();
 
         assert!(import.pax_source.contains("fill=TRANSPARENT"));
-        assert!(import.pax_source.contains("color: rgba(0, 0, 0, 128)"));
+        assert!(import.pax_source.contains("paint: rgba(0, 0, 0, 128)"));
         assert!(import.pax_source.contains("width: 2px"));
     }
 

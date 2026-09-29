@@ -12,7 +12,7 @@
                     <Handwriter x={(self.font_px * 0.05)px} y={(self.font_px * 0.29)px} width={(self.font_px * 0.86 * 4060.8 / 815.55)px}
                         height={(self.font_px * 0.86)px} text="creative" alt_text="creative" font=HandwriterFont::EMSLeague
                         smoothing=PathSmoothing::Strong draw_end={self.writing_progress} stroke=Stroke {
-                            color: {SiteTheme::paper()}
+                            paint: {SiteTheme::paper()}
                             width: {(Math::max(1.6, self.font_px * 0.038) + 1.0)px}
                         }/>
                 } else {

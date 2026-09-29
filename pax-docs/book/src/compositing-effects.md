@@ -186,9 +186,9 @@ path, geometry mode applies no clip; it does not hide
 everything. Use conditional content when the intended state is “show nothing.”
 
 A nested Mask can further constrain already-masked content. In geometry
-mode, the source's paint appearance does not determine coverage. In either
-mode, source-side Frame and Mask clips are not applied to the source paints;
-keep the source tree focused on the shapes that define the reveal.
+mode, the source's paint appearance does not determine coverage, and source-side
+Frame and Mask clips are not applied to the collected coverage paths. Painted
+alpha sources use the retained renderer and preserve those vector clips.
 
 ### Painted alpha masks
 
@@ -214,12 +214,41 @@ away at both ends:
 </Mask>
 ```
 
-Rectangle, Ellipse, and Path fills and strokes can supply alpha, including
+Rectangle, Ellipse, Path, and Line appearance layers can supply alpha, including
 solid alpha and linear or radial gradient stops. Source transforms and
 opacity apply too. Use up to eight ordered gradient stops. A Group or
 repeated subtree can combine supported source shapes; overlapping paints
 combine with source-over alpha, so two half-opacity shapes give 75%
 coverage where they overlap.
+
+A primitive source combines all its fill and stroke layers before applying
+its own opacity. Two opaque layers on one 50%-opaque source contribute 50%
+alpha; two 50%-opaque layers on an opaque source contribute 75%. Layer paint
+uses the full smoothed geometry bounds, independent of outline width or reveal.
+Alpha sources use the same retained vector draws and offscreen surfaces as
+ordinary group opacity. Group boundaries apply after their children compose:
+two overlapping opaque shapes under `Group opacity=50%` produce 50% coverage
+throughout, including their overlap. This differs from setting 50% opacity on
+each shape, which produces 75% in the overlap.
+
+Source-side Frames and nested Masks apply their vector clips. For example:
+
+```pax
+<Mask width=280px height=100px alpha=true>
+    <Rectangle width=100% height=100% fill=CYAN/>
+    <Frame width=100% height=100%>
+        <Group width=100% height=100% opacity=50%>
+            <Rectangle width=65% height=100% fill=WHITE/>
+            <Rectangle x=35% anchor_x=0% width=65% height=100% fill=WHITE/>
+        </Group>
+    </Frame>
+</Mask>
+```
+
+The source is captured independently of the consuming content's ancestor clips
+and opacity. Its alpha is then feathered, if requested, and combined with the
+consumer's enclosing alpha mask. The content still uses its own ordinary clips
+and opacity; those factors are not applied again inside the source.
 
 Path strokes used as alpha sources respect `draw_start` and `draw_end`.
 A reusable vector-producing component can supply the source too. Its template
@@ -231,7 +260,7 @@ Handwriter can reveal a colored surface as its generated stroke is drawn:
 <Mask width=300px height=100px alpha=true>
     <Rectangle width=100% height=100% fill=rgb(0, 220, 235)/>
     <Handwriter width=100% height=100% text="Pax"
-        stroke={color: WHITE, width: 5px}
+        stroke={paint: WHITE, width: 5px}
         draw_end=@timeline { duration: 2s, 0: 0%, 100%: 100% }/>
 </Mask>
 ```
@@ -244,8 +273,9 @@ reveal carries meaning. Source mount handlers can still perform application
 side effects, so use the same lifetime/cleanup discipline as visible components.
 
 This does not make every component a supported source: the rendered leaves
-must still be supported vector shapes, and the source-side clipping limitations
-above still apply. The default geometric mode also differs from painted alpha:
+must still be supported vector shapes. Scrollers and native leaves inside the
+source are excluded; this does not capture across native surfaces. The default
+geometric mode also differs from painted alpha:
 a Path's nonempty draw range contributes its complete stroke outline to
 geometric coverage, not the progressively drawn segment. Use `alpha=true` for
 handwriting reveals.
@@ -254,6 +284,10 @@ Add `feather=2.0` to the Mask to soften its painted coverage. `feather` is the
 Gaussian standard deviation in logical pixels, rather than a percentage or a
 Pax length literal. It defaults to zero; negative values are treated as zero.
 It affects alpha masks only and does not blur the revealed content itself.
+Captures include a gutter for the blur's three-standard-deviation support,
+including nested feathering, so tile edges do not cut off nearby source pixels.
+If the padded capture exceeds the GPU texture-size limit, the mask hides its
+content and reports a rendering diagnostic.
 
 Living Quilt uses `alpha=true feather=2.0` for its moving color waves. See the
 [live Living Quilt and its source](what-is-pax.md#try-it-living-quilt) for the
@@ -271,17 +305,27 @@ Scroller with intervening Frames or Masks. The source and content use the
 owning Scroller's content coordinates, so their authored offsets stay aligned
 as the viewport scrolls. The `mask-strokes` example includes live handwriting,
 a direct Path source, and a nested scrolling ring to exercise this boundary.
-This does not add support for Scrollers or clipping inside the source subtree.
+Source-side vector clipping is supported; a Scroller inside the source subtree
+still cannot supply a cross-surface capture.
 
 The current alpha path requires the GPU renderer. Native text and controls
 are not supported as content inside an alpha mask, and Piet does not support
-alpha masking. Images, text, native elements, and source-side clipping are
-not supported alpha sources. For a mixed native/rendered composition, keep
+alpha masking. Images, text, and native elements are not supported alpha sources. For a mixed native/rendered composition, keep
 the default geometry mask; for a soft visual reveal, use supported vector
 source paint and keep interactive hit targets separate. Alpha coverage does
 not change hit testing.
 
+Paint, layer opacity, and stroke-reveal changes reuse retained geometry. A
+changing reveal redraws the source texture with GPU draw-range parameters; it
+does not trim and tessellate a new outline on the CPU. Unchanged captures reuse
+their pixels. Removing a source retires its retained draws, mask textures, and
+capture resources.
+
 ## Opacity through a subtree
+
+A vector element assembles its fill and stroke layers before applying its
+`opacity`, so overlapping layers fade together. Each layer also has independent
+opacity; see [Paint layers](drawing-styling.md#paint-layers).
 
 `opacity` accepts a normalized value such as `0.5`, or a percentage such as
 `50%`. On WGPU and the browser's Piet/Canvas2D renderer, it fades the composed

@@ -20,7 +20,7 @@
     .panel_surface {
         fill: rgba(42, 49, 61, 255)
         stroke: {
-            color: rgba(92, 107, 124, 255)
+            paint: rgba(92, 107, 124, 255)
             width: 1px
         }
     }
@@ -32,7 +32,7 @@
     .control_card_surface {
         fill: rgba(56, 65, 79, 255)
         stroke: {
-            color: rgba(101, 114, 129, 255)
+            paint: rgba(101, 114, 129, 255)
             width: 1px
         }
     }
@@ -61,7 +61,7 @@
         background: rgba(47, 58, 71, 255)
         background_checked: rgba(107, 134, 162, 255)
         outline: {
-            color: rgba(119, 136, 154, 255)
+            paint: rgba(119, 136, 154, 255)
             width: 1px
         }
     }

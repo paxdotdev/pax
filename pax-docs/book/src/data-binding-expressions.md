@@ -404,3 +404,32 @@ of reactivity. [Events and Rust](event-handling-rust.md) connects user actions
 to state changes. For a larger template, continue with
 [Components and Composition](components-composition.md), including conditional
 content, lists, and keyed identity.
+
+## Appearance values
+
+Vector `fill` and `stroke` properties normalize a Color or Paint to one default
+layer, and a single layer to one stack entry. This promotion is specific to
+appearance types; ordinary `Vec<T>` properties still require lists.
+
+```pax
+<Rectangle width=240px height=120px fill=[
+    Fill {paint: {self.accent}, opacity: 50%},
+    @gradient {0%: CYAN, 100%: FUCHSIA}
+]/>
+```
+
+Each entry can be shorthand paint, a typed or untyped layer object, or a bound
+value. Fields stay reactive when nested in a list. Binding a Rust
+`Property<Vec<Stroke>>` also observes edits to the layers' nested Properties;
+you do not have to replace the outer vector to change paint or width.
+The same behavior applies in debug and baked release cartridges.
+
+Template lists accept `@gradient` entries; this does not introduce `@gradient`
+inside arbitrary PAXEL expressions. Lists must be flat and cannot contain
+`None`. Wrong explicit layer types, unknown fields, and obsolete `color`
+fields are errors, with a zero-based entry index for a failing list entry.
+Statically known inline and matching settings values are validated during
+compilation; values selected by dynamic expressions are checked when evaluated.
+An invalid dynamic stack follows the existing property-error policy and falls
+back to an empty stack as a whole, never a partially accepted prefix. See
+[Paint layers](drawing-styling.md#paint-layers) for defaults and ordering.

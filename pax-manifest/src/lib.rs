@@ -9,6 +9,7 @@ use pax_language::DependencyCollector;
 use pax_message::serde::{Deserialize, Serialize};
 pub use pax_runtime_api;
 use pax_runtime_api::{CoercionRules, HelperFunctions, Interpolatable, PaxValue, Size, ToPaxValue};
+pub mod appearance;
 pub mod binary;
 #[cfg(feature = "parsing")]
 pub mod parsing;
@@ -398,7 +399,7 @@ impl GradientDefinition {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(crate = "pax_message::serde")]
-/// Shape-specific parameters for a gradient. V1 maps directly to runtime `Fill` variants.
+/// Shape-specific parameters for a gradient. V1 maps directly to runtime `Paint` variants.
 pub enum GradientShapeDefinition {
     Linear {
         start: Option<Box<ValueDefinition>>,
@@ -2032,6 +2033,8 @@ pub enum ValueDefinition {
     #[default]
     Undefined, //Used for `Default`
     LiteralValue(PaxValue),
+    /// Template list entries retain structured values and reactive bindings.
+    List(Vec<ValueDefinition>),
     Block(LiteralBlockDefinition),
     Timeline(TimelineTrackDefinition),
     Gradient(GradientDefinition),
@@ -2050,6 +2053,16 @@ impl Display for ValueDefinition {
         match self {
             ValueDefinition::Undefined => write!(f, "<undefined>"),
             ValueDefinition::LiteralValue(value) => write!(f, "{}", value),
+            ValueDefinition::List(values) => {
+                write!(f, "[")?;
+                for (i, value) in values.iter().enumerate() {
+                    if i > 0 {
+                        write!(f, ", ")?;
+                    }
+                    write!(f, "{value}")?;
+                }
+                write!(f, "]")
+            }
             ValueDefinition::Block(block) => write!(f, "{}", block),
             ValueDefinition::Timeline(track) => write!(f, "@timeline {}", track),
             ValueDefinition::Gradient(gradient) => write!(f, "@gradient {}", gradient),
@@ -2195,6 +2208,9 @@ pub struct LiteralBlockDefinition {
 impl Display for LiteralBlockDefinition {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let elements = &self.elements;
+        if let Some(name) = &self.explicit_type_pascal_identifier {
+            write!(f, "{} ", name.token_value)?;
+        }
         write!(f, "{{")?;
         for e in elements {
             match e {

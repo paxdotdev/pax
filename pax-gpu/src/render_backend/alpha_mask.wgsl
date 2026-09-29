@@ -4,7 +4,7 @@ struct Paint {
     off_axis: vec4<f32>,
     params: vec4<f32>,
 };
-struct Globals { resolution: vec2<f32>, dpr: vec2<f32> };
+struct Globals { resolution: vec2<f32>, dpr: vec2<f32>, origin: vec2<f32>, padding: vec2<f32> };
 @group(0) @binding(0) var<uniform> globals: Globals;
 @group(0) @binding(1) var<uniform> paint_range: vec4<u32>;
 @group(0) @binding(2) var<storage, read> paints: array<Paint>;
@@ -14,7 +14,7 @@ struct VertexOutput {
 };
 @vertex fn vs_main(@location(0) point: vec2<f32>) -> VertexOutput {
     var out: VertexOutput;
-    let p = point / globals.resolution * 2.0 - 1.0;
+    let p = (point - globals.origin) / globals.resolution * 2.0 - 1.0;
     out.position = vec4<f32>(p.x, -p.y, 0.0, 1.0);
     out.world = point;
     return out;

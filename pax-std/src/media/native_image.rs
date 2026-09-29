@@ -106,7 +106,7 @@ impl InstanceNode for NativeImageInstance {
                                 &mut old_state.fit,
                                 &mut patch.fit,
                                 match properties.fit.get() {
-                                    ImageFit::Fill => "cover",
+                                    ImageFit::Paint => "cover",
                                     ImageFit::Fit => "contain",
                                     ImageFit::Stretch => "fill",
                                 }

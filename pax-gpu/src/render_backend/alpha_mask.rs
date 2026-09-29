@@ -3,7 +3,7 @@
 use super::{data::GpuGlobals, write_staged_buffer};
 use bytemuck::{Pod, Zeroable};
 use std::collections::{HashMap, HashSet};
-use wgpu::util::StagingBelt;
+use wgpu::util::{DeviceExt, StagingBelt};
 
 pub(crate) const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::R8Unorm;
 
@@ -178,7 +178,7 @@ impl MaskBuffers {
             Usage::UNIFORM,
             sizes.paint_bytes,
         );
-        let globals = UploadBuffer::new(device, "Alpha mask globals", Usage::UNIFORM, 16);
+        let globals = UploadBuffer::new(device, "Alpha mask globals", Usage::UNIFORM, 32);
         let terms = UploadBuffer::new(
             device,
             "Alpha mask paint terms",
@@ -209,7 +209,7 @@ impl MaskBuffers {
             terms,
             globals,
             filters: std::array::from_fn(|_| {
-                UploadBuffer::new(device, "Alpha mask feather", Usage::UNIFORM, 16)
+                UploadBuffer::new(device, "Alpha mask feather", Usage::UNIFORM, 32)
             }),
             paint_group,
         }
@@ -268,6 +268,7 @@ pub(crate) struct Paint {
 }
 
 pub(crate) struct Draw {
+    pub composition: Option<(u32, f32)>,
     pub vertices: Vec<[f32; 2]>,
     pub indices: Vec<u32>,
     pub paints: Vec<Paint>,
@@ -276,6 +277,7 @@ pub(crate) struct Draw {
 pub(crate) struct MaskResource {
     signature: Option<u64>,
     size: [u32; 2],
+    domain: [f32; 4],
     source: wgpu::TextureView,
     temporary: wgpu::TextureView,
     result: wgpu::TextureView,
@@ -293,13 +295,19 @@ pub(crate) struct AlphaMasks {
     filter_layout: wgpu::BindGroupLayout,
     paint_pipeline: wgpu::RenderPipeline,
     filter_pipeline: wgpu::RenderPipeline,
+    compose_pipeline: wgpu::RenderPipeline,
+    capture_pipeline: wgpu::RenderPipeline,
     masks: HashMap<u32, MaskResource>,
 }
 
 pub(crate) fn sampling_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
     device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
         label: Some("Alpha mask sampling"),
-        entries: &[texture_entry(0), sampler_entry(1)],
+        entries: &[
+            texture_entry(0),
+            sampler_entry(1),
+            uniform_entry(2, false, 16),
+        ],
     })
 }
 
@@ -363,7 +371,13 @@ fn sample_group(
     layout: &wgpu::BindGroupLayout,
     view: &wgpu::TextureView,
     sampler: &wgpu::Sampler,
+    domain: [f32; 4],
 ) -> wgpu::BindGroup {
+    let domain = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("Alpha mask domain"),
+        contents: bytemuck::cast_slice(&domain),
+        usage: wgpu::BufferUsages::UNIFORM,
+    });
     device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("Alpha mask sampler"),
         layout,
@@ -376,6 +390,10 @@ fn sample_group(
                 binding: 1,
                 resource: wgpu::BindingResource::Sampler(sampler),
             },
+            wgpu::BindGroupEntry {
+                binding: 2,
+                resource: domain.as_entire_binding(),
+            },
         ],
     })
 }
@@ -385,6 +403,7 @@ fn pipeline(
     layout: &wgpu::BindGroupLayout,
     shader: &str,
     vertex: bool,
+    blend: bool,
 ) -> wgpu::RenderPipeline {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
         label: Some("Alpha mask shader"),
@@ -415,7 +434,7 @@ fn pipeline(
             entry_point: Some("fs_main"),
             targets: &[Some(wgpu::ColorTargetState {
                 format: FORMAT,
-                blend: vertex.then_some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                blend: blend.then_some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
                 write_mask: wgpu::ColorWrites::ALL,
             })],
             compilation_options: Default::default(),
@@ -452,11 +471,12 @@ impl AlphaMasks {
             },
         );
         let white = white_texture.create_view(&Default::default());
-        let white_bind_group = sample_group(device, &layout, &white, &sampler);
+        let white_bind_group =
+            sample_group(device, &layout, &white, &sampler, [0.0, 0.0, 1.0, 1.0]);
         let paint_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Alpha mask paint layout"),
             entries: &[
-                uniform_entry(0, false, 16),
+                uniform_entry(0, false, 32),
                 uniform_entry(1, true, 16),
                 wgpu::BindGroupLayoutEntry {
                     binding: 2,
@@ -476,7 +496,7 @@ impl AlphaMasks {
                 texture_entry(0),
                 sampler_entry(1),
                 texture_entry(2),
-                uniform_entry(3, false, 16),
+                uniform_entry(3, false, 32),
             ],
         });
         let paint_pipeline = pipeline(
@@ -488,14 +508,31 @@ impl AlphaMasks {
                 include_str!("alpha_mask.wgsl")
             ),
             true,
+            true,
         );
         let filter_pipeline = pipeline(
             device,
             &filter_layout,
             include_str!("alpha_blur.wgsl"),
             false,
+            false,
+        );
+        let compose_pipeline = pipeline(
+            device,
+            &filter_layout,
+            include_str!("alpha_blur.wgsl"),
+            false,
+            true,
+        );
+        let capture_pipeline = pipeline(
+            device,
+            &filter_layout,
+            include_str!("alpha_capture.wgsl"),
+            false,
+            false,
         );
         Self {
+            capture_pipeline,
             layout,
             white_bind_group,
             white,
@@ -504,6 +541,7 @@ impl AlphaMasks {
             filter_layout,
             paint_pipeline,
             filter_pipeline,
+            compose_pipeline,
             masks: HashMap::new(),
         }
     }
@@ -544,11 +582,18 @@ impl AlphaMasks {
         globals: GpuGlobals,
         feather: f32,
         parent: Option<u32>,
+        capture: Option<(&wgpu::TextureView, [f32; 4])>,
     ) -> bool {
+        let domain = [
+            globals.origin[0],
+            globals.origin[1],
+            globals.resolution[0],
+            globals.resolution[1],
+        ];
         if self
             .masks
             .get(&id)
-            .is_some_and(|m| m.signature == Some(signature) && m.size == size)
+            .is_some_and(|m| m.signature == Some(signature) && m.size == size && m.domain == domain)
         {
             return false;
         }
@@ -571,12 +616,13 @@ impl AlphaMasks {
             let temporary = texture(device, size).create_view(&Default::default());
             let result_texture = texture(device, size);
             let result = result_texture.create_view(&Default::default());
-            let bind_group = sample_group(device, &self.layout, &result, &self.sampler);
+            let bind_group = sample_group(device, &self.layout, &result, &self.sampler, domain);
             self.masks.insert(
                 id,
                 MaskResource {
                     signature: None,
                     size,
+                    domain,
                     source,
                     temporary,
                     result,
@@ -585,6 +631,12 @@ impl AlphaMasks {
                     buffers: MaskBuffers::new(device, &self.paint_layout, &sizes),
                 },
             );
+        }
+        let target = self.masks.get_mut(&id).unwrap();
+        if target.domain != domain {
+            target.domain = domain;
+            target.bind_group =
+                sample_group(device, &self.layout, &target.result, &self.sampler, domain);
         }
         self.masks
             .get_mut(&id)
@@ -626,24 +678,134 @@ impl AlphaMasks {
         ] {
             write_staged_buffer(staging_belt, encoder, buffer, bytes);
         }
-        {
+        // One reusable scratch target suffices for each primitive in source order.
+        // Opaque boundaries draw directly; translucent appearances are isolated.
+        drop(render_pass(encoder, &target.source));
+        if let Some((capture, crop)) = capture {
+            let params = [crop[0], crop[1], crop[2], crop[3], 0.0, 0.0, 0.0, 0.0];
+            write_staged_buffer(
+                staging_belt,
+                encoder,
+                &buffers.filters[0].buffer,
+                bytemuck::cast_slice(&params),
+            );
+            let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("Captured source alpha"),
+                layout: &self.filter_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(capture),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(&self.sampler),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: wgpu::BindingResource::TextureView(&self.white),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: buffers.filters[0].buffer.as_entire_binding(),
+                    },
+                ],
+            });
             let mut pass = render_pass(encoder, &target.source);
-            if !indices.is_empty() {
-                pass.set_pipeline(&self.paint_pipeline);
-                pass.set_vertex_buffer(0, buffers.vertices.buffer.slice(..sizes.vertex_bytes));
-                pass.set_index_buffer(
-                    buffers.indices.buffer.slice(..sizes.index_bytes),
-                    wgpu::IndexFormat::Uint32,
-                );
-                for (i, range) in ranges.iter().enumerate() {
-                    pass.set_bind_group(0, &buffers.paint_group, &[(i as u64 * stride) as u32]);
-                    pass.draw_indexed(range.clone(), 0, 0..1);
+            pass.set_pipeline(&self.capture_pipeline);
+            pass.set_bind_group(0, &group, &[]);
+            pass.draw(0..3, 0..1);
+        }
+        let mut start = 0;
+        while start < draws.len() {
+            let composition = draws[start].composition;
+            let end = if composition.is_some() {
+                start
+                    + draws[start..]
+                        .iter()
+                        .take_while(|draw| draw.composition == composition)
+                        .count()
+            } else {
+                start + 1
+            };
+            let opacity = composition.map_or(1.0, |(_, opacity)| opacity.clamp(0.0, 1.0));
+            if opacity > 0.0 && !indices.is_empty() {
+                let isolated = opacity < 1.0;
+                {
+                    let destination = if isolated {
+                        &target.temporary
+                    } else {
+                        &target.source
+                    };
+                    let mut pass = render_pass_with_load(
+                        encoder,
+                        destination,
+                        if isolated {
+                            wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT)
+                        } else {
+                            wgpu::LoadOp::Load
+                        },
+                    );
+                    pass.set_pipeline(&self.paint_pipeline);
+                    pass.set_vertex_buffer(0, buffers.vertices.buffer.slice(..sizes.vertex_bytes));
+                    pass.set_index_buffer(
+                        buffers.indices.buffer.slice(..sizes.index_bytes),
+                        wgpu::IndexFormat::Uint32,
+                    );
+                    for i in start..end {
+                        pass.set_bind_group(0, &buffers.paint_group, &[(i as u64 * stride) as u32]);
+                        pass.draw_indexed(ranges[i].clone(), 0, 0..1);
+                    }
+                }
+                if isolated {
+                    let params = [0.0f32, 0.0, 0.0, -opacity];
+                    let uniform = &buffers.filters[0].buffer;
+                    write_staged_buffer(
+                        staging_belt,
+                        encoder,
+                        uniform,
+                        bytemuck::cast_slice(&params),
+                    );
+                    let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+                        label: Some("Alpha primitive composition"),
+                        layout: &self.filter_layout,
+                        entries: &[
+                            wgpu::BindGroupEntry {
+                                binding: 0,
+                                resource: wgpu::BindingResource::TextureView(&target.temporary),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 1,
+                                resource: wgpu::BindingResource::Sampler(&self.sampler),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 2,
+                                resource: wgpu::BindingResource::TextureView(&self.white),
+                            },
+                            wgpu::BindGroupEntry {
+                                binding: 3,
+                                resource: uniform.as_entire_binding(),
+                            },
+                        ],
+                    });
+                    let mut pass =
+                        render_pass_with_load(encoder, &target.source, wgpu::LoadOp::Load);
+                    pass.set_pipeline(&self.compose_pipeline);
+                    pass.set_bind_group(0, &group, &[]);
+                    pass.draw(0..3, 0..1);
                 }
             }
+            start = end;
         }
-        let parent = parent
-            .and_then(|id| self.masks.get(&id))
-            .map_or(&self.white, |m| &m.result);
+        let parent_resource = parent.and_then(|id| self.masks.get(&id));
+        let parent = parent_resource.map_or(&self.white, |m| &m.result);
+        let parent_domain = parent_resource.map_or(domain, |m| m.domain);
+        let parent_mapping = [
+            domain[2] / parent_domain[2],
+            domain[3] / parent_domain[3],
+            (domain[0] - parent_domain[0]) / parent_domain[2],
+            (domain[1] - parent_domain[1]) / parent_domain[3],
+        ];
         for (index, (source, destination, params)) in [
             (
                 &target.source,
@@ -660,6 +822,16 @@ impl AlphaMasks {
         .enumerate()
         {
             let filter = &buffers.filters[index].buffer;
+            let params = [
+                params[0],
+                params[1],
+                params[2],
+                params[3],
+                parent_mapping[0],
+                parent_mapping[1],
+                parent_mapping[2],
+                parent_mapping[3],
+            ];
             write_staged_buffer(staging_belt, encoder, filter, bytemuck::cast_slice(&params));
             // Do not retain texture-dependent filter groups: parent textures
             // can be replaced independently by resize/removal/recreation.
@@ -699,6 +871,14 @@ fn render_pass<'a>(
     encoder: &'a mut wgpu::CommandEncoder,
     view: &'a wgpu::TextureView,
 ) -> wgpu::RenderPass<'a> {
+    render_pass_with_load(encoder, view, wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT))
+}
+
+fn render_pass_with_load<'a>(
+    encoder: &'a mut wgpu::CommandEncoder,
+    view: &'a wgpu::TextureView,
+    load: wgpu::LoadOp<wgpu::Color>,
+) -> wgpu::RenderPass<'a> {
     encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
         label: Some("Alpha mask pass"),
         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -706,7 +886,7 @@ fn render_pass<'a>(
             depth_slice: None,
             resolve_target: None,
             ops: wgpu::Operations {
-                load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
+                load,
                 store: wgpu::StoreOp::Store,
             },
         })],
@@ -818,6 +998,7 @@ mod tests {
                 GpuGlobals {
                     resolution: [size[0] as f32, size[1] as f32],
                     dpr: [1.0, 1.0],
+                    ..Default::default()
                 },
             )
         }
@@ -844,6 +1025,7 @@ mod tests {
                 globals,
                 feather,
                 parent,
+                None,
             );
             if changed {
                 self.belt.finish();
@@ -906,6 +1088,34 @@ mod tests {
 
     #[test]
     #[ignore = "requires a native GPU adapter"]
+    fn alpha_mask_gpu_layers_apply_element_opacity_after_source_over() {
+        let mut rig = GpuRig::new();
+        let mut first = square(0.0, 48.0, 1.0);
+        let mut second = square(16.0, 64.0, 1.0);
+        first.composition = Some((42, 0.5));
+        second.composition = Some((42, 0.5));
+        rig.draw(1, 1, &[first, second], [64, 64], 0.0, None);
+        let element = rig.capture(1);
+        rig.draw(
+            2,
+            1,
+            &[square(0.0, 48.0, 0.5), square(16.0, 64.0, 0.5)],
+            [64, 64],
+            0.0,
+            None,
+        );
+        let layers = rig.capture(2);
+        rig.submit();
+        let element = rig.read(&element);
+        let layers = rig.read(&layers);
+        let row = 32 * 256;
+        assert!((element[row + 32] as i32 - 128).abs() <= 2);
+        assert!((layers[row + 32] as i32 - 191).abs() <= 2);
+        assert!((element[row + 8] as i32 - 128).abs() <= 2);
+    }
+
+    #[test]
+    #[ignore = "requires a native GPU adapter"]
     fn alpha_mask_gpu_blended_paint_is_one_source_shape() {
         let mut rig = GpuRig::new();
         let mut draw = square(0.0, 64.0, 0.0);
@@ -942,6 +1152,7 @@ mod tests {
             GpuGlobals {
                 resolution: [128.0, 64.0],
                 dpr: [0.5, 1.0],
+                ..Default::default()
             },
         );
         let scaled = rig.capture(1);
@@ -1085,6 +1296,7 @@ mod tests {
 
     fn square(x0: f32, x1: f32, alpha: f32) -> Draw {
         Draw {
+            composition: None,
             vertices: vec![[x0, 0.0], [x1, 0.0], [x1, 64.0], [x0, 64.0]],
             indices: vec![0, 1, 2, 0, 2, 3],
             paints: vec![Paint {
@@ -1150,6 +1362,7 @@ mod tests {
         let globals = GpuGlobals {
             resolution: [64.0, 64.0],
             dpr: [1.0, 1.0],
+            ..Default::default()
         };
         let mut encoder = device.create_command_encoder(&Default::default());
         masks.render(
@@ -1163,6 +1376,7 @@ mod tests {
             globals,
             0.0,
             None,
+            None,
         );
         masks.render(
             &device,
@@ -1174,6 +1388,7 @@ mod tests {
             [64, 64],
             globals,
             3.0,
+            None,
             None,
         );
         let mut gradient = square(0.0, 64.0, 1.0);
@@ -1191,6 +1406,7 @@ mod tests {
             globals,
             0.0,
             Some(1),
+            None,
         );
         masks.render(
             &device,
@@ -1202,6 +1418,7 @@ mod tests {
             [64, 64],
             globals,
             0.0,
+            None,
             None,
         );
         belt.finish();

@@ -12,7 +12,7 @@ to use painted alpha instead, and `feather` to soften its edge:
 <Mask width=100% height=100% alpha=true feather=12.0>
     <Rectangle width=100% height=100% fill=#FF0088/>
     <Ellipse x=50% y=50% anchor=50% width=240px height=240px
-        fill=TRANSPARENT stroke={color: WHITE, width: 40px}/>
+        fill=TRANSPARENT stroke={paint: WHITE, width: 40px}/>
 </Mask>
 ```
 
@@ -21,14 +21,16 @@ standard deviation in logical pixels, independent of display pixel density;
 zero disables feathering. Both properties default to zero/false, preserving
 existing coverage-mask behavior.
 
-Alpha sources support `Rectangle`, `Ellipse`, and `Path` fills and strokes,
+Alpha sources support `Rectangle`, `Ellipse`, `Path`, and `Line` appearance layers,
 including source-relative opacity, transforms, and linear/radial gradient alpha
-(up to eight ordered stops). Source RGB does not matter. Grouping and keyed
-`for` loops combine paints using source-over alpha: overlapping half-opacity
-sources yield 75% coverage, not XOR. Nested alpha masks on content multiply;
+(up to eight ordered stops). Source RGB does not matter. Retained vector captures
+preserve source-side Frame/Mask clips and group opacity. Two opaque shapes in
+a half-opacity Group yield 50% coverage even in their overlap; individually
+half-opacity shapes yield 75% there. Nested alpha masks on content multiply;
 ordinary geometric clips continue to intersect them. An empty alpha source
-hides all content. Cached surface-sized GPU textures are reused until paint,
-feather, enclosing alpha, or surface dimensions change.
+hides all content. Captures share group-opacity surfaces and reuse geometry for
+paint and GPU stroke-reveal updates. Feathering has a padded, surface-local
+domain; captures exceeding device texture limits hide content with a diagnostic.
 
 Source components have a normal logical lifetime: their templates expand,
 mount handlers initialize state, reactive changes and animation remain live,
@@ -39,9 +41,9 @@ Handwriter's selectable text equivalent, do not create native surfaces; keep
 meaningful accessible text outside the mask. User mount side effects still run.
 
 Current boundary: WGPU canvas rendering, verified on web. Native controls and
-the legacy Piet renderer do not support alpha masks. Source-side `Frame`/`Mask`
-clipping, images, text, and native elements are not alpha sources; use vector
-leaves inside `Group`/repeat containers. Alpha masks modulate canvas draw alpha,
+the legacy Piet renderer do not support alpha masks. Images, text, native
+elements, and source-side Scrollers are not captured; use vector leaves and
+same-surface containers. Alpha masks modulate canvas draw alpha,
 not an isolated offscreen group, and do not change hit testing. Keep interactive
 hit targets separate from purely visual alpha reveals.
 

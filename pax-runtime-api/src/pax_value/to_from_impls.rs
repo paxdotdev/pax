@@ -16,7 +16,6 @@ use crate::Color;
 use crate::ColorChannel;
 use crate::Depth;
 use crate::Duration;
-use crate::Fill;
 use crate::GradientStop;
 use crate::LayoutRole;
 use crate::LightShape;
@@ -40,6 +39,7 @@ use crate::StrokeJoin;
 use crate::Transform2D;
 use crate::UnitValue;
 use crate::Vector3;
+use crate::{Fill, Paint};
 
 // Primitive types
 impl_to_pax_value!(bool, PaxValue::Bool);
@@ -109,6 +109,11 @@ impl ToPaxValue for Color {
 
 // Pax Vec type
 impl<T: ToPaxValue> ToPaxValue for Vec<T> {
+    fn nested_properties(&self) -> Vec<crate::properties::UntypedProperty> {
+        self.iter()
+            .flat_map(ToPaxValue::nested_properties)
+            .collect()
+    }
     fn to_pax_value(self) -> PaxValue {
         PaxValue::Vec(
             self.into_iter()
@@ -149,16 +154,21 @@ impl ToPaxValue for PaxValue {
 }
 
 impl<T: ToPaxValue + PropertyValue> ToPaxValue for Property<T> {
+    fn nested_properties(&self) -> Vec<crate::properties::UntypedProperty> {
+        let mut dependencies = vec![self.untyped()];
+        dependencies.extend(self.get().nested_properties());
+        dependencies
+    }
     fn to_pax_value(self) -> PaxValue {
         self.get().to_pax_value()
     }
 }
 
-impl ToPaxValue for Fill {
+impl ToPaxValue for Paint {
     fn to_pax_value(self) -> PaxValue {
         match self {
-            Fill::Blend(terms) => PaxValue::Enum(Box::new((
-                "Fill".to_string(),
+            Paint::Blend(terms) => PaxValue::Enum(Box::new((
+                "Paint".to_string(),
                 "Blend".to_string(),
                 vec![PaxValue::Vec(
                     terms
@@ -169,18 +179,18 @@ impl ToPaxValue for Fill {
                         .collect(),
                 )],
             ))),
-            Fill::Solid(color) => PaxValue::Enum(Box::new((
-                "Fill".to_string(),
+            Paint::Solid(color) => PaxValue::Enum(Box::new((
+                "Paint".to_string(),
                 "Solid".to_string(),
                 vec![color.to_pax_value()],
             ))),
-            Fill::LinearGradient(gradient) => PaxValue::Enum(Box::new((
-                "Fill".to_string(),
+            Paint::LinearGradient(gradient) => PaxValue::Enum(Box::new((
+                "Paint".to_string(),
                 "LinearGradient".to_string(),
                 vec![gradient.to_pax_value()],
             ))),
-            Fill::RadialGradient(gradient) => PaxValue::Enum(Box::new((
-                "Fill".to_string(),
+            Paint::RadialGradient(gradient) => PaxValue::Enum(Box::new((
+                "Paint".to_string(),
                 "RadialGradient".to_string(),
                 vec![gradient.to_pax_value()],
             ))),
@@ -244,20 +254,22 @@ impl ToPaxValue for UnitValue {
     }
 }
 
-impl ToPaxValue for Stroke {
-    fn to_pax_value(self) -> PaxValue {
-        PaxValue::Object(
-            vec![
-                ("color".to_string(), self.color.get().to_pax_value()),
-                ("width".to_string(), self.width.to_pax_value()),
-                ("cap".to_string(), self.cap.get().to_pax_value()),
-                ("join".to_string(), self.join.get().to_pax_value()),
-            ]
-            .into_iter()
-            .collect(),
-        )
+macro_rules! layer_pax_value {
+    ($ty:ident, $($field:ident),+) => {
+        impl ToPaxValue for $ty {
+            fn nested_properties(&self) -> Vec<crate::properties::UntypedProperty> {
+                let mut properties = Vec::new(); $(properties.extend(self.$field.nested_properties());)+ properties
+            }
+            fn to_pax_value(self) -> PaxValue {
+                PaxValue::Enum(Box::new((stringify!($ty).into(), "__layer".into(), vec![
+                    PaxValue::Object(vec![$((stringify!($field).into(), self.$field.get().to_pax_value())),+])
+                ])))
+            }
+        }
     }
 }
+layer_pax_value!(Fill, paint, material, opacity);
+layer_pax_value!(Stroke, paint, material, opacity, width, cap, join);
 
 impl ToPaxValue for StrokeCap {
     fn to_pax_value(self) -> PaxValue {
@@ -354,6 +366,20 @@ impl ToPaxValue for MaterialParams {
 }
 
 impl ToPaxValue for Material {
+    fn nested_properties(&self) -> Vec<crate::properties::UntypedProperty> {
+        match self {
+            Self::Unlit => vec![],
+            Self::Lit(p) => vec![
+                p.ambient.untyped(),
+                p.diffuse.untyped(),
+                p.specular.untyped(),
+                p.roughness.untyped(),
+                p.metallic.untyped(),
+                p.emissive.untyped(),
+                p.emissive_intensity.untyped(),
+            ],
+        }
+    }
     fn to_pax_value(self) -> PaxValue {
         match self {
             Material::Lit(params) => PaxValue::Enum(Box::new((

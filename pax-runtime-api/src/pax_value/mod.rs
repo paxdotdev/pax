@@ -131,6 +131,10 @@ impl Display for PaxValue {
             }
             PaxValue::Enum(contents) => {
                 let (name, variant, values) = contents.as_ref();
+                if (name == "Fill" || name == "Stroke") && variant == "__layer" && values.len() == 1
+                {
+                    return write!(f, "{} {}", name, values[0]);
+                }
                 if name == "Color" {
                     write!(f, "{}", variant)?;
                 } else {
@@ -180,6 +184,12 @@ impl Interpolatable for PaxValue {}
 /// This is exact conversion, not coercion; coercion is handled separately by
 /// `CoercionRules`.
 pub trait ToPaxValue {
+    /// Live properties read when snapshotting a compound value for PAXEL.
+    /// Adapters observe these as well as the containing property.
+    fn nested_properties(&self) -> Vec<crate::properties::UntypedProperty> {
+        Vec::new()
+    }
+
     /// Converts this value into a `PaxValue`.
     fn to_pax_value(self) -> PaxValue;
 }

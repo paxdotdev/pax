@@ -32,11 +32,6 @@ Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Size`]
 The y-coordinate of the end point.
 
 ##### `stroke`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Stroke`](../../../api/pax-runtime-api/drawing.md#stroke)>
+Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`Vec`<[`Stroke`](../../../api/pax-runtime-api/drawing.md#stroke)>>
 
 The stroke used to render the segment.
-
-##### `material`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Material`](../../../api/pax-runtime-api/drawing.md#material)>
-
-Light-reactive surface response.

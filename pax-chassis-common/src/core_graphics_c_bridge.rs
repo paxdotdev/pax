@@ -106,7 +106,7 @@ impl<'a> RenderContext for AppleRenderContext<'a> {
         &mut self,
         _layer: usize,
         path: kurbo::BezPath,
-        brush: &pax_runtime::api::Fill,
+        brush: &pax_runtime::api::Paint,
         opacity: f64,
     ) {
         self.backend.fill(
@@ -124,7 +124,7 @@ impl<'a> RenderContext for AppleRenderContext<'a> {
     ) {
         let width = stroke.width.get().expect_pixels().to_float();
         let brush = fill_to_piet_brush(
-            &pax_runtime::api::Fill::Solid(stroke.color.get()).with_alpha_factor(opacity),
+            &stroke.paint.get().with_alpha_factor(opacity),
             path.bounding_box(),
         );
         self.backend.stroke_styled(
@@ -197,27 +197,27 @@ impl<'a> RenderContext for AppleRenderContext<'a> {
 }
 
 #[cfg(not(any(target_os = "ios", target_os = "macos")))]
-fn fill_to_piet_brush(fill: &pax_runtime::api::Fill, rect: kurbo::Rect) -> piet::PaintBrush {
+fn fill_to_piet_brush(fill: &pax_runtime::api::Paint, rect: kurbo::Rect) -> piet::PaintBrush {
     use piet::{LinearGradient, RadialGradient};
 
     match fill {
-        pax_runtime::api::Fill::Solid(color) => color.to_piet_color().into(),
-        pax_runtime::api::Fill::LinearGradient(linear) => {
+        pax_runtime::api::Paint::Solid(color) => color.to_piet_color().into(),
+        pax_runtime::api::Paint::LinearGradient(linear) => {
             let linear_gradient = LinearGradient::new(
-                pax_runtime::api::Fill::to_unit_point(linear.start, (rect.width(), rect.height())),
-                pax_runtime::api::Fill::to_unit_point(linear.end, (rect.width(), rect.height())),
-                pax_runtime::api::Fill::to_piet_gradient_stops(linear.stops.clone()),
+                pax_runtime::api::Paint::to_unit_point(linear.start, (rect.width(), rect.height())),
+                pax_runtime::api::Paint::to_unit_point(linear.end, (rect.width(), rect.height())),
+                pax_runtime::api::Paint::to_piet_gradient_stops(linear.stops.clone()),
             );
             linear_gradient.into()
         }
-        pax_runtime::api::Fill::RadialGradient(radial) => {
+        pax_runtime::api::Paint::RadialGradient(radial) => {
             let origin =
-                pax_runtime::api::Fill::to_unit_point(radial.start, (rect.width(), rect.height()));
+                pax_runtime::api::Paint::to_unit_point(radial.start, (rect.width(), rect.height()));
             let center =
-                pax_runtime::api::Fill::to_unit_point(radial.end, (rect.width(), rect.height()));
+                pax_runtime::api::Paint::to_unit_point(radial.end, (rect.width(), rect.height()));
             let radial_gradient = RadialGradient::new(
                 radial.radius,
-                pax_runtime::api::Fill::to_piet_gradient_stops(radial.stops.clone()),
+                pax_runtime::api::Paint::to_piet_gradient_stops(radial.stops.clone()),
             )
             .with_center(center)
             .with_origin(origin);

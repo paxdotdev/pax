@@ -61,9 +61,9 @@
             opacity={seal_progress}
         >
             <Group width=100% height=100%>
-                <Path width=100% height=100% elements=[PathElement::Point(0%, 20%), PathElement::Cubic(35%, 6%, 65%, 34%), PathElement::Point(100%, 20%)] stroke={color: rgba(19, 42, 77, 210), width: 2px} />
-                <Path width=100% height=100% elements=[PathElement::Point(0%, 43%), PathElement::Cubic(35%, 29%, 65%, 57%), PathElement::Point(100%, 43%)] stroke={color: rgba(19, 42, 77, 210), width: 2px} />
-                <Path width=100% height=100% elements=[PathElement::Point(0%, 66%), PathElement::Cubic(35%, 52%, 65%, 80%), PathElement::Point(100%, 66%)] stroke={color: rgba(19, 42, 77, 210), width: 2px} />
+                <Path width=100% height=100% elements=[PathElement::Point(0%, 20%), PathElement::Cubic(35%, 6%, 65%, 34%), PathElement::Point(100%, 20%)] stroke={paint: rgba(19, 42, 77, 210), width: 2px} />
+                <Path width=100% height=100% elements=[PathElement::Point(0%, 43%), PathElement::Cubic(35%, 29%, 65%, 57%), PathElement::Point(100%, 43%)] stroke={paint: rgba(19, 42, 77, 210), width: 2px} />
+                <Path width=100% height=100% elements=[PathElement::Point(0%, 66%), PathElement::Cubic(35%, 52%, 65%, 80%), PathElement::Point(100%, 66%)] stroke={paint: rgba(19, 42, 77, 210), width: 2px} />
             </Group>
             <Rectangle width={(0.2 + postmark_reveal * 99.8)%} height=100% fill=BLACK />
         </Mask>
@@ -88,7 +88,7 @@
             line_height=1.0
             smoothing=PathSmoothing::Strong
             stroke={
-                color: rgba(18, 43, 79, 255)
+                paint: rgba(18, 43, 79, 255)
                 width: {is_compact ? 7px : 8px}
                 cap: StrokeCap::Round
                 join: StrokeJoin::Round
@@ -161,7 +161,7 @@
                 58%: rgba(247, 235, 208, 255)
                 100%: rgba(237, 220, 188, 255)
             }
-            stroke={color: rgba(255, 250, 234, 180), width: 2px}
+            stroke={paint: rgba(255, 250, 234, 180), width: 2px}
             corner_radius={is_compact ? 16.0 : 22.0}
         />
     </Group>

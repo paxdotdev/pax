@@ -71,7 +71,15 @@ pub enum StrokeCap {
     Square,
 }
 
-impl Interpolatable for StrokeCap {}
+impl Interpolatable for StrokeCap {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        if t < 1.0 {
+            self.clone()
+        } else {
+            other.clone()
+        }
+    }
+}
 
 /// Controls how stroke segments are joined at path vertices.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq, Hash)]
@@ -86,67 +94,129 @@ pub enum StrokeJoin {
     Bevel,
 }
 
-impl Interpolatable for StrokeJoin {}
+impl Interpolatable for StrokeJoin {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        if t < 1.0 {
+            self.clone()
+        } else {
+            other.clone()
+        }
+    }
+}
 
-/// Describes the outline drawn around vector geometry.
-///
-/// Pax currently renders strokes centered on the underlying path. For open
-/// geometry, `cap` controls how the stroke terminates at the start and end of
-/// the path, while `join` controls how adjacent segments meet.
+/// One interior paint layer. Index zero in an element's fill stack is topmost.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(crate = "crate::serde")]
+pub struct Fill {
+    /// Color or gradient sampled over the complete local geometry.
+    pub paint: Property<Paint>,
+    /// Light-reactive surface response, matte by default.
+    pub material: Property<Material>,
+    /// Opacity of this layer before element opacity is applied.
+    pub opacity: Property<Opacity>,
+    // Future blend_mode governs composition over lower layers.
+}
+
+/// One centered outline layer, drawn above every interior fill.
+/// Index zero in an element's stroke stack is topmost.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(crate = "crate::serde")]
 pub struct Stroke {
-    /// The stroke color, including alpha.
-    pub color: Property<Color>,
-    /// The stroke width.
-    ///
-    /// The type is [`Size`] for consistency with the wider property system, but
-    /// current vector renderers interpret this value in pixels.
+    /// Color or gradient sampled over the complete, untrimmed geometry.
+    pub paint: Property<Paint>,
+    /// Light-reactive surface response, matte by default.
+    pub material: Property<Material>,
+    /// Opacity of this layer before element opacity is applied.
+    pub opacity: Property<Opacity>,
+    /// Width in logical pixels. Percentages are unsupported; nonpositive widths draw nothing.
     pub width: Property<Size>,
-    /// The cap style used for exposed endpoints on open paths.
+    /// Style of exposed endpoints on open paths.
     pub cap: Property<StrokeCap>,
-    /// The join style used where adjacent stroke segments meet.
+    /// Style of joins between adjacent segments.
     pub join: Property<StrokeJoin>,
+    // Future blend_mode governs composition over lower layers.
+}
+
+impl Default for Fill {
+    fn default() -> Self {
+        Self {
+            paint: Default::default(),
+            material: Default::default(),
+            opacity: Default::default(),
+        }
+    }
 }
 
 impl Default for Stroke {
     fn default() -> Self {
         Self {
-            color: Default::default(),
-            width: Property::new(Size::Pixels(Numeric::F64(0.0))),
-            cap: Property::new(StrokeCap::default()),
-            join: Property::new(StrokeJoin::default()),
+            paint: Default::default(),
+            material: Default::default(),
+            opacity: Default::default(),
+            width: Property::new(Size::Pixels(1.into())),
+            cap: Default::default(),
+            join: Default::default(),
         }
     }
 }
 
-impl PartialEq for Stroke {
-    fn eq(&self, other: &Self) -> bool {
-        self.color.get() == other.color.get()
-            && self.width.get() == other.width.get()
-            && self.cap.get() == other.cap.get()
-            && self.join.get() == other.join.get()
-    }
-}
-
-impl Interpolatable for Stroke {
-    fn interpolate(&self, other: &Self, t: f64) -> Self {
+impl From<Paint> for Fill {
+    fn from(paint: Paint) -> Self {
         Self {
-            color: Property::new(self.color.get().interpolate(&other.color.get(), t)),
-            width: Property::new(self.width.get().interpolate(&other.width.get(), t)),
-            cap: Property::new(if t < 1.0 {
-                self.cap.get()
-            } else {
-                other.cap.get()
-            }),
-            join: Property::new(if t < 1.0 {
-                self.join.get()
-            } else {
-                other.join.get()
-            }),
+            paint: Property::new(paint),
+            ..Self::default()
         }
     }
 }
+impl From<Color> for Fill {
+    fn from(color: Color) -> Self {
+        Paint::Solid(color).into()
+    }
+}
+impl From<Paint> for Stroke {
+    fn from(paint: Paint) -> Self {
+        Self {
+            paint: Property::new(paint),
+            ..Self::default()
+        }
+    }
+}
+impl From<Color> for Stroke {
+    fn from(color: Color) -> Self {
+        Paint::Solid(color).into()
+    }
+}
+
+impl Stroke {
+    /// Resolves a finite, positive pixel width, or zero for an invisible stroke.
+    pub fn width_pixels(&self) -> f64 {
+        match self.width.get() {
+            Size::Pixels(value) if value.to_float().is_finite() => value.to_float().max(0.0),
+            _ => {
+                log::warn!("Stroke width must be finite logical pixels");
+                0.0
+            }
+        }
+    }
+}
+
+macro_rules! appearance_layer_traits {
+    ($ty:ident, $($field:ident),+) => {
+        impl PartialEq for $ty {
+            fn eq(&self, other: &Self) -> bool { $(self.$field.get() == other.$field.get())&&+ }
+        }
+        impl Hash for $ty {
+            fn hash<H: Hasher>(&self, state: &mut H) { $(self.$field.get().hash(state);)+ }
+        }
+        impl Interpolatable for $ty {
+            fn interpolate(&self, other: &Self, t: f64) -> Self {
+                Self { $($field: Property::new(self.$field.get().interpolate(&other.$field.get(), t))),+ }
+            }
+        }
+    }
+}
+appearance_layer_traits!(Fill, paint, material, opacity);
+appearance_layer_traits!(Stroke, paint, material, opacity, width, cap, join);
 
 /// Describes where to open new windows or tabs when navigating to a URL from a `Link` node.
 pub enum NavigationTarget {
@@ -161,7 +231,7 @@ pub enum NavigationTarget {
 /// paints in premultiplied RGBA, preserving each gradient's geometry and stops.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(crate = "crate::serde")]
-pub enum Fill {
+pub enum Paint {
     /// A single solid color.
     Solid(Color),
     /// A linear gradient.
@@ -169,32 +239,38 @@ pub enum Fill {
     /// A radial gradient.
     RadialGradient(RadialGradient),
     /// A weighted paint mixture produced by interpolation. Weights are finite,
-    /// nonnegative, and sum to one. Use [`Fill::blend`] to normalize weights,
+    /// nonnegative, and sum to one. Use [`Paint::blend`] to normalize weights,
     /// flatten nested mixtures, and combine repeated endpoints.
-    Blend(Vec<(Fill, f64)>),
+    Blend(Vec<(Paint, f64)>),
 }
 
-impl Hash for Fill {
+impl From<Color> for Paint {
+    fn from(color: Color) -> Self {
+        Self::Solid(color)
+    }
+}
+
+impl Hash for Paint {
     fn hash<H: Hasher>(&self, state: &mut H) {
         match self {
-            Fill::Solid(color) => {
+            Paint::Solid(color) => {
                 state.write_u8(0);
                 color.hash(state);
             }
-            Fill::LinearGradient(linear) => {
+            Paint::LinearGradient(linear) => {
                 state.write_u8(1);
                 linear.start.hash(state);
                 linear.end.hash(state);
                 linear.stops.hash(state);
             }
-            Fill::RadialGradient(radial) => {
+            Paint::RadialGradient(radial) => {
                 state.write_u8(2);
                 radial.start.hash(state);
                 radial.end.hash(state);
                 radial.radius.to_bits().hash(state);
                 radial.stops.hash(state);
             }
-            Fill::Blend(terms) => {
+            Paint::Blend(terms) => {
                 state.write_u8(3);
                 terms.len().hash(state);
                 for (fill, weight) in terms {
@@ -203,15 +279,6 @@ impl Hash for Fill {
                 }
             }
         }
-    }
-}
-
-impl Hash for Stroke {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.width.get().hash(state);
-        self.color.get().hash(state);
-        self.cap.get().hash(state);
-        self.join.get().hash(state);
     }
 }
 
@@ -709,7 +776,7 @@ impl SceneLighting {
 impl Interpolatable for SceneLighting {}
 impl HelperFunctions for SceneLighting {}
 
-impl Interpolatable for Fill {
+impl Interpolatable for Paint {
     fn interpolate(&self, other: &Self, t: f64) -> Self {
         if let (Self::Solid(from), Self::Solid(to)) = (self, other) {
             return Self::Solid(from.interpolate(to, t));
@@ -828,13 +895,13 @@ impl GradientStop {
     }
 }
 
-impl Default for Fill {
+impl Default for Paint {
     fn default() -> Self {
         Self::Solid(Color::default())
     }
 }
 
-impl Fill {
+impl Paint {
     /// Constructs a normalized mixture of paints. Nested mixtures are flattened
     /// and identical endpoints merged, so repeated interruptions between a fixed
     /// set of themes do not accumulate a history of blend nodes. Nonpositive or
@@ -842,8 +909,8 @@ impl Fill {
     ///
     /// Sampling cost grows with the number of distinct endpoints still visible.
     /// A completed interpolation returns its destination paint directly.
-    pub fn blend(terms: Vec<(Fill, f64)>) -> Self {
-        fn append(out: &mut Vec<(Fill, f64)>, terms: Vec<(Fill, f64)>, scale: f64) {
+    pub fn blend(terms: Vec<(Paint, f64)>) -> Self {
+        fn append(out: &mut Vec<(Paint, f64)>, terms: Vec<(Paint, f64)>, scale: f64) {
             let max = terms
                 .iter()
                 .map(|(_, w)| *w)
@@ -866,7 +933,7 @@ impl Fill {
                 if weight == 0.0 {
                     continue;
                 }
-                if let Fill::Blend(terms) = fill {
+                if let Paint::Blend(terms) = fill {
                     append(out, terms, weight);
                 } else if let Some((_, existing)) = out.iter_mut().find(|(f, _)| *f == fill) {
                     *existing += weight;
@@ -878,12 +945,12 @@ impl Fill {
         let mut result = Vec::new();
         append(&mut result, terms, 1.0);
         if result.is_empty() {
-            return Fill::Solid(Color::from_rgba_0_1([0.0; 4]));
+            return Paint::Solid(Color::from_rgba_0_1([0.0; 4]));
         }
         if result.len() == 1 {
             result.pop().unwrap().0
         } else {
-            Fill::Blend(result)
+            Paint::Blend(result)
         }
     }
 
@@ -1003,7 +1070,7 @@ impl Fill {
     }
 
     #[allow(non_snake_case)]
-    /// Constructs a linear gradient fill.
+    /// Constructs a linear gradient paint.
     ///
     /// Pax templates should normally use `@gradient`. When this helper is
     /// needed explicitly, pass `start` and `end` as `[x, y]` lists.
@@ -1011,21 +1078,21 @@ impl Fill {
         start: (Size, Size),
         end: (Size, Size),
         stops: Vec<GradientStop>,
-    ) -> Fill {
-        Fill::LinearGradient(LinearGradient { start, end, stops })
+    ) -> Paint {
+        Paint::LinearGradient(LinearGradient { start, end, stops })
     }
 
-    /// Returns a copy of this fill with alpha multiplied by `factor`.
-    pub fn with_alpha_factor(&self, factor: f64) -> Fill {
+    /// Returns a copy of this paint with alpha multiplied by `factor`.
+    pub fn with_alpha_factor(&self, factor: f64) -> Paint {
         match self {
-            Fill::Blend(terms) => Fill::Blend(
+            Paint::Blend(terms) => Paint::Blend(
                 terms
                     .iter()
                     .map(|(fill, weight)| (fill.with_alpha_factor(factor), *weight))
                     .collect(),
             ),
-            Fill::Solid(color) => Fill::Solid(color.with_alpha_factor(factor)),
-            Fill::LinearGradient(gradient) => Fill::LinearGradient(LinearGradient {
+            Paint::Solid(color) => Paint::Solid(color.with_alpha_factor(factor)),
+            Paint::LinearGradient(gradient) => Paint::LinearGradient(LinearGradient {
                 start: gradient.start.clone(),
                 end: gradient.end.clone(),
                 stops: gradient
@@ -1034,7 +1101,7 @@ impl Fill {
                     .map(|stop| stop.with_alpha_factor(factor))
                     .collect(),
             }),
-            Fill::RadialGradient(gradient) => Fill::RadialGradient(RadialGradient {
+            Paint::RadialGradient(gradient) => Paint::RadialGradient(RadialGradient {
                 start: gradient.start.clone(),
                 end: gradient.end.clone(),
                 radius: gradient.radius,
@@ -1047,22 +1114,22 @@ impl Fill {
         }
     }
 
-    /// Returns a conservative upper bound for this fill's alpha. For mixtures,
+    /// Returns a conservative upper bound for this paint's alpha. For mixtures,
     /// endpoint maxima need not occur at the same point.
     pub fn max_alpha_0_1(&self) -> f64 {
         match self {
-            Fill::Blend(terms) => terms
+            Paint::Blend(terms) => terms
                 .iter()
                 .map(|(fill, weight)| fill.max_alpha_0_1() * weight)
                 .sum::<f64>()
                 .clamp(0.0, 1.0),
-            Fill::Solid(color) => color.alpha_0_1(),
-            Fill::LinearGradient(gradient) => gradient
+            Paint::Solid(color) => color.alpha_0_1(),
+            Paint::LinearGradient(gradient) => gradient
                 .stops
                 .iter()
                 .map(|stop| stop.color.alpha_0_1())
                 .fold(0.0, f64::max),
-            Fill::RadialGradient(gradient) => gradient
+            Paint::RadialGradient(gradient) => gradient
                 .stops
                 .iter()
                 .map(|stop| stop.color.alpha_0_1())
@@ -1073,22 +1140,22 @@ impl Fill {
     /// Estimates the alpha coverage contributed by this fill.
     pub fn coverage_alpha_0_1(&self) -> f64 {
         match self {
-            Fill::Blend(terms) => terms
+            Paint::Blend(terms) => terms
                 .iter()
                 .map(|(fill, weight)| fill.coverage_alpha_0_1() * weight)
                 .sum::<f64>()
                 .clamp(0.0, 1.0),
-            Fill::Solid(color) => color.alpha_0_1(),
-            Fill::LinearGradient(gradient) => Self::integrated_gradient_alpha_0_1(&gradient.stops),
-            Fill::RadialGradient(gradient) => Self::integrated_gradient_alpha_0_1(&gradient.stops),
+            Paint::Solid(color) => color.alpha_0_1(),
+            Paint::LinearGradient(gradient) => Self::integrated_gradient_alpha_0_1(&gradient.stops),
+            Paint::RadialGradient(gradient) => Self::integrated_gradient_alpha_0_1(&gradient.stops),
         }
     }
 }
 
 #[cfg(test)]
 mod fill_coverage_tests {
-    fn gradient(color: Color) -> Fill {
-        Fill::linearGradient(
+    fn gradient(color: Color) -> Paint {
+        Paint::linearGradient(
             (Size::Percent(0.into()), Size::Percent(0.into())),
             (Size::Percent(100.into()), Size::Percent(100.into())),
             vec![GradientStop::get(color, Size::Percent(0.into()))],
@@ -1099,7 +1166,7 @@ mod fill_coverage_tests {
     fn transparent_paint_crossfade_uses_premultiplied_color_and_alpha() {
         use super::*;
         let from = gradient(Color::from_rgba_0_1([1.0, 0.0, 0.0, 0.0]));
-        let to = Fill::Solid(Color::from_rgba_0_1([0.0, 0.0, 1.0, 0.5]));
+        let to = Paint::Solid(Color::from_rgba_0_1([0.0, 0.0, 1.0, 0.5]));
         let halfway = from.interpolate(&to, 0.5);
         assert_eq!(
             halfway.representative_color().to_rgba_0_1(),
@@ -1130,14 +1197,14 @@ mod fill_coverage_tests {
                         < 1e-12
                 );
             }
-            let Fill::Blend(terms) = &displayed else {
+            let Paint::Blend(terms) = &displayed else {
                 panic!("expected mixture");
             };
             assert_eq!(terms.len(), 2);
             assert!(terms
                 .iter()
-                .all(|(fill, _)| !matches!(fill, Fill::Blend(_))));
-            let roundtrip = Fill::try_coerce(displayed.clone().to_pax_value()).unwrap();
+                .all(|(fill, _)| !matches!(fill, Paint::Blend(_))));
+            let roundtrip = Paint::try_coerce(displayed.clone().to_pax_value()).unwrap();
             for (a, b) in roundtrip
                 .representative_color()
                 .to_rgba_0_1()
@@ -1154,7 +1221,7 @@ mod fill_coverage_tests {
     fn crossfade_keeps_different_gradient_kinds_geometry_and_stop_lists() {
         use super::*;
         let from = gradient(Color::BLACK);
-        let to = Fill::RadialGradient(RadialGradient {
+        let to = Paint::RadialGradient(RadialGradient {
             start: (Size::Pixels(12.into()), Size::Percent(50.into())),
             end: (Size::Percent(100.into()), Size::Percent(50.into())),
             radius: 0.5,
@@ -1165,21 +1232,21 @@ mod fill_coverage_tests {
         });
         assert_eq!(
             from.interpolate(&to, 0.25),
-            Fill::Blend(vec![(from, 0.75), (to, 0.25)])
+            Paint::Blend(vec![(from, 0.75), (to, 0.25)])
         );
     }
 
     #[test]
     fn solid_fill_interpolates_rgba_channels() {
         use super::*;
-        let from = Fill::Solid(Color::BLACK);
-        let to = Fill::Solid(Color::WHITE);
+        let from = Paint::Solid(Color::BLACK);
+        let to = Paint::Solid(Color::WHITE);
         assert_eq!(
             from.interpolate(&to, 0.5),
-            Fill::Solid(Color::BLACK.interpolate(&Color::WHITE, 0.5))
+            Paint::Solid(Color::BLACK.interpolate(&Color::WHITE, 0.5))
         );
     }
-    use super::{Color, ColorChannel, Fill, GradientStop, LinearGradient, Numeric, Size};
+    use super::{Color, ColorChannel, GradientStop, LinearGradient, Numeric, Paint, Size};
 
     fn rgba_alpha(alpha: u8) -> Color {
         Color::rgba(
@@ -1192,13 +1259,13 @@ mod fill_coverage_tests {
 
     #[test]
     fn coverage_alpha_matches_solid_alpha() {
-        let fill = Fill::Solid(rgba_alpha(128));
+        let fill = Paint::Solid(rgba_alpha(128));
         assert!((fill.coverage_alpha_0_1() - (128.0 / 255.0)).abs() < 1e-6);
     }
 
     #[test]
     fn coverage_alpha_integrates_gradient_stops() {
-        let fill = Fill::LinearGradient(LinearGradient {
+        let fill = Paint::LinearGradient(LinearGradient {
             start: (
                 Size::Percent(Numeric::F64(0.0)),
                 Size::Percent(Numeric::F64(50.0)),
@@ -1214,5 +1281,142 @@ mod fill_coverage_tests {
             ],
         });
         assert!((fill.coverage_alpha_0_1() - 0.5).abs() < 1e-6);
+    }
+}
+
+/// Stable local reference frame for paint, independent of outline width and reveal.
+/// A collapsed axis gets a centered one-logical-pixel span without adding coverage.
+pub fn paint_bounds(mut rect: kurbo::Rect) -> Option<kurbo::Rect> {
+    if ![rect.x0, rect.y0, rect.x1, rect.y1]
+        .into_iter()
+        .all(f64::is_finite)
+    {
+        log::warn!("Paint geometry must be finite");
+        return None;
+    }
+    if rect.width() == 0.0 {
+        rect.x0 -= 0.5;
+        rect.x1 += 0.5;
+    }
+    if rect.height() == 0.0 {
+        rect.y0 -= 0.5;
+        rect.y1 += 0.5;
+    }
+    Some(rect)
+}
+
+impl Fill {
+    pub(crate) fn validate_layer(&self) -> Result<(), String> {
+        Ok(())
+    }
+}
+impl Stroke {
+    pub(crate) fn validate_layer(&self) -> Result<(), String> {
+        if matches!(self.width.get(), Size::Pixels(_)) {
+            Ok(())
+        } else {
+            Err("Stroke.width: expected logical pixels; percentage widths are unsupported".into())
+        }
+    }
+}
+
+#[cfg(test)]
+mod appearance_tests {
+    use super::*;
+    use crate::properties::drain_effects;
+
+    #[test]
+    fn appearance_defaults_shorthand_and_errors() {
+        let red = Color::RED.to_pax_value();
+        let fills = Vec::<Fill>::try_coerce(red.clone()).unwrap();
+        let strokes = Vec::<Stroke>::try_coerce(red).unwrap();
+        assert_eq!(fills[0].paint.get(), Paint::Solid(Color::RED));
+        assert_eq!(strokes[0].width_pixels(), 1.0);
+        assert_eq!(fills[0].material.get(), Material::default());
+        assert_eq!(fills[0].opacity.get().to_float_0_1(), 1.0);
+        assert!(Vec::<Fill>::try_coerce(PaxValue::Vec(vec![]))
+            .unwrap()
+            .is_empty());
+        assert!(Vec::<Numeric>::try_coerce(1.to_pax_value()).is_err());
+        for invalid in [
+            Stroke::default().to_pax_value(),
+            PaxValue::Vec(vec![]),
+            PaxValue::Option(Box::new(None)),
+            PaxValue::Object(vec![("color".into(), Color::RED.to_pax_value())]),
+        ] {
+            let error =
+                Vec::<Fill>::try_coerce(PaxValue::Vec(vec![Color::RED.to_pax_value(), invalid]))
+                    .unwrap_err();
+            assert!(error.contains("[1]"), "{error}");
+        }
+        assert!(Stroke::try_coerce(PaxValue::Object(vec![(
+            "width".into(),
+            Size::Percent(10.into()).to_pax_value()
+        )]))
+        .is_err());
+    }
+
+    #[test]
+    fn layers_interpolate_by_position_and_switch_lengths_immediately() {
+        let a = vec![Fill::from(Color::RED)];
+        let b = vec![Fill::from(Color::BLUE)];
+        assert_eq!(
+            a.interpolate(&b, 0.5)[0].paint.get(),
+            Paint::Solid(Color::RED.interpolate(&Color::BLUE, 0.5))
+        );
+        let longer = vec![Fill::from(Color::BLUE), Fill::from(Color::GREEN)];
+        assert_eq!(a.interpolate(&longer, 0.1), longer);
+        let a = Stroke::default();
+        let b = Stroke::default();
+        b.cap.set(StrokeCap::Round);
+        assert_eq!(a.interpolate(&b, 0.99).cap.get(), StrokeCap::Butt);
+        assert_eq!(a.interpolate(&b, 1.0).cap.get(), StrokeCap::Round);
+    }
+
+    #[test]
+    fn expression_adapter_observes_nested_edits_and_releases_removed_layers() {
+        let first = Fill::from(Color::RED);
+        let source = Property::new(vec![first.clone()]);
+        let variable = Variable::new_from_typed_property(source.clone());
+        let read = || Vec::<Fill>::try_coerce(variable.get_as_pax_value()).unwrap();
+        assert_eq!(read()[0].paint.get(), Paint::Solid(Color::RED));
+        first.paint.set(Paint::Solid(Color::BLUE));
+        assert!(drain_effects(100) < 100);
+        assert_eq!(read()[0].paint.get(), Paint::Solid(Color::BLUE));
+        source.set(vec![]);
+        assert!(read().is_empty());
+        first.paint.set(Paint::Solid(Color::WHITE));
+        assert!(drain_effects(100) < 100);
+        assert!(read().is_empty());
+    }
+
+    #[test]
+    fn nested_appearance_subscriptions_retire_after_replacement_and_disposal() {
+        use crate::properties::property_table_total_properties_count;
+        let baseline = property_table_total_properties_count();
+        for _ in 0..30 {
+            let source = Property::new(vec![Fill::from(Color::RED)]);
+            let variable = Variable::new_from_typed_property(source.clone());
+            variable.get_as_pax_value();
+            source.get()[0].opacity.set(Opacity::from(0.25));
+            drain_effects(100);
+            variable.get_as_pax_value();
+            source.set(vec![Fill::from(Color::BLUE), Fill::from(Color::GREEN)]);
+            variable.get_as_pax_value();
+            source.set(vec![]);
+            variable.get_as_pax_value();
+        }
+        drain_effects(100);
+        assert_eq!(property_table_total_properties_count(), baseline);
+    }
+
+    #[test]
+    fn degenerate_paint_domain_and_nonfinite_opacity_are_finite() {
+        let rect = paint_bounds(kurbo::Rect::new(25.0, 40.0, 125.0, 40.0)).unwrap();
+        assert_eq!(rect, kurbo::Rect::new(25.0, 39.5, 125.0, 40.5));
+        assert!(paint_bounds(kurbo::Rect::new(f64::NAN, 0.0, 1.0, 1.0)).is_none());
+        for alpha in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+            assert_eq!(Opacity::from(alpha).to_float_0_1(), 0.0);
+        }
     }
 }

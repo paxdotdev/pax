@@ -35,10 +35,12 @@ impl Default for Checkbox {
             background: Property::new(Color::rgb(243.into(), 244.into(), 246.into())),
             background_checked: Property::new(Color::rgb(27.into(), 100.into(), 242.into())),
             outline: Property::new(Stroke {
-                color: Property::new(Color::rgb(209.into(), 213.into(), 219.into())),
+                paint: Property::new(Color::rgb(209.into(), 213.into(), 219.into()).into()),
                 width: Property::new(Size::Pixels(1.into())),
                 cap: Property::new(StrokeCap::default()),
                 join: Property::new(StrokeJoin::default()),
+
+                ..Stroke::default()
             }),
             corner_radius: Property::new(5.0),
             checked: Property::new(false),
@@ -131,7 +133,8 @@ impl InstanceNode for CheckboxInstance {
                             patch_if_needed(
                                 &mut old_state.outline_color,
                                 &mut patch.outline_color,
-                                (&properties.outline.get().color.get()).into(),
+                                (&crate::common::native_stroke_color(&properties.outline.get()))
+                                    .into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.outline_width,

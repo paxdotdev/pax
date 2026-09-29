@@ -51,7 +51,13 @@ impl PietSurface for Surface {
             .borrow_mut()
             .push(Op::Composite(self.id, source.id, opacity));
     }
-    fn draw_blend(&mut self, _: &kurbo::BezPath, terms: &[(Fill, f64)], opacity: f64) {
+    fn draw_blend(
+        &mut self,
+        _: &kurbo::BezPath,
+        terms: &[(Paint, f64)],
+        opacity: f64,
+        _: kurbo::Rect,
+    ) {
         self.ops
             .borrow_mut()
             .push(Op::Blend(self.id, terms.len(), opacity));
@@ -212,7 +218,7 @@ fn recorded_clips_keep_their_transform_and_restore_before_the_next_sibling() {
     renderer.save(0);
     renderer.transform(0, Affine::translate((3.0, 4.0)));
     let path = kurbo::Rect::new(0.0, 0.0, 10.0, 10.0).to_path(0.1);
-    let fill = Fill::Solid(pax_runtime_api::Color::rgba(
+    let fill = Paint::Solid(pax_runtime_api::Color::rgba(
         1.0.into(),
         0.0.into(),
         0.0.into(),
@@ -245,10 +251,11 @@ fn paint_mixture_is_accumulated_inside_its_opacity_group() {
     draw.paint = PietPaint::Blend(
         kurbo::Rect::new(0.0, 0.0, 10.0, 10.0).to_path(0.1),
         vec![
-            (Fill::Solid(pax_runtime_api::Color::BLACK), 0.25),
-            (Fill::Solid(pax_runtime_api::Color::WHITE), 0.75),
+            (Paint::Solid(pax_runtime_api::Color::BLACK), 0.25),
+            (Paint::Solid(pax_runtime_api::Color::WHITE), 0.75),
         ],
         0.8,
+        kurbo::Rect::new(0.0, 0.0, 10.0, 10.0),
     );
     paint_draws(&mut surface, &mut None, &[draw], 0);
     assert_eq!(

@@ -23,21 +23,21 @@
                 align_horizontal: TextAlignHorizontal::Center
                 align_vertical: TextAlignVertical::Center
             }/>
-            <Rectangle width=100% height=100% corner_radius={self.compact ? 6 : 8} fill={self.tone == 0
+            <Rectangle width=100% height=100% corner_radius={self.compact ? 6 : 8} fill={paint: {self.tone == 0
                 ? (self.hovered ? rgb(239, 240, 228) : rgb(222, 225, 213))
                 : (self.tone == 3 ? (self.second_active ? rgb(233, 204, 120) : rgb(191, 179, 132))
-                : (self.tone == 2 ? (self.hovered ? rgb(77, 116, 109) : rgb(65, 100, 96)) : (self.hovered ? rgb(65, 79, 95) : rgb(48, 61, 78))))}
-                stroke={
-                    color: rgba(19, 25, 30, 100)
+                : (self.tone == 2 ? (self.hovered ? rgb(77, 116, 109) : rgb(65, 100, 96)) : (self.hovered ? rgb(65, 79, 95) : rgb(48, 61, 78))))}, material: {self.surface}}
+                stroke={material: {self.surface},
+                    paint: rgba(19, 25, 30, 100)
                     width: 1px
-                } material={self.surface}/>
+                } />
         </Group>
         <Rectangle y=1.2px width=100% height={100% + 1.2px} corner_radius={self.compact ? 7 : 9}
-            fill={self.tone == 0 ? rgb(118, 125, 125) : rgb(24, 34, 46)} material={self.unlit}/>
+            fill={paint: {self.tone == 0 ? rgb(118, 125, 125) : rgb(24, 34, 46)}, material: {self.unlit}} />
         <Rectangle x=-2px y=-0.8px width={100% + 4px} height={100% + 4px} corner_radius={self.compact ? 8 : 10}
-            fill=rgba(30, 37, 42, 80) material={self.unlit}/>
+            fill={paint: rgba(30, 37, 42, 80), material: {self.unlit}} />
     </Group>
-    <Rectangle width=100% height=100% fill=TRANSPARENT material={self.unlit}/>
+    <Rectangle width=100% height=100% fill={paint: TRANSPARENT, material: {self.unlit}} />
 </Group>
 
 @settings {

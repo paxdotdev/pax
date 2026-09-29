@@ -1,4 +1,5 @@
 mod opacity;
+mod source_capture;
 use crate::render_backend::stencil;
 use crate::render_backend::CpuBuffers;
 use crate::render_backend::RetainedImageDraw;
@@ -34,6 +35,7 @@ use lyon::tessellation::StrokeVertex;
 use lyon::tessellation::VertexSource;
 use opacity::collect_opacity_group_keys;
 use pax_runtime_api::{OpacityScope, PathSmoothing};
+use source_capture::{SourceCapture, SourceRecording};
 
 use crate::point;
 use crate::render_backend::data::GpuColor;
@@ -66,6 +68,7 @@ pub struct AlphaMaskPaint {
     pub transform: Transform2D,
     pub fill: Fill,
     pub opacity: f32,
+    pub composition: Option<(u32, f32)>,
 }
 const MAX_VECTOR_GEOMETRY_CACHE_BYTES: usize = 16 * 1024 * 1024;
 const MAX_VECTOR_RESOURCE_CACHE_BYTES: usize = 128 * 1024 * 1024;
@@ -80,6 +83,8 @@ pub struct ResourceChurnStats {
     pub flushes: u64,
     pub opacity_group_renders: u64,
     pub opacity_group_cache_hits: u64,
+    pub alpha_source_renders: u64,
+    pub alpha_source_cache_hits: u64,
     pub retained_scene_resets: u64,
     pub vector_batch_flushes: u64,
     pub vector_buffer_rebuilds: u64,
@@ -117,6 +122,8 @@ impl ResourceChurnStats {
         self.flushes += other.flushes;
         self.opacity_group_renders += other.opacity_group_renders;
         self.opacity_group_cache_hits += other.opacity_group_cache_hits;
+        self.alpha_source_renders += other.alpha_source_renders;
+        self.alpha_source_cache_hits += other.alpha_source_cache_hits;
         self.retained_scene_resets += other.retained_scene_resets;
         self.vector_batch_flushes += other.vector_batch_flushes;
         self.vector_buffer_rebuilds += other.vector_buffer_rebuilds;
@@ -158,6 +165,8 @@ impl ResourceChurnStats {
         stats.flushes = 0;
         stats.opacity_group_renders = 0;
         stats.opacity_group_cache_hits = 0;
+        stats.alpha_source_renders = 0;
+        stats.alpha_source_cache_hits = 0;
         stats.retained_nodes_considered = 0;
         stats.retained_nodes_visible = 0;
         stats.retained_draw_batches = 0;
@@ -173,6 +182,9 @@ pub struct WgpuRenderer<'w> {
     render_backend: RenderBackend<'w>,
     scene: HashMap<u32, RetainedNode>,
     opacity_scopes: HashMap<u32, Vec<OpacityScope>>,
+    source_nodes: HashMap<u32, u32>,
+    source_captures: HashMap<u32, SourceCapture>,
+    source_recordings: Vec<SourceRecording>,
     transform_arena: TransformArena,
     clip_arena: ClipArena,
     clip_owner_keys: HashMap<u32, Vec<ClipArenaKey>>,
@@ -187,6 +199,7 @@ pub struct WgpuRenderer<'w> {
     current_node: Option<PendingNode>,
     tolerance: f32,
     vector_geometry_cache: SharedVectorGeometryCache,
+    alpha_geometry: HashMap<u32, HashMap<(u64, u32), Rc<VertexBuffers<[f32; 2], u32>>>>,
     vector_resource_cache: SharedVectorResourceCache,
     resource_churn_stats: ResourceChurnStats,
 }
@@ -647,6 +660,9 @@ impl<'w> WgpuRenderer<'w> {
             tolerance: DEFAULT_TESSELLATION_TOLERANCE, // TODO expose as option
             scene: HashMap::new(),
             opacity_scopes: HashMap::new(),
+            source_nodes: HashMap::new(),
+            source_captures: HashMap::new(),
+            source_recordings: Vec::new(),
             transform_arena: TransformArena::new(),
             clip_arena: ClipArena::new(),
             clip_owner_keys: HashMap::new(),
@@ -660,6 +676,7 @@ impl<'w> WgpuRenderer<'w> {
             saves: vec![],
             current_node: None,
             vector_geometry_cache: Rc::new(RefCell::new(VectorGeometryCache::default())),
+            alpha_geometry: HashMap::new(),
             vector_resource_cache: Rc::new(RefCell::new(VectorResourceCache::default())),
             resource_churn_stats: ResourceChurnStats::default(),
         }
@@ -720,7 +737,10 @@ impl<'w> WgpuRenderer<'w> {
         // and let the engine replay dirty canvas nodes into the reassigned surface.
         self.scene.clear();
         self.opacity_scopes.clear();
-        self.render_backend.reset_opacity_groups();
+        self.source_nodes.clear();
+        self.source_captures.clear();
+        self.source_recordings.clear();
+        self.render_backend.reset_captures();
         self.transform_arena = TransformArena::new();
         self.clip_arena = ClipArena::new();
         self.clip_owner_keys.clear();
@@ -997,19 +1017,10 @@ impl<'w> WgpuRenderer<'w> {
 
     fn flush_internal(&mut self, defer_submit: bool) {
         self.resource_churn_stats.flushes += 1;
-        let active_alpha_masks = self
-            .scene
-            .values()
-            .flat_map(|node| node.clip_stack())
-            .filter_map(|clip| {
-                if let ClipReference::Alpha { owner } = clip {
-                    Some(*owner)
-                } else {
-                    None
-                }
-            })
-            .collect();
+        let active_alpha_masks = self.retain_reachable_sources();
         self.render_backend.alpha_masks.retain(&active_alpha_masks);
+        self.alpha_geometry
+            .retain(|owner, _| active_alpha_masks.contains(owner));
         if !self.scene_dirty {
             self.transform_stack.truncate(1);
             self.clip_stack.clear();
@@ -1027,7 +1038,7 @@ impl<'w> WgpuRenderer<'w> {
             self.order_dirty = false;
         }
         if self.should_use_vector_scene_batch() {
-            self.render_backend.retain_opacity_groups(&HashSet::new());
+            self.render_backend.retain_captures(&HashSet::new());
             self.resource_churn_stats.vector_batch_flushes += 1;
             self.flush_vector_scene_batch(defer_submit);
             self.scene_dirty = false;
@@ -1045,11 +1056,12 @@ impl<'w> WgpuRenderer<'w> {
         // Each retained renderer represents one physical surface tile. Cull retained nodes against
         // that tile-local viewport before batching so newly revealed tiles do not replay the full
         // layer scene.
+        let source_capture_keys = self.render_alpha_sources(&active_alpha_masks);
         let plan = self.opacity_plan();
-        let mut active = HashSet::new();
+        let mut active = source_capture_keys;
         collect_opacity_group_keys(&plan, &mut active);
         self.draw_opacity_plan(&plan);
-        self.render_backend.retain_opacity_groups(&active);
+        self.render_backend.retain_captures(&active);
         self.cached_images.retain(|image_key, _| {
             self.scene.values().any(|node| {
                 matches!(
@@ -1225,7 +1237,15 @@ impl<'w> WgpuRenderer<'w> {
             .hash(&mut hash);
         let transform = self.current_transform();
         let mut draws = Vec::new();
+        // Retain only geometry still used by this mask. Paint/order/transform
+        // edits reuse local tessellation; removed layers release their entries.
+        let mut previous_geometry = self.alpha_geometry.remove(&owner).unwrap_or_default();
+        let mut next_geometry = HashMap::new();
         for source in paints {
+            if let Some((id, opacity)) = source.composition {
+                id.hash(&mut hash);
+                opacity.to_bits().hash(&mut hash);
+            }
             fn append(out: &mut Vec<Paint>, fill: Fill, opacity: f32) {
                 let mut paint = Paint::default();
                 paint.params[1] = opacity;
@@ -1263,30 +1283,52 @@ impl<'w> WgpuRenderer<'w> {
             append(&mut paints, source.fill, source.opacity);
             paints.len().hash(&mut hash);
             bytemuck::cast_slice::<_, u8>(&paints).hash(&mut hash);
-            let mut geometry: VertexBuffers<[f32; 2], u32> = VertexBuffers::new();
+            let key = (
+                hash_vector_path(&source.path, PendingVectorOpKind::Fill, PathSmoothing::None),
+                self.tolerance.to_bits(),
+            );
+            let geometry = if let Some(geometry) = next_geometry
+                .get(&key)
+                .cloned()
+                .or_else(|| previous_geometry.remove(&key))
+            {
+                self.resource_churn_stats.vector_geometry_cache_hits += 1;
+                geometry
+            } else {
+                let mut geometry: VertexBuffers<[f32; 2], u32> = VertexBuffers::new();
+                let mut builder =
+                    BuffersBuilder::new(&mut geometry, |v: FillVertex| v.position().to_array());
+                if let Err(error) = FillTessellator::new().tessellate_path(
+                    &source.path,
+                    &FillOptions::default()
+                        .with_tolerance(self.tolerance)
+                        .with_fill_rule(FillRule::NonZero),
+                    &mut builder,
+                ) {
+                    log::error!("alpha mask tessellation failed: {error:?}");
+                }
+                self.resource_churn_stats.vector_geometry_cache_misses += 1;
+                self.resource_churn_stats.tessellated_vertices += geometry.vertices.len() as u64;
+                self.resource_churn_stats.tessellated_indices += geometry.indices.len() as u64;
+                Rc::new(geometry)
+            };
+            next_geometry.insert(key, Rc::clone(&geometry));
             let mapping = source.transform.then(&transform);
-            let mut builder = BuffersBuilder::new(&mut geometry, |v: FillVertex| {
-                mapping
-                    .transform_point(point(v.position().x, v.position().y))
-                    .to_array()
-            });
-            if let Err(error) = FillTessellator::new().tessellate_path(
-                &source.path,
-                &FillOptions::default()
-                    .with_tolerance(self.tolerance)
-                    .with_fill_rule(FillRule::NonZero),
-                &mut builder,
-            ) {
-                log::error!("alpha mask tessellation failed: {error:?}");
-            }
-            bytemuck::cast_slice::<_, u8>(&geometry.vertices).hash(&mut hash);
+            let vertices = geometry
+                .vertices
+                .iter()
+                .map(|v| mapping.transform_point(point(v[0], v[1])).to_array())
+                .collect::<Vec<_>>();
+            bytemuck::cast_slice::<_, u8>(&vertices).hash(&mut hash);
             geometry.indices.hash(&mut hash);
             draws.push(Draw {
-                vertices: geometry.vertices,
-                indices: geometry.indices,
+                composition: source.composition,
+                vertices,
+                indices: geometry.indices.clone(),
                 paints,
             });
         }
+        self.alpha_geometry.insert(owner, next_geometry);
         feather.to_bits().hash(&mut hash);
         for value in self
             .render_backend
@@ -1332,8 +1374,10 @@ impl<'w> WgpuRenderer<'w> {
         // seam-crossing tile does not eagerly allocate buffers for the entire logical layer.
         let viewport_bounds = self.viewport_bounds();
         self.scene
-            .values()
-            .filter(|node| node.intersects_bounds(&viewport_bounds))
+            .iter()
+            .filter(|(id, node)| {
+                !self.source_nodes.contains_key(id) && node.intersects_bounds(&viewport_bounds)
+            })
             .count()
     }
 
@@ -1351,7 +1395,12 @@ impl<'w> WgpuRenderer<'w> {
         self.render_backend.take_screenshot_capture(request_id)
     }
 
-    pub fn begin_node(&mut self, node_id: u32, z_index: i32, light_mask: u32) -> bool {
+    pub fn begin_node(&mut self, node_id: u32, mut z_index: i32, light_mask: u32) -> bool {
+        if let Some(recording) = self.source_recordings.last_mut() {
+            z_index = recording.nodes.len() as i32;
+            recording.nodes.insert(node_id);
+            self.source_nodes.insert(node_id, recording.owner);
+        }
         self.current_node = Some(PendingNode {
             id: node_id,
             z_index,
@@ -1592,6 +1641,7 @@ impl<'w> WgpuRenderer<'w> {
     }
 
     pub fn remove_node(&mut self, node_id: u32) -> bool {
+        self.source_nodes.remove(&node_id);
         self.opacity_scopes.remove(&node_id);
         let mut removed = false;
         if let Some(node) = self.scene.remove(&node_id) {
@@ -1623,7 +1673,8 @@ impl<'w> WgpuRenderer<'w> {
     }
 
     fn should_use_vector_scene_batch(&self) -> bool {
-        self.opacity_scopes.values().all(Vec::is_empty)
+        self.source_captures.is_empty()
+            && self.opacity_scopes.values().all(Vec::is_empty)
             && self.scene.len() >= 64
             && self
                 .scene
@@ -1871,8 +1922,14 @@ impl<'w> WgpuRenderer<'w> {
     fn viewport_bounds(&self) -> Box2D {
         let (width, height) = self.size();
         Box2D {
-            min: point(0.0, 0.0),
-            max: point(width.max(0.0), height.max(0.0)),
+            min: point(
+                self.render_backend.globals.origin[0],
+                self.render_backend.globals.origin[1],
+            ),
+            max: point(
+                self.render_backend.globals.origin[0] + width.max(0.0),
+                self.render_backend.globals.origin[1] + height.max(0.0),
+            ),
         }
     }
 }

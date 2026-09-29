@@ -121,6 +121,7 @@ BEGIN GRADIENTS
 ##### `literal_tuple`
 ##### `literal_tuple_access`
 ##### `literal_list`
+##### `template_list_value`
 ##### `literal_list_access`
 ##### `literal_enum_value`
 ##### `literal_enum_args_list`

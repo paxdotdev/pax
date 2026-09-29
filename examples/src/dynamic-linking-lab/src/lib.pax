@@ -24,7 +24,7 @@
                 height=100%
                 fill=rgba(255, 247, 236, 255)
                 stroke={
-                    color: rgba(212, 191, 160, 255)
+                    paint: rgba(212, 191, 160, 255)
                     width: 1px
                 }
                 corner_radius=22.0/>
@@ -38,7 +38,7 @@
                 height=100%
                 fill=rgba(249, 241, 228, 255)
                 stroke={
-                    color: rgba(212, 191, 160, 255)
+                    paint: rgba(212, 191, 160, 255)
                     width: 1px
                 }
                 corner_radius=20.0/>
@@ -52,7 +52,7 @@
                 height=100%
                 fill=rgba(249, 241, 228, 255)
                 stroke={
-                    color: rgba(212, 191, 160, 255)
+                    paint: rgba(212, 191, 160, 255)
                     width: 1px
                 }
                 corner_radius=20.0/>
@@ -72,7 +72,7 @@
             height=100%
             fill=rgba(255, 251, 245, 242)
             stroke={
-                color: rgba(192, 170, 140, 255)
+                paint: rgba(192, 170, 140, 255)
                 width: 1px
             }
             corner_radius=30.0/>
@@ -106,11 +106,11 @@
                         background=rgba(17, 23, 34, 255)
                         corner_radius=18.0
                         outline={
-                            color: rgba(59, 73, 97, 255)
+                            paint: rgba(59, 73, 97, 255)
                             width: 1px
                         }
                         stroke={
-                            color: rgba(59, 73, 97, 255)
+                            paint: rgba(59, 73, 97, 255)
                             width: 1px
                         }
                         style={
@@ -132,7 +132,7 @@
                     height=100%
                     fill=rgba(28, 34, 46, 245)
                     stroke={
-                        color: rgba(69, 82, 107, 255)
+                        paint: rgba(69, 82, 107, 255)
                         width: 1px
                     }
                     corner_radius=30.0/>
@@ -158,11 +158,11 @@
                         background=rgba(17, 23, 34, 255)
                         corner_radius=18.0
                         outline={
-                            color: rgba(59, 73, 97, 255)
+                            paint: rgba(59, 73, 97, 255)
                             width: 1px
                         }
                         stroke={
-                            color: rgba(59, 73, 97, 255)
+                            paint: rgba(59, 73, 97, 255)
                             width: 1px
                         }
                         style={
@@ -184,7 +184,7 @@
                     height=100%
                     fill=rgba(28, 34, 46, 245)
                     stroke={
-                        color: rgba(69, 82, 107, 255)
+                        paint: rgba(69, 82, 107, 255)
                         width: 1px
                     }
                     corner_radius=30.0/>

@@ -4,13 +4,13 @@ use pax_kit::*;
 #[custom(Default)]
 #[file("pax_logo_board.pax")]
 pub struct PaxLogoBoard {
-    pub fill: Property<Fill>,
+    pub fill: Property<Paint>,
 }
 
 impl Default for PaxLogoBoard {
     fn default() -> Self {
         Self {
-            fill: Property::new(Fill::Solid(Color::BLACK)),
+            fill: Property::new(Paint::Solid(Color::BLACK)),
         }
     }
 }

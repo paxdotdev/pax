@@ -4,14 +4,14 @@
     </ImportSettings>
     <Text class="demo_label" x=20px y=20px width={100% - 40px} height=24px text="PATH DRAWING"/>
     <Group x=20px y=62px width={100% - 40px} height={100% - 168px}>
-        <Path material={Material::unlit()} width=100% height=100% fill=TRANSPARENT stroke={
-            color: rgb(246, 245, 238)
+        <Path  width=100% height=100% fill={paint: TRANSPARENT, material: {Material::unlit()}} stroke={material: {Material::unlit()},
+            paint: rgb(246, 245, 238)
             width: 2.4px
         }
             draw_end={self.progress}
             elements=[PathElement::Point(8%, 25%), PathElement::Cubic(64%, 10%, 22%, 90%), PathElement::Point(92%, 75%)]/>
-        <Path material={Material::unlit()} width=100% height=100% fill=TRANSPARENT stroke={
-            color: rgb(95, 95, 95)
+        <Path  width=100% height=100% fill={paint: TRANSPARENT, material: {Material::unlit()}} stroke={material: {Material::unlit()},
+            paint: rgb(95, 95, 95)
             width: 1px
         }
             elements=[
@@ -23,19 +23,19 @@
                 PathElement::Line,
                 PathElement::Point(92%, 75%)
             ]/>
-        <Ellipse material={Material::unlit()} x=8% y=25% width=9px height=9px anchor=50% fill={SiteTheme::paper()}/>
-        <Ellipse material={Material::unlit()} x=92% y=75% width=9px height=9px anchor=50% fill={SiteTheme::paper()}/>
-        <Ellipse material={Material::unlit()} x=64% y=10% width=6px height=6px anchor=50% fill={SiteTheme::surface()} stroke={
-            color: rgb(160, 160, 160)
+        <Ellipse  x=8% y=25% width=9px height=9px anchor=50% fill={paint: {SiteTheme::paper()}, material: {Material::unlit()}}/>
+        <Ellipse  x=92% y=75% width=9px height=9px anchor=50% fill={paint: {SiteTheme::paper()}, material: {Material::unlit()}}/>
+        <Ellipse  x=64% y=10% width=6px height=6px anchor=50% fill={paint: {SiteTheme::surface()}, material: {Material::unlit()}} stroke={material: {Material::unlit()},
+            paint: rgb(160, 160, 160)
             width: 1px
         }/>
-        <Ellipse material={Material::unlit()} x=22% y=90% width=6px height=6px anchor=50% fill={SiteTheme::surface()} stroke={
-            color: rgb(160, 160, 160)
+        <Ellipse  x=22% y=90% width=6px height=6px anchor=50% fill={paint: {SiteTheme::surface()}, material: {Material::unlit()}} stroke={material: {Material::unlit()},
+            paint: rgb(160, 160, 160)
             width: 1px
         }/>
         for i in 0..7 {
-            <Rectangle material={Material::unlit()} x={(i * 16.66)%} width=1px height=100% fill=rgba(255, 255, 255, 10)/>
-            <Rectangle material={Material::unlit()} y={(i * 16.66)%} width=100% height=1px fill=rgba(255, 255, 255, 10)/>
+            <Rectangle  x={(i * 16.66)%} width=1px height=100% fill={paint: rgba(255, 255, 255, 10), material: {Material::unlit()}}/>
+            <Rectangle  y={(i * 16.66)%} width=100% height=1px fill={paint: rgba(255, 255, 255, 10), material: {Material::unlit()}}/>
         }
     </Group>
     <Text class="demo_note" x=20px y={100% - 89px} width={100% - 40px} height=20px text="DRAW RANGE / SCRUB TO EXPLORE"/>

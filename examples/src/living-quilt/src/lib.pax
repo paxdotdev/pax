@@ -16,7 +16,7 @@
                 <Path width=100% height=100%
                     elements={Ripple::path(ripple, self.wave_time, self.wave_width, self.wave_height)}
                     fill=TRANSPARENT
-                    stroke={color: WHITE, width: {(Ripple::width(ripple, self.wave_time, self.wave_width, self.wave_height))px}}
+                    stroke={paint: WHITE, width: {(Ripple::width(ripple, self.wave_time, self.wave_width, self.wave_height))px}}
                     opacity={Ripple::alpha(ripple, self.wave_time)}
                     _raycastable=false/>
             }

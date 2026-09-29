@@ -41,7 +41,7 @@
         background=rgb(241, 232, 214)
         corner_radius=12
         stroke={
-            color: rgb(88, 58, 43)
+            paint: rgb(88, 58, 43)
             width: 2px
         }
     />
@@ -304,7 +304,7 @@
             100%: rgba(24, 12, 16, 255)
         }
         stroke: {
-            color: rgba(232, 194, 138, 96%)
+            paint: rgba(232, 194, 138, 96%)
             width: 2px
         }
         corner_radius: 18
@@ -325,7 +325,7 @@
     .stage_border {
         fill: rgba(0, 0, 0, 0)
         stroke: {
-            color: rgba(233, 201, 145, 52%)
+            paint: rgba(233, 201, 145, 52%)
             width: 3px
         }
         corner_radius: 26
@@ -428,7 +428,7 @@
     .proscenium_edge {
         fill: rgba(0, 0, 0, 0)
         stroke: {
-            color: rgba(240, 205, 142, 20%)
+            paint: rgba(240, 205, 142, 20%)
             width: 2px
         }
         corner_radius: 20
@@ -511,7 +511,7 @@
             100%: rgba(86, 12, 24, 255)
         }
         stroke: {
-            color: rgba(236, 208, 162, 18%)
+            paint: rgba(236, 208, 162, 18%)
             width: 2px
         }
     }

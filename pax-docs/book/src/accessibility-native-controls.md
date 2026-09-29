@@ -157,7 +157,7 @@ For a longer note, add a `Property<String>` named `notes` and use
 <Textbox x=24px y=24px width={100% - 48px} height=140px
     multiline=true text=bind:self.notes
     background=rgb(249, 247, 239)
-    stroke={color: rgb(155, 170, 153), width: 1px}
+    stroke={paint: rgb(155, 170, 153), width: 1px}
     corner_radius=8
     style={font: "Arial", font_size: 18px, fill: rgb(36, 54, 47)} />
 ```

@@ -28,7 +28,7 @@ How the image should fit into this node's bounds.
 Image fit/layout options.
 
 #### Variants
-##### `Fill`
+##### `Paint`
 Scale the image to fill its bounds, possibly clipping part of the image.
 
 ##### `Fit`

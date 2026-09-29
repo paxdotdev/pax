@@ -843,7 +843,7 @@
             height: 100%,
             corner_radius: 34,
             stroke: {
-                color: rgba(35, 39, 31, 72),
+                paint: rgba(35, 39, 31, 72),
                 width: 1px,
             }
         }
@@ -860,7 +860,7 @@
             height: 100%,
             corner_radius: 18,
             stroke: {
-                color: rgba(137, 144, 6, 70),
+                paint: rgba(137, 144, 6, 70),
                 width: 1px,
             }
         }
@@ -870,7 +870,7 @@
             height: 100%,
             corner_radius: 24,
             stroke: {
-                color: rgba(98, 139, 125, 100),
+                paint: rgba(98, 139, 125, 100),
                 width: 1px,
             }
         }
@@ -880,7 +880,7 @@
             height: 100%,
             corner_radius: 16,
             stroke: {
-                color: rgba(35, 39, 31, 58),
+                paint: rgba(35, 39, 31, 58),
                 width: 1px,
             }
         }
@@ -890,7 +890,7 @@
             height: 100%,
             corner_radius: 20,
             stroke: {
-                color: rgba(239, 145, 143, 116),
+                paint: rgba(239, 145, 143, 116),
                 width: 1px,
             }
         }
@@ -900,7 +900,7 @@
             height: 100%,
             corner_radius: 18,
             stroke: {
-                color: rgba(247, 216, 148, 120),
+                paint: rgba(247, 216, 148, 120),
                 width: 1px,
             }
         }
@@ -936,7 +936,7 @@
             hover_color: rgba(137, 144, 6, 255),
             corner_radius: 14,
             outline: {
-                color: rgba(247, 216, 148, 255),
+                paint: rgba(247, 216, 148, 255),
                 width: 1px,
             },
             style: {
@@ -957,11 +957,11 @@
         .input_royal {
             background: rgba(255, 247, 226, 255),
             stroke: {
-                color: rgba(98, 139, 125, 255),
+                paint: rgba(98, 139, 125, 255),
                 width: 1px,
             },
             outline: {
-                color: rgba(239, 145, 143, 180),
+                paint: rgba(239, 145, 143, 180),
                 width: 1px,
             },
             corner_radius: 14,
@@ -982,7 +982,7 @@
         .dropdown_royal {
             background: rgba(255, 247, 226, 255),
             stroke: {
-                color: rgba(137, 144, 6, 255),
+                paint: rgba(137, 144, 6, 255),
                 width: 1px,
             },
             corner_radius: 14,
@@ -1005,7 +1005,7 @@
             background: rgba(255, 247, 226, 255),
             background_checked: rgba(98, 139, 125, 255),
             outline: {
-                color: rgba(137, 144, 6, 255),
+                paint: rgba(137, 144, 6, 255),
                 width: 1px,
             },
             corner_radius: 10,
@@ -1015,7 +1015,7 @@
             background: rgba(255, 247, 226, 255),
             background_checked: rgba(239, 145, 143, 255),
             outline: {
-                color: rgba(98, 139, 125, 255),
+                paint: rgba(98, 139, 125, 255),
                 width: 1px,
             },
             style: {

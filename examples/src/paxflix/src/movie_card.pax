@@ -14,7 +14,7 @@
             <Rectangle class="card_hover" anchor=0% width=100% height=100% corner_radius=6/>
         }
         <Rectangle class="card_scrim" anchor=0% y={100% - 106px} width=100% height=108px/>
-        <Image anchor=0% width=100% height=100% source={ImageSource::Url(movie.thumbnail)} fit=ImageFit::Fill/>
+        <Image anchor=0% width=100% height=100% source={ImageSource::Url(movie.thumbnail)} fit=ImageFit::Paint/>
         <Rectangle class="image_placeholder" anchor=0% width=100% height=100%/>
     </Frame>
 </Group>

@@ -22,7 +22,7 @@ pub struct Handwriter {
     /// Bundled stroke font used to draw `text`.
     pub font: Property<HandwriterFont>,
     /// Stroke used for the generated path.
-    pub stroke: Property<Stroke>,
+    pub stroke: Property<Vec<Stroke>>,
     /// Optional curve smoothing applied to generated path geometry.
     pub smoothing: Property<PathSmoothing>,
     /// Accessible text label. When empty, `text` is used.
@@ -50,12 +50,14 @@ impl Default for Handwriter {
                 "The silver apples of the moon,\nThe golden apples of the sun.".into(),
             ),
             font: Property::new(HandwriterFont::EMSAllure),
-            stroke: Property::new(Stroke {
-                color: Property::new(Color::BLACK),
+            stroke: Property::new(vec![Stroke {
+                paint: Property::new(Color::BLACK.into()),
                 width: Property::new(Size::Pixels(Numeric::F64(3.0))),
                 cap: Property::new(StrokeCap::Round),
                 join: Property::new(StrokeJoin::Round),
-            }),
+
+                ..Stroke::default()
+            }]),
             smoothing: Property::new(PathSmoothing::None),
             alt_text: Property::new(String::new()),
             selectable: Property::new(true),

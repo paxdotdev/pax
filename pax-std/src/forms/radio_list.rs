@@ -39,17 +39,19 @@ impl Default for RadioList {
             background: Property::new(Color::rgb(243.into(), 244.into(), 246.into())),
             background_checked: Property::new(Color::rgb(27.into(), 100.into(), 242.into())),
             outline: Property::new(Stroke {
-                color: Property::new(Color::rgb(209.into(), 213.into(), 219.into())),
+                paint: Property::new(Color::rgb(209.into(), 213.into(), 219.into()).into()),
                 width: Property::new(Size::Pixels(1.into())),
                 cap: Property::new(StrokeCap::default()),
                 join: Property::new(StrokeJoin::default()),
+
+                ..Stroke::default()
             }),
             options: Property::new(vec!["option 1".to_string(), "option 2".to_string()]),
             selected_id: Property::new(0),
             style: Property::new(TextStyle {
                 font: Property::new(Font::default()),
                 font_size: Property::new(Size::Pixels(Numeric::F64(14.0))),
-                fill: Property::new(Fill::Solid(Color::BLACK)),
+                fill: Property::new(Paint::Solid(Color::BLACK)),
                 underline: Property::new(false),
                 align_horizontal: Property::new(TextAlignHorizontal::Left),
                 align_multiline: Property::new(TextAlignHorizontal::Left),
@@ -169,7 +171,8 @@ impl InstanceNode for RadioListInstance {
                             patch_if_needed(
                                 &mut old_state.outline_color,
                                 &mut patch.outline_color,
-                                (&properties.outline.get().color.get()).into(),
+                                (&crate::common::native_stroke_color(&properties.outline.get()))
+                                    .into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.outline_width,

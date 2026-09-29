@@ -147,13 +147,15 @@ pub fn build_manifest_with_options(
         }
     }
 
-    Ok(PaxManifest {
+    let manifest = PaxManifest {
         components: ctx.component_definitions,
         main_component_type_id: ctx.main_component_type_id,
         type_table: ctx.type_table,
         assets_dirs: ctx.assets_dirs,
         engine_import_path: main_item.engine_import_path.clone(),
-    })
+    };
+    validate_appearance_properties(&manifest)?;
+    Ok(manifest)
 }
 
 fn extend_designtime_manifest_with_pax_std_types(
@@ -494,6 +496,9 @@ fn ensure_known_type_definition(ctx: &mut ParsingContext, import_path: &str) -> 
             TypeId::build_singleton(import_path, Some("TemplateNodeId"))
         }
         "pax_engine::api::Fill" => TypeId::build_singleton(import_path, Some("Fill")),
+        "pax_engine::api::StrokeCap" => TypeId::build_singleton(import_path, Some("StrokeCap")),
+        "pax_engine::api::StrokeJoin" => TypeId::build_singleton(import_path, Some("StrokeJoin")),
+        "pax_engine::api::Paint" => TypeId::build_singleton(import_path, Some("Paint")),
         "pax_engine::api::Stroke" => TypeId::build_singleton(import_path, Some("Stroke")),
         "pax_engine::api::Material" => TypeId::build_singleton(import_path, Some("Material")),
         "pax_engine::api::MaterialParams" => {
@@ -525,30 +530,39 @@ fn ensure_known_type_definition(ctx: &mut ParsingContext, import_path: &str) -> 
         return Ok(type_id);
     }
 
-    if import_path == "pax_engine::api::Stroke" {
-        let color_type_id = ensure_known_type_definition(ctx, "pax_engine::api::Color")?;
-        let size_type_id = ensure_known_type_definition(ctx, "pax_engine::api::Size")?;
-
-        let mut flags = PropertyDefinitionFlags::default();
-        flags.is_property_wrapped = true;
-
+    if matches!(
+        import_path,
+        "pax_engine::api::Stroke" | "pax_engine::api::Fill"
+    ) {
+        let mut fields = vec![
+            ("paint", "Paint"),
+            ("material", "Material"),
+            ("opacity", "Opacity"),
+        ];
+        if import_path.ends_with("Stroke") {
+            fields.extend([
+                ("width", "Size"),
+                ("cap", "StrokeCap"),
+                ("join", "StrokeJoin"),
+            ]);
+        }
+        let mut property_definitions = Vec::new();
+        for (name, ty) in fields {
+            let field_type = ensure_known_type_definition(ctx, &format!("pax_engine::api::{ty}"))?;
+            let mut flags = PropertyDefinitionFlags::default();
+            flags.is_property_wrapped = true;
+            property_definitions.push(PropertyDefinition {
+                name: name.into(),
+                flags,
+                type_id: field_type,
+            });
+        }
         ctx.type_table.insert(
             type_id.clone(),
             TypeDefinition {
                 type_id: type_id.clone(),
                 inner_iterable_type_id: None,
-                property_definitions: vec![
-                    PropertyDefinition {
-                        name: "color".to_string(),
-                        flags: flags.clone(),
-                        type_id: color_type_id,
-                    },
-                    PropertyDefinition {
-                        name: "width".to_string(),
-                        flags,
-                        type_id: size_type_id,
-                    },
-                ],
+                property_definitions,
             },
         );
     } else if import_path == "pax_engine::api::MaterialParams" {
@@ -1408,6 +1422,9 @@ fn canonical_special_import_path_for_ident(ident: &str) -> Option<&'static str> 
         "TypeId" => Some("pax_manifest::TypeId"),
         "TemplateNodeId" => Some("pax_manifest::TemplateNodeId"),
         "Fill" => Some("pax_engine::api::Fill"),
+        "StrokeCap" => Some("pax_engine::api::StrokeCap"),
+        "StrokeJoin" => Some("pax_engine::api::StrokeJoin"),
+        "Paint" => Some("pax_engine::api::Paint"),
         "Stroke" => Some("pax_engine::api::Stroke"),
         "Material" => Some("pax_engine::api::Material"),
         "MaterialParams" => Some("pax_engine::api::MaterialParams"),
@@ -1437,6 +1454,15 @@ fn canonical_special_import_path_for_path(path: &str) -> Option<&'static str> {
         "pax_manifest::TemplateNodeId" => Some("pax_manifest::TemplateNodeId"),
         "pax_engine::api::Fill" | "pax_runtime::api::Fill" | "pax_runtime_api::Fill" => {
             Some("pax_engine::api::Fill")
+        }
+        "pax_engine::api::StrokeCap"
+        | "pax_runtime::api::StrokeCap"
+        | "pax_runtime_api::StrokeCap" => Some("pax_engine::api::StrokeCap"),
+        "pax_engine::api::StrokeJoin"
+        | "pax_runtime::api::StrokeJoin"
+        | "pax_runtime_api::StrokeJoin" => Some("pax_engine::api::StrokeJoin"),
+        "pax_engine::api::Paint" | "pax_runtime::api::Paint" | "pax_runtime_api::Paint" => {
+            Some("pax_engine::api::Paint")
         }
         "pax_engine::api::Stroke" | "pax_runtime::api::Stroke" | "pax_runtime_api::Stroke" => {
             Some("pax_engine::api::Stroke")
@@ -2069,10 +2095,13 @@ mod tests {
                 "pax_std::core::text::FontWeight",
                 "pax_std::core::text::TextAlignHorizontal",
                 "pax_std::core::text::TextAlignVertical",
-                "pax_engine::api::Fill",
+                "pax_engine::api::Paint",
                 "pax_engine::api::Stroke",
                 "pax_engine::api::Material",
-                "pax_engine::api::Color",
+                "pax_engine::api::Fill",
+                "pax_engine::api::StrokeCap",
+                "pax_engine::api::StrokeJoin",
+                "pax_engine::api::Opacity",
                 "pax_engine::api::Size",
                 "pax_engine::api::Numeric",
                 "std::string::String",
@@ -2578,4 +2607,95 @@ pax-kit = {{ path = "{}" }}
                 .to_string(),
         }
     }
+}
+
+fn validate_appearance_properties(manifest: &PaxManifest) -> Result<()> {
+    use pax_manifest::{LiteralBlockDefinition, SettingElement, SettingsBlockElement};
+    fn selectors<'a>(
+        settings: &'a [SettingsBlockElement],
+        out: &mut Vec<(&'a pax_manifest::Token, &'a LiteralBlockDefinition)>,
+    ) {
+        for setting in settings {
+            match setting {
+                SettingsBlockElement::SelectorBlock(selector, block) => out.push((selector, block)),
+                SettingsBlockElement::Conditional(conditional) => {
+                    for branch in &conditional.branches {
+                        selectors(&branch.elements, out);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    for component in manifest.components.values() {
+        let mut blocks = Vec::new();
+        selectors(
+            component.settings.as_deref().unwrap_or_default(),
+            &mut blocks,
+        );
+        let Some(template) = &component.template else {
+            continue;
+        };
+        for node in template.get_nodes() {
+            let Some(ty) = manifest.type_table.get(&node.type_id) else {
+                continue;
+            };
+            let mut settings = node.settings.iter().flatten().collect::<Vec<_>>();
+            for (selector, block) in &blocks {
+                if let Ok(selector) =
+                    pax_manifest::selectors::SelectorExpr::parse(&selector.token_value)
+                {
+                    if node.selector_info.matches(&node.type_id, &selector) {
+                        settings.extend(block.elements.iter());
+                    }
+                }
+            }
+            for setting in settings {
+                let SettingElement::Setting(name, value) = setting else {
+                    continue;
+                };
+                let type_name = node.type_id.get_unique_identifier();
+                if name.token_value == "material"
+                    && [
+                        "::rectangle::Rectangle",
+                        "::ellipse::Ellipse",
+                        "::path::Path",
+                        "::line::Line",
+                    ]
+                    .iter()
+                    .any(|suffix| type_name.ends_with(suffix))
+                {
+                    return Err(eyre!(
+                        "{}: material belongs on each fill/stroke layer",
+                        template.get_file_path().unwrap_or_default()
+                    ));
+                }
+                let Some(property) = ty
+                    .property_definitions
+                    .iter()
+                    .find(|field| field.name == name.token_value)
+                else {
+                    continue;
+                };
+                let property_type = property.type_id.get_unique_identifier();
+                let stroke =
+                    property_type.contains("::Stroke>") || property_type.ends_with("::Stroke");
+                let fill = property_type.contains("::Fill>") || property_type.ends_with("::Fill");
+                if stroke || fill {
+                    pax_manifest::appearance::validate_appearance(value, stroke).map_err(
+                        |error| {
+                            eyre!(
+                                "{} {:?}: property {}: {}",
+                                template.get_file_path().unwrap_or_default(),
+                                name.token_location.as_ref().map(|loc| loc.start_line_col),
+                                name.token_value,
+                                error
+                            )
+                        },
+                    )?;
+                }
+            }
+        }
+    }
+    Ok(())
 }

@@ -69,6 +69,21 @@ impl Computable for PaxPrimary {
                                 }
                             }
                             PaxAccessor::Struct(field) => {
+                                if field == "color" {
+                                    match value {
+                                        PaxValue::Enum(layer) if layer.0 == "Stroke" && layer.1 == "__layer" => return Err("Stroke.color was renamed to paint".into()),
+                                        PaxValue::Vec(layers) if layers.iter().any(|layer| matches!(layer, PaxValue::Enum(layer) if layer.0 == "Stroke" && layer.1 == "__layer")) => return Err("stroke is now a stack; select an entry (stroke[0].paint). Stroke.color was renamed to paint".into()),
+                                        _ => {}
+                                    }
+                                }
+                                if let PaxValue::Enum(contents) = value {
+                                    if (contents.0 == "Fill" || contents.0 == "Stroke")
+                                        && contents.1 == "__layer"
+                                        && contents.2.len() == 1
+                                    {
+                                        value = &contents.2[0];
+                                    }
+                                }
                                 if let PaxValue::Object(obj) = value {
                                     value = obj
                                         .into_iter()

@@ -284,11 +284,11 @@
     .input_light {
         background: rgba(255, 250, 245, 255),
         stroke: {
-            color: rgba(191, 109, 77, 255),
+            paint: rgba(191, 109, 77, 255),
             width: 1px,
         },
         outline: {
-            color: rgba(191, 109, 77, 255),
+            paint: rgba(191, 109, 77, 255),
             width: 0px,
         },
         corner_radius: 14,
@@ -305,11 +305,11 @@
     .input_dark {
         background: rgba(255, 255, 255, 240),
         stroke: {
-            color: rgba(59, 130, 246, 255),
+            paint: rgba(59, 130, 246, 255),
             width: 1px,
         },
         outline: {
-            color: rgba(59, 130, 246, 255),
+            paint: rgba(59, 130, 246, 255),
             width: 0px,
         },
         corner_radius: 14,
@@ -328,7 +328,7 @@
         hover_color: rgba(22, 101, 52, 255),
         corner_radius: 14,
         outline: {
-            color: rgba(255, 255, 255, 35),
+            paint: rgba(255, 255, 255, 35),
             width: 1px,
         },
         style: {
@@ -346,7 +346,7 @@
         hover_color: rgba(29, 78, 216, 255),
         corner_radius: 14,
         outline: {
-            color: rgba(255, 255, 255, 40),
+            paint: rgba(255, 255, 255, 40),
             width: 1px,
         },
         style: {

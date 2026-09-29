@@ -2,11 +2,10 @@ use kurbo::{Affine, Rect, Shape};
 use pax_engine::*;
 use pax_runtime::api as pax_runtime_api;
 use pax_runtime::api::{use_RefCell, Stroke};
-use pax_runtime::api::{Fill, Layer, Material, RenderContext};
+use pax_runtime::api::{Layer, RenderContext};
 use pax_runtime::BaseInstance;
 use pax_runtime::{ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext};
 
-use crate::common::begin_bounded_canvas_node;
 use_RefCell!();
 use std::rc::Rc;
 
@@ -14,15 +13,23 @@ const ELLIPSE_PATH_ACCURACY: f64 = 0.01;
 
 /// A 2D vector ellipse, which inscribes its bounding box with the specified fill and stroke.
 #[pax]
+#[custom(Default)]
 #[engine_import_path("pax_engine")]
 #[primitive("pax_std::drawing::ellipse::EllipseInstance")]
 pub struct Ellipse {
-    /// Stroke drawn around the ellipse.
-    pub stroke: Property<Stroke>,
-    /// Fill painted inside the ellipse.
-    pub fill: Property<Fill>,
-    /// Light-reactive surface response.
-    pub material: Property<Material>,
+    /// Ordered outline layers above the fills, index zero topmost. Empty by default.
+    pub stroke: Property<Vec<Stroke>>,
+    /// Paint painted inside the ellipse.
+    pub fill: Property<Vec<pax_runtime_api::Fill>>,
+}
+
+impl Default for Ellipse {
+    fn default() -> Self {
+        Self {
+            fill: Property::new(vec![pax_runtime_api::Fill::default()]),
+            stroke: Default::default(),
+        }
+    }
 }
 
 // Runtime instance backing `<Ellipse>`.
@@ -31,6 +38,10 @@ pub struct EllipseInstance {
 }
 
 impl InstanceNode for EllipseInstance {
+    fn supports_alpha_source_render(&self) -> bool {
+        true
+    }
+
     fn instantiate(args: InstantiationArgs) -> Rc<Self>
     where
         Self: Sized,
@@ -55,20 +66,17 @@ impl InstanceNode for EllipseInstance {
         context: &Rc<RuntimeContext>,
     ) {
         let tab = expanded_node.transform_and_bounds.clone();
-        let (stroke, fill, material) =
-            expanded_node.with_properties_unwrapped(|properties: &mut Ellipse| {
-                (
-                    properties.stroke.clone(),
-                    properties.fill.clone(),
-                    properties.material.clone(),
-                )
-            });
+        let (stroke, fill) = expanded_node.with_properties_unwrapped(|properties: &mut Ellipse| {
+            (properties.stroke.clone(), properties.fill.clone())
+        });
 
+        let appearance =
+            crate::common::watch_appearance(expanded_node, context, fill.clone(), stroke.clone());
         let deps = &[
+            appearance.untyped(),
             tab.untyped(),
             stroke.untyped(),
             fill.untyped(),
-            material.untyped(),
             expanded_node.computed_opacity.untyped(),
             expanded_node.computed_opacity_scopes.untyped(),
         ];
@@ -88,11 +96,18 @@ impl InstanceNode for EllipseInstance {
     }
 
     fn resolve_coverage_path(&self, expanded_node: &ExpandedNode) -> Option<kurbo::BezPath> {
-        let tab = expanded_node.transform_and_bounds.get();
-        let (width, height) = tab.bounds;
-        let rect = Rect::from_points((0.0, 0.0), (width, height));
-        let ellipse = kurbo::Ellipse::from_rect(rect);
-        Some(Affine::from(tab.transform) * ellipse.to_path(ELLIPSE_PATH_ACCURACY))
+        expanded_node.with_properties_unwrapped(|p: &mut Ellipse| {
+            let tab = expanded_node.transform_and_bounds.get();
+            let rect = Rect::new(0.0, 0.0, tab.bounds.0, tab.bounds.1);
+            Some(
+                Affine::from(tab.transform)
+                    * crate::common::appearance_coverage_path(
+                        &kurbo::Ellipse::from_rect(rect).to_path(ELLIPSE_PATH_ACCURACY),
+                        &p.fill.get(),
+                        &p.stroke.get(),
+                    ),
+            )
+        })
     }
 
     fn resolve_alpha_mask_paints(
@@ -112,8 +127,11 @@ impl InstanceNode for EllipseInstance {
 
     fn resolve_coverage_opacity(&self, expanded_node: &ExpandedNode) -> f64 {
         expanded_node.with_properties_unwrapped(|properties: &mut Ellipse| {
-            (properties.fill.get().coverage_alpha_0_1() * expanded_node.computed_opacity.get())
-                .clamp(0.0, 1.0)
+            (crate::common::appearance_coverage_alpha(
+                &properties.fill.get(),
+                &properties.stroke.get(),
+            ) * expanded_node.computed_opacity.get())
+            .clamp(0.0, 1.0)
         })
     }
 
@@ -121,9 +139,17 @@ impl InstanceNode for EllipseInstance {
         &self,
         node: &ExpandedNode,
     ) -> pax_runtime::scene_geometry::CanvasGeometry {
-        pax_runtime::scene_geometry::CanvasGeometry::for_layout(
-            node.transform_and_bounds.get().bounds,
-        )
+        let bounds = node.transform_and_bounds.get().bounds;
+        let local_bounds = node.with_properties_unwrapped(|p: &mut Ellipse| {
+            crate::common::stroke_coverage_bounds(
+                kurbo::Rect::new(0.0, 0.0, bounds.0, bounds.1),
+                &p.stroke.get(),
+            )
+        });
+        pax_runtime::scene_geometry::CanvasGeometry {
+            local_bounds: Some(local_bounds),
+            path: None,
+        }
     }
 
     fn render(
@@ -132,11 +158,11 @@ impl InstanceNode for EllipseInstance {
         rtc: &Rc<RuntimeContext>,
         rc: &mut dyn RenderContext,
     ) {
-        if !rtc.is_canvas_node_dirty(&expanded_node.id) {
+        if rc.alpha_source_layer().is_none() && !rtc.is_canvas_node_dirty(&expanded_node.id) {
             return;
         }
 
-        let Some(scope) = begin_bounded_canvas_node(rc, expanded_node, rtc) else {
+        let Some(scope) = crate::common::begin_bounded_canvas_node(rc, expanded_node, rtc) else {
             return;
         };
 
@@ -145,32 +171,19 @@ impl InstanceNode for EllipseInstance {
             let rect = Rect::from_points((0.0, 0.0), (width, height));
             let ellipse = kurbo::Ellipse::from_rect(rect);
             let bez_path = ellipse.to_path(ELLIPSE_PATH_ACCURACY);
-            let opacity = scope.paint_opacity;
-            let fill = properties.fill.get();
-            let stroke = properties.stroke.get();
-            let material = properties.material.get();
             rc.save(scope.layer_id);
             rc.transform(scope.layer_id, scope.surface_transform);
-            rc.fill_with_material_and_opacity(
+            crate::common::draw_appearance(
+                rc,
                 scope.layer_id,
-                bez_path.clone(),
-                &fill,
-                &material,
-                opacity,
+                bez_path,
+                &properties.fill.get(),
+                &properties.stroke.get(),
+                scope.paint_opacity,
+                pax_runtime_api::PathSmoothing::None,
+                0.0,
+                1.0,
             );
-
-            //hack to address "phantom stroke" bug on Web
-            let width: f64 = stroke.width.get().expect_pixels().to_float();
-
-            if width > f64::EPSILON {
-                rc.stroke_with_material_and_opacity(
-                    scope.layer_id,
-                    bez_path,
-                    &stroke,
-                    &material,
-                    opacity,
-                );
-            }
             rc.restore(scope.layer_id);
         });
         if rc.end_node(scope.layer_id, scope.node_id) {

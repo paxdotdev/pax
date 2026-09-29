@@ -45,7 +45,7 @@ pub struct Paddle {
     pub y: f64,
     pub width: f64,
     pub height: f64,
-    pub fill: Fill,
+    pub fill: Paint,
 }
 
 #[pax]
@@ -55,7 +55,7 @@ pub struct Ball {
     pub dx: f64,
     pub dy: f64,
     pub radius: f64,
-    pub fill: Fill,
+    pub fill: Paint,
     pub visible: bool,               // used by event loop as despawn signal
     pub trigger: Option<ExpTrigger>, // balls may randomly change direction
 }
@@ -110,7 +110,7 @@ pub struct Brick {
     pub y: f64,
     pub visible: bool, // used by event loop as despawn signal
     pub kind: BrickType,
-    pub fill: Fill,
+    pub fill: Paint,
 }
 
 #[pax]
@@ -159,7 +159,7 @@ impl Paddle {
             y: height - PADDLE_HEIGHT - PADDLE_ELEVATION,
             width: INITIAL_PADDLE_WIDTH,
             height: PADDLE_HEIGHT,
-            fill: Fill::Solid(Theme::GOLD.as_color()),
+            fill: Paint::Solid(Theme::GOLD.as_color()),
         }
     }
 }
@@ -185,7 +185,7 @@ impl Ball {
             dy,
             radius: BALL_SIZE / 2.0,
             visible: true,
-            fill: Fill::Solid(Theme::GOLD.as_color()),
+            fill: Paint::Solid(Theme::GOLD.as_color()),
             trigger: None,
         }
     }
@@ -196,7 +196,7 @@ impl Ball {
         let r = rng.gen_range(0.0..1.0);
         let g = rng.gen_range(0.0..1.0);
         let b = rng.gen_range(0.0..1.0);
-        self.fill = Fill::Solid(Color::from_rgba_0_1([r, g, b, 1.0]));
+        self.fill = Paint::Solid(Color::from_rgba_0_1([r, g, b, 1.0]));
     }
 
     pub fn randomize_velocity(&mut self) {
@@ -426,18 +426,18 @@ impl BreakoutGame {
                  */
                 let (kind, fill) = match rng.gen_range(0..100) {
                     0..=25 => match rng.gen_range(0..100) {
-                        0..=50 => (BrickType::LONGER, Fill::Solid(Theme::LEAF.as_color())),
-                        _ => (BrickType::SPAWN, Fill::Solid(Theme::CERULEAN.as_color())),
+                        0..=50 => (BrickType::LONGER, Paint::Solid(Theme::LEAF.as_color())),
+                        _ => (BrickType::SPAWN, Paint::Solid(Theme::CERULEAN.as_color())),
                     },
                     26..=50 => match rng.gen_range(0..100) {
                         0..=40 => (
                             BrickType::ACCELERATE,
-                            Fill::Solid(Theme::TANGERINE.as_color()),
+                            Paint::Solid(Theme::TANGERINE.as_color()),
                         ),
-                        41..=80 => (BrickType::PERTURB, Fill::Solid(Theme::LILAC.as_color())),
-                        _ => (BrickType::SHORTER, Fill::Solid(Theme::SIENNA.as_color())),
+                        41..=80 => (BrickType::PERTURB, Paint::Solid(Theme::LILAC.as_color())),
+                        _ => (BrickType::SHORTER, Paint::Solid(Theme::SIENNA.as_color())),
                     },
-                    _ => (BrickType::NEUTRAL, Fill::Solid(Theme::GOLD.as_color())),
+                    _ => (BrickType::NEUTRAL, Paint::Solid(Theme::GOLD.as_color())),
                 };
 
                 bricks.push(Brick {

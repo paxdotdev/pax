@@ -36,7 +36,7 @@
             </Stacker>
             <Button width=154px height=32px label={self.playing ? "Pause hero motion" : "Resume hero motion"} color={SiteTheme::ink()}
                 hover_color={SiteTheme::surface()} corner_radius=0 outline=Stroke {
-                    color: {SiteTheme::rule()}
+                    paint: {SiteTheme::rule()}
                     width: 1px
                 }
                 style=TextStyle {

@@ -3,6 +3,7 @@
 <!-- tags: api, pax-manifest -->
 
 ## Submodules
+- [appearance](appearance.md)
 - [program_ir](program_ir.md)
 - [selectors](selectors.md)
 - [cartridge_generation](cartridge_generation.md)
@@ -623,7 +624,7 @@ One entry inside a gradient block.
 ---
 
 ### `GradientShapeDefinition`
-Shape-specific parameters for a gradient. V1 maps directly to runtime `Fill` variants.
+Shape-specific parameters for a gradient. V1 maps directly to runtime `Paint` variants.
 
 #### Variants
 ##### `Linear` { `start`: `Option`<`Box`<[`ValueDefinition`](../../../api/internal/pax-manifest/index.md#valuedefinition)>>, `end`: `Option`<`Box`<[`ValueDefinition`](../../../api/internal/pax-manifest/index.md#valuedefinition)>> }
@@ -765,6 +766,9 @@ variants, populated at parse-time and used at compile-time
 #### Variants
 ##### `Undefined`
 ##### `LiteralValue`([`PaxValue`](../../../api/pax-runtime-api/pax_value.md#paxvalue))
+##### `List`(`Vec`<[`ValueDefinition`](../../../api/internal/pax-manifest/index.md#valuedefinition)>)
+Template list entries retain structured values and reactive bindings.
+
 ##### `Block`([`LiteralBlockDefinition`](../../../api/internal/pax-manifest/index.md#literalblockdefinition))
 ##### `Timeline`([`TimelineTrackDefinition`](../../../api/internal/pax-manifest/index.md#timelinetrackdefinition))
 ##### `Gradient`([`GradientDefinition`](../../../api/internal/pax-manifest/index.md#gradientdefinition))

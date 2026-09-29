@@ -23,7 +23,31 @@ impl Variable {
     pub fn new_from_typed_property<T: PropertyValue + ToPaxValue>(property: Property<T>) -> Self {
         let untyped_property = property.untyped();
         let deps = [untyped_property.clone()];
-        let pax_value_prop = Property::computed(move || property.get().to_pax_value(), &deps);
+        let nested_watch = Property::<()>::default();
+        let pax_value_prop = Property::computed(
+            move || {
+                let value = property.get();
+                let dependencies = value.nested_properties();
+                if dependencies.is_empty() {
+                    nested_watch.replace_with(Property::default());
+                } else {
+                    let source = property.clone();
+                    let initial = std::cell::Cell::new(true);
+                    nested_watch.replace_with(Property::computed(
+                        move || {
+                            if !initial.replace(false) {
+                                source.invalidate();
+                            }
+                        },
+                        &dependencies,
+                    ));
+                    crate::properties::register_effect_property(&nested_watch);
+                    nested_watch.get();
+                }
+                value.to_pax_value()
+            },
+            &deps,
+        );
         Variable {
             untyped_property,
             converted_to_pax_value: pax_value_prop,

@@ -124,7 +124,7 @@ lazy_static! {
             }],
         );
         type_map.insert(
-            "Fill".to_string(),
+            "Paint".to_string(),
             vec![
                 CompletionItem {
                     label: "Solid Black".to_string(),
@@ -150,14 +150,14 @@ lazy_static! {
                         .to_string(),
                     ),
                     insert_text_format: Some(lsp_types::InsertTextFormat::SNIPPET),
-                    detail: Some("See Fill api".to_string()),
+                    detail: Some("See Paint api".to_string()),
                     sort_text: Some("2".to_string()),
                     ..Default::default()
                 },
             ],
         );
         type_map.insert(
-            "crate::types::Fill".to_string(),
+            "crate::types::Paint".to_string(),
             vec![
                 CompletionItem {
                     label: "Solid Black".to_string(),
@@ -183,7 +183,7 @@ lazy_static! {
                         .to_string(),
                     ),
                     insert_text_format: Some(lsp_types::InsertTextFormat::SNIPPET),
-                    detail: Some("See Fill api".to_string()),
+                    detail: Some("See Paint api".to_string()),
                     sort_text: Some("2".to_string()),
                     ..Default::default()
                 },
@@ -285,7 +285,7 @@ lazy_static! {
             vec![CompletionItem {
                 label: "Black Stroke".to_string(),
                 kind: Some(CompletionItemKind::FUNCTION),
-                insert_text: Some("{ color: rgba(0, 0, 0, 255) width: 10px }$0".to_string()),
+                insert_text: Some("{ paint: rgba(0, 0, 0, 255) width: 10px }$0".to_string()),
                 insert_text_format: Some(lsp_types::InsertTextFormat::SNIPPET),
                 detail: Some("See Stroke Api".to_string()),
                 sort_text: Some("1".to_string()),
@@ -297,7 +297,7 @@ lazy_static! {
             vec![CompletionItem {
                 label: "Black Stroke".to_string(),
                 kind: Some(CompletionItemKind::FUNCTION),
-                insert_text: Some("{ color: rgba(0, 0, 0, 255) width: 10px }$0".to_string()),
+                insert_text: Some("{ paint: rgba(0, 0, 0, 255) width: 10px }$0".to_string()),
                 insert_text_format: Some(lsp_types::InsertTextFormat::SNIPPET),
                 detail: Some("See Stroke Api".to_string()),
                 sort_text: Some("1".to_string()),
@@ -380,7 +380,37 @@ pub fn get_struct_completion(identifier: &str) -> Option<CompletionItem> {
 
 pub fn get_type_completion(type_identifier: &str) -> Option<Vec<CompletionItem>> {
     let map = TYPE_COMPLETIONS.read().unwrap();
-    map.get(&type_identifier.to_string()).cloned()
+    let compact = type_identifier.replace(' ', "");
+    let inner = compact
+        .strip_prefix("Vec<")
+        .and_then(|value| value.strip_suffix('>'));
+    let name = inner
+        .unwrap_or(&compact)
+        .rsplit("::")
+        .next()
+        .unwrap_or(&compact);
+    if matches!(name, "Fill" | "Stroke") {
+        let mut items = map
+            .get(if name == "Fill" { "Paint" } else { "Stroke" })
+            .cloned()
+            .unwrap_or_default();
+        items.push(CompletionItem {
+            label: "Appearance layers".into(),
+            insert_text: Some(
+                if name == "Fill" {
+                    "[{paint: WHITE, opacity: 50%}, $0]"
+                } else {
+                    "[{paint: WHITE, width: 2px}, {paint: CYAN, width: 8px}]$0"
+                }
+                .into(),
+            ),
+            insert_text_format: Some(lsp_types::InsertTextFormat::SNIPPET),
+            detail: Some("Index zero is topmost".into()),
+            ..Default::default()
+        });
+        return Some(items);
+    }
+    map.get(type_identifier).cloned()
 }
 
 pub fn get_event_completions(delim: &str) -> Vec<CompletionItem> {
@@ -628,7 +658,7 @@ mod tests {
     #[test]
     fn built_in_type_completions_use_canonical_pax_syntax() {
         let snippets = [
-            "Fill",
+            "Paint",
             "Color",
             "Font",
             "ImageSource",
@@ -642,7 +672,7 @@ mod tests {
         .collect::<Vec<_>>();
 
         for obsolete in [
-            "Fill::Solid",
+            "Paint::Solid",
             "Color::rgba",
             "Font::system",
             "TextStyle {",

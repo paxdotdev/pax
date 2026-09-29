@@ -130,19 +130,16 @@
         }
     }
     .site_ink {
-        material: {Material::unlit()}
-        fill: {SiteTheme::ink()}
+        fill: {paint: {SiteTheme::ink()}, material: {Material::unlit()}}
     }
     .site_paper {
-        material: {Material::unlit()}
-        fill: {SiteTheme::paper()}
+        fill: {paint: {SiteTheme::paper()}, material: {Material::unlit()}}
     }
     .site_signal {
         fill: {SiteTheme::signal()}
     }
     .site_rule {
-        material: {Material::unlit()}
-        fill: {SiteTheme::rule()}
+        fill: {paint: {SiteTheme::rule()}, material: {Material::unlit()}}
     }
     .site_display {
         style: TextStyle {
@@ -218,7 +215,7 @@
     .site_button_outline {
         fill: {SiteTheme::surface()}
         stroke: Stroke {
-            color: rgba(252, 249, 242, 74)
+            paint: rgba(252, 249, 242, 74)
             width: 1px
         }
         corner_radius: 0px

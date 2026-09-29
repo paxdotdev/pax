@@ -20,7 +20,7 @@
     />
     <Rectangle
         fill={self.color}
-        stroke={ color: rgba(255, 255, 255, 92) width: 1px }
+        stroke={ paint: rgba(255, 255, 255, 92) width: 1px }
         corner_radius=12.0
     />
 </Group>

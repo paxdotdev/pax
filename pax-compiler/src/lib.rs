@@ -940,6 +940,11 @@ fn collect_value_definition(
     collected: &mut Vec<WebFontSource>,
 ) {
     match value {
+        ValueDefinition::List(values) => {
+            for value in values {
+                collect_value_definition(value, seen, collected);
+            }
+        }
         ValueDefinition::Block(block) => collect_literal_block_definition(block, seen, collected),
         ValueDefinition::Timeline(track) => {
             if let Some(duration) = &track.duration {

@@ -20,16 +20,16 @@
                             y=0px
                             width=142px
                             height=142px
-                            fill=rgba(255, 255, 255, 0)
-                            material={self.background_material}
-                            stroke={
-                                color: rgba(255, 255, 255, 232)
+                            fill={paint: rgba(255, 255, 255, 0), material: {self.background_material}}
+
+                            stroke={material: {self.background_material},
+                                paint: rgba(255, 255, 255, 232)
                                 width: 6px
                             }
                             corner_radius=8.0
                         />
                     </Group>
-                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill=rgb(74, 100, 126) material={self.material_00} corner_radius=25.0 />
+                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill={paint: rgb(74, 100, 126), material: {self.material_00}}  corner_radius=25.0 />
                 </Group>
                 <Group width=100% height={(self.panel_height)px}>
                     <Group x=59px y=44px width={100% - 118px} autosize_y=true>
@@ -41,16 +41,16 @@
                             y=0px
                             width=142px
                             height=142px
-                            fill=rgba(255, 255, 255, 0)
-                            material={self.background_material}
-                            stroke={
-                                color: rgba(255, 255, 255, 232)
+                            fill={paint: rgba(255, 255, 255, 0), material: {self.background_material}}
+
+                            stroke={material: {self.background_material},
+                                paint: rgba(255, 255, 255, 232)
                                 width: 6px
                             }
                             corner_radius=8.0
                         />
                     </Group>
-                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill=rgb(166, 86, 92) material={self.material_01} opacity=0.3067 corner_radius=25.0 />
+                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill={paint: rgb(166, 86, 92), material: {self.material_01}}  opacity=0.3067 corner_radius=25.0 />
                 </Group>
                 <Group width=100% height={(self.panel_height)px}>
                     <Group x=59px y=44px width={100% - 118px} autosize_y=true>
@@ -62,16 +62,16 @@
                             y=0px
                             width=142px
                             height=142px
-                            fill=rgba(255, 255, 255, 0)
-                            material={self.background_material}
-                            stroke={
-                                color: rgba(255, 255, 255, 232)
+                            fill={paint: rgba(255, 255, 255, 0), material: {self.background_material}}
+
+                            stroke={material: {self.background_material},
+                                paint: rgba(255, 255, 255, 232)
                                 width: 6px
                             }
                             corner_radius=8.0
                         />
                     </Group>
-                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill=rgb(204, 118, 64) material={self.material_02} corner_radius=25.0 />
+                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill={paint: rgb(204, 118, 64), material: {self.material_02}}  corner_radius=25.0 />
                 </Group>
                 <Group width=100% height={(self.panel_height)px}>
                     <Group x=59px y=44px width={100% - 118px} autosize_y=true>
@@ -83,16 +83,16 @@
                             y=0px
                             width=142px
                             height=142px
-                            fill=rgba(255, 255, 255, 0)
-                            material={self.background_material}
-                            stroke={
-                                color: rgba(255, 255, 255, 232)
+                            fill={paint: rgba(255, 255, 255, 0), material: {self.background_material}}
+
+                            stroke={material: {self.background_material},
+                                paint: rgba(255, 255, 255, 232)
                                 width: 6px
                             }
                             corner_radius=8.0
                         />
                     </Group>
-                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill=rgb(184, 160, 76) material={self.material_03} corner_radius=25.0 />
+                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill={paint: rgb(184, 160, 76), material: {self.material_03}}  corner_radius=25.0 />
                 </Group>
                 <Group width=100% height={(self.panel_height)px}>
                     <Group x=59px y=44px width={100% - 118px} autosize_y=true>
@@ -104,16 +104,16 @@
                             y=0px
                             width=142px
                             height=142px
-                            fill=rgba(255, 255, 255, 0)
-                            material={self.background_material}
-                            stroke={
-                                color: rgba(255, 255, 255, 232)
+                            fill={paint: rgba(255, 255, 255, 0), material: {self.background_material}}
+
+                            stroke={material: {self.background_material},
+                                paint: rgba(255, 255, 255, 232)
                                 width: 6px
                             }
                             corner_radius=8.0
                         />
                     </Group>
-                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill=rgb(64, 148, 130) material={self.material_04} corner_radius=25.0 />
+                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill={paint: rgb(64, 148, 130), material: {self.material_04}}  corner_radius=25.0 />
                 </Group>
                 <Group width=100% height={(self.panel_height)px}>
                     <Group x=59px y=44px width={100% - 118px} autosize_y=true>
@@ -125,16 +125,16 @@
                             y=0px
                             width=142px
                             height=142px
-                            fill=rgba(255, 255, 255, 0)
-                            material={self.background_material}
-                            stroke={
-                                color: rgba(255, 255, 255, 232)
+                            fill={paint: rgba(255, 255, 255, 0), material: {self.background_material}}
+
+                            stroke={material: {self.background_material},
+                                paint: rgba(255, 255, 255, 232)
                                 width: 6px
                             }
                             corner_radius=8.0
                         />
                     </Group>
-                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill=rgb(62, 136, 192) material={self.material_05} opacity=0.2533 corner_radius=25.0 />
+                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill={paint: rgb(62, 136, 192), material: {self.material_05}}  opacity=0.2533 corner_radius=25.0 />
                 </Group>
                 <Group width=100% height={(self.panel_height)px}>
                     <Group x=59px y=44px width={100% - 118px} autosize_y=true>
@@ -146,16 +146,16 @@
                             y=0px
                             width=142px
                             height=142px
-                            fill=rgba(255, 255, 255, 0)
-                            material={self.background_material}
-                            stroke={
-                                color: rgba(255, 255, 255, 232)
+                            fill={paint: rgba(255, 255, 255, 0), material: {self.background_material}}
+
+                            stroke={material: {self.background_material},
+                                paint: rgba(255, 255, 255, 232)
                                 width: 6px
                             }
                             corner_radius=8.0
                         />
                     </Group>
-                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill=rgb(104, 98, 202) material={self.material_06} corner_radius=25.0 />
+                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill={paint: rgb(104, 98, 202), material: {self.material_06}}  corner_radius=25.0 />
                 </Group>
                 <Group width=100% height={(self.panel_height)px}>
                     <Group x=59px y=44px width={100% - 118px} autosize_y=true>
@@ -167,16 +167,16 @@
                             y=0px
                             width=142px
                             height=142px
-                            fill=rgba(255, 255, 255, 0)
-                            material={self.background_material}
-                            stroke={
-                                color: rgba(255, 255, 255, 232)
+                            fill={paint: rgba(255, 255, 255, 0), material: {self.background_material}}
+
+                            stroke={material: {self.background_material},
+                                paint: rgba(255, 255, 255, 232)
                                 width: 6px
                             }
                             corner_radius=8.0
                         />
                     </Group>
-                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill=rgb(180, 86, 168) material={self.material_07} corner_radius=25.0 />
+                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill={paint: rgb(180, 86, 168), material: {self.material_07}}  corner_radius=25.0 />
                 </Group>
                 <Group width=100% height={(self.panel_height)px}>
                     <Group x=59px y=44px width={100% - 118px} autosize_y=true>
@@ -188,16 +188,16 @@
                             y=0px
                             width=142px
                             height=142px
-                            fill=rgba(255, 255, 255, 0)
-                            material={self.background_material}
-                            stroke={
-                                color: rgba(255, 255, 255, 232)
+                            fill={paint: rgba(255, 255, 255, 0), material: {self.background_material}}
+
+                            stroke={material: {self.background_material},
+                                paint: rgba(255, 255, 255, 232)
                                 width: 6px
                             }
                             corner_radius=8.0
                         />
                     </Group>
-                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill=rgb(207, 84, 116) material={self.material_08} opacity=0.2000 corner_radius=25.0 />
+                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill={paint: rgb(207, 84, 116), material: {self.material_08}}  opacity=0.2000 corner_radius=25.0 />
                 </Group>
                 <Group width=100% height={(self.panel_height)px}>
                     <Group x=59px y=44px width={100% - 118px} autosize_y=true>
@@ -209,16 +209,16 @@
                             y=0px
                             width=142px
                             height=142px
-                            fill=rgba(255, 255, 255, 0)
-                            material={self.background_material}
-                            stroke={
-                                color: rgba(255, 255, 255, 232)
+                            fill={paint: rgba(255, 255, 255, 0), material: {self.background_material}}
+
+                            stroke={material: {self.background_material},
+                                paint: rgba(255, 255, 255, 232)
                                 width: 6px
                             }
                             corner_radius=8.0
                         />
                     </Group>
-                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill=rgb(130, 170, 74) material={self.material_09} corner_radius=25.0 />
+                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill={paint: rgb(130, 170, 74), material: {self.material_09}}  corner_radius=25.0 />
                 </Group>
                 <Group width=100% height={(self.panel_height)px}>
                     <Group x=59px y=44px width={100% - 118px} autosize_y=true>
@@ -230,16 +230,16 @@
                             y=0px
                             width=142px
                             height=142px
-                            fill=rgba(255, 255, 255, 0)
-                            material={self.background_material}
-                            stroke={
-                                color: rgba(255, 255, 255, 232)
+                            fill={paint: rgba(255, 255, 255, 0), material: {self.background_material}}
+
+                            stroke={material: {self.background_material},
+                                paint: rgba(255, 255, 255, 232)
                                 width: 6px
                             }
                             corner_radius=8.0
                         />
                     </Group>
-                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill=rgb(210, 170, 88) material={self.material_10} corner_radius=25.0 />
+                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill={paint: rgb(210, 170, 88), material: {self.material_10}}  corner_radius=25.0 />
                 </Group>
                 <Group width=100% height={(self.panel_height)px}>
                     <Group x=59px y=44px width={100% - 118px} autosize_y=true>
@@ -251,16 +251,16 @@
                             y=0px
                             width=142px
                             height=142px
-                            fill=rgba(255, 255, 255, 0)
-                            material={self.background_material}
-                            stroke={
-                                color: rgba(255, 255, 255, 232)
+                            fill={paint: rgba(255, 255, 255, 0), material: {self.background_material}}
+
+                            stroke={material: {self.background_material},
+                                paint: rgba(255, 255, 255, 232)
                                 width: 6px
                             }
                             corner_radius=8.0
                         />
                     </Group>
-                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill=rgb(84, 116, 172) material={self.material_11} opacity=0.3600 corner_radius=25.0 />
+                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill={paint: rgb(84, 116, 172), material: {self.material_11}}  opacity=0.3600 corner_radius=25.0 />
                 </Group>
                 <Group width=100% height={(self.panel_height)px}>
                     <Group x=59px y=44px width={100% - 118px} autosize_y=true>
@@ -272,16 +272,16 @@
                             y=0px
                             width=142px
                             height=142px
-                            fill=rgba(255, 255, 255, 0)
-                            material={self.background_material}
-                            stroke={
-                                color: rgba(255, 255, 255, 232)
+                            fill={paint: rgba(255, 255, 255, 0), material: {self.background_material}}
+
+                            stroke={material: {self.background_material},
+                                paint: rgba(255, 255, 255, 232)
                                 width: 6px
                             }
                             corner_radius=8.0
                         />
                     </Group>
-                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill=rgb(170, 96, 68) material={self.material_12} corner_radius=25.0 />
+                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill={paint: rgb(170, 96, 68), material: {self.material_12}}  corner_radius=25.0 />
                 </Group>
                 <Group width=100% height={(self.panel_height)px}>
                     <Group x=59px y=44px width={100% - 118px} autosize_y=true>
@@ -293,16 +293,16 @@
                             y=0px
                             width=142px
                             height=142px
-                            fill=rgba(255, 255, 255, 0)
-                            material={self.background_material}
-                            stroke={
-                                color: rgba(255, 255, 255, 232)
+                            fill={paint: rgba(255, 255, 255, 0), material: {self.background_material}}
+
+                            stroke={material: {self.background_material},
+                                paint: rgba(255, 255, 255, 232)
                                 width: 6px
                             }
                             corner_radius=8.0
                         />
                     </Group>
-                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill=rgb(70, 166, 146) material={self.material_13} corner_radius=25.0 />
+                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill={paint: rgb(70, 166, 146), material: {self.material_13}}  corner_radius=25.0 />
                 </Group>
                 <Group width=100% height={(self.panel_height)px}>
                     <Group x=59px y=44px width={100% - 118px} autosize_y=true>
@@ -314,16 +314,16 @@
                             y=0px
                             width=142px
                             height=142px
-                            fill=rgba(255, 255, 255, 0)
-                            material={self.background_material}
-                            stroke={
-                                color: rgba(255, 255, 255, 232)
+                            fill={paint: rgba(255, 255, 255, 0), material: {self.background_material}}
+
+                            stroke={material: {self.background_material},
+                                paint: rgba(255, 255, 255, 232)
                                 width: 6px
                             }
                             corner_radius=8.0
                         />
                     </Group>
-                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill=rgb(142, 94, 208) material={self.material_14} corner_radius=25.0 />
+                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill={paint: rgb(142, 94, 208), material: {self.material_14}}  corner_radius=25.0 />
                 </Group>
                 <Group width=100% height={(self.panel_height)px}>
                     <Group x=59px y=44px width={100% - 118px} autosize_y=true>
@@ -335,19 +335,19 @@
                             y=0px
                             width=142px
                             height=142px
-                            fill=rgba(255, 255, 255, 0)
-                            material={self.background_material}
-                            stroke={
-                                color: rgba(255, 255, 255, 232)
+                            fill={paint: rgba(255, 255, 255, 0), material: {self.background_material}}
+
+                            stroke={material: {self.background_material},
+                                paint: rgba(255, 255, 255, 232)
                                 width: 6px
                             }
                             corner_radius=8.0
                         />
                     </Group>
-                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill=rgb(72, 76, 84) material={self.material_15} opacity=0.4133 corner_radius=25.0 />
+                    <Rectangle x=15px y=0px width={100% - 30px} height=100% fill={paint: rgb(72, 76, 84), material: {self.material_15}}  opacity=0.4133 corner_radius=25.0 />
                 </Group>
             </Stacker>
-            <Rectangle width=100% height={(self.content_height)px} fill=rgb(22, 23, 24) material={self.background_material} />
+            <Rectangle width=100% height={(self.content_height)px} fill={paint: rgb(22, 23, 24), material: {self.background_material}}  />
         </Group>
     </Scroller>
 
@@ -362,7 +362,7 @@
         color=rgba(255, 236, 204, 255)
     />
 
-    <Rectangle width=100% height=100% fill=rgb(22, 23, 24) material={self.background_material} />
+    <Rectangle width=100% height=100% fill={paint: rgb(22, 23, 24), material: {self.background_material}}  />
 </Group>
 
 @settings {

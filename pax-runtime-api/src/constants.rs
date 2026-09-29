@@ -69,12 +69,13 @@ pub fn is_intoable_downstream_type(type_to_check: &str) -> bool {
 
 // Only when parsing values for one of the types in this slice
 // will we look ahead and parse for an IntoableLiteral value.
-const BLESSED_INTOABLE_DOWNSTREAM_TYPES: [&'static str; 6] = [
+const BLESSED_INTOABLE_DOWNSTREAM_TYPES: [&'static str; 7] = [
     "pax_engine::api::Size",
     "pax_engine::api::Rotation",
     "pax_engine::api::ColorChannel",
     "pax_engine::api::Opacity",
     "pax_engine::api::Stroke",
+    "pax_engine::api::Paint",
     "pax_engine::api::Fill",
 ];
 

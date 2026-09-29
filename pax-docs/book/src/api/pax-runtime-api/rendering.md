@@ -17,10 +17,20 @@ Type: `BezPath`
 Type: `Affine`
 
 ##### `fill`
-Type: [`Fill`](../../api/pax-runtime-api/drawing.md#fill)
+Type: [`Paint`](../../api/pax-runtime-api/drawing.md#paint)
 
 ##### `opacity`
 Type: `f64`
+
+##### `paint_bounds`
+Type: `Rect`
+
+Complete local geometry bounds before stroke expansion or trimming.
+
+##### `composition`
+Type: `Option`<(`u32`, `f32`)>
+
+Primitive boundary: compose its paints before applying source-relative opacity.
 
 ---
 

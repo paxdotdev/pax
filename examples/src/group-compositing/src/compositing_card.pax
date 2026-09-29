@@ -11,7 +11,7 @@
         100%: rgba(16, 24, 40, 255),
     }/>
     if show_image {
-        <Image anchor=0% width=100% height=190px source={ImageSource::Data(2, 2, pixels)} fit=ImageFit::Fill/>
+        <Image anchor=0% width=100% height=190px source={ImageSource::Data(2, 2, pixels)} fit=ImageFit::Paint/>
     }
     <Rectangle anchor=0% width=100% height=190px fill=rgb(20, 160, 210)/>
     <Rectangle anchor=0% width=100% height=100% fill={alternate_theme ? rgb(105, 40, 90) : rgb(16, 24, 40)}/>

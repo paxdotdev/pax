@@ -1,5 +1,5 @@
 use crate::{Font, TextAlignHorizontal, TextAlignVertical};
-use pax_engine::api::Fill;
+use pax_engine::api::Paint;
 use pax_engine::*;
 use pax_message::{AnyCreatePatch, ButtonPatch};
 use pax_runtime::api::{borrow, borrow_mut, use_RefCell, Color, Numeric, Size, Stroke};
@@ -42,14 +42,17 @@ impl Default for Button {
             style: Property::new(TextStyle {
                 font: Property::new(Font::default()),
                 font_size: Property::new(Size::Pixels(Numeric::F64(20.0))),
-                fill: Property::new(Fill::Solid(Color::WHITE)),
+                fill: Property::new(Paint::Solid(Color::WHITE)),
                 underline: Property::new(false),
                 align_multiline: Property::new(TextAlignHorizontal::Center),
                 align_vertical: Property::new(TextAlignVertical::Center),
                 align_horizontal: Property::new(TextAlignHorizontal::Center),
             }),
 
-            outline: Property::new(Stroke::default()),
+            outline: Property::new(Stroke {
+                width: Property::new(Size::Pixels(0.into())),
+                ..Stroke::default()
+            }),
         }
     }
 }
@@ -130,7 +133,8 @@ impl InstanceNode for ButtonInstance {
                             patch_if_needed(
                                 &mut old_state.outline_stroke_color,
                                 &mut patch.outline_stroke_color,
-                                (&properties.outline.get().color.get()).into(),
+                                (&crate::common::native_stroke_color(&properties.outline.get()))
+                                    .into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.outline_stroke_width,

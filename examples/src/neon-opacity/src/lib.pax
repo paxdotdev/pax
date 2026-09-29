@@ -1502,11 +1502,11 @@
     .input_neon {
         background: rgba(8, 12, 32, 255),
         stroke: {
-            color: rgba(90, 238, 255, 255),
+            paint: rgba(90, 238, 255, 255),
             width: 1px,
         },
         outline: {
-            color: rgba(255, 80, 212, 180),
+            paint: rgba(255, 80, 212, 180),
             width: 1px,
         },
         corner_radius: 14,
@@ -1528,7 +1528,7 @@
     .dropdown_neon {
         background: rgba(12, 15, 42, 255),
         stroke: {
-            color: rgba(95, 238, 255, 255),
+            paint: rgba(95, 238, 255, 255),
             width: 1px,
         },
         corner_radius: 14,
@@ -1551,7 +1551,7 @@
         background: rgba(8, 12, 32, 255),
         background_checked: rgba(96, 242, 255, 255),
         outline: {
-            color: rgba(255, 80, 212, 210),
+            paint: rgba(255, 80, 212, 210),
             width: 1px,
         },
         corner_radius: 10,
@@ -1561,7 +1561,7 @@
         background: rgba(12, 15, 42, 255),
         background_checked: rgba(255, 80, 212, 255),
         outline: {
-            color: rgba(95, 238, 255, 255),
+            paint: rgba(95, 238, 255, 255),
             width: 1px,
         },
         style: {
@@ -1584,7 +1584,7 @@
         hover_color: rgba(255, 78, 205, 255),
         corner_radius: 14,
         outline: {
-            color: rgba(95, 238, 255, 255),
+            paint: rgba(95, 238, 255, 255),
             width: 1px,
         },
         style: {
@@ -1607,7 +1607,7 @@
         hover_color: rgba(96, 242, 255, 255),
         corner_radius: 14,
         outline: {
-            color: rgba(255, 80, 212, 210),
+            paint: rgba(255, 80, 212, 210),
             width: 1px,
         },
         style: {

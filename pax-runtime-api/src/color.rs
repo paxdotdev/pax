@@ -31,6 +31,21 @@ pub enum Opacity {
     Percent(Numeric),
 }
 
+impl std::hash::Hash for Opacity {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        match self {
+            Self::Alpha(v) => {
+                0u8.hash(state);
+                v.hash(state);
+            }
+            Self::Percent(v) => {
+                1u8.hash(state);
+                v.hash(state);
+            }
+        }
+    }
+}
+
 impl Display for Opacity {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -81,9 +96,15 @@ impl From<Percent> for Opacity {
 impl Opacity {
     /// Normalizes this Opacity as a float in [0.0, 1.0].
     pub fn to_float_0_1(&self) -> f64 {
-        match self {
-            Opacity::Alpha(value) => value.to_float().clamp(0.0, 1.0),
-            Opacity::Percent(value) => (value.to_float() / 100.0).clamp(0.0, 1.0),
+        let alpha = match self {
+            Opacity::Alpha(value) => value.to_float(),
+            Opacity::Percent(value) => value.to_float() / 100.0,
+        };
+        if alpha.is_finite() {
+            alpha.clamp(0.0, 1.0)
+        } else {
+            log::warn!("Opacity must be finite; rendering transparent");
+            0.0
         }
     }
 }

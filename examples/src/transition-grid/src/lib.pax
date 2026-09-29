@@ -30,13 +30,13 @@
                     <Text class="chip_label" x=50% y=50% width={100% - 6px} height=20px text="Flow" selectable=false />
                     <Rectangle width=100% height=100% corner_radius=7
                         fill={exit_mode == ContainerExitMode::Flow ? rgb(48, 48, 56) : rgb(26, 26, 30)}
-                        stroke={color: {exit_mode == ContainerExitMode::Flow ? rgb(64, 222, 246) : rgb(42, 42, 48)}, width: 1px} />
+                        stroke={paint: {exit_mode == ContainerExitMode::Flow ? rgb(64, 222, 246) : rgb(42, 42, 48)}, width: 1px} />
                 </Group>
                 <Group width=100% height=100% @click=self.set_exit_ghost>
                     <Text class="chip_label" x=50% y=50% width={100% - 6px} height=20px text="Ghost" selectable=false />
                     <Rectangle width=100% height=100% corner_radius=7
                         fill={exit_mode == ContainerExitMode::Ghost ? rgb(48, 48, 56) : rgb(26, 26, 30)}
-                        stroke={color: {exit_mode == ContainerExitMode::Ghost ? rgb(64, 222, 246) : rgb(42, 42, 48)}, width: 1px} />
+                        stroke={paint: {exit_mode == ContainerExitMode::Ghost ? rgb(64, 222, 246) : rgb(42, 42, 48)}, width: 1px} />
                 </Group>
             </Stacker>
             <Rectangle class="group_surface" width=100% height=100% />
@@ -49,13 +49,13 @@
                     <Text class="chip_label" x=50% y=50% width={100% - 6px} height=20px text="Snap" selectable=false />
                     <Rectangle width=100% height=100% corner_radius=7
                         fill={reflow_kind == ContainerReflowTransitionKind::Snap ? rgb(48, 48, 56) : rgb(26, 26, 30)}
-                        stroke={color: {reflow_kind == ContainerReflowTransitionKind::Snap ? rgb(184, 137, 255) : rgb(42, 42, 48)}, width: 1px} />
+                        stroke={paint: {reflow_kind == ContainerReflowTransitionKind::Snap ? rgb(184, 137, 255) : rgb(42, 42, 48)}, width: 1px} />
                 </Group>
                 <Group width=100% height=100% @click=self.set_change_ease>
                     <Text class="chip_label" x=50% y=50% width={100% - 6px} height=20px text="Ease" selectable=false />
                     <Rectangle width=100% height=100% corner_radius=7
                         fill={reflow_kind == ContainerReflowTransitionKind::Ease ? rgb(48, 48, 56) : rgb(26, 26, 30)}
-                        stroke={color: {reflow_kind == ContainerReflowTransitionKind::Ease ? rgb(184, 137, 255) : rgb(42, 42, 48)}, width: 1px} />
+                        stroke={paint: {reflow_kind == ContainerReflowTransitionKind::Ease ? rgb(184, 137, 255) : rgb(42, 42, 48)}, width: 1px} />
                 </Group>
             </Stacker>
             <Rectangle class="group_surface" width=100% height=100% />
@@ -84,12 +84,12 @@
 
     .action_surface {
         fill: rgb(38, 38, 43)
-        stroke: {color: rgb(82, 82, 92), width: 1px}
+        stroke: {paint: rgb(82, 82, 92), width: 1px}
         corner_radius: 9
     }
     .group_surface {
         fill: rgb(22, 22, 26)
-        stroke: {color: rgb(60, 60, 68), width: 1px}
+        stroke: {paint: rgb(60, 60, 68), width: 1px}
         corner_radius: 12
     }
 

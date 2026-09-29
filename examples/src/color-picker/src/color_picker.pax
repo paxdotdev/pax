@@ -22,7 +22,7 @@
                 width=290px
                 height=10px
                 source={ImageSource::Data(10, 1, self.hue_slider_image_data)}
-                fit=ImageFit::Fill
+                fit=ImageFit::Paint
             />
         </Group>
         <Group
@@ -37,14 +37,14 @@
                 width=290px
                 height=10px
                 source={ImageSource::Data(10, 1, self.alpha_slider_image_data)}
-                fit=ImageFit::Fill
+                fit=ImageFit::Paint
             />
             <Image
                  y=50%
                 width=290px
                 height=10px
                 source="assets/color_picker/transparency_grid.png"
-                fit=ImageFit::Fill
+                fit=ImageFit::Paint
             />
         </Group>
         <Group y=58px>
@@ -75,7 +75,7 @@
             height=10px
             anchor=50%
             fill=TRANSPARENT
-            stroke={color: WHITE, width: 2px}
+            stroke={paint: WHITE, width: 2px}
         />
         <Rectangle
             width=300px
@@ -131,7 +131,7 @@
         height: 30px,
         background: BLACK,
         stroke: {
-            color: rgb(40, 48, 54),
+            paint: rgb(40, 48, 54),
             width: 1px,
         },
         corner_radius: 5,

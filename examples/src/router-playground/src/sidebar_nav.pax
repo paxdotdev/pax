@@ -157,7 +157,7 @@
         fill: rgba(18, 26, 43, 230)
         corner_radius: 20.0
         stroke: {
-            color: rgba(82, 107, 145, 165)
+            paint: rgba(82, 107, 145, 165)
             width: 1px
         }
     }
@@ -195,7 +195,7 @@
         fill: rgba(18, 26, 43, 230)
         corner_radius: 20.0
         stroke: {
-            color: rgba(82, 107, 145, 165)
+            paint: rgba(82, 107, 145, 165)
             width: 1px
         }
     }

@@ -464,7 +464,7 @@
         fill: rgba(255, 250, 239, 255)
         corner_radius: 8.0
         stroke: {
-            color: rgba(19, 115, 132, 94)
+            paint: rgba(19, 115, 132, 94)
             width: 1px
         }
     }
@@ -473,7 +473,7 @@
         fill: rgba(255, 250, 239, 255)
         corner_radius: 0.0
         stroke: {
-            color: rgba(14, 111, 126, 120)
+            paint: rgba(14, 111, 126, 120)
             width: 1px
         }
     }
@@ -482,7 +482,7 @@
         fill: rgba(255, 250, 239, 255)
         corner_radius: [25.0, 25.0, 0.0, 0.0]
         stroke: {
-            color: rgba(14, 111, 126, 120)
+            paint: rgba(14, 111, 126, 120)
             width: 1px
         }
     }
@@ -491,7 +491,7 @@
         fill: rgba(236, 248, 244, 255)
         corner_radius: 8.0
         stroke: {
-            color: rgba(0, 127, 116, 80)
+            paint: rgba(0, 127, 116, 80)
             width: 1px
         }
     }

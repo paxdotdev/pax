@@ -45,23 +45,27 @@ impl Default for Textbox {
             text: Default::default(),
             background: Property::new(Color::rgb(249.into(), 250.into(), 251.into())),
             stroke: Property::new(Stroke {
-                color: Property::new(Color::rgb(209.into(), 213.into(), 219.into())),
+                paint: Property::new(Color::rgb(209.into(), 213.into(), 219.into()).into()),
                 width: Property::new(Size::Pixels(1.into())),
                 cap: Property::new(StrokeCap::default()),
                 join: Property::new(StrokeJoin::default()),
+
+                ..Stroke::default()
             }),
             outline: Property::new(Stroke {
-                color: Property::new(Color::rgb(0.into(), 0.into(), 0.into())),
+                paint: Property::new(Color::rgb(0.into(), 0.into(), 0.into()).into()),
                 width: Property::new(Size::Pixels(1.into())),
                 cap: Property::new(StrokeCap::default()),
                 join: Property::new(StrokeJoin::default()),
+
+                ..Stroke::default()
             }),
             placeholder: Property::new("".into()),
             corner_radius: Property::new(8.0.into()),
             style: Property::new(TextStyle {
                 font: Property::new(Font::default()),
                 font_size: Property::new(Size::Pixels(Numeric::F64(14.0))),
-                fill: Property::new(Fill::Solid(Color::BLACK)),
+                fill: Property::new(Paint::Solid(Color::BLACK)),
                 underline: Property::new(false),
                 align_horizontal: Property::new(TextAlignHorizontal::Left),
                 align_multiline: Property::new(TextAlignHorizontal::Left),
@@ -176,7 +180,8 @@ impl InstanceNode for TextboxInstance {
                             patch_if_needed(
                                 &mut old_state.stroke_color,
                                 &mut patch.stroke_color,
-                                (&properties.stroke.get().color.get()).into(),
+                                (&crate::common::native_stroke_color(&properties.stroke.get()))
+                                    .into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.stroke_width,
@@ -211,7 +216,8 @@ impl InstanceNode for TextboxInstance {
                             patch_if_needed(
                                 &mut old_state.outline_color,
                                 &mut patch.outline_color,
-                                (&properties.outline.get().color.get()).into(),
+                                (&crate::common::native_stroke_color(&properties.outline.get()))
+                                    .into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.outline_width,

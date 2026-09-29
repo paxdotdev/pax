@@ -413,6 +413,7 @@ pub struct PaxGpuRenderer {
     last_scene_lighting: RefCell<Vec<Option<PixelSceneLighting>>>,
     surface_replay: RefCell<SurfaceReplayCoordinator>,
     clean_skipped_canvas_nodes: RefCell<HashSet<(usize, u32)>>,
+    alpha_source_scopes: Vec<(usize, usize)>,
     #[cfg(debug_assertions)]
     tile_cull_stats: RefCell<Vec<TileCullStats>>,
 }
@@ -445,6 +446,7 @@ impl PaxGpuRenderer {
             last_scene_lighting: Default::default(),
             surface_replay: Default::default(),
             clean_skipped_canvas_nodes: Default::default(),
+            alpha_source_scopes: Vec::new(),
             #[cfg(debug_assertions)]
             tile_cull_stats: Default::default(),
         }
@@ -1045,7 +1047,7 @@ impl RenderContext for PaxGpuRenderer {
         &mut self,
         layer: usize,
         path: kurbo::BezPath,
-        fill: &pax_runtime_api::Fill,
+        fill: &pax_runtime_api::Paint,
         opacity: f64,
     ) {
         self.with_layer_context(layer, |context| {
@@ -1060,7 +1062,7 @@ impl RenderContext for PaxGpuRenderer {
         &mut self,
         layer: usize,
         path: kurbo::BezPath,
-        fill: &pax_runtime_api::Fill,
+        fill: &pax_runtime_api::Paint,
         material: &Material,
         opacity: f64,
     ) {
@@ -1077,13 +1079,15 @@ impl RenderContext for PaxGpuRenderer {
         &mut self,
         layer: usize,
         path: kurbo::BezPath,
-        fill: &pax_runtime_api::Fill,
+        fill: &pax_runtime_api::Paint,
         material: &Material,
         opacity: f64,
         smoothing: PathSmoothing,
     ) {
         self.with_layer_context(layer, |context| {
-            let bounds = path.bounding_box();
+            let bounds =
+                pax_runtime_api::drawing::path_smoothing::smooth_bez_path(&path, smoothing)
+                    .bounding_box();
             let path = convert_kurbo_to_lyon_path(&path);
             let fill = to_pax_gpu_fill(fill, bounds, context.current_transform());
             let material = to_pax_gpu_material(material);
@@ -1109,12 +1113,8 @@ impl RenderContext for PaxGpuRenderer {
             context.stroke_path_with_opacity(
                 convert_kurbo_to_lyon_path(&path),
                 PixelStroke {
-                    fill: to_pax_gpu_fill(
-                        &pax_runtime_api::Fill::Solid(stroke.color.get()),
-                        bounds,
-                        context.current_transform(),
-                    ),
-                    weight: stroke.width.get().expect_pixels().to_float() as f32,
+                    fill: to_pax_gpu_fill(&stroke.paint.get(), bounds, context.current_transform()),
+                    weight: stroke.width_pixels() as f32,
                     cap: match stroke.cap.get() {
                         StrokeCap::Butt => PixelStrokeCap::Butt,
                         StrokeCap::Round => PixelStrokeCap::Round,
@@ -1144,12 +1144,8 @@ impl RenderContext for PaxGpuRenderer {
             context.stroke_path_with_material_and_opacity(
                 convert_kurbo_to_lyon_path(&path),
                 PixelStroke {
-                    fill: to_pax_gpu_fill(
-                        &pax_runtime_api::Fill::Solid(stroke.color.get()),
-                        bounds,
-                        context.current_transform(),
-                    ),
-                    weight: stroke.width.get().expect_pixels().to_float() as f32,
+                    fill: to_pax_gpu_fill(&stroke.paint.get(), bounds, context.current_transform()),
+                    weight: stroke.width_pixels() as f32,
                     cap: match stroke.cap.get() {
                         StrokeCap::Butt => PixelStrokeCap::Butt,
                         StrokeCap::Round => PixelStrokeCap::Round,
@@ -1177,16 +1173,14 @@ impl RenderContext for PaxGpuRenderer {
         smoothing: PathSmoothing,
     ) {
         self.with_layer_context(layer, |context| {
-            let bounds = path.bounding_box();
+            let bounds =
+                pax_runtime_api::drawing::path_smoothing::smooth_bez_path(&path, smoothing)
+                    .bounding_box();
             context.stroke_path_with_material_and_opacity_and_smoothing(
                 convert_kurbo_to_lyon_path(&path),
                 PixelStroke {
-                    fill: to_pax_gpu_fill(
-                        &pax_runtime_api::Fill::Solid(stroke.color.get()),
-                        bounds,
-                        context.current_transform(),
-                    ),
-                    weight: stroke.width.get().expect_pixels().to_float() as f32,
+                    fill: to_pax_gpu_fill(&stroke.paint.get(), bounds, context.current_transform()),
+                    weight: stroke.width_pixels() as f32,
                     cap: match stroke.cap.get() {
                         StrokeCap::Butt => PixelStrokeCap::Butt,
                         StrokeCap::Round => PixelStrokeCap::Round,
@@ -1220,12 +1214,8 @@ impl RenderContext for PaxGpuRenderer {
             context.stroke_path_with_draw_range_and_material_and_opacity(
                 convert_kurbo_to_lyon_path(&path),
                 PixelStroke {
-                    fill: to_pax_gpu_fill(
-                        &pax_runtime_api::Fill::Solid(stroke.color.get()),
-                        bounds,
-                        context.current_transform(),
-                    ),
-                    weight: stroke.width.get().expect_pixels().to_float() as f32,
+                    fill: to_pax_gpu_fill(&stroke.paint.get(), bounds, context.current_transform()),
+                    weight: stroke.width_pixels() as f32,
                     cap: match stroke.cap.get() {
                         StrokeCap::Butt => PixelStrokeCap::Butt,
                         StrokeCap::Round => PixelStrokeCap::Round,
@@ -1256,16 +1246,14 @@ impl RenderContext for PaxGpuRenderer {
         smoothing: PathSmoothing,
     ) {
         self.with_layer_context(layer, |context| {
-            let bounds = path.bounding_box();
+            let bounds =
+                pax_runtime_api::drawing::path_smoothing::smooth_bez_path(&path, smoothing)
+                    .bounding_box();
             context.stroke_path_with_draw_range_and_material_and_opacity_and_smoothing(
                 convert_kurbo_to_lyon_path(&path),
                 PixelStroke {
-                    fill: to_pax_gpu_fill(
-                        &pax_runtime_api::Fill::Solid(stroke.color.get()),
-                        bounds,
-                        context.current_transform(),
-                    ),
-                    weight: stroke.width.get().expect_pixels().to_float() as f32,
+                    fill: to_pax_gpu_fill(&stroke.paint.get(), bounds, context.current_transform()),
+                    weight: stroke.width_pixels() as f32,
                     cap: match stroke.cap.get() {
                         StrokeCap::Butt => PixelStrokeCap::Butt,
                         StrokeCap::Round => PixelStrokeCap::Round,
@@ -1317,11 +1305,12 @@ impl RenderContext for PaxGpuRenderer {
                         path: convert_kurbo_to_lyon_path(&paint.path),
                         fill: to_pax_gpu_alpha_fill(
                             &paint.fill,
-                            paint.path.bounding_box(),
+                            paint.paint_bounds,
                             transform.then(&context.current_transform()),
                         ),
                         transform,
                         opacity: paint.opacity.clamp(0.0, 1.0) as f32,
+                        composition: paint.composition,
                     }
                 })
                 .collect();
@@ -1603,6 +1592,35 @@ impl RenderContext for PaxGpuRenderer {
         screenshots
     }
 
+    fn supports_alpha_source_capture(&self) -> bool {
+        true
+    }
+
+    fn alpha_source_layer(&self) -> Option<usize> {
+        self.alpha_source_scopes.last().map(|&(layer, _)| layer)
+    }
+
+    fn begin_alpha_source(
+        &mut self,
+        layer: usize,
+        mapping: kurbo::Affine,
+        inherited_scopes: usize,
+        feather: f64,
+    ) {
+        self.with_layer_context(layer, |context| {
+            context.begin_alpha_source(
+                Transform2D::from_array(mapping.as_coeffs().map(|v| v as f32)),
+                feather as f32,
+            )
+        });
+        self.alpha_source_scopes.push((layer, inherited_scopes));
+    }
+
+    fn end_alpha_source(&mut self, layer: usize) {
+        self.with_layer_context(layer, |context| context.end_alpha_source());
+        assert_eq!(self.alpha_source_scopes.pop().map(|s| s.0), Some(layer));
+    }
+
     fn supports_subtree_opacity(&self) -> bool {
         true
     }
@@ -1613,12 +1631,30 @@ impl RenderContext for PaxGpuRenderer {
         node_id: u32,
         scopes: &[pax_runtime_api::OpacityScope],
     ) {
+        let scopes = &scopes[self
+            .alpha_source_scopes
+            .last()
+            .map_or(0, |s| s.1)
+            .min(scopes.len())..];
         self.with_layer_context(layer, |context| {
             context.set_node_opacity_scopes(node_id, scopes)
         });
     }
 
     fn begin_node(&mut self, layer: usize, node_id: u32, z_index: i32, light_mask: u32) -> bool {
+        if self.alpha_source_layer().is_some() {
+            let mut began = false;
+            self.with_layer_context(layer, |context| {
+                began |= context.begin_node(node_id, z_index, light_mask);
+            });
+            if began {
+                let indices = self
+                    .active_render_scope(layer)
+                    .expect("source has an owning mask scope");
+                self.push_render_scope(layer, indices);
+            }
+            return began;
+        }
         let mut backends = self.backends.borrow_mut();
         match backends.get_mut(layer) {
             Some(RenderLayerState::Pending) => {
@@ -1670,6 +1706,10 @@ impl RenderContext for PaxGpuRenderer {
         coverage_bounds: Rect,
         light_mask: u32,
     ) -> bool {
+        if self.alpha_source_layer().is_some() {
+            // Feather can read beyond a tile's visible viewport; capture culling owns that margin.
+            return self.begin_node(layer, node_id, z_index, light_mask);
+        }
         let mut backends = self.backends.borrow_mut();
         match backends.get_mut(layer) {
             Some(RenderLayerState::Pending) => {
@@ -1814,21 +1854,24 @@ impl RenderContext for PaxGpuRenderer {
 }
 
 fn to_pax_gpu_fill(
-    fill: &pax_runtime_api::Fill,
+    fill: &pax_runtime_api::Paint,
     rect: kurbo::Rect,
     transform: pax_gpu::Transform2D,
 ) -> pax_gpu::Fill {
+    let Some(rect) = pax_runtime_api::drawing::paint_bounds(rect) else {
+        return pax_gpu::Fill::Solid(pax_gpu::Color::rgba(0.0, 0.0, 0.0, 0.0));
+    };
     let bounds = (rect.width(), rect.height());
     let orig = rect.origin();
     match fill {
-        pax_runtime_api::Fill::Blend(terms) => pax_gpu::Fill::Blend(
+        pax_runtime_api::Paint::Blend(terms) => pax_gpu::Fill::Blend(
             terms
                 .iter()
                 .map(|(fill, weight)| (to_pax_gpu_fill(fill, rect, transform), *weight as f32))
                 .collect(),
         ),
-        pax_runtime_api::Fill::Solid(color) => pax_gpu::Fill::Solid(to_pax_gpu_color(color)),
-        pax_runtime_api::Fill::LinearGradient(gradient) => {
+        pax_runtime_api::Paint::Solid(color) => pax_gpu::Fill::Solid(to_pax_gpu_color(color)),
+        pax_runtime_api::Paint::LinearGradient(gradient) => {
             let start_x = gradient.start.0.evaluate(bounds, Axis::X);
             let start_y = gradient.start.1.evaluate(bounds, Axis::Y);
             let end_x = gradient.end.0.evaluate(bounds, Axis::X);
@@ -1839,25 +1882,34 @@ fn to_pax_gpu_fill(
             let world_pos = transform.transform_point(local_pos);
             let world_end = transform.transform_point(local_end);
             let main_axis = world_end - world_pos;
+            let local_axis = local_end - local_pos;
+            let local_length = local_axis.length();
+            let off_axis =
+                transform.transform_vector(pax_gpu::Vector2D::new(-local_axis.y, local_axis.x));
+            if local_length <= f32::EPSILON
+                || !local_length.is_finite()
+                || !main_axis.length().is_finite()
+            {
+                return pax_gpu::Fill::Solid(pax_gpu::Color::rgba(0.0, 0.0, 0.0, 0.0));
+            }
             pax_gpu::Fill::Gradient {
                 stops: gradient
                     .stops
                     .iter()
                     .map(|g| pax_gpu::GradientStop {
                         color: to_pax_gpu_color(&g.color),
-                        stop: g
-                            .position
-                            .evaluate((main_axis.length() as f64, 0.0), Axis::X)
-                            as f32,
+                        stop: g.position.evaluate((local_length as f64, 0.0), Axis::X) as f32
+                            / local_length
+                            * main_axis.length(),
                     })
                     .collect(),
                 gradient_type: pax_gpu::GradientType::Linear,
                 pos: world_pos,
                 main_axis,
-                off_axis: pax_gpu::Vector2D::zero(), //not used for linear
+                off_axis,
             }
         }
-        pax_runtime_api::Fill::RadialGradient(gradient) => {
+        pax_runtime_api::Paint::RadialGradient(gradient) => {
             let Some(g) = gradient.resolve_geometry(rect) else {
                 return pax_gpu::Fill::Solid(pax_gpu::Color::rgba(0.0, 0.0, 0.0, 0.0));
             };
@@ -1905,35 +1957,11 @@ fn to_pax_gpu_fill(
 }
 
 fn to_pax_gpu_alpha_fill(
-    fill: &pax_runtime_api::Fill,
+    fill: &pax_runtime_api::Paint,
     rect: Rect,
     transform: Transform2D,
 ) -> pax_gpu::Fill {
-    // Linear masks retain both basis vectors under shear; radial masks use
-    // exactly the same focal geometry and normalized stops as color fills.
-    let bounds = (rect.width(), rect.height());
-    match fill {
-        pax_runtime_api::Fill::Blend(terms) => pax_gpu::Fill::Blend(
-            terms
-                .iter()
-                .map(|(fill, weight)| {
-                    (to_pax_gpu_alpha_fill(fill, rect, transform), *weight as f32)
-                })
-                .collect(),
-        ),
-        pax_runtime_api::Fill::LinearGradient(g) => {
-            let mut resolved = to_pax_gpu_fill(fill, rect, transform);
-            if let pax_gpu::Fill::Gradient { off_axis, .. } = &mut resolved {
-                let dx = (g.end.0.evaluate(bounds, Axis::X) - g.start.0.evaluate(bounds, Axis::X))
-                    as f32;
-                let dy = (g.end.1.evaluate(bounds, Axis::Y) - g.start.1.evaluate(bounds, Axis::Y))
-                    as f32;
-                *off_axis = transform.transform_vector(pax_gpu::Vector2D::new(-dy, dx));
-            }
-            resolved
-        }
-        _ => to_pax_gpu_fill(fill, rect, transform),
-    }
+    to_pax_gpu_fill(fill, rect, transform)
 }
 
 fn to_pax_gpu_material(material: &pax_runtime_api::Material) -> PixelMaterial {
@@ -2067,8 +2095,8 @@ mod tests {
 
     #[test]
     fn alpha_radial_gradient_retains_radius_with_coincident_endpoints() {
-        use pax_runtime_api::{Fill, RadialGradient, Size};
-        let fill = Fill::RadialGradient(RadialGradient {
+        use pax_runtime_api::{Paint, RadialGradient, Size};
+        let fill = Paint::RadialGradient(RadialGradient {
             start: (Size::Percent(50.into()), Size::Percent(50.into())),
             end: (Size::Percent(50.into()), Size::Percent(50.into())),
             radius: 25.0,
@@ -2094,8 +2122,8 @@ mod tests {
 
     #[test]
     fn radial_color_and_mask_share_focal_geometry_and_local_pixel_stops() {
-        use pax_runtime_api::{Color, Fill, GradientStop, RadialGradient, Size};
-        let fill = Fill::RadialGradient(RadialGradient {
+        use pax_runtime_api::{Color, GradientStop, Paint, RadialGradient, Size};
+        let fill = Paint::RadialGradient(RadialGradient {
             start: (Size::Percent(75.into()), Size::Percent(25.into())),
             end: (Size::Percent(50.into()), Size::Percent(50.into())),
             radius: 50.0,
@@ -2136,8 +2164,8 @@ mod tests {
 
     #[test]
     fn alpha_linear_gradient_retains_sheared_basis() {
-        use pax_runtime_api::{Fill, LinearGradient, Size};
-        let fill = Fill::LinearGradient(LinearGradient {
+        use pax_runtime_api::{LinearGradient, Paint, Size};
+        let fill = Paint::LinearGradient(LinearGradient {
             start: (Size::Percent(0.into()), Size::Percent(0.into())),
             end: (Size::Percent(100.into()), Size::Percent(0.into())),
             stops: vec![],

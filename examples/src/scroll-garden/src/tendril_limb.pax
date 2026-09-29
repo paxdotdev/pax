@@ -390,26 +390,26 @@
 
     .tendril_crimson {
         fill: rgba(245, 186, 160, 190),
-        stroke: {width: 2px, color: rgba(255, 232, 222, 200)},
+        stroke: {width: 2px, paint: rgba(255, 232, 222, 200)},
     }
 
     .tendril_nocturne {
         fill: rgba(238, 218, 150, 180),
-        stroke: {width: 2px, color: rgba(46, 43, 34, 190)},
+        stroke: {width: 2px, paint: rgba(46, 43, 34, 190)},
     }
 
     .tendril_lagoon {
         fill: rgba(132, 210, 204, 180),
-        stroke: {width: 2px, color: rgba(244, 238, 216, 190)},
+        stroke: {width: 2px, paint: rgba(244, 238, 216, 190)},
     }
 
     .tendril_fern {
         fill: rgba(198, 228, 176, 180),
-        stroke: {width: 2px, color: rgba(31, 45, 33, 180)},
+        stroke: {width: 2px, paint: rgba(31, 45, 33, 180)},
     }
 
     .tendril_violet {
         fill: rgba(198, 176, 230, 180),
-        stroke: {width: 2px, color: rgba(251, 236, 250, 190)},
+        stroke: {width: 2px, paint: rgba(251, 236, 250, 190)},
     }
 }

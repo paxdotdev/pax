@@ -220,7 +220,7 @@
             PathElement::Close
         ]
         stroke: {
-            color: rgba(255, 226, 128, 62)
+            paint: rgba(255, 226, 128, 62)
             width: 1px
         }
     }
@@ -266,7 +266,7 @@
         hover_color: rgba(255, 197, 76, 132)
         corner_radius: 18.0
         outline: {
-            color: rgba(255, 220, 110, 170)
+            paint: rgba(255, 220, 110, 170)
             width: 1.0
         }
         style: {
@@ -295,7 +295,7 @@
         background: rgba(255, 218, 132, 96)
         corner_radius: 16.0
         stroke: {
-            color: rgba(255, 191, 76, 150)
+            paint: rgba(255, 191, 76, 150)
             width: 1.0
         }
         style: {
@@ -308,11 +308,11 @@
         background: rgba(42, 46, 50, 42)
         corner_radius: 22.0
         stroke: {
-            color: rgba(232, 226, 216, 108)
+            paint: rgba(232, 226, 216, 108)
             width: 1.0
         }
         outline: {
-            color: rgba(226, 232, 238, 118)
+            paint: rgba(226, 232, 238, 118)
             width: 1.0
         }
         style: {
@@ -326,7 +326,7 @@
         hover_color: rgba(72, 76, 82, 70)
         corner_radius: 22.0
         outline: {
-            color: rgba(232, 226, 216, 108)
+            paint: rgba(232, 226, 216, 108)
             width: 1.0
         }
         style: {
@@ -342,11 +342,11 @@
         background: rgba(232, 236, 240, 52)
         corner_radius: 22.0
         stroke: {
-            color: rgba(238, 242, 246, 116)
+            paint: rgba(238, 242, 246, 116)
             width: 1.0
         }
         outline: {
-            color: rgba(210, 218, 226, 94)
+            paint: rgba(210, 218, 226, 94)
             width: 1.0
         }
         style: {
@@ -360,7 +360,7 @@
         hover_color: rgba(244, 247, 250, 76)
         corner_radius: 22.0
         outline: {
-            color: rgba(238, 242, 246, 116)
+            paint: rgba(238, 242, 246, 116)
             width: 1.0
         }
         style: {
@@ -377,7 +377,7 @@
         background_checked: rgba(255, 92, 68, 230)
         corner_radius: 10.0
         outline: {
-            color: rgba(255, 224, 112, 170)
+            paint: rgba(255, 224, 112, 170)
             width: 1.0
         }
     }
@@ -386,7 +386,7 @@
         background: rgba(255, 218, 132, 84)
         background_checked: rgba(255, 92, 68, 230)
         outline: {
-            color: rgba(255, 224, 112, 170)
+            paint: rgba(255, 224, 112, 170)
             width: 1.0
         }
         style: {

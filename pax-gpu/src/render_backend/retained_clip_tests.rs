@@ -445,6 +445,7 @@ fn radial_pixels_cover_focus_transforms_masks_and_crossfades() {
                     if masked {
                         renderer.clip_alpha(
                             vec![AlphaMaskPaint {
+                                composition: None,
                                 path: rect(0.0, 0.0, 128.0, 128.0),
                                 transform: Transform2D::identity(),
                                 fill: paint.clone(),
@@ -917,5 +918,530 @@ fn paint_blend_updates_invalidate_composed_group_pixels() {
             renderer.take_resource_churn_stats().opacity_group_renders,
             u64::from(frame_id != 3)
         );
+    }
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn layered_gradient_strokes_match_fill_and_reuse_geometry() {
+    use crate::{
+        DrawRange, GradientStop, GradientType, Material, Stroke, StrokeCap, StrokeJoin, Vector2D,
+    };
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 128, 80, [1.0, 1.0]),
+        )
+    })
+    .expect("Metal backend");
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    let mut builder = Path::builder();
+    builder.begin(point(16.0, 45.0));
+    builder.line_to(point(112.0, 45.0));
+    builder.end(false);
+    let path = builder.build();
+    for frame_id in 0..4 {
+        let paint = Fill::Gradient {
+            gradient_type: GradientType::Linear,
+            pos: point(16.0, 0.0),
+            main_axis: Vector2D::new(96.0, 0.0),
+            off_axis: Vector2D::new(0.0, 1.0),
+            stops: vec![
+                GradientStop {
+                    color: Color::rgba(1.0, 0.0, 0.0, 1.0),
+                    stop: 0.0,
+                },
+                GradientStop {
+                    color: Color::rgba(0.0, (frame_id % 2) as f32, 1.0, 1.0),
+                    stop: 96.0,
+                },
+            ],
+        };
+        renderer.begin_node(1, 0, 0);
+        renderer.fill_path(rect(16.0, 5.0, 96.0, 16.0), paint.clone());
+        // Back-to-front submission: wide gradient, then narrow white highlight.
+        for (width, fill) in [
+            (12.0, paint),
+            (2.0, Fill::Solid(Color::rgba(1.0, 1.0, 1.0, 1.0))),
+        ] {
+            renderer.stroke_path_with_draw_range_and_material_and_opacity(
+                path.clone(),
+                Stroke {
+                    fill,
+                    weight: width,
+                    cap: StrokeCap::Round,
+                    join: StrokeJoin::Round,
+                },
+                Material::default(),
+                1.0,
+                DrawRange::enabled(0.0, if frame_id % 2 == 0 { 0.5 } else { 0.9 }),
+            );
+        }
+        renderer.end_node(1);
+        renderer.request_screenshot_capture(frame_id);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let frame = renderer.take_screenshot_capture(frame_id).unwrap();
+        let pixel = |x: usize, y: usize| &frame.rgba[(y * 128 + x) * 4..(y * 128 + x) * 4 + 4];
+        assert_eq!(
+            pixel(40, 10),
+            pixel(40, 49),
+            "fill/stroke paint coordinates disagree"
+        );
+        assert_eq!(
+            pixel(40, 45),
+            &[255; 4],
+            "top stroke must cover lower paint"
+        );
+        let stats = renderer.take_resource_churn_stats();
+        if frame_id > 0 {
+            assert_eq!(
+                stats.tessellated_vertices, 0,
+                "paint and reveal must reuse geometry"
+            );
+            assert_eq!(stats.vector_geometry_cache_misses, 0);
+        }
+    }
+    renderer.remove_node(1);
+    renderer.flush();
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn layered_alpha_paint_updates_reuse_mask_tessellation() {
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 32, 32, [1.0, 1.0]),
+        )
+    })
+    .expect("Metal backend");
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    for (frame_id, alpha) in [0.5, 1.0, 0.5].into_iter().enumerate() {
+        renderer.begin_node(1, 0, 0);
+        renderer.save();
+        renderer.clip_alpha(
+            (0..2)
+                .map(|_| crate::AlphaMaskPaint {
+                    path: rect(0.0, 0.0, 32.0, 32.0),
+                    transform: Transform2D::identity(),
+                    fill: Fill::Solid(Color::rgba(1.0, 1.0, 1.0, alpha)),
+                    opacity: 1.0,
+                    composition: Some((20, 0.5)),
+                })
+                .collect(),
+            0.0,
+        );
+        renderer.fill_path(
+            rect(0.0, 0.0, 32.0, 32.0),
+            Fill::Solid(Color::rgba(1.0, 1.0, 1.0, 1.0)),
+        );
+        renderer.restore();
+        renderer.end_node(1);
+        renderer.request_screenshot_capture(frame_id as u32);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let frame = renderer.take_screenshot_capture(frame_id as u32).unwrap();
+        let expected = ((1.0 - (1.0 - alpha).powi(2)) * 0.5 * 255.0).round() as u8;
+        assert!(frame.rgba[(16 * 32 + 16) * 4 + 3].abs_diff(expected) <= 1);
+        let stats = renderer.take_resource_churn_stats();
+        if frame_id > 0 {
+            assert_eq!(stats.tessellated_vertices, 0);
+        }
+    }
+    renderer.remove_node(1);
+    renderer.flush();
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn captured_alpha_subtree_opacity_clips_reveal_and_retirement() {
+    use crate::{DrawRange, Material, Stroke, StrokeCap, StrokeJoin};
+    use pax_runtime_api::OpacityScope;
+    for dpr in [[1.0, 1.0], [2.0, 2.0]] {
+        let layer = MetalLayer::new();
+        let backend = pollster::block_on(unsafe {
+            RenderBackend::to_core_animation_layer(
+                layer.0.cast(),
+                RenderConfig::new(true, (128.0 * dpr[0]) as u32, (64.0 * dpr[1]) as u32, dpr),
+            )
+        })
+        .unwrap();
+        let device = backend.device.clone();
+        let mut renderer = WgpuRenderer::new(backend);
+        renderer.set_viewport(128.0, 64.0, dpr);
+        let mut path = Path::builder();
+        path.begin(point(16.0, 48.0));
+        path.line_to(point(112.0, 48.0));
+        path.end(false);
+        let path = path.build();
+        for (frame_id, reveal) in [0.5, 0.9, 0.9, 0.25].into_iter().enumerate() {
+            renderer.begin_node(10, 0, 0);
+            renderer.save();
+            renderer.begin_alpha_source(Transform2D::identity(), 0.0);
+            renderer.begin_node(11, 0, 0);
+            renderer.save();
+            renderer.clip(rect(8.0, 8.0, 104.0, 48.0));
+            renderer.end_node(11);
+            for (id, x) in [(12, 0.0), (13, 32.0)] {
+                renderer.begin_node(id, 0, 0);
+                renderer.set_node_opacity_scopes(
+                    id,
+                    &[OpacityScope {
+                        node_id: 100,
+                        opacity: 0.5,
+                    }],
+                );
+                // Black source RGB must produce the same mask as white.
+                renderer.fill_path(
+                    rect(x, 0.0, 64.0, 28.0),
+                    Fill::Solid(Color::rgba(0.0, 0.0, 0.0, 1.0)),
+                );
+                renderer.end_node(id);
+            }
+            renderer.begin_node(14, 0, 0);
+            renderer.stroke_path_with_draw_range_and_material_and_opacity(
+                path.clone(),
+                Stroke {
+                    fill: Fill::Solid(Color::rgba(1.0, 1.0, 1.0, 1.0)),
+                    weight: 8.0,
+                    cap: StrokeCap::Round,
+                    join: StrokeJoin::Round,
+                },
+                Material::default(),
+                1.0,
+                DrawRange::enabled(0.0, reveal),
+            );
+            renderer.end_node(14);
+            renderer.restore();
+            renderer.end_alpha_source();
+            renderer.fill_path(
+                rect(0.0, 0.0, 128.0, 64.0),
+                Fill::Solid(Color::rgba(1.0, 1.0, 1.0, 1.0)),
+            );
+            renderer.restore();
+            renderer.end_node(10);
+            renderer.request_screenshot_capture(frame_id as u32);
+            renderer.flush();
+            device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+            let frame = renderer.take_screenshot_capture(frame_id as u32).unwrap();
+            let alpha = |x: usize, y: usize| {
+                frame.rgba
+                    [((y * dpr[1] as usize) * frame.width as usize + x * dpr[0] as usize) * 4 + 3]
+            };
+            for x in [16, 48, 80] {
+                assert!(
+                    alpha(x, 16).abs_diff(128) <= 1,
+                    "source group opacity at {x}: {}",
+                    alpha(x, 16)
+                );
+            }
+            assert_eq!(alpha(4, 16), 0, "source-side clip");
+            assert_eq!(
+                alpha(100, 16),
+                0,
+                "source must not appear in visible sequence"
+            );
+            assert_eq!(alpha(24, 48), 255);
+            assert_eq!(alpha(90, 48), if reveal > 0.8 { 255 } else { 0 });
+            let stats = renderer.take_resource_churn_stats();
+            if frame_id > 0 {
+                assert_eq!(
+                    stats.tessellated_vertices, 0,
+                    "source reveals reuse stroke geometry"
+                );
+            }
+            assert_eq!(stats.alpha_source_renders, u64::from(frame_id != 2));
+            assert_eq!(renderer.visible_node_count(), 1);
+        }
+        renderer.remove_node(10);
+        renderer.flush();
+        assert_eq!(renderer.visible_node_count(), 0);
+        assert_eq!(renderer.alpha_source_resource_counts(), (0, 0, 0));
+    }
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn captured_alpha_feather_reads_beyond_tile_and_nested_sources() {
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 64, 64, [1.0, 1.0]),
+        )
+    })
+    .unwrap();
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    for frame_id in 0..2 {
+        renderer.begin_node(1, 0, 0);
+        renderer.save();
+        // This parent mask applies to the consuming content, not to source capture or its blur.
+        renderer.clip(rect(0.0, 8.0, 64.0, 48.0));
+        renderer.begin_alpha_source(Transform2D::identity(), 4.0);
+        renderer.begin_node(2, 0, 0);
+        renderer.save();
+        renderer.begin_alpha_source(Transform2D::identity(), 0.0);
+        renderer.begin_node(3, 0, 0);
+        renderer.fill_path(
+            rect(-24.0, -24.0, 112.0, 112.0),
+            Fill::Solid(Color::rgba(1.0, 1.0, 1.0, 0.5)),
+        );
+        renderer.end_node(3);
+        renderer.end_alpha_source();
+        renderer.fill_path(
+            rect(-24.0, -24.0, 112.0, 112.0),
+            Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),
+        );
+        renderer.restore();
+        renderer.end_node(2);
+        renderer.end_alpha_source();
+        renderer.fill_path(
+            rect(0.0, 0.0, 64.0, 64.0),
+            Fill::Solid(Color::rgba(1.0, 1.0, 1.0, 1.0)),
+        );
+        renderer.restore();
+        renderer.end_node(1);
+        renderer.request_screenshot_capture(frame_id);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let frame = renderer.take_screenshot_capture(frame_id).unwrap();
+        for (x, y) in [(0, 32), (1, 8), (32, 8), (63, 32), (32, 55)] {
+            let alpha = frame.rgba[(y * 64 + x) * 4 + 3];
+            assert!(
+                alpha.abs_diff(128) <= 1,
+                "feather/source domain at {x},{y}: {alpha}"
+            );
+        }
+        assert_pixel(&frame, 32, 4, [0, 0, 0, 0]);
+        let stats = renderer.take_resource_churn_stats();
+        assert_eq!(
+            stats.alpha_source_renders,
+            if frame_id == 0 { 2 } else { 0 }
+        );
+    }
+    renderer.remove_node(1);
+    renderer.flush();
+    assert_eq!(renderer.alpha_source_resource_counts(), (0, 0, 0));
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn captured_alpha_matches_transformed_layered_gradient_strokes() {
+    use crate::{
+        DrawRange, GradientStop, GradientType, Material, Stroke, StrokeCap, StrokeJoin, Vector2D,
+    };
+    use pax_runtime_api::OpacityScope;
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 192, 96, [1.0, 1.0]),
+        )
+    })
+    .unwrap();
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    let mut builder = Path::builder();
+    builder.begin(point(8.0, 20.0));
+    builder.line_to(point(65.0, 20.0));
+    builder.end(false);
+    let path = builder.build();
+    for frame_id in 0..3 {
+        let paint = Fill::Gradient {
+            gradient_type: if frame_id == 0 {
+                GradientType::Linear
+            } else {
+                GradientType::Radial {
+                    focal_point: point(0.15, 0.0),
+                }
+            },
+            pos: point(8.0, 20.0),
+            main_axis: Vector2D::new(57.0, 0.0),
+            off_axis: Vector2D::new(0.0, 57.0),
+            stops: vec![
+                GradientStop {
+                    color: Color::rgba(1.0, 0.0, 0.0, 0.15),
+                    stop: 0.0,
+                },
+                GradientStop {
+                    color: Color::rgba(0.0, 1.0, 1.0, 0.85),
+                    stop: 57.0,
+                },
+            ],
+        };
+        let paint = if frame_id == 2 {
+            Fill::Blend(vec![
+                (paint, 0.7),
+                (Fill::Solid(Color::rgba(1.0, 1.0, 1.0, 0.4)), 0.3),
+            ])
+        } else {
+            paint
+        };
+        for masked in [false, true] {
+            let offset = if masked { 96.0 } else { 0.0 };
+            fn shifted(fill: &Fill, x: f32) -> Fill {
+                match fill {
+                    Fill::Gradient {
+                        gradient_type,
+                        pos,
+                        main_axis,
+                        off_axis,
+                        stops,
+                    } => Fill::Gradient {
+                        gradient_type: gradient_type.clone(),
+                        pos: point(pos.x + x, pos.y),
+                        main_axis: *main_axis,
+                        off_axis: *off_axis,
+                        stops: stops.clone(),
+                    },
+                    Fill::Blend(terms) => Fill::Blend(
+                        terms
+                            .iter()
+                            .map(|(fill, weight)| (shifted(fill, x), *weight))
+                            .collect(),
+                    ),
+                    _ => fill.clone(),
+                }
+            }
+            // Low-level GPU paints are already resolved in surface coordinates by the runtime.
+            let paint = shifted(&paint, offset);
+            let id = if masked { 10 } else { 1 };
+            renderer.begin_node(id, id as i32, 0);
+            renderer.save();
+            if masked {
+                renderer.begin_alpha_source(Transform2D::identity(), 0.0);
+                renderer.begin_node(11, 0, 0);
+            }
+            let draw_id = if masked { 11 } else { 1 };
+            renderer.set_node_opacity_scopes(
+                draw_id,
+                &[OpacityScope {
+                    node_id: draw_id + 100,
+                    opacity: 0.6,
+                }],
+            );
+            renderer.save();
+            // Shear and nonuniform scaling keep paint and geometry in the same local frame.
+            renderer.transform(Transform2D::from_array([
+                1.0,
+                0.25,
+                0.15,
+                1.3,
+                offset + 2.0,
+                10.0,
+            ]));
+            renderer.fill_path(rect(8.0, 16.0, 57.0, 8.0), paint.clone());
+            for (width, fill) in [
+                (12.0, paint.clone()),
+                (2.0, Fill::Solid(Color::rgba(1.0, 1.0, 1.0, 0.3))),
+            ] {
+                renderer.stroke_path_with_draw_range_and_material_and_opacity(
+                    path.clone(),
+                    Stroke {
+                        fill,
+                        weight: width,
+                        cap: StrokeCap::Round,
+                        join: StrokeJoin::Round,
+                    },
+                    Material::default(),
+                    0.8,
+                    DrawRange::enabled(0.0, 0.8),
+                );
+            }
+            renderer.restore();
+            if masked {
+                renderer.end_node(11);
+                renderer.end_alpha_source();
+                renderer.fill_path(
+                    rect(96.0, 0.0, 96.0, 96.0),
+                    Fill::Solid(Color::rgba(1.0, 1.0, 1.0, 1.0)),
+                );
+            }
+            renderer.restore();
+            renderer.end_node(id);
+        }
+        renderer.request_screenshot_capture(frame_id);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let frame = renderer.take_screenshot_capture(frame_id).unwrap();
+        for y in 0..96 {
+            for x in 0..96 {
+                let a = frame.rgba[(y * 192 + x) * 4 + 3];
+                let b = frame.rgba[(y * 192 + x + 96) * 4 + 3];
+                assert!(
+                    a.abs_diff(b) <= 2,
+                    "gradient frame {frame_id} at {x},{y}: visible={a}, mask={b}"
+                );
+            }
+        }
+        if frame_id > 0 {
+            assert_eq!(renderer.take_resource_churn_stats().tessellated_vertices, 0);
+        } else {
+            renderer.take_resource_churn_stats();
+        }
+    }
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn captured_empty_and_oversized_sources_fail_closed_independently() {
+    let layer = MetalLayer::new();
+    let mut backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 64, 32, [1.0, 1.0]),
+        )
+    })
+    .unwrap();
+    let device = backend.device.clone();
+    // A small artificial limit exercises the failure path without allocating huge textures.
+    backend.max_surface_dimension = 96;
+    let mut renderer = WgpuRenderer::new(backend);
+    for frame_id in 0..2 {
+        for (owner, x) in [(1, 0.0), (10, 20.0), (20, 40.0)] {
+            renderer.begin_node(owner, owner as i32, 0);
+            renderer.save();
+            renderer.begin_alpha_source(
+                Transform2D::identity(),
+                if owner == 10 && frame_id == 0 {
+                    10.0
+                } else {
+                    0.0
+                },
+            );
+            if owner != 1 {
+                renderer.begin_node(owner + 1, 0, 0);
+                renderer.fill_path(
+                    rect(x, 0.0, 20.0, 32.0),
+                    Fill::Solid(Color::rgba(1.0, 1.0, 1.0, 1.0)),
+                );
+                renderer.end_node(owner + 1);
+            }
+            renderer.end_alpha_source();
+            renderer.fill_path(
+                rect(x, 0.0, 20.0, 32.0),
+                Fill::Solid(Color::rgba(1.0, 1.0, 1.0, 1.0)),
+            );
+            renderer.restore();
+            renderer.end_node(owner);
+        }
+        renderer.request_screenshot_capture(frame_id);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let frame = renderer.take_screenshot_capture(frame_id).unwrap();
+        assert_pixel(&frame, 10, 16, [0; 4]);
+        assert_pixel(
+            &frame,
+            30,
+            16,
+            if frame_id == 0 { [0; 4] } else { [255; 4] },
+        );
+        assert_pixel(&frame, 50, 16, [255; 4]);
     }
 }

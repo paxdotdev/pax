@@ -1,7 +1,7 @@
 use super::*;
 use pax_runtime::api::{
     pax_value::{PaxAny, ToFromPaxAny},
-    Fill, Material, Platform, Stroke, OS,
+    Material, Paint, Platform, Stroke, OS,
 };
 use pax_runtime::{
     CommonPropertiesInit, ComponentInstance, ExpandedNode, InstanceNode, InstantiationArgs,
@@ -23,7 +23,7 @@ struct RecordingRenderer {
 }
 
 impl RenderContext for RecordingRenderer {
-    fn fill_with_opacity(&mut self, _: usize, _: BezPath, _: &Fill, _: f64) {}
+    fn fill_with_opacity(&mut self, _: usize, _: BezPath, _: &Paint, _: f64) {}
     fn stroke_with_opacity(&mut self, _: usize, _: BezPath, _: &Stroke, _: f64) {}
     fn stroke_with_draw_range_and_material_and_opacity(
         &mut self,

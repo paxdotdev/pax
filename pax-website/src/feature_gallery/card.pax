@@ -21,7 +21,7 @@
     .feature_card_surface {
         fill: {SiteTheme::surface()}
         stroke: Stroke {
-            color: rgba(252, 249, 242, 42)
+            paint: rgba(252, 249, 242, 42)
             width: 1px
         }
         corner_radius: 0.0
@@ -29,7 +29,7 @@
     .feature_media_surface {
         fill: {SiteTheme::raised()}
         stroke: Stroke {
-            color: rgba(252, 249, 242, 28)
+            paint: rgba(252, 249, 242, 28)
             width: 1px
         }
         corner_radius: 0.0

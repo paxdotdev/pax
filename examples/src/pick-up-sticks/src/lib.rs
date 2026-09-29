@@ -59,7 +59,9 @@ impl Interpolatable for Stick {
             thickness: self.thickness.interpolate(&other.thickness, t),
             scale: self.scale.interpolate(&other.scale, t),
             color: self.color.interpolate(&other.color, t),
-            highlight_stroke: self.highlight_stroke.interpolate(&other.highlight_stroke, t),
+            highlight_stroke: self
+                .highlight_stroke
+                .interpolate(&other.highlight_stroke, t),
             main_stroke: self.main_stroke.interpolate(&other.main_stroke, t),
             shadow_stroke: self.shadow_stroke.interpolate(&other.shadow_stroke, t),
             active: self.active,
@@ -386,10 +388,12 @@ fn collapse_layout(sticks: &[Stick], seed: u64) -> Vec<Stick> {
 
 fn stroke(color: Color, width: f64) -> Stroke {
     Stroke {
-        color: Property::new(color),
+        paint: Property::new(color.into()),
         width: Property::new(Size::Pixels(width.into())),
         cap: Property::new(StrokeCap::Round),
         join: Property::new(StrokeJoin::default()),
+
+        ..Stroke::default()
     }
 }
 

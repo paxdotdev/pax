@@ -28,7 +28,7 @@ use pax_runtime::api::NodeContext;
                     <ComboBoxListItem style=style background=background data={option_data} @new_item=self.dispatch_new_item/>
                 }
             </Stacker>
-            <Rectangle fill={stroke.color}/>
+            <Rectangle fill={stroke.paint}/>
         </Scroller>
     }
     if self.text != "" && self.selected != None && !_options_visible {

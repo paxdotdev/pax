@@ -29,6 +29,27 @@ Returns the depth as a floating-point logical pixel value.
 
 ---
 
+### `Fill`
+One interior paint layer. Index zero in an element's fill stack is topmost.
+
+#### Properties
+##### `paint`
+Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<[`Paint`](../../api/pax-runtime-api/drawing.md#paint)>
+
+Color or gradient sampled over the complete local geometry.
+
+##### `material`
+Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<[`Material`](../../api/pax-runtime-api/drawing.md#material)>
+
+Light-reactive surface response, matte by default.
+
+##### `opacity`
+Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<[`Opacity`](../../api/pax-runtime-api/color.md#opacity)>
+
+Opacity of this layer before element opacity is applied.
+
+---
+
 ### `GradientStop`
 A color stop for a gradient fill, defined by a position (% or px) and a color.
 
@@ -284,35 +305,45 @@ Creates active lighting with Pax's default ambient term.
 ---
 
 ### `Stroke`
-Describes the outline drawn around vector geometry.
-
-Pax currently renders strokes centered on the underlying path. For open
-geometry, `cap` controls how the stroke terminates at the start and end of
-the path, while `join` controls how adjacent segments meet.
+One centered outline layer, drawn above every interior fill.
+Index zero in an element's stroke stack is topmost.
 
 #### Properties
-##### `color`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<[`Color`](../../api/pax-runtime-api/color.md#color)>
+##### `paint`
+Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<[`Paint`](../../api/pax-runtime-api/drawing.md#paint)>
 
-The stroke color, including alpha.
+Color or gradient sampled over the complete, untrimmed geometry.
+
+##### `material`
+Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<[`Material`](../../api/pax-runtime-api/drawing.md#material)>
+
+Light-reactive surface response, matte by default.
+
+##### `opacity`
+Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<[`Opacity`](../../api/pax-runtime-api/color.md#opacity)>
+
+Opacity of this layer before element opacity is applied.
 
 ##### `width`
 Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<[`Size`](../../api/pax-runtime-api/layout.md#size)>
 
-The stroke width.
-
-The type is [`Size`] for consistency with the wider property system, but
-current vector renderers interpret this value in pixels.
+Width in logical pixels. Percentages are unsupported; nonpositive widths draw nothing.
 
 ##### `cap`
 Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<[`StrokeCap`](../../api/pax-runtime-api/drawing.md#strokecap)>
 
-The cap style used for exposed endpoints on open paths.
+Style of exposed endpoints on open paths.
 
 ##### `join`
 Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<[`StrokeJoin`](../../api/pax-runtime-api/drawing.md#strokejoin)>
 
-The join style used where adjacent stroke segments meet.
+Style of joins between adjacent segments.
+
+#### Implementations
+##### `width_pixels`
+<pre><code class="api-signature language-rust ignore">pub fn width_pixels(&amp;self) -&gt; f64</code></pre>
+
+Resolves a finite, positive pixel width, or zero for an invisible stroke.
 
 ---
 
@@ -342,70 +373,6 @@ Z component.
 Constructs a 3D vector.
 
 ## Enums
-### `Fill`
-Describes how to fill vector geometry.
-Solid fills interpolate their RGBA channels. Other pairs crossfade sampled
-paints in premultiplied RGBA, preserving each gradient's geometry and stops.
-
-#### Variants
-##### `Solid`([`Color`](../../api/pax-runtime-api/color.md#color))
-A single solid color.
-
-##### `LinearGradient`([`LinearGradient`](../../api/pax-runtime-api/drawing.md#lineargradient))
-A linear gradient.
-
-##### `RadialGradient`([`RadialGradient`](../../api/pax-runtime-api/drawing.md#radialgradient))
-A radial gradient.
-
-##### `Blend`(`Vec`<([`Fill`](../../api/pax-runtime-api/drawing.md#fill), `f64`)>)
-A weighted paint mixture produced by interpolation. Weights are finite,
-nonnegative, and sum to one. Use [`Fill::blend`] to normalize weights,
-flatten nested mixtures, and combine repeated endpoints.
-
-#### Implementations
-##### `blend`
-<pre><code class="api-signature language-rust ignore">pub fn blend(terms: Vec&lt;(<a href="../../api/pax-runtime-api/drawing.md#fill">Fill</a>, f64)&gt;) -&gt; Self</code></pre>
-
-Constructs a normalized mixture of paints. Nested mixtures are flattened
-and identical endpoints merged, so repeated interruptions between a fixed
-set of themes do not accumulate a history of blend nodes. Nonpositive or
-nonfinite weights are ignored; an empty mixture is transparent.
-
-Sampling cost grows with the number of distinct endpoints still visible.
-A completed interpolation returns its destination paint directly.
-
-##### `coverage_alpha_0_1`
-<pre><code class="api-signature language-rust ignore">pub fn coverage_alpha_0_1(&amp;self) -&gt; f64</code></pre>
-
-Estimates the alpha coverage contributed by this fill.
-
-##### `linearGradient`
-<pre><code class="api-signature language-rust ignore">pub fn linearGradient(start: (<a href="../../api/pax-runtime-api/layout.md#size">Size</a>, <a href="../../api/pax-runtime-api/layout.md#size">Size</a>), end: (<a href="../../api/pax-runtime-api/layout.md#size">Size</a>, <a href="../../api/pax-runtime-api/layout.md#size">Size</a>), stops: Vec&lt;<a href="../../api/pax-runtime-api/drawing.md#gradientstop">GradientStop</a>&gt;) -&gt; <a href="../../api/pax-runtime-api/drawing.md#fill">Fill</a></code></pre>
-
-Constructs a linear gradient fill.
-
-Pax templates should normally use `@gradient`. When this helper is
-needed explicitly, pass `start` and `end` as `[x, y]` lists.
-
-##### `max_alpha_0_1`
-<pre><code class="api-signature language-rust ignore">pub fn max_alpha_0_1(&amp;self) -&gt; f64</code></pre>
-
-Returns a conservative upper bound for this fill's alpha. For mixtures,
-endpoint maxima need not occur at the same point.
-
-##### `representative_color`
-<pre><code class="api-signature language-rust ignore">pub fn representative_color(&amp;self) -&gt; <a href="../../api/pax-runtime-api/color.md#color">Color</a></code></pre>
-
-Representative solid color for native text, which currently uses the
-first stop of a gradient. Mixtures crossfade those representative colors.
-
-##### `with_alpha_factor`
-<pre><code class="api-signature language-rust ignore">pub fn with_alpha_factor(&amp;self, factor: f64) -&gt; <a href="../../api/pax-runtime-api/drawing.md#fill">Fill</a></code></pre>
-
-Returns a copy of this fill with alpha multiplied by `factor`.
-
----
-
 ### `LightShape`
 Shape of a light contribution in logical scene space.
 
@@ -473,6 +440,70 @@ Navigate in the current window or tab.
 
 ##### `New`
 Navigate in a new window or tab.
+
+---
+
+### `Paint`
+Describes how to fill vector geometry.
+Solid fills interpolate their RGBA channels. Other pairs crossfade sampled
+paints in premultiplied RGBA, preserving each gradient's geometry and stops.
+
+#### Variants
+##### `Solid`([`Color`](../../api/pax-runtime-api/color.md#color))
+A single solid color.
+
+##### `LinearGradient`([`LinearGradient`](../../api/pax-runtime-api/drawing.md#lineargradient))
+A linear gradient.
+
+##### `RadialGradient`([`RadialGradient`](../../api/pax-runtime-api/drawing.md#radialgradient))
+A radial gradient.
+
+##### `Blend`(`Vec`<([`Paint`](../../api/pax-runtime-api/drawing.md#paint), `f64`)>)
+A weighted paint mixture produced by interpolation. Weights are finite,
+nonnegative, and sum to one. Use [`Paint::blend`] to normalize weights,
+flatten nested mixtures, and combine repeated endpoints.
+
+#### Implementations
+##### `blend`
+<pre><code class="api-signature language-rust ignore">pub fn blend(terms: Vec&lt;(<a href="../../api/pax-runtime-api/drawing.md#paint">Paint</a>, f64)&gt;) -&gt; Self</code></pre>
+
+Constructs a normalized mixture of paints. Nested mixtures are flattened
+and identical endpoints merged, so repeated interruptions between a fixed
+set of themes do not accumulate a history of blend nodes. Nonpositive or
+nonfinite weights are ignored; an empty mixture is transparent.
+
+Sampling cost grows with the number of distinct endpoints still visible.
+A completed interpolation returns its destination paint directly.
+
+##### `coverage_alpha_0_1`
+<pre><code class="api-signature language-rust ignore">pub fn coverage_alpha_0_1(&amp;self) -&gt; f64</code></pre>
+
+Estimates the alpha coverage contributed by this fill.
+
+##### `linearGradient`
+<pre><code class="api-signature language-rust ignore">pub fn linearGradient(start: (<a href="../../api/pax-runtime-api/layout.md#size">Size</a>, <a href="../../api/pax-runtime-api/layout.md#size">Size</a>), end: (<a href="../../api/pax-runtime-api/layout.md#size">Size</a>, <a href="../../api/pax-runtime-api/layout.md#size">Size</a>), stops: Vec&lt;<a href="../../api/pax-runtime-api/drawing.md#gradientstop">GradientStop</a>&gt;) -&gt; <a href="../../api/pax-runtime-api/drawing.md#paint">Paint</a></code></pre>
+
+Constructs a linear gradient paint.
+
+Pax templates should normally use `@gradient`. When this helper is
+needed explicitly, pass `start` and `end` as `[x, y]` lists.
+
+##### `max_alpha_0_1`
+<pre><code class="api-signature language-rust ignore">pub fn max_alpha_0_1(&amp;self) -&gt; f64</code></pre>
+
+Returns a conservative upper bound for this paint's alpha. For mixtures,
+endpoint maxima need not occur at the same point.
+
+##### `representative_color`
+<pre><code class="api-signature language-rust ignore">pub fn representative_color(&amp;self) -&gt; <a href="../../api/pax-runtime-api/color.md#color">Color</a></code></pre>
+
+Representative solid color for native text, which currently uses the
+first stop of a gradient. Mixtures crossfade those representative colors.
+
+##### `with_alpha_factor`
+<pre><code class="api-signature language-rust ignore">pub fn with_alpha_factor(&amp;self, factor: f64) -&gt; <a href="../../api/pax-runtime-api/drawing.md#paint">Paint</a></code></pre>
+
+Returns a copy of this paint with alpha multiplied by `factor`.
 
 ---
 
@@ -549,3 +580,10 @@ Rounds the outside of each join.
 
 ##### `Bevel`
 Cuts joins off with a straight edge.
+
+## Functions
+### `paint_bounds`
+<pre><code class="api-signature language-rust ignore">pub fn paint_bounds(rect: Rect) -&gt; Option&lt;Rect&gt;</code></pre>
+
+Stable local reference frame for paint, independent of outline width and reveal.
+A collapsed axis gets a centered one-logical-pixel span without adding coverage.

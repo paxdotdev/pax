@@ -1,6 +1,8 @@
 struct Globals {
     resolution: vec2<f32>,
     dpr: vec2<f32>,
+    origin: vec2<f32>,
+    padding: vec2<f32>,
 };
 
 struct Primitive {
@@ -93,6 +95,7 @@ struct SceneLighting {
 @group(0) @binding(6) var<uniform> scene_lighting: SceneLighting;
 @group(1) @binding(0) var alpha_mask: texture_2d<f32>;
 @group(1) @binding(1) var alpha_sampler: sampler;
+@group(1) @binding(2) var<uniform> alpha_domain: vec4<f32>;
 
 struct GpuVertex {
     @location(0) position: vec2<f32>,
@@ -125,7 +128,7 @@ fn vs_main(
 
     var pos = vec2<f32>(t_p_x, t_p_y);
 
-    pos /= globals.resolution;
+    pos = (pos - globals.origin) / globals.resolution;
     pos *= 2.0;
     pos -= 1.0;
     pos.y *= -1.0;
@@ -159,11 +162,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     if fill_type == 0u {
         color = colors.colors[fill_id];
     } else if fill_type == 1u {
-        color = gradient(fill_id, in.clip_position.xy);
+        color = gradient(fill_id, in.clip_position.xy + globals.origin * globals.dpr);
     } else {
         var premultiplied = vec4<f32>(0.0);
         for (var i = 0u; i < primitive.paint_count; i++) {
-            let sample = gradient(fill_id + i, in.clip_position.xy);
+            let sample = gradient(fill_id + i, in.clip_position.xy + globals.origin * globals.dpr);
             let weight = gradients.gradients[fill_id + i].weight;
             premultiplied += vec4<f32>(sample.rgb * sample.a, sample.a) * weight;
         }
@@ -174,7 +177,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     }
     color.a *= transforms.transforms[primitive.transform_id].opacity;
     color.a *= textureSampleLevel(alpha_mask, alpha_sampler,
-        in.clip_position.xy / (globals.resolution * globals.dpr), 0.0).r;
+        (in.clip_position.xy / globals.dpr + globals.origin - alpha_domain.xy) / alpha_domain.zw, 0.0).r;
     color = apply_lighting(
         color,
         materials.materials[primitive.material_id],
@@ -263,6 +266,13 @@ fn gradient(fill_id: u32, coord: vec2<f32>) -> vec4<f32> {
     let n = g_a / m_a_l;
     let stop_scale = m_a_l / max(length(gradient.main_axis), 0.0001);
     var color_space = dot(p_t, n) / stop_scale;
+    let delta = coord / globals.dpr - gradient.position;
+    let axis = gradient.main_axis;
+    let off = gradient.off_axis;
+    let determinant = axis.x * off.y - axis.y * off.x;
+    if gradient.type_id == 0u && abs(determinant) > 0.0001 {
+        color_space = (delta.x * off.y - delta.y * off.x) / determinant * length(axis);
+    }
     if gradient.type_id == 1u {
         color_space = radial_coordinate(coord / globals.dpr - gradient.position,
             gradient.main_axis, gradient.off_axis, gradient.focal_point);

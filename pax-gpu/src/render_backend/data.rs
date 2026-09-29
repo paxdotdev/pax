@@ -9,6 +9,8 @@ pub(crate) const MAX_SCENE_LIGHTS: usize = 8;
 pub struct GpuGlobals {
     pub resolution: [f32; 2],
     pub dpr: [f32; 2],
+    pub origin: [f32; 2],
+    pub _padding: [f32; 2],
 }
 
 #[repr(C)]

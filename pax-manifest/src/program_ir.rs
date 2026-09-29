@@ -13,7 +13,7 @@ use crate::{
 };
 
 const MAGIC: &[u8; 8] = b"PAXP\x00IR\x00";
-const VERSION: u8 = 3;
+const VERSION: u8 = 4;
 
 /// Runtime-facing semantic program model derived from a rich `PaxManifest`.
 ///
@@ -353,6 +353,9 @@ fn sanitize_value_definition(value: &ValueDefinition) -> ValueDefinition {
     match value {
         ValueDefinition::Undefined => ValueDefinition::Undefined,
         ValueDefinition::LiteralValue(value) => ValueDefinition::LiteralValue(value.clone()),
+        ValueDefinition::List(values) => {
+            ValueDefinition::List(values.iter().map(sanitize_value_definition).collect())
+        }
         ValueDefinition::Block(block) => ValueDefinition::Block(sanitize_literal_block(block)),
         ValueDefinition::Timeline(track) => {
             ValueDefinition::Timeline(sanitize_timeline_track(track))
@@ -880,15 +883,15 @@ mod tests {
             ],
         )));
         use pax_runtime_api::{
-            CoercionRules, Color, Fill, GradientStop, Interpolatable, Size, ToPaxValue,
+            CoercionRules, Color, GradientStop, Interpolatable, Paint, Size, ToPaxValue,
         };
-        let paint = Fill::linearGradient(
+        let paint = Paint::linearGradient(
             (Size::Percent(0.into()), Size::Percent(0.into())),
             (Size::Percent(100.into()), Size::Percent(100.into())),
             vec![GradientStop::get(Color::BLACK, Size::Percent(0.into()))],
         )
         .interpolate(
-            &Fill::RadialGradient(pax_runtime_api::RadialGradient {
+            &Paint::RadialGradient(pax_runtime_api::RadialGradient {
                 start: (Size::Percent(60.into()), Size::Percent(40.into())),
                 end: (Size::Percent(50.into()), Size::Percent(50.into())),
                 radius: 68.0,
@@ -940,7 +943,7 @@ mod tests {
             panic!("missing paint mixture");
         };
         assert_eq!(value, &paint_value);
-        assert_eq!(Fill::try_coerce(value.clone()).unwrap(), paint);
+        assert_eq!(Paint::try_coerce(value.clone()).unwrap(), paint);
 
         #[cfg(feature = "compiler")]
         {

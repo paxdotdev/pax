@@ -1,6 +1,8 @@
 struct Globals {
     resolution: vec2<f32>,
     dpr: vec2<f32>,
+    origin: vec2<f32>,
+    padding: vec2<f32>,
 };
 
 
@@ -9,6 +11,7 @@ struct Globals {
 @group(0)@binding(2) var texture_sampler: sampler;
 @group(1) @binding(0) var alpha_mask: texture_2d<f32>;
 @group(1) @binding(1) var alpha_sampler: sampler;
+@group(1) @binding(2) var<uniform> alpha_domain: vec4<f32>;
 
 struct TextureVertex {
     @location(0) position: vec2<f32>,
@@ -28,7 +31,7 @@ fn vs_main(
 ) -> VertexOutput {
 	var out: VertexOutput;
     var pos = model.position;
-    pos /= globals.resolution;
+    pos = (pos - globals.origin) / globals.resolution;
     pos *= 2.0;
     pos -= 1.0;
     pos.y *= -1.0;
@@ -42,6 +45,6 @@ fn vs_main(
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let t = textureSample(texture, texture_sampler, in.texture_coord);
     let alpha = textureSampleLevel(alpha_mask, alpha_sampler,
-        in.clip_position.xy / (globals.resolution * globals.dpr), 0.0).r;
+        (in.clip_position.xy / globals.dpr + globals.origin - alpha_domain.xy) / alpha_domain.zw, 0.0).r;
     return vec4<f32>(t.x + in.texture_coord.x/1000.0, t.y + in.texture_coord.y/1000.0, t.z, t.w * alpha * in.opacity);
 }

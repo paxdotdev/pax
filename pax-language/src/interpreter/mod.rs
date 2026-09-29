@@ -127,9 +127,11 @@ impl Display for PaxExpression {
             }
             PaxExpression::Infix(i) => {
                 let right_associative = i.operator.name == "^";
-                i.lhs.fmt_operand(f, self.precedence() + u8::from(right_associative))?;
+                i.lhs
+                    .fmt_operand(f, self.precedence() + u8::from(right_associative))?;
                 write!(f, " {} ", i.operator.name)?;
-                i.rhs.fmt_operand(f, self.precedence() + u8::from(!right_associative))
+                i.rhs
+                    .fmt_operand(f, self.precedence() + u8::from(!right_associative))
             }
             PaxExpression::Postfix(p) => write!(f, "{}{}", p.lhs, p.operator.name),
             PaxExpression::Ternary(t) => {
@@ -207,6 +209,9 @@ impl Display for PaxPrimary {
                 Ok(())
             }
             PaxPrimary::FunctionOrEnum(name, e, a) => {
+                if (name == "Fill" || name == "Stroke") && e == "__layer" && a.len() == 1 {
+                    return write!(f, "{} {}", name, a[0]);
+                }
                 if name == "Color" {
                     write!(f, "{}", e)?;
                 } else {
@@ -604,9 +609,14 @@ fn recurse_pratt_parse(
             }
             Rule::xo_object => {
                 let mut inner = primary.into_inner();
-                while inner.peek().unwrap().as_rule() == Rule::identifier {
-                    inner.next();
-                }
+                let type_name = if inner
+                    .peek()
+                    .is_some_and(|v| v.as_rule() == Rule::identifier)
+                {
+                    Some(inner.next().unwrap().as_str().to_string())
+                } else {
+                    None
+                };
                 let mut obj = vec![];
                 for pair in inner {
                     let mut pair = pair.into_inner();
@@ -623,7 +633,17 @@ fn recurse_pratt_parse(
                     let value = recurse_pratt_parse(value.into_inner(), pratt_parser)?;
                     obj.push((key, value));
                 }
-                let value = PaxPrimary::Object(obj);
+                let value = if let Some(name) =
+                    type_name.filter(|name| name == "Fill" || name == "Stroke")
+                {
+                    PaxPrimary::FunctionOrEnum(
+                        name,
+                        "__layer".into(),
+                        vec![PaxExpression::Primary(Box::new(PaxPrimary::Object(obj)))],
+                    )
+                } else {
+                    PaxPrimary::Object(obj)
+                };
                 let exp = PaxExpression::Primary(Box::new(value));
                 Ok(exp)
             }

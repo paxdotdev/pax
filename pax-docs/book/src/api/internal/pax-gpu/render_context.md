@@ -19,6 +19,9 @@ Type: [`Fill`](../../../api/pax-runtime-api/drawing.md#fill)
 ##### `opacity`
 Type: `f32`
 
+##### `composition`
+Type: `Option`<(`u32`, `f32`)>
+
 ---
 
 ### `Color`
@@ -95,6 +98,12 @@ Type: `u64`
 Type: `u64`
 
 ##### `opacity_group_cache_hits`
+Type: `u64`
+
+##### `alpha_source_renders`
+Type: `u64`
+
+##### `alpha_source_cache_hits`
 Type: `u64`
 
 ##### `retained_scene_resets`
@@ -256,6 +265,17 @@ Type: [`StrokeJoin`](../../../api/pax-runtime-api/drawing.md#strokejoin)
 Retained scene renderer that records Pax vector/image commands and flushes them through wgpu.
 
 #### Implementations
+##### `begin_alpha_source`
+<pre><code class="api-signature language-rust ignore">pub fn begin_alpha_source(&amp;mut self, mapping: <a href="../../../api/pax-runtime-api/transform.md#transform2d">Transform2D</a>, feather: f32)</code></pre>
+
+Records a detached source in the current mask owner's surface coordinates. Source clips and
+opacity are independent of the consuming content; its enclosing mask is applied afterward.
+
+##### `end_alpha_source`
+<pre><code class="api-signature language-rust ignore">pub fn end_alpha_source(&amp;mut self)</code></pre>
+
+Restores the consumer and installs a reference to the source's retained alpha texture.
+
 ##### `clip_alpha`
 <pre><code class="api-signature language-rust ignore">pub fn clip_alpha(&amp;mut self, paints: Vec&lt;<a href="../../../api/pax-runtime-api/rendering.md#alphamaskpaint">AlphaMaskPaint</a>&gt;, feather: f32)</code></pre>
 

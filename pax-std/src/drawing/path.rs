@@ -1,11 +1,10 @@
 use kurbo::{Affine, BezPath, Rect, Shape};
 
-use pax_engine::api::{Fill, PathElement};
+use pax_engine::api::PathElement;
 use pax_runtime::api as pax_runtime_api;
 use pax_runtime::api::drawing::path_smoothing::smooth_bez_path;
-use pax_runtime::api::drawing::stroke_utils::{stroke_width_pixels, stroked_outline_path};
 use pax_runtime::api::{borrow, borrow_mut, use_RefCell};
-use pax_runtime::api::{Layer, Material, Numeric, PathSmoothing, RenderContext, Stroke, UnitValue};
+use pax_runtime::api::{Layer, Numeric, PathSmoothing, RenderContext, Stroke, UnitValue};
 use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
@@ -36,11 +35,9 @@ pub struct Path {
     /// The path commands and control points, expressed in local coordinates.
     pub elements: Property<Vec<PathElement>>,
     /// The stroke applied along the path centerline.
-    pub stroke: Property<Stroke>,
+    pub stroke: Property<Vec<Stroke>>,
     /// The fill applied to the interior of closed contours.
-    pub fill: Property<Fill>,
-    /// Light-reactive surface response.
-    pub material: Property<Material>,
+    pub fill: Property<Vec<pax_runtime_api::Fill>>,
     /// Optional curve smoothing applied before rendering path geometry.
     pub smoothing: Property<PathSmoothing>,
     /// Start position of the visible stroke range over the path's total length.
@@ -54,8 +51,7 @@ impl Default for Path {
         Self {
             elements: Default::default(),
             stroke: Default::default(),
-            fill: Default::default(),
-            material: Default::default(),
+            fill: Property::new(vec![pax_runtime_api::Fill::default()]),
             smoothing: Default::default(),
             draw_start: Property::new(UnitValue::Unitless(Numeric::F64(0.0))),
             draw_end: Property::new(UnitValue::Unitless(Numeric::F64(1.0))),
@@ -98,6 +94,10 @@ pub struct PathInstance {
 }
 
 impl InstanceNode for PathInstance {
+    fn supports_alpha_source_render(&self) -> bool {
+        true
+    }
+
     fn instantiate(args: InstantiationArgs) -> Rc<Self>
     where
         Self: Sized,
@@ -145,25 +145,26 @@ impl InstanceNode for PathInstance {
         });
 
         let tab = expanded_node.transform_and_bounds.clone();
-        let (elements, stroke, fill, material, smoothing, draw_start, draw_end) = expanded_node
+        let (elements, stroke, fill, smoothing, draw_start, draw_end) = expanded_node
             .with_properties_unwrapped(|properties: &mut Path| {
                 (
                     properties.elements.clone(),
                     properties.stroke.clone(),
                     properties.fill.clone(),
-                    properties.material.clone(),
                     properties.smoothing.clone(),
                     properties.draw_start.clone(),
                     properties.draw_end.clone(),
                 )
             });
 
+        let appearance =
+            crate::common::watch_appearance(expanded_node, context, fill.clone(), stroke.clone());
         let deps = &[
+            appearance.untyped(),
             tab.untyped(),
             elements.untyped(),
             stroke.untyped(),
             fill.untyped(),
-            material.untyped(),
             smoothing.untyped(),
             draw_start.untyped(),
             draw_end.untyped(),
@@ -205,21 +206,18 @@ impl InstanceNode for PathInstance {
                 &build_local_bez_path(&elements, bounds)?,
                 properties.smoothing.get(),
             );
-            let fill = properties.fill.get();
-            let stroke = properties.stroke.get();
-            let draw_start = properties.draw_start.get();
-            let draw_end = properties.draw_end.get();
-            let draw_start = draw_start.to_clamped_unit_float();
-            let draw_end = draw_end.to_clamped_unit_float();
-            let mut coverage = BezPath::new();
-            if fill.coverage_alpha_0_1() > f64::EPSILON {
-                coverage.extend(local_path.elements().iter().copied());
-            }
-            if stroke.color.get().alpha_0_1() > f64::EPSILON && draw_start < draw_end {
-                if let Some(stroke_outline) = stroked_outline_path(&local_path, &stroke) {
-                    coverage.extend(stroke_outline.elements().iter().copied());
-                }
-            }
+            let strokes = if properties.draw_start.get().to_clamped_unit_float()
+                < properties.draw_end.get().to_clamped_unit_float()
+            {
+                properties.stroke.get()
+            } else {
+                Vec::new()
+            };
+            let coverage = crate::common::appearance_coverage_path(
+                &local_path,
+                &properties.fill.get(),
+                &strokes,
+            );
 
             if coverage.elements().is_empty() {
                 return None;
@@ -240,24 +238,14 @@ impl InstanceNode for PathInstance {
                 return Vec::new();
             };
             let path = smooth_bez_path(&path, p.smoothing.get());
-            let mut paints = crate::common::alpha_mask_paints(
-                node,
-                path.clone(),
-                p.fill.get(),
-                Stroke::default(),
-            );
-            let path = pax_runtime_api::drawing::path_trim::trim_bez_path(
-                &path,
-                p.draw_start.get().to_clamped_unit_float(),
-                p.draw_end.get().to_clamped_unit_float(),
-            );
-            paints.extend(crate::common::alpha_mask_paints(
+            crate::common::alpha_mask_paints_with_range(
                 node,
                 path,
-                Fill::Solid(pax_runtime_api::Color::TRANSPARENT),
+                p.fill.get(),
                 p.stroke.get(),
-            ));
-            paints
+                p.draw_start.get().to_clamped_unit_float(),
+                p.draw_end.get().to_clamped_unit_float(),
+            )
         })
     }
 
@@ -269,17 +257,11 @@ impl InstanceNode for PathInstance {
                 &build_local_bez_path(&elements, bounds)?,
                 properties.smoothing.get(),
             );
-            let fill = properties.fill.get();
-            let stroke = properties.stroke.get();
-            let mut coverage = BezPath::new();
-            if fill.coverage_alpha_0_1() > f64::EPSILON {
-                coverage.extend(local_path.elements().iter().copied());
-            }
-            if stroke.color.get().alpha_0_1() > f64::EPSILON {
-                if let Some(stroke_outline) = stroked_outline_path(&local_path, &stroke) {
-                    coverage.extend(stroke_outline.elements().iter().copied());
-                }
-            }
+            let coverage = crate::common::appearance_coverage_path(
+                &local_path,
+                &properties.fill.get(),
+                &properties.stroke.get(),
+            );
 
             if coverage.elements().is_empty() {
                 return None;
@@ -291,9 +273,11 @@ impl InstanceNode for PathInstance {
 
     fn resolve_coverage_opacity(&self, expanded_node: &ExpandedNode) -> f64 {
         expanded_node.with_properties_unwrapped(|properties: &mut Path| {
-            let fill_alpha = properties.fill.get().coverage_alpha_0_1();
-            let stroke_alpha = properties.stroke.get().color.get().alpha_0_1();
-            (fill_alpha.max(stroke_alpha) * expanded_node.computed_opacity.get()).clamp(0.0, 1.0)
+            (crate::common::appearance_coverage_alpha(
+                &properties.fill.get(),
+                &properties.stroke.get(),
+            ) * expanded_node.computed_opacity.get())
+            .clamp(0.0, 1.0)
         })
     }
 
@@ -318,7 +302,12 @@ impl InstanceNode for PathInstance {
                         path_local_coverage_bounds(
                             path,
                             properties.smoothing.get(),
-                            stroke_width_pixels(&properties.stroke.get()),
+                            properties
+                                .stroke
+                                .get()
+                                .iter()
+                                .map(Stroke::width_pixels)
+                                .fold(0.0, f64::max),
                         )
                     })
                     .unwrap_or(layout_bounds);
@@ -337,7 +326,7 @@ impl InstanceNode for PathInstance {
         rtc: &Rc<RuntimeContext>,
         rc: &mut dyn RenderContext,
     ) {
-        if !rtc.is_canvas_node_dirty(&expanded_node.id) {
+        if rc.alpha_source_layer().is_none() && !rtc.is_canvas_node_dirty(&expanded_node.id) {
             return;
         }
 
@@ -349,50 +338,19 @@ impl InstanceNode for PathInstance {
 
         if let Some(bez_path) = bez_path {
             expanded_node.with_properties_unwrapped(|properties: &mut Path| {
-                let opacity = scope.paint_opacity;
-                let fill = properties.fill.get();
-                let stroke = properties.stroke.get();
-                let material = properties.material.get();
-                let smoothing = properties.smoothing.get();
-                let draw_start = properties.draw_start.get();
-                let draw_end = properties.draw_end.get();
-                let draw_start = draw_start.to_clamped_unit_float();
-                let draw_end = draw_end.to_clamped_unit_float();
                 rc.save(scope.layer_id);
                 rc.transform(scope.layer_id, scope.surface_transform);
-                if fill.coverage_alpha_0_1() * opacity > f64::EPSILON {
-                    rc.fill_with_material_and_opacity_and_smoothing(
-                        scope.layer_id,
-                        bez_path.clone(),
-                        &fill,
-                        &material,
-                        opacity,
-                        smoothing,
-                    );
-                }
-                if stroke_width_pixels(&stroke) > f64::EPSILON && draw_start < draw_end {
-                    if draw_start <= f64::EPSILON && draw_end >= 1.0 - f64::EPSILON {
-                        rc.stroke_with_material_and_opacity_and_smoothing(
-                            scope.layer_id,
-                            bez_path.clone(),
-                            &stroke,
-                            &material,
-                            opacity,
-                            smoothing,
-                        );
-                    } else {
-                        rc.stroke_with_draw_range_and_material_and_opacity_and_smoothing(
-                            scope.layer_id,
-                            bez_path.clone(),
-                            &stroke,
-                            &material,
-                            opacity,
-                            draw_start,
-                            draw_end,
-                            smoothing,
-                        );
-                    }
-                }
+                crate::common::draw_appearance(
+                    rc,
+                    scope.layer_id,
+                    bez_path.clone(),
+                    &properties.fill.get(),
+                    &properties.stroke.get(),
+                    scope.paint_opacity,
+                    properties.smoothing.get(),
+                    properties.draw_start.get().to_clamped_unit_float(),
+                    properties.draw_end.get().to_clamped_unit_float(),
+                );
                 rc.restore(scope.layer_id);
             });
         }

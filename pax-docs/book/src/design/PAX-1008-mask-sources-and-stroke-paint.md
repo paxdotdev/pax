@@ -167,10 +167,10 @@ native text and separate Scroller surfaces fade independently. Piet uses
 temporary canvases but does not retain group pixels. Do not advertise arbitrary
 mixed-native capture, native alpha masks, or cross-surface capture as supported.
 
-PAX-1004 is on main (verified at `a9b7aa7b0` on September 27). This worktree's
-base still predates it. Implementing B should start after Zack directs
-base integration. Do not copy an entire renderer diff or independently recreate
-the landed group-opacity feature in this worktree.
+PAX-1004 is integrated through the completed rebase onto `a9b7aa7b0`.
+Zack subsequently approved B as a bounded same-surface vector integration; see
+[section 15 of the layer specification](PAX-1008-paint-fill-stroke-layers.md#15-approved-retained-alpha-source-integration).
+The earlier A checkpoint above records the independent lifecycle fix.
 
 ## Gradient stroke proposal
 
@@ -192,5 +192,5 @@ The source-lifecycle and Scroller work is recorded above and must remain covered
 by its existing regressions. The next feature's implementation sequence,
 migration, documentation, and acceptance matrix are in the
 [layer specification](PAX-1008-paint-fill-stroke-layers.md#12-acceptance-criteria).
-General source-subtree capture B remains a separate follow-up after base
-integration. Website integration acceptance is still outstanding.
+Bounded vector source capture B is now approved in section 15 of the layer
+specification. New website mask composition acceptance remains separate.
