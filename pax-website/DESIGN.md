@@ -1,5 +1,127 @@
 # Pax website design notes
 
+## September 29 — A live calculator in the footer
+
+The second hero adjective is now “high-performance.” The footer adds a quieter
+technical proof after the get-started/resources section: short copy beside a
+390×844 logical-pixel phone, stacked on compact screens and uniformly scaled
+to fit its available width. The application fills the rounded screen up to
+the inner bevel; a floating island and home indicator sit above it. Host-owned
+48px/24px safe insets keep controls clear without introducing a blank bezel.
+
+Import `calculator::Calculator` through a Cargo path to the canonical example;
+do not fork the calculator source. The example now has a thin standalone root
+and explicit embedding/update/keyboard controls. The footer's ExampleHost
+contains both website wrapper files, the device frame, and the actual calculator
+template, keypad, model, parser, sampler, and layout source.
+
+The empty phone host observes viewport proximity and mounts the app only on
+approach. It stays mounted afterward to preserve calculations and plot state,
+but its frame updates and local point lights stop when the phone is out of view.
+This is explicit application-level gating, not engine-wide lazy initialization
+or subtree suspension. Embedded keyboard input is disabled so global calculator
+shortcuts cannot hijack the surrounding page. On-screen keys and graph gestures
+remain interactive. Layer-wide AmbientLight is omitted in embedded mode so
+the calculator cannot relight other website content.
+
+For now, choose live composition for this one bounded example. A raster poster
+would avoid initialization cost but lose its interaction; multiple heavier
+examples (such as two Paxflix views) still need their own measurements. Consider
+poster-to-live activation, retained offscreen suspension, or a single active
+instance based on those measurements rather than automatically mounting all
+examples at landing-page startup. No new general renderer mechanism is added here.
+
+Validation: 21 website tests and 38 calculator-core tests pass. Website debug
+and baked-release web builds pass, as does a separate standalone-calculator web
+build. Desktop and 390px browser checks cover calculation (7 × 6 = 42), mode
+switching, rounded screen clipping, source-tab switching, and session retention
+after scrolling away and resizing. A scaled release graph drag pans correctly;
+keyboard input remains with the page. The long hero adjective fits at 390px.
+Scene inspection confirmed zero calculator instances before approaching its
+host and one after. The current release JS/Wasm bundle is 1.6 MB gzip (assets
+excluded); this is not a calculator-only size delta or a sustained performance
+profile. Native-device touch behavior and multiple heavy demos remain untested.
+Canonical source bundles, mdbook, and whitespace checks also pass.
+
+Remaining diagnostic: at the default-width debug startup, eight transient
+`reactive drain hit 100000 evaluations` warnings occur while the page settles,
+even with zero mounted Calculator instances. Large automated scroll/resize
+jumps also reported tile-window escapes. Neither persisted in the settled
+footer, but these are not a clean-console/performance sign-off. The dev-look
+capture request timed out; visual checks used the browser instead.
+
+## September 29 — Cycling CMY placeholder; mesh-gradient design lane
+
+“Creative” now reveals the repeating CMY linear gradient from the `mask-strokes`
+proving fixture. Two identical periods cover a 200%-wide rectangle, translating
+one period every four seconds for seamless cycling. This is not mesh-gradient
+paint: genuine mesh support is being designed separately in PAX-1011. The word's
+aspect ratio, heavier stroke, 1.6-second handwriting reveal, and signboard
+choreography stay unchanged. A small paint bleed preserves the round stroke caps.
+
+The paint and source are unlit. No hero LightFrame, LightSource, or metallic
+material remains. The visible headline owns separate writing and paint clocks:
+pausing finishes the handwriting but freezes the colors without a jump. Both
+stop outside the viewport; paint also stops when another adjective is mounted.
+A transparent native Text outside the mask keeps the word browser-readable,
+since native leaves inside a mask source are suppressed. This preserves the
+existing text-equivalent boundary, not a new ARIA/heading claim. Alpha masking
+still requires the GPU backend. View Source includes the live template and logic.
+
+The previous pinstripe treatment is preserved, unmounted, in `cmy_ribbon.*`.
+It is reusable content for a Mask, taking externally driven `progress` from zero
+to one and following its container bounds. Three touching 2px CMY stripes share
+one hard-stop gradient rectangle at 45 degrees. They begin fully off-left,
+expand across the narrow axis, accelerate right, and leave white underpaint.
+To reproduce the prior pipeline, drive progress with
+`clamp((writing_ms - 1100) / 500, 0, 1)`. The extraction deliberately removes
+the material and light; there is no mounted clock/resource cost. Tests retain
+the mask-slice clearance checks across mobile and desktop lettering sizes.
+
+This iteration changes only website composition, not a library API or capability.
+Canonical gradient/masking articles already cover the APIs used here.
+
+Validation: 20 website tests, debug and baked-release web builds, mdbook, Rust
+formatting, and `git diff --check` pass. Browser checks cover the writing reveal,
+moving colors, pause/resume, and layouts at 390px and 1440px; a release runtime
+smoke check also shows the cycling paint. Both current-origin warning/error
+logs were empty. Scene inspection confirms zero mounted CmyRibbon instances.
+The known Pax formatter trailing-space issue still requires trimming wrapped
+lines after formatting. No Apple-native or sustained performance audit is claimed.
+
+## September 29 — Paint and mask feature studies
+
+The first two gallery cards remain Hot Reload and Path Drawing. Two new cards
+follow: Layered Paint and Dynamic Vector Masks. These are small real renderer
+studies. Keep their treatment grayscale: a three-stroke ribbon on one Bézier
+path, then handwritten “Pax” revealing a moving silver gradient. Each lives in
+the existing card media box, with the same full-card documentation link and
+unchanged native marquee.
+
+`FeaturePaintDemo` shares a seven-second draw/hold/rewind clock. Viewport-proximity
+notifications gate updates using the clipped global viewport, including the
+outer page and horizontal rail. The visible component owns that clock; detached
+mask sources deliberately receive no viewport notifications. The gallery's
+existing structural culling unmounts distant instances. Both templates and
+Rust logic are exposed by View Source. No new global lights or decorative
+page effects are mounted.
+
+The mask card explicitly names GPU alpha masking and supplies its text
+equivalent outside the source. It does not imply native controls or images can
+be captured as mask sources. The paint card links to the canonical Paint Layers
+guide; the mask card links to Painted Alpha Masks. The older general clipping
+card and its mixed-native composition claims are unchanged.
+
+Validation: 218 runtime and 78 standard-library tests pass both with and without
+designtime; 38 calculator and 17 website tests pass. Debug and baked-release web
+builds, mdbook, both source-bundle checks, and whitespace checks pass. Browser
+checks cover desktop, 390px mobile, and an 1800px wide layout at DPR 1; both new
+docs destinations and the gallery's Pax/Rust source tabs work. Scene inspection
+confirms the two demo instances leave the mounted window and remount on return.
+Debug resize/large-scroll checks emit existing tile-window-escape diagnostics;
+the release-origin warning/error log was empty in this smoke test. This is not
+a Retina, Apple-native, touch-device, or sustained frame-time/resource audit.
+
 ## September 25 — Inverse logo, handwriting, and supporting copy
 
 The hero now selects `LogoBackgroundMode::Dark` in the canonical `pax-logo`
@@ -20,7 +142,7 @@ via a transparent native Text layer; no duplicate ordinary Text is mounted
 for creative. This is a useful text alternative, not a complete heading or
 screen-reader contract.
 
-CMY banding through the writing is pending a mask-component lifecycle fix:
+At this September 25 checkpoint, CMY banding was pending a mask-component lifecycle fix:
 an alpha-mask prototype rendered blank because the off-tree Handwriter never
 runs its mount handler or expands its component template. Alpha sources already
 trim primitive Path strokes, but this does not establish support for a component
@@ -68,7 +190,7 @@ inside an explicitly reserved layout footprint.
 The fixed headline grid reads “A declarative language” / “for [adjective]” /
 “user interfaces”. Its font size follows the available column width. Each word
 has a 4.2-second reading hold and a 0.9-second change: horizontal slide to
-performant, flattened signboard flip to native, vertical roll to portable, and
+high-performance, flattened signboard flip to native, vertical roll to portable, and
 tilt/scale recovery to creative. One native Text changes at the invisible
 midpoint, avoiding duplicate words or per-letter reading order. Geometry stays
 fixed as the words change; offscreen playback stops advancing. The logo plays

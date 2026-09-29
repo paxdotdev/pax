@@ -1,0 +1,24 @@
+if self.progress < 1.0 {
+    // Hard stops keep all three pinstripes contiguous through scaling.
+    <Rectangle x={(self.ribbon_x)px} y=50% anchor=50% width=6px height={(self.ribbon_height)px} scale_x={(self.ribbon_scale * 100.0)%}
+        rotate=45deg fill={
+            paint: @gradient {
+                0%: {SiteTheme::cyan()},
+                33.333333%: {SiteTheme::cyan()},
+                33.333333%: {SiteTheme::pink()},
+                66.666667%: {SiteTheme::pink()},
+                66.666667%: rgb(255, 231, 61),
+                100%: rgb(255, 231, 61),
+            }
+            material: {Material::unlit()}
+        }/>
+}
+<Rectangle x=-8px y=-8px anchor_x=0% anchor_y=0% width={100% + 16px} height={100% + 16px} fill={
+    paint: WHITE
+    material: {Material::unlit()}
+}/>
+
+@settings {
+    @mount: update
+    @pre_render: update
+}

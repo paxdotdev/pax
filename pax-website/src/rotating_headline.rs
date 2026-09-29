@@ -2,14 +2,15 @@ use crate::SiteTheme;
 use pax_kit::math::Point2;
 use pax_kit::*;
 
-const WORDS: [&str; 4] = ["creative", "performant", "native", "portable"];
+const WORDS: [&str; 4] = ["creative", "high-performance", "native", "portable"];
 const HOLD_MS: f64 = 4200.0;
 const CHANGE_MS: f64 = 900.0;
 const CYCLE_MS: f64 = HOLD_MS + CHANGE_MS;
 const WRITE_MS: f64 = 1600.0;
+const GRADIENT_PERIOD_MS: f64 = 4000.0;
 
-/// A fixed three-line signboard. Creative uses Handwriter's native text
-/// alternative; other words use native Text. Only the current word is mounted.
+/// A fixed three-line signboard. Creative masks a cycling CMY gradient with Handwriter;
+/// its native text equivalent lives outside the mask. Only the current word mounts.
 #[pax]
 #[file("rotating_headline.pax")]
 pub struct RotatingHeadline {
@@ -23,6 +24,9 @@ pub struct RotatingHeadline {
     pub word_rotate: Property<f64>,
     pub word_opacity: Property<f64>,
     pub writing_progress: Property<f64>,
+    pub gradient_x: Property<f64>,
+    pub _gradient_ms: Property<f64>,
+    pub _creative_ms: Property<f64>,
     pub _elapsed_ms: Property<f64>,
     pub _last_ms: Property<f64>,
 }
@@ -30,6 +34,7 @@ pub struct RotatingHeadline {
 impl RotatingHeadline {
     pub fn mount(&mut self, ctx: &NodeContext) {
         self._last_ms.set(ctx.elapsed_time_millis() as f64);
+        self.gradient_x.set(gradient_offset(0.0));
         self.apply_pose(pose_at(0.0));
     }
 
@@ -51,12 +56,23 @@ impl RotatingHeadline {
                 .set_if_neq(rest_time(self._elapsed_ms.get()));
         }
         let pose = pose_at(self._elapsed_ms.get());
-        self.writing_progress.set_if_neq(writing_progress(
-            self.writing_progress.get(),
+        // Keep the paint clock independent of the signboard's legible pose snap on pause.
+        self._gradient_ms.set_if_neq(gradient_time(
+            self._gradient_ms.get(),
             dt,
             pose.index == 0,
             self.playing.get(),
         ));
+        self.gradient_x
+            .set_if_neq(gradient_offset(self._gradient_ms.get()));
+        self._creative_ms.set_if_neq(creative_time(
+            self._creative_ms.get(),
+            dt,
+            pose.index == 0,
+            self.playing.get(),
+        ));
+        self.writing_progress
+            .set_if_neq(writing_progress(self._creative_ms.get()));
         self.apply_pose(pose);
     }
 
@@ -71,14 +87,31 @@ impl RotatingHeadline {
     }
 }
 
-fn writing_progress(previous: f64, dt: f64, creative: bool, playing: bool) -> f64 {
+fn creative_time(previous: f64, dt: f64, creative: bool, playing: bool) -> f64 {
     if !creative {
         0.0
     } else if !playing {
-        1.0
+        // Pause completes the handwriting while leaving its current colors intact.
+        WRITE_MS
     } else {
-        (previous + dt / WRITE_MS).clamp(0.0, 1.0)
+        (previous + dt).min(WRITE_MS)
     }
+}
+
+fn gradient_time(previous: f64, dt: f64, creative: bool, playing: bool) -> f64 {
+    if creative && playing {
+        (previous + dt).rem_euclid(GRADIENT_PERIOD_MS)
+    } else {
+        previous
+    }
+}
+
+fn gradient_offset(time: f64) -> f64 {
+    time.rem_euclid(GRADIENT_PERIOD_MS) / GRADIENT_PERIOD_MS * 100.0 - 100.0
+}
+
+fn writing_progress(time: f64) -> f64 {
+    (time / WRITE_MS).clamp(0.0, 1.0)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -125,7 +158,7 @@ fn pose_at(time: f64) -> WordPose {
     match index {
         0 => {
             pose.x = direction * excursion * 1.65;
-        } // Express slide → performant.
+        } // Express slide → high-performance.
         1 => {
             pose.sy = (1.0 - excursion).max(0.015);
         } // Split-flap → native.
@@ -196,16 +229,42 @@ mod tests {
 
     #[test]
     fn writing_restarts_each_visit_and_pause_completes_it() {
-        assert_eq!(writing_progress(1.0, 16.0, false, true), 0.0);
-        assert_eq!(writing_progress(0.0, 800.0, true, true), 0.5);
-        assert_eq!(writing_progress(0.5, 800.0, true, true), 1.0);
-        assert_eq!(writing_progress(0.2, 0.0, true, false), 1.0);
-        assert_eq!(writing_progress(1.0, 16.0, true, true), 1.0);
+        assert_eq!(
+            writing_progress(creative_time(WRITE_MS, 16.0, false, true)),
+            0.0
+        );
+        assert_eq!(writing_progress(800.0), 0.5);
+        assert_eq!(writing_progress(WRITE_MS), 1.0);
+        assert_eq!(
+            writing_progress(creative_time(200.0, 0.0, true, false)),
+            1.0
+        );
+        assert_eq!(writing_progress(WRITE_MS + 16.0), 1.0);
         let incoming = pose_at(CYCLE_MS * 4.0 - 100.0);
         assert_eq!(incoming.index, 0);
         assert_eq!(
             (incoming.x, incoming.y, incoming.angle, incoming.opacity),
             (0.0, 0.0, 0.0, 1.0)
         );
+    }
+
+    #[test]
+    fn gradient_cycles_at_the_proving_fixture_speed_and_covers_the_mask() {
+        assert_eq!(gradient_offset(0.0), -100.0);
+        assert_eq!(gradient_offset(2000.0), -50.0);
+        assert_eq!(gradient_offset(GRADIENT_PERIOD_MS), -100.0);
+        for ms in (0..20000).step_by(13) {
+            let x = gradient_offset(ms as f64);
+            assert!((-100.0..0.0).contains(&x));
+            assert!(x + 200.0 >= 100.0);
+        }
+    }
+
+    #[test]
+    fn gradient_freezes_on_pause_and_other_words_without_a_resume_jump() {
+        assert_eq!(gradient_time(1200.0, 16.0, true, false), 1200.0);
+        assert_eq!(gradient_time(1200.0, 16.0, false, true), 1200.0);
+        assert_eq!(gradient_time(1200.0, 16.0, true, true), 1216.0);
+        assert_eq!(gradient_time(3990.0, 16.0, true, true), 6.0);
     }
 }

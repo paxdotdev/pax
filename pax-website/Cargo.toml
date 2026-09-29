@@ -22,6 +22,7 @@ social_image_alt = "Pax logo"
 [dependencies]
 pax-kit = { version = "0.39.0", path = "../pax-kit" }
 pax-logo = { version = "0.39.0", path = "../examples/src/pax-logo" }
+calculator = { version = "0.39.0", path = "../examples/src/calculator" }
 
 [lib]
 crate-type = ["cdylib", "rlib"]

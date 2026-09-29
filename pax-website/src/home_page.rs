@@ -12,6 +12,7 @@ pub struct HomePage {
     pub authoring_height: Property<f64>,
     pub runtime_height: Property<f64>,
     pub gallery_height: Property<f64>,
+    pub calculator_height: Property<f64>,
     pub compact: Property<bool>,
     pub hero_sources: Property<Vec<ExampleSource>>,
     pub authoring_sources: Property<Vec<ExampleSource>>,
@@ -19,6 +20,7 @@ pub struct HomePage {
     pub runtime_sources: Property<Vec<ExampleSource>>,
     pub feature_gallery_sources: Property<Vec<ExampleSource>>,
     pub resource_sources: Property<Vec<ExampleSource>>,
+    pub calculator_sources: Property<Vec<ExampleSource>>,
 }
 
 impl HomePage {
@@ -55,6 +57,55 @@ impl HomePage {
             include_str!("../../examples/src/pax-logo/src/animated_pax_logo_post.rs"),
         ));
         self.hero_sources.set(hero_sources);
+        let mut calculator_sources = section_sources(
+            "src/calculator_section.pax",
+            include_str!("calculator_section.pax"),
+            "src/calculator_section.rs",
+            include_str!("calculator_section.rs"),
+        );
+        calculator_sources.extend(section_sources(
+            "calculator/src/lib.pax",
+            include_str!("../../examples/src/calculator/src/lib.pax"),
+            "calculator/src/lib.rs",
+            include_str!("../../examples/src/calculator/src/lib.rs"),
+        ));
+        calculator_sources.extend(section_sources(
+            "calculator/src/key.pax",
+            include_str!("../../examples/src/calculator/src/key.pax"),
+            "calculator/src/key.rs",
+            include_str!("../../examples/src/calculator/src/key.rs"),
+        ));
+        calculator_sources.extend(section_sources(
+            "src/device_frame.pax",
+            include_str!("device_frame.pax"),
+            "src/device_frame.rs",
+            include_str!("device_frame.rs"),
+        ));
+        for (label, code) in [
+            (
+                "calculator/src/model.rs",
+                include_str!("../../examples/src/calculator/src/model.rs"),
+            ),
+            (
+                "calculator/src/expression.rs",
+                include_str!("../../examples/src/calculator/src/expression.rs"),
+            ),
+            (
+                "calculator/src/graph.rs",
+                include_str!("../../examples/src/calculator/src/graph.rs"),
+            ),
+            (
+                "calculator/src/layout.rs",
+                include_str!("../../examples/src/calculator/src/layout.rs"),
+            ),
+        ] {
+            calculator_sources.push(ExampleSource {
+                label: label.into(),
+                language: "rust".into(),
+                code: code.into(),
+            });
+        }
+        self.calculator_sources.set(calculator_sources);
         self.authoring_sources.set(section_sources(
             "src/authoring_section.pax",
             include_str!("authoring_section.pax"),
@@ -74,6 +125,16 @@ impl HomePage {
             include_str!("runtime_section.rs"),
         ));
         self.feature_gallery_sources.set(vec![
+            ExampleSource {
+                label: "feature_gallery/paint_demo.pax".to_string(),
+                language: "pax".to_string(),
+                code: include_str!("feature_gallery/paint_demo.pax").to_string(),
+            },
+            ExampleSource {
+                label: "feature_gallery/paint_demo.rs".to_string(),
+                language: "rust".to_string(),
+                code: include_str!("feature_gallery/paint_demo.rs").to_string(),
+            },
             ExampleSource {
                 label: "feature_gallery/gallery.pax".to_string(),
                 language: "pax".to_string(),

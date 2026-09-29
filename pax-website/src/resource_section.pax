@@ -50,7 +50,6 @@
                 <Text class="editorial_link" width=100% text="PAX NOTES →"/>
             </Link>
         </Stacker>
-        <Text class="editorial_note" width=100% text="Built in Pax. Open a section's source, or follow the code on GitHub."/>
     </Stacker>
     <Rectangle class="site_ink" width=100% height=100%/>
 </Group>

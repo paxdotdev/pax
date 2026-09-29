@@ -4,8 +4,11 @@ use pax_kit::*;
 
 pub mod authoring_section;
 pub mod brand_mark;
+pub mod calculator_section;
 // Parked experiment: retained with tests, but not mounted or wired into the site.
 pub mod chromatic_contour;
+// Parked pinstripe treatment; no mounted instances, clock, or lighting resources.
+pub mod cmy_ribbon;
 pub mod demo_studies;
 pub mod device_frame;
 pub mod feature_gallery;
@@ -22,6 +25,7 @@ pub mod site_theme;
 
 pub use authoring_section::AuthoringSection;
 pub use brand_mark::BrandMark;
+pub use calculator_section::CalculatorSection;
 pub use demo_studies::{MaterialStudy, NativeScrollStudy, PathStudy};
 pub use device_frame::DeviceFrame;
 pub use feature_gallery::{FeatureCard, FeatureGallery};

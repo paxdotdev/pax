@@ -76,6 +76,8 @@ The calculator starts in polar Graph mode. Edit its formula, then press Enter or
 submission, the last plotted function remains visible. Errors retain the
 draft, move the cursor to the problem, and report its character column.
 Drag with a mouse, scroll with a trackpad, or swipe the graph with touch.
+Mouse dragging uses local coordinates, including when a host scales or rotates
+the calculator component.
 The D-pad and arrow keys pan once the plot has focus. There is one visible curve. `2nd` → `x θ` (MODE) switches between Cartesian `y=f(x)` and
 polar `r=f(θ)`, preserving each formula draft and last valid plot separately.
 The `x θ` key inserts the active variable and does nothing in Calculate.
@@ -234,6 +236,36 @@ checks cover polar plotting, `sin(x^2)` after zoom-out, second-function
 calculation, GRAPH submission, and visible error recovery. Physical iOS gestures
 and appearance still need a hands-on device pass; web checks do not establish
 native interaction correctness. Pinch zoom is not implemented yet.
+
+## Embedding the live calculator
+
+The crate exports `calculator::Calculator`; the standalone `Example` is a thin
+full-window wrapper around it. A monorepo host can depend on this crate by Cargo
+path and import the component without copying its template or Rust logic:
+
+```pax
+<Calculator width=100% height=100% embedded=true safe_top=48 safe_bottom=24
+    disable_keyboard=true paused={!self.visible}/>
+```
+
+`embedded=true` uses the full-bleed surface and host-supplied `safe_top`,
+`safe_right`, `safe_bottom`, and `safe_left` logical-pixel insets. It suppresses
+device-safe-area spacers and layer-wide ambient lighting. The host supplies
+the phone outline, floating island, and clip. The defaults preserve the
+standalone app's platform safe-area behavior and freestanding desktop case.
+
+Keyboard delivery is global across the mounted Pax scene, not automatically
+scoped to a clicked component. Set `disable_keyboard=true` in a surrounding
+page so the calculator does not consume page navigation or shortcuts; its
+on-screen keys, graph dragging and native scrolling remain live. A host with
+an explicit active-input policy may instead control that property itself.
+
+`paused=true` skips the calculator's frame handler and disables its point lights;
+it retains the model, graph, and history. This is application-level update gating,
+not a general subtree-suspension primitive. The website mounts once on viewport
+proximity, pauses outside the visible viewport, and retains the session on return.
+The initial calculator is absent from the landing-page scene until then. Plot
+resampling remains driven by dirty state or actual plot scrolling, not animation.
 
 ## Checks
 

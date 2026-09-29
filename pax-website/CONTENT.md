@@ -5,7 +5,7 @@ the facts and mental model; the website is an invitation, not a second manual.
 
 ## Content spine
 
-1. Animated Pax logo and "A declarative language for creative / performant /
+1. Animated Pax logo and "A declarative language for creative / high-performance /
    native / portable user interfaces": a three-line rotating headline, compact
    paragraphs connecting declarative Pax, Rust application logic, and the four shipping
    targets, followed by the primary CLI path. Deeper explanation stays below.
@@ -18,8 +18,13 @@ the facts and mental model; the website is an invitation, not a second manual.
 5. Feature gallery: preserve all authored cards, artwork, qualifications, and
    local marquee behavior. Hot reloading leads, followed by path drawing;
    offscreen auto-advance pauses to preserve that first impression.
+   Layered Paint and Dynamic Vector Masks follow with real grayscale demonstrations
+   and links to the drawing/compositing guides; alpha masking stays GPU-qualified.
 6. Your next interface starts here: install/create/run, project maturity,
    the self-contained OSS boundary, and useful destinations.
+7. Do the math: a live graphing calculator in a full-bleed phone silhouette,
+   with the floating island, real keypad/graph interaction, and inspectable
+   canonical Pax and Rust source. A quieter technical proof after the main CTA.
 
 ## Layout and production boundary
 
@@ -36,7 +41,10 @@ its own height; Stacker owns paragraph flow. Each section remains inspectable
 through ExampleHost. Fixed host envelopes are separate from internal text flow.
 
 The hero uses native text with affine word transitions; “creative” uses
-Handwriter's bundled EMS League strokes and native text alternative.
+Handwriter's bundled EMS League strokes revealing the proving fixture's cycling
+CMY gradient. This is temporary paint while PAX-1011 explores genuine mesh gradients.
+A native text equivalent stays outside the mask. Both writing and paint obey
+the hero's pause/offscreen controls.
 The animated logo is imported from its canonical example. Decorative contours
 remain unplugged; the feature gallery and device studies carry the deeper
 demonstrations. Removed experiments remain recoverable from Git history.

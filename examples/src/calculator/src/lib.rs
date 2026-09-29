@@ -50,8 +50,20 @@ pub struct KeyData {
 
 #[pax]
 #[main]
+#[inlined(<Calculator width=100% height=100%/>)]
+pub struct Example {}
+
+/// The standalone calculator's live scene, also usable inside a host component.
+/// Embedded hosts supply safe-area insets and opt out of global keyboard input.
+#[pax]
 #[file("lib.pax")]
-pub struct Example {
+pub struct Calculator {
+    /// Use a full-bleed surface and host-supplied safe_* insets, not device spacers.
+    pub embedded: Property<bool>,
+    /// Retain the session while skipping per-frame display and graph updates.
+    pub paused: Property<bool>,
+    /// Leave global keyboard events to the surrounding application.
+    pub disable_keyboard: Property<bool>,
     pub native_full_screen: Property<bool>,
     pub edge_to_edge: Property<bool>,
     pub safe_top: Property<f64>,
@@ -117,7 +129,7 @@ pub struct Example {
     pub mono_font: Property<Font>,
 }
 
-impl Example {
+impl Calculator {
     pub fn mount(&mut self, ctx: &NodeContext) {
         let target = ctx.target.get();
         self.native_full_screen.set(target.native && target.ios);
@@ -153,8 +165,11 @@ impl Example {
         self.frame(ctx);
     }
     pub fn frame(&mut self, ctx: &NodeContext) {
+        if self.paused.get() {
+            return;
+        }
         let (w, h) = ctx.bounds_self.get();
-        let next = if self.native_full_screen.get() {
+        let next = if self.native_full_screen.get() || self.embedded.get() {
             Layout::for_ios(
                 (w - self.safe_left.get() - self.safe_right.get()).max(0.),
                 (h - self.safe_top.get() - self.safe_bottom.get()).max(0.),
@@ -486,8 +501,11 @@ impl Example {
     }
 }
 
-impl Example {
+impl Calculator {
     pub fn key_down(&mut self, ctx: &NodeContext, event: Event<KeyDown>) {
+        if self.paused.get() || self.disable_keyboard.get() {
+            return;
+        }
         if event.keyboard.modifiers.iter().any(|m| {
             matches!(
                 m,
@@ -564,6 +582,9 @@ impl Example {
         let _ = ctx.with_store(|store: &mut CalculatorStore| store.drag = None);
     }
     pub fn light_move(&mut self, ctx: &NodeContext, event: Event<MouseMove>) {
+        if self.paused.get() {
+            return;
+        }
         // Local coordinates include the outer Scroller's presentation offset.
         let p = ctx.local_point(Point2::new(event.mouse.x, event.mouse.y));
         let (w, h) = ctx.bounds_self.get();
@@ -577,7 +598,16 @@ impl Example {
     pub fn mouse_move(&mut self, ctx: &NodeContext, event: Event<MouseMove>) {
         let _ = ctx.with_store(|store: &mut CalculatorStore| {
             if let Some((x, y, sx, sy)) = store.drag {
-                self.set_scroll(sx + x - event.mouse.x, sy + y - event.mouse.y, store.layout);
+                // Compare in local pixels so scaled/rotated embedded calculators
+                // pan at the pointer's speed rather than in window-space units.
+                let start = ctx.local_point(Point2::new(x, y));
+                let current = ctx.local_point(Point2::new(event.mouse.x, event.mouse.y));
+                let (width, height) = ctx.bounds_self.get();
+                self.set_scroll(
+                    sx + (start.x - current.x) * width,
+                    sy + (start.y - current.y) * height,
+                    store.layout,
+                );
             }
         });
     }
