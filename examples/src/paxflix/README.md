@@ -721,3 +721,41 @@ cargo test --manifest-path examples/src/paxflix/Cargo.toml --lib
 
 Validation recordings are temporary files outside the repository. No publication
 or new commits are part of this iteration.
+
+### September 28–29 presentation scheduling experiments
+
+The mask-pipeline-sharing experiment was reverted: its matched simulator run
+showed no useful reduction in tile initialization or overall render time. Keeping
+empty logical-layer GPU contexts was also rejected earlier because its settled
+simulator footprint grew from about 336MB to 493MB without reducing initialization
+time. Neither experiment remains in the renderer.
+
+A second trial submitted every dirty logical layer before presenting any tiles,
+while keeping presentation inside the same native Core Animation transaction.
+Its Metal regression verified submission ordering, both tiles of two independent
+layers, captured pixel colors, immediate single-layer flush, and clean/inactive/
+failed/pending layers. All 234 ordinary and hardware tests passed in both debug
+and release before this trial was reverted.
+
+Four simulator runs traversed the same catalog down/up twice with a temporary
+application probe, using control–trial–trial–control order. Each created 78 tiles
+and uploaded 466 image textures (440,209,216 cumulative bytes). Presentation wall
+time was 4.66s and 3.71s in the controls, versus 6.53s and 6.23s in the trials.
+Large intermittent host stalls, unequal callback counts, and adjacent one-second
+instrumentation windows prevent a clean estimate of the regression; there is no
+evidence of a benefit. These are simulator CPU wall times, not device frame-drop
+counts. One recorder hit its startup allowance; its flushed log contains the
+completed 48-second probe sequence. The final control waited for probe completion.
+
+The submit-first trial is reverted too. wgpu-hal 28.0.1 still creates and waits
+for a new presentation command buffer per transactional drawable. Eliminating
+those repeated waits requires explicit batched presentation in the dependency,
+with correct acquired-texture ownership and one scheduling barrier per queue
+batch. Disabling `presentsWithTransaction` would undo the native/GPU synchronization
+fix. No dependency fork is introduced by these experiments.
+
+Logs, measurements, the reverted trial patch, and a scoped dependency proposal
+are under `/tmp/paxflix-presentation-20260928/`. The ordinary Paxflix source has
+no automatic scrolling probe. These trials used the simulator, not Molino.
+
+Further dependency work is deferred to [PAX-1009](https://linear.app/paxdev/issue/PAX-1009/reduce-repeated-transactional-metal-presentation-waits-in-wgpu) in the Pax Core backlog. Both experiments remain reverted. The normal web and iPadOS simulator release builds and the documentation book build pass. No public API or release-baked format change remains.

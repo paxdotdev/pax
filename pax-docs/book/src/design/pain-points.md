@@ -3136,3 +3136,22 @@ image bindings before both mixed and vector-only flush paths, otherwise replacin
 all images with vectors can keep old textures alive. Regression checks should
 cover different tile origins, clipping/opacity, overlapping image versions,
 unrelated contexts, and release when images or tiles disappear.
+
+## Transactional Metal presentation needs a dependency-level batch boundary
+
+The September 28–29 Paxflix experiment submitted all dirty logical layers before
+presenting any tile. Pixel/order tests passed, but controlled simulator replay did
+not establish a speedup (presentation totals were higher in both trial runs, with
+substantial host noise). The experiment was reverted, as was a prior mask-pipeline
+sharing experiment that did not reduce measured initialization costs.
+
+wgpu-hal 28.0.1 commits a new command buffer and waits until it is scheduled for
+each transactional drawable. Rearranging Pax submissions leaves those repeated
+waits intact. A proper next step is an explicit wgpu batched-present operation
+that owns/validates each acquired texture and synchronizes once per queue batch.
+Keep drawable presentation on the calling thread inside the native Core Animation
+transaction. Do not bypass wgpu ownership, disable `presentsWithTransaction`, or
+replace it with a persistent "already scheduled" flag across frames. This is an
+investigation finding, not a newly supported Pax capability or a claimed speedup.
+
+Follow-up: [PAX-1009](https://linear.app/paxdev/issue/PAX-1009/reduce-repeated-transactional-metal-presentation-waits-in-wgpu), deferred to the Pax Core backlog.
