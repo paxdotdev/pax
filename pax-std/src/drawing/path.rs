@@ -178,6 +178,7 @@ impl InstanceNode for PathInstance {
             .changed_listener
             .replace_with(Property::computed(
                 move || {
+                    appearance.get();
                     cloned_context.mark_canvas_node_dirty(cloned_expanded_node.id);
                     cloned_context
                         .set_canvas_dirty(cloned_expanded_node.occlusion.get().render_layer_id)

@@ -1070,12 +1070,24 @@ impl RuntimeContext {
         }
     }
 
-    pub(crate) fn mark_node_occlusion_dirty(&self, id: u32) {
+    /// Invalidate native compositing after a node's paint or coverage changes.
+    /// Detached source changes reconcile their owning mask in the visible scene.
+    pub fn mark_node_occlusion_dirty(&self, mut id: u32) {
+        loop {
+            // Source records are cached for capture but absent from visible
+            // compositing. Reconcile their owning mask, including nested sources,
+            // so source animation does not look like a missing scene node.
+            borrow_mut!(self.scene_geometry).invalidate_existing(id);
+            let owner = self
+                .get_expanded_node_by_eid(ExpandedNodeIdentifier(id))
+                .and_then(|node| node.render_source_owner());
+            let Some(owner) = owner else {
+                break;
+            };
+            id = owner.to_u32();
+        }
         self.occlusion_dirty.set(true);
         self.occlusion_state.borrow_mut().dirty.insert(id);
-        // Initial render consumers prepare on demand during reconciliation;
-        // ordinary layout-only nodes need no retained geometry record.
-        borrow_mut!(self.scene_geometry).invalidate_existing(id);
     }
 
     fn mark_occlusion_presentation_dirty(&self, id: u32) {
@@ -1373,7 +1385,8 @@ impl RuntimeContext {
 
     /// Resolve a node's local coordinates into its owning canvas's content space.
     /// Scroller-owned layers use the registered owner's origin; root layers use
-    /// window coordinates. Physical tile offsets are applied later by the renderer.
+    /// window coordinates. Detached mask sources retain their scene transform until
+    /// capture projection. Physical tile offsets are applied later by the renderer.
     pub fn canvas_surface_transform_for_node(&self, node: &ExpandedNode) -> Affine {
         let transform = Affine::from(node.transform_and_bounds.get().transform);
         if node.is_render_source() {
@@ -2640,6 +2653,42 @@ mod light_scope_tests {
         context.clear_all_dirty_canvases();
         nodes[0].clone().recurse_unmount(&context);
         assert!(context.is_canvas_dirty(&1));
+    }
+
+    #[test]
+    fn detached_source_changes_preserve_incremental_scene_reconciliation() {
+        let (context, root) = mount_test_tree(vec![TestLightingNode::new(
+            TestLightingRole::Surface,
+            Vec::new(),
+        )
+        .as_instance()]);
+        let owner = root.children.get()[0].clone();
+        let sources = owner.create_children_detached(
+            vec![(
+                TestLightingNode::new(TestLightingRole::Surface, Vec::new()).as_instance(),
+                owner.stack.clone(),
+            )],
+            &context,
+            &Rc::downgrade(&owner),
+        );
+        let source = owner
+            .attach_sidecar_children(sources, &context, &owner.parent_frame)
+            .remove(0);
+        source.mount_as_render_source(&owner, &context);
+        root.recurse_update(&context);
+        crate::engine::occlusion::update_node_occlusion(&root, &context);
+        let before = context.occlusion_stats();
+        source
+            .get_common_properties()
+            .borrow()
+            .x
+            .set(Some(pax_runtime_api::Size::Pixels(15.0.into())));
+        root.recurse_update(&context);
+        crate::engine::occlusion::update_node_occlusion(&root, &context);
+        let after = context.occlusion_stats();
+        assert_eq!(after.rebuilds, before.rebuilds);
+        assert!(after.records_updated > before.records_updated);
+        root.recurse_unmount(&context);
     }
 
     #[test]

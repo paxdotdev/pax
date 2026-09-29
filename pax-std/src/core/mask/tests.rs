@@ -720,6 +720,54 @@ fn captured_source_uses_vector_render_hooks_and_source_frame_clips() {
     let node = root.children.get()[0].clone();
     let source = borrow!(node.sidecar_children)[0].clone();
     let leaf = source.children.get()[0].clone();
+    context.drain_node_effects();
+    let geometry = context.canvas_geometry_for_node(&leaf);
+    let source_id = leaf.id.to_u32();
+    let selected = context
+        .canvas_nodes_intersecting(geometry.layer, &[geometry.coverage_bounds.unwrap()])
+        .unwrap_or_default();
+    assert!(
+        !selected.contains(&source_id),
+        "detached source geometry must not enter visible replay selection"
+    );
+    assert_eq!(
+        geometry.surface_transform,
+        Affine::from(leaf.transform_and_bounds.get().transform)
+    );
+    leaf.get_common_properties()
+        .borrow()
+        .width
+        .set(Some(pax_runtime::api::Size::Pixels(180.0.into())));
+    context.drain_node_effects();
+    let resized = context.canvas_geometry_for_node(&leaf);
+    assert_eq!(resized.bounds.0, 180.0);
+    assert!(!Rc::ptr_eq(&geometry, &resized));
+    assert!(Rc::ptr_eq(
+        &resized,
+        &context.canvas_geometry_for_node(&leaf)
+    ));
+    let stroke_width = Property::new(pax_runtime::api::Size::Pixels(160.0.into()));
+    leaf.with_properties_unwrapped(|properties: &mut Rectangle| {
+        properties.stroke.set(vec![Stroke {
+            width: stroke_width.clone(),
+            ..Default::default()
+        }]);
+    });
+    context.drain_node_effects();
+    let stroked = context.canvas_geometry_for_node(&leaf);
+    assert!(stroked.local.local_bounds.unwrap().contains((-79.0, 20.0)));
+    stroke_width.set(pax_runtime::api::Size::Pixels(800.0.into()));
+    assert_eq!(
+        leaf.with_properties_unwrapped(|p: &mut Rectangle| p.stroke.get()[0].width_pixels()),
+        800.0
+    );
+    context.drain_node_effects();
+    let widened = context.canvas_geometry_for_node(&leaf);
+    assert!(!Rc::ptr_eq(&stroked, &widened));
+    assert!(!stroked.local.local_bounds.unwrap().contains((-399.0, 20.0)));
+    assert!(widened.local.local_bounds.unwrap().contains((-399.0, 20.0)));
+    leaf.with_properties_unwrapped(|p: &mut Rectangle| p.stroke.set(Vec::new()));
+    context.drain_node_effects();
     context.clear_canvas_node_dirty(&leaf.id);
     let mut renderer = RecordingRenderer {
         capture_enabled: true,

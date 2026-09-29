@@ -271,6 +271,8 @@ controls—including Handwriter's invisible selectable text equivalent—do not
 contribute mask pixels. Keep a text equivalent outside the mask when a vector
 reveal carries meaning. Source mount handlers can still perform application
 side effects, so use the same lifetime/cleanup discipline as visible components.
+Detached sources do not receive viewport-proximity events: their local geometry
+supplies the mask and does not represent visible viewport content.
 
 This does not make every component a supported source: the rendered leaves
 must still be supported vector shapes. Scrollers and native leaves inside the

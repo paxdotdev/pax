@@ -1,4 +1,4 @@
-use kurbo::Affine;
+use kurbo::{Affine, Shape};
 pub use pax_engine::api::Size;
 use pax_message::AppleLiquidGlassPatch;
 use pax_runtime::api as pax_runtime_api;
@@ -264,6 +264,7 @@ pub(crate) fn appearance_coverage_alpha(
 
 // Own nested subscriptions with the outer appearance. Replacing a stack drops
 // its old layer/material watchers; weak scene references avoid extending mount lifetimes.
+// Callers retain the returned property in their listener: dependency edges do not own it.
 pub(crate) fn watch_appearance(
     node: &std::rc::Rc<ExpandedNode>,
     context: &std::rc::Rc<RuntimeContext>,
@@ -276,7 +277,7 @@ pub(crate) fn watch_appearance(
     let weak_node = Rc::downgrade(node);
     let weak_context = Rc::downgrade(context);
     let watchers = RefCell::new(Vec::<Property<()>>::new());
-    Property::computed(
+    let appearance = Property::computed(
         move || {
             let (Some(node), Some(context)) = (weak_node.upgrade(), weak_context.upgrade()) else {
                 return;
@@ -338,9 +339,7 @@ pub(crate) fn watch_appearance(
                                 {
                                     node.changed_listener.invalidate();
                                     context.mark_canvas_node_dirty(node.id);
-                                    if !node.is_render_source() {
-                                        context.mark_occlusion_dirty();
-                                    }
+                                    context.mark_node_occlusion_dirty(node.id.to_u32());
                                 }
                             },
                             &material_dependencies,
@@ -365,7 +364,12 @@ pub(crate) fn watch_appearance(
             *watchers.borrow_mut() = next;
         },
         &deps,
-    )
+    );
+    // Being an inbound dependency propagates dirtiness, but does not evaluate
+    // this subscription builder. Keep it active when the outer stack changes.
+    context.register_expanded_node_effect_property_named(node, &appearance, "appearance stack");
+    appearance.get();
+    appearance
 }
 
 // Centered miters have a four-half-width limit; include all layers before tile selection.

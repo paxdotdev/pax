@@ -111,6 +111,10 @@ impl RuntimeContext {
     }
 
     pub(crate) fn register_viewport_proximity(self: &Rc<Self>, node: &Rc<ExpandedNode>) {
+        // A detached mask source has a component lifetime but no viewport presence.
+        if node.is_render_source() {
+            return;
+        }
         if ![
             VIEWPORT_PROXIMITY_ENTER_HANDLERS,
             VIEWPORT_PROXIMITY_CHANGE_HANDLERS,

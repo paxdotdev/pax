@@ -124,7 +124,6 @@ The controls now use `@button_click` and `Event<ButtonClick>`. The earlier
 Apple native Button activation. See [Events & Rust](../../../pax-docs/book/src/event-handling-rust.md#buttons-and-custom-activation).
 
 Simulator automation could activate Buttons but could not move the page with
-its swipe/scroll attempts. iPad handwriting, source removal/remounting, and
-nested scrolling therefore still need a manual check; this does not establish
-a Scroller defect. These are debug app checks, not Apple release or physical
-device validation.
+its swipe/scroll attempts. Zack subsequently verified the iPad handwriting,
+source removal/remounting, and nested scrolling manually. These are debug app
+checks, not Apple release or physical-device validation.

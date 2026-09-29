@@ -574,7 +574,35 @@ outer/nested scrolling. Fixture Buttons were corrected to use `button_click`
 with `Event<ButtonClick>`; browser `click` activation had hidden that portability
 mistake.
 
-iPad swipe/scroll attempts through native automation did not move the page, so
-the lower handwriting/source-lifecycle/nested-scroll checks remain unverified
-there. No Apple release build or physical-device validation is claimed. This
-supersedes the earlier statement that Apple applications had not been launched.
+iPad swipe/scroll attempts through native automation did not move the page.
+Zack subsequently verified the lower handwriting/source-lifecycle/nested-scroll
+checks manually. No Apple release build or physical-device validation is claimed.
+This supersedes the earlier statement that Apple applications had not been launched.
+
+### Main rebase checkpoint (September 29)
+
+Rebased onto `36e6b770b`, retaining main's shared geometry, incremental native
+compositing, light-scope indexing, and viewport-proximity behavior. Detached
+mask sources reuse cached geometry without joining visible spatial indexes or
+receiving viewport events. Changes reconcile their visible mask owner through
+nested source ownership, preserving incremental compositing during animation.
+
+Vector primitives now retain and evaluate their nested appearance subscriptions.
+A regression changes a source stroke's width without replacing its layer stack
+and verifies that cached bounds refresh. Additional regressions cover detached
+viewport exclusion and incremental reconciliation.
+
+Post-rebase validation passes 453 core library tests, 193 compiler tests, 28
+clock/geometry/viewport integration tests, and 15 Metal retained-clip tests.
+Compiler WebSocket tests were rerun with localhost binding allowed after the
+sandbox blocked five binds; all 12 WebSocket tests pass. The manual timing test
+remains ignored. API generation, example-bundle freshness, mdBook, focused Rust
+formatting, and diff whitespace checks pass. Workspace-wide formatting reports
+only three unchanged files inherited from main.
+
+The final web debug and baked-release artifacts build and render correctly.
+Paint pause/reversal, visible/captured opacity parity, nested feathering, and
+source removal/remounting pass in both. The baked release also passes nested
+and outer scrolling and the 390px layout check. Apple debug verification above
+predates this rebase; Apple applications were not rerun after it. Rebuilt caches
+are retained for continued review.

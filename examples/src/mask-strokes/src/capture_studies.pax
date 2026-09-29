@@ -1,0 +1,45 @@
+<Text width=100% height=42px text="One renderer, two uses" style={
+    font: "Arial"
+    font_size: 26px
+    fill: WHITE
+}/>
+<Text y=48px width=100% height=60px 
+    text="A clipped group at 50% opacity. Its overlapping shapes stay equally bright, directly and as a mask." style={
+        font: "Arial"
+        font_size: 15px
+        fill: rgb(180, 180, 180)
+    }/>
+<Group y=124px width=46% height=160px>
+    <Text width=100% height=28px text="Visible subtree" style={
+        font: "Arial"
+        font_size: 14px
+        fill: WHITE
+    }/>
+    <CapturePattern y=40px width=100% height=120px/>
+</Group>
+<Group y=124px x=54% anchor_x=0% width=46% height=160px>
+    <Text width=100% height=28px text="Captured alpha" style={
+        font: "Arial"
+        font_size: 14px
+        fill: WHITE
+    }/>
+    <Mask y=40px width=100% height=120px alpha=true>
+        <Rectangle width=100% height=100% fill=WHITE/>
+        <CapturePattern width=100% height=100%/>
+    </Mask>
+</Group>
+<Text y=310px width=100% height=40px text="Nested source masks · feather after composition" style={
+    font: "Arial"
+    font_size: 14px
+    fill: WHITE
+}/>
+<Mask y=365px x=8px width={100% - 16px} height=96px alpha=true feather=5.0>
+    <Rectangle width=100% height=100% fill=@gradient {
+        0%: CYAN,
+        100%: FUCHSIA,
+    }/>
+    <Mask width=100% height=100% alpha=true>
+        <CapturePattern width=100% height=100%/>
+        <Ellipse x=50% anchor_x=50% width=90% height=100% fill=WHITE/>
+    </Mask>
+</Mask>

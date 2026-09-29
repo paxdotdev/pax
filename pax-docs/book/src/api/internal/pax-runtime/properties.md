@@ -66,7 +66,8 @@ Call after draining scene effects; querying does not advance layout or dispatch 
 
 Resolve a node's local coordinates into its owning canvas's content space.
 Scroller-owned layers use the registered owner's origin; root layers use
-window coordinates. Physical tile offsets are applied later by the renderer.
+window coordinates. Detached mask sources retain their scene transform until
+capture projection. Physical tile offsets are applied later by the renderer.
 
 ##### `capture_touch_target`
 <pre><code class="api-signature language-rust ignore">pub fn capture_touch_target(&amp;self, identifier: i64, target: <a href="../../../api/internal/pax-runtime/properties.md#expandednodeidentifier">ExpandedNodeIdentifier</a>)</code></pre>
@@ -180,6 +181,12 @@ Return whether a render layer currently has canvas work to paint.
 <pre><code class="api-signature language-rust ignore">pub fn load_screenshot(&amp;self, id: u32, data: <a href="../../../api/internal/pax-message/index.md#screenshotdata">ScreenshotData</a>) -&gt; bool</code></pre>
 
 Store a screenshot payload delivered by the chassis.
+
+##### `mark_node_occlusion_dirty`
+<pre><code class="api-signature language-rust ignore">pub fn mark_node_occlusion_dirty(&amp;self, id: u32)</code></pre>
+
+Invalidate native compositing after a node's paint or coverage changes.
+Detached source changes reconcile their owning mask in the visible scene.
 
 ##### `new`
 <pre><code class="api-signature language-rust ignore">pub fn new(globals: <a href="../../../api/internal/pax-runtime/engine.md#globals">Globals</a>) -&gt; Self</code></pre>

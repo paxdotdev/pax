@@ -1,0 +1,97 @@
+<Text width=100% height=42px text="Paint in layers" style={
+    font: "Arial"
+    font_size: 30px
+    fill: WHITE
+}/>
+<Text y=48px width=100% height=56px text="Two ordered stacks. Every outline above every interior. The first layer is on top."
+    style={
+        font: "Arial"
+        font_size: 16px
+        fill: rgb(180, 180, 180)
+    }/>
+<Rectangle y=122px x=12px width={100% - 24px} height=110px corner_radius=18 fill=[
+    Fill {
+        paint: @gradient {
+            0%: rgba(255, 255, 255, 0),
+            100%: rgba(255, 255, 255, 150),
+        }
+        opacity: 60%
+    },
+    {
+        paint: {self.accent}
+        material: Material::Unlit
+    },
+    BLUE
+]
+    stroke=[
+        Stroke {
+            paint: WHITE
+            width: 2px
+        },
+        {
+            paint: @gradient {
+                0%: CYAN,
+                100%: FUCHSIA,
+            }
+            width: 12px
+        }
+    ]/>
+<Text y=255px width=100% height=36px text="A fixed paint domain while the line reveals" style={
+    font: "Arial"
+    font_size: 14px
+    fill: WHITE
+}/>
+<Path y=300px x=12px width={100% - 24px} height=90px fill=[] stroke={self.strokes} draw_end={self.progress}
+    smoothing=PathSmoothing::Light elements=[
+        PathElement::Point(5%, 70%),
+        PathElement::Cubic(25%, 0%, 35%, 100%),
+        PathElement::Point(50%, 40%),
+        PathElement::Cubic(65%, 0%, 75%, 100%),
+        PathElement::Point(95%, 40%)
+    ]/>
+<Button y=410px width=30% height=40px label={self.running ? "Pause paint" : "Resume"} @button_click=toggle/>
+<Button y=410px x=33% anchor_x=0% width=31% height=40px label="Reverse" @button_click=reorder/>
+<Button y=410px x=67% anchor_x=0% width=33% height=40px label={self.removed ? "Restore" : "Remove"} @button_click=remove/>
+<Group y=495px width=46% height=115px>
+    <Text width=100% height=32px text="Element 50%" style={
+        font: "Arial"
+        font_size: 14px
+        fill: WHITE
+    }/>
+    <Rectangle y=42px width=100% height=72px opacity=50% fill=[WHITE, WHITE]/>
+</Group>
+<Group y=495px x=54% anchor_x=0% width=46% height=115px>
+    <Text width=100% height=32px text="Each layer 50%" style={
+        font: "Arial"
+        font_size: 14px
+        fill: WHITE
+    }/>
+    <Rectangle y=42px width=100% height=72px fill=[
+        {
+            paint: WHITE
+            opacity: 50%
+        },
+        {
+            paint: WHITE
+            opacity: 50%
+        }
+    ]/>
+</Group>
+<Ellipse y=650px x=10px width={100% - 20px} height=48px fill=[] stroke={
+    paint: @gradient {
+        radial: {
+            start: [45%, 50%],
+            end: [50%, 50%],
+            radius: 240,
+        },
+        0%: WHITE,
+        40%: CYAN,
+        100%: FUCHSIA,
+    }
+    width: 10px
+}/>
+
+@settings {
+    @mount: mount
+    @pre_render: tick
+}

@@ -2859,3 +2859,20 @@ Use `@button_click` with `Event<ButtonClick>` for native Buttons, as documented
 in [Events & Rust](../event-handling-rust.md#buttons-and-custom-activation).
 Keep `@click`/`@tap` for custom canvas controls, and exercise native activation
 when moving a web fixture to Apple targets.
+
+## 2026-09-29 — Detached mask sources and shared scene geometry
+
+When integrating retained mask capture with the shared geometry index, reuse
+prepared paint bounds for drawing and replay selection, but keep detached
+sources out of visible canvas/native indexes and viewport-proximity registration.
+Their transforms remain in scene coordinates until capture projects them into
+the consuming surface. Source geometry changes must invalidate their
+cached records and reconcile the owning mask (through nested source ownership),
+not submit detached IDs to the visible compositing pass: those missing records
+otherwise force a full-scene rebuild on every source animation update.
+
+A computed property that installs nested paint subscriptions must be retained
+by its drawing listener and registered as an effect. Dependency edges neither
+own the subscription builder nor evaluate it. Other animation can hide the
+omission; test a nested stroke-width change in isolation and verify that cached
+paint bounds update without replacing the outer stack.

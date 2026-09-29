@@ -1126,3 +1126,40 @@ fn unclipped_scroll_overflow_updates_masks_outside_its_viewport() {
     assert_masks_match_full(&mut engine, &[native]);
     TRACK_OCCLUSION.with(|flag| flag.set(false));
 }
+
+#[test]
+fn detached_mask_source_does_not_register_viewport_events() {
+    let (mut engine, root) = mount(Vec::new());
+    let context = engine.runtime_context.clone();
+    let source = Probe::new(
+        Kind::Paint,
+        rect(0.0),
+        &[
+            "viewport_proximity_enter",
+            "viewport_proximity_change",
+            "viewport_proximity_exit",
+        ],
+        vec![],
+    );
+    let source = root
+        .generate_children(
+            vec![(source as Rc<dyn InstanceNode>, root.stack.clone())],
+            &context,
+            &root.parent_frame,
+            false,
+        )
+        .remove(0);
+    source.mount_as_render_source(&root, &context);
+    engine.tick();
+    assert!(events().is_empty());
+    assert_eq!(context.viewport_proximity_stats(), Default::default());
+    source
+        .get_common_properties()
+        .borrow()
+        .y
+        .set(Some(Size::Pixels(800.0.into())));
+    engine.tick();
+    assert!(events().is_empty());
+    assert_eq!(context.viewport_proximity_stats(), Default::default());
+    source.recurse_unmount(&context);
+}
