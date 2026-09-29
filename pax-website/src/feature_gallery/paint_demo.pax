@@ -1,0 +1,74 @@
+<Group width=100% height=100% @viewport_proximity_change=self.visibility>
+    if self.mask {
+        // The text equivalent belongs outside the detached mask source.
+        <Text x=0px y=0px width=100% height=1px text="Pax" opacity=0 selectable=false/>
+        <Mask x=50% y=30px anchor_x=50% anchor_y=0% width=72% height=92px alpha=true>
+            <Rectangle x={(self.band_x)%} anchor_x=0% width=200% height=100% fill={
+                paint: @gradient {
+                    0%: rgb(110, 110, 110),
+                    25%: WHITE,
+                    50%: rgb(110, 110, 110),
+                    75%: WHITE,
+                    100%: rgb(110, 110, 110),
+                }
+                material: {Material::unlit()}
+            }/>
+            <Handwriter width=100% height=100% text="Pax" font=HandwriterFont::EMSLeague smoothing=PathSmoothing::Strong
+                draw_end={self.progress} stroke={
+                    paint: WHITE
+                    width: 7px
+                    cap: StrokeCap::Round
+                    material: {Material::unlit()}
+                }/>
+        </Mask>
+    } else {
+        <Path x=24px y=24px width={100% - 48px} height=104px fill=[] draw_end={self.progress} stroke=[
+            {
+                paint: WHITE
+                width: 1px
+                cap: StrokeCap::Round
+                material: {Material::unlit()}
+            },
+            {
+                paint: rgb(32, 32, 32)
+                width: 5px
+                cap: StrokeCap::Round
+                material: {Material::unlit()}
+            },
+            {
+                paint: @gradient {
+                    0%: rgb(80, 80, 80),
+                    55%: WHITE,
+                    100%: rgb(125, 125, 125),
+                }
+                width: 19px
+                cap: StrokeCap::Round
+                material: {Material::unlit()}
+            }
+        ]
+            elements=[
+                PathElement::Point(5%, 68%),
+                PathElement::Cubic(8%, 0%, 46%, 0%),
+                PathElement::Point(50%, 50%),
+                PathElement::Cubic(55%, 100%, 90%, 100%),
+                PathElement::Point(95%, 25%)
+            ]/>
+        <Path x=24px y=24px width={100% - 48px} height=104px fill=[] stroke={
+            paint: rgb(65, 65, 65)
+            width: 1px
+            material: {Material::unlit()}
+        }
+            elements=[
+                PathElement::Point(5%, 68%),
+                PathElement::Cubic(8%, 0%, 46%, 0%),
+                PathElement::Point(50%, 50%),
+                PathElement::Cubic(55%, 100%, 90%, 100%),
+                PathElement::Point(95%, 25%)
+            ]/>
+    }
+</Group>
+
+@settings {
+    @mount: mount
+    @pre_render: tick
+}

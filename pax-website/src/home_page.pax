@@ -24,6 +24,10 @@
             sources={self.resource_sources} drawer_open=false>
             <ResourceSection />
         </ExampleHost>
+        <ExampleHost width=100% height={(Math::max(1004, self.calculator_height))px} title="Do the math" sources={self.calculator_sources}
+            drawer_open=false>
+            <CalculatorSection content_height=bind:self.calculator_height/>
+        </ExampleHost>
     </Stacker>
 </Scroller>
 

@@ -1,7 +1,9 @@
-<DynamicIslandSpacer inset=bind:self.safe_top/>
-<DynamicIslandSpacer edge=SafeAreaEdge::Right x=100% anchor_x=100% inset=bind:self.safe_right/>
-<DynamicIslandSpacer edge=SafeAreaEdge::Bottom y=100% anchor_y=100% inset=bind:self.safe_bottom/>
-<DynamicIslandSpacer edge=SafeAreaEdge::Left inset=bind:self.safe_left/>
+if !self.embedded {
+    <DynamicIslandSpacer inset=bind:self.safe_top/>
+    <DynamicIslandSpacer edge=SafeAreaEdge::Right x=100% anchor_x=100% inset=bind:self.safe_right/>
+    <DynamicIslandSpacer edge=SafeAreaEdge::Bottom y=100% anchor_y=100% inset=bind:self.safe_bottom/>
+    <DynamicIslandSpacer edge=SafeAreaEdge::Left inset=bind:self.safe_left/>
+}
 <Scroller x={(self.safe_left)px} y={(self.safe_top)px} width={100% - (self.safe_left + self.safe_right)px}
     height={100% - (self.safe_top + self.safe_bottom)px} scroll_width=100% scroll_height={(self.page_height)px}>
     <Group width=100% height={(self.page_height)px}>
@@ -233,7 +235,7 @@
             }
             if !self.edge_to_edge {
                 <LightSource x={(self.light_x)px} y={(self.light_y)px} width=1px height=1px z={(self.body_width * 0.65)px}
-                    radius={(self.body_width * 2.4)px} intensity=0.82 color=rgb(255, 251, 236)/>
+                    radius={(self.body_width * 2.4)px} intensity=0.82 color=rgb(255, 251, 236) enabled={!self.paused}/>
                 <AmbientLight intensity=0.70 color=rgb(255, 255, 250)/>
             }
         </LightFrame>
@@ -267,8 +269,11 @@ if self.edge_to_edge {
         }, material: {self.silver}}
             />
         <LightSource x=22% y=15% width=1px height=1px z={(self.body_width * 0.65)px} radius={(self.body_width * 2.4)px} intensity=0.82
-            color=rgb(255, 251, 236)/>
-        <AmbientLight intensity=0.70 color=rgb(255, 255, 250)/>
+            color=rgb(255, 251, 236) enabled={!self.paused}/>
+        // AmbientLight is layer-wide; an embedded example must not relight its host.
+        if !self.embedded {
+            <AmbientLight intensity=0.70 color=rgb(255, 255, 250)/>
+        }
     </LightFrame>
 }
 

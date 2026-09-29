@@ -8,4 +8,6 @@ use pax_kit::*;
 #[file("device_frame.pax")]
 pub struct DeviceFrame {
     pub kind: Property<String>,
+    /// Extend phone content to the inner bevel, with island and home indicator overlaid.
+    pub edge_to_edge: Property<bool>,
 }

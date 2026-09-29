@@ -4,6 +4,9 @@ use crate::SiteTheme;
 use pax_kit::math::Point2;
 use pax_kit::*;
 
+pub mod paint_demo;
+use crate::feature_gallery::paint_demo::FeaturePaintDemo;
+
 const COMPACT_BREAKPOINT_PX: f64 = 760.0;
 const DESKTOP_CARD_WIDTH_PX: f64 = 350.0;
 const COMPACT_CARD_WIDTH_PX: f64 = 286.0;
