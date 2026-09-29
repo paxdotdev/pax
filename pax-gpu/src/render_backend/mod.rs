@@ -1,3 +1,5 @@
+#[cfg(target_arch = "wasm32")]
+mod browser_canvas;
 pub(crate) mod capture;
 use anyhow::anyhow;
 use bytemuck::Pod;
@@ -405,8 +407,6 @@ pub struct RenderBackend<'w> {
     queue: wgpu::Queue,
     staging_belt: StagingBelt,
     surface: wgpu::Surface<'w>,
-    #[cfg(target_arch = "wasm32")]
-    browser_canvas: Option<web_sys::HtmlCanvasElement>,
     surface_config: SurfaceConfiguration,
     max_surface_dimension: u32,
     pipeline: Rc<RenderPipeline>,
@@ -447,6 +447,9 @@ pub struct RenderBackend<'w> {
     needs_device_poll: bool,
     pending_capture_ids: Vec<u32>,
     completed_captures: Arc<Mutex<HashMap<u32, CapturedFrame>>>,
+    // Drop this last, after every surface/frame handle has released the canvas.
+    #[cfg(target_arch = "wasm32")]
+    browser_canvas: Option<browser_canvas::BrowserCanvasLease>,
 }
 
 struct ActiveFrame {
@@ -803,12 +806,13 @@ impl<'w> RenderBackend<'w> {
         config: RenderConfig,
         shared_context: Option<SharedGpuContext>,
     ) -> Result<(Self, SharedGpuContext), anyhow::Error> {
+        let lease = browser_canvas::BrowserCanvasLease::acquire(canvas.clone());
         sync_browser_canvas_backing_size(&canvas, config.initial_width, config.initial_height);
         if let Some(context) = shared_context {
             let surface_target = wgpu::SurfaceTarget::Canvas(canvas.clone());
             let surface = context.instance.create_surface(surface_target)?;
             let mut backend = Self::new_with_context(surface, Rc::clone(&context), config)?;
-            backend.browser_canvas = Some(canvas);
+            backend.browser_canvas = Some(lease);
             return Ok((backend, context));
         }
 
@@ -817,7 +821,7 @@ impl<'w> RenderBackend<'w> {
         let surface = instance.create_surface(surface_target)?;
         let context = GpuContext::new(instance, &surface, &config).await?;
         let mut backend = Self::new_with_context(surface, Rc::clone(&context), config)?;
-        backend.browser_canvas = Some(canvas);
+        backend.browser_canvas = Some(lease);
         Ok((backend, context))
     }
 
@@ -1352,7 +1356,7 @@ impl<'w> RenderBackend<'w> {
         self.surface_config.height = height;
         #[cfg(target_arch = "wasm32")]
         if let Some(canvas) = self.browser_canvas.as_ref() {
-            sync_browser_canvas_backing_size(canvas, width, height);
+            sync_browser_canvas_backing_size(&canvas.canvas, width, height);
         }
         self.stencil_renderer.resize(&self.device, width, height);
         self.surface.configure(&self.device, &self.surface_config);

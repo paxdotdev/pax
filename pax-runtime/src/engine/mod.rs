@@ -731,6 +731,7 @@ impl PaxEngine {
                             )
                     });
                 if !can_use_targeted_replay_nodes {
+                    rcs.clear_targeted_replay(*layer);
                     self.runtime_context
                         .mark_canvas_nodes_on_layer_dirty(*layer);
                 }

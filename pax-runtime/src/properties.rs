@@ -122,6 +122,8 @@ pub struct RuntimeContext {
     #[cfg(test)]
     lighting_mask_node_visits: Cell<usize>,
     lighting_overflow_counts: RefCell<HashMap<usize, usize>>,
+    // Nodes dirty solely because a physical tile needs replay. An independent
+    // invalidation removes eligibility even if the node also intersects that tile.
     targeted_canvas_replay_node_ids: RefCell<HashMap<usize, HashSet<u32>>>,
     removed_canvas_nodes: RefCell<Vec<(usize, u32)>>,
     occlusion_dirty: Cell<bool>,
@@ -1123,6 +1125,11 @@ impl RuntimeContext {
             return;
         }
         borrow_mut!(self.dirty_canvas_nodes).insert(id);
+        // Replay is surface-local; an independent content/animation change must
+        // also reach surviving tiles, even when this node intersects the replay.
+        for ids in borrow_mut!(self.targeted_canvas_replay_node_ids).values_mut() {
+            ids.remove(&id.to_u32());
+        }
     }
 
     pub fn clear_canvas_node_dirty(&self, id: &ExpandedNodeIdentifier) {
@@ -1138,6 +1145,9 @@ impl RuntimeContext {
     }
 
     pub fn mark_canvas_nodes_on_layer_dirty(&self, layer: usize) {
+        if let Some(ids) = borrow_mut!(self.targeted_canvas_replay_node_ids).get_mut(&layer) {
+            ids.clear();
+        }
         let node_cache = borrow!(self.node_cache);
         let dirty_nodes = &mut *borrow_mut!(self.dirty_canvas_nodes);
         for node in node_cache.eid_to_node.values() {
@@ -1280,6 +1290,11 @@ impl RuntimeContext {
                     .unwrap_or(0);
                     if previous != mask {
                         dirty_nodes.insert(node.id);
+                        if let Some(ids) =
+                            borrow_mut!(self.targeted_canvas_replay_node_ids).get_mut(&layer)
+                        {
+                            ids.remove(&node.id.to_u32());
+                        }
                     }
                 }
             }
@@ -1532,7 +1547,15 @@ impl RuntimeContext {
     pub fn mark_targeted_canvas_replay_nodes(&self, layer: usize, node_ids: &[u32]) {
         let mut targeted = borrow_mut!(self.targeted_canvas_replay_node_ids);
         let layer_nodes = targeted.entry(layer).or_default();
-        layer_nodes.extend(node_ids.iter().copied());
+        let dirty = borrow!(self.dirty_canvas_nodes);
+        // A second region request may include nodes already dirtied by replay.
+        // Never relabel an independently dirty node as replay-only, though: its
+        // changed pixels need updating outside the requested region as well.
+        for id in node_ids {
+            if !dirty.contains(&ExpandedNodeIdentifier(*id)) {
+                layer_nodes.insert(*id);
+            }
+        }
     }
 
     pub fn take_targeted_canvas_replay_node_ids(&self) -> HashMap<usize, HashSet<u32>> {
@@ -1541,6 +1564,9 @@ impl RuntimeContext {
     }
 
     pub fn mark_all_canvas_nodes_dirty(&self) {
+        for ids in borrow_mut!(self.targeted_canvas_replay_node_ids).values_mut() {
+            ids.clear();
+        }
         let node_cache = borrow!(self.node_cache);
         let dirty_nodes = &mut *borrow_mut!(self.dirty_canvas_nodes);
         for node in node_cache.eid_to_node.values() {

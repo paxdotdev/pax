@@ -3155,3 +3155,71 @@ replace it with a persistent "already scheduled" flag across frames. This is an
 investigation finding, not a newly supported Pax capability or a claimed speedup.
 
 Follow-up: [PAX-1009](https://linear.app/paxdev/issue/PAX-1009/reduce-repeated-transactional-metal-presentation-waits-in-wgpu), deferred to the Pax Core backlog.
+
+## 2026-09-29 — Verify the loaded cartridge before debugging an entrance
+
+While adding viewport-driven Paxflix entrances, an ordinary browser reload kept
+showing an older release cartridge even though the local HTTP server served the
+new Wasm bytes. Serving the same build from a fresh local origin exposed the
+expected initial opacity 0 / scale 96% and the progressive reveal. A successful
+build plus a settled screenshot is not enough to establish an animation: check
+the loaded asset and sample its rendered opacity/transform during entry. Use a
+fresh origin or clear the browser's cached resources when replacing unversioned
+release assets; changing only the page query does not version its Wasm URL.
+
+Use the named curves documented in Animation and Motion. An unsupported name
+such as `OutCubic` currently warns and falls back to Linear, so a compiling
+timeline can still have the wrong motion. `OutQuad` provides the supported soft
+settle used by these card entrances.
+
+## 2026-09-29 — Animated cards expose tile replay and canvas reuse gaps
+
+Paxflix's viewport entrances exposed stale artwork and uneven canvas/native
+fades during scrolling. A node intersecting a replay region is not necessarily
+dirty only because of replay: it may also have an animation or content change
+that must reach existing tiles. Keep that distinction when requesting replay,
+including when an ordinary invalidation arrives after the region request.
+
+The browser also needs to refresh the union of backing-surface and tile-position
+changes in a frame. Handling them as alternatives drops the latter when a warm
+row gains or releases canvases. Finally, a recycled HTML canvas needs an
+assignment generation in both JS reconciliation and Rust surface identity;
+element identity and tile dimensions alone cannot detect a cleared backing
+store returning to the same slot. Regression checks cover these cases without
+changing application animation duration or image-cache keys.
+
+### Canvas generations do not replace surface ownership
+
+Further Paxflix scrolling still exposed image swaps. The browser pool reused
+canvases after a 200 ms cooldown (and ignored even that at capacity), while an
+asynchronous GPU initializer could still hold and later configure that element.
+Checking a generation after initialization is too late to prevent this side effect.
+Keep a canvas lease from before initialization's first await until all renderer
+surface/frame handles are dropped. Only then shrink its backing and make it
+eligible for reassignment; wake a blocked pool checkout after the Rust destructor
+has unwound. Also revalidate later targets in an async factory's snapshot before
+touching them, and release canvases when a logical layer changes scroller host.
+
+Cold browser rows were also creating new GPU devices and pipelines. A mounted
+WebGPU app now shares one asynchronously initialized device/context across its
+logical layers, while bindings and retained scenes remain local to each tile.
+This extends immutable image reuse without retaining unused textures. Tests cover
+pool exhaustion during initialization, final-owner release, and host reassignment;
+timing probes must measure from the scroll event to first draw, not merely the
+duration of an already-started text fade.
+
+### Retire the browser context as well as the Rust surface
+
+The remaining Paxflix flash-swap reproduced with image-texture sharing disabled,
+but not with DOM canvas reuse disabled or with card entrances disabled. Explicitly
+unconfiguring a released canvas's WebGPU context also stopped the observed swaps
+with both animation and sharing enabled. wgpu 28's web surface destructor is a
+no-op; releasing its Rust wrapper does not unconfigure the browser context.
+
+After the final canvas lease drops, call `GPUCanvasContext.unconfigure()` before
+shrinking the backing and allowing pool checkout. Do this synchronously, before
+the deferred availability notification: a delayed reset could invalidate the
+next owner's surface. Do not request a WebGPU context on a Piet or unused canvas.
+Regression tests cover immediate and delayed release, active-owner protection,
+and reassignment before the availability callback. These tests enforce the
+lifecycle contract; the visual comparison supplies the flash-swap evidence.

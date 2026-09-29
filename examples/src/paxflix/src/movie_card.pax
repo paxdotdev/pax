@@ -1,8 +1,10 @@
 <ImportSettings transition=SettingsTransition::Ease(300ms, TransitionCurve::InOutQuad)>
     <CinemaTheme is_dark={!light_mode}/>
 </ImportSettings>
-<Group anchor=0% width=100% height=100% @click=self.open @mouse_over=self.over @mouse_out=self.out>
-    <Frame anchor=0% width=100% height=100% corner_radius=6>
+// Observe a stable footprint so the reveal's scale cannot retrigger its own visibility.
+<Group anchor=0% width=100% height=100% @click=self.open @mouse_over=self.over @mouse_out=self.out
+    @viewport_proximity_change=self.reveal @viewport_proximity_exit=self.reset_reveal>
+    <Frame id=card_visual anchor=50% x=50% y=50% width=100% height=100% corner_radius=6>
         <Text class="card_title" anchor=0% x=16px y={100% - 70px} width={100% - 32px} height=40px text={movie.title}/>
         <Text class="muted" anchor=0% x=16px y={100% - 24px} width={100% - 32px} height=18px
             text={movie.year + "   ·   " + movie.runtime + "   ·   " + movie.rating}/>
@@ -18,3 +20,14 @@
         <Rectangle class="image_placeholder" anchor=0% width=100% height=100%/>
     </Frame>
 </Group>
+
+@timeline reveal {
+    duration: 100,
+    playhead: {self.reveal_progress},
+    loop: false,
+    #card_visual {
+        opacity: { 0%: 0, OutQuad, 100%: 1, },
+        scale_x: { 0%: 96%, OutQuad, 100%: 100%, },
+        scale_y: { 0%: 96%, OutQuad, 100%: 100%, },
+    },
+}

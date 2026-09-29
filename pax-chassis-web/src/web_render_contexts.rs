@@ -432,9 +432,14 @@ fn get_gpu_render_context(
         Transform2D, WgpuRenderer,
     };
     use pax_runtime::pax_gpu_render_context::{LayerRenderer, LayerTarget, PaxGpuRenderer};
+    // Every browser canvas in this chassis can use the same WebGPU device.
+    // Keep it across cold-row eviction; pixel textures still have weak cache ownership.
+    // The async mutex prevents concurrent first rows from each creating a device.
+    let browser_context = std::rc::Rc::new(futures_util::lock::Mutex::new(None::<SharedGpuContext>));
     PaxGpuRenderer::new(move |layer, request| {
         let window = window.clone();
         let surface_policy = surface_policy;
+        let browser_context = browser_context.clone();
         Box::pin(async move {
             let document = window.document().unwrap();
             let initial_targets = wait_for_layer_canvas_targets(
@@ -450,8 +455,16 @@ fn get_gpu_render_context(
             .await;
             let mut renderers = Vec::with_capacity(initial_targets.len());
             let mut backend_limit = request.max_surface_dimension;
-            let mut shared_context: Option<SharedGpuContext> = request.shared_context.clone();
+            // Do not hold the context lock while waiting for DOM layout to settle.
+            // Revalidate each target below after this await as well as GPU creation.
+            let mut browser_context = browser_context.lock().await;
+            let mut shared_context = browser_context.clone().or(request.shared_context.clone());
             for target in &initial_targets {
+                // Earlier surfaces can await device creation. A later canvas in this
+                // snapshot may have been reassigned while we were suspended.
+                if canvas_host_signature(&target.canvas) != target.host_signature {
+                    continue;
+                }
                 if !request.needs_surface(&target.key, &target.host_signature) {
                     continue;
                 }
@@ -482,6 +495,7 @@ fn get_gpu_render_context(
                         return None;
                     }
                 };
+                browser_context.get_or_insert_with(|| context.clone());
                 shared_context.get_or_insert(context);
 
                 let mut renderer = WgpuRenderer::new(backend);
@@ -507,6 +521,7 @@ fn get_gpu_render_context(
                     target.surface.dpr,
                 ));
             }
+            drop(browser_context);
 
             let effective_max_surface_dimension =
                 surface_policy.effective_max_surface_dimension(layer, backend_limit);
@@ -877,9 +892,12 @@ fn canvas_host_signature(canvas: &HtmlCanvasElement) -> String {
         generation as f64
     });
     format!(
-        "{}|surface:{}",
+        "{}|surface:{}|lease:{}",
         canvas_host_owner_signature(canvas),
-        generation
+        generation,
+        canvas
+            .get_attribute("data-surface-generation")
+            .unwrap_or_default(),
     )
 }
 

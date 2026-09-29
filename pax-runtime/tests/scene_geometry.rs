@@ -33,8 +33,13 @@ fn args() -> InstantiationArgs {
 struct Recorder {
     nodes: HashSet<u32>,
     layers: usize,
+    cleared_replays: Vec<usize>,
+    non_retained: bool,
 }
 impl RenderContext for Recorder {
+    fn retains_canvas_nodes(&self) -> bool {
+        !self.non_retained
+    }
     fn begin_node(&mut self, _: usize, id: u32, _: i32, _: u32) -> bool {
         self.nodes.insert(id);
         true
@@ -80,6 +85,9 @@ impl RenderContext for Recorder {
     fn flush(&mut self, _: usize, _: Rc<RefCell<Vec<bool>>>) {}
     fn resize(&mut self, _: usize, _: usize) {}
     fn refresh_layers(&mut self, _: &[usize]) {}
+    fn clear_targeted_replay(&mut self, layer: usize) {
+        self.cleared_replays.push(layer);
+    }
 }
 
 struct GeometryLeaf {
@@ -203,6 +211,67 @@ fn replay_and_drawing_share_prepared_geometry_before_first_draw_and_at_rest() {
         after_render,
         "idle adds no geometry work"
     );
+}
+
+#[test]
+fn content_changes_reaching_a_replay_region_still_update_surviving_tiles() {
+    for non_retained in [false, true] {
+        for change_before_replay in [true, false] {
+            let (mut engine, _, node) = fixture();
+            let ctx = engine.runtime_context.clone();
+            let mut recorder = Recorder {
+                non_retained,
+                ..Default::default()
+            };
+            engine.render(&mut recorder);
+            recorder.cleared_replays.clear();
+            let geometry = ctx.canvas_geometry_for_node(&node);
+            let bounds = geometry.coverage_bounds.unwrap();
+            // One animated image spans a surviving tile and a newly exposed tile.
+            // Its presence in the replay query must not hide its independent change.
+            let replay = || {
+                ctx.request_canvas_replay(ReplayCanvasLayerUpdate {
+                    layer: geometry.layer,
+                    regions: Some(vec![kurbo::Rect::new(
+                        bounds.x0,
+                        bounds.y0,
+                        (bounds.x0 + bounds.x1) / 2.0,
+                        bounds.y1,
+                    )]),
+                })
+            };
+            if change_before_replay {
+                ctx.mark_canvas_node_dirty(node.id);
+                replay();
+            } else {
+                replay();
+                ctx.mark_canvas_node_dirty(node.id);
+            }
+            engine.render(&mut recorder);
+            assert_eq!(
+                recorder.cleared_replays,
+                vec![geometry.layer],
+                "content updates must reach all tiles: before={change_before_replay}, non_retained={non_retained}"
+            );
+        }
+    }
+}
+
+#[test]
+fn repeated_region_replay_without_a_content_change_stays_targeted() {
+    let (mut engine, _, node) = fixture();
+    let ctx = engine.runtime_context.clone();
+    let mut recorder = Recorder::default();
+    engine.render(&mut recorder);
+    let geometry = ctx.canvas_geometry_for_node(&node);
+    for _ in 0..2 {
+        ctx.request_canvas_replay(ReplayCanvasLayerUpdate {
+            layer: geometry.layer,
+            regions: Some(vec![geometry.coverage_bounds.unwrap()]),
+        });
+    }
+    engine.render(&mut recorder);
+    assert!(recorder.cleared_replays.is_empty());
 }
 
 #[test]

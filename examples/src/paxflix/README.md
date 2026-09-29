@@ -49,6 +49,18 @@ controls and rounded clips are authored in Pax; none is baked into the stills.
 The navigation logo is a transparent PNG with the same peach lettering in both
 modes.
 
+Movie cards use viewport proximity events for a soft entrance: the first sampled
+visible overlap starts a 420 ms opacity fade from 0 to 1 and a centered scale from
+96% to 100%. This suggests coming into focus without applying a blur filter. One
+timeline animates the complete card, including artwork, gradient, text, and hover
+decoration, inside a fixed observation wrapper. It works for both vertical page
+scrolling and horizontal shelves. Cards have no exit transition; leaving the
+expanded proximity region resets the entrance while offscreen. Reversing near a
+viewport edge keeps a revealed card visible; returning after a full departure
+replays it. Artwork initialization and caching remain independent of this
+animation. Fast native scrolling can expose a card before the next sampled
+callback; initial opacity is authored by the timeline rather than the handler.
+
 Every visual component imports `CinemaTheme` through `<ImportSettings>`, passing
 `is_dark={!light_mode}`. The root owns the `light_mode` Property; only the profile
 menu receives a two-way binding to change it. The provider owns typography,

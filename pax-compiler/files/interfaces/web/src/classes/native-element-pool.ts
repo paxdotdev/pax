@@ -140,7 +140,11 @@ export class NativeElementPool {
         this.canvasPool = new CanvasPool(
             this.objectManager,
             browserCanvasPoolBudget(),
-            browserCanvasPoolReuseCooldownMs(),
+            () => {
+                if (this.chassis == null) return;
+                this.surfaceRefreshPending = true;
+                this.postAsyncInterruptFlush?.();
+            },
         );
         this.canvasPool.attach(mount);
         this.layers.attach(mount, this.canvases, this.canvasPool);
@@ -1971,7 +1975,8 @@ export class NativeElementPool {
             let layerId = Number.parseInt(canvas.dataset.layerId ?? "", 10);
             let surfaceSignature =
                 `${canvas.dataset.surfaceSignature
-                    ?? `${canvas.clientWidth}x${canvas.clientHeight}@${hostSignature}`}#host=${hostSignature}`;
+                    ?? `${canvas.clientWidth}x${canvas.clientHeight}@${hostSignature}`}#host=${hostSignature}`
+                + `#generation=${canvas.dataset.surfaceGeneration ?? ""}`;
             let transformSignature =
                 canvas.dataset.transformSignature
                 ?? `${canvas.dataset.tileOriginX ?? "0"},${canvas.dataset.tileOriginY ?? "0"}`;
@@ -2023,12 +2028,13 @@ export class NativeElementPool {
         this.lastCanvasSurfaceSignatures = nextSurfaceSignatures;
         this.lastCanvasTransformSignatures = nextTransformSignatures;
         this.lastCanvasLayerCounts = nextLayerCounts;
-        if (surfaceChanged) {
+        if (surfaceChanged || transformChanged) {
             this.surfaceRefreshPending = false;
-            let layers = Array.from(surfaceChangedLayers).sort((left, right) => left - right);
-            this.requestLayerSurfaceRefresh(layers);
-        } else if (transformChanged) {
-            let layers = Array.from(transformChangedLayers).sort((left, right) => left - right);
+            // A warm row can gain/lose canvases in the same frame another layer
+            // retargets a tile. Both need replay before either is presented.
+            let layers = Array.from(new Set([
+                ...surfaceChangedLayers, ...transformChangedLayers,
+            ])).sort((left, right) => left - right);
             this.requestLayerSurfaceRefresh(layers);
         }
     }
@@ -4772,12 +4778,6 @@ function browserCanvasPoolBudget() {
         return budget;
     }
     return DEFAULT_TOTAL_CANVAS_BUDGET;
-}
-
-function browserCanvasPoolReuseCooldownMs() {
-    // WebGPU on desktop browsers can glitch if a canvas is rebound to a new device immediately
-    // after release. Add a small cooldown to reduce rapid reuse across layers.
-    return isIOSWebKitBrowser() ? 0 : 200;
 }
 
 function browserOwnedVectorScrollerIslandsEnabled() {

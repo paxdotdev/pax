@@ -1,8 +1,10 @@
 import { NATIVE_OVERLAY_CLASS } from "../utils/constants";
 import { ObjectManager } from "../pools/object-manager";
 import { CANVAS, DIV } from "../pools/supported-objects";
-import type { CanvasPool } from "./canvas-pool";
+import { CanvasPool, releaseCanvasBacking } from "./canvas-pool";
 import type { LayerCanvasPlan, SurfaceCanvasDescriptor } from "./surface-host-policy";
+
+let nextSurfaceGeneration = 0;
 
 function tileDebugEnabled() {
     return typeof window !== "undefined"
@@ -57,6 +59,11 @@ export class Layer {
     }
 
     attachToParents(canvasParent: Element, nativeParent: Element) {
+        if (this.visibleCanvasParent !== canvasParent && this.canvases.size > 0) {
+            // A new scroller host is a new content owner. Do not expose the old
+            // retained pixels or reconfigure its still-live GPU surface in place.
+            this.detachCanvases(true);
+        }
         this.visibleCanvasParent = canvasParent;
         if (this.native != undefined && this.native.parentElement !== nativeParent) {
             nativeParent.appendChild(this.native);
@@ -161,6 +168,9 @@ export class Layer {
                 } else {
                     canvas = this.objectManager.getFromPool(CANVAS);
                 }
+                // A pooled element may return to the same logical tile after its
+                // backing store was cleared. DOM identity alone is not a lease.
+                canvas.dataset.surfaceGeneration = String(++nextSurfaceGeneration);
                 canvas.style.position = "absolute";
                 canvas.style.pointerEvents = "none";
                 canvas.style.backgroundColor = "transparent";
@@ -253,10 +263,9 @@ export class Layer {
     }
 
     private prepareCanvasForRelease(canvas: HTMLCanvasElement) {
-        // WebKit will more reliably release GPU resources if the backing store shrinks before
-        // detaching the element from the DOM.
-        canvas.width = 1;
-        canvas.height = 1;
+        // Do not clear a canvas still held by an asynchronous GPU initializer.
+        // The pool shrinks it once the final surface owner releases it.
+        releaseCanvasBacking(canvas);
         canvas.style.width = "1px";
         canvas.style.height = "1px";
         canvas.id = "";

@@ -9,18 +9,15 @@ function tileDebugEnabled() {
 }
 
 export class CanvasPool {
-    private free: Array<{ canvas: HTMLCanvasElement; releasedAt: number }> = [];
+    private free: HTMLCanvasElement[] = [];
     private allocated = 0;
     private maxCanvases: number;
     private objectManager: ObjectManager;
     private host?: HTMLDivElement;
-    // Delay reuse of recently released canvases to avoid re-binding WebGPU surfaces too fast.
-    private reuseCooldownMs: number;
 
-    constructor(objectManager: ObjectManager, maxCanvases: number, reuseCooldownMs: number = 0) {
+    constructor(objectManager: ObjectManager, maxCanvases: number, private onAvailable: () => void = () => {}) {
         this.objectManager = objectManager;
         this.maxCanvases = Math.max(1, Math.floor(maxCanvases));
-        this.reuseCooldownMs = Math.max(0, reuseCooldownMs);
     }
 
     attach(mount: Element) {
@@ -37,15 +34,17 @@ export class CanvasPool {
         host.style.overflow = "hidden";
         host.style.pointerEvents = "none";
         host.style.visibility = "hidden";
+        host.addEventListener("pax-surface-released", event => {
+            const canvas = event.target as HTMLCanvasElement;
+            if (this.free.includes(canvas) && !canvasSurfaceIsOwned(canvas)) {
+                releaseCanvasBacking(canvas);
+                // The event can originate inside a Rust destructor. Re-enter the
+                // chassis only after its borrow/initialization stack has unwound.
+                queueMicrotask(() => this.onAvailable());
+            }
+        });
         mount.appendChild(host);
         this.host = host;
-    }
-
-    private nowMs() {
-        if (typeof performance !== "undefined" && typeof performance.now === "function") {
-            return performance.now();
-        }
-        return Date.now();
     }
 
     private debugLog(event: string, data: Record<string, unknown>) {
@@ -55,26 +54,17 @@ export class CanvasPool {
     }
 
     checkout(): HTMLCanvasElement | null {
-        if (this.free.length > 0) {
-            let now = this.nowMs();
-            let eligibleIndex = this.free.findIndex(
-                (entry) => now - entry.releasedAt >= this.reuseCooldownMs,
-            );
-            if (eligibleIndex >= 0) {
-                let entry = this.free.splice(eligibleIndex, 1)[0];
-                return entry.canvas;
-            }
+        // A released element is not reusable until all async initializers and
+        // renderers have dropped their ownership, even at pool capacity.
+        const eligibleIndex = this.free.findIndex(canvas => !canvasSurfaceIsOwned(canvas));
+        if (eligibleIndex >= 0) {
+            return this.free.splice(eligibleIndex, 1)[0];
         }
         if (this.allocated >= this.maxCanvases) {
-            // If we're at capacity, fall back to the oldest released canvas even if it's still
-            // cooling down.
-            let fallback = this.free.shift();
-            this.debugLog(fallback == null ? "checkout-miss" : "checkout-oldest-free", {
-                allocated: this.allocated,
-                maxCanvases: this.maxCanvases,
-                free: this.free.length,
+            this.debugLog("checkout-miss", {
+                allocated: this.allocated, maxCanvases: this.maxCanvases, free: this.free.length,
             });
-            return fallback?.canvas ?? null;
+            return null;
         }
         this.allocated += 1;
         this.debugLog("checkout-new", {
@@ -94,11 +84,35 @@ export class CanvasPool {
         } else {
             canvas.parentElement?.removeChild(canvas);
         }
-        this.free.push({ canvas, releasedAt: this.nowMs() });
+        releaseCanvasBacking(canvas);
+        this.free.push(canvas);
         this.debugLog("release", {
             allocated: this.allocated,
             maxCanvases: this.maxCanvases,
             free: this.free.length,
         });
+    }
+}
+
+// Shared with the WebGPU backend's BrowserCanvasLease. Piet has no async owner.
+export function canvasSurfaceIsOwned(canvas: HTMLCanvasElement): boolean {
+    return Number(canvas.getAttribute("data-pax-surface-owners") ?? "0") > 0;
+}
+
+export function releaseCanvasBacking(canvas: HTMLCanvasElement) {
+    if (!canvasSurfaceIsOwned(canvas)) {
+        // Dropping wgpu's web surface leaves the browser context configured.
+        // Retire it before this element can display another row; resizing alone
+        // can leave the previous presentation visible during an animated entry.
+        // Only leased WebGPU canvases have this marker. Do not acquire a GPU
+        // context on an unused canvas or a canvas belonging to the Piet fallback.
+        if (canvas.hasAttribute("data-pax-surface-owners")) {
+            const context = canvas.getContext("webgpu");
+            if (context && "unconfigure" in context && typeof context.unconfigure === "function") {
+                context.unconfigure();
+            }
+        }
+        canvas.width = 1;
+        canvas.height = 1;
     }
 }

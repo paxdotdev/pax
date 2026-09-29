@@ -15,7 +15,7 @@ bytemuck = { version = "1.14", features = ["derive"] }
 anyhow = "1.0"
 lyon = "1.0.1"
 winit = "0.27.5"
-web-sys = { version = "0.3.64", features = ["HtmlCanvasElement"] }
+web-sys = { version = "0.3.64", features = ["HtmlCanvasElement", "Event", "EventInit"] }
 js-sys = "0.3.64"
 wasm-bindgen-futures = "0.4.38"
 

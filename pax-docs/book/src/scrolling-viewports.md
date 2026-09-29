@@ -587,6 +587,20 @@ recreated backing surface receives a new renderer even if its tile key is the
 same. Pending warm replay follows surviving tile identities through reordering,
 and visible affected tiles replay together before deferred warm work.
 
+Tile replay does not replace a simultaneous content change. When a card animates
+across a tile boundary, its opacity, transform, and artwork updates must reach
+the surviving tiles as well as newly exposed ones. Browser surface allocation
+and tile-position changes are reconciled together; a pooled canvas checked out
+again starts a new surface generation, even at the same logical tile address.
+Browser canvas pooling also waits for every GPU surface and asynchronous initializer
+to release the element before clearing or reassigning it. Released WebGPU canvases
+are explicitly unconfigured before reuse so a previous row's presentation cannot
+carry over into an animated entrance; shrinking the backing store alone is not
+sufficient. This does not reset the shared GPU device or its image cache.
+Rebinding a logical layer
+to a different scroller host uses a fresh assignment; an old row's retained pixels
+must never be exposed in the new host. Reuse is governed by ownership, not a delay.
+
 WebGPU initialization is asynchronous. Existing tiles remain usable while
 additions initialize, and results for removed or replaced surfaces are discarded.
 If an addition fails, survivors remain usable; another attempt waits for a layout
@@ -594,17 +608,23 @@ change. New tiles still incur surface allocation and first-draw costs. Sibling
 tiles using the same GPU context share immutable image textures by image identity,
 version, and pixel dimensions. A tile can reuse an image already held by a sibling
 without uploading its pixels again; transforms, clipping, opacity, and draw bindings
-remain tile-local. This applies to native GPU and WebGPU in debug and release,
-not the Piet fallback or native image controls. It does not share textures across
-separate GPU contexts.
+remain tile-local. WebGPU canvases within one mounted app share a device and its
+pipeline/immutable-image caches across logical layers, including when rows go cold
+and return. This avoids repeating device and pipeline initialization during scrolling.
+Native GPU sharing remains within each logical layer. These behaviors apply in debug
+and release, not the Piet fallback or native image controls. Separate apps or GPU
+contexts do not share textures.
 
 The image index holds weak references: after the last tile drops its binding,
 Pax retains no unused image texture for future scrolling (in-flight GPU work may
 still reference it). Returning later can require another upload. This does not
 change decoded-image ownership or defer application initialization.
 
-Removed surfaces are released, including the shared context when the last tile
-and pending creation release it. The retention region does not grow. These
+Removed surfaces are released. Native logical-layer contexts are released when
+their last tile and pending creation release them; the browser retains its shared
+device/pipeline context until the mounted app is disposed. Unused image textures
+are still released when their last binding disappears. The retention region does
+not grow. These
 optimizations apply in debug and release builds; the Piet fallback still rebuilds
 its layer on tile-set changes. They do not defer component or image initialization
 in application code.
@@ -647,6 +667,12 @@ content. At zero scroll the first card aligns with the heading; scrolling lets
 the cards cross the fixed layout gutters and clip only at the viewport edges.
 Card titles and metadata sit over a dense lower image gradient that follows
 the selected dark or light theme.
+Each card observes a fixed wrapper through `@viewport_proximity_change` and
+fades its contents in while scaling from 96% to 100% over 420 ms at the first
+visible sample. There is no exit animation. `@viewport_proximity_exit` rearms
+the entrance only after a full departure from proximity, so small reversals
+at a viewport edge do not restart it. This animation does not defer image
+initialization or unmount the card.
 The shelves remain mounted while the panel opens, preserving their scroll
 positions. Short landscape windows use a side-by-side detail layout.
 Its previous/next controls animate the bound scroll position with `ease_to`;
