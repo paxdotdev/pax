@@ -89,6 +89,26 @@ without evidence.
 
 ## Composed raster export
 
+The checked-in [full-sheet PNG](../../../pax-docs/book/src/images/pax-architecture.png)
+is an offline overview for readers and agents. Pair it with [TOPOLOGY.md](TOPOLOGY.md)
+and the code anchors in [content.rs](src/content.rs); the still image cannot show
+the inspector's explanations or documentation links.
+
+Capture provenance:
+
+- Captured on **2026-10-01** from diagram revision
+  `cbba60910e289ef86e274d10c8f221653c5f5c47`.
+- Audited engine reference: `3c46cd13dfdc7fb4ac5992aa6c44672e4fc1f916`.
+- Image: **3120 × 2288 pixels**, composed Chrome browser capture in Sheet view,
+  including native text and GPU drawing, saved as PNG without resizing.
+
+To refresh it, rebuild and serve the release app, export the complete Sheet view,
+and replace the PNG above. The exporter below produces a 3120px reading asset
+that can be copied to that path. Review the labels, arrows, all five columns and
+the logo, and update the capture date/revision here with the image. Keep generated
+browser captures and build output outside the repository; this reference PNG is
+the deliberate documentation asset.
+
 Run [scripts/export.cjs](scripts/export.cjs) against the served app. It requires
 Playwright and Chromium, or an existing Chrome executable. For example, on macOS
 with Playwright available through an existing Node installation:
@@ -181,8 +201,8 @@ build; clicking the standalone logo updated its bound scrubber in a debug web
 build. Both builds passed, along with the two diagram tests, all 25 logo tests,
 formatting checks and the documentation book build. Logo tests cover replay
 during an existing animation and preserving external playback when disabled.
-The export script's dimensions account for the fixed header; raster exports
-have not been regenerated since that change.
+The export script's dimensions account for the fixed header. The current
+reference PNG and its capture provenance are recorded above.
 
 The next pass on 2026-09-30 removes the floating annotations and previous/next
 toolbar buttons, optically lowers the logo against the title, and adds a visible

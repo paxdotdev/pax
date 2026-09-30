@@ -62,6 +62,8 @@ docs; select a connection in the inspector to follow it to another part.
 Use **+ / −** to zoom and **Fit** to restore the overview. **Open standalone**
 gives the drawing more room, and **Exit sheet view** restores its controls.
 
+For an offline overview, [download the full-sheet PNG](images/pax-architecture.png).
+
 <pax-example
   path="architecture-diagram"
   title="Pax architecture"

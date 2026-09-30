@@ -22,10 +22,15 @@ Start with the local docs before inventing patterns.  The most useful entry poin
 - `pax-docs/book/src/template-language.md` for template syntax, element ordering, IDs, classes, and settings blocks.
 - `pax-docs/book/src/data-binding-expressions.md` for PAXEL expressions and reactive bindings.
 - `pax-docs/book/src/event-handling-rust.md` for Rust event handlers and state updates.
+- [How Pax Runs](pax-docs/book/src/how-pax-runs.md#architecture-schematic) for the architectural overview and interactive schematic.
+- [Architecture topology](examples/src/architecture-diagram/TOPOLOGY.md) and the [full-sheet PNG](pax-docs/book/src/images/pax-architecture.png) for component responsibilities, causal connections, established names, and source evidence. The PNG is a revisioned overview; follow the topology's code anchors before changing an engine contract. Capture provenance and refresh instructions live in the [example README](examples/src/architecture-diagram/README.md#composed-raster-export).
 - `pax-docs/book/src/SUMMARY.md` for the full docs table of contents, including the API docs (generated from this codebase's code comments.)
 - `examples/src/*` for code samples and working patterns.
 
 These docs are also available by CLI: `pax-cli docs`
+
+`pax-cli docs examples architecture-diagram` prints the diagram's implementation
+source. The topology notes and PNG above provide its architectural reading path.
 
 ## Keeping documentation current
 
