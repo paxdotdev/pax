@@ -2,6 +2,7 @@
 
 use crate::Movie;
 use crate::{CinemaTheme, FilmArtwork};
+use pax_kit::pax_engine::api::cursor::CursorStyle;
 use pax_kit::*;
 
 #[pax]
@@ -14,6 +15,14 @@ pub struct MovieDetail {
 }
 
 impl MovieDetail {
+    pub fn button_over(&mut self, ctx: &NodeContext, _event: Event<MouseOver>) {
+        ctx.set_cursor(CursorStyle::Pointer);
+    }
+
+    pub fn button_out(&mut self, ctx: &NodeContext, _event: Event<MouseOut>) {
+        ctx.set_cursor(CursorStyle::Auto);
+    }
+
     pub fn close(&mut self, _ctx: &NodeContext, _event: Event<Click>) {
         self.modal_open.set(false);
     }

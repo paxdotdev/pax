@@ -3,7 +3,7 @@
 </ImportSettings>
 <Group anchor=0% width=100% height=100%>
     <Group anchor=0% id=panel width=100% height=100%>
-        <Group anchor=0% x={100% - 60px} y=16px width=44px height=44px @click=self.close>
+        <Group anchor=0% x={100% - 60px} y=16px width=44px height=44px @click=self.close @mouse_over=self.button_over @mouse_out=self.button_out>
             <Text class="button_text" width=100% height=100% text="×"/>
             <Ellipse class="image_control_surface" width=100% height=100%/>
         </Group>
@@ -13,21 +13,21 @@
                 y={($viewport.width > 650 && $viewport.height < 620) ? (50% - 140px) : (100% - 320px)}
                 width={($viewport.width > 650 && $viewport.height < 620) ? (60% - 20px) : (100% - 40px)}
                 height={($viewport.width > 650 && $viewport.height < 620) ? 280px : 300px}>
-                <Text class="eyebrow" width={($viewport.width > 650 && $viewport.height < 620) ? (100% - 60px) : 100%} height=18px text="Paxflix / FEATURE"/>
-                <Text class="film_title" anchor=0% y=24px width=100% height=52px text={movie.title}/>
-                <Text class="label" anchor=0% y={($viewport.width > 650 && $viewport.height < 620) ? 70px : 80px} width=100% height=22px
+                <Text class=["eyebrow", "detail_heading"] width={($viewport.width > 650 && $viewport.height < 620) ? (100% - 60px) : 100%} height=18px text="Paxflix / FEATURE"/>
+                <Text class=["film_title", "detail_heading"] anchor=0% y=24px width=100% height=52px text={movie.title}/>
+                <Text class=["label", "detail_metadata"] anchor=0% y={($viewport.width > 650 && $viewport.height < 620) ? 70px : 80px} width=100% height=22px
                     text={movie.year + "   ·   " + movie.rating + "   ·   " + movie.runtime}/>
-                <Text class="muted" anchor=0% y={($viewport.width > 650 && $viewport.height < 620) ? 96px : 108px} width=100% height=22px
+                <Text class=["muted", "detail_metadata"] anchor=0% y={($viewport.width > 650 && $viewport.height < 620) ? 96px : 108px} width=100% height=22px
                     text={movie.genres}/>
-                <Text class="synopsis" anchor=0% y={($viewport.width > 650 && $viewport.height < 620) ? 126px : 144px} width=100%
+                <Text class=["synopsis", "detail_synopsis"] anchor=0% y={($viewport.width > 650 && $viewport.height < 620) ? 126px : 144px} width=100%
                     height={($viewport.width > 650 && $viewport.height < 620) ? 76px : ($viewport.width < 700 ? 88px : 76px)} text={movie.synopsis}/>
                 <Group anchor=0% y={$viewport.width < 700 ? 244px : 236px} width={$viewport.width < 360 ? 104px : 126px} height=44px
-                    @click=self.play>
+                    @click=self.play @mouse_over=self.button_over @mouse_out=self.button_out>
                     <Text class="primary_text" width=100% height=100% text="Play"/>
                     <Rectangle class="primary_surface" width=100% height=100% corner_radius=5/>
                 </Group>
                 <Group anchor=0% x={$viewport.width < 360 ? 116px : 138px} y={$viewport.width < 700 ? 244px : 236px}
-                    width={$viewport.width < 360 ? 116px : 140px} height=44px @click=self.download>
+                    width={$viewport.width < 360 ? 116px : 140px} height=44px @click=self.download @mouse_over=self.button_over @mouse_out=self.button_out>
                     <Text class="button_text" width=100% height=100% text="↓   Download"/>
                     <Rectangle class="secondary_surface" width=100% height=100% corner_radius=5/>
                 </Group>
@@ -50,18 +50,32 @@
 
 @timeline arrive {
     interruption: Takeover,
-    duration: 320ms,
+    duration: 560ms,
     self {
         opacity: {
-            0%: 0, InOutQuad,
+            0ms: 0, InOutQuad,
+            320ms: {$base},
             100%: {$base},
         }
     }
     #panel {
         y: {
-            0: 30px, OutQuad,
+            0ms: 30px, OutQuad,
+            320ms: 0px,
             100%: 0px,
         }
+    }
+    .detail_heading {
+        x: { 0ms: 32px, 48ms: 32px, OutQuad, 384ms: 0px, 100%: 0px, },
+        opacity: { 0ms: 0, 48ms: 0, OutQuad, 384ms: 1, 100%: 1, },
+    }
+    .detail_metadata {
+        x: { 0ms: 32px, 128ms: 32px, OutQuad, 464ms: 0px, 100%: 0px, },
+        opacity: { 0ms: 0, 128ms: 0, OutQuad, 464ms: 1, 100%: 1, },
+    }
+    .detail_synopsis {
+        x: { 0ms: 32px, 208ms: 32px, OutQuad, 544ms: 0px, 100%: 0px, },
+        opacity: { 0ms: 0, 208ms: 0, OutQuad, 544ms: 1, 100%: 1, },
     }
 }
 @timeline depart {

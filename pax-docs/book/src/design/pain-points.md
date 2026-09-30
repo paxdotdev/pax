@@ -3223,3 +3223,17 @@ next owner's surface. Do not request a WebGPU context on a Piet or unused canvas
 Regression tests cover immediate and delayed release, active-owner protection,
 and reassignment before the availability callback. These tests enforce the
 lifecycle contract; the visual comparison supplies the flash-swap evidence.
+
+## 2026-09-29 — Match warm-row admission to the browser canvas pool
+
+Paxflix's first shelf went black while its native text remained visible. Its
+canvas host was empty: the 64-canvas pool was exhausted, not missing image data
+or an unfinished entrance. Warm-row admission enforced a budget only on iOS,
+while desktop browsers used the same bounded pool and retained distant rows.
+Layer-order allocation could leave the visible first shelf without any canvas.
+
+Apply the pool budget to warm-row selection on every browser, reserving root and
+ancestor surfaces and ranking nearby rows before distant ones. A regression
+fixture requesting 68 surfaces now fits the 64-canvas budget and reallocates to
+the visible region after scrolling down and back. Keep the GPU ownership guard;
+reusing still-owned canvases or raising the cap would hide the admission error.

@@ -1,6 +1,7 @@
 #![allow(unused_imports)]
 
 use crate::CinemaTheme;
+use pax_kit::pax_engine::api::cursor::CursorStyle;
 use pax_kit::*;
 
 #[pax]
@@ -12,6 +13,14 @@ pub struct ProfileMenu {
 }
 
 impl ProfileMenu {
+    pub fn button_over(&mut self, ctx: &NodeContext, _event: Event<MouseOver>) {
+        ctx.set_cursor(CursorStyle::Pointer);
+    }
+
+    pub fn button_out(&mut self, ctx: &NodeContext, _event: Event<MouseOut>) {
+        ctx.set_cursor(CursorStyle::Auto);
+    }
+
     pub fn toggle_theme(&mut self, _ctx: &NodeContext, _event: Event<Click>) {
         self.light_mode.set(!self.light_mode.get());
     }

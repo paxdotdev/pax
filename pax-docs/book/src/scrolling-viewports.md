@@ -601,6 +601,14 @@ Rebinding a logical layer
 to a different scroller host uses a fresh assignment; an old row's retained pixels
 must never be exposed in the new host. Reuse is governed by ownership, not a delay.
 
+Browser scrollers share a bounded canvas pool. In both desktop and mobile browsers,
+the retained warm set uses that same budget: nearby scrollers take priority over
+distant rows, and the root surface and required ancestor scrollers reserve space
+first. Scrolling through a long collection can release distant drawing surfaces
+and recreate them on return. This does not unmount application components or defer
+image decoding. The pool size and warm distances are implementation details, not
+viewport lifecycle thresholds or a bound on all application memory.
+
 WebGPU initialization is asynchronous. Existing tiles remain usable while
 additions initialize, and results for removed or replaced surfaces are discarded.
 If an addition fails, survivors remain usable; another attempt waits for a layout

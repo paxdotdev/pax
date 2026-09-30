@@ -1,3 +1,4 @@
+use pax_kit::pax_engine::api::cursor::CursorStyle;
 use pax_kit::*;
 pub mod catalog;
 pub mod film_artwork;
@@ -37,6 +38,14 @@ pub struct Paxflix {
 }
 
 impl Paxflix {
+    pub fn button_over(&mut self, ctx: &NodeContext, _event: Event<MouseOver>) {
+        ctx.set_cursor(CursorStyle::Pointer);
+    }
+
+    pub fn button_out(&mut self, ctx: &NodeContext, _event: Event<MouseOut>) {
+        ctx.set_cursor(CursorStyle::Auto);
+    }
+
     pub fn mount(&mut self, ctx: &NodeContext) {
         let bounds = ctx.bounds_self.clone();
         self.compact.replace_with(Property::computed(

@@ -1819,7 +1819,7 @@ export class NativeElementPool {
                 if (rankDelta !== 0) {
                     return -rankDelta;
                 }
-                // On iOS, keep the warm set tied to proximity so later scrollers can take over
+                // Keep the warm set tied to proximity so later scrollers can take over
                 // a limited surface budget as the user advances through a long list.
                 let distanceDelta = left.distance - right.distance;
                 if (distanceDelta !== 0) {
@@ -4765,11 +4765,13 @@ const IOS_TOTAL_CANVAS_BUDGET = 64;
 const DEFAULT_TOTAL_CANVAS_BUDGET = 64;
 
 function browserNestedScrollerSurfaceBudget() {
-    return isIOSWebKitBrowser() ? IOS_NESTED_BROWSER_SURFACE_BUDGET : undefined;
+    return isIOSWebKitBrowser() ? IOS_NESTED_BROWSER_SURFACE_BUDGET : DEFAULT_TOTAL_CANVAS_BUDGET;
 }
 
 function browserTotalCanvasBudget() {
-    return isIOSWebKitBrowser() ? IOS_TOTAL_CANVAS_BUDGET : undefined;
+    // Every browser uses a bounded CanvasPool. An unlimited warm set can retain
+    // all of its canvases in distant rows and permanently starve visible ones.
+    return isIOSWebKitBrowser() ? IOS_TOTAL_CANVAS_BUDGET : DEFAULT_TOTAL_CANVAS_BUDGET;
 }
 
 function browserCanvasPoolBudget() {

@@ -49,17 +49,46 @@ controls and rounded clips are authored in Pax; none is baked into the stills.
 The navigation logo is a transparent PNG with the same peach lettering in both
 modes.
 
-Movie cards use viewport proximity events for a soft entrance: the first sampled
-visible overlap starts a 420 ms opacity fade from 0 to 1 and a centered scale from
-96% to 100%. This suggests coming into focus without applying a blur filter. One
-timeline animates the complete card, including artwork, gradient, text, and hover
-decoration, inside a fixed observation wrapper. It works for both vertical page
-scrolling and horizontal shelves. Cards have no exit transition; leaving the
-expanded proximity region resets the entrance while offscreen. Reversing near a
-viewport edge keeps a revealed card visible; returning after a full departure
-replays it. Artwork initialization and caching remain independent of this
-animation. Fast native scrolling can expose a card before the next sampled
-callback; initial opacity is authored by the timeline rather than the handler.
+Movie cards use viewport proximity events to request a 480 ms entrance timeline
+at the first sampled positive viewport overlap, with no visible-area threshold.
+The thumbnail stays fully opaque in its resting position beneath the stationary
+bottom gradient. Only the text animates: the title starts 48 ms into the timeline
+and the metadata line starts at about 125 ms; each slides 32px from right to left
+while fading from 0 to 1 with `OutQuad`. The card itself does not fade or scale.
+Its resting surface matches the page in both themes. A fixed outer wrapper
+supplies the observation bounds independently of the text's motion.
+
+Each shelf schedules its text entrances 80 ms apart, with at most 240 ms of
+additional delay. Cards arriving in the same sampled frame are ordered by their
+horizontal index. Later arrivals use the next available start, so crossings at
+0/30/60 ms start at 0/80/160 ms, while crossings at 0/250/500 ms start immediately.
+The delay is relative to recent arrivals, never the tile's absolute index. A
+large burst shares the capped start time rather than building a long backlog.
+The title/metadata stagger above is relative to each card's scheduled start.
+
+The shelf passes an explicit `entrances` binding to its cards. Viewport handlers
+enqueue arrivals; a shelf subscription orders the settled batch and publishes
+start times before drawing. Each card then queues a hold followed by its existing
+timeline, without per-card tick handlers or a waiting window to detect a burst.
+Departing proximity or unmounting removes that card's reservation and cancels
+its queued animation. Rows schedule independently.
+
+The same entrance works for vertical page scrolling and horizontal shelves.
+Cards have no exit transition; leaving the expanded proximity region resets
+the playhead while offscreen. Reversing near a viewport edge keeps a revealed
+card visible; returning after a full departure replays it. Artwork initialization
+and caching remain independent of animation. Events are sampled once per engine
+tick, so fast native scrolling may skip the exact first-pixel position. The
+timeline authors the initial text position and opacity before any handler
+runs; the handler advances its shared playhead linearly while each track supplies
+its own easing and stagger.
+
+Detail popups use the same 32px `OutQuad` slide-and-fade for their copy: the
+eyebrow/title begin at 48 ms, metadata/genres at 128 ms, and synopsis at 208 ms.
+Each stage takes 336 ms. The existing panel fade/slide finishes at 320 ms,
+while the full entrance timeline finishes at 560 ms. Buttons stay together
+with their labels. All buttons and clickable movie cards request the pointer
+cursor on hover and restore the automatic cursor when the pointer leaves.
 
 Every visual component imports `CinemaTheme` through `<ImportSettings>`, passing
 `is_dark={!light_mode}`. The root owns the `light_mode` Property; only the profile
