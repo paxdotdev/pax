@@ -1,0 +1,21 @@
+[package]
+name = "architecture-diagram"
+version = "0.39.0"
+edition = "2021"
+publish = false
+
+[package.metadata.pax]
+title = "Pax Architecture"
+
+[dependencies]
+pax-kit = { version = "0.39.0", path = "../../../pax-kit" }
+pax-logo = { version = "0.39.0", path = "../pax-logo" }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package.architecture-diagram]
+opt-level = 0

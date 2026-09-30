@@ -1,14 +1,17 @@
 # PAX-1010 — Architecture diagram in Pax
 
-Status: broad operating model aligned; functional detail proposed for Zack's review. No diagram implementation yet.
+Status: proposal checkpointed and first implementation authorized. The runnable
+example now lives alongside this reference; see README.md and DESIGN.md.
 
 Initially surveyed on 2026-09-29 at repository revision
 `0903488598cd37213db27c5569cdf77880587c2e` (2026-09-21, `post-release cleaning`).
-The worktree is now verified at `3c46cd13dfdc7fb4ac5992aa6c44672e4fc1f916`,
-including PAX-1004 and PAX-1008. Opacity, mask-source capture and the replay
-responsibility boundaries have been inspected at this base. Other sections retain
-the initial survey and need a source refresh before implementation. This is
-source/ancestry validation, not a new cross-platform execution claim.
+The engine reference is `3c46cd13dfdc7fb4ac5992aa6c44672e4fc1f916`, including
+PAX-1004 and PAX-1008. Implementation starts from proposal checkpoint `87eeab9a4`.
+Opacity, mask-source capture and replay boundaries were inspected at the engine
+reference. The implementation pass also rechecked compiler startup, Dirty DAG,
+instance terminology and lighting limits against the current code/docs. Execution
+validation is recorded separately in the example README; source evidence alone
+does not establish cross-platform execution.
 
 ### Base audit: subtree composition
 
@@ -95,12 +98,12 @@ live in popovers or a later review overlay without crowding the core schematic.
 ## Proposed recursive mechanism tree
 
 The broad operating model is aligned with Zack. The following functional detail
-is proposed for review; visual implementation has not begun. Bold labels name
+is the reference for the first implementation pass. Bold labels name
 parts or explicitly marked editorial assemblies. The supporting prose and edge
 tables describe their operation.
 
 - **Program assembly** (`construct`)
-  - **Source analyzer** (`construct.analyze`)
+  - **Parser** (`construct.analyze`)
     - Rust component/type discovery plus Pax grammar/PAXEL parsing produce the
       manifest: templates, expressions/dependencies, settings, handlers, routes,
       timelines and resource metadata. [S02]
@@ -177,7 +180,7 @@ tables describe their operation.
     - Expose geometry/paint through coverage-path and alpha-paint hooks for the
       compositor and mask mechanisms. Coverage may deliberately be conservative
       relative to animated visible pixels. [S07, S12–S14]
-- **Presentation** (`present`)
+- **Rendering engine** (`present`)
   - **Compositor** (`present.plan`)
     - **Order and layer partitioner** (`present.plan.layers`): traverse the
       scene graph in presentation order, assign z-order/logical render layers,
@@ -287,7 +290,7 @@ tables describe their operation.
       mask/layer changes. Native state does not pass through the vector renderer.
     - **Native opacity adaptation**: convert computed opacity into host-relative
       element opacity before patch application. [S14, S23]
-- **Chassis** (`chassis`)
+- **Platform Chassis** (`chassis`)
   - **Presentation host** (`present.compose`)
     - **Surface manager** (`chassis.surfaces`): realize tile/layer plans as
       canvas or native GPU surfaces; create/reuse/resize/place them and report
@@ -490,25 +493,23 @@ contract above. Proposed placement:
   input/measurement/clock/resource adapters.
 
 Forward value/presentation flow crosses the middle; input, measurement and
-clock/control feedback have distinct labeled return routes. All arrows attach
+clock/control feedback have distinct return routes, explained in inspectors. All arrows attach
 to named mechanisms. The runtime/host boundary is explicit, with native messages
 and graphics-surface interfaces as separate crossings. These are conceptual
 responsibility boundaries, not claims of five processes or one pass per band.
 
-Provisional legend:
+Implementation styling (updated after the first visual review):
 
-- **Dashed arrow:** build-time transformation; label the produced representation.
-- **Solid arrow:** runtime value/data dependency; label the value or patch.
-- **Open arrowhead:** invocation/scheduling/registration; label the action.
-- **Dotted arrow marked DEBUG:** optional development connection.
-- Group boxes show mechanisms; persistent scene-graph/Dirty-DAG state must be recognizable
-  inside those mechanisms. Written status badges mark supporting/future claims.
-- Show only connections needed to explain assembly, operation or feedback.
-  API inventories, component catalogs and exhaustive format details stay in the
-  source reference. Do not reduce this to a waterfall-shaped pipeline.
-
-Interaction remains undecided. Static output must explain these circuits fully;
-popovers may add implementation anchors, not supply missing causal connections.
+- Use one solid muted-blue stroke and open arrowhead for every connection.
+- Keep edge kinds and crossing descriptions in this reference and inspectors;
+  omit on-sheet edge captions, category colors, legend and footer caveats.
+- Separate shared node ports around the side center and distribute crowded
+  vertical tracks within the authored gutters. Leave two screen pixels between
+  arrow tips and their destination card.
+- Cards show a pointer cursor and open a keyboard-accessible inspector containing
+  relationship explanations, source anchors and 2–4 relevant prose/API links.
+- Group boxes show mechanisms; scene-graph/Dirty-DAG state remains recognizable.
+  This is still a causal schematic, not a waterfall-shaped pipeline.
 
 ## Current, supporting, and excluded claims
 
@@ -601,12 +602,13 @@ dependency of the future example.
 
 ## Approval checkpoint and subsequent deliverables
 
-The broad operating model is aligned with Zack. Review this next layer of
-functional hierarchy and the explicit subtree-rasterization boundary before
-visual implementation. Band names and interaction choice remain provisional.
+Zack checkpointed this proposal and authorized an implementation pass. The first
+sheet uses five vertical assemblies, fit/zoom and native scrolling, selectable
+part details, and a deterministic sheet-only view. Its component labels and
+routed overview connections are in `src/content.rs` and `src/layout.rs`.
 
-After approval: textual wireframe → spatial/type/edge specification → real Pax
-example → screenshot/content iteration. Keep stable node/edge IDs and content
+Implementation follows textual wireframe → spatial/type/edge specification → real
+Pax example → screenshot/content iteration. Keep stable node/edge IDs and content
 data separate from layout; derive labels from that data and keep this explanatory
 reference aligned, without building a graph-editor framework. Start with a
 single small Rust content table and Pax components unless implementation reveals
@@ -615,9 +617,9 @@ a simpler arrangement.
 Proposed docs location is a concise reference/embed in **How Pax Runs**, with a
 maintainer-facing link near the internal reference entry. Review that placement
 before editing the public learning path. The example will carry run/export/update
-guidance and reproducible still settings, including the logo pose. Public docs,
-generated API pages, engine behavior, and published snapshots are unchanged in
-this phase. No build is needed to validate this words-only checkpoint.
+guidance and reproducible still settings, including the logo pose. Public learning
+path integration and publication remain a later review decision. This pass changes
+the example and records authoring pain points; it does not change engine behavior.
 
 Export validation must capture the composed scene, including native Text and
 drawn paths, rather than only a GPU canvas. Font/resource readiness and the fixed

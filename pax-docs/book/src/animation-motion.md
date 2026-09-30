@@ -600,6 +600,21 @@ The `marionette` example uses shared and per-part playheads;
 `timeline-playground` explores longer sequences and mixed duration units.
 These are deeper source references after the small examples here.
 
+The reusable logo enables `click_to_replay` by default: clicking or tapping
+restarts its 1440ms motion through the same `progress` property, even mid-play.
+Use `progress=bind:logo_progress` when a parent scrubber should stay synchronized.
+Set `click_to_replay=false` when an external timeline owns playback, or for an
+inert finished pose:
+
+```pax
+<AnimatedPaxLogo width=920.72px height=463.95px
+    progress=1.0 click_to_replay=false/>
+```
+
+Import `AnimatedPaxLogo` from the `pax-logo` example crate and scale an enclosing
+Group to fit its original coordinate system. Click replay does not start an
+animation on mount; the example's parent still owns its initial playback.
+
 For handwriting or a drawn-line reveal, animate `draw_start` and
 `draw_end` on Path or Handwriter. Drawing owns the
 [path geometry and reveal limits](drawing-styling.md#paths-and-svg);

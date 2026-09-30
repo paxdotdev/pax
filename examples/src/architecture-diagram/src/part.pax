@@ -1,0 +1,12 @@
+<Group anchor=0% width=100% height=100% @click=self.select @mouse_over=self.hover @mouse_out=self.leave>
+    <Text anchor=0% x=16px y=8px width={100% - 32px} height={(part.h - 30)px}
+        text={part.title} selectable=false _raycastable=false
+        style={font: {family: "Arial", weight: 600}, font_size: {(part.font_size)px},
+            fill: rgb(33, 45, 51), align_vertical: TextAlignVertical::Center}/>
+    <Text anchor=0% x=16px y={(part.h - 22)px} width={100% - 28px} height=18px
+        text={part.interface} selectable=false _raycastable=false
+        style={font: "Arial", font_size: 13px, fill: rgb(105, 116, 118)}/>
+    <Path width=100% height=100% anchor=0% elements={part.outline}
+        fill={selected == part.id ? rgb(232, 241, 243) : rgb(251, 251, 247)}
+        stroke={paint: rgb(84, 113, 140), width: {(selected == part.id ? 3.0 : 1.4)px}}/>
+</Group>

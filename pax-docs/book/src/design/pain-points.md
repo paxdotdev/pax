@@ -1,5 +1,69 @@
 # Pain points
 
+## 2026-09-29 — Inspector decks and route picking
+
+An inspector that swaps text in a single instance cannot show a fresh card
+sliding over its predecessor. Keep immutable content snapshots under stable
+serial keys, insert newest first (Pax source order is front-to-back), and retire
+the old cards after their exit completes. A direct keyed repeat removal retains
+the outgoing item ahead of the active siblings, so the old card jumps in front
+when its exit starts. Browser frame inspection showed the original content was
+preserved; the unexpected change was stacking. Keep stable keyed outer Groups,
+toggle each inspector inside its own conditional, and remove its wrapper after
+the inspector's `@unmount` reports completion. This keeps a new card on top
+through overlapping enter/exit motion without guessing when unmount occurs.
+Connection rows should use native buttons so selection works through keyboard
+activation as well.
+
+A browser reload can retain old Wasm assets in a static release preview. During
+this investigation the old origin still showed the previous 360ms retirement
+delay, while a fresh local origin showed the authored 80ms overlap delay and
+the darker pane fill. Verify the loaded build before diagnosing stale behavior
+as a runtime regression.
+
+A Path's default hit region is its layout rectangle, not the painted stroke.
+Full-sheet path elements therefore cannot be made raycastable to trace edges.
+Keep drawing paths non-raycastable and measure pointer distance to the actual
+segments on a sheet input layer. Choosing the closest segment distinguishes
+adjacent lanes that would otherwise have overlapping wide hit rectangles.
+`NodeContext::local_point` returns normalized coordinates: multiply by the
+component's bounds before comparing with pixel-based route geometry. Avoid
+common-property names such as `scale` for component input data; `sheet_scale`
+keeps the zoom value separate from the component's own transform.
+
+## 2026-09-29 — Schematic ports and published docs URLs
+
+Attaching every edge to a side's center makes distinct relationships look like
+one fork or hides opposing arrows. Allocate ports across all incident edges on
+that side, then adjust the adjacent bends and distribute interior segments only
+inside known card-free corridors. Check the resulting paths against card
+interiors: two original replay routes were hidden behind neighboring cards even
+though their endpoints and orthogonal segments were valid.
+
+The currently published mdBook pages use `.html` URLs. Guessed trailing-slash
+URLs returned 403, while the corresponding `.html` pages returned 200. Validate
+outbound links against the published book as well as local source: a newly
+added internal API page may exist locally before it is published.
+
+## 2026-09-29 — Open diagram routes and label stacking
+
+In the architecture schematic, Path elements used only as open connector strokes
+still painted their default fill, producing large polygons across the drawing.
+Set `fill=TRANSPARENT` explicitly on connector and halo Paths. An open contour
+does not imply an unfilled shape.
+
+Rendering each edge's label together with its stroke allowed another edge's
+stroke or paper-colored halo to cross over that label. Render all edge labels in
+one foreground loop and the routed paths in a separate background loop. Keep
+assembly captions above routes as well. Validate the composed browser image:
+native Text and GPU geometry participate in the same scene, but neither a
+successful build nor a graph-endpoint check reveals this stacking error.
+
+Native buttons provide keyboard access to the schematic's controls, but the web
+chassis skips global Pax key events while a native DOM control has focus. Keep
+explicit Close/Fit/navigation controls and scope shortcuts to sheet focus. A
+touch-accessible title action also exits the toolbar-free sheet view.
+
 ## 2026-09-24 — Polar resolution and parameter speed
 
 The polar curve `4*cos(3*θ^2)` developed dotted petals as zoom increased.

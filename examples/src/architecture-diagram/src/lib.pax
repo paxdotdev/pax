@@ -1,0 +1,129 @@
+if !export_mode {
+    for panel in panels key panel.serial {
+        <Group anchor=0% width=100% height=100%>
+            if panel.visible {
+                <Inspector anchor=[100%, 0%] x={100% - 16px} y={(header_height + 18)px}
+                    width={(Math::min(400, $viewport.width - 32))px}
+                    height={(Math::min(680, $viewport.height - header_height - 36))px}
+                    panel={panel} selected=bind:selected retired=bind:retired_panels/>
+            }
+        </Group>
+    }
+}
+
+<Group anchor=0% width=100% height={(header_height)px}>
+    <Group anchor=0% x=24px y=18px width=920.72px height=463.95px scale=8%>
+        <AnimatedPaxLogo width=920.72px height=463.95px progress=1.0
+            fill=rgb(36, 48, 52) letter_fill=rgb(248, 249, 245)/>
+    </Group>
+    <Text anchor=0% x=114px y=17px width=200px height=32px text="Architecture" selectable=false
+        style={font: {family: "Arial", weight: 600}, font_size: 24px, fill: rgb(36, 48, 52)}/>
+    if !export_mode {
+        if $viewport.width >= 660 {
+            <Group anchor=[100%, 0%] x={100% - 12px} y=14px width=298px height=36px>
+                <Button class="toolbar_button" x=0px width=42px label="−" @button_click=self.zoom_out/>
+                <Button class="toolbar_button" x=48px width=42px label="+" @button_click=self.zoom_in/>
+                <Button class="toolbar_button" x=96px width=64px label="Fit" @button_click=self.fit/>
+                <Button class="toolbar_button" x=172px width=126px label="Sheet view" @button_click=self.sheet/>
+            </Group>
+        } else {
+            <Group anchor=0% x=12px y=64px width=298px height=44px>
+                <Button class="toolbar_button" height=44px x=0px width=42px label="−" @button_click=self.zoom_out/>
+                <Button class="toolbar_button" height=44px x=48px width=42px label="+" @button_click=self.zoom_in/>
+                <Button class="toolbar_button" height=44px x=96px width=64px label="Fit" @button_click=self.fit/>
+                <Button class="toolbar_button" height=44px x=172px width=126px label="Sheet view" @button_click=self.sheet/>
+            </Group>
+        }
+    } else {
+        <Button class="toolbar_button" anchor=[100%, 0%] x={100% - 12px}
+            y={$viewport.width >= 660 ? 14px : 64px} height={$viewport.width >= 660 ? 36px : 44px}
+            width=144px label="Exit sheet view" @button_click=self.exit_sheet/>
+    }
+    <Rectangle anchor=0% width=100% height={(header_height)px} fill=rgb(248, 249, 245)/>
+</Group>
+
+<Scroller anchor=0% y={(header_height)px} width=100% height={100% - (header_height)px}
+    scroll_width={(Math::max($viewport.width, 3120 * sheet_scale))px}
+    scroll_height={(Math::max($viewport.height - header_height, 2160 * sheet_scale))px}
+    scroll_pos_x=bind:scroll_x scroll_pos_y=bind:scroll_y>
+    <Group id=sheet anchor=0% x={(Math::max(0, ($viewport.width - 3120 * sheet_scale) / 2))px}
+        y={export_mode ? 0px : 6px} width=3120px height=2160px scale={(sheet_scale * 100)%}>
+
+        for part in parts {
+            <DiagramPart anchor=0% x={(part.x)px} y={(part.y)px} width={(part.w)px} height={(part.h)px}
+                part={part} selected=bind:selected/>
+        }
+
+        if !export_mode {
+            <EdgeLayer anchor=0% width=3120px height=2160px edges={edges} sheet_scale={sheet_scale}
+                hovered=bind:hovered_edge pinned=bind:pinned_edge/>
+        }
+        for edge in edges {
+            if !export_mode && edge.id == (hovered_edge != "" ? hovered_edge : pinned_edge) {
+                <Path anchor=0% width=3120px height=2160px elements={edge.arrow} fill=TRANSPARENT _raycastable=false
+                    stroke={paint: rgb(183, 96, 43), width: 3px}/>
+                <Path anchor=0% width=3120px height=2160px elements={edge.elements} fill=TRANSPARENT _raycastable=false
+                    stroke={paint: rgb(183, 96, 43), width: 3px}/>
+                <Path anchor=0% width=3120px height=2160px elements={edge.elements} fill=TRANSPARENT _raycastable=false
+                    stroke={paint: rgb(246, 247, 241), width: 7px}/>
+            }
+        }
+
+        for assembly in assemblies {
+            <Text class="assembly_title" anchor=0% x={(assembly.x + 18)px} y={(assembly.y + 16)px}
+                width={(assembly.w - 36)px} height=25px text={assembly.title}/>
+        }
+
+        for edge in edges {
+            <Path anchor=0% width=3120px height=2160px elements={edge.arrow} _raycastable=false
+                fill=TRANSPARENT stroke={paint: rgb(84, 113, 140), width: 2px}/>
+            <Path anchor=0% width=3120px height=2160px elements={edge.elements} fill=TRANSPARENT _raycastable=false
+                stroke={paint: rgb(84, 113, 140), width: 1.8px}/>
+            <Path anchor=0% width=3120px height=2160px elements={edge.elements} fill=TRANSPARENT _raycastable=false
+                stroke={paint: rgb(246, 247, 241), width: 6px}/>
+        }
+
+        <Text class="band_number" anchor=0% x=88px y=35px width=50px height=40px text="01"/>
+        <Text class="band_title" anchor=0% x=138px y=35px width=270px height=40px text="Compiler"/>
+        <Text class="band_number" anchor=0% x=528px y=35px width=50px height=40px text="02"/>
+        <Text class="band_title" anchor=0% x=578px y=35px width=300px height=40px text="Scene graph"/>
+        <Text class="band_number" anchor=0% x=1000px y=35px width=50px height=40px text="03"/>
+        <Text class="band_title" anchor=0% x=1050px y=35px width=590px height=40px text="Reactive runtime"/>
+        <Text class="band_number" anchor=0% x=1840px y=35px width=50px height=40px text="04"/>
+        <Text class="band_title" anchor=0% x=1890px y=35px width=610px height=40px text="Rendering engine"/>
+        <Text class="band_number" anchor=0% x=2700px y=35px width=50px height=40px text="05"/>
+        <Text class="band_title" anchor=0% x=2750px y=35px width=345px height=40px text="Platform Chassis"/>
+
+        for assembly in assemblies {
+            <Rectangle anchor=0% x={(assembly.x)px} y={(assembly.y)px} width={(assembly.w)px} height={(assembly.h)px}
+                fill=rgb(220, 230, 226) stroke={paint: rgb(147, 166, 164), width: 1px} _raycastable=false/>
+        }
+
+        for i in 0..53 {
+            <Line x1={(i * 60)px} y1=0px x2={(i * 60)px} y2=2160px stroke={paint: rgba(134, 151, 148, 20), width: 1px} _raycastable=false/>
+        }
+        for i in 0..37 {
+            <Line x1=0px y1={(i * 60)px} x2=3120px y2={(i * 60)px} stroke={paint: rgba(134, 151, 148, 20), width: 1px} _raycastable=false/>
+        }
+        <Rectangle anchor=0% width=3120px height=2160px fill=rgb(246, 247, 241)/>
+    </Group>
+</Scroller>
+<Rectangle anchor=0% width=100% height=100% fill=rgb(226, 231, 226)/>
+
+@settings {
+    @mount: mount
+    @tick: update_details
+    @key_down: keyboard
+    .toolbar_button {
+        anchor: 0%
+        height: 36px
+        corner_radius: 3
+        color: rgb(238, 242, 238)
+        hover_color: rgb(216, 230, 232)
+        outline: {paint: rgb(184, 197, 194), width: 1px}
+        style: {font: "Arial", font_size: 14px, fill: rgb(38, 58, 65), align_horizontal: TextAlignHorizontal::Center, align_vertical: TextAlignVertical::Center}
+    }
+    .band_number { style: {font: "Menlo", font_size: 19px, fill: rgb(123, 139, 142)} }
+    .band_title { style: {font: {family: "Arial", weight: 600}, font_size: 29px, fill: rgb(45, 62, 66)} }
+    .assembly_title { style: {font: "Menlo", font_size: 17px, fill: rgb(80, 109, 117)} }
+}

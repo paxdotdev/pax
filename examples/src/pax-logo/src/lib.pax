@@ -21,7 +21,7 @@
     </Group>
     <Group x=50% y=46% width=892.72px height=463.95px anchor=50%
         scale={(Math::min(1.0, Math::min($viewport.width / 1000, $viewport.height / 650)) * 100)%}>
-        <AnimatedPaxLogo width=920.72px height=100% background_mode={self.background_mode} fill=rgba(17, 17, 16, 255) progress=bind:logo_progress/>
+        <AnimatedPaxLogo width=920.72px height=100% background_mode={self.background_mode} fill=rgba(17, 17, 16, 255) progress=bind:logo_progress click_to_replay=true/>
     </Group>
     <Rectangle width=100% height=100% fill={self.background_mode == LogoBackgroundMode::Dark ? rgba(17, 17, 16, 255) : WHITE}/>
 </Group>
