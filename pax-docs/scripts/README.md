@@ -7,6 +7,19 @@ approval before publication. This script does not release crates.
 
 ## Local preflight
 
+The runnable-example build list is discovered from `<pax-example path="…">`
+entries in the book's Markdown. Adding an entry registers it for
+`gen_example_docs`, which generates that example's source/build manifest and
+release web bundle beneath `_pax_examples/`. There is no separate hand-maintained
+build list. Refresh `bundled-example-sources.json` with
+`scripts/sync-docs-examples.py` when canonical example source changes.
+
+Embeds show source tabs by default. Use `source="false"` for a reference diagram
+whose implementation would distract from the article; its source remains in the
+generated manifest and packaged CLI docs. Restart and Open standalone remain
+available. The iframe permits new-tab links, and those tabs do not inherit its
+sandbox restrictions, so inspector links can open normal documentation pages.
+
 From the repository root, with the release's crate versions and bundled sources
 already aligned:
 

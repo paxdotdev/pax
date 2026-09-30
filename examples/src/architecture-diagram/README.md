@@ -145,9 +145,11 @@ orthogonal routed segments, distinct ports, card intersections, sheet bounds and
 2–4 existing documentation references per part. Inspect actual screenshots after
 layout changes: graph validity cannot establish legibility or correct stacking.
 
-The proposed docs home remains **How Pax Runs**, with a maintainer reference near
-the internal API index. No public embed, example-catalog registration or website
-publication is part of this first implementation pass.
+The public docs embed lives in **How Pax Runs**, after its compiler/runtime/chassis
+overview, with a link from the Maintainer Reference. Its `<pax-example>` entry
+registers the app with the docs release-build generator. Source tabs are hidden
+in that reference embed; Restart and Open standalone remain available. Publishing
+the generated docs is a separate step from maintaining this source.
 
 ## Validation
 

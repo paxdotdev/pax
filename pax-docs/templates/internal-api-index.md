@@ -12,6 +12,9 @@ stay with the [guide chapters](../../components-composition.md) and
 [public API reference](../index.md).
 
 For a first look inside the engine, read [How Pax Runs](../../how-pax-runs.md).
+Its [interactive architecture schematic](../../how-pax-runs.md#architecture-schematic)
+connects the compiler, scene graph, reactive runtime, renderer and chassis;
+select a part to follow its responsibilities and source references.
 If you are implementing an element through runtime hooks, begin with
 [Primitives](../../primitives.md), then use the runtime reference and source
 to follow the relevant lifecycle and rendering contract.

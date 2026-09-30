@@ -41,12 +41,13 @@ function find(root, className) {
     }
 }
 
-async function setup({ available = true, height = '820', fetchOk = true, observe = true } = {}) {
+async function setup({ available = true, height = '820', fetchOk = true, observe = true, source } = {}) {
     const root = new Element('main');
     const host = new Element('pax-example');
     host.setAttribute('path', 'transition-grid');
     host.setAttribute('title', 'Transition Grid');
     host.setAttribute('height', height);
+    if (source !== undefined) host.setAttribute('source', source);
     root.append(host);
     const manifest = {
         path: 'transition-grid',
@@ -183,6 +184,17 @@ test('invalid height falls back to the default', async () => {
     assert.equal(find(root, 'pax-example-frame').style.height, '520px');
 });
 
+test('reference diagrams can hide source tabs while retaining app controls', async () => {
+    const { root } = await setup({ source: 'false' });
+    assert.equal(find(root, 'pax-example-source'), undefined);
+    const frame = find(root, 'pax-example-frame');
+    assert.ok(frame);
+    assert.ok(frame.sandbox.split(' ').includes('allow-popups'));
+    assert.ok(frame.sandbox.split(' ').includes('allow-popups-to-escape-sandbox'));
+    assert.ok(find(root, 'pax-example-button'));
+    assert.ok(find(root, 'pax-example-standalone'));
+});
+
 test('missing build still shows source without broken app controls', async () => {
     const { root } = await setup({ available: false });
     assert.ok(find(root, 'pax-example-source'));
@@ -200,6 +212,7 @@ test('chapter examples are discoverable before instruction or through an intro l
         ['event-handling-rust.md', 'space-game', '## Connect an action to Rust'],
         ['routing.md', 'router-playground', '## Routes and history'],
         ['compositing-effects.md', 'neon-opacity', '## Choose the boundary'],
+        ['how-pax-runs.md', 'architecture-diagram', '## From templates to running instances'],
     ]) {
         const article = readFileSync(new URL(`../book/src/${file}`, import.meta.url), 'utf8');
         const embed = `path="${example}"`;

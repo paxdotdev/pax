@@ -92,7 +92,8 @@
                 const currentGeneration = ++generation;
                 const iframe = el("iframe", "pax-example-frame");
                 iframe.title = `${title} — interactive example`;
-                iframe.sandbox = "allow-scripts allow-same-origin allow-forms allow-pointer-lock";
+                // Documentation links need a separate tab that does not inherit the app sandbox.
+                iframe.sandbox = "allow-scripts allow-same-origin allow-forms allow-pointer-lock allow-popups allow-popups-to-escape-sandbox";
                 iframe.style.height = `${height}px`;
                 currentIframe = iframe;
                 iframe.addEventListener("load", () => {
@@ -126,7 +127,7 @@
             card.appendChild(missing);
         }
 
-        if (manifest.files && manifest.files.length) {
+        if (host.getAttribute("source") !== "false" && manifest.files && manifest.files.length) {
             card.appendChild(createSourceTabs(manifest.files));
         }
 

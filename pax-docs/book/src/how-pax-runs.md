@@ -54,6 +54,22 @@ Local assets are included in the target's output as appropriate; external
 URLs may still be loaded at runtime. An image or font referenced by the
 program is not necessarily embedded inside its Wasm or native executable.
 
+### Architecture schematic
+
+Explore how the compiler, scene graph, reactive runtime, rendering engine and
+platform chassis connect. Select a part for its role, connections and related
+docs; select a connection in the inspector to follow it to another part.
+Use **+ / −** to zoom and **Fit** to restore the overview. **Open standalone**
+gives the drawing more room, and **Exit sheet view** restores its controls.
+
+<pax-example
+  path="architecture-diagram"
+  title="Pax architecture"
+  height="760"
+  source="false"
+  files="src/lib.pax,src/lib.rs,src/layout.rs,src/routing.rs">
+</pax-example>
+
 ## From templates to running instances
 
 A template is a definition. The runtime creates instances from it: component
