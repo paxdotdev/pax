@@ -43,7 +43,7 @@ impl RenderContext for RecordingRenderer {
     fn load_image(&mut self, path: &str, _: &[u8], width: usize, height: usize) {
         self.images.insert(path.into(), (width, height));
     }
-    fn draw_image(&mut self, _: usize, path: &str, _: Rect) {
+    fn draw_image_with_opacity(&mut self, _: usize, path: &str, _: Rect, _: f64) {
         assert!(self.images.contains_key(path));
         self.pending.as_mut().unwrap().1 = Some(path.into());
     }

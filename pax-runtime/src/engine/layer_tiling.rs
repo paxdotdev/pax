@@ -358,7 +358,9 @@ fn can_render_as_single_surface(
         .min(backing_width / safe_width)
         .min(backing_height / safe_height)
         .min((backing_area / (safe_width * safe_height)).sqrt());
-    single_surface_dpr >= policy.min_untiled_render_dpr.max(0.0)
+    // Tiling is the allocation escape hatch, not reduced visual resolution.
+    // A chassis may require a stricter floor, but never less than screen density.
+    single_surface_dpr >= desired_dpr.max(policy.min_untiled_render_dpr.max(0.0))
 }
 
 fn max_tile_backing_width(policy: ScrollerTilingPolicy) -> f64 {
@@ -586,6 +588,72 @@ fn clamp_index(value: i32, max: i32) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn single_surface_must_fit_at_requested_screen_density() {
+        let policy = ScrollerTilingPolicy::default();
+        assert!(can_render_as_single_surface(2000.0, 600.0, 1.0, policy));
+        assert!(!can_render_as_single_surface(2000.0, 600.0, 2.0, policy));
+        assert!(!can_render_as_single_surface(1000.0, 600.0, 3.0, policy));
+        assert!(can_render_as_single_surface(1248.0, 600.0, 2.0, policy));
+    }
+
+    #[test]
+    fn screen_density_tiles_stay_within_physical_budgets_and_cover_the_viewport() {
+        for dpr in [1.0, 1.25, 1.5, 2.0, 3.0] {
+            for cap in [2048.0, 2496.0, 4096.0] {
+                let mut policy = ScrollerTilingPolicy::default();
+                policy.target_tile_backing_dimension = cap;
+                policy.max_tile_backing_width = Some(cap);
+                policy.max_tile_backing_height = Some(cap);
+                policy.max_tile_backing_area = Some(cap * cap);
+                for (width, height, viewport_w, viewport_h) in [
+                    (20000.0, 534.0, 1322.0, 534.0),
+                    (1322.0, 20000.0, 1322.0, 930.0),
+                    (20000.0, 20000.0, 390.0, 844.0),
+                    (2000.0, 1200.0, 2000.0, 1200.0),
+                ] {
+                    for fraction in [0.0, 0.5, 1.0] {
+                        let x = (width - viewport_w) * fraction;
+                        let y = (height - viewport_h) * fraction;
+                        let plan = scroller_canvas_plan_with_policy(
+                            1,
+                            "density-test".into(),
+                            width,
+                            height,
+                            viewport_w,
+                            viewport_h,
+                            x,
+                            y,
+                            dpr,
+                            policy,
+                        );
+                        for tile in &plan.surfaces {
+                            assert!(backing_extent(tile.width, dpr) <= cap);
+                            assert!(backing_extent(tile.height, dpr) <= cap);
+                            assert!(backing_area(tile.width, tile.height, dpr) <= cap * cap);
+                        }
+                        // Sample all four edges and the interior, including after tile turnover.
+                        for u in [0.001, 0.25, 0.5, 0.75, 0.999] {
+                            for v in [0.001, 0.25, 0.5, 0.75, 0.999] {
+                                let px = x + viewport_w * u;
+                                let py = y + viewport_h * v;
+                                assert!(
+                                    plan.surfaces.iter().any(|tile| {
+                                        px >= tile.left
+                                            && px <= tile.left + tile.width
+                                            && py >= tile.top
+                                            && py <= tile.top + tile.height
+                                    }),
+                                    "uncovered ({px}, {py}) at {dpr}x, cap={cap}"
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     #[test]
     fn vertical_only_scroller_does_not_add_horizontal_overscan() {

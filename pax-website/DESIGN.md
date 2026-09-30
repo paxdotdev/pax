@@ -1,5 +1,144 @@
 # Pax website design notes
 
+## October 1 — Feature cards as small demonstrations
+
+The rail should show a behavior, not just decorate its title. Keep the existing
+43-card editorial set, order, summaries, qualifications, and destinations. Keep
+the layered-stroke and Handwriter mask studies; replace 28 flat illustrations
+with bounded, grayscale studies. The remaining diagrams receive a foreground-
+first layer-order repair and lose the cyan placeholder palette.
+
+Artboard contract: a centered 288×140 logical-pixel scene, proportionally
+scaled down for compact cards, inside a clipped 174px media Frame. Keep captions
+outside the artboard at an explicit 146px Y with a zero anchor. Foreground text
+and details precede their opaque surfaces. Leave stroke bleed inside the frame;
+the rail's edge-to-edge layout and native scrolling behavior are unchanged.
+
+Motion vocabulary: slow eight-second round trips, endpoint holds, finite enter/
+exit reversals, and no flashing loop resets. Only visible study clocks advance;
+static cap/join comparisons have no advancing clock. Existing rail virtualization
+is preserved. This is application-level animation gating, not engine subtree
+suspension. The new source is included in the ExampleHost drawer.
+
+The actual path, smoothing, gradient, clip, light/material, dynamic-class,
+Stacker reflow, autosize, and Rust computed-property primitives power those
+studies. Tooling, route, and scrolling sequences are illustrative diagrams:
+they do not repeatedly recompile the site, navigate its Router, invoke a native
+picker, or nest interactive scrollers inside the already draggable rail.
+This keeps whole-card documentation links and page scrolling unambiguous.
+
+Validation: 24 website tests, the debug web build, mdbook, Rust formatting,
+and whitespace checks pass. Desktop and 390px browser checks cover responsive
+containment, captions, native rail turnover, and source-drawer tabs. A temporary
+phase probe verified visible clocks advance while offscreen studies retain their
+phase; the probe was removed. Unsupported transition curve names found during
+QA were corrected to the documented Quad curves. Existing startup reactive-drain
+and large-jump tile-window diagnostics remain. Baked release, touch-device QA,
+and sustained performance benchmarking were not completed for this pass.
+CLI screenshot export showed misplaced native text not present in the browser
+capture; use the browser image for visual review pending capture-path diagnosis.
+
+## September 30 — Screen-density scroller rendering
+
+The fidelity follow-up below is now implemented. The April 12 `0283907ff3`
+scrolling change introduced the unconditional 1x tiled-scroller override; it
+was not introduced by the latest rebase. Remove that override for both WebGPU
+and Piet, and require a pane to fit at requested screen density before choosing
+one surface. Otherwise tile sooner within the existing backing-pixel budgets.
+Hard dimension clamps remain a last-resort allocation guard, with a once-per-
+changed-fallback warning and an inspectable `data-pax-resolution-fallback`
+attribute. No adaptive resolution reduction or card-art workaround is added.
+
+Debug and baked-release browser checks on a 2x display now show 2496×1116
+backing for each 1248×558 CSS-pixel gallery tile, with no fallback markers.
+Layered Paint edges are sharper; horizontal/vertical scrolling and tile turnover
+show no visible gaps in the checked views. A 390px viewport smoke test also
+passes; the browser's viewport override uses 1x, so this is a responsive check,
+not a physical high-density phone test. Real iOS/Piet runtime QA remains open.
+
+Five-second debug spot checks at 576×930/DPR 2 showed roughly 2–3ms CPU frame
+cost before and 4–6ms afterward. Mean frame cadence remained around 8–9ms,
+with occasional 16.6ms frames and no >33ms frames in the settled samples. These
+are not controlled benchmarks: gallery content varied and a concurrent release
+build competed for CPU. Four times the backing pixels has a real cost; retain
+fidelity and investigate rendering work rather than silently reducing density.
+
+Validation: 222 runtime tests, three surface-density tests, three browser-policy
+tests, two native-surface tests, debug/release website builds, Piet WASM compile,
+mdbook, and whitespace checks pass. Repairing the stale image test renderer's
+required opacity method exposed an unrelated existing image-unmount test panic
+(`properties not of expected type`); the broader web suite is not fully green.
+Existing startup reactive-drain and large-jump tile-window diagnostics remain.
+
+## September 30 — Calculator lighting parity
+
+The canonical calculator now has one LightFrame and pointer-following direct
+light shared by the desktop body and edge-to-edge background/keypad. Pointer
+conversion happens in calculator-viewport coordinates, outside its Scroller.
+The website retains host scaling, safe insets, lazy mounting, pause gating,
+and the omission of layer-wide ambient light. No renderer changes were needed.
+
+Validation: debug website and standalone web builds pass, alongside 38
+calculator tests, 21 website tests, mdbook, source-bundle synchronization, and
+whitespace checks. Browser screenshots and live LightSource scene inspection
+verify pointer tracking in desktop and 390px layouts, including the embedded
+phone's 0.877 scale. Standalone keypad input still evaluates 7 × 6 to 42.
+Native targets and baked release were not rechecked for this application-only
+change. CLI screenshot capture timed out; browser captures provided visual QA.
+
+Separately, the Layered Paint card's rough edges match the web chassis's explicit
+1x tiled-scroller backing policy: carousel tiles were 1248×534 pixels at the same
+CSS size on a 2x display, while the root canvas used 2x backing. The demo remains
+vector geometry. Leave the quality/performance policy unchanged pending a
+focused fidelity and allocation-budget pass; do not hide it by changing card art.
+
+## September 30 — The example supports the footer CTA
+
+Remove the separate “Do the math” section and its calculator explainer. The
+existing “Your next interface starts here” CTA now sits beside the live phone:
+setup commands and the primary get-started link on the left, an uncaptioned
+calculator on the right. At widths below 1000px, stack the CTA before the phone.
+Project-maturity/accessibility/license notes and resource links follow, then
+the built-in-Pax credit. Preserve those qualifications and destinations.
+
+`CalculatorPreview` is only the reusable phone/example host. Its parent owns
+gutters; it reports its aspect-ratio height from the assigned column width.
+`ResourceSection` publishes its measured content height to one ExampleHost,
+replacing both the old fixed footer envelope and separate calculator section.
+The shared source drawer retains the actual calculator and device-frame files.
+Lazy first mount, offscreen update gating, session retention, safe insets, and
+keyboard policy are unchanged. No framework API or canonical example changes.
+
+Validation: 21 website tests, the debug web build, mdbook, and whitespace checks
+pass. Browser checks at 1440px and 390px cover the responsive composition,
+7 × 6 = 42, retained calculation state through resize, and the shared source
+drawer. The CLI screenshot request timed out; visual checks used the browser.
+No release rebuild or native-device checks were run for this composition pass.
+
+## September 29 — Morphing CMY mesh in the hero
+
+With PAX-1011 on main, “creative” now reveals real mesh paint rather than the
+cycling linear-gradient placeholder below. One unlit 3×3 field spans the entire
+Handwriter mask, including an 8px paint bleed for round caps. Cyan, magenta, and
+yellow anchors retain their colors while their positions morph: corners stay
+fixed, edge midpoints slide along their edges, and the center drifts out of
+phase. The ten-second loop has no reset jump or travelling stripe geometry.
+
+The paint clock remains independent from the 1.6-second handwriting reveal.
+Pause finishes the writing and freezes the current field; offscreen frames and
+other adjectives do not advance or regenerate the mesh. Resume and subsequent
+visits continue from the retained field. Text alternatives, sizing, signboard
+transitions, and View Source remain unchanged. This uses the documented WGPU
+mesh/alpha-mask implementation; no renderer or public API changes are needed.
+
+Validation: 21 website tests pass, including mesh coverage/anchor ordering,
+periodicity, and pause/resume clock behavior. Debug and baked-release web builds,
+Rust formatting, mdbook, and whitespace checks pass. Browser checks at 1440px
+and 390px show the continuous masked field, handwriting, and motion controls;
+the release cartridge also renders the mesh reveal with no logged warnings or
+errors on its origin. Debug retains the previously noted startup reactive-drain
+and large-resize tile-window diagnostics; no mesh-specific diagnostic appeared.
+
 ## September 29 — A live calculator in the footer
 
 The second hero adjective is now “high-performance.” The footer adds a quieter

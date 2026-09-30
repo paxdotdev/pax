@@ -20,18 +20,13 @@
             sources={self.feature_gallery_sources} drawer_open=false>
             <FeatureGallery content_height=bind:self.gallery_height/>
         </ExampleHost>
-        <ExampleHost width=100% height={self.compact ? 1400px : ($viewport.width < 1100 ? 1400px : 990px)} title="Start building"
-            sources={self.resource_sources} drawer_open=false>
-            <ResourceSection />
-        </ExampleHost>
-        <ExampleHost width=100% height={(Math::max(1004, self.calculator_height))px} title="Do the math" sources={self.calculator_sources}
+        <ExampleHost width=100% height={(Math::max(1004, self.resource_height))px} title="Start building" sources={self.resource_sources}
             drawer_open=false>
-            <CalculatorSection content_height=bind:self.calculator_height/>
+            <ResourceSection content_height=bind:self.resource_height/>
         </ExampleHost>
     </Stacker>
 </Scroller>
 
 @settings {
     @mount: handle_mount
-    @pre_render: handle_pre_render
 }

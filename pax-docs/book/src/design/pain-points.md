@@ -1,5 +1,42 @@
 # Pain points
 
+## 2026-10-01 — Bounded artboards in a projected feature rail
+
+Fixed-pixel artwork authored for a 288px-wide area overflowed compact cards'
+254px media wells. Normalize projected artwork to one logical artboard and
+uniformly scale it into the available width, inside a Frame. Reserve a separate
+caption strip; clipping alone would merely crop the intended composition.
+Use percentage units for scale: a numeric 1 is not equivalent to 100%.
+
+A caption positioned at `100% - 28px` inherited a percentage anchor and moved
+up into the art. An explicit pixel Y and `anchor_y=0%` made the contract clear.
+Check foreground-first Pax source ordering before blaming the compositor:
+several old opaque poster backgrounds were above their own labels.
+
+Gate each study clock with viewport-proximity notifications from the visible
+artboard, resetting its last timestamp on visibility changes. Retain path
+geometry and vary draw ranges/transforms; keep native scrolling in the parent
+rail so nested illustrative scenes do not capture page gestures.
+
+Validate named easing curves in the running app, not just with the template
+parser: unsupported names can compile but log a warning and fall back to
+Linear. The card transitions use the documented OutQuad/InQuad pair.
+
+## 2026-09-30 — Shared lighting across embedded and standalone layouts
+
+The calculator's desktop body tracked the pointer, but its full-bleed branch
+removed that light and substituted a fixed-position light around only the
+background. The mouse handler still updated properties that no mounted light
+used; sibling LightFrames also kept the background light off the keypad.
+
+Use one calculator-local LightFrame around both the scrolling body and the
+full-bleed background, with a single shared point light. Bind pointer movement
+on that frame and convert window coordinates through `ctx.local_point` there,
+not in the inner scrolling body. Initialize the light in the same viewport
+space, accounting for safe insets and the centered desktop case. Keep embedded
+AmbientLight omitted because ambient contribution remains layer-wide, and
+retain the existing offscreen pause gate on the direct light.
+
 ## 2026-09-24 — Polar resolution and parameter speed
 
 The polar curve `4*cos(3*θ^2)` developed dotted petals as zoom increased.
@@ -724,6 +761,24 @@ though `Handwriter` emits vector `PathElement`s and `Path` strokes them at the
 resolved pixel bounds. Browser inspection showed the root visible canvas backed
 at 2x, but additional scroller-related canvases were backed at 1 canvas pixel
 per CSS pixel.
+
+The website's Layered Paint card reproduced this on September 30: a 2x browser
+display had 1248×534-pixel carousel tiles styled at 1248×534 CSS pixels, while
+the root canvas used 2x backing. `web_render_contexts.rs` explicitly selects
+`TILED_SCROLLER_DESIRED_DPR = 1.0` for tiled scroller hosts as a performance
+trade-off. The card uses real vector strokes (19px, 5px, and 1px), not a raster
+poster. No renderer policy was changed in the calculator-lighting pass. The
+subsequent density pass removed that override and tightened single-surface
+eligibility: fit at screen density or tile sooner. Keep hard allocation guards,
+but make exceptional clamping visible through a warning and the canvas's
+`data-pax-resolution-fallback` attribute rather than using it as a perf mode.
+
+Verify backing dimensions as well as screenshots: viewport emulation on this
+browser changed DPR to 1, so a 390px responsive check alone did not exercise
+Retina rendering. On the actual 2x display, 1248×558 CSS-pixel gallery tiles
+now use 2496×1116 backing in both debug and baked release. The planner tests
+cover fractional/2x/3x densities, physical budgets, and viewport coverage at
+the start/middle/end of horizontal, vertical, and two-axis scroll ranges.
 
 Recommendations: treat jagged large vector strokes inside web scrollers as a
 potential surface backing-scale issue before blaming the primitive. A focused
@@ -3032,3 +3087,12 @@ website's old device clip. Keep the hardware outline and actual clipping shape
 aligned. For mouse dragging inside a transformed example, convert both the
 initial and current window points through the same `ctx.local_point` and then
 multiply their delta by local bounds; raw window deltas under-pan a scaled app.
+
+## 2026-09-29 — Replacing the hero paint placeholder with a real mesh
+
+For a morphing mesh, update MeshPoint coordinates instead of easing between
+complete Paint values (which crossfades fields). Keep boundary anchors on the
+coverage boundary, add paint bleed around a stroked mask, and paint one field
+behind the whole Handwriter word rather than giving each letter its own domain.
+Only publish a new grid when the visible paint clock advances, so a paused or
+unmounted adjective does not continually invalidate the mesh cache.

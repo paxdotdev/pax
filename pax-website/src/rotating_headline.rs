@@ -7,9 +7,9 @@ const HOLD_MS: f64 = 4200.0;
 const CHANGE_MS: f64 = 900.0;
 const CYCLE_MS: f64 = HOLD_MS + CHANGE_MS;
 const WRITE_MS: f64 = 1600.0;
-const GRADIENT_PERIOD_MS: f64 = 4000.0;
+const GRADIENT_PERIOD_MS: f64 = 10000.0;
 
-/// A fixed three-line signboard. Creative masks a cycling CMY gradient with Handwriter;
+/// A fixed three-line signboard. Creative masks a morphing CMY mesh with Handwriter;
 /// its native text equivalent lives outside the mask. Only the current word mounts.
 #[pax]
 #[file("rotating_headline.pax")]
@@ -24,7 +24,7 @@ pub struct RotatingHeadline {
     pub word_rotate: Property<f64>,
     pub word_opacity: Property<f64>,
     pub writing_progress: Property<f64>,
-    pub gradient_x: Property<f64>,
+    pub mesh_rows: Property<Vec<Vec<MeshPoint>>>,
     pub _gradient_ms: Property<f64>,
     pub _creative_ms: Property<f64>,
     pub _elapsed_ms: Property<f64>,
@@ -34,7 +34,7 @@ pub struct RotatingHeadline {
 impl RotatingHeadline {
     pub fn mount(&mut self, ctx: &NodeContext) {
         self._last_ms.set(ctx.elapsed_time_millis() as f64);
-        self.gradient_x.set(gradient_offset(0.0));
+        self.mesh_rows.set(mesh_rows(0.0));
         self.apply_pose(pose_at(0.0));
     }
 
@@ -57,14 +57,17 @@ impl RotatingHeadline {
         }
         let pose = pose_at(self._elapsed_ms.get());
         // Keep the paint clock independent of the signboard's legible pose snap on pause.
-        self._gradient_ms.set_if_neq(gradient_time(
-            self._gradient_ms.get(),
+        let previous_gradient_ms = self._gradient_ms.get();
+        let next_gradient_ms = gradient_time(
+            previous_gradient_ms,
             dt,
             pose.index == 0,
             self.playing.get(),
-        ));
-        self.gradient_x
-            .set_if_neq(gradient_offset(self._gradient_ms.get()));
+        );
+        if next_gradient_ms != previous_gradient_ms {
+            self._gradient_ms.set(next_gradient_ms);
+            self.mesh_rows.set(mesh_rows(next_gradient_ms));
+        }
         self._creative_ms.set_if_neq(creative_time(
             self._creative_ms.get(),
             dt,
@@ -106,8 +109,44 @@ fn gradient_time(previous: f64, dt: f64, creative: bool, playing: bool) -> f64 {
     }
 }
 
-fn gradient_offset(time: f64) -> f64 {
-    time.rem_euclid(GRADIENT_PERIOD_MS) / GRADIENT_PERIOD_MS * 100.0 - 100.0
+fn mesh_positions(time: f64) -> [[[f64; 2]; 3]; 3] {
+    let phase = time.rem_euclid(GRADIENT_PERIOD_MS) / GRADIENT_PERIOD_MS * std::f64::consts::TAU;
+    // Only slide boundary anchors along their edges, preserving full coverage.
+    // Offsetting their phases from the center shears the field instead of panning it.
+    [
+        [[0.0, 0.0], [50.0 + 10.0 * phase.sin(), 0.0], [100.0, 0.0]],
+        [
+            [0.0, 50.0 + 10.0 * phase.cos()],
+            [
+                50.0 + 18.0 * (phase + std::f64::consts::FRAC_PI_3).sin(),
+                50.0 + 18.0 * phase.cos(),
+            ],
+            [100.0, 50.0 - 10.0 * phase.sin()],
+        ],
+        [
+            [0.0, 100.0],
+            [50.0 + 10.0 * phase.cos(), 100.0],
+            [100.0, 100.0],
+        ],
+    ]
+}
+
+fn mesh_rows(time: f64) -> Vec<Vec<MeshPoint>> {
+    let colors = [Color::CYAN, Color::FUCHSIA, Color::YELLOW];
+    mesh_positions(time)
+        .into_iter()
+        .enumerate()
+        .map(|(row, points)| {
+            points
+                .into_iter()
+                .enumerate()
+                .map(|(column, [x, y])| MeshPoint {
+                    position: (Size::Percent(x.into()), Size::Percent(y.into())),
+                    color: colors[(column + row * 2) % colors.len()].clone(),
+                })
+                .collect()
+        })
+        .collect()
 }
 
 fn writing_progress(time: f64) -> f64 {
@@ -249,15 +288,44 @@ mod tests {
     }
 
     #[test]
-    fn gradient_cycles_at_the_proving_fixture_speed_and_covers_the_mask() {
-        assert_eq!(gradient_offset(0.0), -100.0);
-        assert_eq!(gradient_offset(2000.0), -50.0);
-        assert_eq!(gradient_offset(GRADIENT_PERIOD_MS), -100.0);
-        for ms in (0..20000).step_by(13) {
-            let x = gradient_offset(ms as f64);
-            assert!((-100.0..0.0).contains(&x));
-            assert!(x + 200.0 >= 100.0);
+    fn mesh_morphs_periodically_with_stable_coverage_and_ordered_anchors() {
+        assert_eq!(mesh_positions(0.0), mesh_positions(GRADIENT_PERIOD_MS));
+        assert_ne!(
+            mesh_positions(0.0),
+            mesh_positions(GRADIENT_PERIOD_MS / 4.0)
+        );
+        for ms in (0..GRADIENT_PERIOD_MS as usize).step_by(13) {
+            let grid = mesh_positions(ms as f64);
+            assert_eq!(grid[0][0], [0.0, 0.0]);
+            assert_eq!(grid[0][2], [100.0, 0.0]);
+            assert_eq!(grid[2][0], [0.0, 100.0]);
+            assert_eq!(grid[2][2], [100.0, 100.0]);
+            assert_eq!((grid[0][1][1], grid[2][1][1]), (0.0, 100.0));
+            assert_eq!((grid[1][0][0], grid[1][2][0]), (0.0, 100.0));
+            for row in 0..2 {
+                for column in 0..2 {
+                    let quad = [
+                        grid[row][column],
+                        grid[row][column + 1],
+                        grid[row + 1][column + 1],
+                        grid[row + 1][column],
+                    ];
+                    for corner in 0..4 {
+                        let [a, b, c] =
+                            [quad[corner], quad[(corner + 1) % 4], quad[(corner + 2) % 4]];
+                        assert!(
+                            (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0]) > 0.0
+                        );
+                    }
+                }
+            }
         }
+        let rows = mesh_rows(0.0);
+        assert_eq!(rows.len(), 3);
+        assert!(rows.iter().all(|row| row.len() == 3));
+        assert_eq!(rows[0][0].color, Color::CYAN);
+        assert_eq!(rows[0][1].color, Color::FUCHSIA);
+        assert_eq!(rows[0][2].color, Color::YELLOW);
     }
 
     #[test]
@@ -265,6 +333,9 @@ mod tests {
         assert_eq!(gradient_time(1200.0, 16.0, true, false), 1200.0);
         assert_eq!(gradient_time(1200.0, 16.0, false, true), 1200.0);
         assert_eq!(gradient_time(1200.0, 16.0, true, true), 1216.0);
-        assert_eq!(gradient_time(3990.0, 16.0, true, true), 6.0);
+        assert_eq!(
+            gradient_time(GRADIENT_PERIOD_MS - 10.0, 16.0, true, true),
+            6.0
+        );
     }
 }

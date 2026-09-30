@@ -14,6 +14,7 @@ struct SurfaceMetrics {
     surface_width: u32,
     surface_height: u32,
     dpr: [f32; 2],
+    density_clamped: bool,
 }
 
 struct LayerCanvasTarget {
@@ -26,8 +27,6 @@ struct LayerCanvasTarget {
     active: bool,
     surface: SurfaceMetrics,
 }
-
-const TILED_SCROLLER_DESIRED_DPR: f64 = 1.0;
 
 fn compute_surface_metrics(
     logical_width: f64,
@@ -69,22 +68,41 @@ fn compute_surface_metrics(
         desired_dpr
     };
 
-    if dpr_x + 0.01 < desired_dpr || dpr_y + 0.01 < desired_dpr {
-        log::debug!(
-            "render backend: clamped backing scale from {:.2} to {:.2}x{:.2} to fit max surface dimension {}",
-            desired_dpr,
-            dpr_x,
-            dpr_y,
-            max_surface_dimension as u32
-        );
-    }
-
     SurfaceMetrics {
         logical_width: logical_width as f32,
         logical_height: logical_height as f32,
         surface_width,
         surface_height,
         dpr: [dpr_x as f32, dpr_y as f32],
+        density_clamped: (surface_width as f64) < (logical_width * desired_dpr).round().max(1.0)
+            || (surface_height as f64) < (logical_height * desired_dpr).round().max(1.0),
+    }
+}
+
+fn report_density_fallback(
+    canvas: &HtmlCanvasElement,
+    surface: &SurfaceMetrics,
+    desired_dpr: f64,
+    max_surface_dimension: u32,
+) {
+    const ATTRIBUTE: &str = "data-pax-resolution-fallback";
+    // Ignore normal subpixel-to-integer rounding. A real allocation clamp is
+    // inspectable on the canvas and logged once per changed fallback, not frame.
+    if surface.density_clamped {
+        let detail = format!(
+            "requested={desired_dpr:.3};actual={:.3}x{:.3};limit={max_surface_dimension}",
+            surface.dpr[0], surface.dpr[1],
+        );
+        if canvas.get_attribute(ATTRIBUTE).as_deref() != Some(detail.as_str()) {
+            log::warn!(
+                "render backend: canvas {} reduced resolution to fit a hard surface limit ({})",
+                canvas.id(),
+                detail,
+            );
+            let _ = canvas.set_attribute(ATTRIBUTE, &detail);
+        }
+    } else if canvas.has_attribute(ATTRIBUTE) {
+        let _ = canvas.remove_attribute(ATTRIBUTE);
     }
 }
 
@@ -664,9 +682,6 @@ fn query_layer_canvas_targets(
                 .get_attribute("data-tile-key")
                 .unwrap_or_else(|| canvas.id());
             let active = canvas_render_state(&canvas) != "parked";
-            let role = canvas
-                .parent_element()
-                .and_then(|parent| parent.get_attribute("data-role"));
             let host_signature = canvas_host_signature(&canvas);
             let origin_x = canvas
                 .get_attribute("data-tile-origin-x")
@@ -680,21 +695,14 @@ fn query_layer_canvas_targets(
                 .get_attribute("data-replay-priority")
                 .and_then(|value: String| value.parse::<i32>().ok())
                 .unwrap_or(0);
-            let surface_desired_dpr =
-                if role.as_deref() == Some("scroller-canvas-host") && key != "single" {
-                    // Large browser-owned scrollers are the current perf hotspot. Once a scroller is
-                    // tiled, favor fewer and cheaper pixels over matching the window DPR exactly.
-                    TILED_SCROLLER_DESIRED_DPR
-                } else {
-                    desired_dpr
-                };
             let surface = compute_surface_metrics(
                 planned_canvas_logical_width(&canvas),
                 planned_canvas_logical_height(&canvas),
-                surface_desired_dpr,
+                desired_dpr,
                 max_surface_dimension,
                 minimum_dpr,
             );
+            report_density_fallback(&canvas, &surface, desired_dpr, max_surface_dimension);
             LayerCanvasTarget {
                 key,
                 host_signature,
@@ -935,4 +943,48 @@ async fn wait_for_animation_frame(window: &Window) {
         callback.forget();
     });
     let _ = JsFuture::from(promise).await;
+}
+
+#[cfg(test)]
+mod density_tests {
+    use super::*;
+
+    #[test]
+    fn carousel_tiles_match_screen_density() {
+        for dpr in [1.0, 1.25, 1.5, 2.0, 3.0] {
+            let surface = compute_surface_metrics(1248.0, 534.0, dpr, 4096, 1.0);
+            assert_eq!(surface.surface_width, (1248.0 * dpr).round() as u32);
+            assert_eq!(surface.surface_height, (534.0 * dpr).round() as u32);
+            assert!((surface.dpr[0] as f64 - dpr).abs() < 0.002);
+            assert!((surface.dpr[1] as f64 - dpr).abs() < 0.002);
+        }
+    }
+
+    #[test]
+    fn fractional_logical_bounds_only_round_to_physical_pixels() {
+        let surface = compute_surface_metrics(73.8181, 534.25, 2.0, 4096, 1.0);
+        assert_eq!((surface.surface_width, surface.surface_height), (148, 1069));
+        assert_eq!(surface.logical_width, 73.8181_f32);
+        assert_eq!(surface.logical_height, 534.25);
+        assert!(!surface.density_clamped);
+        let tiny = compute_surface_metrics(0.6, 0.6, 2.0, 4096, 1.0);
+        assert!(!tiny.density_clamped);
+    }
+
+    #[test]
+    fn hard_limits_remain_a_bounded_last_resort() {
+        let surface = compute_surface_metrics(3000.0, 600.0, 3.0, 2048, 0.25);
+        assert_eq!(
+            (surface.surface_width, surface.surface_height),
+            (2048, 1800)
+        );
+        assert!(surface.dpr[0] < 1.0);
+        assert_eq!(surface.dpr[1], 3.0);
+        assert!(surface.density_clamped);
+        // Smaller tiles restore density, rather than retaining a degraded mode.
+        let tile = compute_surface_metrics(682.0, 600.0, 3.0, 2048, 0.25);
+        assert_eq!((tile.surface_width, tile.surface_height), (2046, 1800));
+        assert_eq!(tile.dpr, [3.0, 3.0]);
+        assert!(!tile.density_clamped);
+    }
 }

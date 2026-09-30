@@ -1,0 +1,529 @@
+<Group width=100% height=100% @viewport_proximity_change=self.visibility>
+    if self.kind == "hot" {
+        <Text class="note" x=18px y=10px width=135px height=18px text="src/lib.rs"/>
+        <Text class="code" x=18px y=39px width=150px height=20px text={self.alternate ? "radius.set(4);" : "radius.set(28);"}/>
+        <Text class="note" x=18px y=72px width=125px height=18px text="save → live preview"/>
+        <Text class="note" x=18px y=112px width=250px height=16px text="same running app · new logic"/>
+        <Rectangle class="paper" x=210px y=70px width=62px height=62px anchor=50% corner_radius={4 + self.progress * 24}/>
+        <Rectangle class="rule" x=174px y=22px width=1px height=82px/>
+    }
+    if self.kind == "path" || self.kind == "svg" {
+        <Group x=24px y=12px width=240px height=108px>
+            <Ellipse class="paper" x=8% y=76% width=7px height=7px anchor=50%/>
+            <Ellipse class="paper" x=92% y=24% width=7px height=7px anchor=50%/>
+            <Ellipse class="wire" x=20% y=4% width=6px height=6px anchor=50%/>
+            <Ellipse class="wire" x=76% y=96% width=6px height=6px anchor=50%/>
+            <Path class="trace" width=100% height=100% draw_end={self.progress}
+                elements=[PathElement::Point(8%, 76%), PathElement::Cubic(20%, 4%, 76%, 96%), PathElement::Point(92%, 24%)]/>
+            <Path class="guide" width=100% height=100% elements=[
+                PathElement::Point(8%, 76%),
+                PathElement::Line,
+                PathElement::Point(20%, 4%),
+                PathElement::Empty,
+                PathElement::Point(76%, 96%),
+                PathElement::Line,
+                PathElement::Point(92%, 24%)
+            ]/>
+            for i in 0..6 {
+                <Rectangle class="grid" x={(i * 20)%} width=1px height=100%/>
+                <Rectangle class="grid" y={(i * 20)%} width=100% height=1px/>
+            }
+        </Group>
+        if self.kind == "svg" {
+            <Text class="note" x=24px y=121px width=240px height=16px text={"logo.svg → editable <Path/>"}/>
+        }
+    }
+    if self.kind == "theme" || self.kind == "classes" {
+        <Group x=46px y=14px width=196px height=104px>
+            <Text x=15px y=10px width=110px height=42px text="Aa" style={
+                font: "Manrope"
+                font_size: 32px
+                fill: {self.alternate ? rgb(24, 24, 24) : WHITE}
+            }/>
+            <Text class="note" x=16px y=72px width=164px height=16px text={self.alternate ? "paper / round" : "ink / square"} style={
+                font: "IBM Plex Mono"
+                font_size: 10px
+                fill: {self.alternate ? rgb(45, 45, 45) : rgb(185, 185, 185)}
+            }/>
+            <Ellipse x=161px y=32px width=18px height=18px anchor=50% fill={self.alternate ? BLACK : WHITE}/>
+            <Rectangle class={self.alternate ? ["panel", "selected"] : "panel"} width=100% height=100%/>
+        </Group>
+        <Text class="note" x=46px y=122px width=226px height=16px
+            text={self.kind == "classes" ? "class = state" : "one component · two themes"}/>
+    }
+    if self.kind == "scroll" || self.kind == "snap" {
+        <Text class="note" x=32px y=117px width=240px height=18px
+            text={self.kind == "scroll" ? "content moves · viewport stays" : "settle at a native snap anchor"}/>
+        <Rectangle class="wire" x=31px y=12px width=226px height=94px corner_radius=9/>
+        <Frame x=32px y=13px width=224px height=92px corner_radius=8>
+            <Group x={(10 - self.progress * (self.kind == "snap" ? 90 : 130))px} y=9px width=400px height=74px>
+                for i in 0..4 {
+                    <Group x={(i * 90)px} width=80px height=74px>
+                        <Text class="note" x=10px y=51px width=58px height=18px text={"0" + (i + 1)}/>
+                        <Path class="trace" x=9px y=9px width=62px height=36px
+                            elements=[PathElement::Point(0%, 75%), PathElement::Cubic(25%, 0%, 60%, 0%), PathElement::Point(100%, 60%)]/>
+                        <Rectangle class="panel" width=100% height=100% corner_radius=6/>
+                    </Group>
+                }
+            </Group>
+        </Frame>
+    }
+    if self.kind == "materials" {
+        <Text class="note" x=24px y=119px width=68px height=16px text="matte"/>
+        <Text class="note" x=115px y=119px width=78px height=16px text="metallic"/>
+        <Text class="note" x=205px y=119px width=66px height=16px text="glossy"/>
+        <LightFrame x=12px y=10px width=264px height=104px>
+            <LightSource x={(8 + self.progress * 84)%} y=6px z=70px radius=440px intensity=2.5 color=WHITE width=1px height=1px/>
+            <Ellipse x=17% y=54% width=66px height=66px anchor=50% fill={
+                paint: rgb(140, 140, 140)
+                material: {Material::matte()}
+            }/>
+            <Ellipse x=50% y=54% width=66px height=66px anchor=50% fill={
+                paint: rgb(140, 140, 140)
+                material: {Material::metallic(0.24)}
+            }/>
+            <Ellipse x=83% y=54% width=66px height=66px anchor=50% fill={
+                paint: rgb(140, 140, 140)
+                material: {Material::glossy(0.16)}
+            }/>
+        </LightFrame>
+    }
+    if self.kind == "enter" || self.kind == "interrupt" {
+        <Text class="note" x=26px y=116px width=248px height=18px text={self.present ? "enter → hold" : "exit → reverse"}/>
+        if self.present {
+            <Group x=50% y=68px width=166px height=68px anchor=50% @in=@timeline {
+                duration: 1000ms,
+                opacity: {
+                    0%: 0, OutQuad,
+                    100%: 1,
+                }
+                x: {
+                    0%: 35%, OutQuad,
+                    100%: 50%,
+                }
+            }
+                @out=@timeline {
+                    duration: 1000ms,
+                    opacity: {
+                        0%: 1, InQuad,
+                        100%: 0,
+                    }
+                    x: {
+                        0%: 50%, InQuad,
+                        100%: 65%,
+                    }
+                }>
+                <Text class="code" x=16px y=12px width=134px height=22px text="Hello, again."/>
+                <Rectangle class="muted" x=16px y=44px width=88px height=3px/>
+                <Rectangle class="panel" width=100% height=100% corner_radius=8/>
+            </Group>
+        }
+        <Rectangle class="rule" x=22px y=68px width=244px height=1px/>
+        <Ellipse class="wire" x=50% y=68px width=6px height=6px anchor=50%/>
+    }
+    if self.kind == "reflow" {
+        <Text class="note" x=29px y=119px width=240px height=18px
+            text={self.alternate ? "remove B · siblings reflow" : "insert B · siblings reflow"}/>
+        <Stacker x=28px y=18px width=232px height=88px gutter=7px direction=StackerDirection::Horizontal
+            exit_mode=ContainerExitMode::Ghost reflow_transition={
+                kind: ContainerReflowTransitionKind::Ease
+                frames: 30
+                curve: ContainerReflowCurve::OutQuad
+                name: ""
+            }>
+            for item in self.items key item {
+                <Group width=70px height=88px @in=@timeline {
+                    duration: 500ms,
+                    opacity: {
+                        0%: 0,
+                        100%: 1,
+                    }
+                }
+                    @out=@timeline {
+                        duration: 500ms,
+                        opacity: {
+                            0%: 1,
+                            100%: 0,
+                        }
+                    }>
+                    <Text class="large" x=10px y=13px width=50px height=50px text={item == 0 ? "A" : (item == 1 ? "B" : "C")}/>
+                    <Rectangle class="panel" width=100% height=100% corner_radius=6/>
+                </Group>
+            }
+        </Stacker>
+    }
+    if self.kind == "gradient" {
+        <Text class="note" x=24px y=120px width=240px height=16px text="stops + direction = paint"/>
+        <Group x=144px y=63px width=94px height=94px anchor=50% rotate={(self.progress * 90)deg}>
+            <Rectangle width=100% height=100% corner_radius=24 fill={
+                paint: @gradient {
+                    0%: rgb(32, 32, 32),
+                    45%: rgb(150, 150, 150),
+                    70%: WHITE,
+                    100%: rgb(70, 70, 70),
+                }
+                material: {Material::unlit()}
+            }/>
+        </Group>
+        <Ellipse class="wire" x=144px y=63px width=118px height=118px anchor=50%/>
+    }
+    if self.kind == "composite" {
+        <Group x=50% y=66px width=204px height=78px anchor=50% rotate={(-8 + self.progress * 16)deg}>
+            <Rectangle class="paper" x={(18 + self.progress * 128)px} y=-6px width=32px height=90px opacity=0.85/>
+            <Text class="large" x=12px y=20px width=180px height=46px text="Native text"/>
+            <Rectangle class="panel" width=100% height=100% corner_radius=8/>
+        </Group>
+        <Text class="note" x=29px y=119px width=240px height=16px text="native text + vector occlusion"/>
+    }
+    if self.kind == "capture" {
+        for i in 0..3 {
+            <Group x={(21 + i * 86)px} y=22px width=74px height=98px>
+                <Text class="note" x=9px y=74px width=58px height=18px text={"00" + (i + 1)}/>
+                <Ellipse class="paper" x=37px y={(50 - i * 13)px} width=24px height=24px anchor=50%/>
+                <Rectangle class="rule" x=9px y=60px width=56px height=1px/>
+                <Rectangle class="panel" width=100% height=100%/>
+            </Group>
+        }
+        <Rectangle class="wire" x={(21 + self.progress * 172)px} y=17px width=74px height=108px/>
+    }
+    if self.kind == "units" {
+        <Text class="code" x=28px y=12px width=240px height=20px text="width = 100% - 25px"/>
+        <Group x=28px y=45px width={(130 + self.progress * 104)px} height=62px>
+            <Text class="note" x={100% - 25px} anchor_x=0% y=17px width=25px height=22px text="25"/>
+            <Rectangle class="paper" x=0px y=1px width={100% - 25px} height=60px corner_radius=4/>
+            <Rectangle class="wire" width=100% height=100%/>
+        </Group>
+        <Text class="note" x=28px y=120px width=240px height=16px text="fluid width · fixed inset"/>
+    }
+    if self.kind == "autosize" {
+        <Group x=50% y=14px width=196px anchor_x=50% autosize=true>
+            <Stacker x=12px y=10px width=172px autosize=true gutter=8px>
+                <Text class="code" width=100% height=20px text="Content sets the size"/>
+                <Rectangle class="muted" width=138px height=3px/>
+                if self.alternate {
+                    <Rectangle class="muted" width=160px height=3px/>
+                    <Rectangle class="muted" width=110px height=3px/>
+                    <Text class="note" width=100% height=18px text="+ one more thought"/>
+                }
+                <Rectangle width=1px height=10px fill=TRANSPARENT/>
+            </Stacker>
+            <Rectangle class="panel" width=100% height=100% layout_role=LayoutRole::Breakout corner_radius=7/>
+        </Group>
+        <Text class="note" x=46px y=122px width=240px height=16px text="measured, not hard-coded"/>
+    }
+    if self.kind == "route" {
+        <Text class="note" x=22px y=9px width=250px height=18px text={self.alternate ? "/docs/drawing" : "/docs/layout"}/>
+        <Text class="code" x=28px y=39px width=84px height=20px text="docs"/>
+        <Text class="note" x=48px y=68px width=84px height=18px text="layout"/>
+        <Text class="note" x=48px y=96px width=84px height=18px text="drawing"/>
+        <Rectangle class="wire" x=43px y={self.alternate ? 94px : 66px} width=80px height=22px corner_radius=4/>
+        <Path class="guide" x=30px y=58px width=16px height=48px
+            elements=[PathElement::Point(0%, 0%), PathElement::Line, PathElement::Point(0%, 100%), PathElement::Line,
+                PathElement::Point(100%, 100%)]/>
+        <Group x=150px y=38px width=112px height=80px>
+            if self.alternate {
+                <Path class="trace" x=12px y=12px width=88px height=56px draw_end={self.progress}
+                    elements=[PathElement::Point(0%, 80%), PathElement::Cubic(20%, 0%, 65%, 0%), PathElement::Point(100%, 60%)]/>
+            } else {
+                <Rectangle class="muted" x=13px y=14px width=30px height=52px/>
+                <Rectangle class="paper" x=50px y=14px width=48px height=22px/>
+                <Rectangle class="muted" x=50px y=43px width=48px height=23px/>
+            }
+            <Rectangle class="panel" width=100% height=100%/>
+        </Group>
+    }
+    if self.kind == "playheads" {
+        <Text class="note" x=24px y=8px width=246px height=18px text="one clock / three responses"/>
+        <Ellipse class="paper" x={(36 + self.progress * 212)px} y=44px width=15px height=15px anchor=50%/>
+        <Rectangle class="paper" x={(36 + self.progress * self.progress * 212)px} y=77px width=15px height=15px anchor=50%
+            rotate={(self.progress * 180)deg}/>
+        <Ellipse class="paper" x={(36 + (1 - (1 - self.progress) * (1 - self.progress)) * 212)px} y=110px
+            width={(8 + self.progress * 13)px} height={(8 + self.progress * 13)px} anchor=50%/>
+        for i in 0..3 {
+            <Rectangle class="rule" x=36px y={(44 + i * 33)px} width=212px height=1px/>
+        }
+        <Rectangle class="muted" x={(36 + self.progress * 212)px} y=32px width=1px height=92px opacity=0.3/>
+    }
+    if self.kind == "lighting" {
+        for i in 0..2 {
+            <Group x={(25 + i * 126)px} y=18px width=112px height=98px>
+                <Text class="note" x=10px y=75px width=96px height=18px text={i == 0 ? "moving light" : "fixed light"}/>
+                <LightFrame x=1px y=1px width=110px height=72px>
+                    <LightSource x={i == 0 ? ((10 + self.progress * 80)%) : 85%} y=0px z=45px radius=190px intensity=2.5 color=WHITE width=1px height=1px/>
+                    <Ellipse x=50% y=50% width=58px height=58px anchor=50% fill={
+                        paint: rgb(150, 150, 150)
+                        material: {Material::metallic(0.24)}
+                    }/>
+                </LightFrame>
+                <Rectangle class="wire" width=100% height=100% corner_radius=6/>
+            </Group>
+        }
+        <Rectangle class="rule" x=144px y=12px width=1px height=114px/>
+    }
+    if self.kind == "smoothing" {
+        <Text class="note" x=24px y=7px width=240px height=18px text="raw → smoothed"/>
+        <Group x=20px y=33px width=248px height=86px>
+            <Path class="trace" width=100% height=100% smoothing=PathSmoothing::Strong draw_end={self.progress} elements=[
+                PathElement::Point(4%, 75%),
+                PathElement::Line,
+                PathElement::Point(14%, 62%),
+                PathElement::Line,
+                PathElement::Point(24%, 24%),
+                PathElement::Line,
+                PathElement::Point(36%, 31%),
+                PathElement::Line,
+                PathElement::Point(49%, 15%),
+                PathElement::Line,
+                PathElement::Point(60%, 68%),
+                PathElement::Line,
+                PathElement::Point(72%, 78%),
+                PathElement::Line,
+                PathElement::Point(83%, 47%),
+                PathElement::Line,
+                PathElement::Point(96%, 34%)
+            ]/>
+            <Path class="guide" width=100% height=100% elements=[
+                PathElement::Point(4%, 75%),
+                PathElement::Line,
+                PathElement::Point(14%, 62%),
+                PathElement::Line,
+                PathElement::Point(24%, 24%),
+                PathElement::Line,
+                PathElement::Point(36%, 31%),
+                PathElement::Line,
+                PathElement::Point(49%, 15%),
+                PathElement::Line,
+                PathElement::Point(60%, 68%),
+                PathElement::Line,
+                PathElement::Point(72%, 78%),
+                PathElement::Line,
+                PathElement::Point(83%, 47%),
+                PathElement::Line,
+                PathElement::Point(96%, 34%)
+            ]/>
+        </Group>
+    }
+    if self.kind == "clip" {
+        <Rectangle class="wire" x=88px y=14px width=112px height=112px corner_radius=56/>
+        <Frame x=89px y=15px width=110px height=110px corner_radius=55>
+            <Group x={(-64 + self.progress * 72)px} y=-20px width=240px height=160px rotate=25deg>
+                for i in 0..7 {
+                    <Rectangle x={(i * 36)px} width=16px height=160px fill={
+                        paint: @gradient {
+                            0%: WHITE,
+                            100%: rgb(75, 75, 75),
+                        }
+                        material: {Material::unlit()}
+                    }/>
+                }
+            </Group>
+            <Rectangle class="panel" width=100% height=100%/>
+        </Frame>
+        <Text class="note" x=16px y=59px width=60px height=20px text="scene →"/>
+        <Text class="note" x=216px y=59px width=64px height=20px text="→ clip"/>
+    }
+    if self.kind == "format" {
+        <Text class="note" x=23px y=8px width=242px height=18px text="$ pax fmt"/>
+        <Text class="code" x=27px y=34px width=240px height=18px text={"<Group>"}/>
+        <Text class="code" x={(27 + self.progress * 20)px} y=59px width=225px height=18px text={"<Text text=\"Hello\"/>"}/>
+        <Text class="code" x={(27 + self.progress * 20)px} y=84px width=225px height=18px text={"<Rectangle/>"}/>
+        <Text class="code" x=27px y=109px width=240px height=18px text={"</Group>"}/>
+        <Rectangle class="rule" x=33px y=56px width=1px height=48px opacity={self.progress}/>
+    }
+    if self.kind == "computed" {
+        <Text class="note" x=22px y=8px width=260px height=18px text="price × quantity → total"/>
+        <Text class="code" x=26px y=40px width=60px height=24px text="$12"/>
+        <Text class="code" x=26px y=91px width=60px height=24px text={self.quantity}/>
+        <Text class="large" x=166px y=55px width=94px height=40px text={"$" + self.total}/>
+        <Path class="guide" x=84px y=52px width=72px height=52px elements=[
+            PathElement::Point(0%, 0%),
+            PathElement::Cubic(60%, 0%, 40%, 50%),
+            PathElement::Point(100%, 50%),
+            PathElement::Empty,
+            PathElement::Point(0%, 100%),
+            PathElement::Cubic(60%, 100%, 40%, 50%),
+            PathElement::Point(100%, 50%)
+        ]/>
+        <Rectangle class="panel" x=16px y=32px width=66px height=37px corner_radius=5/>
+        <Rectangle class="panel" x=16px y=83px width=66px height=37px corner_radius=5/>
+        <Rectangle class="panel" x=158px y=45px width=114px height=58px corner_radius=7/>
+    }
+    if self.kind == "caps" {
+        <Text class="note" x=23px y=12px width=70px height=18px text="BUTT"/>
+        <Text class="note" x=107px y=12px width=70px height=18px text="ROUND"/>
+        <Text class="note" x=198px y=12px width=70px height=18px text="SQUARE"/>
+        <Path x=34px y=44px width=52px height=72px fill=[] stroke={
+            paint: WHITE
+            width: 9px
+            cap: StrokeCap::Butt
+            join: StrokeJoin::Miter
+            material: {Material::unlit()}
+        }
+            elements=[PathElement::Point(0%, 85%), PathElement::Line, PathElement::Point(50%, 10%), PathElement::Line,
+                PathElement::Point(100%, 85%)]/>
+        <Path x=118px y=44px width=52px height=72px fill=[] stroke={
+            paint: WHITE
+            width: 9px
+            cap: StrokeCap::Round
+            join: StrokeJoin::Round
+            material: {Material::unlit()}
+        }
+            elements=[PathElement::Point(0%, 85%), PathElement::Line, PathElement::Point(50%, 10%), PathElement::Line,
+                PathElement::Point(100%, 85%)]/>
+        <Path x=202px y=44px width=52px height=72px fill=[] stroke={
+            paint: WHITE
+            width: 9px
+            cap: StrokeCap::Square
+            join: StrokeJoin::Bevel
+            material: {Material::unlit()}
+        }
+            elements=[PathElement::Point(0%, 85%), PathElement::Line, PathElement::Point(50%, 10%), PathElement::Line,
+                PathElement::Point(100%, 85%)]/>
+        <Rectangle class="rule" x=22px y=105px width=244px height=1px/>
+    }
+    if self.kind == "gyro" {
+        <Group x=144px y=65px width=64px height=100px anchor=50% rotate={(-16 + self.progress * 32)deg}>
+            <Rectangle class="paper" x=22px y=6px width=20px height=3px corner_radius=2/>
+            <Ellipse class="paper" x={(18 + self.progress * 28)px} y=51px width=13px height=13px anchor=50%/>
+            <Rectangle class="rule" x=8px y=51px width=48px height=1px/>
+            <Rectangle class="panel" width=100% height=100% corner_radius=10/>
+        </Group>
+        <Text class="note" x=24px y=121px width=246px height=16px text="tilt → orientation → response"/>
+        <Rectangle class="rule" x=37px y=65px width=214px height=1px/>
+        <Ellipse class="wire" x=144px y=65px width=116px height=116px anchor=50%/>
+    }
+    if self.kind == "responsive" {
+        <Group x=144px y=62px width={(104 + self.progress * 148)px} height=98px anchor=50%>
+            <Rectangle class="muted" x=10px y=10px width={100% - 20px} height=8px/>
+            <Group x=10px y=28px width={100% - 20px} height=56px>
+                <Rectangle class="paper" width={self.progress > 0.5 ? 36% : 100%} height={self.progress > 0.5 ? 100% : 24px} corner_radius=3/>
+                <Rectangle class="muted" x={self.progress > 0.5 ? 43% : 0%} anchor_x=0% y={self.progress > 0.5 ? 0px : 34px}
+                    width={self.progress > 0.5 ? 57% : 100%} height=5px/>
+                <Rectangle class="muted" x={self.progress > 0.5 ? 43% : 0%} anchor_x=0% y={self.progress > 0.5 ? 17px : 49px}
+                    width={self.progress > 0.5 ? 40% : 70%} height=5px/>
+            </Group>
+            <Rectangle class="panel" width=100% height=100% corner_radius=6/>
+        </Group>
+        <Text class="note" x=24px y=122px width=240px height=16px text="compact ↔ wide / one component"/>
+    }
+    if self.kind == "coordinates" {
+        <Group x=144px y=66px width=166px height=82px anchor=50% rotate={(-14 + self.progress * 28)deg}>
+            <Text class="note" x=84px y=31px width=68px height=20px text="(u, v)"/>
+            <Ellipse class="paper" x=74px y=44px width=7px height=7px anchor=50%/>
+            <Rectangle class="rule" x=18px y=44px width=130px height=1px/>
+            <Rectangle class="rule" x=74px y=10px width=1px height=62px/>
+            <Rectangle class="panel" width=100% height=100% corner_radius=5/>
+        </Group>
+        <Text class="note" x=24px y=122px width=240px height=16px text="window point → local point"/>
+        for i in 0..7 {
+            <Rectangle class="grid" x={(24 + i * 40)px} y=10px width=1px height=108px/>
+        }
+    }
+    if self.kind == "metadata" {
+        <Text class="note" x=20px y=12px width=250px height=18px text="Cargo.toml → application"/>
+        <Text class="code" x=20px y=49px width=148px height=20px text={"title = \"Orbit\""}/>
+        <Text class="code" x=20px y=77px width=148px height=20px text={"icon = \"app.png\""}/>
+        <Group x=180px y=36px width=86px height=84px>
+            <Text class="note" x=14px y=4px width=62px height=18px text="Orbit"/>
+            <Ellipse class="wire" x=43px y=52px width=40px height=25px anchor=50% rotate=-30deg/>
+            <Ellipse class="paper" x=43px y=52px width=17px height=17px anchor=50%/>
+            <Rectangle class="panel" width=100% height=100% corner_radius=7/>
+        </Group>
+    }
+</Group>
+
+@settings {
+    @mount: mount
+    @pre_render: tick
+    .paper {
+        fill: {
+            paint: rgb(244, 244, 240)
+            material: {Material::unlit()}
+        }
+    }
+    .muted {
+        fill: {
+            paint: rgb(132, 132, 132)
+            material: {Material::unlit()}
+        }
+    }
+    .rule {
+        fill: {
+            paint: rgb(80, 80, 80)
+            material: {Material::unlit()}
+        }
+    }
+    .grid {
+        fill: {
+            paint: rgba(255, 255, 255, 12)
+            material: {Material::unlit()}
+        }
+    }
+    .panel {
+        fill: {
+            paint: rgb(28, 28, 28)
+            material: {Material::unlit()}
+        }
+        stroke: {
+            paint: rgb(100, 100, 100)
+            width: 1px
+            material: {Material::unlit()}
+        }
+    }
+    .selected {
+        fill: {
+            paint: rgb(235, 235, 230)
+            material: {Material::unlit()}
+        }
+        corner_radius: 16
+    }
+    .wire {
+        fill: TRANSPARENT
+        stroke: {
+            paint: rgb(125, 125, 125)
+            width: 1px
+            material: {Material::unlit()}
+        }
+    }
+    .trace {
+        fill: []
+        stroke: {
+            paint: rgb(244, 244, 240)
+            width: 2.5px
+            cap: StrokeCap::Round
+            material: {Material::unlit()}
+        }
+    }
+    .guide {
+        fill: []
+        stroke: {
+            paint: rgb(100, 100, 100)
+            width: 1px
+            material: {Material::unlit()}
+        }
+    }
+    .code {
+        style: {
+            font: "IBM Plex Mono"
+            font_size: 12px
+            fill: rgb(240, 240, 235)
+            align_vertical: TextAlignVertical::Center
+        }
+    }
+    .note {
+        style: {
+            font: "IBM Plex Mono"
+            font_size: 10px
+            fill: rgb(165, 165, 165)
+            align_vertical: TextAlignVertical::Center
+        }
+    }
+    .large {
+        style: {
+            font: "Manrope"
+            font_size: 25px
+            fill: rgb(240, 240, 235)
+            align_vertical: TextAlignVertical::Center
+        }
+    }
+}

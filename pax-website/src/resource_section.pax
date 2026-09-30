@@ -2,14 +2,15 @@
     <ImportSettings>
         <SiteTheme />
     </ImportSettings>
-    <Stacker x=50% y=80px width={self.compact ? (100% - 40px) : 88%} autosize=true gutter=28px>
-        <Text class="editorial_kicker" width=100% text="PAX IS READY FOR BUILDERS"/>
-        <Text class="editorial_title" width=100% text="Your next interface starts here."/>
-        <Text class="editorial_lead" width={self.compact ? 100% : 82%}
-            text="Start with a running project, change something, and make it yours. The language, framework, and developer tools are open source. No companion product is required to build or ship."/>
+    <Stacker id=footer_content x=50% y=80px width={self.compact ? (100% - 48px) : 88%} autosize=true gutter=56px>
         <Stacker width=100% autosize=true autosize_x=false autosize_y=true gutter=32px
-            direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal}>
-            <Stacker width=100% autosize=true gutter=14px>
+            direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal}
+            sizes={self.compact ? [] : [None, Some(390px)]}>
+            <Stacker width=100% autosize=true gutter=24px>
+                <Text class="editorial_kicker" width=100% text="PAX IS READY FOR BUILDERS"/>
+                <Text class="editorial_title" width=100% text="Your next interface starts here."/>
+                <Text class="editorial_lead" width=100%
+                    text="Start with a running project, change something, and make it yours. The language, framework, and developer tools are open source. No companion product is required to build or ship."/>
                 <Text class="editorial_subtitle" width=100% text="Four commands to begin."/>
                 <Stacker width=100% autosize=true gutter=8px>
                     <Text class="editorial_code" width=100% text="cargo install pax-cli"/>
@@ -24,6 +25,10 @@
                     <Rectangle class="site_button_signal" width=100% height=100%/>
                 </Link>
             </Stacker>
+            <CalculatorPreview width=100% height={(self.phone_height)px} content_height=bind:self.phone_height/>
+        </Stacker>
+        <Stacker width=100% autosize=true autosize_x=false autosize_y=true gutter={self.compact ? 32px : 6%}
+            direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal}>
             <Stacker width=100% autosize=true gutter=14px>
                 <Text class="editorial_subtitle" width=100% text="Early, open, and ready to build with."/>
                 <Text class="editorial_body" width=100%
@@ -32,25 +37,27 @@
                     text="Native text and controls provide an accessibility foundation. Reading order, tab order, semantic annotations, image alternatives, and broader accessibility audits remain ongoing work."/>
                 <Text class="editorial_note" width=100% text="The current framework and tooling are MIT / Apache-2.0 licensed."/>
             </Stacker>
+            <Stacker width=100% autosize=true gutter=12px>
+                <Link width=100% height=28px url="https://docs.pax.dev/" target=Target::New>
+                    <Text class="editorial_link" width=100% text="READ THE DOCS →"/>
+                </Link>
+                <Link width=100% height=28px url="https://github.com/paxdotdev/pax/tree/dev/examples/src" target=Target::New>
+                    <Text class="editorial_link" width=100% text="FIND AN EXAMPLE TO BUILD ON →"/>
+                </Link>
+                <Link width=100% height=28px url="https://github.com/paxdotdev/pax" target=Target::New>
+                    <Text class="editorial_link" width=100% text="EXPLORE THE REPOSITORY →"/>
+                </Link>
+                <Link width=100% height=28px url="https://discord.com/invite/Eq8KWAUc6b" target=Target::New>
+                    <Text class="editorial_link" width=100% text="SHOW US WHAT YOU'RE MAKING →"/>
+                </Link>
+                <Link width=100% height=28px url="/blog" target=Target::Current>
+                    <Text class="editorial_link" width=100% text="PAX NOTES →"/>
+                </Link>
+            </Stacker>
         </Stacker>
-        <Stacker width=100% autosize=true gutter=12px>
-            <Link width=100% height=28px url="https://docs.pax.dev/" target=Target::New>
-                <Text class="editorial_link" width=100% text="READ THE DOCS →"/>
-            </Link>
-            <Link width=100% height=28px url="https://github.com/paxdotdev/pax/tree/dev/examples/src" target=Target::New>
-                <Text class="editorial_link" width=100% text="FIND AN EXAMPLE TO BUILD ON →"/>
-            </Link>
-            <Link width=100% height=28px url="https://github.com/paxdotdev/pax" target=Target::New>
-                <Text class="editorial_link" width=100% text="EXPLORE THE REPOSITORY →"/>
-            </Link>
-            <Link width=100% height=28px url="https://discord.com/invite/Eq8KWAUc6b" target=Target::New>
-                <Text class="editorial_link" width=100% text="SHOW US WHAT YOU'RE MAKING →"/>
-            </Link>
-            <Link width=100% height=28px url="/blog" target=Target::Current>
-                <Text class="editorial_link" width=100% text="PAX NOTES →"/>
-            </Link>
-        </Stacker>
+        <Text class="editorial_note" width=100% text="Built in Pax. Open a section's source, or follow the code on GitHub."/>
     </Stacker>
+    <Rectangle class="site_rule" x=50% y=0px width={self.compact ? (100% - 48px) : 88%} height=1px/>
     <Rectangle class="site_ink" width=100% height=100%/>
 </Group>
 

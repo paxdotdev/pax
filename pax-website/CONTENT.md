@@ -20,11 +20,11 @@ the facts and mental model; the website is an invitation, not a second manual.
    offscreen auto-advance pauses to preserve that first impression.
    Layered Paint and Dynamic Vector Masks follow with real grayscale demonstrations
    and links to the drawing/compositing guides; alpha masking stays GPU-qualified.
-6. Your next interface starts here: install/create/run, project maturity,
-   the self-contained OSS boundary, and useful destinations.
-7. Do the math: a live graphing calculator in a full-bleed phone silhouette,
-   with the floating island, real keypad/graph interaction, and inspectable
-   canonical Pax and Rust source. A quieter technical proof after the main CTA.
+6. Your next interface starts here: install/create/run alongside the live
+   calculator in its full-bleed phone silhouette. Let the working example speak
+   for itself; there is no calculator-specific heading, pitch, or tutorial.
+   Project maturity, the self-contained OSS boundary, and resource links finish
+   the page. The shared footer source drawer includes the canonical calculator.
 
 ## Layout and production boundary
 
@@ -41,8 +41,7 @@ its own height; Stacker owns paragraph flow. Each section remains inspectable
 through ExampleHost. Fixed host envelopes are separate from internal text flow.
 
 The hero uses native text with affine word transitions; “creative” uses
-Handwriter's bundled EMS League strokes revealing the proving fixture's cycling
-CMY gradient. This is temporary paint while PAX-1011 explores genuine mesh gradients.
+Handwriter's bundled EMS League strokes revealing a morphing CMY mesh gradient.
 A native text equivalent stays outside the mask. Both writing and paint obey
 the hero's pause/offscreen controls.
 The animated logo is imported from its canonical example. Decorative contours

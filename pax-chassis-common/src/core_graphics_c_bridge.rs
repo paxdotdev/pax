@@ -513,8 +513,8 @@ fn native_surface_tiling_policy(
     dpr: f64,
 ) -> ScrollerTilingPolicy {
     // Apple SurfaceManager allocates every drawable at the current screen scale.
-    // The browser's single-surface downsampling allowance would otherwise turn a
-    // shrinking scroller into a drawable larger than our native backing budget.
+    // Keep the native allocation floor explicit, matching the shared planner's
+    // screen-density rule even when a caller supplies a different policy floor.
     policy.min_untiled_render_dpr = policy.min_untiled_render_dpr.max(dpr.max(1.0));
     policy
 }
