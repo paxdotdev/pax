@@ -6,6 +6,8 @@ use pax_kit::*;
 
 pub mod paint_demo;
 use crate::feature_gallery::paint_demo::FeaturePaintDemo;
+pub mod studies;
+use crate::feature_gallery::studies::FeatureStudy;
 
 const COMPACT_BREAKPOINT_PX: f64 = 760.0;
 const DESKTOP_CARD_WIDTH_PX: f64 = 350.0;
@@ -22,6 +24,7 @@ const TOUCH_MOMENTUM_SETTLE_MILLIS: f64 = 600.0;
 #[pax]
 #[file("feature_gallery/card.pax")]
 pub struct FeatureCard {
+    pub art_scale: Property<f64>,
     pub category: Property<String>,
     pub title: Property<String>,
     pub summary: Property<String>,
@@ -33,6 +36,11 @@ pub struct FeatureCard {
 }
 
 impl FeatureCard {
+    pub fn measure_artboard(&mut self, ctx: &NodeContext) {
+        self.art_scale
+            .set_if_neq(artboard_scale(ctx.bounds_self.get().0));
+    }
+
     pub fn pause_marquee_for_mouse(&mut self, _ctx: &NodeContext, _event: Event<MouseOver>) {
         self.marquee_hovered.set(true);
     }
@@ -52,6 +60,10 @@ impl FeatureCard {
     pub fn cancel_marquee_touch(&mut self, _ctx: &NodeContext, _event: Event<TouchCancel>) {
         self.marquee_touch_active.set(false);
     }
+}
+
+fn artboard_scale(card_width: f64) -> f64 {
+    ((card_width - 48.0) / 288.0).clamp(0.0, 1.0)
 }
 
 /// One structurally mounted card in the marquee's viewport plus overscan.
@@ -349,6 +361,16 @@ mod tests {
     use super::normalize_loop_scroll;
 
     const PERIOD: f64 = 14_924.0;
+
+    #[test]
+    fn artboards_fit_both_card_sizes_with_stroke_bleed() {
+        for width in [286.0, 350.0] {
+            let scale = super::artboard_scale(width);
+            assert!(288.0 * scale <= width - 48.0);
+            assert!(144.0 * scale <= 144.0);
+            assert!(scale > 0.8);
+        }
+    }
 
     #[test]
     fn loop_scroll_stays_native_inside_the_middle_cycles() {

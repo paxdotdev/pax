@@ -254,6 +254,14 @@ device-safe-area spacers and layer-wide ambient lighting. The host supplies
 the phone outline, floating island, and clip. The defaults preserve the
 standalone app's platform safe-area behavior and freestanding desktop case.
 
+Both layouts share one calculator-local `LightFrame` and pointer-following
+point light. The body, keypad, and full-bleed background share that light;
+native text and the unlit LCD do not. Mouse coordinates are converted in the
+calculator viewport, so host scaling, page scrolling, and safe-area insets do
+not detach the highlight from the pointer. With no mouse movement, the light
+stays at its initial upper-left position. Embedded mode still omits layer-wide
+ambient lighting, and its direct light cannot spill onto neighboring content.
+
 Keyboard delivery is global across the mounted Pax scene, not automatically
 scoped to a clicked component. Set `disable_keyboard=true` in a surrounding
 page so the calculator does not consume page navigation or shortcuts; its

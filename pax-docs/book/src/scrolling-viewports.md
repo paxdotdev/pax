@@ -63,6 +63,24 @@ background sibling behind it, depending on which should move. Earlier Pax
 siblings appear in front; that is why each note's Text precedes its Rectangle.
 `corner_radius` is a numeric pixel radius for the viewport clip.
 
+### Rendering density
+
+Web vector surfaces, including tiled Scroller content, render at the browser's
+device-pixel ratio in debug and release builds. A 2× display uses two backing
+pixels per CSS pixel on each axis; becoming scrollable or tiled does not opt
+content into lower-resolution rendering. This applies to WebGPU and the
+Piet/Canvas2D fallback. Native text retains the browser's own rasterization.
+
+When a pane cannot fit the tile budget at screen density, Pax splits it into
+smaller surfaces and retains a bounded window around the viewport. It does not
+reduce resolution merely to keep a pane on one canvas. Hard backend/browser
+surface-dimension limits still guard allocation: an exceptional clamp emits a
+warning and marks the affected canvas with `data-pax-resolution-fallback`,
+including requested/actual density and the limit. This is a safety fallback,
+not an adaptive scrolling-performance mode. Investigate repeated warnings;
+high-density rendering still requires profiling complex or heavily animated
+scenes on the devices you support.
+
 ## Autosized Scrollers
 
 For a document that grows as you add content, let Scroller measure its pane:

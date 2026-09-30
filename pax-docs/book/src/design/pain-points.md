@@ -120,3 +120,53 @@ website's old device clip. Keep the hardware outline and actual clipping shape
 aligned. For mouse dragging inside a transformed example, convert both the
 initial and current window points through the same `ctx.local_point` and then
 multiply their delta by local bounds; raw window deltas under-pan a scaled app.
+
+## 2026-10-01 — Bounded artboards in a projected feature rail
+
+Fixed-pixel artwork authored for a 288px-wide area overflowed compact cards'
+254px media wells. Normalize projected artwork to one logical artboard and
+uniformly scale it into the available width, inside a Frame. Reserve a separate
+caption strip; clipping alone would merely crop the intended composition.
+Use percentage units for scale: a numeric 1 is not equivalent to 100%.
+
+A caption positioned at `100% - 28px` inherited a percentage anchor and moved
+up into the art. An explicit pixel Y and `anchor_y=0%` made the contract clear.
+Check foreground-first Pax source ordering before blaming the compositor:
+several old opaque poster backgrounds were above their own labels.
+
+Gate each study clock with viewport-proximity notifications from the visible
+artboard, resetting its last timestamp on visibility changes. Retain path
+geometry and vary draw ranges/transforms; keep native scrolling in the parent
+rail so nested illustrative scenes do not capture page gestures.
+
+Validate named easing curves in the running app, not just with the template
+parser: unsupported names can compile but log a warning and fall back to
+Linear. The card transitions use the documented OutQuad/InQuad pair.
+
+## 2026-09-30 — Shared lighting across embedded and standalone layouts
+
+The calculator's desktop body tracked the pointer, but its full-bleed branch
+removed that light and substituted a fixed-position light around only the
+background. The mouse handler still updated properties that no mounted light
+used; sibling LightFrames also kept the background light off the keypad.
+
+Use one calculator-local LightFrame around both the scrolling body and the
+full-bleed background, with a single shared point light. Bind pointer movement
+on that frame and convert window coordinates through `ctx.local_point` there,
+not in the inner scrolling body. Initialize the light in the same viewport
+space, accounting for safe insets and the centered desktop case. Keep embedded
+AmbientLight omitted because ambient contribution remains layer-wide, and
+retain the existing offscreen pause gate on the direct light.
+
+## 2026-09-29 — Replacing the hero paint placeholder with a real mesh
+
+For a morphing mesh, update MeshPoint coordinates instead of easing between
+complete Paint values (which crossfades fields). Keep boundary anchors on the
+coverage boundary, add paint bleed around a stroked mask, and paint one field
+behind the whole Handwriter word rather than giving each letter its own domain.
+Only publish a new grid when the visible paint clock advances, so a paused or
+unmounted adjective does not continually invalidate the mesh cache.
+
+## 2026-09-30 — Tiled browser surface density
+
+The website paint card exposed the former 1x tiled-scroller override on a 2x display. Tiled surfaces now retain requested screen density, tile sooner at physical budgets, and expose exceptional allocation clamping via `data-pax-resolution-fallback`. Verify backing dimensions: browser viewport emulation can change DPR to 1. See the scrolling/viewports guide for the current contract.

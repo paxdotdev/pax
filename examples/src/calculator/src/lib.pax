@@ -4,278 +4,326 @@ if !self.embedded {
     <DynamicIslandSpacer edge=SafeAreaEdge::Bottom y=100% anchor_y=100% inset=bind:self.safe_bottom/>
     <DynamicIslandSpacer edge=SafeAreaEdge::Left inset=bind:self.safe_left/>
 }
-<Scroller x={(self.safe_left)px} y={(self.safe_top)px} width={100% - (self.safe_left + self.safe_right)px}
-    height={100% - (self.safe_top + self.safe_bottom)px} scroll_width=100% scroll_height={(self.page_height)px}>
-    <Group width=100% height={(self.page_height)px}>
-        <LightFrame x=50% y={(self.body_top)px} anchor_x=50% width={(self.body_width)px} height={(self.body_height)px}
-            @mouse_move=light_move>
-            <Text x=28px y=24px width=112px height=22px text="PAX-83+" selectable=false style={
-                font: {
-                    family: "Arial"
-                    weight: 700
-                }
-                font_size: 22px
-                fill: rgb(53, 62, 67)
-            }/>
-            <Text x={100% - 28px} y=30px anchor_x=100% width=142px height=14px text="SILVER EDITION" selectable=false style={
-                font: {
-                    family: "Arial"
-                    weight: 500
-                }
-                font_size: 10px
-                fill: rgb(68, 77, 82)
-                align_horizontal: TextAlignHorizontal::Right
-            }/>
-            <Frame x=28px y=62px width={(self.screen_width)px} height={(self.screen_height)px} corner_radius=3>
-                if self.cursor_visible {
-                    <Rectangle x={(self.cursor_x)px} y={(self.cursor_y)px} width={(self.cell_width - 1.6)px} height={(self.lcd_font_size + 1)px}
-                        fill={paint: rgba(42, 53, 39, 110), material: {self.unlit}} />
-                }
-                <Group x=14px y={(self.input_y)px} width={100% - 28px} height={(self.input_height)px} @click=input_click>
-                    for row in self.input_rows key row.id {
-                        <Text x=0px y={(row.y)px} width=100% height={(self.line_height)px} text={row.text} selectable=false wrap=false clip=true
-                            style={
-                                font: {self.mono_font}
-                                font_size: {(self.lcd_font_size)px}
-                                fill: rgb(39, 49, 36)
-                            }/>
+<LightFrame width=100% height=100% @mouse_move=light_move>
+    <Scroller x={(self.safe_left)px} y={(self.safe_top)px} width={100% - (self.safe_left + self.safe_right)px}
+        height={100% - (self.safe_top + self.safe_bottom)px} scroll_width=100% scroll_height={(self.page_height)px}>
+        <Group width=100% height={(self.page_height)px}>
+            <Group x=50% y={(self.body_top)px} anchor_x=50% width={(self.body_width)px} height={(self.body_height)px}>
+                <Text x=28px y=24px width=112px height=22px text="PAX-83+" selectable=false style={
+                    font: {
+                        family: "Arial"
+                        weight: 700
                     }
-                    <Rectangle width=100% height=100% fill={paint: TRANSPARENT, material: {self.unlit}} />
-                </Group>
-                <Text x=14px y=10px width=150px height=14px text={self.graph_mode ? (self.polar ? "POLAR  /  RAD  /  0…2π" : "FUNCTION  /  RAD") : "CALCULATE  /  RAD"} selectable=false
-                    style={
-                        font: {
-                            family: "Arial"
-                            weight: 600
-                        }
-                        font_size: 10px
-                        fill: rgb(58, 69, 49)
-                    }/>
-                <Text x={100% - 14px} y=9px anchor_x=100% width=110px height=14px text={self.grid_label} selectable=false style={
-                    font: {self.mono_font}
+                    font_size: 22px
+                    fill: rgb(53, 62, 67)
+                }/>
+                <Text x={100% - 28px} y=30px anchor_x=100% width=142px height=14px text="SILVER EDITION" selectable=false style={
+                    font: {
+                        family: "Arial"
+                        weight: 500
+                    }
                     font_size: 10px
-                    fill: rgb(73, 84, 62)
+                    fill: rgb(68, 77, 82)
                     align_horizontal: TextAlignHorizontal::Right
                 }/>
-                if self.graph_mode {
-                    <Text x=12px y={100% - 17px} width={100% - 24px} height=14px text={self.error ? self.status : self.graph_range} selectable=false wrap=false clip=true
-                        style={
-                            font: {self.mono_font}
-                            font_size: 9px
-                            fill: {self.error ? rgb(115, 53, 32) : rgb(59, 71, 51)}
+                <Frame x=28px y=62px width={(self.screen_width)px} height={(self.screen_height)px} corner_radius=3>
+                    if self.cursor_visible {
+                        <Rectangle x={(self.cursor_x)px} y={(self.cursor_y)px} width={(self.cell_width - 1.6)px} height={(self.lcd_font_size + 1)px} fill={
+                            paint: rgba(42, 53, 39, 110)
+                            material: {self.unlit}
                         }/>
-                    <Text x={100% - 16px} y={(self.graph_top)px} anchor_x=100% width=180px height=15px text={self.graph_status} selectable=false style={
+                    }
+                    <Group x=14px y={(self.input_y)px} width={100% - 28px} height={(self.input_height)px} @click=input_click>
+                        for row in self.input_rows key row.id {
+                            <Text x=0px y={(row.y)px} width=100% height={(self.line_height)px} text={row.text} selectable=false wrap=false clip=true
+                                style={
+                                    font: {self.mono_font}
+                                    font_size: {(self.lcd_font_size)px}
+                                    fill: rgb(39, 49, 36)
+                                }/>
+                        }
+                        <Rectangle width=100% height=100% fill={
+                            paint: TRANSPARENT
+                            material: {self.unlit}
+                        }/>
+                    </Group>
+                    <Text x=14px y=10px width=150px height=14px
+                        text={self.graph_mode ? (self.polar ? "POLAR  /  RAD  /  0…2π" : "FUNCTION  /  RAD") : "CALCULATE  /  RAD"}
+                        selectable=false style={
+                            font: {
+                                family: "Arial"
+                                weight: 600
+                            }
+                            font_size: 10px
+                            fill: rgb(58, 69, 49)
+                        }/>
+                    <Text x={100% - 14px} y=9px anchor_x=100% width=110px height=14px text={self.grid_label} selectable=false style={
                         font: {self.mono_font}
-                        font_size: 9px
-                        fill: rgb(91, 65, 40)
+                        font_size: 10px
+                        fill: rgb(73, 84, 62)
                         align_horizontal: TextAlignHorizontal::Right
                     }/>
-                    <Scroller id=graph_view x=12px y={(self.graph_top)px} width={(self.graph_width)px} height={(self.graph_height)px}
-                        scroll_width={(self.graph_extent)px} scroll_height={(self.graph_extent)px} scroll_pos_x=bind:self.scroll_x
-                        scroll_pos_y=bind:self.scroll_y corner_radius=2 @mouse_down=graph_down @touch_start=graph_touch @wheel=graph_wheel>
-                        <Group width={(self.graph_extent)px} height={(self.graph_extent)px}>
-                            <Group x={(self.graph_origin_x)px} y={(self.graph_origin_y)px} width={(self.graph_width)px}
-                                height={(self.graph_height)px}>
-                                for label in self.graph_labels key label.id {
-                                    if label.x
-                                        >= self.scroll_x
-                                        - self.graph_origin_x
-                                        + 2
-                                        && label.x
-                                        + label.width
-                                        <= self.scroll_x
-                                        - self.graph_origin_x
-                                        + self.graph_width
-                                        - 2
-                                        && label.y
-                                        >= self.scroll_y
-                                        - self.graph_origin_y
-                                        + 2
-                                        && label.y
-                                        + 15
-                                        <= self.scroll_y
-                                        - self.graph_origin_y
-                                        + self.graph_height
-                                        - 2 {
-                                        <Text x={(label.x)px} y={(label.y)px} width={(label.width)px} height=15px text={label.text} selectable=false wrap=false
-                                            style={
-                                                font: {self.mono_font}
-                                                font_size: 10px
-                                                fill: rgb(66, 79, 57)
-                                            }/>
-                                    }
-                                }
-                                <Path elements={self.curve} fill={paint: TRANSPARENT, material: {self.unlit}} stroke={material: {self.unlit},
-                                    paint: rgb(38, 53, 36)
-                                    width: 1.6px
-                                } />
-                                <Path elements={self.axes} fill={paint: TRANSPARENT, material: {self.unlit}} stroke={material: {self.unlit},
-                                    paint: rgba(56, 70, 46, 155)
-                                    width: 1px
-                                } />
-                                <Path elements={self.grid} fill={paint: TRANSPARENT, material: {self.unlit}} stroke={material: {self.unlit},
-                                    paint: rgba(65, 78, 54, 35)
-                                    width: 1px
-                                } />
-                            </Group>
-                        </Group>
-                    </Scroller>
-                } else {
-                    <Scroller id=history_view x=14px y=36px width={100% - 28px} height={(self.history_height)px} scroll_width=100%
-                        scroll_height={(self.history_extent)px} scroll_pos_y=bind:self.history_scroll>
-                        <Group width=100% height={(self.history_extent)px}>
-                            for row in self.rows key row.id {
-                                <Text x=0px y={(row.y)px} width=100% height={(self.line_height)px} text={row.text} selectable=false wrap=false clip=true
-                                    style={
-                                        font: {self.mono_font}
-                                        font_size: {(self.lcd_font_size)px}
-                                        fill: {row.subdued ? rgb(86, 99, 72) : rgb(38, 49, 34)}
-                                    }/>
-                            }
-                        </Group>
-                    </Scroller>
-                    if self.error {
-                        <Text x=14px y={100% - 17px} width={100% - 28px} height=14px text={self.status} selectable=false wrap=false clip=true
+                    if self.graph_mode {
+                        <Text x=12px y={100% - 17px} width={100% - 24px} height=14px text={self.error ? self.status : self.graph_range}
+                            selectable=false wrap=false clip=true style={
+                                font: {self.mono_font}
+                                font_size: 9px
+                                fill: {self.error ? rgb(115, 53, 32) : rgb(59, 71, 51)}
+                            }/>
+                        <Text x={100% - 16px} y={(self.graph_top)px} anchor_x=100% width=180px height=15px text={self.graph_status} selectable=false
                             style={
+                                font: {self.mono_font}
+                                font_size: 9px
+                                fill: rgb(91, 65, 40)
+                                align_horizontal: TextAlignHorizontal::Right
+                            }/>
+                        <Scroller id=graph_view x=12px y={(self.graph_top)px} width={(self.graph_width)px} height={(self.graph_height)px}
+                            scroll_width={(self.graph_extent)px} scroll_height={(self.graph_extent)px} scroll_pos_x=bind:self.scroll_x
+                            scroll_pos_y=bind:self.scroll_y corner_radius=2 @mouse_down=graph_down @touch_start=graph_touch @wheel=graph_wheel>
+                            <Group width={(self.graph_extent)px} height={(self.graph_extent)px}>
+                                <Group x={(self.graph_origin_x)px} y={(self.graph_origin_y)px} width={(self.graph_width)px} height={(self.graph_height)px}>
+                                    for label in self.graph_labels key label.id {
+                                        if label.x
+                                            >= self.scroll_x
+                                            - self.graph_origin_x
+                                            + 2
+                                            && label.x
+                                            + label.width
+                                            <= self.scroll_x
+                                            - self.graph_origin_x
+                                            + self.graph_width
+                                            - 2
+                                            && label.y
+                                            >= self.scroll_y
+                                            - self.graph_origin_y
+                                            + 2
+                                            && label.y
+                                            + 15
+                                            <= self.scroll_y
+                                            - self.graph_origin_y
+                                            + self.graph_height
+                                            - 2 {
+                                            <Text x={(label.x)px} y={(label.y)px} width={(label.width)px} height=15px text={label.text} selectable=false wrap=false
+                                                style={
+                                                    font: {self.mono_font}
+                                                    font_size: 10px
+                                                    fill: rgb(66, 79, 57)
+                                                }/>
+                                        }
+                                    }
+                                    <Path elements={self.curve} fill={
+                                        paint: TRANSPARENT
+                                        material: {self.unlit}
+                                    } stroke={
+                                        material: {self.unlit}
+                                        paint: rgb(38, 53, 36)
+                                        width: 1.6px
+                                    }/>
+                                    <Path elements={self.axes} fill={
+                                        paint: TRANSPARENT
+                                        material: {self.unlit}
+                                    } stroke={
+                                        material: {self.unlit}
+                                        paint: rgba(56, 70, 46, 155)
+                                        width: 1px
+                                    }/>
+                                    <Path elements={self.grid} fill={
+                                        paint: TRANSPARENT
+                                        material: {self.unlit}
+                                    } stroke={
+                                        material: {self.unlit}
+                                        paint: rgba(65, 78, 54, 35)
+                                        width: 1px
+                                    }/>
+                                </Group>
+                            </Group>
+                        </Scroller>
+                    } else {
+                        <Scroller id=history_view x=14px y=36px width={100% - 28px} height={(self.history_height)px} scroll_width=100%
+                            scroll_height={(self.history_extent)px} scroll_pos_y=bind:self.history_scroll>
+                            <Group width=100% height={(self.history_extent)px}>
+                                for row in self.rows key row.id {
+                                    <Text x=0px y={(row.y)px} width=100% height={(self.line_height)px} text={row.text} selectable=false wrap=false clip=true
+                                        style={
+                                            font: {self.mono_font}
+                                            font_size: {(self.lcd_font_size)px}
+                                            fill: {row.subdued ? rgb(86, 99, 72) : rgb(38, 49, 34)}
+                                        }/>
+                                }
+                            </Group>
+                        </Scroller>
+                        if self.error {
+                            <Text x=14px y={100% - 17px} width={100% - 28px} height=14px text={self.status} selectable=false wrap=false clip=true style={
                                 font: {self.mono_font}
                                 font_size: 9px
                                 fill: rgb(115, 53, 32)
                             }/>
+                        }
+                        <Rectangle x=12px y={(self.input_y - 9)px} width={100% - 24px} height=1px fill={
+                            paint: rgba(50, 65, 39, 35)
+                            material: {self.unlit}
+                        }/>
                     }
-                    <Rectangle x=12px y={(self.input_y - 9)px} width={100% - 24px} height=1px fill={paint: rgba(50, 65, 39, 35), material: {self.unlit}} />
-                }
-                <Rectangle x=0px y=0px width=100% height=8px fill={paint: @gradient {
-                    linear: {
-                        start: [0%, 0%],
-                        end: [0%, 100%],
-                    },
-                    0%: rgba(25, 35, 26, 38),
-                    100%: rgba(25, 35, 26, 0),
-                }, material: {self.unlit}}
-                    />
-                <Rectangle width=100% height=100% fill={paint: @gradient {
-                    linear: {
-                        start: [0%, 0%],
-                        end: [100%, 100%],
-                    },
-                    0%: rgb(178, 187, 152),
-                    100%: rgb(190, 197, 163),
-                }, material: {self.unlit}}
-                    />
-            </Frame>
-            <Rectangle x=24px y=58px width={100% - 48px} height={(self.screen_height + 8)px} corner_radius=6 fill={paint: rgb(61, 69, 67), material: {self.unlit}}
-                />
-            <Rectangle x=22px y=57px width={100% - 44px} height={(self.screen_height + 11)px} corner_radius=7 stroke={material: {self.unlit},
-                paint: rgba(252, 255, 241, 150)
-                width: 1px
-            }
-                fill={paint: rgb(135, 143, 142), material: {self.unlit}} />
-            <Group x=22px y={(self.screen_height + 70)px} width={100% - 44px} height=44px>
-                <CalculatorKey id=calculate_tab width={50% - 5px} height=44px label="CALCULATE" action="calculate"
-                    compact=true tone={self.graph_mode ? 1 : 2}/>
-                <CalculatorKey id=graph_tab x={50% + 5px} anchor_x=0% width={50% - 5px} height=44px label="GRAPH" action="graph"
-                    compact=true tone={self.graph_mode ? 2 : 1}/>
-            </Group>
-            <Group x=22px y={(self.screen_height + self.utility_top)px} width={100% - 44px} height={(3 * self.key_pitch - 4)px}>
-                for button in self.utility_keys key button.id {
-                    <CalculatorKey x={(button.column * (self.key_width + 8))px} y={(button.row * self.key_pitch)px} width={(self.key_width)px} height={(self.key_height)px}
-                        label={button.label} action={button.action} tone={button.tone} secondary_label={button.secondary_label}
-                        secondary_action={button.secondary_action} second_active={self.second_active}/>
-                }
-                <Text x={(self.key_width + 8)px} y=0px width={(2 * self.key_width + 8)px} height=11.5px text="ZOOM" selectable=false style={
-                    font: {
-                        family: "Arial"
-                        weight: 600
-                    }
-                    font_size: 9.2px
-                    fill: rgb(69, 80, 82)
-                    align_horizontal: TextAlignHorizontal::Center
+                    <Rectangle x=0px y=0px width=100% height=8px fill={
+                        paint: @gradient {
+                            linear: {
+                                start: [0%, 0%],
+                                end: [0%, 100%],
+                            },
+                            0%: rgba(25, 35, 26, 38),
+                            100%: rgba(25, 35, 26, 0),
+                        }
+                        material: {self.unlit}
+                    }/>
+                    <Rectangle width=100% height=100% fill={
+                        paint: @gradient {
+                            linear: {
+                                start: [0%, 0%],
+                                end: [100%, 100%],
+                            },
+                            0%: rgb(178, 187, 152),
+                            100%: rgb(190, 197, 163),
+                        }
+                        material: {self.unlit}
+                    }/>
+                </Frame>
+                <Rectangle x=24px y=58px width={100% - 48px} height={(self.screen_height + 8)px} corner_radius=6 fill={
+                    paint: rgb(61, 69, 67)
+                    material: {self.unlit}
                 }/>
-                <Group x={(4 * self.key_width + 28)px} anchor_x=50% width={(self.dpad_width)px} height={(3 * self.key_pitch - 4)px}>
-                    <CalculatorKey id=nav_up x=50% anchor_x=50% y=0px width=44px height={(self.key_height)px} label="↑" action="up" tone=1/>
-                    <CalculatorKey id=nav_left x=0px y={(self.key_pitch)px} width=44px height={(self.key_height)px} label="←" action="left" tone=1/>
-                    <CalculatorKey id=nav_right x=100% anchor_x=100% y={(self.key_pitch)px} width=44px height={(self.key_height)px} label="→" action="right" tone=1/>
-                    <CalculatorKey id=nav_down x=50% anchor_x=50% y={(2 * self.key_pitch)px} width=44px height={(self.key_height)px} label="↓" action="down" tone=1/>
-                    <Ellipse x=50% y=50% anchor=50% width={(self.dpad_width - 4)px} height={(3 * self.key_pitch - 8)px} fill={paint: rgba(42, 54, 59, 30), material: {self.unlit}} />
+                <Rectangle x=22px y=57px width={100% - 44px} height={(self.screen_height + 11)px} corner_radius=7 stroke={
+                    material: {self.unlit}
+                    paint: rgba(252, 255, 241, 150)
+                    width: 1px
+                }
+                    fill={
+                        paint: rgb(135, 143, 142)
+                        material: {self.unlit}
+                    }/>
+                <Group x=22px y={(self.screen_height + 70)px} width={100% - 44px} height=44px>
+                    <CalculatorKey id=calculate_tab width={50% - 5px} height=44px label="CALCULATE" action="calculate" compact=true
+                        tone={self.graph_mode ? 1 : 2}/>
+                    <CalculatorKey id=graph_tab x={50% + 5px} anchor_x=0% width={50% - 5px} height=44px label="GRAPH" action="graph" compact=true
+                        tone={self.graph_mode ? 2 : 1}/>
                 </Group>
-            </Group>
-            <Group x=22px y={(self.screen_height + self.keypad_top)px} width={100% - 44px} height={(self.keypad_height)px}>
-                for button in self.keys key button.id {
-                    <CalculatorKey x={(button.column * (self.key_width + 8))px} y={(button.row * self.key_pitch)px} width={(self.key_width)px} height={(self.key_height)px}
-                        label={button.label} action={button.action} tone={button.tone} secondary_label={button.secondary_label}
-                        secondary_action={button.secondary_action} second_active={self.second_active}/>
+                <Group x=22px y={(self.screen_height + self.utility_top)px} width={100% - 44px} height={(3 * self.key_pitch - 4)px}>
+                    for button in self.utility_keys key button.id {
+                        <CalculatorKey x={(button.column * (self.key_width + 8))px} y={(button.row * self.key_pitch)px} width={(self.key_width)px}
+                            height={(self.key_height)px} label={button.label} action={button.action} tone={button.tone}
+                            secondary_label={button.secondary_label} secondary_action={button.secondary_action} second_active={self.second_active}/>
+                    }
+                    <Text x={(self.key_width + 8)px} y=0px width={(2 * self.key_width + 8)px} height=11.5px text="ZOOM" selectable=false style={
+                        font: {
+                            family: "Arial"
+                            weight: 600
+                        }
+                        font_size: 9.2px
+                        fill: rgb(69, 80, 82)
+                        align_horizontal: TextAlignHorizontal::Center
+                    }/>
+                    <Group x={(4 * self.key_width + 28)px} anchor_x=50% width={(self.dpad_width)px} height={(3 * self.key_pitch - 4)px}>
+                        <CalculatorKey id=nav_up x=50% anchor_x=50% y=0px width=44px height={(self.key_height)px} label="↑" action="up" tone=1/>
+                        <CalculatorKey id=nav_left x=0px y={(self.key_pitch)px} width=44px height={(self.key_height)px} label="←" action="left" tone=1/>
+                        <CalculatorKey id=nav_right x=100% anchor_x=100% y={(self.key_pitch)px} width=44px height={(self.key_height)px} label="→"
+                            action="right" tone=1/>
+                        <CalculatorKey id=nav_down x=50% anchor_x=50% y={(2 * self.key_pitch)px} width=44px height={(self.key_height)px} label="↓"
+                            action="down" tone=1/>
+                        <Ellipse x=50% y=50% anchor=50% width={(self.dpad_width - 4)px} height={(3 * self.key_pitch - 8)px} fill={
+                            paint: rgba(42, 54, 59, 30)
+                            material: {self.unlit}
+                        }/>
+                    </Group>
+                </Group>
+                <Group x=22px y={(self.screen_height + self.keypad_top)px} width={100% - 44px} height={(self.keypad_height)px}>
+                    for button in self.keys key button.id {
+                        <CalculatorKey x={(button.column * (self.key_width + 8))px} y={(button.row * self.key_pitch)px} width={(self.key_width)px}
+                            height={(self.key_height)px} label={button.label} action={button.action} tone={button.tone}
+                            secondary_label={button.secondary_label} secondary_action={button.secondary_action} second_active={self.second_active}/>
+                    }
+                </Group>
+                if !self.edge_to_edge {
+                    <Rectangle x=7px y=7px width={100% - 14px} height={100% - 20px} corner_radius=[31, 31, 40, 40] fill={
+                        paint: @gradient {
+                            linear: {
+                                start: [0%, 0%],
+                                end: [100%, 100%],
+                            },
+                            0%: rgb(225, 227, 221),
+                            42%: rgb(190, 196, 195),
+                            100%: rgb(173, 181, 181),
+                        }
+                        material: {self.silver}
+                    }
+                        stroke={
+                            material: {self.silver}
+                            paint: rgba(255, 255, 248, 170)
+                            width: 1px
+                        }/>
+                    <Rectangle x=2px y=2px width={100% - 4px} height={100% - 8px} corner_radius=[36, 36, 44, 44] fill={
+                        paint: @gradient {
+                            linear: {
+                                start: [0%, 0%],
+                                end: [100%, 100%],
+                            },
+                            0%: rgb(242, 241, 232),
+                            28%: rgb(151, 164, 167),
+                            52%: rgb(207, 211, 207),
+                            100%: rgb(83, 101, 107),
+                        }
+                        material: {self.unlit}
+                    }/>
+                    <Rectangle width=100% height=100% corner_radius=[38, 38, 46, 46] fill={
+                        paint: rgb(94, 107, 112)
+                        material: {self.unlit}
+                    }/>
                 }
             </Group>
             if !self.edge_to_edge {
-                <Rectangle x=7px y=7px width={100% - 14px} height={100% - 20px} corner_radius=[31, 31, 40, 40] fill={paint: @gradient {
-                    linear: {
-                        start: [0%, 0%],
-                        end: [100%, 100%],
-                    },
-                    0%: rgb(225, 227, 221),
-                    42%: rgb(190, 196, 195),
-                    100%: rgb(173, 181, 181),
-                }, material: {self.silver}}
-                    stroke={material: {self.silver},
-                        paint: rgba(255, 255, 248, 170)
-                        width: 1px
-                    } />
-                <Rectangle x=2px y=2px width={100% - 4px} height={100% - 8px} corner_radius=[36, 36, 44, 44] fill={paint: @gradient {
-                    linear: {
-                        start: [0%, 0%],
-                        end: [100%, 100%],
-                    },
-                    0%: rgb(242, 241, 232),
-                    28%: rgb(151, 164, 167),
-                    52%: rgb(207, 211, 207),
-                    100%: rgb(83, 101, 107),
-                }, material: {self.unlit}}
-                    />
-                <Rectangle width=100% height=100% corner_radius=[38, 38, 46, 46] fill={paint: rgb(94, 107, 112), material: {self.unlit}} />
+                <Rectangle x=50% y={(self.body_top + 11)px} anchor_x=50% width={(self.body_width + 8)px} height={(self.body_height + 4)px}
+                    corner_radius=46 fill={
+                        paint: rgba(20, 29, 31, 30)
+                        material: {self.unlit}
+                    }/>
+                <Rectangle x=50% y={(self.body_top + 22)px} anchor_x=50% width={(self.body_width + 24)px} height={(self.body_height + 5)px}
+                    corner_radius=50 fill={
+                        paint: rgba(20, 29, 31, 12)
+                        material: {self.unlit}
+                    }/>
+                <Rectangle width=100% height=100% fill={
+                    paint: @gradient {
+                        linear: {
+                            start: [0%, 0%],
+                            end: [100%, 100%],
+                        },
+                        0%: rgb(238, 237, 227),
+                        100%: rgb(198, 207, 202),
+                    }
+                    material: {self.unlit}
+                }/>
             }
-            if !self.edge_to_edge {
-                <LightSource x={(self.light_x)px} y={(self.light_y)px} width=1px height=1px z={(self.body_width * 0.65)px}
-                    radius={(self.body_width * 2.4)px} intensity=0.82 color=rgb(255, 251, 236) enabled={!self.paused}/>
-                <AmbientLight intensity=0.70 color=rgb(255, 255, 250)/>
-            }
-        </LightFrame>
-        if !self.edge_to_edge {
-            <Rectangle x=50% y={(self.body_top + 11)px} anchor_x=50% width={(self.body_width + 8)px} height={(self.body_height + 4)px}
-                corner_radius=46 fill={paint: rgba(20, 29, 31, 30), material: {self.unlit}} />
-            <Rectangle x=50% y={(self.body_top + 22)px} anchor_x=50% width={(self.body_width + 24)px} height={(self.body_height + 5)px}
-                corner_radius=50 fill={paint: rgba(20, 29, 31, 12), material: {self.unlit}} />
-            <Rectangle width=100% height=100% fill={paint: @gradient {
+        </Group>
+    </Scroller>
+    if self.edge_to_edge {
+        <Rectangle width=100% height=100% fill={
+            paint: @gradient {
                 linear: {
                     start: [0%, 0%],
                     end: [100%, 100%],
                 },
-                0%: rgb(238, 237, 227),
-                100%: rgb(198, 207, 202),
-            }, material: {self.unlit}}
-                />
-        }
-    </Group>
-</Scroller>
-if self.edge_to_edge {
-    <LightFrame width=100% height=100%>
-        <Rectangle width=100% height=100% fill={paint: @gradient {
-            linear: {
-                start: [0%, 0%],
-                end: [100%, 100%],
-            },
-            0%: rgb(225, 227, 221),
-            42%: rgb(190, 196, 195),
-            100%: rgb(173, 181, 181),
-        }, material: {self.silver}}
-            />
-        <LightSource x=22% y=15% width=1px height=1px z={(self.body_width * 0.65)px} radius={(self.body_width * 2.4)px} intensity=0.82
-            color=rgb(255, 251, 236) enabled={!self.paused}/>
-        // AmbientLight is layer-wide; an embedded example must not relight its host.
-        if !self.embedded {
-            <AmbientLight intensity=0.70 color=rgb(255, 255, 250)/>
-        }
-    </LightFrame>
-}
+                0%: rgb(225, 227, 221),
+                42%: rgb(190, 196, 195),
+                100%: rgb(173, 181, 181),
+            }
+            material: {self.silver}
+        }/>
+    }
+    <LightSource x={(self.light_x)px} y={(self.light_y)px} width=1px height=1px z={(self.body_width * 0.65)px}
+        radius={(self.body_width * 2.4)px} intensity=0.82 color=rgb(255, 251, 236) enabled={!self.paused}/>
+    // AmbientLight is layer-wide; an embedded example must not relight its host.
+    if !self.embedded {
+        <AmbientLight intensity=0.70 color=rgb(255, 255, 250)/>
+    }
+</LightFrame>
 
 @settings {
     @mount: mount

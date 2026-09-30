@@ -47,8 +47,9 @@ impl BrowserSurfacePolicy {
         //    conservative 2048 px limit, even when a graphics API reports a higher maximum.
         //
         // We keep that policy isolated here so the rest of the web chassis stays platform-agnostic:
-        // choose the CPU/Piet renderer on iOS, and allow descendant layers to downsample below 1x
-        // DPR instead of failing surface initialization outright. Root-layer tiling is chosen one
+        // choose the CPU/Piet renderer on iOS and tile at screen density within that budget.
+        // Descendant layers may downsample below 1x only as a hard-limit safety fallback,
+        // instead of failing surface initialization outright. Root-layer tiling is chosen one
         // level up in the web surface host policy, so the root viewport no longer needs the same
         // backing-dimension cap here.
         let surface_dimension_cap = ios_webkit.then_some(PIET_BROWSER_SURFACE_DIMENSION_CAP);

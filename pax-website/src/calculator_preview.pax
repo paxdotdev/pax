@@ -1,0 +1,15 @@
+<Group width=100% height={(self.content_height)px} @viewport_proximity_enter=self.prepare
+    @viewport_proximity_change=self.visibility>
+    <Group x=50% anchor_x=50% width=390px height=844px scale={(self.phone_scale)%} layout_role=LayoutRole::Breakout>
+        <DeviceFrame width=100% height=100% kind="phone" edge_to_edge=true>
+            if self.loaded {
+                <Calculator width=100% height=100% embedded=true safe_top=48 safe_bottom=24 disable_keyboard=true paused={!self.visible}/>
+            }
+        </DeviceFrame>
+    </Group>
+</Group>
+
+@settings {
+    @mount: layout
+    @pre_render: layout
+}

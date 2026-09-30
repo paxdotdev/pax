@@ -225,8 +225,15 @@ impl Calculator {
                 self.keypad_top.set(layout::KEYPAD_TOP);
                 self.keypad_height.set(layout::KEYPAD_HEIGHT);
                 self.graph_top.set(layout::GRAPH_TOP);
-                self.light_x.set(next.width * 0.22);
-                self.light_y.set(next.height * 0.15);
+                // The shared light is in calculator-viewport coordinates, outside
+                // the scroller, so both layouts keep it under the pointer.
+                self.light_x.set(
+                    self.safe_left.get()
+                        + (w - self.safe_left.get() - self.safe_right.get() - next.width) * 0.5
+                        + next.width * 0.22,
+                );
+                self.light_y
+                    .set(self.safe_top.get() + next.top + next.height * 0.15);
             }
             if store.model.home_requested {
                 self.set_scroll(
@@ -585,7 +592,8 @@ impl Calculator {
         if self.paused.get() {
             return;
         }
-        // Local coordinates include the outer Scroller's presentation offset.
+        // Convert through the shared LightFrame, not the scrolling calculator
+        // body; this also accounts for a host's scale and page-scroll offset.
         let p = ctx.local_point(Point2::new(event.mouse.x, event.mouse.y));
         let (w, h) = ctx.bounds_self.get();
         let lx = p.x * w;
