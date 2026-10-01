@@ -52,7 +52,7 @@ iOS app is suspended.
 | Local callback | An ordinary native thread completes into a UI-local closure that updates `LocalProperty`. Web queues the same callback locally. |
 | Panic probe | Native reports the expected task panic through task status/error reporting. Web explains its abort-on-panic limitation; use Fail for a recoverable error. |
 | Blocking probe | Native runs at most one blocking job with cooperative stop checks. Cancellation suppresses publication even if a job has already started. Web explains why blocking work is unavailable. |
-| Unmount/Remount | Removing a running panel revokes its work. Shared application data survives; application starts stays one and panel mounts increases. |
+| Unmount/Remount | Unmount discards the panel's local state and revokes pending results. Remount creates fresh panel state and scopes. The application-owned counter, history, and services remain; application starts stays one and panel mounts increases. |
 
 Raw application-data publication is deliberately independent of task cancellation. A captured ordinary `Property` remains writable after panel removal. Use guarded publishers or `spawn_into` for results whose authority must expire.
 

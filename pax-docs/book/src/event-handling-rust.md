@@ -819,8 +819,9 @@ Use the fixture to explore ownership and delivery:
    executor's timer runs; the result updates without application `@tick` polling.
 2. Choose **Replace A with B**. B wins; the retained producer for A cannot publish
    after its authority has been revoked.
-3. Start work and **Cancel**, or **Unmount** the panel. Remounting preserves
-   application services and shared data while creating fresh node scopes.
+3. Start work and **Cancel**, or **Unmount** the panel. Unmount discards the
+   panel's local state and revokes pending results. Remount creates fresh panel
+   state and scopes; the application-owned counter, history, and services remain.
 4. Choose **Stream 100 events**. The bounded channel delivers ordered events;
    a full buffer is handled explicitly rather than dropping arbitrary messages.
 5. Choose **Run local I/O**. Native performs a loopback TCP exchange; web fetches
