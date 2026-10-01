@@ -44,23 +44,24 @@ impl FeatureStudy {
         let now = ctx.elapsed_time_millis() as f64;
         let dt = ((now - self._last_ms.get()) / 1000.0).clamp(0.0, 0.05);
         self._last_ms.set(now);
-        self.phase.set((self.phase.get() + dt).rem_euclid(8.0));
+        self.phase
+            .set((self.phase.get() + dt).rem_euclid(study_period(&self.kind.get())));
         self.update_picture();
     }
 
     fn update_picture(&mut self) {
         let phase = self.phase.get();
         self.progress.set_if_neq(study_progress(phase));
-        let alternate = phase >= 4.0;
+        let alternate = phase >= study_period(&self.kind.get()) / 2.0;
         self.alternate.set_if_neq(alternate);
         if self.kind.get() == "computed" {
             self.quantity.set_if_neq(if alternate { 3 } else { 2 });
         }
         // The interrupted study reverses before the one-second exit completes.
         self.present.set_if_neq(if self.kind.get() == "interrupt" {
-            !(3.0..3.4).contains(&phase) && !(5.0..6.3).contains(&phase)
+            !(2.0..2.4).contains(&phase) && !(3.7..4.85).contains(&phase)
         } else {
-            phase < 4.0
+            !alternate
         });
         if self.kind.get() == "reflow" {
             self.items
@@ -69,12 +70,25 @@ impl FeatureStudy {
     }
 }
 
-// A legible hold at either end, with a smooth round trip and no reset jump.
+// Halve idle holds, not the authored motion durations. Discrete illustrations
+// have no transition to preserve; enter/reflow keep their 1s/0.5s transitions.
+fn study_period(kind: &str) -> f64 {
+    match kind {
+        "theme" | "classes" | "autosize" | "computed" => 4.0,
+        "enter" => 5.0,
+        "reflow" => 4.5,
+        "interrupt" => 6.2,
+        _ => 6.4,
+    }
+}
+
+// The 2.4s strokes are unchanged; each 1.6s endpoint hold is now 0.8s.
+// The zero hold is split across the loop boundary so there is no reset jump.
 fn study_progress(phase: f64) -> f64 {
-    let t = if phase < 4.0 {
-        (phase - 0.8) / 2.4
+    let t = if phase < 3.2 {
+        (phase - 0.4) / 2.4
     } else {
-        (7.2 - phase) / 2.4
+        (6.0 - phase) / 2.4
     }
     .clamp(0.0, 1.0);
     t * t * (3.0 - 2.0 * t)
@@ -105,13 +119,37 @@ mod tests {
 
     #[test]
     fn study_clock_is_bounded_and_holds_at_each_end() {
-        for i in 0..=800 {
+        for i in 0..=640 {
             assert!((0.0..=1.0).contains(&study_progress(i as f64 / 100.0)));
         }
-        assert_eq!(study_progress(0.0), study_progress(8.0));
-        assert_eq!(study_progress(0.8), 0.0);
-        assert_eq!(study_progress(3.2), 1.0);
-        assert_eq!(study_progress(4.8), 1.0);
-        assert_eq!(study_progress(7.2), 0.0);
+        assert_eq!(study_progress(0.0), study_progress(6.4));
+        assert_eq!(study_progress(0.4), 0.0);
+        assert_eq!(study_progress(2.8), 1.0);
+        assert_eq!(study_progress(3.6), 1.0);
+        assert_eq!(study_progress(6.0), 0.0);
+        assert!((study_progress(1.6) - 0.5).abs() < 1e-9);
+        assert!((study_progress(4.8) - 0.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn discrete_and_transition_studies_halve_only_their_idle_intervals() {
+        assert_eq!(study_period("autosize") / 2.0, 4.0 / 2.0);
+        assert_eq!(study_period("theme"), study_period("computed"));
+        assert_eq!(study_period("enter") / 2.0 - 1.0, (4.0 - 1.0) / 2.0);
+        assert_eq!(study_period("reflow") / 2.0 - 0.5, (4.0 - 0.5) / 2.0);
+        let mut study = FeatureStudy::default();
+        study.kind.set("interrupt".to_string());
+        for (phase, present) in [
+            (1.9, true),
+            (2.1, false),
+            (2.5, true),
+            (3.8, false),
+            (4.8, false),
+            (4.9, true),
+        ] {
+            study.phase.set(phase);
+            study.update_picture();
+            assert_eq!(study.present.get(), present);
+        }
     }
 }

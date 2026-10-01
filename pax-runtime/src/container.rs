@@ -385,7 +385,10 @@ pub fn bind_content_measurement_effect<F>(
                     effect.clone(),
                 );
             },
-            &[ctx.received_children_changed.untyped()],
+            // Rebinding reads the received-child list itself. Depending on its
+            // unit-valued notifier without reading that notifier leaves it
+            // dirty, which can suppress invalidation on subsequent changes.
+            &[ctx.received_children.untyped()],
             &rebind_name,
         ));
     ctx.runtime_context

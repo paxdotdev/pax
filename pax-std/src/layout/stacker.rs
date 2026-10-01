@@ -2174,6 +2174,97 @@ mod tests {
     }
 
     #[test]
+    fn autosized_stacker_reflows_new_conditional_children() {
+        fn leaf(height: i32) -> Rc<dyn InstanceNode> {
+            let mut args = primitive_args(Vec::new());
+            args.prototypical_common_properties =
+                CommonPropertiesInit::Factory(Box::new(move |_, _| {
+                    Some(Rc::new(RefCell::new(CommonProperties {
+                        width: Property::new(Some(Size::Pixels(172.into()))),
+                        height: Property::new(Some(Size::Pixels(height.into()))),
+                        ..Default::default()
+                    })))
+                }));
+            TestLeaf::instantiate(args)
+        }
+        let expanded = Property::new(false);
+        let condition = expanded.clone();
+        let mut conditional_args = primitive_args(vec![leaf(3), leaf(3), leaf(18)]);
+        conditional_args.prototypical_properties =
+            PropertiesInit::Factory(Box::new(move |_, node| {
+                node.is_none().then(|| {
+                    Rc::new(RefCell::new(
+                        pax_runtime::ConditionalProperties {
+                            boolean_expression: condition.clone(),
+                            conditional_branches: Vec::new(),
+                        }
+                        .to_pax_any(),
+                    ))
+                })
+            }));
+        let conditional = pax_runtime::ConditionalInstance::instantiate(conditional_args);
+        let stacker = StackerInstance::instantiate(stacker_args_with(
+            vec![leaf(20), leaf(3), conditional, leaf(10)],
+            Stacker {
+                autosize: Property::new(true),
+                gutter: Property::new(Size::Pixels(8.into())),
+                ..Default::default()
+            },
+        ));
+        let context = Rc::new(crate::test_support::runtime_context());
+        let root = ExpandedNode::initialize_root(
+            ComponentInstance::instantiate(component_args(vec![stacker])),
+            &context,
+        );
+        root.recurse_update(&context);
+        let stacker_node = root.children.get()[0].clone();
+        context.drain_node_effects();
+        assert_eq!(stacker_node.children.get().len(), 3);
+        let first_child = stacker_node.children.get()[0].id;
+        for _ in 0..3 {
+            for show in [true, false] {
+                expanded.set(show);
+                for _ in 0..3 {
+                    root.recurse_update(&context);
+                    context.drain_node_effects();
+                }
+                let children = stacker_node.children.get();
+                let expected: &[f64] = if show {
+                    &[0.0, 28.0, 39.0, 50.0, 61.0, 87.0]
+                } else {
+                    &[0.0, 28.0, 39.0]
+                };
+                assert_eq!(children.len(), expected.len());
+                assert_eq!(children[0].id, first_child);
+                assert_eq!(
+                    stacker_node.measured_size.get().unwrap().1,
+                    if show { 97.0 } else { 49.0 }
+                );
+                for (child, &y) in children.iter().zip(expected) {
+                    assert_eq!(
+                        child.container_frame.get().map(|f| f.transform.m[5]),
+                        Some(y)
+                    );
+                    assert_eq!(child.transform_and_bounds.get().transform.m[5], y);
+                }
+                if show {
+                    children[4]
+                        .get_common_properties()
+                        .borrow()
+                        .height
+                        .set(Some(Size::Pixels(32.into())));
+                    for _ in 0..3 {
+                        root.recurse_update(&context);
+                        context.drain_node_effects();
+                    }
+                    assert_eq!(stacker_node.measured_size.get().unwrap().1, 111.0);
+                    assert_eq!(children[5].transform_and_bounds.get().transform.m[5], 101.0);
+                }
+            }
+        }
+    }
+
+    #[test]
     fn stacker_assigns_distinct_container_frames_on_initial_mount() {
         let leaf_a: Rc<dyn InstanceNode> = TestLeaf::instantiate(primitive_args(Vec::new()));
         let leaf_b: Rc<dyn InstanceNode> = TestLeaf::instantiate(primitive_args(Vec::new()));

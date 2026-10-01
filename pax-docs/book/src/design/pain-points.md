@@ -170,3 +170,33 @@ unmounted adjective does not continually invalidate the mesh cache.
 ## 2026-09-30 — Tiled browser surface density
 
 The website paint card exposed the former 1x tiled-scroller override on a 2x display. Tiled surfaces now retain requested screen density, tile sooner at physical budgets, and expose exceptional allocation clamping via `data-pax-resolution-fallback`. Verify backing dimensions: browser viewport emulation can change DPR to 1. See the scrolling/viewports guide for the current contract.
+
+## 2026-10-01 — Rebind measurement from the child list, not an unread signal
+
+The Content Autosizing featurette placed conditional text over the first row.
+Its template already used an autosized Stacker, but new children never received
+container frames. The measurement rebind effect depended on a unit-valued
+received-children notifier without evaluating that notifier. It could remain
+dirty after the initial evaluation and suppress later invalidations.
+
+Depend directly on the received-child list, which rebinding actually reads.
+This preserves reactive, change-driven measurement rather than polling every
+frame or assigning manual positions in the example. Regression coverage toggles
+multiple rows repeatedly, checks their ordered frames and stack height, and
+resizes a newly inserted row to verify that new measurement dependencies bind.
+
+## 2026-10-01 — Endpoint caps share one reveal position
+
+The Layered Paint card exposed a final round cap snapping into view. GPU stroke
+vertices carry normalized centerline advancement, and the round-cap vertices
+share their endpoint's advancement. The fragment shader therefore admits the
+whole cap when `draw_end` reaches that position. This is not a timeline reset
+or gradient discontinuity. A proper swept-cap reveal needs a spatial progress
+rule for caps, consistent across stroke widths, compound paths, and mask usage;
+changing the easing does not fix it.
+
+For the website study, keep the existing draw/hold/rewind loop but limit the
+layered-stroke variant to 97%. Leave the handwriting-mask variant at 100% so
+its word remains complete. This is an explicit presentation workaround, not a
+renderer fix; the Drawing article records the current GPU limitation.
+

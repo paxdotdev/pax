@@ -499,6 +499,9 @@ outline, so use a transparent fill for a pen-like drawing effect.
 
 On the GPU renderer, the revealed range cuts across the existing stroke;
 round caps at the original endpoints do not add a rounded tip at that cut.
+Original endpoint caps appear as a whole when the reveal reaches their path
+position; they are not progressively swept like a mask. This can be visible
+when a wide, round-capped stroke reaches `draw_end=100%`.
 
 Bind the range to application state or animate it with a timeline. The
 `path-drawing` example combines authored curves and imported lettering;

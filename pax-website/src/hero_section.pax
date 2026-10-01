@@ -16,7 +16,7 @@
             <RotatingHeadline width=100% height={(self.font_px * 3.7)px} font_px={self.font_px} playing={self.playing}/>
             <Stacker width=100% autosize=true gutter=12px>
                 <Text class="hero_copy" width=100%
-                    text="Write application logic in Rust, alongside Pax: a declarative language designed from scratch for expressive user interfaces."/>
+                    text="Write application logic in Rust, alongside Pax: a declarative language designed for making UIs powerful, expressive, and fun."/>
                 <Text class="hero_copy" width=100%
                     text="Ship to native macOS, iOS, iPadOS, and the web. This website is built in Pax."/>
             </Stacker>

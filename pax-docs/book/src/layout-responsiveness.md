@@ -260,6 +260,10 @@ child sizes or intrinsic measurements on the axis being measured. When the
 axis cannot be resolved, current containers can fall back to top-down layout.
 Empty measured content collapses to zero on managed axes.
 
+Conditional children participate in this measurement too. Adding or removing
+rows inside an autosized Stacker reflows its cells and updates its measured
+height; later size changes in a newly added row also propagate to the stack.
+
 Text and native controls can report measurements after initial layout, and
 autosized ancestors react to those updates. Fonts, wrapping, and platform
 controls influence the result. Check the settled layout with realistic
