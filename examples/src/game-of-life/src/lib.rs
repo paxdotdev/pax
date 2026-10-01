@@ -46,8 +46,10 @@ impl GameOfLife {
                             if x == 0 && y == 0 {
                                 continue;
                             }
-                            let ni = (i as isize + x + self.rows.get() as isize) as usize % self.rows.get();
-                            let nj = (j as isize + y + self.cols.get() as isize) as usize % self.cols.get();
+                            let ni = (i as isize + x + self.rows.get() as isize) as usize
+                                % self.rows.get();
+                            let nj = (j as isize + y + self.cols.get() as isize) as usize
+                                % self.cols.get();
                             if self.cells.get()[ni][nj] {
                                 count += 1;
                             }
@@ -78,14 +80,15 @@ impl GameOfLife {
 
     pub fn reset(&mut self, _ctx: &NodeContext, _args: Event<ButtonClick>) {
         self.running.set(false);
-        self.cells.set(vec![vec![false; self.cols.get()]; self.rows.get()]);
+        self.cells
+            .set(vec![vec![false; self.cols.get()]; self.rows.get()]);
     }
 }
 
 #[pax]
 #[file("templates/cell.pax")]
 pub struct Cell {
-    pub on : Property<bool>,
+    pub on: Property<bool>,
     pub row: Property<usize>,
     pub col: Property<usize>,
     pub cells: Property<Vec<Vec<bool>>>,
@@ -93,14 +96,14 @@ pub struct Cell {
 }
 
 impl Cell {
-
     pub fn mount(&mut self, _ctx: &NodeContext) {
-        let cells = self.cells.clone();
-        let row = self.row.clone();
-        let col = self.col.clone();
-        self.on.replace_with(Property::computed(move || {
-            cells.get()[row.get()][col.get()]
-        }, &[self.cells.untyped()]));
+        let cells = self.cells.local();
+        let row = self.row.local();
+        let col = self.col.local();
+        self.on.replace_with(LocalProperty::computed(
+            move || cells.get()[row.get()][col.get()],
+            &[self.cells.untyped()],
+        ));
     }
 
     pub fn toggle(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
@@ -125,14 +128,11 @@ pub struct ColorControl {
 
 impl ColorControl {
     pub fn mount(&mut self, _ctx: &NodeContext) {
-        let selected_id_clone = self.selected_id.clone();
-        let colors = vec![
-                Color::RED,
-                Color::WHITE,
-                Color::BLUE,
-            ];
-        self.selected_color.replace_with(Property::computed(move || {
-            colors[selected_id_clone.get() as usize].clone()
-        }, &[self.selected_id.untyped()]));
+        let selected_id_clone = self.selected_id.local();
+        let colors = vec![Color::RED, Color::WHITE, Color::BLUE];
+        self.selected_color.replace_with(LocalProperty::computed(
+            move || colors[selected_id_clone.get() as usize].clone(),
+            &[self.selected_id.untyped()],
+        ));
     }
 }

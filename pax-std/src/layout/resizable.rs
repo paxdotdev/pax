@@ -1,5 +1,6 @@
-#[allow(unused)]
 use crate::*;
+#[allow(unused)]
+use pax_engine::api::LocalProperty;
 use pax_engine::api::*;
 use pax_engine::*;
 use std::cmp::Ordering;
@@ -78,15 +79,15 @@ impl Resizable {
     // Computes section rectangles from divider positions and slot count.
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let slot_count = ctx.projected_children_count.clone();
-        let dividers = self.dividers.clone();
-        let direction = self.direction.clone();
+        let dividers = self.dividers.local();
+        let direction = self.direction.local();
         let deps = [
             slot_count.untyped(),
             dividers.untyped(),
             direction.untyped(),
         ];
 
-        self._sections.replace_with(Property::computed(
+        self._sections.replace_with(LocalProperty::computed(
             move || {
                 let divs = dividers.get();
                 if slot_count.get() != divs.len() + 1 {

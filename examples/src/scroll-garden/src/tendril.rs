@@ -50,7 +50,7 @@ impl Tendril {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let bounds = ctx.bounds_self.clone();
         let deps = [bounds.untyped()];
-        self._segment.replace_with(Property::computed(
+        self._segment.replace_with(LocalProperty::computed(
             move || {
                 let (width, _) = bounds.get();
                 let base = if width <= 1.0 { 160.0 } else { width };
@@ -59,76 +59,76 @@ impl Tendril {
             &deps,
         ));
 
-        let segment = self._segment.clone();
+        let segment = self._segment.local();
         let deps = [segment.untyped()];
-        self._thickness.replace_with(Property::computed(
+        self._thickness.replace_with(LocalProperty::computed(
             move || (segment.get() * 0.38).max(20.0),
             &deps,
         ));
 
-        let segment = self._segment.clone();
+        let segment = self._segment.local();
         let deps = [segment.untyped()];
-        self._gem.replace_with(Property::computed(
+        self._gem.replace_with(LocalProperty::computed(
             move || (segment.get() * 0.18).max(18.0),
             &deps,
         ));
 
-        let playhead = self.playhead.clone();
-        let seed = self.seed.clone();
+        let playhead = self.playhead.local();
+        let seed = self.seed.local();
         let deps = [playhead.untyped(), seed.untyped()];
-        self._angle_0.replace_with(Property::computed(
+        self._angle_0.replace_with(LocalProperty::computed(
             move || joint_angle(playhead.get(), seed.get(), 0),
             &deps,
         ));
 
-        let playhead = self.playhead.clone();
-        let seed = self.seed.clone();
+        let playhead = self.playhead.local();
+        let seed = self.seed.local();
         let deps = [playhead.untyped(), seed.untyped()];
-        self._angle_1.replace_with(Property::computed(
+        self._angle_1.replace_with(LocalProperty::computed(
             move || joint_angle(playhead.get(), seed.get(), 1),
             &deps,
         ));
 
-        let playhead = self.playhead.clone();
-        let seed = self.seed.clone();
+        let playhead = self.playhead.local();
+        let seed = self.seed.local();
         let deps = [playhead.untyped(), seed.untyped()];
-        self._angle_2.replace_with(Property::computed(
+        self._angle_2.replace_with(LocalProperty::computed(
             move || joint_angle(playhead.get(), seed.get(), 2),
             &deps,
         ));
 
-        let playhead = self.playhead.clone();
-        let seed = self.seed.clone();
+        let playhead = self.playhead.local();
+        let seed = self.seed.local();
         let deps = [playhead.untyped(), seed.untyped()];
-        self._angle_3.replace_with(Property::computed(
+        self._angle_3.replace_with(LocalProperty::computed(
             move || joint_angle(playhead.get(), seed.get(), 3),
             &deps,
         ));
 
-        let seed = self.seed.clone();
+        let seed = self.seed.local();
         let deps = [seed.untyped()];
-        self._shape_0.replace_with(Property::computed(
+        self._shape_0.replace_with(LocalProperty::computed(
             move || shape_index(seed.get(), 0),
             &deps,
         ));
 
-        let seed = self.seed.clone();
+        let seed = self.seed.local();
         let deps = [seed.untyped()];
-        self._shape_1.replace_with(Property::computed(
+        self._shape_1.replace_with(LocalProperty::computed(
             move || shape_index(seed.get(), 1),
             &deps,
         ));
 
-        let seed = self.seed.clone();
+        let seed = self.seed.local();
         let deps = [seed.untyped()];
-        self._shape_2.replace_with(Property::computed(
+        self._shape_2.replace_with(LocalProperty::computed(
             move || shape_index(seed.get(), 2),
             &deps,
         ));
 
-        let seed = self.seed.clone();
+        let seed = self.seed.local();
         let deps = [seed.untyped()];
-        self._shape_3.replace_with(Property::computed(
+        self._shape_3.replace_with(LocalProperty::computed(
             move || shape_index(seed.get(), 3),
             &deps,
         ));

@@ -14,8 +14,8 @@ use pax_gpu::{
     StrokeJoin as PixelStrokeJoin, Transform2D, WgpuRenderer,
 };
 use pax_runtime_api::{
-    Axis, LayerSurfaceScreenshotData, Material, PathSmoothing, RenderContext,
-    ReplayCanvasLayerUpdate, SceneLighting, ScreenshotData, Stroke, StrokeCap, StrokeJoin,
+    Axis, LayerSurfaceScreenshotData, PathSmoothing, RenderContext, ReplayCanvasLayerUpdate,
+    ResolvedMaterial, ResolvedStroke, SceneLighting, ScreenshotData, StrokeCap, StrokeJoin,
 };
 use std::{
     cell::{Cell, RefCell},
@@ -1359,7 +1359,7 @@ impl RenderContext for PaxGpuRenderer {
         layer: usize,
         path: kurbo::BezPath,
         fill: &pax_runtime_api::Paint,
-        material: &Material,
+        material: &ResolvedMaterial,
         opacity: f64,
     ) {
         self.with_layer_context(layer, |context| {
@@ -1376,7 +1376,7 @@ impl RenderContext for PaxGpuRenderer {
         layer: usize,
         path: kurbo::BezPath,
         fill: &pax_runtime_api::Paint,
-        material: &Material,
+        material: &ResolvedMaterial,
         opacity: f64,
         smoothing: PathSmoothing,
     ) {
@@ -1401,7 +1401,7 @@ impl RenderContext for PaxGpuRenderer {
         &mut self,
         layer: usize,
         path: kurbo::BezPath,
-        stroke: &Stroke,
+        stroke: &ResolvedStroke,
         opacity: f64,
     ) {
         self.with_layer_context(layer, |context| {
@@ -1409,14 +1409,14 @@ impl RenderContext for PaxGpuRenderer {
             context.stroke_path_with_opacity(
                 convert_kurbo_to_lyon_path(&path),
                 PixelStroke {
-                    fill: to_pax_gpu_fill(&stroke.paint.get(), bounds, context.current_transform()),
+                    fill: to_pax_gpu_fill(&stroke.paint, bounds, context.current_transform()),
                     weight: stroke.width_pixels() as f32,
-                    cap: match stroke.cap.get() {
+                    cap: match stroke.cap {
                         StrokeCap::Butt => PixelStrokeCap::Butt,
                         StrokeCap::Round => PixelStrokeCap::Round,
                         StrokeCap::Square => PixelStrokeCap::Square,
                     },
-                    join: match stroke.join.get() {
+                    join: match stroke.join {
                         StrokeJoin::Miter => PixelStrokeJoin::Miter,
                         StrokeJoin::Round => PixelStrokeJoin::Round,
                         StrokeJoin::Bevel => PixelStrokeJoin::Bevel,
@@ -1431,8 +1431,8 @@ impl RenderContext for PaxGpuRenderer {
         &mut self,
         layer: usize,
         path: kurbo::BezPath,
-        stroke: &Stroke,
-        material: &Material,
+        stroke: &ResolvedStroke,
+        material: &ResolvedMaterial,
         opacity: f64,
     ) {
         self.with_layer_context(layer, |context| {
@@ -1440,14 +1440,14 @@ impl RenderContext for PaxGpuRenderer {
             context.stroke_path_with_material_and_opacity(
                 convert_kurbo_to_lyon_path(&path),
                 PixelStroke {
-                    fill: to_pax_gpu_fill(&stroke.paint.get(), bounds, context.current_transform()),
+                    fill: to_pax_gpu_fill(&stroke.paint, bounds, context.current_transform()),
                     weight: stroke.width_pixels() as f32,
-                    cap: match stroke.cap.get() {
+                    cap: match stroke.cap {
                         StrokeCap::Butt => PixelStrokeCap::Butt,
                         StrokeCap::Round => PixelStrokeCap::Round,
                         StrokeCap::Square => PixelStrokeCap::Square,
                     },
-                    join: match stroke.join.get() {
+                    join: match stroke.join {
                         StrokeJoin::Miter => PixelStrokeJoin::Miter,
                         StrokeJoin::Round => PixelStrokeJoin::Round,
                         StrokeJoin::Bevel => PixelStrokeJoin::Bevel,
@@ -1463,8 +1463,8 @@ impl RenderContext for PaxGpuRenderer {
         &mut self,
         layer: usize,
         path: kurbo::BezPath,
-        stroke: &Stroke,
-        material: &Material,
+        stroke: &ResolvedStroke,
+        material: &ResolvedMaterial,
         opacity: f64,
         smoothing: PathSmoothing,
     ) {
@@ -1475,14 +1475,14 @@ impl RenderContext for PaxGpuRenderer {
             context.stroke_path_with_material_and_opacity_and_smoothing(
                 convert_kurbo_to_lyon_path(&path),
                 PixelStroke {
-                    fill: to_pax_gpu_fill(&stroke.paint.get(), bounds, context.current_transform()),
+                    fill: to_pax_gpu_fill(&stroke.paint, bounds, context.current_transform()),
                     weight: stroke.width_pixels() as f32,
-                    cap: match stroke.cap.get() {
+                    cap: match stroke.cap {
                         StrokeCap::Butt => PixelStrokeCap::Butt,
                         StrokeCap::Round => PixelStrokeCap::Round,
                         StrokeCap::Square => PixelStrokeCap::Square,
                     },
-                    join: match stroke.join.get() {
+                    join: match stroke.join {
                         StrokeJoin::Miter => PixelStrokeJoin::Miter,
                         StrokeJoin::Round => PixelStrokeJoin::Round,
                         StrokeJoin::Bevel => PixelStrokeJoin::Bevel,
@@ -1499,8 +1499,8 @@ impl RenderContext for PaxGpuRenderer {
         &mut self,
         layer: usize,
         path: kurbo::BezPath,
-        stroke: &Stroke,
-        material: &Material,
+        stroke: &ResolvedStroke,
+        material: &ResolvedMaterial,
         opacity: f64,
         draw_start: f64,
         draw_end: f64,
@@ -1510,14 +1510,14 @@ impl RenderContext for PaxGpuRenderer {
             context.stroke_path_with_draw_range_and_material_and_opacity(
                 convert_kurbo_to_lyon_path(&path),
                 PixelStroke {
-                    fill: to_pax_gpu_fill(&stroke.paint.get(), bounds, context.current_transform()),
+                    fill: to_pax_gpu_fill(&stroke.paint, bounds, context.current_transform()),
                     weight: stroke.width_pixels() as f32,
-                    cap: match stroke.cap.get() {
+                    cap: match stroke.cap {
                         StrokeCap::Butt => PixelStrokeCap::Butt,
                         StrokeCap::Round => PixelStrokeCap::Round,
                         StrokeCap::Square => PixelStrokeCap::Square,
                     },
-                    join: match stroke.join.get() {
+                    join: match stroke.join {
                         StrokeJoin::Miter => PixelStrokeJoin::Miter,
                         StrokeJoin::Round => PixelStrokeJoin::Round,
                         StrokeJoin::Bevel => PixelStrokeJoin::Bevel,
@@ -1534,8 +1534,8 @@ impl RenderContext for PaxGpuRenderer {
         &mut self,
         layer: usize,
         path: kurbo::BezPath,
-        stroke: &Stroke,
-        material: &Material,
+        stroke: &ResolvedStroke,
+        material: &ResolvedMaterial,
         opacity: f64,
         draw_start: f64,
         draw_end: f64,
@@ -1548,14 +1548,14 @@ impl RenderContext for PaxGpuRenderer {
             context.stroke_path_with_draw_range_and_material_and_opacity_and_smoothing(
                 convert_kurbo_to_lyon_path(&path),
                 PixelStroke {
-                    fill: to_pax_gpu_fill(&stroke.paint.get(), bounds, context.current_transform()),
+                    fill: to_pax_gpu_fill(&stroke.paint, bounds, context.current_transform()),
                     weight: stroke.width_pixels() as f32,
-                    cap: match stroke.cap.get() {
+                    cap: match stroke.cap {
                         StrokeCap::Butt => PixelStrokeCap::Butt,
                         StrokeCap::Round => PixelStrokeCap::Round,
                         StrokeCap::Square => PixelStrokeCap::Square,
                     },
-                    join: match stroke.join.get() {
+                    join: match stroke.join {
                         StrokeJoin::Miter => PixelStrokeJoin::Miter,
                         StrokeJoin::Round => PixelStrokeJoin::Round,
                         StrokeJoin::Bevel => PixelStrokeJoin::Bevel,
@@ -2353,23 +2353,22 @@ fn to_pax_gpu_alpha_fill(
     to_pax_gpu_fill(fill, rect, transform)
 }
 
-fn to_pax_gpu_material(material: &pax_runtime_api::Material) -> PixelMaterial {
+fn to_pax_gpu_material(material: &pax_runtime_api::ResolvedMaterial) -> PixelMaterial {
     match material {
-        pax_runtime_api::Material::Unlit => PixelMaterial::unlit(),
-        pax_runtime_api::Material::Lit(params) => {
-            let metallic = params.metallic.get().clamp(0.0, 1.0) as f32;
-            let diffuse = params.diffuse.get().max(0.0) as f32 * (1.0 - metallic * 0.55);
-            let specular = params.specular.get().max(0.0) as f32 + metallic * 0.45;
-            let roughness = (params.roughness.get().clamp(0.0, 1.0) as f32
-                * (1.0 - metallic * 0.35))
-                .clamp(0.0, 1.0);
+        pax_runtime_api::ResolvedMaterial::Unlit => PixelMaterial::unlit(),
+        pax_runtime_api::ResolvedMaterial::Lit(params) => {
+            let metallic = params.metallic.clamp(0.0, 1.0) as f32;
+            let diffuse = params.diffuse.max(0.0) as f32 * (1.0 - metallic * 0.55);
+            let specular = params.specular.max(0.0) as f32 + metallic * 0.45;
+            let roughness =
+                (params.roughness.clamp(0.0, 1.0) as f32 * (1.0 - metallic * 0.35)).clamp(0.0, 1.0);
             PixelMaterial::custom(
-                params.ambient.get().max(0.0) as f32,
+                params.ambient.max(0.0) as f32,
                 diffuse,
                 specular,
                 roughness,
-                to_pax_gpu_color(&params.emissive.get()),
-                params.emissive_intensity.get().max(0.0) as f32,
+                to_pax_gpu_color(&params.emissive.clone()),
+                params.emissive_intensity.max(0.0) as f32,
             )
         }
     }

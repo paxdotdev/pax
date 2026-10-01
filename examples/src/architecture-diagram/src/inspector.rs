@@ -14,7 +14,7 @@ pub struct Inspector {
 impl Inspector {
     pub fn mount(&mut self, ctx: &NodeContext) {
         let bounds = ctx.bounds_self.clone();
-        self.outline.replace_with(Property::computed(
+        self.outline.replace_with(LocalProperty::computed(
             move || {
                 let (w, h) = bounds.get();
                 chamfer(w, h, 14.)

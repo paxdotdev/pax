@@ -570,8 +570,10 @@ impl Example {
         let lx = p.x * w;
         let ly = p.y * h;
         self.light_x
+            .local()
             .ease_to(lx, Duration::Milliseconds(180.into()), EasingCurve::OutQuad);
         self.light_y
+            .local()
             .ease_to(ly, Duration::Milliseconds(180.into()), EasingCurve::OutQuad);
     }
     pub fn mouse_move(&mut self, ctx: &NodeContext, event: Event<MouseMove>) {

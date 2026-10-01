@@ -27,3 +27,6 @@ export function initSync(module: SyncInitInput): InitOutput;
 * @returns {Promise<InitOutput>}
 */
 export default function __wbg_init (module_or_path?: InitInput | Promise<InitInput>): Promise<InitOutput>;
+
+export function pax_set_shutdown_waker(callback: () => void): void;
+export function pax_pump_shutdowns(): number;

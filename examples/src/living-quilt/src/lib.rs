@@ -75,8 +75,8 @@ impl Example {
 
     fn follow_mouse_light(&self, x: f64, y: f64) {
         // Direct pointer input takes over from the click/touch tween.
-        self.light_x.cancel_transitions();
-        self.light_y.cancel_transitions();
+        self.light_x.local().cancel_transitions();
+        self.light_y.local().cancel_transitions();
         self.light_x.set(x);
         self.light_y.set(y);
     }
@@ -103,8 +103,10 @@ impl Example {
             return false;
         }
         self.light_x
+            .local()
             .ease_to(x, Duration::Milliseconds(420.into()), EasingCurve::OutQuad);
         self.light_y
+            .local()
             .ease_to(y, Duration::Milliseconds(420.into()), EasingCurve::OutQuad);
         self.idle_active.set(false);
         self.next_idle_tile_ms.set(0);
@@ -256,9 +258,9 @@ impl Example {
     }
 
     fn play_logo(&self) {
-        self.logo_progress.cancel_transitions();
+        self.logo_progress.local().cancel_transitions();
         self.logo_progress.set(0.0);
-        self.logo_progress.ease_to(
+        self.logo_progress.local().ease_to(
             1.0,
             Duration::Milliseconds(1440.into()),
             EasingCurve::Linear,
@@ -288,7 +290,7 @@ mod tests {
         let source_reads = Rc::new(Cell::new(0));
         let reads = source_reads.clone();
         let dependency = source.get_untyped_property().clone();
-        let binding = Property::computed(
+        let binding = LocalProperty::computed(
             move || {
                 reads.set(reads.get() + 1);
                 source.get_as_pax_value()
@@ -708,12 +710,12 @@ mod tests {
             light_y: Property::new(0.5),
             ..Default::default()
         };
-        example.light_x.ease_to(
+        example.light_x.local().ease_to(
             0.25,
             Duration::Milliseconds(420.into()),
             EasingCurve::OutQuad,
         );
-        example.light_y.ease_to(
+        example.light_y.local().ease_to(
             0.75,
             Duration::Milliseconds(420.into()),
             EasingCurve::OutQuad,

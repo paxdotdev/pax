@@ -153,8 +153,8 @@ pub(crate) fn alpha_mask_paints_with_range(
         paints.push(pax_runtime_api::AlphaMaskPaint {
             path: path.clone(),
             transform,
-            fill: fill.paint.get(),
-            opacity: fill.opacity.get().to_float_0_1(),
+            fill: fill.paint.local().get(),
+            opacity: fill.opacity.local().get().to_float_0_1(),
             paint_bounds: path.bounding_box(),
             composition: Some((node.id.to_u32(), 1.0)),
         });
@@ -162,12 +162,12 @@ pub(crate) fn alpha_mask_paints_with_range(
     let paint_bounds = path.bounding_box();
     let trimmed = trim_bez_path(&path, draw_start, draw_end);
     for stroke in strokes.iter().rev() {
-        if let Some(path) = stroked_outline_path(&trimmed, stroke) {
+        if let Some(path) = stroked_outline_path(&trimmed, &stroke.resolve_in_graph()) {
             paints.push(pax_runtime_api::AlphaMaskPaint {
                 path,
                 transform,
-                fill: stroke.paint.get(),
-                opacity: stroke.opacity.get().to_float_0_1(),
+                fill: stroke.paint.local().get(),
+                opacity: stroke.opacity.local().get().to_float_0_1(),
                 paint_bounds,
                 composition: Some((node.id.to_u32(), 1.0)),
             });
@@ -191,24 +191,24 @@ pub(crate) fn draw_appearance(
         rc.fill_with_material_and_opacity_and_smoothing(
             layer,
             path.clone(),
-            &fill.paint.get(),
-            &fill.material.get(),
-            opacity * fill.opacity.get().to_float_0_1(),
+            &fill.paint.local().get(),
+            &fill.material.local().get().resolve_in_graph(),
+            opacity * fill.opacity.local().get().to_float_0_1(),
             smoothing,
         );
     }
     for stroke in strokes
         .iter()
         .rev()
-        .filter(|stroke| stroke.width_pixels() > f64::EPSILON)
+        .filter(|stroke| stroke.resolve_in_graph().width_pixels() > f64::EPSILON)
     {
         if draw_start < draw_end {
             rc.stroke_with_draw_range_and_material_and_opacity_and_smoothing(
                 layer,
                 path.clone(),
-                stroke,
-                &stroke.material.get(),
-                opacity * stroke.opacity.get().to_float_0_1(),
+                &stroke.resolve_in_graph(),
+                &stroke.material.local().get().resolve_in_graph(),
+                opacity * stroke.opacity.local().get().to_float_0_1(),
                 draw_start,
                 draw_end,
                 smoothing,
@@ -224,17 +224,20 @@ pub(crate) fn appearance_coverage_path(
 ) -> kurbo::BezPath {
     let mut coverage = kurbo::BezPath::new();
     if fills.iter().any(|fill| {
-        fill.paint.get().coverage_alpha_0_1() * fill.opacity.get().to_float_0_1() > f64::EPSILON
+        fill.paint.local().get().coverage_alpha_0_1() * fill.opacity.local().get().to_float_0_1()
+            > f64::EPSILON
     }) {
         coverage.extend(path.elements().iter().copied());
     }
     for stroke in strokes {
-        if stroke.paint.get().coverage_alpha_0_1() * stroke.opacity.get().to_float_0_1()
+        if stroke.paint.local().get().coverage_alpha_0_1()
+            * stroke.opacity.local().get().to_float_0_1()
             > f64::EPSILON
         {
-            if let Some(outline) =
-                pax_runtime_api::drawing::stroke_utils::stroked_outline_path(path, stroke)
-            {
+            if let Some(outline) = pax_runtime_api::drawing::stroke_utils::stroked_outline_path(
+                path,
+                &stroke.resolve_in_graph(),
+            ) {
                 coverage.extend(outline.elements().iter().copied());
             }
         }
@@ -250,12 +253,18 @@ pub(crate) fn appearance_coverage_alpha(
     // least opaque contributing region without incorrectly hiding content below.
     fills
         .iter()
-        .map(|fill| fill.paint.get().coverage_alpha_0_1() * fill.opacity.get().to_float_0_1())
+        .map(|fill| {
+            fill.paint.local().get().coverage_alpha_0_1()
+                * fill.opacity.local().get().to_float_0_1()
+        })
         .chain(
             strokes
                 .iter()
-                .filter(|s| s.width_pixels() > 0.0)
-                .map(|s| s.paint.get().coverage_alpha_0_1() * s.opacity.get().to_float_0_1()),
+                .filter(|s| s.resolve_in_graph().width_pixels() > 0.0)
+                .map(|s| {
+                    s.paint.local().get().coverage_alpha_0_1()
+                        * s.opacity.local().get().to_float_0_1()
+                }),
         )
         .filter(|alpha| *alpha > f64::EPSILON)
         .reduce(f64::min)
@@ -268,16 +277,16 @@ pub(crate) fn appearance_coverage_alpha(
 pub(crate) fn watch_appearance(
     node: &std::rc::Rc<ExpandedNode>,
     context: &std::rc::Rc<RuntimeContext>,
-    fills: pax_runtime_api::Property<Vec<pax_runtime_api::Fill>>,
-    strokes: pax_runtime_api::Property<Vec<pax_runtime_api::Stroke>>,
-) -> pax_runtime_api::Property<()> {
-    use pax_runtime_api::{Material, Property};
+    fills: pax_runtime_api::LocalProperty<Vec<pax_runtime_api::Fill>>,
+    strokes: pax_runtime_api::LocalProperty<Vec<pax_runtime_api::Stroke>>,
+) -> pax_runtime_api::LocalProperty<()> {
+    use pax_runtime_api::{LocalProperty, Material};
     use std::{cell::RefCell, rc::Rc};
     let deps = [fills.untyped(), strokes.untyped()];
     let weak_node = Rc::downgrade(node);
     let weak_context = Rc::downgrade(context);
-    let watchers = RefCell::new(Vec::<Property<()>>::new());
-    let appearance = Property::computed(
+    let watchers = RefCell::new(Vec::<LocalProperty<()>>::new());
+    let appearance = LocalProperty::computed(
         move || {
             let (Some(node), Some(context)) = (weak_node.upgrade(), weak_context.upgrade()) else {
                 return;
@@ -285,24 +294,24 @@ pub(crate) fn watch_appearance(
             let mut layers = Vec::new();
             for fill in fills.get() {
                 layers.push((
-                    fill.material.clone(),
+                    fill.material.local(),
                     vec![
-                        fill.paint.untyped(),
-                        fill.material.untyped(),
-                        fill.opacity.untyped(),
+                        fill.paint.local().untyped(),
+                        fill.material.local().untyped(),
+                        fill.opacity.local().untyped(),
                     ],
                 ));
             }
             for stroke in strokes.get() {
                 layers.push((
-                    stroke.material.clone(),
+                    stroke.material.local(),
                     vec![
-                        stroke.paint.untyped(),
-                        stroke.material.untyped(),
-                        stroke.opacity.untyped(),
-                        stroke.width.untyped(),
-                        stroke.cap.untyped(),
-                        stroke.join.untyped(),
+                        stroke.paint.local().untyped(),
+                        stroke.material.local().untyped(),
+                        stroke.opacity.local().untyped(),
+                        stroke.width.local().untyped(),
+                        stroke.cap.local().untyped(),
+                        stroke.join.local().untyped(),
                     ],
                 ));
             }
@@ -310,8 +319,8 @@ pub(crate) fn watch_appearance(
             for (material, dependencies) in layers {
                 let weak_node = Rc::downgrade(&node);
                 let weak_context = Rc::downgrade(&context);
-                let material_watch = Property::default();
-                let watch = Property::computed(
+                let material_watch = LocalProperty::default();
+                let watch = LocalProperty::computed(
                     move || {
                         let (Some(node), Some(context)) =
                             (weak_node.upgrade(), weak_context.upgrade())
@@ -321,18 +330,18 @@ pub(crate) fn watch_appearance(
                         let material_dependencies = match material.get() {
                             Material::Unlit => vec![],
                             Material::Lit(p) => vec![
-                                p.ambient.untyped(),
-                                p.diffuse.untyped(),
-                                p.specular.untyped(),
-                                p.roughness.untyped(),
-                                p.metallic.untyped(),
-                                p.emissive.untyped(),
-                                p.emissive_intensity.untyped(),
+                                p.ambient.local().untyped(),
+                                p.diffuse.local().untyped(),
+                                p.specular.local().untyped(),
+                                p.roughness.local().untyped(),
+                                p.metallic.local().untyped(),
+                                p.emissive.local().untyped(),
+                                p.emissive_intensity.local().untyped(),
                             ],
                         };
                         let weak_node = Rc::downgrade(&node);
                         let weak_context = Rc::downgrade(&context);
-                        material_watch.replace_with(Property::computed(
+                        material_watch.replace_with(LocalProperty::computed(
                             move || {
                                 if let (Some(node), Some(context)) =
                                     (weak_node.upgrade(), weak_context.upgrade())
@@ -379,7 +388,7 @@ pub(crate) fn stroke_coverage_bounds(
 ) -> kurbo::Rect {
     let pad = strokes
         .iter()
-        .map(|stroke| 2.0 * stroke.width_pixels())
+        .map(|stroke| 2.0 * stroke.resolve_in_graph().width_pixels())
         .fold(0.0, f64::max);
     bounds.inflate(pad, pad)
 }
@@ -387,7 +396,7 @@ pub(crate) fn stroke_coverage_bounds(
 // Native controls still accept solid outlines only. Do not silently approximate
 // a vector gradient when the same public Stroke struct crosses this boundary.
 pub(crate) fn native_stroke_color(stroke: &pax_runtime_api::Stroke) -> pax_runtime_api::Color {
-    match stroke.paint.get() {
+    match stroke.paint.local().get() {
         pax_runtime_api::Paint::Solid(color) => color,
         _ => {
             log::warn!("Native control outlines require solid paint; gradient stroke omitted");

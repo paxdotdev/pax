@@ -1,6 +1,6 @@
 use crate::constants::{PRE_RENDER_HANDLERS, TICK_HANDLERS};
 use crate::{
-    api::Property, ExpandedNodeIdentifier, RouteLocation, RuntimePropertiesStackFrame,
+    api::LocalProperty, ExpandedNodeIdentifier, RouteLocation, RuntimePropertiesStackFrame,
     TransformAndBounds, INTERNAL_ROUTE_LOCATION_SYMBOL,
 };
 use_RefCell!();
@@ -53,11 +53,11 @@ struct FilteredRenderPlan {
 }
 
 fn viewport_info_property(
-    viewport_bounds: &Property<TransformAndBounds<NodeLocal, Window>>,
-) -> Property<Viewport> {
+    viewport_bounds: &LocalProperty<TransformAndBounds<NodeLocal, Window>>,
+) -> LocalProperty<Viewport> {
     let cloned_viewport = viewport_bounds.clone();
     let deps = [cloned_viewport.untyped()];
-    Property::computed(
+    LocalProperty::computed(
         move || {
             let viewport = cloned_viewport.get();
             Viewport::new(viewport.bounds.0, viewport.bounds.1)
@@ -67,23 +67,23 @@ fn viewport_info_property(
 }
 
 fn viewport_number_property(
-    viewport: &Property<Viewport>,
+    viewport: &LocalProperty<Viewport>,
     name: &str,
     accessor: fn(Viewport) -> f64,
-) -> Property<f64> {
+) -> LocalProperty<f64> {
     let cloned_viewport = viewport.clone();
     let deps = [cloned_viewport.untyped()];
-    Property::computed_with_name(move || accessor(cloned_viewport.get()), &deps, name)
+    LocalProperty::computed_with_name(move || accessor(cloned_viewport.get()), &deps, name)
 }
 
 fn viewport_bool_property(
-    viewport: &Property<Viewport>,
+    viewport: &LocalProperty<Viewport>,
     name: &str,
     accessor: fn(Viewport) -> bool,
-) -> Property<bool> {
+) -> LocalProperty<bool> {
     let cloned_viewport = viewport.clone();
     let deps = [cloned_viewport.untyped()];
-    Property::computed_with_name(move || accessor(cloned_viewport.get()), &deps, name)
+    LocalProperty::computed_with_name(move || accessor(cloned_viewport.get()), &deps, name)
 }
 
 #[cfg(feature = "designtime")]
@@ -92,14 +92,14 @@ use {crate::InstanceNode, pax_designtime::DesigntimeManager, pax_runtime_api::bo
 #[derive(Clone)]
 /// Engine-wide reactive globals exposed to every component frame.
 pub struct Globals {
-    pub elapsed_frames: Property<u64>,
-    pub elapsed_millis: Property<u64>,
-    pub viewport: Property<TransformAndBounds<NodeLocal, Window>>,
-    pub gyro: Property<Gyro>,
-    pub accel: Property<Accel>,
-    pub route_location: Property<RouteLocation>,
-    pub browser_allows_scroller_vector_layers: Property<bool>,
-    pub browser_allows_nested_scroller_vector_layers: Property<bool>,
+    pub elapsed_frames: LocalProperty<u64>,
+    pub elapsed_millis: LocalProperty<u64>,
+    pub viewport: LocalProperty<TransformAndBounds<NodeLocal, Window>>,
+    pub gyro: LocalProperty<Gyro>,
+    pub accel: LocalProperty<Accel>,
+    pub route_location: LocalProperty<RouteLocation>,
+    pub browser_allows_scroller_vector_layers: LocalProperty<bool>,
+    pub browser_allows_nested_scroller_vector_layers: LocalProperty<bool>,
     pub platform: Platform,
     pub os: OS,
     pub target: TargetInfo,
@@ -114,7 +114,7 @@ impl Globals {
         let target = self.target;
         let viewport = viewport_info_property(&self.viewport);
 
-        let target_var = Variable::new_from_typed_property(Property::new(target));
+        let target_var = Variable::new_from_typed_property(LocalProperty::new(target));
         let viewport_var = Variable::new_from_typed_property(viewport.clone());
         let gyro_var = Variable::new_from_typed_property(self.gyro.clone());
         let accel_var = Variable::new_from_typed_property(self.accel.clone());
@@ -127,47 +127,47 @@ impl Globals {
             ("$viewport".to_string(), viewport_var),
             (
                 "$web".to_string(),
-                Variable::new_from_typed_property(Property::new(target.web)),
+                Variable::new_from_typed_property(LocalProperty::new(target.web)),
             ),
             (
                 "$native".to_string(),
-                Variable::new_from_typed_property(Property::new(target.native)),
+                Variable::new_from_typed_property(LocalProperty::new(target.native)),
             ),
             (
                 "$ios".to_string(),
-                Variable::new_from_typed_property(Property::new(target.ios)),
+                Variable::new_from_typed_property(LocalProperty::new(target.ios)),
             ),
             (
                 "$iphone".to_string(),
-                Variable::new_from_typed_property(Property::new(target.iphone)),
+                Variable::new_from_typed_property(LocalProperty::new(target.iphone)),
             ),
             (
                 "$ipad".to_string(),
-                Variable::new_from_typed_property(Property::new(target.ipad)),
+                Variable::new_from_typed_property(LocalProperty::new(target.ipad)),
             ),
             (
                 "$macos".to_string(),
-                Variable::new_from_typed_property(Property::new(target.macos)),
+                Variable::new_from_typed_property(LocalProperty::new(target.macos)),
             ),
             (
                 "$android".to_string(),
-                Variable::new_from_typed_property(Property::new(target.android)),
+                Variable::new_from_typed_property(LocalProperty::new(target.android)),
             ),
             (
                 "$windows".to_string(),
-                Variable::new_from_typed_property(Property::new(target.windows)),
+                Variable::new_from_typed_property(LocalProperty::new(target.windows)),
             ),
             (
                 "$linux".to_string(),
-                Variable::new_from_typed_property(Property::new(target.linux)),
+                Variable::new_from_typed_property(LocalProperty::new(target.linux)),
             ),
             (
                 "$mobile".to_string(),
-                Variable::new_from_typed_property(Property::new(target.mobile)),
+                Variable::new_from_typed_property(LocalProperty::new(target.mobile)),
             ),
             (
                 "$desktop".to_string(),
-                Variable::new_from_typed_property(Property::new(target.desktop)),
+                Variable::new_from_typed_property(LocalProperty::new(target.desktop)),
             ),
             (
                 "$major".to_string(),
@@ -306,6 +306,31 @@ impl Default for HandlerRegistry {
 /// Contains all rendering and runtime logic.
 ///
 impl PaxEngine {
+    /// Activates the mounted application exactly once. Candidate hosts defer this
+    /// until their revision is committed.
+    pub fn activate_application(&self) {
+        self.runtime_context.application.activate();
+    }
+
+    /// Stops new application work, unmounts, then releases application services.
+    pub fn shutdown(&mut self, reason: pax_runtime_api::StopReason) {
+        let closing = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            self.runtime_context.application.begin_close()
+        }));
+        if matches!(closing, Ok(false)) {
+            return;
+        }
+        let unmounted = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.unmount()));
+        let stopped = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            self.runtime_context.application.finish_close(reason);
+        }));
+        // Teardown can run from Drop and native C entrypoints. Finish the
+        // remaining cleanup even if an application hook unwinds.
+        if closing.is_err() || unmounted.is_err() || stopped.is_err() {
+            log::error!("application teardown panicked; remaining cleanup was attempted");
+        }
+    }
+
     #[cfg(not(feature = "designtime"))]
     fn build_globals(
         viewport_size: (f64, f64),
@@ -317,22 +342,22 @@ impl PaxEngine {
         use pax_runtime_api::{properties, Functions};
         Functions::register_all_functions();
 
-        let elapsed_frames = Property::new(0);
-        let elapsed_millis = Property::new(saturating_u128_to_u64(get_elapsed_millis()));
+        let elapsed_frames = LocalProperty::new(0);
+        let elapsed_millis = LocalProperty::new(saturating_u128_to_u64(get_elapsed_millis()));
         properties::register_time(&elapsed_frames);
         properties::register_millis(&elapsed_millis);
         Globals {
             elapsed_frames,
             elapsed_millis,
-            viewport: Property::new(TransformAndBounds {
+            viewport: LocalProperty::new(TransformAndBounds {
                 transform: Transform2::identity(),
                 bounds: viewport_size,
             }),
-            gyro: Property::new(Gyro::default()),
-            accel: Property::new(Accel::default()),
-            route_location: Property::new(RouteLocation::root()),
-            browser_allows_scroller_vector_layers: Property::new(true),
-            browser_allows_nested_scroller_vector_layers: Property::new(true),
+            gyro: LocalProperty::new(Gyro::default()),
+            accel: LocalProperty::new(Accel::default()),
+            route_location: LocalProperty::new(RouteLocation::root()),
+            browser_allows_scroller_vector_layers: LocalProperty::new(true),
+            browser_allows_nested_scroller_vector_layers: LocalProperty::new(true),
             platform,
             os,
             target: TargetInfo::new(platform, os),
@@ -351,22 +376,22 @@ impl PaxEngine {
         use pax_runtime_api::{math::Transform2, properties, Functions};
         Functions::register_all_functions();
 
-        let elapsed_frames = Property::new(0);
-        let elapsed_millis = Property::new(saturating_u128_to_u64(get_elapsed_millis()));
+        let elapsed_frames = LocalProperty::new(0);
+        let elapsed_millis = LocalProperty::new(saturating_u128_to_u64(get_elapsed_millis()));
         properties::register_time(&elapsed_frames);
         properties::register_millis(&elapsed_millis);
         Globals {
             elapsed_frames,
             elapsed_millis,
-            viewport: Property::new(TransformAndBounds {
+            viewport: LocalProperty::new(TransformAndBounds {
                 transform: Transform2::identity(),
                 bounds: viewport_size,
             }),
-            gyro: Property::new(Gyro::default()),
-            accel: Property::new(Accel::default()),
-            route_location: Property::new(RouteLocation::root()),
-            browser_allows_scroller_vector_layers: Property::new(true),
-            browser_allows_nested_scroller_vector_layers: Property::new(true),
+            gyro: LocalProperty::new(Gyro::default()),
+            accel: LocalProperty::new(Accel::default()),
+            route_location: LocalProperty::new(RouteLocation::root()),
+            browser_allows_scroller_vector_layers: LocalProperty::new(true),
+            browser_allows_nested_scroller_vector_layers: LocalProperty::new(true),
             platform,
             os,
             target: TargetInfo::new(platform, os),
@@ -416,6 +441,7 @@ impl PaxEngine {
         &mut self,
         main_component_instance: Rc<ComponentInstance>,
     ) -> Rc<ExpandedNode> {
+        let _graph = self.runtime_context.property_graph.enter();
         self.unmount();
         let root_node = ExpandedNode::initialize_root(
             Rc::clone(&main_component_instance),
@@ -428,6 +454,7 @@ impl PaxEngine {
 
     /// Detach the mounted root component tree, leaving the runtime kernel empty.
     pub fn unmount(&mut self) {
+        let _graph = self.runtime_context.property_graph.enter();
         let Some(root_expanded_node) = self.root_expanded_node.take() else {
             return;
         };
@@ -541,6 +568,14 @@ impl PaxEngine {
     ///     a. find lowest node (last child of last node)
     ///     b. start rendering, from lowest node on-up, throughout tree
     pub fn tick(&mut self) -> Vec<NativeMessage> {
+        if matches!(
+            self.runtime_context.application.context().phase(),
+            pax_runtime_api::AppPhase::Closing | pax_runtime_api::AppPhase::Closed
+        ) {
+            return Vec::new();
+        }
+        let _graph = self.runtime_context.property_graph.enter();
+        self.runtime_context.property_graph.import();
         //
         // 1. UPDATE NODES (properties, etc.). This part we should be able to
         // completely remove once reactive properties dirty-dag is a thing.
@@ -554,6 +589,15 @@ impl PaxEngine {
 
         let ctx = &self.runtime_context;
         ctx.drain_node_effects();
+        let deliveries = ctx
+            .application
+            .dispatcher()
+            .drain(|| ctx.drain_node_effects());
+        if let Err(error) = deliveries {
+            log::error!("UI completion panicked: {error}");
+            self.shutdown(pax_runtime_api::StopReason::HostClosed);
+            return Vec::new();
+        }
         self.run_lifecycle_handlers(TICK_HANDLERS, ctx.tick_handler_nodes());
         ctx.drain_node_effects();
         self.run_lifecycle_handlers(PRE_RENDER_HANDLERS, ctx.pre_render_handler_nodes());
@@ -665,6 +709,13 @@ impl PaxEngine {
     }
 
     pub fn render(&mut self, rcs: &mut dyn RenderContext) {
+        if matches!(
+            self.runtime_context.application.context().phase(),
+            pax_runtime_api::AppPhase::Closing | pax_runtime_api::AppPhase::Closed
+        ) {
+            return;
+        }
+        let _graph = self.runtime_context.property_graph.enter();
         use crate::render_instrumentation::{Phase, Span};
         let _render_timing = Span::new(Phase::Render);
         self.update_layer_count(rcs);
@@ -1342,5 +1393,11 @@ mod tests {
             stack.resolve_symbol("$minor").unwrap().get_as_pax_value(),
             PaxValue::Numeric(240.0.into())
         );
+    }
+}
+
+impl Drop for PaxEngine {
+    fn drop(&mut self) {
+        self.shutdown(pax_runtime_api::StopReason::HostClosed);
     }
 }

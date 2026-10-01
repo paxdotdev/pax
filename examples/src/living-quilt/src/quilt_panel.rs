@@ -41,7 +41,7 @@ mod tests {
         let shape_reads = Rc::new(Cell::new(0));
         let reads = shape_reads.clone();
         let shape_dependency = shape.get_untyped_property().clone();
-        let shape_binding = Property::computed(
+        let shape_binding = LocalProperty::computed(
             move || {
                 reads.set(reads.get() + 1);
                 shape.get_as_pax_value()
@@ -52,7 +52,7 @@ mod tests {
         let reads = motion_reads.clone();
         let x = component.x.clone();
         let x_dependency = x.untyped();
-        let motion_binding = Property::computed(
+        let motion_binding = LocalProperty::computed(
             move || {
                 reads.set(reads.get() + 1);
                 x.get()

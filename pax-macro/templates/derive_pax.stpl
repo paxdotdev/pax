@@ -7,8 +7,12 @@
     use <%= engine_import_path %>::wasm_bindgen::prelude::*;
     use <%= engine_import_path %>::wasm_bindgen_futures;
     #[wasm_bindgen]
-    pub async fn pax_init() -> JsValue {
+    pub async fn pax_init() -> Result<JsValue, JsValue> {
         std::panic::set_hook(Box::new(<%= engine_import_path %>::pax_chassis_web::console_error_panic_hook::hook));
+        let application = <%= engine_import_path %>::api::application::ApplicationInstance::prepare::<<%= args_full_component.as_ref().unwrap().application_type %>>(
+            <%= engine_import_path %>::pax_chassis_web::application_target(),
+        ).map_err(|error| JsValue::from_str(&format!("application configuration failed: {error}")))?;
+        let _application = application.enter();
         // setup logging
         <%= engine_import_path %>::pax_chassis_web::init_console_logging();
 
@@ -16,13 +20,13 @@
         {
             let userland_manifest = init_manifest();
             let userland_definition_to_instance_traverser = init_definition_to_instance_traverser(userland_manifest);
-            JsValue::from(<%= engine_import_path %>::pax_chassis_web::PaxChassisWeb::new_designtime(userland_definition_to_instance_traverser).await)
+            Ok(JsValue::from(<%= engine_import_path %>::pax_chassis_web::PaxChassisWeb::new_designtime(userland_definition_to_instance_traverser)))
         }
         <% } else { %>
         {
             let manifest = init_manifest();
             let definition_to_instance_traverser = init_definition_to_instance_traverser(manifest);
-            JsValue::from(<%= engine_import_path %>::pax_chassis_web::PaxChassisWeb::new(definition_to_instance_traverser).await)
+            Ok(JsValue::from(<%= engine_import_path %>::pax_chassis_web::PaxChassisWeb::new(definition_to_instance_traverser)))
         }
         <% } %>
 
@@ -35,9 +39,16 @@
     <% if build_config.macos || build_config.ios || build_config.ipados { %>
     #[no_mangle]
     pub extern "C" fn pax_init(initial_width: f32, initial_height: f32) -> *mut <%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::PaxEngineContainer {
-        let _ = <%= engine_import_path %>::pax_chassis_common::env_logger::try_init();
-
         let init_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let application = match <%= engine_import_path %>::api::application::ApplicationInstance::prepare::<<%= args_full_component.as_ref().unwrap().application_type %>>(
+                <%= engine_import_path %>::api::TargetInfo::new(Platform::Native,
+                    <% if build_config.macos { %>OS::Mac<% } else if build_config.ipados { %>OS::IPad<% } else { %>OS::IPhone<% } %>),
+            ) {
+                Ok(application) => application,
+                Err(error) => { eprintln!("application configuration failed: {error}"); return std::ptr::null_mut(); }
+            };
+            let _application = application.enter();
+            let _ = <%= engine_import_path %>::pax_chassis_common::env_logger::try_init();
             <% if build_config.designtime { %>
             {
                 let userland_manifest = init_manifest();
@@ -198,7 +209,7 @@ impl <%= engine_import_path %>::api::CoercionRules for <%= pascal_identifier %> 
                                 let value = <<%=spd.root_scoped_resolvable_type%> as <%= engine_import_path %>::api::CoercionRules>::try_coerce(value.clone())?;
                                 // if property wrapped set it to Property::new(value)
                                 <% if spd.is_property_wrapped { %>
-                                    ret.<%= spd.field_name %> = Property::new(value);
+                                    ret.<%= spd.field_name %> = <%= engine_import_path %>::api::PropertyBinding::from_value(value);
                                 <% } else { %>
                                     ret.<%= spd.field_name %> = value;
                                 <% } %>
@@ -244,7 +255,7 @@ impl <%= engine_import_path %>::api::ToPaxValue for <%= pascal_identifier %> {
                     vec![
                         <% for spd in static_property_definitions { %>
                             <% if spd.is_property_wrapped { %>
-                                ("<%= spd.field_name %>".to_string(), <<%=spd.root_scoped_resolvable_type%> as <%= engine_import_path %>::api::ToPaxValue>::to_pax_value(self.<%= spd.field_name %>.get())),
+                                ("<%= spd.field_name %>".to_string(), <<%=spd.root_scoped_resolvable_type%> as <%= engine_import_path %>::api::ToPaxValue>::to_pax_value(<%= engine_import_path %>::api::PropertyBinding::value_for_conversion(&self.<%= spd.field_name %>))),
                             <% } else { %>
                                 ("<%= spd.field_name %>".to_string(), <<%=spd.root_scoped_resolvable_type%> as <%= engine_import_path %>::api::ToPaxValue>::to_pax_value(self.<%= spd.field_name %>)),
                             <% } %>

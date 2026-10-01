@@ -11,7 +11,7 @@ inline values, property timelines, and two-way bindings retain ownership.
 
 #### Properties
 ##### `transition`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`SettingsTransition`](../../../api/pax-std/core/import_settings.md#settingstransition)>
+Type: `Property`<[`SettingsTransition`](../../../api/pax-std/core/import_settings.md#settingstransition)>
 
 Optional motion for changes to effective imported settings. Each new
 target starts a full-duration transition from the currently displayed value.

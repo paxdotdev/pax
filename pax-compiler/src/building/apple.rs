@@ -433,7 +433,9 @@ pub fn build_apple_project_with_cartridge(
     let apple_mobile_target = apple_mobile_target(target);
     let ios_app_identity = if apple_mobile_target.is_some() {
         Some(resolve_ios_app_identity(
-            &project_path, project_metadata, target,
+            &project_path,
+            project_metadata,
+            target,
         )?)
     } else {
         None
@@ -1620,21 +1622,19 @@ fn enable_ios_designtime_local_network_access(pax_dir: &Path) -> Result<(), eyre
 fn ios_info_plist_with_local_network_usage_description(
     contents: &str,
 ) -> Result<String, eyre::Report> {
-    if contents.contains("<key>NSLocalNetworkUsageDescription</key>") {
+    let mut entries = plist::Value::from_reader_xml(contents.as_bytes())?
+        .into_dictionary()
+        .ok_or_else(|| eyre!("the iOS Info.plist must contain a root dictionary"))?;
+    if entries.contains_key("NSLocalNetworkUsageDescription") {
         return Ok(contents.to_string());
     }
-
-    let insertion_point = contents.rfind("</dict>").ok_or_else(|| {
-        eyre!("the iOS Info.plist has no root dictionary to receive NSLocalNetworkUsageDescription")
-    })?;
-    let mut updated = contents.to_string();
-    updated.insert_str(
-        insertion_point,
-        &format!(
-            "\t<key>NSLocalNetworkUsageDescription</key>\n\t<string>{IOS_LOCAL_NETWORK_USAGE_DESCRIPTION}</string>\n"
-        ),
+    entries.insert(
+        "NSLocalNetworkUsageDescription".to_string(),
+        plist::Value::String(IOS_LOCAL_NETWORK_USAGE_DESCRIPTION.to_string()),
     );
-    Ok(updated)
+    let mut updated = Vec::new();
+    plist::Value::Dictionary(entries).to_writer_xml(&mut updated)?;
+    Ok(String::from_utf8(updated)?)
 }
 
 fn mobile_design_server_address(
@@ -2872,9 +2872,8 @@ edition = "2021"
                 (IosDeviceKind::Simulator, "aarch64-apple-ios-sim"),
             ] {
                 let device = resolved_ios_device(kind);
-                let mappings = select_apple_target_mappings(
-                    &target, true, Some(&device), "aarch64",
-                );
+                let mappings =
+                    select_apple_target_mappings(&target, true, Some(&device), "aarch64");
                 assert_eq!(rust_targets(&mappings), vec![expected]);
             }
         }
@@ -2886,7 +2885,11 @@ edition = "2021"
         configure_ios_local_signing(&mut simulator, "iphonesimulator", false);
         assert_eq!(
             command_args(&simulator),
-            vec!["CODE_SIGNING_ALLOWED=NO", "CODE_SIGNING_REQUIRED=NO", "CODE_SIGN_IDENTITY="],
+            vec![
+                "CODE_SIGNING_ALLOWED=NO",
+                "CODE_SIGNING_REQUIRED=NO",
+                "CODE_SIGN_IDENTITY="
+            ],
         );
         for selected in [true, false] {
             let mut device = Command::new("xcodebuild");
@@ -2896,10 +2899,13 @@ edition = "2021"
             assert!(args.contains(&"CODE_SIGN_STYLE=Automatic".into()));
             assert!(args.contains(&"-allowProvisioningUpdates".into()));
             assert_eq!(
-                args.contains(&"-allowProvisioningDeviceRegistration".into()), selected,
+                args.contains(&"-allowProvisioningDeviceRegistration".into()),
+                selected,
             );
             assert_eq!(args.contains(&"generic/platform=iOS".into()), !selected);
-            assert!(!args.iter().any(|arg| arg == "archive" || arg == "-exportArchive"));
+            assert!(!args
+                .iter()
+                .any(|arg| arg == "archive" || arg == "-exportArchive"));
         }
     }
 
@@ -3159,5 +3165,31 @@ edition = "2021"
         assert!(updated.contains("<key>NSLocalNetworkUsageDescription</key>"));
         assert!(updated.contains(IOS_LOCAL_NETWORK_USAGE_DESCRIPTION));
         assert_eq!(updated, repeated);
+    }
+
+    #[test]
+    fn designtime_network_description_preserves_authored_root_and_nested_values() {
+        let authored = "<plist><dict><key>NSLocalNetworkUsageDescription</key><string>My app's devices</string></dict></plist>";
+        assert_eq!(
+            ios_info_plist_with_local_network_usage_description(authored).unwrap(),
+            authored
+        );
+        let nested = "<plist><dict><key>Custom</key><dict><key>NSLocalNetworkUsageDescription</key><string>Nested only</string></dict><key>Flags</key><array><true/><integer>4</integer></array></dict></plist>";
+        let updated = ios_info_plist_with_local_network_usage_description(nested).unwrap();
+        let parsed = plist::Value::from_reader_xml(updated.as_bytes()).unwrap();
+        let entries = parsed.as_dictionary().unwrap();
+        assert_eq!(
+            entries["NSLocalNetworkUsageDescription"].as_string(),
+            Some(IOS_LOCAL_NETWORK_USAGE_DESCRIPTION)
+        );
+        assert_eq!(
+            entries["Custom"].as_dictionary().unwrap()["NSLocalNetworkUsageDescription"]
+                .as_string(),
+            Some("Nested only")
+        );
+        assert_eq!(
+            entries["Flags"].as_array().unwrap(),
+            &vec![plist::Value::Boolean(true), plist::Value::Integer(4.into())]
+        );
     }
 }

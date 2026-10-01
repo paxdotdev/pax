@@ -1,8 +1,8 @@
 //! Opt-in global viewport observation over the runtime's shared prepared geometry.
 
 use crate::api::{
-    Event, Layer, Property, ViewportProximityChange, ViewportProximityEnter, ViewportProximityExit,
-    ViewportProximitySnapshot,
+    Event, Layer, LocalProperty, ViewportProximityChange, ViewportProximityEnter,
+    ViewportProximityExit, ViewportProximitySnapshot,
 };
 use crate::constants::*;
 use crate::scene_geometry::SpatialIndex;
@@ -32,7 +32,7 @@ struct Registration {
 }
 struct Dependency {
     users: usize,
-    _effect: Property<()>,
+    _effect: LocalProperty<()>,
     parent: Option<u32>,
     owner: Option<u32>,
     scrolls: bool,

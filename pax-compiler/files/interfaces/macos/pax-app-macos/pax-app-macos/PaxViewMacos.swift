@@ -36,6 +36,10 @@ private func disablePaxLayerImplicitActions(_ layer: CALayer?) {
 
 fileprivate struct LoadedPaxCartridgeAPI {
     typealias PaxInit = @convention(c) (Float, Float) -> OpaquePointer?
+    typealias PaxHasPendingProperties = @convention(c) (OpaquePointer?) -> Bool
+    typealias PaxSetPropertyWaker = @convention(c) (OpaquePointer?, UInt64, @convention(c) (UInt64) -> Void) -> Void
+    typealias PaxSetShutdownWaker = @convention(c) (UInt64, @convention(c) (UInt64) -> Void) -> Void
+    typealias PaxPumpShutdowns = @convention(c) () -> UInt64
     typealias PaxDeallocEngine = @convention(c) (OpaquePointer?) -> Void
     typealias PaxInterrupt = @convention(c) (OpaquePointer?, UnsafeRawPointer?) -> Void
     typealias PaxTick = @convention(c) (
@@ -91,6 +95,12 @@ fileprivate struct LoadedPaxCartridgeAPI {
     let handle: UnsafeMutableRawPointer
     let sourcePath: String
     let paxInit: PaxInit
+    let paxHasPendingProperties: PaxHasPendingProperties
+    let paxActivateApplication: PaxDeallocEngine
+    let paxSetPropertyWaker: PaxSetPropertyWaker
+    let paxSetShutdownWaker: PaxSetShutdownWaker
+    let paxPumpShutdowns: PaxPumpShutdowns
+    let paxShutdownForReplacement: PaxDeallocEngine
     let paxDeallocEngine: PaxDeallocEngine
     let paxInterrupt: PaxInterrupt
     let paxTick: PaxTick
@@ -116,6 +126,9 @@ final class PaxCartridgeRuntime {
     static let shared = PaxCartridgeRuntime()
 
     private var api: LoadedPaxCartridgeAPI?
+    // These routes intentionally outlive views and retain loaded cartridge code.
+    private static var shutdownRoutes: [UInt64: () -> Void] = [:]
+    private static var nextShutdownToken: UInt64 = 1
     #if DEBUG
     private var retiredAPIs: [LoadedPaxCartridgeAPI] = []
     #endif
@@ -222,10 +235,16 @@ final class PaxCartridgeRuntime {
             let pollAppRevisionActivation: LoadedPaxCartridgeAPI.PaxDesigntimePollAppRevisionActivation? = nil
             let cancelAppRevisionActivation: LoadedPaxCartridgeAPI.PaxDesigntimeActivateAppRevision? = nil
             #endif
-            return LoadedPaxCartridgeAPI(
+            let loaded = LoadedPaxCartridgeAPI(
                 handle: handle,
                 sourcePath: path,
                 paxInit: try resolveSymbol(handle: handle, name: "pax_init", as: LoadedPaxCartridgeAPI.PaxInit.self),
+                paxHasPendingProperties: try resolveSymbol(handle: handle, name: "pax_has_pending_properties", as: LoadedPaxCartridgeAPI.PaxHasPendingProperties.self),
+                paxActivateApplication: try resolveSymbol(handle: handle, name: "pax_activate_application", as: LoadedPaxCartridgeAPI.PaxDeallocEngine.self),
+                paxSetPropertyWaker: try resolveSymbol(handle: handle, name: "pax_set_property_waker", as: LoadedPaxCartridgeAPI.PaxSetPropertyWaker.self),
+                paxSetShutdownWaker: try resolveSymbol(handle: handle, name: "pax_set_shutdown_waker", as: LoadedPaxCartridgeAPI.PaxSetShutdownWaker.self),
+                paxPumpShutdowns: try resolveSymbol(handle: handle, name: "pax_pump_shutdowns", as: LoadedPaxCartridgeAPI.PaxPumpShutdowns.self),
+                paxShutdownForReplacement: try resolveSymbol(handle: handle, name: "pax_shutdown_for_replacement", as: LoadedPaxCartridgeAPI.PaxDeallocEngine.self),
                 paxDeallocEngine: try resolveSymbol(handle: handle, name: "pax_dealloc_engine", as: LoadedPaxCartridgeAPI.PaxDeallocEngine.self),
                 paxInterrupt: try resolveSymbol(handle: handle, name: "pax_interrupt", as: LoadedPaxCartridgeAPI.PaxInterrupt.self),
                 paxTick: try resolveSymbol(handle: handle, name: "pax_tick", as: LoadedPaxCartridgeAPI.PaxTick.self),
@@ -246,6 +265,13 @@ final class PaxCartridgeRuntime {
                 paxDesigntimeActivateAppRevision: activateAppRevision,
                 paxDeallocMessageQueue: try resolveSymbol(handle: handle, name: "pax_dealloc_message_queue", as: LoadedPaxCartridgeAPI.PaxDeallocMessageQueue.self)
             )
+            let token = Self.nextShutdownToken
+            Self.nextShutdownToken += 1
+            Self.shutdownRoutes[token] = { _ = loaded.paxPumpShutdowns() }
+            loaded.paxSetShutdownWaker(token) { token in
+                DispatchQueue.main.async { PaxCartridgeRuntime.shutdownRoutes[token]?() }
+            }
+            return loaded
         } catch {
             dlclose(handle)
             throw error
@@ -295,7 +321,9 @@ final class PaxCartridgeRuntime {
     }
 
     fileprivate func abandonPreparedAPI(_ prepared: LoadedPaxCartridgeAPI) {
-        dlclose(prepared.handle)
+        // Configuration may have exported shared values or started external
+        // work. Discarding a candidate is not proof its Rust drop code is idle.
+        retiredAPIs.append(prepared)
     }
 
     fileprivate func activatePreparedAPI(_ prepared: LoadedPaxCartridgeAPI) {
@@ -378,6 +406,24 @@ final class PaxCartridgeRuntime {
             print("Failed to initialize Pax cartridge: \(error)")
             return nil
         }
+    }
+
+    func activateApplication(_ engine: OpaquePointer?) {
+        do { try currentAPI().paxActivateApplication(engine) }
+        catch { print("Failed to activate Pax application: \(error)") }
+    }
+
+    func hasPendingProperties(_ engine: OpaquePointer?) -> Bool {
+        (try? currentAPI().paxHasPendingProperties(engine)) ?? false
+    }
+
+    func setPropertyWaker(_ engineContainer: OpaquePointer?, token: UInt64, wake: @convention(c) (UInt64) -> Void) {
+        do { try currentAPI().paxSetPropertyWaker(engineContainer, token, wake) }
+        catch { print("Failed to install Pax property waker: \(error)") }
+    }
+
+    func shutdownForReplacement(_ engine: OpaquePointer?) {
+        api?.paxShutdownForReplacement(engine)
     }
 
     func deallocEngine(_ engineContainer: OpaquePointer?) {
@@ -850,6 +896,10 @@ struct PaxViewMacos: View {
         }
 
         func updateNSView(_ canvas: PaxCanvasViewMacos, context: Context) { }
+
+        static func dismantleNSView(_ canvas: PaxCanvasViewMacos, coordinator: ()) {
+            canvas.shutdown()
+        }
     }
 
 
@@ -871,7 +921,32 @@ struct PaxViewMacos: View {
         let glassSurfaceElements = GlassSurfaceElements.singleton
 
         private var displayLink: CVDisplayLink?
+        private var displayObservers: [(NotificationCenter, NSObjectProtocol)] = []
+        private var windowCloseObserver: NSObjectProtocol?
+        private var lastLayoutSize: CGSize = .zero
         private var isShuttingDown = false
+        private static var nextPropertyWakeToken: UInt64 = 1
+        private static var propertyWakes: [UInt64: () -> Void] = [:]
+        private var propertyWakeToken: UInt64?
+        private var ownedEngine: OpaquePointer?
+
+        private func installPropertyWaker(_ engine: OpaquePointer) {
+            if let token = propertyWakeToken { Self.propertyWakes.removeValue(forKey: token) }
+            let token = Self.nextPropertyWakeToken
+            precondition(token < UInt64.max, "Pax wake identity space exhausted")
+            Self.nextPropertyWakeToken += 1
+            propertyWakeToken = token
+            Self.propertyWakes[token] = { [weak self] in
+                guard let self, !self.isShuttingDown, self.propertyWakeToken == token,
+                    PaxCartridgeRuntime.shared.hasPendingProperties(PaxEngineContainer.paxEngineContainer) else { return }
+                self.tick()
+            }
+            PaxCartridgeRuntime.shared.setPropertyWaker(engine, token: token) { token in
+                // Resolve identity only on main; no worker owns an engine pointer.
+                DispatchQueue.main.async { PaxViewMacos.PaxCanvasViewMacos.propertyWakes[token]?() }
+            }
+            PaxCartridgeRuntime.shared.activateApplication(engine)
+        }
         #if DEBUG
         private var pendingLogicReload: PendingPaxLogicReload?
         #endif
@@ -895,7 +970,7 @@ struct PaxViewMacos: View {
         override init(frame frameRect: NSRect) {
             super.init(frame: frameRect)
             configureLayerBacking()
-            createDisplayLink()
+            installDisplayObservers()
             installNativeInterruptDispatcher()
             refreshDevSessionRegistrationIfNeeded(now: Date(), allowThrottle: false)
         }
@@ -909,12 +984,31 @@ struct PaxViewMacos: View {
             installNativeInterruptDispatcher()
             window?.acceptsMouseMovedEvents = true
             window?.preservesContentDuringLiveResize = false
+            if let observer = windowCloseObserver {
+                NotificationCenter.default.removeObserver(observer)
+                windowCloseObserver = nil
+            }
+            guard let window else {
+                stopDisplayLink()
+                return
+            }
+            windowCloseObserver = NotificationCenter.default.addObserver(
+                forName: NSWindow.willCloseNotification, object: window, queue: .main
+            ) { [weak self] _ in self?.shutdown() }
+            resumeFrameDelivery()
+        }
+
+        override func layout() {
+            super.layout()
+            guard bounds.size != lastLayoutSize else { return }
+            lastLayoutSize = bounds.size
+            scheduleFrameTick()
         }
 
         required init?(coder: NSCoder) {
             super.init(coder: coder)
             configureLayerBacking()
-            createDisplayLink()
+            installDisplayObservers()
             installNativeInterruptDispatcher()
             refreshDevSessionRegistrationIfNeeded(now: Date(), allowThrottle: false)
         }
@@ -956,44 +1050,77 @@ struct PaxViewMacos: View {
             requestAnimationFrameQueue.append(closure)
         }
 
+        private func installDisplayObservers() {
+            let notifications: [(NotificationCenter, Notification.Name)] = [
+                (.default, NSApplication.didBecomeActiveNotification),
+                (.default, NSApplication.didChangeScreenParametersNotification),
+                (NSWorkspace.shared.notificationCenter, NSWorkspace.didWakeNotification),
+                (NSWorkspace.shared.notificationCenter, NSWorkspace.screensDidWakeNotification),
+                (NSWorkspace.shared.notificationCenter, NSWorkspace.sessionDidBecomeActiveNotification),
+            ]
+            for (center, name) in notifications {
+                let observer = center.addObserver(forName: name, object: nil, queue: .main) {
+                    [weak self] _ in self?.resumeFrameDelivery()
+                }
+                displayObservers.append((center, observer))
+            }
+        }
+
+        private func resumeFrameDelivery() {
+            guard !isShuttingDown, window != nil else { return }
+            if let displayLink, !CVDisplayLinkIsRunning(displayLink) {
+                stopDisplayLink()
+            }
+            createDisplayLink()
+            // A locked or sleeping display can reject CoreVideo startup. App
+            // setup and the first frame must not depend on a display callback.
+            scheduleFrameTick()
+        }
+
+        private func scheduleFrameTick() {
+            tickStateLock.lock()
+            let shouldSchedule = !isShuttingDown && !tickScheduled
+            if shouldSchedule { tickScheduled = true }
+            tickStateLock.unlock()
+            guard shouldSchedule else { return }
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                defer {
+                    self.tickStateLock.lock()
+                    self.tickScheduled = false
+                    self.tickStateLock.unlock()
+                }
+                guard !self.isShuttingDown, self.window != nil else { return }
+                autoreleasepool {
+                    self.processRequestAnimationFrameQueue()
+                    self.tick()
+                }
+            }
+        }
+
         private func createDisplayLink() {
-            guard displayLink == nil else {
+            guard !isShuttingDown, displayLink == nil else { return }
+            var candidate: CVDisplayLink?
+            let creationStatus = CVDisplayLinkCreateWithActiveCGDisplays(&candidate)
+            guard creationStatus == kCVReturnSuccess, let candidate else {
+                NSLog("Pax display clock unavailable (%d); retrying on display/session wake", creationStatus)
                 return
             }
-            CVDisplayLinkCreateWithActiveCGDisplays(&displayLink)
-            guard let displayLink else {
-                return
-            }
-            CVDisplayLinkSetOutputHandler(displayLink) { [weak self] (_, _, _, _, _) -> CVReturn in
-                guard let self else {
-                    return kCVReturnSuccess
-                }
-                self.tickStateLock.lock()
-                let shouldSchedule = !self.isShuttingDown && !self.tickScheduled
-                if shouldSchedule {
-                    self.tickScheduled = true
-                }
-                self.tickStateLock.unlock()
-                guard shouldSchedule else {
-                    return kCVReturnSuccess
-                }
-                DispatchQueue.main.async {
-                    defer {
-                        self.tickStateLock.lock()
-                        self.tickScheduled = false
-                        self.tickStateLock.unlock()
-                    }
-                    guard !self.isShuttingDown else {
-                        return
-                    }
-                    autoreleasepool {
-                        self.processRequestAnimationFrameQueue()
-                        self.tick()
-                    }
-                }
+            let handlerStatus = CVDisplayLinkSetOutputHandler(candidate) { [weak self] (_, _, _, _, _) -> CVReturn in
+                self?.scheduleFrameTick()
                 return kCVReturnSuccess
             }
-            CVDisplayLinkStart(displayLink)
+            guard handlerStatus == kCVReturnSuccess else {
+                NSLog("Pax display clock callback failed (%d); retrying on display/session wake", handlerStatus)
+                return
+            }
+            let startStatus = CVDisplayLinkStart(candidate)
+            guard startStatus == kCVReturnSuccess else {
+                CVDisplayLinkStop(candidate)
+                NSLog("Pax display clock start failed (%d); retrying on display/session wake", startStatus)
+                return
+            }
+            displayLink = candidate
         }
 
         private func stopDisplayLink() {
@@ -1004,11 +1131,19 @@ struct PaxViewMacos: View {
             self.displayLink = nil
         }
 
-        private func shutdown() {
+        fileprivate func shutdown() {
             guard !isShuttingDown else {
                 return
             }
+            tickStateLock.lock()
             isShuttingDown = true
+            tickStateLock.unlock()
+            for (center, observer) in displayObservers { center.removeObserver(observer) }
+            displayObservers.removeAll()
+            if let observer = windowCloseObserver {
+                NotificationCenter.default.removeObserver(observer)
+                windowCloseObserver = nil
+            }
             #if DEBUG
             if let pending = pendingLogicReload {
                 if case .preflight = pending.phase {
@@ -1026,20 +1161,14 @@ struct PaxViewMacos: View {
             tickStateLock.lock()
             tickScheduled = false
             tickStateLock.unlock()
+            if let token = propertyWakeToken { Self.propertyWakes.removeValue(forKey: token) }
+            propertyWakeToken = nil
             stopDisplayLink()
-        }
-
-        override func viewWillMove(toWindow newWindow: NSWindow?) {
-            super.viewWillMove(toWindow: newWindow)
-            guard newWindow == nil else {
-                return
+            if let engine = ownedEngine, PaxEngineContainer.paxEngineContainer == engine {
+                PaxEngineContainer.paxEngineContainer = nil
+                PaxCartridgeRuntime.shared.deallocEngine(engine)
             }
-            DispatchQueue.main.async { [weak self] in
-                guard let self, self.window == nil else {
-                    return
-                }
-                self.shutdown()
-            }
+            ownedEngine = nil
         }
 
         deinit {
@@ -1081,9 +1210,11 @@ struct PaxViewMacos: View {
                     width: width,
                     height: height
                 )
+                ownedEngine = PaxEngineContainer.paxEngineContainer
             }
 
             guard let engineContainer = PaxEngineContainer.paxEngineContainer else { return }
+            if propertyWakeToken == nil { installPropertyWaker(engineContainer) }
 
             // Publish native properties, occlusion masks and Metal drawables in
             // the same transaction, including during a subtree opacity fade.
@@ -1833,10 +1964,13 @@ struct PaxViewMacos: View {
             // Runtime still points at the old API, so deallocate the old engine
             // before making the already-committed candidate current.
             if let previousEngine {
+                runtime.shutdownForReplacement(previousEngine)
                 runtime.deallocEngine(previousEngine)
             }
             runtime.activatePreparedAPI(pending.api)
             PaxEngineContainer.paxEngineContainer = pending.engine
+            ownedEngine = pending.engine
+            installPropertyWaker(pending.engine)
 
             writeReloadLogicResponse(
                 requestId: pending.request.request_id,

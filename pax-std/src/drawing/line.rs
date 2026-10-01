@@ -1,4 +1,5 @@
 use kurbo::{Affine, BezPath, Shape};
+use pax_engine::api::LocalProperty;
 use pax_engine::api::Size;
 use pax_engine::*;
 use pax_runtime::api as pax_runtime_api;
@@ -71,18 +72,18 @@ impl InstanceNode for LineInstance {
         let (x1, y1, x2, y2, stroke) =
             expanded_node.with_properties_unwrapped(|properties: &mut Line| {
                 (
-                    properties.x1.clone(),
-                    properties.y1.clone(),
-                    properties.x2.clone(),
-                    properties.y2.clone(),
-                    properties.stroke.clone(),
+                    properties.x1.local(),
+                    properties.y1.local(),
+                    properties.x2.local(),
+                    properties.y2.local(),
+                    properties.stroke.local(),
                 )
             });
 
         let appearance = crate::common::watch_appearance(
             expanded_node,
             context,
-            Property::new(Vec::new()),
+            LocalProperty::new(Vec::new()),
             stroke.clone(),
         );
         let deps = &[
@@ -101,7 +102,7 @@ impl InstanceNode for LineInstance {
 
         expanded_node
             .changed_listener
-            .replace_with(Property::computed(
+            .replace_with(LocalProperty::computed(
                 move || {
                     appearance.get();
                     cloned_context.mark_canvas_node_dirty(cloned_expanded_node.id);
@@ -127,7 +128,7 @@ impl InstanceNode for LineInstance {
         expanded_node.with_properties_unwrapped(|properties: &mut Line| {
             let tab = expanded_node.transform_and_bounds.get();
             let (start, end) = resolve_points(properties, tab.bounds);
-            let stroke = properties.stroke.get();
+            let stroke = properties.stroke.local().get();
             Some(
                 Affine::from(tab.transform)
                     * crate::common::appearance_coverage_path(
@@ -149,14 +150,14 @@ impl InstanceNode for LineInstance {
                 node,
                 centerline_path(start, end),
                 Vec::new(),
-                p.stroke.get(),
+                p.stroke.local().get(),
             )
         })
     }
 
     fn resolve_coverage_opacity(&self, expanded_node: &ExpandedNode) -> f64 {
         expanded_node.with_properties_unwrapped(|properties: &mut Line| {
-            let stroke = properties.stroke.get();
+            let stroke = properties.stroke.local().get();
             (crate::common::appearance_coverage_alpha(&[], &stroke)
                 * expanded_node.computed_opacity.get())
             .clamp(0.0, 1.0)
@@ -172,7 +173,7 @@ impl InstanceNode for LineInstance {
             let (start, end) = resolve_points(p, bounds);
             crate::common::stroke_coverage_bounds(
                 centerline_path(start, end).bounding_box(),
-                &p.stroke.get(),
+                &p.stroke.local().get(),
             )
         });
         pax_runtime::scene_geometry::CanvasGeometry {
@@ -204,7 +205,7 @@ impl InstanceNode for LineInstance {
                 scope.layer_id,
                 centerline_path(start, end),
                 &[],
-                &properties.stroke.get(),
+                &properties.stroke.local().get(),
                 scope.paint_opacity,
                 pax_runtime_api::PathSmoothing::None,
                 0.0,
@@ -226,10 +227,10 @@ impl InstanceNode for LineInstance {
         match expanded_node {
             Some(expanded_node) => expanded_node.with_properties_unwrapped(|line: &mut Line| {
                 f.debug_struct("Line")
-                    .field("x1", &line.x1.get())
-                    .field("y1", &line.y1.get())
-                    .field("x2", &line.x2.get())
-                    .field("y2", &line.y2.get())
+                    .field("x1", &line.x1.local().get())
+                    .field("y1", &line.y1.local().get())
+                    .field("x2", &line.x2.local().get())
+                    .field("y2", &line.y2.local().get())
                     .finish()
             }),
             None => f.debug_struct("Line").finish_non_exhaustive(),
@@ -243,8 +244,8 @@ impl InstanceNode for LineInstance {
 
 fn resolve_points(line: &Line, bounds: (f64, f64)) -> (kurbo::Point, kurbo::Point) {
     (
-        to_kurbo_point(line.x1.get(), line.y1.get(), bounds),
-        to_kurbo_point(line.x2.get(), line.y2.get(), bounds),
+        to_kurbo_point(line.x1.local().get(), line.y1.local().get(), bounds),
+        to_kurbo_point(line.x2.local().get(), line.y2.local().get(), bounds),
     )
 }
 
@@ -256,7 +257,11 @@ fn centerline_path(start: kurbo::Point, end: kurbo::Point) -> BezPath {
 }
 
 #[cfg(test)]
-fn line_coverage_path(start: kurbo::Point, end: kurbo::Point, stroke: &Stroke) -> Option<BezPath> {
+fn line_coverage_path(
+    start: kurbo::Point,
+    end: kurbo::Point,
+    stroke: &pax_runtime_api::ResolvedStroke,
+) -> Option<BezPath> {
     stroked_outline_path(&centerline_path(start, end), stroke)
 }
 
@@ -282,7 +287,7 @@ mod tests {
     use kurbo::{Point, Shape};
     use pax_runtime::api::{Property, Size, Stroke, StrokeCap, StrokeJoin};
 
-    fn test_stroke(width: f64, cap: StrokeCap) -> Stroke {
+    fn test_stroke(width: f64, cap: StrokeCap) -> pax_runtime::api::ResolvedStroke {
         Stroke {
             paint: Property::new(pax_runtime::api::Color::BLACK.into()),
             width: Property::new(Size::Pixels(width.into())),
@@ -291,6 +296,7 @@ mod tests {
 
             ..Stroke::default()
         }
+        .snapshot()
     }
 
     #[test]

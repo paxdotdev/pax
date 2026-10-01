@@ -28,9 +28,9 @@ impl Example {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let bounds_for_playhead = ctx.bounds_self.clone();
         let bounds_for_playhead_calc = bounds_for_playhead.clone();
-        let scroll_y = self.scroll_y.clone();
+        let scroll_y = self.scroll_y.local();
         let scroll_y_calc = scroll_y.clone();
-        self.scroll_playhead.replace_with(Property::computed(
+        self.scroll_playhead.replace_with(LocalProperty::computed(
             move || {
                 let (_, height) = bounds_for_playhead_calc.get();
                 if height <= 0.0 {
@@ -45,7 +45,7 @@ impl Example {
 
         let bounds_for_width = ctx.bounds_self.clone();
         let bounds_for_width_calc = bounds_for_width.clone();
-        self.panel_width.replace_with(Property::computed(
+        self.panel_width.replace_with(LocalProperty::computed(
             move || {
                 let (width, _) = bounds_for_width_calc.get();
                 if width <= PANEL_BREAKPOINT {
@@ -59,7 +59,7 @@ impl Example {
 
         let bounds_for_left = ctx.bounds_self.clone();
         let bounds_for_left_calc = bounds_for_left.clone();
-        self.panel_x_left.replace_with(Property::computed(
+        self.panel_x_left.replace_with(LocalProperty::computed(
             move || {
                 let (width, _) = bounds_for_left_calc.get();
                 if width <= PANEL_BREAKPOINT {
@@ -73,7 +73,7 @@ impl Example {
 
         let bounds_for_right = ctx.bounds_self.clone();
         let bounds_for_right_calc = bounds_for_right.clone();
-        self.panel_x_right.replace_with(Property::computed(
+        self.panel_x_right.replace_with(LocalProperty::computed(
             move || {
                 let (width, _) = bounds_for_right_calc.get();
                 let panel_width = if width <= PANEL_BREAKPOINT {

@@ -62,8 +62,8 @@ impl Example {
         self.scene_opacity.set(0.75);
         self.stabilizers.set(true);
 
-        let mode = self.selected_mode.clone();
-        self.mode_label.replace_with(Property::computed(
+        let mode = self.selected_mode.local();
+        self.mode_label.replace_with(LocalProperty::computed(
             move || {
                 match mode.get() {
                     0 => "SPECTRAL",
@@ -74,8 +74,8 @@ impl Example {
             },
             &[self.selected_mode.untyped()],
         ));
-        let band = self.spectrum_band.clone();
-        self.spectrum_label.replace_with(Property::computed(
+        let band = self.spectrum_band.local();
+        self.spectrum_label.replace_with(LocalProperty::computed(
             move || {
                 match band.get() {
                     0 => "AURORA",
@@ -86,18 +86,18 @@ impl Example {
             },
             &[self.spectrum_band.untyped()],
         ));
-        let opacity = self.scene_opacity.clone();
-        self.beam_label.replace_with(Property::computed(
+        let opacity = self.scene_opacity.local();
+        self.beam_label.replace_with(LocalProperty::computed(
             move || format!("{:03.0}%", opacity.get() * 100.0),
             &[self.scene_opacity.untyped()],
         ));
-        let count = self.engage_count.clone();
-        self.engage_label.replace_with(Property::computed(
+        let count = self.engage_count.local();
+        self.engage_label.replace_with(LocalProperty::computed(
             move || format!("ENGAGE {}", count.get()),
             &[self.engage_count.untyped()],
         ));
-        let stabilizers = self.stabilizers.clone();
-        self.stabilizer_label.replace_with(Property::computed(
+        let stabilizers = self.stabilizers.local();
+        self.stabilizer_label.replace_with(LocalProperty::computed(
             move || {
                 if stabilizers.get() {
                     "ONLINE"

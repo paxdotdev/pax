@@ -7,7 +7,8 @@ use pax_language::Computable;
 use pax_manifest::ExpressionInfo;
 use pax_runtime_api::CoercionRules;
 use pax_runtime_api::{
-    borrow, borrow_mut, use_RefCell, ImplToFromPaxAny, PaxValue, Property, ToPaxValue, Variable,
+    borrow, borrow_mut, use_RefCell, ImplToFromPaxAny, LocalProperty, PaxValue, ToPaxValue,
+    Variable,
 };
 
 use crate::api::Layer;
@@ -19,8 +20,8 @@ use crate::{
 mod value_eq;
 
 fn update_repeat_bindings(
-    index: &Property<usize>,
-    item: &Property<PaxValue>,
+    index: &LocalProperty<usize>,
+    item: &LocalProperty<PaxValue>,
     i: usize,
     value: PaxValue,
 ) {
@@ -50,9 +51,9 @@ impl ImplToFromPaxAny for RepeatProperties {}
 ///is encoded as a `Vec<T>` (where T is a `PaxValue` properties type) or as a `Range<isize>`
 #[derive(Default)]
 pub struct RepeatProperties {
-    pub source_expression: Property<PaxValue>,
-    pub iterator_i_symbol: Property<Option<String>>,
-    pub iterator_elem_symbol: Property<Option<String>>,
+    pub source_expression: LocalProperty<PaxValue>,
+    pub iterator_i_symbol: LocalProperty<Option<String>>,
+    pub iterator_elem_symbol: LocalProperty<Option<String>>,
     pub repeat_key_expression: Option<ExpressionInfo>,
 }
 
@@ -97,17 +98,17 @@ mod tests {
 
     fn test_globals() -> Globals {
         Globals {
-            elapsed_frames: Property::new(0),
-            elapsed_millis: Property::new(0),
-            viewport: Property::new(TransformAndBounds {
+            elapsed_frames: LocalProperty::new(0),
+            elapsed_millis: LocalProperty::new(0),
+            viewport: LocalProperty::new(TransformAndBounds {
                 transform: Transform2::identity(),
                 bounds: (100.0, 100.0),
             }),
-            gyro: Property::new(Default::default()),
-            accel: Property::new(Default::default()),
-            route_location: Property::new(RouteLocation::root()),
-            browser_allows_scroller_vector_layers: Property::new(true),
-            browser_allows_nested_scroller_vector_layers: Property::new(true),
+            gyro: LocalProperty::new(Default::default()),
+            accel: LocalProperty::new(Default::default()),
+            route_location: LocalProperty::new(RouteLocation::root()),
+            browser_allows_scroller_vector_layers: LocalProperty::new(true),
+            browser_allows_nested_scroller_vector_layers: LocalProperty::new(true),
             platform: Platform::Unknown,
             os: OS::Unknown,
             target: TargetInfo::new(Platform::Unknown, OS::Unknown),
@@ -180,21 +181,21 @@ mod tests {
     }
 
     fn repeat_args(
-        source: Property<PaxValue>,
+        source: LocalProperty<PaxValue>,
         children: Vec<Rc<dyn InstanceNode>>,
     ) -> InstantiationArgs {
         repeat_args_with_key(source, children, true)
     }
 
     fn unkeyed_repeat_args(
-        source: Property<PaxValue>,
+        source: LocalProperty<PaxValue>,
         children: Vec<Rc<dyn InstanceNode>>,
     ) -> InstantiationArgs {
         repeat_args_with_key(source, children, false)
     }
 
     fn repeat_args_with_key(
-        source: Property<PaxValue>,
+        source: LocalProperty<PaxValue>,
         children: Vec<Rc<dyn InstanceNode>>,
         use_key: bool,
     ) -> InstantiationArgs {
@@ -210,8 +211,8 @@ mod tests {
                         Rc::new(RefCell::new(
                             RepeatProperties {
                                 source_expression: source_for_factory.clone(),
-                                iterator_i_symbol: Property::new(Some("i".to_string())),
-                                iterator_elem_symbol: Property::new(Some("item".to_string())),
+                                iterator_i_symbol: LocalProperty::new(Some("i".to_string())),
+                                iterator_elem_symbol: LocalProperty::new(Some("item".to_string())),
                                 repeat_key_expression: use_key.then(|| key_expression.clone()),
                             }
                             .to_pax_any(),
@@ -239,16 +240,16 @@ mod tests {
                         return None;
                     }
                     let i_untyped = env.resolve_symbol_as_erased_property("i").unwrap();
-                    let i = Property::<usize>::new_from_untyped(i_untyped.clone());
+                    let i = LocalProperty::<usize>::new_from_untyped(i_untyped.clone());
                     let deps = [i_untyped];
 
                     let mut cp = CommonProperties::default();
-                    cp.x = Property::computed(
+                    cp.x = LocalProperty::computed(
                         move || Some(Size::Pixels((i.get() as f64 * 10.0).into())),
                         &deps,
                     );
-                    cp.width = Property::new(Some(Size::Pixels(10.into())));
-                    cp.height = Property::new(Some(Size::Pixels(10.into())));
+                    cp.width = LocalProperty::new(Some(Size::Pixels(10.into())));
+                    cp.height = LocalProperty::new(Some(Size::Pixels(10.into())));
                     Some(Rc::new(RefCell::new(cp)))
                 },
             )),
@@ -297,7 +298,7 @@ mod tests {
                     let expression_for_eval = expression.clone();
                     let env_for_eval = Rc::clone(&env);
                     let mut cp = CommonProperties::default();
-                    cp.x = Property::computed(
+                    cp.x = LocalProperty::computed(
                         move || {
                             let env_for_eval: Rc<dyn IdentifierResolver> = env_for_eval.clone();
                             expression_for_eval
@@ -308,8 +309,8 @@ mod tests {
                         },
                         &deps,
                     );
-                    cp.width = Property::new(Some(Size::Pixels(10.into())));
-                    cp.height = Property::new(Some(Size::Pixels(10.into())));
+                    cp.width = LocalProperty::new(Some(Size::Pixels(10.into())));
+                    cp.height = LocalProperty::new(Some(Size::Pixels(10.into())));
                     Some(Rc::new(RefCell::new(cp)))
                 },
             )),
@@ -366,7 +367,7 @@ mod tests {
         nodes.iter().map(|node| node.id.0).collect()
     }
 
-    fn mounted_repeat(source: Property<PaxValue>) -> (Rc<ExpandedNode>, Rc<RuntimeContext>) {
+    fn mounted_repeat(source: LocalProperty<PaxValue>) -> (Rc<ExpandedNode>, Rc<RuntimeContext>) {
         let leaf: Rc<dyn InstanceNode> =
             ComponentInstance::instantiate(leaf_args(Default::default()));
         let repeat: Rc<dyn InstanceNode> =
@@ -382,21 +383,21 @@ mod tests {
     fn binding_probe(
         child: &ExpandedNode,
         symbol: &str,
-    ) -> (Property<()>, Rc<std::cell::Cell<usize>>) {
+    ) -> (LocalProperty<()>, Rc<std::cell::Cell<usize>>) {
         let property = child
             .stack
             .resolve_symbol_as_erased_property(symbol)
             .unwrap();
         let runs = Rc::new(std::cell::Cell::new(0));
         let count = Rc::clone(&runs);
-        let probe = Property::computed(move || count.set(count.get() + 1), &[property]);
+        let probe = LocalProperty::computed(move || count.set(count.get() + 1), &[property]);
         probe.get();
         (probe, runs)
     }
 
     #[test]
     fn keyed_repeat_only_notifies_changed_items_and_indices() {
-        let source_property = Property::new(source_with_x(&[("a", 1.0), ("b", 2.0)]));
+        let source_property = LocalProperty::new(source_with_x(&[("a", 1.0), ("b", 2.0)]));
         let (root, context) = mounted_repeat(source_property.clone());
         let repeat = root.children.get().remove(0);
         let children = repeat.children.get();
@@ -442,7 +443,7 @@ mod tests {
 
     #[test]
     fn keyed_repeat_reuses_reordered_children_and_exits_removed_keys() {
-        let source_property = Property::new(source(&["a", "b", "c"]));
+        let source_property = LocalProperty::new(source(&["a", "b", "c"]));
         let leaf_transition_config = ComponentTransitionConfig {
             has_exit: true,
             exit_frame_count: 30,
@@ -498,7 +499,7 @@ mod tests {
 
     #[test]
     fn retained_children_keep_parent_bindings_on_data_updates_and_reorder() {
-        let source_property = Property::new(source_with_x(&[("a", 1.0), ("b", 2.0)]));
+        let source_property = LocalProperty::new(source_with_x(&[("a", 1.0), ("b", 2.0)]));
         let (root, context) = mounted_repeat(source_property.clone());
         let repeat = root.children.get().remove(0);
         let children = repeat.children.get();
@@ -534,12 +535,12 @@ mod tests {
 
     #[test]
     fn equal_valued_parent_sources_are_not_interchangeable() {
-        let (root, context) = mounted_repeat(Property::new(source(&["a"])));
+        let (root, context) = mounted_repeat(LocalProperty::new(source(&["a"])));
         let repeat = root.children.get().remove(0);
         let children = repeat.children.get();
         let child = &children[0];
-        let first = Property::new(None);
-        let second = Property::new(None);
+        let first = LocalProperty::new(None);
+        let second = LocalProperty::new(None);
         repeat.attach_children(children.clone(), &context, &first);
         let n = child.parent_binding_rebuilds.get();
         repeat.attach_children(children.clone(), &context, &first);
@@ -566,7 +567,7 @@ mod tests {
 
     #[test]
     fn data_only_reconciliation_skips_structure_and_churn_releases_properties() {
-        let source_property = Property::new(source_with_x(&[("a", 1.0), ("b", 2.0)]));
+        let source_property = LocalProperty::new(source_with_x(&[("a", 1.0), ("b", 2.0)]));
         let (root, context) = mounted_repeat(source_property.clone());
         let repeat = root.children.get().remove(0);
         let counts = || {
@@ -606,23 +607,23 @@ mod tests {
                 ]),
             ])
         };
-        let source_property = Property::new(data(1.0));
+        let source_property = LocalProperty::new(data(1.0));
         let source_evaluations = Rc::new(std::cell::Cell::new(0));
         let evaluations = source_evaluations.clone();
         let leaf: Rc<dyn InstanceNode> =
             ComponentInstance::instantiate(leaf_args(Default::default()));
-        let mut inner_args = repeat_args(Property::new(PaxValue::default()), vec![leaf]);
+        let mut inner_args = repeat_args(LocalProperty::new(PaxValue::default()), vec![leaf]);
         inner_args.prototypical_properties =
             crate::PropertiesInit::Factory(Box::new(move |env, node| {
                 if node.is_some() {
                     return None;
                 }
-                let outer_item = Property::<PaxValue>::new_from_untyped(
+                let outer_item = LocalProperty::<PaxValue>::new_from_untyped(
                     env.resolve_symbol_as_erased_property("item").unwrap(),
                 );
                 let dep = outer_item.untyped();
                 let evaluations = evaluations.clone();
-                let source_expression = Property::computed(
+                let source_expression = LocalProperty::computed(
                     move || {
                         evaluations.set(evaluations.get() + 1);
                         let PaxValue::Object(fields) = outer_item.get() else {
@@ -639,8 +640,8 @@ mod tests {
                 Some(Rc::new(RefCell::new(
                     RepeatProperties {
                         source_expression,
-                        iterator_i_symbol: Property::new(Some("i".into())),
-                        iterator_elem_symbol: Property::new(Some("item".into())),
+                        iterator_i_symbol: LocalProperty::new(Some("i".into())),
+                        iterator_elem_symbol: LocalProperty::new(Some("item".into())),
                         repeat_key_expression: Some(ExpressionInfo::new(
                             parse_pax_expression("item.id").unwrap(),
                         )),
@@ -678,7 +679,7 @@ mod tests {
 
     #[test]
     fn parent_values_resize_reactively_and_replaced_sources_rebind() {
-        let (root, context) = mounted_repeat(Property::new(source(&["a"])));
+        let (root, context) = mounted_repeat(LocalProperty::new(source(&["a"])));
         let repeat = root.children.get().remove(0);
         let children = repeat.children.get();
         let child = &children[0];
@@ -694,7 +695,7 @@ mod tests {
         assert_eq!(child.parent_binding_rebuilds.get(), rebuilds);
 
         let old_opacity = borrow!(child_cp).opacity.clone();
-        let new_opacity = Property::new(old_opacity.get());
+        let new_opacity = LocalProperty::new(old_opacity.get());
         borrow_mut!(child_cp).opacity = new_opacity.clone();
         repeat.attach_children(children.clone(), &context, &repeat.parent_frame);
         assert_eq!(child.parent_binding_rebuilds.get(), rebuilds + 1);
@@ -717,7 +718,7 @@ mod tests {
 
     #[test]
     fn repeat_exit_partition_and_final_removal_are_structural_changes() {
-        let source_property = Property::new(source(&["a"]));
+        let source_property = LocalProperty::new(source(&["a"]));
         let config = ComponentTransitionConfig {
             has_exit: true,
             exit_frame_count: 5,
@@ -762,7 +763,7 @@ mod tests {
 
     #[test]
     fn external_key_dependencies_and_invalid_key_fallback_remain_reactive() {
-        let source_property = Property::new(source(&["a"]));
+        let source_property = LocalProperty::new(source(&["a"]));
         let leaf: Rc<dyn InstanceNode> =
             ComponentInstance::instantiate(leaf_args(Default::default()));
         let mut args = repeat_args(source_property.clone(), vec![leaf]);
@@ -772,8 +773,8 @@ mod tests {
                 Rc::new(RefCell::new(
                     RepeatProperties {
                         source_expression: source_copy.clone(),
-                        iterator_i_symbol: Property::new(Some("i".into())),
-                        iterator_elem_symbol: Property::new(Some("item".into())),
+                        iterator_i_symbol: LocalProperty::new(Some("i".into())),
+                        iterator_elem_symbol: LocalProperty::new(Some("item".into())),
                         repeat_key_expression: Some(ExpressionInfo::new(
                             parse_pax_expression("$frames").unwrap(),
                         )),
@@ -796,7 +797,7 @@ mod tests {
 
         let invalid = PaxValue::Object(vec![("id".into(), PaxValue::Bool(true))]);
         let data = PaxValue::Vec(vec![item("same"), item("same"), invalid]);
-        let source_property = Property::new(data.clone());
+        let source_property = LocalProperty::new(data.clone());
         let (root, context) = mounted_repeat(source_property.clone());
         let repeat = root.children.get().remove(0);
         let first_ids = ids(&repeat.children.get());
@@ -808,7 +809,7 @@ mod tests {
 
     #[test]
     fn keyed_groups_keep_all_template_roots_together_on_reorder() {
-        let source_property = Property::new(source(&["a", "b"]));
+        let source_property = LocalProperty::new(source(&["a", "b"]));
         let leaf: Rc<dyn InstanceNode> =
             ComponentInstance::instantiate(leaf_args(Default::default()));
         let repeat: Rc<dyn InstanceNode> = RepeatInstance::instantiate(repeat_args(
@@ -835,7 +836,7 @@ mod tests {
 
     #[test]
     fn detached_mask_style_repeat_binds_inserted_children_and_releases_last_child() {
-        let source_property = Property::new(source(&[]));
+        let source_property = LocalProperty::new(source(&[]));
         let context = Rc::new(crate::test_support::runtime_context(test_globals()));
         let root = ExpandedNode::initialize_root(
             ComponentInstance::instantiate(component_args(None)),
@@ -846,8 +847,8 @@ mod tests {
             crate::CommonPropertiesInit::Factory(Box::new(|_, node| {
                 node.is_none().then(|| {
                     let mut cp = CommonProperties::default();
-                    cp.width = Property::new(Some(Size::Percent(50.into())));
-                    cp.height = Property::new(Some(Size::Percent(50.into())));
+                    cp.width = LocalProperty::new(Some(Size::Percent(50.into())));
+                    cp.height = LocalProperty::new(Some(Size::Percent(50.into())));
                     Rc::new(RefCell::new(cp))
                 })
             }));
@@ -896,7 +897,7 @@ mod tests {
 
     #[test]
     fn unkeyed_repeat_rescues_a_position_readded_during_exit() {
-        let source_property = Property::new(source(&["a", "b"]));
+        let source_property = LocalProperty::new(source(&["a", "b"]));
         let leaf_transition_config = ComponentTransitionConfig {
             has_enter: true,
             enter_frame_count: 10,
@@ -936,7 +937,7 @@ mod tests {
 
     #[test]
     fn keyed_repeat_assigns_distinct_scope_bindings_per_child() {
-        let source_property = Property::new(source(&["a", "b", "c"]));
+        let source_property = LocalProperty::new(source(&["a", "b", "c"]));
         let leaf: Rc<dyn InstanceNode> =
             ComponentInstance::instantiate(leaf_args(Default::default()));
         let repeat: Rc<dyn InstanceNode> =
@@ -966,7 +967,8 @@ mod tests {
 
     #[test]
     fn keyed_repeat_assigns_distinct_element_bindings_per_child() {
-        let source_property = Property::new(source_with_x(&[("a", 0.0), ("b", 10.0), ("c", 20.0)]));
+        let source_property =
+            LocalProperty::new(source_with_x(&[("a", 0.0), ("b", 10.0), ("c", 20.0)]));
         let leaf: Rc<dyn InstanceNode> =
             ComponentInstance::instantiate(leaf_args(Default::default()));
         let repeat: Rc<dyn InstanceNode> =
@@ -1004,7 +1006,7 @@ mod tests {
 
     #[test]
     fn keyed_repeat_resolves_distinct_common_properties_per_child() {
-        let source_property = Property::new(source(&["a", "b", "c"]));
+        let source_property = LocalProperty::new(source(&["a", "b", "c"]));
         let leaf: Rc<dyn InstanceNode> = ComponentInstance::instantiate(positioned_leaf_args());
         let repeat: Rc<dyn InstanceNode> =
             RepeatInstance::instantiate(repeat_args(source_property, vec![leaf]));
@@ -1033,7 +1035,8 @@ mod tests {
 
     #[test]
     fn keyed_repeat_resolves_distinct_expression_common_properties_from_element_binding() {
-        let source_property = Property::new(source_with_x(&[("a", 0.0), ("b", 10.0), ("c", 20.0)]));
+        let source_property =
+            LocalProperty::new(source_with_x(&[("a", 0.0), ("b", 10.0), ("c", 20.0)]));
         let leaf: Rc<dyn InstanceNode> =
             ComponentInstance::instantiate(expression_positioned_leaf_args("(item.x)px"));
         let repeat: Rc<dyn InstanceNode> =
@@ -1063,7 +1066,7 @@ mod tests {
 
     #[test]
     fn keyed_repeat_resolves_distinct_common_properties_for_transition_components() {
-        let source_property = Property::new(source(&["a", "b", "c"]));
+        let source_property = LocalProperty::new(source(&["a", "b", "c"]));
         let leaf: Rc<dyn InstanceNode> =
             ComponentInstance::instantiate(transitioned_positioned_leaf_args());
         let repeat: Rc<dyn InstanceNode> =
@@ -1093,7 +1096,8 @@ mod tests {
 
     #[test]
     fn keyed_repeat_resolves_expression_common_properties_for_transition_components() {
-        let source_property = Property::new(source_with_x(&[("a", 0.0), ("b", 10.0), ("c", 20.0)]));
+        let source_property =
+            LocalProperty::new(source_with_x(&[("a", 0.0), ("b", 10.0), ("c", 20.0)]));
         let leaf: Rc<dyn InstanceNode> = ComponentInstance::instantiate(
             transitioned_expression_positioned_leaf_args("(item.x)px"),
         );
@@ -1124,7 +1128,7 @@ mod tests {
 
     #[test]
     fn unkeyed_repeat_stale_element_binding_defaults_after_source_shrinks() {
-        let source_property = Property::new(source_with_x(&[("a", 0.0), ("b", 10.0)]));
+        let source_property = LocalProperty::new(source_with_x(&[("a", 0.0), ("b", 10.0)]));
         let leaf: Rc<dyn InstanceNode> =
             ComponentInstance::instantiate(leaf_args(Default::default()));
         let repeat: Rc<dyn InstanceNode> =
@@ -1156,15 +1160,15 @@ enum RepeatKey {
 #[derive(Clone)]
 struct RepeatChildGroup {
     key: RepeatKey,
-    elem: Property<PaxValue>,
-    i: Property<usize>,
+    elem: LocalProperty<PaxValue>,
+    i: LocalProperty<usize>,
     children: Vec<Rc<ExpandedNode>>,
 }
 
 /// Per-iteration bindings exposed inside a `for` template body.
 pub struct RepeatItem {
-    pub elem: Property<PaxValue>,
-    pub i: Property<usize>,
+    pub elem: LocalProperty<PaxValue>,
+    pub i: LocalProperty<usize>,
 }
 
 impl ToPaxValue for RepeatItem {
@@ -1280,7 +1284,7 @@ impl RepeatInstance {
         let cached_children: Rc<RefCell<Vec<Rc<ExpandedNode>>>> = Default::default();
         let keyed_groups: Rc<RefCell<Vec<RepeatChildGroup>>> = Default::default();
 
-        let children = Property::computed_with_name(
+        let children = LocalProperty::computed_with_name(
             move || {
                 let Some(cloned_expanded_node) = weak_ref_self.upgrade() else {
                     panic!("ran evaluator after expanded node dropped (repeat elem)")
@@ -1333,9 +1337,9 @@ impl RepeatInstance {
                 let active_children = borrow!(cloned_expanded_node.active_children).clone();
                 let mut selected_children = Vec::new();
                 for i in 0..source_len {
-                    let property_i = Property::new(i);
+                    let property_i = LocalProperty::new(i);
                     let cp_source_expression = source_expression.clone();
-                    let property_elem = Property::computed_with_name(
+                    let property_elem = LocalProperty::computed_with_name(
                         move || cp_source_expression.read(|source| Self::source_elem(source, i)),
                         &[source_expression.untyped()],
                         "repeat elem",
@@ -1371,7 +1375,7 @@ impl RepeatInstance {
                                             .resolve_symbol_as_erased_property(
                                                 INTERNAL_REPEAT_INDEX_SYMBOL,
                                             )
-                                            .map(Property::<usize>::new_from_untyped)
+                                            .map(LocalProperty::<usize>::new_from_untyped)
                                             .map(|index| index.get() == i)
                                             .unwrap_or(true);
                                         template_matches && index_matches
@@ -1440,8 +1444,8 @@ impl RepeatInstance {
     fn repeat_scope(
         i_symbol: Option<String>,
         elem_symbol: Option<String>,
-        property_i: Property<usize>,
-        property_elem: Property<PaxValue>,
+        property_i: LocalProperty<usize>,
+        property_elem: LocalProperty<PaxValue>,
     ) -> HashMap<String, Variable> {
         let mut scope = HashMap::new();
         if let Some(i_symbol) = i_symbol {
@@ -1478,14 +1482,14 @@ impl RepeatInstance {
     fn repeat_scope_with_key(
         i_symbol: Option<String>,
         elem_symbol: Option<String>,
-        property_i: Property<usize>,
-        property_elem: Property<PaxValue>,
+        property_i: LocalProperty<usize>,
+        property_elem: LocalProperty<PaxValue>,
         key: &RepeatKey,
     ) -> HashMap<String, Variable> {
         let mut scope = Self::repeat_scope(i_symbol, elem_symbol, property_i, property_elem);
         scope.insert(
             INTERNAL_REPEAT_KEY_SYMBOL.to_string(),
-            Variable::new_from_typed_property(Property::new(Self::encoded_repeat_key(key))),
+            Variable::new_from_typed_property(LocalProperty::new(Self::encoded_repeat_key(key))),
         );
         scope
     }
@@ -1527,7 +1531,7 @@ impl RepeatInstance {
         expanded_node: &Rc<ExpandedNode>,
         context: &Rc<RuntimeContext>,
         repeat: Rc<RepeatInstance>,
-        source_expression: &Property<PaxValue>,
+        source_expression: &LocalProperty<PaxValue>,
         i_symbol_value: Option<String>,
         elem_symbol_value: Option<String>,
         key_expression: &ExpressionInfo,
@@ -1547,8 +1551,8 @@ impl RepeatInstance {
 
         for i in 0..source_len {
             let elem = source_expression.read(|source| Self::source_elem(source, i));
-            let key_probe_i = Property::new(i);
-            let key_probe_elem = Property::new(elem.clone());
+            let key_probe_i = LocalProperty::new(i);
+            let key_probe_elem = LocalProperty::new(elem.clone());
             let key_probe_scope = Self::repeat_scope(
                 i_symbol_value.clone(),
                 elem_symbol_value.clone(),
@@ -1634,8 +1638,8 @@ impl RepeatInstance {
         elem: PaxValue,
         is_mount: bool,
     ) -> RepeatChildGroup {
-        let property_i = Property::new(i);
-        let property_elem = Property::new(elem);
+        let property_i = LocalProperty::new(i);
+        let property_elem = LocalProperty::new(elem);
         let scope = Self::repeat_scope_with_key(
             i_symbol,
             elem_symbol,
@@ -1686,7 +1690,7 @@ impl RepeatInstance {
                         && child
                             .stack
                             .resolve_symbol_as_erased_property(INTERNAL_REPEAT_KEY_SYMBOL)
-                            .map(Property::<String>::new_from_untyped)
+                            .map(LocalProperty::<String>::new_from_untyped)
                             .map(|key| key.get() == encoded_key)
                             .unwrap_or(false)
                 })
@@ -1696,11 +1700,11 @@ impl RepeatInstance {
         let property_i = seed
             .stack
             .resolve_symbol_as_erased_property(INTERNAL_REPEAT_INDEX_SYMBOL)
-            .map(Property::<usize>::new_from_untyped)?;
+            .map(LocalProperty::<usize>::new_from_untyped)?;
         let property_elem = seed
             .stack
             .resolve_symbol_as_erased_property(INTERNAL_REPEAT_ELEMENT_SYMBOL)
-            .map(Property::<PaxValue>::new_from_untyped)?;
+            .map(LocalProperty::<PaxValue>::new_from_untyped)?;
         update_repeat_bindings(&property_i, &property_elem, i, elem);
         let env = expanded_node.stack.push(Self::repeat_scope_with_key(
             i_symbol,

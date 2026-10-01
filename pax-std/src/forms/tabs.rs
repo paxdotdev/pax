@@ -1,5 +1,6 @@
-#[allow(unused)]
 use crate::*;
+#[allow(unused)]
+use pax_engine::api::LocalProperty;
 use pax_engine::api::*;
 use pax_engine::*;
 
@@ -51,11 +52,11 @@ impl Tabs {
         let slot_count = ctx.projected_children_count.clone();
         let deps = [slot_count.untyped()];
         self._slot_count
-            .replace_with(Property::computed(move || slot_count.get(), &deps));
+            .replace_with(LocalProperty::computed(move || slot_count.get(), &deps));
         let slot_count = ctx.projected_children_count.clone();
-        let names = self.names.clone();
+        let names = self.names.local();
         let deps = [slot_count.untyped(), names.untyped()];
-        self._names_filled.replace_with(Property::computed(
+        self._names_filled.replace_with(LocalProperty::computed(
             move || {
                 let names = names.get();
                 let mut names_filled = vec![];

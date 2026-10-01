@@ -82,8 +82,8 @@ impl ProximityCard {
     fn reveal(&mut self) {
         self.departing.set(false);
         self.stage.set("VISIBLE".into());
-        self.playhead.cancel_transitions();
-        self.playhead.ease_to(
+        self.playhead.local().cancel_transitions();
+        self.playhead.local().ease_to(
             100.0,
             Duration::Milliseconds(420.into()),
             EasingCurve::Linear,
@@ -106,16 +106,19 @@ impl ProximityCard {
         } else if visible <= 40.0 && visible < previous && !self.departing.get() {
             self.departing.set(true);
             self.stage.set("GOODBYE".into());
-            self.playhead.cancel_transitions();
-            self.playhead
-                .ease_to(0.0, Duration::Milliseconds(180.into()), EasingCurve::Linear);
+            self.playhead.local().cancel_transitions();
+            self.playhead.local().ease_to(
+                0.0,
+                Duration::Milliseconds(180.into()),
+                EasingCurve::Linear,
+            );
         }
     }
 
     pub fn exit(&mut self, _ctx: &NodeContext, _event: Event<ViewportProximityExit>) {
         self.release_detail();
         self.departing.set(false);
-        self.playhead.cancel_transitions();
+        self.playhead.local().cancel_transitions();
         self.playhead.set(0.0);
         self.stage.set("COLD".into());
     }

@@ -1,6 +1,7 @@
 #![allow(unused)]
 use crate::Rectangle;
 use pax_engine::api::cursor::CursorStyle;
+use pax_engine::api::LocalProperty;
 use pax_engine::api::{Click, MouseOut, MouseOver, Property};
 use pax_engine::api::{Event, NavigationTarget};
 use pax_engine::*;
@@ -77,13 +78,13 @@ impl Link {
         let s = ctx.projected_children_count.clone();
         let deps = [s.untyped()];
         self._projected_children
-            .replace_with(Property::computed(move || s.get(), &deps));
+            .replace_with(LocalProperty::computed(move || s.get(), &deps));
         let Some(expanded_node) = ctx.expanded_node.upgrade() else {
             return;
         };
-        let autosize = self.autosize.clone();
-        let autosize_x = self.autosize_x.clone();
-        let autosize_y = self.autosize_y.clone();
+        let autosize = self.autosize.local();
+        let autosize_x = self.autosize_x.local();
+        let autosize_y = self.autosize_y.local();
         let deps = [
             autosize.untyped(),
             autosize_x.untyped(),

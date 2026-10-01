@@ -3,7 +3,7 @@ use std::ops::Mul;
 #[allow(unused)]
 use pax_runtime_api::math::Generic;
 use pax_runtime_api::math::{Point2, Space, TransformParts};
-use pax_runtime_api::{Interpolatable, Percent, Property, Rotation, Window};
+use pax_runtime_api::{Interpolatable, LocalProperty, Percent, Rotation, Window};
 
 use crate::api::math::{Transform2, Vector2};
 use crate::api::{Axis, LayoutRole, Size, Transform2D};
@@ -12,10 +12,10 @@ use crate::ContainerFrame;
 
 /// Compute a reactive `TransformAndBounds` property from layout properties plus parent geometry.
 pub fn compute_tab(
-    layout_properties: Property<LayoutProperties>,
-    extra_transform: Property<Option<Transform2D>>,
-    container_transform_and_bounds: Property<TransformAndBounds<NodeLocal, Window>>,
-) -> Property<TransformAndBounds<NodeLocal, Window>> {
+    layout_properties: LocalProperty<LayoutProperties>,
+    extra_transform: LocalProperty<Option<Transform2D>>,
+    container_transform_and_bounds: LocalProperty<TransformAndBounds<NodeLocal, Window>>,
+) -> LocalProperty<TransformAndBounds<NodeLocal, Window>> {
     // get the size of this node (calc'd or otherwise) and use
     // it as the new accumulated bounds: both for this node's children (their parent container bounds)
     // and for this node itself (e.g. for specifying the size of a Rectangle node)
@@ -25,7 +25,7 @@ pub fn compute_tab(
         extra_transform.untyped(),
     ];
 
-    Property::computed(
+    LocalProperty::computed(
         move || {
             let container_t_and_b = container_transform_and_bounds.get();
             layout_properties.read(|layout_properties| {
@@ -267,14 +267,14 @@ pub fn project_child_layout_hull_to_parent_space(
 /// The cutoff sits at the coordinate-space cancellation boundary: translating an
 /// ancestor changes both world transforms, but not the resulting parent-local hull.
 pub(crate) fn projected_child_layout_hull_property(
-    parent: Property<TransformAndBounds<NodeLocal, Window>>,
-    padding_x: Property<Option<Size>>,
-    padding_y: Property<Option<Size>>,
-    child: Property<TransformAndBounds<NodeLocal, Window>>,
-    child_hull: Property<LayoutHull>,
-    child_layout_role: Property<Option<LayoutRole>>,
+    parent: LocalProperty<TransformAndBounds<NodeLocal, Window>>,
+    padding_x: LocalProperty<Option<Size>>,
+    padding_y: LocalProperty<Option<Size>>,
+    child: LocalProperty<TransformAndBounds<NodeLocal, Window>>,
+    child_hull: LocalProperty<LayoutHull>,
+    child_layout_role: LocalProperty<Option<LayoutRole>>,
     name: &str,
-) -> Property<LayoutHull> {
+) -> LocalProperty<LayoutHull> {
     let deps = [
         parent.untyped(),
         padding_x.untyped(),
@@ -283,7 +283,7 @@ pub(crate) fn projected_child_layout_hull_property(
         child_hull.untyped(),
         child_layout_role.untyped(),
     ];
-    Property::computed_with_cutoff_and_name(
+    LocalProperty::computed_with_cutoff_and_name(
         move || {
             if child_layout_role.get() == Some(LayoutRole::Breakout) {
                 return LayoutHull::default();

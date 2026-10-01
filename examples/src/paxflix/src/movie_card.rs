@@ -24,27 +24,27 @@ pub struct MovieCard {
 
 impl MovieCard {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        let entrances = self.entrances.clone();
-        let index = self.index.clone();
-        let revealed = self.revealed.clone();
-        let visit = self.reveal_visit.clone();
-        let progress = self.reveal_progress.clone();
+        let entrances = self.entrances.local();
+        let index = self.index.local();
+        let revealed = self.revealed.local();
+        let visit = self.reveal_visit.local();
+        let progress = self.reveal_progress.local();
         let now = ctx.elapsed_millis.clone();
         let last_started = Cell::new(0);
         ctx.subscribe(&[entrances.untyped()], move || {
             if !revealed.get() || last_started.get() == visit.get() {
                 return;
             }
+            let index = index.get();
+            let visit = visit.get();
             let start = entrances.read(|entries| {
                 entries
                     .iter()
-                    .find(|entry| {
-                        entry.index == index.get() && entry.visit == visit.get() && !entry.pending
-                    })
+                    .find(|entry| entry.index == index && entry.visit == visit && !entry.pending)
                     .map(|entry| entry.start_at)
             });
             if let Some(start) = start {
-                last_started.set(visit.get());
+                last_started.set(visit);
                 let delay = start.saturating_sub(now.get());
                 progress.cancel_transitions();
                 progress.set(0.0);
@@ -87,7 +87,7 @@ impl MovieCard {
 
     pub fn reset_reveal(&mut self, _ctx: &NodeContext, _event: Event<ViewportProximityExit>) {
         // Rearm only once well offscreen, without an exit animation or reloading artwork.
-        self.reveal_progress.cancel_transitions();
+        self.reveal_progress.local().cancel_transitions();
         self.reveal_progress.set(0.0);
         self.revealed.set(false);
         self.hover.set(false);
@@ -95,7 +95,7 @@ impl MovieCard {
     }
 
     pub fn on_unmount(&mut self, _ctx: &NodeContext) {
-        self.reveal_progress.cancel_transitions();
+        self.reveal_progress.local().cancel_transitions();
         self.forget_entrance();
     }
 

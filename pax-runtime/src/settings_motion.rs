@@ -5,7 +5,7 @@ use std::{cell::RefCell, rc::Rc};
 use pax_manifest::ValueDefinition;
 use pax_runtime_api::{
     properties::{current_frame, register_effect_property, PropertyValue},
-    CoercionRules, Duration, EasingCurve, Interpolatable, PaxValue, Property, ToPaxValue,
+    CoercionRules, Duration, EasingCurve, Interpolatable, LocalProperty, PaxValue, ToPaxValue,
 };
 
 use crate::{
@@ -39,7 +39,7 @@ impl Interpolatable for Owner {}
 fn owner_property(
     entries: &[RuntimeResolvedPropertyEntry],
     stack: &Rc<RuntimePropertiesStackFrame>,
-) -> Property<Owner> {
+) -> LocalProperty<Owner> {
     let mut dependencies = Vec::new();
     for entry in entries {
         if let Some(policy) = &entry.transition {
@@ -55,7 +55,7 @@ fn owner_property(
     }
     let entries = entries.to_vec();
     let stack = stack.clone();
-    Property::computed_with_name(
+    LocalProperty::computed_with_name(
         move || {
             entries
                 .iter()
@@ -77,7 +77,7 @@ fn owner_property(
                                 | ValueDefinition::Transition(_)
                                 | ValueDefinition::DoubleBinding(_)
                         ),
-                    config: entry.transition.as_ref().and_then(Property::get),
+                    config: entry.transition.as_ref().and_then(LocalProperty::get),
                 })
                 .unwrap_or_default()
         },
@@ -93,10 +93,10 @@ struct Endpoints<T> {
 }
 
 struct SettingsMotion<T: PropertyValue> {
-    target: Property<T>,
-    owner: Property<Owner>,
-    progress: Property<f64>,
-    _listener: Property<()>,
+    target: LocalProperty<T>,
+    owner: LocalProperty<Owner>,
+    progress: LocalProperty<f64>,
+    _listener: LocalProperty<()>,
 }
 
 impl<T: PropertyValue> Drop for SettingsMotion<T> {
@@ -110,21 +110,21 @@ fn frozen<T: PropertyValue + CoercionRules + ToPaxValue>(
 ) -> Result<(T, PaxValue), String> {
     // PaxValue conversion snapshots Property-wrapped leaves. Cloning T alone
     // would retain live provider handles in a transition's endpoints.
-    let snapshot = value.to_pax_value();
+    let snapshot = value.to_pax_value_in_graph();
     T::try_coerce(snapshot.clone()).map(|value| (value, snapshot))
 }
 
 impl<T: PropertyValue + CoercionRules + ToPaxValue> SettingsMotion<T> {
     fn new(
-        output: &Property<T>,
-        target: Property<T>,
-        owner: Property<Owner>,
+        output: &LocalProperty<T>,
+        target: LocalProperty<T>,
+        owner: LocalProperty<Owner>,
         animate_initial_change: bool,
         interpolate: Rc<dyn Fn(&T, &T, f64) -> T>,
     ) -> Option<Self> {
         let (initial, initial_snapshot) = frozen(output.get()).ok()?;
-        let progress = Property::new_with_name(1.0, "settings transition progress");
-        let revision = Property::new(0_u64);
+        let progress = LocalProperty::new_with_name(1.0, "settings transition progress");
+        let revision = LocalProperty::new(0_u64);
         let endpoints = Rc::new(RefCell::new(Endpoints {
             from: initial.clone(),
             to: initial,
@@ -134,7 +134,7 @@ impl<T: PropertyValue + CoercionRules + ToPaxValue> SettingsMotion<T> {
             let progress = progress.clone();
             let endpoints = endpoints.clone();
             let dependencies = [progress.untyped(), revision.untyped()];
-            Property::computed_with_name(
+            LocalProperty::computed_with_name(
                 move || {
                     let t = progress.get();
                     let endpoints = endpoints.borrow();
@@ -161,11 +161,11 @@ impl<T: PropertyValue + CoercionRules + ToPaxValue> SettingsMotion<T> {
             let previous =
                 RefCell::new((initial_snapshot, Owner::default(), !animate_initial_change));
             let dependencies = [target.untyped(), owner.untyped()];
-            Property::computed_with_name(
+            LocalProperty::computed_with_name(
                 move || {
                     let new_owner = owner.get();
                     let next = target.get();
-                    let snapshot = next.clone().to_pax_value();
+                    let snapshot = next.clone().to_pax_value_in_graph();
                     let (next, can_interpolate) = match T::try_coerce(snapshot.clone()) {
                         Ok(frozen) => (frozen, true),
                         // Custom types without a lossless value roundtrip still follow
@@ -244,8 +244,8 @@ impl<T: PropertyValue + CoercionRules + ToPaxValue> SettingsMotion<T> {
 /// Generated cartridges call this after resolving all precedence layers.
 #[doc(hidden)]
 pub fn bind_settings_property<T: PropertyValue + CoercionRules + ToPaxValue>(
-    output: &Property<T>,
-    target: Property<T>,
+    output: &LocalProperty<T>,
+    target: LocalProperty<T>,
     name: &str,
     entries: &[RuntimeResolvedPropertyEntry],
     stack: &Rc<RuntimePropertiesStackFrame>,
@@ -255,8 +255,8 @@ pub fn bind_settings_property<T: PropertyValue + CoercionRules + ToPaxValue>(
 }
 
 pub(crate) fn bind_settings_property_with<T: PropertyValue + CoercionRules + ToPaxValue>(
-    output: &Property<T>,
-    target: Property<T>,
+    output: &LocalProperty<T>,
+    target: LocalProperty<T>,
     name: &str,
     entries: &[RuntimeResolvedPropertyEntry],
     stack: &Rc<RuntimePropertiesStackFrame>,
@@ -292,9 +292,13 @@ pub(crate) fn bind_settings_property_with<T: PropertyValue + CoercionRules + ToP
         motion.owner.replace_with(owner_property(entries, stack));
         return;
     }
-    let enabled = entries
-        .iter()
-        .any(|entry| entry.transition.as_ref().and_then(Property::get).is_some());
+    let enabled = entries.iter().any(|entry| {
+        entry
+            .transition
+            .as_ref()
+            .and_then(LocalProperty::get)
+            .is_some()
+    });
     if !enabled {
         output.replace_with(target);
         return;
@@ -328,15 +332,15 @@ mod tests {
         drain_effects, property_has_direct_outbound, register_millis, register_time,
     };
 
-    fn clock() -> Property<u64> {
-        register_time(&Property::new(0));
-        let millis = Property::new(0);
+    fn clock() -> LocalProperty<u64> {
+        register_time(&LocalProperty::new(0));
+        let millis = LocalProperty::new(0);
         register_millis(&millis);
         millis
     }
 
-    fn owner() -> Property<Owner> {
-        Property::new(Owner {
+    fn owner() -> LocalProperty<Owner> {
+        LocalProperty::new(Owner {
             imported: true,
             explicit: false,
             config: Some(SettingsTransitionConfig {
@@ -353,8 +357,8 @@ mod tests {
     #[test]
     fn retarget_samples_current_clock_and_restarts_full_duration() {
         let millis = clock();
-        let output = Property::new(0.0);
-        let source = Property::new(0.0);
+        let output = LocalProperty::new(0.0);
+        let source = LocalProperty::new(0.0);
         let motion = SettingsMotion::new(
             &output,
             source.clone(),
@@ -390,8 +394,8 @@ mod tests {
     #[test]
     fn initial_value_and_equal_targets_do_not_animate_or_restart() {
         let millis = clock();
-        let output = Property::new(0.0);
-        let source = Property::new(10.0);
+        let output = LocalProperty::new(0.0);
+        let source = LocalProperty::new(10.0);
         let motion = SettingsMotion::new(
             &output,
             source.clone(),
@@ -417,10 +421,10 @@ mod tests {
     #[test]
     fn rebind_preserves_motion_and_instances_have_independent_clocks() {
         let millis = clock();
-        let a = Property::new(0.0);
-        let b = Property::new(0.0);
-        let a_target = Property::new(0.0);
-        let b_target = Property::new(0.0);
+        let a = LocalProperty::new(0.0);
+        let b = LocalProperty::new(0.0);
+        let a_target = LocalProperty::new(0.0);
+        let b_target = LocalProperty::new(0.0);
         let first = SettingsMotion::new(
             &a,
             a_target.clone(),
@@ -441,7 +445,7 @@ mod tests {
         b_target.set(10.0);
         settle();
         millis.set(40);
-        first.target.replace_with(Property::new(20.0));
+        first.target.replace_with(LocalProperty::new(20.0));
         settle();
         millis.set(90);
         assert_eq!(a.get(), 12.0);
@@ -451,8 +455,8 @@ mod tests {
     #[test]
     fn disabling_snaps_and_detaches_clock() {
         let millis = clock();
-        let output = Property::new(0.0);
-        let target = Property::new(0.0);
+        let output = LocalProperty::new(0.0);
+        let target = LocalProperty::new(0.0);
         let policy = owner();
         let motion = SettingsMotion::new(
             &output,
@@ -477,8 +481,8 @@ mod tests {
     #[test]
     fn easing_overshoot_is_not_mistaken_for_completion() {
         let millis = clock();
-        let output = Property::new(0.0);
-        let target = Property::new(0.0);
+        let output = LocalProperty::new(0.0);
+        let target = LocalProperty::new(0.0);
         let policy = owner();
         policy.update(|policy| policy.config.as_mut().unwrap().curve = "OutBack");
         let _motion = SettingsMotion::new(
@@ -499,24 +503,26 @@ mod tests {
 
     #[test]
     fn compound_endpoints_do_not_keep_live_property_handles() {
+        let graph = pax_runtime_api::properties::PropertyGraph::new(|| {});
+        let _entered = graph.enter();
         use pax_runtime_api::{Size, Stroke};
         let millis = clock();
-        let width = Property::new(Size::Pixels(10.into()));
+        let width = LocalProperty::new(Size::Pixels(10.into()));
         let source = {
             let width = width.clone();
             let dependencies = [width.untyped()];
-            Property::computed(
+            LocalProperty::computed(
                 move || {
                     let _ = width.get();
                     Stroke {
-                        width: width.clone(),
+                        width: pax_runtime_api::PropertyBinding::from_local(width.clone()),
                         ..Stroke::default()
                     }
                 },
                 &dependencies,
             )
         };
-        let output = Property::new(Stroke::default());
+        let output = LocalProperty::new(Stroke::default());
         let _motion = SettingsMotion::new(
             &output,
             source,
@@ -539,8 +545,8 @@ mod tests {
     #[test]
     fn zero_duration_configuration_applies_pending_target_immediately() {
         let millis = clock();
-        let output = Property::new(0.0);
-        let source = Property::new(0.0);
+        let output = LocalProperty::new(0.0);
+        let source = LocalProperty::new(0.0);
         let policy = owner();
         let motion = SettingsMotion::new(
             &output,
@@ -570,9 +576,9 @@ mod tests {
         use pax_runtime_api::Variable;
         use std::collections::HashMap;
         let millis = clock();
-        let condition = Property::new(false);
-        let base = Property::new(0.0);
-        let imported = Property::new(10.0);
+        let condition = LocalProperty::new(false);
+        let base = LocalProperty::new(0.0);
+        let imported = LocalProperty::new(10.0);
         let stack = RuntimePropertiesStackFrame::new(HashMap::from([(
             "enabled".into(),
             Variable::new_from_typed_property(condition.clone()),
@@ -588,7 +594,7 @@ mod tests {
                 provider_id: crate::ExpandedNodeIdentifier(1),
                 provider_type_id: TypeId::default(),
             },
-            transition: Some(Property::new(owner().get().config)),
+            transition: Some(LocalProperty::new(owner().get().config)),
             selector: None,
             source_location: None,
             source_stack: Some(stack.clone()),
@@ -603,7 +609,7 @@ mod tests {
             base.clone(),
             imported.clone(),
         );
-        let output = Property::new(0.0);
+        let output = LocalProperty::new(0.0);
         let _motion = SettingsMotion::new(
             &output,
             target,

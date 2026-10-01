@@ -1,0 +1,62 @@
+<Scroller id=workbench_scroller width=100% height=100% >
+    <Group id=workbench_body x=50% anchor_x=50% width={(Math::min(1120, $viewport.width - 40))px}>
+        <Text x=0px y=36px width=100% height=44px text="Async Workbench" style={font_size: 32px, fill: rgb(244, 241, 231)} />
+        <Text x=0px y=88px width=100% height=28px text={self.backend} style={font_size: 14px, fill: rgb(126, 208, 204)} />
+        <Text x=0px y=118px width=100% height=28px text="Scoped work · shared state · a responsive UI" style={font_size: 15px, fill: rgb(171, 184, 194)} />
+        <Button id=interact height=44px label={"Interact · " + self.clicks} @button_click=self.click />
+        <Button id=panel_toggle height=44px label={self.mounted ? "Unmount panel" : "Remount panel"} @button_click=self.toggle_panel />
+        <Group id=request_area>
+            <Button id=publish_value height=44px label="Publish +1" @button_click=self.publish />
+            <Button id=burst_values anchor_x=0% height=44px label="Burst +1000" @button_click=self.burst />
+            if self.mounted {
+                <RequestPanel id=request_panel x=24px width={100% - 48px} height=640px value={self.shared_value} />
+            } else {
+                <Text x=24px y=108px width={100% - 48px} height=90px text="Panel detached. Shared application data remains available." style={font_size: 18px, fill: rgb(190, 164, 101)} />
+            }
+            <Rectangle width=100% height=100% corner_radius=18 fill=rgb(242, 237, 222) />
+        </Group>
+        <Group id=history_area anchor_x=0% height=760px>
+            <Text x=24px y=24px width={100% - 48px} height=28px text="Lifetime checks" style={font_size: 20px, fill: rgb(243, 238, 222)} />
+            <Text x=24px y=72px width={100% - 48px} height=52px text={self.phase} style={font_size: 16px, fill: rgb(131, 214, 201)} />
+            <Text x=24px y=146px width={100% - 48px} height=28px text={"Application starts: " + self.starts} style={font_size: 16px, fill: rgb(220, 224, 222)} />
+            <Text x=24px y=190px width={100% - 48px} height=28px text={"Panel mounts: " + self.mounts} style={font_size: 16px, fill: rgb(220, 224, 222)} />
+            <Text x=24px y=234px width={100% - 48px} height=28px text={"Retained shared value: " + self.shared_value} style={font_size: 16px, fill: rgb(220, 224, 222)} />
+            <Text x=24px y=288px width={100% - 48px} height=400px text={self.history} style={font_size: 13px, fill: rgb(158, 188, 194), align_vertical: TextAlignVertical::Top} />
+            <Rectangle width=100% height=100% corner_radius=18 fill=rgb(31, 47, 59) />
+        </Group>
+        <Text id=footer x=0px width=100% height=64px text="Properties coalesce. Channels preserve accepted events. Unmount revokes the panel’s results." style={font_size: 14px, fill: rgb(158, 175, 189)} />
+    </Group>
+    <Rectangle width=100% height=100% fill=rgb(16, 30, 40) />
+</Scroller>
+@settings {
+    @mount: on_mount
+    #workbench_scroller { scroll_height: {(Math::max(1100, $viewport.height))px} }
+    #workbench_body { height: 1080px }
+    #interact { x: 0px y: 170px width: 180px }
+    #panel_toggle { x: 200px y: 170px width: 240px }
+    #request_area { x: 0px y: 242px width: 58% height: 760px }
+    #history_area { x: {(58% + 20px)} y: 242px width: {(42% - 20px)} }
+    #publish_value { x: 24px y: 24px width: {(50% - 30px)} }
+    #burst_values { x: {(50% + 6px)} y: 24px width: {(50% - 30px)} }
+    #request_panel { y: 94px }
+    #footer { y: 1034px }
+    if $viewport.width < 900 {
+        #request_area { width: 100% }
+        #history_area { x: 0px y: 1022px width: 100% }
+        #footer { y: 1814px }
+        #workbench_body { height: 1900px }
+        #workbench_scroller { scroll_height: {(Math::max(1920, $viewport.height))px} }
+    }
+    if $viewport.width < 520 {
+        #interact { width: 100% }
+        #panel_toggle { x: 0px y: 224px width: 100% }
+        #request_area { y: 292px height: 1100px }
+        #publish_value { width: {(100% - 48px)} }
+        #burst_values { x: 24px y: 80px width: {(100% - 48px)} }
+        #request_panel { y: 144px height: 930px }
+        #history_area { y: 1412px }
+        #footer { y: 2204px }
+        #workbench_body { height: 2290px }
+        #workbench_scroller { scroll_height: {(Math::max(2310, $viewport.height))px} }
+    }
+}

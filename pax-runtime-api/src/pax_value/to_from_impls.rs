@@ -153,7 +153,18 @@ impl ToPaxValue for PaxValue {
     }
 }
 
-impl<T: ToPaxValue + PropertyValue> ToPaxValue for Property<T> {
+impl<T: ToPaxValue + crate::properties::SharedPropertyValue> ToPaxValue for Property<T> {
+    fn nested_properties(&self) -> Vec<crate::properties::UntypedProperty> {
+        let mut dependencies = vec![self.local().untyped()];
+        dependencies.extend(self.local().get().nested_properties());
+        dependencies
+    }
+    fn to_pax_value(self) -> PaxValue {
+        crate::PropertyBinding::value_for_conversion(&self).to_pax_value()
+    }
+}
+
+impl<T: ToPaxValue + PropertyValue> ToPaxValue for crate::LocalProperty<T> {
     fn nested_properties(&self) -> Vec<crate::properties::UntypedProperty> {
         let mut dependencies = vec![self.untyped()];
         dependencies.extend(self.get().nested_properties());
@@ -267,7 +278,7 @@ macro_rules! layer_pax_value {
             }
             fn to_pax_value(self) -> PaxValue {
                 PaxValue::Enum(Box::new((stringify!($ty).into(), "__layer".into(), vec![
-                    PaxValue::Object(vec![$((stringify!($field).into(), self.$field.get().to_pax_value())),+])
+                    PaxValue::Object(vec![$((stringify!($field).into(), self.$field.to_pax_value())),+])
                 ])))
             }
         }
@@ -353,15 +364,15 @@ impl ToPaxValue for MaterialParams {
     fn to_pax_value(self) -> PaxValue {
         PaxValue::Object(
             vec![
-                ("ambient".to_string(), self.ambient.get().to_pax_value()),
-                ("diffuse".to_string(), self.diffuse.get().to_pax_value()),
-                ("specular".to_string(), self.specular.get().to_pax_value()),
-                ("roughness".to_string(), self.roughness.get().to_pax_value()),
-                ("metallic".to_string(), self.metallic.get().to_pax_value()),
-                ("emissive".to_string(), self.emissive.get().to_pax_value()),
+                ("ambient".to_string(), self.ambient.to_pax_value()),
+                ("diffuse".to_string(), self.diffuse.to_pax_value()),
+                ("specular".to_string(), self.specular.to_pax_value()),
+                ("roughness".to_string(), self.roughness.to_pax_value()),
+                ("metallic".to_string(), self.metallic.to_pax_value()),
+                ("emissive".to_string(), self.emissive.to_pax_value()),
                 (
                     "emissive_intensity".to_string(),
-                    self.emissive_intensity.get().to_pax_value(),
+                    self.emissive_intensity.to_pax_value(),
                 ),
             ]
             .into_iter()

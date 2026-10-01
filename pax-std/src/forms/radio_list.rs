@@ -1,4 +1,5 @@
 use crate::{Font, TextAlignHorizontal, TextAlignVertical, TextStyle};
+use pax_engine::api::LocalProperty;
 use pax_message::{AnyCreatePatch, NativeInterrupt, RadioListPatch};
 use pax_runtime::api as pax_runtime_api;
 use pax_runtime::api::{use_RefCell, Layer, Property};
@@ -120,7 +121,7 @@ impl InstanceNode for RadioListInstance {
             .collect();
         expanded_node
             .changed_listener
-            .replace_with(Property::computed(
+            .replace_with(LocalProperty::computed(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
                         return;
@@ -156,22 +157,24 @@ impl InstanceNode for RadioListInstance {
                             patch_if_needed(
                                 &mut old_state.style,
                                 &mut patch.style,
-                                (&properties.style.get()).into(),
+                                properties.style.local().get().message(true),
                             ),
                             patch_if_needed(
                                 &mut old_state.background,
                                 &mut patch.background,
-                                (&properties.background.get()).into(),
+                                (&properties.background.local().get()).into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.background_checked,
                                 &mut patch.background_checked,
-                                (&properties.background_checked.get()).into(),
+                                (&properties.background_checked.local().get()).into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.outline_color,
                                 &mut patch.outline_color,
-                                (&crate::common::native_stroke_color(&properties.outline.get()))
+                                (&crate::common::native_stroke_color(
+                                    &properties.outline.local().get(),
+                                ))
                                     .into(),
                             ),
                             patch_if_needed(
@@ -179,8 +182,10 @@ impl InstanceNode for RadioListInstance {
                                 &mut patch.outline_width,
                                 properties
                                     .outline
+                                    .local()
                                     .get()
                                     .width
+                                    .local()
                                     .get()
                                     .expect_pixels()
                                     .to_float(),
@@ -188,12 +193,12 @@ impl InstanceNode for RadioListInstance {
                             patch_if_needed(
                                 &mut old_state.selected_id,
                                 &mut patch.selected_id,
-                                properties.selected_id.get(),
+                                properties.selected_id.local().get(),
                             ),
                             patch_if_needed(
                                 &mut old_state.options,
                                 &mut patch.options,
-                                properties.options.get(),
+                                properties.options.local().get(),
                             ),
                             patch_if_needed(
                                 &mut old_state.opacity,
@@ -222,7 +227,7 @@ impl InstanceNode for RadioListInstance {
         let id = expanded_node.id.clone();
         expanded_node
             .changed_listener
-            .replace_with(Property::default());
+            .replace_with(LocalProperty::default());
         context.enqueue_native_message(pax_message::NativeMessage::RadioListDelete(id.to_u32()));
     }
 

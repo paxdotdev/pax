@@ -125,11 +125,11 @@ impl InstanceNode for ImportSettingsInstance {
     ) {
         let transition =
             expanded_node.with_properties_unwrapped(|properties: &mut ImportSettings| {
-                properties.transition.clone()
+                properties.transition.local()
             });
         let dependencies = [transition.untyped()];
         *expanded_node.import_settings_transition.borrow_mut() =
-            Some(Property::computed_with_name(
+            Some(pax_engine::api::LocalProperty::computed_with_name(
                 move || match transition.get() {
                     SettingsTransition::None => None,
                     SettingsTransition::Ease(duration, curve) => {

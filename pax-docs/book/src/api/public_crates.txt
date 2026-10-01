@@ -3,3 +3,5 @@ pax-runtime-api
 pax-std
 pax-macro
 pax-kit
+pax-tokio
+pax-web-async

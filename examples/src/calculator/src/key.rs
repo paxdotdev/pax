@@ -52,10 +52,12 @@ impl CalculatorKey {
     }
     fn press(&mut self) {
         self.pressed
+            .local()
             .ease_to(0.8, Duration::Milliseconds(55.into()), EasingCurve::OutQuad);
     }
     fn release(&mut self) {
         self.pressed
+            .local()
             .ease_to(0., Duration::Milliseconds(120.into()), EasingCurve::OutQuad);
     }
 }

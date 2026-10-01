@@ -7,10 +7,29 @@ use super::{
 /// Reactive untyped property. Shallow clones can be cheaply made. Manages
 /// refcounting and deletion of underlying data when all instances with a
 /// specific PropertyId has been dropped.
+///
+/// Untyped graph handles retain their owner-thread restriction:
+///
+/// ```compile_fail
+/// use pax_runtime_api::LocalProperty;
+/// let value = LocalProperty::new(1_u32).untyped();
+/// std::thread::spawn(move || drop(value));
+/// ```
+///
+/// A lock cannot make a thread-local graph handle transferable:
+///
+/// ```compile_fail
+/// use pax_runtime_api::LocalProperty;
+/// use std::sync::{Arc, Mutex};
+/// let value = Arc::new(Mutex::new(LocalProperty::new(1_u32)));
+/// std::thread::spawn(move || value.lock().unwrap().get());
+/// ```
 #[derive(Debug)]
 pub struct UntypedProperty {
     // Slotmap id for the backing property table entry.
     pub(crate) id: PropertyId,
+    // The key is meaningful only in the creating thread's property table.
+    owner: std::marker::PhantomData<std::rc::Rc<()>>,
 }
 
 impl Clone for UntypedProperty {
@@ -18,7 +37,10 @@ impl Clone for UntypedProperty {
         PROPERTY_TABLE.with(|t| {
             t.increase_ref_count(self.id);
         });
-        UntypedProperty { id: self.id }
+        UntypedProperty {
+            id: self.id,
+            owner: std::marker::PhantomData,
+        }
     }
 }
 
@@ -37,6 +59,18 @@ impl Drop for UntypedProperty {
 }
 
 impl UntypedProperty {
+    pub(super) fn try_from_id(id: PropertyId) -> Option<Self> {
+        PROPERTY_TABLE.with(|table| {
+            if !table.has_live_entry(id) {
+                return None;
+            }
+            table.increase_ref_count(id);
+            Some(Self {
+                id,
+                owner: std::marker::PhantomData,
+            })
+        })
+    }
     // Allocates a new table entry and returns its untyped handle.
     pub(crate) fn new<T: PropertyValue>(
         val: T,
@@ -46,6 +80,7 @@ impl UntypedProperty {
     ) -> Self {
         UntypedProperty {
             id: PROPERTY_TABLE.with(|t| t.add_entry(val, inbound, data, debug_name)),
+            owner: std::marker::PhantomData,
         }
     }
 

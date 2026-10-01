@@ -147,6 +147,45 @@ impl Default for Fill {
     }
 }
 
+/// Plain drawing values captured before entering a rendering backend.
+/// Backends never read live shared properties while recording a frame.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ResolvedStroke {
+    pub paint: Paint,
+    pub material: ResolvedMaterial,
+    pub opacity: Opacity,
+    pub width: Size,
+    pub cap: StrokeCap,
+    pub join: StrokeJoin,
+}
+
+impl Stroke {
+    /// Resolves nested fields from the entered UI graph's settled projections.
+    pub fn resolve_in_graph(&self) -> ResolvedStroke {
+        ResolvedStroke {
+            paint: self.paint.local().get(),
+            material: self.material.local().get().resolve_in_graph(),
+            opacity: self.opacity.local().get(),
+            width: self.width.local().get(),
+            cap: self.cap.local().get(),
+            join: self.join.local().get(),
+        }
+    }
+
+    /// Captures the latest published fields without entering a UI graph.
+    /// Independently published fields are not a multi-property transaction.
+    pub fn snapshot(&self) -> ResolvedStroke {
+        ResolvedStroke {
+            paint: self.paint.get(),
+            material: self.material.get().snapshot(),
+            opacity: self.opacity.get(),
+            width: self.width.get(),
+            cap: self.cap.get(),
+            join: self.join.get(),
+        }
+    }
+}
+
 impl Default for Stroke {
     fn default() -> Self {
         Self {
@@ -191,6 +230,19 @@ impl Stroke {
     /// Resolves a finite, positive pixel width, or zero for an invisible stroke.
     pub fn width_pixels(&self) -> f64 {
         match self.width.get() {
+            Size::Pixels(value) if value.to_float().is_finite() => value.to_float().max(0.0),
+            _ => {
+                log::warn!("Stroke width must be finite logical pixels");
+                0.0
+            }
+        }
+    }
+}
+
+impl ResolvedStroke {
+    /// Resolves a finite, positive pixel width, or zero for an invisible stroke.
+    pub fn width_pixels(&self) -> f64 {
+        match self.width.clone() {
             Size::Pixels(value) if value.to_float().is_finite() => value.to_float().max(0.0),
             _ => {
                 log::warn!("Stroke width must be finite logical pixels");
@@ -499,6 +551,59 @@ pub enum Material {
     Lit(MaterialParams),
     /// Ignores scene lighting and preserves legacy unlit rendering behavior.
     Unlit,
+}
+
+/// Plain material coefficients for one settled drawing operation.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ResolvedMaterialParams {
+    pub ambient: f64,
+    pub diffuse: f64,
+    pub specular: f64,
+    pub roughness: f64,
+    pub metallic: f64,
+    pub emissive: Color,
+    pub emissive_intensity: f64,
+}
+
+/// Material response with no live property handles.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ResolvedMaterial {
+    Lit(ResolvedMaterialParams),
+    Unlit,
+}
+
+impl Material {
+    /// Resolves nested coefficients from the entered UI graph's projections.
+    pub fn resolve_in_graph(&self) -> ResolvedMaterial {
+        match self {
+            Self::Unlit => ResolvedMaterial::Unlit,
+            Self::Lit(p) => ResolvedMaterial::Lit(ResolvedMaterialParams {
+                ambient: p.ambient.local().get(),
+                diffuse: p.diffuse.local().get(),
+                specular: p.specular.local().get(),
+                roughness: p.roughness.local().get(),
+                metallic: p.metallic.local().get(),
+                emissive: p.emissive.local().get(),
+                emissive_intensity: p.emissive_intensity.local().get(),
+            }),
+        }
+    }
+
+    /// Captures published coefficients without evaluating the UI graph.
+    pub fn snapshot(&self) -> ResolvedMaterial {
+        match self {
+            Self::Unlit => ResolvedMaterial::Unlit,
+            Self::Lit(p) => ResolvedMaterial::Lit(ResolvedMaterialParams {
+                ambient: p.ambient.get(),
+                diffuse: p.diffuse.get(),
+                specular: p.specular.get(),
+                roughness: p.roughness.get(),
+                metallic: p.metallic.get(),
+                emissive: p.emissive.get(),
+                emissive_intensity: p.emissive_intensity.get(),
+            }),
+        }
+    }
 }
 
 impl Default for Material {
@@ -1526,38 +1631,52 @@ mod appearance_tests {
 
     #[test]
     fn expression_adapter_observes_nested_edits_and_releases_removed_layers() {
+        let graph = crate::properties::PropertyGraph::new(|| {});
+        let _entered = graph.enter();
         let first = Fill::from(Color::RED);
         let source = Property::new(vec![first.clone()]);
         let variable = Variable::new_from_typed_property(source.clone());
         let read = || Vec::<Fill>::try_coerce(variable.get_as_pax_value()).unwrap();
         assert_eq!(read()[0].paint.get(), Paint::Solid(Color::RED));
-        first.paint.set(Paint::Solid(Color::BLUE));
+        first.paint.local().set(Paint::Solid(Color::BLUE));
         assert!(drain_effects(100) < 100);
         assert_eq!(read()[0].paint.get(), Paint::Solid(Color::BLUE));
-        source.set(vec![]);
+        source.local().set(vec![]);
         assert!(read().is_empty());
-        first.paint.set(Paint::Solid(Color::WHITE));
+        first.paint.local().set(Paint::Solid(Color::WHITE));
         assert!(drain_effects(100) < 100);
         assert!(read().is_empty());
     }
 
     #[test]
     fn nested_appearance_subscriptions_retire_after_replacement_and_disposal() {
+        let graph = crate::properties::PropertyGraph::new(|| {});
+        let _entered = graph.enter();
         use crate::properties::property_table_total_properties_count;
         let baseline = property_table_total_properties_count();
         for _ in 0..30 {
+            let scope = graph.binding_scope();
+            let _scope = scope.enter();
             let source = Property::new(vec![Fill::from(Color::RED)]);
             let variable = Variable::new_from_typed_property(source.clone());
             variable.get_as_pax_value();
-            source.get()[0].opacity.set(Opacity::from(0.25));
+            source.local().get()[0]
+                .opacity
+                .local()
+                .set(Opacity::from(0.25));
             drain_effects(100);
             variable.get_as_pax_value();
-            source.set(vec![Fill::from(Color::BLUE), Fill::from(Color::GREEN)]);
+            source
+                .local()
+                .set(vec![Fill::from(Color::BLUE), Fill::from(Color::GREEN)]);
             variable.get_as_pax_value();
-            source.set(vec![]);
+            source.local().set(vec![]);
             variable.get_as_pax_value();
+            // A mounted view owns its shared projections until final unmount.
+            scope.close();
         }
         drain_effects(100);
+        graph.collect();
         assert_eq!(property_table_total_properties_count(), baseline);
     }
 

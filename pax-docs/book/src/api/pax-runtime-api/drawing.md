@@ -34,17 +34,17 @@ One interior paint layer. Index zero in an element's fill stack is topmost.
 
 #### Properties
 ##### `paint`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<[`Paint`](../../api/pax-runtime-api/drawing.md#paint)>
+Type: `Property`<[`Paint`](../../api/pax-runtime-api/drawing.md#paint)>
 
 Color or gradient sampled over the complete local geometry.
 
 ##### `material`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<[`Material`](../../api/pax-runtime-api/drawing.md#material)>
+Type: `Property`<[`Material`](../../api/pax-runtime-api/drawing.md#material)>
 
 Light-reactive surface response, matte by default.
 
 ##### `opacity`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<[`Opacity`](../../api/pax-runtime-api/color.md#opacity)>
+Type: `Property`<[`Opacity`](../../api/pax-runtime-api/color.md#opacity)>
 
 Opacity of this layer before element opacity is applied.
 
@@ -106,37 +106,37 @@ Tunable response parameters for a light-reactive vector material.
 
 #### Properties
 ##### `ambient`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<`f64`>
+Type: `Property`<`f64`>
 
 Ambient contribution multiplier.
 
 ##### `diffuse`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<`f64`>
+Type: `Property`<`f64`>
 
 Diffuse contribution multiplier.
 
 ##### `specular`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<`f64`>
+Type: `Property`<`f64`>
 
 Specular contribution multiplier.
 
 ##### `roughness`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<`f64`>
+Type: `Property`<`f64`>
 
 Surface roughness in the `[0.0, 1.0]` range.
 
 ##### `metallic`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<`f64`>
+Type: `Property`<`f64`>
 
 Metallic response in the `[0.0, 1.0]` range.
 
 ##### `emissive`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<[`Color`](../../api/pax-runtime-api/color.md#color)>
+Type: `Property`<[`Color`](../../api/pax-runtime-api/color.md#color)>
 
 Additive emissive color.
 
 ##### `emissive_intensity`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<`f64`>
+Type: `Property`<`f64`>
 
 Additive emissive intensity.
 
@@ -218,6 +218,33 @@ independent of the distance between the focal point and the center.
 
 ---
 
+### `ResolvedMaterialParams`
+Plain material coefficients for one settled drawing operation.
+
+#### Properties
+##### `ambient`
+Type: `f64`
+
+##### `diffuse`
+Type: `f64`
+
+##### `specular`
+Type: `f64`
+
+##### `roughness`
+Type: `f64`
+
+##### `metallic`
+Type: `f64`
+
+##### `emissive`
+Type: [`Color`](../../api/pax-runtime-api/color.md#color)
+
+##### `emissive_intensity`
+Type: `f64`
+
+---
+
 ### `ResolvedRadialGradient`
 Runtime geometry shared by radial color fills and painted alpha masks.
 Coordinates are local logical pixels, before the element's affine transform.
@@ -237,6 +264,37 @@ Center of the circle corresponding to the 100% stop.
 Type: `f64`
 
 Radius of the 100% circle in local logical pixels.
+
+---
+
+### `ResolvedStroke`
+Plain drawing values captured before entering a rendering backend.
+Backends never read live shared properties while recording a frame.
+
+#### Properties
+##### `paint`
+Type: [`Paint`](../../api/pax-runtime-api/drawing.md#paint)
+
+##### `material`
+Type: [`ResolvedMaterial`](../../api/pax-runtime-api/drawing.md#resolvedmaterial)
+
+##### `opacity`
+Type: [`Opacity`](../../api/pax-runtime-api/color.md#opacity)
+
+##### `width`
+Type: [`Size`](../../api/pax-runtime-api/layout.md#size)
+
+##### `cap`
+Type: [`StrokeCap`](../../api/pax-runtime-api/drawing.md#strokecap)
+
+##### `join`
+Type: [`StrokeJoin`](../../api/pax-runtime-api/drawing.md#strokejoin)
+
+#### Implementations
+##### `width_pixels`
+<pre><code class="api-signature language-rust ignore">pub fn width_pixels(&amp;self) -&gt; f64</code></pre>
+
+Resolves a finite, positive pixel width, or zero for an invisible stroke.
 
 ---
 
@@ -349,36 +407,47 @@ Index zero in an element's stroke stack is topmost.
 
 #### Properties
 ##### `paint`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<[`Paint`](../../api/pax-runtime-api/drawing.md#paint)>
+Type: `Property`<[`Paint`](../../api/pax-runtime-api/drawing.md#paint)>
 
 Color or gradient sampled over the complete, untrimmed geometry.
 
 ##### `material`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<[`Material`](../../api/pax-runtime-api/drawing.md#material)>
+Type: `Property`<[`Material`](../../api/pax-runtime-api/drawing.md#material)>
 
 Light-reactive surface response, matte by default.
 
 ##### `opacity`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<[`Opacity`](../../api/pax-runtime-api/color.md#opacity)>
+Type: `Property`<[`Opacity`](../../api/pax-runtime-api/color.md#opacity)>
 
 Opacity of this layer before element opacity is applied.
 
 ##### `width`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<[`Size`](../../api/pax-runtime-api/layout.md#size)>
+Type: `Property`<[`Size`](../../api/pax-runtime-api/layout.md#size)>
 
 Width in logical pixels. Percentages are unsupported; nonpositive widths draw nothing.
 
 ##### `cap`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<[`StrokeCap`](../../api/pax-runtime-api/drawing.md#strokecap)>
+Type: `Property`<[`StrokeCap`](../../api/pax-runtime-api/drawing.md#strokecap)>
 
 Style of exposed endpoints on open paths.
 
 ##### `join`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<[`StrokeJoin`](../../api/pax-runtime-api/drawing.md#strokejoin)>
+Type: `Property`<[`StrokeJoin`](../../api/pax-runtime-api/drawing.md#strokejoin)>
 
 Style of joins between adjacent segments.
 
 #### Implementations
+##### `resolve_in_graph`
+<pre><code class="api-signature language-rust ignore">pub fn resolve_in_graph(&amp;self) -&gt; <a href="../../api/pax-runtime-api/drawing.md#resolvedstroke">ResolvedStroke</a></code></pre>
+
+Resolves nested fields from the entered UI graph's settled projections.
+
+##### `snapshot`
+<pre><code class="api-signature language-rust ignore">pub fn snapshot(&amp;self) -&gt; <a href="../../api/pax-runtime-api/drawing.md#resolvedstroke">ResolvedStroke</a></code></pre>
+
+Captures the latest published fields without entering a UI graph.
+Independently published fields are not a multi-property transaction.
+
 ##### `width_pixels`
 <pre><code class="api-signature language-rust ignore">pub fn width_pixels(&amp;self) -&gt; f64</code></pre>
 
@@ -438,6 +507,16 @@ Responds to scene lighting using parameterized material coefficients.
 Ignores scene lighting and preserves legacy unlit rendering behavior.
 
 #### Implementations
+##### `resolve_in_graph`
+<pre><code class="api-signature language-rust ignore">pub fn resolve_in_graph(&amp;self) -&gt; <a href="../../api/pax-runtime-api/drawing.md#resolvedmaterial">ResolvedMaterial</a></code></pre>
+
+Resolves nested coefficients from the entered UI graph's projections.
+
+##### `snapshot`
+<pre><code class="api-signature language-rust ignore">pub fn snapshot(&amp;self) -&gt; <a href="../../api/pax-runtime-api/drawing.md#resolvedmaterial">ResolvedMaterial</a></code></pre>
+
+Captures published coefficients without evaluating the UI graph.
+
 ##### `custom`
 <pre><code class="api-signature language-rust ignore">pub fn custom(params: <a href="../../api/pax-runtime-api/drawing.md#materialparams">MaterialParams</a>) -&gt; Self</code></pre>
 
@@ -590,6 +669,14 @@ Lightly smooth polyline runs while preserving sharp corners.
 ##### `Strong`
 More aggressively smooth polyline runs for pen-like paths.
 
+---
+
+### `ResolvedMaterial`
+Material response with no live property handles.
+
+#### Variants
+##### `Lit`([`ResolvedMaterialParams`](../../api/pax-runtime-api/drawing.md#resolvedmaterialparams))
+##### `Unlit`
 ---
 
 ### `StrokeCap`

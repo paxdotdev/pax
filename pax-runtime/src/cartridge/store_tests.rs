@@ -2,7 +2,7 @@ use super::*;
 use crate::api::{NodeContext, Store, StoreError};
 
 struct SelectionStore {
-    selected: Property<f64>,
+    selected: LocalProperty<f64>,
 }
 impl Store for SelectionStore {}
 struct OtherStore;
@@ -48,7 +48,7 @@ fn mount(
         .remove(0)
 }
 
-fn selection(node: &Rc<ExpandedNode>, engine: &PaxEngine) -> Property<f64> {
+fn selection(node: &Rc<ExpandedNode>, engine: &PaxEngine) -> LocalProperty<f64> {
     node.get_node_context(&engine.runtime_context)
         .with_store(|s: &mut SelectionStore| s.selected.clone())
         .unwrap()
@@ -61,7 +61,7 @@ fn slot() -> Rc<dyn InstanceNode> {
         node.is_none().then(|| {
             Rc::new(RefCell::new(
                 Slot {
-                    is_remainder: Property::new(true),
+                    is_remainder: LocalProperty::new(true),
                     ..Default::default()
                 }
                 .to_pax_any(),
@@ -72,7 +72,7 @@ fn slot() -> Rc<dyn InstanceNode> {
 }
 
 fn repeat(
-    source: Property<PaxValue>,
+    source: LocalProperty<PaxValue>,
     keyed: bool,
     children: Vec<Rc<dyn InstanceNode>>,
 ) -> Rc<dyn InstanceNode> {
@@ -84,8 +84,8 @@ fn repeat(
             Rc::new(RefCell::new(
                 RepeatProperties {
                     source_expression: source.clone(),
-                    iterator_i_symbol: Property::new(Some("i".into())),
-                    iterator_elem_symbol: Property::new(Some("item".into())),
+                    iterator_i_symbol: LocalProperty::new(Some("i".into())),
+                    iterator_elem_symbol: LocalProperty::new(Some("item".into())),
                     repeat_key_expression: keyed.then(|| {
                         ExpressionInfo::new(pax_language::parse_pax_expression("item").unwrap())
                     }),
@@ -160,7 +160,7 @@ fn replacement_preserves_old_explicit_handles_and_borrows_are_checked_per_type()
     let ctx = node.get_node_context(&engine.runtime_context);
     let original = selection(&node, &engine);
     ctx.provide_store(SelectionStore {
-        selected: Property::new(99.0),
+        selected: LocalProperty::new(99.0),
     })
     .unwrap();
     original.set(12.0);
@@ -173,7 +173,7 @@ fn replacement_preserves_old_explicit_handles_and_borrows_are_checked_per_type()
         ));
         assert!(matches!(
             ctx.provide_store(SelectionStore {
-                selected: Property::new(0.0)
+                selected: LocalProperty::new(0.0)
             }),
             Err(StoreError::BorrowConflict { .. })
         ));
@@ -189,8 +189,10 @@ fn final_unmount_drops_owned_state_and_remount_expires_saved_contexts() {
     }
     impl Store for LifetimeStore {}
     let (engine, root) = fixture();
+    engine.activate_application();
     let node = mount(&root, &engine, provider(vec![]));
     let old_ctx = node.get_node_context(&engine.runtime_context);
+    let old_scope = old_ctx.async_scope().unwrap();
     let old_properties = Rc::downgrade(&node.properties.borrow());
     let old_selected = selection(&node, &engine);
     old_selected.set(42.0);
@@ -200,6 +202,7 @@ fn final_unmount_drops_owned_state_and_remount_expires_saved_contexts() {
         .provide_store(LifetimeStore { _token: token })
         .unwrap();
     node.clone().recurse_unmount(&engine.runtime_context);
+    assert!(old_scope.is_closed());
     assert!(weak.upgrade().is_none());
     assert!(old_properties.upgrade().is_none());
     assert_eq!(
@@ -212,6 +215,18 @@ fn final_unmount_drops_owned_state_and_remount_expires_saved_contexts() {
     );
     let closed_ctx = node.get_node_context(&engine.runtime_context);
     node.recurse_mount(&engine.runtime_context);
+    assert!(matches!(
+        old_ctx.async_scope(),
+        Err(crate::api::AsyncError::Closed)
+    ));
+    assert!(matches!(
+        closed_ctx.async_scope(),
+        Err(crate::api::AsyncError::Closed)
+    ));
+    assert!(node
+        .get_node_context(&engine.runtime_context)
+        .async_scope()
+        .is_ok());
     assert_eq!(selection(&node, &engine).get(), 7.0);
     assert_eq!(
         old_ctx.with_store(|_: &mut SelectionStore| ()),
@@ -304,7 +319,7 @@ fn unmount_handlers_can_still_read_the_provider_scope() {
 #[test]
 fn projection_uses_receiving_provider_but_keeps_caller_expressions_and_forwarding() {
     let (engine, root) = fixture();
-    let caller_value = Property::new(42.0);
+    let caller_value = LocalProperty::new(42.0);
     let env = root.stack.push(HashMap::from([(
         "value".into(),
         Variable::new_from_typed_property(caller_value.clone()),
@@ -347,7 +362,7 @@ fn projection_uses_receiving_provider_but_keeps_caller_expressions_and_forwardin
 #[test]
 fn projected_repeat_has_transparent_unmounted_scopes() {
     let (engine, root) = fixture();
-    let source = Property::new(vec![1usize, 2].to_pax_value());
+    let source = LocalProperty::new(vec![1usize, 2].to_pax_value());
     let mut receiver = provider_args(vec![slot()]);
     receiver.children = Some(RefCell::new(vec![repeat(
         source.clone(),
@@ -372,7 +387,7 @@ fn projected_repeat_has_transparent_unmounted_scopes() {
 fn repeated_providers_follow_keyed_identity_and_unkeyed_positions() {
     for keyed in [true, false] {
         let (engine, root) = fixture();
-        let source = Property::new(vec![1usize, 2].to_pax_value());
+        let source = LocalProperty::new(vec![1usize, 2].to_pax_value());
         let repeated = mount(
             &root,
             &engine,
@@ -415,8 +430,8 @@ fn repeated_providers_follow_keyed_identity_and_unkeyed_positions() {
 #[test]
 fn nested_keyed_repeats_keep_each_provider_identity() {
     let (engine, root) = fixture();
-    let outer_source = Property::new(vec![1usize, 2].to_pax_value());
-    let inner_source = Property::new(vec![10usize, 20].to_pax_value());
+    let outer_source = LocalProperty::new(vec![1usize, 2].to_pax_value());
+    let inner_source = LocalProperty::new(vec![10usize, 20].to_pax_value());
     let outer = mount(
         &root,
         &engine,
@@ -497,8 +512,8 @@ fn render_reparent_keeps_provider_ancestry_and_cannot_reconnect_after_ancestor_r
 #[test]
 fn reload_retains_stable_handles_and_remounts_changed_binding_aliases() {
     let (engine, root) = fixture();
-    let a = Property::new(10.0);
-    let b = Property::new(20.0);
+    let a = LocalProperty::new(10.0);
+    let b = LocalProperty::new(20.0);
     let env = root.stack.push(HashMap::from([
         ("a".into(), Variable::new_from_typed_property(a.clone())),
         ("b".into(), Variable::new_from_typed_property(b.clone())),
@@ -546,7 +561,7 @@ fn reload_retains_stable_handles_and_remounts_changed_binding_aliases() {
 #[test]
 fn exit_retention_preserves_store_until_rescue_or_final_unmount() {
     let (engine, root) = fixture();
-    let source = Property::new(vec![1usize].to_pax_value());
+    let source = LocalProperty::new(vec![1usize].to_pax_value());
     let mut args = provider_args(vec![]);
     args.transition_config = pax_manifest::cartridge_generation::ComponentTransitionConfig {
         has_exit: true,

@@ -15,14 +15,14 @@ thread_local! {
 }
 
 struct Probe {
-    value: Property<f64>,
-    untouched: Property<f64>,
+    value: LocalProperty<f64>,
+    untouched: LocalProperty<f64>,
 }
 impl Default for Probe {
     fn default() -> Self {
         Self {
-            value: Property::new(7.0),
-            untouched: Property::new(19.0),
+            value: LocalProperty::new(7.0),
+            untouched: LocalProperty::new(19.0),
         }
     }
 }
@@ -38,7 +38,7 @@ static SCOPE: [PropertyScopeDescriptor<Probe>; 2] = [
 ];
 static FIELDS: [ComponentPropertyDescriptor<Probe>; 2] = [
     ComponentPropertyDescriptor::new("value", |p, entries, stack, node| {
-        let mut layered = Property::new(Probe::default().value.get());
+        let mut layered = LocalProperty::new(Probe::default().value.get());
         let mut alias = None;
         for entry in entries {
             let source = entry.source_stack.as_ref().unwrap_or(stack);
@@ -259,7 +259,7 @@ fn values(node: &Rc<ExpandedNode>) -> (f64, f64) {
 #[test]
 fn template_allocates_binds_and_publishes_scope_once_before_mount() {
     let (engine, root) = fixture();
-    let source = Property::new(31.0);
+    let source = LocalProperty::new(31.0);
     let plan = plan(
         vec![
             setting("value", expression("source + 1")),
@@ -355,8 +355,8 @@ fn shared_plan_keeps_nodes_independent_and_publishes_final_double_binding_alias(
         None,
         None,
     );
-    let a = Property::new(10.0);
-    let b = Property::new(20.0);
+    let a = LocalProperty::new(10.0);
+    let b = LocalProperty::new(20.0);
     let first = child(
         &root,
         &engine.runtime_context,
@@ -404,7 +404,7 @@ fn shared_plan_keeps_nodes_independent_and_publishes_final_double_binding_alias(
 #[test]
 fn selector_changes_resolve_once_per_rebind_and_reset_removed_component_properties() {
     let (engine, root) = fixture();
-    let classes = Property::new("active".to_string());
+    let classes = LocalProperty::new("active".to_string());
     let plan = plan(
         vec![],
         Some(expression("classes")),
@@ -552,7 +552,7 @@ fn local_timeline_preserves_forward_double_binding_and_clock() {
                 ValueDefinition::DoubleBinding(PaxIdentifier::new("source")),
             );
         }
-        let source = Property::new(31.0);
+        let source = LocalProperty::new(31.0);
         let instance: Rc<dyn InstanceNode> = if use_template_plan {
             let PropertiesInit::DescriptorInline {
                 defined_properties, ..
@@ -621,7 +621,7 @@ fn repeated_plan_instantiation_releases_node_local_properties() {
 #[test]
 fn imported_provider_scope_and_inline_base_remain_reactive() {
     let (engine, root) = fixture();
-    let theme = Property::new(8.0);
+    let theme = LocalProperty::new(8.0);
     root.imported_settings_layers
         .borrow_mut()
         .push(RuntimeSettingsLayer {
@@ -668,7 +668,7 @@ fn settings_import(root: &Rc<ExpandedNode>, ctx: &Rc<RuntimeContext>) -> Rc<Expa
 fn settings_provider(
     root: &Rc<ExpandedNode>,
     ctx: &Rc<RuntimeContext>,
-    theme: &Property<f64>,
+    theme: &LocalProperty<f64>,
 ) -> Rc<ExpandedNode> {
     let mut args = args();
     args.template_node_type_id = Some(TypeId::build_singleton("test::Theme", Some("Theme")));
@@ -691,7 +691,7 @@ fn settings_provider(
 fn unchanged_import_discovery_does_not_copy_settings_or_rebind() {
     let (engine, root) = fixture();
     let ctx = &engine.runtime_context;
-    let theme = Property::new(8.0);
+    let theme = LocalProperty::new(8.0);
     let import = settings_import(&root, ctx);
     let provider = settings_provider(&root, ctx, &theme);
     *import.sidecar_children.borrow_mut() = vec![provider.clone()];
@@ -735,8 +735,8 @@ fn unchanged_import_discovery_does_not_copy_settings_or_rebind() {
 fn import_discovery_preserves_provider_order_replacement_and_removal() {
     let (engine, root) = fixture();
     let ctx = &engine.runtime_context;
-    let first = settings_provider(&root, ctx, &Property::new(10.0));
-    let second = settings_provider(&root, ctx, &Property::new(20.0));
+    let first = settings_provider(&root, ctx, &LocalProperty::new(10.0));
+    let second = settings_provider(&root, ctx, &LocalProperty::new(20.0));
     let import = settings_import(&root, ctx);
     *import.sidecar_children.borrow_mut() = vec![first.clone(), second.clone()];
     root.children.set(vec![import.clone()]);
@@ -748,7 +748,7 @@ fn import_discovery_preserves_provider_order_replacement_and_removal() {
     *import.sidecar_children.borrow_mut() = vec![second, first];
     root.sync_imported_settings(ctx);
     assert_eq!(values(&node).0, 10.0);
-    let replacement = settings_provider(&root, ctx, &Property::new(30.0));
+    let replacement = settings_provider(&root, ctx, &LocalProperty::new(30.0));
     *import.sidecar_children.borrow_mut() = vec![replacement];
     root.sync_imported_settings(ctx);
     assert_eq!(values(&node).0, 30.0);
@@ -764,8 +764,8 @@ fn import_discovery_preserves_provider_order_replacement_and_removal() {
 fn import_discovery_keeps_transition_policy_reactive() {
     let (engine, root) = fixture();
     let ctx = &engine.runtime_context;
-    let theme = Property::new(0.0);
-    let policy = Property::new(None);
+    let theme = LocalProperty::new(0.0);
+    let policy = LocalProperty::new(None);
     let import = settings_import(&root, ctx);
     *import.import_settings_transition.borrow_mut() = Some(policy.clone());
     let provider = settings_provider(&root, ctx, &theme);
@@ -820,7 +820,7 @@ fn import_discovery_keeps_transition_policy_reactive() {
 
 fn animated_layer(
     root: &ExpandedNode,
-    theme: &Property<f64>,
+    theme: &LocalProperty<f64>,
     settings: Vec<SettingElement>,
 ) -> RuntimeSettingsLayer {
     RuntimeSettingsLayer {
@@ -834,7 +834,7 @@ fn animated_layer(
             pax_manifest::Token::new_without_location("Probe".into()),
             LiteralBlockDefinition::new(settings),
         )],
-        transition: Some(Property::new(Some(SettingsTransitionConfig {
+        transition: Some(LocalProperty::new(Some(SettingsTransitionConfig {
             duration: Duration::Milliseconds(100.into()),
             curve: "Linear",
         }))),
@@ -870,7 +870,7 @@ impl InstanceNode for ThemeImport {
     }
     fn handle_mount(self: Rc<Self>, node: &Rc<ExpandedNode>, ctx: &Rc<RuntimeContext>) {
         *node.import_settings_transition.borrow_mut() =
-            Some(Property::new(Some(SettingsTransitionConfig {
+            Some(LocalProperty::new(Some(SettingsTransitionConfig {
                 duration: Duration::Milliseconds(100.into()),
                 curve: "Linear",
             })));
@@ -931,7 +931,7 @@ fn late_mounted_components_resolve_their_theme_before_the_first_presentation() {
             "frame" => {
                 let frames = context.globals().elapsed_frames;
                 let dependencies = [frames.untyped()];
-                Property::computed(
+                LocalProperty::computed(
                     move || if frames.get() > 0 { 1.0 } else { 0.0 },
                     &dependencies,
                 )
@@ -939,7 +939,7 @@ fn late_mounted_components_resolve_their_theme_before_the_first_presentation() {
             "millis" => {
                 let millis = context.globals().elapsed_millis;
                 let dependencies = [millis.untyped()];
-                Property::computed(
+                LocalProperty::computed(
                     move || if millis.get() > 0 { 1.0 } else { 0.0 },
                     &dependencies,
                 )
@@ -1015,7 +1015,7 @@ fn late_mounted_components_resolve_their_theme_before_the_first_presentation() {
 fn imported_motion_survives_rebinding_and_removal_for_common_and_component_properties() {
     let (engine, root) = fixture();
     let context = &engine.runtime_context;
-    let theme = Property::new(0.0);
+    let theme = LocalProperty::new(0.0);
     root.imported_settings_layers
         .borrow_mut()
         .push(animated_layer(
@@ -1063,7 +1063,7 @@ fn imported_motion_survives_rebinding_and_removal_for_common_and_component_prope
 fn explicit_settings_win_without_allocating_motion_and_animated_nodes_release_state() {
     let (engine, root) = fixture();
     let context = &engine.runtime_context;
-    let theme = Property::new(10.0);
+    let theme = LocalProperty::new(10.0);
     root.imported_settings_layers
         .borrow_mut()
         .push(animated_layer(

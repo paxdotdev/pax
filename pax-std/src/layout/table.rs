@@ -1,5 +1,6 @@
-#[allow(unused)]
 use crate::*;
+#[allow(unused)]
+use pax_engine::api::LocalProperty;
 use pax_engine::api::*;
 use pax_engine::*;
 
@@ -48,8 +49,10 @@ impl Table {
         .expect("Table is mounting");
         let projected_children = ctx.projected_children_count.clone();
         let deps = [projected_children.untyped()];
-        self._slots
-            .replace_with(Property::computed(move || projected_children.get(), &deps));
+        self._slots.replace_with(LocalProperty::computed(
+            move || projected_children.get(),
+            &deps,
+        ));
     }
 }
 
@@ -83,14 +86,14 @@ impl Row {
         ctx.with_store(|table_ctx: &mut TableContext| {
             let rows = table_ctx.rows.clone();
             let deps = [rows.untyped()];
-            self._height.replace_with(Property::computed(
+            self._height.replace_with(LocalProperty::computed(
                 move || Size::Percent((PIXEL_ALIGN_FACTOR * 100.0 / rows.get() as f64).into()),
                 &deps,
             ));
             let rows = table_ctx.rows.clone();
-            let y = self.y.clone();
+            let y = self.y.local();
             let deps = [rows.untyped(), y.untyped()];
-            self._y_pos.replace_with(Property::computed(
+            self._y_pos.replace_with(LocalProperty::computed(
                 move || {
                     Size::Percent(
                         (PIXEL_ALIGN_FACTOR * y.get() as f64 * 100.0 / rows.get() as f64).into(),
@@ -102,8 +105,10 @@ impl Row {
         .expect("rows can not exist outside a table");
         let projected_children = ctx.projected_children_count.clone();
         let deps = [projected_children.untyped()];
-        self._slots
-            .replace_with(Property::computed(move || projected_children.get(), &deps));
+        self._slots.replace_with(LocalProperty::computed(
+            move || projected_children.get(),
+            &deps,
+        ));
     }
 }
 
@@ -137,14 +142,14 @@ impl Col {
         ctx.with_store(|table_ctx: &mut TableContext| {
             let columns = table_ctx.columns.clone();
             let deps = [columns.untyped()];
-            self._width.replace_with(Property::computed(
+            self._width.replace_with(LocalProperty::computed(
                 move || Size::Percent((PIXEL_ALIGN_FACTOR * 100.0 / columns.get() as f64).into()),
                 &deps,
             ));
             let columns = table_ctx.columns.clone();
-            let x = self.x.clone();
+            let x = self.x.local();
             let deps = [columns.untyped(), x.untyped()];
-            self._x_pos.replace_with(Property::computed(
+            self._x_pos.replace_with(LocalProperty::computed(
                 move || {
                     Size::Percent(
                         (PIXEL_ALIGN_FACTOR * x.get() as f64 * 100.0 / columns.get() as f64).into(),
@@ -156,8 +161,10 @@ impl Col {
         .expect("columns can not exist outside a table");
         let projected_children = ctx.projected_children_count.clone();
         let deps = [projected_children.untyped()];
-        self._slots
-            .replace_with(Property::computed(move || projected_children.get(), &deps));
+        self._slots.replace_with(LocalProperty::computed(
+            move || projected_children.get(),
+            &deps,
+        ));
     }
 }
 
@@ -208,9 +215,9 @@ impl Span {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         ctx.with_store(|table_ctx: &mut TableContext| {
             let rows = table_ctx.rows.clone();
-            let h = self.h.clone();
+            let h = self.h.local();
             let deps = [rows.untyped(), h.untyped()];
-            self._height.replace_with(Property::computed(
+            self._height.replace_with(LocalProperty::computed(
                 move || {
                     Size::Percent(
                         (PIXEL_ALIGN_FACTOR * h.get() as f64 * 100.0 / rows.get() as f64).into(),
@@ -219,9 +226,9 @@ impl Span {
                 &deps,
             ));
             let rows = table_ctx.rows.clone();
-            let y = self.y.clone();
+            let y = self.y.local();
             let deps = [rows.untyped(), y.untyped()];
-            self._y_pos.replace_with(Property::computed(
+            self._y_pos.replace_with(LocalProperty::computed(
                 move || {
                     Size::Percent(
                         (PIXEL_ALIGN_FACTOR * y.get() as f64 * 100.0 / rows.get() as f64).into(),
@@ -230,9 +237,9 @@ impl Span {
                 &deps,
             ));
             let columns = table_ctx.columns.clone();
-            let w = self.w.clone();
+            let w = self.w.local();
             let deps = [columns.untyped(), w.untyped()];
-            self._width.replace_with(Property::computed(
+            self._width.replace_with(LocalProperty::computed(
                 move || {
                     Size::Percent(
                         (PIXEL_ALIGN_FACTOR * w.get() as f64 * 100.0 / columns.get() as f64).into(),
@@ -241,9 +248,9 @@ impl Span {
                 &deps,
             ));
             let columns = table_ctx.columns.clone();
-            let x = self.x.clone();
+            let x = self.x.local();
             let deps = [columns.untyped(), x.untyped()];
-            self._x_pos.replace_with(Property::computed(
+            self._x_pos.replace_with(LocalProperty::computed(
                 move || {
                     Size::Percent(
                         (PIXEL_ALIGN_FACTOR * x.get() as f64 * 100.0 / columns.get() as f64).into(),
@@ -255,8 +262,10 @@ impl Span {
         .expect("columns can not exist outside a table");
         let projected_children = ctx.projected_children_count.clone();
         let deps = [projected_children.untyped()];
-        self._slots
-            .replace_with(Property::computed(move || projected_children.get(), &deps));
+        self._slots.replace_with(LocalProperty::computed(
+            move || projected_children.get(),
+            &deps,
+        ));
     }
 }
 
@@ -304,14 +313,14 @@ impl Cell {
         ctx.with_store(|table_ctx: &mut TableContext| {
             let rows = table_ctx.rows.clone();
             let deps = [rows.untyped()];
-            self._height.replace_with(Property::computed(
+            self._height.replace_with(LocalProperty::computed(
                 move || Size::Percent((PIXEL_ALIGN_FACTOR * 100.0 / rows.get() as f64).into()),
                 &deps,
             ));
             let rows = table_ctx.rows.clone();
-            let y = self.y.clone();
+            let y = self.y.local();
             let deps = [rows.untyped(), y.untyped()];
-            self._y_pos.replace_with(Property::computed(
+            self._y_pos.replace_with(LocalProperty::computed(
                 move || {
                     Size::Percent(
                         (PIXEL_ALIGN_FACTOR * y.get() as f64 * 100.0 / rows.get() as f64).into(),
@@ -321,14 +330,14 @@ impl Cell {
             ));
             let columns = table_ctx.columns.clone();
             let deps = [columns.untyped()];
-            self._width.replace_with(Property::computed(
+            self._width.replace_with(LocalProperty::computed(
                 move || Size::Percent((PIXEL_ALIGN_FACTOR * 100.0 / columns.get() as f64).into()),
                 &deps,
             ));
             let columns = table_ctx.columns.clone();
-            let x = self.x.clone();
+            let x = self.x.local();
             let deps = [columns.untyped(), x.untyped()];
-            self._x_pos.replace_with(Property::computed(
+            self._x_pos.replace_with(LocalProperty::computed(
                 move || {
                     Size::Percent(
                         (PIXEL_ALIGN_FACTOR * x.get() as f64 * 100.0 / columns.get() as f64).into(),
@@ -340,7 +349,9 @@ impl Cell {
         .expect("columns can not exist outside a table");
         let projected_children = ctx.projected_children_count.clone();
         let deps = [projected_children.untyped()];
-        self._slots
-            .replace_with(Property::computed(move || projected_children.get(), &deps));
+        self._slots.replace_with(LocalProperty::computed(
+            move || projected_children.get(),
+            &deps,
+        ));
     }
 }

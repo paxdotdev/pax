@@ -1,3 +1,4 @@
+use pax_engine::api::LocalProperty;
 use pax_engine::pax;
 use pax_message::{AnyCreatePatch, PhotoPickerPatch};
 use pax_runtime::api::{borrow, borrow_mut, use_RefCell, Layer, NodeContext, Property};
@@ -96,7 +97,7 @@ impl PhotoPicker {
         let projected_children_count = ctx.projected_children_count.clone();
         let deps = [projected_children_count.untyped()];
         self._projected_children_count
-            .replace_with(Property::computed(
+            .replace_with(LocalProperty::computed(
                 move || projected_children_count.get(),
                 &deps,
             ));
@@ -193,7 +194,7 @@ impl InstanceNode for PhotoPickerInputInstance {
             .collect();
         expanded_node
             .changed_listener
-            .replace_with(Property::computed(
+            .replace_with(LocalProperty::computed(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
                         return;
@@ -211,32 +212,32 @@ impl InstanceNode for PhotoPickerInputInstance {
                             patch_if_needed(
                                 &mut old_state.trigger,
                                 &mut patch.trigger,
-                                properties.trigger.get(),
+                                properties.trigger.local().get(),
                             ),
                             patch_if_needed(
                                 &mut old_state.source,
                                 &mut patch.source,
-                                properties.source.get().as_message(),
+                                properties.source.local().get().as_message(),
                             ),
                             patch_if_needed(
                                 &mut old_state.allow_multiple,
                                 &mut patch.allow_multiple,
-                                properties.allow_multiple.get(),
+                                properties.allow_multiple.local().get(),
                             ),
                             patch_if_needed(
                                 &mut old_state.accept,
                                 &mut patch.accept,
-                                properties.accept.get(),
+                                properties.accept.local().get(),
                             ),
                             patch_if_needed(
                                 &mut old_state.include_bytes,
                                 &mut patch.include_bytes,
-                                properties.include_bytes.get(),
+                                properties.include_bytes.local().get(),
                             ),
                             patch_if_needed(
                                 &mut old_state.max_bytes_per_photo,
                                 &mut patch.max_bytes_per_photo,
-                                properties.max_bytes_per_photo.get(),
+                                properties.max_bytes_per_photo.local().get(),
                             ),
                             patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
                             patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),
@@ -276,7 +277,7 @@ impl InstanceNode for PhotoPickerInputInstance {
         let id = expanded_node.id.to_u32();
         expanded_node
             .changed_listener
-            .replace_with(Property::default());
+            .replace_with(LocalProperty::default());
         context.enqueue_native_message(pax_message::NativeMessage::PhotoPickerDelete(id));
     }
 

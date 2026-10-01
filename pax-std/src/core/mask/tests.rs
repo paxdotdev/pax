@@ -1,7 +1,9 @@
 use super::*;
 use kurbo::{BezPath, Rect, Shape};
 use pax_runtime::api::pax_value::ToFromPaxAny;
-use pax_runtime::api::{AlphaMaskPaint, CommonProperties, Material, Paint, Stroke};
+use pax_runtime::api::{
+    AlphaMaskPaint, CommonProperties, Paint, ResolvedMaterial, ResolvedStroke, Stroke,
+};
 use pax_runtime::{CommonPropertiesInit, ComponentInstance, PropertiesInit, PropertiesScopeInit};
 use std::cell::Cell;
 
@@ -263,7 +265,7 @@ fn projected_conditional_source_keeps_its_role_and_balances_lifetimes() {
     use pax_runtime::{ConditionalInstance, ConditionalProperties, Slot, SlotInstance};
 
     let context = context();
-    let shown = Property::new(false);
+    let shown = LocalProperty::new(false);
     let leaf = CountingSource::instantiate(args());
     let mut conditional_args = args();
     let condition = shown.clone();
@@ -281,7 +283,7 @@ fn projected_conditional_source_keeps_its_role_and_balances_lifetimes() {
     slot_args.prototypical_properties = PropertiesInit::Factory(Box::new(|_, _| {
         Some(Rc::new(RefCell::new(
             Slot {
-                is_remainder: Property::new(true),
+                is_remainder: LocalProperty::new(true),
                 ..Default::default()
             }
             .to_pax_any(),
@@ -366,15 +368,15 @@ impl RenderContext for RecordingRenderer {
         assert_eq!(self.alpha_source_layer(), Some(layer));
         self.fills += 1;
     }
-    fn stroke_with_opacity(&mut self, _: usize, _: BezPath, _: &Stroke, _: f64) {
+    fn stroke_with_opacity(&mut self, _: usize, _: BezPath, _: &ResolvedStroke, _: f64) {
         unreachable!()
     }
     fn stroke_with_draw_range_and_material_and_opacity(
         &mut self,
         _: usize,
         _: BezPath,
-        _: &Stroke,
-        _: &Material,
+        _: &ResolvedStroke,
+        _: &ResolvedMaterial,
         _: f64,
         _: f64,
         _: f64,
@@ -484,7 +486,7 @@ fn initially_empty_repeated_mask_invalidates_without_unrelated_input() {
 
     let context = context();
     borrow_mut!(context.dirty_canvases).resize(1, false);
-    let source = Property::new(Vec::<usize>::new().to_pax_value());
+    let source = LocalProperty::new(Vec::<usize>::new().to_pax_value());
     let paint_opacity = Property::new(1.0_f64);
     let mut leaf_args = args();
     let paint = paint_opacity.clone();
@@ -503,8 +505,8 @@ fn initially_empty_repeated_mask_invalidates_without_unrelated_input() {
         Some(Rc::new(RefCell::new(
             RepeatProperties {
                 source_expression: repeat_source.clone(),
-                iterator_i_symbol: Property::new(Some("i".to_string())),
-                iterator_elem_symbol: Property::new(Some("item".to_string())),
+                iterator_i_symbol: LocalProperty::new(Some("i".to_string())),
+                iterator_elem_symbol: LocalProperty::new(Some("item".to_string())),
                 repeat_key_expression: Some(ExpressionInfo::new(PaxExpression::Primary(Box::new(
                     PaxPrimary::Identifier(PaxIdentifier::new("item"), Vec::new()),
                 )))),
@@ -594,8 +596,8 @@ fn initially_empty_repeated_mask_invalidates_without_unrelated_input() {
 #[test]
 fn mask_source_opacity_is_relative_even_when_ancestor_is_zero() {
     let context = context();
-    let parent_opacity = Property::new(Some(0.0.into()));
-    let source_opacity = Property::new(Some(0.5.into()));
+    let parent_opacity = LocalProperty::new(Some(0.0.into()));
+    let source_opacity = LocalProperty::new(Some(0.5.into()));
     let mut source_args = args();
     let opacity = source_opacity.clone();
     source_args.prototypical_common_properties =
@@ -774,7 +776,7 @@ fn captured_source_uses_vector_render_hooks_and_source_frame_clips() {
 #[test]
 fn nested_source_changes_invalidate_the_visible_mask_consumer() {
     let context = context();
-    let opacity = Property::new(Some(0.5.into()));
+    let opacity = LocalProperty::new(Some(0.5.into()));
     let mut source_args = args();
     let source_opacity = opacity.clone();
     source_args.prototypical_common_properties =

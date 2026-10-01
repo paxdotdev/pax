@@ -1,0 +1,57 @@
+if self.task_status == "Task: Running" {
+    <Ellipse x=100% anchor_x=100% y=10px width=12px height=12px fill=rgb(35, 151, 144)
+        opacity=@timeline { duration: 800ms, loop: true, 0%: 0.25, InOutQuad, 50%: 1.0, InOutQuad, 100%: 0.25, } />
+}
+<Text x=0px y=0px width=100% height=34px text="Requests & delivery" style={font_size: 22px, fill: rgb(28, 48, 55)} />
+<Text x=0px y=38px width=100% height=46px text={self.description} style={font_size: 14px, fill: rgb(73, 90, 96)} />
+<Button id=run_request class="action" label="Run · 600 ms" @button_click=self.run />
+<Button id=fail_request class="action" label="Fail safely" @button_click=self.fail />
+<Button id=replace_request class="action" label="Replace A with B" @button_click=self.replace />
+<Button id=cancel_request class="action" label="Cancel" @button_click=self.cancel />
+<Button id=stream_request class="action" label="Stream 100 events" @button_click=self.stream />
+<Button id=io_request class="action" label="Run local I/O" @button_click=self.io />
+<Button id=callback_request class="action" label="Local callback" @button_click=self.plain_thread />
+<Button id=panic_request class="action" label="Panic probe (native)" @button_click=self.panic_task />
+<Button id=progress_request class="action" label="Progress burst" @button_click=self.progress_burst />
+<Button id=blocking_request class="action" label="Blocking probe (native)" @button_click=self.blocking />
+<Text id=result_text x=0px width=100% height=100px text={self.result} style={font_size: 20px, fill: rgb(28, 48, 55)} />
+<Text id=task_text x=0px width=100% height=64px text={self.task_status} style={font_size: 14px, fill: rgb(96, 89, 67)} />
+<Group id=progress_track x=0px width=100% height=16px>
+    <Rectangle width={(self.progress * 100)%} height=100% corner_radius=8 fill=rgb(35, 151, 144) />
+    <Rectangle width=100% height=100% corner_radius=8 fill=rgb(213, 216, 205) />
+</Group>
+<Text id=stream_text x=0px width=100% height=34px text={"Lossless events: " + self.stream_count} style={font_size: 15px, fill: rgb(73, 90, 96)} />
+@settings {
+    @mount: on_mount
+    .action { width: {(50% - 6px)} height: 44px anchor_x: 0% style: {font_size: 15px, fill: rgb(244, 241, 231), align_horizontal: TextAlignHorizontal::Center, align_vertical: TextAlignVertical::Center, align_multiline: TextAlignHorizontal::Center} color: rgb(36, 67, 76) hover_color: rgb(43, 119, 121) }
+    #run_request { x: 0px y: 90px }
+    #fail_request { x: {(50% + 6px)} y: 90px }
+    #replace_request { x: 0px y: 146px }
+    #cancel_request { x: {(50% + 6px)} y: 146px }
+    #stream_request { x: 0px y: 202px }
+    #io_request { x: {(50% + 6px)} y: 202px }
+    #callback_request { x: 0px y: 258px }
+    #panic_request { x: {(50% + 6px)} y: 258px }
+    #progress_request { x: 0px y: 314px }
+    #blocking_request { x: {(50% + 6px)} y: 314px }
+    #result_text { y: 376px }
+    #task_text { y: 486px }
+    #progress_track { y: 564px }
+    #stream_text { y: 588px }
+    if $viewport.width < 520 {
+        .action { width: 100% }
+        #fail_request { x: 0px y: 146px }
+        #replace_request { y: 202px }
+        #cancel_request { x: 0px y: 258px }
+        #stream_request { y: 314px }
+        #io_request { x: 0px y: 370px }
+        #callback_request { y: 426px }
+        #panic_request { x: 0px y: 482px }
+        #progress_request { x: 0px y: 538px }
+        #blocking_request { x: 0px y: 594px }
+        #result_text { y: 656px }
+        #task_text { y: 766px }
+        #progress_track { y: 844px }
+        #stream_text { y: 868px }
+    }
+}

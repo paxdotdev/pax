@@ -72,7 +72,7 @@ impl Interpolatable for Stick {
 impl PickUpSticks {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let bounds_parent = ctx.bounds_parent.clone();
-        self.board_scale.replace_with(Property::computed(
+        self.board_scale.replace_with(LocalProperty::computed(
             move || {
                 let (width, height) = bounds_parent.get();
                 (((width - 40.0) / BOARD_WIDTH).min((height - 40.0) / BOARD_HEIGHT))
@@ -139,6 +139,7 @@ impl PickUpSticks {
         self.removed_count.set(removed_total);
         self.progress_text.set(progress_text(removed_total));
         self.sticks
+            .local()
             .ease_to(removal_target.clone(), REMOVAL_FRAMES, EasingCurve::OutBack);
 
         if remaining_after == 0 {
@@ -161,8 +162,11 @@ impl PickUpSticks {
 
         if roll < threshold {
             let collapse_target = collapse_layout(&removal_target, self.seed.get());
-            self.sticks
-                .ease_to_later(collapse_target, COLLAPSE_FRAMES, EasingCurve::InOutQuad);
+            self.sticks.local().ease_to_later(
+                collapse_target,
+                COLLAPSE_FRAMES,
+                EasingCurve::InOutQuad,
+            );
             self.finished.set(true);
             self.collapsed.set(true);
             self.status_text.set(String::from("The tee-pee collapsed."));

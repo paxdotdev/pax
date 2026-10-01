@@ -195,6 +195,15 @@ async function loadWasmModule(
         const wasmArrayBuffer = await wasmBinary.arrayBuffer();
         await glueCodeModule.default({module_or_path: wasmArrayBuffer});
 
+        let shutdownWakeQueued = false;
+        glueCodeModule.pax_set_shutdown_waker(() => {
+            if (shutdownWakeQueued) return;
+            shutdownWakeQueued = true;
+            queueMicrotask(() => {
+                shutdownWakeQueued = false;
+                glueCodeModule.pax_pump_shutdowns();
+            });
+        });
         let chassis = await glueCodeModule.pax_init();
         window.chassis = chassis;
 
@@ -254,6 +263,17 @@ async function startRenderLoop(extensionlessUrl: string, mount: Element) {
 }
 
 function attachChassis(chassis: PaxChassisWeb, mount: Element) {
+    let propertyWakeQueued = false;
+    chassis.set_property_waker(() => {
+        if (propertyWakeQueued) return;
+        propertyWakeQueued = true;
+        queueMicrotask(() => {
+            propertyWakeQueued = false;
+            if (chassis !== currentChassis || mount !== currentMount || !chassis.has_pending_properties()) return;
+            requestFrameFlush(chassis, mount);
+        });
+    });
+    chassis.activate_application();
     nativePool.attach(chassis, mount);
     nativePool.setPostAsyncInterruptFlush(() => requestFrameFlush(chassis, mount));
     initializeChassis(chassis, mount);
@@ -616,6 +636,7 @@ async function reloadMountedApp() {
                     await waitForActivationPoll();
                 }
 
+                currentChassis?.shutdown_for_replacement();
                 disposeCurrentChassis();
                 resetHostState();
                 currentChassis = chassis;

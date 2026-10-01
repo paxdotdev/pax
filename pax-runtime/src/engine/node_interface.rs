@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use pax_manifest::UniqueTemplateNodeIdentifier;
-use pax_runtime_api::Property;
+use pax_runtime_api::LocalProperty;
 use pax_runtime_api::{borrow, pax_value::ToFromPaxAny, Interpolatable};
 
 use crate::{
@@ -81,7 +81,7 @@ impl NodeInterface {
     }
 
     /// Node-local subtree hull published by the engine for container measurement.
-    pub fn subtree_layout_hull(&self) -> Property<LayoutHull> {
+    pub fn subtree_layout_hull(&self) -> LocalProperty<LayoutHull> {
         self.inner.subtree_layout_hull.clone()
     }
 
@@ -117,7 +117,7 @@ impl NodeInterface {
     }
 
     /// Reactive transform-and-bounds property for this node.
-    pub fn transform_and_bounds(&self) -> Property<TransformAndBounds<NodeLocal, Window>> {
+    pub fn transform_and_bounds(&self) -> LocalProperty<TransformAndBounds<NodeLocal, Window>> {
         self.inner.transform_and_bounds.clone()
     }
 
@@ -153,7 +153,7 @@ impl NodeInterface {
     }
 
     /// Reactive count of slot children after repeat/conditional flattening.
-    pub fn flattened_projected_children_count(&self) -> Property<usize> {
+    pub fn flattened_projected_children_count(&self) -> LocalProperty<usize> {
         self.inner.flattened_projected_children_count.clone()
     }
 }

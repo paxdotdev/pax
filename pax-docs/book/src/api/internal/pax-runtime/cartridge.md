@@ -11,7 +11,7 @@ property.
 ##### `name`
 Type: &'`static` `str`
 
-Property name as it appears in Pax templates and settings.
+LocalProperty name as it appears in Pax templates and settings.
 
 ##### `apply_entries`
 Type: `fn`()
@@ -33,7 +33,7 @@ never caches evaluated values or selector matches across nodes or rebinds.
 
 ## Functions
 ### `apply_component_property`
-<pre><code class="api-signature language-rust ignore">pub fn apply_component_property&lt;T&gt;(property: &amp;mut <a href="../../../api/pax-runtime-api/properties.md#property">Property</a>&lt;T&gt;, name: &amp;str, value_definition: &amp;<a href="../../../api/internal/pax-manifest/index.md#valuedefinition">ValueDefinition</a>, stack: &amp;Rc&lt;<a href="../../../api/internal/pax-runtime/properties.md#runtimepropertiesstackframe">RuntimePropertiesStackFrame</a>&gt;, timeline_stack: Rc&lt;<a href="../../../api/internal/pax-runtime/properties.md#runtimepropertiesstackframe">RuntimePropertiesStackFrame</a>&gt;, build_block: fn()) where T: CoercionRules + <a href="../../../api/pax-runtime-api/properties.md#propertyvalue">PropertyValue</a> + <a href="../../../api/pax-runtime-api/pax_value.md#topaxvalue">ToPaxValue</a></code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn apply_component_property&lt;T&gt;(property: &amp;mut impl <a href="../../../api/pax-runtime-api/properties.md#propertybinding">PropertyBinding</a>&lt;T&gt;, name: &amp;str, value_definition: &amp;<a href="../../../api/internal/pax-manifest/index.md#valuedefinition">ValueDefinition</a>, stack: &amp;Rc&lt;<a href="../../../api/internal/pax-runtime/properties.md#runtimepropertiesstackframe">RuntimePropertiesStackFrame</a>&gt;, timeline_stack: Rc&lt;<a href="../../../api/internal/pax-runtime/properties.md#runtimepropertiesstackframe">RuntimePropertiesStackFrame</a>&gt;, build_block: fn()) where T: CoercionRules + <a href="../../../api/pax-runtime-api/properties.md#propertyvalue">PropertyValue</a> + <a href="../../../api/pax-runtime-api/pax_value.md#topaxvalue">ToPaxValue</a></code></pre>
 
 Replaces a typed component property with the value produced from a single
 value definition.
@@ -41,7 +41,7 @@ value definition.
 ---
 
 ### `build_component_property`
-<pre><code class="api-signature language-rust ignore">pub fn build_component_property&lt;T&gt;(name: &amp;str, value_definition: &amp;<a href="../../../api/internal/pax-manifest/index.md#valuedefinition">ValueDefinition</a>, stack: &amp;Rc&lt;<a href="../../../api/internal/pax-runtime/properties.md#runtimepropertiesstackframe">RuntimePropertiesStackFrame</a>&gt;, timeline_stack: Rc&lt;<a href="../../../api/internal/pax-runtime/properties.md#runtimepropertiesstackframe">RuntimePropertiesStackFrame</a>&gt;, build_block: fn()) -&gt; <a href="../../../api/pax-runtime-api/properties.md#property">Property</a>&lt;T&gt; where T: CoercionRules + <a href="../../../api/pax-runtime-api/properties.md#propertyvalue">PropertyValue</a> + <a href="../../../api/pax-runtime-api/pax_value.md#topaxvalue">ToPaxValue</a></code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn build_component_property&lt;T&gt;(name: &amp;str, value_definition: &amp;<a href="../../../api/internal/pax-manifest/index.md#valuedefinition">ValueDefinition</a>, stack: &amp;Rc&lt;<a href="../../../api/internal/pax-runtime/properties.md#runtimepropertiesstackframe">RuntimePropertiesStackFrame</a>&gt;, timeline_stack: Rc&lt;<a href="../../../api/internal/pax-runtime/properties.md#runtimepropertiesstackframe">RuntimePropertiesStackFrame</a>&gt;, build_block: fn()) -&gt; LocalProperty&lt;T&gt; where T: CoercionRules + <a href="../../../api/pax-runtime-api/properties.md#propertyvalue">PropertyValue</a> + <a href="../../../api/pax-runtime-api/pax_value.md#topaxvalue">ToPaxValue</a></code></pre>
 
 Builds a typed component property from a single value definition. Callers
 that apply layered settings should bind `$base` before calling this helper.
@@ -72,7 +72,7 @@ that do not participate in selector/import precedence layering.
 ---
 
 ### `stack_with_base`
-<pre><code class="api-signature language-rust ignore">pub fn stack_with_base&lt;T&gt;(stack: &amp;Rc&lt;<a href="../../../api/internal/pax-runtime/properties.md#runtimepropertiesstackframe">RuntimePropertiesStackFrame</a>&gt;, base_property: <a href="../../../api/pax-runtime-api/properties.md#property">Property</a>&lt;T&gt;) -&gt; Rc&lt;<a href="../../../api/internal/pax-runtime/properties.md#runtimepropertiesstackframe">RuntimePropertiesStackFrame</a>&gt; where T: <a href="../../../api/pax-runtime-api/properties.md#propertyvalue">PropertyValue</a> + <a href="../../../api/pax-runtime-api/pax_value.md#topaxvalue">ToPaxValue</a></code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn stack_with_base&lt;T&gt;(stack: &amp;Rc&lt;<a href="../../../api/internal/pax-runtime/properties.md#runtimepropertiesstackframe">RuntimePropertiesStackFrame</a>&gt;, base_property: LocalProperty&lt;T&gt;) -&gt; Rc&lt;<a href="../../../api/internal/pax-runtime/properties.md#runtimepropertiesstackframe">RuntimePropertiesStackFrame</a>&gt; where T: <a href="../../../api/pax-runtime-api/properties.md#propertyvalue">PropertyValue</a> + <a href="../../../api/pax-runtime-api/pax_value.md#topaxvalue">ToPaxValue</a></code></pre>
 
 Returns a stack frame with `$base` bound to the supplied previous-layer
 property value.
@@ -80,7 +80,7 @@ property value.
 ---
 
 ### `stack_with_optional_base`
-<pre><code class="api-signature language-rust ignore">pub fn stack_with_optional_base&lt;T&gt;(stack: &amp;Rc&lt;<a href="../../../api/internal/pax-runtime/properties.md#runtimepropertiesstackframe">RuntimePropertiesStackFrame</a>&gt;, base_property: <a href="../../../api/pax-runtime-api/properties.md#property">Property</a>&lt;Option&lt;T&gt;&gt;) -&gt; Rc&lt;<a href="../../../api/internal/pax-runtime/properties.md#runtimepropertiesstackframe">RuntimePropertiesStackFrame</a>&gt; where T: <a href="../../../api/pax-runtime-api/properties.md#propertyvalue">PropertyValue</a> + <a href="../../../api/pax-runtime-api/pax_value.md#topaxvalue">ToPaxValue</a></code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn stack_with_optional_base&lt;T&gt;(stack: &amp;Rc&lt;<a href="../../../api/internal/pax-runtime/properties.md#runtimepropertiesstackframe">RuntimePropertiesStackFrame</a>&gt;, base_property: LocalProperty&lt;Option&lt;T&gt;&gt;) -&gt; Rc&lt;<a href="../../../api/internal/pax-runtime/properties.md#runtimepropertiesstackframe">RuntimePropertiesStackFrame</a>&gt; where T: <a href="../../../api/pax-runtime-api/properties.md#propertyvalue">PropertyValue</a> + <a href="../../../api/pax-runtime-api/pax_value.md#topaxvalue">ToPaxValue</a></code></pre>
 
 Returns a stack frame with `$base` bound to an optional previous common
 property value, exposing `T::default()` when the previous layer is `None`.

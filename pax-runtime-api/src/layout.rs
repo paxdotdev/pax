@@ -212,47 +212,47 @@ pub struct CommonProperty {
 #[derive(Debug, Default, Clone)]
 pub struct CommonProperties {
     /// Optional stable node identifier.
-    pub id: Property<Option<String>>,
+    pub id: LocalProperty<Option<String>>,
     /// Horizontal position.
-    pub x: Property<Option<Size>>,
+    pub x: LocalProperty<Option<Size>>,
     /// Vertical position.
-    pub y: Property<Option<Size>>,
+    pub y: LocalProperty<Option<Size>>,
     /// Symmetric inner spacing applied to this node's child layout area on the x axis.
-    pub padding_x: Property<Option<Size>>,
+    pub padding_x: LocalProperty<Option<Size>>,
     /// Symmetric inner spacing applied to this node's child layout area on the y axis.
-    pub padding_y: Property<Option<Size>>,
+    pub padding_y: LocalProperty<Option<Size>>,
     /// Horizontal extent.
-    pub width: Property<Option<Size>>,
+    pub width: LocalProperty<Option<Size>>,
     /// Vertical extent.
-    pub height: Property<Option<Size>>,
+    pub height: LocalProperty<Option<Size>>,
     /// Horizontal transform origin, relative to the node's own bounds.
-    pub anchor_x: Property<Option<Size>>,
+    pub anchor_x: LocalProperty<Option<Size>>,
     /// Vertical transform origin, relative to the node's own bounds.
-    pub anchor_y: Property<Option<Size>>,
+    pub anchor_y: LocalProperty<Option<Size>>,
     /// Horizontal scale coefficient.
     // TODO: change scale to Percent (can't be px).
-    pub scale_x: Property<Option<Size>>,
+    pub scale_x: LocalProperty<Option<Size>>,
     /// Vertical scale coefficient.
-    pub scale_y: Property<Option<Size>>,
+    pub scale_y: LocalProperty<Option<Size>>,
     /// Horizontal skew.
-    pub skew_x: Property<Option<Rotation>>,
+    pub skew_x: LocalProperty<Option<Rotation>>,
     /// Vertical skew.
-    pub skew_y: Property<Option<Rotation>>,
+    pub skew_y: LocalProperty<Option<Rotation>>,
     /// Rotation around the z axis.
-    pub rotate: Property<Option<Rotation>>,
+    pub rotate: LocalProperty<Option<Rotation>>,
     /// Full composed transform.
-    pub transform: Property<Option<Transform2D>>,
+    pub transform: LocalProperty<Option<Transform2D>>,
     /// Opacity of this node's subtree. WGPU and browser Piet compose each canvas
     /// portion before fading it; live native surfaces currently fade separately.
-    pub opacity: Property<Option<Opacity>>,
+    pub opacity: LocalProperty<Option<Opacity>>,
     /// Controls whether this node participates in parent layout measurement and flow.
-    pub layout_role: Property<Option<LayoutRole>>,
+    pub layout_role: LocalProperty<Option<LayoutRole>>,
     /// Allows a node to render outside an ancestor clipping frame.
-    pub unclippable: Property<Option<bool>>,
+    pub unclippable: LocalProperty<Option<bool>>,
     // Internal hit-testing override, used by generated components and tooling.
-    pub _raycastable: Property<Option<bool>>,
+    pub _raycastable: LocalProperty<Option<bool>>,
     // Internal suspension flag used by runtime/designtime systems.
-    pub _suspended: Property<Option<bool>>,
+    pub _suspended: LocalProperty<Option<bool>>,
 }
 
 impl CommonProperties {

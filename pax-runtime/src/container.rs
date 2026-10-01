@@ -16,7 +16,7 @@
 //! mechanisms rather than the primary semantic abstraction.
 
 use crate::api::math::Transform2;
-use crate::api::{borrow, NodeContext, Property, Size};
+use crate::api::{borrow, LocalProperty, NodeContext, Size};
 use crate::node_interface::NodeLocal;
 use crate::{
     apply_padding_frame, layout_hulls_equivalent, project_child_layout_hull_to_parent_space,
@@ -276,11 +276,11 @@ fn rebind_content_measurement_effect<F>(
 
         let measurement_deps = projected_child_hulls
             .iter()
-            .map(Property::untyped)
+            .map(LocalProperty::untyped)
             .collect::<Vec<_>>();
 
         let measurement_name = format!("{listener_name} placed measurement");
-        let measurement = Property::computed_with_cutoff_and_name(
+        let measurement = LocalProperty::computed_with_cutoff_and_name(
             move || {
                 if projected_child_hulls.is_empty() {
                     return LayoutHull::from_axis_ranges(Some((0.0, 0.0)), Some((0.0, 0.0)));
@@ -314,7 +314,7 @@ fn rebind_content_measurement_effect<F>(
     let bounds_self = node_ctx.bounds_self.clone();
     expanded_node
         .content_measurement_listener
-        .replace_with(Property::computed_with_name(
+        .replace_with(LocalProperty::computed_with_name(
             move || {
                 let _ = bounds_self.get();
                 if let Some(measurement) = &placed_measurement {
@@ -371,7 +371,7 @@ pub fn bind_content_measurement_effect<F>(
     let rebind_name = format!("{listener_name} rebind");
     expanded_node
         .content_measurement_rebind_listener
-        .replace_with(Property::computed_with_name(
+        .replace_with(LocalProperty::computed_with_name(
             move || {
                 let Some(node) = weak_node.upgrade() else {
                     return;
@@ -444,24 +444,24 @@ mod tests {
         InstantiationArgs, RouteLocation, RuntimePropertiesStackFrame, TransformAndBounds,
     };
     use pax_runtime_api::pax_value::PaxAny;
-    use pax_runtime_api::{Platform, Property, TargetInfo, OS};
+    use pax_runtime_api::{LocalProperty, Platform, TargetInfo, OS};
     use std::cell::{Cell, RefCell};
     use std::fmt;
     use std::rc::Rc;
 
     fn test_globals() -> Globals {
         Globals {
-            elapsed_frames: Property::new(0),
-            elapsed_millis: Property::new(0),
-            viewport: Property::new(TransformAndBounds {
+            elapsed_frames: LocalProperty::new(0),
+            elapsed_millis: LocalProperty::new(0),
+            viewport: LocalProperty::new(TransformAndBounds {
                 transform: Transform2::identity(),
                 bounds: (100.0, 100.0),
             }),
-            gyro: Property::new(Default::default()),
-            accel: Property::new(Default::default()),
-            route_location: Property::new(RouteLocation::root()),
-            browser_allows_scroller_vector_layers: Property::new(true),
-            browser_allows_nested_scroller_vector_layers: Property::new(true),
+            gyro: LocalProperty::new(Default::default()),
+            accel: LocalProperty::new(Default::default()),
+            route_location: LocalProperty::new(RouteLocation::root()),
+            browser_allows_scroller_vector_layers: LocalProperty::new(true),
+            browser_allows_nested_scroller_vector_layers: LocalProperty::new(true),
             platform: Platform::Unknown,
             os: OS::Unknown,
             target: TargetInfo::new(Platform::Unknown, OS::Unknown),

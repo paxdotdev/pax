@@ -1,4 +1,5 @@
 use crate::common::{native_surface_opacity, patch_if_needed};
+use pax_engine::api::LocalProperty;
 use pax_engine::api::Property;
 use pax_engine::pax;
 use pax_message::{AnyCreatePatch, GlassSurfacePatch};
@@ -92,9 +93,9 @@ impl InstanceNode for GroupInstance {
         let (autosize, autosize_x, autosize_y) =
             expanded_node.with_properties_unwrapped(|group: &mut Group| {
                 (
-                    group.autosize.clone(),
-                    group.autosize_x.clone(),
-                    group.autosize_y.clone(),
+                    group.autosize.local(),
+                    group.autosize_x.local(),
+                    group.autosize_y.local(),
                 )
             });
         let deps = [
@@ -176,7 +177,7 @@ impl InstanceNode for GroupInstance {
 
         expanded_node
             .changed_listener
-            .replace_with(Property::computed(
+            .replace_with(LocalProperty::computed(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
                         return;
@@ -215,7 +216,11 @@ impl InstanceNode for GroupInstance {
                         let computed_tab = expanded_node.transform_and_bounds.get();
                         let (width, height) = computed_tab.bounds;
                         let max_radius = 0.5 * width.min(height);
-                        let corner_radius = properties.corner_radius.get().clamp(0.0, max_radius);
+                        let corner_radius = properties
+                            .corner_radius
+                            .local()
+                            .get()
+                            .clamp(0.0, max_radius);
                         let liquid_glass = liquid_glass.to_message();
                         let updates = [
                             patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
@@ -288,7 +293,7 @@ impl InstanceNode for GroupInstance {
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {
         expanded_node
             .changed_listener
-            .replace_with(Property::default());
+            .replace_with(LocalProperty::default());
         if !expanded_node.is_render_source() && expanded_node.liquid_glass_scope.get().is_some() {
             context.enqueue_native_message(pax_message::NativeMessage::GlassSurfaceDelete(
                 expanded_node.id.to_u32(),

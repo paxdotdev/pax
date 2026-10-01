@@ -18,13 +18,13 @@ inset ancestors, or detect an ancestor that already avoids the safe area.
 
 #### Properties
 ##### `edge`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`SafeAreaEdge`](../../../api/pax-std/layout/dynamic_island_spacer.md#safeareaedge)>
+Type: `Property`<[`SafeAreaEdge`](../../../api/pax-std/layout/dynamic_island_spacer.md#safeareaedge)>
 
 Window edge to reserve. Defaults to Top. Left/Right measure width and
 fill the container's height; Top/Bottom measure height and fill width.
 
 ##### `inset`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`f64`>
+Type: `Property`<`f64`>
 
 Computed inset in logical pixels. Bind to observe it; the spacer owns
 this output and overwrites authored values when its measurement changes.

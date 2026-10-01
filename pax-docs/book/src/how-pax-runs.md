@@ -357,3 +357,21 @@ after measuring to disable the instrumentation.
 - [Runtime and cartridge design notes](architecture-runtime-cartridge.md) —
   historical maintainer context, including architectural directions that are
   not current builder-facing capabilities.
+
+
+## Shared publication and application lifetime
+
+Application `Property<T>` storage is shared; graph computations, `LocalProperty`,
+`ExpandedNode`, layout, and rendering stay on the owning UI thread. A worker
+publication coalesces by shared allocation and requests a host wake. The host
+validates the current application before entering the engine. The UI imports a
+bounded batch of published snapshots before settling local effects; evaluators
+never execute on a publishing worker. A raw shared read returns the latest
+published snapshot even before a local view has imported it.
+
+Mounted nodes own their local attachment lifetimes. Unmount detaches those
+connections; retained raw shared values remain usable as data. The generated
+entry point also supports per-application configuration and activation hooks.
+See [State and Properties](state-properties.md#shared-state-and-local-views) and
+[Application setup](event-handling-rust.md#application-setup) for the implemented
+APIs and the current limits on managed async work.

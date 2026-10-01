@@ -23,7 +23,7 @@ Containing component for template scoping and slot ownership.
 Runtime-expanded id for this concrete node.
 
 ##### `flattened_projected_children_count`
-<pre><code class="api-signature language-rust ignore">pub fn flattened_projected_children_count(&amp;self) -&gt; <a href="../../../../api/pax-runtime-api/properties.md#property">Property</a>&lt;usize&gt;</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn flattened_projected_children_count(&amp;self) -&gt; LocalProperty&lt;usize&gt;</code></pre>
 
 Reactive count of slot children after repeat/conditional flattening.
 
@@ -68,7 +68,7 @@ Measured bounds reported by a native or text-backed node.
 Parent in render traversal order.
 
 ##### `subtree_layout_hull`
-<pre><code class="api-signature language-rust ignore">pub fn subtree_layout_hull(&amp;self) -&gt; <a href="../../../../api/pax-runtime-api/properties.md#property">Property</a>&lt;<a href="../../../../api/internal/pax-runtime/layout.md#layouthull">LayoutHull</a>&gt;</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn subtree_layout_hull(&amp;self) -&gt; LocalProperty&lt;<a href="../../../../api/internal/pax-runtime/layout.md#layouthull">LayoutHull</a>&gt;</code></pre>
 
 Node-local subtree hull published by the engine for container measurement.
 
@@ -78,7 +78,7 @@ Node-local subtree hull published by the engine for container measurement.
 Parent in template ownership order.
 
 ##### `transform_and_bounds`
-<pre><code class="api-signature language-rust ignore">pub fn transform_and_bounds(&amp;self) -&gt; <a href="../../../../api/pax-runtime-api/properties.md#property">Property</a>&lt;<a href="../../../../api/internal/pax-runtime/layout.md#transformandbounds">TransformAndBounds</a>&lt;<a href="../../../../api/internal/pax-runtime/engine/node_interface.md#nodelocal">NodeLocal</a>, <a href="../../../../api/pax-runtime-api/platform.md#window">Window</a>&gt;&gt;</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn transform_and_bounds(&amp;self) -&gt; LocalProperty&lt;<a href="../../../../api/internal/pax-runtime/layout.md#transformandbounds">TransformAndBounds</a>&lt;<a href="../../../../api/internal/pax-runtime/engine/node_interface.md#nodelocal">NodeLocal</a>, <a href="../../../../api/pax-runtime-api/platform.md#window">Window</a>&gt;&gt;</code></pre>
 
 Reactive transform-and-bounds property for this node.
 

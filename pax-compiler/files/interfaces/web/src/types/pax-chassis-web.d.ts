@@ -8,6 +8,10 @@ export function wasm_memory(): any;
 */
 export class PaxChassisWeb {
   free(): void;
+  set_property_waker(callback: () => void): void;
+  has_pending_properties(): boolean;
+  activate_application(): void;
+  shutdown_for_replacement(): void;
 /**
 * @param {number} id
 */

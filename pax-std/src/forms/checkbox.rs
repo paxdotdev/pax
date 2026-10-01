@@ -1,3 +1,4 @@
+use pax_engine::api::LocalProperty;
 use pax_message::{AnyCreatePatch, CheckboxPatch};
 use pax_runtime::api::{Layer, Property};
 use pax_runtime::{
@@ -105,7 +106,7 @@ impl InstanceNode for CheckboxInstance {
             .collect();
         expanded_node
             .changed_listener
-            .replace_with(Property::computed(
+            .replace_with(LocalProperty::computed(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
                         return;
@@ -123,17 +124,19 @@ impl InstanceNode for CheckboxInstance {
                             patch_if_needed(
                                 &mut old_state.background,
                                 &mut patch.background,
-                                (&properties.background.get()).into(),
+                                (&properties.background.local().get()).into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.background_checked,
                                 &mut patch.background_checked,
-                                (&properties.background_checked.get()).into(),
+                                (&properties.background_checked.local().get()).into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.outline_color,
                                 &mut patch.outline_color,
-                                (&crate::common::native_stroke_color(&properties.outline.get()))
+                                (&crate::common::native_stroke_color(
+                                    &properties.outline.local().get(),
+                                ))
                                     .into(),
                             ),
                             patch_if_needed(
@@ -141,8 +144,10 @@ impl InstanceNode for CheckboxInstance {
                                 &mut patch.outline_width,
                                 properties
                                     .outline
+                                    .local()
                                     .get()
                                     .width
+                                    .local()
                                     .get()
                                     .expect_pixels()
                                     .to_float(),
@@ -150,12 +155,12 @@ impl InstanceNode for CheckboxInstance {
                             patch_if_needed(
                                 &mut old_state.corner_radius,
                                 &mut patch.corner_radius,
-                                properties.corner_radius.get(),
+                                properties.corner_radius.local().get(),
                             ),
                             patch_if_needed(
                                 &mut old_state.checked,
                                 &mut patch.checked,
-                                properties.checked.get(),
+                                properties.checked.local().get(),
                             ),
                             patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
                             patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),
@@ -215,7 +220,7 @@ impl InstanceNode for CheckboxInstance {
         let id = expanded_node.id.clone();
         expanded_node
             .changed_listener
-            .replace_with(Property::default());
+            .replace_with(LocalProperty::default());
         context.enqueue_native_message(pax_message::NativeMessage::CheckboxDelete(id.to_u32()));
     }
 

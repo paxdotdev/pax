@@ -88,6 +88,8 @@ impl Default for CustomDefault {
 
 #[test]
 fn generated_plain_records_and_enums_opt_in_recursively() {
+    let graph = pax_engine::api::properties::PropertyGraph::new(|| {});
+    let _entered = graph.enter();
     assert!(is_typed_binding_safe::<Vec<Panel>>());
     assert!(is_typed_binding_safe::<Choice>());
     let source = Property::new(vec![Panel {
@@ -109,6 +111,8 @@ fn generated_plain_records_and_enums_opt_in_recursively() {
 
 #[test]
 fn property_wrapped_fields_and_nested_custom_types_keep_conversion() {
+    let graph = pax_engine::api::properties::PropertyGraph::new(|| {});
+    let _entered = graph.enter();
     assert!(!is_typed_binding_safe::<Stateful>());
     assert!(!is_typed_binding_safe::<StatefulParent>());
     assert!(!is_typed_binding_safe::<StatefulChoice>());

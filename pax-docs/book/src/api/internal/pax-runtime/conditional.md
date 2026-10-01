@@ -17,7 +17,7 @@ Contains the expression of a conditional, evaluated as an expression.
 
 #### Properties
 ##### `boolean_expression`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`bool`>
+Type: `LocalProperty`<`bool`>
 
 ##### `conditional_branches`
-Type: `Vec`<[`Property`](../../../api/pax-runtime-api/properties.md#property)<`bool`>>
+Type: `Vec`<`LocalProperty`<`bool`>>

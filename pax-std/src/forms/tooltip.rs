@@ -1,5 +1,6 @@
-#[allow(unused)]
 use crate::*;
+#[allow(unused)]
+use pax_engine::api::LocalProperty;
 use pax_engine::api::{Click, Event, MouseOut, MouseOver, Property};
 use pax_engine::*;
 use pax_runtime::api::NodeContext;
@@ -74,16 +75,16 @@ impl Tooltip {
         let projected_children_count = ctx.projected_children_count.clone();
         let deps = [projected_children_count.untyped()];
         self._projected_children_count
-            .replace_with(Property::computed(
+            .replace_with(LocalProperty::computed(
                 move || projected_children_count.get(),
                 &deps,
             ));
         let Some(expanded_node) = ctx.expanded_node.upgrade() else {
             return;
         };
-        let autosize = self.autosize.clone();
-        let autosize_x = self.autosize_x.clone();
-        let autosize_y = self.autosize_y.clone();
+        let autosize = self.autosize.local();
+        let autosize_x = self.autosize_x.local();
+        let autosize_y = self.autosize_y.local();
         let deps = [
             autosize.untyped(),
             autosize_x.untyped(),

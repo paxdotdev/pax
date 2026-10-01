@@ -119,19 +119,19 @@ impl<'a> RenderContext for AppleRenderContext<'a> {
         &mut self,
         _layer: usize,
         path: kurbo::BezPath,
-        stroke: &pax_runtime::api::Stroke,
+        stroke: &pax_runtime::api::ResolvedStroke,
         opacity: f64,
     ) {
-        let width = stroke.width.get().expect_pixels().to_float();
+        let width = stroke.width.clone().expect_pixels().to_float();
         let brush = fill_to_piet_brush(
-            &stroke.paint.get().with_alpha_factor(opacity),
+            &stroke.paint.with_alpha_factor(opacity),
             path.bounding_box(),
         );
         self.backend.stroke_styled(
             path.clone(),
             &brush,
             width,
-            &stroke_to_piet_style(stroke.cap.get()),
+            &stroke_to_piet_style(stroke.cap.clone()),
         );
     }
 
@@ -605,6 +605,8 @@ struct ReplaceNodeRequestPayload {
 }
 
 /// Destroy `engine` and clean up the `ManuallyDrop` container surround it.
+///
+/// The host must retire its wake token before invoking this function.
 #[no_mangle]
 pub extern "C" fn pax_dealloc_engine(container: *mut PaxEngineContainer) {
     if container.is_null() {
@@ -616,13 +618,92 @@ pub extern "C" fn pax_dealloc_engine(container: *mut PaxEngineContainer) {
         #[cfg(feature = "designtime")]
         container.designtime_manager.borrow_mut().shutdown();
         if !container._engine.is_null() {
-            drop(Box::from_raw(container._engine));
+            let mut engine = Box::from_raw(container._engine);
+            let reason = if engine.runtime_context.application.context().phase()
+                == pax_runtime::api::AppPhase::Preparing
+            {
+                pax_runtime::api::StopReason::PreparationDiscarded
+            } else {
+                pax_runtime::api::StopReason::HostClosed
+            };
+            engine.shutdown(reason);
+            drop(engine);
         }
         #[cfg(any(target_os = "ios", target_os = "macos"))]
         if !container._render_context.is_null() {
             drop(Box::from_raw(container._render_context));
         }
     }
+}
+
+/// Install the cartridge's independent shutdown scheduler before pax_init.
+/// This token must outlive the engine and must enqueue onto the UI thread.
+#[no_mangle]
+pub extern "C" fn pax_set_shutdown_waker(token: u64, wake: extern "C" fn(u64)) {
+    pax_runtime::api::application_shutdown::set_shutdown_waker(move || wake(token));
+}
+
+/// Advance retired services; no engine pointer or live view is needed.
+#[no_mangle]
+pub extern "C" fn pax_pump_shutdowns() -> u64 {
+    match std::panic::catch_unwind(pax_runtime::api::application_shutdown::pump_shutdowns) {
+        Ok(remaining) => remaining as u64,
+        Err(_) => {
+            log::error!("retired application cleanup panicked");
+            1
+        }
+    }
+}
+
+/// Revoke old application authority before activating a replacement cartridge.
+#[no_mangle]
+pub extern "C" fn pax_shutdown_for_replacement(container: *mut PaxEngineContainer) {
+    if container.is_null() {
+        return;
+    }
+    let container = unsafe { &mut *container };
+    if !container._engine.is_null() {
+        unsafe { &mut *container._engine }.shutdown(pax_runtime::api::StopReason::Replaced);
+    }
+}
+
+/// Register a host-owned scheduling endpoint from the UI thread. Publishers
+/// carry only `token`; the callback must enqueue work on the host's UI queue
+/// and validate that token there before resolving an engine.
+#[no_mangle]
+pub extern "C" fn pax_set_property_waker(
+    container: *mut PaxEngineContainer,
+    token: u64,
+    wake: extern "C" fn(u64),
+) {
+    if container.is_null() {
+        return;
+    }
+    let container = unsafe { &*container };
+    if container._engine.is_null() {
+        return;
+    }
+    let engine = unsafe { &*container._engine };
+    engine
+        .runtime_context
+        .application
+        .set_waker(move || wake(token));
+}
+
+/// UI-thread recheck for a queued wake that an intervening frame may satisfy.
+#[no_mangle]
+pub extern "C" fn pax_has_pending_properties(container: *mut PaxEngineContainer) -> bool {
+    if container.is_null() {
+        return false;
+    }
+    let container = unsafe { &*container };
+    if container._engine.is_null() {
+        return false;
+    }
+    unsafe { &*container._engine }
+        .runtime_context
+        .application
+        .has_pending_work()
 }
 
 /// Starts the irreversible final commit for a preflighted revision.
@@ -1879,5 +1960,26 @@ pub extern "C" fn pax_dealloc_message_queue(queue: *mut NativeMessageQueue) {
         let data_buffer = Box::from_raw(queue_container.data_ptr);
         drop(data_buffer);
         drop(queue_container);
+    }
+}
+
+/// Activate a successfully mounted application after host/revision commitment.
+#[no_mangle]
+pub extern "C" fn pax_activate_application(container: *mut PaxEngineContainer) {
+    if container.is_null() {
+        return;
+    }
+    let container = unsafe { &*container };
+    if container._engine.is_null() {
+        return;
+    }
+    // Never allow a hook panic to cross the C ABI.
+    if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        unsafe { &*container._engine }.activate_application();
+    }))
+    .is_err()
+    {
+        eprintln!("application activation panicked");
+        unsafe { &mut *container._engine }.shutdown(pax_runtime::api::StopReason::HostClosed);
     }
 }

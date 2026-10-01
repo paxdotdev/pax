@@ -7,3 +7,5 @@ pax-runtime
 pax-manifest
 pax-message
 pax-gpu
+pax-tokio
+pax-web-async

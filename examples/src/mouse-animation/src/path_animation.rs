@@ -43,11 +43,11 @@ impl PathAnimation {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let bounds = ctx.bounds_parent.get();
         let path_elements = {
-            let t = self.t.clone();
-            let resolution = self.resolution.clone();
-            let path_config = self.path_config.clone();
+            let t = self.t.local();
+            let resolution = self.resolution.local();
+            let path_config = self.path_config.local();
             let deps = [t.untyped(), resolution.untyped(), path_config.untyped()];
-            Property::computed(
+            LocalProperty::computed(
                 move || {
                     let profile = |t: f64| t * (t - 1.0);
                     let conf = path_config.get();

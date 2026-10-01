@@ -1,4 +1,5 @@
 use kurbo::{Affine, Rect, Shape};
+use pax_engine::api::LocalProperty;
 use pax_engine::*;
 use pax_runtime::api::{borrow_mut, use_RefCell};
 use pax_runtime::{api::Property, api::RenderContext, ExpandedNodeIdentifier};
@@ -212,7 +213,7 @@ impl InstanceNode for ImageInstance {
         let occlusion = expanded_node.occlusion.clone();
         let expanded_node_id = expanded_node.id;
 
-        let tab_changed = Property::computed(
+        let tab_changed = LocalProperty::computed(
             move || {
                 cloned_context.mark_canvas_node_dirty(expanded_node_id);
                 cloned_context.set_canvas_dirty(occlusion.get().render_layer_id);
@@ -223,7 +224,7 @@ impl InstanceNode for ImageInstance {
         let cloned_context = context.clone();
         let deps = [source.untyped()];
         let needs_to_load_data = Rc::clone(&self.needs_to_load_data);
-        let source_changed = Property::computed(
+        let source_changed = LocalProperty::computed(
             move || {
                 let Some(expanded_node) = weak_self_ref.upgrade() else {
                     return;
@@ -235,7 +236,7 @@ impl InstanceNode for ImageInstance {
                     ..Default::default()
                 };
                 expanded_node.with_properties_unwrapped(|props: &mut Image| {
-                    let source = props.source.get();
+                    let source = props.source.local().get();
                     match source {
                         ImageSource::Empty => (),
                         ImageSource::Url(url) => {
@@ -262,7 +263,7 @@ impl InstanceNode for ImageInstance {
         let deps = [source_changed.untyped(), tab_changed.untyped()];
         expanded_node
             .changed_listener
-            .replace_with(Property::computed(
+            .replace_with(LocalProperty::computed(
                 move || {
                     source_changed.get();
                     tab_changed.get();
@@ -275,7 +276,7 @@ impl InstanceNode for ImageInstance {
         let id = expanded_node.id.clone();
         expanded_node
             .changed_listener
-            .replace_with(Property::default());
+            .replace_with(LocalProperty::default());
         borrow_mut!(self.needs_to_load_data).remove(&id);
     }
 
@@ -315,7 +316,7 @@ impl InstanceNode for ImageInstance {
         let mut did_draw = false;
 
         expanded_node.with_properties_unwrapped(|props: &mut Image| {
-            let image_size_and_load_path = props.source.read(|source| {
+            let image_size_and_load_path = props.source.local().read(|source| {
                 match source {
                     ImageSource::Empty => return None,
                     ImageSource::Url(url) => {
@@ -346,7 +347,7 @@ impl InstanceNode for ImageInstance {
             let (image_width, image_height) = (image_width as f64, image_height as f64);
             let stretch_w = container_width / image_width;
             let stretch_h = container_height / image_height;
-            let (width, height) = match props.fit.get() {
+            let (width, height) = match props.fit.local().get() {
                 ImageFit::Paint => {
                     let stretch = stretch_h.max(stretch_w);
                     (image_width * stretch, image_height * stretch)

@@ -1,4 +1,5 @@
 use kurbo::{Affine, Rect, Shape};
+use pax_engine::api::LocalProperty;
 use pax_engine::*;
 use pax_runtime::api as pax_runtime_api;
 use pax_runtime::api::{use_RefCell, Stroke};
@@ -67,7 +68,7 @@ impl InstanceNode for EllipseInstance {
     ) {
         let tab = expanded_node.transform_and_bounds.clone();
         let (stroke, fill) = expanded_node.with_properties_unwrapped(|properties: &mut Ellipse| {
-            (properties.stroke.clone(), properties.fill.clone())
+            (properties.stroke.local(), properties.fill.local())
         });
 
         let appearance =
@@ -85,7 +86,7 @@ impl InstanceNode for EllipseInstance {
 
         expanded_node
             .changed_listener
-            .replace_with(Property::computed(
+            .replace_with(LocalProperty::computed(
                 move || {
                     appearance.get();
                     cloned_context.mark_canvas_node_dirty(cloned_expanded_node.id);
@@ -104,8 +105,8 @@ impl InstanceNode for EllipseInstance {
                 Affine::from(tab.transform)
                     * crate::common::appearance_coverage_path(
                         &kurbo::Ellipse::from_rect(rect).to_path(ELLIPSE_PATH_ACCURACY),
-                        &p.fill.get(),
-                        &p.stroke.get(),
+                        &p.fill.local().get(),
+                        &p.stroke.local().get(),
                     ),
             )
         })
@@ -120,8 +121,8 @@ impl InstanceNode for EllipseInstance {
             crate::common::alpha_mask_paints(
                 node,
                 kurbo::Ellipse::from_rect(Rect::new(0.0, 0.0, w, h)).to_path(ELLIPSE_PATH_ACCURACY),
-                p.fill.get(),
-                p.stroke.get(),
+                p.fill.local().get(),
+                p.stroke.local().get(),
             )
         })
     }
@@ -129,8 +130,8 @@ impl InstanceNode for EllipseInstance {
     fn resolve_coverage_opacity(&self, expanded_node: &ExpandedNode) -> f64 {
         expanded_node.with_properties_unwrapped(|properties: &mut Ellipse| {
             (crate::common::appearance_coverage_alpha(
-                &properties.fill.get(),
-                &properties.stroke.get(),
+                &properties.fill.local().get(),
+                &properties.stroke.local().get(),
             ) * expanded_node.computed_opacity.get())
             .clamp(0.0, 1.0)
         })
@@ -144,7 +145,7 @@ impl InstanceNode for EllipseInstance {
         let local_bounds = node.with_properties_unwrapped(|p: &mut Ellipse| {
             crate::common::stroke_coverage_bounds(
                 kurbo::Rect::new(0.0, 0.0, bounds.0, bounds.1),
-                &p.stroke.get(),
+                &p.stroke.local().get(),
             )
         });
         pax_runtime::scene_geometry::CanvasGeometry {
@@ -178,8 +179,8 @@ impl InstanceNode for EllipseInstance {
                 rc,
                 scope.layer_id,
                 bez_path,
-                &properties.fill.get(),
-                &properties.stroke.get(),
+                &properties.fill.local().get(),
+                &properties.stroke.local().get(),
                 scope.paint_opacity,
                 pax_runtime_api::PathSmoothing::None,
                 0.0,

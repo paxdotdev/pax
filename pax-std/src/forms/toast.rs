@@ -1,7 +1,8 @@
 #![allow(dead_code)]
 
-#[allow(unused)]
 use crate::*;
+#[allow(unused)]
+use pax_engine::api::LocalProperty;
 use pax_engine::api::*;
 use pax_engine::*;
 
@@ -48,26 +49,27 @@ impl Toast {
     pub fn on_mount(&mut self, _ctx: &NodeContext) {
         self.height.set(Size::Pixels(80.into()));
         self.y_pos.set(Size::default() + self.height.get());
-        let message = self.message.clone();
+        let message = self.message.local();
         let deps = [message.untyped()];
-        let y_pos = self.y_pos.clone();
-        let height = self.height.clone();
+        let y_pos = self.y_pos.local();
+        let height = self.height.local();
         self.shown.set(true);
-        self._on_message_changed.replace_with(Property::computed(
-            move || {
-                if message.get() != "" {
-                    // show for the animation period
-                    // in
-                    set_px_offset(&y_pos, Size::ZERO(), IN_OUT_TIME);
-                    // stay
-                    set_px_offset_later(&y_pos, Size::ZERO(), 300);
-                    // out
-                    set_px_offset_later(&y_pos, height.get(), IN_OUT_TIME);
-                }
-                false
-            },
-            &deps,
-        ));
+        self._on_message_changed
+            .replace_with(LocalProperty::computed(
+                move || {
+                    if message.get() != "" {
+                        // show for the animation period
+                        // in
+                        set_px_offset(&y_pos, Size::ZERO(), IN_OUT_TIME);
+                        // stay
+                        set_px_offset_later(&y_pos, Size::ZERO(), 300);
+                        // out
+                        set_px_offset_later(&y_pos, height.get(), IN_OUT_TIME);
+                    }
+                    false
+                },
+                &deps,
+            ));
     }
 
     // Forces the message-change listener to run.
@@ -82,10 +84,14 @@ impl Toast {
     }
 }
 
-fn set_px_offset(y_pos: &Property<Size>, offset: Size, time: u64) {
-    y_pos.ease_to(Size::default() + offset, time, EasingCurve::InQuad);
+fn set_px_offset(y_pos: &impl PropertyBinding<Size>, offset: Size, time: u64) {
+    y_pos
+        .local()
+        .ease_to(Size::default() + offset, time, EasingCurve::InQuad);
 }
 
-fn set_px_offset_later(y_pos: &Property<Size>, offset: Size, time: u64) {
-    y_pos.ease_to_later(Size::default() + offset, time, EasingCurve::OutQuad);
+fn set_px_offset_later(y_pos: &impl PropertyBinding<Size>, offset: Size, time: u64) {
+    y_pos
+        .local()
+        .ease_to_later(Size::default() + offset, time, EasingCurve::OutQuad);
 }

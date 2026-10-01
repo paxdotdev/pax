@@ -9,7 +9,7 @@ use_RefCell!();
 use pax_manifest::ControlFlowRouteBranchDefinition;
 use pax_runtime_api::pax_value::ImplToFromPaxAny;
 use pax_runtime_api::{
-    borrow, borrow_mut, use_RefCell, Interpolatable, PaxValue, Property, ToPaxValue, Variable,
+    borrow, borrow_mut, use_RefCell, Interpolatable, LocalProperty, PaxValue, ToPaxValue, Variable,
 };
 
 use crate::api::Layer;
@@ -149,9 +149,9 @@ impl ToPaxValue for RouteMatch {
 #[derive(Default)]
 pub struct RouterProperties {
     /// Location scoped to the current router.
-    pub input_location: Property<RouteLocation>,
+    pub input_location: LocalProperty<RouteLocation>,
     /// Full application location retained for diagnostics and coordination.
-    pub global_location: Property<RouteLocation>,
+    pub global_location: LocalProperty<RouteLocation>,
 }
 
 impl ImplToFromPaxAny for RouterProperties {}
@@ -313,7 +313,7 @@ impl RouterInstance {
 
         expanded_node
             .children
-            .replace_with(Property::computed_with_name(
+            .replace_with(LocalProperty::computed_with_name(
                 move || {
                     let Some(cloned_expanded_node) = weak_ref_self.upgrade() else {
                         panic!("ran evaluator after expanded node dropped (router)")
@@ -455,11 +455,11 @@ impl RouterInstance {
         Self::child_route_match_property(child).map(|route_match| route_match.get())
     }
 
-    fn child_route_match_property(child: &Rc<ExpandedNode>) -> Option<Property<RouteMatch>> {
+    fn child_route_match_property(child: &Rc<ExpandedNode>) -> Option<LocalProperty<RouteMatch>> {
         child
             .stack
             .resolve_symbol_as_erased_property(INTERNAL_ROUTE_MATCH_SYMBOL)
-            .map(Property::<RouteMatch>::new_from_untyped)
+            .map(LocalProperty::<RouteMatch>::new_from_untyped)
     }
 
     fn same_route_instance(lhs: Option<&RouteMatch>, rhs: Option<&RouteMatch>) -> bool {
@@ -613,7 +613,7 @@ fn match_route_branch(
 }
 
 fn route_scope(route_match: RouteMatch) -> HashMap<String, Variable> {
-    let route_property = Property::new(route_match);
+    let route_property = LocalProperty::new(route_match);
     vec![
         (
             ROUTE_SYMBOL.to_string(),
@@ -676,17 +676,17 @@ mod tests {
 
     fn test_globals() -> Globals {
         Globals {
-            elapsed_frames: Property::new(0),
-            elapsed_millis: Property::new(0),
-            viewport: Property::new(TransformAndBounds {
+            elapsed_frames: LocalProperty::new(0),
+            elapsed_millis: LocalProperty::new(0),
+            viewport: LocalProperty::new(TransformAndBounds {
                 transform: Transform2::identity(),
                 bounds: (100.0, 100.0),
             }),
-            gyro: Property::new(Default::default()),
-            accel: Property::new(Default::default()),
-            route_location: Property::new(RouteLocation::root()),
-            browser_allows_scroller_vector_layers: Property::new(true),
-            browser_allows_nested_scroller_vector_layers: Property::new(true),
+            gyro: LocalProperty::new(Default::default()),
+            accel: LocalProperty::new(Default::default()),
+            route_location: LocalProperty::new(RouteLocation::root()),
+            browser_allows_scroller_vector_layers: LocalProperty::new(true),
+            browser_allows_nested_scroller_vector_layers: LocalProperty::new(true),
             platform: Platform::Unknown,
             os: OS::Unknown,
             target: TargetInfo::new(Platform::Unknown, OS::Unknown),
@@ -808,8 +808,8 @@ mod tests {
                 |_, expanded_node| {
                     expanded_node.is_none().then(|| {
                         let mut cp = CommonProperties::default();
-                        cp.width = Property::new(Some(Size::Pixels(40.into())));
-                        cp.height = Property::new(Some(Size::Pixels(40.into())));
+                        cp.width = LocalProperty::new(Some(Size::Pixels(40.into())));
+                        cp.height = LocalProperty::new(Some(Size::Pixels(40.into())));
                         Rc::new(RefCell::new(cp))
                     })
                 },
@@ -845,8 +845,8 @@ mod tests {
     }
 
     fn router_args(
-        input_location: Property<RouteLocation>,
-        global_location: Property<RouteLocation>,
+        input_location: LocalProperty<RouteLocation>,
+        global_location: LocalProperty<RouteLocation>,
         children: Vec<Rc<dyn InstanceNode>>,
     ) -> InstantiationArgs {
         let input_location_for_factory = input_location.clone();
@@ -892,7 +892,7 @@ mod tests {
     }
 
     fn mounted_router(
-        input_location: Property<RouteLocation>,
+        input_location: LocalProperty<RouteLocation>,
         branch_definitions: Vec<ControlFlowRouteBranchDefinition>,
         branch_child_ranges: Vec<Range<usize>>,
         children: Vec<Rc<dyn InstanceNode>>,
@@ -1021,7 +1021,7 @@ mod tests {
 
     #[test]
     fn same_branch_route_match_change_enters_new_tree_and_exits_old_tree() {
-        let input_location = Property::new(route(&["users", "1"]));
+        let input_location = LocalProperty::new(route(&["users", "1"]));
         let (_root, router_node, context) = mounted_router(
             input_location.clone(),
             vec![ControlFlowRouteBranchDefinition {
@@ -1055,7 +1055,7 @@ mod tests {
 
     #[test]
     fn catch_all_reuses_route_tree_when_only_remainder_changes() {
-        let input_location = Property::new(route(&["teams", "atlas"]));
+        let input_location = LocalProperty::new(route(&["teams", "atlas"]));
         let (_root, router_node, context) = mounted_router(
             input_location.clone(),
             vec![ControlFlowRouteBranchDefinition {
@@ -1099,7 +1099,7 @@ mod tests {
 
     #[test]
     fn branch_change_transitions_each_root_of_multi_root_routes() {
-        let input_location = Property::new(route(&["alpha"]));
+        let input_location = LocalProperty::new(route(&["alpha"]));
         let (_root, router_node, context) = mounted_router(
             input_location.clone(),
             vec![
@@ -1145,7 +1145,7 @@ mod tests {
 
     #[test]
     fn branch_can_be_reselected_while_previous_instance_is_exiting() {
-        let input_location = Property::new(route(&["alpha"]));
+        let input_location = LocalProperty::new(route(&["alpha"]));
         let (_root, router_node, context) = mounted_router(
             input_location.clone(),
             vec![
@@ -1190,7 +1190,7 @@ mod tests {
 
     #[test]
     fn retained_exiting_route_tree_does_not_intercept_hit_testing() {
-        let input_location = Property::new(route(&["alpha"]));
+        let input_location = LocalProperty::new(route(&["alpha"]));
         let exiting_route_config = ComponentTransitionConfig {
             has_exit: true,
             exit_frame_count: 30,
@@ -1238,7 +1238,7 @@ mod tests {
 
     #[test]
     fn dynamic_exit_duration_controls_retained_route_cleanup() {
-        let input_location = Property::new(route(&["alpha"]));
+        let input_location = LocalProperty::new(route(&["alpha"]));
         let (_root, router_node, context) = mounted_router(
             input_location.clone(),
             vec![
@@ -1286,7 +1286,7 @@ mod tests {
 
     #[test]
     fn active_enter_transition_returns_to_idle_after_duration() {
-        let input_location = Property::new(route(&["alpha"]));
+        let input_location = LocalProperty::new(route(&["alpha"]));
         let (_root, router_node, context) = mounted_router(
             input_location.clone(),
             vec![
@@ -1327,7 +1327,7 @@ mod tests {
 
     #[test]
     fn modal_branch_keeps_previous_route_active_underneath() {
-        let input_location = Property::new(route(&["alpha"]));
+        let input_location = LocalProperty::new(route(&["alpha"]));
         let (_root, router_node, context) = mounted_router(
             input_location.clone(),
             vec![
@@ -1366,7 +1366,7 @@ mod tests {
 
     #[test]
     fn dismissing_modal_reveals_previous_route_without_remounting() {
-        let input_location = Property::new(route(&["alpha"]));
+        let input_location = LocalProperty::new(route(&["alpha"]));
         let (_root, router_node, context) = mounted_router(
             input_location.clone(),
             vec![
@@ -1409,7 +1409,7 @@ mod tests {
 
     #[test]
     fn no_match_transitions_out_previous_route_tree() {
-        let input_location = Property::new(route(&["alpha"]));
+        let input_location = LocalProperty::new(route(&["alpha"]));
         let (_root, router_node, context) = mounted_router(
             input_location.clone(),
             vec![ControlFlowRouteBranchDefinition {

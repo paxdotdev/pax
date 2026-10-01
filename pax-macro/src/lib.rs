@@ -341,6 +341,7 @@ fn pax_full_component(
     _raw_pax: String,
     input_parsed: &DeriveInput,
     is_main_component: bool,
+    application_type: Option<String>,
     include_fix: Option<TokenStream>,
     is_custom_interpolatable: bool,
     is_custom_coercion_rules: bool,
@@ -407,6 +408,9 @@ fn pax_full_component(
         args_full_component: Some(ArgsFullComponent {
             is_main_component,
             cartridge_snippet,
+            application_type: application_type.unwrap_or_else(|| {
+                format!("{}::api::application::EmptyApplication", engine_import_path)
+            }),
         }),
         pascal_identifier,
         internal_definitions,
@@ -447,6 +451,7 @@ fn pax_full_component(
 
 struct Config {
     is_main_component: bool,
+    application_type: Option<String>,
     file_path: Option<String>,
     svg_path: Option<String>,
     inlined_contents: Option<String>,
@@ -460,6 +465,7 @@ struct Config {
 fn parse_config(attrs: &mut Vec<syn::Attribute>) -> Config {
     let mut config = Config {
         is_main_component: false,
+        application_type: None,
         file_path: None,
         svg_path: None,
         inlined_contents: None,
@@ -474,6 +480,13 @@ fn parse_config(attrs: &mut Vec<syn::Attribute>) -> Config {
     // remove the ones we use, don't remove the ones we don't
     attrs.retain(|attr| {
         match attr.path.get_ident() {
+            Some(s) if s == "application" => {
+                let path: syn::Path = attr
+                    .parse_args()
+                    .expect("#[application(Type)] requires one Rust type path");
+                config.application_type = Some(quote! { #path }.to_string());
+                return false;
+            }
             Some(s) if s == "file" => {
                 if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
                     if let Some(nested_meta) = meta_list.nested.first() {
@@ -616,6 +629,9 @@ pub fn pax(
 
     let pascal_identifier = input.ident.to_string();
     let config = parse_config(&mut input.attrs);
+    if config.application_type.is_some() && !config.is_main_component {
+        return quote! { compile_error!("#[application(Type)] belongs on the #[main] root component"); }.into();
+    }
     validate_config(&input, &config).unwrap();
 
     let mut trait_impls = vec!["Clone", "Default", "Serialize", "Deserialize", "Debug"];
@@ -680,6 +696,7 @@ pub fn pax(
             content,
             &input,
             config.is_main_component,
+            config.application_type.clone(),
             Some(include_fix),
             is_custom_interpolatable,
             is_custom_coercion_rules,
@@ -705,6 +722,7 @@ pub fn pax(
             String::new(),
             &input,
             config.is_main_component,
+            config.application_type.clone(),
             Some(include_fix),
             is_custom_interpolatable,
             is_custom_coercion_rules,
@@ -719,6 +737,7 @@ pub fn pax(
             contents.to_owned(),
             &input,
             config.is_main_component,
+            config.application_type.clone(),
             None,
             is_custom_interpolatable,
             is_custom_coercion_rules,

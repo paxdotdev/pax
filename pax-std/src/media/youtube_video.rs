@@ -1,3 +1,4 @@
+use pax_engine::api::LocalProperty;
 use pax_message::AnyCreatePatch;
 use pax_runtime::api::{Layer, Property};
 use pax_runtime::{
@@ -76,7 +77,7 @@ impl InstanceNode for YoutubeVideoInstance {
             .collect();
         expanded_node
             .changed_listener
-            .replace_with(Property::computed(
+            .replace_with(LocalProperty::computed(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
                         return;
@@ -94,7 +95,7 @@ impl InstanceNode for YoutubeVideoInstance {
                             patch_if_needed(
                                 &mut old_state.url,
                                 &mut patch.url,
-                                properties.url.get(),
+                                properties.url.local().get(),
                             ),
                             patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
                             patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),
@@ -135,7 +136,7 @@ impl InstanceNode for YoutubeVideoInstance {
         let id = expanded_node.id.clone();
         expanded_node
             .changed_listener
-            .replace_with(Property::default());
+            .replace_with(LocalProperty::default());
         context.enqueue_native_message(pax_message::NativeMessage::YoutubeVideoDelete(id.to_u32()));
     }
 

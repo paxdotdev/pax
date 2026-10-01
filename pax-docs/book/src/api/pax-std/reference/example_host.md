@@ -11,22 +11,22 @@ optional source drawer driven by an explicit `sources` manifest.
 
 #### Properties
 ##### `title`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`String`>
+Type: `Property`<`String`>
 
 Title shown in the source drawer.
 
 ##### `sources`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`Vec`<[`ExampleSource`](../../../api/pax-std/reference/example_host.md#examplesource)>>
+Type: `Property`<`Vec`<[`ExampleSource`](../../../api/pax-std/reference/example_host.md#examplesource)>>
 
 Explicit source files related to the projected example subtree.
 
 ##### `selected_source`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`usize`>
+Type: `Property`<`usize`>
 
 Selected source index for the drawer tabs.
 
 ##### `drawer_open`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`bool`>
+Type: `Property`<`bool`>
 
 Whether the source drawer is visible.
 

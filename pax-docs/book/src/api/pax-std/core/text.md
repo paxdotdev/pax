@@ -13,38 +13,38 @@ test the intended interaction on each shipping target.
 
 #### Properties
 ##### `editable`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`bool`>
+Type: `Property`<`bool`>
 
 Whether the text can be edited by the user.
 
 ##### `selectable`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`bool`>
+Type: `Property`<`bool`>
 
 Requests selectable text. On the current iOS/iPadOS path, non-editable
 text uses the interactive selection view only when `clip` is enabled.
 
 ##### `clip`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`bool`>
+Type: `Property`<`bool`>
 
 Whether text overflow is clipped to the node bounds.
 
 ##### `text`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`String`>
+Type: `Property`<`String`>
 
 Text content to display.
 
 ##### `style`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`TextStyle`](../../../api/pax-std/core/text.md#textstyle)>
+Type: `Property`<[`TextStyle`](../../../api/pax-std/core/text.md#textstyle)>
 
 Text styling.
 
 ##### `markdown`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`bool`>
+Type: `Property`<`bool`>
 
 Whether `text` should be interpreted as Markdown.
 
 ##### `wrap`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`bool`>
+Type: `Property`<`bool`>
 
 Whether long text lines should wrap inside the node bounds.
 
@@ -57,38 +57,38 @@ alignment switch to the destination immediately. Glyphs do not morph.
 
 #### Properties
 ##### `font`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Font`](../../../api/pax-std/core/text.md#font)>
+Type: `Property`<[`Font`](../../../api/pax-std/core/text.md#font)>
 
 Font family/source/style/weight configuration.
 
 ##### `font_size`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Size`](../../../api/pax-runtime-api/layout.md#size)>
+Type: `Property`<[`Size`](../../../api/pax-runtime-api/layout.md#size)>
 
 Font size, in pixels.
 
 ##### `fill`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Paint`](../../../api/pax-runtime-api/drawing.md#paint)>
+Type: `Property`<[`Paint`](../../../api/pax-runtime-api/drawing.md#paint)>
 
 Text color. Native text patches reduce gradient fills to their first
 stop's color; use a solid fill for predictable text color.
 
 ##### `underline`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`bool`>
+Type: `Property`<`bool`>
 
 Whether text should be underlined.
 
 ##### `align_multiline`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`TextAlignHorizontal`](../../../api/pax-std/core/text.md#textalignhorizontal)>
+Type: `Property`<[`TextAlignHorizontal`](../../../api/pax-std/core/text.md#textalignhorizontal)>
 
 Alignment for multiline text layout.
 
 ##### `align_vertical`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`TextAlignVertical`](../../../api/pax-std/core/text.md#textalignvertical)>
+Type: `Property`<[`TextAlignVertical`](../../../api/pax-std/core/text.md#textalignvertical)>
 
 Vertical text alignment within its bounds.
 
 ##### `align_horizontal`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`TextAlignHorizontal`](../../../api/pax-std/core/text.md#textalignhorizontal)>
+Type: `Property`<[`TextAlignHorizontal`](../../../api/pax-std/core/text.md#textalignhorizontal)>
 
 Horizontal text alignment within its bounds.
 

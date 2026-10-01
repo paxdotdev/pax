@@ -4,6 +4,13 @@
 
 ## Structs
 ### `NodeContext`
+This runtime owner stays on the UI thread. Transfer properties or delivery
+handles to workers instead.
+
+```compile_fail
+fn requires_send<T: Send>() {}
+requires_send::<pax_runtime::api::NodeContext>();
+```
 Runtime context passed into user component lifecycle methods and event handlers.
 
 Child-related fields intentionally separate semantic payload from engine
@@ -24,7 +31,7 @@ container consumers.
 Type: `Weak`<`ExpandedNode`>
 
 ##### `slot_index`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`Option`<`usize`>>
+Type: `LocalProperty`<`Option`<`usize`>>
 
 slot index of this node in its container
 
@@ -37,42 +44,42 @@ Type: `Weak`<`ExpandedNode`>
 Reference to the ExpandedNode of the component containing this node
 
 ##### `elapsed_frames`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`u64`>
+Type: `LocalProperty`<`u64`>
 
 The current global engine frame count.
 
 ##### `elapsed_millis`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`u64`>
+Type: `LocalProperty`<`u64`>
 
 The current global engine wall-clock time in milliseconds.
 
 ##### `gyro`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Gyro`](../../../api/pax-runtime-api/platform.md#gyro)>
+Type: `LocalProperty`<[`Gyro`](../../../api/pax-runtime-api/platform.md#gyro)>
 
 Current device orientation sensor reading.
 
 ##### `accel`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Accel`](../../../api/pax-runtime-api/platform.md#accel)>
+Type: `LocalProperty`<[`Accel`](../../../api/pax-runtime-api/platform.md#accel)>
 
 Current device accelerometer reading.
 
 ##### `bounds_parent`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<(`f64`, `f64`)>
+Type: `LocalProperty`<(`f64`, `f64`)>
 
 The bounds of this element's immediate container (parent) in px
 
 ##### `bounds_self`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<(`f64`, `f64`)>
+Type: `LocalProperty`<(`f64`, `f64`)>
 
 The bounds of this element in px
 
 ##### `measured_size`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`Option`<(`f64`, `f64`)>>
+Type: `LocalProperty`<`Option`<(`f64`, `f64`)>>
 
 Measured bounds resolved by the chassis or container layout for this node.
 
 ##### `subtree_layout_hull`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`LayoutHull`](../../../api/internal/pax-runtime/layout.md#layouthull)>
+Type: `LocalProperty`<[`LayoutHull`](../../../api/internal/pax-runtime/layout.md#layouthull)>
 
 Node-local subtree layout hull published by the engine for container measurement.
 
@@ -87,17 +94,17 @@ Type: [`OS`](../../../api/pax-runtime-api/platform.md#os)
 Current os (Android/Windows/Mac/Linux) this app is running on
 
 ##### `target`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`TargetInfo`](../../../api/pax-runtime-api/platform.md#targetinfo)>
+Type: `LocalProperty`<[`TargetInfo`](../../../api/pax-runtime-api/platform.md#targetinfo)>
 
 Derived target facts for platform/OS checks.
 
 ##### `viewport`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Viewport`](../../../api/pax-runtime-api/platform.md#viewport)>
+Type: `LocalProperty`<[`Viewport`](../../../api/pax-runtime-api/platform.md#viewport)>
 
 Derived viewport facts for size and orientation checks.
 
 ##### `projected_children_count`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`usize`>
+Type: `LocalProperty`<`usize`>
 
 The number of projected children available to this node.
 
@@ -111,7 +118,7 @@ Type: [`TransformAndBounds`](../../../api/internal/pax-runtime/layout.md#transfo
 The transform of this node in the global coordinate space
 
 ##### `projected_children`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`Vec`<`Rc`<`ExpandedNode`>>>
+Type: `LocalProperty`<`Vec`<`Rc`<`ExpandedNode`>>>
 
 Children projected into this node from the containing component.
 
@@ -119,12 +126,12 @@ Projection is an engine transport mechanism. Consumers that want the
 semantic payload owned by this node should prefer `received_children`.
 
 ##### `projected_children_changed`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<()>
+Type: `LocalProperty`<()>
 
 A structural invalidation signal for projected children.
 
 ##### `received_children`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`Vec`<`Rc`<`ExpandedNode`>>>
+Type: `LocalProperty`<`Vec`<`Rc`<`ExpandedNode`>>>
 
 Semantic payload children received by this node from its caller.
 
@@ -134,12 +141,12 @@ exit-retained payload nodes, which instead appear in
 `retained_received_children`.
 
 ##### `received_children_count`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`usize`>
+Type: `LocalProperty`<`usize`>
 
 Convenience count derived from `received_children`.
 
 ##### `received_children_changed`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<()>
+Type: `LocalProperty`<()>
 
 A structural invalidation signal for `received_children`.
 
@@ -147,7 +154,7 @@ Prefer this or `received_children` itself for structural subscriptions
 that must react to reorders as well as insertions and removals.
 
 ##### `retained_received_children`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`Vec`<`Rc`<`ExpandedNode`>>>
+Type: `LocalProperty`<`Vec`<`Rc`<`ExpandedNode`>>>
 
 Received children retained only so exit transitions can finish.
 
@@ -156,11 +163,23 @@ containers still need to place them as ghosts or overlays while their
 `@out` transitions run.
 
 ##### `retained_received_children_changed`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<()>
+Type: `LocalProperty`<()>
 
 A structural invalidation signal for `retained_received_children`.
 
 #### Implementations
+##### `application`
+<pre><code class="api-signature language-rust ignore">pub fn application(&amp;self) -&gt; <a href="../../../api/pax-runtime-api/application.md#appcontext">AppContext</a></code></pre>
+
+Access services belonging to this application instance.
+
+##### `async_scope`
+<pre><code class="api-signature language-rust ignore">pub fn async_scope(&amp;self) -&gt; Result&lt;<a href="../../../api/pax-runtime-api/async_runtime.md#asyncscope">AsyncScope</a>, <a href="../../../api/pax-runtime-api/async_runtime.md#asyncerror">AsyncError</a>&gt;</code></pre>
+
+Lifetime of this exact context node, ending at actual unmount. Retain a
+component mount scope when later handlers receive child-control contexts.
+A saved context cannot acquire the scope of a later mount of that node.
+
 ##### `clear_subscriptions`
 <pre><code class="api-signature language-rust ignore">pub fn clear_subscriptions(&amp;self)</code></pre>
 

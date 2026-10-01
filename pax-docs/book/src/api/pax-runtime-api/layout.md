@@ -13,93 +13,93 @@ for example `<SomeElement width={...} />`.
 
 #### Properties
 ##### `id`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<`Option`<`String`>>
+Type: `LocalProperty`<`Option`<`String`>>
 
 Optional stable node identifier.
 
 ##### `x`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<`Option`<[`Size`](../../api/pax-runtime-api/layout.md#size)>>
+Type: `LocalProperty`<`Option`<[`Size`](../../api/pax-runtime-api/layout.md#size)>>
 
 Horizontal position.
 
 ##### `y`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<`Option`<[`Size`](../../api/pax-runtime-api/layout.md#size)>>
+Type: `LocalProperty`<`Option`<[`Size`](../../api/pax-runtime-api/layout.md#size)>>
 
 Vertical position.
 
 ##### `padding_x`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<`Option`<[`Size`](../../api/pax-runtime-api/layout.md#size)>>
+Type: `LocalProperty`<`Option`<[`Size`](../../api/pax-runtime-api/layout.md#size)>>
 
 Symmetric inner spacing applied to this node's child layout area on the x axis.
 
 ##### `padding_y`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<`Option`<[`Size`](../../api/pax-runtime-api/layout.md#size)>>
+Type: `LocalProperty`<`Option`<[`Size`](../../api/pax-runtime-api/layout.md#size)>>
 
 Symmetric inner spacing applied to this node's child layout area on the y axis.
 
 ##### `width`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<`Option`<[`Size`](../../api/pax-runtime-api/layout.md#size)>>
+Type: `LocalProperty`<`Option`<[`Size`](../../api/pax-runtime-api/layout.md#size)>>
 
 Horizontal extent.
 
 ##### `height`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<`Option`<[`Size`](../../api/pax-runtime-api/layout.md#size)>>
+Type: `LocalProperty`<`Option`<[`Size`](../../api/pax-runtime-api/layout.md#size)>>
 
 Vertical extent.
 
 ##### `anchor_x`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<`Option`<[`Size`](../../api/pax-runtime-api/layout.md#size)>>
+Type: `LocalProperty`<`Option`<[`Size`](../../api/pax-runtime-api/layout.md#size)>>
 
 Horizontal transform origin, relative to the node's own bounds.
 
 ##### `anchor_y`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<`Option`<[`Size`](../../api/pax-runtime-api/layout.md#size)>>
+Type: `LocalProperty`<`Option`<[`Size`](../../api/pax-runtime-api/layout.md#size)>>
 
 Vertical transform origin, relative to the node's own bounds.
 
 ##### `scale_x`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<`Option`<[`Size`](../../api/pax-runtime-api/layout.md#size)>>
+Type: `LocalProperty`<`Option`<[`Size`](../../api/pax-runtime-api/layout.md#size)>>
 
 Horizontal scale coefficient.
 
 ##### `scale_y`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<`Option`<[`Size`](../../api/pax-runtime-api/layout.md#size)>>
+Type: `LocalProperty`<`Option`<[`Size`](../../api/pax-runtime-api/layout.md#size)>>
 
 Vertical scale coefficient.
 
 ##### `skew_x`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<`Option`<[`Rotation`](../../api/pax-runtime-api/transform.md#rotation)>>
+Type: `LocalProperty`<`Option`<[`Rotation`](../../api/pax-runtime-api/transform.md#rotation)>>
 
 Horizontal skew.
 
 ##### `skew_y`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<`Option`<[`Rotation`](../../api/pax-runtime-api/transform.md#rotation)>>
+Type: `LocalProperty`<`Option`<[`Rotation`](../../api/pax-runtime-api/transform.md#rotation)>>
 
 Vertical skew.
 
 ##### `rotate`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<`Option`<[`Rotation`](../../api/pax-runtime-api/transform.md#rotation)>>
+Type: `LocalProperty`<`Option`<[`Rotation`](../../api/pax-runtime-api/transform.md#rotation)>>
 
 Rotation around the z axis.
 
 ##### `transform`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<`Option`<[`Transform2D`](../../api/pax-runtime-api/transform.md#transform2d)>>
+Type: `LocalProperty`<`Option`<[`Transform2D`](../../api/pax-runtime-api/transform.md#transform2d)>>
 
 Full composed transform.
 
 ##### `opacity`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<`Option`<[`Opacity`](../../api/pax-runtime-api/color.md#opacity)>>
+Type: `LocalProperty`<`Option`<[`Opacity`](../../api/pax-runtime-api/color.md#opacity)>>
 
 Opacity of this node's subtree. WGPU and browser Piet compose each canvas
 portion before fading it; live native surfaces currently fade separately.
 
 ##### `layout_role`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<`Option`<[`LayoutRole`](../../api/pax-runtime-api/layout.md#layoutrole)>>
+Type: `LocalProperty`<`Option`<[`LayoutRole`](../../api/pax-runtime-api/layout.md#layoutrole)>>
 
 Controls whether this node participates in parent layout measurement and flow.
 
 ##### `unclippable`
-Type: [`Property`](../../api/pax-runtime-api/properties.md#property)<`Option`<`bool`>>
+Type: `LocalProperty`<`Option`<`bool`>>
 
 Allows a node to render outside an ancestor clipping frame.
 

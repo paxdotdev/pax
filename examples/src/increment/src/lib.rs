@@ -24,7 +24,7 @@ impl Example {
         let old_num_clicks = self.num_clicks.get();
         let new_val = old_num_clicks + 1;
         self.num_clicks.set(new_val);
-        self.current_rotation.ease_to(
+        self.current_rotation.local().ease_to(
             new_val as f64 * ROTATION_INCREMENT_DEGREES,
             ROTATION_EASING_DURATION_FRAMES,
             EasingCurve::OutQuad,

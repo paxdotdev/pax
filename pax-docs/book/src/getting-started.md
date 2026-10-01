@@ -326,6 +326,8 @@ Configure titles, icons, Apple identity, and packaging values in
 `[package.metadata.pax]` in `Cargo.toml`. See
 [Project metadata](targets-build-deploy.md#project-metadata) for the supported
 keys, target inheritance, and icon requirements.
+Apple apps can also declare typed Info.plist values and signing entitlements;
+see [Apple property lists and entitlements](targets-build-deploy.md#apple-property-lists-and-entitlements).
 
 ### Local release runs on iOS and iPadOS
 

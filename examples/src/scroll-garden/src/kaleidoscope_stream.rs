@@ -44,16 +44,16 @@ pub struct KaleidoscopeStreamItem {
 impl KaleidoscopeStream {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let bounds = ctx.bounds_self.clone();
-        let count = self.count.clone();
-        let spacing = self.spacing.clone();
-        let size = self.size.clone();
+        let count = self.count.local();
+        let spacing = self.spacing.local();
+        let size = self.size.local();
         let deps = [
             bounds.untyped(),
             count.untyped(),
             spacing.untyped(),
             size.untyped(),
         ];
-        self._items.replace_with(Property::computed(
+        self._items.replace_with(LocalProperty::computed(
             move || {
                 let count_val = count.get().max(1);
                 let (width, _height) = bounds.get();

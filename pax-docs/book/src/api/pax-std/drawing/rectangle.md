@@ -27,26 +27,31 @@ Interpolation treats each radius independently; zero produces an angular corner.
 
 #### Properties
 ##### `top_left`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Numeric`](../../../api/pax-runtime-api/pax_value/numeric.md#numeric)>
+Type: `Property`<[`Numeric`](../../../api/pax-runtime-api/pax_value/numeric.md#numeric)>
 
 Top-left corner radius.
 
 ##### `top_right`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Numeric`](../../../api/pax-runtime-api/pax_value/numeric.md#numeric)>
+Type: `Property`<[`Numeric`](../../../api/pax-runtime-api/pax_value/numeric.md#numeric)>
 
 Top-right corner radius.
 
 ##### `bottom_right`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Numeric`](../../../api/pax-runtime-api/pax_value/numeric.md#numeric)>
+Type: `Property`<[`Numeric`](../../../api/pax-runtime-api/pax_value/numeric.md#numeric)>
 
 Bottom-right corner radius.
 
 ##### `bottom_left`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Numeric`](../../../api/pax-runtime-api/pax_value/numeric.md#numeric)>
+Type: `Property`<[`Numeric`](../../../api/pax-runtime-api/pax_value/numeric.md#numeric)>
 
 Bottom-left corner radius.
 
 #### Implementations
+##### `resolve_in_graph`
+<pre><code class="api-signature language-rust ignore">pub fn resolve_in_graph(&amp;self) -&gt; RoundedRectRadii</code></pre>
+
+Resolves corner radii from the entered UI graph's settled projections.
+
 ##### `radii`
 <pre><code class="api-signature language-rust ignore">pub fn radii(top_left: <a href="../../../api/pax-runtime-api/pax_value/numeric.md#numeric">Numeric</a>, top_right: <a href="../../../api/pax-runtime-api/pax_value/numeric.md#numeric">Numeric</a>, bottom_right: <a href="../../../api/pax-runtime-api/pax_value/numeric.md#numeric">Numeric</a>, bottom_left: <a href="../../../api/pax-runtime-api/pax_value/numeric.md#numeric">Numeric</a>) -&gt; Self</code></pre>
 
@@ -59,16 +64,16 @@ A 2D vector rectangle, which covers its bounding box with the specified fill and
 
 #### Properties
 ##### `stroke`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`Vec`<[`Stroke`](../../../api/pax-runtime-api/drawing.md#stroke)>>
+Type: `Property`<`Vec`<[`Stroke`](../../../api/pax-runtime-api/drawing.md#stroke)>>
 
 Ordered outline layers above the fills, index zero topmost. Empty by default.
 
 ##### `fill`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`Vec`<[`Fill`](../../../api/pax-runtime-api/drawing.md#fill)>>
+Type: `Property`<`Vec`<[`Fill`](../../../api/pax-runtime-api/drawing.md#fill)>>
 
 Paint painted inside the rectangle.
 
 ##### `corner_radius`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`CornerRadii`](../../../api/pax-std/drawing/rectangle.md#cornerradii)>
+Type: `Property`<[`CornerRadii`](../../../api/pax-std/drawing/rectangle.md#cornerradii)>
 
 Per-corner radii.

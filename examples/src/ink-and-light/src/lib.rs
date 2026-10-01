@@ -34,7 +34,7 @@ impl Example {
             .set(if self.is_compact.get() { 16.0 } else { 36.0 });
         self.card_scale.set(1.0);
         self.active_touch_identifier.set(-1);
-        self.greeting_progress.ease_to(
+        self.greeting_progress.local().ease_to(
             1.0,
             Duration::Milliseconds(1600.into()),
             EasingCurve::OutQuad,
@@ -87,35 +87,35 @@ impl Example {
 
     fn begin_stamp(&mut self, ctx: &NodeContext, window_x: f64, window_y: f64) {
         let local = ctx.local_point(Point2::new(window_x, window_y));
-        self.seal_x.ease_to(
+        self.seal_x.local().ease_to(
             local.x.clamp(0.11, 0.89) * 100.0,
             Duration::Milliseconds(360.into()),
             EasingCurve::OutBack,
         );
-        self.seal_y.ease_to(
+        self.seal_y.local().ease_to(
             local.y.clamp(0.12, 0.78) * 100.0,
             Duration::Milliseconds(360.into()),
             EasingCurve::OutBack,
         );
 
-        self.card_scale.cancel_transitions();
-        self.card_scale.ease_to(
+        self.card_scale.local().cancel_transitions();
+        self.card_scale.local().ease_to(
             PRESSED_SCALE,
             Duration::Milliseconds(95.into()),
             EasingCurve::OutQuad,
         );
 
-        self.seal_progress.cancel_transitions();
-        self.postmark_reveal.cancel_transitions();
+        self.seal_progress.local().cancel_transitions();
+        self.postmark_reveal.local().cancel_transitions();
         self.is_sealed.set(true);
         self.seal_progress.set(0.0);
         self.postmark_reveal.set(0.0);
-        self.seal_progress.ease_to(
+        self.seal_progress.local().ease_to(
             1.0,
             Duration::Milliseconds(520.into()),
             EasingCurve::OutBack,
         );
-        self.postmark_reveal.ease_to(
+        self.postmark_reveal.local().ease_to(
             1.0,
             Duration::Milliseconds(460.into()),
             EasingCurve::OutQuad,
@@ -123,13 +123,13 @@ impl Example {
     }
 
     fn release_card(&mut self) {
-        self.card_scale.cancel_transitions();
-        self.card_scale.ease_to(
+        self.card_scale.local().cancel_transitions();
+        self.card_scale.local().ease_to(
             OVERSHOOT_SCALE,
             Duration::Milliseconds(170.into()),
             EasingCurve::OutQuad,
         );
-        self.card_scale.ease_to_later(
+        self.card_scale.local().ease_to_later(
             1.0,
             Duration::Milliseconds(260.into()),
             EasingCurve::OutBack,

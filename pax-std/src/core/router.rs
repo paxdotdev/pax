@@ -1,5 +1,6 @@
-#[allow(unused)]
 use crate::*;
+#[allow(unused)]
+use pax_engine::api::LocalProperty;
 use pax_engine::api::{Duration, Opacity, Property};
 use pax_engine::pax;
 use pax_runtime::api::NodeContext;
@@ -237,7 +238,7 @@ impl Route {
         let projected_children_count = ctx.projected_children_count.clone();
         let deps = [projected_children_count.untyped()];
         self._projected_children_count
-            .replace_with(Property::computed(
+            .replace_with(LocalProperty::computed(
                 move || projected_children_count.get(),
                 &deps,
             ));
@@ -261,7 +262,7 @@ impl RouteModal {
         let projected_children_count = ctx.projected_children_count.clone();
         let deps = [projected_children_count.untyped()];
         self._projected_children_count
-            .replace_with(Property::computed(
+            .replace_with(LocalProperty::computed(
                 move || projected_children_count.get(),
                 &deps,
             ));
@@ -287,7 +288,7 @@ impl RouteCard {
         let projected_children_count = ctx.projected_children_count.clone();
         let deps = [projected_children_count.untyped()];
         self._projected_children_count
-            .replace_with(Property::computed(
+            .replace_with(LocalProperty::computed(
                 move || projected_children_count.get(),
                 &deps,
             ));

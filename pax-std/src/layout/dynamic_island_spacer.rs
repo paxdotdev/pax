@@ -1,5 +1,5 @@
 use pax_engine::*;
-use pax_runtime::api::{Layer, Platform, Property, SafeAreaInsets};
+use pax_runtime::api::{Layer, LocalProperty, Platform, Property, SafeAreaInsets};
 use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
@@ -95,12 +95,12 @@ impl InstanceNode for DynamicIslandSpacerInstance {
         let insets = context.safe_area_insets();
         let parent = node.get_node_context(context).bounds_parent;
         let (edge, inset) = node.with_properties_unwrapped(|p: &mut DynamicIslandSpacer| {
-            (p.edge.clone(), p.inset.clone())
+            (p.edge.local(), p.inset.local())
         });
         let deps = [insets.untyped(), parent.untyped(), edge.untyped()];
         let weak = Rc::downgrade(node);
         node.changed_listener
-            .replace_with(Property::computed_with_name(
+            .replace_with(LocalProperty::computed_with_name(
                 move || {
                     let Some(node) = weak.upgrade() else {
                         return;
@@ -120,6 +120,6 @@ impl InstanceNode for DynamicIslandSpacerInstance {
     }
 
     fn handle_unmount(&self, node: &Rc<ExpandedNode>, _: &Rc<RuntimeContext>) {
-        node.changed_listener.replace_with(Property::default());
+        node.changed_listener.replace_with(LocalProperty::default());
     }
 }

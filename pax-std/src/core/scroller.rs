@@ -1,5 +1,6 @@
 use crate::common::{native_surface_opacity, patch_if_needed};
 use kurbo::{Affine, BezPath, RoundedRect, Shape};
+use pax_engine::api::{LocalProperty, PropertyBinding};
 use pax_engine::api::{Property, Size};
 use pax_engine::*;
 use pax_message::{AnyCreatePatch, NativeInterrupt, ScrollerPatch};
@@ -247,8 +248,8 @@ fn effective_presentation_scroll(
         .unwrap_or_else(|| {
             expanded_node.with_properties_unwrapped(|scroller: &mut ScrollerHost| {
                 (
-                    scroller._presentation_scroll_x.get(),
-                    scroller._presentation_scroll_y.get(),
+                    scroller._presentation_scroll_x.local().get(),
+                    scroller._presentation_scroll_y.local().get(),
                 )
             })
         });
@@ -274,10 +275,12 @@ fn effective_presentation_scroll(
                         (
                             scroller
                                 .scroll_width
+                                .local()
                                 .get()
                                 .get_pixels(fallback_viewport_width),
                             scroller
                                 .scroll_height
+                                .local()
                                 .get()
                                 .get_pixels(fallback_viewport_height),
                         )
@@ -331,8 +334,8 @@ impl InstanceNode for ScrollerHostInstance {
         let env = Rc::clone(&expanded_node.stack);
         let children = borrow!(self.base().get_instance_children());
         let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
-        let child_parent_frame: Property<Option<ExpandedNodeIdentifier>> =
-            Property::new(Some(expanded_node.id));
+        let child_parent_frame: LocalProperty<Option<ExpandedNodeIdentifier>> =
+            LocalProperty::new(Some(expanded_node.id));
         let new_children =
             expanded_node.generate_children(children_with_envs, context, &child_parent_frame, true);
         expanded_node.children.set(new_children);
@@ -357,7 +360,7 @@ impl InstanceNode for ScrollerHostInstance {
             .collect();
         expanded_node
             .changed_listener
-            .replace_with(Property::computed(
+            .replace_with(LocalProperty::computed(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
                         return;
@@ -372,27 +375,32 @@ impl InstanceNode for ScrollerHostInstance {
                     expanded_node.with_properties_unwrapped(|properties: &mut ScrollerHost| {
                         let computed_tab = expanded_node.transform_and_bounds.get();
                         let (width, height) = computed_tab.bounds;
-                        let corner_radius = properties.corner_radius.get();
+                        let corner_radius = properties.corner_radius.local().get();
                         let max_radius = 0.5 * width.max(0.0).min(height.max(0.0));
                         let clamped_radius = corner_radius.clamp(0.0, max_radius);
-                        let scroll_width = properties.scroll_width.get().get_pixels(width);
-                        let scroll_height = properties.scroll_height.get().get_pixels(height);
+                        let scroll_width = properties.scroll_width.local().get().get_pixels(width);
+                        let scroll_height =
+                            properties.scroll_height.local().get().get_pixels(height);
                         let snap_points_x: Vec<f64> = properties
                             .snap_positions_x
+                            .local()
                             .get()
                             .iter()
                             .map(|pos| pos.get_pixels(width))
                             .collect();
                         let snap_points_y: Vec<f64> = properties
                             .snap_positions_y
+                            .local()
                             .get()
                             .iter()
                             .map(|pos| pos.get_pixels(height))
                             .collect();
                         let scroll_enabled_x = scroll_width > width + 0.5;
                         let scroll_enabled_y = scroll_height > height + 0.5;
-                        let logical_scroll =
-                            (properties.scroll_pos_x.get(), properties.scroll_pos_y.get());
+                        let logical_scroll = (
+                            properties.scroll_pos_x.local().get(),
+                            properties.scroll_pos_y.local().get(),
+                        );
                         // A property write is a new scroll request, not a replay of the last
                         // native observation. Move presentation by the same delta, preserving
                         // any host-relative offset. Before the first observation, start at the
@@ -423,9 +431,11 @@ impl InstanceNode for ScrollerHostInstance {
                             .unwrap_or(logical_scroll);
                         properties
                             ._presentation_scroll_x
+                            .local()
                             .set_if_neq(presentation_scroll.0);
                         properties
                             ._presentation_scroll_y
+                            .local()
                             .set_if_neq(presentation_scroll.1);
                         let presentation_changed =
                             (presentation_scroll.0 - previous_presentation_scroll.0).abs() > 1e-4
@@ -441,11 +451,11 @@ impl InstanceNode for ScrollerHostInstance {
                                 viewport_height: height,
                                 content_width: scroll_width,
                                 content_height: scroll_height,
-                                scroll_x: properties.scroll_pos_x.get(),
-                                scroll_y: properties.scroll_pos_y.get(),
+                                scroll_x: properties.scroll_pos_x.local().get(),
+                                scroll_y: properties.scroll_pos_y.local().get(),
                                 presentation_scroll_x: presentation_scroll.0,
                                 presentation_scroll_y: presentation_scroll.1,
-                                clip_content: properties._clip_content.get(),
+                                clip_content: properties._clip_content.local().get(),
                             },
                         );
                         if surface_change == ScrollerSurfaceStateChange::ScrollOnly
@@ -494,12 +504,12 @@ impl InstanceNode for ScrollerHostInstance {
                             patch_if_needed(
                                 &mut old_state.scroll_x,
                                 &mut patch.scroll_x,
-                                properties.scroll_pos_x.get(),
+                                properties.scroll_pos_x.local().get(),
                             ),
                             patch_if_needed(
                                 &mut old_state.scroll_y,
                                 &mut patch.scroll_y,
-                                properties.scroll_pos_y.get(),
+                                properties.scroll_pos_y.local().get(),
                             ),
                             patch_if_needed(
                                 &mut old_state.presentation_scroll_x,
@@ -534,7 +544,7 @@ impl InstanceNode for ScrollerHostInstance {
                             patch_if_needed(
                                 &mut old_state.clip_content,
                                 &mut patch.clip_content,
-                                properties._clip_content.get(),
+                                properties._clip_content.local().get(),
                             ),
                         ];
                         let scroll_updated = patch.scroll_x.is_some()
@@ -586,7 +596,7 @@ impl InstanceNode for ScrollerHostInstance {
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {
         expanded_node
             .changed_listener
-            .replace_with(Property::default());
+            .replace_with(LocalProperty::default());
         if context.get_root_scroller_id() == Some(expanded_node.id.to_u32()) {
             context.set_root_scroller_id(None);
         }
@@ -603,10 +613,10 @@ impl InstanceNode for ScrollerHostInstance {
     ) {
         if let NativeInterrupt::ScrollerPosition(args) = interrupt {
             expanded_node.with_properties_unwrapped(|props: &mut ScrollerHost| {
-                if (props.scroll_pos_x.get() - args.scroll_x).abs() > 1e-4 {
+                if (props.scroll_pos_x.local().get() - args.scroll_x).abs() > 1e-4 {
                     props.scroll_pos_x.set(args.scroll_x);
                 }
-                if (props.scroll_pos_y.get() - args.scroll_y).abs() > 1e-4 {
+                if (props.scroll_pos_y.local().get() - args.scroll_y).abs() > 1e-4 {
                     props.scroll_pos_y.set(args.scroll_y);
                 }
             });
@@ -616,7 +626,10 @@ impl InstanceNode for ScrollerHostInstance {
     fn resolve_effect_clip_path(&self, expanded_node: &ExpandedNode) -> Option<BezPath> {
         let (clip_content, corner_radius) =
             expanded_node.with_properties_unwrapped(|scroller: &mut ScrollerHost| {
-                (scroller._clip_content.get(), scroller.corner_radius.get())
+                (
+                    scroller._clip_content.local().get(),
+                    scroller.corner_radius.local().get(),
+                )
             });
         scroller_clip_path(expanded_node, clip_content, corner_radius)
     }
@@ -639,8 +652,10 @@ impl InstanceNode for ScrollerHostInstance {
             return;
         }
 
-        let clip_content = expanded_node
-            .with_properties_unwrapped(|scroller: &mut ScrollerHost| scroller._clip_content.get());
+        let clip_content =
+            expanded_node.with_properties_unwrapped(|scroller: &mut ScrollerHost| {
+                scroller._clip_content.local().get()
+            });
         let (scroll_x, scroll_y) = effective_presentation_scroll(expanded_node, rtc);
         let should_translate = scroll_x.abs() > f64::EPSILON || scroll_y.abs() > f64::EPSILON;
         if !clip_content && !should_translate {
@@ -704,8 +719,10 @@ impl InstanceNode for ScrollerHostInstance {
             return;
         }
 
-        let clip_content = expanded_node
-            .with_properties_unwrapped(|scroller: &mut ScrollerHost| scroller._clip_content.get());
+        let clip_content =
+            expanded_node.with_properties_unwrapped(|scroller: &mut ScrollerHost| {
+                scroller._clip_content.local().get()
+            });
         let (scroll_x, scroll_y) = effective_presentation_scroll(expanded_node, rtc);
         if !clip_content && scroll_x.abs() <= f64::EPSILON && scroll_y.abs() <= f64::EPSILON {
             return;
@@ -741,8 +758,9 @@ impl InstanceNode for ScrollerHostInstance {
     }
 
     fn clips_content(&self, expanded_node: &ExpandedNode) -> bool {
-        expanded_node
-            .with_properties_unwrapped(|scroller: &mut ScrollerHost| scroller._clip_content.get())
+        expanded_node.with_properties_unwrapped(|scroller: &mut ScrollerHost| {
+            scroller._clip_content.local().get()
+        })
     }
 
     fn scrolls_content(&self, _expanded_node: &ExpandedNode) -> bool {
@@ -762,8 +780,8 @@ impl InstanceNode for ScrollerHostInstance {
         Some(
             expanded_node.with_properties_unwrapped(|scroller: &mut ScrollerHost| {
                 (
-                    scroller._presentation_scroll_x.get(),
-                    scroller._presentation_scroll_y.get(),
+                    scroller._presentation_scroll_x.local().get(),
+                    scroller._presentation_scroll_y.local().get(),
                 )
             }),
         )
@@ -795,7 +813,7 @@ impl Scroller {
         let projected_children_count = ctx.projected_children_count.clone();
         let deps = [projected_children_count.untyped()];
         self._projected_children_count
-            .replace_with(Property::computed(
+            .replace_with(LocalProperty::computed(
                 move || projected_children_count.get(),
                 &deps,
             ));
@@ -807,13 +825,13 @@ impl Scroller {
         self._resolved_scroll_width.set(self.scroll_width.get());
         self._resolved_scroll_height.set(self.scroll_height.get());
 
-        let autosize = self.autosize.clone();
-        let autosize_x = self.autosize_x.clone();
-        let autosize_y = self.autosize_y.clone();
-        let scroll_width = self.scroll_width.clone();
-        let scroll_height = self.scroll_height.clone();
-        let resolved_scroll_width = self._resolved_scroll_width.clone();
-        let resolved_scroll_height = self._resolved_scroll_height.clone();
+        let autosize = self.autosize.local();
+        let autosize_x = self.autosize_x.local();
+        let autosize_y = self.autosize_y.local();
+        let scroll_width = self.scroll_width.local();
+        let scroll_height = self.scroll_height.local();
+        let resolved_scroll_width = self._resolved_scroll_width.local();
+        let resolved_scroll_height = self._resolved_scroll_height.local();
         let deps = [
             autosize.untyped(),
             autosize_x.untyped(),
@@ -853,38 +871,40 @@ fn resolve_axis_autosize(
 
 fn sync_scroller_autosize(
     ctx: &NodeContext,
-    autosize: &Property<bool>,
-    autosize_x: &Property<Option<bool>>,
-    autosize_y: &Property<Option<bool>>,
-    scroll_width: &Property<Size>,
-    scroll_height: &Property<Size>,
-    resolved_scroll_width: &Property<Size>,
-    resolved_scroll_height: &Property<Size>,
+    autosize: &impl PropertyBinding<bool>,
+    autosize_x: &impl PropertyBinding<Option<bool>>,
+    autosize_y: &impl PropertyBinding<Option<bool>>,
+    scroll_width: &impl PropertyBinding<Size>,
+    scroll_height: &impl PropertyBinding<Size>,
+    resolved_scroll_width: &impl PropertyBinding<Size>,
+    resolved_scroll_height: &impl PropertyBinding<Size>,
 ) {
     let (content_width, content_height) = measure_content_children_forward_extents(ctx);
-    let manage_width = resolve_axis_autosize(autosize.get(), autosize_x.get(), false);
-    let manage_height = resolve_axis_autosize(autosize.get(), autosize_y.get(), true);
+    let manage_width =
+        resolve_axis_autosize(autosize.local().get(), autosize_x.local().get(), false);
+    let manage_height =
+        resolve_axis_autosize(autosize.local().get(), autosize_y.local().get(), true);
 
     let resolved_width = if manage_width {
         content_width
             .map(|width| Size::Pixels(width.into()))
-            .unwrap_or_else(|| scroll_width.get())
+            .unwrap_or_else(|| scroll_width.local().get())
     } else {
-        scroll_width.get()
+        scroll_width.local().get()
     };
-    if resolved_scroll_width.get() != resolved_width {
-        resolved_scroll_width.set(resolved_width);
+    if resolved_scroll_width.local().get() != resolved_width {
+        resolved_scroll_width.local().set(resolved_width);
     }
 
     let resolved_height = if manage_height {
         content_height
             .map(|height| Size::Pixels(height.into()))
-            .unwrap_or_else(|| scroll_height.get())
+            .unwrap_or_else(|| scroll_height.local().get())
     } else {
-        scroll_height.get()
+        scroll_height.local().get()
     };
-    if resolved_scroll_height.get() != resolved_height {
-        resolved_scroll_height.set(resolved_height);
+    if resolved_scroll_height.local().get() != resolved_height {
+        resolved_scroll_height.local().set(resolved_height);
     }
 }
 

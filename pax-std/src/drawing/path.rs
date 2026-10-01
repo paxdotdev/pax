@@ -1,4 +1,5 @@
 use kurbo::{Affine, BezPath, Rect, Shape};
+use pax_engine::api::LocalProperty;
 
 use pax_engine::api::PathElement;
 use pax_runtime::api as pax_runtime_api;
@@ -148,12 +149,12 @@ impl InstanceNode for PathInstance {
         let (elements, stroke, fill, smoothing, draw_start, draw_end) = expanded_node
             .with_properties_unwrapped(|properties: &mut Path| {
                 (
-                    properties.elements.clone(),
-                    properties.stroke.clone(),
-                    properties.fill.clone(),
-                    properties.smoothing.clone(),
-                    properties.draw_start.clone(),
-                    properties.draw_end.clone(),
+                    properties.elements.local(),
+                    properties.stroke.local(),
+                    properties.fill.local(),
+                    properties.smoothing.local(),
+                    properties.draw_start.local(),
+                    properties.draw_end.local(),
                 )
             });
 
@@ -176,7 +177,7 @@ impl InstanceNode for PathInstance {
 
         expanded_node
             .changed_listener
-            .replace_with(Property::computed(
+            .replace_with(LocalProperty::computed(
                 move || {
                     appearance.get();
                     cloned_context.mark_canvas_node_dirty(cloned_expanded_node.id);
@@ -202,21 +203,21 @@ impl InstanceNode for PathInstance {
     fn resolve_coverage_path(&self, expanded_node: &ExpandedNode) -> Option<kurbo::BezPath> {
         expanded_node.with_properties_unwrapped(|properties: &mut Path| {
             let bounds = expanded_node.transform_and_bounds.get().bounds;
-            let elements = properties.elements.get();
+            let elements = properties.elements.local().get();
             let local_path = smooth_bez_path(
                 &build_local_bez_path(&elements, bounds)?,
-                properties.smoothing.get(),
+                properties.smoothing.local().get(),
             );
-            let strokes = if properties.draw_start.get().to_clamped_unit_float()
-                < properties.draw_end.get().to_clamped_unit_float()
+            let strokes = if properties.draw_start.local().get().to_clamped_unit_float()
+                < properties.draw_end.local().get().to_clamped_unit_float()
             {
-                properties.stroke.get()
+                properties.stroke.local().get()
             } else {
                 Vec::new()
             };
             let coverage = crate::common::appearance_coverage_path(
                 &local_path,
-                &properties.fill.get(),
+                &properties.fill.local().get(),
                 &strokes,
             );
 
@@ -233,19 +234,20 @@ impl InstanceNode for PathInstance {
         node: &ExpandedNode,
     ) -> Vec<pax_runtime_api::AlphaMaskPaint> {
         node.with_properties_unwrapped(|p: &mut Path| {
-            let Some(path) =
-                build_local_bez_path(&p.elements.get(), node.transform_and_bounds.get().bounds)
-            else {
+            let Some(path) = build_local_bez_path(
+                &p.elements.local().get(),
+                node.transform_and_bounds.get().bounds,
+            ) else {
                 return Vec::new();
             };
-            let path = smooth_bez_path(&path, p.smoothing.get());
+            let path = smooth_bez_path(&path, p.smoothing.local().get());
             crate::common::alpha_mask_paints_with_range(
                 node,
                 path,
-                p.fill.get(),
-                p.stroke.get(),
-                p.draw_start.get().to_clamped_unit_float(),
-                p.draw_end.get().to_clamped_unit_float(),
+                p.fill.local().get(),
+                p.stroke.local().get(),
+                p.draw_start.local().get().to_clamped_unit_float(),
+                p.draw_end.local().get().to_clamped_unit_float(),
             )
         })
     }
@@ -253,15 +255,15 @@ impl InstanceNode for PathInstance {
     fn resolve_occlusion_path(&self, expanded_node: &ExpandedNode) -> Option<kurbo::BezPath> {
         expanded_node.with_properties_unwrapped(|properties: &mut Path| {
             let bounds = expanded_node.transform_and_bounds.get().bounds;
-            let elements = properties.elements.get();
+            let elements = properties.elements.local().get();
             let local_path = smooth_bez_path(
                 &build_local_bez_path(&elements, bounds)?,
-                properties.smoothing.get(),
+                properties.smoothing.local().get(),
             );
             let coverage = crate::common::appearance_coverage_path(
                 &local_path,
-                &properties.fill.get(),
-                &properties.stroke.get(),
+                &properties.fill.local().get(),
+                &properties.stroke.local().get(),
             );
 
             if coverage.elements().is_empty() {
@@ -275,8 +277,8 @@ impl InstanceNode for PathInstance {
     fn resolve_coverage_opacity(&self, expanded_node: &ExpandedNode) -> f64 {
         expanded_node.with_properties_unwrapped(|properties: &mut Path| {
             (crate::common::appearance_coverage_alpha(
-                &properties.fill.get(),
-                &properties.stroke.get(),
+                &properties.fill.local().get(),
+                &properties.stroke.local().get(),
             ) * expanded_node.computed_opacity.get())
             .clamp(0.0, 1.0)
         })
@@ -294,7 +296,7 @@ impl InstanceNode for PathInstance {
         let layout_bounds = Rect::new(0.0, 0.0, bounds.0, bounds.1);
         let (bez_path, local_coverage_bounds) =
             expanded_node.with_properties_unwrapped(|properties: &mut Path| {
-                let elements = properties.elements.get();
+                let elements = properties.elements.local().get();
                 let bez_path = build_local_bez_path(&elements, bounds);
                 let local_coverage_bounds = bez_path
                     .as_ref()
@@ -302,7 +304,7 @@ impl InstanceNode for PathInstance {
                     .map(|path| {
                         path_local_coverage_bounds(
                             path,
-                            properties.smoothing.get(),
+                            properties.smoothing.local().get(),
                             properties
                                 .stroke
                                 .get()
@@ -345,12 +347,12 @@ impl InstanceNode for PathInstance {
                     rc,
                     scope.layer_id,
                     bez_path.clone(),
-                    &properties.fill.get(),
-                    &properties.stroke.get(),
+                    &properties.fill.local().get(),
+                    &properties.stroke.local().get(),
                     scope.paint_opacity,
-                    properties.smoothing.get(),
-                    properties.draw_start.get().to_clamped_unit_float(),
-                    properties.draw_end.get().to_clamped_unit_float(),
+                    properties.smoothing.local().get(),
+                    properties.draw_start.local().get().to_clamped_unit_float(),
+                    properties.draw_end.local().get().to_clamped_unit_float(),
                 );
                 rc.restore(scope.layer_id);
             });
@@ -660,11 +662,11 @@ impl PathPoint {
             .with_store(|path_ctx: &mut PathContext| path_ctx.elements.clone())
             .expect("path point can only exist in <Path> tag");
 
-        let x = self.x.clone();
-        let y = self.y.clone();
+        let x = self.x.local();
+        let y = self.y.local();
         let id = ctx.slot_index.clone();
         let deps = [x.untyped(), y.untyped(), id.untyped()];
-        self._on_change.replace_with(Property::computed(
+        self._on_change.replace_with(LocalProperty::computed(
             move || {
                 path_elems.update(|elems| {
                     let id = id.get().unwrap();
@@ -716,7 +718,7 @@ impl PathLine {
 
         let id = ctx.slot_index.clone();
         let deps = [id.untyped()];
-        self._on_change.replace_with(Property::computed(
+        self._on_change.replace_with(LocalProperty::computed(
             move || {
                 path_elems.update(|elems| {
                     let id = id.get().unwrap();
@@ -767,7 +769,7 @@ impl PathClose {
 
         let id = ctx.slot_index.clone();
         let deps = [id.untyped()];
-        self._on_change.replace_with(Property::computed(
+        self._on_change.replace_with(LocalProperty::computed(
             move || {
                 path_elems.update(|elems| {
                     let id = id.get().unwrap();
@@ -821,11 +823,11 @@ impl PathCurve {
             .with_store(|path_ctx: &mut PathContext| path_ctx.elements.clone())
             .expect("path point can only exist in <Path> tag");
 
-        let x = self.x.clone();
-        let y = self.y.clone();
+        let x = self.x.local();
+        let y = self.y.local();
         let id = ctx.slot_index.clone();
         let deps = [x.untyped(), y.untyped(), id.untyped()];
-        self._on_change.replace_with(Property::computed(
+        self._on_change.replace_with(LocalProperty::computed(
             move || {
                 path_elems.update(|elems| {
                     let id = id.get().unwrap();

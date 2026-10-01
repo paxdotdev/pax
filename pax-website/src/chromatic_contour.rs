@@ -88,14 +88,18 @@ impl ChromaticContour {
     fn observe_motion(&self, motion: &ScrollMotion) {
         // replace_with copies an evaluator; it does not alias a literal
         // Property. Keep an explicit dependency on the live scroll inputs.
-        let x = motion.x.clone();
-        let y = motion.y.clone();
-        let paused = motion.paused.clone();
-        self._scroll_x
-            .replace_with(Property::computed(move || x.get(), &[motion.x.untyped()]));
-        self._scroll_y
-            .replace_with(Property::computed(move || y.get(), &[motion.y.untyped()]));
-        self._paused.replace_with(Property::computed(
+        let x = motion.x.local();
+        let y = motion.y.local();
+        let paused = motion.paused.local();
+        self._scroll_x.replace_with(LocalProperty::computed(
+            move || x.get(),
+            &[motion.x.untyped()],
+        ));
+        self._scroll_y.replace_with(LocalProperty::computed(
+            move || y.get(),
+            &[motion.y.untyped()],
+        ));
+        self._paused.replace_with(LocalProperty::computed(
             move || paused.get(),
             &[motion.paused.untyped()],
         ));

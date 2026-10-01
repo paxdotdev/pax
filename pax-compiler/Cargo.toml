@@ -51,6 +51,7 @@ pax-runtime-api = {path = "../pax-runtime-api", version="0.39.0" }
 pax-designtime = { path = "../pax-designtime", version = "0.39.0" }
 proc-macro2 = { version = "1.0", features = ["span-locations"] }
 pax-language = {version = "0.39.0", path="../pax-language"}
+plist = "1.8"
 rand = "0.8.4"
 regex = "1"
 reqwest = { version = "0.11.18", features = ["blocking"] }

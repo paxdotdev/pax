@@ -351,7 +351,7 @@ impl Notes {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let bounds = ctx.bounds_self.clone();
         let deps = [bounds.untyped()];
-        self.compact.replace_with(Property::computed(
+        self.compact.replace_with(LocalProperty::computed(
             move || bounds.get().0 < 720.0,
             &deps,
         ));

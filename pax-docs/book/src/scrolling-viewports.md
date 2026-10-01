@@ -387,18 +387,18 @@ pub fn measure(&mut self, _ctx: &NodeContext, event: Event<ViewportProximityChan
         .map_or(0.0, |r| r.height());
     if visible > 0.0 && (previous == 0.0 || (self.departing.get() && visible > previous)) {
         self.departing.set(false);
-        self.playhead.cancel_transitions();
-        self.playhead.ease_to(100.0, Duration::Milliseconds(420.into()), EasingCurve::Linear);
+        self.playhead.local().cancel_transitions();
+        self.playhead.local().ease_to(100.0, Duration::Milliseconds(420.into()), EasingCurve::Linear);
     } else if visible <= 40.0 && visible < previous && !self.departing.get() {
         self.departing.set(true);
-        self.playhead.cancel_transitions();
-        self.playhead.ease_to(0.0, Duration::Milliseconds(180.into()), EasingCurve::Linear);
+        self.playhead.local().cancel_transitions();
+        self.playhead.local().ease_to(0.0, Duration::Milliseconds(180.into()), EasingCurve::Linear);
     }
 }
 
 pub fn release(&mut self, _ctx: &NodeContext, _event: Event<ViewportProximityExit>) {
     self.departing.set(false);
-    self.playhead.cancel_transitions();
+    self.playhead.local().cancel_transitions();
     self.playhead.set(0.0);
     // Release this target's resource lease here, and separately on unmount.
 }

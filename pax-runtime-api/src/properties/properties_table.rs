@@ -9,7 +9,7 @@ use slotmap::SlotMap;
 #[cfg(debug_assertions)]
 use slotmap::SparseSecondaryMap;
 
-use crate::{Property, TransitionManager, TransitionQueueEntry};
+use crate::{LocalProperty, TransitionManager, TransitionQueueEntry};
 
 use super::{private::PropertyId, PropertyValue};
 
@@ -34,13 +34,15 @@ thread_local! {
     // Global property table used to store data backing dirty-dag
     pub(crate) static PROPERTY_TABLE: PropertyTable = PropertyTable::default();
     // Global frame timestamp.
-    pub(crate) static PROPERTY_TIME: RefCell<Property<u64>> = RefCell::new(Property::new(0));
+    pub(crate) static PROPERTY_TIME: RefCell<LocalProperty<u64>> = RefCell::new(LocalProperty::new(0));
     // Global wall-clock timestamp in milliseconds.
-    pub(crate) static PROPERTY_MILLIS: RefCell<Property<u64>> = RefCell::new(Property::new(0));
+    pub(crate) static PROPERTY_MILLIS: RefCell<LocalProperty<u64>> = RefCell::new(LocalProperty::new(0));
 }
 
 // The main collection of data associated with a specific property id
 pub struct PropertyData {
+    owner_graph: Option<u64>,
+    owner_scope: Option<std::rc::Weak<super::shared_graph::BindingScopeInner>>,
     // typed data for this property,
     // can always be downcast to TypedPropertyData<T>
     // where T matches the property type
@@ -66,9 +68,11 @@ impl PropertyData {
     }
 }
 
-// Type-specialized payload for one `Property<T>` table entry.
+// Type-specialized payload for one `LocalProperty<T>` table entry.
 pub struct TypedPropertyData<T> {
     value: T,
+    shared: Option<std::sync::Weak<super::shared_property::SharedCell<T>>>,
+    publisher: Option<Rc<dyn Fn(&T)>>,
     transition_manager: Option<TransitionManager<T>>,
     // Specialization data (computed/literal etc)
     property_type: PropertyType<T>,
@@ -122,6 +126,44 @@ pub struct Entry {
 }
 
 impl PropertyTable {
+    pub(super) fn set_shared<T: super::SharedPropertyValue>(
+        &self,
+        id: PropertyId,
+        shared: std::sync::Weak<super::shared_property::SharedCell<T>>,
+        publisher: Rc<dyn Fn(&T)>,
+    ) {
+        self.with_property_data_mut(id, |data| {
+            let typed = data.typed_data::<T>();
+            typed.shared = Some(shared);
+            typed.publisher = Some(publisher);
+        });
+    }
+
+    pub(super) fn clear_shared<T: PropertyValue>(&self, id: PropertyId) {
+        self.with_property_data_mut(id, |data| {
+            let typed = data.typed_data::<T>();
+            typed.shared = None;
+            typed.publisher = None;
+        });
+    }
+
+    pub(super) fn shared_storage<T: super::SharedPropertyValue>(
+        &self,
+        id: PropertyId,
+    ) -> Option<std::sync::Arc<super::shared_property::SharedCell<T>>> {
+        self.with_property_data_mut(id, |data| data.typed_data::<T>().shared.as_ref()?.upgrade())
+    }
+
+    fn publish_stored<T: PropertyValue>(&self, id: PropertyId) {
+        let publication = self.with_property_data_mut(id, |data| {
+            let typed = data.typed_data::<T>();
+            Some((typed.publisher.as_ref()?.clone(), typed.value.clone()))
+        });
+        if let Some((publish, value)) = publication {
+            publish(&value);
+        }
+    }
+
     pub(crate) fn has_value_type<T: PropertyValue>(&self, id: PropertyId) -> bool {
         self.with_property_data(id, |data| data.typed_data.is::<TypedPropertyData<T>>())
     }
@@ -148,6 +190,12 @@ impl PropertyTable {
     // NOTE: This always assumes the underlying data was changed, and marks
     // it and its dependents as dirty irrespective of actual modification
     pub fn set_value<T: PropertyValue>(&self, id: PropertyId, new_val: T) {
+        self.import_shared(id, new_val);
+        self.publish_stored::<T>(id);
+    }
+
+    // Importing must not echo a worker publication back into shared storage.
+    pub(super) fn import_shared<T: PropertyValue>(&self, id: PropertyId, new_val: T) {
         self.with_property_data_mut(id, |property_data: &mut PropertyData| {
             let typed_data = property_data.typed_data();
             typed_data.value = new_val;
@@ -211,10 +259,14 @@ impl PropertyTable {
             let entry = Entry {
                 ref_count: 1,
                 data: Some(PropertyData {
+                    owner_graph: super::shared_graph::current_graph_id(),
+                    owner_scope: super::shared_graph::current_binding_scope(),
                     inbound,
                     dirty: true,
                     typed_data: Box::new(TypedPropertyData {
                         value: start_val,
+                        shared: None,
+                        publisher: None,
                         property_type: data,
                         transition_manager: None,
                     }),
@@ -402,8 +454,17 @@ impl PropertyTable {
                 source_property_data
                     .inbound
                     .clone_from(&target_property_data.inbound);
-                source_property_data.dirty = target_property_data.dirty;
+                // Literal replacement is already resolved. Mark it clean so
+                // the new authored value publishes below, without evaluating
+                // computations eagerly or echoing an old projection snapshot.
+                source_property_data.dirty = target_property_data.dirty
+                    && !matches!(
+                        target_property_data.typed_data::<T>().property_type,
+                        PropertyType::Literal
+                    );
                 source_property_data.cutoff_settler = target_property_data.cutoff_settler.clone();
+                source_property_data.owner_graph = target_property_data.owner_graph;
+                source_property_data.owner_scope = target_property_data.owner_scope.clone();
                 let source_typed = source_property_data.typed_data::<T>();
                 let target_typed = target_property_data.typed_data::<T>();
                 source_typed.value = target_typed.value.clone();
@@ -443,11 +504,15 @@ impl PropertyTable {
         }
 
         self.enqueue_effect_if_registered(source_id);
+        if !self.is_dirty(source_id) {
+            self.publish_stored::<T>(source_id);
+        }
     }
 
     // re-computes the value if dirty
     pub fn update_value<T: PropertyValue>(&self, id: PropertyId) -> CutoffEvaluation {
         let mut remove_dep_from_literal = false;
+        let mut publish_literal = false;
         let evaluator = self.with_property_data_mut(id, |property_data| {
             //short circuit if the value is still up to date
             if property_data.dirty == false {
@@ -473,6 +538,7 @@ impl PropertyTable {
                     let value = tm.compute_eased_value(curr_time, curr_millis);
                     if let Some(interp_value) = value {
                         typed_data.value = interp_value;
+                        publish_literal = true;
                     } else {
                         //transition must be over, let's remove dependencies
                         remove_dep_from_literal = true;
@@ -488,6 +554,10 @@ impl PropertyTable {
             self.with_property_data_mut(id, |property_data| {
                 property_data.inbound.clear();
             });
+        }
+
+        if publish_literal {
+            self.publish_stored::<T>(id);
         }
 
         if let Some((evaluator, cutoff)) = evaluator {
@@ -523,6 +593,9 @@ impl PropertyTable {
 
             if cutoff_evaluation == CutoffEvaluation::Propagated {
                 self.dirtify_outbound(id);
+            }
+            if cutoff_evaluation != CutoffEvaluation::Suppressed {
+                self.publish_stored::<T>(id);
             }
             cutoff_evaluation
         } else {
@@ -589,7 +662,11 @@ impl PropertyTable {
         let mut work_ran = 0;
         while work_ran < max_iterations {
             if let Some(id) = self.pop_queued_cutoff() {
-                if !self.has_live_entry(id) || !self.is_cutoff(id) || !self.is_dirty(id) {
+                if !self.has_live_entry(id)
+                    || !self.is_cutoff(id)
+                    || !self.is_dirty(id)
+                    || !self.work_enabled(id)
+                {
                     continue;
                 }
                 let settler = self.cutoff_settler(id);
@@ -605,6 +682,9 @@ impl PropertyTable {
                 continue;
             }
             let dirty = self.with_property_data(id, |property_data| property_data.dirty);
+            if !self.work_enabled(id) {
+                continue;
+            }
             if dirty {
                 self.update_value::<()>(id);
                 work_ran += 1;
@@ -621,7 +701,11 @@ impl PropertyTable {
         let mut work_ran = 0;
         while work_ran < max_iterations {
             if let Some(id) = self.pop_queued_cutoff() {
-                if !self.has_live_entry(id) || !self.is_cutoff(id) || !self.is_dirty(id) {
+                if !self.has_live_entry(id)
+                    || !self.is_cutoff(id)
+                    || !self.is_dirty(id)
+                    || !self.work_enabled(id)
+                {
                     continue;
                 }
                 let cutoff_name = self.debug_name_for_diagnostics(id);
@@ -656,6 +740,9 @@ impl PropertyTable {
                 continue;
             }
 
+            if !self.work_enabled(id) {
+                continue;
+            }
             let dirty = self.with_property_data(id, |property_data| property_data.dirty);
             if dirty {
                 let effect_name = self.debug_name_for_diagnostics(id);
@@ -707,7 +794,7 @@ impl PropertyTable {
     }
 
     fn pop_queued_effect(&self) -> Option<PropertyId> {
-        let id = self.queued_effects.borrow_mut().pop_front()?;
+        let id = self.pop_owned_work(&self.queued_effects)?;
         self.queued_effect_set.borrow_mut().remove(&id);
         Some(id)
     }
@@ -720,9 +807,31 @@ impl PropertyTable {
     }
 
     fn pop_queued_cutoff(&self) -> Option<PropertyId> {
-        let id = self.queued_cutoffs.borrow_mut().pop_front()?;
+        let id = self.pop_owned_work(&self.queued_cutoffs)?;
         self.queued_cutoff_set.borrow_mut().remove(&id);
         Some(id)
+    }
+
+    fn pop_owned_work(&self, queue: &RefCell<VecDeque<PropertyId>>) -> Option<PropertyId> {
+        let owner = super::shared_graph::current_graph_id();
+        let mut queue = queue.borrow_mut();
+        let position = queue.iter().position(|id| {
+            let map = self.property_map.borrow();
+            let graph = map
+                .get(*id)
+                .and_then(|entry| entry.data.as_ref())
+                .and_then(|data| data.owner_graph);
+            owner.is_none() || graph.is_none() || graph == owner
+        })?;
+        queue.remove(position)
+    }
+
+    fn work_enabled(&self, id: PropertyId) -> bool {
+        self.with_property_data(id, |data| {
+            data.owner_scope.as_ref().map_or(true, |scope| {
+                scope.upgrade().is_some_and(|scope| !scope.closed.get())
+            })
+        })
     }
 
     fn unregister_effect(&self, id: PropertyId) {
@@ -755,7 +864,7 @@ impl PropertyTable {
         })
     }
 
-    fn has_live_entry(&self, id: PropertyId) -> bool {
+    pub(super) fn has_live_entry(&self, id: PropertyId) -> bool {
         self.property_map
             .borrow()
             .get(id)

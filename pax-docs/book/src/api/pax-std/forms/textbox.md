@@ -9,46 +9,46 @@ native element, for example an `<input>` element in the browser or a `UITextFiel
 
 #### Properties
 ##### `text`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`String`>
+Type: `Property`<`String`>
 
 Current text value.
 
 ##### `background`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Color`](../../../api/pax-runtime-api/color.md#color)>
+Type: `Property`<[`Color`](../../../api/pax-runtime-api/color.md#color)>
 
 Textbox background color.
 
 ##### `placeholder`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`String`>
+Type: `Property`<`String`>
 
 Placeholder text shown when empty, when supported by the chassis.
 
 ##### `stroke`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Stroke`](../../../api/pax-runtime-api/drawing.md#stroke)>
+Type: `Property`<[`Stroke`](../../../api/pax-runtime-api/drawing.md#stroke)>
 
 Border stroke.
 
 ##### `corner_radius`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`f64`>
+Type: `Property`<`f64`>
 
 Corner radius, in pixels.
 
 ##### `style`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`TextStyle`](../../../api/pax-std/core/text.md#textstyle)>
+Type: `Property`<[`TextStyle`](../../../api/pax-std/core/text.md#textstyle)>
 
 Text style.
 
 ##### `outline`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Stroke`](../../../api/pax-runtime-api/drawing.md#stroke)>
+Type: `Property`<[`Stroke`](../../../api/pax-runtime-api/drawing.md#stroke)>
 
 Focus outline stroke.
 
 ##### `focus_on_mount`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`bool`>
+Type: `Property`<`bool`>
 
 Requests focus when the textbox mounts.
 
 ##### `multiline`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`bool`>
+Type: `Property`<`bool`>
 
 Renders the textbox as a multiline text area when supported by the chassis.

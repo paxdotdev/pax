@@ -8,16 +8,16 @@ Contains the index value for slot, either a literal or an expression.
 
 #### Properties
 ##### `index`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Numeric`](../../../api/pax-runtime-api/pax_value/numeric.md#numeric)>
+Type: `LocalProperty`<[`Numeric`](../../../api/pax-runtime-api/pax_value/numeric.md#numeric)>
 
 ##### `is_remainder`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`bool`>
+Type: `LocalProperty`<`bool`>
 
 ##### `last_node_id`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`usize`>
+Type: `LocalProperty`<`usize`>
 
 ##### `showing_node`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`Weak`<`ExpandedNode`>>
+Type: `LocalProperty`<`Weak`<`ExpandedNode`>>
 
 ---
 

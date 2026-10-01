@@ -1,0 +1,12 @@
+[package]
+name = "pax-web-async"
+version = "0.39.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Optional browser future adapter for Pax application lifetimes"
+
+[dependencies]
+pax-runtime-api = { path = "../pax-runtime-api", version = "0.39.0" }
+
+wasm-bindgen-futures = "0.4"
+futures-util = { version = "0.3", default-features = false, features = ["std"] }

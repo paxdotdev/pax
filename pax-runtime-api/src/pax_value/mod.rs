@@ -192,6 +192,15 @@ pub trait ToPaxValue {
 
     /// Converts this value into a `PaxValue`.
     fn to_pax_value(self) -> PaxValue;
+    /// Converts against owner-thread graph views, including nested generated
+    /// property fields. Requires an entered property graph for shared fields.
+    /// Ordinary [`Self::to_pax_value`] reads published value snapshots.
+    fn to_pax_value_in_graph(self) -> PaxValue
+    where
+        Self: Sized,
+    {
+        crate::properties::with_graph_conversion(|| self.to_pax_value())
+    }
 }
 
 /// Trait that marks a type as being representable as a PaxAny, and provides

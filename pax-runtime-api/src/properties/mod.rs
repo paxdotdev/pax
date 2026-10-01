@@ -2,7 +2,12 @@ use serde::{Deserialize, Serialize};
 use std::{marker::PhantomData, rc::Rc};
 
 mod graph_operations;
+mod local_property;
 mod properties_table;
+mod shared_graph;
+mod shared_property;
+#[cfg(test)]
+mod shared_tests;
 #[cfg(test)]
 mod tests;
 mod untyped_property;
@@ -10,8 +15,13 @@ mod untyped_property;
 use crate::{Duration, EasingCurve, Interpolatable, TransitionQueueEntry};
 
 use self::properties_table::{PropertyType, PROPERTY_MILLIS, PROPERTY_TIME};
+pub use local_property::LocalProperty;
 pub use properties_table::EffectDrainReport;
 use properties_table::PROPERTY_TABLE;
+#[doc(hidden)]
+pub use shared_graph::{BindingScope, BindingScopeGuard};
+pub use shared_graph::{PropertyGraph, PropertyGraphGuard};
+pub use shared_property::{Property, Published, SharedPropertyValue};
 pub use untyped_property::UntypedProperty;
 
 /// Sealed PropertyId needed for slotmap (strictly internal)
@@ -21,268 +31,43 @@ mod private {
     );
 }
 
-/// Bound for values that can live inside Pax `Property<T>`.
+/// Value operations shared by local and transferable properties.
 ///
 /// Values must be cloneable for `.get()`, interpolatable for transitions, and
 /// `'static` because properties are stored in the runtime graph.
 pub trait PropertyValue: Default + Clone + Interpolatable + 'static {}
 impl<T: Default + Clone + Interpolatable + 'static> PropertyValue for T {}
 
-impl<T: PropertyValue> Interpolatable for Property<T> {
-    fn interpolate(&self, other: &Self, t: f64) -> Self {
-        let cp_self = self.clone();
-        let cp_other = other.clone();
-        Property::computed(
-            move || cp_self.get().interpolate(&cp_other.get(), t),
-            &[self.untyped(), other.untyped()],
-        )
-    }
-}
-/// A reactive value node in Pax's property graph.
+/// Owner-thread binding operations used by generated component factories.
 ///
-/// `Property<T>` is the primary state and binding primitive used by generated
-/// components, PAXEL expressions, and Rust component logic.
-#[derive(Clone)]
-pub struct Property<T> {
-    untyped: UntypedProperty,
-    _phantom: PhantomData<T>,
-}
-
-impl<T: PropertyValue + std::fmt::Debug> std::fmt::Debug for Property<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Property ({:?})", self.get())
-    }
-}
-
-impl<T: PropertyValue> Property<T> {
-    /// Creates a literal property with an initial value.
-    pub fn new(val: T) -> Self {
-        Self::new_optional_name(val, None)
-    }
-
-    // Rewraps an untyped property with a typed view.
-    pub fn new_from_untyped(untyped: UntypedProperty) -> Self {
-        Self {
-            untyped,
-            _phantom: PhantomData {},
-        }
-    }
-
-    /// Creates a computed property from an evaluator and dependency list.
-    pub fn computed(evaluator: impl Fn() -> T + 'static, dependents: &[UntypedProperty]) -> Self {
-        Self::computed_with_config(evaluator, dependents, None, None)
-    }
-
-    /// Creates a computed property with a propagation cutoff.
-    ///
-    /// The predicate receives the last accepted value and the newly evaluated
-    /// candidate. Returning `true` discards the candidate and stops outbound
-    /// invalidation at this property; returning `false` accepts and propagates
-    /// it. The first evaluation is always accepted.
-    pub fn computed_with_cutoff(
-        evaluator: impl Fn() -> T + 'static,
-        dependents: &[UntypedProperty],
-        cutoff: impl Fn(&T, &T) -> bool + 'static,
-    ) -> Self {
-        Self::computed_with_config(evaluator, dependents, None, Some(Rc::new(cutoff)))
-    }
-
-    /// Creates a named literal property, useful for diagnostics.
-    pub fn new_with_name(val: T, name: &str) -> Self {
-        Self::new_optional_name(val, Some(name))
-    }
-
-    /// Creates a named computed property, useful for diagnostics.
-    pub fn computed_with_name(
-        evaluator: impl Fn() -> T + 'static,
-        dependents: &[UntypedProperty],
-        name: &str,
-    ) -> Self {
-        Self::computed_with_config(evaluator, dependents, Some(name), None)
-    }
-
-    /// Creates a named cutoff computed property, useful for diagnostics.
-    pub fn computed_with_cutoff_and_name(
-        evaluator: impl Fn() -> T + 'static,
-        dependents: &[UntypedProperty],
-        cutoff: impl Fn(&T, &T) -> bool + 'static,
-        name: &str,
-    ) -> Self {
-        Self::computed_with_config(evaluator, dependents, Some(name), Some(Rc::new(cutoff)))
-    }
-
-    fn new_optional_name(val: T, name: Option<&str>) -> Self {
-        Self {
-            untyped: UntypedProperty::new(val, Vec::with_capacity(0), PropertyType::Literal, name),
-            _phantom: PhantomData {},
-        }
-    }
-
-    fn computed_with_config(
-        evaluator: impl Fn() -> T + 'static,
-        dependents: &[UntypedProperty],
-        name: Option<&str>,
-        cutoff: Option<Rc<dyn Fn(&T, &T) -> bool>>,
-    ) -> Self {
-        let inbound: Vec<_> = dependents.iter().map(|v| v.get_id()).collect();
-        let start_val = T::default();
-        let evaluator = Rc::new(evaluator);
-        Self {
-            untyped: UntypedProperty::new(
-                start_val,
-                inbound,
-                PropertyType::Computed {
-                    evaluator,
-                    cutoff: cutoff.map(|predicate| properties_table::Cutoff {
-                        predicate,
-                        initialized: false,
-                    }),
-                },
-                name,
-            ),
-            _phantom: PhantomData {},
-        }
-    }
-
-    /// Immediately starts an ease transition from the current value to end_val, over a duration, following curve.
-    ///
-    /// Numeric arguments preserve the historical frame-based behavior. Use
-    /// `Duration::Milliseconds`, `Duration::Seconds`, or `Duration::Frames` to
-    /// select an explicit unit.
-    pub fn ease_to<D: Into<Duration>>(&self, end_val: T, duration: D, curve: EasingCurve) {
-        self.ease_to_value(end_val, duration.into(), curve, true);
-    }
-
-    /// Enqueues an ease transition from the current value to end_val, over a duration, following
-    /// curve, which will start after all currently enqueued transitions finish.
-    pub fn ease_to_later<D: Into<Duration>>(&self, end_val: T, duration: D, curve: EasingCurve) {
-        self.ease_to_value(end_val, duration.into(), curve, false);
-    }
-
-    /// Shared logic for easing operations
-    fn ease_to_value(&self, end_val: T, duration: Duration, curve: EasingCurve, overwrite: bool) {
-        PROPERTY_TABLE.with(|t| {
-            t.transition(
-                self.untyped.id,
-                TransitionQueueEntry {
-                    duration,
-                    curve,
-                    ending_value: end_val,
-                },
-                overwrite,
-            )
-        })
-    }
-
-    /// Stops the active transition and clears every queued transition segment.
-    ///
-    /// The property is left at its current eased value. A subsequent [`Property::set`]
-    /// can therefore take immediate ownership without the cancelled transition
-    /// overwriting it on the next runtime tick.
-    pub fn cancel_transitions(&self) {
-        PROPERTY_TABLE.with(|t| t.cancel_transitions::<T>(self.untyped.id));
-    }
-
-    /// Gets the currently stored value. Might be computationally
-    /// expensive in a large reactivity network since this triggers
-    /// re-evaluation of dirty property chains
-    pub fn get(&self) -> T {
-        PROPERTY_TABLE.with(|t| t.get_value(self.untyped.id))
-    }
-
-    /// Sets this properties value and sets the dirty bit recursively of all of
-    /// its dependencies if not already set
-    pub fn set(&self, val: T) {
-        PROPERTY_TABLE.with(|t| t.set_value(self.untyped.id, val));
-    }
-
-    /// Marks this property for re-evaluation without replacing its value or evaluator.
-    ///
-    /// This is useful for computed properties whose evaluator observes runtime state
-    /// outside the reactive dependency graph.
+/// Shared fields publish values while their evaluators stay in the entered
+/// [`PropertyGraph`]. Local fields retain ordinary lazy graph semantics.
+pub trait PropertyBinding<T: PropertyValue>: Sized {
+    /// Creates independent literal state of this field's ownership kind.
+    fn from_value(value: T) -> Self;
+    /// Obtains the owner-thread view used by generated bindings.
+    fn local(&self) -> LocalProperty<T>;
+    /// Aliases a local binding, preserving a shared source when one exists.
+    fn from_local(source: LocalProperty<T>) -> Self;
+    /// Reads a field for conversion, using local snapshots during an explicit
+    /// graph conversion and ordinary value semantics otherwise.
     #[doc(hidden)]
-    pub fn invalidate(&self) {
-        PROPERTY_TABLE.with(|t| t.invalidate(self.untyped.id));
-    }
+    fn value_for_conversion(&self) -> T;
+}
 
-    /// Sets the value only when it differs from the current one.
-    ///
-    /// Returns `true` when the write changed the property and dirtied dependents.
-    pub fn set_if_neq(&self, val: T) -> bool
-    where
-        T: PartialEq,
-    {
-        let should_set =
-            PROPERTY_TABLE.with(|t| t.read_value(self.untyped.id, |current: &T| current != &val));
-        if should_set {
-            self.set(val);
+thread_local! {
+    static GRAPH_CONVERSION: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+pub(crate) fn with_graph_conversion<R>(f: impl FnOnce() -> R) -> R {
+    struct Restore(bool);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            GRAPH_CONVERSION.with(|active| active.set(self.0));
         }
-        should_set
     }
-
-    /// Get access to a mutable reference to the inner value T.
-    /// Will trigger updates for dependents of this property, regardless
-    /// of if the value actually changed
-    pub fn update(&self, f: impl FnOnce(&mut T)) {
-        // This is a temporary impl of the update method.
-        // (very bad perf comparatively, but very safe).
-        let mut val = self.get();
-        f(&mut val);
-        self.set(val);
-    }
-
-    /// Reads the inner value by reference.
-    ///
-    /// Panics if this property is already borrowed, which can happen if `read`
-    /// is called inside a read of the same property.
-    pub fn read<V>(&self, f: impl FnOnce(&T) -> V) -> V {
-        PROPERTY_TABLE.with(|t| t.read_value(self.untyped.id, f))
-    }
-
-    /// Replaces this property's evaluator, dependencies, and value with `target`, while keeping dependents.
-    ///
-    /// This can introduce circular dependencies if used carelessly. It is
-    /// intended for changing a property from literal to computed (or vice
-    /// versa) without severing existing outbound links.
-    pub fn replace_with(&self, target: Property<T>) {
-        PROPERTY_TABLE.with(|t| {
-            // we know self contains T, and that target contains T, so this should never panic
-            t.replace_property_keep_outbound_connections::<T>(self.untyped.id, target.untyped.id)
-        })
-    }
-
-    /// Casts this property to its untyped version.
-    pub fn untyped(&self) -> UntypedProperty {
-        self.untyped.clone()
-    }
-}
-
-impl<T: PropertyValue> Default for Property<T> {
-    fn default() -> Self {
-        Property::new(T::default())
-    }
-}
-
-// Serialization and deserialization fully disconnects properties,
-// and only loads them back in as literal values.
-impl<'de, T: PropertyValue + Deserialize<'de>> Deserialize<'de> for Property<T> {
-    fn deserialize<D>(deserializer: D) -> Result<Property<T>, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let value = T::deserialize(deserializer)?;
-        Ok(Property::new(value))
-    }
-}
-
-impl<T: PropertyValue + Serialize> Serialize for Property<T> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        // TODO check if literal or computed, error on computed?
-        self.get().serialize(serializer)
-    }
+    let _restore = Restore(GRAPH_CONVERSION.with(|active| active.replace(true)));
+    f()
 }
 
 // Utility method to inspect total entry count in property table.
@@ -291,12 +76,12 @@ pub fn property_table_total_properties_count() -> usize {
 }
 
 #[doc(hidden)]
-pub fn register_effect_property(prop: &Property<()>) {
+pub fn register_effect_property(prop: &LocalProperty<()>) {
     PROPERTY_TABLE.with(|t| t.register_effect(prop.untyped.id));
 }
 
 #[doc(hidden)]
-pub fn register_effect_property_with_name(prop: &Property<()>, debug_name: &str) {
+pub fn register_effect_property_with_name(prop: &LocalProperty<()>, debug_name: &str) {
     PROPERTY_TABLE.with(|t| t.register_effect_with_name(prop.untyped.id, Some(debug_name)));
 }
 
@@ -321,12 +106,12 @@ pub fn property_has_direct_outbound(source: &UntypedProperty, outbound: &Untyped
 }
 
 // Registers the runtime clock property used by transition/easing machinery.
-pub fn register_time(prop: &Property<u64>) {
+pub fn register_time(prop: &LocalProperty<u64>) {
     PROPERTY_TIME.with_borrow_mut(|time| *time = prop.clone());
 }
 
 // Registers the runtime wall clock property used by time-based transition/easing machinery.
-pub fn register_millis(prop: &Property<u64>) {
+pub fn register_millis(prop: &LocalProperty<u64>) {
     PROPERTY_MILLIS.with_borrow_mut(|time| *time = prop.clone());
 }
 

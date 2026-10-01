@@ -86,9 +86,10 @@ impl CounterConsumer {
         let value = ctx
             .with_store(|store: &mut CounterStore| store.value.clone())
             .expect("counter consumer needs a provider");
+        let value = value.local();
         let deps = [value.untyped()];
         self.observed
-            .replace_with(Property::computed(move || value.get(), &deps));
+            .replace_with(LocalProperty::computed(move || value.get(), &deps));
     }
     pub fn increment(&mut self, ctx: &NodeContext, _: Event<ButtonClick>) {
         let value = ctx

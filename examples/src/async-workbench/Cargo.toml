@@ -1,0 +1,34 @@
+[package]
+name = "async-workbench"
+version = "0.39.0"
+edition = "2021"
+
+[package.metadata.pax]
+title = "Async Workbench"
+
+[package.metadata.pax.macos.entitlements]
+"com.apple.security.network.client" = true
+"com.apple.security.network.server" = true
+
+[dependencies]
+pax-kit = { version = "0.39.0", path = "../../../pax-kit" }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+pax-tokio = { path = "../../../pax-tokio" }
+tokio = { version = "1", features = ["rt-multi-thread", "time", "sync", "net", "io-util", "macros"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+pax-web-async = { path = "../../../pax-web-async" }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = ["Window", "Response", "Url", "Location", "Performance", "AbortController", "AbortSignal", "Request", "RequestInit"] }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package.async-workbench]
+opt-level = 0

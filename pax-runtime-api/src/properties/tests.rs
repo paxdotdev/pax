@@ -3,7 +3,7 @@ use std::{cell::Cell, rc::Rc};
 
 #[test]
 fn test_literal_set_get() {
-    let prop = Property::new(5);
+    let prop = LocalProperty::new(5);
     assert_eq!(prop.get(), 5);
     prop.set(2);
     assert_eq!(prop.get(), 2);
@@ -11,12 +11,12 @@ fn test_literal_set_get() {
 
 #[test]
 fn test_cancel_transitions_freezes_value_and_clears_queue() {
-    let frames = Property::new(0_u64);
-    let millis = Property::new(0_u64);
+    let frames = LocalProperty::new(0_u64);
+    let millis = LocalProperty::new(0_u64);
     register_time(&frames);
     register_millis(&millis);
 
-    let prop = Property::new(0.0);
+    let prop = LocalProperty::new(0.0);
     prop.ease_to(
         10.0,
         Duration::Milliseconds(100.into()),
@@ -42,16 +42,16 @@ fn test_cancel_transitions_freezes_value_and_clears_queue() {
 
 #[test]
 fn test_computed_get() {
-    let prop = Property::<i32>::computed(|| 42, &[]);
+    let prop = LocalProperty::<i32>::computed(|| 42, &[]);
     assert_eq!(prop.get(), 42);
 }
 
 #[test]
 fn test_computed_dependent_on_literal() {
-    let prop_1 = Property::new_with_name(2, "p1");
+    let prop_1 = LocalProperty::new_with_name(2, "p1");
     let p1 = prop_1.clone();
     let prop_2 =
-        Property::<i32>::computed_with_name(move || p1.get() * 5, &[prop_1.untyped()], "p2");
+        LocalProperty::<i32>::computed_with_name(move || p1.get() * 5, &[prop_1.untyped()], "p2");
     assert_eq!(prop_2.get(), 10);
     prop_1.set(3);
     assert_eq!(prop_2.get(), 15);
@@ -59,13 +59,13 @@ fn test_computed_dependent_on_literal() {
 
 #[test]
 fn test_property_replacement() {
-    let prop_1 = Property::new(2);
+    let prop_1 = LocalProperty::new(2);
     let p1 = prop_1.clone();
-    let prop_2 = Property::computed(move || p1.get(), &[prop_1.untyped()]);
+    let prop_2 = LocalProperty::computed(move || p1.get(), &[prop_1.untyped()]);
 
-    let prop_3 = Property::new(6);
+    let prop_3 = LocalProperty::new(6);
     let p3 = prop_3.clone();
-    let prop_4 = Property::computed(move || p3.get(), &[prop_3.untyped()]);
+    let prop_4 = LocalProperty::computed(move || p3.get(), &[prop_3.untyped()]);
 
     assert_eq!(prop_2.get(), 2);
     assert_eq!(prop_4.get(), 6);
@@ -75,7 +75,7 @@ fn test_property_replacement() {
 
 #[test]
 fn test_property_replacement_with_self_is_noop() {
-    let prop = Property::new(7);
+    let prop = LocalProperty::new(7);
 
     prop.replace_with(prop.clone());
 
@@ -84,16 +84,16 @@ fn test_property_replacement_with_self_is_noop() {
 
 #[test]
 fn test_property_replacement_disconnects_previous_dependencies() {
-    let old_source = Property::new(1);
+    let old_source = LocalProperty::new(1);
     let old_source_for_computed = old_source.clone();
-    let slot = Property::computed(
+    let slot = LocalProperty::computed(
         move || old_source_for_computed.get(),
         &[old_source.untyped()],
     );
     let effect_runs = Rc::new(Cell::new(0));
     let effect_runs_for_effect = Rc::clone(&effect_runs);
     let slot_for_effect = slot.clone();
-    let effect = Property::computed(
+    let effect = LocalProperty::computed(
         move || {
             let _ = slot_for_effect.get();
             effect_runs_for_effect.set(effect_runs_for_effect.get() + 1);
@@ -103,7 +103,7 @@ fn test_property_replacement_disconnects_previous_dependencies() {
     register_effect_property(&effect);
     drain_effects(10);
 
-    slot.replace_with(Property::new(0));
+    slot.replace_with(LocalProperty::new(0));
     drain_effects(10);
     let runs_after_replacement = effect_runs.get();
 
@@ -116,16 +116,16 @@ fn test_property_replacement_disconnects_previous_dependencies() {
 #[test]
 fn test_replacement_reuses_dependency_storage_without_reusing_binding_state() {
     let initial_count = property_table_total_properties_count();
-    let a = Property::new(1);
-    let b = Property::new(2);
-    let c = Property::new(3);
+    let a = LocalProperty::new(1);
+    let b = LocalProperty::new(2);
+    let c = LocalProperty::new(3);
     let read_a = a.clone();
-    let slot = Property::computed(
+    let slot = LocalProperty::computed(
         move || read_a.get(),
         &[a.untyped(), b.untyped(), c.untyped()],
     );
     let read_slot = slot.clone();
-    let dependent = Property::computed(move || read_slot.get() * 10, &[slot.untyped()]);
+    let dependent = LocalProperty::computed(move || read_slot.get() * 10, &[slot.untyped()]);
     assert_eq!(dependent.get(), 10);
     let storage = PROPERTY_TABLE
         .with(|table| table.with_property_data(slot.untyped.id, |data| data.inbound.as_ptr()));
@@ -139,11 +139,11 @@ fn test_replacement_reuses_dependency_storage_without_reusing_binding_state() {
     ] {
         let inputs = dependencies
             .iter()
-            .map(Property::untyped)
+            .map(LocalProperty::untyped)
             .collect::<Vec<_>>();
         let reads = dependencies.clone();
-        let replacement = Property::computed(
-            move || reads.iter().map(Property::get).sum::<i32>(),
+        let replacement = LocalProperty::computed(
+            move || reads.iter().map(LocalProperty::get).sum::<i32>(),
             &inputs,
         );
         let expected = replacement.get(); // Also cover replacing from a clean property.
@@ -186,13 +186,13 @@ fn test_replacement_reuses_dependency_storage_without_reusing_binding_state() {
 
 #[test]
 fn test_replacement_preserves_dependency_connection_order_and_shared_target() {
-    let source = Property::new(1);
+    let source = LocalProperty::new(1);
     let read_source = source.clone();
-    let first = Property::computed(move || read_source.get(), &[source.untyped()]);
+    let first = LocalProperty::computed(move || read_source.get(), &[source.untyped()]);
     let read_source = source.clone();
-    let sibling = Property::computed(move || read_source.get(), &[source.untyped()]);
+    let sibling = LocalProperty::computed(move || read_source.get(), &[source.untyped()]);
     let read_source = source.clone();
-    let replacement = Property::computed(move || read_source.get() + 10, &[source.untyped()]);
+    let replacement = LocalProperty::computed(move || read_source.get() + 10, &[source.untyped()]);
 
     first.replace_with(replacement.clone());
     PROPERTY_TABLE.with(|table| {
@@ -215,18 +215,18 @@ fn test_replacement_preserves_dependency_connection_order_and_shared_target() {
 
 #[test]
 fn test_larger_network() {
-    let prop_1 = Property::new(2);
-    let prop_2 = Property::new(6);
+    let prop_1 = LocalProperty::new(2);
+    let prop_2 = LocalProperty::new(6);
 
     let p1 = prop_1.clone();
     let p2 = prop_2.clone();
-    let prop_3 = Property::computed(
+    let prop_3 = LocalProperty::computed(
         move || p1.get() * p2.get(),
         &[prop_1.untyped(), prop_2.untyped()],
     );
     let p1 = prop_1.clone();
     let p3 = prop_3.clone();
-    let prop_4 = Property::computed(
+    let prop_4 = LocalProperty::computed(
         move || p1.get() + p3.get(),
         &[prop_1.untyped(), prop_3.untyped()],
     );
@@ -241,7 +241,7 @@ fn test_larger_network() {
 #[test]
 fn test_cleanup() {
     assert!(PROPERTY_TABLE.with(|t| t.property_map.borrow().is_empty()));
-    let prop = Property::new(5);
+    let prop = LocalProperty::new(5);
     assert_eq!(PROPERTY_TABLE.with(|t| t.property_map.borrow().len()), 1);
     drop(prop);
     assert!(PROPERTY_TABLE.with(|t| t.property_map.borrow().is_empty()));
@@ -250,7 +250,7 @@ fn test_cleanup() {
 #[test]
 fn test_recursive_props() {
     {
-        let prop_of_prop = Property::new(Property::new(3));
+        let prop_of_prop = LocalProperty::new(LocalProperty::new(3));
         let prop_of_prop_clone = prop_of_prop.clone();
         prop_of_prop_clone.get().set(1);
         assert_eq!(prop_of_prop.get().get(), prop_of_prop_clone.get().get());
@@ -260,14 +260,14 @@ fn test_recursive_props() {
 
 #[test]
 fn test_registered_effect_drains_when_dirty() {
-    let source = Property::new(1);
+    let source = LocalProperty::new(1);
     let eval_count = Rc::new(Cell::new(0));
     let seen_value = Rc::new(Cell::new(0));
 
     let source_for_effect = source.clone();
     let eval_count_for_effect = Rc::clone(&eval_count);
     let seen_value_for_effect = Rc::clone(&seen_value);
-    let effect = Property::computed(
+    let effect = LocalProperty::computed(
         move || {
             eval_count_for_effect.set(eval_count_for_effect.get() + 1);
             seen_value_for_effect.set(source_for_effect.get());
@@ -292,12 +292,12 @@ fn test_registered_effect_drains_when_dirty() {
 
 #[test]
 fn test_set_if_neq_skips_noop_write() {
-    let source = Property::new(1);
+    let source = LocalProperty::new(1);
     let eval_count = Rc::new(Cell::new(0));
 
     let source_for_effect = source.clone();
     let eval_count_for_effect = Rc::clone(&eval_count);
-    let effect = Property::computed(
+    let effect = LocalProperty::computed(
         move || {
             eval_count_for_effect.set(eval_count_for_effect.get() + 1);
             let _ = source_for_effect.get();
@@ -320,9 +320,9 @@ fn test_set_if_neq_skips_noop_write() {
 
 #[test]
 fn test_invalidate_preserves_pending_computed_update() {
-    let source = Property::new(false);
+    let source = LocalProperty::new(false);
     let source_for_computed = source.clone();
-    let computed = Property::computed(move || source_for_computed.get(), &[source.untyped()]);
+    let computed = LocalProperty::computed(move || source_for_computed.get(), &[source.untyped()]);
 
     assert!(!computed.get());
     source.set(true);
@@ -333,9 +333,9 @@ fn test_invalidate_preserves_pending_computed_update() {
 
 #[test]
 fn test_cutoff_suppresses_equivalent_output_propagation() {
-    let source = Property::new(1);
+    let source = LocalProperty::new(1);
     let source_for_cutoff = source.clone();
-    let cutoff = Property::computed_with_cutoff(
+    let cutoff = LocalProperty::computed_with_cutoff(
         move || source_for_cutoff.get() % 2,
         &[source.untyped()],
         i32::eq,
@@ -345,7 +345,7 @@ fn test_cutoff_suppresses_equivalent_output_propagation() {
     let cutoff_for_effect = cutoff.clone();
     let effect_runs_for_effect = Rc::clone(&effect_runs);
     let seen_for_effect = Rc::clone(&seen);
-    let effect = Property::computed(
+    let effect = LocalProperty::computed(
         move || {
             effect_runs_for_effect.set(effect_runs_for_effect.get() + 1);
             seen_for_effect.set(cutoff_for_effect.get());
@@ -371,9 +371,9 @@ fn test_cutoff_suppresses_equivalent_output_propagation() {
 
 #[test]
 fn test_cutoff_retains_last_accepted_value() {
-    let source = Property::new(0.0);
+    let source = LocalProperty::new(0.0);
     let source_for_cutoff = source.clone();
-    let cutoff = Property::computed_with_cutoff(
+    let cutoff = LocalProperty::computed_with_cutoff(
         move || source_for_cutoff.get(),
         &[source.untyped()],
         |previous: &f64, candidate: &f64| (previous - candidate).abs() < 1.0,
@@ -390,15 +390,15 @@ fn test_cutoff_retains_last_accepted_value() {
 
 #[test]
 fn test_chained_cutoffs_settle_before_effects() {
-    let source = Property::new(1);
+    let source = LocalProperty::new(1);
     let source_for_first = source.clone();
-    let first = Property::computed_with_cutoff(
+    let first = LocalProperty::computed_with_cutoff(
         move || source_for_first.get() % 2,
         &[source.untyped()],
         i32::eq,
     );
     let first_for_second = first.clone();
-    let second = Property::computed_with_cutoff(
+    let second = LocalProperty::computed_with_cutoff(
         move || first_for_second.get() * 10,
         &[first.untyped()],
         i32::eq,
@@ -408,7 +408,7 @@ fn test_chained_cutoffs_settle_before_effects() {
     let second_for_effect = second.clone();
     let effect_runs_for_effect = Rc::clone(&effect_runs);
     let seen_for_effect = Rc::clone(&seen);
-    let effect = Property::computed(
+    let effect = LocalProperty::computed(
         move || {
             effect_runs_for_effect.set(effect_runs_for_effect.get() + 1);
             seen_for_effect.set(second_for_effect.get());
@@ -433,22 +433,23 @@ fn test_chained_cutoffs_settle_before_effects() {
 
 #[test]
 fn test_diamond_effect_observes_settled_cutoff_once() {
-    let source = Property::new(1);
+    let source = LocalProperty::new(1);
     let source_for_cutoff = source.clone();
-    let cutoff_branch = Property::computed_with_cutoff(
+    let cutoff_branch = LocalProperty::computed_with_cutoff(
         move || source_for_cutoff.get() * 2,
         &[source.untyped()],
         i32::eq,
     );
     let source_for_eager = source.clone();
-    let eager_branch = Property::computed(move || source_for_eager.get() * 3, &[source.untyped()]);
+    let eager_branch =
+        LocalProperty::computed(move || source_for_eager.get() * 3, &[source.untyped()]);
     let effect_runs = Rc::new(Cell::new(0));
     let seen = Rc::new(Cell::new((0, 0)));
     let cutoff_for_effect = cutoff_branch.clone();
     let eager_for_effect = eager_branch.clone();
     let effect_runs_for_effect = Rc::clone(&effect_runs);
     let seen_for_effect = Rc::clone(&seen);
-    let effect = Property::computed(
+    let effect = LocalProperty::computed(
         move || {
             effect_runs_for_effect.set(effect_runs_for_effect.get() + 1);
             seen_for_effect.set((cutoff_for_effect.get(), eager_for_effect.get()));
@@ -469,9 +470,9 @@ fn test_diamond_effect_observes_settled_cutoff_once() {
 
 #[test]
 fn test_get_settles_queued_cutoff_before_drain() {
-    let source = Property::new(1);
+    let source = LocalProperty::new(1);
     let source_for_cutoff = source.clone();
-    let cutoff = Property::computed_with_cutoff(
+    let cutoff = LocalProperty::computed_with_cutoff(
         move || source_for_cutoff.get(),
         &[source.untyped()],
         i32::eq,
@@ -485,9 +486,9 @@ fn test_get_settles_queued_cutoff_before_drain() {
 
 #[test]
 fn test_dropped_queued_cutoff_is_ignored() {
-    let source = Property::new(1);
+    let source = LocalProperty::new(1);
     let source_for_cutoff = source.clone();
-    let cutoff = Property::computed_with_cutoff(
+    let cutoff = LocalProperty::computed_with_cutoff(
         move || source_for_cutoff.get(),
         &[source.untyped()],
         i32::eq,
@@ -502,16 +503,16 @@ fn test_dropped_queued_cutoff_is_ignored() {
 
 #[test]
 fn test_cutoff_initializes_without_being_pulled_by_effect() {
-    let source = Property::new(1);
+    let source = LocalProperty::new(1);
     let source_for_cutoff = source.clone();
-    let cutoff = Property::computed_with_cutoff(
+    let cutoff = LocalProperty::computed_with_cutoff(
         move || source_for_cutoff.get(),
         &[source.untyped()],
         i32::eq,
     );
     let effect_runs = Rc::new(Cell::new(0));
     let effect_runs_for_effect = Rc::clone(&effect_runs);
-    let effect = Property::computed(
+    let effect = LocalProperty::computed(
         move || effect_runs_for_effect.set(effect_runs_for_effect.get() + 1),
         &[cutoff.untyped()],
     );
@@ -527,10 +528,10 @@ fn test_cutoff_initializes_without_being_pulled_by_effect() {
 
 #[test]
 fn test_cutoff_requeues_when_invalidated_during_evaluation() {
-    let source = Property::new(1);
+    let source = LocalProperty::new(1);
     let source_for_cutoff = source.clone();
     let source_to_invalidate = source.clone();
-    let cutoff = Property::computed_with_cutoff(
+    let cutoff = LocalProperty::computed_with_cutoff(
         move || {
             let value = source_for_cutoff.get();
             if value == 2 {
@@ -544,7 +545,7 @@ fn test_cutoff_requeues_when_invalidated_during_evaluation() {
     let seen = Rc::new(Cell::new(0));
     let cutoff_for_effect = cutoff.clone();
     let seen_for_effect = Rc::clone(&seen);
-    let effect = Property::computed(
+    let effect = LocalProperty::computed(
         move || seen_for_effect.set(cutoff_for_effect.get()),
         &[cutoff.untyped()],
     );
@@ -561,20 +562,20 @@ fn test_cutoff_requeues_when_invalidated_during_evaluation() {
 
 #[test]
 fn test_replacement_preserves_cutoff_semantics() {
-    let source = Property::new(1);
+    let source = LocalProperty::new(1);
     let source_for_cutoff = source.clone();
-    let cutoff = Property::computed_with_cutoff(
+    let cutoff = LocalProperty::computed_with_cutoff(
         move || source_for_cutoff.get() % 2,
         &[source.untyped()],
         i32::eq,
     );
-    let slot = Property::new(99);
+    let slot = LocalProperty::new(99);
     let effect_runs = Rc::new(Cell::new(0));
     let seen = Rc::new(Cell::new(0));
     let slot_for_effect = slot.clone();
     let effect_runs_for_effect = Rc::clone(&effect_runs);
     let seen_for_effect = Rc::clone(&seen);
-    let effect = Property::computed(
+    let effect = LocalProperty::computed(
         move || {
             effect_runs_for_effect.set(effect_runs_for_effect.get() + 1);
             seen_for_effect.set(slot_for_effect.get());
@@ -601,9 +602,9 @@ fn test_replacement_preserves_cutoff_semantics() {
 
 #[test]
 fn test_cutoff_work_obeys_drain_budget() {
-    let source = Property::new(1);
+    let source = LocalProperty::new(1);
     let source_for_cutoff = source.clone();
-    let cutoff = Property::computed_with_cutoff(
+    let cutoff = LocalProperty::computed_with_cutoff(
         move || source_for_cutoff.get(),
         &[source.untyped()],
         i32::eq,
@@ -611,7 +612,7 @@ fn test_cutoff_work_obeys_drain_budget() {
     let effect_runs = Rc::new(Cell::new(0));
     let cutoff_for_effect = cutoff.clone();
     let effect_runs_for_effect = Rc::clone(&effect_runs);
-    let effect = Property::computed(
+    let effect = LocalProperty::computed(
         move || {
             let _ = cutoff_for_effect.get();
             effect_runs_for_effect.set(effect_runs_for_effect.get() + 1);
@@ -635,11 +636,11 @@ fn test_cutoff_work_obeys_drain_budget() {
 
 #[test]
 fn disconnect_temporary_and_duplicate_dependencies_preserves_other_edge_order() {
-    let source = Property::new(1);
+    let source = LocalProperty::new(1);
     let dependencies = [source.untyped(), source.untyped()];
-    let first = Property::computed(|| 1, &dependencies);
-    let middle = Property::computed(|| 2, &dependencies);
-    let last = Property::computed(|| 3, &dependencies);
+    let first = LocalProperty::computed(|| 1, &dependencies);
+    let middle = LocalProperty::computed(|| 2, &dependencies);
+    let last = LocalProperty::computed(|| 3, &dependencies);
     let outbound = || {
         properties_table::PROPERTY_TABLE.with(|table| {
             table.with_property_data(source.untyped().get_id(), |data| data.outbound.clone())

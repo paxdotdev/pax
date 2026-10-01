@@ -1,3 +1,4 @@
+use pax_engine::api::LocalProperty;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::hash::Hash;
@@ -152,7 +153,7 @@ impl InstanceNode for StackerInstance {
         let deps = [projected_children.untyped()];
         expanded_node
             .children
-            .replace_with(Property::computed_with_name(
+            .replace_with(LocalProperty::computed_with_name(
                 move || {
                     let Some(node) = weak_ref_self.upgrade() else {
                         panic!("ran evaluator after expanded node dropped (stacker children)")
@@ -181,10 +182,10 @@ impl InstanceNode for StackerInstance {
 impl Container for Stacker {
     // Computes child rectangles for content children and assigns container-owned frames.
     fn bind_container(&self, ctx: &NodeContext) {
-        let sizes = self.sizes.clone();
+        let sizes = self.sizes.local();
         let bound = ctx.bounds_self.clone();
-        let gutter = self.gutter.clone();
-        let direction = self.direction.clone();
+        let gutter = self.gutter.local();
+        let direction = self.direction.local();
         let (padding_x, padding_y) = ctx
             .expanded_node
             .upgrade()
@@ -197,11 +198,11 @@ impl Container for Stacker {
                 )
             })
             .unwrap_or_default();
-        let autosize = self.autosize.clone();
-        let autosize_x = self.autosize_x.clone();
-        let autosize_y = self.autosize_y.clone();
-        let exit_mode = self.exit_mode.clone();
-        let reflow_transition = self.reflow_transition.clone();
+        let autosize = self.autosize.local();
+        let autosize_x = self.autosize_x.local();
+        let autosize_y = self.autosize_y.local();
+        let exit_mode = self.exit_mode.local();
+        let reflow_transition = self.reflow_transition.local();
         let bound_for_update = bound.clone();
         let autosize_for_update = autosize.clone();
         let autosize_x_for_update = autosize_x.clone();
@@ -1666,7 +1667,7 @@ mod tests {
     }
 
     fn repeat_args(
-        source: Property<PaxValue>,
+        source: LocalProperty<PaxValue>,
         children: Vec<Rc<dyn InstanceNode>>,
     ) -> InstantiationArgs {
         let key_expression =
@@ -1684,8 +1685,8 @@ mod tests {
                     Rc::new(RefCell::new(
                         RepeatProperties {
                             source_expression: source_for_factory.clone(),
-                            iterator_i_symbol: Property::new(Some("i".to_string())),
-                            iterator_elem_symbol: Property::new(Some("item".to_string())),
+                            iterator_i_symbol: LocalProperty::new(Some("i".to_string())),
+                            iterator_elem_symbol: LocalProperty::new(Some("item".to_string())),
                             repeat_key_expression: Some(key_expression.clone()),
                         }
                         .to_pax_any(),
@@ -2233,7 +2234,7 @@ mod tests {
 
     #[test]
     fn stacker_retains_single_exiting_child_for_projected_keyed_repeat_changes() {
-        let source_property = Property::new(source(&["a", "b", "c"]));
+        let source_property = LocalProperty::new(source(&["a", "b", "c"]));
         let leaf: Rc<dyn InstanceNode> =
             ComponentInstance::instantiate(leaf_component_args(ComponentTransitionConfig {
                 has_enter: true,

@@ -32,7 +32,7 @@ pub struct ColorPickerExample {
 
 impl ColorPickerExample {
     pub fn on_mount(&mut self, _ctx: &NodeContext) {
-        let color = self.color.clone();
+        let color = self.color.local();
         let initial_hsla = color.get().to_hsla_0_1();
         self.hue.set(initial_hsla[0]);
         self.saturation.set(initial_hsla[1]);
@@ -44,50 +44,50 @@ impl ColorPickerExample {
             ((color.get().to_rgba_0_1()[i] * 255.0) as u8).to_string()
         }
 
-        let color = self.color.clone();
+        let color = self.color.local();
         let deps = [color.untyped()];
-        self.red.replace_with(Property::computed(
+        self.red.replace_with(LocalProperty::computed(
             move || get_color_channel(&color, 0),
             &deps,
         ));
 
-        let color = self.color.clone();
-        self.green.replace_with(Property::computed(
+        let color = self.color.local();
+        self.green.replace_with(LocalProperty::computed(
             move || get_color_channel(&color, 1),
             &deps,
         ));
 
-        let color = self.color.clone();
-        self.blue.replace_with(Property::computed(
+        let color = self.color.local();
+        self.blue.replace_with(LocalProperty::computed(
             move || get_color_channel(&color, 2),
             &deps,
         ));
 
-        let color = self.color.clone();
-        self.alpha_text.replace_with(Property::computed(
+        let color = self.color.local();
+        self.alpha_text.replace_with(LocalProperty::computed(
             move || get_color_channel(&color, 3),
             &deps,
         ));
 
-        let hue = self.hue.clone();
+        let hue = self.hue.local();
         let deps = [hue.untyped()];
-        self.hue_color.replace_with(Property::computed(
+        self.hue_color.replace_with(LocalProperty::computed(
             move || Color::hsl(hue_rotation_0_1(hue.get()), 255.into(), (255 / 2).into()),
             &deps,
         ));
 
-        let hue = self.hue.clone();
-        let saturation = self.saturation.clone();
-        let lightness = self.lightness.clone();
-        let alpha = self.alpha.clone();
-        let color = self.color.clone();
+        let hue = self.hue.local();
+        let saturation = self.saturation.local();
+        let lightness = self.lightness.local();
+        let alpha = self.alpha.local();
+        let color = self.color.local();
         let deps = [
             hue.untyped(),
             saturation.untyped(),
             lightness.untyped(),
             alpha.untyped(),
         ];
-        self.property_listener.replace_with(Property::computed(
+        self.property_listener.replace_with(LocalProperty::computed(
             move || {
                 let new_col = Color::hsla(
                     hue_rotation_0_1(hue.get()),
@@ -100,9 +100,9 @@ impl ColorPickerExample {
             },
             &deps,
         ));
-        let color = self.color.clone();
+        let color = self.color.local();
         self.alpha_slider_image_data
-            .replace_with(Property::computed(
+            .replace_with(LocalProperty::computed(
                 move || alpha_slider(color.get()).to_vec(),
                 &deps,
             ));

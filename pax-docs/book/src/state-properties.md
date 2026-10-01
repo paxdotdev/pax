@@ -11,9 +11,10 @@ an action changes it, and how to build relationships between properties in
 Rust.
 
 Pax represents reactive state with `Property<T>`, where `T` is the value's
-Rust type. A property can hold a value your application writes, or compute a
-value from other properties. Both participate in the same reactive graph as
-template expressions.
+Rust type. `Property<T>` holds transferable application state. `LocalProperty<T>`
+holds values and computations owned by the UI thread. Shared values enter the
+same reactive graph as local computations and template expressions; nodes and
+rendering remain on the UI thread.
 
 This chapter continues the small Field notes panel from
 [Templates](template-language.md). It includes the component declaration and
@@ -70,8 +71,7 @@ impl Default for Notes {
 
 `#[custom(Default)]` tells the macro to use your implementation in place of
 its generated one. Each call creates properties for that component instance.
-`Property::new` also works outside a component when you need a local reactive
-value.
+`Property::new` also works outside a component, including on a worker thread.
 
 The preceding PAXEL example set these same values in `on_mount`. With the
 custom default above, remove those initialization writes. Mount remains a
@@ -151,19 +151,21 @@ assert_eq!(entries.get().len(), 3);
 ```
 
 The first `push` changes the local vector. `set` publishes that vector through
-the property. `update` is a convenient get–mutate–set operation; it also clones
-the value before calling your closure. Use the same pattern for a property
-holding a struct whose fields you want to change together.
+the property. `update` serializes mutation of this one property: it clones the
+current value, invokes your closure exactly once, and commits the result.
+Concurrent updates do not lose increments. A panic leaves the previous published
+value intact. Use a plain struct-valued property when several fields need one
+coherent publication; separate properties are not a transaction.
 
 The access methods have these roles:
 
 | Method | Behavior |
 | --- | --- |
-| `get()` | Bring a dirty property up to date, then clone and return its value. |
-| `read(f)` | Bring it up to date, then lend its value to `f` without cloning it. |
-| `set(value)` | Store a value and invalidate downstream dependents. |
+| `get()` | Clone the latest published snapshot; never evaluate UI code. |
+| `read(f)` | Lend an immutable snapshot to `f`, without holding a storage lock. |
+| `set(value)` | Publish immediately and notify attached UI graphs. |
 | `set_if_neq(value)` | Set only when the value differs from the current one; return whether a write occurred. |
-| `update(f)` | Clone the current value, let `f` mutate that copy, then store it and invalidate dependents. |
+| `update(f)` | Atomically edit and publish a private draft, invoking `f` once. |
 
 `set` and `update` invalidate dependents even if the resulting value is equal
 to the previous one. Use `set_if_neq` when unchanged writes are common and
@@ -171,14 +173,16 @@ equality is inexpensive; it requires `T: PartialEq`. The button above could
 use it to avoid another invalidation when progress is already at one.
 
 For an inspection that does not need a copy, `entries.read(|items| items.len())`
-returns the count without cloning the vector. Keep a `read` closure focused
-on its borrowed value. Reading or writing the same property again inside
-that closure can panic, including when another property evaluation leads
-back to it.
+returns the count without cloning the vector. Shared `read` callbacks may
+reenter reads or writes: their borrowed snapshot stays unchanged. Mutation
+callbacks, including cloning/equality invoked by `update` or `set_if_neq`, must
+not recursively mutate another shared property. Pax diagnoses that case with a
+panic before acquiring a second write lock. Keep mutations short; do not wait
+for another thread or perform I/O inside them.
 
 ## Property handles
 
-Cloning a `Property<T>` gives you another handle to the same graph node. A
+Cloning a `Property<T>` gives you another handle to the same shared allocation. A
 write through either handle changes the value both observe:
 
 ```rust
@@ -213,13 +217,42 @@ parent/child bindings, and
 A store locates shared handles by Rust type; the properties provide reactivity.
 Final unmount clears a component's local state and store registrations.
 Explicitly retained handles still refer to the old state, not a later mount.
-Property handles belong to the runtime's thread-local graph; use an appropriate
-application messaging boundary when work runs on another thread.
+
+## Shared state and local views
+
+Shared values meet `Default + Clone + Interpolatable + Send + Sync + 'static`.
+A cloned shared handle can be moved into an ordinary Rust worker or a native
+async task. `set` publishes immediately, and `get` reads the latest snapshot on
+any thread. Template expressions and local views observe that publication at a
+UI settlement boundary. Repeated writes may coalesce; a property represents
+latest state, not a lossless stream of events.
+
+```rust
+let count = Property::new(0_usize);
+let worker_count = count.clone();
+std::thread::spawn(move || worker_count.update(|count| *count += 1));
+```
+
+Starting an untracked thread does not give it automatic cancellation or a node
+lifetime. A retained shared value can outlive its view; unmount detaches the
+view's graph connections. Publishing that retained value cannot remount it.
+
+Use `LocalProperty<T>` for `Rc`/node values and local computations. It and its
+untyped dependency handles cannot cross threads, even inside `Arc<Mutex<_>>`.
+A local `get` evaluates dirty dependencies before returning. Its `read` closure
+runs under a local table borrow and must not reenter that table.
+
+Within a Pax handler or mount callback, `shared.local()` obtains the current
+application's local view. Capture that view in computed evaluators so every read
+uses the UI's imported snapshot. Pax selects the graph for handlers; low-level
+embedders must enter a `PropertyGraph` themselves. Easing also uses this view:
+`self.progress.local().ease_to(...)`. Shared `get` never becomes a lazy computed
+read simply because the caller is on the UI thread.
 
 ## Computed properties
 
 A computed property derives its value from other properties. A PAXEL formula
-already does this for a template. Rust's `Property::computed` is useful when
+already does this for a template. Rust's `LocalProperty::computed` is useful when
 the derived value should be available to Rust code as well, or when you want
 to assemble the dependency relationship in Rust.
 
@@ -231,10 +264,10 @@ mount method:
 ```rust
 impl Notes {
     pub fn on_mount(&mut self, _ctx: &NodeContext) {
-        let progress = self.progress.clone();
+        let progress = self.progress.local();
         let dependencies = [progress.untyped()];
 
-        self.progress_label.replace_with(Property::computed(
+        self.progress_label.replace_with(LocalProperty::computed(
             move || format!("{:.0}% complete", progress.get() * 100.0),
             &dependencies,
         ));
@@ -255,7 +288,7 @@ The initial label reads “25% complete.” Pressing Advance changes the source
 property and the label becomes “50% complete.” The bar still reads progress
 through its PAXEL formula.
 
-`Property::computed` takes an evaluator and an explicit dependency list.
+`LocalProperty::computed` takes an evaluator and an explicit dependency list.
 `.untyped()` provides a handle suitable for that list, allowing properties
 with different value types to be dependencies of one computation. Include
 every input whose changes should trigger reevaluation. A `.get()` inside a
@@ -264,7 +297,7 @@ Rust evaluator does not automatically register a dependency.
 `replace_with` installs the new evaluator and dependencies on the existing
 `progress_label` field. The field keeps the outgoing connections already
 established by its template and any other consumers. For a new local
-property, you can use the handle returned by `Property::computed` directly.
+property, you can use the handle returned by `LocalProperty::computed` directly.
 
 Change derived state by updating its source inputs. Writing to a computed
 property with `set` changes its stored value but leaves the evaluator in
@@ -273,8 +306,23 @@ dependency graph acyclic, and avoid an evaluator that reads the very field
 it is replacing, directly or through another computed property.
 
 Computed evaluators should be deterministic and free of side effects. Their
-execution follows demand for a value. Use a subscription for work that must
+execution follows demand for a local value. Bindings installed on a shared
+field also have a local observer that publishes accepted computed results. Use a subscription for work that must
 respond to a change independently of a value being read.
+
+Use `property.published()` when a consumer should only read computed results.
+`Published<T>` can cross threads and exposes `get`, `read`, and `revision`, but
+no mutation API. Its local view is an independent computed proxy; changing that
+proxy does not grant access to the producer. A regular component `Property<T>`
+remains writable, including expression-bound fields used by two-way bindings.
+
+Nested drawing records also have an explicit boundary. Custom primitives should
+call `stroke.resolve_in_graph()` and `material.resolve_in_graph()` on the UI
+owner before passing values to `RenderContext`. These return plain
+`ResolvedStroke` and `ResolvedMaterial` records, so a backend cannot observe a
+worker's newer publication halfway through recording a draw. `snapshot()` reads
+the latest shared fields without entering a graph and is intended for non-UI
+consumers. Neither operation makes independent properties a transaction.
 
 ## Subscriptions and effects
 
@@ -288,7 +336,7 @@ For a small observable example, log the panel's progress. Rename `_ctx` to
 property setup:
 
 ```rust
-let progress = self.progress.clone();
+let progress = self.progress.local();
 let dependencies = [progress.untyped()];
 
 ctx.subscribe(&dependencies, move || {
@@ -354,17 +402,17 @@ enough for the panel; consider a cutoff when measurement points to expensive
 downstream work that often produces the same result.
 
 Ordinary invalidation travels through a computed property before Pax knows
-whether its output has changed. `Property::computed_with_cutoff` creates a
+whether its output has changed. `LocalProperty::computed_with_cutoff` creates a
 boundary: when an input changes, Pax evaluates this property before deciding
 whether to invalidate its downstream dependents.
 
 For example, a pointer position might select one bucket for every 20 units:
 
 ```rust
-let pointer_x = Property::new(0.0_f64);
+let pointer_x = LocalProperty::new(0.0_f64);
 let pointer_x_for_bucket = pointer_x.clone();
 
-let bucket = Property::computed_with_cutoff(
+let bucket = LocalProperty::computed_with_cutoff(
     move || (pointer_x_for_bucket.get() / 20.0).floor() as i64,
     &[pointer_x.untyped()],
     |last_accepted, candidate| last_accepted == candidate,
@@ -385,7 +433,7 @@ uses the last accepted value. Equality is common; approximate or domain-specific
 predicates are also possible, with that same retention behavior.
 
 Cutoffs settle as part of the runtime's synchronous reactive work, before
-queued effects. A direct `get` or `read` of a dirty cutoff can settle it
+queued effects. A direct local `get` or `read` of a dirty cutoff can settle it
 earlier. The cutoff still evaluates its own function; the saved work is the
 invalidation and reevaluation beyond it when the output is equivalent.
 
@@ -403,7 +451,7 @@ values during diagnosis.
 | --- | --- |
 | A value derived for a template | A PAXEL formula; the compiler supplies its dependency edges. |
 | Application state changed by an action | A property written by the Rust handler. |
-| Derived reactive state used from Rust | `Property::computed`, with every dependency listed explicitly. |
+| Derived reactive state used from Rust | `LocalProperty::computed`, with every dependency listed explicitly. |
 | A short side effect observing state | `NodeContext::subscribe`, with its node-scoped lifetime. |
 | Fewer unchanged writes | `set_if_neq`, when equality is inexpensive. |
 | A stable output between a busy input and expensive consumers | A measured use of `computed_with_cutoff`. |

@@ -55,13 +55,13 @@ impl RenderContext for Recorder {
         self.layers
     }
     fn fill_with_opacity(&mut self, _: usize, _: kurbo::BezPath, _: &Paint, _: f64) {}
-    fn stroke_with_opacity(&mut self, _: usize, _: kurbo::BezPath, _: &Stroke, _: f64) {}
+    fn stroke_with_opacity(&mut self, _: usize, _: kurbo::BezPath, _: &ResolvedStroke, _: f64) {}
     fn stroke_with_draw_range_and_material_and_opacity(
         &mut self,
         _: usize,
         _: kurbo::BezPath,
-        _: &Stroke,
-        _: &Material,
+        _: &ResolvedStroke,
+        _: &ResolvedMaterial,
         _: f64,
         _: f64,
         _: f64,
@@ -125,7 +125,7 @@ impl InstanceNode for GeometryLeaf {
     fn handle_mount(self: Rc<Self>, node: &Rc<ExpandedNode>, ctx: &Rc<RuntimeContext>) {
         let weak_node = Rc::downgrade(node);
         let ctx = ctx.clone();
-        node.changed_listener.replace_with(Property::computed(
+        node.changed_listener.replace_with(LocalProperty::computed(
             move || {
                 if let Some(node) = weak_node.upgrade() {
                     ctx.mark_canvas_node_dirty(node.id);
@@ -352,7 +352,7 @@ impl InstanceNode for ScrollOwner {
             .cloned()
             .map(|child| (child, node.stack.clone()))
             .collect::<Vec<_>>();
-        let frame = Property::new(Some(node.id));
+        let frame = LocalProperty::new(Some(node.id));
         let children = node.generate_children(children, ctx, &frame, true);
         node.children.set(children);
     }

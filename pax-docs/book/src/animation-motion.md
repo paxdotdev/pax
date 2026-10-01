@@ -128,9 +128,9 @@ pub struct Example {
 
 impl Example {
     pub fn replay(&mut self, _ctx: &NodeContext, _event: Event<ButtonClick>) {
-        self.playhead.cancel_transitions();
+        self.playhead.local().cancel_transitions();
         self.playhead.set(0.0);
-        self.playhead.ease_to(
+        self.playhead.local().ease_to(
             100.0,
             Duration::Milliseconds(900.into()),
             EasingCurve::Linear,
@@ -138,7 +138,7 @@ impl Example {
     }
 
     pub fn pause(&mut self, _ctx: &NodeContext, _event: Event<ButtonClick>) {
-        self.playhead.cancel_transitions();
+        self.playhead.local().cancel_transitions();
     }
 }
 ```
@@ -339,13 +339,13 @@ property's pending transition queue and begins from its current eased value.
 
 ```rust
 pub fn pulse(&mut self, _ctx: &NodeContext, _event: Event<ButtonClick>) {
-    self.strength.ease_to(
+    self.strength.local().ease_to(
         1.0, Duration::Milliseconds(180.into()), EasingCurve::OutQuad,
     );
-    self.strength.ease_to_later(
+    self.strength.local().ease_to_later(
         1.0, Duration::Milliseconds(120.into()), EasingCurve::Linear,
     );
-    self.strength.ease_to_later(
+    self.strength.local().ease_to_later(
         0.2, Duration::Milliseconds(300.into()), EasingCurve::InOutQuad,
     );
 }

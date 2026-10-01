@@ -58,7 +58,7 @@ impl Example {
 
         let bounds_for_compact = ctx.bounds_self.clone();
         let bounds_for_compact_calc = bounds_for_compact.clone();
-        self.is_compact.replace_with(Property::computed(
+        self.is_compact.replace_with(LocalProperty::computed(
             move || {
                 let (width, _) = bounds_for_compact_calc.get();
                 is_compact_width(width)
@@ -68,7 +68,7 @@ impl Example {
 
         let bounds_for_panel_height = ctx.bounds_self.clone();
         let bounds_for_panel_height_calc = bounds_for_panel_height.clone();
-        self.panel_height.replace_with(Property::computed(
+        self.panel_height.replace_with(LocalProperty::computed(
             move || {
                 let (width, _) = bounds_for_panel_height_calc.get();
                 panel_height_for_width(width)
@@ -78,7 +78,7 @@ impl Example {
 
         let bounds_for_content_height = ctx.bounds_self.clone();
         let bounds_for_content_height_calc = bounds_for_content_height.clone();
-        self.content_height.replace_with(Property::computed(
+        self.content_height.replace_with(LocalProperty::computed(
             move || {
                 let (width, _) = bounds_for_content_height_calc.get();
                 content_height_for_width(width)
@@ -88,9 +88,9 @@ impl Example {
 
         let bounds_for_progress = ctx.bounds_self.clone();
         let bounds_for_progress_calc = bounds_for_progress.clone();
-        let scroll_y_for_progress = self.scroll_y.clone();
+        let scroll_y_for_progress = self.scroll_y.local();
         let scroll_y_for_progress_calc = scroll_y_for_progress.clone();
-        self.scroll_progress.replace_with(Property::computed(
+        self.scroll_progress.replace_with(LocalProperty::computed(
             move || {
                 let (width, height) = bounds_for_progress_calc.get();
                 scroll_progress(width, height, scroll_y_for_progress_calc.get())
@@ -103,10 +103,10 @@ impl Example {
 
         let bounds_for_x = ctx.bounds_self.clone();
         let bounds_for_x_calc = bounds_for_x.clone();
-        let scroll_y_for_x = self.scroll_y.clone();
+        let scroll_y_for_x = self.scroll_y.local();
         let scroll_y_for_x_calc = scroll_y_for_x.clone();
         let wave_path_for_x = Rc::clone(&wave_path);
-        self.light_x.replace_with(Property::computed(
+        self.light_x.replace_with(LocalProperty::computed(
             move || {
                 let (width, height) = bounds_for_x_calc.get();
                 let (x, _) =
@@ -120,10 +120,10 @@ impl Example {
 
         let bounds_for_y = ctx.bounds_self.clone();
         let bounds_for_y_calc = bounds_for_y.clone();
-        let scroll_y_for_y = self.scroll_y.clone();
+        let scroll_y_for_y = self.scroll_y.local();
         let scroll_y_for_y_calc = scroll_y_for_y.clone();
         let wave_path_for_y = Rc::clone(&wave_path);
-        self.light_y.replace_with(Property::computed(
+        self.light_y.replace_with(LocalProperty::computed(
             move || {
                 let (width, height) = bounds_for_y_calc.get();
                 let (_, y) =

@@ -3,8 +3,8 @@ use crate::node_interface::NodeLocal;
 use pax_language::Computable;
 use pax_runtime_api::pax_value::{ImplToFromPaxAny, PaxAny, ToFromPaxAny};
 use pax_runtime_api::{
-    borrow, borrow_mut, use_RefCell, Focus, Interpolatable, Layer, NativeLiquidGlassScope,
-    OpacityScope, PaxValue, Percent, Property, SelectStart, Variable,
+    borrow, borrow_mut, use_RefCell, AsyncError, AsyncScope, Focus, Interpolatable, Layer,
+    LocalProperty, NativeLiquidGlassScope, OpacityScope, PaxValue, Percent, SelectStart, Variable,
 };
 
 use crate::api::math::Point2;
@@ -85,7 +85,7 @@ pub struct RuntimeSettingsLayer {
     /// resulting values are applied to a different node.
     pub provider_stack: Rc<RuntimePropertiesStackFrame>,
     pub settings: Vec<SettingsBlockElement>,
-    pub transition: Option<Property<Option<crate::SettingsTransitionConfig>>>,
+    pub transition: Option<LocalProperty<Option<crate::SettingsTransitionConfig>>>,
 }
 
 impl fmt::Debug for RuntimeSettingsLayer {
@@ -110,7 +110,7 @@ pub struct RuntimeSettingsSignatureEntry {
 // signature changes; copying settings also copies their entire expression trees.
 struct DiscoveredSettingsProvider {
     node: Rc<ExpandedNode>,
-    transition: Option<Property<Option<crate::SettingsTransitionConfig>>>,
+    transition: Option<LocalProperty<Option<crate::SettingsTransitionConfig>>>,
 }
 
 impl DiscoveredSettingsProvider {
@@ -176,7 +176,7 @@ pub struct RuntimeSettingsCondition {
 
 #[derive(Clone)]
 pub struct RuntimeResolvedPropertyEntry {
-    pub transition: Option<Property<Option<crate::SettingsTransitionConfig>>>,
+    pub transition: Option<LocalProperty<Option<crate::SettingsTransitionConfig>>>,
     pub source: RuntimeSettingsSource,
     pub selector: Option<SelectorExpr>,
     pub source_location: Option<LocationInfo>,
@@ -220,8 +220,17 @@ pub(crate) struct FilteredRenderStats {
     pub skipped_subtrees: usize,
 }
 
+/// This runtime owner stays on the UI thread. Transfer properties or delivery
+/// handles to workers instead.
+///
+/// ```compile_fail
+/// fn requires_send<T: Send>() {}
+/// requires_send::<pax_runtime::ExpandedNode>();
+/// ```
 #[derive(Clone)]
 pub struct ExpandedNode {
+    property_binding_scope: RefCell<pax_runtime_api::properties::BindingScope>,
+    async_scope: RefCell<Option<AsyncScope>>,
     #[allow(dead_code)]
     /// Unique ID of this expanded node, roughly encoding an address in the tree, where the first u32 is the instance ID
     /// and the subsequent u32s represent addresses within an expanded tree via Repeat.
@@ -242,10 +251,10 @@ pub struct ExpandedNode {
     /// included as a parameter on AnyCreatePatch when
     /// creating a native element to know what clipping context
     /// to attach to
-    pub parent_frame: Property<Option<ExpandedNodeIdentifier>>,
+    pub parent_frame: LocalProperty<Option<ExpandedNodeIdentifier>>,
 
     /// Nearest active native liquid-glass scope inherited by descendants.
-    pub liquid_glass_scope: Property<Option<NativeLiquidGlassScope>>,
+    pub liquid_glass_scope: LocalProperty<Option<NativeLiquidGlassScope>>,
 
     /// Reference to the _component for which this `ExpandedNode` is a template member._ Used at least for
     /// resolving projected children for `slot`. `Option`al because the very root instance node (root component, root instance node)
@@ -261,7 +270,7 @@ pub struct ExpandedNode {
 
     /// Pointers to the ExpandedNode beneath this one. Used for rendering
     /// recursion and other render-tree traversals.
-    pub children: Property<Vec<Rc<ExpandedNode>>>,
+    pub children: LocalProperty<Vec<Rc<ExpandedNode>>>,
 
     /// The concrete render-tree children currently attached beneath this node.
     ///
@@ -277,7 +286,7 @@ pub struct ExpandedNode {
     pub active_children: RefCell<Vec<Rc<ExpandedNode>>>,
     /// Reactive mirror of `active_children` for consumers that need the active
     /// semantic set.
-    pub active_children_view: Property<Vec<Rc<ExpandedNode>>>,
+    pub active_children_view: LocalProperty<Vec<Rc<ExpandedNode>>>,
 
     /// Children retained only so exit transitions can finish before unmount.
     ///
@@ -288,7 +297,7 @@ pub struct ExpandedNode {
     /// child advances its token so stale cleanup work cannot unmount it.
     exiting_child_generations: RefCell<HashMap<ExpandedNodeIdentifier, u64>>,
     /// Reactive mirror of `exiting_children` for consumers that need retained exits.
-    pub exiting_children_view: Property<Vec<Rc<ExpandedNode>>>,
+    pub exiting_children_view: LocalProperty<Vec<Rc<ExpandedNode>>>,
 
     /// Auxiliary children are not presented directly. Mask sources have a normal
     /// logical mount lifetime; other sidecar consumers choose their own lifetime.
@@ -305,24 +314,24 @@ pub struct ExpandedNode {
     pub common_properties: RefCell<Rc<RefCell<CommonProperties>>>,
     /// Measured bounds reported by chassis/native layout or by container-owned bottom-up layout.
     /// When width/height are omitted, these values are used as the fallback concrete size.
-    pub measured_size: Property<Option<(f64, f64)>>,
+    pub measured_size: LocalProperty<Option<(f64, f64)>>,
     /// Selector-facing metadata used by runtime and designtime queries.
     pub selector_metadata: RefCell<RuntimeSelectorMetadata>,
 
     /// The layout information (width, height, transform) used to render this node.
     /// computed property based on parent bounds + common properties
-    pub transform_and_bounds: Property<TransformAndBounds<NodeLocal, Window>>,
+    pub transform_and_bounds: LocalProperty<TransformAndBounds<NodeLocal, Window>>,
     /// Engine-owned subtree hull used by container measurement.
-    pub subtree_layout_hull: Property<LayoutHull>,
+    pub subtree_layout_hull: LocalProperty<LayoutHull>,
     /// Optional container-assigned virtual wrapper frame applied before this node's own layout.
-    pub container_frame: Property<Option<ContainerFrame>>,
+    pub container_frame: LocalProperty<Option<ContainerFrame>>,
 
     /// The accumulated opacity inherited from render ancestors and this node's
     /// own common opacity value.
-    pub computed_opacity: Property<f64>,
+    pub computed_opacity: LocalProperty<f64>,
     /// Authored opacity scopes retained independently of their multiplied world opacity.
     /// Keeping the factors avoids division by zero and detects changes under a hidden ancestor.
-    pub computed_opacity_scopes: Property<Vec<OpacityScope>>,
+    pub computed_opacity_scopes: LocalProperty<Vec<OpacityScope>>,
 
     /// For nodes that own projection, tracks projected children in their
     /// expanded, non-collapsed form.
@@ -336,9 +345,9 @@ pub struct ExpandedNode {
     ///
     /// This is the raw projected family, not necessarily the same thing as the
     /// semantic `received_children` view seen by all consumers.
-    pub expanded_and_flattened_projected_children: Property<Vec<Rc<ExpandedNode>>>,
+    pub expanded_and_flattened_projected_children: LocalProperty<Vec<Rc<ExpandedNode>>>,
     /// Number of expanded and flattened projected children.
-    pub flattened_projected_children_count: Property<usize>,
+    pub flattened_projected_children_count: LocalProperty<usize>,
 
     /// Flag that is > 0 if this node is part of the root tree. If it is,
     /// updates to this nodes children also marks them as attached (+1), triggering
@@ -352,7 +361,7 @@ pub struct ExpandedNode {
     ///
     /// Layer 0 is the root surface stack, and non-root layers are reserved for scroller-owned
     /// vector islands.
-    pub occlusion: Property<Occlusion>,
+    pub occlusion: LocalProperty<Occlusion>,
 
     /// Hash of the last native occlusion mask emitted for this node.
     pub native_mask_hash: Cell<u64>,
@@ -369,23 +378,23 @@ pub struct ExpandedNode {
 
     /// The flattened index of this node in its container (if this container
     /// cares about slot children, ex: component, path).
-    pub slot_index: Property<Option<usize>>,
+    pub slot_index: LocalProperty<Option<usize>>,
 
     /// property used to "freeze" (stop firing tick) on a node and all it's children
-    pub suspended: Property<bool>,
+    pub suspended: LocalProperty<bool>,
 
     /// used by native elements to trigger sending of native messages
     /// used by canvas elements to dirtify their canvas
-    pub changed_listener: Property<()>,
-    selector_classes_listener: Property<()>,
+    pub changed_listener: LocalProperty<()>,
+    selector_classes_listener: LocalProperty<()>,
 
     /// Tracks whether this node's occlusion-affecting inputs changed.
-    pub occlusion_listener: Property<()>,
+    pub occlusion_listener: LocalProperty<()>,
 
     /// Pulls the node's children property only when its upstream dependencies changed.
-    pub children_listener: Property<()>,
+    pub children_listener: LocalProperty<()>,
     /// Rebinds `subtree_layout_hull` when the child list changes.
-    pub subtree_layout_hull_listener: Property<()>,
+    pub subtree_layout_hull_listener: LocalProperty<()>,
     parent_binding_sources: RefCell<Option<ParentBindingSources>>,
     layout_binding_generation: Cell<u64>,
     #[cfg(test)]
@@ -395,9 +404,9 @@ pub struct ExpandedNode {
     #[cfg(test)]
     pub(crate) structural_children_updates: Cell<usize>,
     /// Reactive content-measurement effect used by autosize-style container features.
-    pub content_measurement_listener: Property<()>,
+    pub content_measurement_listener: LocalProperty<()>,
     /// Rebinds `content_measurement_listener` when the content child list changes.
-    pub content_measurement_rebind_listener: Property<()>,
+    pub content_measurement_rebind_listener: LocalProperty<()>,
     /// Guards one-time setup of the reactive content-measurement listener pair.
     pub content_measurement_bound: Cell<bool>,
     /// Cached update traversal state. Structural effects mark ancestors dirty when child
@@ -406,21 +415,21 @@ pub struct ExpandedNode {
     subtree_requires_non_reactive_update: Cell<bool>,
 
     /// Dirty signal emitted when the projected child set changes structurally.
-    pub projected_children_changed: Property<()>,
+    pub projected_children_changed: LocalProperty<()>,
 
     /// Dirty signal emitted when active slot sites or slot-index expressions
     /// may change the component-local projection resolution.
-    pub slot_projection_changed: Property<()>,
+    pub slot_projection_changed: LocalProperty<()>,
 
     /// subscription properties: added to this expanded node by calling ctx.subscribe in a node event handler
-    pub subscriptions: RefCell<Vec<Property<()>>>,
+    pub subscriptions: RefCell<Vec<LocalProperty<()>>>,
 
     /// Current lifecycle transition phase for this node.
-    pub transition_phase: Property<u64>,
+    pub transition_phase: LocalProperty<u64>,
     /// Monotonic identity for each lifecycle transition run.
-    pub transition_generation: Property<u64>,
+    pub transition_generation: LocalProperty<u64>,
     /// Whether the current run directly reversed the opposite lifecycle phase.
-    pub transition_takeover: Property<bool>,
+    pub transition_takeover: LocalProperty<bool>,
     /// Class membership captured at lifecycle-transition start. Ordinary settings continue to
     /// follow live classes, while transition tracks keep the selector membership that launched
     /// the current run.
@@ -428,15 +437,15 @@ pub struct ExpandedNode {
     /// Parent-owned exit retention generation for stale cleanup protection.
     exit_retention_generation: Cell<u64>,
     /// Frame at which the active lifecycle transition began.
-    pub transition_origin_frame: Property<u64>,
+    pub transition_origin_frame: LocalProperty<u64>,
     /// Millisecond clock value at which the active lifecycle transition began.
-    pub transition_origin_millis: Property<u64>,
+    pub transition_origin_millis: LocalProperty<u64>,
     /// Local playhead, in frames, for the active lifecycle transition.
-    pub transition_playhead: Property<f64>,
+    pub transition_playhead: LocalProperty<f64>,
     /// Local playhead, in milliseconds, for the active lifecycle transition.
-    pub transition_playhead_millis: Property<f64>,
+    pub transition_playhead_millis: LocalProperty<f64>,
     /// Effect property used to stop enter-transition clock dependencies.
-    pub enter_cleanup_listener: Property<()>,
+    pub enter_cleanup_listener: LocalProperty<()>,
     /// Whether enter cleanup should do work on frame ticks.
     pub enter_cleanup_active: Cell<bool>,
     /// Wall-clock start for exit timeout enforcement.
@@ -444,7 +453,7 @@ pub struct ExpandedNode {
     /// Whether this node has already warned about truncating its current exit transition.
     exit_timeout_warning_emitted: Cell<bool>,
     /// Effect property used to release deferred exit children.
-    pub exit_cleanup_listener: Property<()>,
+    pub exit_cleanup_listener: LocalProperty<()>,
     /// Whether exit cleanup should do work on frame ticks.
     pub exit_cleanup_active: Cell<bool>,
     /// Imported provider layers currently active for this component instance.
@@ -452,7 +461,7 @@ pub struct ExpandedNode {
     #[cfg(test)]
     pub(crate) settings_layer_materializations: Cell<usize>,
     pub import_settings_transition:
-        RefCell<Option<Property<Option<crate::SettingsTransitionConfig>>>>,
+        RefCell<Option<LocalProperty<Option<crate::SettingsTransitionConfig>>>>,
     pub(crate) settings_motion: Rc<RefCell<HashMap<String, Box<dyn std::any::Any>>>>,
     pub(crate) settings_birth_frame: u64,
     /// Ordered provider-node ids used to detect when the imported layer stack changed.
@@ -487,9 +496,9 @@ pub struct RuntimeSelectorMetadata {
     /// Concrete element/component type used by type selectors.
     pub type_id: TypeId,
     /// Reactive node id used by id selectors.
-    pub id: Property<Option<String>>,
+    pub id: LocalProperty<Option<String>>,
     /// Reactive, normalized class names in left-to-right cascade order.
-    pub classes: Property<Vec<String>>,
+    pub classes: LocalProperty<Vec<String>>,
 }
 
 impl RuntimeSelectorMetadata {
@@ -506,7 +515,7 @@ impl RuntimeSelectorMetadata {
                     build_selector_classes_property(binding, info.source_location.as_ref(), stack)
                 })
             })
-            .unwrap_or_else(|| Property::new_with_name(Vec::new(), "selector classes"));
+            .unwrap_or_else(|| LocalProperty::new_with_name(Vec::new(), "selector classes"));
 
         Self {
             type_id: base.template_node_type_id.clone().unwrap_or_default(),
@@ -606,11 +615,11 @@ fn build_selector_classes_property(
     binding: &ValueDefinition,
     source_location: Option<&LocationInfo>,
     stack: &Rc<RuntimePropertiesStackFrame>,
-) -> Property<Vec<String>> {
+) -> LocalProperty<Vec<String>> {
     let warnings = Rc::new(RefCell::new(HashSet::new()));
     let source_location = source_location.cloned();
     match binding {
-        ValueDefinition::LiteralValue(value) => Property::new_with_name(
+        ValueDefinition::LiteralValue(value) => LocalProperty::new_with_name(
             normalize_selector_classes(value.clone(), &warnings, source_location.as_ref()),
             "selector classes",
         ),
@@ -631,7 +640,7 @@ fn build_selector_classes_property(
             let expression_label = expression.to_string();
             let stack = Rc::clone(stack);
             let warnings = Rc::clone(&warnings);
-            Property::computed_with_name(
+            LocalProperty::computed_with_name(
                 move || match expression.compute(stack.clone()) {
                     Ok(value) => {
                         normalize_selector_classes(value, &warnings, source_location.as_ref())
@@ -664,7 +673,7 @@ fn build_selector_classes_property(
         }
         other => {
             log::warn!("unsupported class binding definition: {other}");
-            Property::new_with_name(Vec::new(), "selector classes")
+            LocalProperty::new_with_name(Vec::new(), "selector classes")
         }
     }
 }
@@ -675,7 +684,7 @@ mod selector_class_tests {
     use crate::RuntimePropertiesStackFrame;
     use pax_language::parse_pax_expression;
     use pax_manifest::{ExpressionInfo, ValueDefinition};
-    use pax_runtime_api::{PaxValue, Property, Variable};
+    use pax_runtime_api::{LocalProperty, PaxValue, Variable};
     use std::cell::RefCell;
     use std::collections::{HashMap, HashSet};
     use std::rc::Rc;
@@ -711,7 +720,7 @@ mod selector_class_tests {
         );
         assert_eq!(constant_classes.get(), vec!["temporary"]);
 
-        let scalar = Property::new("base".to_string());
+        let scalar = LocalProperty::new("base".to_string());
         let stack = RuntimePropertiesStackFrame::new(HashMap::from([(
             "current_class".to_string(),
             Variable::new_from_typed_property(scalar.clone()),
@@ -724,7 +733,7 @@ mod selector_class_tests {
         scalar.set("active".to_string());
         assert_eq!(scalar_classes.get(), vec!["active"]);
 
-        let vector = Property::new(vec!["base".to_string(), "selected".to_string()]);
+        let vector = LocalProperty::new(vec!["base".to_string(), "selected".to_string()]);
         let stack = RuntimePropertiesStackFrame::new(HashMap::from([(
             "current_classes".to_string(),
             Variable::new_from_typed_property(vector.clone()),
@@ -822,32 +831,35 @@ impl ExpandedNode {
         if self.is_render_source() {
             return;
         }
+        // Input can retain a hover/focus target across a tree replacement. Its
+        // final platform event must not re-enter a detached binding lifetime.
+        if self.attached.get() == 0 {
+            return;
+        }
+        let _graph = ctx.property_graph.enter();
         if let Some(registry) = borrow!(self.instance_node).base().get_handler_registry() {
             let borrowed_registry = &borrow!(*registry);
             if let Some(handlers) = borrowed_registry.handlers.get(handler_key) {
-                if !handlers.is_empty() {
-                    let component_properties = if let Some(cc) = self.containing_component.upgrade()
-                    {
-                        Rc::clone(&*borrow!(cc.properties))
+                let context = self.get_node_context(ctx);
+                for handler in handlers {
+                    let owner = if let HandlerLocation::Component = &handler.location {
+                        self.clone()
                     } else {
-                        Rc::clone(&*borrow!(self.properties))
+                        self.containing_component
+                            .upgrade()
+                            .unwrap_or_else(|| self.clone())
                     };
-
-                    let context = self.get_node_context(ctx);
-                    handlers.iter().for_each(|handler| {
-                        let properties = if let HandlerLocation::Component = &handler.location {
-                            Rc::clone(&*borrow!(self.properties))
-                        } else {
-                            Rc::clone(&component_properties)
-                        };
-                        (handler.function)(
-                            Rc::clone(&properties),
-                            &context,
-                            Some(event.clone().to_pax_any()),
-                        );
-                    });
+                    if owner.attached.get() == 0 {
+                        continue;
+                    }
+                    // LocalProperty bindings created by a handler belong to the
+                    // component whose state it mutates. The context's async
+                    // lifetime still identifies the exact event target node.
+                    let _scope = owner.property_binding_scope.borrow().enter();
+                    let properties = Rc::clone(&*borrow!(owner.properties));
+                    (handler.function)(properties, &context, Some(event.clone().to_pax_any()));
                 }
-            };
+            }
         }
     }
 
@@ -934,19 +946,26 @@ impl ExpandedNode {
         containing_component: Weak<ExpandedNode>,
         parent: Weak<ExpandedNode>,
     ) -> Rc<Self> {
+        let _graph = context.property_graph.enter();
+        let property_binding_scope = context.property_graph.binding_scope();
+        let _scope = property_binding_scope.enter();
         let transition_config = template.base().transition_config().clone();
         let has_transition_bindings = transition_config.has_enter || transition_config.has_exit;
-        let transition_phase = Property::new_with_name(TRANSITION_PHASE_IDLE, "transition phase");
-        let transition_generation = Property::new_with_name(0, "transition generation");
-        let transition_takeover = Property::new_with_name(false, "transition takeover");
-        let transition_origin_frame =
-            Property::new_with_name(context.globals().elapsed_frames.get(), "transition origin");
-        let transition_origin_millis = Property::new_with_name(
+        let transition_phase =
+            LocalProperty::new_with_name(TRANSITION_PHASE_IDLE, "transition phase");
+        let transition_generation = LocalProperty::new_with_name(0, "transition generation");
+        let transition_takeover = LocalProperty::new_with_name(false, "transition takeover");
+        let transition_origin_frame = LocalProperty::new_with_name(
+            context.globals().elapsed_frames.get(),
+            "transition origin",
+        );
+        let transition_origin_millis = LocalProperty::new_with_name(
             context.globals().elapsed_millis.get(),
             "transition origin millis",
         );
-        let transition_playhead = Property::new_with_name(0.0, "transition playhead");
-        let transition_playhead_millis = Property::new_with_name(0.0, "transition playhead millis");
+        let transition_playhead = LocalProperty::new_with_name(0.0, "transition playhead");
+        let transition_playhead_millis =
+            LocalProperty::new_with_name(0.0, "transition playhead millis");
 
         let env = if has_transition_bindings {
             env.push(
@@ -1014,6 +1033,8 @@ impl ExpandedNode {
             .upgrade()
             .and_then(|parent| parent.render_source_owner.get());
         let res = Rc::new(ExpandedNode {
+            property_binding_scope: RefCell::new(property_binding_scope),
+            async_scope: RefCell::new(None),
             id,
             stores: crate::store::NodeStores::new(parent.upgrade().as_deref()),
             stack: env,
@@ -1021,7 +1042,7 @@ impl ExpandedNode {
             attached: Cell::new(0),
             properties: RefCell::new(properties),
             common_properties: RefCell::new(common_properties),
-            measured_size: Property::default(),
+            measured_size: LocalProperty::default(),
             selector_metadata: RefCell::new(selector_metadata),
 
             // these two refer to their rendering parent, not their
@@ -1032,38 +1053,38 @@ impl ExpandedNode {
             template_parent: parent,
 
             containing_component,
-            children: Property::new_with_name(
+            children: LocalProperty::new_with_name(
                 Vec::new(),
                 &format!("node children (node id: {})", id.0),
             ),
             mounted_children: RefCell::new(Vec::new()),
             active_children: RefCell::new(Vec::new()),
-            active_children_view: Property::new(Vec::new()),
+            active_children_view: LocalProperty::new(Vec::new()),
             exiting_children: RefCell::new(Vec::new()),
             exiting_child_generations: RefCell::new(HashMap::new()),
-            exiting_children_view: Property::new(Vec::new()),
+            exiting_children_view: LocalProperty::new(Vec::new()),
             sidecar_children: RefCell::new(Vec::new()),
             render_source_owner: Cell::new(render_source_owner),
-            transform_and_bounds: Property::new(TransformAndBounds::default()),
-            subtree_layout_hull: Property::new(LayoutHull::default()),
-            container_frame: Property::new(None),
-            computed_opacity: Property::new(1.0),
-            computed_opacity_scopes: Property::new(Vec::new()),
+            transform_and_bounds: LocalProperty::new(TransformAndBounds::default()),
+            subtree_layout_hull: LocalProperty::new(LayoutHull::default()),
+            container_frame: LocalProperty::new(None),
+            computed_opacity: LocalProperty::new(1.0),
+            computed_opacity_scopes: LocalProperty::new(Vec::new()),
             expanded_projected_children: Default::default(),
             expanded_and_flattened_projected_children: Default::default(),
-            flattened_projected_children_count: Property::new(0),
-            occlusion: Property::new(Occlusion::default()),
+            flattened_projected_children_count: LocalProperty::new(0),
+            occlusion: LocalProperty::new(Occlusion::default()),
             native_mask_hash: Cell::new(0),
             browser_content_layer_id: Cell::new(None),
             presentation_cache_hash: Cell::new(0),
             properties_scope: RefCell::new(property_scope),
-            slot_index: Property::default(),
-            suspended: Property::new(false),
-            changed_listener: Property::default(),
-            selector_classes_listener: Property::default(),
-            occlusion_listener: Property::default(),
-            children_listener: Property::default(),
-            subtree_layout_hull_listener: Property::default(),
+            slot_index: LocalProperty::default(),
+            suspended: LocalProperty::new(false),
+            changed_listener: LocalProperty::default(),
+            selector_classes_listener: LocalProperty::default(),
+            occlusion_listener: LocalProperty::default(),
+            children_listener: LocalProperty::default(),
+            subtree_layout_hull_listener: LocalProperty::default(),
             parent_binding_sources: RefCell::new(None),
             layout_binding_generation: Cell::new(0),
             #[cfg(test)]
@@ -1072,12 +1093,12 @@ impl ExpandedNode {
             layout_hull_rebuilds: Cell::new(0),
             #[cfg(test)]
             structural_children_updates: Cell::new(0),
-            content_measurement_listener: Property::default(),
-            content_measurement_rebind_listener: Property::default(),
+            content_measurement_listener: LocalProperty::default(),
+            content_measurement_rebind_listener: LocalProperty::default(),
             content_measurement_bound: Cell::new(false),
             subtree_requires_non_reactive_update: Cell::new(true),
-            projected_children_changed: Property::default(),
-            slot_projection_changed: Property::default(),
+            projected_children_changed: LocalProperty::default(),
+            slot_projection_changed: LocalProperty::default(),
             subscriptions: Default::default(),
             transition_phase,
             transition_generation,
@@ -1088,11 +1109,11 @@ impl ExpandedNode {
             transition_origin_millis,
             transition_playhead,
             transition_playhead_millis,
-            enter_cleanup_listener: Property::default(),
+            enter_cleanup_listener: LocalProperty::default(),
             enter_cleanup_active: Cell::new(false),
             exit_started_millis: Cell::new(None),
             exit_timeout_warning_emitted: Cell::new(false),
-            exit_cleanup_listener: Property::default(),
+            exit_cleanup_listener: LocalProperty::default(),
             exit_cleanup_active: Cell::new(false),
             imported_settings_layers: RefCell::new(Vec::new()),
             #[cfg(test)]
@@ -1124,6 +1145,8 @@ impl ExpandedNode {
         template: Rc<dyn InstanceNode>,
         context: &Rc<RuntimeContext>,
     ) {
+        let _graph = context.property_graph.enter();
+        let _scope = self.property_binding_scope.borrow().enter();
         // A replacement may change bindings or clipping dependencies. Revoke the
         // old generation before it can receive more of a frozen event batch.
         context.unregister_viewport_proximity(self.id.to_u32());
@@ -1174,9 +1197,12 @@ impl ExpandedNode {
         template: Rc<dyn InstanceNode>,
         context: &Rc<RuntimeContext>,
     ) {
+        let _graph = context.property_graph.enter();
+        let _scope = self.property_binding_scope.borrow().enter();
         Rc::clone(self).recurse_unmount(context);
         *borrow_mut!(self.instance_node) = template;
         self.prepare_remount(context);
+        let _scope = self.property_binding_scope.borrow().enter();
 
         self.bind_to_parent_bounds(context);
         self.mark_non_reactive_update_subtree_dirty();
@@ -1195,6 +1221,9 @@ impl ExpandedNode {
             Weak::clone(&self.containing_component),
             Weak::clone(&self.template_parent),
         );
+        *self.property_binding_scope.borrow_mut() =
+            new_expanded_node.property_binding_scope.borrow().clone();
+        let _scope = self.property_binding_scope.borrow().enter();
         *borrow_mut!(self.instance_node) = Rc::clone(&*borrow!(new_expanded_node.instance_node));
         *borrow_mut!(self.properties) = Rc::clone(&*borrow!(new_expanded_node.properties));
         *borrow_mut!(self.properties_scope) = borrow!(new_expanded_node.properties_scope).clone();
@@ -1296,7 +1325,7 @@ impl ExpandedNode {
         if borrow!(self.exiting_children).is_empty() {
             self.exit_cleanup_active.set(false);
             self.exit_cleanup_listener
-                .replace_with(Property::new_with_name((), "exit transition cleanup"));
+                .replace_with(LocalProperty::new_with_name((), "exit transition cleanup"));
         }
         Some(child)
     }
@@ -1483,7 +1512,7 @@ impl ExpandedNode {
         let elapsed_frames_for_playhead = elapsed_frames.clone();
         let origin_frame_for_playhead = origin_frame.clone();
         self.transition_playhead
-            .replace_with(Property::computed_with_name(
+            .replace_with(LocalProperty::computed_with_name(
                 move || {
                     elapsed_frames_for_playhead
                         .get()
@@ -1498,7 +1527,7 @@ impl ExpandedNode {
         let elapsed_millis_for_playhead = elapsed_millis.clone();
         let origin_millis_for_playhead = origin_millis.clone();
         self.transition_playhead_millis
-            .replace_with(Property::computed_with_name(
+            .replace_with(LocalProperty::computed_with_name(
                 move || {
                     elapsed_millis_for_playhead
                         .get()
@@ -1511,9 +1540,12 @@ impl ExpandedNode {
 
     fn deactivate_transition_clock(&self) {
         self.transition_playhead
-            .replace_with(Property::new_with_name(0.0, "transition playhead"));
+            .replace_with(LocalProperty::new_with_name(0.0, "transition playhead"));
         self.transition_playhead_millis
-            .replace_with(Property::new_with_name(0.0, "transition playhead millis"));
+            .replace_with(LocalProperty::new_with_name(
+                0.0,
+                "transition playhead millis",
+            ));
     }
 
     fn start_bound_enter_transitions(
@@ -1770,7 +1802,7 @@ impl ExpandedNode {
         let elapsed_frames = context.globals().elapsed_frames.clone();
         let elapsed_frames_dep = elapsed_frames.untyped();
         self.enter_cleanup_listener
-            .replace_with(Property::computed_with_name(
+            .replace_with(LocalProperty::computed_with_name(
                 move || {
                     let _ = elapsed_frames.get();
                     if let Some(node) = weak_self.upgrade() {
@@ -1808,7 +1840,7 @@ impl ExpandedNode {
     fn disable_enter_cleanup_listener(&self) {
         self.enter_cleanup_active.set(false);
         self.enter_cleanup_listener
-            .replace_with(Property::new_with_name((), "enter transition cleanup"));
+            .replace_with(LocalProperty::new_with_name((), "enter transition cleanup"));
     }
 
     fn exit_transition_tree_complete(self: &Rc<Self>, context: &Rc<RuntimeContext>) -> bool {
@@ -1828,7 +1860,7 @@ impl ExpandedNode {
         let elapsed_frames = context.globals().elapsed_frames.clone();
         let elapsed_frames_dep = elapsed_frames.untyped();
         self.exit_cleanup_listener
-            .replace_with(Property::computed_with_name(
+            .replace_with(LocalProperty::computed_with_name(
                 move || {
                     let _ = elapsed_frames.get();
                     if let Some(node) = weak_self.upgrade() {
@@ -1850,7 +1882,7 @@ impl ExpandedNode {
         if exiting.is_empty() {
             self.exit_cleanup_active.set(false);
             self.exit_cleanup_listener
-                .replace_with(Property::new_with_name((), "exit transition cleanup"));
+                .replace_with(LocalProperty::new_with_name((), "exit transition cleanup"));
             return;
         }
 
@@ -1882,7 +1914,7 @@ impl ExpandedNode {
         if borrow!(self.exiting_children).is_empty() {
             self.exit_cleanup_active.set(false);
             self.exit_cleanup_listener
-                .replace_with(Property::new_with_name((), "exit transition cleanup"));
+                .replace_with(LocalProperty::new_with_name((), "exit transition cleanup"));
         }
     }
 
@@ -1890,7 +1922,7 @@ impl ExpandedNode {
         self: &Rc<Self>,
         new_children: Vec<Rc<ExpandedNode>>,
         context: &Rc<RuntimeContext>,
-        parent_frame: &Property<Option<ExpandedNodeIdentifier>>,
+        parent_frame: &LocalProperty<Option<ExpandedNodeIdentifier>>,
     ) -> Vec<Rc<ExpandedNode>> {
         self.attach_children_with_liquid_glass_scope(
             new_children,
@@ -1904,8 +1936,8 @@ impl ExpandedNode {
         self: &Rc<Self>,
         new_children: Vec<Rc<ExpandedNode>>,
         context: &Rc<RuntimeContext>,
-        parent_frame: &Property<Option<ExpandedNodeIdentifier>>,
-        liquid_glass_scope: &Property<Option<NativeLiquidGlassScope>>,
+        parent_frame: &LocalProperty<Option<ExpandedNodeIdentifier>>,
+        liquid_glass_scope: &LocalProperty<Option<NativeLiquidGlassScope>>,
     ) -> Vec<Rc<ExpandedNode>> {
         let mut bindings_changed = false;
         for child in new_children.iter() {
@@ -1984,7 +2016,7 @@ impl ExpandedNode {
         self: &Rc<Self>,
         new_children: Vec<Rc<ExpandedNode>>,
         context: &Rc<RuntimeContext>,
-        parent_frame: &Property<Option<ExpandedNodeIdentifier>>,
+        parent_frame: &LocalProperty<Option<ExpandedNodeIdentifier>>,
     ) -> Vec<Rc<ExpandedNode>> {
         for child in new_children.iter() {
             child.ensure_parent_bindings(self, context, parent_frame, &self.liquid_glass_scope);
@@ -1998,8 +2030,8 @@ impl ExpandedNode {
         self: &Rc<Self>,
         parent: &Rc<Self>,
         context: &Rc<RuntimeContext>,
-        frame: &Property<Option<ExpandedNodeIdentifier>>,
-        glass: &Property<Option<NativeLiquidGlassScope>>,
+        frame: &LocalProperty<Option<ExpandedNodeIdentifier>>,
+        glass: &LocalProperty<Option<NativeLiquidGlassScope>>,
     ) -> bool {
         if let Some(owner) = parent.render_source_owner.get() {
             self.render_source_owner.set(Some(owner));
@@ -2057,11 +2089,11 @@ impl ExpandedNode {
         let frame = frame.clone();
         let deps = [frame.untyped()];
         self.parent_frame
-            .replace_with(Property::computed(move || frame.get(), &deps));
+            .replace_with(LocalProperty::computed(move || frame.get(), &deps));
         let glass = glass.clone();
         let deps = [glass.untyped()];
         self.liquid_glass_scope
-            .replace_with(Property::computed(move || glass.get(), &deps));
+            .replace_with(LocalProperty::computed(move || glass.get(), &deps));
         self.inherit_suspend(parent);
         self.bind_to_parent_bounds(context);
         *borrow_mut!(self.parent_binding_sources) = Some(sources);
@@ -2139,7 +2171,7 @@ impl ExpandedNode {
             parent_padding_y.untyped(),
             container_frame.untyped(),
         ];
-        let effective_parent_transform_and_bounds = Property::computed(
+        let effective_parent_transform_and_bounds = LocalProperty::computed(
             move || {
                 apply_container_frame(
                     apply_padding_frame(
@@ -2165,18 +2197,18 @@ impl ExpandedNode {
         let parent_opacity = borrow!(self.render_parent)
             .upgrade()
             .map(|n| n.computed_opacity.clone())
-            .unwrap_or_else(|| Property::new(1.0));
+            .unwrap_or_else(|| LocalProperty::new(1.0));
         let common_props = self.get_common_properties();
         let self_opacity = borrow!(common_props).opacity.clone();
         let parent_scopes = render_parent
             .as_ref()
             .map(|n| n.computed_opacity_scopes.clone())
-            .unwrap_or_else(|| Property::new(Vec::new()));
+            .unwrap_or_else(|| LocalProperty::new(Vec::new()));
         let local_opacity = self_opacity.clone();
         let node_id = self.id.to_u32();
         let scope_deps = [parent_scopes.untyped(), local_opacity.untyped()];
         self.computed_opacity_scopes
-            .replace_with(Property::computed(
+            .replace_with(LocalProperty::computed(
                 move || {
                     let mut scopes = parent_scopes.get();
                     if let Some(opacity) = local_opacity.get() {
@@ -2190,7 +2222,7 @@ impl ExpandedNode {
                 &scope_deps,
             ));
         let deps = [parent_opacity.untyped(), self_opacity.untyped()];
-        self.computed_opacity.replace_with(Property::computed(
+        self.computed_opacity.replace_with(LocalProperty::computed(
             move || {
                 let parent = parent_opacity.get().clamp(0.0, 1.0);
                 let local = self_opacity
@@ -2225,7 +2257,7 @@ impl ExpandedNode {
         let context = Rc::clone(ctx);
         let id = self.id.to_u32();
         self.occlusion_listener
-            .replace_with(Property::computed_with_name(
+            .replace_with(LocalProperty::computed_with_name(
                 move || {
                     context.mark_node_occlusion_dirty(id);
                 },
@@ -2255,7 +2287,7 @@ impl ExpandedNode {
         let weak_self = Rc::downgrade(self);
         let runtime_context = Rc::clone(context);
         self.selector_classes_listener
-            .replace_with(Property::computed_with_name(
+            .replace_with(LocalProperty::computed_with_name(
                 move || {
                     let current = classes.get();
                     if *previous.borrow() == current {
@@ -2284,7 +2316,7 @@ impl ExpandedNode {
         let context = Rc::clone(ctx);
         let previous = RefCell::new(None);
         self.children_listener
-            .replace_with(Property::computed_with_name(
+            .replace_with(LocalProperty::computed_with_name(
                 move || {
                     let Some(node) = weak_self.upgrade() else {
                         return;
@@ -2353,7 +2385,7 @@ impl ExpandedNode {
         let weak_self = Rc::downgrade(self);
         let previous = RefCell::new(None);
         self.subtree_layout_hull_listener
-            .replace_with(Property::computed_with_name(
+            .replace_with(LocalProperty::computed_with_name(
                 move || {
                     let Some(node) = weak_self.upgrade() else {
                         return;
@@ -2416,7 +2448,7 @@ impl ExpandedNode {
         let has_children = !children.is_empty();
         let bounds_name = format!("layout bounds (node id: {})", self.id.0);
         let bounds_transform_and_bounds = self_transform_and_bounds.clone();
-        let bounds = Property::computed_with_cutoff_and_name(
+        let bounds = LocalProperty::computed_with_cutoff_and_name(
             move || bounds_transform_and_bounds.get().bounds,
             &[self_transform_and_bounds.untyped()],
             <(f64, f64)>::eq,
@@ -2430,7 +2462,7 @@ impl ExpandedNode {
         }
 
         let own_hull_name = format!("own layout hull (node id: {})", self.id.0);
-        let own_hull = Property::computed_with_cutoff_and_name(
+        let own_hull = LocalProperty::computed_with_cutoff_and_name(
             move || {
                 let bounds = bounds.get();
                 let (contributes_x, contributes_y) = if has_children {
@@ -2480,11 +2512,11 @@ impl ExpandedNode {
         }
 
         let mut deps = vec![own_hull.untyped(), padding_x.untyped(), padding_y.untyped()];
-        deps.extend(projected_child_hulls.iter().map(Property::untyped));
+        deps.extend(projected_child_hulls.iter().map(LocalProperty::untyped));
 
         let property_name = format!("subtree layout hull (node id: {})", self.id.0);
         self.subtree_layout_hull
-            .replace_with(Property::computed_with_cutoff_and_name(
+            .replace_with(LocalProperty::computed_with_cutoff_and_name(
                 move || {
                     let mut hull = own_hull.get();
                     let mut children_hull = LayoutHull::default();
@@ -2511,7 +2543,7 @@ impl ExpandedNode {
         let self_suspended = borrow!(cp)._suspended.clone();
         let parent_suspended = node.suspended.clone();
         let deps = [parent_suspended.untyped(), self_suspended.untyped()];
-        self.suspended.replace_with(Property::computed(
+        self.suspended.replace_with(LocalProperty::computed(
             move || {
                 self_suspended
                     .get()
@@ -2525,7 +2557,7 @@ impl ExpandedNode {
         self: &Rc<Self>,
         templates: impl IntoIterator<Item = (Rc<dyn InstanceNode>, Rc<RuntimePropertiesStackFrame>)>,
         context: &Rc<RuntimeContext>,
-        parent_frame: &Property<Option<ExpandedNodeIdentifier>>,
+        parent_frame: &LocalProperty<Option<ExpandedNodeIdentifier>>,
         is_mount: bool,
     ) -> Vec<Rc<ExpandedNode>> {
         self.generate_children_with_liquid_glass_scope(
@@ -2541,8 +2573,8 @@ impl ExpandedNode {
         self: &Rc<Self>,
         templates: impl IntoIterator<Item = (Rc<dyn InstanceNode>, Rc<RuntimePropertiesStackFrame>)>,
         context: &Rc<RuntimeContext>,
-        parent_frame: &Property<Option<ExpandedNodeIdentifier>>,
-        liquid_glass_scope: &Property<Option<NativeLiquidGlassScope>>,
+        parent_frame: &LocalProperty<Option<ExpandedNodeIdentifier>>,
+        liquid_glass_scope: &LocalProperty<Option<NativeLiquidGlassScope>>,
         is_mount: bool,
     ) -> Vec<Rc<ExpandedNode>> {
         let new_children = self.create_children_detached(templates, context, &Rc::downgrade(&self));
@@ -2570,6 +2602,11 @@ impl ExpandedNode {
         handler_key: &str,
         context: &Rc<RuntimeContext>,
     ) {
+        if self.attached.get() == 0 {
+            return;
+        }
+        let _graph = context.property_graph.enter();
+        let _scope = self.property_binding_scope.borrow().enter();
         if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
             if !self.suspended.get() {
                 for handler in borrow!(registry)
@@ -2596,9 +2633,11 @@ impl ExpandedNode {
     }
 
     fn recurse_update_mounted(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
-        if !self.subtree_requires_non_reactive_update.get() {
+        if self.attached.get() == 0 || !self.subtree_requires_non_reactive_update.get() {
             return;
         }
+        let _graph = context.property_graph.enter();
+        let _scope = self.property_binding_scope.borrow().enter();
         let instance_node = Rc::clone(&*borrow!(self.instance_node));
         if !self.suppresses_native_presentation()
             && instance_node.requires_non_reactive_update(self)
@@ -2674,11 +2713,19 @@ impl ExpandedNode {
     }
 
     pub fn recurse_mount(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
+        let _graph = context.property_graph.enter();
+        if self.attached.get() == 0 && self.stores.is_closed() {
+            self.prepare_remount(context);
+        }
+        self.property_binding_scope.borrow().resume();
+        let _scope = self.property_binding_scope.borrow().enter();
         if self.attached.get() == 0 {
-            if self.stores.is_closed() {
-                self.prepare_remount(context);
-            } else {
-                self.stores.mount(self.template_parent.upgrade().as_deref());
+            self.stores.mount(self.template_parent.upgrade().as_deref());
+            // All bindings are installed before mount. Materialize their local
+            // views now so shared snapshots seen by handlers are initialized.
+            let scope: Vec<_> = borrow!(self.properties_scope).values().cloned().collect();
+            for property in scope {
+                property.get_as_pax_value();
             }
             // Materialize projected children before mount so Slot can resolve them.
             borrow!(self.instance_node)
@@ -2726,12 +2773,34 @@ impl ExpandedNode {
         }
     }
 
+    pub fn async_scope(&self, context: &Rc<RuntimeContext>) -> Result<AsyncScope, AsyncError> {
+        if self.attached.get() == 0 {
+            return Err(AsyncError::Closed);
+        }
+        if let Some(scope) = self.async_scope.borrow().as_ref() {
+            return Ok(scope.clone());
+        }
+        let scope = context.application.context().async_scope()?.child()?;
+        let binding = self.property_binding_scope.borrow().clone();
+        scope.set_callback_context(move |callback| binding.with_graph(callback));
+        *self.async_scope.borrow_mut() = Some(scope.clone());
+        Ok(scope)
+    }
+
     pub fn recurse_unmount(self: Rc<Self>, context: &Rc<RuntimeContext>) {
+        if self.attached.get() != 1 {
+            return;
+        }
+        let _graph = context.property_graph.enter();
+        let _scope = self.property_binding_scope.borrow().enter();
         // WARNING: do NOT make recurse_unmount result in expr evaluation,
         // in this case: do not refer to self.children expression.
         // expr evaluation in this context can trigger get's of "old data", ie try to get
         // an index of a for loop source that doesn't exist anymore
         if self.attached.get() == 1 {
+            if let Some(scope) = self.async_scope.borrow_mut().take() {
+                scope.cancel();
+            }
             self.attached.set(self.attached.get() - 1);
             context.remove_from_cache(&self);
             for child in borrow!(self.mounted_children).iter() {
@@ -2767,9 +2836,9 @@ impl ExpandedNode {
             // Needed because occlusion updates are only sent on diffs so we reset it when unmounting
             self.occlusion.set(Default::default());
             self.browser_content_layer_id.set(None);
-            self.changed_listener.replace_with(Property::default());
+            self.changed_listener.replace_with(LocalProperty::default());
             self.selector_classes_listener
-                .replace_with(Property::default());
+                .replace_with(LocalProperty::default());
             borrow_mut!(self.subscriptions).clear();
             borrow_mut!(self.active_children).clear();
             borrow_mut!(self.exiting_children).clear();
@@ -2790,22 +2859,25 @@ impl ExpandedNode {
             self.deactivate_transition_clock();
             self.enter_cleanup_active.set(false);
             self.enter_cleanup_listener
-                .replace_with(Property::new_with_name((), "enter transition cleanup"));
+                .replace_with(LocalProperty::new_with_name((), "enter transition cleanup"));
             self.exit_cleanup_active.set(false);
-            self.exit_cleanup_listener.replace_with(Property::default());
+            self.exit_cleanup_listener
+                .replace_with(LocalProperty::default());
             self.stores.close();
             // Final unmount releases component-owned state without evaluating
             // bindings against potentially removed repeat items. Remount allocates
             // fresh properties; externally shared handles remain their owner's.
-            self.children.replace_with(Property::new(Vec::new()));
-            self.children_listener.replace_with(Property::default());
-            self.occlusion_listener.replace_with(Property::default());
+            self.children.replace_with(LocalProperty::new(Vec::new()));
+            self.children_listener
+                .replace_with(LocalProperty::default());
+            self.occlusion_listener
+                .replace_with(LocalProperty::default());
             self.subtree_layout_hull_listener
-                .replace_with(Property::default());
+                .replace_with(LocalProperty::default());
             self.content_measurement_listener
-                .replace_with(Property::default());
+                .replace_with(LocalProperty::default());
             self.content_measurement_rebind_listener
-                .replace_with(Property::default());
+                .replace_with(LocalProperty::default());
             self.content_measurement_bound.set(false);
             borrow_mut!(self.sidecar_children).clear();
             borrow_mut!(self.expanded_projected_children).take();
@@ -2813,17 +2885,20 @@ impl ExpandedNode {
                 .set(Vec::new());
             self.flattened_projected_children_count.set(0);
             self.parent_binding_sources.borrow_mut().take();
-            self.transform_and_bounds.replace_with(Property::default());
-            self.computed_opacity.replace_with(Property::new(1.0));
-            self.subtree_layout_hull.replace_with(Property::default());
+            self.transform_and_bounds
+                .replace_with(LocalProperty::default());
+            self.computed_opacity.replace_with(LocalProperty::new(1.0));
+            self.subtree_layout_hull
+                .replace_with(LocalProperty::default());
             self.measured_size.set(None);
             *borrow_mut!(self.common_properties) =
                 Rc::new(RefCell::new(CommonProperties::default()));
-            self.selector_metadata.borrow_mut().id = Property::default();
-            self.selector_metadata.borrow_mut().classes = Property::default();
+            self.selector_metadata.borrow_mut().id = LocalProperty::default();
+            self.selector_metadata.borrow_mut().classes = LocalProperty::default();
             borrow_mut!(self.properties_scope).clear();
             *borrow_mut!(self.properties) =
                 Rc::new(RefCell::new(PaxAny::Builtin(PaxValue::default())));
+            self.property_binding_scope.borrow().close();
         }
     }
 
@@ -2853,7 +2928,7 @@ impl ExpandedNode {
         in_import_settings: bool,
         descend_components: bool,
         providers: &mut Vec<DiscoveredSettingsProvider>,
-        transition: Option<Property<Option<crate::SettingsTransitionConfig>>>,
+        transition: Option<LocalProperty<Option<crate::SettingsTransitionConfig>>>,
     ) {
         if node.is_import_settings_node() {
             let sidecar_children = borrow!(node.sidecar_children).clone();
@@ -3107,7 +3182,9 @@ impl ExpandedNode {
         let Ok(mut val) = T::mut_from_pax_any(&mut *borrowed) else {
             return None;
         };
-        Some(callback(&mut val))
+        self.property_binding_scope
+            .borrow()
+            .with_graph(|| Some(callback(&mut val)))
     }
 
     pub fn recurse_visit_postorder(self: &Rc<Self>, func: &mut impl FnMut(&Rc<Self>)) {
@@ -3123,11 +3200,11 @@ impl ExpandedNode {
     pub fn get_node_context(self: &Rc<Self>, ctx: &Rc<RuntimeContext>) -> NodeContext {
         let globals = ctx.globals();
         let viewport = super::viewport_info_property(&globals.viewport);
-        let target = Property::new(globals.target);
+        let target = LocalProperty::new(globals.target);
         let t_and_b = self.transform_and_bounds.clone();
         let deps = [t_and_b.untyped()];
         let bounds_name = format!("node context bounds (node id: {})", self.id.0);
-        let bounds_self = Property::computed_with_cutoff_and_name(
+        let bounds_self = LocalProperty::computed_with_cutoff_and_name(
             move || t_and_b.get().bounds,
             &deps,
             <(f64, f64)>::eq,
@@ -3154,7 +3231,7 @@ impl ExpandedNode {
             parent_padding_x.untyped(),
             parent_padding_y.untyped(),
         ];
-        let bounds_parent = Property::computed(
+        let bounds_parent = LocalProperty::computed(
             move || {
                 apply_padding_frame(
                     t_and_b_parent.get(),
@@ -3212,12 +3289,12 @@ impl ExpandedNode {
             }
         };
         let received_children_count_source = received_children.clone();
-        let received_children_count = Property::computed(
+        let received_children_count = LocalProperty::computed(
             move || received_children_count_source.get().len(),
             &[received_children.untyped()],
         );
         let received_children_signal = received_children.clone();
-        let received_children_changed = Property::computed(
+        let received_children_changed = LocalProperty::computed(
             move || {
                 let _ = received_children_signal.get();
             },
@@ -3234,10 +3311,10 @@ impl ExpandedNode {
                 {
                     self.exiting_children_view.clone()
                 }
-                ReceivedChildrenSource::Projected => Property::default(),
+                ReceivedChildrenSource::Projected => LocalProperty::default(),
             };
         let retained_received_children_signal = retained_received_children.clone();
-        let retained_received_children_changed = Property::computed(
+        let retained_received_children_changed = LocalProperty::computed(
             move || {
                 let _ = retained_received_children_signal.get();
             },
@@ -3252,7 +3329,7 @@ impl ExpandedNode {
         // TODO: this still triggers the dirty dag dependencies of elapsed
         // frames even if the value is the same. Try to make it not trigger
         // dependencides when frozen
-        let elapsed_frames_frozen_if_suspended = Property::computed(
+        let elapsed_frames_frozen_if_suspended = LocalProperty::computed(
             move || {
                 if suspended.get() {
                     *borrow!(last_frame)
@@ -3491,6 +3568,10 @@ impl ExpandedNode {
         identifier: &str,
         ctx: &Rc<RuntimeContext>,
     ) -> Result<(), String> {
+        if self.attached.get() == 0 {
+            return Ok(());
+        }
+        let _graph = ctx.property_graph.enter();
         let component_origin_instance = borrow!(self.instance_node);
         let registry = component_origin_instance
             .base()
@@ -3502,6 +3583,10 @@ impl ExpandedNode {
             .containing_component
             .upgrade()
             .ok_or_else(|| "can't dispatch from root (has no parent)".to_owned())?;
+        if parent_component.attached.get() == 0 {
+            return Ok(());
+        }
+        let _scope = parent_component.property_binding_scope.borrow().enter();
         let properties = borrow!(parent_component.properties);
 
         for handler in borrow!(registry)
@@ -3526,7 +3611,7 @@ impl ExpandedNode {
 
     /// Helper method that returns a collection of common properties
     /// related to layout (position, size, scale, anchor, etc),
-    pub fn layout_properties(self: &Rc<ExpandedNode>) -> Property<LayoutProperties> {
+    pub fn layout_properties(self: &Rc<ExpandedNode>) -> LocalProperty<LayoutProperties> {
         let common_props = self.get_common_properties();
         let common_props = borrow!(common_props);
         let cp_width = common_props.width.clone();
@@ -3558,7 +3643,7 @@ impl ExpandedNode {
             measured_size.untyped(),
         ];
 
-        Property::computed(
+        LocalProperty::computed(
             move || {
                 // Used for auto sized text, might be used for other things later
                 let fallback = measured_size.get();

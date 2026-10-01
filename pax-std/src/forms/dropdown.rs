@@ -1,4 +1,5 @@
 use crate::{Font, TextAlignHorizontal, TextAlignVertical, TextStyle};
+use pax_engine::api::LocalProperty;
 use pax_message::{AnyCreatePatch, DropdownPatch, NativeInterrupt};
 use pax_runtime::api as pax_runtime_api;
 use pax_runtime::api::{use_RefCell, Layer, Property};
@@ -122,7 +123,7 @@ impl InstanceNode for DropdownInstance {
             .collect();
         expanded_node
             .changed_listener
-            .replace_with(Property::computed(
+            .replace_with(LocalProperty::computed(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
                         return;
@@ -158,38 +159,47 @@ impl InstanceNode for DropdownInstance {
                             patch_if_needed(
                                 &mut old_state.style,
                                 &mut patch.style,
-                                (&properties.style.get()).into(),
+                                properties.style.local().get().message(true),
                             ),
                             patch_if_needed(
                                 &mut old_state.stroke_color,
                                 &mut patch.stroke_color,
-                                (&crate::common::native_stroke_color(&properties.stroke.get()))
+                                (&crate::common::native_stroke_color(
+                                    &properties.stroke.local().get(),
+                                ))
                                     .into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.stroke_width,
                                 &mut patch.stroke_width,
-                                properties.stroke.get().width.get().get_pixels(width),
+                                properties
+                                    .stroke
+                                    .local()
+                                    .get()
+                                    .width
+                                    .local()
+                                    .get()
+                                    .get_pixels(width),
                             ),
                             patch_if_needed(
                                 &mut old_state.background,
                                 &mut patch.background,
-                                (&properties.background.get()).into(),
+                                (&properties.background.local().get()).into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.selected_id,
                                 &mut patch.selected_id,
-                                properties.selected_id.get(),
+                                properties.selected_id.local().get(),
                             ),
                             patch_if_needed(
                                 &mut old_state.corner_radius,
                                 &mut patch.corner_radius,
-                                properties.corner_radius.get(),
+                                properties.corner_radius.local().get(),
                             ),
                             patch_if_needed(
                                 &mut old_state.options,
                                 &mut patch.options,
-                                properties.options.get(),
+                                properties.options.local().get(),
                             ),
                             patch_if_needed(
                                 &mut old_state.opacity,
@@ -218,7 +228,7 @@ impl InstanceNode for DropdownInstance {
         let id = expanded_node.id.clone();
         expanded_node
             .changed_listener
-            .replace_with(Property::default());
+            .replace_with(LocalProperty::default());
         context.enqueue_native_message(pax_message::NativeMessage::DropdownDelete(id.to_u32()));
     }
 
@@ -245,7 +255,7 @@ impl InstanceNode for DropdownInstance {
     ) {
         if let NativeInterrupt::FormDropdownChange(args) = interrupt {
             expanded_node.with_properties_unwrapped(|props: &mut Dropdown| {
-                if props.selected_id.get() != args.selected_id {
+                if props.selected_id.local().get() != args.selected_id {
                     props.selected_id.set(args.selected_id)
                 }
             });

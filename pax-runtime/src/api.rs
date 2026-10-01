@@ -23,6 +23,13 @@ use {
     pax_manifest::UniqueTemplateNodeIdentifier,
 };
 
+/// This runtime owner stays on the UI thread. Transfer properties or delivery
+/// handles to workers instead.
+///
+/// ```compile_fail
+/// fn requires_send<T: Send>() {}
+/// requires_send::<pax_runtime::api::NodeContext>();
+/// ```
 #[derive(Clone)]
 /// Runtime context passed into user component lifecycle methods and event handlers.
 ///
@@ -41,41 +48,41 @@ use {
 pub struct NodeContext {
     pub expanded_node: Weak<ExpandedNode>,
     /// slot index of this node in its container
-    pub slot_index: Property<Option<usize>>,
+    pub slot_index: LocalProperty<Option<usize>>,
     pub expression_stack: Rc<RuntimePropertiesStackFrame>,
     pub(crate) store_generation: u64,
     /// Reference to the ExpandedNode of the component containing this node
     pub containing_component: Weak<ExpandedNode>,
     /// The current global engine frame count.
-    pub elapsed_frames: Property<u64>,
+    pub elapsed_frames: LocalProperty<u64>,
     /// The current global engine wall-clock time in milliseconds.
-    pub elapsed_millis: Property<u64>,
+    pub elapsed_millis: LocalProperty<u64>,
     /// Current device orientation sensor reading.
-    pub gyro: Property<Gyro>,
+    pub gyro: LocalProperty<Gyro>,
     /// Current device accelerometer reading.
-    pub accel: Property<Accel>,
+    pub accel: LocalProperty<Accel>,
     /// The bounds of this element's immediate container (parent) in px
-    pub bounds_parent: Property<(f64, f64)>,
+    pub bounds_parent: LocalProperty<(f64, f64)>,
     /// The bounds of this element in px
-    pub bounds_self: Property<(f64, f64)>,
+    pub bounds_self: LocalProperty<(f64, f64)>,
     /// Measured bounds resolved by the chassis or container layout for this node.
-    pub measured_size: Property<Option<(f64, f64)>>,
+    pub measured_size: LocalProperty<Option<(f64, f64)>>,
     /// Node-local subtree layout hull published by the engine for container measurement.
-    pub subtree_layout_hull: Property<LayoutHull>,
+    pub subtree_layout_hull: LocalProperty<LayoutHull>,
     /// Current platform (Web/Native) this app is running on
     pub platform: Platform,
     /// Current os (Android/Windows/Mac/Linux) this app is running on
     pub os: OS,
     /// Derived target facts for platform/OS checks.
-    pub target: Property<TargetInfo>,
+    pub target: LocalProperty<TargetInfo>,
     /// Derived viewport facts for size and orientation checks.
-    pub viewport: Property<Viewport>,
+    pub viewport: LocalProperty<Viewport>,
     /// The number of projected children available to this node.
     ///
     /// This is the raw transport count used by slot-driven implementations.
     /// Container-style consumers usually want `received_children_count`
     /// instead.
-    pub projected_children_count: Property<usize>,
+    pub projected_children_count: LocalProperty<usize>,
     /// Borrow of the RuntimeContext, used at least for exposing raycasting to userland
     pub(crate) runtime_context: Rc<RuntimeContext>,
     /// The transform of this node in the global coordinate space
@@ -84,31 +91,31 @@ pub struct NodeContext {
     ///
     /// Projection is an engine transport mechanism. Consumers that want the
     /// semantic payload owned by this node should prefer `received_children`.
-    pub projected_children: Property<Vec<Rc<ExpandedNode>>>,
+    pub projected_children: LocalProperty<Vec<Rc<ExpandedNode>>>,
     /// A structural invalidation signal for projected children.
-    pub projected_children_changed: Property<()>,
+    pub projected_children_changed: LocalProperty<()>,
     /// Semantic payload children received by this node from its caller.
     ///
     /// This is the canonical "content" view for container-style logic. It
     /// excludes private encapsulated implementation children and also excludes
     /// exit-retained payload nodes, which instead appear in
     /// `retained_received_children`.
-    pub received_children: Property<Vec<Rc<ExpandedNode>>>,
+    pub received_children: LocalProperty<Vec<Rc<ExpandedNode>>>,
     /// Convenience count derived from `received_children`.
-    pub received_children_count: Property<usize>,
+    pub received_children_count: LocalProperty<usize>,
     /// A structural invalidation signal for `received_children`.
     ///
     /// Prefer this or `received_children` itself for structural subscriptions
     /// that must react to reorders as well as insertions and removals.
-    pub received_children_changed: Property<()>,
+    pub received_children_changed: LocalProperty<()>,
     /// Received children retained only so exit transitions can finish.
     ///
     /// These are no longer part of the active semantic payload, but some
     /// containers still need to place them as ghosts or overlays while their
     /// `@out` transitions run.
-    pub retained_received_children: Property<Vec<Rc<ExpandedNode>>>,
+    pub retained_received_children: LocalProperty<Vec<Rc<ExpandedNode>>>,
     /// A structural invalidation signal for `retained_received_children`.
-    pub retained_received_children_changed: Property<()>,
+    pub retained_received_children_changed: LocalProperty<()>,
 
     #[cfg(feature = "designtime")]
     pub designtime: Rc<RefCell<DesigntimeManager>>,
@@ -116,6 +123,22 @@ pub struct NodeContext {
 }
 
 impl NodeContext {
+    /// Lifetime of this exact context node, ending at actual unmount. Retain a
+    /// component mount scope when later handlers receive child-control contexts.
+    /// A saved context cannot acquire the scope of a later mount of that node.
+    pub fn async_scope(&self) -> Result<AsyncScope, AsyncError> {
+        self.expanded_node
+            .upgrade()
+            .filter(|node| node.stores.generation() == self.store_generation)
+            .ok_or(AsyncError::Closed)?
+            .async_scope(&self.runtime_context)
+    }
+
+    /// Access services belonging to this application instance.
+    pub fn application(&self) -> AppContext {
+        self.runtime_context.application.context()
+    }
+
     /// Convert a window-space point into this node's local coordinate space, including any
     /// presentation offsets inherited from ancestor scrollers.
     pub fn local_point(&self, p: Point2<Window>) -> Point2<NodeLocal> {
@@ -334,5 +357,11 @@ impl NodeContext {
             .into_iter()
             .map(Into::<NodeInterface>::into)
             .collect()
+    }
+}
+
+impl pax_runtime_api::async_runtime::AsyncScopeSource for NodeContext {
+    fn work_scope(&self) -> Result<AsyncScope, AsyncError> {
+        self.async_scope()
     }
 }

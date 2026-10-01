@@ -1,4 +1,4 @@
-use pax_runtime_api::{OpacityScope, Paint, Stroke, StrokeCap, StrokeJoin};
+use pax_runtime_api::{OpacityScope, Paint, ResolvedStroke, StrokeCap, StrokeJoin};
 use piet::{
     kurbo::{self, Affine, Shape},
     FixedRadialGradient, LineCap, LineJoin, RenderContext as _, StrokeStyle,
@@ -90,7 +90,7 @@ struct DrawState {
 enum PietPaint<I> {
     Fill(kurbo::BezPath, piet::PaintBrush),
     Blend(kurbo::BezPath, Vec<(Paint, f64)>, f64, kurbo::Rect),
-    Stroke(kurbo::BezPath, piet::PaintBrush, f64, StrokeStyle),
+    ResolvedStroke(kurbo::BezPath, piet::PaintBrush, f64, StrokeStyle),
     Image(I, kurbo::Rect, f64),
 }
 
@@ -159,7 +159,7 @@ fn paint_draws<S: PietSurface>(
             PietPaint::Blend(path, terms, opacity, bounds) => {
                 surface.draw_blend(path, terms, *opacity, *bounds)
             }
-            PietPaint::Stroke(path, brush, width, style) => {
+            PietPaint::ResolvedStroke(path, brush, width, style) => {
                 context.stroke_styled(path, brush, *width, style)
             }
             PietPaint::Image(image, rect, opacity) => surface.draw_image(image, *rect, *opacity),
@@ -622,14 +622,14 @@ impl<S: PietSurface> api::RenderContext for PietRenderer<S> {
         &mut self,
         layer: usize,
         path: kurbo::BezPath,
-        stroke: &Stroke,
+        stroke: &ResolvedStroke,
         opacity: f64,
     ) {
         self.stroke_with_draw_range_and_material_and_opacity(
             layer,
             path,
             stroke,
-            &stroke.material.get(),
+            &stroke.material,
             opacity,
             0.0,
             1.0,
@@ -640,8 +640,8 @@ impl<S: PietSurface> api::RenderContext for PietRenderer<S> {
         &mut self,
         layer: usize,
         path: kurbo::BezPath,
-        stroke: &Stroke,
-        _material: &api::Material,
+        stroke: &ResolvedStroke,
+        _material: &api::ResolvedMaterial,
         opacity: f64,
         draw_start: f64,
         draw_end: f64,
@@ -651,7 +651,7 @@ impl<S: PietSurface> api::RenderContext for PietRenderer<S> {
         }
         let bounds = path.bounding_box();
         let path = api::drawing::path_trim::trim_bez_path(&path, draw_start, draw_end);
-        let paint = stroke.paint.get();
+        let paint = stroke.paint.clone();
         if let Paint::Blend(terms) = paint {
             if let Some(outline) = api::drawing::stroke_utils::stroked_outline_path(&path, stroke) {
                 self.with_layer_renderer(layer, |renderer| {
@@ -665,7 +665,7 @@ impl<S: PietSurface> api::RenderContext for PietRenderer<S> {
             }
         } else if let Some(brush) = fill_to_piet_brush(&paint.with_alpha_factor(opacity), bounds) {
             self.with_layer_renderer(layer, |renderer| {
-                renderer.record(PietPaint::Stroke(
+                renderer.record(PietPaint::ResolvedStroke(
                     path.clone(),
                     brush.clone(),
                     stroke.width_pixels(),
@@ -1001,14 +1001,14 @@ pub fn fill_to_piet_brush(fill: &Paint, rect: kurbo::Rect) -> Option<piet::Paint
     })
 }
 
-fn stroke_to_piet_style(stroke: &Stroke) -> StrokeStyle {
+fn stroke_to_piet_style(stroke: &ResolvedStroke) -> StrokeStyle {
     let mut style = StrokeStyle::new();
-    style.set_line_cap(match stroke.cap.get() {
+    style.set_line_cap(match stroke.cap {
         StrokeCap::Butt => LineCap::Butt,
         StrokeCap::Round => LineCap::Round,
         StrokeCap::Square => LineCap::Square,
     });
-    style.set_line_join(match stroke.join.get() {
+    style.set_line_join(match stroke.join {
         StrokeJoin::Miter => LineJoin::Miter { limit: 4.0 },
         StrokeJoin::Round => LineJoin::Round,
         StrokeJoin::Bevel => LineJoin::Bevel,

@@ -11,8 +11,8 @@ use pax_runtime_api::properties::{
     UntypedProperty,
 };
 use pax_runtime_api::{
-    borrow, borrow_mut, use_RefCell, Event, Interpolatable, LightShape, MouseOut, MouseOver,
-    Property, RenderContext, SceneLight, SceneLighting, Variable,
+    borrow, borrow_mut, use_RefCell, Event, Interpolatable, LightShape, LocalProperty, MouseOut,
+    MouseOver, RenderContext, SceneLight, SceneLighting, Variable,
 };
 use_RefCell!();
 use kurbo::{Affine, Point};
@@ -96,6 +96,9 @@ impl ExpandedNodeIdentifier {
 
 /// Shared context for properties pass recursion
 pub struct RuntimeContext {
+    pub application: pax_runtime_api::application::ApplicationInstance,
+    /// Owner-thread bridge for application properties.
+    pub property_graph: pax_runtime_api::PropertyGraph,
     next_uid: Cell<ExpandedNodeIdentifier>,
     messages: RefCell<Vec<NativeMessage>>,
     globals: RefCell<Globals>,
@@ -140,7 +143,7 @@ pub struct RuntimeContext {
     layer_scroller_owners: RefCell<HashMap<usize, ExpandedNodeIdentifier>>,
     root_scroller_id: Cell<Option<u32>>,
     visual_viewport_state: Cell<Option<VisualViewportState>>,
-    safe_area_insets: Property<SafeAreaInsets>,
+    safe_area_insets: LocalProperty<SafeAreaInsets>,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -238,7 +241,11 @@ impl RuntimeContext {
     #[cfg(not(feature = "designtime"))]
     /// Create a runtime context for normal app execution.
     pub fn new(globals: Globals) -> Self {
+        let application =
+            pax_runtime_api::application::ApplicationInstance::for_runtime(globals.target);
         Self {
+            property_graph: application.property_graph(),
+            application,
             next_uid: Cell::new(ExpandedNodeIdentifier(0)),
             messages: RefCell::new(Vec::new()),
             globals: RefCell::new(globals),
@@ -275,14 +282,18 @@ impl RuntimeContext {
             layer_scroller_owners: Default::default(),
             root_scroller_id: Cell::new(None),
             visual_viewport_state: Cell::new(None),
-            safe_area_insets: Property::default(),
+            safe_area_insets: LocalProperty::default(),
         }
     }
 
     #[cfg(feature = "designtime")]
     /// Create a runtime context with the userland component tracked for designtime tools.
     pub fn new(globals: Globals, userland: Rc<ComponentInstance>) -> Self {
+        let application =
+            pax_runtime_api::application::ApplicationInstance::for_runtime(globals.target);
         Self {
+            property_graph: application.property_graph(),
+            application,
             next_uid: Cell::new(ExpandedNodeIdentifier(0)),
             messages: RefCell::new(Vec::new()),
             globals: RefCell::new(globals),
@@ -321,14 +332,18 @@ impl RuntimeContext {
             layer_scroller_owners: Default::default(),
             root_scroller_id: Cell::new(None),
             visual_viewport_state: Cell::new(None),
-            safe_area_insets: Property::default(),
+            safe_area_insets: LocalProperty::default(),
         }
     }
 
     #[cfg(feature = "designtime")]
     /// Create a runtime context before any userland tree has been mounted.
     pub fn new_empty(globals: Globals) -> Self {
+        let application =
+            pax_runtime_api::application::ApplicationInstance::for_runtime(globals.target);
         Self {
+            property_graph: application.property_graph(),
+            application,
             next_uid: Cell::new(ExpandedNodeIdentifier(0)),
             messages: RefCell::new(Vec::new()),
             globals: RefCell::new(globals),
@@ -367,7 +382,7 @@ impl RuntimeContext {
             layer_scroller_owners: Default::default(),
             root_scroller_id: Cell::new(None),
             visual_viewport_state: Cell::new(None),
-            safe_area_insets: Property::default(),
+            safe_area_insets: LocalProperty::default(),
         }
     }
 
@@ -394,6 +409,9 @@ impl RuntimeContext {
             // Initial drawing belongs to mount, independent of whether lighting
             // happens to assign a retained mask to this primitive.
             self.mark_canvas_node_dirty(node.id);
+            if !node.is_render_source() {
+                self.set_canvas_dirty(node.occlusion.get().render_layer_id);
+            }
         }
         if node.is_import_settings_node() {
             self.import_settings_node_count
@@ -438,14 +456,18 @@ impl RuntimeContext {
         }
     }
 
-    pub fn register_node_effect_property(&self, node: ExpandedNodeIdentifier, prop: &Property<()>) {
+    pub fn register_node_effect_property(
+        &self,
+        node: ExpandedNodeIdentifier,
+        prop: &LocalProperty<()>,
+    ) {
         self.register_node_effect_property_named(node, prop, "node effect");
     }
 
     pub fn register_node_effect_property_named(
         &self,
         node: ExpandedNodeIdentifier,
-        prop: &Property<()>,
+        prop: &LocalProperty<()>,
         effect_name: &str,
     ) {
         if effect_drain_instrumentation_enabled() {
@@ -459,7 +481,7 @@ impl RuntimeContext {
     pub fn register_expanded_node_effect_property_named(
         &self,
         node: &Rc<ExpandedNode>,
-        prop: &Property<()>,
+        prop: &LocalProperty<()>,
         effect_name: &str,
     ) {
         if effect_drain_instrumentation_enabled() {
@@ -475,13 +497,15 @@ impl RuntimeContext {
         node: ExpandedNodeIdentifier,
         dependencies: &[UntypedProperty],
         effect: impl Fn() + 'static,
-    ) -> Property<()> {
-        let prop = Property::computed(effect, dependencies);
+    ) -> LocalProperty<()> {
+        let prop = LocalProperty::computed(effect, dependencies);
         self.register_node_effect_property_named(node, &prop, "registered node effect");
         prop
     }
 
     pub fn drain_node_effects(&self) {
+        let _graph = self.property_graph.enter();
+        self.property_graph.import();
         const MAX_NODE_EFFECTS_PER_TICK: usize = 100_000;
         if !effect_drain_instrumentation_enabled() {
             let drained = drain_effects(MAX_NODE_EFFECTS_PER_TICK);
@@ -932,7 +956,7 @@ impl RuntimeContext {
     }
 
     /// Live native safe-area data used by opt-in layout primitives. Defaults to zero.
-    pub fn safe_area_insets(&self) -> Property<SafeAreaInsets> {
+    pub fn safe_area_insets(&self) -> LocalProperty<SafeAreaInsets> {
         self.safe_area_insets.clone()
     }
 
@@ -2106,17 +2130,17 @@ mod light_scope_tests {
 
     fn test_globals() -> Globals {
         Globals {
-            elapsed_frames: Property::new(0),
-            elapsed_millis: Property::new(0),
-            viewport: Property::new(TransformAndBounds {
+            elapsed_frames: LocalProperty::new(0),
+            elapsed_millis: LocalProperty::new(0),
+            viewport: LocalProperty::new(TransformAndBounds {
                 transform: Transform2::identity(),
                 bounds: (100.0, 100.0),
             }),
-            gyro: Property::new(Default::default()),
-            accel: Property::new(Default::default()),
-            route_location: Property::new(RouteLocation::root()),
-            browser_allows_scroller_vector_layers: Property::new(true),
-            browser_allows_nested_scroller_vector_layers: Property::new(true),
+            gyro: LocalProperty::new(Default::default()),
+            accel: LocalProperty::new(Default::default()),
+            route_location: LocalProperty::new(RouteLocation::root()),
+            browser_allows_scroller_vector_layers: LocalProperty::new(true),
+            browser_allows_nested_scroller_vector_layers: LocalProperty::new(true),
             platform: Platform::Unknown,
             os: OS::Unknown,
             target: TargetInfo::new(Platform::Unknown, OS::Unknown),
@@ -2799,14 +2823,15 @@ mod light_scope_tests {
             (&leaf, leaf_transform, 2, Some(mask.id)),
         ] {
             node.transform_and_bounds
-                .replace_with(Property::new(TransformAndBounds {
+                .replace_with(LocalProperty::new(TransformAndBounds {
                     transform: Transform2::new(transform.as_coeffs()),
                     bounds: (100.0, 100.0),
                 }));
             let mut occlusion = node.occlusion.get();
             occlusion.render_layer_id = layer;
             node.occlusion.set(occlusion);
-            node.parent_frame.replace_with(Property::new(parent_frame));
+            node.parent_frame
+                .replace_with(LocalProperty::new(parent_frame));
         }
         context.register_layer_scroller_owner(1, outer.id);
         context.register_layer_scroller_owner(2, inner.id);

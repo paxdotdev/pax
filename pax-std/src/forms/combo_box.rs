@@ -1,4 +1,5 @@
 #![allow(unused)]
+use pax_engine::api::LocalProperty;
 use std::cell::Cell;
 use std::rc::Rc;
 
@@ -120,12 +121,12 @@ pub struct ComboBox {
     pub corner_radius: Property<f64>,
 
     // Private filtered list backing the generated dropdown.
-    pub _filtered_options: Property<Vec<ListItemData>>,
+    pub _filtered_options: LocalProperty<Vec<ListItemData>>,
     // Private visibility flag for the generated dropdown.
     pub _options_visible: Property<bool>,
 
     // Private listener used to mirror `selected` into `text`.
-    pub _selected_listener: Property<bool>,
+    pub _selected_listener: LocalProperty<bool>,
 }
 
 /// Behavior when typed combo-box text does not match an existing option.
@@ -157,83 +158,85 @@ impl ComboBox {
     }
 
     fn bind_listeners(&mut self) {
-        let options = self.options.clone();
-        let text = self.text.clone();
-        let new_item = self.new_item.clone();
+        let options = self.options.local();
+        let text = self.text.local();
+        let new_item = self.new_item.local();
         let deps = [options.untyped(), text.untyped(), new_item.untyped()];
-        self._filtered_options.replace_with(Property::computed(
+        self._filtered_options.replace_with(LocalProperty::computed(
             move || {
-                options.read(|options| {
-                    text.read(|text| {
-                        let mut options_sorted: Vec<(usize, &String)> =
-                            options.iter().enumerate().collect();
-                        options_sorted.sort_by_key(|&(_, v)| v);
-                        let mut filtered_options: Vec<_> = options_sorted
-                            .into_iter()
-                            .filter(|(_, t)| t.contains(text))
-                            .map(|(i, v)| ListItemData {
-                                key: i,
-                                text: v.clone(),
-                                event: ComboBoxItemClickEvent::SelectIndex(i),
-                            })
-                            .collect();
-                        filtered_options.sort_by_key(|v| !v.text.starts_with(text));
-                        if filtered_options.is_empty() {
-                            match new_item.get() {
-                                NewItem::Disallow => filtered_options.push(ListItemData {
-                                    key: options.len(),
-                                    text: String::from("No Results Found"),
-                                    event: ComboBoxItemClickEvent::None,
-                                }),
-                                NewItem::Text(text) => filtered_options.push(ListItemData {
-                                    key: options.len(),
-                                    text,
-                                    event: ComboBoxItemClickEvent::NewItem,
-                                }),
-                                NewItem::AllowInvalid => (),
-                            }
+                let options = options.get();
+                let text = text.get();
+                let text = text.as_str();
+                {
+                    let mut options_sorted: Vec<(usize, &String)> =
+                        options.iter().enumerate().collect();
+                    options_sorted.sort_by_key(|&(_, v)| v);
+                    let mut filtered_options: Vec<_> = options_sorted
+                        .into_iter()
+                        .filter(|(_, t)| t.contains(text))
+                        .map(|(i, v)| ListItemData {
+                            key: i,
+                            text: v.clone(),
+                            event: ComboBoxItemClickEvent::SelectIndex(i),
+                        })
+                        .collect();
+                    filtered_options.sort_by_key(|v| !v.text.starts_with(text));
+                    if filtered_options.is_empty() {
+                        match new_item.get() {
+                            NewItem::Disallow => filtered_options.push(ListItemData {
+                                key: options.len(),
+                                text: String::from("No Results Found"),
+                                event: ComboBoxItemClickEvent::None,
+                            }),
+                            NewItem::Text(text) => filtered_options.push(ListItemData {
+                                key: options.len(),
+                                text,
+                                event: ComboBoxItemClickEvent::NewItem,
+                            }),
+                            NewItem::AllowInvalid => (),
                         }
-                        filtered_options
-                    })
-                })
+                    }
+                    filtered_options
+                }
             },
             &deps,
         ));
-        let text = self.text.clone();
-        let options = self.options.clone();
-        let options_visible = self._options_visible.clone();
-        let new_item_behavior = self.new_item.clone();
+        let text = self.text.local();
+        let options = self.options.local();
+        let options_visible = self._options_visible.local();
+        let new_item_behavior = self.new_item.local();
 
-        let selected = self.selected.clone();
+        let selected = self.selected.local();
         // Changing the no-match policy must not reset an in-progress query.
         let deps = [selected.untyped(), options.untyped()];
 
         let last = Rc::new(Cell::new(None));
-        self._selected_listener.replace_with(Property::computed(
-            move || {
-                // Remove the rows before changing their filter source, so descendants
-                // cannot evaluate bindings to indices removed by selection.
-                options_visible.set(false);
-                let requested = selected.get();
-                let selected_value =
-                    options.read(|options| requested.and_then(|index| options.get(index).cloned()));
-                let current = requested.filter(|_| selected_value.is_some());
-                if current != requested {
-                    selected.set(current);
-                }
-                let new_value = selected_value.unwrap_or_default();
-                if current.is_some()
-                    || requested.is_some()
-                    || last.get().is_some()
-                    || !matches!(new_item_behavior.get(), NewItem::AllowInvalid)
-                {
-                    text.set(new_value);
-                }
-                last.set(current);
-                true
-            },
-            &deps,
-        ));
+        self._selected_listener
+            .replace_with(LocalProperty::computed(
+                move || {
+                    // Remove the rows before changing their filter source, so descendants
+                    // cannot evaluate bindings to indices removed by selection.
+                    options_visible.set(false);
+                    let requested = selected.get();
+                    let selected_value = options
+                        .read(|options| requested.and_then(|index| options.get(index).cloned()));
+                    let current = requested.filter(|_| selected_value.is_some());
+                    if current != requested {
+                        selected.set(current);
+                    }
+                    let new_value = selected_value.unwrap_or_default();
+                    if current.is_some()
+                        || requested.is_some()
+                        || last.get().is_some()
+                        || !matches!(new_item_behavior.get(), NewItem::AllowInvalid)
+                    {
+                        text.set(new_value);
+                    }
+                    last.set(current);
+                    true
+                },
+                &deps,
+            ));
     }
 
     // Opens the option list.
@@ -336,9 +339,14 @@ mod tests {
 
     #[test]
     fn filtering_preserves_source_indices_and_ranks_prefixes_first() {
+        let graph = pax_engine::api::properties::PropertyGraph::new(|| {});
+        let _entered = graph.enter();
         let combo = combo(&["zBeta", "Beta", "Alpha"]);
         combo.text.set("Beta".into());
-        let rows = combo._filtered_options.get();
+        let rows = {
+            graph.import();
+            combo._filtered_options.get()
+        };
         assert_eq!(
             rows.iter().map(|row| row.text.as_str()).collect::<Vec<_>>(),
             vec!["Beta", "zBeta"]
@@ -359,83 +367,147 @@ mod tests {
 
     #[test]
     fn selection_closes_the_list_and_options_changes_update_the_label() {
+        let graph = pax_engine::api::properties::PropertyGraph::new(|| {});
+        let _entered = graph.enter();
         let combo = combo(&["Alpha", "Beta"]);
         combo._options_visible.set(true);
         combo.selected.set(Some(1));
-        combo._selected_listener.get();
+        {
+            graph.import();
+            combo._selected_listener.get()
+        };
         assert_eq!(combo.text.get(), "Beta");
         assert!(!combo._options_visible.get());
         combo.options.set(vec!["Alpha".into(), "Renamed".into()]);
-        combo._selected_listener.get();
+        {
+            graph.import();
+            combo._selected_listener.get()
+        };
         assert_eq!(combo.text.get(), "Renamed");
     }
 
     #[test]
     fn missing_and_out_of_range_selections_clear_without_panicking() {
+        let graph = pax_engine::api::properties::PropertyGraph::new(|| {});
+        let _entered = graph.enter();
         let combo = combo(&["Alpha", "Beta"]);
         for index in [2, usize::MAX] {
             combo.selected.set(Some(index));
-            combo._selected_listener.get();
+            {
+                graph.import();
+                combo._selected_listener.get()
+            };
             assert_eq!(combo.selected.get(), None);
             assert_eq!(combo.text.get(), "");
         }
         combo.selected.set(Some(1));
-        combo._selected_listener.get();
+        {
+            graph.import();
+            combo._selected_listener.get()
+        };
         combo.options.set(Vec::new());
-        combo._selected_listener.get();
+        {
+            graph.import();
+            combo._selected_listener.get()
+        };
         assert_eq!(combo.selected.get(), None);
         assert_eq!(combo.text.get(), "");
     }
 
     #[test]
     fn changing_no_match_behavior_refreshes_existing_filter() {
+        let graph = pax_engine::api::properties::PropertyGraph::new(|| {});
+        let _entered = graph.enter();
         let combo = combo(&["Alpha"]);
         combo.text.set("missing".into());
         assert!(matches!(
-            combo._filtered_options.get()[0].event,
+            {
+                graph.import();
+                combo._filtered_options.get()
+            }[0]
+            .event,
             ComboBoxItemClickEvent::None
         ));
         combo.new_item.set(NewItem::Text("Create missing".into()));
-        combo._selected_listener.get();
+        {
+            graph.import();
+            combo._selected_listener.get()
+        };
         assert_eq!(combo.text.get(), "missing");
-        let rows = combo._filtered_options.get();
+        let rows = {
+            graph.import();
+            combo._filtered_options.get()
+        };
         assert_eq!(rows[0].text, "Create missing");
         assert!(matches!(rows[0].event, ComboBoxItemClickEvent::NewItem));
         combo.new_item.set(NewItem::AllowInvalid);
-        combo._selected_listener.get();
+        {
+            graph.import();
+            combo._selected_listener.get()
+        };
         assert_eq!(combo.text.get(), "missing");
-        assert!(combo._filtered_options.get().is_empty());
+        assert!({
+            graph.import();
+            combo._filtered_options.get()
+        }
+        .is_empty());
     }
 
     #[test]
     fn duplicate_labels_keep_distinct_option_keys() {
+        let graph = pax_engine::api::properties::PropertyGraph::new(|| {});
+        let _entered = graph.enter();
         let combo = combo(&["Same", "Same"]);
-        let rows = combo._filtered_options.get();
+        let rows = {
+            graph.import();
+            combo._filtered_options.get()
+        };
         assert_eq!(
             rows.iter().map(|row| row.key).collect::<Vec<_>>(),
             vec![0, 1]
         );
         combo.text.set("missing".into());
-        assert_eq!(combo._filtered_options.get()[0].key, 2);
+        assert_eq!(
+            {
+                graph.import();
+                combo._filtered_options.get()
+            }[0]
+            .key,
+            2
+        );
     }
 
     #[test]
     fn allow_invalid_preserves_free_text_but_mirrors_committed_labels() {
+        let graph = pax_engine::api::properties::PropertyGraph::new(|| {});
+        let _entered = graph.enter();
         let mut combo = ComboBox::default();
         combo.options.set(vec!["Alpha".into()]);
         combo.new_item.set(NewItem::AllowInvalid);
         combo.text.set("Free text".into());
         combo.bind_listeners();
-        combo._selected_listener.get();
+        {
+            graph.import();
+            combo._selected_listener.get()
+        };
         assert_eq!(combo.text.get(), "Free text");
         combo.selected.set(Some(0));
-        combo._selected_listener.get();
+        {
+            graph.import();
+            combo._selected_listener.get()
+        };
         assert_eq!(combo.text.get(), "Alpha");
         combo.options.set(vec!["Renamed".into()]);
-        combo._selected_listener.get();
+        {
+            graph.import();
+            combo._selected_listener.get()
+        };
         assert_eq!(combo.text.get(), "Renamed");
         combo.options.set(vec![]);
-        combo._selected_listener.get();
+        {
+            graph.import();
+            combo._selected_listener.get()
+        };
         assert_eq!(combo.selected.get(), None);
         assert_eq!(combo.text.get(), "");
     }

@@ -3,10 +3,10 @@ use kurbo::{
     Rect, Shape, Stroke as KurboStroke, StrokeOpts as KurboStrokeOpts,
 };
 
-use super::{Stroke, StrokeCap, StrokeJoin};
+use super::{ResolvedStroke, StrokeCap, StrokeJoin};
 
 /// Resolves a stroke width as pixels.
-pub fn stroke_width_pixels(stroke: &Stroke) -> f64 {
+pub fn stroke_width_pixels(stroke: &ResolvedStroke) -> f64 {
     stroke.width_pixels()
 }
 
@@ -14,7 +14,7 @@ pub fn stroke_width_pixels(stroke: &Stroke) -> f64 {
 ///
 /// This is useful for hit testing, masking, and occlusion, where stroke coverage
 /// needs to be treated as fill geometry.
-pub fn stroked_outline_path(centerline: &BezPath, stroke: &Stroke) -> Option<BezPath> {
+pub fn stroked_outline_path(centerline: &BezPath, stroke: &ResolvedStroke) -> Option<BezPath> {
     let width = stroke_width_pixels(stroke);
     if width <= f64::EPSILON {
         return None;
@@ -23,9 +23,9 @@ pub fn stroked_outline_path(centerline: &BezPath, stroke: &Stroke) -> Option<Bez
     let outline = kurbo_stroke(
         centerline.elements().iter().copied(),
         &KurboStroke::new(width)
-            .with_join(to_kurbo_join(stroke.join.get()))
+            .with_join(to_kurbo_join(stroke.join.clone()))
             .with_miter_limit(4.0)
-            .with_caps(to_kurbo_cap(stroke.cap.get())),
+            .with_caps(to_kurbo_cap(stroke.cap.clone())),
         &KurboStrokeOpts::default(),
         0.1,
     );
@@ -56,11 +56,15 @@ fn to_kurbo_join(join: StrokeJoin) -> KurboJoin {
     }
 }
 
-fn degenerate_outline_path(centerline: &BezPath, stroke: &Stroke, width: f64) -> Option<BezPath> {
+fn degenerate_outline_path(
+    centerline: &BezPath,
+    stroke: &ResolvedStroke,
+    width: f64,
+) -> Option<BezPath> {
     let center = collapsed_path_point(centerline)?;
     let half_width = width / 2.0;
 
-    match stroke.cap.get() {
+    match stroke.cap {
         StrokeCap::Butt => None,
         StrokeCap::Round => Some(Circle::new(center, half_width).to_path(0.1)),
         StrokeCap::Square => Some(

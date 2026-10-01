@@ -600,6 +600,12 @@ uses a store for mobile-menu state. Read
 constraints, and the [`NodeContext` reference](api/internal/pax-runtime/api.md#nodecontext)
 for the method signatures.
 
+Application-wide dependencies use `ctx.application().service::<T>()`, separately
+from lexical local stores. Register them before root construction through an
+[application setup hook](event-handling-rust.md#application-setup). Remounting a
+component does not repeat application setup. Services return local `Rc` handles;
+only explicitly transferable clients and shared property values cross threads.
+
 <a id="authoring-primitives"></a>
 <a id="declare-and-connect-a-runtime-node"></a>
 <a id="implement-behavior-at-the-right-level"></a>

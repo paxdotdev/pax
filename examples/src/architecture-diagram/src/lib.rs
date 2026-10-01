@@ -205,7 +205,7 @@ impl ArchitectureDiagram {
         );
 
         let bounds = ctx.bounds_parent.clone();
-        self.header_height.replace_with(Property::computed(
+        self.header_height.replace_with(LocalProperty::computed(
             move || {
                 let (w, _) = bounds.get();
                 if w >= 660. {
@@ -217,10 +217,10 @@ impl ArchitectureDiagram {
             &[ctx.bounds_parent.untyped()],
         ));
         let bounds = ctx.bounds_parent.clone();
-        let zoom = self.zoom.clone();
-        let export = self.export_mode.clone();
-        let header = self.header_height.clone();
-        self.sheet_scale.replace_with(Property::computed(
+        let zoom = self.zoom.local();
+        let export = self.export_mode.local();
+        let header = self.header_height.local();
+        self.sheet_scale.replace_with(LocalProperty::computed(
             move || {
                 let (w, h) = bounds.get();
                 let fitted = ((w - 24.).max(1.) / layout::WIDTH)
@@ -241,8 +241,8 @@ impl ArchitectureDiagram {
             ],
         ));
         let routes = routing::routes();
-        let scale = self.sheet_scale.clone();
-        self.edges.replace_with(Property::computed(
+        let scale = self.sheet_scale.local();
+        self.edges.replace_with(LocalProperty::computed(
             move || drawing_edges(&routes, scale.get()),
             &[self.sheet_scale.untyped()],
         ));

@@ -1,3 +1,4 @@
+use pax_engine::api::LocalProperty;
 use std::iter;
 use std::rc::Rc;
 
@@ -68,10 +69,10 @@ pub struct FrameInstance {
 impl FrameInstance {
     fn clip_path_in_space(expanded_node: &ExpandedNode, transform: Affine) -> Option<BezPath> {
         expanded_node.with_properties_unwrapped(|frame: &mut Frame| {
-            frame._clip_content.get().then(|| {
+            frame._clip_content.local().get().then(|| {
                 frame_clip_path(
                     expanded_node.transform_and_bounds.get().bounds,
-                    frame.corner_radius.get(),
+                    frame.corner_radius.local().get(),
                     transform,
                 )
             })
@@ -121,9 +122,9 @@ impl InstanceNode for FrameInstance {
         let (autosize, autosize_x, autosize_y) =
             expanded_node.with_properties_unwrapped(|frame: &mut Frame| {
                 (
-                    frame.autosize.clone(),
-                    frame.autosize_x.clone(),
-                    frame.autosize_y.clone(),
+                    frame.autosize.local(),
+                    frame.autosize_x.local(),
+                    frame.autosize_y.local(),
                 )
             });
         let deps = [
@@ -202,7 +203,9 @@ impl InstanceNode for FrameInstance {
         rtc: &Rc<RuntimeContext>,
         rcs: &mut dyn RenderContext,
     ) {
-        if !expanded_node.with_properties_unwrapped(|frame: &mut Frame| frame._clip_content.get()) {
+        if !expanded_node
+            .with_properties_unwrapped(|frame: &mut Frame| frame._clip_content.local().get())
+        {
             return;
         }
 
@@ -240,7 +243,7 @@ impl InstanceNode for FrameInstance {
         let children_with_envs = children.iter().cloned().zip(iter::repeat(env));
 
         // NOTE: overwrite frame to be a new prop for all deps
-        let this_frame_prop = Property::new(Some(expanded_node.id));
+        let this_frame_prop = LocalProperty::new(Some(expanded_node.id));
         let new_children =
             expanded_node.generate_children(children_with_envs, context, &this_frame_prop, true);
         expanded_node.children.set(new_children);
@@ -271,7 +274,7 @@ impl InstanceNode for FrameInstance {
 
         expanded_node
             .changed_listener
-            .replace_with(Property::computed(
+            .replace_with(LocalProperty::computed(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
                         return;
@@ -286,10 +289,10 @@ impl InstanceNode for FrameInstance {
                     expanded_node.with_properties_unwrapped(|properties: &mut Frame| {
                         let computed_tab = expanded_node.transform_and_bounds.get();
                         let (width, height) = computed_tab.bounds;
-                        let corner_radius = properties.corner_radius.get();
+                        let corner_radius = properties.corner_radius.local().get();
                         let max_radius = 0.5 * width.max(0.0).min(height.max(0.0));
                         let clamped_radius = corner_radius.clamp(0.0, max_radius);
-                        let clip_path = if properties._clip_content.get()
+                        let clip_path = if properties._clip_content.local().get()
                             && clamped_radius > f64::EPSILON
                         {
                             let rect = RoundedRect::new(0.0, 0.0, width, height, clamped_radius);
@@ -303,7 +306,7 @@ impl InstanceNode for FrameInstance {
                             patch_if_needed(
                                 &mut old_state.clip_content,
                                 &mut patch.clip_content,
-                                properties._clip_content.get(),
+                                properties._clip_content.local().get(),
                             ),
                             patch_if_needed(
                                 &mut old_state.corner_radius,
@@ -356,7 +359,7 @@ impl InstanceNode for FrameInstance {
         // Reset so that native_message sending updates while unmounted
         expanded_node
             .changed_listener
-            .replace_with(Property::default());
+            .replace_with(LocalProperty::default());
         if !expanded_node.is_render_source() {
             context.enqueue_native_message(pax_message::NativeMessage::FrameDelete(id.to_u32()));
         }
@@ -379,7 +382,8 @@ impl InstanceNode for FrameInstance {
     }
 
     fn clips_content(&self, expanded_node: &ExpandedNode) -> bool {
-        expanded_node.with_properties_unwrapped(|props: &mut Frame| props._clip_content.get())
+        expanded_node
+            .with_properties_unwrapped(|props: &mut Frame| props._clip_content.local().get())
     }
 }
 

@@ -1,0 +1,16 @@
+[package]
+name = "pax-tokio"
+version = "0.39.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Optional native Tokio service and scoped task adapter for Pax"
+
+[dependencies]
+pax-runtime-api = { path = "../pax-runtime-api", version = "0.39.0" }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { version = "1", features = ["rt-multi-thread"] }
+futures-util = { version = "0.3", default-features = false, features = ["std"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "time", "sync", "net", "io-util", "macros"] }

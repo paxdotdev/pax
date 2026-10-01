@@ -55,7 +55,9 @@ impl Example {
             event.x, event.y, event.z
         ));
         let target = (event.y * 0.72 + event.x * 0.24).clamp(-34.0, 34.0);
-        self.wobble.ease_to(target, 10, EasingCurve::OutQuad);
+        self.wobble
+            .local()
+            .ease_to(target, 10, EasingCurve::OutQuad);
         self.motion_prompt_visible.set(false);
         self.status_label.set("Live @gyro handler".to_string());
     }
@@ -67,13 +69,17 @@ impl Example {
         ));
         let energy = (event.x.abs() + event.y.abs() + event.z.abs()).clamp(0.0, 28.0);
         self.accel_x
+            .local()
             .ease_to(event.x.clamp(-18.0, 18.0), 16, EasingCurve::OutQuad);
         self.accel_y
+            .local()
             .ease_to(event.y.clamp(-18.0, 18.0), 16, EasingCurve::OutQuad);
-        self.accel_energy.ease_to(energy, 12, EasingCurve::OutQuad);
+        self.accel_energy
+            .local()
+            .ease_to(energy, 12, EasingCurve::OutQuad);
         let gyro = ctx.gyro.get();
         let glow = (0.42 + energy / 36.0 + gyro.y.abs() / 180.0).clamp(0.42, 1.0);
-        self.glow.ease_to(glow, 12, EasingCurve::OutQuad);
+        self.glow.local().ease_to(glow, 12, EasingCurve::OutQuad);
         self.motion_prompt_visible.set(false);
         self.status_label.set("Live @accel handler".to_string());
     }

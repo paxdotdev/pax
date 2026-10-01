@@ -1,4 +1,5 @@
 use kurbo::Point;
+use pax_engine::api::LocalProperty;
 use pax_engine::*;
 use pax_runtime::api::{
     Color, Depth, Layer, LightShape, Numeric, SceneAmbientLight, SceneLight, SceneLighting, Size,
@@ -157,7 +158,7 @@ impl InstanceNode for LightSourceInstance {
 
         expanded_node
             .changed_listener
-            .replace_with(Property::computed(
+            .replace_with(LocalProperty::computed(
                 move || {
                     cloned_context.set_all_canvases_dirty();
                     cloned_context
@@ -173,7 +174,7 @@ impl InstanceNode for LightSourceInstance {
         context: &RuntimeContext,
     ) -> Option<SceneLight> {
         expanded_node.with_properties_unwrapped(|properties: &mut LightSource| {
-            if !properties.enabled.get() {
+            if !properties.enabled.local().get() {
                 return None;
             }
 
@@ -181,12 +182,18 @@ impl InstanceNode for LightSourceInstance {
             let center = Point::new(tab.bounds.0 * 0.5, tab.bounds.1 * 0.5);
             let point = canvas_surface_transform(expanded_node, context) * center;
             Some(SceneLight {
-                shape: properties.shape.get(),
-                position: Vector3::new(point.x, point.y, properties.z.get().to_float()),
-                direction: properties.direction.get(),
-                color: properties.color.get(),
-                intensity: properties.intensity.get().max(0.0),
-                radius: properties.radius.get().expect_pixels().to_float().max(0.0),
+                shape: properties.shape.local().get(),
+                position: Vector3::new(point.x, point.y, properties.z.local().get().to_float()),
+                direction: properties.direction.local().get(),
+                color: properties.color.local().get(),
+                intensity: properties.intensity.local().get().max(0.0),
+                radius: properties
+                    .radius
+                    .local()
+                    .get()
+                    .expect_pixels()
+                    .to_float()
+                    .max(0.0),
                 enabled: true,
             })
         })
@@ -276,7 +283,7 @@ impl InstanceNode for AmbientLightInstance {
 
         expanded_node
             .changed_listener
-            .replace_with(Property::computed(
+            .replace_with(LocalProperty::computed(
                 move || {
                     cloned_context.set_all_canvases_dirty();
                     cloned_context
@@ -292,9 +299,9 @@ impl InstanceNode for AmbientLightInstance {
         _context: &RuntimeContext,
     ) -> Option<SceneAmbientLight> {
         expanded_node.with_properties_unwrapped(|properties: &mut AmbientLight| {
-            properties.enabled.get().then(|| SceneAmbientLight {
-                color: properties.color.get(),
-                intensity: properties.intensity.get().max(0.0),
+            properties.enabled.local().get().then(|| SceneAmbientLight {
+                color: properties.color.local().get(),
+                intensity: properties.intensity.local().get().max(0.0),
             })
         })
     }

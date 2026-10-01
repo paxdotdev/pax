@@ -14,8 +14,8 @@ const {{component.symbol_identifier}}PropertyDescriptors: [{{ engine_import_path
         "{{property.name}}",
         |properties: &mut {{component.type_id.import_path}}, entries, stack_frame, node| {
             let default_properties = <{{component.type_id.import_path}} as std::default::Default>::default();
-            let mut layered_property = {{ engine_import_path }}::api::Property::new(default_properties.{{property.name}}.get());
-            let mut direct_binding_property: Option<{{ engine_import_path }}::api::Property<{{property.property_type.type_id._type_id}}>> = None;
+            let mut layered_property = {{ engine_import_path }}::api::LocalProperty::new(default_properties.{{property.name}}.get());
+            let mut direct_binding_property: Option<{{ engine_import_path }}::api::LocalProperty<{{property.property_type.type_id._type_id}}>> = None;
             for entry in entries {
                 let previous_property = layered_property.clone();
                 let source_stack = entry.source_stack.as_ref().unwrap_or(stack_frame);
@@ -66,10 +66,10 @@ const {{component.symbol_identifier}}PropertyDescriptors: [{{ engine_import_path
             }
             if let Some(bound_property) = direct_binding_property {
                 {{ engine_import_path }}::pax_runtime::clear_settings_motion(node, "{{property.name}}");
-                properties.{{property.name}} = bound_property;
+                properties.{{property.name}} = {{ engine_import_path }}::api::PropertyBinding::from_local(bound_property);
             } else {
                 {{ engine_import_path }}::pax_runtime::bind_settings_property(
-                    &properties.{{property.name}}, layered_property, "{{property.name}}", entries, stack_frame, node,
+                    &properties.{{property.name}}.local(), layered_property, "{{property.name}}", entries, stack_frame, node,
                 );
             }
         },
@@ -87,7 +87,7 @@ const {{component.symbol_identifier}}HandlerDescriptors: [{{ engine_import_path 
                 {% if handler.args_type %}
                     if let Some(args) = args {
                         if let Ok(args) = <{{handler.args_type}}>::ref_from_pax_any(&args) {
-                            {{component.type_id.import_path}}::{{handler.name}}(properties, ctx, args.clone());
+                            {{ engine_import_path }}::api::application::synchronous_handler({{component.type_id.import_path}}::{{handler.name}}(properties, ctx, args.clone()));
                         } else {
                             panic!("Failed to downcast args to {{handler.args_type}}");
                         }
@@ -96,7 +96,7 @@ const {{component.symbol_identifier}}HandlerDescriptors: [{{ engine_import_path 
                     }
                 {% else %}
                     if let None = args {
-                        {{component.type_id.import_path}}::{{handler.name}}(properties, ctx);
+                        {{ engine_import_path }}::api::application::synchronous_handler({{component.type_id.import_path}}::{{handler.name}}(properties, ctx));
                     } else {
                         panic!("Unexpected args present");
                     }
@@ -152,7 +152,7 @@ const {{active_type.type_id._type_id_escaped}}TypeFields: [{{ engine_import_path
         |properties: &mut {{active_type.type_id._type_id}}, value_definition, stack_frame| {
             let stack_with_base = {{ engine_import_path }}::pax_runtime::stack_with_base(
                 stack_frame,
-                {{ engine_import_path }}::api::Property::new(properties.{{prop.name}}.get()),
+                {{ engine_import_path }}::api::LocalProperty::new(properties.{{prop.name}}.local().get()),
             );
             {{ engine_import_path }}::pax_runtime::apply_component_property(
                 &mut properties.{{prop.name}},
@@ -165,7 +165,7 @@ const {{active_type.type_id._type_id_escaped}}TypeFields: [{{ engine_import_path
         },
         |properties: &{{active_type.type_id._type_id}}| properties.{{prop.name}}.untyped(),
         |properties: &{{active_type.type_id._type_id}}| {
-            properties.{{prop.name}}.get();
+            properties.{{prop.name}}.local().get();
         },
     ),
         {% else %}

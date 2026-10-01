@@ -61,7 +61,7 @@ fn mount_in_container(
         stack_args.prototypical_common_properties =
             CommonPropertiesInit::Factory(Box::new(|_, _| {
                 Some(Rc::new(RefCell::new(CommonProperties {
-                    width: Property::new(Some(Size::Percent(100.into()))),
+                    width: LocalProperty::new(Some(Size::Percent(100.into()))),
                     ..Default::default()
                 })))
             }));

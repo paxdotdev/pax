@@ -1,6 +1,6 @@
 use super::*;
 use kurbo::{Affine, BezPath, Rect};
-use pax_runtime_api::{Material, Paint, SceneLighting, Stroke};
+use pax_runtime_api::{Paint, ResolvedMaterial, ResolvedStroke, SceneLighting};
 
 #[derive(Default)]
 struct RecordingRenderer {
@@ -33,15 +33,15 @@ impl RenderContext for RecordingRenderer {
     fn fill_with_opacity(&mut self, _: usize, _: BezPath, _: &Paint, _: f64) {
         unreachable!()
     }
-    fn stroke_with_opacity(&mut self, _: usize, _: BezPath, _: &Stroke, _: f64) {
+    fn stroke_with_opacity(&mut self, _: usize, _: BezPath, _: &ResolvedStroke, _: f64) {
         unreachable!()
     }
     fn stroke_with_draw_range_and_material_and_opacity(
         &mut self,
         _: usize,
         _: BezPath,
-        _: &Stroke,
-        _: &Material,
+        _: &ResolvedStroke,
+        _: &ResolvedMaterial,
         _: f64,
         _: f64,
         _: f64,

@@ -48,14 +48,14 @@ impl Paxflix {
 
     pub fn mount(&mut self, ctx: &NodeContext) {
         let bounds = ctx.bounds_self.clone();
-        self.compact.replace_with(Property::computed(
+        self.compact.replace_with(LocalProperty::computed(
             move || bounds.get().0 < 700.0,
             &[ctx.bounds_self.untyped()],
         ));
-        let compact = self.compact.clone();
-        let safe_left = self.safe_left.clone();
-        let safe_right = self.safe_right.clone();
-        self.gutter.replace_with(Property::computed(
+        let compact = self.compact.local();
+        let safe_left = self.safe_left.local();
+        let safe_right = self.safe_right.local();
+        self.gutter.replace_with(LocalProperty::computed(
             move || {
                 let base = if compact.get() { 20.0 } else { 48.0 };
                 base + safe_left.get().max(safe_right.get())
@@ -66,13 +66,13 @@ impl Paxflix {
                 self.safe_right.untyped(),
             ],
         ));
-        let compact = self.compact.clone();
-        self.card_width.replace_with(Property::computed(
+        let compact = self.compact.local();
+        self.card_width.replace_with(LocalProperty::computed(
             move || if compact.get() { 236.0 } else { 292.0 },
             &[self.compact.untyped()],
         ));
         let bounds = ctx.bounds_self.clone();
-        self.hero_height.replace_with(Property::computed(
+        self.hero_height.replace_with(LocalProperty::computed(
             move || {
                 let (width, height) = bounds.get();
                 if width < 700.0 {
@@ -83,8 +83,8 @@ impl Paxflix {
             },
             &[ctx.bounds_self.untyped()],
         ));
-        let width = self.card_width.clone();
-        self.row_height.replace_with(Property::computed(
+        let width = self.card_width.local();
+        self.row_height.replace_with(LocalProperty::computed(
             move || width.get() * 0.75 + 126.0,
             &[self.card_width.untyped()],
         ));
@@ -92,8 +92,8 @@ impl Paxflix {
         let rows = shelves(&movies);
         self.shelf_count.set(rows.len());
         self.shelves.set(rows);
-        let id = self.selected_id.clone();
-        self.selected.replace_with(Property::computed(
+        let id = self.selected_id.local();
+        self.selected.replace_with(LocalProperty::computed(
             move || movies[id.get()].clone(),
             &[self.selected_id.untyped()],
         ));

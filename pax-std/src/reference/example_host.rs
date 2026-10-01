@@ -1,6 +1,7 @@
 #![allow(unused_imports)]
 
 use crate::*;
+use pax_engine::api::LocalProperty;
 use pax_engine::api::{
     cursor::CursorStyle, Click, Duration, EasingCurve, Event, MouseDown, MouseMove, MouseOut,
     MouseOver, MouseUp,
@@ -78,37 +79,38 @@ impl ExampleHost {
             .set(if drawer_open { 1.0 } else { 0.0 });
         self.clamp_drawer_to_host(ctx.bounds_self.get().0);
 
-        let sources = self.sources.clone();
-        let selected_source = self.selected_source.clone();
+        let sources = self.sources.local();
+        let selected_source = self.selected_source.local();
         let deps = [sources.untyped(), selected_source.untyped()];
-        self._active_source.replace_with(Property::computed(
+        self._active_source.replace_with(LocalProperty::computed(
             move || active_source(&sources.get(), selected_source.get()),
             &deps,
         ));
 
-        let sources_for_markup = self.sources.clone();
+        let sources_for_markup = self.sources.local();
         let deps = [sources_for_markup.untyped()];
-        self._source_markups.replace_with(Property::computed(
+        self._source_markups.replace_with(LocalProperty::computed(
             move || source_markups(&sources_for_markup.get()),
             &deps,
         ));
 
-        let source_markups = self._source_markups.clone();
-        let selected_source = self.selected_source.clone();
+        let source_markups = self._source_markups.local();
+        let selected_source = self.selected_source.local();
         let deps = [source_markups.untyped(), selected_source.untyped()];
-        self._active_source_markup.replace_with(Property::computed(
-            move || {
-                let source_markups = source_markups.get();
-                if source_markups.is_empty() {
-                    return highlighted_code_markup(&fallback_source());
-                }
-                source_markups
-                    .get(selected_source.get().min(source_markups.len() - 1))
-                    .cloned()
-                    .unwrap_or_else(|| highlighted_code_markup(&fallback_source()))
-            },
-            &deps,
-        ));
+        self._active_source_markup
+            .replace_with(LocalProperty::computed(
+                move || {
+                    let source_markups = source_markups.get();
+                    if source_markups.is_empty() {
+                        return highlighted_code_markup(&fallback_source());
+                    }
+                    source_markups
+                        .get(selected_source.get().min(source_markups.len() - 1))
+                        .cloned()
+                        .unwrap_or_else(|| highlighted_code_markup(&fallback_source()))
+                },
+                &deps,
+            ));
     }
 
     /// Keeps the animated drawer progress synchronized with external state writes.
@@ -190,7 +192,7 @@ impl ExampleHost {
 
     fn animate_drawer_progress(&self, open: bool) {
         let target = if open { 1.0 } else { 0.0 };
-        self._drawer_progress.ease_to(
+        self._drawer_progress.local().ease_to(
             target,
             Duration::Milliseconds(DRAWER_EASE_MS.into()),
             EasingCurve::InQuad,

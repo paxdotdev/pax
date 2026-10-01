@@ -33,6 +33,14 @@ Type: `Rc`<[`RuntimePropertiesStackFrame`](../../../api/internal/pax-runtime/pro
 Shared context for properties pass recursion
 
 #### Properties
+##### `application`
+Type: `ApplicationInstance`
+
+##### `property_graph`
+Type: `PropertyGraph`
+
+Owner-thread bridge for application properties.
+
 ##### `layer_count`
 Type: `Cell`<`usize`>
 
@@ -239,7 +247,7 @@ Apply a backend's replay region request through the shared scene index.
 Ensure the dirty-canvas table has entries up to the requested layer count.
 
 ##### `safe_area_insets`
-<pre><code class="api-signature language-rust ignore">pub fn safe_area_insets(&amp;self) -&gt; <a href="../../../api/pax-runtime-api/properties.md#property">Property</a>&lt;<a href="../../../api/internal/pax-message/index.md#safeareainsets">SafeAreaInsets</a>&gt;</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn safe_area_insets(&amp;self) -&gt; LocalProperty&lt;<a href="../../../api/internal/pax-message/index.md#safeareainsets">SafeAreaInsets</a>&gt;</code></pre>
 
 Live native safe-area data used by opt-in layout primitives. Defaults to zero.
 

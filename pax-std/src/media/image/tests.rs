@@ -1,7 +1,7 @@
 use super::*;
 use kurbo::{BezPath, Rect};
 use pax_runtime::api::pax_value::ToFromPaxAny;
-use pax_runtime::api::{CommonProperties, Material, Paint, Stroke};
+use pax_runtime::api::{CommonProperties, Paint, ResolvedMaterial, ResolvedStroke};
 use pax_runtime::{CommonPropertiesInit, ComponentInstance, PropertiesInit, PropertiesScopeInit};
 
 fn context() -> Rc<RuntimeContext> {
@@ -57,15 +57,15 @@ impl RenderContext for RecordingRenderer {
     fn fill_with_opacity(&mut self, _: usize, _: BezPath, _: &Paint, _: f64) {
         unreachable!()
     }
-    fn stroke_with_opacity(&mut self, _: usize, _: BezPath, _: &Stroke, _: f64) {
+    fn stroke_with_opacity(&mut self, _: usize, _: BezPath, _: &ResolvedStroke, _: f64) {
         unreachable!()
     }
     fn stroke_with_draw_range_and_material_and_opacity(
         &mut self,
         _: usize,
         _: BezPath,
-        _: &Stroke,
-        _: &Material,
+        _: &ResolvedStroke,
+        _: &ResolvedMaterial,
         _: f64,
         _: f64,
         _: f64,
@@ -107,8 +107,8 @@ fn image_inherits_opacity_and_repaints_without_moving_or_reloading() {
     for subtree_opacity in [false, true] {
         let context = context();
         context.resize_canvas_layers_to(1);
-        let parent_opacity = Property::new(Some(0.5.into()));
-        let own_opacity = Property::new(Some(0.5.into()));
+        let parent_opacity = LocalProperty::new(Some(0.5.into()));
+        let own_opacity = LocalProperty::new(Some(0.5.into()));
         let mut image_args = args();
         let own = own_opacity.clone();
         image_args.prototypical_common_properties =

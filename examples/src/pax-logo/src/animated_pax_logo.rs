@@ -49,9 +49,9 @@ impl Default for AnimatedPaxLogo {
 impl AnimatedPaxLogo {
     fn replay_if_enabled(&self) {
         if self.click_to_replay.get() {
-            self.progress.cancel_transitions();
+            self.progress.local().cancel_transitions();
             self.progress.set(0.0);
-            self.progress.ease_to(
+            self.progress.local().ease_to(
                 1.0,
                 Duration::Milliseconds(1440.into()),
                 EasingCurve::Linear,
@@ -123,7 +123,7 @@ mod tests {
         register_millis(&millis);
         let logo = AnimatedPaxLogo::default();
         logo.click_to_replay.set(false);
-        logo.progress.ease_to(
+        logo.progress.local().ease_to(
             1.0,
             Duration::Milliseconds(1000.into()),
             EasingCurve::Linear,

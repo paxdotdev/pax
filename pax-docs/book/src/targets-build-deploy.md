@@ -516,16 +516,126 @@ configuration portable between workstations.
 | `marketing_version` | Common, Apple | User-facing version; defaults to Cargo `package.version` |
 | `build_number` | Common, Apple | Apple build number, expressed as a TOML string |
 | `development_team` | Common, Apple | Apple development team used during signing |
-| `info_plist` | Common, Apple | Nested table of string-valued Info.plist entries |
+| `info_plist` | Common, Apple | Typed table of Info.plist entries |
+| `info_plist_file` | Common, Apple | Project-owned XML or binary plist with a dictionary root |
+| `entitlements` | Apple target only | Typed table of requested signing entitlements |
+| `entitlements_file` | Apple target only | Project-owned XML or binary entitlements plist with a dictionary root |
 
-`info_plist` supports strings here, not arbitrary arrays, dictionaries, or
-booleans. Platform-specific entries override matching common keys; iPadOS
-also inherits iOS entries. Reload configuration has its own
+Apple configuration accepts strings, booleans, integers, finite real numbers,
+arrays, and dictionaries, including nested dictionaries and arrays of tables.
+Reload configuration has its own
 [`[package.metadata.pax.dev]` table](developer-workflow.md#configure-a-project-default).
 
 For per-page titles, descriptions, indexing, and social-preview overrides, use
 [Web route metadata](routing.md#web-route-metadata). These site-wide settings
 supply defaults and public URLs; they do not enumerate parameterized pages.
+
+### Apple property lists and entitlements
+
+Use Apple's exact keys in the target's `info_plist` and `entitlements` tables.
+There is no networking-only allowlist: a new Apple key normally needs no Pax
+compiler change. Pax preserves value types and writes actual XML property lists
+for Xcode to process and sign.
+
+For example, an app that connects to and hosts a TCP service on macOS can opt
+into both sandbox permissions:
+
+```toml
+[package.metadata.pax.macos.entitlements]
+"com.apple.security.network.client" = true
+"com.apple.security.network.server" = true
+```
+
+Quote dotted entitlement keys so TOML treats each as one key. Client access
+permits outgoing TCP connections; server access permits listening for incoming
+connections. Once connected, both directions can send and receive. The generated
+macOS host retains its default sandbox and user-selected read-only file access;
+network access is opt-in. Async Workbench uses both network entitlements for its
+loopback TCP exercise. Verify networking in the signed release application:
+the unsigned debug host does not exercise the same sandbox restrictions.
+
+An iOS app that discovers nearby services and uses universal links might declare:
+
+```toml
+[package.metadata.pax.ios.entitlements]
+"com.apple.developer.associated-domains" = ["applinks:example.com"]
+
+[package.metadata.pax.ios.info_plist]
+NSLocalNetworkUsageDescription = "Find and connect to nearby devices."
+NSBonjourServices = ["_example._tcp"]
+```
+
+These are independent examples, not required settings for every async app.
+Associated domains also need the corresponding website association file.
+macOS client/server sandbox entitlements are not an iOS networking switch.
+Local-network privacy applies beneath the networking API, including Tokio;
+some multicast/broadcast operations need a separate entitlement. The mobile
+debug host adds a local-network usage description for the development connection
+when the app has not supplied one; release builds do not add that description.
+
+To keep a larger dictionary in an authored file, or use native plist dates or
+binary data, specify a file beside the inline table:
+
+```toml
+[package.metadata.pax.ios]
+info_plist_file = "apple/Info.extra.plist"
+entitlements_file = "apple/App.entitlements"
+
+[package.metadata.pax.ios.info_plist]
+NSCameraUsageDescription = "Scan the setup code on your device."
+```
+
+Files must have dictionary roots and can use XML or binary plist encoding.
+They are overlays on the host's defaults, not complete replacement app manifests.
+TOML date/time literals are rejected; use a plist file for dates. Paths resolve
+relative to the directory containing the project's `Cargo.toml` unless absolute.
+Rebuild and relaunch after changing metadata or either source file.
+
+Precedence is applied in this order, with later values winning:
+
+1. The copied native host's defaults.
+2. Common `info_plist_file`, then common `info_plist`.
+3. The target's file, then its inline table. For iPadOS, apply the iOS file/table
+   first, followed by the iPadOS file/table.
+
+Each override replaces the **whole top-level value**. Arrays are not concatenated
+and dictionaries are not recursively merged. An empty array or dictionary can
+clear an inherited collection; there is no key-deletion marker. Entitlements
+must live under `macos`, `ios`, or `ipados`; there is no common entitlements table
+that silently applies platform-specific permissions to every Apple target.
+
+Pax rejects authored entries for managed fields: `CFBundleIdentifier` uses
+`bundle_identifier`; `CFBundleName` and `CFBundleDisplayName` use `title`;
+`CFBundleShortVersionString` uses `marketing_version`; `CFBundleVersion` uses
+`build_number`. The host owns `CFBundleExecutable` and `CFBundlePackageType`.
+Application/team identifiers and debugger-access entitlements are owned by
+Xcode signing and provisioning. Conflicts are diagnosed in both source files
+and inline tables, including entries that another layer would override.
+
+Configuration support does not imply that every capability has native Pax
+integration. Usage descriptions still need runtime authorization; restricted
+entitlements still need compatible signing/provisioning; background modes still
+need the native lifecycle APIs. In particular, enabling Tokio does not keep an
+iOS application executing after suspension. Privacy manifests are separate
+`PrivacyInfo.xcprivacy` resources and are not generated by these tables.
+
+Use Apple's references for platform availability, types, allowed values, and
+additional requirements:
+
+- [Entitlement keys](https://developer.apple.com/documentation/bundleresources/entitlements)
+- [Information Property List keys](https://developer.apple.com/documentation/bundleresources/information-property-list)
+- [Configuring the macOS App Sandbox](https://developer.apple.com/documentation/xcode/configuring-the-macos-app-sandbox)
+- [Local-network privacy](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy)
+- [Background execution modes](https://developer.apple.com/documentation/xcode/configuring-background-execution-modes)
+- [Code signing and provisioning profiles](https://developer.apple.com/documentation/technotes/tn3125-inside-code-signing-provisioning-profiles)
+- [Privacy manifest files](https://developer.apple.com/documentation/bundleresources/privacy-manifest-files)
+
+The generated source files are under `.pax/interface/macos/pax-app-macos/pax-app-macos/`
+or `.pax/interface/ios/pax-app-ios/pax-app-ios/`: `Info.plist` and
+`pax_app_macos.entitlements` or `pax_app_ios.entitlements`. Keep authored inputs
+outside `.pax`, which is recreated during builds. An ejected Apple interface
+must retain these files and wire its app target's `INFOPLIST_FILE` and
+`CODE_SIGN_ENTITLEMENTS` to them, with `GENERATE_INFOPLIST_FILE = NO`.
 
 ### Application icons
 

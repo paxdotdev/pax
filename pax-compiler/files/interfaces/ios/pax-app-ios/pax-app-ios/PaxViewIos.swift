@@ -117,6 +117,10 @@ struct PaxViewIos: View {
 
         func updateUIView(_ uiView: PaxCanvasViewIos, context: Context) {
         }
+
+        static func dismantleUIView(_ uiView: PaxCanvasViewIos, coordinator: ()) {
+            uiView.shutdown()
+        }
     }
 
 
@@ -135,7 +139,35 @@ struct PaxViewIos: View {
         let textboxElements = TextboxElements.singleton
         let eventBlockerElements = EventBlockerElements.singleton
         let glassSurfaceElements = GlassSurfaceElements.singleton
+        // CADisplayLink retains its target. A weak proxy lets view disposal run.
+        private final class DisplayLinkTarget: NSObject {
+            weak var view: PaxCanvasViewIos?
+            init(_ view: PaxCanvasViewIos) { self.view = view }
+            @objc func frame(_ link: CADisplayLink) { view?.handleDisplayLink(link) }
+        }
         private var displayLink: CADisplayLink?
+        private var isShutdown = false
+        private static var nextPropertyWakeToken: UInt64 = 1
+        private static var propertyWakes: [UInt64: () -> Void] = [:]
+        private var propertyWakeToken: UInt64?
+        private var ownedEngine: OpaquePointer?
+        private static var shutdownWakeInstalled = false
+
+        private func installPropertyWaker(_ engine: OpaquePointer) {
+            let token = Self.nextPropertyWakeToken
+            precondition(token < UInt64.max, "Pax wake identity space exhausted")
+            Self.nextPropertyWakeToken += 1
+            propertyWakeToken = token
+            Self.propertyWakes[token] = { [weak self] in
+                guard let self, self.propertyWakeToken == token, self.window != nil,
+                    pax_has_pending_properties(PaxEngineContainer.paxEngineContainer) else { return }
+                _ = self.tick()
+            }
+            pax_set_property_waker(engine, token) { token in
+                DispatchQueue.main.async { PaxViewIos.PaxCanvasViewIos.propertyWakes[token]?() }
+            }
+            pax_activate_application(engine)
+        }
         private var previousViewportSize: CGSize = .zero
         private var publishedSafeAreaInsets: UIEdgeInsets?
         private let viewportSizeEpsilon: CGFloat = 0.5
@@ -387,7 +419,7 @@ struct PaxViewIos: View {
         }
 
         private func createDisplayLink() {
-            displayLink = CADisplayLink(target: self, selector: #selector(handleDisplayLink))
+            displayLink = CADisplayLink(target: DisplayLinkTarget(self), selector: #selector(DisplayLinkTarget.frame(_:)))
             if #available(iOS 15.0, *) {
                 let maximumFramesPerSecond = UIScreen.main.maximumFramesPerSecond
                 displayLink?.preferredFrameRateRange = CAFrameRateRange(
@@ -418,12 +450,27 @@ struct PaxViewIos: View {
             }
         }
 
-        deinit {
+        func shutdown() {
+            guard !isShutdown else { return }
+            isShutdown = true
+            if let token = propertyWakeToken { Self.propertyWakes.removeValue(forKey: token) }
+            propertyWakeToken = nil
             displayLink?.invalidate()
+            displayLink = nil
+            if let engine = ownedEngine {
+                if PaxEngineContainer.paxEngineContainer == engine {
+                    PaxEngineContainer.paxEngineContainer = nil
+                }
+                ownedEngine = nil
+                pax_dealloc_engine(engine)
+            }
         }
+
+        deinit { shutdown() }
 
         @discardableResult
         private func tick(measurePhases: Bool = false) -> PaxFramePhaseDurations {
+            guard !isShutdown else { return PaxFramePhaseDurations() }
             let totalStart = measurePhases ? CACurrentMediaTime() : 0
             var phaseStart = totalStart
             var phases = PaxFramePhaseDurations()
@@ -445,8 +492,15 @@ struct PaxViewIos: View {
             let height = Float(viewportSize.height)
             let scale = Float(currentScale())
 
+            if !Self.shutdownWakeInstalled {
+                Self.shutdownWakeInstalled = true
+                pax_set_shutdown_waker(1) { _ in
+                    DispatchQueue.main.async { _ = pax_pump_shutdowns() }
+                }
+            }
             if PaxEngineContainer.paxEngineContainer == nil {
                 PaxEngineContainer.paxEngineContainer = pax_init(width, height)
+                ownedEngine = PaxEngineContainer.paxEngineContainer
             }
             if measurePhases {
                 phases.engineInitMs = Self.elapsedMilliseconds(since: phaseStart)
@@ -460,6 +514,7 @@ struct PaxViewIos: View {
                 return phases
             }
 
+            if propertyWakeToken == nil { installPropertyWaker(engineContainer) }
             // The SwiftUI content intentionally ignores safe areas. Read the owning
             // window's safe rectangle and convert it to the canvas coordinate space.
             // Check before every tick so rotation/window changes reach the same frame's

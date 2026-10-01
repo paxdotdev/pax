@@ -14,32 +14,32 @@ that overflow should be clipped.
 
 #### Properties
 ##### `elements`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`Vec`<[`PathElement`](../../../api/pax-runtime-api/drawing.md#pathelement)>>
+Type: `Property`<`Vec`<[`PathElement`](../../../api/pax-runtime-api/drawing.md#pathelement)>>
 
 The path commands and control points, expressed in local coordinates.
 
 ##### `stroke`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`Vec`<[`Stroke`](../../../api/pax-runtime-api/drawing.md#stroke)>>
+Type: `Property`<`Vec`<[`Stroke`](../../../api/pax-runtime-api/drawing.md#stroke)>>
 
 The stroke applied along the path centerline.
 
 ##### `fill`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`Vec`<[`Fill`](../../../api/pax-runtime-api/drawing.md#fill)>>
+Type: `Property`<`Vec`<[`Fill`](../../../api/pax-runtime-api/drawing.md#fill)>>
 
 The fill applied to the interior of closed contours.
 
 ##### `smoothing`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`PathSmoothing`](../../../api/pax-runtime-api/drawing.md#pathsmoothing)>
+Type: `Property`<[`PathSmoothing`](../../../api/pax-runtime-api/drawing.md#pathsmoothing)>
 
 Optional curve smoothing applied before rendering path geometry.
 
 ##### `draw_start`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`UnitValue`](../../../api/pax-runtime-api/unit_value.md#unitvalue)>
+Type: `Property`<[`UnitValue`](../../../api/pax-runtime-api/unit_value.md#unitvalue)>
 
 Start position of the visible stroke range over the path's total length.
 
 ##### `draw_end`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`UnitValue`](../../../api/pax-runtime-api/unit_value.md#unitvalue)>
+Type: `Property`<[`UnitValue`](../../../api/pax-runtime-api/unit_value.md#unitvalue)>
 
 End position of the visible stroke range over the path's total length.
 
@@ -71,12 +71,12 @@ Path child component that inserts a quadratic curve control point.
 
 #### Properties
 ##### `x`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Size`](../../../api/pax-runtime-api/layout.md#size)>
+Type: `Property`<[`Size`](../../../api/pax-runtime-api/layout.md#size)>
 
 Control point x-coordinate.
 
 ##### `y`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Size`](../../../api/pax-runtime-api/layout.md#size)>
+Type: `Property`<[`Size`](../../../api/pax-runtime-api/layout.md#size)>
 
 Control point y-coordinate.
 
@@ -92,11 +92,11 @@ Path child component that inserts a `PathElement::Point`.
 
 #### Properties
 ##### `x`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Size`](../../../api/pax-runtime-api/layout.md#size)>
+Type: `Property`<[`Size`](../../../api/pax-runtime-api/layout.md#size)>
 
 Point x-coordinate.
 
 ##### `y`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Size`](../../../api/pax-runtime-api/layout.md#size)>
+Type: `Property`<[`Size`](../../../api/pax-runtime-api/layout.md#size)>
 
 Point y-coordinate.

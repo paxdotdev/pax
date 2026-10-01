@@ -6,7 +6,9 @@ fn expression(raw: &str) -> ValueDefinition {
     ValueDefinition::Expression(ExpressionInfo::new(parse_pax_expression(raw).unwrap()))
 }
 
-fn scope<T: PropertyValue + ToPaxValue>(source: &Property<T>) -> Rc<RuntimePropertiesStackFrame> {
+fn scope<T: PropertyValue + ToPaxValue>(
+    source: &LocalProperty<T>,
+) -> Rc<RuntimePropertiesStackFrame> {
     RuntimePropertiesStackFrame::new(HashMap::from([(
         "source".to_string(),
         Variable::new_from_typed_property(source.clone()),
@@ -16,7 +18,7 @@ fn scope<T: PropertyValue + ToPaxValue>(source: &Property<T>) -> Rc<RuntimePrope
 fn build<T: CoercionRules + PropertyValue + ToPaxValue>(
     definition: &ValueDefinition,
     stack: &Rc<RuntimePropertiesStackFrame>,
-) -> Property<T> {
+) -> LocalProperty<T> {
     build_component_property(
         "test",
         definition,
@@ -28,7 +30,7 @@ fn build<T: CoercionRules + PropertyValue + ToPaxValue>(
 
 #[test]
 fn plain_identifiers_and_unadorned_groups_use_typed_forwarding() {
-    let source = Property::new(vec![1.0_f64, 2.0]);
+    let source = LocalProperty::new(vec![1.0_f64, 2.0]);
     let stack = scope(&source);
     for definition in [
         ValueDefinition::Identifier(PaxIdentifier::new("source")),
@@ -49,7 +51,7 @@ fn plain_identifiers_and_unadorned_groups_use_typed_forwarding() {
 
 #[test]
 fn expressions_units_projection_and_coercions_keep_the_interpreter_path() {
-    let source = Property::new(4.0_f64);
+    let source = LocalProperty::new(4.0_f64);
     let stack = scope(&source);
     for raw in ["source + 1", "(source)px", "[source]", "true ? source : 0"] {
         assert!(try_typed_property_binding::<f64>("test", &expression(raw), &stack).is_none());
@@ -66,10 +68,10 @@ fn expressions_units_projection_and_coercions_keep_the_interpreter_path() {
         build::<Numeric>(&expression("source"), &stack).get(),
         Numeric::F64(4.0)
     );
-    let list = scope(&Property::new(vec![2.0_f64, 3.0]));
+    let list = scope(&LocalProperty::new(vec![2.0_f64, 3.0]));
     assert!(try_typed_property_binding::<f64>("test", &expression("source[1]"), &list).is_none());
     assert_eq!(build::<f64>(&expression("source[1]"), &list).get(), 3.0);
-    let record = scope(&Property::new(PaxValue::Object(vec![(
+    let record = scope(&LocalProperty::new(PaxValue::Object(vec![(
         "x".into(),
         7.0.to_pax_value(),
     )])));
@@ -79,7 +81,7 @@ fn expressions_units_projection_and_coercions_keep_the_interpreter_path() {
 
 #[test]
 fn common_property_exact_option_and_option_lifting_stay_distinct() {
-    let source = Property::new(Some(Size::Pixels(3.0.into())));
+    let source = LocalProperty::new(Some(Size::Pixels(3.0.into())));
     let stack = scope(&source);
     let definition = expression("source");
     assert!(try_typed_property_binding::<Option<Size>>("x", &definition, &stack).is_some());
@@ -89,7 +91,7 @@ fn common_property_exact_option_and_option_lifting_stay_distinct() {
     assert_eq!(destination.get(), None);
     destination.set(Some(Size::Pixels(9.0.into())));
     assert_eq!(source.get(), None);
-    let plain = scope(&Property::new(Size::Pixels(5.0.into())));
+    let plain = scope(&LocalProperty::new(Size::Pixels(5.0.into())));
     assert!(try_typed_property_binding::<Option<Size>>("x", &definition, &plain).is_none());
     assert_eq!(
         build_common_property_value::<Size>("x", &definition, &plain).get(),
@@ -99,7 +101,7 @@ fn common_property_exact_option_and_option_lifting_stay_distinct() {
 
 #[test]
 fn actual_double_binding_still_aliases_the_parent() {
-    let source = Property::new(4.0_f64);
+    let source = LocalProperty::new(4.0_f64);
     let definition = ValueDefinition::DoubleBinding(PaxIdentifier::new("source"));
     let destination = build::<f64>(&definition, &scope(&source));
     assert_eq!(source.untyped().get_id(), destination.untyped().get_id());
@@ -122,12 +124,12 @@ fn custom_coercion_runs_even_for_the_same_rust_type() {
             Ok(Self(f64::try_coerce(value)?.max(0.0)))
         }
     }
-    let source = Property::new(Normalized(-1.0));
+    let source = LocalProperty::new(Normalized(-1.0));
     let stack = scope(&source);
     let definition = expression("source");
     assert!(try_typed_property_binding::<Normalized>("test", &definition, &stack).is_none());
     assert_eq!(build::<Normalized>(&definition, &stack).get().0, 0.0);
-    let nested = scope(&Property::new(vec![Normalized(-2.0)]));
+    let nested = scope(&LocalProperty::new(vec![Normalized(-2.0)]));
     assert!(try_typed_property_binding::<Vec<Normalized>>("test", &definition, &nested).is_none());
     assert_eq!(
         build::<Vec<Normalized>>(&definition, &nested).get()[0].0,
@@ -137,7 +139,7 @@ fn custom_coercion_runs_even_for_the_same_rust_type() {
 
 #[test]
 fn noncanonical_dependency_metadata_uses_fallback() {
-    let source = Property::new(1.0_f64);
+    let source = LocalProperty::new(1.0_f64);
     let stack = scope(&source);
     let ValueDefinition::Expression(mut info) = expression("source") else {
         unreachable!()
@@ -158,13 +160,13 @@ fn noncanonical_dependency_metadata_uses_fallback() {
 
 #[test]
 fn typed_base_candidate_keeps_reactive_settings_selection() {
-    let source = Property::new(2.0_f64);
-    let condition = Property::new(true);
+    let source = LocalProperty::new(2.0_f64);
+    let condition = LocalProperty::new(true);
     let stack = scope(&source).push(HashMap::from([(
         "enabled".into(),
         Variable::new_from_typed_property(condition.clone()),
     )]));
-    let base = Property::new(10.0_f64);
+    let base = LocalProperty::new(10.0_f64);
     let stack_with_base = stack_with_base(&stack, base.clone());
     let candidate = build::<f64>(&expression("$base"), &stack_with_base);
     let ValueDefinition::Expression(condition_expr) = expression("enabled") else {

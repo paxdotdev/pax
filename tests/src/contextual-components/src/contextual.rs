@@ -27,8 +27,9 @@ impl ContextualParent {
         let data: Property<Vec<String>> = Property::default();
         ctx.provide_store(ContextStore { data: data.clone() })
             .expect("context provider is mounting");
+        let data = data.local();
         let deps = [data.untyped()];
-        self.on_data_change.replace_with(Property::computed(
+        self.on_data_change.replace_with(LocalProperty::computed(
             move || {
                 let data = data.get();
                 log::info!("data changed: {:?}", data);
@@ -40,7 +41,7 @@ impl ContextualParent {
 
     pub fn pre_render(&mut self, ctx: &NodeContext) {
         // dirty trigger
-        self.on_data_change.get();
+        self.on_data_change.local().get();
     }
 }
 
@@ -64,10 +65,10 @@ impl ContextualChild {
         let parent_data = ctx
             .with_store(|store: &mut ContextStore| store.data.clone())
             .expect("child contextual element should exist under a parent");
-        let text = self.text.clone();
-        let id = self.id.clone();
+        let text = self.text.local();
+        let id = self.id.local();
         let deps = [text.untyped(), id.untyped()];
-        self.on_change.replace_with(Property::computed(
+        self.on_change.replace_with(LocalProperty::computed(
             move || {
                 parent_data.update(|list| {
                     let id = id.get();
@@ -84,6 +85,6 @@ impl ContextualChild {
 
     pub fn pre_render(&mut self, ctx: &NodeContext) {
         // dirty patching
-        self.on_change.get();
+        self.on_change.local().get();
     }
 }

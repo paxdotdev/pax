@@ -57,7 +57,22 @@ use pax_runtime::api::{
 #[cfg(feature = "designtime")]
 use pax_designtime::{AppRevisionActivationStatus, DesigntimeManager};
 
+/// Target facts available to application configuration before root construction.
+pub fn application_target() -> pax_runtime::api::TargetInfo {
+    let os = window()
+        .and_then(|window| window.navigator().user_agent().ok())
+        .and_then(|value| parse_user_agent_str(&value))
+        .unwrap_or_default();
+    pax_runtime::api::TargetInfo::new(Platform::Web, os)
+}
+
 const USERLAND_COMPONENT_ROOT: &str = "USERLAND_COMPONENT_ROOT";
+
+thread_local! {
+    // JS callbacks remain on the browser thread; transferable signals carry
+    // only the graph identity. Browser Web Workers are not an engine host.
+    static PROPERTY_WAKERS: std::cell::RefCell<HashMap<u64, js_sys::Function>> = Default::default();
+}
 
 #[cfg(feature = "designtime")]
 mod dev;
@@ -210,8 +225,7 @@ pub fn init_console_logging() {
         _ if cfg!(debug_assertions) => log::Level::Warn,
         _ => log::Level::Error,
     };
-    console_log::init_with_level(level)
-        .expect("console_log::init_with_level initialized correctly");
+    let _ = console_log::init_with_level(level);
 }
 
 #[cfg(feature = "designtime")]
@@ -235,6 +249,29 @@ pub struct PaxChassisWeb {
     pending_dev_look_requests: HashMap<String, dev::PendingWebDevLookRequest>,
     #[cfg(feature = "designtime")]
     next_dev_capture_id: u32,
+}
+
+impl std::ops::Drop for PaxChassisWeb {
+    fn drop(&mut self) {
+        let graph = self.engine.borrow().runtime_context.property_graph.clone();
+        PROPERTY_WAKERS.with(|wakers| {
+            wakers.borrow_mut().remove(&graph.id());
+        });
+        let reason = if self
+            .engine
+            .borrow()
+            .runtime_context
+            .application
+            .context()
+            .phase()
+            == pax_runtime::api::AppPhase::Preparing
+        {
+            pax_runtime::api::StopReason::PreparationDiscarded
+        } else {
+            pax_runtime::api::StopReason::HostClosed
+        };
+        self.engine.borrow_mut().shutdown(reason);
+    }
 }
 
 #[wasm_bindgen]
@@ -281,7 +318,7 @@ impl PaxChassisWeb {
     }
 
     #[cfg(feature = "designtime")]
-    pub async fn new_designtime(
+    pub fn new_designtime(
         userland_definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
     ) -> Self {
         let (width, height, os_info, surface_policy, get_time, renderer) = Self::init_common();
@@ -321,9 +358,7 @@ impl PaxChassisWeb {
     }
 
     #[cfg(not(feature = "designtime"))]
-    pub async fn new(
-        definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
-    ) -> Self {
+    pub fn new(definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>) -> Self {
         let (width, height, os_info, surface_policy, get_time, renderer) = Self::init_common();
 
         let main_component_instance =
@@ -390,8 +425,69 @@ impl PaxChassisWeb {
     }
 }
 
+thread_local! {
+    static SHUTDOWN_WAKE: std::cell::RefCell<Option<js_sys::Function>> = const { std::cell::RefCell::new(None) };
+}
+
+/// Register before pax_init. Retired cleanup remains wakeable after chassis.free.
+#[wasm_bindgen]
+pub fn pax_set_shutdown_waker(callback: js_sys::Function) {
+    SHUTDOWN_WAKE.with(|wake| *wake.borrow_mut() = Some(callback));
+    pax_runtime::api::application_shutdown::set_shutdown_waker(|| {
+        let wake = SHUTDOWN_WAKE.with(|wake| wake.borrow().clone());
+        if let Some(wake) = wake {
+            let _ = wake.call0(&JsValue::NULL);
+        }
+    });
+}
+
+#[wasm_bindgen]
+pub fn pax_pump_shutdowns() -> usize {
+    pax_runtime::api::application_shutdown::pump_shutdowns()
+}
+
 #[wasm_bindgen]
 impl PaxChassisWeb {
+    /// Installs a host callback that queues a guarded UI turn. The callback
+    /// must not synchronously call back into this chassis.
+    pub fn set_property_waker(&self, callback: js_sys::Function) {
+        let graph = self.engine.borrow().runtime_context.property_graph.clone();
+        let id = graph.id();
+        PROPERTY_WAKERS.with(|wakers| {
+            wakers.borrow_mut().insert(id, callback);
+        });
+        self.engine
+            .borrow()
+            .runtime_context
+            .application
+            .set_waker(move || {
+                let callback = PROPERTY_WAKERS.with(|wakers| wakers.borrow().get(&id).cloned());
+                if let Some(callback) = callback {
+                    if let Err(error) = callback.call0(&JsValue::NULL) {
+                        log::error!("property wake scheduling failed: {error:?}");
+                    }
+                }
+            });
+    }
+
+    pub fn shutdown_for_replacement(&self) {
+        self.engine
+            .borrow_mut()
+            .shutdown(pax_runtime::api::StopReason::Replaced);
+    }
+
+    pub fn activate_application(&self) {
+        self.engine.borrow().activate_application();
+    }
+
+    pub fn has_pending_properties(&self) -> bool {
+        self.engine
+            .borrow()
+            .runtime_context
+            .application
+            .has_pending_work()
+    }
+
     pub fn send_viewport_update(&mut self, width: f64, height: f64) {
         self.engine
             .borrow()

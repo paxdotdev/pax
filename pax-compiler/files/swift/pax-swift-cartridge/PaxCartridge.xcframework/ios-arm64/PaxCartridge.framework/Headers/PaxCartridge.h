@@ -22,7 +22,17 @@ typedef struct PaxEngineContainer PaxEngineContainer;
 
 struct PaxEngineContainer *pax_init(float initial_width, float initial_height);
 
+void pax_activate_application(struct PaxEngineContainer *container);
+
 void pax_dealloc_engine(struct PaxEngineContainer * container);
+
+bool pax_has_pending_properties(struct PaxEngineContainer *container);
+
+void pax_set_shutdown_waker(uint64_t token, void (*wake)(uint64_t));
+uint64_t pax_pump_shutdowns(void);
+void pax_shutdown_for_replacement(PaxEngineContainer *container);
+
+void pax_set_property_waker(struct PaxEngineContainer *container, uint64_t token, void (*wake)(uint64_t));
 
 void pax_interrupt(struct PaxEngineContainer *engine_container, const void * interrupt);
 

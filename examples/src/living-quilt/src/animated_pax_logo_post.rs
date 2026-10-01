@@ -66,12 +66,12 @@ impl Default for AnimatedPaxLogoPost {
 
 impl AnimatedPaxLogoPost {
     pub fn handle_mount(&mut self, _ctx: &NodeContext) {
-        let rolling = self.rolling.clone();
-        let extension = self.extension.clone();
-        let wave = self.wave.clone();
-        let swing = self.swing.clone();
-        let fall = self.fall.clone();
-        let roll_radius_px = self.roll_radius_px.clone();
+        let rolling = self.rolling.local();
+        let extension = self.extension.local();
+        let wave = self.wave.local();
+        let swing = self.swing.local();
+        let fall = self.fall.local();
+        let roll_radius_px = self.roll_radius_px.local();
         let motion_dependencies = [
             rolling.untyped(),
             extension.untyped(),
@@ -80,7 +80,7 @@ impl AnimatedPaxLogoPost {
             fall.untyped(),
             roll_radius_px.untyped(),
         ];
-        let motion = Property::computed(
+        let motion = LocalProperty::computed(
             move || {
                 motion_from_controls(MotionControls {
                     rolling: rolling.get(),
@@ -98,9 +98,9 @@ impl AnimatedPaxLogoPost {
             .replace_with(computed_path(&motion, top_fabric_path));
         self.fabric_elements
             .replace_with(computed_path(&motion, fabric_path));
-        let extension = self.extension.clone();
+        let extension = self.extension.local();
         self.backing_fabric_elements
-            .replace_with(Property::computed(
+            .replace_with(LocalProperty::computed(
                 move || backing_fabric_path(extension.get()),
                 &[self.extension.untyped()],
             ));
@@ -114,12 +114,12 @@ impl AnimatedPaxLogoPost {
 }
 
 fn computed_path(
-    motion: &Property<PostMotion>,
+    motion: &LocalProperty<PostMotion>,
     build: fn(PostMotion) -> Vec<PathElement>,
-) -> Property<Vec<PathElement>> {
+) -> LocalProperty<Vec<PathElement>> {
     let motion = motion.clone();
     let dependencies = [motion.untyped()];
-    Property::computed(move || build(motion.get()), &dependencies)
+    LocalProperty::computed(move || build(motion.get()), &dependencies)
 }
 
 pub(crate) fn settled_post_paths() -> [Vec<PathElement>; 6] {

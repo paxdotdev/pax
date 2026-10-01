@@ -12,6 +12,86 @@ use_RefCell!();
 use crate::common::{native_surface_opacity, patch_if_needed, patch_liquid_glass_if_needed};
 use crate::TextStyle;
 
+#[cfg(all(test, not(feature = "designtime")))]
+mod publication_tests {
+    use super::*;
+    use pax_engine::api::pax_value::{PaxAny, ToFromPaxAny};
+    use pax_engine::api::{Platform, Variable, OS};
+    use pax_runtime::{CommonPropertiesInit, PaxEngine, PropertiesInit, PropertiesScopeInit};
+    use std::collections::HashMap;
+
+    #[test]
+    fn worker_result_reaches_native_patch_in_the_first_settlement() {
+        let mut engine = PaxEngine::new_empty(
+            (320.0, 240.0),
+            Platform::Web,
+            OS::Mac,
+            Box::new(|| 0),
+            Default::default(),
+        );
+        let _graph = engine.runtime_context.property_graph.enter();
+        let value = Property::new(0_u32);
+        let local = value.local();
+        let deps = [local.untyped()];
+        let button = Button::default();
+        button.label.replace_with(LocalProperty::computed(
+            move || format!("value {}", local.get()),
+            &deps,
+        ));
+        let properties = Rc::new(RefCell::new(button.to_pax_any()));
+        let args = InstantiationArgs {
+            prototypical_common_properties: CommonPropertiesInit::Default,
+            prototypical_properties: PropertiesInit::Factory(Box::new(move |_, node| {
+                node.is_none().then(|| properties.clone())
+            })),
+            properties_scope: PropertiesScopeInit::Factory(Box::new(|properties| {
+                let properties = properties.borrow();
+                let button = Button::ref_from_pax_any(&properties).unwrap();
+                HashMap::from([(
+                    "label".into(),
+                    Variable::new_from_typed_property(button.label.clone()),
+                )])
+            })),
+            handler_registry: None,
+            children: None,
+            component_template: None,
+            component_settings: None,
+            template_node_identifier: None,
+            template_node_type_id: None,
+            template_node_selector_info: None,
+            transition_config: Default::default(),
+        };
+        let child = ButtonInstance::instantiate(args);
+        engine.mount_root_component(pax_runtime::ComponentInstance::instantiate(
+            InstantiationArgs {
+                prototypical_common_properties: CommonPropertiesInit::Default,
+                prototypical_properties: PropertiesInit::Factory(Box::new(|_, node| {
+                    node.is_none()
+                        .then(|| Rc::new(RefCell::new(PaxAny::Builtin(Default::default()))))
+                })),
+                properties_scope: PropertiesScopeInit::None,
+                handler_registry: None,
+                children: None,
+                component_template: Some(RefCell::new(vec![child])),
+                component_settings: None,
+                template_node_identifier: None,
+                template_node_type_id: None,
+                template_node_selector_info: None,
+                transition_config: Default::default(),
+            },
+        ));
+        engine.tick();
+        for n in 1..=3 {
+            let value = value.clone();
+            std::thread::spawn(move || value.set(n)).join().unwrap();
+            let messages = engine.tick();
+            assert!(messages.iter().any(|message| matches!(message,
+                pax_message::NativeMessage::ButtonUpdate(patch) if patch.content.as_deref() == Some(format!("value {n}").as_str())
+            )), "first settlement did not publish value {n}");
+        }
+    }
+}
+
 /// A button control, delegating to a platform-specific native button.
 #[pax]
 #[engine_import_path("pax_engine")]
@@ -115,7 +195,7 @@ impl InstanceNode for ButtonInstance {
             .collect();
         expanded_node
             .changed_listener
-            .replace_with(Property::computed(
+            .replace_with(LocalProperty::computed(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
                         return;
@@ -133,7 +213,9 @@ impl InstanceNode for ButtonInstance {
                             patch_if_needed(
                                 &mut old_state.outline_stroke_color,
                                 &mut patch.outline_stroke_color,
-                                (&crate::common::native_stroke_color(&properties.outline.get()))
+                                (&crate::common::native_stroke_color(
+                                    &properties.outline.local().get(),
+                                ))
                                     .into(),
                             ),
                             patch_if_needed(
@@ -141,8 +223,10 @@ impl InstanceNode for ButtonInstance {
                                 &mut patch.outline_stroke_width,
                                 properties
                                     .outline
+                                    .local()
                                     .get()
                                     .width
+                                    .local()
                                     .get()
                                     .expect_pixels()
                                     .to_float(),
@@ -150,27 +234,27 @@ impl InstanceNode for ButtonInstance {
                             patch_if_needed(
                                 &mut old_state.hover_color,
                                 &mut patch.hover_color,
-                                (&properties.hover_color.get()).into(),
+                                (&properties.hover_color.local().get()).into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.corner_radius,
                                 &mut patch.corner_radius,
-                                properties.corner_radius.get(),
+                                properties.corner_radius.local().get(),
                             ),
                             patch_if_needed(
                                 &mut old_state.content,
                                 &mut patch.content,
-                                properties.label.get(),
+                                properties.label.local().get(),
                             ),
                             patch_if_needed(
                                 &mut old_state.color,
                                 &mut patch.color,
-                                (&properties.color.get()).into(),
+                                (&properties.color.local().get()).into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.style,
                                 &mut patch.style,
-                                (&properties.style.get()).into(),
+                                properties.style.local().get().message(true),
                             ),
                             patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
                             patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),
@@ -216,7 +300,7 @@ impl InstanceNode for ButtonInstance {
         let id = expanded_node.id.clone();
         expanded_node
             .changed_listener
-            .replace_with(Property::default());
+            .replace_with(LocalProperty::default());
         context.enqueue_native_message(pax_message::NativeMessage::ButtonDelete(id.to_u32()));
     }
 

@@ -24,6 +24,9 @@
   <!-- API-START -->
   - [pax-runtime-api](api/pax-runtime-api/index.md)
     - [animation](api/pax-runtime-api/animation.md)
+    - [application](api/pax-runtime-api/application.md)
+    - [application_shutdown](api/pax-runtime-api/application_shutdown.md)
+    - [async_runtime](api/pax-runtime-api/async_runtime.md)
     - [color](api/pax-runtime-api/color.md)
     - [cursor](api/pax-runtime-api/cursor.md)
     - [drawing](api/pax-runtime-api/drawing.md)
@@ -88,6 +91,8 @@
       - [media::youtube_video](api/pax-std/media/youtube_video.md)
     - [reference](api/pax-std/reference.md)
       - [reference::example_host](api/pax-std/reference/example_host.md)
+  - [pax-tokio](api/pax-tokio/index.md)
+  - [pax-web-async](api/pax-web-async/index.md)
 
 - [Maintainer Reference](api/internal/index.md)
 

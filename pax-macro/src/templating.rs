@@ -28,6 +28,7 @@ pub enum InternalDefinitions {
 pub struct ArgsFullComponent {
     pub is_main_component: bool,
     pub cartridge_snippet: String,
+    pub application_type: String,
 }
 
 #[derive(Clone, Copy, Debug, Serialize)]
@@ -69,6 +70,7 @@ mod tests {
             args_full_component: Some(ArgsFullComponent {
                 is_main_component: true,
                 cartridge_snippet: "const CARTRIDGE_OWNER: bool = true;".into(),
+                application_type: "ExampleApplication".into(),
             }),
             internal_definitions: InternalDefinitions::Struct(vec![]),
             pascal_identifier: "EmbeddedExample".into(),
@@ -100,6 +102,7 @@ mod tests {
                 assert!(!generated.contains("CARTRIDGE_OWNER"));
                 assert!(!generated.contains("fn pax_init"));
                 assert!(!generated.contains("init_manifest"));
+                assert!(!generated.contains("ExampleApplication"));
                 assert!(!generated.contains("pub use pax_engine::pax_chassis"));
             }
         }
@@ -114,6 +117,7 @@ mod tests {
                 assert!(generated.contains("CARTRIDGE_OWNER"));
                 assert_eq!(generated.matches("fn pax_init").count(), 1);
                 assert!(generated.contains("init_manifest"));
+                assert!(generated.contains("prepare::<ExampleApplication>"));
                 let debug_constructor = if target == "web" {
                     "new_designtime"
                 } else {

@@ -3237,3 +3237,102 @@ ancestor surfaces and ranking nearby rows before distant ones. A regression
 fixture requesting 68 surfaces now fits the 64-canvas budget and reallocates to
 the visible region after scrolling down and back. Keep the GPU ownership guard;
 reusing still-owned canvases or raising the cap would hide the admission error.
+## 2026-09-30 — A Send property handle does not establish thread-safe async integration
+
+PAX-1013's isolated Tokio diagnostic showed that `Property<u32>` and
+`UntypedProperty` satisfy `Send + Sync`, even though their storage is a
+thread-local slot map. A property with owner value `7` read `99` on a Tokio
+worker whose independent table contained the same slot ID. A mutex around the
+old handle did not change table ownership. The existing `bin/run.rs` is a CLI subprocess launcher, so adding a
+Tokio entry-point attribute there does not give the running app an executor.
+PAX-1013 resolves this with shared `Property` storage, explicitly local
+`LocalProperty`/dependency handles, host wakeups, and scoped result delivery.
+See the reproducible probe in `tests/src/tokio-support-probe/README.md` and the
+current authoring guidance in [Rust event handling](../event-handling-rust.md).
+
+
+### PAX-1013: local bindings, unmount, and host wake verification
+
+- A shared property's clone can outlive its node. Holding a strong local
+  projection in the application graph accidentally retains evaluator captures
+  unless unmount explicitly releases that view's attachment ownership. The
+  property-boundary tests now cover release, shared-data retention, and remount
+  of the existing local binding identity.
+- In a settings `if`, use an ID/class selector (`#workbench_scroller`) rather
+  than a type selector (`Scroller`). The fixture initially hit the parser's
+  selector diagnostic and was corrected to a named scroller.
+- A publication wake may already have been satisfied by a display frame. Hosts
+  must recheck pending work before invoking another update; otherwise ordinary
+  frame handlers that publish shared state can create a busy wake loop.
+
+- Responsive overrides belong in settings alongside their base values. Inline
+  `width`/`x` wins the cascade and can make a correct viewport condition appear
+  ineffective. Dynamic settings values also need `{...}` around expressions.
+- Positions containing percentages inherit a percentage anchor unless it is
+  explicit. For adjacent panels/buttons positioned at `50% + 6px`, specify
+  `anchor_x=0%` when the expression denotes the left edge; otherwise they overlap.
+
+### Async Workbench validation (PAX-1013)
+
+- A partial native Button `TextStyle` literal uses the record's defaults for
+  omitted fields. Set foreground and both alignments explicitly when authoring
+  a dark button, otherwise black/top-left text can appear despite the theme.
+- The `pax_kit::*` prelude includes an event named `Drop`. Resource guards in
+  application code should use `impl std::ops::Drop` explicitly.
+- Browser duration budgeting must use `performance.now()`, not native
+  `std::time::Instant`. Cancelled browser timers and fetches also need resource
+  guards to clear timeouts/abort fetches when the future is dropped.
+- Native CLI packaging looks for artifacts at the project's expected target
+  path. An externally redirected `CARGO_TARGET_DIR` can compile successfully
+  and then fail packaging; omit it for native `pax-cli build/run`.
+- A queued input event can outlive a node removed by Pax reload. Ignore detached
+  targets, and enter the state-owning component's binding scope before invoking
+  inline handlers. Their `NodeContext` still identifies the event node.
+- On the locked workstation, `pax-cli dev look` captured native overlays but
+  omitted the GPU backdrop in the in-app browser. The browser's own screenshot
+  showed the complete composition. Inspect both before treating a dev capture
+  as a rendering failure; capture parity remains a separate tooling issue.
+
+### macOS startup after a locked display (PAX-1013)
+
+The overnight macOS fixture had an empty window, no active display-clock thread,
+and no Tokio workers. Restarting with the desktop awake rendered normally. The
+host depended entirely on a one-shot CoreVideo clock startup and ignored both
+creation and start errors. A rejected clock therefore prevented even application
+setup, with no wake retry.
+
+The host now schedules the initial frame from attachment/layout, checks clock
+startup errors, and retries on display/session wake or application activation.
+Temporary view detachment only pauses the clock; actual SwiftUI disposal or
+window close performs shutdown. The injected local display-clock probe verifies
+rendering/timer delivery while creation or start fails and successful startup
+after a wake notification, without locking the workstation. Keep native host
+startup qualification separate from headless cartridge correctness tests.
+
+The same native qualification exposed a release-only I/O limit: the unsigned
+debug host's Tokio TCP probe succeeded, while the signed release app returned
+`Operation not permitted`. Inspecting its signature confirmed App Sandbox was
+enabled without network client/server entitlements. A headless dylib probe does
+not exercise host sandbox permissions. The solution is target-specific typed
+`entitlements` metadata, with the fixture opting into both network client/server
+keys. `info_plist` now also preserves booleans, arrays and dictionaries rather
+than forwarding every value as an Xcode string; source plist overlays cover dates
+and data. Keep platform defaults separate and verify the final signed app, not
+only the generated source file. See
+[Apple configuration](../targets-build-deploy.md#apple-property-lists-and-entitlements).
+Do not infer release networking support from an unsigned debug or headless test.
+
+### Async integration with component stores and native presentation
+
+When combining the async work with component-owned stores, a saved `NodeContext`
+could otherwise discover a new async scope after the same node remounted. Check
+its mount generation before handing out a scope, just as store lookup does.
+The old scope remains closed and the new mount gets independent state.
+
+Native Scroller effects must update their presentation offsets through local
+views: publishing a shared value inside an effect leaves other local readers
+on the previous imported snapshot until the next settlement. Use local reads
+and writes for this frame-owned bookkeeping, and enter the node's binding scope
+for imperative layout updates as well as handlers. The async remount regression
+also exposed a canvas node marked dirty without its layer being scheduled;
+mount must request the initial draw independently of lighting or later input.

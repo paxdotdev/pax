@@ -3,6 +3,18 @@
 //! Most names are reexported at the crate root for compatibility, while their source modules
 //! provide the browsing ontology used by the generated API docs.
 
+pub mod async_runtime;
+pub use async_runtime::{
+    AsyncError, AsyncLimits, AsyncScope, Closed, Completion, GuardedPublisher, TaskControl,
+    TaskOutcome, TaskStatus, TrySendError, UiSender, UiSubscription,
+};
+pub mod application_shutdown;
+pub use application_shutdown::{ManagedService, ShutdownComplete, ShutdownTicket};
+pub mod application;
+pub use application::{
+    AppBuilder, AppContext, AppPhase, AppResult, Application, ServiceError, StopReason,
+};
+
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt::Display;
@@ -50,7 +62,7 @@ pub use pax_value::functions::register_function;
 pub use pax_value::functions::Functions;
 pub use pax_value::functions::HelperFunctions;
 pub use platform::*;
-pub use properties::Property;
+pub use properties::{LocalProperty, Property, PropertyBinding, PropertyGraph, Published};
 pub use rendering::*;
 pub use store::*;
 pub use transform::*;

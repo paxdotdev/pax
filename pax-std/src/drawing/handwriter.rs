@@ -1,3 +1,4 @@
+use pax_engine::api::LocalProperty;
 use std::collections::HashMap;
 
 use pax_engine::api::{
@@ -101,32 +102,33 @@ pub enum HandwriterFont {
 impl Handwriter {
     // Wires generated path data reactively from text/font settings.
     pub fn on_mount(&mut self, _ctx: &NodeContext) {
-        let text = self.text.clone();
-        let text_for_accessibility = self.text.clone();
-        let alt_text = self.alt_text.clone();
-        let font = self.font.clone();
-        let line_height = self.line_height.clone();
+        let text = self.text.local();
+        let text_for_accessibility = self.text.local();
+        let alt_text = self.alt_text.local();
+        let font = self.font.local();
+        let line_height = self.line_height.local();
         let deps = [text.untyped(), font.untyped(), line_height.untyped()];
-        self._elements.replace_with(Property::computed(
+        self._elements.replace_with(LocalProperty::computed(
             move || render_handwriter_text(&text.get(), font.get(), line_height.get()),
             &deps,
         ));
         let accessibility_deps = [text_for_accessibility.untyped(), alt_text.untyped()];
-        self._accessibility_text.replace_with(Property::computed(
-            move || {
-                let alt = alt_text.get();
-                if alt.trim().is_empty() {
-                    normalize_text_newlines(&text_for_accessibility.get())
-                } else {
-                    normalize_text_newlines(&alt)
-                }
-            },
-            &accessibility_deps,
-        ));
-        let accessibility_text = self._accessibility_text.clone();
+        self._accessibility_text
+            .replace_with(LocalProperty::computed(
+                move || {
+                    let alt = alt_text.get();
+                    if alt.trim().is_empty() {
+                        normalize_text_newlines(&text_for_accessibility.get())
+                    } else {
+                        normalize_text_newlines(&alt)
+                    }
+                },
+                &accessibility_deps,
+            ));
+        let accessibility_text = self._accessibility_text.local();
         let accessibility_size_deps = [accessibility_text.untyped()];
         self._accessibility_font_size
-            .replace_with(Property::computed(
+            .replace_with(LocalProperty::computed(
                 move || accessibility_font_size(&accessibility_text.get()),
                 &accessibility_size_deps,
             ));

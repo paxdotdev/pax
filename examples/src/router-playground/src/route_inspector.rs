@@ -45,7 +45,7 @@ impl RouteInspector {
 fn bind_string(target: &Property<String>, route: &Variable, formatter: fn(&PaxValue) -> String) {
     let route = route.clone();
     let deps = [route.get_untyped_property().clone()];
-    target.replace_with(Property::computed(
+    target.replace_with(LocalProperty::computed(
         move || formatter(&route.get_as_pax_value()),
         &deps,
     ));

@@ -16,28 +16,28 @@ Engine-wide reactive globals exposed to every component frame.
 
 #### Properties
 ##### `elapsed_frames`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`u64`>
+Type: `LocalProperty`<`u64`>
 
 ##### `elapsed_millis`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`u64`>
+Type: `LocalProperty`<`u64`>
 
 ##### `viewport`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`TransformAndBounds`](../../../api/internal/pax-runtime/layout.md#transformandbounds)<[`NodeLocal`](../../../api/internal/pax-runtime/engine/node_interface.md#nodelocal), [`Window`](../../../api/pax-runtime-api/platform.md#window)>>
+Type: `LocalProperty`<[`TransformAndBounds`](../../../api/internal/pax-runtime/layout.md#transformandbounds)<[`NodeLocal`](../../../api/internal/pax-runtime/engine/node_interface.md#nodelocal), [`Window`](../../../api/pax-runtime-api/platform.md#window)>>
 
 ##### `gyro`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Gyro`](../../../api/pax-runtime-api/platform.md#gyro)>
+Type: `LocalProperty`<[`Gyro`](../../../api/pax-runtime-api/platform.md#gyro)>
 
 ##### `accel`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`Accel`](../../../api/pax-runtime-api/platform.md#accel)>
+Type: `LocalProperty`<[`Accel`](../../../api/pax-runtime-api/platform.md#accel)>
 
 ##### `route_location`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`RouteLocation`](../../../api/internal/pax-runtime/router.md#routelocation)>
+Type: `LocalProperty`<[`RouteLocation`](../../../api/internal/pax-runtime/router.md#routelocation)>
 
 ##### `browser_allows_scroller_vector_layers`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`bool`>
+Type: `LocalProperty`<`bool`>
 
 ##### `browser_allows_nested_scroller_vector_layers`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`bool`>
+Type: `LocalProperty`<`bool`>
 
 ##### `platform`
 Type: [`Platform`](../../../api/pax-runtime-api/platform.md#platform)
@@ -108,6 +108,12 @@ Type: `ScrollerTilingPolicy`
 Central instance of the PaxEngine and runtime, intended to be created by a particular chassis.
 Contains all rendering and runtime logic.
 
+##### `activate_application`
+<pre><code class="api-signature language-rust ignore">pub fn activate_application(&amp;self)</code></pre>
+
+Activates the mounted application exactly once. Candidate hosts defer this
+until their revision is committed.
+
 ##### `mount_root_component`
 <pre><code class="api-signature language-rust ignore">pub fn mount_root_component(&amp;mut self, main_component_instance: Rc&lt;<a href="../../../api/internal/pax-runtime/component.md#componentinstance">ComponentInstance</a>&gt;) -&gt; Rc&lt;ExpandedNode&gt;</code></pre>
 
@@ -117,6 +123,11 @@ Mount a root component tree into an existing runtime kernel.
 <pre><code class="api-signature language-rust ignore">pub fn set_viewport_size(&amp;mut self, new_viewport_size: (f64, f64))</code></pre>
 
 Called by chassis when viewport size changes, e.g. with native window resizes
+
+##### `shutdown`
+<pre><code class="api-signature language-rust ignore">pub fn shutdown(&amp;mut self, reason: <a href="../../../api/pax-runtime-api/application.md#stopreason">StopReason</a>)</code></pre>
+
+Stops new application work, unmounts, then releases application services.
 
 ##### `tick`
 <pre><code class="api-signature language-rust ignore">pub fn tick(&amp;mut self) -&gt; Vec&lt;<a href="../../../api/internal/pax-message/index.md#nativemessage">NativeMessage</a>&gt;</code></pre>

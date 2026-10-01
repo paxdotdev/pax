@@ -79,14 +79,14 @@ pub struct KaleidoscopeLayer {
 
 impl Kaleidoscope {
     pub fn on_mount(&mut self, _ctx: &NodeContext) {
-        self._angles.replace_with(Property::computed(
+        self._angles.replace_with(LocalProperty::computed(
             move || (0..6).map(|i| i as f64 * 60.0).collect(),
             &[],
         ));
 
-        let layers = self.layers.clone();
+        let layers = self.layers.local();
         let deps = [layers.untyped()];
-        self._layers.replace_with(Property::computed(
+        self._layers.replace_with(LocalProperty::computed(
             move || {
                 let count = layers.get().max(1);
                 (0..count)
@@ -108,10 +108,10 @@ impl Kaleidoscope {
             &deps,
         ));
 
-        let playhead = self.playhead.clone();
-        let variant = self.variant.clone();
+        let playhead = self.playhead.local();
+        let variant = self.variant.local();
         let deps = [playhead.untyped(), variant.untyped()];
-        self._phase.replace_with(Property::computed(
+        self._phase.replace_with(LocalProperty::computed(
             move || {
                 let base = (playhead.get() / 1000.0).clamp(0.0, 1.0);
                 let variant_offset = match variant.get() {
@@ -126,8 +126,8 @@ impl Kaleidoscope {
             &deps,
         ));
 
-        let phase = self._phase.clone();
-        self._fold.replace_with(Property::computed(
+        let phase = self._phase.local();
+        self._fold.replace_with(LocalProperty::computed(
             move || {
                 let wave = (phase.get() * std::f64::consts::PI * 2.0).sin();
                 (0.65 + wave * 0.25).clamp(0.35, 1.0)
@@ -135,8 +135,8 @@ impl Kaleidoscope {
             &[self._phase.untyped()],
         ));
 
-        let phase = self._phase.clone();
-        self._twist.replace_with(Property::computed(
+        let phase = self._phase.local();
+        self._twist.replace_with(LocalProperty::computed(
             move || {
                 let wave = (phase.get() * std::f64::consts::PI * 2.0).cos();
                 Rotation::Degrees(Numeric::F64(wave * 16.0))
@@ -144,14 +144,14 @@ impl Kaleidoscope {
             &[self._phase.untyped()],
         ));
 
-        let phase = self._phase.clone();
-        self._drift.replace_with(Property::computed(
+        let phase = self._phase.local();
+        self._drift.replace_with(LocalProperty::computed(
             move || (phase.get() * std::f64::consts::PI * 2.0).sin() * 24.0,
             &[self._phase.untyped()],
         ));
 
-        let phase = self._phase.clone();
-        self._coil.replace_with(Property::computed(
+        let phase = self._phase.local();
+        self._coil.replace_with(LocalProperty::computed(
             move || {
                 let wave = (phase.get() * std::f64::consts::PI * 2.0).cos();
                 (0.55 + wave * 0.25).clamp(0.25, 0.95)
@@ -159,9 +159,9 @@ impl Kaleidoscope {
             &[self._phase.untyped()],
         ));
 
-        let playhead = self.playhead.clone();
-        let phase = self._phase.clone();
-        self._growth.replace_with(Property::computed(
+        let playhead = self.playhead.local();
+        let phase = self._phase.local();
+        self._growth.replace_with(LocalProperty::computed(
             move || {
                 let progress = (playhead.get() / 1000.0).clamp(0.0, 1.0);
                 let pulse = (phase.get() * std::f64::consts::PI * 2.0).sin();
@@ -171,9 +171,9 @@ impl Kaleidoscope {
             &[self.playhead.untyped(), self._phase.untyped()],
         ));
 
-        let side = self.side.clone();
+        let side = self.side.local();
         let deps = [side.untyped()];
-        self._side_factor.replace_with(Property::computed(
+        self._side_factor.replace_with(LocalProperty::computed(
             move || match side.get() {
                 // Mirror the right-edge stream while keeping joint math shared.
                 KaleidoscopeSide::Left => 1.0,

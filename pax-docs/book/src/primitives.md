@@ -143,6 +143,14 @@ Runtime hooks receive the expanded node. Access its typed properties with
 lower-level access than a component handler's `NodeContext`; keep ordinary
 application actions in [event handlers](event-handling-rust.md).
 
+Inside reactive effects and rendering hooks, read a shared component field
+through its local view, for example `properties.fill.local().get()`. Declare
+its local dependency with `properties.fill.untyped()`. This resolves a dirty
+binding in the current graph settlement; a raw shared `get()` only returns the
+latest published snapshot and may precede that binding's evaluation. Local
+fields use `LocalProperty` and can be read directly. Typed node-property access
+enters the owning graph, including for coverage and hit-testing hooks.
+
 The main implementation responsibilities depend on the capability:
 
 - **Reactive work:** bind an effect in `handle_mount` to the properties and

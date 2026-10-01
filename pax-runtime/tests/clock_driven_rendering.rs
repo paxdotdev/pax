@@ -95,13 +95,13 @@ impl RenderContext for Recorder {
         self.layers
     }
     fn fill_with_opacity(&mut self, _: usize, _: kurbo::BezPath, _: &Paint, _: f64) {}
-    fn stroke_with_opacity(&mut self, _: usize, _: kurbo::BezPath, _: &Stroke, _: f64) {}
+    fn stroke_with_opacity(&mut self, _: usize, _: kurbo::BezPath, _: &ResolvedStroke, _: f64) {}
     fn stroke_with_draw_range_and_material_and_opacity(
         &mut self,
         _: usize,
         _: kurbo::BezPath,
-        _: &Stroke,
-        _: &Material,
+        _: &ResolvedStroke,
+        _: &ResolvedMaterial,
         _: f64,
         _: f64,
         _: f64,
@@ -138,13 +138,13 @@ fn handoff_frames(remove_sibling: bool, force_replay: bool) -> Vec<(u128, usize)
         Box::new(move || clock_source.get()),
         Default::default(),
     );
-    let progress = Property::new(0.0f64);
+    let progress = LocalProperty::new(0.0f64);
     progress.ease_to(
         1.0,
         Duration::Milliseconds(1440.into()),
         EasingCurve::Linear,
     );
-    let condition = Property::computed(
+    let condition = LocalProperty::computed(
         {
             let p = progress.clone();
             move || p.get() < 0.999
@@ -160,8 +160,8 @@ fn handoff_frames(remove_sibling: bool, force_replay: bool) -> Vec<(u128, usize)
         node.is_none().then(|| {
             Rc::new(RefCell::new(
                 ConditionalProperties {
-                    boolean_expression: Property::new(true),
-                    conditional_branches: vec![condition.clone(), Property::new(true)],
+                    boolean_expression: LocalProperty::new(true),
+                    conditional_branches: vec![condition.clone(), LocalProperty::new(true)],
                 }
                 .to_pax_any(),
             ))
@@ -171,7 +171,7 @@ fn handoff_frames(remove_sibling: bool, force_replay: bool) -> Vec<(u128, usize)
         conditional_args,
         vec![0..1, 1..2],
     );
-    let sibling_present = Property::new(true);
+    let sibling_present = LocalProperty::new(true);
     let sibling_condition = sibling_present.clone();
     let mut sibling_args = args();
     sibling_args.children = Some(RefCell::new(vec![Leaf::instantiate(args())]));
@@ -278,8 +278,8 @@ fn opacity_scope_identity_survives_exit_rescue_and_retires_with_its_content() {
         Box::new(move || clock_source.get()),
         Default::default(),
     );
-    let visible = Property::new(true);
-    let alpha = Property::new(Some(0.5.into()));
+    let visible = LocalProperty::new(true);
+    let alpha = LocalProperty::new(Some(0.5.into()));
     let mut card_args = args();
     card_args.component_template = Some(RefCell::new(vec![
         Leaf::instantiate(args()),
@@ -387,4 +387,157 @@ fn opacity_scope_identity_survives_exit_rescue_and_retires_with_its_content() {
         "completed exit removes scope metadata"
     );
     assert!(root.children.get()[0].children.get().is_empty());
+}
+
+#[test]
+fn shared_worker_publication_changes_the_local_tree_and_survives_remount() {
+    let mut engine = PaxEngine::new_empty(
+        (320.0, 240.0),
+        Platform::Web,
+        OS::Mac,
+        Box::new(|| 0),
+        Default::default(),
+    );
+    let graph = engine.runtime_context.property_graph.clone();
+    let _entered = graph.enter();
+    let shared = pax_runtime_api::Property::new(1_u32);
+    let local = shared.local();
+    let read = local.clone();
+    let owner = std::thread::current().id();
+    let condition = LocalProperty::computed(
+        move || {
+            assert_eq!(std::thread::current().id(), owner);
+            read.get() % 2 == 1
+        },
+        &[local.untyped()],
+    );
+    let mut conditional_args = args();
+    conditional_args.children = Some(RefCell::new(vec![Leaf::instantiate(args())]));
+    conditional_args.prototypical_properties = PropertiesInit::Factory(Box::new(move |_, node| {
+        node.is_none().then(|| {
+            Rc::new(RefCell::new(
+                ConditionalProperties {
+                    boolean_expression: condition.clone(),
+                    conditional_branches: Vec::new(),
+                }
+                .to_pax_any(),
+            ))
+        })
+    }));
+    let mut root_args = args();
+    root_args.component_template = Some(RefCell::new(vec![ConditionalInstance::instantiate(
+        conditional_args,
+    )]));
+    let root = engine.mount_root_component(ComponentInstance::instantiate(root_args));
+    engine.runtime_context.resize_canvas_layers_to(1);
+    let mut renderer = Recorder::default();
+    for (value, expected_children) in [(1, 1), (2, 0), (3, 1), (4, 0)] {
+        let writer = shared.clone();
+        std::thread::spawn(move || writer.set(value))
+            .join()
+            .unwrap();
+        engine.tick();
+        engine.render(&mut renderer);
+        assert_eq!(
+            root.children.get()[0].children.get().len(),
+            expected_children
+        );
+        assert_eq!(
+            renderer.nodes.len(),
+            expected_children,
+            "render after publication {value}"
+        );
+    }
+    engine.shutdown(StopReason::HostClosed);
+    shared.set(5);
+    assert!(!graph.has_pending());
+}
+
+#[test]
+fn worker_wake_settles_unmount_before_delivering_queued_local_callbacks() {
+    let mut engine = PaxEngine::new_empty(
+        (320.0, 240.0),
+        Platform::Web,
+        OS::Mac,
+        Box::new(|| 0),
+        Default::default(),
+    );
+    let graph = engine.runtime_context.property_graph.clone();
+    let _entered = graph.enter();
+    let shown = pax_runtime_api::Property::new(true);
+    let local = shown.local();
+    let mut conditional_args = args();
+    conditional_args.children = Some(RefCell::new(vec![Leaf::instantiate(args())]));
+    conditional_args.prototypical_properties = PropertiesInit::Factory(Box::new(move |_, node| {
+        node.is_none().then(|| {
+            Rc::new(RefCell::new(
+                ConditionalProperties {
+                    boolean_expression: local.clone(),
+                    conditional_branches: Vec::new(),
+                }
+                .to_pax_any(),
+            ))
+        })
+    }));
+    let mut root_args = args();
+    root_args.component_template = Some(RefCell::new(vec![ConditionalInstance::instantiate(
+        conditional_args,
+    )]));
+    let root = engine.mount_root_component(ComponentInstance::instantiate(root_args));
+    engine.activate_application();
+    engine.tick();
+    let child = root.children.get()[0].children.get()[0].clone();
+    let scope = child
+        .get_node_context(&engine.runtime_context)
+        .async_scope()
+        .unwrap();
+    let callback = scope
+        .completion(|_: ()| panic!("detached node callback ran"))
+        .unwrap();
+    let (wake, woke) = std::sync::mpsc::channel();
+    engine.runtime_context.application.set_waker(move || {
+        let _ = wake.send(());
+    });
+    let source = shown.clone();
+    std::thread::spawn(move || {
+        callback.complete(()).unwrap();
+        source.set(false);
+    })
+    .join()
+    .unwrap();
+    woke.recv_timeout(std::time::Duration::from_secs(1))
+        .expect("no periodic tick should be required to request work");
+    engine.tick();
+    assert!(scope.is_closed());
+    assert!(root.children.get()[0].children.get().is_empty());
+    // A queued mouse-out from the removed hover target is harmless as well.
+    child.dispatch_button_click(
+        Event::new(ButtonClick {}),
+        &engine.runtime_context.globals(),
+        &engine.runtime_context,
+    );
+}
+
+#[test]
+fn fatal_ui_callback_closes_the_app_and_later_host_frames_are_harmless() {
+    let mut engine = PaxEngine::new_empty(
+        (320.0, 240.0),
+        Platform::Web,
+        OS::Mac,
+        Box::new(|| 0),
+        Default::default(),
+    );
+    engine.mount_root_component(ComponentInstance::instantiate(args()));
+    engine.activate_application();
+    let app = engine.runtime_context.application.context();
+    app.async_scope()
+        .unwrap()
+        .completion(|_: ()| panic!("expected UI callback failure"))
+        .unwrap()
+        .complete(())
+        .unwrap();
+    engine.tick();
+    assert_eq!(app.phase(), AppPhase::Closed);
+    assert!(engine.tick().is_empty());
+    engine.render(&mut Recorder::default());
 }

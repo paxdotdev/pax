@@ -32,7 +32,7 @@ impl CoercionRules for Counted {
 
 #[test]
 fn typed_forwarding_clones_once_per_dirty_hop_without_dynamic_conversion() {
-    let parent = Property::new(Counted(vec![vec![1.0; 512]; 8]));
+    let parent = LocalProperty::new(Counted(vec![vec![1.0; 512]; 8]));
     let first = Variable::new_from_typed_property(parent.clone())
         .try_typed_binding::<Counted>("first")
         .unwrap();
@@ -54,7 +54,7 @@ fn typed_forwarding_clones_once_per_dirty_hop_without_dynamic_conversion() {
 
 #[test]
 fn exact_type_check_and_existing_dynamic_cache_are_preserved() {
-    let parent = Property::new(Counted(vec![vec![3.0]]));
+    let parent = LocalProperty::new(Counted(vec![vec![3.0]]));
     let variable = Variable::new_from_typed_property(parent.clone());
     assert!(variable
         .try_typed_binding::<Vec<Vec<f64>>>("wrong")
@@ -70,14 +70,16 @@ fn exact_type_check_and_existing_dynamic_cache_are_preserved() {
     parent.set(Counted(vec![vec![4.0]]));
     variable.get_as_pax_value();
     assert_eq!(CONVERSIONS.with(Cell::get), 2);
-    assert!(Variable::new_from_typed_property(Property::new(1.0_f64))
-        .try_typed_binding::<i64>("numeric mismatch")
-        .is_none());
+    assert!(
+        Variable::new_from_typed_property(LocalProperty::new(1.0_f64))
+            .try_typed_binding::<i64>("numeric mismatch")
+            .is_none()
+    );
 }
 
 #[test]
 fn mismatched_erased_adapter_cannot_create_a_typed_binding() {
-    let source = Property::new(1.0_f64);
+    let source = LocalProperty::new(1.0_f64);
     let invalid_adapter = Variable::new::<Vec<f64>>(source.untyped());
     assert!(invalid_adapter
         .try_typed_binding::<Vec<f64>>("wrong storage")
@@ -90,15 +92,15 @@ fn mismatched_erased_adapter_cannot_create_a_typed_binding() {
 #[test]
 fn child_writes_and_easing_are_independent_from_parent() {
     use crate::properties::{register_millis, register_time};
-    let clock = Property::new(0_u64);
+    let clock = LocalProperty::new(0_u64);
     register_millis(&clock);
-    register_time(&Property::new(0_u64));
-    let parent = Property::new(10.0_f64);
+    register_time(&LocalProperty::new(0_u64));
+    let parent = LocalProperty::new(10.0_f64);
     let child = Variable::new_from_typed_property(parent.clone())
         .try_typed_binding::<f64>("child")
         .unwrap();
     let variable = Variable::new_from_typed_property(parent.clone());
-    let legacy = Property::computed(
+    let legacy = LocalProperty::computed(
         move || f64::try_coerce(variable.get_as_pax_value()).unwrap(),
         &[parent.untyped()],
     );
@@ -126,7 +128,7 @@ fn child_writes_and_easing_are_independent_from_parent() {
     child.cancel_transitions();
     parent.set(50.0);
     assert_eq!(child.get(), 50.0);
-    child.replace_with(Property::new(20.0));
+    child.replace_with(LocalProperty::new(20.0));
     child.ease_to(
         40.0,
         Duration::Milliseconds(1000.into()),
@@ -139,18 +141,21 @@ fn child_writes_and_easing_are_independent_from_parent() {
 
 #[test]
 fn replacement_and_rebinding_follow_property_identity() {
-    let parent = Property::new(1.0_f64);
-    let input = Property::new(2.0_f64);
+    let parent = LocalProperty::new(1.0_f64);
+    let input = LocalProperty::new(2.0_f64);
     let child = Variable::new_from_typed_property(parent.clone())
         .try_typed_binding::<f64>("child")
         .unwrap();
     assert_eq!(child.get(), 1.0);
     let read = input.clone();
-    parent.replace_with(Property::computed(move || read.get(), &[input.untyped()]));
+    parent.replace_with(LocalProperty::computed(
+        move || read.get(),
+        &[input.untyped()],
+    ));
     assert_eq!(child.get(), 2.0);
     input.set(3.0);
     assert_eq!(child.get(), 3.0);
-    let other_parent = Property::new(3.0_f64);
+    let other_parent = LocalProperty::new(3.0_f64);
     child.replace_with(
         Variable::new_from_typed_property(other_parent.clone())
             .try_typed_binding::<f64>("new parent")
@@ -164,7 +169,7 @@ fn replacement_and_rebinding_follow_property_identity() {
 
 #[test]
 fn forwarded_float_bits_are_exact() {
-    let parent = Property::new(0.0_f64);
+    let parent = LocalProperty::new(0.0_f64);
     let child = Variable::new_from_typed_property(parent.clone())
         .try_typed_binding::<f64>("bits")
         .unwrap();
@@ -197,9 +202,11 @@ fn custom_and_nested_custom_conversions_require_opt_in() {
     }
     assert!(!is_typed_binding_safe::<Custom>());
     assert!(!is_typed_binding_safe::<Vec<Option<Custom>>>());
-    assert!(Variable::new_from_typed_property(Property::new(Custom))
-        .try_typed_binding::<Custom>("custom")
-        .is_none());
+    assert!(
+        Variable::new_from_typed_property(LocalProperty::new(Custom))
+            .try_typed_binding::<Custom>("custom")
+            .is_none()
+    );
 }
 
 #[test]
@@ -224,7 +231,7 @@ fn typed_binding_churn_releases_all_properties() {
     use crate::properties::property_table_total_properties_count;
     let baseline = property_table_total_properties_count();
     for _ in 0..100 {
-        let parent = Property::new(vec![1.0_f64; 512]);
+        let parent = LocalProperty::new(vec![1.0_f64; 512]);
         let variable = Variable::new_from_typed_property(parent);
         let child = variable.try_typed_binding::<Vec<f64>>("churn").unwrap();
         child.read(|v| assert_eq!(v.len(), 512));

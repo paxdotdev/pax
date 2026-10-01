@@ -1,4 +1,4 @@
-//! Property adapters that expose runtime values to expression scopes.
+//! LocalProperty adapters that expose runtime values to expression scopes.
 
 use super::*;
 
@@ -9,31 +9,36 @@ mod tests;
 #[derive(Clone)]
 pub struct Variable {
     untyped_property: UntypedProperty,
-    converted_to_pax_value: Property<PaxValue>,
+    converted_to_pax_value: LocalProperty<PaxValue>,
     rust_type: std::any::TypeId,
 }
 
 impl Variable {
     /// Wraps an untyped property and exposes it as a `PaxValue`.
     pub fn new<T: PropertyValue + ToPaxValue>(untyped_property: UntypedProperty) -> Self {
-        Self::new_from_typed_property(Property::<T>::new_from_untyped(untyped_property.clone()))
+        Self::new_from_typed_property(LocalProperty::<T>::new_from_untyped(
+            untyped_property.clone(),
+        ))
     }
 
     /// Wraps a typed property and exposes it as a `PaxValue`.
-    pub fn new_from_typed_property<T: PropertyValue + ToPaxValue>(property: Property<T>) -> Self {
+    pub fn new_from_typed_property<T: PropertyValue + ToPaxValue>(
+        property: impl PropertyBinding<T>,
+    ) -> Self {
+        let property = property.local();
         let untyped_property = property.untyped();
         let deps = [untyped_property.clone()];
-        let nested_watch = Property::<()>::default();
-        let pax_value_prop = Property::computed(
+        let nested_watch = LocalProperty::<()>::default();
+        let pax_value_prop = LocalProperty::computed(
             move || {
                 let value = property.get();
                 let dependencies = value.nested_properties();
                 if dependencies.is_empty() {
-                    nested_watch.replace_with(Property::default());
+                    nested_watch.replace_with(LocalProperty::default());
                 } else {
                     let source = property.clone();
                     let initial = std::cell::Cell::new(true);
-                    nested_watch.replace_with(Property::computed(
+                    nested_watch.replace_with(LocalProperty::computed(
                         move || {
                             if !initial.replace(false) {
                                 source.invalidate();
@@ -44,7 +49,7 @@ impl Variable {
                     crate::properties::register_effect_property(&nested_watch);
                     nested_watch.get();
                 }
-                value.to_pax_value()
+                value.to_pax_value_in_graph()
             },
             &deps,
         );
@@ -61,7 +66,7 @@ impl Variable {
     pub fn try_typed_binding<T: PropertyValue + CoercionRules>(
         &self,
         name: &str,
-    ) -> Option<Property<T>> {
+    ) -> Option<LocalProperty<T>> {
         if self.rust_type != std::any::TypeId::of::<T>()
             || !self.untyped_property.has_value_type::<T>()
             || !pax_value::is_typed_binding_safe::<T>()
@@ -70,8 +75,8 @@ impl Variable {
         }
         // Both adapter and storage types were checked. Replacement preserves T
         // and the generational property handle; no borrowed value escapes.
-        let source = Property::<T>::new_from_untyped(self.untyped_property.clone());
-        Some(Property::computed_with_name(
+        let source = LocalProperty::<T>::new_from_untyped(self.untyped_property.clone());
+        Some(LocalProperty::computed_with_name(
             move || source.get(),
             &[self.untyped_property.clone()],
             name,

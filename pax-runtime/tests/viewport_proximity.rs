@@ -92,10 +92,10 @@ fn args(bounds: Rect, events: &[&str]) -> InstantiationArgs {
     InstantiationArgs {
         prototypical_common_properties: CommonPropertiesInit::Factory(Box::new(move |_, _| {
             Some(Rc::new(RefCell::new(CommonProperties {
-                x: Property::new(Some(Size::Pixels(bounds.x0.into()))),
-                y: Property::new(Some(Size::Pixels(bounds.y0.into()))),
-                width: Property::new(Some(Size::Pixels(bounds.width().into()))),
-                height: Property::new(Some(Size::Pixels(bounds.height().into()))),
+                x: LocalProperty::new(Some(Size::Pixels(bounds.x0.into()))),
+                y: LocalProperty::new(Some(Size::Pixels(bounds.y0.into()))),
+                width: LocalProperty::new(Some(Size::Pixels(bounds.width().into()))),
+                height: LocalProperty::new(Some(Size::Pixels(bounds.height().into()))),
                 ..Default::default()
             })))
         })),
@@ -230,7 +230,7 @@ impl InstanceNode for Probe {
             .map(|child| (child, node.stack.clone()))
             .collect();
         let frame = if matches!(self.kind, Kind::Scroll | Kind::UnclippedScroll | Kind::Clip) {
-            Property::new(Some(node.id))
+            LocalProperty::new(Some(node.id))
         } else {
             node.parent_frame.clone()
         };
@@ -239,7 +239,7 @@ impl InstanceNode for Probe {
         if self.kind == Kind::Paint {
             let weak = Rc::downgrade(node);
             let ctx = ctx.clone();
-            node.changed_listener.replace_with(Property::computed(
+            node.changed_listener.replace_with(LocalProperty::computed(
                 move || {
                     if let Some(node) = weak.upgrade() {
                         ctx.mark_canvas_node_dirty(node.id);
@@ -773,7 +773,7 @@ fn mounted_reparent_keeps_instance_history_and_rebinds_scroll_domains() {
     let children = b.attach_children(
         vec![target.clone()],
         &engine.runtime_context,
-        &Property::new(Some(b.id)),
+        &LocalProperty::new(Some(b.id)),
     );
     b.children.set(children);
     engine.tick();

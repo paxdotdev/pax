@@ -50,7 +50,7 @@ pub trait RenderContext {
         layer: usize,
         path: kurbo::BezPath,
         fill: &Paint,
-        _material: &Material,
+        _material: &ResolvedMaterial,
         opacity: f64,
     ) {
         self.fill_with_opacity(layer, path, fill, opacity);
@@ -61,7 +61,7 @@ pub trait RenderContext {
         layer: usize,
         path: kurbo::BezPath,
         fill: &Paint,
-        material: &Material,
+        material: &ResolvedMaterial,
         opacity: f64,
         smoothing: PathSmoothing,
     ) {
@@ -69,7 +69,7 @@ pub trait RenderContext {
         self.fill_with_material_and_opacity(layer, path, fill, material, opacity);
     }
     /// Strokes a path at full opacity.
-    fn stroke(&mut self, layer: usize, path: kurbo::BezPath, stroke: &Stroke) {
+    fn stroke(&mut self, layer: usize, path: kurbo::BezPath, stroke: &ResolvedStroke) {
         self.stroke_with_opacity(layer, path, stroke, 1.0);
     }
     /// Strokes a path with an explicit opacity multiplier.
@@ -77,7 +77,7 @@ pub trait RenderContext {
         &mut self,
         layer: usize,
         path: kurbo::BezPath,
-        stroke: &Stroke,
+        stroke: &ResolvedStroke,
         opacity: f64,
     );
     /// Strokes a path with a material and explicit opacity multiplier.
@@ -85,8 +85,8 @@ pub trait RenderContext {
         &mut self,
         layer: usize,
         path: kurbo::BezPath,
-        stroke: &Stroke,
-        _material: &Material,
+        stroke: &ResolvedStroke,
+        _material: &ResolvedMaterial,
         opacity: f64,
     ) {
         self.stroke_with_opacity(layer, path, stroke, opacity);
@@ -96,8 +96,8 @@ pub trait RenderContext {
         &mut self,
         layer: usize,
         path: kurbo::BezPath,
-        stroke: &Stroke,
-        material: &Material,
+        stroke: &ResolvedStroke,
+        material: &ResolvedMaterial,
         opacity: f64,
         smoothing: PathSmoothing,
     ) {
@@ -109,8 +109,8 @@ pub trait RenderContext {
         &mut self,
         layer: usize,
         path: kurbo::BezPath,
-        stroke: &Stroke,
-        material: &Material,
+        stroke: &ResolvedStroke,
+        material: &ResolvedMaterial,
         opacity: f64,
         draw_start: f64,
         draw_end: f64,
@@ -120,8 +120,8 @@ pub trait RenderContext {
         &mut self,
         layer: usize,
         path: kurbo::BezPath,
-        stroke: &Stroke,
-        material: &Material,
+        stroke: &ResolvedStroke,
+        material: &ResolvedMaterial,
         opacity: f64,
         draw_start: f64,
         draw_end: f64,

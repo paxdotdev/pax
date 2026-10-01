@@ -1,3 +1,4 @@
+use pax_engine::api::LocalProperty;
 use pax_runtime::{
     BaseInstance, ExpandedNode, InstanceFlags, InstanceNode, InstantiationArgs, RuntimeContext,
 };
@@ -219,7 +220,7 @@ impl InstanceNode for TextInstance {
 
         expanded_node
             .changed_listener
-            .replace_with(Property::computed(
+            .replace_with(LocalProperty::computed(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
                         return;
@@ -242,14 +243,15 @@ impl InstanceNode for TextInstance {
                             cp.width.get().is_some().then_some(width).unwrap_or(-1.0),
                             cp.height.get().is_some().then_some(height).unwrap_or(-1.0),
                         );
-                        let content = properties.text.get();
-                        let markdown = properties.markdown.get();
-                        let wrap = properties.wrap.get();
-                        let style: TextStyleMessage = (&properties.style.get()).into();
-                        let style_link: TextStyleMessage = (&properties._style_link.get()).into();
-                        let editable = properties.editable.get();
-                        let selectable = properties.selectable.get();
-                        let clip = properties.clip.get();
+                        let content = properties.text.local().get();
+                        let markdown = properties.markdown.local().get();
+                        let wrap = properties.wrap.local().get();
+                        let style: TextStyleMessage = properties.style.local().get().message(true);
+                        let style_link: TextStyleMessage =
+                            properties._style_link.local().get().message(true);
+                        let editable = properties.editable.local().get();
+                        let selectable = properties.selectable.local().get();
+                        let clip = properties.clip.local().get();
 
                         let updates = [
                             // Content
@@ -345,7 +347,7 @@ impl InstanceNode for TextInstance {
         let id = expanded_node.id.to_u32();
         expanded_node
             .changed_listener
-            .replace_with(Property::default());
+            .replace_with(LocalProperty::default());
         context.enqueue_native_message(pax_message::NativeMessage::TextDelete(id));
     }
 
@@ -356,7 +358,9 @@ impl InstanceNode for TextInstance {
     ) -> std::fmt::Result {
         match expanded_node {
             Some(expanded_node) => expanded_node.with_properties_unwrapped(|r: &mut Text| {
-                f.debug_struct("Text").field("text", &r.text.get()).finish()
+                f.debug_struct("Text")
+                    .field("text", &r.text.local().get())
+                    .finish()
             }),
             None => f.debug_struct("Text").finish_non_exhaustive(),
         }
@@ -486,25 +490,46 @@ impl Default for TextStyle {
     }
 }
 
+impl TextStyle {
+    // Native patches must observe the graph's settled values, including
+    // expression-bound fields inside a style record.
+    pub(crate) fn message(&self, local: bool) -> TextStyleMessage {
+        fn read<T: pax_engine::api::properties::SharedPropertyValue>(
+            property: &Property<T>,
+            local: bool,
+        ) -> T {
+            if local {
+                property.local().get()
+            } else {
+                property.get()
+            }
+        }
+        TextStyleMessage {
+            font: Some(read(&self.font, local).clone().into()),
+            font_size: Some(read(&self.font_size, local).expect_pixels().to_float()),
+            fill: Some(Into::<ColorMessage>::into(
+                &read(&self.fill, local).representative_color(),
+            )),
+            underline: Some(read(&self.underline, local).clone()),
+            align_multiline: Some(Into::<TextAlignHorizontalMessage>::into(&read(
+                &self.align_multiline,
+                local,
+            ))),
+            align_vertical: Some(Into::<TextAlignVerticalMessage>::into(&read(
+                &self.align_vertical,
+                local,
+            ))),
+            align_horizontal: Some(Into::<TextAlignHorizontalMessage>::into(&read(
+                &self.align_horizontal,
+                local,
+            ))),
+        }
+    }
+}
+
 impl<'a> Into<TextStyleMessage> for &'a TextStyle {
     fn into(self) -> TextStyleMessage {
-        TextStyleMessage {
-            font: Some(self.font.get().clone().into()),
-            font_size: Some(self.font_size.get().expect_pixels().to_float()),
-            fill: Some(Into::<ColorMessage>::into(
-                &self.fill.get().representative_color(),
-            )),
-            underline: Some(self.underline.get().clone()),
-            align_multiline: Some(Into::<TextAlignHorizontalMessage>::into(
-                &self.align_multiline.get(),
-            )),
-            align_vertical: Some(Into::<TextAlignVerticalMessage>::into(
-                &self.align_vertical.get(),
-            )),
-            align_horizontal: Some(Into::<TextAlignHorizontalMessage>::into(
-                &self.align_horizontal.get(),
-            )),
-        }
+        self.message(false)
     }
 }
 

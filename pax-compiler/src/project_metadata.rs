@@ -4,10 +4,12 @@ use color_eyre::eyre;
 use eyre::{eyre, WrapErr};
 use image::imageops::FilterType;
 use serde_json::json;
-use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use toml_edit::{Document, Item, Table};
+
+mod apple_plist;
+use apple_plist::{apply_apple_plists, plist_overlay};
 
 #[derive(Debug, Clone, Default)]
 pub struct PaxProjectMetadata {
@@ -35,7 +37,7 @@ struct CommonMetadata {
     marketing_version: Option<String>,
     build_number: Option<String>,
     development_team: Option<String>,
-    info_plist: BTreeMap<String, String>,
+    info_plist: plist::Dictionary,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -58,9 +60,12 @@ struct AppleMetadata {
     marketing_version: Option<String>,
     build_number: Option<String>,
     development_team: Option<String>,
-    info_plist: BTreeMap<String, String>,
+    info_plist: plist::Dictionary,
+    entitlements: plist::Dictionary,
 }
 
+/// Load project metadata and authored Apple plist overlays. Relative source-file
+/// paths resolve against Cargo.toml; managed identity/signing conflicts are errors.
 pub fn load_project_metadata(project_path: &Path) -> Result<PaxProjectMetadata, eyre::Report> {
     let manifest_path = canonical_manifest_path(project_path)?;
     let manifest_dir = manifest_path
@@ -77,6 +82,8 @@ pub fn load_project_metadata(project_path: &Path) -> Result<PaxProjectMetadata, 
     })
 }
 
+/// Apply metadata to a freshly copied host, preserving native plist value types.
+/// Recopy the authored interface before each build so removed overrides disappear.
 pub fn apply_copied_interface_metadata(
     ctx: &RunContext,
     pax_dir: &Path,
@@ -85,6 +92,7 @@ pub fn apply_copied_interface_metadata(
     match ctx.target {
         RunTarget::Web => apply_web_metadata(pax_dir, metadata),
         RunTarget::macOS | RunTarget::iOS | RunTarget::iPadOS => {
+            apply_apple_plists(&ctx.target, pax_dir, metadata)?;
             apply_apple_icon_metadata(&ctx.target, pax_dir, metadata)
         }
     }
@@ -103,6 +111,8 @@ impl PaxProjectMetadata {
         self.dev.hot_reload.as_deref()
     }
 
+    /// Resolve host identity/version build settings. Arbitrary Info.plist values
+    /// and entitlements are written into the copied host's property list files.
     pub fn apple_xcode_build_settings(&self, target: &RunTarget) -> Vec<(String, String)> {
         let mut settings = Vec::new();
         if let Some(title) = self.apple_title(target) {
@@ -120,9 +130,6 @@ impl PaxProjectMetadata {
         }
         if let Some(build_number) = self.apple_build_number(target) {
             settings.push(("CURRENT_PROJECT_VERSION".to_string(), build_number));
-        }
-        for (key, value) in self.apple_info_plist(target) {
-            settings.push((format!("INFOPLIST_KEY_{key}"), value));
         }
         settings
     }
@@ -239,13 +246,24 @@ impl PaxProjectMetadata {
             .or_else(|| self.common.build_number.clone())
     }
 
-    fn apple_info_plist(&self, target: &RunTarget) -> BTreeMap<String, String> {
+    fn apple_info_plist(&self, target: &RunTarget) -> plist::Dictionary {
         let mut entries = self.common.info_plist.clone();
         if matches!(target, RunTarget::iPadOS) {
             entries.extend(self.ios.info_plist.clone());
         }
         if let Some(metadata) = self.apple_target_metadata(target) {
             entries.extend(metadata.info_plist.clone());
+        }
+        entries
+    }
+
+    fn apple_entitlements(&self, target: &RunTarget) -> plist::Dictionary {
+        let mut entries = plist::Dictionary::new();
+        if matches!(target, RunTarget::iPadOS) {
+            entries.extend(self.ios.entitlements.clone());
+        }
+        if let Some(metadata) = self.apple_target_metadata(target) {
+            entries.extend(metadata.entitlements.clone());
         }
         entries
     }
@@ -312,7 +330,7 @@ fn load_project_metadata_from_toml(
         return Ok(metadata);
     };
 
-    metadata.common = parse_common_metadata(pax, "package.metadata.pax")?;
+    metadata.common = parse_common_metadata(pax, "package.metadata.pax", manifest_dir)?;
     if let Some(dev) = child_table(pax, "dev", "package.metadata.pax.dev")? {
         metadata.dev = parse_dev_metadata(dev, "package.metadata.pax.dev")?;
     }
@@ -320,13 +338,14 @@ fn load_project_metadata_from_toml(
         metadata.web = parse_web_metadata(web, "package.metadata.pax.web")?;
     }
     if let Some(ios) = child_table(pax, "ios", "package.metadata.pax.ios")? {
-        metadata.ios = parse_apple_metadata(ios, "package.metadata.pax.ios")?;
+        metadata.ios = parse_apple_metadata(ios, "package.metadata.pax.ios", manifest_dir)?;
     }
     if let Some(ipados) = child_table(pax, "ipados", "package.metadata.pax.ipados")? {
-        metadata.ipados = parse_apple_metadata(ipados, "package.metadata.pax.ipados")?;
+        metadata.ipados =
+            parse_apple_metadata(ipados, "package.metadata.pax.ipados", manifest_dir)?;
     }
     if let Some(macos) = child_table(pax, "macos", "package.metadata.pax.macos")? {
-        metadata.macos = parse_apple_metadata(macos, "package.metadata.pax.macos")?;
+        metadata.macos = parse_apple_metadata(macos, "package.metadata.pax.macos", manifest_dir)?;
     }
 
     Ok(metadata)
@@ -351,7 +370,14 @@ fn child_table<'a>(
         .ok_or_else(|| eyre!("`{path}` must be a TOML table"))
 }
 
-fn parse_common_metadata(table: &Table, path: &str) -> Result<CommonMetadata, eyre::Report> {
+fn parse_common_metadata(
+    table: &Table,
+    path: &str,
+    manifest_dir: &Path,
+) -> Result<CommonMetadata, eyre::Report> {
+    if table.contains_key("entitlements") || table.contains_key("entitlements_file") {
+        return Err(eyre!("Entitlements must be configured under `{path}.macos`, `{path}.ios`, or `{path}.ipados`"));
+    }
     Ok(CommonMetadata {
         title: string_field(table, "title", &format!("{path}.title"))?,
         icon: string_field(table, "icon", &format!("{path}.icon"))?,
@@ -371,7 +397,7 @@ fn parse_common_metadata(table: &Table, path: &str) -> Result<CommonMetadata, ey
             "development_team",
             &format!("{path}.development_team"),
         )?,
-        info_plist: string_table(table, "info_plist", &format!("{path}.info_plist"))?,
+        info_plist: plist_overlay(table, "info_plist", path, manifest_dir)?,
     })
 }
 
@@ -499,7 +525,11 @@ pub(crate) fn is_server_owned_path(path: &str, prefixes: &[String]) -> bool {
     })
 }
 
-fn parse_apple_metadata(table: &Table, path: &str) -> Result<AppleMetadata, eyre::Report> {
+fn parse_apple_metadata(
+    table: &Table,
+    path: &str,
+    manifest_dir: &Path,
+) -> Result<AppleMetadata, eyre::Report> {
     Ok(AppleMetadata {
         title: string_field(table, "title", &format!("{path}.title"))?,
         icon: string_field(table, "icon", &format!("{path}.icon"))?,
@@ -519,7 +549,8 @@ fn parse_apple_metadata(table: &Table, path: &str) -> Result<AppleMetadata, eyre
             "development_team",
             &format!("{path}.development_team"),
         )?,
-        info_plist: string_table(table, "info_plist", &format!("{path}.info_plist"))?,
+        info_plist: plist_overlay(table, "info_plist", path, manifest_dir)?,
+        entitlements: plist_overlay(table, "entitlements", path, manifest_dir)?,
     })
 }
 
@@ -530,24 +561,6 @@ fn string_field(table: &Table, key: &str, path: &str) -> Result<Option<String>, 
     item.as_str()
         .map(|value| Some(value.to_string()))
         .ok_or_else(|| eyre!("`{path}` must be a string"))
-}
-
-fn string_table(
-    table: &Table,
-    key: &str,
-    path: &str,
-) -> Result<BTreeMap<String, String>, eyre::Report> {
-    let Some(table) = child_table(table, key, path)? else {
-        return Ok(BTreeMap::new());
-    };
-    let mut entries = BTreeMap::new();
-    for (entry_key, item) in table.iter() {
-        let Some(value) = item.as_str() else {
-            return Err(eyre!("`{path}.{entry_key}` must be a string"));
-        };
-        entries.insert(entry_key.to_string(), value.to_string());
-    }
-    Ok(entries)
 }
 
 fn apply_web_metadata(pax_dir: &Path, metadata: &PaxProjectMetadata) -> Result<(), eyre::Report> {
@@ -1183,7 +1196,7 @@ mod tests {
     }
 
     #[test]
-    fn apple_info_plist_metadata_maps_to_xcode_settings() {
+    fn apple_info_plist_metadata_preserves_target_inheritance() {
         let metadata = load(
             r#"
             [package]
@@ -1202,32 +1215,32 @@ mod tests {
             "#,
         );
 
-        let ios_settings = metadata.apple_xcode_build_settings(&RunTarget::iOS);
-        assert!(ios_settings.contains(&(
-            "INFOPLIST_KEY_NSCameraUsageDescription".to_string(),
-            "iOS camera access.".to_string()
-        )));
-        assert!(ios_settings.contains(&(
-            "INFOPLIST_KEY_NSPhotoLibraryUsageDescription".to_string(),
-            "iOS photo library access.".to_string()
-        )));
-
-        let ipados_settings = metadata.apple_xcode_build_settings(&RunTarget::iPadOS);
-        assert!(ipados_settings.contains(&(
-            "INFOPLIST_KEY_NSCameraUsageDescription".to_string(),
-            "iPadOS camera access.".to_string()
-        )));
-        assert!(ipados_settings.contains(&(
-            "INFOPLIST_KEY_NSPhotoLibraryUsageDescription".to_string(),
-            "iOS photo library access.".to_string()
-        )));
-
-        let macos_settings = metadata.apple_xcode_build_settings(&RunTarget::macOS);
-        assert!(macos_settings.contains(&(
-            "INFOPLIST_KEY_NSPhotoLibraryUsageDescription".to_string(),
-            "Common photo library access.".to_string()
-        )));
-        assert!(!macos_settings
+        let ios = metadata.apple_info_plist(&RunTarget::iOS);
+        assert_eq!(
+            ios["NSCameraUsageDescription"].as_string(),
+            Some("iOS camera access.")
+        );
+        assert_eq!(
+            ios["NSPhotoLibraryUsageDescription"].as_string(),
+            Some("iOS photo library access.")
+        );
+        let ipados = metadata.apple_info_plist(&RunTarget::iPadOS);
+        assert_eq!(
+            ipados["NSCameraUsageDescription"].as_string(),
+            Some("iPadOS camera access.")
+        );
+        assert_eq!(
+            ipados["NSPhotoLibraryUsageDescription"].as_string(),
+            Some("iOS photo library access.")
+        );
+        let macos = metadata.apple_info_plist(&RunTarget::macOS);
+        assert_eq!(
+            macos["NSPhotoLibraryUsageDescription"].as_string(),
+            Some("Common photo library access.")
+        );
+        assert!(!macos.contains_key("NSCameraUsageDescription"));
+        assert!(!metadata
+            .apple_xcode_build_settings(&RunTarget::iOS)
             .iter()
             .any(|(key, _)| key == "INFOPLIST_KEY_NSCameraUsageDescription"));
     }

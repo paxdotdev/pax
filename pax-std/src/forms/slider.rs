@@ -1,3 +1,4 @@
+use pax_engine::api::LocalProperty;
 use pax_message::{AnyCreatePatch, NativeInterrupt, SliderPatch};
 use pax_runtime::api::{use_RefCell, Layer, Property};
 use pax_runtime::{
@@ -113,7 +114,7 @@ impl InstanceNode for SliderInstance {
             .collect();
         expanded_node
             .changed_listener
-            .replace_with(Property::computed(
+            .replace_with(LocalProperty::computed(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
                         return;
@@ -128,7 +129,7 @@ impl InstanceNode for SliderInstance {
                     expanded_node.with_properties_unwrapped(|properties: &mut Slider| {
                         let computed_tab = expanded_node.transform_and_bounds.get();
                         let (width, height) = computed_tab.bounds;
-                        let current_value = properties.value.get();
+                        let current_value = properties.value.local().get();
                         let pending_native_value = *native_value_to_ack.borrow();
                         let value_updated = if pending_native_value
                             .is_some_and(|value| slider_values_equal(value, current_value))
@@ -160,33 +161,33 @@ impl InstanceNode for SliderInstance {
                             patch_if_needed(
                                 &mut old_state.accent,
                                 &mut patch.accent,
-                                (&properties.accent.get()).into(),
+                                (&properties.accent.local().get()).into(),
                             ),
                             value_updated,
                             patch_if_needed(
                                 &mut old_state.step,
                                 &mut patch.step,
-                                properties.step.get(),
+                                properties.step.local().get(),
                             ),
                             patch_if_needed(
                                 &mut old_state.min,
                                 &mut patch.min,
-                                properties.min.get(),
+                                properties.min.local().get(),
                             ),
                             patch_if_needed(
                                 &mut old_state.max,
                                 &mut patch.max,
-                                properties.max.get(),
+                                properties.max.local().get(),
                             ),
                             patch_if_needed(
                                 &mut old_state.corner_radius,
                                 &mut patch.corner_radius,
-                                properties.corner_radius.get(),
+                                properties.corner_radius.local().get(),
                             ),
                             patch_if_needed(
                                 &mut old_state.background,
                                 &mut patch.background,
-                                (&properties.background.get()).into(),
+                                (&properties.background.local().get()).into(),
                             ),
                             patch_if_needed(
                                 &mut old_state.opacity,
@@ -215,7 +216,7 @@ impl InstanceNode for SliderInstance {
         let id = expanded_node.id.clone();
         expanded_node
             .changed_listener
-            .replace_with(Property::default());
+            .replace_with(LocalProperty::default());
         context.enqueue_native_message(pax_message::NativeMessage::SliderDelete(id.to_u32()));
     }
 

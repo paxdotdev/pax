@@ -1,3 +1,4 @@
+use pax_engine::api::LocalProperty;
 use std::iter;
 use std::rc::Rc;
 
@@ -76,7 +77,9 @@ mod tests;
 
 impl MaskInstance {
     fn alpha_settings(node: &ExpandedNode) -> (bool, f64) {
-        node.with_properties_unwrapped(|p: &mut Mask| (p.alpha.get(), p.feather.get().max(0.0)))
+        node.with_properties_unwrapped(|p: &mut Mask| {
+            (p.alpha.local().get(), p.feather.local().get().max(0.0))
+        })
     }
 
     fn collect_alpha_paints(
@@ -187,7 +190,7 @@ impl MaskInstance {
         owner: &Rc<ExpandedNode>,
         source: &Rc<ExpandedNode>,
         context: &Rc<RuntimeContext>,
-    ) -> Property<()> {
+    ) -> LocalProperty<()> {
         let mut deps = vec![
             source.children.untyped(),
             source.transform_and_bounds.untyped(),
@@ -203,9 +206,9 @@ impl MaskInstance {
         let weak_owner = Rc::downgrade(owner);
         let weak_source = Rc::downgrade(source);
         let weak_context = Rc::downgrade(context);
-        let child_watches: RefCell<Vec<(pax_runtime::ExpandedNodeIdentifier, Property<()>)>> =
+        let child_watches: RefCell<Vec<(pax_runtime::ExpandedNodeIdentifier, LocalProperty<()>)>> =
             RefCell::new(Vec::new());
-        let watcher = Property::computed_with_name(
+        let watcher = LocalProperty::computed_with_name(
             move || {
                 let (Some(owner), Some(source), Some(context)) = (
                     weak_owner.upgrade(),
@@ -366,7 +369,7 @@ impl InstanceNode for MaskInstance {
                 children.len()
             );
         }
-        let this_mask_prop = Property::new(Some(expanded_node.id));
+        let this_mask_prop = LocalProperty::new(Some(expanded_node.id));
 
         let mut itr = children.iter().cloned();
         if let Some(content_child) = itr.next() {
@@ -422,7 +425,7 @@ impl InstanceNode for MaskInstance {
 
         expanded_node
             .changed_listener
-            .replace_with(Property::computed(
+            .replace_with(LocalProperty::computed(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
                         return;
@@ -499,7 +502,7 @@ impl InstanceNode for MaskInstance {
         }
         expanded_node
             .changed_listener
-            .replace_with(Property::default());
+            .replace_with(LocalProperty::default());
         if !expanded_node.is_render_source() {
             context.enqueue_native_message(pax_message::NativeMessage::FrameDelete(
                 expanded_node.id.to_u32(),

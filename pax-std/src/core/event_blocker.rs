@@ -1,3 +1,4 @@
+use pax_engine::api::LocalProperty;
 use std::iter;
 use std::rc::Rc;
 
@@ -104,7 +105,7 @@ impl InstanceNode for EventBlockerInstance {
             .collect();
         expanded_node
             .changed_listener
-            .replace_with(Property::computed(
+            .replace_with(LocalProperty::computed(
                 move || {
                     let Some(expanded_node) = weak_self_ref.upgrade() else {
                         return;
@@ -146,7 +147,7 @@ impl InstanceNode for EventBlockerInstance {
                             patch_if_needed(
                                 &mut old_state.background,
                                 &mut patch.background,
-                                (&properties.background.get()).into(),
+                                (&properties.background.local().get()).into(),
                             ),
                         ];
 
@@ -166,7 +167,7 @@ impl InstanceNode for EventBlockerInstance {
         let id = expanded_node.id.clone();
         expanded_node
             .changed_listener
-            .replace_with(Property::default());
+            .replace_with(LocalProperty::default());
         context.enqueue_native_message(pax_message::NativeMessage::EventBlockerDelete(id.to_u32()));
     }
 

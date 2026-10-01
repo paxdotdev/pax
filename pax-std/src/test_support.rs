@@ -1,4 +1,4 @@
-use pax_runtime::api::{math::Transform2, Platform, Property, TargetInfo, OS};
+use pax_runtime::api::{math::Transform2, LocalProperty, Platform, TargetInfo, OS};
 use pax_runtime::{Globals, RouteLocation, RuntimeContext, TransformAndBounds};
 use std::rc::Rc;
 
@@ -12,17 +12,17 @@ pub(crate) fn runtime_context_with_target(
     os: OS,
 ) -> RuntimeContext {
     let globals = Globals {
-        elapsed_frames: Property::new(0),
-        elapsed_millis: Property::new(0),
-        viewport: Property::new(TransformAndBounds {
+        elapsed_frames: LocalProperty::new(0),
+        elapsed_millis: LocalProperty::new(0),
+        viewport: LocalProperty::new(TransformAndBounds {
             transform: Transform2::identity(),
             bounds,
         }),
-        gyro: Property::default(),
-        accel: Property::default(),
-        route_location: Property::new(RouteLocation::root()),
-        browser_allows_scroller_vector_layers: Property::new(true),
-        browser_allows_nested_scroller_vector_layers: Property::new(true),
+        gyro: LocalProperty::default(),
+        accel: LocalProperty::default(),
+        route_location: LocalProperty::new(RouteLocation::root()),
+        browser_allows_scroller_vector_layers: LocalProperty::new(true),
+        browser_allows_nested_scroller_vector_layers: LocalProperty::new(true),
         platform,
         os,
         target: TargetInfo::new(platform, os),

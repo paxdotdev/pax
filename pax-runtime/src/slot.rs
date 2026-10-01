@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::rc::{Rc, Weak};
 use_RefCell!();
 
-use pax_runtime_api::{borrow, use_RefCell, ImplToFromPaxAny, Numeric, Property};
+use pax_runtime_api::{borrow, use_RefCell, ImplToFromPaxAny, LocalProperty, Numeric};
 
 use crate::api::Layer;
 use crate::{
@@ -33,11 +33,11 @@ impl ImplToFromPaxAny for Slot {}
 #[derive(Default)]
 pub struct Slot {
     // HACK: these two properties are being used in update:
-    pub index: Property<Numeric>,
-    pub is_remainder: Property<bool>,
-    pub last_node_id: Property<usize>,
+    pub index: LocalProperty<Numeric>,
+    pub is_remainder: LocalProperty<bool>,
+    pub last_node_id: LocalProperty<usize>,
     // to compute this:
-    pub showing_node: Property<Weak<ExpandedNode>>,
+    pub showing_node: LocalProperty<Weak<ExpandedNode>>,
 }
 
 #[derive(Clone, Copy)]
@@ -92,7 +92,7 @@ impl InstanceNode for SlotInstance {
             let slot_projection_listener = slot_projection_listener.clone();
             expanded_node
                 .changed_listener
-                .replace_with(Property::computed_with_name(
+                .replace_with(LocalProperty::computed_with_name(
                     move || {
                         let _ = index_for_listener.get();
                         slot_projection_listener.set(());
@@ -111,7 +111,7 @@ impl InstanceNode for SlotInstance {
 
         expanded_node
             .children
-            .replace_with(Property::computed_with_name(
+            .replace_with(LocalProperty::computed_with_name(
                 move || {
                     let Some(cloned_expanded_node) = weak_ref_self.upgrade() else {
                         panic!("ran evaluator after expanded node dropped (repeat elem)")
@@ -161,17 +161,17 @@ mod tests {
 
     fn test_globals() -> Globals {
         Globals {
-            elapsed_frames: Property::new(0),
-            elapsed_millis: Property::new(0),
-            viewport: Property::new(TransformAndBounds {
+            elapsed_frames: LocalProperty::new(0),
+            elapsed_millis: LocalProperty::new(0),
+            viewport: LocalProperty::new(TransformAndBounds {
                 transform: Transform2::identity(),
                 bounds: (100.0, 100.0),
             }),
-            gyro: Property::new(Default::default()),
-            accel: Property::new(Default::default()),
-            route_location: Property::new(RouteLocation::root()),
-            browser_allows_scroller_vector_layers: Property::new(true),
-            browser_allows_nested_scroller_vector_layers: Property::new(true),
+            gyro: LocalProperty::new(Default::default()),
+            accel: LocalProperty::new(Default::default()),
+            route_location: LocalProperty::new(RouteLocation::root()),
+            browser_allows_scroller_vector_layers: LocalProperty::new(true),
+            browser_allows_nested_scroller_vector_layers: LocalProperty::new(true),
             platform: Platform::Unknown,
             os: OS::Unknown,
             target: TargetInfo::new(Platform::Unknown, OS::Unknown),
@@ -254,7 +254,7 @@ mod tests {
         }
     }
 
-    fn slot_args(index: Option<Property<Numeric>>) -> InstantiationArgs {
+    fn slot_args(index: Option<LocalProperty<Numeric>>) -> InstantiationArgs {
         InstantiationArgs {
             prototypical_common_properties: crate::CommonPropertiesInit::Factory(
                 default_common_properties_factory(),
@@ -265,7 +265,7 @@ mod tests {
                         let mut slot = Slot::default();
                         match &index {
                             Some(index) => slot.index = index.clone(),
-                            None => slot.is_remainder = Property::new(true),
+                            None => slot.is_remainder = LocalProperty::new(true),
                         }
                         Rc::new(RefCell::new(slot.to_pax_any()))
                     })
@@ -450,7 +450,7 @@ mod tests {
             let deps = [projected_children.untyped()];
             expanded_node
                 .children
-                .replace_with(Property::computed_with_name(
+                .replace_with(LocalProperty::computed_with_name(
                     move || {
                         let Some(node) = weak_ref_self.upgrade() else {
                             panic!("ran evaluator after expanded node dropped")
@@ -502,7 +502,7 @@ mod tests {
     #[test]
     fn indexed_slot_forwards_through_a_component() {
         let slot: Rc<dyn InstanceNode> =
-            SlotInstance::instantiate(slot_args(Some(Property::new(Numeric::I64(0)))));
+            SlotInstance::instantiate(slot_args(Some(LocalProperty::new(Numeric::I64(0)))));
         let forwarding = forwarding_component(vec![slot]);
         let (root, context) = projection_fixture(vec![forwarding]);
         root.recurse_update(&context);
@@ -535,7 +535,7 @@ mod tests {
 
     #[test]
     fn forwarded_slots_preserve_owner_remainder_and_dynamic_index() {
-        let index = Property::new(Numeric::I64(1));
+        let index = LocalProperty::new(Numeric::I64(1));
         let selected: Rc<dyn InstanceNode> =
             SlotInstance::instantiate(slot_args(Some(index.clone())));
         let remainder: Rc<dyn InstanceNode> = SlotInstance::instantiate(slot_args(None));
@@ -567,9 +567,9 @@ mod tests {
 
     #[test]
     fn conditional_forwarded_slot_releases_content_to_remainder() {
-        let visible = Property::new(true);
+        let visible = LocalProperty::new(true);
         let selected: Rc<dyn InstanceNode> =
-            SlotInstance::instantiate(slot_args(Some(Property::new(Numeric::I64(0)))));
+            SlotInstance::instantiate(slot_args(Some(LocalProperty::new(Numeric::I64(0)))));
         let mut args = container_args(vec![selected]);
         let condition = visible.clone();
         args.prototypical_properties =
@@ -614,9 +614,9 @@ mod tests {
     #[test]
     fn forwarded_duplicate_does_not_steal_an_earlier_slot() {
         let first: Rc<dyn InstanceNode> =
-            SlotInstance::instantiate(slot_args(Some(Property::new(Numeric::I64(0)))));
+            SlotInstance::instantiate(slot_args(Some(LocalProperty::new(Numeric::I64(0)))));
         let duplicate: Rc<dyn InstanceNode> =
-            SlotInstance::instantiate(slot_args(Some(Property::new(Numeric::I64(0)))));
+            SlotInstance::instantiate(slot_args(Some(LocalProperty::new(Numeric::I64(0)))));
         let remainder: Rc<dyn InstanceNode> = SlotInstance::instantiate(slot_args(None));
         let nested = forwarding_component(vec![duplicate, remainder]);
         let (root, context) = projection_fixture(vec![first, nested]);
@@ -634,7 +634,7 @@ mod tests {
     #[test]
     fn remainder_slot_receives_unconsumed_projected_children() {
         let slot_zero: Rc<dyn InstanceNode> =
-            SlotInstance::instantiate(slot_args(Some(Property::new(Numeric::I64(0)))));
+            SlotInstance::instantiate(slot_args(Some(LocalProperty::new(Numeric::I64(0)))));
         let remainder_slot: Rc<dyn InstanceNode> = SlotInstance::instantiate(slot_args(None));
         let nested: Rc<dyn InstanceNode> =
             TestContainer::instantiate(container_args(vec![remainder_slot]));
@@ -669,7 +669,7 @@ mod tests {
 
     #[test]
     fn remainder_slot_reacts_to_dynamic_prior_index() {
-        let selected = Property::new(Numeric::I64(2));
+        let selected = LocalProperty::new(Numeric::I64(2));
         let featured_slot: Rc<dyn InstanceNode> =
             SlotInstance::instantiate(slot_args(Some(selected.clone())));
         let remainder_slot: Rc<dyn InstanceNode> = SlotInstance::instantiate(slot_args(None));
@@ -711,9 +711,9 @@ mod tests {
     #[test]
     fn duplicate_explicit_slot_renders_empty_and_remainder_excludes_consumed_child() {
         let first_slot: Rc<dyn InstanceNode> =
-            SlotInstance::instantiate(slot_args(Some(Property::new(Numeric::I64(1)))));
+            SlotInstance::instantiate(slot_args(Some(LocalProperty::new(Numeric::I64(1)))));
         let duplicate_slot: Rc<dyn InstanceNode> =
-            SlotInstance::instantiate(slot_args(Some(Property::new(Numeric::I64(1)))));
+            SlotInstance::instantiate(slot_args(Some(LocalProperty::new(Numeric::I64(1)))));
         let remainder_slot: Rc<dyn InstanceNode> = SlotInstance::instantiate(slot_args(None));
         let host: Rc<dyn InstanceNode> = TestContainer::instantiate(container_args(vec![
             first_slot,
@@ -750,8 +750,8 @@ mod tests {
 
     #[test]
     fn duplicate_slot_toggle_rehomes_projected_child_once() {
-        let first_index = Property::new(Numeric::I64(0));
-        let second_index = Property::new(Numeric::I64(0));
+        let first_index = LocalProperty::new(Numeric::I64(0));
+        let second_index = LocalProperty::new(Numeric::I64(0));
         let first_slot: Rc<dyn InstanceNode> =
             SlotInstance::instantiate(slot_args(Some(first_index)));
         let duplicate_slot: Rc<dyn InstanceNode> =
@@ -805,9 +805,9 @@ mod tests {
     #[test]
     fn reparenting_slot_child_clears_previous_owner_lists_before_previous_owner_recomputes() {
         let first_slot: Rc<dyn InstanceNode> =
-            SlotInstance::instantiate(slot_args(Some(Property::new(Numeric::I64(0)))));
+            SlotInstance::instantiate(slot_args(Some(LocalProperty::new(Numeric::I64(0)))));
         let second_slot: Rc<dyn InstanceNode> =
-            SlotInstance::instantiate(slot_args(Some(Property::new(Numeric::I64(0)))));
+            SlotInstance::instantiate(slot_args(Some(LocalProperty::new(Numeric::I64(0)))));
         let remainder_slot: Rc<dyn InstanceNode> = SlotInstance::instantiate(slot_args(None));
         let host: Rc<dyn InstanceNode> = TestContainer::instantiate(container_args(vec![
             first_slot,
@@ -853,7 +853,7 @@ mod tests {
     #[test]
     fn out_of_range_explicit_slot_renders_empty_without_consuming_remainder() {
         let out_of_range_slot: Rc<dyn InstanceNode> =
-            SlotInstance::instantiate(slot_args(Some(Property::new(Numeric::I64(8)))));
+            SlotInstance::instantiate(slot_args(Some(LocalProperty::new(Numeric::I64(8)))));
         let remainder_slot: Rc<dyn InstanceNode> = SlotInstance::instantiate(slot_args(None));
         let host: Rc<dyn InstanceNode> =
             TestContainer::instantiate(container_args(vec![out_of_range_slot, remainder_slot]));
@@ -887,7 +887,7 @@ mod tests {
     fn remainder_slot_before_explicit_slot_consumes_all_remaining_children() {
         let remainder_slot: Rc<dyn InstanceNode> = SlotInstance::instantiate(slot_args(None));
         let later_explicit_slot: Rc<dyn InstanceNode> =
-            SlotInstance::instantiate(slot_args(Some(Property::new(Numeric::I64(0)))));
+            SlotInstance::instantiate(slot_args(Some(LocalProperty::new(Numeric::I64(0)))));
         let host: Rc<dyn InstanceNode> =
             TestContainer::instantiate(container_args(vec![remainder_slot, later_explicit_slot]));
         let projected_children = ["red", "orange", "yellow", "green"]

@@ -49,11 +49,11 @@ hit targets separate from purely visual alpha reveals.
 
 #### Properties
 ##### `alpha`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`bool`>
+Type: `Property`<`bool`>
 
 Use painted alpha instead of geometric coverage.
 
 ##### `feather`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<`f64`>
+Type: `Property`<`f64`>
 
 Gaussian feather standard deviation, in logical pixels, for alpha masks.

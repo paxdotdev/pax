@@ -25,6 +25,8 @@ members = [
     "pax-message",
     "pax-runtime",
     "pax-runtime-api",
+    "pax-tokio",
+    "pax-web-async",
     "pax-std",
     "pax-gpu",
 ]

@@ -112,12 +112,12 @@ Internal router inputs carried into a `RouterInstance`.
 
 #### Properties
 ##### `input_location`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`RouteLocation`](../../../api/internal/pax-runtime/router.md#routelocation)>
+Type: `LocalProperty`<[`RouteLocation`](../../../api/internal/pax-runtime/router.md#routelocation)>
 
 Location scoped to the current router.
 
 ##### `global_location`
-Type: [`Property`](../../../api/pax-runtime-api/properties.md#property)<[`RouteLocation`](../../../api/internal/pax-runtime/router.md#routelocation)>
+Type: `LocalProperty`<[`RouteLocation`](../../../api/internal/pax-runtime/router.md#routelocation)>
 
 Full application location retained for diagnostics and coordination.
 

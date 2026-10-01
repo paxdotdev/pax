@@ -59,17 +59,17 @@ impl GlowButton {
         }
         self.hovered.set(true);
         self.glow_enabled.set(true);
-        self.glow_intensity.ease_to(
+        self.glow_intensity.local().ease_to(
             HOVER_INTENSITY,
             Duration::Milliseconds(135.into()),
             EasingCurve::OutQuad,
         );
-        self.surface_material.ease_to(
+        self.surface_material.local().ease_to(
             active_surface_material(),
             Duration::Milliseconds(135.into()),
             EasingCurve::OutQuad,
         );
-        self.shell_scale.ease_to(
+        self.shell_scale.local().ease_to(
             HOVER_SCALE,
             Duration::Milliseconds(150.into()),
             EasingCurve::OutQuad,
@@ -87,17 +87,17 @@ impl GlowButton {
             return;
         }
         self.hovered.set(false);
-        self.glow_intensity.ease_to(
+        self.glow_intensity.local().ease_to(
             0.0,
             Duration::Milliseconds(230.into()),
             EasingCurve::OutQuad,
         );
-        self.surface_material.ease_to(
+        self.surface_material.local().ease_to(
             resting_surface_material(),
             Duration::Milliseconds(230.into()),
             EasingCurve::OutQuad,
         );
-        self.shell_scale.ease_to(
+        self.shell_scale.local().ease_to(
             1.0,
             Duration::Milliseconds(180.into()),
             EasingCurve::OutQuad,
@@ -106,7 +106,7 @@ impl GlowButton {
 
     pub fn mouse_down(&mut self, _ctx: &NodeContext, _event: Event<MouseDown>) {
         if !self.touch_active.get() {
-            self.shell_scale.ease_to(
+            self.shell_scale.local().ease_to(
                 PRESSED_SCALE,
                 Duration::Milliseconds(70.into()),
                 EasingCurve::OutQuad,
@@ -116,7 +116,7 @@ impl GlowButton {
 
     pub fn mouse_up(&mut self, _ctx: &NodeContext, _event: Event<MouseUp>) {
         if !self.touch_active.get() {
-            self.shell_scale.ease_to(
+            self.shell_scale.local().ease_to(
                 if self.hovered.get() { HOVER_SCALE } else { 1.0 },
                 Duration::Milliseconds(130.into()),
                 EasingCurve::OutBack,
@@ -133,17 +133,17 @@ impl GlowButton {
         self.active_touch_identifier.set(touch.identifier);
         self.move_light(ctx, touch.x, touch.y, false);
         self.glow_enabled.set(true);
-        self.glow_intensity.ease_to(
+        self.glow_intensity.local().ease_to(
             TOUCH_INTENSITY,
             Duration::Milliseconds(145.into()),
             EasingCurve::OutQuad,
         );
-        self.surface_material.ease_to(
+        self.surface_material.local().ease_to(
             active_surface_material(),
             Duration::Milliseconds(145.into()),
             EasingCurve::OutQuad,
         );
-        self.shell_scale.ease_to(
+        self.shell_scale.local().ease_to(
             PRESSED_SCALE,
             Duration::Milliseconds(85.into()),
             EasingCurve::OutQuad,
@@ -183,17 +183,17 @@ impl GlowButton {
 
         // Queue the fade instead of replacing the glow-in. Even a very quick tap therefore
         // reveals a complete, legible pulse at the point of contact.
-        self.glow_intensity.ease_to_later(
+        self.glow_intensity.local().ease_to_later(
             0.0,
             Duration::Milliseconds(260.into()),
             EasingCurve::OutQuad,
         );
-        self.surface_material.ease_to_later(
+        self.surface_material.local().ease_to_later(
             resting_surface_material(),
             Duration::Milliseconds(260.into()),
             EasingCurve::OutQuad,
         );
-        self.shell_scale.ease_to(
+        self.shell_scale.local().ease_to(
             1.0,
             Duration::Milliseconds(190.into()),
             EasingCurve::OutBack,
@@ -217,17 +217,17 @@ impl GlowButton {
         self.active_touch_identifier.set(-1);
         // The platform aborted this contact rather than releasing it normally. Clear optimistic
         // feedback promptly; ordinary Scroller pans continue through touch_end instead.
-        self.glow_intensity.ease_to(
+        self.glow_intensity.local().ease_to(
             0.0,
             Duration::Milliseconds(180.into()),
             EasingCurve::OutQuad,
         );
-        self.surface_material.ease_to(
+        self.surface_material.local().ease_to(
             resting_surface_material(),
             Duration::Milliseconds(180.into()),
             EasingCurve::OutQuad,
         );
-        self.shell_scale.ease_to(
+        self.shell_scale.local().ease_to(
             1.0,
             Duration::Milliseconds(150.into()),
             EasingCurve::OutBack,
@@ -241,12 +241,12 @@ impl GlowButton {
         let light_y = local.y.clamp(0.0, 1.0) * height;
 
         if eased {
-            self.light_x.ease_to(
+            self.light_x.local().ease_to(
                 light_x,
                 Duration::Milliseconds(52.into()),
                 EasingCurve::OutQuad,
             );
-            self.light_y.ease_to(
+            self.light_y.local().ease_to(
                 light_y,
                 Duration::Milliseconds(52.into()),
                 EasingCurve::OutQuad,

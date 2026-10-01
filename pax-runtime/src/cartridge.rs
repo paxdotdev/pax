@@ -26,8 +26,8 @@ use pax_runtime_api::pax_value::functions::{call_function, Functions};
 use pax_runtime_api::pax_value::{CoercionRules, PaxAny, ToFromPaxAny, ToPaxValue};
 use pax_runtime_api::properties::{PropertyValue, UntypedProperty};
 use pax_runtime_api::{
-    use_RefCell, CommonProperties, Duration, EasingCurve, Numeric, PaxValue, Property, Rotation,
-    Size, Variable,
+    use_RefCell, CommonProperties, Duration, EasingCurve, LocalProperty, Numeric, PaxValue,
+    Rotation, Size, Variable,
 };
 use std::any::Any;
 use std::borrow::Borrow;
@@ -827,7 +827,7 @@ impl<T> PropertyScopeDescriptor<T> {
 /// Runtime descriptor for applying all resolved layers of a generated component
 /// property.
 pub struct ComponentPropertyDescriptor<T> {
-    /// Property name as it appears in Pax templates and settings.
+    /// LocalProperty name as it appears in Pax templates and settings.
     pub name: &'static str,
     /// Generated applicator for all resolved layers of this property.
     pub apply_entries: fn(
@@ -1212,14 +1212,14 @@ pub fn build_literal_block_property<T: PropertyValue>(
     descriptor: &'static TypeDescriptor<T>,
     args: &LiteralBlockDefinition,
     stack_frame: Rc<RuntimePropertiesStackFrame>,
-) -> Property<T> {
+) -> LocalProperty<T> {
     if descriptor.fields.is_empty() {
         for setting in &args.elements {
             if let SettingElement::Setting(k, _) = setting {
                 panic!("Unknown property name {}", k.token_value);
             }
         }
-        return Property::new_with_name(Default::default(), descriptor.name);
+        return LocalProperty::new_with_name(Default::default(), descriptor.name);
     }
 
     let mut properties = T::default();
@@ -1245,7 +1245,7 @@ pub fn build_literal_block_property<T: PropertyValue>(
         .collect();
 
     if dependents.is_empty() {
-        return Property::new_with_name(properties, descriptor.name);
+        return LocalProperty::new_with_name(properties, descriptor.name);
     }
 
     let touchers: Vec<_> = descriptor
@@ -1254,7 +1254,7 @@ pub fn build_literal_block_property<T: PropertyValue>(
         .filter_map(|descriptor| descriptor.touch)
         .collect();
     let computed_properties = properties.clone();
-    Property::computed_with_name(
+    LocalProperty::computed_with_name(
         move || {
             let cloned_properties = computed_properties.clone();
             for touch in &touchers {
@@ -1271,10 +1271,10 @@ fn build_conditional_branch_property(
     branch_kind: pax_manifest::ControlFlowConditionalBranchKind,
     condition_expression: Option<ExpressionInfo>,
     stack_frame: Rc<RuntimePropertiesStackFrame>,
-) -> Property<bool> {
+) -> LocalProperty<bool> {
     match condition_expression {
         Some(expr_info) => build_conditional_expression_property(expr_info, stack_frame),
-        None => Property::new(matches!(
+        None => LocalProperty::new(matches!(
             branch_kind,
             pax_manifest::ControlFlowConditionalBranchKind::Else
         )),
@@ -1284,7 +1284,7 @@ fn build_conditional_branch_property(
 fn build_conditional_expression_property(
     expr_info: ExpressionInfo,
     stack_frame: Rc<RuntimePropertiesStackFrame>,
-) -> Property<bool> {
+) -> LocalProperty<bool> {
     let cloned_stack = stack_frame.clone();
     let expr_ast = expr_info.expression.clone();
 
@@ -1298,7 +1298,7 @@ fn build_conditional_expression_property(
     }
 
     let name = format!("conditional (if) expr ({})", expr_ast);
-    Property::computed_with_name(
+    LocalProperty::computed_with_name(
         move || {
             let new_value = expr_ast
                 .compute(cloned_stack.clone())
@@ -1533,7 +1533,7 @@ pub trait DefinitionToInstanceTraverser {
                     let boolean_expression = conditional_branch_properties
                         .first()
                         .cloned()
-                        .unwrap_or_else(|| Property::new(false));
+                        .unwrap_or_else(|| LocalProperty::new(false));
 
                     if let Some(expanded_node) = &expanded_node {
                         let expanded_node = borrow!(**expanded_node);
@@ -1614,14 +1614,14 @@ pub trait DefinitionToInstanceTraverser {
                 > = Box::new(move |stack_frame, expanded_node| {
                     let global_location = stack_frame
                         .resolve_symbol_as_erased_property(INTERNAL_ROUTE_LOCATION_SYMBOL)
-                        .map(Property::<RouteLocation>::new_from_untyped)
-                        .unwrap_or_else(|| Property::new(RouteLocation::root()));
+                        .map(LocalProperty::<RouteLocation>::new_from_untyped)
+                        .unwrap_or_else(|| LocalProperty::new(RouteLocation::root()));
                     let input_location = stack_frame
                         .resolve_symbol_as_erased_property(INTERNAL_ROUTE_MATCH_SYMBOL)
-                        .map(Property::<RouteMatch>::new_from_untyped)
+                        .map(LocalProperty::<RouteMatch>::new_from_untyped)
                         .map(|route_match| {
                             let dependency = route_match.untyped();
-                            Property::computed_with_name(
+                            LocalProperty::computed_with_name(
                                 move || route_match.get().remainder_location(),
                                 &[dependency],
                                 "router input location",
@@ -1698,7 +1698,7 @@ pub trait DefinitionToInstanceTraverser {
 
                         return Some(std::rc::Rc::new(RefCell::new({
                             let mut properties = crate::Slot::default();
-                            properties.is_remainder = Property::new(true);
+                            properties.is_remainder = LocalProperty::new(true);
                             properties.to_pax_any()
                         })));
                     };
@@ -1724,7 +1724,7 @@ pub trait DefinitionToInstanceTraverser {
                             crate::Slot::mut_from_pax_any(&mut inner_ref).unwrap();
                         slot_properties
                             .index
-                            .replace_with(Property::computed_with_name(
+                            .replace_with(LocalProperty::computed_with_name(
                                 move || {
                                     let new_value = expr_ast
                                         .compute(cloned_stack.clone())
@@ -1754,7 +1754,7 @@ pub trait DefinitionToInstanceTraverser {
                     Some(std::rc::Rc::new(RefCell::new({
                         let mut properties = crate::Slot::default();
 
-                        properties.index = Property::computed_with_name(
+                        properties.index = LocalProperty::computed_with_name(
                             move || {
                                 let new_value = expr_ast
                                     .compute(cloned_stack.clone())
@@ -1854,7 +1854,7 @@ pub trait DefinitionToInstanceTraverser {
                             crate::RepeatProperties::mut_from_pax_any(&mut inner_ref).unwrap();
                         repeat
                             .source_expression
-                            .replace_with(Property::computed_with_name(
+                            .replace_with(LocalProperty::computed_with_name(
                                 move || {
                                     expr.compute(cloned_stack.clone()).unwrap_or_else(|op_err| {
                                         log::warn!("Failed to compute expression: {:?}", op_err);
@@ -1864,10 +1864,12 @@ pub trait DefinitionToInstanceTraverser {
                                 &dependencies,
                                 "repeat source vec",
                             ));
-                        repeat.iterator_i_symbol.replace_with(Property::new(index));
+                        repeat
+                            .iterator_i_symbol
+                            .replace_with(LocalProperty::new(index));
                         repeat
                             .iterator_elem_symbol
-                            .replace_with(Property::new(elem));
+                            .replace_with(LocalProperty::new(elem));
                         repeat.repeat_key_expression = repeat_key_expression.clone();
                         return None;
                     }
@@ -1875,7 +1877,7 @@ pub trait DefinitionToInstanceTraverser {
                     Some(std::rc::Rc::new(RefCell::new({
                         let mut properties = crate::RepeatProperties::default();
 
-                        properties.source_expression = Property::computed_with_name(
+                        properties.source_expression = LocalProperty::computed_with_name(
                             move || {
                                 expr.compute(cloned_stack.clone()).unwrap_or_else(|op_err| {
                                     log::warn!("Failed to compute expression: {:?}", op_err);
@@ -1888,10 +1890,10 @@ pub trait DefinitionToInstanceTraverser {
 
                         properties
                             .iterator_i_symbol
-                            .replace_with(Property::new(index));
+                            .replace_with(LocalProperty::new(index));
                         properties
                             .iterator_elem_symbol
-                            .replace_with(Property::new(elem));
+                            .replace_with(LocalProperty::new(elem));
                         properties.repeat_key_expression = repeat_key_expression.clone();
                         properties.to_pax_any()
                     })))
@@ -2123,7 +2125,7 @@ fn try_typed_property_binding<T: PropertyValue + CoercionRules>(
     name: &str,
     definition: &ValueDefinition,
     stack: &Rc<RuntimePropertiesStackFrame>,
-) -> Option<Property<T>> {
+) -> Option<LocalProperty<T>> {
     use pax_language::interpreter::{PaxExpression, PaxPrimary};
     fn identifier(expression: &PaxExpression) -> Option<&str> {
         match expression {
@@ -2159,7 +2161,7 @@ fn build_common_property_value<T>(
     name: &str,
     value_definition: &ValueDefinition,
     stack: &Rc<RuntimePropertiesStackFrame>,
-) -> Property<Option<T>>
+) -> LocalProperty<Option<T>>
 where
     T: CoercionRules + PropertyValue + ToPaxValue,
 {
@@ -2177,7 +2179,7 @@ where
                     );
                     Default::default()
                 });
-            Property::new_with_name(val, name)
+            LocalProperty::new_with_name(val, name)
         }
         pax_manifest::ValueDefinition::Timeline(track) => {
             let track = timeline_track_with_base_starting_value(track);
@@ -2195,7 +2197,7 @@ where
                     log::warn!("Failed to resolve symbol {}", identifier.name);
                     return Default::default();
                 };
-            Property::new_from_untyped(untyped_property.clone())
+            LocalProperty::new_from_untyped(untyped_property.clone())
         }
         pax_manifest::ValueDefinition::Expression(info) => {
             let mut dependents = vec![];
@@ -2209,7 +2211,7 @@ where
             let cloned_ast = info.expression.clone();
             let expression_label = cloned_ast.to_string();
             let property_name = name.to_string();
-            Property::computed_with_name(
+            LocalProperty::computed_with_name(
                 move || {
                     let new_value =
                         cloned_ast
@@ -2239,7 +2241,7 @@ where
             collect_value_definition_dependencies(value_definition, stack, &mut dependents);
             let value_definition = value_definition.clone();
             let property_name = name.to_string();
-            Property::computed_with_name(
+            LocalProperty::computed_with_name(
                 move || {
                     evaluate_value_definition_to_pax_value(&value_definition, &cloned_stack)
                         .and_then(|new_value| {
@@ -2264,7 +2266,7 @@ where
                 let property_name = name.to_string();
                 let untyped = variable.get_untyped_property().clone();
                 let cloned_variable = variable.clone();
-                Property::computed_with_name(
+                LocalProperty::computed_with_name(
                     move || {
                         let new_value = cloned_variable.get_as_pax_value();
                         Option::<T>::try_coerce(new_value).unwrap_or_else(|err| {
@@ -2280,7 +2282,7 @@ where
                 )
             } else {
                 log::warn!("Failed to resolve symbol {}", ident.name);
-                Property::default()
+                LocalProperty::default()
             }
         }
         _ => unreachable!("Invalid value definition for {name}"),
@@ -2368,7 +2370,7 @@ fn build_axis_timeline_property<T: CoercionRules + PropertyValue>(
     track: &TimelineTrackDefinition,
     stack: Rc<RuntimePropertiesStackFrame>,
     axis_index: usize,
-) -> Property<Option<T>> {
+) -> LocalProperty<Option<T>> {
     let mut dependents = Vec::new();
     collect_value_definition_dependencies(
         &ValueDefinition::Timeline(track.clone()),
@@ -2379,7 +2381,7 @@ fn build_axis_timeline_property<T: CoercionRules + PropertyValue>(
     let cloned_stack = stack.clone();
     let cloned_track = track.clone();
     let property_name = name.to_string();
-    Property::computed_with_name(
+    LocalProperty::computed_with_name(
         move || {
             sample_axis_timeline_track(
                 &cloned_track,
@@ -2475,7 +2477,7 @@ fn build_axis_transition_property<T: CoercionRules + PropertyValue>(
     transition: &TransitionDefinition,
     stack: Rc<RuntimePropertiesStackFrame>,
     axis_index: usize,
-) -> Property<Option<T>> {
+) -> LocalProperty<Option<T>> {
     let mut dependents = Vec::new();
     collect_value_definition_dependencies(
         &ValueDefinition::Transition(transition.clone()),
@@ -2487,7 +2489,7 @@ fn build_axis_transition_property<T: CoercionRules + PropertyValue>(
     let cloned_transition = transition.clone();
     let property_name = name.to_string();
     let takeover_state = RefCell::new(TransitionTakeoverState::<T>::default());
-    Property::computed_with_name(
+    LocalProperty::computed_with_name(
         move || {
             let generation = transition_generation(&cloned_stack);
             let mut state = borrow_mut!(takeover_state);
@@ -2521,7 +2523,7 @@ fn build_common_property_axis_component_value<T>(
     value_definition: &ValueDefinition,
     stack: &Rc<RuntimePropertiesStackFrame>,
     axis_index: usize,
-) -> Property<Option<T>>
+) -> LocalProperty<Option<T>>
 where
     T: CoercionRules + PropertyValue + ToPaxValue,
 {
@@ -2546,7 +2548,7 @@ where
             collect_value_definition_dependencies(value_definition, stack, &mut dependents);
             let value_definition = value_definition.clone();
             let property_name = name.to_string();
-            Property::computed_with_name(
+            LocalProperty::computed_with_name(
                 move || {
                     evaluate_value_definition_to_pax_value(&value_definition, &cloned_stack)
                         .and_then(|value| {
@@ -2571,14 +2573,14 @@ fn resolve_property<T>(
     name: &str,
     property_columns: &RuntimeResolvedPropertyColumns,
     stack: &Rc<RuntimePropertiesStackFrame>,
-) -> Property<Option<T>>
+) -> LocalProperty<Option<T>>
 where
     T: CoercionRules + PropertyValue + ToPaxValue,
 {
     let Some(entries) = property_columns.get(name) else {
-        return Property::default();
+        return LocalProperty::default();
     };
-    let mut layered_property = Property::default();
+    let mut layered_property = LocalProperty::default();
     for entry in entries {
         let previous_property = layered_property.clone();
         let source_stack = entry.source_stack.as_ref().unwrap_or(stack);
@@ -2992,9 +2994,9 @@ pub fn apply_runtime_settings_condition<T>(
     name: &str,
     condition: Option<&RuntimeSettingsCondition>,
     stack: &Rc<RuntimePropertiesStackFrame>,
-    previous_property: Property<T>,
-    candidate_property: Property<T>,
-) -> Property<T>
+    previous_property: LocalProperty<T>,
+    candidate_property: LocalProperty<T>,
+) -> LocalProperty<T>
 where
     T: PropertyValue,
 {
@@ -3005,7 +3007,7 @@ where
     let mut dependents = vec![previous_property.untyped(), candidate_property.untyped()];
     collect_settings_condition_dependencies(&condition, stack, &mut dependents);
     let cloned_stack = stack.clone();
-    Property::computed_with_name(
+    LocalProperty::computed_with_name(
         move || {
             if settings_condition_is_active(&condition, &cloned_stack) {
                 candidate_property.get()
@@ -3380,7 +3382,7 @@ pub fn build_timeline_property<T: CoercionRules + PropertyValue>(
     name: &str,
     track: &TimelineTrackDefinition,
     stack: Rc<RuntimePropertiesStackFrame>,
-) -> Property<T> {
+) -> LocalProperty<T> {
     let mut dependents = Vec::new();
     if let Some(playhead) = &track.playhead {
         collect_value_definition_dependencies(playhead, &stack, &mut dependents);
@@ -3406,7 +3408,7 @@ pub fn build_timeline_property<T: CoercionRules + PropertyValue>(
 
     let cloned_stack = stack.clone();
     let cloned_track = track.clone();
-    Property::computed_with_name(
+    LocalProperty::computed_with_name(
         move || sample_timeline_track(&cloned_track, &cloned_stack, None).unwrap_or_default(),
         &dependents,
         name,
@@ -3546,7 +3548,7 @@ pub fn build_transition_property<T: CoercionRules + PropertyValue>(
     name: &str,
     transition: &TransitionDefinition,
     stack: Rc<RuntimePropertiesStackFrame>,
-) -> Property<T> {
+) -> LocalProperty<T> {
     let mut dependents = Vec::new();
     collect_value_definition_dependencies(
         &ValueDefinition::Transition(transition.clone()),
@@ -3557,7 +3559,7 @@ pub fn build_transition_property<T: CoercionRules + PropertyValue>(
     let cloned_stack = stack.clone();
     let cloned_transition = transition.clone();
     let takeover_state = RefCell::new(TransitionTakeoverState::<T>::default());
-    Property::computed_with_name(
+    LocalProperty::computed_with_name(
         move || {
             let generation = transition_generation(&cloned_stack);
             let mut state = borrow_mut!(takeover_state);
@@ -3589,7 +3591,7 @@ pub fn build_transition_property<T: CoercionRules + PropertyValue>(
 /// property value.
 pub fn stack_with_base<T>(
     stack: &Rc<RuntimePropertiesStackFrame>,
-    base_property: Property<T>,
+    base_property: LocalProperty<T>,
 ) -> Rc<RuntimePropertiesStackFrame>
 where
     T: PropertyValue + ToPaxValue,
@@ -3604,7 +3606,7 @@ where
 /// property value, exposing `T::default()` when the previous layer is `None`.
 pub fn stack_with_optional_base<T>(
     stack: &Rc<RuntimePropertiesStackFrame>,
-    base_property: Property<Option<T>>,
+    base_property: LocalProperty<Option<T>>,
 ) -> Rc<RuntimePropertiesStackFrame>
 where
     T: PropertyValue + ToPaxValue,
@@ -3614,7 +3616,7 @@ where
 
 fn stack_with_optional_base_or<T>(
     stack: &Rc<RuntimePropertiesStackFrame>,
-    base_property: Property<Option<T>>,
+    base_property: LocalProperty<Option<T>>,
     fallback: T,
 ) -> Rc<RuntimePropertiesStackFrame>
 where
@@ -3622,7 +3624,7 @@ where
 {
     let dependency = base_property.untyped();
     let cloned_base = base_property.clone();
-    let resolved_base = Property::computed_with_name(
+    let resolved_base = LocalProperty::computed_with_name(
         move || cloned_base.get().unwrap_or_else(|| fallback.clone()),
         &[dependency],
         BASE_SYMBOL,
@@ -3669,8 +3671,8 @@ pub fn build_component_property<T>(
     value_definition: &ValueDefinition,
     stack: &Rc<RuntimePropertiesStackFrame>,
     timeline_stack: Rc<RuntimePropertiesStackFrame>,
-    build_block: fn(&LiteralBlockDefinition, Rc<RuntimePropertiesStackFrame>) -> Property<T>,
-) -> Property<T>
+    build_block: fn(&LiteralBlockDefinition, Rc<RuntimePropertiesStackFrame>) -> LocalProperty<T>,
+) -> LocalProperty<T>
 where
     T: CoercionRules + PropertyValue + ToPaxValue,
 {
@@ -3686,16 +3688,16 @@ where
                 );
                 Default::default()
             });
-            Property::new_with_name(value, name)
+            LocalProperty::new_with_name(value, name)
         }
         ValueDefinition::DoubleBinding(identifier) => {
             if let Some(untyped_property) =
                 stack.resolve_symbol_as_erased_property(&identifier.name)
             {
-                Property::new_from_untyped(untyped_property.clone())
+                LocalProperty::new_from_untyped(untyped_property.clone())
             } else {
                 log::warn!("Failed to resolve identifier: {}", &identifier.name);
-                Property::new_with_name(Default::default(), name)
+                LocalProperty::new_with_name(Default::default(), name)
             }
         }
         ValueDefinition::Identifier(ident) => {
@@ -3704,7 +3706,7 @@ where
                 let property_name = name.to_string();
                 let untyped = variable.get_untyped_property().clone();
                 let cloned_variable = variable.clone();
-                Property::computed_with_name(
+                LocalProperty::computed_with_name(
                     move || {
                         let new_value = cloned_variable.get_as_pax_value();
                         T::try_coerce(new_value).unwrap_or_else(|err| {
@@ -3720,7 +3722,7 @@ where
                 )
             } else {
                 log::warn!("Failed to resolve symbol {}", ident.name);
-                Property::new_with_name(Default::default(), name)
+                LocalProperty::new_with_name(Default::default(), name)
             }
         }
         ValueDefinition::Expression(info) => {
@@ -3736,7 +3738,7 @@ where
             let cloned_ast = info.expression.clone();
             let expression_label = cloned_ast.to_string();
             let property_name = name.to_string();
-            Property::computed_with_name(
+            LocalProperty::computed_with_name(
                 move || {
                     let new_value =
                         cloned_ast
@@ -3767,7 +3769,7 @@ where
             let value_definition = value_definition.clone();
             let cloned_stack = stack.clone();
             let property_name = name.to_string();
-            Property::computed_with_name(
+            LocalProperty::computed_with_name(
                 move || {
                     evaluate_value_definition_to_pax_value(&value_definition, &cloned_stack)
                         .and_then(|new_value| {
@@ -3801,7 +3803,7 @@ where
             let block = block.clone();
             let stack = stack.clone();
             let name = name.to_string();
-            Property::computed_with_name(
+            LocalProperty::computed_with_name(
                 move || {
                     evaluate_literal_block_to_pax_value(&block, &stack)
                         .and_then(|value| {
@@ -3823,21 +3825,21 @@ where
 /// Replaces a typed component property with the value produced from a single
 /// value definition.
 pub fn apply_component_property<T>(
-    property: &mut Property<T>,
+    property: &mut impl pax_runtime_api::PropertyBinding<T>,
     name: &str,
     value_definition: &ValueDefinition,
     stack: &Rc<RuntimePropertiesStackFrame>,
     timeline_stack: Rc<RuntimePropertiesStackFrame>,
-    build_block: fn(&LiteralBlockDefinition, Rc<RuntimePropertiesStackFrame>) -> Property<T>,
+    build_block: fn(&LiteralBlockDefinition, Rc<RuntimePropertiesStackFrame>) -> LocalProperty<T>,
 ) where
     T: CoercionRules + PropertyValue + ToPaxValue,
 {
     let resolved_property =
         build_component_property(name, value_definition, stack, timeline_stack, build_block);
     if matches!(value_definition, ValueDefinition::DoubleBinding(_)) {
-        *property = resolved_property;
+        *property = pax_runtime_api::PropertyBinding::from_local(resolved_property);
     } else {
-        property.replace_with(resolved_property);
+        property.local().replace_with(resolved_property);
     }
 }
 
@@ -3861,14 +3863,16 @@ mod timeline_tests {
         ValueDefinition,
     };
     use pax_runtime_api::pax_value::CoercionRules;
-    use pax_runtime_api::{Color, Duration, Numeric, Paint, PaxValue, Property, Size, Variable};
+    use pax_runtime_api::{
+        Color, Duration, LocalProperty, Numeric, Paint, PaxValue, Size, Variable,
+    };
     use std::collections::HashMap;
     use std::rc::Rc;
     use std::sync::Arc;
 
     fn build_stack_with_clocks(
-        elapsed_frames: &Property<u64>,
-        elapsed_millis: &Property<u64>,
+        elapsed_frames: &LocalProperty<u64>,
+        elapsed_millis: &LocalProperty<u64>,
     ) -> Rc<RuntimePropertiesStackFrame> {
         let scope: HashMap<String, Variable> = vec![
             (
@@ -3885,8 +3889,8 @@ mod timeline_tests {
         RuntimePropertiesStackFrame::new(scope)
     }
 
-    fn build_stack(elapsed_frames: &Property<u64>) -> Rc<RuntimePropertiesStackFrame> {
-        let elapsed_millis = Property::new(0_u64);
+    fn build_stack(elapsed_frames: &LocalProperty<u64>) -> Rc<RuntimePropertiesStackFrame> {
+        let elapsed_millis = LocalProperty::new(0_u64);
         build_stack_with_clocks(elapsed_frames, &elapsed_millis)
     }
 
@@ -3907,7 +3911,7 @@ mod timeline_tests {
                 )]))
             }),
         );
-        let elapsed_frames = Property::new(0_u64);
+        let elapsed_frames = LocalProperty::new(0_u64);
         let stack = build_stack(&elapsed_frames);
         let literal = ValueDefinition::LiteralValue(PaxValue::Enum(Box::new((
             "LiteralHelper".to_string(),
@@ -3926,7 +3930,7 @@ mod timeline_tests {
 
     #[test]
     fn gradient_values_evaluate_to_default_linear_fill() {
-        let elapsed_frames = Property::new(0_u64);
+        let elapsed_frames = LocalProperty::new(0_u64);
         let stack = build_stack(&elapsed_frames);
         let gradient = ValueDefinition::Gradient(GradientDefinition {
             shape: GradientShapeDefinition::default(),
@@ -3960,7 +3964,7 @@ mod timeline_tests {
 
     #[test]
     fn timeline_property_loops_over_declared_frame_range() {
-        let elapsed_frames = Property::new(0_u64);
+        let elapsed_frames = LocalProperty::new(0_u64);
         let stack = build_stack(&elapsed_frames);
         let track = TimelineTrackDefinition {
             elements: vec![
@@ -3995,8 +3999,8 @@ mod timeline_tests {
 
     #[test]
     fn timeline_property_samples_millisecond_duration_from_elapsed_millis() {
-        let elapsed_frames = Property::new(0_u64);
-        let elapsed_millis = Property::new(0_u64);
+        let elapsed_frames = LocalProperty::new(0_u64);
+        let elapsed_millis = LocalProperty::new(0_u64);
         let stack = build_stack_with_clocks(&elapsed_frames, &elapsed_millis);
         let track = TimelineTrackDefinition {
             elements: vec![
@@ -4033,7 +4037,7 @@ mod timeline_tests {
 
     #[test]
     fn timeline_property_holds_starting_value_before_first_keyframe() {
-        let elapsed_frames = Property::new(0_u64);
+        let elapsed_frames = LocalProperty::new(0_u64);
         let stack = build_stack(&elapsed_frames);
         let track = TimelineTrackDefinition {
             elements: vec![
@@ -4070,7 +4074,7 @@ mod timeline_tests {
 
     #[test]
     fn timeline_property_interpolates_rotation_tracks() {
-        let elapsed_frames = Property::new(0_u64);
+        let elapsed_frames = LocalProperty::new(0_u64);
         let stack = build_stack(&elapsed_frames);
         let track = TimelineTrackDefinition {
             elements: vec![
@@ -4108,9 +4112,9 @@ mod timeline_tests {
 
     #[test]
     fn transition_rotation_tracks_can_arrive_at_base() {
-        let phase = Property::new(TRANSITION_PHASE_ENTER);
-        let playhead = Property::new(0.0_f64);
-        let base = Property::new(pax_runtime_api::Rotation::Degrees(1.0.into()));
+        let phase = LocalProperty::new(TRANSITION_PHASE_ENTER);
+        let playhead = LocalProperty::new(0.0_f64);
+        let base = LocalProperty::new(pax_runtime_api::Rotation::Degrees(1.0.into()));
         let scope: HashMap<String, Variable> = vec![
             (
                 TRANSITION_PHASE_SYMBOL.to_string(),
@@ -4165,8 +4169,8 @@ mod timeline_tests {
 
     #[test]
     fn timeline_property_samples_from_bound_playhead_property() {
-        let elapsed_frames = Property::new(0_u64);
-        let playhead = Property::new(0.0_f64);
+        let elapsed_frames = LocalProperty::new(0_u64);
+        let playhead = LocalProperty::new(0.0_f64);
         let scope: HashMap<String, Variable> = vec![
             (
                 "$frames".to_string(),
@@ -4212,8 +4216,8 @@ mod timeline_tests {
     }
     #[test]
     fn transition_property_switches_between_enter_and_exit_tracks() {
-        let phase = Property::new(0_u64);
-        let playhead = Property::new(0.0_f64);
+        let phase = LocalProperty::new(0_u64);
+        let playhead = LocalProperty::new(0.0_f64);
         let scope: HashMap<String, Variable> = vec![
             (
                 TRANSITION_PHASE_SYMBOL.to_string(),
@@ -4291,10 +4295,10 @@ mod timeline_tests {
 
     #[test]
     fn transition_property_takes_over_from_last_typed_sample_on_reversal() {
-        let phase = Property::new(TRANSITION_PHASE_ENTER);
-        let playhead = Property::new(0.0_f64);
-        let generation = Property::new(1_u64);
-        let takeover = Property::new(false);
+        let phase = LocalProperty::new(TRANSITION_PHASE_ENTER);
+        let playhead = LocalProperty::new(0.0_f64);
+        let generation = LocalProperty::new(1_u64);
+        let takeover = LocalProperty::new(false);
         let stack = RuntimePropertiesStackFrame::new(HashMap::from([
             (
                 TRANSITION_PHASE_SYMBOL.to_string(),
@@ -4364,10 +4368,10 @@ mod timeline_tests {
 
     #[test]
     fn transition_property_restart_uses_authored_destination_start() {
-        let phase = Property::new(TRANSITION_PHASE_ENTER);
-        let playhead = Property::new(5.0_f64);
-        let generation = Property::new(1_u64);
-        let takeover = Property::new(false);
+        let phase = LocalProperty::new(TRANSITION_PHASE_ENTER);
+        let playhead = LocalProperty::new(5.0_f64);
+        let generation = LocalProperty::new(1_u64);
+        let takeover = LocalProperty::new(false);
         let stack = RuntimePropertiesStackFrame::new(HashMap::from([
             (
                 TRANSITION_PHASE_SYMBOL.to_string(),
@@ -4425,10 +4429,10 @@ mod timeline_tests {
 
     #[test]
     fn transition_property_uses_millisecond_playhead_for_dynamic_millisecond_duration() {
-        let phase = Property::new(TRANSITION_PHASE_ENTER);
-        let frame_playhead = Property::new(0.0_f64);
-        let millis_playhead = Property::new(0.0_f64);
-        let duration = Property::new(Duration::Milliseconds(1000.into()));
+        let phase = LocalProperty::new(TRANSITION_PHASE_ENTER);
+        let frame_playhead = LocalProperty::new(0.0_f64);
+        let millis_playhead = LocalProperty::new(0.0_f64);
+        let duration = LocalProperty::new(Duration::Milliseconds(1000.into()));
         let scope: HashMap<String, Variable> = vec![
             (
                 TRANSITION_PHASE_SYMBOL.to_string(),
@@ -4493,7 +4497,7 @@ mod timeline_tests {
 
     #[test]
     fn timeline_property_skips_keyframes_that_fail_typed_coercion() {
-        let elapsed_frames = Property::new(0_u64);
+        let elapsed_frames = LocalProperty::new(0_u64);
         let stack = build_stack(&elapsed_frames);
         let track = TimelineTrackDefinition {
             elements: vec![
@@ -4543,7 +4547,7 @@ mod base_symbol_tests {
         ExpressionInfo, PaxIdentifier, TimelineKeyframe, TimelineMarker, TimelineTrackDefinition,
         TimelineTrackElement, Token, TransitionDefinition, ValueDefinition,
     };
-    use pax_runtime_api::{Duration, Numeric, Opacity, PaxValue, Property, Size, Variable};
+    use pax_runtime_api::{Duration, LocalProperty, Numeric, Opacity, PaxValue, Size, Variable};
     use std::collections::{BTreeMap, HashMap};
     use std::rc::Rc;
 
@@ -4610,10 +4614,10 @@ mod base_symbol_tests {
 
     #[test]
     fn pax995_dynamic_index_invalidates_component_property() {
-        let items = Property::new(vec![vec![10_i64, 20_i64], vec![30, 40]]);
-        let indices = Property::new(vec![0_i64, 1]);
-        let index = Property::new(0_i64);
-        let column = Property::new(0_i64);
+        let items = LocalProperty::new(vec![vec![10_i64, 20_i64], vec![30, 40]]);
+        let indices = LocalProperty::new(vec![0_i64, 1]);
+        let index = LocalProperty::new(0_i64);
+        let column = LocalProperty::new(0_i64);
         let stack = RuntimePropertiesStackFrame::new(HashMap::from([
             (
                 "items".into(),
@@ -4632,7 +4636,7 @@ mod base_symbol_tests {
                 Variable::new_from_typed_property(column.clone()),
             ),
         ]));
-        let selected: Property<i64> = build_component_property(
+        let selected: LocalProperty<i64> = build_component_property(
             "selected",
             &expression("items[indices[index]][column + 0]"),
             &stack,
@@ -4654,7 +4658,7 @@ mod base_symbol_tests {
     fn recursive_appearance_list_and_typed_paxel_objects_remain_reactive() {
         use pax_manifest::{LiteralBlockDefinition, SettingElement};
         use pax_runtime_api::{Color, Fill, Paint};
-        let accent = Property::new(Color::RED);
+        let accent = LocalProperty::new(Color::RED);
         let stack = RuntimePropertiesStackFrame::new(HashMap::from([(
             "accent".into(),
             Variable::new_from_typed_property(accent.clone()),
@@ -4668,13 +4672,13 @@ mod base_symbol_tests {
         });
         let value =
             ValueDefinition::List(vec![block, expression("Fill {paint: BLUE, opacity: 50%}")]);
-        let layers: Property<Vec<Fill>> =
+        let layers: LocalProperty<Vec<Fill>> =
             build_component_property("fill", &value, &stack, stack.clone(), |_, _| unreachable!());
         assert_eq!(layers.get()[0].paint.get(), Paint::Solid(Color::RED));
         assert_eq!(layers.get()[1].opacity.get().to_float_0_1(), 0.5);
         accent.set(Color::GREEN);
         assert_eq!(layers.get()[0].paint.get(), Paint::Solid(Color::GREEN));
-        let mismatch: Property<Vec<Fill>> = build_component_property(
+        let mismatch: LocalProperty<Vec<Fill>> = build_component_property(
             "fill",
             &expression("[RED, Stroke {paint: BLUE}]"),
             &stack,
@@ -4693,9 +4697,9 @@ mod base_symbol_tests {
             GradientDefinition, GradientShapeDefinition, LiteralBlockDefinition, SettingElement,
         };
         use pax_runtime_api::{Color, MeshPoint, Paint};
-        let x = Property::new(Size::Percent(35.into()));
-        let accent = Property::new(Color::CYAN);
-        let rows = Property::new(vec![
+        let x = LocalProperty::new(Size::Percent(35.into()));
+        let accent = LocalProperty::new(Color::CYAN);
+        let rows = LocalProperty::new(vec![
             vec![
                 MeshPoint {
                     position: (Size::default(), Size::default()),
@@ -4737,7 +4741,7 @@ mod base_symbol_tests {
                 elements: vec![],
             })
         };
-        let nested: Property<Paint> = build_component_property(
+        let nested: LocalProperty<Paint> = build_component_property(
             "paint",
             &mesh(ValueDefinition::List(vec![
                 ValueDefinition::List(vec![
@@ -4752,7 +4756,7 @@ mod base_symbol_tests {
             stack.clone(),
             |_, _| unreachable!(),
         );
-        let bound: Property<Paint> = build_component_property(
+        let bound: LocalProperty<Paint> = build_component_property(
             "paint",
             &mesh(expression("rows")),
             &stack,
@@ -4778,7 +4782,7 @@ mod base_symbol_tests {
         };
         assert_eq!(mesh.rows[0].len(), 3);
         rows.set(vec![]);
-        let malformed: Property<Paint> = build_component_property(
+        let malformed: LocalProperty<Paint> = build_component_property(
             "paint",
             &ValueDefinition::Gradient(GradientDefinition {
                 shape: GradientShapeDefinition::Mesh {
@@ -4802,10 +4806,10 @@ mod base_symbol_tests {
 
     #[test]
     fn base_symbol_resolves_previous_component_property_layer() {
-        let base_property = Property::new(10.0_f64);
+        let base_property = LocalProperty::new(10.0_f64);
         let stack = stack_with_base(&empty_stack(), base_property);
 
-        let property: Property<f64> = build_component_property(
+        let property: LocalProperty<f64> = build_component_property(
             "opacity",
             &expression("$base + 0.25"),
             &stack,
@@ -4832,7 +4836,7 @@ mod base_symbol_tests {
 
     #[test]
     fn base_symbol_tracks_reactive_previous_layers() {
-        let offset = Property::new(Size::Pixels(Numeric::F64(10.0)));
+        let offset = LocalProperty::new(Size::Pixels(Numeric::F64(10.0)));
         let stack = RuntimePropertiesStackFrame::new(HashMap::from([(
             "offset".to_string(),
             Variable::new_from_typed_property(offset.clone()),
@@ -4854,7 +4858,7 @@ mod base_symbol_tests {
 
     #[test]
     fn imported_settings_use_the_provider_scope_reactively() {
-        let is_dark = Property::new(false);
+        let is_dark = LocalProperty::new(false);
         let provider_stack = RuntimePropertiesStackFrame::new(HashMap::from([(
             "is_dark".to_string(),
             Variable::new_from_typed_property(is_dark.clone()),
@@ -4882,7 +4886,7 @@ mod base_symbol_tests {
 
     #[test]
     fn imported_settings_conditions_use_the_provider_scope_reactively() {
-        let is_dark = Property::new(false);
+        let is_dark = LocalProperty::new(false);
         let provider_stack = RuntimePropertiesStackFrame::new(HashMap::from([(
             "is_dark".to_string(),
             Variable::new_from_typed_property(is_dark.clone()),
@@ -4916,7 +4920,7 @@ mod base_symbol_tests {
 
     #[test]
     fn settings_condition_preserves_previous_layer_until_active() {
-        let landscape = Property::new(false);
+        let landscape = LocalProperty::new(false);
         let stack = RuntimePropertiesStackFrame::new(HashMap::from([(
             "$landscape".to_string(),
             Variable::new_from_typed_property(landscape.clone()),
@@ -4938,7 +4942,7 @@ mod base_symbol_tests {
 
     #[test]
     fn base_symbol_supplies_timeline_starting_values() {
-        let elapsed_frames = Property::new(0_u64);
+        let elapsed_frames = LocalProperty::new(0_u64);
         let stack = RuntimePropertiesStackFrame::new(HashMap::from([(
             "$frames".to_string(),
             Variable::new_from_typed_property(elapsed_frames.clone()),
@@ -4982,8 +4986,8 @@ mod base_symbol_tests {
 
     #[test]
     fn base_symbol_uses_layout_zero_for_unset_position_transitions() {
-        let phase = Property::new(TRANSITION_PHASE_ENTER);
-        let playhead = Property::new(5.0_f64);
+        let phase = LocalProperty::new(TRANSITION_PHASE_ENTER);
+        let playhead = LocalProperty::new(5.0_f64);
         let stack = RuntimePropertiesStackFrame::new(HashMap::from([
             (
                 TRANSITION_PHASE_SYMBOL.to_string(),
@@ -5036,8 +5040,8 @@ mod base_symbol_tests {
 
     #[test]
     fn base_symbol_uses_opaque_for_unset_opacity_transitions() {
-        let phase = Property::new(TRANSITION_PHASE_ENTER);
-        let playhead = Property::new(5.0_f64);
+        let phase = LocalProperty::new(TRANSITION_PHASE_ENTER);
+        let playhead = LocalProperty::new(5.0_f64);
         let stack = RuntimePropertiesStackFrame::new(HashMap::from([
             (
                 TRANSITION_PHASE_SYMBOL.to_string(),
@@ -5165,11 +5169,11 @@ pub fn update_existing_common_properties(
 
 fn create_id_property(
     property_columns: &RuntimeResolvedPropertyColumns,
-) -> Property<Option<String>> {
+) -> LocalProperty<Option<String>> {
     let id = property_columns
         .get("id")
         .and_then(|entries| entries.last());
-    Property::new(
+    LocalProperty::new(
         if let Some(RuntimeResolvedPropertyEntry {
             value: pax_manifest::ValueDefinition::Identifier(pax_identifier),
             ..
@@ -5224,7 +5228,7 @@ pub fn create_new_common_properties(
 }
 
 fn bind_common_setting<T: CoercionRules + PropertyValue + ToPaxValue>(
-    output: &Property<Option<T>>,
+    output: &LocalProperty<Option<T>>,
     name: &str,
     columns: &RuntimeResolvedPropertyColumns,
     stack: &Rc<RuntimePropertiesStackFrame>,

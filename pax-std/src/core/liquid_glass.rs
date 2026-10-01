@@ -1,3 +1,4 @@
+use pax_engine::api::LocalProperty;
 use pax_engine::api::{Axis, Property};
 use pax_engine::pax;
 use pax_runtime::api::{borrow, Color, Layer, NativeLiquidGlassScope, Numeric, Size};
@@ -44,7 +45,7 @@ pub struct LiquidGlassInstance {
 impl LiquidGlassInstance {
     fn scope_property(
         expanded_node: &Rc<ExpandedNode>,
-    ) -> Property<Option<NativeLiquidGlassScope>> {
+    ) -> LocalProperty<Option<NativeLiquidGlassScope>> {
         let (enabled, spacing, interactive, tint, variant) = expanded_node
             .with_properties_unwrapped(|liquid_glass: &mut LiquidGlass| {
                 (
@@ -66,7 +67,7 @@ impl LiquidGlassInstance {
             transform_and_bounds.untyped(),
         ];
 
-        Property::computed(
+        LocalProperty::computed(
             move || {
                 if !enabled.get() {
                     return None;

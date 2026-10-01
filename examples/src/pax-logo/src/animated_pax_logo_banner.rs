@@ -157,11 +157,11 @@ impl Default for AnimatedPaxLogoBanner {
 
 impl AnimatedPaxLogoBanner {
     pub fn handle_mount(&mut self, _ctx: &NodeContext) {
-        let curtain_drop_1 = self.curtain_drop_1.clone();
-        let curtain_drop_2 = self.curtain_drop_2.clone();
-        let curtain_drop_3 = self.curtain_drop_3.clone();
-        let curtain_drop_4 = self.curtain_drop_4.clone();
-        let curtain_drop_5 = self.curtain_drop_5.clone();
+        let curtain_drop_1 = self.curtain_drop_1.local();
+        let curtain_drop_2 = self.curtain_drop_2.local();
+        let curtain_drop_3 = self.curtain_drop_3.local();
+        let curtain_drop_4 = self.curtain_drop_4.local();
+        let curtain_drop_5 = self.curtain_drop_5.local();
         let banner_dependencies = [
             curtain_drop_1.untyped(),
             curtain_drop_2.untyped(),
@@ -169,7 +169,7 @@ impl AnimatedPaxLogoBanner {
             curtain_drop_4.untyped(),
             curtain_drop_5.untyped(),
         ];
-        self.banner_elements.replace_with(Property::computed(
+        self.banner_elements.replace_with(LocalProperty::computed(
             move || {
                 banner_path([
                     curtain_drop_1.get(),
@@ -182,15 +182,15 @@ impl AnimatedPaxLogoBanner {
             &banner_dependencies,
         ));
 
-        let p_counter_x_px = self.p_counter_x_px.clone();
-        let p_rotation_deg = self.p_rotation_deg.clone();
-        let p_scale = self.p_scale.clone();
+        let p_counter_x_px = self.p_counter_x_px.local();
+        let p_rotation_deg = self.p_rotation_deg.local();
+        let p_scale = self.p_scale.local();
         let p_dependencies = [
             p_counter_x_px.untyped(),
             p_rotation_deg.untyped(),
             p_scale.untyped(),
         ];
-        let p_transform = Property::computed(
+        let p_transform = LocalProperty::computed(
             move || Transform {
                 translation_x: p_counter_x_px.get(),
                 rotation_deg: p_rotation_deg.get(),
@@ -201,37 +201,38 @@ impl AnimatedPaxLogoBanner {
         );
 
         let p_transform_for_ring = p_transform.clone();
-        self.p_ring_elements.replace_with(Property::computed(
+        self.p_ring_elements.replace_with(LocalProperty::computed(
             move || p_ring_path(p_transform_for_ring.get()),
             &[p_transform.untyped()],
         ));
 
         let p_transform_for_counter = p_transform.clone();
-        self.p_counter_elements.replace_with(Property::computed(
-            move || p_counter_path(p_transform_for_counter.get()),
-            &[p_transform.untyped()],
-        ));
+        self.p_counter_elements
+            .replace_with(LocalProperty::computed(
+                move || p_counter_path(p_transform_for_counter.get()),
+                &[p_transform.untyped()],
+            ));
 
-        let p_counter_reveal_progress = self.p_counter_reveal_progress.clone();
+        let p_counter_reveal_progress = self.p_counter_reveal_progress.local();
         let p_counter_reveal_dependency = p_counter_reveal_progress.clone();
         self.p_counter_reveal_mask_elements
-            .replace_with(Property::computed(
+            .replace_with(LocalProperty::computed(
                 move || p_counter_reveal_mask_path(p_counter_reveal_progress.get()),
                 &[p_counter_reveal_dependency.untyped()],
             ));
 
-        let a_x_px = self.a_x_px.clone();
-        let a_rotation_deg = self.a_rotation_deg.clone();
-        let a_scale = self.a_scale.clone();
-        let a_brake_rotation_deg = self.a_brake_rotation_deg.clone();
-        let a_morph_progress = self.a_morph_progress.clone();
+        let a_x_px = self.a_x_px.local();
+        let a_rotation_deg = self.a_rotation_deg.local();
+        let a_scale = self.a_scale.local();
+        let a_brake_rotation_deg = self.a_brake_rotation_deg.local();
+        let a_morph_progress = self.a_morph_progress.local();
         let transform_dependencies = [
             a_x_px.untyped(),
             a_rotation_deg.untyped(),
             a_scale.untyped(),
             a_brake_rotation_deg.untyped(),
         ];
-        let a_transform = Property::computed(
+        let a_transform = LocalProperty::computed(
             move || Transform {
                 translation_x: a_x_px.get(),
                 rotation_deg: a_rotation_deg.get(),
@@ -243,23 +244,24 @@ impl AnimatedPaxLogoBanner {
 
         let a_transform_for_outer = a_transform.clone();
         let a_morph_for_outer = a_morph_progress.clone();
-        self.a_elements.replace_with(Property::computed(
+        self.a_elements.replace_with(LocalProperty::computed(
             move || a_path(a_transform_for_outer.get(), a_morph_for_outer.get()),
             &[a_transform.untyped(), a_morph_progress.untyped()],
         ));
 
         let a_transform_for_counter = a_transform.clone();
         let a_morph_for_counter = a_morph_progress.clone();
-        self.a_counter_elements.replace_with(Property::computed(
-            move || a_counter_path(a_transform_for_counter.get(), a_morph_for_counter.get()),
-            &[a_transform.untyped(), a_morph_progress.untyped()],
-        ));
+        self.a_counter_elements
+            .replace_with(LocalProperty::computed(
+                move || a_counter_path(a_transform_for_counter.get(), a_morph_for_counter.get()),
+                &[a_transform.untyped(), a_morph_progress.untyped()],
+            ));
 
-        let x_offset_px = self.x_offset_px.clone();
-        let x_offset_y_px = self.x_offset_y_px.clone();
-        let x_rotation_deg = self.x_rotation_deg.clone();
-        let x_scale = self.x_scale.clone();
-        let x_brake_rotation_deg = self.x_brake_rotation_deg.clone();
+        let x_offset_px = self.x_offset_px.local();
+        let x_offset_y_px = self.x_offset_y_px.local();
+        let x_rotation_deg = self.x_rotation_deg.local();
+        let x_scale = self.x_scale.local();
+        let x_brake_rotation_deg = self.x_brake_rotation_deg.local();
         let x_dependencies = [
             x_offset_px.untyped(),
             x_offset_y_px.untyped(),
@@ -267,7 +269,7 @@ impl AnimatedPaxLogoBanner {
             x_scale.untyped(),
             x_brake_rotation_deg.untyped(),
         ];
-        self.x_elements.replace_with(Property::computed(
+        self.x_elements.replace_with(LocalProperty::computed(
             move || {
                 x_path(XTransform {
                     translation_x: x_offset_px.get(),

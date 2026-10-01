@@ -36,7 +36,7 @@ pub struct Example {
 impl Example {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let bounds_parent = ctx.bounds_parent.clone();
-        self.content_width.replace_with(Property::computed(
+        self.content_width.replace_with(LocalProperty::computed(
             move || {
                 let (width, _) = bounds_parent.get();
                 (width - 32.0).clamp(320.0, 980.0)
@@ -96,9 +96,11 @@ impl Example {
             self.panel_hide_frame.set(0);
             self.panel_opacity.set(1.0);
             self.panel_motion
+                .local()
                 .ease_to(0.0, PANEL_TOGGLE_FRAMES, EasingCurve::InQuad);
         } else {
             self.panel_motion
+                .local()
                 .ease_to(1.0, PANEL_TOGGLE_FRAMES, EasingCurve::InQuad);
             self.panel_hide_frame
                 .set(current_frame + PANEL_TOGGLE_FRAMES + PANEL_HIDE_BUFFER_FRAMES);
@@ -106,18 +108,18 @@ impl Example {
     }
 
     fn bind_panel_motion_properties(&mut self) {
-        let motion = self.panel_motion.clone();
+        let motion = self.panel_motion.local();
         let motion_calc = motion.clone();
-        self.panel_cell_height.replace_with(Property::computed(
+        self.panel_cell_height.replace_with(LocalProperty::computed(
             move || panel_height_for_progress(motion_calc.get()),
             &[motion.untyped()],
         ));
 
-        let motion = self.panel_motion.clone();
-        let width = self.content_width.clone();
+        let motion = self.panel_motion.local();
+        let width = self.content_width.local();
         let motion_calc = motion.clone();
         let width_calc = width.clone();
-        self.panel_scale_x.replace_with(Property::computed(
+        self.panel_scale_x.replace_with(LocalProperty::computed(
             move || {
                 let progress = normalized_motion(motion_calc.get());
                 let min_scale =
@@ -127,16 +129,16 @@ impl Example {
             &[motion.untyped(), width.untyped()],
         ));
 
-        let motion = self.panel_motion.clone();
+        let motion = self.panel_motion.local();
         let motion_calc = motion.clone();
-        self.panel_scale_y.replace_with(Property::computed(
+        self.panel_scale_y.replace_with(LocalProperty::computed(
             move || panel_height_for_progress(motion_calc.get()) / PANEL_FULL_HEIGHT,
             &[motion.untyped()],
         ));
 
-        let motion = self.panel_motion.clone();
+        let motion = self.panel_motion.local();
         let motion_calc = motion.clone();
-        self.panel_origin_y.replace_with(Property::computed(
+        self.panel_origin_y.replace_with(LocalProperty::computed(
             move || {
                 let progress = normalized_motion(motion_calc.get());
                 let height = panel_height_for_progress(progress);

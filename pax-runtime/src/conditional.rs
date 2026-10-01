@@ -2,7 +2,7 @@ use std::{iter, ops::Range, rc::Rc};
 use_RefCell!();
 
 use pax_runtime_api::pax_value::ImplToFromPaxAny;
-use pax_runtime_api::{borrow, borrow_mut, use_RefCell, PaxValue, Property, ToPaxValue};
+use pax_runtime_api::{borrow, borrow_mut, use_RefCell, LocalProperty, PaxValue, ToPaxValue};
 
 use crate::api::Layer;
 use crate::{
@@ -24,8 +24,8 @@ impl ImplToFromPaxAny for ConditionalProperties {}
 ///Contains the expression of a conditional, evaluated as an expression.
 #[derive(Default)]
 pub struct ConditionalProperties {
-    pub boolean_expression: Property<bool>,
-    pub conditional_branches: Vec<Property<bool>>,
+    pub boolean_expression: LocalProperty<bool>,
+    pub conditional_branches: Vec<LocalProperty<bool>>,
 }
 
 impl ToPaxValue for ConditionalProperties {
@@ -150,7 +150,7 @@ impl ConditionalInstance {
         let cached_children = RefCell::new(Vec::new());
         expanded_node
             .children
-            .replace_with(Property::computed_with_name(
+            .replace_with(LocalProperty::computed_with_name(
                 move || {
                     let Some(cloned_expanded_node) = weak_ref_self.upgrade() else {
                         panic!("ran evaluator after expanded node dropped (conditional elem)")
@@ -236,22 +236,22 @@ mod tests {
         ComponentTransitionConfig, TRANSITION_PHASE_ENTER, TRANSITION_PHASE_EXIT,
     };
     use pax_runtime_api::pax_value::{PaxAny, ToFromPaxAny};
-    use pax_runtime_api::{Platform, Property, TargetInfo, OS};
+    use pax_runtime_api::{LocalProperty, Platform, TargetInfo, OS};
     use std::cell::RefCell;
 
     fn test_globals() -> Globals {
         Globals {
-            elapsed_frames: Property::new(0),
-            elapsed_millis: Property::new(0),
-            viewport: Property::new(TransformAndBounds {
+            elapsed_frames: LocalProperty::new(0),
+            elapsed_millis: LocalProperty::new(0),
+            viewport: LocalProperty::new(TransformAndBounds {
                 transform: Transform2::identity(),
                 bounds: (100.0, 100.0),
             }),
-            gyro: Property::new(Default::default()),
-            accel: Property::new(Default::default()),
-            route_location: Property::new(RouteLocation::root()),
-            browser_allows_scroller_vector_layers: Property::new(true),
-            browser_allows_nested_scroller_vector_layers: Property::new(true),
+            gyro: LocalProperty::new(Default::default()),
+            accel: LocalProperty::new(Default::default()),
+            route_location: LocalProperty::new(RouteLocation::root()),
+            browser_allows_scroller_vector_layers: LocalProperty::new(true),
+            browser_allows_nested_scroller_vector_layers: LocalProperty::new(true),
             platform: Platform::Unknown,
             os: OS::Unknown,
             target: TargetInfo::new(Platform::Unknown, OS::Unknown),
@@ -319,7 +319,7 @@ mod tests {
     }
 
     fn mounted_conditional(
-        condition: Property<bool>,
+        condition: LocalProperty<bool>,
     ) -> (Rc<ExpandedNode>, Rc<ExpandedNode>, Rc<RuntimeContext>) {
         let conditional: Rc<dyn InstanceNode> =
             ConditionalInstance::instantiate(conditional_args(condition, vec![transition_leaf()]));
@@ -333,7 +333,7 @@ mod tests {
     }
 
     fn conditional_args(
-        condition: Property<bool>,
+        condition: LocalProperty<bool>,
         children: Vec<Rc<dyn InstanceNode>>,
     ) -> InstantiationArgs {
         InstantiationArgs {
@@ -403,7 +403,7 @@ mod tests {
 
     #[test]
     fn detached_conditional_keeps_cached_children_on_same_branch_recompute() {
-        let condition = Property::new(true);
+        let condition = LocalProperty::new(true);
         let leaf: Rc<dyn InstanceNode> = TestLeaf::instantiate(component_args(Some(Vec::new())));
         let conditional =
             ConditionalInstance::instantiate(conditional_args(condition.clone(), vec![leaf]));
@@ -436,7 +436,7 @@ mod tests {
 
     #[test]
     fn conditional_prunes_completed_exit_and_can_reenter_during_exit() {
-        let condition = Property::new(true);
+        let condition = LocalProperty::new(true);
         let (root, conditional_node, context) = mounted_conditional(condition.clone());
         let initial_id = borrow!(conditional_node.active_children)[0].id;
 
@@ -469,7 +469,7 @@ mod tests {
 
     #[test]
     fn conditional_survives_repeated_rapid_toggles_during_transitions() {
-        let condition = Property::new(true);
+        let condition = LocalProperty::new(true);
         let (root, conditional_node, context) = mounted_conditional(condition.clone());
         let stable_id = borrow!(conditional_node.active_children)[0].id;
 
@@ -495,7 +495,7 @@ mod tests {
 
     #[test]
     fn conditional_refreshes_computed_children_after_exit_cleanup() {
-        let condition = Property::new(true);
+        let condition = LocalProperty::new(true);
         let (_root, conditional_node, context) = mounted_conditional(condition.clone());
 
         condition.set(false);

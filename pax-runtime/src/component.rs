@@ -4,7 +4,7 @@ use std::iter;
 use std::rc::Rc;
 
 use pax_runtime_api::{
-    borrow, borrow_mut, use_RefCell, Interpolatable, PaxValue, Property, ToPaxValue, Variable,
+    borrow, borrow_mut, use_RefCell, Interpolatable, LocalProperty, PaxValue, ToPaxValue, Variable,
 };
 
 use_RefCell!();
@@ -91,15 +91,17 @@ impl InstanceNode for ComponentInstance {
         };
         let children = borrow!(self.template);
         let children_with_envs = children.iter().cloned().zip(iter::repeat(new_env));
-        expanded_node.children.replace_with(Property::new_with_name(
-            expanded_node.generate_children(
-                children_with_envs,
-                context,
-                &expanded_node.parent_frame,
-                true,
-            ),
-            &format!("component (node id: {})", expanded_node.id.0),
-        ));
+        expanded_node
+            .children
+            .replace_with(LocalProperty::new_with_name(
+                expanded_node.generate_children(
+                    children_with_envs,
+                    context,
+                    &expanded_node.parent_frame,
+                    true,
+                ),
+                &format!("component (node id: {})", expanded_node.id.0),
+            ));
         drop(children);
         // A component can mount after the tick's settings pass (for example in
         // @pre_render). Bind its initial theme before it can be presented or the
@@ -173,20 +175,20 @@ impl ScrollPosition {
     pub fn create_builtin_if_exists(
         property_scope: Ref<HashMap<String, Variable>>,
     ) -> Option<HashMap<String, Variable>> {
-        let scroll_pos_x: Property<f64> = Property::new_from_untyped(
+        let scroll_pos_x: LocalProperty<f64> = LocalProperty::new_from_untyped(
             property_scope
                 .get("scroll_pos_x")?
                 .get_untyped_property()
                 .clone(),
         );
-        let scroll_pos_y: Property<f64> = Property::new_from_untyped(
+        let scroll_pos_y: LocalProperty<f64> = LocalProperty::new_from_untyped(
             property_scope
                 .get("scroll_pos_y")?
                 .get_untyped_property()
                 .clone(),
         );
         let deps = [scroll_pos_x.untyped(), scroll_pos_y.untyped()];
-        let scroll_position = Property::computed(
+        let scroll_position = LocalProperty::computed(
             move || ScrollPosition {
                 x: scroll_pos_x.get(),
                 y: scroll_pos_y.get(),

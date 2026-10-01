@@ -38,18 +38,27 @@ impl Ball {
                 ((1.0 - seq_progress_0_1) * (random::<f64>() * crate::LOOP_FRAMES)) as u64;
 
             self.diameter
+                .local()
                 .ease_to(0.into(), delay_frames, EasingCurve::Linear);
             self.diameter
+                .local()
                 .ease_to_later(d_lower, 20, EasingCurve::OutQuad);
             self.diameter
+                .local()
                 .ease_to_later(d_upper, 40, EasingCurve::OutQuad);
             self.diameter
+                .local()
                 .ease_to_later(d_steady, 40, EasingCurve::InQuad);
 
             self.hue
+                .local()
                 .ease_to(h_lower, delay_frames, EasingCurve::OutQuad);
-            self.hue.ease_to_later(h_upper, 40, EasingCurve::OutQuad);
-            self.hue.ease_to_later(h_steady, 40, EasingCurve::InQuad);
+            self.hue
+                .local()
+                .ease_to_later(h_upper, 40, EasingCurve::OutQuad);
+            self.hue
+                .local()
+                .ease_to_later(h_steady, 40, EasingCurve::InQuad);
         }
     }
 

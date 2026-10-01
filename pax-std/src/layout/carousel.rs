@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 use crate::*;
+use pax_engine::api::LocalProperty;
 use pax_engine::api::{Axis, Event, KeyDown, Numeric, Property, Size};
 use pax_engine::*;
 use pax_runtime::api::NodeContext;
@@ -138,13 +139,13 @@ struct CarouselLayout {
 impl Carousel {
     // Wires derived layout properties used by the inline template.
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        let axis = self.axis.clone();
-        let page_size = self.page_size.clone();
+        let axis = self.axis.local();
+        let page_size = self.page_size.local();
         let bounds = ctx.bounds_self.clone();
         let projected_children_count = ctx.projected_children_count.clone();
-        let show_dots = self.show_dots.clone();
-        let scroll_pos_x = self.scroll_pos_x.clone();
-        let scroll_pos_y = self.scroll_pos_y.clone();
+        let show_dots = self.show_dots.local();
+        let scroll_pos_x = self.scroll_pos_x.local();
+        let scroll_pos_y = self.scroll_pos_y.local();
 
         let deps = [
             axis.untyped(),
@@ -157,7 +158,7 @@ impl Carousel {
         let page_size_pages = page_size.clone();
         let bounds_pages = bounds.clone();
         let projected_children_count_pages = projected_children_count.clone();
-        self._pages.replace_with(Property::computed(
+        self._pages.replace_with(LocalProperty::computed(
             move || {
                 compute_layout(
                     axis_pages.get(),
@@ -174,7 +175,7 @@ impl Carousel {
         let page_size_width = page_size.clone();
         let bounds_width = bounds.clone();
         let projected_children_count_width = projected_children_count.clone();
-        self._page_width_px.replace_with(Property::computed(
+        self._page_width_px.replace_with(LocalProperty::computed(
             move || {
                 compute_layout(
                     axis_width.get(),
@@ -191,7 +192,7 @@ impl Carousel {
         let page_size_height = page_size.clone();
         let bounds_height = bounds.clone();
         let projected_children_count_height = projected_children_count.clone();
-        self._page_height_px.replace_with(Property::computed(
+        self._page_height_px.replace_with(LocalProperty::computed(
             move || {
                 compute_layout(
                     axis_height.get(),
@@ -208,7 +209,7 @@ impl Carousel {
         let page_size_scroll_width = page_size.clone();
         let bounds_scroll_width = bounds.clone();
         let projected_children_count_scroll_width = projected_children_count.clone();
-        self._scroll_width.replace_with(Property::computed(
+        self._scroll_width.replace_with(LocalProperty::computed(
             move || {
                 compute_layout(
                     axis_scroll_width.get(),
@@ -225,7 +226,7 @@ impl Carousel {
         let page_size_scroll_height = page_size.clone();
         let bounds_scroll_height = bounds.clone();
         let projected_children_count_scroll_height = projected_children_count.clone();
-        self._scroll_height.replace_with(Property::computed(
+        self._scroll_height.replace_with(LocalProperty::computed(
             move || {
                 compute_layout(
                     axis_scroll_height.get(),
@@ -242,7 +243,7 @@ impl Carousel {
         let page_size_snap_x = page_size.clone();
         let bounds_snap_x = bounds.clone();
         let projected_children_count_snap_x = projected_children_count.clone();
-        self._snap_positions_x.replace_with(Property::computed(
+        self._snap_positions_x.replace_with(LocalProperty::computed(
             move || {
                 compute_layout(
                     axis_snap_x.get(),
@@ -259,7 +260,7 @@ impl Carousel {
         let page_size_snap_y = page_size.clone();
         let bounds_snap_y = bounds.clone();
         let projected_children_count_snap_y = projected_children_count.clone();
-        self._snap_positions_y.replace_with(Property::computed(
+        self._snap_positions_y.replace_with(LocalProperty::computed(
             move || {
                 compute_layout(
                     axis_snap_y.get(),
@@ -273,7 +274,7 @@ impl Carousel {
         ));
 
         let projected_children_count_count = projected_children_count.clone();
-        self._page_count.replace_with(Property::computed(
+        self._page_count.replace_with(LocalProperty::computed(
             move || projected_children_count_count.get(),
             &[projected_children_count.untyped()],
         ));
@@ -284,7 +285,7 @@ impl Carousel {
         let projected_children_count_active = projected_children_count.clone();
         let scroll_pos_x_active = scroll_pos_x.clone();
         let scroll_pos_y_active = scroll_pos_y.clone();
-        self._active_page.replace_with(Property::computed(
+        self._active_page.replace_with(LocalProperty::computed(
             move || {
                 active_page_index(
                     axis_active.get(),
@@ -307,16 +308,16 @@ impl Carousel {
 
         let show_dots_prop = show_dots.clone();
         let projected_children_count_dots = projected_children_count.clone();
-        self._show_dots.replace_with(Property::computed(
+        self._show_dots.replace_with(LocalProperty::computed(
             move || show_dots_prop.get() && projected_children_count_dots.get() > 1,
             &[show_dots.untyped(), projected_children_count.untyped()],
         ));
 
         let axis_dots = axis.clone();
-        let show_dots_specs = self._show_dots.clone();
-        let active_page_specs = self._active_page.clone();
+        let show_dots_specs = self._show_dots.local();
+        let active_page_specs = self._active_page.local();
         let projected_children_count_specs = projected_children_count.clone();
-        self._dots.replace_with(Property::computed(
+        self._dots.replace_with(LocalProperty::computed(
             move || {
                 let count = projected_children_count_specs.get();
                 if !show_dots_specs.get() || count <= 1 {
@@ -346,9 +347,9 @@ impl Carousel {
             ],
         ));
 
-        let show_dots_width = self._show_dots.clone();
+        let show_dots_width = self._show_dots.local();
         let projected_children_count_width = projected_children_count.clone();
-        self._dots_width.replace_with(Property::computed(
+        self._dots_width.replace_with(LocalProperty::computed(
             move || {
                 let count = projected_children_count_width.get();
                 if !show_dots_width.get() || count <= 1 {
@@ -363,8 +364,8 @@ impl Carousel {
         ));
 
         let axis_pill_width = axis.clone();
-        let dots_width_prop = self._dots_width.clone();
-        self._dots_pill_width.replace_with(Property::computed(
+        let dots_width_prop = self._dots_width.local();
+        self._dots_pill_width.replace_with(LocalProperty::computed(
             move || {
                 if matches!(axis_pill_width.get(), CarouselAxis::Vertical) {
                     DOT_PILL_THICKNESS
@@ -376,8 +377,8 @@ impl Carousel {
         ));
 
         let axis_pill_height = axis.clone();
-        let dots_height_prop = self._dots_width.clone();
-        self._dots_pill_height.replace_with(Property::computed(
+        let dots_height_prop = self._dots_width.local();
+        self._dots_pill_height.replace_with(LocalProperty::computed(
             move || {
                 if matches!(axis_pill_height.get(), CarouselAxis::Vertical) {
                     dots_height_prop.get() + DOT_PILL_PADDING_X * 2.0
@@ -390,7 +391,7 @@ impl Carousel {
 
         let axis_pos = axis.clone();
         let axis_pos_dep = axis.clone();
-        self._dots_pos_x.replace_with(Property::computed(
+        self._dots_pos_x.replace_with(LocalProperty::computed(
             move || {
                 if matches!(axis_pos.get(), CarouselAxis::Vertical) {
                     Size::Percent(Numeric::F64(6.0))
@@ -403,7 +404,7 @@ impl Carousel {
 
         let axis_pos_y = axis.clone();
         let axis_pos_y_dep = axis.clone();
-        self._dots_pos_y.replace_with(Property::computed(
+        self._dots_pos_y.replace_with(LocalProperty::computed(
             move || {
                 if matches!(axis_pos_y.get(), CarouselAxis::Vertical) {
                     Size::Percent(Numeric::F64(50.0))
