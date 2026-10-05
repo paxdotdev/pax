@@ -6,8 +6,8 @@ One fixed header contains the animated Pax logo and “Architecture”. The logo
 starts at its finished pose (`progress=1.0`); click it to replay its animation.
 There are no external image or font downloads.
 
-The implementation follows the proposal in [TOPOLOGY.md](TOPOLOGY.md) and the
-layout specification in [DESIGN.md](DESIGN.md). Its engine reference is
+The topology and layout design history are archived in
+[PAX-1010](https://linear.app/paxdev/issue/PAX-1010). Its engine reference is
 `3c46cd13d`, including isolated opacity and shared mask-source subtree capture.
 
 ## Run and build
@@ -90,8 +90,8 @@ without evidence.
 ## Composed raster export
 
 The checked-in [full-sheet PNG](../../../pax-docs/book/src/images/pax-architecture.png)
-is an offline overview for readers and agents. Pair it with [TOPOLOGY.md](TOPOLOGY.md)
-and the code anchors in [content.rs](src/content.rs); the still image cannot show
+is an offline overview for readers and agents. Pair it with the
+code anchors in [content.rs](src/content.rs); the still image cannot show
 the inspector's explanations or documentation links.
 
 Capture provenance:

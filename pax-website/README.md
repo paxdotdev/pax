@@ -74,5 +74,5 @@ The website's source is inspected in the running site, not through the CLI's
 bundled `examples/` catalog. After moving or changing reusable examples, refresh
 that separate snapshot with `python3 scripts/sync-docs-examples.py`.
 
-Content and visual decisions remain in [CONTENT.md](CONTENT.md) and
-[DESIGN.md](DESIGN.md).
+Content and visual design history are archived in
+[PAX-869](https://linear.app/paxdev/issue/PAX-869).

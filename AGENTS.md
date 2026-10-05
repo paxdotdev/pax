@@ -23,14 +23,14 @@ Start with the local docs before inventing patterns.  The most useful entry poin
 - `pax-docs/book/src/data-binding-expressions.md` for PAXEL expressions and reactive bindings.
 - `pax-docs/book/src/event-handling-rust.md` for Rust event handlers and state updates.
 - [How Pax Runs](pax-docs/book/src/how-pax-runs.md#architecture-schematic) for the architectural overview and interactive schematic.
-- [Architecture topology](examples/src/architecture-diagram/TOPOLOGY.md) and the [full-sheet PNG](pax-docs/book/src/images/pax-architecture.png) for component responsibilities, causal connections, established names, and source evidence. The PNG is a revisioned overview; follow the topology's code anchors before changing an engine contract. Capture provenance and refresh instructions live in the [example README](examples/src/architecture-diagram/README.md#composed-raster-export).
+- The [full-sheet architecture PNG](pax-docs/book/src/images/pax-architecture.png) and the schematic's [source references](examples/src/architecture-diagram/src/content.rs) for component responsibilities, causal connections, and established names. The PNG is a revisioned overview; check the referenced code before changing an engine contract. Capture provenance and refresh instructions live in the [example README](examples/src/architecture-diagram/README.md#composed-raster-export); internal topology and design history are archived in [PAX-1010](https://linear.app/paxdev/issue/PAX-1010).
 - `pax-docs/book/src/SUMMARY.md` for the full docs table of contents, including the API docs (generated from this codebase's code comments.)
 - `examples/src/*` for code samples and working patterns.
 
 These docs are also available by CLI: `pax-cli docs`
 
 `pax-cli docs examples architecture-diagram` prints the diagram's implementation
-source. The topology notes and PNG above provide its architectural reading path.
+source. The current architecture guide and PNG above provide its architectural reading path.
 
 ## Keeping documentation current
 
@@ -94,7 +94,7 @@ New features are often proven on one "chassis" at a time (platform target.)  In 
 
 **Binary baking maintenance callout** -- release builds now rely on baked program representations, not just the rich in-memory manifest.  Rule of thumb: if you touch manifest de/serialize behavior for anything the runtime needs in order to execute a program, audit the release cartridge path too unless the change is clearly debug-only or source-only.  More broadly, if you add or change anything that crosses the compiler/runtime boundary, expect to update the binary baking path as well.  Typical triggers include: new manifest fields that affect runtime behavior; new node kinds, control-flow semantics, property/value shapes, expression/PAXEL forms, timelines, event bindings, handler metadata, or asset references; and any change to component/type descriptors used by cartridge generation.  In practice, that usually means checking `pax-manifest`'s `program_ir`, `binary`, and `rust_manifest` paths, plus the compiler's cartridge generation/templates and the corresponding roundtrip tests.  Designtime-only/source-only metadata should usually stay out of the release-baked format unless the runtime truly needs it.
 
-**Take note of the pain points.**  Much of our work requires building an example projct as a test-bed.  In the course of building examples, we will often stub our toes on the same things, especially since the corpus of training data lives almost entirely in this repo and most models are likely unaware of Pax a priori.  Any time we discover a pain point and a solution to said pain point, make a note inside pax-docs/book/src/design/pain-points.md 
+**Take note of the pain points.** Append concise raw findings encountered during work to `pax-docs/book/src/design/pain-points.md`: date, attempted action, expected versus observed behavior, reproduction/evidence, and any workaround or related ticket. This is a temporary inbox, **not required or recommended advance reading for new work**. Periodically discard resolved/obsolete reports, move ongoing or repeated issues with their report details to Pax Core Linear tickets, and remove processed entries so the inbox returns to empty. Preserve only rare, broadly important proactive callouts here in `AGENTS.md`; distill settled user guidance into the appropriate public docs. Do not use the inbox for design specs or implementation journals.
 
 ## Writing Pax
 
@@ -117,6 +117,10 @@ New features are often proven on one "chassis" at a time (platform target.)  In 
 *Element order and z-order* -- in Pax, elements "on top" of others in a file are "on top" in z-index.  E.g. `<Ellipse/><Rectangle/>` will render the ellipse on top of the rectangle in z-index.  This keeps the file spatially arranged in the same way one might e.g. arrange elements in the tree view of a visual design tool, or how one might imagine looking at a stack of cards on a table.  Check z-order before debugging layout math.
 
 *Units* -- Pax offers first-class unit support for declaring property values.  For example `25px`, `25%`, `25deg`, `25rad`. `{100% - 25px}` is an expressive construct for filling a container minus a fixed amount, and you can group units, too `(some_property + 25)px`.  Rely on % for responsive sizing.
+
+*Percentage positioning* -- unlike CSS left/top offsets, percentage `x`/`y` values also supply an implicit percentage anchor (clamped to 0–100%). For example, `x=50%` centers the element rather than placing its left edge halfway across the parent. Set `anchor_x=0%` / `anchor_y=0%` explicitly when positioning the element's top-left edge.
+
+*Input coordinates* -- pointer event coordinates are window-space. Use `ctx.local_point(...)` to account for transforms and ancestor scrolling; its result is normalized local coordinates, so multiply by the node's bounds when pixel coordinates are needed.
 
 ## Hot reloading
 
@@ -167,6 +171,16 @@ Check `pax-cli dev --help` for a full rundown.
 Use these tools liberally to progress your tasks with your own "eyes" and "fingertips".
 
 
+## Design exploration and documentation
+
+Keep design exploration, research notes, draft specifications, implementation plans, and intermediate visual-design writeups in the relevant Linear ticket, not in `pax-docs/` or elsewhere in the repository. Use comments for iterations and discussion, and the ticket description for the current agreed scope and approved design. Preserve the discussion history and make approval checkpoints explicit.
+
+Repository documentation should be polished, maintained guidance for users and contributors about the actual system. Intermediate, often AI-generated design artifacts can distract visitors or be mistaken for authoritative documentation. Once a design is implemented, distill its lasting concepts, behavior, and rationale into the appropriate guides or API documentation rather than copying the exploratory record into the codebase.
+
+If there is no relevant ticket or Linear is unavailable, keep the discussion in chat and ask where to record it; do not default to creating a repository design document.
+
+The raw pain-points inbox described above is a short-lived intake exception, not a place to store design exploration.
+
 ## Linear Workflow
 
 When a task starts from Linear:
@@ -174,7 +188,7 @@ When a task starts from Linear:
 1. Read the issue description, comments, status, labels, project, and linked relations before changing code.
 2. Format the chat summary as "PAX-123 - Short(ened) ticket name"
 3. Treat the issue text as the task contract, but resolve ambiguity against the repo's current architecture and these instructions. 
-4. For any ticket of substantial scope, before commencing work, take some cycles to clarify design and requirements. Collaboration in this stage is very high leverage.
+4. For any ticket of substantial scope, before commencing work, take some cycles to clarify design and requirements. Collaboration in this stage is very high leverage. Record this exploration in Linear as described above, and obtain any required design approval before implementation.
 5. Reference the issue key in commit messages and PR descriptions when publishing work.
 6. Leave a concise Linear update when asked to, or when the work has a meaningful blocker that is not visible from the branch/PR.
 7. Please update ticket status to In Progress and In Review, to reflect current status.  The user will manage other states (such as closed.)  Do not close, cancel, or materially re-scope an issue unless the user explicitly asks.

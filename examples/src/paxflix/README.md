@@ -120,7 +120,7 @@ The September 25 release comparison on Molino's M4 iPad Pro measures roughly
 57–58% less CPU rasterization time for the large native occlusion masks with
 alpha-only bitmaps (about 6.4 ms versus 15.1 ms per mask). Bitmap storage is one
 quarter of RGBA. Cold artwork/rendering stalls remain; this is not a displayed
-frame-rate claim. The [controlled catalog measurements](../../../pax-docs/book/src/design/isolated-compositing.md#catalog-scale-native-mask-measurements)
+frame-rate claim. The controlled catalog measurements archived in [PAX-1004](https://linear.app/paxdev/issue/PAX-1004)
 describe the workload, repeated runs, and limits.
 
 To check it, open the profile mark, switch Dark/Light mode in both directions,

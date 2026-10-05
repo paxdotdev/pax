@@ -1,6 +1,6 @@
 # Async Workbench
 
-A proving fixture for [PAX-1013](../../../pax-docs/book/src/design/PAX-1013-application-async-spec.md). It uses the generated host and `#[application(WorkbenchApplication)]`, without a custom Rust `main` or application `@tick` polling.
+A proving fixture for [PAX-1013](https://linear.app/paxdev/issue/PAX-1013), which also holds the archived application/async specification. It uses the generated host and `#[application(WorkbenchApplication)]`, without a custom Rust `main` or application `@tick` polling.
 
 Native setup registers an owned two-worker Tokio runtime through `pax-tokio`. Web uses `pax-web-async` and browser timers/fetch. Application services outlive panel remounts; node/operation scopes revoke stale results. Templates remain declarative.
 

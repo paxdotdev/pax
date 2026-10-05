@@ -1,6 +1,6 @@
 # PAX-1013 — Executor and property probes
 
-These headless probes accompany the [application/async spec](../../../pax-docs/book/src/design/PAX-1013-application-async-spec.md). They establish individual ownership and executor contracts; they do not establish complete Tokio application support.
+These headless probes accompany the application/async spec archived in [PAX-1013](https://linear.app/paxdev/issue/PAX-1013). They establish individual ownership and executor contracts; they do not establish complete Tokio application support.
 
 ## Current property model
 

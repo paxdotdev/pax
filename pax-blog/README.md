@@ -71,7 +71,8 @@ article HTML has no JavaScript; Zola's development server adds only live reload.
 For future interactive examples, use a same-origin iframe containing a complete,
 versioned Pax web bundle, loaded after an explicit activation. Keep article text,
 poster, caption, and links in ordinary HTML. The existing embedding research is
-in `pax-docs/research/pax-984/README.md`; no multi-mount capability is assumed.
+archived in [PAX-984](https://linear.app/paxdev/issue/PAX-984); no multi-mount
+capability is assumed.
 
 ## Verify navigation from the Pax website
 
@@ -128,7 +129,8 @@ a publishing command that builds both production outputs before uploading either
 while retaining fast blog-only builds and publication. Nesting the blog is not
 required for that workflow. Local staging uses `pax-website/public/blog/`.
 
-[Verification results](VERIFICATION.md) record the checks and known limits of this foundation.
+[PAX-984](https://linear.app/paxdev/issue/PAX-984) preserves the foundation's
+verification results and known limits.
 
 Focused checks from the monorepo root:
 

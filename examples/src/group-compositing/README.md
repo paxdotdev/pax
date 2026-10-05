@@ -92,5 +92,5 @@ The timing flag is off by default and does not change mask presentation.
 This five-row fixture is a bounded regression case. Its measurements cannot
 substitute for Paxflix's larger catalog or Argus's previous mask measurements.
 
-See the [design note](../../../pax-docs/book/src/design/isolated-compositing.md)
+See the design and validation archive in [PAX-1004](https://linear.app/paxdev/issue/PAX-1004)
 for scope, approximation, and remaining validation.

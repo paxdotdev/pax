@@ -168,8 +168,7 @@ Pax targets high performance across several axes:
   still performs a small amount of per-frame CPU work. When nothing has dirtied
   the scene, the render path exits before scene traversal, resource uploads,
   command encoding, or GPU submission.
-  [A demand-driven frame scheduling proposal](pax-docs/book/src/design/demand-driven-frame-scheduling.md)
-  is one idea for how Pax could further reduce idle CPU.
+  Further reducing idle CPU remains an area for frame-scheduling work.
 
 
 ## Platform Support
