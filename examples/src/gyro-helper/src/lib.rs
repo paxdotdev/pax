@@ -12,8 +12,9 @@ extern "C" {
     fn request_device_sensor_permissions();
 }
 
+pax_kit::runnable! { root: crate::Example }
+
 #[pax]
-#[main]
 #[file("lib.pax")]
 pub struct Example {
     pub gyro_label: Property<String>,

@@ -10,6 +10,7 @@ description = "Definition container for an entire Pax cartridge"
 
 [features]
 default = []
+runnable = ["dep:syn"]
 json = ["dep:serde_json"]
 parsing = ["pax-language/parser", "dep:syn"]
 server = ["parsing"]
@@ -24,7 +25,7 @@ code_serialization = [
     "dep:syn",
     "dep:tera",
 ]
-compiler = ["code_serialization", "json", "parsing", "server"]
+compiler = ["code_serialization", "json", "parsing", "server", "runnable"]
 designtime = ["compiler"]
 
 [lib]

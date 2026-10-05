@@ -3,8 +3,9 @@ use pax_kit::*;
 mod compositing_card;
 use compositing_card::CompositingCard;
 
+pax_kit::runnable! { root: crate::Example }
+
 #[pax]
-#[main]
 #[file("lib.pax")]
 pub struct Example {
     pub alpha: Property<f64>,

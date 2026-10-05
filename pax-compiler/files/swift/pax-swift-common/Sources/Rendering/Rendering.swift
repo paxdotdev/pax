@@ -2217,6 +2217,7 @@ public struct NativeRenderingLayer: View {
         private var macSnapTimer: Timer?
         private var isLiveScrolling = false
         private var lastNativeScrollTime: TimeInterval = 0
+        private var lastMacClipOrigin: CGPoint = .zero
 #endif
         private let canvasHostViewInternal = PlatformContainerView(frame: .zero)
         private let contentHostViewInternal = PlatformContainerView(frame: .zero)
@@ -2391,10 +2392,24 @@ public struct NativeRenderingLayer: View {
             scrollView.frame = bounds
         }
 #elseif os(macOS)
+        override func applyGeometry(size: CGSize, localTransform: CGAffineTransform,
+                                    zIndex: Int, opacity: Double) {
+            // Fractional placement can realign AppKit's clip origin to backing pixels.
+            let wasSuppressing = suppressScrollEvents
+            suppressScrollEvents = true
+            defer { suppressScrollEvents = wasSuppressing }
+            super.applyGeometry(size: size, localTransform: localTransform,
+                                zIndex: zIndex, opacity: opacity)
+        }
+
         override func layout() {
+            let wasSuppressing = suppressScrollEvents
+            suppressScrollEvents = true
+            defer { suppressScrollEvents = wasSuppressing }
             super.layout()
             performWithoutNativeLayerActions {
-                scrollView.frame = bounds
+                if scrollView.frame != bounds { scrollView.frame = bounds }
+                restoreMacScrollPositionAfterLayout()
             }
         }
 #endif
@@ -2605,6 +2620,12 @@ public struct NativeRenderingLayer: View {
                 return
             }
             appliedContentSize = safeSize
+            // Both platforms may synchronously clamp the offset while geometry changes.
+            // Keep the requested position until the matching content/viewport arrives;
+            // these notifications are layout effects, not native scrolling input.
+            let wasSuppressing = suppressScrollEvents
+            suppressScrollEvents = true
+            defer { suppressScrollEvents = wasSuppressing }
             let rect = CGRect(origin: .zero, size: safeSize)
             innerContentView.frame = rect
             canvasHostViewInternal.frame = rect
@@ -2614,7 +2635,6 @@ public struct NativeRenderingLayer: View {
             // shrinks. Keep that layout side effect from replacing the user's logical position;
             // later content growth can then restore the position without Router involvement.
             let preservedScrollPosition = appliedScrollPosition
-            suppressScrollEvents = true
             scrollView.contentSize = safeSize
             let maxX = max(0, safeSize.width - scrollView.bounds.width)
             let maxY = max(0, safeSize.height - scrollView.bounds.height)
@@ -2625,13 +2645,11 @@ public struct NativeRenderingLayer: View {
             if shouldApplyScrollPosition(target, current: scrollView.contentOffset) {
                 scrollView.setContentOffset(target, animated: false)
             }
-            suppressScrollEvents = false
 #elseif os(macOS)
-            innerContentView.setFrameSize(safeSize)
             if scrollView.documentView !== innerContentView {
                 scrollView.documentView = innerContentView
             }
-            clampMacScrollPositionToContent()
+            restoreMacScrollPositionAfterLayout()
 #endif
         }
 
@@ -2647,7 +2665,7 @@ public struct NativeRenderingLayer: View {
             scrollView.alwaysBounceVertical = enableY
 #elseif os(macOS)
             updateMacScrollElasticity()
-            clampMacScrollPositionToContent()
+            restoreMacScrollPositionAfterLayout()
 #endif
         }
 
@@ -2805,22 +2823,22 @@ public struct NativeRenderingLayer: View {
             )
         }
 
-        private func clampMacScrollPositionToContent() {
+        private func restoreMacScrollPositionAfterLayout() {
             let viewportSize = scrollView.contentView.bounds.size
             let maxX = max(0, appliedContentSize.width - viewportSize.width)
             let maxY = max(0, appliedContentSize.height - viewportSize.height)
             let current = scrollView.contentView.bounds.origin
             let clamped = NSPoint(
-                x: min(max(0, current.x), maxX),
-                y: min(max(0, current.y), maxY)
+                x: min(max(0, appliedScrollPosition.x), maxX),
+                y: min(max(0, appliedScrollPosition.y), maxY)
             )
             guard shouldApplyScrollPosition(clamped, current: current) else {
                 return
             }
+            let wasSuppressing = suppressScrollEvents
             suppressScrollEvents = true
+            defer { suppressScrollEvents = wasSuppressing }
             setMacClipOrigin(clamped)
-            suppressScrollEvents = false
-            appliedScrollPosition = clamped
         }
 #endif
 
@@ -2999,10 +3017,18 @@ public struct NativeRenderingLayer: View {
         }
 #elseif os(macOS)
         private func handleScroll() {
-            guard !suppressScrollEvents else {
+            let origin = scrollView.contentView.bounds.origin
+            let previousOrigin = lastMacClipOrigin
+            lastMacClipOrigin = origin
+            // AppKit also posts bounds changes for viewport resizing. Only actual
+            // movement outside our geometry/programmatic updates belongs to input.
+            // SwiftUI attachment can realign backing pixels before the first layout;
+            // an empty viewport cannot receive scrolling input yet.
+            guard hasAppliedInitialScrollPosition,
+                  !scrollView.contentView.bounds.isEmpty,
+                  !suppressScrollEvents, origin != previousOrigin else {
                 return
             }
-            let origin = scrollView.contentView.bounds.origin
             let now = Date().timeIntervalSinceReferenceDate
             appliedScrollPosition = origin
             if !isMacSnapActive {

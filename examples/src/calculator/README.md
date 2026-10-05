@@ -27,7 +27,9 @@ run `nvm use` before commands that build the web interface.
 
 ## Controls
 
-Click/tap the keys or use a hardware keyboard. Clicking an expression places
+Click/tap the keys, or use a hardware keyboard on web. The macOS and iOS
+chassis do not yet forward global key events to this calculator-owned editor.
+Clicking an expression places
 its character cursor. Function keys insert the opening parenthesis too.
 
 | Input | Action |
@@ -219,7 +221,12 @@ Earlier debug and baked release builds were visually checked on the iPhone
 clearance and initial graph positioning. Native tap routing has one activation
 path through the touch observer. Scroller presentation offsets follow authored
 position changes so the initial plot, recentering, and zoom reach the renderer.
-An earlier macOS observation of a blank initial window has not been retested.
+The 2026-10-05 macOS debug check renders a centered opening graph in standalone
+and caller-owned hosts after correcting AppKit layout notifications that
+overwrote the initial offset. Embedded zoom, drag, resize, collapse/restore,
+close and remount pass. Four native scroller regressions pass in debug and
+optimized Swift builds. Manual checks confirm macOS clicks and iPhone 17 Pro
+(iOS 26.4 simulator) taps; hardware-key input remains web-only.
 
 The previous physical iPhone zoom-out crash was a separate native surface
 allocation bug: a 4,096-point pane became a 12,288-pixel texture at 3x density.

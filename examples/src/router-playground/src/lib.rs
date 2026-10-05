@@ -26,8 +26,9 @@ pub use top_level_fallback_panel::TopLevelFallbackPanel;
 
 const MOBILE_BREAKPOINT_WIDTH: f64 = 920.0;
 
+pax_kit::runnable! { root: crate::Example }
+
 #[pax]
-#[main]
 #[file("lib.pax")]
 pub struct Example {
     pub is_mobile: Property<bool>,

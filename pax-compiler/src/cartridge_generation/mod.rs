@@ -16,7 +16,7 @@ pub const CARTRIDGE_PARTIAL_PATH: &str = "cartridge.partial.rs";
 
 // Generates (codegens) the PaxCartridge definition, abiding by the PaxCartridge trait.
 // Side-effect: writes the generated string to disk as .pax/cartridge.partial.rs,
-// so that it may be `include!`d by the  #[pax] #[main] macro
+// so that it may be `include!`d by runnable! (or the legacy #[main] shorthand)
 pub fn generate_cartridge_partial_rs(
     pax_dir: &PathBuf,
     merged_manifest: &PaxManifest,

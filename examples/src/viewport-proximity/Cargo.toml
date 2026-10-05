@@ -26,12 +26,9 @@ js-sys = "0.3"
 web-sys = { version = "0.3", features = ["Window", "Response"] }
 
 [features]
-standalone = ["dep:pax-host"]
+standalone = ["pax-kit/host"]
 
 [[bin]]
 name = "viewport-proximity"
 path = "src/main.rs"
 required-features = ["standalone"]
-
-[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
-pax-host = { version = "0.39.0", path = "../../../pax-host", optional = true }

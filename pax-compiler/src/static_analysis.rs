@@ -109,7 +109,8 @@ pub struct BuildManifestOptions {
 }
 
 pub fn build_manifest(project_path: &Path) -> Result<PaxManifest> {
-    build_manifest_with_options(project_path, BuildManifestOptions::default())
+    let layout = crate::project_layout::ProjectLayout::resolve(project_path)?;
+    build_manifest_with_options(&layout.cartridge_dir, BuildManifestOptions::default())
 }
 
 pub fn build_manifest_with_options(
@@ -143,7 +144,9 @@ pub fn build_manifest_with_options(
     let assets_dir = project_dir.join("assets");
     if let Ok(canonical_assets_dir) = assets_dir.canonicalize() {
         if let Some(path_str) = canonical_assets_dir.to_str() {
-            ctx.assets_dirs.push(path_str.to_string());
+            if !ctx.assets_dirs.iter().any(|path| path == path_str) {
+                ctx.assets_dirs.push(path_str.to_string());
+            }
         }
     }
 
@@ -154,8 +157,30 @@ pub fn build_manifest_with_options(
         assets_dirs: ctx.assets_dirs,
         engine_import_path: main_item.engine_import_path.clone(),
     };
+    validate_asset_paths(&manifest.assets_dirs)?;
     validate_appearance_properties(&manifest)?;
     Ok(manifest)
+}
+
+fn validate_asset_paths(directories: &[String]) -> Result<()> {
+    let mut files: HashMap<PathBuf, PathBuf> = HashMap::new();
+    for directory in directories {
+        for entry in walkdir::WalkDir::new(directory) {
+            let entry = entry?;
+            if !entry.file_type().is_file() {
+                continue;
+            }
+            let relative = entry.path().strip_prefix(directory)?.to_path_buf();
+            if let Some(previous) = files.get(&relative) {
+                if fs::read(previous)? != fs::read(entry.path())? {
+                    return Err(eyre!("Conflicting cartridge asset `assets/{}` from `{}` and `{}`. Use distinct asset paths across the UI and its component packages.", relative.display(), previous.display(), entry.path().display()));
+                }
+            } else {
+                files.insert(relative, entry.path().to_path_buf());
+            }
+        }
+    }
+    Ok(())
 }
 
 fn extend_designtime_manifest_with_pax_std_types(
@@ -195,12 +220,26 @@ fn build_item_recursive(
         .get(import_path)
         .cloned()
         .ok_or_else(|| eyre!("Static analysis could not find `{import_path}`"))?;
+    if !registry.import_root_is_available(item.rust_path.split("::").next().unwrap_or("")) {
+        return Err(eyre!("Component `{}` is in a transitive library that the selected cartridge cannot name. Publicly re-export this component from a direct dependency, or add its library to the cartridge's Cargo dependencies.", item.import_path));
+    }
     let self_type_id = item.type_id();
 
     if ctx.visited_type_ids.contains(&self_type_id) {
         return Ok(());
     }
     ctx.visited_type_ids.insert(self_type_id.clone());
+    if let Some(package) = registry
+        .packages_by_import_root
+        .get(&item.scope.import_root)
+    {
+        if let Ok(assets) = package.manifest_dir.join("assets").canonicalize() {
+            let assets = assets.to_string_lossy().into_owned();
+            if !ctx.assets_dirs.contains(&assets) {
+                ctx.assets_dirs.push(assets);
+            }
+        }
+    }
 
     let property_definitions = match &item.data {
         DataSummary::Struct(fields) => {
@@ -239,8 +278,8 @@ fn build_item_recursive(
     let component_definition = match &item.kind {
         PaxItemKind::FullComponent {
             raw_pax,
-            is_main_component,
             associated_pax_file_path,
+            ..
         } => {
             let mut template_dependencies =
                 parse_pascal_identifiers_from_component_definition_string(raw_pax).map_err(
@@ -252,7 +291,8 @@ fn build_item_recursive(
                     },
                 )?;
 
-            if *is_main_component {
+            let is_main_component = self_type_id == ctx.main_component_type_id;
+            if is_main_component {
                 template_dependencies.push("BlankComponent".to_string());
             }
 
@@ -292,7 +332,7 @@ fn build_item_recursive(
             let (new_ctx, component_definition) = assemble_component_definition(
                 owned_ctx,
                 raw_pax,
-                *is_main_component,
+                is_main_component,
                 template_map,
                 route_branch_descriptors,
                 item.route_branch.clone(),
@@ -467,6 +507,17 @@ fn ensure_import_path_type(
     }
 
     registry.ensure_import_path_scanned(import_path)?;
+    if let Some((module, _)) = import_path.rsplit_once("::") {
+        if let Some(scope) = registry.scopes.get(module).cloned() {
+            if let Ok(resolved) =
+                registry.resolve_declared_root(import_path, &scope, &mut HashSet::new())
+            {
+                if resolved != import_path {
+                    return ensure_import_path_type(ctx, registry, &resolved);
+                }
+            }
+        }
+    }
 
     if let Some(item) = registry.items_by_import_path.get(import_path).cloned() {
         build_item_recursive(ctx, registry, &item.import_path)?;
@@ -737,6 +788,11 @@ fn resolve_identifier_to_import_path(
             return Ok(special_import_path.to_string());
         }
         registry.ensure_import_path_scanned(&canonical_import_path)?;
+        if let Ok(path) =
+            registry.resolve_declared_root(&canonical_import_path, scope, &mut HashSet::new())
+        {
+            return Ok(path);
+        }
         if registry
             .items_by_import_path
             .contains_key(&canonical_import_path)
@@ -843,6 +899,17 @@ fn build_registry(metadata: &Metadata, root_package: &Package) -> Result<StaticR
         })?;
     }
 
+    if let Some(node) = metadata
+        .resolve
+        .as_ref()
+        .and_then(|resolve| resolve.nodes.iter().find(|node| node.id == root_package.id))
+    {
+        registry.available_import_roots.extend(
+            node.deps
+                .iter()
+                .map(|dependency| dependency.name.replace('-', "_")),
+        );
+    }
     registry.root_package_name = root_package.name.clone();
     Ok(registry)
 }
@@ -869,7 +936,19 @@ fn entry_file_for_package(package: &Package) -> Option<PathBuf> {
 }
 
 fn import_root_for_package(package: &Package) -> String {
-    package.name.replace('-', "_")
+    package
+        .targets
+        .iter()
+        .find(|target| {
+            target.kind.iter().any(|kind| {
+                matches!(
+                    kind.as_str(),
+                    "lib" | "rlib" | "cdylib" | "dylib" | "staticlib"
+                )
+            })
+        })
+        .map(|target| target.name.replace('-', "_"))
+        .unwrap_or_else(|| package.name.replace('-', "_"))
 }
 
 fn scan_module_file(
@@ -904,6 +983,7 @@ fn scan_module_file(
         module_path.to_string(),
         package_context.import_root.clone(),
     )?;
+    registry.register_scope(&scope, &parsed_file.items)?;
     let child_module_dir = child_module_dir_for_file(&canonical_file_path)?;
 
     for item in parsed_file.items {
@@ -927,6 +1007,9 @@ fn scan_module_file(
                     item_enum,
                     registry,
                 )?;
+            }
+            Item::Macro(item) if is_runnable_macro(&item) => {
+                registry.register_runnable(package_context, &scope, &canonical_file_path, item)?;
             }
             Item::Mod(item_mod) => {
                 scan_child_module(
@@ -958,9 +1041,20 @@ fn scan_child_module(
     registry: &mut StaticRegistry,
 ) -> Result<()> {
     let child_module_path = format!("{}::{}", parent_scope.module_path, item_mod.ident);
+    if matches!(item_mod.vis, syn::Visibility::Public(_))
+        || (package_context.import_root == "crate"
+            && (parent_scope.module_path == "crate"
+                || matches!(item_mod.vis, syn::Visibility::Restricted(_))))
+    {
+        registry
+            .accessible_modules
+            .insert(child_module_path.clone());
+    }
     if let Some((_, items)) = item_mod.content {
         let child_scope =
             collect_scope(&items, child_module_path, parent_scope.import_root.clone())?;
+        registry.register_scope(&child_scope, &items)?;
+        let child_module_dir = child_module_dir.join(item_mod.ident.to_string());
         for item in items {
             match item {
                 Item::Struct(item_struct) if has_pax_attr(&item_struct.attrs) => {
@@ -983,12 +1077,20 @@ fn scan_child_module(
                         registry,
                     )?;
                 }
+                Item::Macro(item) if is_runnable_macro(&item) => {
+                    registry.register_runnable(
+                        package_context,
+                        &child_scope,
+                        source_file_path,
+                        item,
+                    )?;
+                }
                 Item::Mod(child_mod) => {
                     scan_child_module(
                         package_context,
                         source_file_path,
                         source_file_contents,
-                        child_module_dir,
+                        &child_module_dir,
                         &child_scope,
                         child_mod,
                         seen_files,
@@ -1025,6 +1127,7 @@ fn register_struct_item(
     let data = build_struct_data_summary(&item_struct)?;
     registry.insert(ScannedPaxItem {
         ident: item_struct.ident.to_string(),
+        rust_path: import_path.clone(),
         import_path,
         module_path: scope.module_path.clone(),
         source_path: source_file_path.to_path_buf(),
@@ -1053,6 +1156,7 @@ fn register_enum_item(
     let data = build_enum_data_summary(&item_enum);
     registry.insert(ScannedPaxItem {
         ident: item_enum.ident.to_string(),
+        rust_path: import_path.clone(),
         import_path,
         module_path: scope.module_path.clone(),
         source_path: source_file_path.to_path_buf(),
@@ -1954,8 +2058,29 @@ fn recurse_visit_tag_pairs_for_pascal_identifiers(
     }
 }
 
+fn is_runnable_macro(item: &syn::ItemMacro) -> bool {
+    item.mac
+        .path
+        .segments
+        .last()
+        .is_some_and(|segment| segment.ident == "runnable")
+}
+
+#[derive(Clone)]
+struct ScannedRunnable {
+    package_name: String,
+    root: String,
+    scope: ScopeImports,
+    source: PathBuf,
+}
+
 #[derive(Default)]
 struct StaticRegistry {
+    runnables: Vec<ScannedRunnable>,
+    scopes: HashMap<String, ScopeImports>,
+    accessible_modules: HashSet<String>,
+    available_import_roots: HashSet<String>,
+    public_reexports: Vec<(ScopeImports, String)>,
     items_by_import_path: HashMap<String, ScannedPaxItem>,
     items_by_identifier: HashMap<String, Vec<String>>,
     packages_by_import_root: HashMap<String, PackageContext>,
@@ -1964,6 +2089,89 @@ struct StaticRegistry {
 }
 
 impl StaticRegistry {
+    fn register_scope(&mut self, scope: &ScopeImports, items: &[Item]) -> Result<()> {
+        self.scopes.insert(scope.module_path.clone(), scope.clone());
+        for item in items {
+            if let Item::Use(item) = item {
+                if matches!(item.vis, syn::Visibility::Public(_)) {
+                    let mut exports = scope.clone();
+                    exports.explicit.clear();
+                    exports.glob_roots.clear();
+                    flatten_use_tree(&item.tree, "", &mut exports)?;
+                    self.public_reexports.extend(
+                        exports
+                            .explicit
+                            .keys()
+                            .map(|name| (scope.clone(), name.clone())),
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn import_root_is_available(&self, root: &str) -> bool {
+        // The cartridge adapter imports these modules through the Pax facade.
+        matches!(
+            root,
+            "crate" | "pax_engine" | "pax_std" | "pax_manifest" | "pax_message"
+        ) || self.available_import_roots.contains(root)
+    }
+
+    fn module_is_accessible(&self, module: &str) -> bool {
+        let mut path = module;
+        while let Some((parent, _)) = path.rsplit_once("::") {
+            if !self.accessible_modules.contains(path) {
+                return false;
+            }
+            path = parent;
+        }
+        true
+    }
+
+    fn select_accessible_type_paths(&mut self, import_root: &str) -> Result<()> {
+        let hidden_items = self
+            .items_by_import_path
+            .values()
+            .filter(|item| {
+                item.scope.import_root == import_root
+                    && (!self.module_is_accessible(&item.module_path)
+                        || !self.import_root_is_available(import_root))
+            })
+            .map(|item| item.import_path.clone())
+            .collect::<HashSet<_>>();
+        if hidden_items.is_empty() {
+            return Ok(());
+        }
+        let mut exports = self
+            .public_reexports
+            .iter()
+            .filter(|(scope, _)| {
+                self.import_root_is_available(&scope.import_root)
+                    && self.module_is_accessible(&scope.module_path)
+            })
+            .cloned()
+            .collect::<Vec<_>>();
+        // A deterministic public path gives all imports of one type one identity.
+        exports.sort_by_key(|(scope, name)| {
+            (
+                scope.import_root != import_root,
+                scope.module_path.split("::").count(),
+                format!("{}::{name}", scope.module_path),
+            )
+        });
+        let mut selected = HashSet::new();
+        for (scope, name) in exports {
+            if let Ok(path) = self.resolve_declared_root(&name, &scope, &mut HashSet::new()) {
+                if hidden_items.contains(&path) && selected.insert(path.clone()) {
+                    self.items_by_import_path.get_mut(&path).unwrap().rust_path =
+                        format!("{}::{name}", scope.module_path);
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn register_package(&mut self, package_context: PackageContext) -> Result<()> {
         if self
             .packages_by_import_root
@@ -2022,6 +2230,7 @@ impl StaticRegistry {
             self,
         )?;
         self.scanned_import_roots.insert(import_root.to_string());
+        self.select_accessible_type_paths(import_root)?;
         Ok(())
     }
 
@@ -2046,8 +2255,46 @@ impl StaticRegistry {
                 .any(|candidate| candidate.starts_with(&format!("{path_prefix}::")))
     }
 
-    fn root_main_component(&self) -> Result<&ScannedPaxItem> {
-        let mut candidates = self
+    fn register_runnable(
+        &mut self,
+        package: &PackageContext,
+        scope: &ScopeImports,
+        source: &Path,
+        item: syn::ItemMacro,
+    ) -> Result<()> {
+        let declaration = syn::parse2::<pax_manifest::runnable::RunnableDeclaration>(
+            item.mac.tokens,
+        )
+        .map_err(|error| {
+            eyre!(
+                "Invalid runnable! declaration in `{}`: {error}",
+                source.display()
+            )
+        })?;
+        let root = declaration
+            .root
+            .segments
+            .iter()
+            .map(|segment| segment.ident.to_string())
+            .collect::<Vec<_>>()
+            .join("::");
+        self.runnables.push(ScannedRunnable {
+            package_name: package.package_name.clone(),
+            root,
+            scope: scope.clone(),
+            source: source.to_path_buf(),
+        });
+        Ok(())
+    }
+
+    fn root_main_component(&mut self) -> Result<&ScannedPaxItem> {
+        let declarations = self
+            .runnables
+            .iter()
+            .filter(|item| item.package_name == self.root_package_name)
+            .cloned()
+            .collect::<Vec<_>>();
+        let legacy = self
             .items_by_import_path
             .values()
             .filter(|item| {
@@ -2060,16 +2307,81 @@ impl StaticRegistry {
                         }
                     )
             })
+            .map(|item| item.import_path.clone())
             .collect::<Vec<_>>();
-
-        if candidates.len() != 1 {
-            return Err(eyre!(
-                "Expected exactly one root `#[main]` Pax component, found {}",
-                candidates.len()
-            ));
+        if declarations.len() > 1 || (!declarations.is_empty() && !legacy.is_empty()) {
+            return Err(eyre!("Conflicting Pax roots in package `{}`: found {} runnable! declarations and {} #[main] components. Keep exactly one runnable! declaration and remove #[main]; dependency packages have their own selection.", self.root_package_name, declarations.len(), legacy.len()));
         }
+        if let Some(declaration) = declarations.first() {
+            let path = self
+                .resolve_declared_root(&declaration.root, &declaration.scope, &mut HashSet::new())
+                .map_err(|error| {
+                    eyre!(
+                        "Invalid runnable root `{}` in `{}`: {error}",
+                        declaration.root,
+                        declaration.source.display()
+                    )
+                })?;
+            let item = &self.items_by_import_path[&path];
+            if !matches!(item.kind, PaxItemKind::FullComponent { .. }) {
+                return Err(eyre!("Runnable root `{path}` must be a #[pax] component with #[file(...)], #[svg(...)], or #[inlined(...)]."));
+            }
+            return Ok(item);
+        }
+        if legacy.len() != 1 {
+            return Err(eyre!("Expected one runnable! {{ root: crate::ui::App, init: crate::ui::init }} declaration (or one legacy #[main] component) in package `{}`, found {} legacy roots", self.root_package_name, legacy.len()));
+        }
+        Ok(&self.items_by_import_path[&legacy[0]])
+    }
 
-        Ok(candidates.remove(0))
+    fn resolve_declared_root(
+        &mut self,
+        raw: &str,
+        scope: &ScopeImports,
+        seen: &mut HashSet<String>,
+    ) -> Result<String> {
+        if !seen.insert(format!("{}|{raw}", scope.module_path)) {
+            return Err(eyre!("cyclic root re-export at `{raw}`"));
+        }
+        let first = raw.split("::").next().unwrap_or(raw);
+        let path = if let Some(import) = scope.explicit.get(first) {
+            let expanded = format!("{}{}", import, &raw[first.len()..]);
+            if expanded != raw {
+                return self.resolve_declared_root(&expanded, scope, seen);
+            }
+            canonicalize_path(&expanded, scope)?
+        } else if matches!(first, "crate" | "self" | "super") {
+            canonicalize_path(raw, scope)?
+        } else {
+            let local = format!("{}::{raw}", scope.module_path);
+            if self.has_item_with_prefix(&local)
+                || self.scopes.contains_key(
+                    local
+                        .rsplit_once("::")
+                        .map(|(module, _)| module)
+                        .unwrap_or(""),
+                )
+            {
+                local
+            } else {
+                raw.to_string()
+            }
+        };
+        if !seen.insert(path.clone()) {
+            return Err(eyre!("cyclic root re-export at `{path}`"));
+        }
+        self.ensure_import_path_scanned(&path)?;
+        if self.items_by_import_path.contains_key(&path) {
+            return Ok(path);
+        }
+        if let Some((module, name)) = path.rsplit_once("::") {
+            if let Some(export_scope) = self.scopes.get(module).cloned() {
+                if let Some(import) = export_scope.explicit.get(name) {
+                    return self.resolve_declared_root(import, &export_scope, seen);
+                }
+            }
+        }
+        Err(eyre!("`{path}` is not a statically discoverable Pax component; use its qualified Rust path or an explicit use/re-export"))
     }
 }
 
@@ -2077,6 +2389,7 @@ impl StaticRegistry {
 struct ScannedPaxItem {
     ident: String,
     import_path: String,
+    rust_path: String,
     module_path: String,
     source_path: PathBuf,
     scope: ScopeImports,
@@ -2089,7 +2402,7 @@ struct ScannedPaxItem {
 
 impl ScannedPaxItem {
     fn type_id(&self) -> TypeId {
-        TypeId::build_singleton(&self.import_path, Some(&self.ident))
+        TypeId::build_singleton(&self.rust_path, Some(&self.ident))
     }
 }
 
@@ -2154,6 +2467,162 @@ struct PaxConfig {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn runnable_declaration_selects_a_qualified_root_and_reports_conflicts() {
+        fn select(source: &str) -> Result<String> {
+            let directory = tempfile::tempdir()?;
+            let file = directory.path().join("lib.rs");
+            fs::write(&file, source)?;
+            let mut registry = StaticRegistry::default();
+            registry.root_package_name = "fixture".into();
+            registry.register_package(PackageContext {
+                manifest_dir: directory.path().to_path_buf(),
+                entry_file: file,
+                package_name: "fixture".into(),
+                import_root: "crate".into(),
+            })?;
+            registry.ensure_root_package_scanned()?;
+            Ok(registry.root_main_component()?.type_id().to_string())
+        }
+        let component = "mod ui { #[pax] #[inlined(<Group />)] pub struct App {} }";
+        assert_eq!(
+            select(&format!(
+                "{component} pax_kit::runnable! {{ root: crate::ui::App }}"
+            ))
+            .unwrap(),
+            "crate::ui::App"
+        );
+        assert_eq!(select("mod ui { mod inner { #[pax] #[inlined(<Group />)] pub struct App {} } pub use inner::App; } pax_kit::runnable! { root: crate::ui::App }").unwrap(), "crate::ui::App");
+        for declarations in [
+            "runnable! { root: crate::ui::App } runnable! { root: crate::ui::App }",
+            "runnable! { root: crate::ui::App } #[pax] #[main] #[inlined(<Group />)] pub struct Legacy {}",
+        ] {
+            assert!(select(&format!("{component} {declarations}")).unwrap_err().to_string().contains("Conflicting Pax roots"));
+        }
+        assert!(select(&format!(
+            "{component} runnable! {{ root: crate::Missing }}"
+        ))
+        .unwrap_err()
+        .to_string()
+        .contains("not a statically discoverable"));
+        assert!(
+            select("#[pax] pub struct Data {} runnable! { root: Data }")
+                .unwrap_err()
+                .to_string()
+                .contains("must be a #[pax] component")
+        );
+    }
+
+    #[test]
+    fn cyclic_root_aliases_report_an_error() {
+        let scope = ScopeImports {
+            module_path: "crate".into(),
+            import_root: "crate".into(),
+            explicit: HashMap::from([("A".into(), "B".into()), ("B".into(), "A".into())]),
+            glob_roots: vec![],
+        };
+        let error = StaticRegistry::default()
+            .resolve_declared_root("A", &scope, &mut HashSet::new())
+            .unwrap_err();
+        assert!(error.to_string().contains("cyclic root re-export"));
+    }
+
+    #[test]
+    fn explicit_runnable_root_can_be_reused_as_a_subtree() {
+        let path =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/src/cartridge-layouts/consumer");
+        let manifest = build_manifest(&path).unwrap();
+        assert_eq!(manifest.main_component_type_id.to_string(), "crate::Shell");
+        let app = TypeId::build_singleton("workspace_ui::ui::App", Some("App"));
+        assert!(!manifest.components[&app].is_main_component);
+        let counter = TypeId::build_singleton("workspace_ui::Counter", Some("Counter"));
+        assert!(manifest.components.contains_key(&counter));
+
+        assert_eq!(
+            manifest
+                .components
+                .values()
+                .filter(|component| component.is_main_component)
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn component_asset_collisions_require_distinct_paths_unless_bytes_match() {
+        let root = tempfile::tempdir().unwrap();
+        let directories = [root.path().join("ui"), root.path().join("widgets")];
+        for directory in &directories {
+            fs::create_dir(directory).unwrap();
+            fs::write(directory.join("shared.png"), b"same bytes").unwrap();
+        }
+        let paths = directories
+            .iter()
+            .map(|path| path.to_string_lossy().into_owned())
+            .collect::<Vec<_>>();
+        validate_asset_paths(&paths).unwrap();
+        fs::write(directories[1].join("shared.png"), b"different bytes").unwrap();
+        assert!(validate_asset_paths(&paths)
+            .unwrap_err()
+            .to_string()
+            .contains("Conflicting cartridge asset `assets/shared.png`"));
+    }
+
+    #[test]
+    fn workspace_cartridge_preserves_root_role_and_paths_in_rich_and_release_programs() {
+        let host =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/src/cartridge-layouts/host");
+        let layout = crate::project_layout::ProjectLayout::resolve(&host).unwrap();
+        assert_eq!(layout.library_name, "workspace_ui");
+        assert!(layout.cartridge_dir.ends_with("cartridge-layouts/ui"));
+        for is_designtime in [false, true] {
+            let manifest = build_manifest_with_options(
+                &layout.cartridge_dir,
+                BuildManifestOptions { is_designtime },
+            )
+            .unwrap();
+            let rich =
+                pax_manifest::binary::from_slice(&pax_manifest::binary::to_vec(&manifest).unwrap())
+                    .unwrap();
+            let ir = pax_manifest::program_ir::ProgramIR::from_manifest(&rich);
+            let baked = pax_manifest::program_ir::binary::from_slice(
+                &pax_manifest::program_ir::binary::to_vec(&ir).unwrap(),
+            )
+            .unwrap();
+            for root in [&rich.main_component_type_id, &baked.main_component_type_id] {
+                assert_eq!(root.to_string(), "crate::ui::App");
+            }
+            assert!(rich.components[&rich.main_component_type_id].is_main_component);
+            let counter = TypeId::build_singleton("layout_controls::Counter", Some("Counter"));
+            assert!(!rich.components[&counter].is_main_component);
+            assert!(rich.components[&counter].settings.as_ref().unwrap().iter().any(|setting| matches!(setting,
+                pax_manifest::SettingsBlockElement::Handler(event, handlers)
+                    if event.token_value == "mount" && handlers.iter().any(|handler| handler.token_value == "on_mount")
+            )));
+
+            assert!(!baked.components[&counter].is_main_component);
+            assert!(rich.components[&rich.main_component_type_id]
+                .template
+                .as_ref()
+                .unwrap()
+                .get_file_path()
+                .unwrap()
+                .ends_with("ui/src/ui/app.pax"));
+            assert!(rich
+                .assets_dirs
+                .iter()
+                .any(|path| path.ends_with("ui/assets")));
+            assert!(rich
+                .assets_dirs
+                .iter()
+                .any(|path| path.ends_with("widgets/assets")));
+            let rust = pax_manifest::rust_manifest::to_rust_expression(&rich);
+            syn::parse_str::<syn::Expr>(&rust).unwrap();
+            assert!(rust.contains("crate::ui::App"));
+            assert!(rust.contains("layout_controls::Counter"));
+        }
+    }
+
     use super::*;
     use tempfile::TempDir;
 
@@ -2704,6 +3173,7 @@ pax-kit = {{ path = "{}" }}
         ScannedPaxItem {
             ident: ident.to_string(),
             import_path: import_path.to_string(),
+            rust_path: import_path.to_string(),
             module_path: module_path.clone(),
             source_path: PathBuf::new(),
             scope: ScopeImports {

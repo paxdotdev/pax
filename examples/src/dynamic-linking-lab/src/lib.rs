@@ -35,8 +35,9 @@ impl Default for EditorCache {
 static EDITOR_CACHE: LazyLock<Mutex<EditorCache>> =
     LazyLock::new(|| Mutex::new(EditorCache::default()));
 
+pax_kit::runnable! { root: crate::Example }
+
 #[pax]
-#[main]
 #[file("lib.pax")]
 pub struct Example {
     pub rust_source: Property<String>,

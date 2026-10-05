@@ -11,8 +11,9 @@ fn smooth_wave(theta: f64) -> f64 {
     value * value * (3.0 - 2.0 * value)
 }
 
+pax_kit::runnable! { root: crate::Example }
+
 #[pax]
-#[main]
 #[file("lib.pax")]
 pub struct Example {
     pub ticks: Property<u64>,

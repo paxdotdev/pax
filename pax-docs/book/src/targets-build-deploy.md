@@ -44,9 +44,20 @@ actually uses in its test plan.
 
 ## Entry and mounting
 
-A Pax application has two Rust targets: a library cartridge containing the root
+`pax_kit::init` and `pax_kit::init_with` prepare a Pax UI on Apple platforms;
+`pax_kit::host` contains the options, errors, and embedding types.
+For a standalone application, its usual use is one call in `main`:
+`pax_kit::init()?.run()`. `init` prepares the bundled UI and invokes its root
+initializer; `run` enters the platform application loop. The API wraps the
+PaxHost framework supplied by `pax-cli`. Depend on `pax-kit` and enable its `host`
+feature in the launcher; no separate host crate dependency is needed.
+It creates no async runtime. UI state and executor setup belong in the
+initializer selected by `runnable!`. Browser applications use `init_web` instead
+and leave the `host` feature disabled.
+
+Standalone Apple applications have two Rust targets: a library cartridge containing the root
 component and its initializer, and an Apple executable with an ordinary Rust
-`fn main`. The executable links `pax-host` and the SwiftUI host framework; the
+`fn main`. The executable uses `pax_kit::host` to enter the SwiftUI host framework; the
 cartridge remains separately linked. Do not import your application library into
 that launcher or pass a `Root`, `Property`, Tokio runtime, or Rust closure across
 its C boundary. Construct cartridge-owned resources in the
@@ -61,33 +72,44 @@ default-run = "my-app"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
+[dependencies]
+pax-kit = { version = "0.39.0" }
+
 [features]
-standalone = ["dep:pax-host"]
+standalone = ["pax-kit/host"]
 
 [[bin]]
 name = "my-app"
 path = "src/main.rs"
 required-features = ["standalone"]
-
-[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
-pax-host = { version = "0.39.0", optional = true }
 ```
 
-Keep the other Pax dependencies and target features from the starter project.
+Keep the other target features from the starter project. Enable `host` through
+`standalone`, rather than on every use of `pax-kit`, so UI library builds do not
+link back to their hosting framework. To migrate an existing launcher, remove its
+direct `pax-host` dependency, use `pax_kit::host`, and update `standalone` as above.
 The CLI builds the library explicitly for web, and selects the binary gated by
 `standalone` for Apple. If several binaries meet that requirement, set
 `default-run`. `pax-cli` still performs code generation, framework linking,
 resource packaging and signing; an ordinary `cargo run` by itself does not
-perform those steps. The source-directory and example-directory conventions
-have not changed in this phase.
+perform those steps. A host package may select a separate workspace UI library
+through `[package.metadata.pax.cartridge]`; see
+[workspace cartridge selection](components-composition.md#use-a-separate-ui-package).
+The selected UI supplies component templates and assets; the host package owns
+platform metadata, `public/`, and generated `.pax/` output.
 
 ```rust,ignore
-// src/main.rs; compiled for macOS, iOS and iPadOS.
-fn main() -> Result<(), pax_host::Error> {
-    // Process-owned configuration can run here on the process main thread.
-    pax_host::init()?.run()
+fn main() -> Result<(), pax_kit::host::Error> {
+    pax_kit::init()?.run()
 }
 ```
+
+This is the complete launcher for the common case. It needs no platform `cfg`
+attributes or fallback `main`: the `standalone` feature selects the executable,
+and `pax-kit` reports an unsupported native target when `host` is enabled there.
+Web builds use the library and do not compile this executable. Add process-owned
+configuration before the call, or use the explicit preparation and mounting APIs
+when taking over host policy. Platform-specific options may still need `cfg`.
 
 `main` runs on all three Apple targets, including iOS/iPadOS. `run` hands control
 to SwiftUI and normally never returns on mobile. Web invokes `init_web` explicitly
@@ -103,7 +125,7 @@ its owning `UIViewController` on iOS/iPadOS, or an `HTMLElement` in the browser.
 Pax installs its normal child hierarchy, including native controls. It owns that
 child and session; the caller retains its window, parent and event loop.
 
-On Apple, call `pax_host::init()` and consume the prepared value with
+On Apple, call `pax_kit::init()` and consume the prepared value with
 `app.mount(view_host)`. `ViewHost::from_raw` is unsafe: its documented contract
 requires valid platform objects, a retained owner borrowed for the mount's
 lifetime, and the process main thread. An arbitrary GPU/window handle is not a
@@ -157,8 +179,8 @@ No raw-surface-only or shared-wgpu-device adapter is provided.
 
 ### Data across the cartridge boundary
 
-Use `pax_host::init_with(InitOptions { startup_data })` on Apple, or `startupData:
-Uint8Array` in web options. The cartridge reads `InitContext::startup_data()` and
+Use `pax_kit::init_with(pax_kit::host::InitOptions { startup_data })` on Apple,
+or `startupData: Uint8Array` in web options. The cartridge reads `InitContext::startup_data()` and
 validates its own encoding. Inputs are copied before initialization. Empty data
 is the default; buffers are limited to 64 KiB.
 

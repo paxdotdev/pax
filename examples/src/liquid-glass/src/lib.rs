@@ -7,8 +7,9 @@ const PANEL_TARGET_SIZE: f64 = 1.0;
 const PANEL_TOGGLE_FRAMES: u64 = 22;
 const PANEL_HIDE_BUFFER_FRAMES: u64 = 2;
 
+pax_kit::runnable! { root: crate::Example }
+
 #[pax]
-#[main]
 #[file("lib.pax")]
 pub struct Example {
     pub content_width: Property<f64>,

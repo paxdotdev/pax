@@ -13,8 +13,9 @@ const SCROLL_HEIGHT_MULTIPLIER: f64 = 7.5;
 const TIMELINE_FRAMES: f64 = 1000.0;
 const PANEL_BREAKPOINT: f64 = 720.0;
 
+pax_kit::runnable! { root: crate::Example }
+
 #[pax]
-#[main]
 #[file("lib.pax")]
 pub struct Example {
     pub scroll_y: Property<f64>,

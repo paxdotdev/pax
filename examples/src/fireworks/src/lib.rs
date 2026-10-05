@@ -1,7 +1,8 @@
 use pax_kit::*;
 
+pax_kit::runnable! { root: crate::Fireworks }
+
 #[pax]
-#[main]
 #[file("fireworks.pax")]
 pub struct Fireworks {
     pub rotation: Property<f64>,

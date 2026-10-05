@@ -13,7 +13,7 @@ title = "Async Workbench"
 
 [features]
 default = []
-standalone = ["dep:pax-host"]
+standalone = ["pax-kit/host"]
 
 [[bin]]
 name = "async-workbench"
@@ -24,7 +24,6 @@ required-features = ["standalone"]
 pax-kit = { version = "0.39.0", path = "../../../pax-kit" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-pax-host = { path = "../../../pax-host", optional = true }
 pax-tokio = { path = "../../../pax-tokio" }
 tokio = { version = "1", features = ["rt-multi-thread", "time", "sync", "net", "io-util", "macros"] }
 

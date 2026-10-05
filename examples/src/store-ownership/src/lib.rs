@@ -1,7 +1,8 @@
 use pax_kit::*;
 
+pax_kit::runnable! { root: crate::StoreOwnership }
+
 #[pax]
-#[main]
 #[file("lib.pax")]
 #[custom(Default)]
 pub struct StoreOwnership {

@@ -12,9 +12,13 @@ description = "Main entrypoint for building with Pax"
 pax-engine = { path = "../pax-engine", version = "0.39.0"}
 pax-std = { path = "../pax-std", version = "0.39.0" }
 
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+pax-host = { path = "../pax-host", version = "0.39.0", optional = true }
+
 [features]
 # Opt-in GPU subtree filters, including runtime WGSL validation.
 shaders = ["pax-engine/shaders", "pax-std/shaders"]
+host = ["dep:pax-host"]
 gpu = ["pax-engine/gpu"]
 piet = ["pax-engine/piet"]
 designtime = ["pax-engine/designtime", "pax-std/designtime"]

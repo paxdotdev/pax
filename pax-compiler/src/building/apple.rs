@@ -424,8 +424,11 @@ fn build_native_launcher(
         .manifest_path(ctx.project_path.join("Cargo.toml"))
         .no_deps()
         .exec()?;
+    let host_manifest = ctx.project_path.join("Cargo.toml").canonicalize()?;
     let package = metadata
-        .root_package()
+        .packages
+        .iter()
+        .find(|package| package.manifest_path.as_std_path() == host_manifest)
         .ok_or_else(|| eyre!("Select a Pax application package"))?;
     let bins: Vec<_> = package
         .targets
@@ -441,7 +444,7 @@ fn build_native_launcher(
     let selected = if let Some(name) = package.default_run.as_deref() {
         bins.iter().copied().find(|target| target.name == name)
     } else if bins.len() == 1 { Some(bins[0]) } else { None }
-        .ok_or_else(|| eyre!("Native launch requires a Cargo binary with required-features = [\"standalone\"]. Add src/main.rs using pax_host::init()?.run(), and set package.default-run when there is more than one launcher."))?;
+        .ok_or_else(|| eyre!("Native launch requires a Cargo binary with required-features = [\"standalone\"]. Add src/main.rs using pax_kit::init()?.run(), and set package.default-run when there is more than one launcher."))?;
     let mode = if ctx.is_release { "release" } else { "debug" };
     let platform = if matches!(ctx.target, RunTarget::macOS) {
         "macos"
@@ -452,7 +455,16 @@ fn build_native_launcher(
     if ctx.should_run_designtime {
         requested.push("designtime");
     }
-    let mut features = pax_project_feature_args(&ctx.project_path, &requested);
+    let layout = crate::project_layout::ProjectLayout::resolve(&ctx.project_path)?;
+    let mut features = if layout.cartridge_dir == ctx.project_path.canonicalize()? {
+        pax_project_feature_args(&ctx.project_path, &requested)
+    } else {
+        requested
+            .into_iter()
+            .filter(|feature| package.features.contains_key(*feature))
+            .map(str::to_owned)
+            .collect()
+    };
     features.push("standalone".into());
     let mut binaries = Vec::new();
     for mapping in mappings {
@@ -466,6 +478,9 @@ fn build_native_launcher(
             .arg("--features")
             .arg(features.join(","))
             .env("PAX_DIR", pax_dir)
+            .env("PAX_BUILD_CARTRIDGE", "false")
+            .env("PAX_HOST_FRAMEWORK_DIR", framework_dir)
+            .env("PAX_CARTRIDGE_MANIFEST_DIR", &layout.cartridge_dir)
             .env("MACOSX_DEPLOYMENT_TARGET", "12.0")
             .env("IPHONEOS_DEPLOYMENT_TARGET", "15.0")
             .stdout(std::process::Stdio::inherit())
@@ -503,8 +518,10 @@ fn build_native_launcher(
             ));
         }
         binaries.push(
-            ctx.project_path
-                .join("target")
+            metadata
+                .target_directory
+                .as_std_path()
+                .to_path_buf()
                 .join(mapping.rust_target)
                 .join(mode)
                 .join(&selected.name),
@@ -545,6 +562,9 @@ pub fn build_apple_project_with_cartridge(
     let target_str_lower = &target_str.to_lowercase();
     let pax_dir = PathBuf::from(pax_dir.to_str().unwrap());
     let project_path = ctx.project_path.clone();
+    let layout = crate::project_layout::ProjectLayout::resolve(&project_path)?;
+    let mut cartridge_ctx = ctx.clone();
+    cartridge_ctx.project_path = layout.cartridge_dir.clone();
 
     let is_release: bool = ctx.is_release;
     let apple_mobile_target = apple_mobile_target(target);
@@ -585,9 +605,9 @@ pub fn build_apple_project_with_cartridge(
         .iter()
         .map(|mapping| mapping.rust_target)
         .collect();
-    crate::validate_release_cargo_feature_boundary(ctx, &release_target_triples)?;
+    crate::validate_release_cargo_feature_boundary(&cartridge_ctx, &release_target_triples)?;
 
-    let dylib_file_name = resolve_dylib_file_name(&project_path)?;
+    let dylib_file_name = format!("lib{}.dylib", layout.library_name.replace('-', "_"));
 
     let mut handles = Vec::new();
 
@@ -610,7 +630,8 @@ pub fn build_apple_project_with_cartridge(
     );
 
     for (index, target_mapping) in target_mappings.iter().copied().enumerate() {
-        let project_path = project_path.clone();
+        let project_path = layout.cartridge_dir.clone();
+        let layout = layout.clone();
         let pax_dir = pax_dir.clone();
         let dylib_file_name = dylib_file_name.clone();
 
@@ -647,6 +668,7 @@ pub fn build_apple_project_with_cartridge(
                 .env("PAX_DIR", &pax_dir)
                 .stdout(std::process::Stdio::piped())
                 .stderr(std::process::Stdio::piped());
+            layout.configure_cartridge(&mut cmd);
             configure_pax_build_env(&mut cmd, pax_build_target, should_run_designtime);
 
             if is_release {
@@ -663,8 +685,7 @@ pub fn build_apple_project_with_cartridge(
             //Execute `cargo build`, which generates our dylibs
             let output = wait_with_output(&process_child_ids_threadsafe, child);
 
-            let dylib_src = project_path
-                .join("target")
+            let dylib_src = layout.target_dir
                 .join(target_mapping.rust_target)
                 .join(build_mode_name)
                 .join(&dylib_file_name);
@@ -2143,44 +2164,6 @@ impl MatchMode {
     }
 }
 
-fn resolve_dylib_file_name(project_path: &PathBuf) -> Result<String, eyre::Report> {
-    let manifest_path = project_path.join("Cargo.toml");
-    let metadata = MetadataCommand::new()
-        .manifest_path(&manifest_path)
-        .no_deps()
-        .exec()
-        .map_err(|err| {
-            eyre!(
-                "Failed to read cargo metadata for {:?}: {}",
-                manifest_path,
-                err
-            )
-        })?;
-
-    let root_package = metadata.root_package().ok_or_else(|| {
-        eyre!(
-            "Failed to determine root package for Apple build at {:?}",
-            manifest_path
-        )
-    })?;
-
-    let dylib_target = root_package
-        .targets
-        .iter()
-        .find(|target| {
-            target.kind.iter().any(|kind| kind == "cdylib")
-                || target.crate_types.iter().any(|kind| kind == "cdylib")
-        })
-        .ok_or_else(|| {
-            eyre!(
-                "No cdylib target found for Apple build in {:?}",
-                manifest_path
-            )
-        })?;
-
-    Ok(format!("lib{}.dylib", dylib_target.name.replace('-', "_")))
-}
-
 fn configure_ios_local_signing(cmd: &mut Command, sdk: &str, selected_physical_device: bool) {
     if sdk == "iphonesimulator" {
         // Simulator Release builds are local too: they must not require a team.
@@ -2436,7 +2419,8 @@ pub fn rebuild_staged_macos_logic_dylib(
             .into_iter()
             .next()
             .ok_or_else(|| eyre!("no macOS target mapping available for staged logic reload"))?;
-    let dylib_file_name = resolve_dylib_file_name(project_root)?;
+    let layout = crate::project_layout::ProjectLayout::resolve(project_root)?;
+    let dylib_file_name = format!("lib{}.dylib", layout.library_name.replace('-', "_"));
 
     let requested_features = vec!["macos", "designtime"];
     let cargo_features = pax_project_feature_args(project_root, &requested_features);

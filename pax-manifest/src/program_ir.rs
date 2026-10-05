@@ -702,6 +702,8 @@ mod tests {
         use pax_language::{parse_pax_expression, Computable, DependencyCollector};
         use pax_runtime_api::{Functions, ToPaxValue};
         use std::rc::Rc;
+        let graph = pax_runtime_api::PropertyGraph::new(|| {});
+        let _graph = graph.enter();
         Functions::register_all_functions();
         for source in [
             "items[indices[index]]",

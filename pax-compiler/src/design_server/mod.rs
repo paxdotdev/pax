@@ -1444,6 +1444,21 @@ struct WatcherFileChanged {
 }
 
 pub fn setup_file_watcher(state: Data<AppState>, path: &str) -> Result<RecommendedWatcher, Error> {
+    let mut roots = vec![PathBuf::from(path).canonicalize().map_err(Error::io)?];
+    if Path::new(path).join("Cargo.toml").exists() {
+        let layout = crate::project_layout::ProjectLayout::resolve(Path::new(path))
+            .map_err(|error| Error::generic(&error.to_string()))?;
+        roots.push(layout.cartridge_dir);
+    }
+    // Templates keep their real source paths in the rich manifest, including
+    // components reused from another package. Watch those directories too.
+    if let Some(manifest) = state.revisions.lock().unwrap().active_manifest_clone() {
+        roots.extend(manifest.components.values().filter_map(|component| {
+            component.template.as_ref()?.get_file_path().map(PathBuf::from)?.parent().map(Path::to_path_buf)
+        }));
+        roots.extend(manifest.assets_dirs.iter().map(PathBuf::from));
+    }
+    let roots = minimal_watch_roots(roots);
     let mut watcher = RecommendedWatcher::new(
         move |res: Result<Event, Error>| match res {
             Ok(e) => {
@@ -1494,8 +1509,36 @@ pub fn setup_file_watcher(state: Data<AppState>, path: &str) -> Result<Recommend
         },
         Default::default(),
     )?;
-    watcher.watch(Path::new(path), RecursiveMode::Recursive)?;
+    for root in roots {
+        watcher.watch(&root, RecursiveMode::Recursive)?;
+    }
     Ok(watcher)
+}
+
+fn minimal_watch_roots(roots: Vec<PathBuf>) -> Vec<PathBuf> {
+    let mut roots = roots.into_iter().filter_map(|root| root.canonicalize().ok()).collect::<Vec<_>>();
+    roots.sort_by_key(|root| root.components().count());
+    let mut selected: Vec<PathBuf> = Vec::new();
+    for root in roots {
+        if !selected.iter().any(|parent| root.starts_with(parent)) {
+            selected.push(root);
+        }
+    }
+    selected
+}
+
+#[test]
+fn sibling_ui_watch_roots_are_preserved_without_duplicate_recursive_watches() {
+    let workspace = tempfile::tempdir().unwrap();
+    let host = workspace.path().join("host");
+    let ui = workspace.path().join("ui");
+    let templates = ui.join("src");
+    fs::create_dir_all(&host).unwrap();
+    fs::create_dir_all(&templates).unwrap();
+    let roots = minimal_watch_roots(vec![host.clone(), ui.clone(), templates, host.clone()]);
+    assert_eq!(roots.len(), 2);
+    assert!(roots.contains(&host.canonicalize().unwrap()));
+    assert!(roots.contains(&ui.canonicalize().unwrap()));
 }
 
 fn handle_watcher_file_changed(state: Data<AppState>, change: WatcherFileChanged) {

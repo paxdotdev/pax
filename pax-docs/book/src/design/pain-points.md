@@ -464,3 +464,85 @@ obscure the cost of unnecessary work.
   caller region still needs readiness and queued request delivery. Associate
   each canvas with its own host session so late dismantle cannot close a newly
   mounted replacement or implicitly initialize another cartridge.
+
+## 2026-10-05 — AppKit layout notifications are not scroll input
+
+Calculator's macOS graph opened at the world edge because fractional native
+placement caused AppKit to realign its clip origin before the first viewport
+layout. The bounds observer published the temporary near-zero origin as a
+user scroll, overwriting the authored center and starting the native-scroll
+quiet period. Integer-coordinate fixtures missed this; a fractional-placement
+fixture reproduces it through an actual NSHostingView/NSScrollView hierarchy.
+
+Suppress native scroll reporting around container geometry and layout writes,
+and ignore pre-initialization, empty-viewport, and bounds-size-only
+notifications. Preserve the requested offset when content shrinks or when an
+explicit position arrives before the geometry from the same patch. Restore
+that position within the available bounds after layout, without replaying
+stale model fields over actual user scrolling. Cover fractional placement,
+content shrink/growth, offset-before-geometry ordering, and native movement in
+the Swift tests; verify the mounted example as well.
+
+The same qualification pass confirmed that Calculator's hardware-key handler
+has no macOS/iOS bridge yet. Click/tap success does not establish keyboard
+support. Track proper native key routing and focus ownership as a separate
+capability; do not add calculator-specific event monitors that steal keys from
+an embedding host or native text controls.
+
+## 2026-10-05 — Single-package launchers need transitive framework search paths
+
+The workspace host fixture passed after re-exporting `pax-host` through
+`pax-kit`, but Calculator's ordinary single-package native build failed with
+`framework 'PaxHost' not found`. Cargo builds the package's library alongside
+its binary, including its `cdylib` target. The arguments after `cargo rustc --`
+reach only the selected binary, while the enabled host dependency also adds
+framework linkage to that intermediate library build. Pass the framework
+directory through `PAX_HOST_FRAMEWORK_DIR` to `pax-host`'s build script and emit
+`cargo:rustc-link-search` there, so every consumer gets the path. Keep the
+cartridge build separate with `standalone` disabled; inspect the packaged
+cartridge to ensure it does not acquire a dependency on `PaxHost`.
+
+Qualification must include both an ordinary package with a library and binary,
+and a workspace launcher selecting another UI package. Neither layout alone
+establishes the other. Build success also does not establish presentation:
+Calculator's macOS app launched and evaluated arithmetic, but its initial graph
+opened at the edge of the scrollable world in both standalone and embedded
+hosts. The iPhone and web builds showed a centered graph. That native scroller
+finding remains separate from the corrected launcher link failure.
+
+### Explicit cartridges and workspace UI packages (PAX-1015 phase two)
+
+- Public declarations should explain the author's intent before introducing
+  packaging terminology. `runnable!` selects the root and initializer of a UI
+  that a host can launch or embed; cartridge names its compiled representation
+  and linkage boundary. The declaration itself does not initialize or mount it.
+- A separate implementation crate need not become another application import.
+  Re-export the native SDK as `pax_kit::host`, and `init`/`init_with` at the facade
+  root, with `standalone` enabling `pax-kit/host`. Keep this feature off in the UI
+  library build so the cartridge does not depend on its own hosting framework.
+- Repeating platform `cfg` branches in every launcher obscures the normal Rust
+  entry. The binary already requires `standalone`; put unsupported-host-target
+  diagnostics in `pax-kit` and let common examples use a single `main`.
+- Cargo metadata's `root_package()` is absent in a virtual workspace even when a
+  package manifest was selected. Match its canonical manifest path instead. Use
+  Cargo's reported target directory; sibling packages share it and callers may
+  set `CARGO_TARGET_DIR`.
+- The host's `.pax/` directory does not identify the UI library when they are
+  separate packages. Pass the selected library directory explicitly to macros,
+  track that environment in Cargo fingerprints, and suppress cartridge exports
+  during launcher compilation. Reusing a cached UI library as a dependency must
+  not reuse its standalone entrypoints.
+- A source definition path may go through a private module. Static discovery
+  now selects a deterministic public re-export when generated code needs one.
+  Transitive components must also be exposed through a directly accessible
+  library's public API, or be direct dependencies of the selected cartridge.
+- Source-module identity for implicit lifecycle lookup must use the dependency's
+  library namespace. Hard-coding `crate::` silently omitted dependency mount
+  handlers, even when explicit event handlers worked.
+- Watch the sibling UI and referenced template/asset directories, not only the
+  host directory. The rich manifest retains actual template paths; the release
+  program retains the same selected root and component roles.
+- The existing app-icon PNG is grayscale. Using it as native scene image data
+  exposed an existing CGContext decoding failure. The layout fixture uses the
+  existing RGBA Space Game assets to exercise portable asset packaging; grayscale
+  scene-image decoding remains a separate renderer issue.

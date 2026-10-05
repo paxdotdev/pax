@@ -48,6 +48,7 @@ modules when you need more detail than the entry points above:
 
 - [pax-runtime-api](pax-runtime-api/index.md)
 - [pax-std](pax-std/index.md)
+- [pax-kit](pax-kit/index.md)
 - [pax-tokio](pax-tokio/index.md)
 - [pax-web-async](pax-web-async/index.md)
 - [pax-host](pax-host/index.md)

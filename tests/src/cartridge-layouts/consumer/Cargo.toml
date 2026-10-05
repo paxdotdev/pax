@@ -1,0 +1,11 @@
+[package]
+name = "layout-consumer"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+pax-kit = { path = "../../../../pax-kit" }
+layout-ui = { path = "../ui" }

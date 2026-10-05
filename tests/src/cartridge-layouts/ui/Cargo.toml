@@ -1,0 +1,12 @@
+[package]
+name = "layout-ui"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "workspace_ui"
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+pax-kit = { path = "../../../../pax-kit" }
+layout-widgets = { path = "../widgets" }

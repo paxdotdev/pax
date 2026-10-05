@@ -10,8 +10,9 @@ use animation::Animation;
 
 const SCALE: f64 = 2.0;
 
+pax_kit::runnable! { root: crate::SpaceGame }
+
 #[pax]
-#[main]
 #[file("lib.pax")]
 pub struct SpaceGame {
     pub ship_x: Property<f64>,

@@ -2,8 +2,9 @@
 
 use pax_kit::*;
 
+pax_kit::runnable! { root: crate::Example }
+
 #[pax]
-#[main]
 #[file("lib.pax")]
 pub struct Example {
     pub is_mobile: Property<bool>,

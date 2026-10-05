@@ -48,8 +48,9 @@ pub struct KeyData {
     pub row: f64,
 }
 
+pax_kit::runnable! { root: crate::Example }
+
 #[pax]
-#[main]
 #[inlined(<Calculator width=100% height=100%/>)]
 pub struct Example {}
 

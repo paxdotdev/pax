@@ -24,11 +24,14 @@ pub enum InternalDefinitions {
     Enum(Vec<EnumVariantDefinition>),
 }
 
-#[derive(Serialize)]
-pub struct ArgsFullComponent {
-    pub is_main_component: bool,
-    pub cartridge_snippet: String,
+#[derive(TemplateOnce)]
+#[template(path = "../templates/cartridge.stpl", escape = false)]
+pub struct TemplateArgsCartridge {
+    pub root_path: String,
     pub initializer: String,
+    pub cartridge_snippet: String,
+    pub engine_import_path: String,
+    pub build_config: TemplateBuildConfig,
 }
 
 #[derive(Clone, Copy, Debug, Serialize)]
@@ -44,7 +47,7 @@ pub struct TemplateBuildConfig {
 #[template(path = "../templates/derive_pax.stpl", escape = false)]
 pub struct TemplateArgsDerivePax {
     /// Modal properties
-    pub args_full_component: Option<ArgsFullComponent>,
+    pub cartridge: String,
 
     /// Shared properties
     pub internal_definitions: InternalDefinitions,
@@ -52,9 +55,7 @@ pub struct TemplateArgsDerivePax {
     pub is_custom_interpolatable: bool,
     pub is_custom_coercion_rules: bool,
     pub can_derive_identity_roundtrip: bool,
-    pub is_root_crate: bool,
     pub _is_enum: bool,
-    pub build_config: TemplateBuildConfig,
 
     /// Used to specify a custom import prefix for codegen when importing
     /// `pax-engine` directly rather than through `pax-kit`.
@@ -67,25 +68,31 @@ mod tests {
 
     fn render_main(root: bool, target: &str, designtime: bool) -> String {
         TemplateArgsDerivePax {
-            args_full_component: Some(ArgsFullComponent {
-                is_main_component: true,
-                cartridge_snippet: "const CARTRIDGE_OWNER: bool = true;".into(),
-                initializer: "example_init".into(),
-            }),
+            cartridge: if root {
+                TemplateArgsCartridge {
+                    root_path: "EmbeddedExample".into(),
+                    initializer: "example_init".into(),
+                    cartridge_snippet: "const CARTRIDGE_OWNER: bool = true;".into(),
+                    engine_import_path: "pax_engine".into(),
+                    build_config: TemplateBuildConfig {
+                        web: target == "web",
+                        macos: target == "macos",
+                        ios: target == "ios",
+                        ipados: target == "ipados",
+                        designtime,
+                    },
+                }
+                .render_once()
+                .unwrap()
+            } else {
+                String::new()
+            },
             internal_definitions: InternalDefinitions::Struct(vec![]),
             pascal_identifier: "EmbeddedExample".into(),
             is_custom_interpolatable: false,
             is_custom_coercion_rules: false,
             can_derive_identity_roundtrip: false,
-            is_root_crate: root,
             _is_enum: false,
-            build_config: TemplateBuildConfig {
-                web: target == "web",
-                macos: target == "macos",
-                ios: target == "ios",
-                ipados: target == "ipados",
-                designtime,
-            },
             engine_import_path: "pax_engine".into(),
         }
         .render_once()

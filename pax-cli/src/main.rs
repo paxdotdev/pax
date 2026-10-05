@@ -85,7 +85,8 @@ fn cli() -> App<'static, 'static> {
         .short("p")
         .long("path")
         .takes_value(true)
-        .default_value(".");
+        .default_value(".")
+        .help("Host application package. Select a sibling UI library with package.metadata.pax.cartridge in its Cargo.toml.");
 
     #[allow(non_snake_case)]
     let ARG_VERBOSE = Arg::with_name("verbose")
@@ -159,7 +160,7 @@ fn cli() -> App<'static, 'static> {
         .author("Zack Brown <zack@pax.dev>")
         .subcommand(
             App::new("run")
-                .about("Run the Pax project from the current working directory in a demo harness")
+                .about("Build and run the Pax application for the selected platform")
                 .arg( ARG_PATH.clone() )
                 .arg( ARG_TARGET.clone() )
                 .arg( ARG_IOS_DEVICE.clone() )

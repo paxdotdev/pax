@@ -18,8 +18,9 @@ const END_SETTLE_SPAN_MAX: f64 = 0.18;
 const WAVE_AMPLITUDE_MIN: f64 = 0.16;
 const WAVE_AMPLITUDE_MAX: f64 = 0.48;
 
+pax_kit::runnable! { root: crate::Example }
+
 #[pax]
-#[main]
 #[file("lib.pax")]
 pub struct Example {
     pub scroll_y: Property<f64>,

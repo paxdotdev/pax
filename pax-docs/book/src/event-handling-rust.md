@@ -498,6 +498,12 @@ or prevent a native control from changing its value.
 
 ### Keyboard delivery
 
+The global `@key_down`, `@key_up`, and `@key_press` event bridge is currently
+implemented on web. The macOS and iOS chassis do not yet forward hardware keys
+to these handlers. Native text controls still use their platform's own text
+input; a canvas-based editor such as Calculator needs the missing event bridge
+before its hardware-key handler can work on Apple targets.
+
 Keyboard events currently dispatch across the mounted Pax tree, so multiple
 components with keyboard handlers may receive the same key. If a shortcut
 belongs to one active view or mode, check that application state in the
@@ -597,19 +603,19 @@ not produce activation on release.
 ## Application setup
 
 Native applications own a normal Rust `fn main` on macOS, iOS and iPadOS.
-The small `pax-host` SDK prepares the separate UI cartridge and enters the
+`pax_kit::init()?.run()` prepares the separate UI cartridge and enters the
 platform host loop. Web pages explicitly call `Pax.init_web`; importing a
 component library does not launch an app. See [entry and mounting](targets-build-deploy.md#entry-and-mounting)
 for Cargo targets, supplied host views and browser elements.
 
-Inside the cartridge, select an ordinary typed initializer with `#[init(path)]`:
+Inside the library, select an ordinary typed initializer in `runnable!`:
 
 ```rust
 use pax_kit::*;
 
+pax_kit::runnable! { root: crate::Notes, init: init_notes }
+
 #[pax]
-#[main]
-#[init(init_notes)]
 #[file("lib.pax")]
 pub struct Notes { pub title: Property<String> }
 
@@ -621,10 +627,10 @@ fn init_notes(cx: &InitContext) -> AppResult<Notes> {
 
 The initializer runs once on the UI owner thread, inside the application's
 property graph. Pax mounts the returned value itself: it does not serialize it
-or create another default root. Without `#[init]`, the selected root uses
-`Default::default()`. A dependency's `#[main]` component does not initialize or
-launch another application. The root marker and component source location are
-unchanged in this phase.
+or create another default root. Without `init:`, the selected root uses
+`Default::default()`. Using a component from a dependency does not initialize or
+launch that dependency's cartridge. Root selection is independent of component
+location; see [runnable declarations](components-composition.md#declare-a-runnable-ui).
 
 Keep initialization prompt. Return a real Loading root, stage asynchronous work
 through an explicit executor, and update its properties when that work completes.
@@ -657,7 +663,8 @@ See [component stores](components-composition.md) and the
 no dependency lookup. Cloning it does not keep a closed application active.
 
 Migration: replace `#[application(Type)]` and its `Application` implementation
-with `#[init(function)]`. Construct and return the root in that function; replace
+with `runnable! { root: Root, init: function }`. Construct and return the root
+in that function; replace
 `AppBuilder::provide` and `AppContext::service` with ordinary fields, explicit
 arguments or lexical stores. Move UI-specific work from `started` into the root's
 mount handler. There is no replacement lifecycle-hook trait.

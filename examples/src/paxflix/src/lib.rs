@@ -13,8 +13,9 @@ pub use movie_detail::*;
 pub use movie_shelf::*;
 pub use profile_menu::*;
 
+pax_kit::runnable! { root: crate::Paxflix }
+
 #[pax]
-#[main]
 #[file("lib.pax")]
 pub struct Paxflix {
     /// Let a host supply safe-area insets instead of reading the native window.

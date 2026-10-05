@@ -8,8 +8,9 @@ use pax_kit::*;
 use pax_kit::pax_engine::math::Generic;
 use pax_kit::pax_engine::math::Point2;
 
+pax_kit::runnable! { root: crate::Example }
+
 #[pax]
-#[main]
 #[file("lib.pax")]
 pub struct Example {
     pub scroll: Property<f64>,

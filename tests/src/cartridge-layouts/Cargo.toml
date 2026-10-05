@@ -1,0 +1,6 @@
+[workspace]
+resolver = "2"
+members = ["host", "ui", "widgets", "consumer"]
+
+[profile.dev]
+opt-level = 1

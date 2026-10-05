@@ -13,20 +13,127 @@ use quote::{format_ident, quote, ToTokens};
 
 use syn::punctuated::Punctuated;
 use templating::{
-    ArgsFullComponent, EnumVariantDefinition, InternalDefinitions, StaticPropertyDefinition,
+    EnumVariantDefinition, InternalDefinitions, StaticPropertyDefinition, TemplateArgsCartridge,
     TemplateArgsDerivePax, TemplateBuildConfig,
 };
 
 use sailfish::TemplateOnce;
 
 fn is_root_crate() -> bool {
+    if env_flag_explicitly_disabled("PAX_BUILD_CARTRIDGE") {
+        return false;
+    }
     root_crate::is_application_crate(
+        env::var_os("PAX_CARTRIDGE_MANIFEST_DIR")
+            .as_deref()
+            .map(Path::new),
         env::var_os("PAX_DIR").as_deref().map(Path::new),
         &env::var_os("CARGO_MANIFEST_DIR")
             .map(PathBuf::from)
             .unwrap_or_default(),
         env::var_os("CARGO_PRIMARY_PACKAGE").is_some(),
     )
+}
+
+/// Declares a Pax UI that can be launched as an application or embedded in a
+/// host, using the selected root component and optional initializer.
+///
+/// ```ignore
+/// pub mod ui;
+/// pax_kit::runnable! { root: crate::ui::App, init: crate::ui::init }
+/// ```
+///
+/// `init` is an ordinary `fn(&InitContext) -> AppResult<Root>`; omitting it
+/// constructs `Root::default()`. Paths resolve at the declaration, and normal
+/// Rust visibility applies. Declare one runnable per library, without a
+/// `#[main]` component. Dependency use retains the components but emits no host
+/// entrypoints. `pax-cli` selects the library and generates its program before
+/// compiling it; neither this macro nor static discovery runs the initializer
+/// or mounts the UI. The declared UI is compiled into a cartridge, which keeps
+/// its separate platform linkage boundary.
+/// Direct `pax-engine` users can set `engine_import_path: pax_engine`.
+#[proc_macro]
+pub fn runnable(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let declaration = parse_macro_input!(input as pax_manifest::runnable::RunnableDeclaration);
+    let root = declaration.root.to_token_stream().to_string();
+    let initializer = declaration
+        .init
+        .map(|path| path.to_token_stream().to_string());
+    let engine = declaration
+        .engine_import_path
+        .map(|path| path.to_token_stream().to_string())
+        .unwrap_or_else(|| "pax_kit::pax_engine".into());
+    TokenStream::from_str(&render_cartridge(&root, initializer, &engine))
+        .unwrap()
+        .into()
+}
+
+fn render_cartridge(root: &str, initializer: Option<String>, engine: &str) -> String {
+    let initializer = initializer.unwrap_or_else(|| format!("|_| Ok(<{root}>::default())"));
+    // Keep the signature check and path resolution at the declaration's scope,
+    // including when the library is reused without its platform adapter.
+    let mut output = format!(
+        r#"
+        #[allow(unused_imports)]
+        use {root} as __PaxSelectedRoot;
+        #[allow(dead_code)]
+        fn __pax_initialize(context: &{engine}::api::InitContext) -> {engine}::api::AppResult<__PaxSelectedRoot> {{
+            ({initializer})(context)
+        }}
+        const _: Option<&str> = option_env!("PAX_DIR");
+        const _: Option<&str> = option_env!("PAX_CARTRIDGE_MANIFEST_DIR");
+        const _: Option<&str> = option_env!("PAX_BUILD_CARTRIDGE");
+        const _: Option<&str> = option_env!("PAX_BUILD_TARGET");
+        const _: Option<&str> = option_env!("PAX_BUILD_DESIGNTIME");
+        const _: Option<&str> = option_env!("CARGO_PRIMARY_PACKAGE");
+    "#
+    );
+    if !is_root_crate() {
+        return output;
+    }
+    let build_config = template_build_config();
+    if !(build_config.web || build_config.macos || build_config.ios || build_config.ipados) {
+        return output;
+    }
+    let snippet = if cfg!(feature = "designtime")
+        && env_flag_explicitly_disabled("PAX_BUILD_DESIGNTIME")
+    {
+        "compile_error!(\"Pax release builds cannot include the `pax-engine/designtime` feature. Remove the transitive designtime feature activation or build this app in debug mode.\");".into()
+    } else if let Some(pax_dir) = env::var_os("PAX_DIR") {
+        let path = PathBuf::from(pax_dir).join("cartridge.partial.rs");
+        format!("include!({:?});", path.to_string_lossy())
+    } else {
+        "compile_error!(\"PAX_DIR was not set for the selected Pax cartridge. Build the application through pax-cli to generate its cartridge.\");".into()
+    };
+    let adapter = TemplateArgsCartridge {
+        root_path: "super::__PaxSelectedRoot".into(),
+        initializer: "super::__pax_initialize".into(),
+        cartridge_snippet: snippet,
+        engine_import_path: engine.into(),
+        build_config,
+    }
+    .render_once()
+    .unwrap();
+    let facade_import = if engine.replace(' ', "") == "pax_kit::pax_engine" {
+        "use pax_kit::*;"
+    } else {
+        ""
+    };
+    output.push_str(&format!(
+        r#"
+        #[allow(unused_imports)]
+        mod __pax_cartridge {{
+            use super::*;
+            {facade_import}
+            use {engine}::*;
+            use {engine}::api::*;
+            {adapter}
+        }}
+        #[allow(unused_imports)]
+        pub use __pax_cartridge::*;
+    "#
+    ));
+    output
 }
 
 fn env_flag(name: &str) -> bool {
@@ -91,15 +198,13 @@ fn pax_primitive(
     let internal_definitions = get_internal_definitions_from_tokens(&input_parsed.data);
 
     let output = TemplateArgsDerivePax {
-        args_full_component: None,
+        cartridge: String::new(),
         internal_definitions,
         pascal_identifier,
         is_custom_interpolatable,
         is_custom_coercion_rules,
         can_derive_identity_roundtrip,
-        is_root_crate: is_root_crate(),
         _is_enum: is_enum,
-        build_config: template_build_config(),
         engine_import_path,
     }
     .render_once()
@@ -125,16 +230,14 @@ fn pax_struct_only_component(
     let internal_definitions = get_internal_definitions_from_tokens(&input_parsed.data);
 
     let output = TemplateArgsDerivePax {
-        args_full_component: None,
+        cartridge: String::new(),
 
         pascal_identifier: pascal_identifier.clone(),
         internal_definitions,
-        is_root_crate: is_root_crate(),
         is_custom_interpolatable,
         is_custom_coercion_rules,
         can_derive_identity_roundtrip,
         _is_enum: is_enum,
-        build_config: template_build_config(),
         engine_import_path,
     }
     .render_once()
@@ -370,68 +473,19 @@ fn pax_full_component(
 
     let internal_definitions = get_internal_definitions_from_tokens(&input_parsed.data);
 
-    // `PAX_DIR` is injected by `pax-cli` per project build. Read it at macro-expansion time
-    // instead of `option_env!`, because proc-macro crates are compiled once and then reused.
-    let pax_dir: Option<PathBuf> = env::var("PAX_DIR")
-        .ok()
-        // The \\?\ prefix in Windows paths is the Win32 file namespace prefix.
-        // Needs to be removed to properly check if start matches below.
-        .map(|v| v.trim_start_matches("\\\\?\\").to_string())
-        .map(PathBuf::from);
-    let current_manifest_dir = env::var("CARGO_MANIFEST_DIR")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| ".".into());
-    let build_config = template_build_config();
-    let is_root_crate = is_root_crate();
-    let needs_runtime_cartridge = is_main_component && is_root_crate;
-    let needs_runtime_target_cartridge = needs_runtime_cartridge
-        && (build_config.web || build_config.macos || build_config.ios || build_config.ipados);
-    let missing_cartridge_snippet = |reason: String| {
-        if needs_runtime_target_cartridge {
-            format!("compile_error!({reason:?});")
-        } else {
-            "".to_string()
-        }
-    };
-    // pax-engine's designtime feature propagates to this proc macro. Checking
-    // the macro's compiled feature (rather than CARGO_FEATURE_* at expansion
-    // time) provides a final backstop even when a wrapper crate activated it.
-    let release_designtime_feature_conflict = cfg!(feature = "designtime")
-        && env_flag_explicitly_disabled("PAX_BUILD_DESIGNTIME")
-        && needs_runtime_target_cartridge;
-    let cartridge_snippet = if !needs_runtime_cartridge {
-        String::new()
-    } else if release_designtime_feature_conflict {
-        "compile_error!(\"Pax release builds cannot include the `pax-engine/designtime` feature. Remove the transitive designtime feature activation or build this app in debug mode.\");".to_string()
-    } else if let Some(pax_dir) = pax_dir {
-        let cartridge_path = pax_dir.join("cartridge.partial.rs");
-        let cartridge_path = cartridge_path.to_str().unwrap_or_else(|| {
-            panic!("non-UTF-8 Pax cartridge path: {}", cartridge_path.display())
-        });
-        format!("include!({cartridge_path:?});")
-    } else if needs_runtime_cartridge {
-        missing_cartridge_snippet(format!(
-            "PAX_DIR was not set while expanding #[pax] for {}. Build Pax apps through pax-cli so the generated cartridge can be injected into #[pax].",
-            current_manifest_dir.display()
-        ))
+    let cartridge = if is_main_component {
+        render_cartridge(&pascal_identifier, initializer, &engine_import_path)
     } else {
-        "".to_string()
+        String::new()
     };
     let output = TemplateArgsDerivePax {
-        args_full_component: Some(ArgsFullComponent {
-            is_main_component,
-            cartridge_snippet,
-            initializer: initializer
-                .unwrap_or_else(|| format!("|_| Ok({}::default())", pascal_identifier)),
-        }),
+        cartridge,
         pascal_identifier,
         internal_definitions,
-        is_root_crate,
         is_custom_interpolatable,
         is_custom_coercion_rules,
         can_derive_identity_roundtrip,
         _is_enum: is_enum,
-        build_config,
         engine_import_path,
     }
     .render_once()
@@ -439,17 +493,6 @@ fn pax_full_component(
     .to_string();
 
     let ret: proc_macro2::TokenStream = TokenStream::from_str(&output).unwrap().into();
-    // Track caller environment changes in Cargo's fingerprint too. A component
-    // crate may be built standalone and as a dependency using the same target dir.
-    let ret = if is_main_component {
-        quote! {
-            const _: Option<&str> = option_env!("PAX_DIR");
-            const _: Option<&str> = option_env!("CARGO_PRIMARY_PACKAGE");
-            #ret
-        }
-    } else {
-        ret
-    };
     if !include_fix.is_none() {
         quote! {
             #include_fix
@@ -649,7 +692,7 @@ pub fn pax(
     }
     let config = parse_config(&mut input.attrs);
     if config.initializer.is_some() && !config.is_main_component {
-        return quote! { compile_error!("#[init(path)] belongs on the #[main] root component"); }
+        return quote! { compile_error!("Move #[init(path)] into runnable! { root: YourRoot, init: path }, or use it with the legacy #[main] shorthand"); }
             .into();
     }
     validate_config(&input, &config).unwrap();

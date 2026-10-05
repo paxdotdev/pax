@@ -9,8 +9,9 @@ use space_game::*;
 pub mod calculator;
 pub use calculator::Calculator;
 
+pax_kit::runnable! { root: crate::Example }
+
 #[pax]
-#[main]
 #[file("lib.pax")]
 pub struct Example {
     pub ticks: Property<usize>,

@@ -24,8 +24,9 @@ const INTEREVENT_INF: u64 = 1; // measured in number of frames
 const INTEREVENT_SUP: u64 = 4; // measured in number of frames
 const SHOW_DEBUG_MARKERS: bool = false;
 
+pax_kit::runnable! { root: crate::BreakoutGame }
+
 #[pax]
-#[main]
 #[file("lib.pax")]
 pub struct BreakoutGame {
     pub balls: Property<Vec<Ball>>,

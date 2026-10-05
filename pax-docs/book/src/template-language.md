@@ -19,14 +19,15 @@ called `Notes`, the Rust declaration can be as small as:
 ```rust
 use pax_kit::*;
 
+pax_kit::runnable! { root: crate::Notes }
+
 #[pax]
-#[main]
 #[file("lib.pax")]
 pub struct Notes {}
 ```
 
-`#[pax]` makes the type a Pax component, `#[main]` identifies the application
-root, and `#[file("lib.pax")]` names its template. Here is that template:
+`#[pax]` makes the type a Pax component, `runnable!` selects it as this
+application's root, and `#[file("lib.pax")]` names its template. Here is that template:
 
 ```pax
 <Group x=24px y=24px width=320px height=160px>

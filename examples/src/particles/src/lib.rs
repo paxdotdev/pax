@@ -7,8 +7,9 @@ use rand::random;
 mod ball;
 use crate::ball::Ball;
 
+pax_kit::runnable! { root: crate::Example }
+
 #[pax]
-#[main]
 #[file("lib.pax")]
 pub struct Example {
     pub particles: Property<Vec<Particle>>,

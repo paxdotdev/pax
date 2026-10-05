@@ -5,8 +5,9 @@ thread_local! {
     static NOTES: RefCell<notes::Loader> = RefCell::new(notes::Loader::default());
 }
 
+pax_kit::runnable! { root: crate::Example }
+
 #[pax]
-#[main]
 #[file("lib.pax")]
 pub struct Example {}
 

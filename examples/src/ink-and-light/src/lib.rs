@@ -10,8 +10,9 @@ const COMPACT_BREAKPOINT: f64 = 720.0;
 const PRESSED_SCALE: f64 = 0.987;
 const OVERSHOOT_SCALE: f64 = 1.033;
 
+pax_kit::runnable! { root: crate::Example }
+
 #[pax]
-#[main]
 #[file("lib.pax")]
 pub struct Example {
     pub is_compact: Property<bool>,

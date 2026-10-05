@@ -1,8 +1,9 @@
 use pax_kit::*;
 
+pax_kit::runnable! { root: crate::GameOfLife }
+
 #[pax]
 #[custom(Default)]
-#[main]
 #[file("templates/lib.pax")]
 pub struct GameOfLife {
     pub cells: Property<Vec<Vec<bool>>>,

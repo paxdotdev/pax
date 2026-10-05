@@ -335,10 +335,13 @@ fn compile_web_interface_artifacts(
     assets_dirs: Vec<String>,
     timings: &mut BuildTimings,
 ) -> Result<(PathBuf, &'static str), eyre::Report> {
+    let layout = crate::project_layout::ProjectLayout::resolve(&ctx.project_path)?;
+    let mut cartridge_ctx = ctx.clone();
+    cartridge_ctx.project_path = layout.cartridge_dir.clone();
     let is_release: bool = ctx.is_release;
     let is_profiling = ctx.profile_wasm_size;
 
-    crate::validate_release_cargo_feature_boundary(ctx, &["wasm32-unknown-unknown"])?;
+    crate::validate_release_cargo_feature_boundary(&cartridge_ctx, &["wasm32-unknown-unknown"])?;
 
     let build_mode_name: &str = if is_profiling {
         "profiling"
@@ -352,7 +355,7 @@ fn compile_web_interface_artifacts(
 
     // wasm-pack build
     let mut cmd = Command::new("wasm-pack");
-    cmd.current_dir(&ctx.project_path)
+    cmd.current_dir(&layout.cartridge_dir)
         .arg("build")
         .arg("--target")
         .arg("web")
@@ -366,10 +369,11 @@ fn compile_web_interface_artifacts(
                 .to_str()
                 .unwrap(),
         )
-        .arg(format!("--features={}", web_cargo_features(ctx)))
+        .arg(format!("--features={}", web_cargo_features(&cartridge_ctx)))
         .env("PAX_DIR", &pax_dir)
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit());
+    layout.configure_cartridge(&mut cmd);
     configure_pax_build_env(&mut cmd, "web", ctx.should_run_designtime);
 
     if is_profiling {
@@ -420,7 +424,7 @@ fn compile_web_interface_artifacts(
             return Err(eyre!("Error creating directory {:?}: {}", asset_dest, e));
         }
 
-        // `asset_dirs` gets collected by detecting #[pax]#[main] through compiletime
+        // Static discovery includes assets of the selected UI and its component packages.
         for asset_src in assets_dirs {
             let asset_src = PathBuf::from(asset_src);
             // Check if the asset_src directory exists before attempting the copy

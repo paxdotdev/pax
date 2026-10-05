@@ -1713,7 +1713,7 @@ fn collect_component_lifecycle_handler_names(
         }
     };
 
-    let root_module_path = source_root_module_path(rust_source_file_path)
+    let root_module_path = source_root_module_path(rust_source_file_path, target_module_path)
         .unwrap_or_else(|| target_module_path.to_string());
     let target_import_path = self_type_id
         .import_path()
@@ -1879,7 +1879,7 @@ fn type_ends_with_ident(ty: &Type, ident: &str) -> bool {
     }
 }
 
-fn source_root_module_path(rust_source_file_path: &str) -> Option<String> {
+fn source_root_module_path(rust_source_file_path: &str, target_module_path: &str) -> Option<String> {
     let path = Path::new(rust_source_file_path);
     let components = path
         .components()
@@ -1891,7 +1891,9 @@ fn source_root_module_path(rust_source_file_path: &str) -> Option<String> {
     let relative_components = &components[(src_index + 1)..];
     let file_name = relative_components.last()?;
 
-    let mut module_segments = vec!["crate".to_string()];
+    // A dependency's source still lives under its own src/, but its manifest
+    // identity is qualified by the library import name in this cartridge.
+    let mut module_segments = vec![target_module_path.split("::").next()?.to_string()];
     module_segments.extend(
         relative_components[..relative_components.len().saturating_sub(1)]
             .iter()

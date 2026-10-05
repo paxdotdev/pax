@@ -10,6 +10,8 @@ use pax_message::serde::{Deserialize, Serialize};
 pub use pax_runtime_api;
 use pax_runtime_api::{CoercionRules, HelperFunctions, Interpolatable, PaxValue, Size, ToPaxValue};
 pub mod appearance;
+#[cfg(feature = "runnable")]
+pub mod runnable;
 pub mod binary;
 #[cfg(feature = "parsing")]
 pub mod parsing;

@@ -15,8 +15,9 @@ pub use pax_logo::*;
 pub use pax_logo_board::*;
 pub use pax_logo_post::*;
 
+pax_kit::runnable! { root: crate::Example }
+
 #[pax]
-#[main]
 #[custom(Default)]
 #[file("lib.pax")]
 pub struct Example {

@@ -18,6 +18,7 @@ syn = {version = "1.0", features=["derive", "extra-traits", "full"]}
 proc-macro2 = {version = "1.0", features=["proc-macro"]}
 quote = "1.0"
 pax-runtime = {version = "0.39.0", path="../pax-runtime"}
+pax-manifest = {version = "0.39.0", path="../pax-manifest", features=["runnable"]}
 sailfish = "0.6.0"
 serde = { version = "1.0.159", features=["derive"] }
 serde_derive = "1.0.159"

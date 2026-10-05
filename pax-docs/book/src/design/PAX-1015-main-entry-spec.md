@@ -1,9 +1,9 @@
 # PAX-1015 — User-owned main and initialization
 
-Status: **Phase 1 implemented; qualification evidence below. Phase 2 has not started.**
+Status: **Phases 1 and 2 implemented; qualification evidence below. Pre-ship decisions remain open.**
 Investigated 2026-10-04; implementation qualification updated 2026-10-05.
 The investigation and API sketches below record the approved design. Section
-8’s implementation evidence distinguishes delivered APIs from future work;
+8’s implementation evidence and the phase-two qualification below distinguish delivered APIs from future work;
 canonical usage is documented in [Targets](../targets-build-deploy.md#entry-and-mounting)
 and [Events and Rust](../event-handling-rust.md#application-setup).
 
@@ -66,7 +66,7 @@ section 6; no process-to-cartridge executor ABI is added.
 Execution is split into two phases. **Phase one** proves the entry, initialization,
 mounting and lifetime refactor while retaining the current `#[main]` root
 selection and source-layout convention. **Phase two** introduces explicit
-cartridge/root declarations and qualifies nested `ui/` and separate UI-package
+runnable/root declarations and qualifies nested `ui/` and separate UI-package
 layouts after phase one's acceptance checks pass. Keep the internal initializer
 and root-adoption seam independent of the marker so phase two can change
 discovery without redesigning startup or lifetime ownership.
@@ -296,7 +296,7 @@ Phase-two proposed default source organization, not a discovery rule:
 
 ```text
 src/main.rs        process entry and host policy
-src/lib.rs         module wiring and cartridge declaration/exports
+src/lib.rs         module wiring and runnable declaration/exports
 src/ui/mod.rs      UI module and public initializer/component exports
 src/ui/app.rs      ordinary Pax root component and handlers
 src/ui/app.pax     its template
@@ -327,35 +327,31 @@ readiness, failure and disposal together for each entry.
 
 ### Root selection and coexistence with an existing codebase
 
-**Phase two, after proving phase one.** This section records the intended
-follow-up contract, not a prerequisite for the entry/lifetime refactor. Phase
-one retains `#[main]`, current package selection and template path resolution;
-it changes generated startup plumbing only as required for user-owned entry and
-typed initialization. Do not ship `pax::cartridge!`, migrate component locations,
-or claim separate UI-package qualification as part of phase-one completion.
+**Phase two, implemented after proving phase one.** Phase one retained `#[main]`,
+package selection and template path resolution while changing startup plumbing
+for user-owned entry and typed initialization. Explicit runnable declarations
+and separate UI-package qualification belong to phase two; they were not part
+of phase-one completion.
 
 Zack raised the need to make Pax a flexible neighbor in a codebase, including
 putting UI under a `ui` directory. Recommendation: separate the executable entry,
-the cartridge declaration and the root component's source location. None of
+the runnable declaration and the root component's source location. None of
 `main.rs`, `lib.rs`, `App`, `Main` or a directory name determines the UI root.
 The layout above is a starter template, not an imposed application architecture.
 
-Current source is already more nuanced than a main.rs convention:
-`examples/src/increment/src/lib.rs:6` uses `#[main]` on a component; macro
-configuration recognizes that attribute, and the active application's marked
-component injects cartridge source and platform exports. Package identity is
-checked through PAX_DIR/CARGO_MANIFEST_DIR rather than the component filename
-(`pax-macro/src/root_crate.rs`). This does not prove every arbitrary nested-root
-layout works end to end today. The change needs to decouple entry/code-generation
-ownership from the component marker, not simply rename a file.
+At the phase-one baseline, `examples/src/increment/src/lib.rs` used `#[main]`
+and the active application's marked component injected cartridge source and
+platform exports. Phase two separates that ownership from the component marker.
+Package identity now also accepts the explicitly selected cartridge library;
+its directory need not be the parent of the host's `.pax/` directory.
 
-Preferred declaration shape, illustrative and unimplemented:
+Phase-two declaration (implemented; qualification is recorded below):
 
 ```rust,ignore
 // src/lib.rs: library wiring; UI implementation remains under ui/.
 pub mod ui;
 
-pax::cartridge! {
+pax_kit::runnable! {
     root: crate::ui::App,
     init: crate::ui::init,
 }
@@ -366,8 +362,8 @@ initializer returning that root. Check their types for agreement. The declaratio
 provides explicit build-time root discovery and generates the native/web adapter
 plumbing once for the selected cartridge. Do not discover a root by executing
 main/init, scanning arbitrary runtime mount calls, guessing filenames, or requiring
-the component itself to define process entry behavior. Exact macro spelling can
-be settled with the rest of the API; the separation is the proposed contract.
+the component itself to define process entry behavior. The public spelling is `pax_kit::runnable!`; its `init:` field is optional
+and defaults to construction through `Default`.
 
 Root is a role in a selected program, not an intrinsic restriction on a component
 type. The same component can be a subtree in another application. Ordinary Rust
@@ -915,7 +911,7 @@ This is a hunk-level plan after approval, not a git revert command.
 | Area | Remove or migrate | Preserve / dependency |
 | --- | --- | --- |
 | `pax-macro/src/lib.rs`, `src/templating.rs`, `templates/derive_pax.stpl` | `#[application(Type)]` parsing, application type selection, generated hook calls | Active-root ownership, component generation, target gates, panic boundary; replace entry plumbing only after removal checkpoint |
-| Root selection and cartridge ownership | Phase one: retain `#[main]` and source layout, routing generated startup through the new initializer/root-adoption seam. Phase two: introduce explicit cartridge composition and migrate layout/root declarations | Qualified component identities, dependency isolation, normal Rust visibility and template path resolution; phase two distinguishes cartridge package from launcher package |
+| Root selection and cartridge ownership | Phase one: retain `#[main]` and source layout, routing generated startup through the new initializer/root-adoption seam. Phase two: introduce explicit runnable declarations and migrate layout/root declarations | Qualified component identities, dependency isolation, normal Rust visibility and template path resolution; phase two distinguishes cartridge package from launcher package |
 | `pax-runtime-api/src/application.rs` | `Application`, `EmptyApplication`, `AppBuilder::provide/provide_managed`, type registry, `AppContext::service`, service errors, hook function pointers | Instance phase/identity, graph, dispatcher, weak context, staged activation, cancellation, limits and error sink; decouple them from configuration |
 | `application_shutdown.rs` | Public generic service registration/ordering contract as selected in review | Tickets, retained cleanup owners, deadline diagnostics, wake-after-view-disposal, safe owner-thread destruction; currently coupled to AppInner |
 | `pax-runtime/src/api.rs`, engine/context | Registry access and obsolete lifecycle-hook routing | Node/application scopes, safe update ordering, invalidation-before-unmount, wake identities |
@@ -984,7 +980,7 @@ changing the agreed architecture.
 ### Phase two: explicit root selection and flexible source organization
 
 After phase one passes, implement the root-selection contract in section 4:
-explicit cartridge composition, ordinary reusable root components, nested
+explicit runnable declarations, ordinary reusable root components, nested
 `ui/` layout and an independently selected workspace UI cartridge package.
 Settle declaration spelling against the proven initializer seam; do not reopen
 the host/runtime ownership contract merely to change discovery syntax.
@@ -1140,8 +1136,8 @@ This is implementation/review evidence, not approval to publish or ship.
 
 The two pre-ship decisions remain open: choose the preferred run workflow, and
 coordinate any example flattening with PAX-1005's showcase/fixture organization.
-Phase two (explicit cartridge/root declarations and flexible UI package layout)
-remains deferred until review of phase one.
+Phase two (explicit runnable/root declarations and flexible UI package layout)
+was subsequently authorized and implemented; its qualification is recorded below.
 
 ## 9. Execution baseline and remaining engineering gates
 
@@ -1174,7 +1170,7 @@ The selected direction and recommended engineering defaults are consolidated her
   superseded public hooks/services selectively while retaining existing safety
   and async behavior; no wholesale revert.
 - **Phase two:** Zack requested flexible root organization as its own phase
-  after the initial refactor is proven. Then introduce explicit cartridge/root
+  after the initial refactor is proven. Then introduce explicit runnable/root
   declarations, nested `ui/` and separate UI-package support. Preserve template
   path semantics. Phase one must expose an internal seam for this work without
   requiring the phase-two public syntax or layout migration.
@@ -1306,3 +1302,146 @@ Rust startup paths do not establish a need for a separate application cdylib.
 Keeping Pax's current Apple cdylib is a Pax packaging/compatibility choice, not a
 requirement of main ownership or Tokio integration. This review does not silently
 add a second native deployment mode or a general-purpose plugin ABI.
+
+
+## Phase-two implementation and qualification — 2026-10-05
+
+Phase two is implemented. `pax_kit::runnable! { root: ..., init: ... }` owns
+cartridge injection and platform adapters; `#[pax]` owns only component behavior.
+The public declaration is named `runnable!` to describe a UI that can be launched
+or embedded; cartridge remains the name of its compiled representation and
+linkage boundary. The declaration itself does not initialize or mount the UI.
+Native launcher code uses the same facade: `pax_kit::init()?.run()`.
+`pax_kit::init_with` accepts explicit startup data; option, error and embedding
+types remain available through `pax_kit::host`.
+The launcher's `standalone` feature enables `pax-kit/host`; applications no longer
+need a direct `pax-host` dependency. The implementation crate and native ABI stay
+separate, and UI library builds leave the host feature disabled.
+The common launcher is one ordinary, three-line `main`; unsupported-target
+diagnostics live in the facade instead of repeated per-example `cfg` branches.
+A shared declaration parser is used by static discovery and macro expansion.
+Rust checks initializer/root agreement even when no platform adapter is active.
+Legacy `#[main]`/`#[init(path)]` remains available when there is no explicit
+selection; conflicting or missing roots produce a static diagnostic.
+
+The host selects a sibling workspace library with:
+
+```toml
+[package.metadata.pax.cartridge]
+package = "layout-ui"
+lib = "workspace_ui"
+```
+
+The library name is an optional consistency check. Host metadata, web public
+files and generated `.pax/` output stay with the host; UI source/template paths
+and assets belong to the selected UI package. Native builds select the host's
+standalone executable separately and use Cargo's actual target directory.
+Macro ownership is tracked explicitly in Cargo fingerprints, including when a
+previously active cartridge is reused as a dependency.
+
+Static discovery resolves nested modules and explicit public re-exports.
+Component identities use an accessible qualified path. Transitive reflected
+types must be publicly re-exported from a direct dependency, or supplied as a
+direct dependency of the consuming cartridge. Root status is assigned by the
+selected program, so another library's legacy or explicit root remains a normal
+subtree. Implicit lifecycle lookup now uses the dependency's module namespace.
+Referenced component assets are collected; conflicting paths with different
+bytes are rejected. Debug watching includes the sibling UI and referenced
+source/asset directories.
+
+`tests/src/cartridge-layouts` qualifies a host with no Rust UI dependency, a UI
+library with a custom target name, nested private modules exposed through public
+re-exports, a legacy-root component library with another custom target name, and
+a second cartridge that reuses the explicit UI root. The 49 repository examples
+now select their roots with explicit `runnable!` declarations. Example directories and launch wrappers
+have not been reorganized.
+
+Validation recorded for this phase:
+
+- Compiler: 208 unit tests; macro: 8; manifest: 13; CLI: 28. Selection diagnostics,
+  workspace metadata, watch roots, asset collisions, and rich/IR/binary/Rust
+  manifest identity and root-role preservation are covered. A separate compile
+  check rejects an initializer returning the wrong root type.
+- Workspace web builds in debug and release; the release reuse cartridge mounts
+  and both root and dependency buttons respond. The dependency's implicit mount
+  handler runs. Both UI and dependency image assets are served successfully.
+- Live edits to the sibling UI template and the dependency template reload;
+  the initialized root retains its state. Dev inspection reports the qualified
+  component identities and template paths.
+- macOS debug and universal release builds, plus native lifecycle probes in both
+  modes. The final release executable and both frameworks contain arm64 and
+  x86_64 slices and pass `codesign --verify --deep --strict`. iPhone simulator
+  debug and iPad simulator release builds and lifecycle
+  probes pass. Probes cover invalid initialization, zero-height ready, duplicate
+  mount rejection, byte requests/replies, resize, close acknowledgement, and remount.
+- A freshly generated Increment project, with dependencies pointed at this local
+  branch, builds for web and macOS without pre-existing generated Pax output.
+- AsyncWorkbench builds for release web with its typed initializer and executor
+  resources, using the explicit runnable declaration.
+- The broader manifest integration suite has 49 passing tests and three existing
+  failures: `test_default_route_metadata_cannot_be_indexable`,
+  `test_route_metadata_rejects_duplicate_fields`, and
+  `test_type_qualified_object_constructor_remains_supported`. An isolated build
+  of unchanged HEAD reproduces all three; their route/object parser expectations
+  are outside this phase. The lifecycle integration cases pass.
+- Canonical articles, README and CLI help are updated. API reference regeneration,
+  bundled example synchronization, mdBook build and publication-link checks run.
+
+No physical-device, distribution signing or notarization claim is added by these
+checks. Phase one's executor/lifetime contract is unchanged. The pre-ship
+run-command decision and PAX-1005 example classification/path migration remain
+explicitly deferred to the checkpoint above. Git commits remain Zack's.
+
+
+### Application matrix spot checks — 2026-10-05
+
+A follow-up using Calculator, Paxflix and Living Quilt found an ordinary
+single-package launcher regression missed by the workspace fixture. Enabling
+`pax-kit/host` also reaches the library Cargo builds alongside that package's
+binary. Passing `-L framework=...` only after `cargo rustc --` left that cdylib
+unable to find PaxHost. The launcher now supplies `PAX_HOST_FRAMEWORK_DIR` to
+`pax-host`'s build script, which propagates the framework search path to all
+consuming targets. All three macOS debug builds and the selected mobile debug
+and release builds below pass with this correction. The packaged Calculator
+cartridge has no PaxHost dependency; the launcher links PaxHost.
+
+| Application | Web release: full-page / embedded | macOS debug: standalone / embedded | Mobile spot check: standalone / embedded |
+| --- | --- | --- | --- |
+| Calculator | Rendered; keypad `2+3=5`; embedded resize, close, host counter and remount pass | Launch and keypad arithmetic pass; corrected initial graph centers in both hosts; embedded zoom, drag, resize, collapse/restore and remount pass | iPhone 17 Pro, iOS 26.4, debug: centered graph renders; API lifecycle probe passes; Zack confirms taps work |
+| Paxflix | Artwork and detail interaction pass; embedded resize, close, host counter and remount pass | Artwork and detail interaction pass; embedded resize, close, host counter and remount pass | iPad Pro 11-inch (M5), iOS 26.4, release: artwork renders; API lifecycle probe passes |
+| Living Quilt | Rendering and click ripple observed; embedded resize, close, host counter and remount pass | Animation and click ripple observed; embedded resize, close, host counter and remount pass | iPhone 17 Pro, iOS 26.4, release: renders; API lifecycle probe passes |
+
+Direct calls to the packaged macOS executables launched Calculator and Paxflix.
+`pax-cli run` launched Living Quilt on macOS, Calculator on web (debug), Paxflix
+on iPad, and Living Quilt on iPhone. Calculator's iPhone build was separately
+installed and launched with `simctl`. This is coverage across the requested
+axes, not every Cartesian combination of application, target, build profile,
+host mode and launch mechanism. A browser has no direct native executable;
+simulator apps use installation and platform launch. Android remains
+unimplemented, and physical devices were not tested.
+
+The native separate-host checks use the Swift fixture and public host ABI.
+The new lifecycle-probe `--sample` mode avoids requiring Workbench's custom
+initializer and request protocol. It checks duplicate rejection, readiness at
+zero height, expansion, continued host-loop execution, close acknowledgement,
+and remount followed by collapsed close. Automated mobile touch interaction is
+unverified: the computer-use tool captured device windows but rejected tap coordinates with
+`windowNotFoundAtPosition`. This is an automation limitation, not a successful
+touch check. Zack subsequently confirmed Calculator clicks on macOS and taps
+on iPhone, and confirmed hardware keys do not update either editor. Inspection
+establishes that the global keyboard bridge exists only on web; native text
+controls retain their own input paths. Proper macOS/iOS global key routing and
+focus ownership remain a separate capability to implement and qualify.
+
+The Calculator macOS graph initially opened near x=-256, y=256 and reported
+`NO RESOLVED CURVE` in both standalone and caller-owned hosts. AppKit's
+backing-pixel alignment of fractional placement emitted bounds notifications
+before the scroll viewport's initial layout; Pax misclassified those as native
+scroll input and replaced the authored center. Geometry updates now suppress
+that feedback, empty/uninitialized viewports and size-only notifications are
+ignored, and requested positions survive temporary content clamping. The
+corrected graph is visually verified in both host modes. All 48 shared Swift
+tests pass; four focused scroller regressions also pass with optimization,
+including fractional placement, content shrink/growth, offsets arriving before
+geometry, and continued native scroll reporting. This does not establish a
+physical-device pass or native hardware-key support.

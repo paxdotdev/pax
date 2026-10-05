@@ -5,8 +5,9 @@ use pax_kit::*;
 const MAX_VISIBLE_PHOTOS: usize = 4;
 const PHOTO_ROW_HEIGHT: f64 = 112.0;
 
+pax_kit::runnable! { root: crate::Example }
+
 #[pax]
-#[main]
 #[file("lib.pax")]
 pub struct Example {
     pub photos: Property<Vec<PickedPhoto>>,

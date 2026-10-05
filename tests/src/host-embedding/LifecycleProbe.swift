@@ -11,6 +11,8 @@ typealias ProbeView = UIView
 
 final class LifecycleProbe {
     let region = ProbeView(frame: .zero)
+    // Sample cartridges need no Workbench-specific initializer or request API.
+    private let sample = CommandLine.arguments.contains("--sample")
     weak var controller: AnyObject?
     private var handle: UnsafeMutableRawPointer?
     private var generation = 0
@@ -18,17 +20,21 @@ final class LifecycleProbe {
     private let deadline = Date().addingTimeInterval(15)
 
     func start() {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 15) { self.fail("lifecycle acknowledgement timed out") }
+        if sample {
+            prepareWhenCleanupAcknowledges()
+            return
+        }
         // This initializer creates its executor before decoding the invalid data.
         let invalid = Array("invalid counter".utf8)
         let failed = invalid.withUnsafeBufferPointer { pax_host_prepare_with_data($0.baseAddress, $0.count) }
         require(failed == nil, "failed initializer returned a session")
         print("PASS failed initialization reported")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 15) { self.fail("lifecycle acknowledgement timed out") }
         prepareWhenCleanupAcknowledges()
     }
 
     private func prepareWhenCleanupAcknowledges() {
-        let bytes = Array("7".utf8)
+        let bytes = sample ? [] : Array("7".utf8)
         guard let prepared = bytes.withUnsafeBufferPointer({ pax_host_prepare_with_data($0.baseAddress, $0.count) }) else {
             require(Date() < deadline, "failed initialization retained its mount reservation")
             // Test-only bounded retry observes the host's independent cleanup;
@@ -52,7 +58,19 @@ final class LifecycleProbe {
         if phase == 2 {
             require(region.bounds.height == 0, "initial region was not collapsed")
             print("PASS generation \(generation) ready while collapsed")
-            request()
+            if sample {
+                // Allow the real host loop to render after expansion, then
+                // close one expanded mount and one collapsed replacement.
+                region.frame.size = CGSize(width: region.superview?.bounds.width ?? 640, height: 400)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                    guard let handle = self.handle else { self.fail("sample mount disappeared") }
+                    if self.generation == 2 { self.region.frame.size.height = 0 }
+                    print("PASS sample host loop advanced after resize")
+                    pax_host_close(handle)
+                }
+            } else {
+                request()
+            }
         } else if phase == 4 {
             guard let handle else { fail("duplicate closed notification") }
             self.handle = nil

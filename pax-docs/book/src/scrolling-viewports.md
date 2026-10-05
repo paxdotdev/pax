@@ -140,13 +140,21 @@ the offsets together with the content extent when zooming. Keep requested
 offsets inside the available range; active native gestures and platform
 bounce still control their normal interaction behavior.
 
+On Apple hosts, content-size changes preserve the requested position while
+clamping the visible viewport to the available content. If the content grows
+again, that requested position becomes visible again unless native scrolling
+or an application write has replaced it. macOS layout and backing-pixel
+alignment do not count as user scrolling: mounting or moving a fractionally
+positioned Scroller must not reset its bound offsets.
+
 In `src/lib.rs`:
 
 ```rust
 use pax_kit::*;
 
+pax_kit::runnable! { root: crate::Example }
+
 #[pax]
-#[main]
 #[file("lib.pax")]
 pub struct Example {
     pub scroll_y: Property<f64>,

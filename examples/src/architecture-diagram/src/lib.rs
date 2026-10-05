@@ -85,8 +85,9 @@ pub struct AssemblyData {
     pub h: f64,
 }
 
+pax_kit::runnable! { root: crate::ArchitectureDiagram }
+
 #[pax]
-#[main]
 #[file("lib.pax")]
 pub struct ArchitectureDiagram {
     pub parts: Property<Vec<PartData>>,

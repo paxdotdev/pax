@@ -13,8 +13,9 @@ const INITIAL_CELLS: usize = 7;
 const INITIAL_HUE: f64 = 188.0;
 const TILE_HEIGHT: f64 = 56.0;
 
+pax_kit::runnable! { root: crate::Example }
+
 #[pax]
-#[main]
 #[file("lib.pax")]
 pub struct Example {
     pub cells: Property<Vec<CellData>>,

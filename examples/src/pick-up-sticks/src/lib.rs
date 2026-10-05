@@ -11,8 +11,9 @@ const REMOVAL_FRAMES: u64 = 18;
 const COLLAPSE_FRAMES: u64 = 42;
 const LOCK_BUFFER_FRAMES: u64 = 4;
 
+pax_kit::runnable! { root: crate::PickUpSticks }
+
 #[pax]
-#[main]
 #[file("lib.pax")]
 pub struct PickUpSticks {
     pub sticks: Property<Vec<Stick>>,

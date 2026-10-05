@@ -4,8 +4,9 @@ use crate::slot_particles::SlotParticles;
 use pax_kit::*;
 use fireworks::*;
 
+pax_kit::runnable! { root: crate::Example }
+
 #[pax]
-#[main]
 #[file("lib.pax")]
 pub struct Example {}
 

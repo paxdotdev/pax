@@ -82,8 +82,9 @@ rotation from `count`, while the click binding routes an event to Rust:
 // src/lib.rs
 use pax_kit::*;
 
+pax_kit::runnable! { root: crate::Counter }
+
 #[pax]
-#[main]
 #[file("lib.pax")]
 pub struct Counter {
     pub count: Property<usize>,

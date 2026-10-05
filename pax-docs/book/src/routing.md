@@ -76,8 +76,9 @@ Here is a small two-page application. In `src/lib.rs`:
 ```rust
 use pax_kit::*;
 
+pax_kit::runnable! { root: crate::App }
+
 #[pax]
-#[main]
 #[file("lib.pax")]
 pub struct App {}
 ```

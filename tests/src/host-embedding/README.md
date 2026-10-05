@@ -65,3 +65,21 @@ close acknowledgement, and fresh-state replacement followed by collapsed close.
 A 15-second deadline fails the test. It drives no engine/shutdown pump itself.
 This supplements the interactive fixture; it does not test visual appearance,
 keyboard/IME, accessibility, or physical-device lifecycle.
+
+For an ordinary example without Workbench's startup-data decoder or request
+handler, launch the probe with `--sample`:
+
+```sh
+python3 tests/src/host-embedding/build.py \
+  'examples/src/calculator/.pax/build/debug/ios/app/Pax iOS (Development).app' \
+  /tmp/calculator-host-probe.app ios-simulator probe
+xcrun simctl install <UDID> /tmp/calculator-host-probe.app
+xcrun simctl launch --console <UDID> dev.pax.host-lifecycle-probe --sample
+```
+
+This mode checks preparation, duplicate rejection, zero-height readiness,
+expansion, continued host-loop execution, close acknowledgement, and a second
+mount closed after collapsing it. It skips the Workbench-specific failed-init
+and counter request assertions. It does not qualify visual appearance or touch
+delivery; inspect the actual sample separately. The same `--sample` argument
+works when calling the macOS probe executable directly.

@@ -6,9 +6,9 @@ use application::WorkbenchResources;
 #[allow(unused_imports)]
 use request_panel::RequestPanel;
 
+pax_kit::runnable! { root: crate::AsyncWorkbench, init: application::init }
+
 #[pax]
-#[main]
-#[init(application::init)]
 #[file("lib.pax")]
 pub struct AsyncWorkbench {
     #[pax(rust)]

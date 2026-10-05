@@ -12,8 +12,9 @@ const FOOTER_GAP: f64 = 28.0;
 const FOOTER_HEIGHT: f64 = 34.0;
 const BOTTOM_PADDING: f64 = 40.0;
 
+pax_kit::runnable! { root: crate::Example }
+
 #[pax]
-#[main]
 #[file("lib.pax")]
 pub struct Example {
     pub rows: Property<Vec<GlowButtonRow>>,

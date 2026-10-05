@@ -26,8 +26,9 @@ pub use wave::*;
 const MAX_LIVE_RIPPLES: usize = 5;
 const IDLE_TILE_MS: u64 = 500;
 
+pax_kit::runnable! { root: crate::Example }
+
 #[pax]
-#[main]
 #[file("lib.pax")]
 pub struct Example {
     pub is_compact: Property<bool>,

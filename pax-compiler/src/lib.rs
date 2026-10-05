@@ -19,6 +19,7 @@ mod cartridge_generation;
 pub mod dev_session;
 pub mod helpers;
 mod hot_reload;
+mod project_layout;
 pub mod project_metadata;
 mod route_metadata;
 pub mod static_analysis;
@@ -319,6 +320,13 @@ fn prepare_cartridge_sources_with_timings(
     timings: &mut BuildTimings,
 ) -> eyre::Result<PreparedCartridgeSources, Report> {
     validate_release_feature_boundary(ctx)?;
+    let layout = project_layout::ProjectLayout::resolve(&ctx.project_path)?;
+    if !layout.exports_cartridge {
+        return Err(eyre!(
+            "Selected cartridge library `{}` needs crate-type = [\"rlib\", \"cdylib\"]",
+            layout.library_name
+        ));
+    }
 
     if ctx.target == RunTarget::Web {
         timings.record("web interface", || ensure_default_web_interface_bundle(ctx));
@@ -340,7 +348,7 @@ fn prepare_cartridge_sources_with_timings(
 
     let mut userland_manifest = timings.record("manifest", || {
         static_analysis::build_manifest_with_options(
-            &ctx.project_path,
+            &layout.cartridge_dir,
             static_analysis::BuildManifestOptions {
                 is_designtime: ctx.should_run_designtime,
             },
@@ -1737,12 +1745,12 @@ mod tests {
             .parse::<toml_edit::Document>()
             .unwrap();
         assert_created_debug_profile(&override_manifest, "counter-app", "increment");
-        let host = &override_manifest["target"]
-            ["cfg(any(target_os = \"macos\", target_os = \"ios\"))"]["dependencies"]["pax-host"];
-        assert_eq!(host["version"].as_str(), Some("9.8.7"));
-        assert!(host.get("path").is_none());
-        assert_eq!(host["optional"].as_bool(), Some(true));
-        assert!(override_project.join("src/main.rs").is_file());
+        assert_eq!(
+            override_manifest["features"]["standalone"][0].as_str(),
+            Some("pax-kit/host")
+        );
+        let main = fs::read_to_string(override_project.join("src/main.rs")).unwrap();
+        assert!(main.contains("pax_kit::init()?.run()"));
         assert_eq!(
             override_manifest["package"]["default-run"].as_str(),
             Some("counter-app")

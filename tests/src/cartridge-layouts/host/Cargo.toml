@@ -1,0 +1,23 @@
+[package]
+name = "layout-host"
+version = "0.1.0"
+edition = "2021"
+default-run = "layout-host"
+
+[package.metadata.pax]
+title = "Workspace cartridge"
+
+[package.metadata.pax.cartridge]
+package = "layout-ui"
+lib = "workspace_ui"
+
+[features]
+standalone = ["pax-kit/host"]
+
+[[bin]]
+name = "layout-host"
+path = "src/main.rs"
+required-features = ["standalone"]
+
+[dependencies]
+pax-kit = { path = "../../../../pax-kit" }

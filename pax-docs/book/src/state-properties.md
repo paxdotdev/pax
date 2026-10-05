@@ -30,8 +30,9 @@ the Rust component that owns its template:
 ```rust
 use pax_kit::*;
 
+pax_kit::runnable! { root: crate::Notes }
+
 #[pax]
-#[main]
 #[file("lib.pax")]
 pub struct Notes {
     pub title: Property<String>,

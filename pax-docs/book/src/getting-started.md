@@ -233,8 +233,8 @@ Open the project in your editor. These are the main roles to recognize:
 | File or directory | What it contains |
 | --- | --- |
 | `Cargo.toml` | The Rust package definition, dependencies, and optional Pax project metadata. |
-| `src/main.rs` | Native process entry; uses `pax-host` to prepare the cartridge and run the Apple host. |
-| `src/lib.rs` | Library/cartridge with the selected `#[main]` component and optional `#[init(function)]`. |
+| `src/main.rs` | Native process entry; calls `pax_kit::init()?.run()` to prepare and launch the UI. |
+| `src/lib.rs` | Library that declares `pax_kit::runnable! { root: ..., init: ... }` and exports its UI modules. |
 | Rust source (`.rs`) | Component definitions, application state, event handlers, and other application logic. |
 | Pax templates (`.pax`) | UI elements, layout, styles, expressions, and bindings to event handlers. Templates can also be embedded in Rust source. |
 | `assets/`, when present | Application media such as images and fonts. |
@@ -252,8 +252,8 @@ never auto-launch the app. Continue using `pax-cli run` for a complete build;
 plain `cargo run` alone does not generate or package the host framework.
 See [application setup](event-handling-rust.md#application-setup) for typed root
 construction and [entry and mounting](targets-build-deploy.md#entry-and-mounting)
-for platform details. The root remains in its existing source location; source
-organization changes are a later phase.
+for platform details. Components can live in a nested `ui/` module or a separate
+workspace library; see [declare a runnable UI](components-composition.md#declare-a-runnable-ui).
 
 ## Make a first edit
 
