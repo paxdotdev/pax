@@ -1,7 +1,7 @@
 <a id="event-handling--rust-logic"></a>
 
 # Events and Rust
-<!-- summary: Connect interactions to Rust handlers; configure application services, scoped async work, and Tokio without owning main. -->
+<!-- summary: Connect interactions to Rust handlers; initialize roots, own dependencies, and start scoped async work with explicit executors. -->
 <!-- tags: events, rust, lifecycle, input, application, services, async, tokio -->
 
 A template describes how an interface responds to its state. An event handler
@@ -12,7 +12,7 @@ This chapter continues the Field notes panel from
 [Properties](state-properties.md#reading-and-updating-state). We will look
 closely at its button handler, add a title editor and a keyboard shortcut,
 then explore lifecycle and custom interactions. The final sections cover
-[application setup and services](#application-setup) and
+[application setup and ownership](#application-setup) and
 [asynchronous work with Tokio](#asynchronous-work). The examples use the same
 `Notes` component and its `title` and `progress` properties; the complete
 starting declaration and template are in Properties. Keep `use pax_kit::*;`
@@ -596,99 +596,97 @@ not produce activation on release.
 
 ## Application setup
 
-Pax's generated host owns process startup. Use an application hook to configure
-shared dependencies before the root is constructed: configuration, a data
-client, a cache, or an executor. Application services work in synchronous apps,
-too; using this facility does not require Tokio.
+Native applications own a normal Rust `fn main` on macOS, iOS and iPadOS.
+The small `pax-host` SDK prepares the separate UI cartridge and enters the
+platform host loop. Web pages explicitly call `Pax.init_web`; importing a
+component library does not launch an app. See [entry and mounting](targets-build-deploy.md#entry-and-mounting)
+for Cargo targets, supplied host views and browser elements.
 
-The active root selects the hook type with `#[application(Type)]`:
+Inside the cartridge, select an ordinary typed initializer with `#[init(path)]`:
 
 ```rust
 use pax_kit::*;
 
 #[pax]
 #[main]
-#[application(NotesApplication)]
+#[init(init_notes)]
 #[file("lib.pax")]
 pub struct Notes { pub title: Property<String> }
 
-pub struct NotesApplication;
-pub struct NotesConfig { pub title: String }
-
-impl Application for NotesApplication {
-    fn configure(app: &mut AppBuilder) -> AppResult {
-        app.provide(NotesConfig { title: "Field notes".into() })?;
-        Ok(())
-    }
-}
-
-impl Notes {
-    pub fn on_mount(&mut self, ctx: &NodeContext) {
-        let config = ctx.application().service::<NotesConfig>().unwrap();
-        self.title.set(config.title.clone());
-    }
+fn init_notes(cx: &InitContext) -> AppResult<Notes> {
+    let _target = cx.target;
+    Ok(Notes { title: Property::new("Field notes".into()) })
 }
 ```
 
-Bind `@mount: on_mount` in the root template. Configuration runs once before
-root defaults and mounting. The host calls the optional `started(&AppContext)`
-hook after activation, and `stopping(&AppContext, StopReason)` during teardown.
-A dependency's `#[main]` component does not configure another application when
-embedded. A remounted child uses its existing application's services.
+The initializer runs once on the UI owner thread, inside the application's
+property graph. Pax mounts the returned value itself: it does not serialize it
+or create another default root. Without `#[init]`, the selected root uses
+`Default::default()`. A dependency's `#[main]` component does not initialize or
+launch another application. The root marker and component source location are
+unchanged in this phase.
+
+Keep initialization prompt. Return a real Loading root, stage asynchronous work
+through an explicit executor, and update its properties when that work completes.
+Neither returning a Loading root nor awaiting host readiness waits for the data
+request. Synchronous blocking code in the initializer still blocks the host
+thread. Target facts are available during initialization; actual viewport bounds
+are established by mounting.
 
 ### Services and application lifetime
 
-`app.provide(value)` registers one service per concrete Rust type. Every
-component in that application can look it up through
-`ctx.application().service::<T>()`; a missing type returns `ServiceError`.
-Duplicate registrations are rejected. Use distinct wrapper types if an
-application needs two instances with different roles. Registrations are fixed
-after configuration; put changing state inside the service, for example in
-shared `Property` values or UI-local interior mutability.
-
-Choose the owner according to the lifetime you need:
+Dependencies are ordinary Rust fields, constructor inputs or lexical component
+stores. Mark a field `#[pax(rust)]` when it owns a Rust value that must stay out of
+the template value system, reflection and baked program data. Such fields still
+need the component's usual `Clone`, `Debug` and `Default` behavior; an
+`Option<Rc<Resources>>` is useful for resources supplied by the initializer.
+The field cannot be bound from a template or reconstructed from serialized Pax
+values. See the [Async Workbench source](#try-async-workbench) for a complete
+portable example.
 
 | Owner | Suitable state | Lifetime |
 | --- | --- | --- |
-| Component properties | A view's presentation and interaction state | Component instance |
-| Lexical local store | Dependencies shared within a component subtree | Providing node |
-| Application service | Configuration, shared data clients, executors | Application instance, across child remounts |
+| Component properties | Presentation and interaction state | Component instance |
+| Lexical local store | Dependencies shared within a subtree | Providing node |
+| Initialized root fields | Configuration, clients, shared state, executor clients | Application instance, across child remounts |
 
-Service lookups return local `Rc` handles. The service itself does not need to
-be `Send` or `Sync`; extract a transferable client or shared property before
-starting native worker work. Cloned `AppContext` values are weak and do not keep
-a closed application alive. A service may be read during unmount and stopping.
-See [shared and local properties](state-properties.md#property-handles) for the
-thread boundary and [component stores](components-composition.md) for subtree
-scoping.
+The root can provide a cloned dependency to descendants with a lexical `Store`.
+See [component stores](components-composition.md) and the
+[shared/local property boundary](state-properties.md#property-handles).
+`ctx.application()` exposes weak lifetime and cancellation access; it provides
+no dependency lookup. Cloning it does not keep a closed application active.
 
-All application hooks run synchronously on the UI thread. Keep setup prompt;
-start network work through a service once a suitable scope exists. A
-configuration error prevents the new application from activating. A plain
-service must also have a prompt, synchronous destructor.
+Migration: replace `#[application(Type)]` and its `Application` implementation
+with `#[init(function)]`. Construct and return the root in that function; replace
+`AppBuilder::provide` and `AppContext::service` with ordinary fields, explicit
+arguments or lexical stores. Move UI-specific work from `started` into the root's
+mount handler. There is no replacement lifecycle-hook trait.
 
 ### Managed service shutdown
 
-Use `provide_managed` for services whose cleanup may wait. A managed service
-returns a `ShutdownTicket` immediately. Pax invalidates work first, calls
-`stopping`, then starts managed cleanup in reverse registration order, waiting
-for each acknowledgement before its earlier dependencies. Register dependencies
-before dependents. The default two-second deadline reports unfinished cleanup;
-it does not pretend a blocked task stopped or release its dependencies. Native
-cartridges remain loaded while retired code may still run. Task error reporting
-continues while managed shutdown retains the application; an error sink must
-not access detached UI state once the application is Closing.
+Executor adapters retain their cleanup owners with the application. Closing
+first invalidates work and unmounts the tree, then starts asynchronous cleanup.
+The supplied root and its Rust dependencies remain allocated until cleanup
+acknowledges completion. The two-second diagnostic deadline reports unfinished
+cleanup; it never pretends a blocked task stopped. An `AppContext::closed()`
+observer does not drive cleanup, and dropping it does not stop host wakeups.
+Native cartridge code stays loaded while it can still be used.
+
+Ordinary Rust destructors must return promptly. Pax does not turn arbitrary
+blocking `Drop` implementations into asynchronous cleanup. Task error reporting
+continues during retained shutdown; its sink must avoid detached UI once the
+application is Closing.
 
 ## Asynchronous work
 
-Event handlers remain synchronous: they start work and return so input and
-rendering can continue. Pax tracks that work against an application, node, or
-operation lifetime and wakes the UI when a result is ready. There is no need
-for a custom `main`, an async event handler, or an `@tick` that polls a channel.
+Event handlers start work and return so input and rendering can continue. Pax
+tracks work against an application, node or operation lifetime and wakes the UI
+when results are ready. Do not poll a channel from `@tick` or block the UI loop
+with `Runtime::block_on`.
 
 ### Set up Tokio
 
-Add the optional adapter under your application's native Cargo dependencies:
+Add the adapter under the application's native dependencies:
 
 ```toml
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
@@ -696,44 +694,43 @@ pax-tokio = "0.39.0"
 tokio = { version = "1", features = ["rt-multi-thread", "time", "net"] }
 ```
 
-Extend the earlier application's `configure` method to register an owned
-runtime alongside its existing services:
+You construct and configure the exact runtime. The adapter does not initialize
+another Tokio instance. In a native root initializer:
 
 ```rust
-#[cfg(not(target_arch = "wasm32"))]
-impl Application for NotesApplication {
-    fn configure(app: &mut AppBuilder) -> AppResult {
-        let runtime = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(2)
-            .enable_all()
-            .build()?;
-        app.provide_managed(pax_tokio::TokioService::owned(runtime)?)?;
-        app.provide(NotesConfig { title: "Field notes".into() })?;
-        Ok(())
-    }
+fn init_notes(cx: &InitContext) -> AppResult<Notes> {
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .worker_threads(2)
+        .enable_all()
+        .build()?;
+    let executor = pax_tokio::Executor::owned(runtime, cx.lifetime())?;
+    Ok(Notes {
+        title: Property::new("Loading".into()),
+        executor: Some(executor),
+    })
 }
 ```
 
-A synchronous handler can start a request without an async `main` or `block_on`:
+For this variant, add `#[pax(rust)] pub executor: Option<pax_tokio::Executor>`
+to `Notes`. A synchronous handler can then use that explicitly supplied client:
 
 ```rust
-#[cfg(not(target_arch = "wasm32"))]
 impl Notes {
     pub fn load_title(&mut self, ctx: &NodeContext, _: Event<ButtonClick>) {
-        let service = ctx.application()
-            .service::<pax_tokio::TokioService>().unwrap();
-        service.for_node(ctx).unwrap().spawn_into(&self.title, async {
-            tokio::time::sleep(std::time::Duration::from_millis(600)).await;
-            "Ready".to_owned()
-        }).unwrap();
+        self.executor.as_ref().unwrap().for_node(ctx).unwrap()
+            .spawn_into(&self.title, async {
+                tokio::time::sleep(std::time::Duration::from_millis(600)).await;
+                "Ready".to_owned()
+            }).unwrap();
     }
 }
 ```
 
 Bind a Button's `@button_click=self.load_title` to try it. Construct Tokio I/O
-and timers inside the async block, where the executor is active. The adapter
-uses an explicit runtime handle; Pax does not enter Tokio around ordinary UI
-handlers, so calling free-standing `tokio::spawn` there is not the setup pattern.
+and timers inside the async block, where its executor is active. UI callbacks
+do not implicitly enter Tokio; free-standing `tokio::spawn` in such a callback
+is not the integration pattern. The portable Workbench selects the appropriate
+executor through a target-specific module.
 
 ### Choose ownership and result delivery
 
@@ -751,13 +748,13 @@ execution instead.
 usually receives that button's context. For component lifetime, retain a bound
 helper or scope from the component's `on_mount`, for example in a lexical local
 store. `for_application(&app)` deliberately selects application lifetime.
-Neither an `Rc` service handle, `NodeContext`, nor `LocalProperty` can be sent
+Neither an `Rc` dependency handle, `NodeContext`, nor `LocalProperty` can be sent
 into a native task; native task futures must be `Send + 'static`.
 
 For replaceable requests, retain an operation scope. Calling
 `owner.replace(&mut previous, &result, loading_state)` revokes the previous
 operation before publishing the new loading state and allocating its successor.
-Pass the resulting scope to `service.for_scope(scope)`. Explicit cancellation
+Pass the resulting scope to `executor.for_scope(scope)`. Explicit cancellation
 likewise calls `scope.cancel()` before setting a Cancelled result. The workbench
 contains a retained stale producer that ignores cancellation and still cannot
 publish into its replacement.
@@ -783,7 +780,7 @@ discarded if the lifetime closes before delivery. Callbacks run after structural
 settlement and settle their writes before the next callback; queued work cannot
 call back into a node that was just removed.
 
-`AppBuilder::async_limits` bounds resource counts. Defaults are 1,024 scopes,
+Pax bounds asynchronous resource counts. Defaults are 1,024 scopes,
 tasks, publishers and endpoints each, 4,096 total message slots, and capacity
 32 for `default_channel`. Dispatch rotates ready channels and uses at most 64
 callbacks or two milliseconds per turn. A slow callback cannot be preempted;
@@ -799,24 +796,25 @@ window close or canvas disposal does.
 
 ### Runtime ownership and target limits
 
-`TokioService::owned` accepts a multithread runtime and moves its eventual
+`Executor::owned` accepts a multithread runtime and moves its eventual
 destruction to an owner thread. A started `spawn_blocking` job cannot be forcibly
 aborted, so shutdown may remain pending until it finishes. Bound blocking work
-and use cooperative cancellation. `TokioService::borrowed(handle)` leaves the
+and use cooperative cancellation. `Executor::borrowed(handle, lifetime)` leaves the
 runtime alive; its external owner must continuously drive it and keep it alive
 through adapter shutdown. A dedicated service thread can drive a current-thread
 runtime and a `LocalSet`, keeping its non-Send state on that thread. This does
-not make UI nodes transferable. Register that driver before the borrowed
-adapter so the adapter shuts down first.
+not make UI nodes transferable. The external driver must outlive the adapter's cleanup acknowledgement.
+A Rust `Runtime` or `Handle` can be shared only within the same Rust linkage
+boundary; do not pass it from the native launcher through the cartridge C ABI.
 
 The adapter's raw `handle()` is available for advanced integrations. Tasks
 spawned through it bypass Pax staging, tracking and scope cancellation. Scoped
-tasks registered during candidate mounting wait until activation; discarding a
-candidate never starts them. Pax-only reload preserves application services,
-while actual node unmounts cancel their scopes. Logic replacement owns a new
-application and revokes old work before enabling the new instance.
+tasks created during initialization or mounting wait until host activation.
+Discarding preparation never starts them. Pax-only reload preserves the
+initialized root and its dependencies; actual node unmounts cancel their scopes.
+Rust changes require rebuilding and restarting.
 
-Browser applications can register `pax_web_async::BrowserService::default()`
+Browser initializers can construct `pax_web_async::Executor::new(cx.lifetime())?`
 under Wasm-only dependencies and use the same bound helper methods. Browser
 futures need not be Send. They run on the browser thread and use browser timers
 and fetch, not desktop Tokio drivers. Dropping a future only cancels its Rust
@@ -855,20 +853,20 @@ Use the fixture to explore ownership and delivery:
    after its authority has been revoked.
 3. Start work and **Cancel**, or **Unmount** the panel. Unmount discards the
    panel's local state and revokes pending results. Remount creates fresh panel
-   state and scopes; the application-owned counter, history, and services remain.
+   state and scopes; the application-owned counter, history, and dependencies remain.
 4. Choose **Stream 100 events**. The bounded channel delivers ordered events;
    a full buffer is handled explicitly rather than dropping arbitrary messages.
 5. Choose **Run local I/O**. Native performs a loopback TCP exchange; web fetches
    its bundled sample. **Local callback** demonstrates ordinary-thread completion
    into UI-local state.
 
-Start reading `src/application.rs` for hooks and application data,
+Start reading `src/application.rs` for the initializer and application data,
 `src/work_service.rs` for executor setup and platform I/O, and
 `src/request_panel.rs` for scoped requests, cancellation, and delivery. The
 fixture's README records debug/release qualification and remaining target limits;
 its existence is not a claim that every mobile lifecycle scenario has passed.
 
-API details: [application services](api/pax-runtime-api/application.md),
+API details: [application lifetime](api/pax-runtime-api/application.md),
 [managed shutdown](api/pax-runtime-api/application_shutdown.md),
 [async scopes and delivery](api/pax-runtime-api/async_runtime.md),
 [Tokio adapter](api/pax-tokio/index.md), and

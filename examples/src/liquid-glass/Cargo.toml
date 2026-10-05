@@ -2,7 +2,7 @@
 name = "liquid-glass"
 version = "0.39.0"
 edition = "2021"
-default-run = "run"
+default-run = "liquid-glass"
 
 [dependencies]
 pax-kit = { version = "0.39.0", path="../../../pax-kit" }
@@ -21,3 +21,14 @@ opt-level = 1
 
 [profile.dev.package.liquid-glass]
 opt-level = 0
+
+[features]
+standalone = ["dep:pax-host"]
+
+[[bin]]
+name = "liquid-glass"
+path = "src/main.rs"
+required-features = ["standalone"]
+
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+pax-host = { version = "0.39.0", path = "../../../pax-host", optional = true }

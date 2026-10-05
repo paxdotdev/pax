@@ -50,6 +50,7 @@ pub const ALL_PKGS: &[&str] = &[
     "pax-compiler",
     "pax-designtime",
     "pax-kit",
+    "pax-host",
     "pax-runtime",
     "pax-runtime-api",
     "pax-engine",
@@ -546,40 +547,52 @@ pub fn set_path_on_pax_dependencies(full_path: &Path) {
         .expect("Failed to write modified Cargo.toml");
 }
 
-pub fn update_pax_dependency_versions(doc: &mut Document, ctx_version: &str) {
-    if let Some(deps) = doc
-        .as_table_mut()
-        .entry("dependencies")
-        .or_insert_with(toml_edit::table)
-        .as_table_mut()
-    {
-        let keys: Vec<String> = deps
-            .iter()
-            .filter_map(|(key, _)| {
-                if key.starts_with("pax-") {
-                    Some(key.to_string())
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        for key in keys {
-            let dep_entry = deps.get_mut(&key).unwrap();
-
-            if let toml_edit::Item::Value(toml_edit::Value::InlineTable(ref mut dep_table)) =
-                dep_entry
+pub(crate) fn for_each_dependency_mut(
+    doc: &mut Document,
+    mut visit: impl FnMut(&str, &mut toml_edit::Item) -> Result<(), String>,
+) -> Result<(), String> {
+    fn section(
+        table: &mut dyn toml_edit::TableLike,
+        visit: &mut impl FnMut(&str, &mut toml_edit::Item) -> Result<(), String>,
+    ) -> Result<(), String> {
+        for kind in ["dependencies", "dev-dependencies", "build-dependencies"] {
+            if let Some(deps) = table
+                .get_mut(kind)
+                .and_then(|item| item.as_table_like_mut())
             {
-                dep_table.insert(
-                    "version",
-                    toml_edit::Value::String(toml_edit::Formatted::new(ctx_version.to_string())),
-                );
-            } else {
-                let dep_string = format!("version = \"{}\"", ctx_version);
-                *dep_entry = toml_edit::Item::from_str(&dep_string).unwrap_or_default();
+                for (name, dependency) in deps.iter_mut() {
+                    visit(name.get(), dependency)?;
+                }
+            }
+        }
+        Ok(())
+    }
+    section(doc.as_table_mut(), &mut visit)?;
+    if let Some(targets) = doc
+        .get_mut("target")
+        .and_then(|item| item.as_table_like_mut())
+    {
+        for (_, target) in targets.iter_mut() {
+            if let Some(target) = target.as_table_like_mut() {
+                section(target, &mut visit)?;
             }
         }
     }
+    Ok(())
+}
+
+pub fn update_pax_dependency_versions(doc: &mut Document, ctx_version: &str) {
+    for_each_dependency_mut(doc, |name, dependency| {
+        if name.starts_with("pax-") {
+            if let Some(table) = dependency.as_table_like_mut() {
+                table.insert("version", toml_edit::value(ctx_version));
+            } else {
+                *dependency = toml_edit::value(ctx_version);
+            }
+        }
+        Ok(())
+    })
+    .expect("version replacement is infallible");
 }
 
 const ERR_LOCK: &str = "Failed to lock process_child_ids mutex";

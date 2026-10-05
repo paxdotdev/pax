@@ -35,6 +35,8 @@ private func disablePaxLayerImplicitActions(_ layer: CALayer?) {
 }
 
 fileprivate struct LoadedPaxCartridgeAPI {
+    typealias PaxInitWithData = @convention(c) (Float, Float, UnsafePointer<UInt8>?, Int) -> OpaquePointer?
+    typealias PaxRequest = @convention(c) (OpaquePointer?, UnsafePointer<UInt8>?, Int, UnsafeMutableRawPointer?, @convention(c) (UnsafeMutableRawPointer?, UInt32, UnsafePointer<UInt8>?, Int) -> Void) -> Void
     typealias PaxInit = @convention(c) (Float, Float) -> OpaquePointer?
     typealias PaxHasPendingProperties = @convention(c) (OpaquePointer?) -> Bool
     typealias PaxSetPropertyWaker = @convention(c) (OpaquePointer?, UInt64, @convention(c) (UInt64) -> Void) -> Void
@@ -94,6 +96,8 @@ fileprivate struct LoadedPaxCartridgeAPI {
 
     let handle: UnsafeMutableRawPointer
     let sourcePath: String
+    let paxInitWithData: PaxInitWithData
+    let paxRequest: PaxRequest
     let paxInit: PaxInit
     let paxHasPendingProperties: PaxHasPendingProperties
     let paxActivateApplication: PaxDeallocEngine
@@ -202,6 +206,11 @@ final class PaxCartridgeRuntime {
         }
 
         do {
+            let version = try resolveSymbol(handle: handle, name: "pax_cartridge_abi_version", as: (@convention(c) () -> UInt32).self)
+            guard version() == 1 else {
+                throw NSError(domain: "PaxCartridgeRuntime", code: 5,
+                    userInfo: [NSLocalizedDescriptionKey: "Incompatible Pax cartridge ABI; rebuild the host and cartridge together"])
+            }
             #if DEBUG
             let activateAppRevision = resolveOptionalSymbol(
                 handle: handle,
@@ -238,6 +247,8 @@ final class PaxCartridgeRuntime {
             let loaded = LoadedPaxCartridgeAPI(
                 handle: handle,
                 sourcePath: path,
+                paxInitWithData: try resolveSymbol(handle: handle, name: "pax_init_with_data", as: LoadedPaxCartridgeAPI.PaxInitWithData.self),
+                paxRequest: try resolveSymbol(handle: handle, name: "pax_cartridge_request", as: LoadedPaxCartridgeAPI.PaxRequest.self),
                 paxInit: try resolveSymbol(handle: handle, name: "pax_init", as: LoadedPaxCartridgeAPI.PaxInit.self),
                 paxHasPendingProperties: try resolveSymbol(handle: handle, name: "pax_has_pending_properties", as: LoadedPaxCartridgeAPI.PaxHasPendingProperties.self),
                 paxActivateApplication: try resolveSymbol(handle: handle, name: "pax_activate_application", as: LoadedPaxCartridgeAPI.PaxDeallocEngine.self),
@@ -267,7 +278,7 @@ final class PaxCartridgeRuntime {
             )
             let token = Self.nextShutdownToken
             Self.nextShutdownToken += 1
-            Self.shutdownRoutes[token] = { _ = loaded.paxPumpShutdowns() }
+            Self.shutdownRoutes[token] = { PaxHostSession.cleanupWake(pending: loaded.paxPumpShutdowns()) }
             loaded.paxSetShutdownWaker(token) { token in
                 DispatchQueue.main.async { PaxCartridgeRuntime.shutdownRoutes[token]?() }
             }
@@ -399,12 +410,23 @@ final class PaxCartridgeRuntime {
     }
     #endif
 
-    func initEngine(width: Float, height: Float) -> OpaquePointer? {
+    func initEngine(width: Float, height: Float, data: [UInt8] = []) -> OpaquePointer? {
         do {
-            return try currentAPI().paxInit(width, height)
+            let api = try currentAPI()
+            return data.withUnsafeBufferPointer { api.paxInitWithData(width, height, $0.baseAddress, Int($0.count)) }
         } catch {
             print("Failed to initialize Pax cartridge: \(error)")
             return nil
+        }
+    }
+
+    func request(_ engine: OpaquePointer, data: [UInt8], context: UnsafeMutableRawPointer?, reply: @escaping @convention(c) (UnsafeMutableRawPointer?, UInt32, UnsafePointer<UInt8>?, Int) -> Void) {
+        do {
+            let api = try currentAPI()
+            data.withUnsafeBufferPointer { api.paxRequest(engine, $0.baseAddress, Int($0.count), context, reply) }
+        } catch {
+            let bytes = Array(String(describing: error).utf8)
+            bytes.withUnsafeBufferPointer { reply(context, 1, $0.baseAddress, Int($0.count)) }
         }
     }
 
@@ -425,6 +447,8 @@ final class PaxCartridgeRuntime {
     func shutdownForReplacement(_ engine: OpaquePointer?) {
         api?.paxShutdownForReplacement(engine)
     }
+
+    func pumpShutdowns() -> UInt64 { api?.paxPumpShutdowns() ?? 0 }
 
     func deallocEngine(_ engineContainer: OpaquePointer?) {
         guard let api else {
@@ -821,7 +845,7 @@ private struct PendingPaxDevLookRequest {
 struct PaxViewMacos: View {
 
     var canvasView : some View = PaxCanvasViewRepresentable()
-            .frame(minWidth: 300, maxWidth: .infinity, minHeight: 300, maxHeight: .infinity)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
     var body: some View {
         ZStack {
@@ -929,6 +953,7 @@ struct PaxViewMacos: View {
         private static var propertyWakes: [UInt64: () -> Void] = [:]
         private var propertyWakeToken: UInt64?
         private var ownedEngine: OpaquePointer?
+        private weak var hostSession = PaxHostSession.active
 
         private func installPropertyWaker(_ engine: OpaquePointer) {
             if let token = propertyWakeToken { Self.propertyWakes.removeValue(forKey: token) }
@@ -946,6 +971,7 @@ struct PaxViewMacos: View {
                 DispatchQueue.main.async { PaxViewMacos.PaxCanvasViewMacos.propertyWakes[token]?() }
             }
             PaxCartridgeRuntime.shared.activateApplication(engine)
+            PaxHostSession.canvasReady { [weak self] in self?.shutdown() }
         }
         #if DEBUG
         private var pendingLogicReload: PendingPaxLogicReload?
@@ -1164,10 +1190,9 @@ struct PaxViewMacos: View {
             if let token = propertyWakeToken { Self.propertyWakes.removeValue(forKey: token) }
             propertyWakeToken = nil
             stopDisplayLink()
-            if let engine = ownedEngine, PaxEngineContainer.paxEngineContainer == engine {
-                PaxEngineContainer.paxEngineContainer = nil
-                PaxCartridgeRuntime.shared.deallocEngine(engine)
-            }
+            // SwiftUI can discard sizing views before they adopt an engine.
+            // A late dismantle belongs to this session, never its replacement.
+            if ownedEngine != nil { hostSession?.close() }
             ownedEngine = nil
         }
 
@@ -1195,25 +1220,18 @@ struct PaxViewMacos: View {
 
 
         private func tick() {
-            guard !isShuttingDown else { return }
+            guard !isShuttingDown, let hostSession,
+                PaxHostSession.active === hostSession, hostSession.status < 3 else { return }
             #if DEBUG
             defer { pollPendingLogicReloadIfNeeded() }
             #endif
-            guard bounds.width > 0, bounds.height > 0 else { return }
 
             let scale = currentScale()
             let width = Float(bounds.width)
             let height = Float(bounds.height)
 
-            if PaxEngineContainer.paxEngineContainer == nil {
-                PaxEngineContainer.paxEngineContainer = PaxCartridgeRuntime.shared.initEngine(
-                    width: width,
-                    height: height
-                )
-                ownedEngine = PaxEngineContainer.paxEngineContainer
-            }
-
             guard let engineContainer = PaxEngineContainer.paxEngineContainer else { return }
+            ownedEngine = engineContainer
             if propertyWakeToken == nil { installPropertyWaker(engineContainer) }
 
             // Publish native properties, occlusion masks and Metal drawables in
@@ -1236,6 +1254,9 @@ struct PaxViewMacos: View {
             let buffer = UnsafeBufferPointer<UInt8>(start: queue.data_ptr!, count: Int(queue.length))
             processNativeMessageQueueData(Data(buffer: buffer))
             PaxCartridgeRuntime.shared.deallocMessageQueue(nativeMessageQueue)
+            // A collapsed region still delivers UI work and reaches Ready. It
+            // has no drawable surface until its host gives it nonzero bounds.
+            guard width > 0, height > 0 else { return }
             surfaceManager.sync(
                 engineContainer: engineContainer,
                 rootView: self,
@@ -1392,17 +1413,17 @@ struct PaxViewMacos: View {
                 }
 
                 let byteBuffer = data.assumingMemoryBound(to: UInt8.self)
-                let raw_pointer_uint = UInt(bitPattern: byteBuffer)
+                let raw_pointer_uint = Int(bitPattern: byteBuffer)
 
                 let buffer = try! FlexBufferBuilder.encodeMap { builder in
                     builder.addMapWithStringKey("Image") { imageBuilder in
                         imageBuilder.addMapWithStringKey("Reference") { referenceBuilder in
-                            referenceBuilder.addWithStringKey("id", UInt(patch.id))
+                            referenceBuilder.addWithStringKey("id", Int(patch.id))
                             referenceBuilder.addStringWithStringKey("path", fullPatchPath)
                             referenceBuilder.addWithStringKey("image_data", raw_pointer_uint)
-                            referenceBuilder.addWithStringKey("image_data_length", UInt(totalBytes))
-                            referenceBuilder.addWithStringKey("width", UInt(width))
-                            referenceBuilder.addWithStringKey("height", UInt(height))
+                            referenceBuilder.addWithStringKey("image_data_length", Int(totalBytes))
+                            referenceBuilder.addWithStringKey("width", Int(width))
+                            referenceBuilder.addWithStringKey("height", Int(height))
                         }
                     }
                 }
@@ -2038,7 +2059,7 @@ struct PaxViewMacos: View {
                     guard let baseAddress = dataPtr.baseAddress else {
                         throw NSError(domain: "", code: 200, userInfo: [NSLocalizedDescriptionKey: "Could not access screenshot bytes"])
                     }
-                    let rawPointerUInt = UInt(bitPattern: baseAddress)
+                    let rawPointerUInt = Int(bitPattern: baseAddress)
                     let buffer = try FlexBufferBuilder.encode(
                         ["Screenshot": ["Reference": [
                             "id": Int(id),

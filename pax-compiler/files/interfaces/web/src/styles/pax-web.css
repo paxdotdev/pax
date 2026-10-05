@@ -1,4 +1,13 @@
-html, body, #mount, canvas, .native-overlay{
+.pax-mount {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    isolation: isolate;
+}
+.pax-mount canvas, .pax-mount .native-overlay {
     margin: 0;
     padding: 0;
     width: 100%;
@@ -6,16 +15,7 @@ html, body, #mount, canvas, .native-overlay{
     overflow: hidden;
 }
 
-html, body, #mount {
-    min-height: 100dvh;
-}
-
-#mount {
-    position: relative;
-}
-
-
-.canvas {
+.pax-mount .canvas {
     position: absolute;
     top: 0;
     left: 0;
@@ -23,10 +23,10 @@ html, body, #mount {
 }
 
 
-.scroller-container::-webkit-scrollbar-track {
+.pax-mount .scroller-container::-webkit-scrollbar-track {
     background: transparent;
 }
-.scroller-container::-webkit-scrollbar-thumb {
+.pax-mount .scroller-container::-webkit-scrollbar-thumb {
     background-color: rgba(255, 255, 255, 0.5);
     border-radius: 6px;
     border: 3px solid transparent;
@@ -34,21 +34,21 @@ html, body, #mount {
 }
 
 /* Firefox */
-.scroller-container {
+.pax-mount .scroller-container {
     scrollbar-width: thin;
     scrollbar-color: rgba(255, 255, 255, 0.5) transparent;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior: auto;
 }
 
-.inner-pane {
+.pax-mount .inner-pane {
     position: absolute;
     top: 0;
     left: 0;
     pointer-events: none;
 }
 
-.native-overlay {
+.pax-mount .native-overlay {
     display: block;
     position: absolute;
     overflow: hidden;
@@ -58,15 +58,15 @@ html, body, #mount {
     contain: layout style paint;
 }
 
-.native-overlay:focus {
+.pax-mount .native-overlay:focus {
     outline: none;
 }
 
-strong {
+.pax-mount strong {
     font-weight: 500;
 }
 
-.native-leaf {
+.pax-mount .native-leaf {
     transform: translate3d(0, 0, 0); /* Promote to GPU layer */
     white-space: pre-wrap;
     transform-origin: top left;
@@ -76,42 +76,42 @@ strong {
     contain: layout style paint;
 }
 
-.native-leaf.masked-native-leaf {
+.pax-mount .native-leaf.masked-native-leaf {
     /* See render-layer-context.ts: Blink/WebKit can cull masked native descendants
        too aggressively when paint containment stays enabled. */
     contain: layout style;
     will-change: auto;
 }
 
-.clipping-container {
+.pax-mount .clipping-container {
     position: absolute;
     top: 0;
     left: 0;
 }
 
-.native-clipping {
+.pax-mount .native-clipping {
     position: absolute;
 }
 
-.button-text-container {
+.pax-mount .button-text-container {
     margin: 0;
     display: flex;
     width: 100%;
     height: 100%;
 }
 
-.button-styles {
+.pax-mount .button-styles {
     margin: 0;
     padding: 0;    
     --hover-color: blue;
     border-style: solid;
 }
 
-.button-styles:hover {
+.pax-mount .button-styles:hover {
     background-color: var(--hover-color) !important;
 }
 
-.checkbox-styles {
+.pax-mount .checkbox-styles {
     --checked-color: magenta;
     type: checkbox;
     margin: 0;
@@ -120,7 +120,7 @@ strong {
     border-style: solid;
 }
 
-.checkbox-styles:checked {
+.pax-mount .checkbox-styles:checked {
     background-color: var(--checked-color) !important;
     background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg aria-hidden='true' xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='-2 0 20 12'%3E%3Cpath stroke='%23fff' stroke-linecap='round' stroke-linejoin='round' stroke-width='3' d='M1 5.917 5.724 10.5 15 1.5'/%3E%3C/svg%3E") !important;
     background-repeat: no-repeat !important;
@@ -129,7 +129,7 @@ strong {
     border-color: transparent !important;
 }
 
-.radio-list-style {
+.pax-mount .radio-list-style {
     background: var(--background-color);
     border-width: var(--border-width);
     border-color: var(--border-color);
@@ -143,7 +143,7 @@ strong {
     border-style: solid;
 }
 
-.radio-list-style:checked {
+.pax-mount .radio-list-style:checked {
     background-color: var(--selected-color) !important;
     background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg viewBox='0 0 16 16' fill='%23fff' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='8' cy='8' r='3'/%3E%3C/svg%3E") !important;
     background-repeat: no-repeat !important;
@@ -151,6 +151,6 @@ strong {
     border-color: transparent !important;
 }
 
-input {
+.pax-mount input {
     padding: 1px 4px 1px 4px;
 }

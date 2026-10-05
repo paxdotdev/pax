@@ -418,3 +418,49 @@ detached mask-source draws, preserve current uniforms for newly added content,
 and invalidate summaries when retained membership changes. Check submission,
 capture and geometry counters in addition to frame rate: machine contention can
 obscure the cost of unnecessary work.
+
+
+## User-owned entry and embedded host boundaries (PAX-1015)
+
+- A normal Cargo binary must be selected explicitly alongside the cartridge
+  library. Gate the launcher with `standalone`, select it through `default-run`,
+  and use `cargo build --lib` for the cartridge. Propagating `standalone` through
+  the helper for `pax-kit` features incorrectly asks for `pax-kit/standalone`;
+  add the launcher feature at the application package instead.
+- Xcode must receive the Cargo executable before its normal signing phase.
+  Build the shared SwiftUI host framework first, link the Rust main against it,
+  then copy the executable through a declared app build-phase input. A global
+  `PRODUCT_BUNDLE_IDENTIFIER` override also renames embedded frameworks and can
+  make iOS installation reject duplicate identifiers. Apply app identity through
+  a dedicated app-only build setting.
+- Swift imports C `size_t` as `Int` on these Apple SDKs. The dynamic macOS
+  function types and statically imported iOS functions must agree for copied
+  startup/request buffers. Invoke `xcrun --sdk iphonesimulator swiftc` for mobile
+  embedding fixtures so xcrun does not inject the macOS SDK into the compiler.
+- Temporary SwiftUI sizing views can be destroyed before adopting an engine.
+  Their destruction must not close the active mount. Likewise, dismantling a
+  rejected second standalone view must not dispose the first view's session.
+- The web host previously installed page-level CSS, input listeners, history,
+  metadata, cursor and scroll policies. Region mounting requires scoping these
+  to the Pax child, preserving host page styles on disposal, and continuing only
+  drags that originated inside that child. Do not treat an element argument as
+  sufficient proof of embedding.
+- `libc` 0.2.190 hides dyld symbols used by `backtrace` 0.3.76 on iOS. Pin the
+  mobile dependency to 0.2.189 in the always-present `pax-engine` facade so initial
+  Cargo resolution sees it before optional chassis features are selected. Pinning
+  only the chassis resolves too late for fresh offline projects. An existing
+  ignored example lockfile may need `cargo update -p libc --precise 0.2.189`.
+- The macOS bundle executable name contains parentheses. `otool` can interpret
+  that pathname as archive-member syntax; inspect a temporary copy under a
+  simple filename when verifying the executable's framework linkage.
+- Xcode's default active-architecture setting can produce an arm64-only host
+  framework beside a universal macOS cartridge. Pass the full Rust target
+  architecture set and `ONLY_ACTIVE_ARCH=NO` to both host and app builds.
+- Project creation must rewrite target-specific dependency tables as well as
+  top-level dependencies, and rename the standalone binary/default-run along
+  with the package. Otherwise a fresh project can retain a repository-relative
+  host dependency or select a binary under the template's old name.
+- Keep native UI delivery separate from acquiring a drawable. A zero-sized
+  caller region still needs readiness and queued request delivery. Associate
+  each canvas with its own host session so late dismantle cannot close a newly
+  mounted replacement or implicitly initialize another cartridge.

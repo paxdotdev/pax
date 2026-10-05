@@ -572,7 +572,7 @@ longer-lived component above that view or in application-managed persistence.
 During template hot reload, a reused provider with stable property handles
 keeps its registration. A changed property alias, such as changing a
 `bind:` target, remounts the affected provider subtree so its consumers
-receive the new handles. Recreated regions and successful logic reloads
+receive the new handles. Recreated regions and a full application restart
 start fresh stores. These development rules are not a persistence API;
 see [Hot reloading](developer-workflow.md#hot-reloading).
 
@@ -600,11 +600,11 @@ uses a store for mobile-menu state. Read
 constraints, and the [`NodeContext` reference](api/internal/pax-runtime/api.md#nodecontext)
 for the method signatures.
 
-Application-wide dependencies use `ctx.application().service::<T>()`, separately
-from lexical local stores. Register them before root construction through an
-[application setup hook](event-handling-rust.md#application-setup). Remounting a
-component does not repeat application setup. Services return local `Rc` handles;
-only explicitly transferable clients and shared property values cross threads.
+Application-wide dependencies are ordinary root fields created by the
+[typed initializer](event-handling-rust.md#application-setup). Pass them explicitly
+or provide a lexical store from a component that owns them. Remounting a child
+does not repeat initialization. Local `Rc` handles stay on the UI thread; only
+explicitly transferable clients and shared property values cross threads.
 
 <a id="authoring-primitives"></a>
 <a id="declare-and-connect-a-runtime-node"></a>

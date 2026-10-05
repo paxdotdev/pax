@@ -42,6 +42,143 @@ feature chapters state their narrower target and backend limits. Include the
 browsers, devices, native controls, and rendering effects your application
 actually uses in its test plan.
 
+## Entry and mounting
+
+A Pax application has two Rust targets: a library cartridge containing the root
+component and its initializer, and an Apple executable with an ordinary Rust
+`fn main`. The executable links `pax-host` and the SwiftUI host framework; the
+cartridge remains separately linked. Do not import your application library into
+that launcher or pass a `Root`, `Property`, Tokio runtime, or Rust closure across
+its C boundary. Construct cartridge-owned resources in the
+[typed root initializer](event-handling-rust.md#application-setup).
+
+The generated example manifests make the launcher explicit:
+
+```toml
+[package]
+default-run = "my-app"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+standalone = ["dep:pax-host"]
+
+[[bin]]
+name = "my-app"
+path = "src/main.rs"
+required-features = ["standalone"]
+
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+pax-host = { version = "0.39.0", optional = true }
+```
+
+Keep the other Pax dependencies and target features from the starter project.
+The CLI builds the library explicitly for web, and selects the binary gated by
+`standalone` for Apple. If several binaries meet that requirement, set
+`default-run`. `pax-cli` still performs code generation, framework linking,
+resource packaging and signing; an ordinary `cargo run` by itself does not
+perform those steps. The source-directory and example-directory conventions
+have not changed in this phase.
+
+```rust,ignore
+// src/main.rs; compiled for macOS, iOS and iPadOS.
+fn main() -> Result<(), pax_host::Error> {
+    // Process-owned configuration can run here on the process main thread.
+    pax_host::init()?.run()
+}
+```
+
+`main` runs on all three Apple targets, including iOS/iPadOS. `run` hands control
+to SwiftUI and normally never returns on mobile. Web invokes `init_web` explicitly
+from JavaScript; importing its modules does not mount an application. Android,
+native Windows and native Linux launchers are not implemented by this host API.
+On macOS, `run_with(WindowOptions)` also accepts a title, initial/minimum size in
+logical points, and resizability. Mobile scenes determine their window geometry.
+
+### Mount in an existing application
+
+The host can supply one existing region: an `NSView` on macOS, a `UIView` plus
+its owning `UIViewController` on iOS/iPadOS, or an `HTMLElement` in the browser.
+Pax installs its normal child hierarchy, including native controls. It owns that
+child and session; the caller retains its window, parent and event loop.
+
+On Apple, call `pax_host::init()` and consume the prepared value with
+`app.mount(view_host)`. `ViewHost::from_raw` is unsafe: its documented contract
+requires valid platform objects, a retained owner borrowed for the mount's
+lifetime, and the process main thread. An arbitrary GPU/window handle is not a
+complete adapter. Swift/Objective-C hosts use the versioned C declarations in
+`pax-host/include/pax_host.h`; see the repository's
+`tests/src/host-embedding` fixture for containment and callback ownership.
+
+`mount.ready()` observes installation of the viewport and wake route.
+`mount.close()` revokes work and removes only Pax's child. `mount.closed()`
+observes cleanup acknowledgement. These futures must be driven by the caller's
+UI executor; do not block the main thread waiting for them. Dropping the mount
+starts close, and cleanup continues even if the observer is dropped. Keep the
+parent/controller alive until the mount is dropped. Do not reparent a live mount.
+
+A browser host loads the matching generated interface bundle and calls:
+
+```html
+<script src="pax-interface-web.js"></script>
+<div id="ui" style="width:100%;height:600px"></div>
+<script type="module">
+  const cancellation = new AbortController();
+  const app = await Pax.init_web({
+    element: document.getElementById("ui"),
+    cartridgeUrl: new URL("pax-cartridge", document.baseURI).href,
+    signal: cancellation.signal,
+  });
+  // Promise resolution means mounted, not that application data has loaded.
+  // On disposal: app.close(); await app.closed;
+</script>
+```
+
+The container must belong to the current document and have an explicit usable
+size. Pax follows its bounds, clips inside the region and routes input relative
+to it. CSS transforms on the container or its ancestors are not supported.
+`pageScroll` and `documentRouting` default to false for embedding; the standalone
+page enables them to own page scrolling, history and metadata. With document
+routing disabled, a bubbling `pax-navigate` event carries `{url, target}` for the
+host to handle. Aborting `signal` cancels startup or closes an existing mount.
+Startup failures reject the Promise and initiate retained cleanup. Failed native
+preparation similarly returns an error; it can leave cleanup pending even though
+no mount handle was returned. A retry is rejected while that cleanup is pending.
+
+Only one live mount is supported per host runtime. A second prepare/mount is an
+error, including while cleanup is pending. Await `closed` before replacing it.
+Hidden/zero-size regions retain application state and cleanup scheduling.
+Collapsing a native region does not prevent readiness or queued UI delivery;
+its host skips drawable acquisition until the region has nonzero bounds. Closing
+is distinct from suspension. Native controls retain their existing chassis
+capabilities and restrictions; see [Accessibility and Native Controls](accessibility-native-controls.md).
+No raw-surface-only or shared-wgpu-device adapter is provided.
+
+### Data across the cartridge boundary
+
+Use `pax_host::init_with(InitOptions { startup_data })` on Apple, or `startupData:
+Uint8Array` in web options. The cartridge reads `InitContext::startup_data()` and
+validates its own encoding. Inputs are copied before initialization. Empty data
+is the default; buffers are limited to 64 KiB.
+
+An initializer can install one explicit request handler with
+`cx.on_host_request(|bytes| -> AppResult<Vec<u8>> { ... })`. A mounted host calls
+`mount.request(&bytes)` on Rust or `await app.request(bytes)` on web. Requests
+enter the bounded application delivery queue and run on the UI owner after
+activation. Replies are copied buffers, also limited to 64 KiB. Rejection,
+handler errors and cancellation are observable; closing cancels queued requests.
+Dropping a Rust reply future discards observation but does not undo an accepted
+request. Native C reply buffers are borrowed only for the callback and must be
+copied before it returns. Callbacks arrive asynchronously on the main thread.
+
+This is a request/reply channel, not a resource registry or an unsolicited event
+bus. Keep handlers short; they may update properties or start scoped work and
+return an acknowledgement. The Async Workbench embedding fixtures demonstrate
+UTF-8 startup data and `increment`/`read` requests. A Tokio `Handle` is a Rust
+value and may only be borrowed within the same linkage domain, never encoded as
+a pointer and passed through this interface.
+
 ## Run, build, and release
 
 Use `run` while developing. Use `build` when you want output without launching

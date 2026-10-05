@@ -320,6 +320,7 @@ impl PaxChassisWeb {
     #[cfg(feature = "designtime")]
     pub fn new_designtime(
         userland_definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
+        root: Rc<RefCell<pax_runtime::api::pax_value::PaxAny>>,
     ) -> Self {
         let (width, height, os_info, surface_policy, get_time, renderer) = Self::init_common();
         let query_string = window()
@@ -328,8 +329,8 @@ impl PaxChassisWeb {
             .search()
             .expect("no search exists");
 
-        let userland_main_component_instance =
-            userland_definition_to_instance_traverser.get_main_component(USERLAND_COMPONENT_ROOT);
+        let userland_main_component_instance = userland_definition_to_instance_traverser
+            .get_main_component_with_properties(USERLAND_COMPONENT_ROOT, root);
         let designtime_manager = userland_definition_to_instance_traverser
             .get_designtime_manager(query_string)
             .unwrap();
@@ -358,11 +359,14 @@ impl PaxChassisWeb {
     }
 
     #[cfg(not(feature = "designtime"))]
-    pub fn new(definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>) -> Self {
+    pub fn new(
+        definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
+        root: Rc<RefCell<pax_runtime::api::pax_value::PaxAny>>,
+    ) -> Self {
         let (width, height, os_info, surface_policy, get_time, renderer) = Self::init_common();
 
-        let main_component_instance =
-            definition_to_instance_traverser.get_main_component(USERLAND_COMPONENT_ROOT);
+        let main_component_instance = definition_to_instance_traverser
+            .get_main_component_with_properties(USERLAND_COMPONENT_ROOT, root);
         let engine = pax_runtime::PaxEngine::new(
             main_component_instance,
             (width, height),
@@ -429,7 +433,48 @@ thread_local! {
     static SHUTDOWN_WAKE: std::cell::RefCell<Option<js_sys::Function>> = const { std::cell::RefCell::new(None) };
 }
 
-/// Register before pax_init. Retired cleanup remains wakeable after chassis.free.
+/// Validate the host capability before invoking user initialization.
+#[doc(hidden)]
+pub fn web_mount_callback(host: &JsValue) -> Result<js_sys::Function, JsValue> {
+    use wasm_bindgen::JsCast;
+    js_sys::Reflect::get(host, &JsValue::from_str("mount"))?
+        .dyn_into()
+        .map_err(|_| JsValue::from_str("init_web requires a prepared web host"))
+}
+
+/// Copy the host's encoded inputs before running any user initialization.
+#[doc(hidden)]
+pub fn web_init_options(host: &JsValue) -> Result<pax_runtime::api::AppOptions, JsValue> {
+    use wasm_bindgen::JsCast;
+    let value = js_sys::Reflect::get(host, &JsValue::from_str("startupData"))?;
+    let startup_data = if value.is_undefined() {
+        Vec::new()
+    } else {
+        let bytes = value
+            .dyn_into::<js_sys::Uint8Array>()
+            .map_err(|_| JsValue::from_str("startupData must be Uint8Array"))?;
+        if bytes.length() as usize > pax_runtime::api::HOST_MESSAGE_LIMIT {
+            return Err(JsValue::from_str("startup data exceeds 64 KiB"));
+        }
+        bytes.to_vec()
+    };
+    Ok(pax_runtime::api::AppOptions {
+        startup_data,
+        ..Default::default()
+    })
+}
+
+/// Transfer chassis ownership to the prepared host, including failure cleanup.
+#[doc(hidden)]
+pub async fn mount_web_chassis(
+    chassis: PaxChassisWeb,
+    mount: js_sys::Function,
+) -> Result<JsValue, JsValue> {
+    let result = mount.call1(&JsValue::NULL, &JsValue::from(chassis))?;
+    wasm_bindgen_futures::JsFuture::from(js_sys::Promise::resolve(&result)).await
+}
+
+/// Register before init_web. Retired cleanup remains wakeable after chassis.free.
 #[wasm_bindgen]
 pub fn pax_set_shutdown_waker(callback: js_sys::Function) {
     SHUTDOWN_WAKE.with(|wake| *wake.borrow_mut() = Some(callback));
@@ -448,6 +493,23 @@ pub fn pax_pump_shutdowns() -> usize {
 
 #[wasm_bindgen]
 impl PaxChassisWeb {
+    /// Deliver one bounded application-defined request. Promise settlement is
+    /// asynchronous and queued requests reject when the application closes.
+    pub fn request(&self, bytes: Vec<u8>) -> js_sys::Promise {
+        let context = self.engine.borrow().runtime_context.application.context();
+        let mut bytes = Some(bytes);
+        js_sys::Promise::new(&mut move |resolve, reject| {
+            context.request(bytes.take().unwrap(), move |result| match result {
+                Ok(bytes) => {
+                    let _ =
+                        resolve.call1(&JsValue::NULL, &js_sys::Uint8Array::from(bytes.as_slice()));
+                }
+                Err(error) => {
+                    let _ = reject.call1(&JsValue::NULL, &js_sys::Error::new(&error));
+                }
+            });
+        })
+    }
     /// Installs a host callback that queues a guarded UI turn. The callback
     /// must not synchronously call back into this chassis.
     pub fn set_property_waker(&self, callback: js_sys::Function) {

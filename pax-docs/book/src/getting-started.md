@@ -233,6 +233,8 @@ Open the project in your editor. These are the main roles to recognize:
 | File or directory | What it contains |
 | --- | --- |
 | `Cargo.toml` | The Rust package definition, dependencies, and optional Pax project metadata. |
+| `src/main.rs` | Native process entry; uses `pax-host` to prepare the cartridge and run the Apple host. |
+| `src/lib.rs` | Library/cartridge with the selected `#[main]` component and optional `#[init(function)]`. |
 | Rust source (`.rs`) | Component definitions, application state, event handlers, and other application logic. |
 | Pax templates (`.pax`) | UI elements, layout, styles, expressions, and bindings to event handlers. Templates can also be embedded in Rust source. |
 | `assets/`, when present | Application media such as images and fonts. |
@@ -241,6 +243,17 @@ Open the project in your editor. These are the main roles to recognize:
 Pax templates describe the interface. Rust holds the state and behavior behind
 it. Expressions inside templates connect property values to what you see on
 screen. You'll work with these parts together as you build an interface.
+
+The library builds as both `rlib` and `cdylib`. The native executable has its
+own `[[bin]]` target, gated by `required-features = ["standalone"]`. `pax-cli`
+selects these targets explicitly: web and linked builds select the library,
+while native standalone builds also enable the launcher. Ordinary dependencies
+never auto-launch the app. Continue using `pax-cli run` for a complete build;
+plain `cargo run` alone does not generate or package the host framework.
+See [application setup](event-handling-rust.md#application-setup) for typed root
+construction and [entry and mounting](targets-build-deploy.md#entry-and-mounting)
+for platform details. The root remains in its existing source location; source
+organization changes are a later phase.
 
 ## Make a first edit
 
@@ -259,8 +272,8 @@ width={is_compact ? 320px : 420px}
 Save with the development session still running. The card becomes wider through
 Pax's default template hot reload. The expression chooses a compact width for
 smaller windows and a larger width otherwise; try resizing the browser. Restore
-the original values whenever you like. Rust changes normally require restarting
-the run, or opting into [logic reload](developer-workflow.md#hot-reloading).
+the original values whenever you like. Rust changes require rebuilding and restarting
+the run. See [Hot reloading](developer-workflow.md#hot-reloading).
 
 ## When something goes wrong
 
@@ -310,7 +323,7 @@ file selection, inline templates, and CI usage.
 ### Hot reloading
 
 Debug runs reload `.pax` templates by default. For Rust changes, stop and rerun
-the app, or opt into logic reload on web/macOS. See
+the app on every target; refresh the browser after rebuilding. See
 [Hot reloading](developer-workflow.md#hot-reloading) for the mode matrix,
 target boundaries, and project configuration.
 

@@ -1,8 +1,8 @@
 # Async Workbench
 
-A proving fixture for [PAX-1013](https://linear.app/paxdev/issue/PAX-1013), which also holds the archived application/async specification. It uses the generated host and `#[application(WorkbenchApplication)]`, without a custom Rust `main` or application `@tick` polling.
+A proving fixture for [PAX-1015](../../../pax-docs/book/src/design/PAX-1015-main-entry-spec.md), preserving the PAX-1013 async scenarios. It uses a real Apple Rust `main`, an explicit browser `init_web`, and `#[init(application::init)]` to construct the root without application `@tick` polling.
 
-Native setup registers an owned two-worker Tokio runtime through `pax-tokio`. Web uses `pax-web-async` and browser timers/fetch. Application services outlive panel remounts; node/operation scopes revoke stale results. Templates remain declarative.
+The native initializer constructs its own two-worker Tokio runtime and explicitly adopts it with `pax_tokio::Executor::owned`. Web uses `pax-web-async` and browser timers/fetch. Ordinary root-owned resources outlive panel remounts; node/operation scopes revoke stale results. Templates remain declarative.
 
 ## Run
 
@@ -18,8 +18,8 @@ For the baked macOS application, use `pax-cli build --path examples/src/async-wo
 
 ## Setup and platform configuration
 
-The [application services and Tokio guide](../../../pax-docs/book/src/event-handling-rust.md#application-setup)
-explains the setup hooks, managed runtime, task lifetimes, and delivery APIs used here.
+The [initialization and Tokio guide](../../../pax-docs/book/src/event-handling-rust.md#application-setup)
+explains root construction, explicit runtime ownership, task lifetimes, and delivery APIs used here.
 
 The fixture's `Cargo.toml` explicitly enables
 `com.apple.security.network.client` and `com.apple.security.network.server`
@@ -35,10 +35,26 @@ own local-network usage description and any applicable discovery declarations.
 Neither entitlements nor a Tokio runtime promise continued execution while an
 iOS app is suspended.
 
+## Embedding and initialization
+
+Initialization returns a Loading root immediately. Its staged timer changes the
+phase to Ready after 600 ms; the host readiness observation does not wait for it.
+`public/embedding.html` is a caller-owned browser host. It sends UTF-8 startup
+bytes `7`, and the initializer adopts that as the application counter. The
+Request increment button sends UTF-8 `increment` and displays the copied reply.
+`read` returns the counter without changing it. Other payloads report an error.
+
+The native caller-owned Swift fixture is in `tests/src/host-embedding` and uses
+the same cartridge and host framework as standalone. Both fixtures keep host
+controls alive during Pax work, reject a second mount, and expose explicit close
+and remount. Source directories remain unchanged pending the separate layout
+and example organization phase.
+
 ## Scenarios
 
 | Action | Expected result |
 | --- | --- |
+| Cartridge-owned input | Native/DOM text entry stays within the Pax region and can switch focus to the embedding host field. |
 | Interact | Counter remains usable during a request. |
 | Publish +1 | Application-owned shared data updates the panel's local computed label. |
 | Burst +1000 | Native runs two finite workers with 500 atomic updates each; no updates are lost. Web performs the same publications locally. At most two burst workers run at once. |
@@ -52,15 +68,17 @@ iOS app is suspended.
 | Local callback | An ordinary native thread completes into a UI-local closure that updates `LocalProperty`. Web queues the same callback locally. |
 | Panic probe | Native reports the expected task panic through task status/error reporting. Web explains its abort-on-panic limitation; use Fail for a recoverable error. |
 | Blocking probe | Native runs at most one blocking job with cooperative stop checks. Cancellation suppresses publication even if a job has already started. Web explains why blocking work is unavailable. |
-| Unmount/Remount | Unmount discards the panel's local state and revokes pending results. Remount creates fresh panel state and scopes. The application-owned counter, history, and services remain; application starts stays one and panel mounts increases. |
+| Unmount/Remount | Unmount discards the panel's local state and revokes pending results. Remount creates fresh panel state and scopes. The application-owned counter, history, and resources remain; application starts stays one and panel mounts increases. |
 
 Raw application-data publication is deliberately independent of task cancellation. A captured ordinary `Property` remains writable after panel removal. Use guarded publishers or `spawn_into` for results whose authority must expire.
 
 The event history retains 100 records and displays the newest 12, with monotonic times and application/mount/operation identities. The shared-to-local label shows that binding's observed/published revisions. They are diagnostic counters, not a promise that each intermediate revision rendered. Native blocking and raw thread scenarios are bounded; no external service or account is required. Browser timer/fetch guards cancel their underlying resources when dropped.
 
-Layout uses two columns at 900 px and above, stacked panels below, and full-width actions below 520 px. Setup/services are in `src/application.rs`, platform work in `src/work_service.rs`, and task/operation ownership in `src/request_panel.rs`.
+Layout uses two columns at 900 px and above, stacked panels below, and full-width actions below 520 px. Initialization/resources are in `src/application.rs`, platform work in `src/work_service.rs`, and task/operation ownership in `src/request_panel.rs`.
 
-## Qualification (2026-10-01)
+## Historical PAX-1013 qualification (2026-10-01)
+
+This table records the pre-refactor baseline. It does not qualify the new main/host APIs. In particular, Rust logic replacement described below has since been retired. Current Phase 1 results are recorded in the PAX-1015 spec.
 
 | Check | Evidence |
 | --- | --- |
@@ -78,3 +96,8 @@ Layout uses two columns at 900 px and above, stacked panels below, and full-widt
 Run the reproducible wake-only and native-cartridge harnesses described in [the probe README](../../../tests/src/tokio-support-probe/README.md). Managed shutdown unit tests separately prove reverse dependency order, failed setup cleanup and retention after deadline expiry. Physical host close, suspension, or process termination cannot guarantee async cleanup.
 
 macOS interactive checks were completed after unlocking the workstation. Mobile interaction and physical sleep/resume remain unverified; unexecuted targets and lifecycle paths are not claimed as passing. The memory probe reports approximately 382 retained bytes per local literal, 160 per unattached shared property, and 1,326 per shared property with a local projection on this workstation; these include bookkeeping and are not ABI/performance promises.
+
+Phase-one entry/mount qualification and its remaining platform limits are
+recorded in the [PAX-1015 implementation evidence](../../../pax-docs/book/src/design/PAX-1015-main-entry-spec.md#phase-one-implementation-evidence--2026-10-05).
+The native embedding fixture and automated lifecycle probe live in
+[`tests/src/host-embedding`](../../../tests/src/host-embedding/README.md).

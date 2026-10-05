@@ -36,9 +36,9 @@ Both handles are eight bytes. These figures include amortized table/attachment b
 
 ## Application proof and remaining qualification
 
-[Async Workbench](../../../examples/src/async-workbench/README.md) uses the normal generated host and `#[application(...)]` setup hook. It now exercises managed Tokio/browser tasks, cancellation, guarded publication, bounded callback delivery, local I/O and asynchronous shutdown. The focused `pax-tokio` tests also cover owned/borrowed runtimes, a dedicated current-thread/LocalSet service, panic observation, and non-abortable blocking work.
+[Async Workbench](../../../examples/src/async-workbench/README.md) uses the normal generated host and `#[init(path)]` typed root initializer. It now exercises explicit Tokio/browser executors and scoped tasks, cancellation, guarded publication, bounded callback delivery, local I/O and asynchronous shutdown. The focused `pax-tokio` tests also cover owned/borrowed runtimes, a dedicated current-thread/LocalSet service, panic observation, and non-abortable blocking work.
 
-The root remains a cartridge library. Native Swift and browser JavaScript own platform startup and frame scheduling; a CLI launcher with `#[tokio::main]` would run in a separate process. A native runtime needs an explicit application owner and continuously driven executor. A `Handle` does not keep its runtime alive. Browser Wasm uses browser-compatible futures and does not gain desktop Tokio sockets, filesystem or timers.
+The root remains a cartridge library. The standalone Apple executable has a real Rust `main` and calls the SwiftUI host bridge; browser JavaScript calls `init_web`. Frame scheduling remains with the host. The launcher and cartridge are distinct linkage domains, so runtime handles must not cross that ABI. A native runtime needs an explicit application owner and continuously driven executor. A `Handle` does not keep its runtime alive. Browser Wasm uses browser-compatible futures and does not gain desktop Tokio sockets, filesystem or timers.
 
 Primary executor references:
 
@@ -65,7 +65,7 @@ settle, then run the timer and stream without further input. Both should update
 through the host wake routes. The normal app still uses its normal frame loop.
 
 These headless checks do not establish native visual/input, physical iOS,
-background/resume or platform logic-reload behavior. See the fixture README for
+background/resume behavior. Rust logic replacement is no longer supported. See the fixture README for
 the qualification matrix and remaining limits.
 
 ## macOS display-clock startup failure

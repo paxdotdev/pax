@@ -1164,6 +1164,15 @@ fn build_struct_data_summary(item_struct: &ItemStruct) -> Result<DataSummary> {
 
     let mut fields = vec![];
     for field in named_fields {
+        if field.attrs.iter().any(|attr| {
+            attr.path.is_ident("pax")
+                && attr
+                    .parse_args::<syn::Ident>()
+                    .map(|name| name == "rust")
+                    .unwrap_or(false)
+        }) {
+            continue;
+        }
         let field_name = field
             .ident
             .as_ref()
@@ -2147,6 +2156,23 @@ struct PaxConfig {
 mod tests {
     use super::*;
     use tempfile::TempDir;
+
+    #[test]
+    fn rust_dependencies_are_excluded_from_template_and_baked_descriptors() {
+        let item: ItemStruct = syn::parse_quote! {
+            struct Root {
+                #[pax(rust)]
+                resources: Option<std::rc::Rc<UnreflectedRuntimeOwner>>,
+                count: Property<usize>,
+            }
+        };
+        let DataSummary::Struct(fields) = build_struct_data_summary(&item).unwrap() else {
+            panic!("struct expected")
+        };
+        assert_eq!(fields.len(), 1);
+        assert_eq!(fields[0].name, "count");
+        assert!(fields[0].is_property_wrapped);
+    }
 
     #[test]
     fn mesh_api_descriptors_preserve_value_fields_and_nested_rows() {

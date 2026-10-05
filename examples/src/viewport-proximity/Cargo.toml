@@ -1,4 +1,5 @@
 [package]
+default-run = "viewport-proximity"
 name = "viewport-proximity"
 version = "0.39.0"
 edition = "2021"
@@ -23,3 +24,14 @@ wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 js-sys = "0.3"
 web-sys = { version = "0.3", features = ["Window", "Response"] }
+
+[features]
+standalone = ["dep:pax-host"]
+
+[[bin]]
+name = "viewport-proximity"
+path = "src/main.rs"
+required-features = ["standalone"]
+
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+pax-host = { version = "0.39.0", path = "../../../pax-host", optional = true }

@@ -257,6 +257,51 @@ fn values(node: &Rc<ExpandedNode>) -> (f64, f64) {
 }
 
 #[test]
+fn supplied_root_keeps_its_allocation_and_local_bindings_without_defaulting() {
+    let (mut engine, _) = fixture();
+    let source = LocalProperty::new(41.0);
+    let observed = source.clone();
+    let computed = LocalProperty::computed(move || observed.get() + 1.0, &[source.untyped()]);
+    let supplied = Rc::new(RefCell::new(
+        Probe {
+            value: computed,
+            untouched: LocalProperty::new(99.0),
+        }
+        .to_pax_any(),
+    ));
+    let mut init = args();
+    init.prototypical_properties = init.prototypical_properties.adopt(supplied.clone());
+    let node = engine.mount_root_component(ComponentInstance::instantiate(init));
+    assert!(Rc::ptr_eq(&supplied, &node.properties.borrow()));
+    assert_eq!(CREATES.with(Cell::get), 0);
+    assert_eq!(values(&node), (42.0, 99.0));
+    source.set(50.0);
+    assert_eq!(values(&node), (51.0, 99.0));
+}
+
+#[test]
+fn supplied_root_applies_declared_bindings_and_preserves_unspecified_values() {
+    let (mut engine, _) = fixture();
+    let supplied = Rc::new(RefCell::new(
+        Probe {
+            value: LocalProperty::new(41.0),
+            untouched: LocalProperty::new(99.0),
+        }
+        .to_pax_any(),
+    ));
+    let mut init = args();
+    init.prototypical_properties = PropertiesInit::DescriptorInline {
+        descriptor: &ERASED,
+        defined_properties: BTreeMap::from([("value".into(), expression("12"))]),
+    }
+    .adopt(supplied.clone());
+    let node = engine.mount_root_component(ComponentInstance::instantiate(init));
+    assert!(Rc::ptr_eq(&supplied, &node.properties.borrow()));
+    assert_eq!(CREATES.with(Cell::get), 0);
+    assert_eq!(values(&node), (12.0, 99.0));
+}
+
+#[test]
 fn template_allocates_binds_and_publishes_scope_once_before_mount() {
     let (engine, root) = fixture();
     let source = LocalProperty::new(31.0);

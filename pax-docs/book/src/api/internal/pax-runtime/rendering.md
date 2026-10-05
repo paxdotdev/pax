@@ -209,6 +209,14 @@ Structured initialization for node-local typed properties.
 ##### `DescriptorInline` { `descriptor`: &'`static` `ErasedComponentDescriptor`, `defined_properties`: `BTreeMap`<`String`, [`ValueDefinition`](../../../api/internal/pax-manifest/index.md#valuedefinition)> }
 ##### `Template` { `descriptor`: &'`static` `ErasedComponentDescriptor`, `plan`: `Rc`<[`TemplatePropertyPlan`](../../../api/internal/pax-runtime/cartridge.md#templatepropertyplan)> }
 ##### `Factory`(`PropertiesFactory`)
+#### Implementations
+##### `adopt`
+<pre><code class="api-signature language-rust ignore">pub fn adopt(self, properties: Rc&lt;RefCell&lt;<a href="../../../api/pax-runtime-api/pax_value.md#paxany">PaxAny</a>&gt;&gt;) -&gt; Self</code></pre>
+
+Use an already constructed root while preserving its settings bindings.
+The allocation is shared directly; no descriptor default or value
+conversion may replace its property identities or Rust dependencies.
+
 ---
 
 ### `PropertiesScopeInit`

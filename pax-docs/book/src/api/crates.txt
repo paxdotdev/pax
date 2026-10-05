@@ -9,3 +9,4 @@ pax-message
 pax-gpu
 pax-tokio
 pax-web-async
+pax-host

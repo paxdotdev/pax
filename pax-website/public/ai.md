@@ -144,7 +144,7 @@ On web and macOS, opt into application-logic reload when its build latency is
 appropriate:
 
 ```sh
-pax-cli run --hot-reload=all
+pax-cli run --hot-reload=pax
 ```
 
 iOS and iPadOS require rebuilding and relaunching after Rust logic changes.

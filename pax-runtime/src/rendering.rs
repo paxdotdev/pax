@@ -134,6 +134,19 @@ pub enum PropertiesInit {
 }
 
 impl PropertiesInit {
+    /// Use an already constructed root while preserving its settings bindings.
+    /// The allocation is shared directly; no descriptor default or value
+    /// conversion may replace its property identities or Rust dependencies.
+    pub fn adopt(self, properties: Rc<RefCell<PaxAny>>) -> Self {
+        Self::Factory(Box::new(move |stack, node| {
+            if node.is_none() {
+                Some(properties.clone())
+            } else {
+                self.materialize(stack, node)
+            }
+        }))
+    }
+
     fn requires_pre_node_binding(&self) -> bool {
         match self {
             Self::Factory(_) => true,

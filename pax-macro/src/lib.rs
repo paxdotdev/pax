@@ -146,7 +146,20 @@ fn pax_struct_only_component(
 
 /// Returns the type associated with a field, as well as a flag describing whether the property
 /// type is wrapped in Property<T>
+fn is_rust_field(field: &Field) -> bool {
+    field.attrs.iter().any(|attr| {
+        attr.path.is_ident("pax")
+            && attr
+                .parse_args::<syn::Ident>()
+                .map(|name| name == "rust")
+                .unwrap_or(false)
+    })
+}
+
 fn get_field_type(f: &Field) -> Option<(Type, bool)> {
+    if is_rust_field(f) {
+        return None;
+    }
     let mut ret = None;
     if let Type::Path(tp) = &f.ty {
         match tp.qself {
@@ -341,7 +354,7 @@ fn pax_full_component(
     _raw_pax: String,
     input_parsed: &DeriveInput,
     is_main_component: bool,
-    application_type: Option<String>,
+    initializer: Option<String>,
     include_fix: Option<TokenStream>,
     is_custom_interpolatable: bool,
     is_custom_coercion_rules: bool,
@@ -408,9 +421,8 @@ fn pax_full_component(
         args_full_component: Some(ArgsFullComponent {
             is_main_component,
             cartridge_snippet,
-            application_type: application_type.unwrap_or_else(|| {
-                format!("{}::api::application::EmptyApplication", engine_import_path)
-            }),
+            initializer: initializer
+                .unwrap_or_else(|| format!("|_| Ok({}::default())", pascal_identifier)),
         }),
         pascal_identifier,
         internal_definitions,
@@ -451,7 +463,7 @@ fn pax_full_component(
 
 struct Config {
     is_main_component: bool,
-    application_type: Option<String>,
+    initializer: Option<String>,
     file_path: Option<String>,
     svg_path: Option<String>,
     inlined_contents: Option<String>,
@@ -465,7 +477,7 @@ struct Config {
 fn parse_config(attrs: &mut Vec<syn::Attribute>) -> Config {
     let mut config = Config {
         is_main_component: false,
-        application_type: None,
+        initializer: None,
         file_path: None,
         svg_path: None,
         inlined_contents: None,
@@ -480,11 +492,11 @@ fn parse_config(attrs: &mut Vec<syn::Attribute>) -> Config {
     // remove the ones we use, don't remove the ones we don't
     attrs.retain(|attr| {
         match attr.path.get_ident() {
-            Some(s) if s == "application" => {
+            Some(s) if s == "init" => {
                 let path: syn::Path = attr
                     .parse_args()
-                    .expect("#[application(Type)] requires one Rust type path");
-                config.application_type = Some(quote! { #path }.to_string());
+                    .expect("#[init(path)] requires one Rust function path");
+                config.initializer = Some(quote! { #path }.to_string());
                 return false;
             }
             Some(s) if s == "file" => {
@@ -628,9 +640,17 @@ pub fn pax(
     let mut input = parse_macro_input!(input as DeriveInput);
 
     let pascal_identifier = input.ident.to_string();
+    if input
+        .attrs
+        .iter()
+        .any(|attr| attr.path.is_ident("application"))
+    {
+        return quote! { compile_error!("#[application(Type)] has been removed; use #[init(path)] with an ordinary fn(&InitContext) -> AppResult<Root>"); }.into();
+    }
     let config = parse_config(&mut input.attrs);
-    if config.application_type.is_some() && !config.is_main_component {
-        return quote! { compile_error!("#[application(Type)] belongs on the #[main] root component"); }.into();
+    if config.initializer.is_some() && !config.is_main_component {
+        return quote! { compile_error!("#[init(path)] belongs on the #[main] root component"); }
+            .into();
     }
     validate_config(&input, &config).unwrap();
 
@@ -696,7 +716,7 @@ pub fn pax(
             content,
             &input,
             config.is_main_component,
-            config.application_type.clone(),
+            config.initializer.clone(),
             Some(include_fix),
             is_custom_interpolatable,
             is_custom_coercion_rules,
@@ -722,7 +742,7 @@ pub fn pax(
             String::new(),
             &input,
             config.is_main_component,
-            config.application_type.clone(),
+            config.initializer.clone(),
             Some(include_fix),
             is_custom_interpolatable,
             is_custom_coercion_rules,
@@ -737,7 +757,7 @@ pub fn pax(
             contents.to_owned(),
             &input,
             config.is_main_component,
-            config.application_type.clone(),
+            config.initializer.clone(),
             None,
             is_custom_interpolatable,
             is_custom_coercion_rules,
@@ -764,6 +784,29 @@ pub fn pax(
         )
     };
 
+    if let Data::Enum(data) = &input.data {
+        if data
+            .variants
+            .iter()
+            .flat_map(|v| v.fields.iter())
+            .any(|f| f.attrs.iter().any(|a| a.path.is_ident("pax")))
+        {
+            return quote! { compile_error!("#[pax(rust)] is supported on struct fields only"); }
+                .into();
+        }
+    }
+    // Rust-only fields own dependencies; they are not template values or baked data.
+    if let Data::Struct(data) = &mut input.data {
+        for field in &mut data.fields {
+            if is_rust_field(field) {
+                field.attrs.retain(|attr| !attr.path.is_ident("pax"));
+                field.attrs.push(syn::parse_quote!(#[serde(skip)]));
+            } else if field.attrs.iter().any(|attr| attr.path.is_ident("pax")) {
+                return quote! { compile_error!("the field attribute must be #[pax(rust)]"); }
+                    .into();
+            }
+        }
+    }
     let derives: proc_macro2::TokenStream = trait_impls
         .into_iter()
         .flat_map(|ident| {

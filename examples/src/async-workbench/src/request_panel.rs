@@ -1,5 +1,5 @@
 use crate::{
-    application::WorkbenchState,
+    application::WorkbenchResources,
     work_service::{self, BoundTasks, Executor},
 };
 use pax_kit::*;
@@ -16,7 +16,7 @@ pub struct RequestPanel {
 }
 struct PanelSession {
     scope: AsyncScope,
-    executor: std::rc::Rc<Executor>,
+    executor: Executor,
     operation: Option<AsyncScope>,
     task: Option<TaskControl>,
     subscription: Option<UiSubscription>,
@@ -64,8 +64,10 @@ impl PanelSession {
 }
 impl RequestPanel {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        let app = ctx.application();
-        let state = app.service::<WorkbenchState>().unwrap();
+        let resources = ctx
+            .with_store::<WorkbenchResources, _>(|resources| resources.clone())
+            .unwrap();
+        let state = &resources.state;
         state.mounts.update(|n| *n += 1);
         let shared = self.value.clone();
         let value = shared.local();
@@ -86,7 +88,7 @@ impl RequestPanel {
         let scope = ctx.async_scope().unwrap();
         let session = PanelSession {
             scope,
-            executor: app.service::<Executor>().unwrap(),
+            executor: resources.executor.clone(),
             operation: None,
             task: None,
             subscription: None,
@@ -302,7 +304,9 @@ impl RequestPanel {
                     self.0.store(0, Ordering::SeqCst);
                 }
             }
-            let state = ctx.application().service::<WorkbenchState>().unwrap();
+            let state = ctx
+                .with_store::<WorkbenchResources, _>(|resources| resources.state.clone())
+                .unwrap();
             if state
                 .blocking_jobs
                 .compare_exchange(0, 1, Ordering::SeqCst, Ordering::SeqCst)

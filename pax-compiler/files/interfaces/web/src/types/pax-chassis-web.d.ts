@@ -7,6 +7,7 @@ export function wasm_memory(): any;
 /**
 */
 export class PaxChassisWeb {
+  request(bytes: Uint8Array): Promise<Uint8Array>;
   free(): void;
   set_property_waker(callback: () => void): void;
   has_pending_properties(): boolean;
@@ -120,7 +121,7 @@ export interface InterruptResult {
 
 export interface InitOutput {
   readonly memory: WebAssembly.Memory;
-  readonly pax_init: () => number;
+  readonly init_web: (host: number) => number;
   readonly wasm_memory: () => number;
   readonly __wbg_paxchassisweb_free: (a: number, b: number) => void;
   readonly __wbg_interruptresult_free: (a: number, b: number) => void;

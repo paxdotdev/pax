@@ -9,10 +9,11 @@ pub use async_runtime::{
     TaskOutcome, TaskStatus, TrySendError, UiSender, UiSubscription,
 };
 pub mod application_shutdown;
-pub use application_shutdown::{ManagedService, ShutdownComplete, ShutdownTicket};
+pub use application_shutdown::{ShutdownComplete, ShutdownTicket};
 pub mod application;
 pub use application::{
-    AppBuilder, AppContext, AppPhase, AppResult, Application, ServiceError, StopReason,
+    AppClosed, AppContext, AppOptions, AppPhase, AppResult, InitContext, StopReason,
+    HOST_MESSAGE_LIMIT,
 };
 
 use std::cell::{Cell, RefCell};

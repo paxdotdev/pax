@@ -120,7 +120,7 @@ fn cli() -> App<'static, 'static> {
         .long("hot-reload")
         .takes_value(true)
         .possible_values(&["all", "pax", "logic", "off"])
-        .help("Select live source-update lanes: pax (default), all, logic, or off.");
+        .help("Template reload: pax (default) or off. Legacy all maps to pax with a notice; logic is unsupported. Rust changes require rebuilding and restarting.");
 
     #[allow(non_snake_case)]
     let ARG_IOS_DEVICE = Arg::with_name("ios-device")

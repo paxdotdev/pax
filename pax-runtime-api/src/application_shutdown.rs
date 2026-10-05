@@ -1,4 +1,4 @@
-//! Asynchronous service cleanup with UI-thread ownership and host wakeups.
+//! Retained asynchronous resource cleanup with UI-thread ownership and host wakeups.
 use crate::{
     application::{AppInner, ApplicationInstance},
     async_runtime::lock,
@@ -16,8 +16,8 @@ struct TicketState {
     result: Option<Result<(), String>>,
     wake: Wake,
 }
-/// Nonblocking acknowledgement of managed cleanup. A pending ticket retains its
-/// service and all earlier dependencies; a deadline never fabricates completion.
+/// Nonblocking acknowledgement of retained cleanup. A pending ticket retains its
+/// owner and all earlier dependencies; a deadline never fabricates completion.
 /// An explicit Err acknowledges quiescence with a cleanup error. Dropping the
 /// signal is not acknowledgement and leaves dependencies retained.
 pub struct ShutdownTicket(Arc<Mutex<TicketState>>);
@@ -78,11 +78,12 @@ impl Drop for ShutdownComplete {
         }
     }
 }
-/// A service whose teardown may wait. `begin_shutdown` runs once on the UI
+/// An internal adapter owner whose teardown may wait. `begin_shutdown` runs once on the UI
 /// thread and must immediately reject new work, start cleanup without blocking,
 /// and return a ticket. Dependencies registered earlier remain allocated until
-/// all later services acknowledge. Destruction itself must never block the UI.
-pub trait ManagedService: 'static {
+/// all later owners acknowledge. Destruction itself must never block the UI.
+#[doc(hidden)]
+pub trait Cleanup: 'static {
     fn begin_shutdown(&self) -> ShutdownTicket;
 }
 
@@ -163,16 +164,13 @@ pub(crate) fn deadline_wake(delay: Duration) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        AppBuilder, AppContext, AppPhase, AppResult, Application, ManagedService, StopReason,
-        TargetInfo,
-    };
+    use crate::{AppOptions, AppPhase, StopReason, TargetInfo};
     thread_local! {
         static EVENTS: RefCell<Vec<&'static str>> = const { RefCell::new(Vec::new()) };
         static SIGNAL: RefCell<Option<ShutdownComplete>> = const { RefCell::new(None) };
     }
     struct Dependency;
-    impl ManagedService for Dependency {
+    impl Cleanup for Dependency {
         fn begin_shutdown(&self) -> ShutdownTicket {
             EVENTS.with(|events| events.borrow_mut().push("dependency shutdown"));
             ShutdownTicket::ready(Ok(()))
@@ -184,7 +182,7 @@ mod tests {
         }
     }
     struct Dependent;
-    impl ManagedService for Dependent {
+    impl Cleanup for Dependent {
         fn begin_shutdown(&self) -> ShutdownTicket {
             EVENTS.with(|events| events.borrow_mut().push("dependent shutdown"));
             let (ticket, signal) = ShutdownTicket::pending();
@@ -192,31 +190,30 @@ mod tests {
             ticket
         }
     }
-    struct Hooks;
-    impl Application for Hooks {
-        fn configure(app: &mut AppBuilder) -> AppResult {
-            app.shutdown_deadline = Duration::ZERO;
-            app.provide_managed(Dependency)?;
-            app.provide_managed(Dependent)?;
-            Ok(())
-        }
-        fn stopping(app: &AppContext, _: StopReason) {
-            assert!(app.async_scope().is_err());
-            assert!(app.service::<Dependency>().is_ok());
-            EVENTS.with(|events| events.borrow_mut().push("stopping"));
-        }
+    fn prepared() -> ApplicationInstance {
+        let app = ApplicationInstance::prepare(
+            TargetInfo::default(),
+            AppOptions {
+                shutdown_deadline: Duration::ZERO,
+                ..AppOptions::default()
+            },
+        )
+        .unwrap();
+        app.context().retain_cleanup(Rc::new(Dependency)).unwrap();
+        app.context().retain_cleanup(Rc::new(Dependent)).unwrap();
+        app
     }
     #[test]
     fn shutdown_is_sequential_and_retains_dependencies_after_deadline_and_engine_drop() {
         EVENTS.with(|events| events.borrow_mut().clear());
-        let app = ApplicationInstance::prepare::<Hooks>(TargetInfo::default()).unwrap();
+        let app = prepared();
         let context = app.context();
         app.activate();
         app.begin_close();
         app.finish_close(StopReason::HostClosed);
         drop(app);
         assert_eq!(context.phase(), AppPhase::Closing);
-        EVENTS.with(|events| assert_eq!(*events.borrow(), ["stopping", "dependent shutdown"]));
+        EVENTS.with(|events| assert_eq!(*events.borrow(), ["dependent shutdown"]));
         assert_eq!(pump_shutdowns(), 1);
         SIGNAL.with(|signal| signal.borrow_mut().take().unwrap().complete(Ok(())));
         assert_eq!(pump_shutdowns(), 0);
@@ -225,7 +222,6 @@ mod tests {
             assert_eq!(
                 *events.borrow(),
                 [
-                    "stopping",
                     "dependent shutdown",
                     "dependency shutdown",
                     "dependency drop"
@@ -240,7 +236,7 @@ mod tests {
         set_shutdown_waker(move || {
             woke.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
         });
-        let app = ApplicationInstance::prepare::<Hooks>(TargetInfo::default()).unwrap();
+        let app = prepared();
         let errors = Rc::new(RefCell::new(Vec::new()));
         let observed = errors.clone();
         app.context()
@@ -276,17 +272,18 @@ mod tests {
         set_shutdown_waker(|| {});
     }
     #[test]
-    fn failed_configuration_uses_the_same_retained_cleanup_order() {
+    fn failed_initialization_uses_the_same_retained_cleanup_order() {
         EVENTS.with(|events| events.borrow_mut().clear());
-        struct Fails;
-        impl Application for Fails {
-            fn configure(app: &mut AppBuilder) -> AppResult {
-                app.provide_managed(Dependency)?;
-                app.provide_managed(Dependent)?;
-                Err("expected configuration failure".into())
-            }
-        }
-        assert!(ApplicationInstance::prepare::<Fails>(TargetInfo::default()).is_err());
+        let app =
+            ApplicationInstance::prepare(TargetInfo::default(), AppOptions::default()).unwrap();
+        assert!(app
+            .initialize::<()>(|cx| {
+                cx.lifetime().retain_cleanup(Rc::new(Dependency))?;
+                cx.lifetime().retain_cleanup(Rc::new(Dependent))?;
+                Err("expected initialization failure".into())
+            })
+            .is_err());
+        drop(app);
         EVENTS.with(|events| assert_eq!(*events.borrow(), ["dependent shutdown"]));
         SIGNAL.with(|signal| signal.borrow_mut().take().unwrap().complete(Ok(())));
         assert_eq!(pump_shutdowns(), 0);

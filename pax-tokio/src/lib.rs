@@ -1,15 +1,16 @@
-//! Optional Tokio integration for native Pax applications, without a custom main.
+//! Explicit Tokio ownership and scoped tasks for native Pax applications.
 //!
-//! Register [`TokioService`] with `AppBuilder::provide_managed`. Tasks use an
-//! explicit runtime handle and a Pax lifetime. No Tokio context is entered around
-//! UI callbacks. Browser applications use their browser executor instead.
+//! Construct your runtime, then pass it and `cx.lifetime()` to [`Executor::owned`]
+//! from the root initializer. The adapter uses that exact runtime and retains
+//! cleanup until workers finish. UI callbacks do not implicitly enter Tokio.
 #![cfg(not(target_arch = "wasm32"))]
 use futures_util::FutureExt;
 use pax_runtime_api::{
+    application_shutdown::Cleanup,
     async_runtime::{panic_message, AsyncScopeSource},
     properties::SharedPropertyValue,
-    AppContext, AppResult, AsyncError, AsyncScope, ManagedService, Property, ShutdownComplete,
-    ShutdownTicket, TaskControl, TaskOutcome, TaskStatus,
+    AppContext, AppResult, AsyncError, AsyncScope, Property, ShutdownComplete, ShutdownTicket,
+    TaskControl, TaskOutcome, TaskStatus,
 };
 use std::{
     cell::RefCell,
@@ -49,24 +50,70 @@ impl Drop for Running {
     }
 }
 
+/// An explicitly supplied Tokio runtime bound to an application's lifetime.
+/// Cloning this client shares the same runtime; dropping a client does not end
+/// application authority. Closing the application cancels work and retains the
+/// runtime on its owner thread until shutdown is acknowledged.
+#[derive(Clone)]
+pub struct Executor(std::rc::Rc<ExecutorOwner>);
+impl std::fmt::Debug for Executor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Executor").finish_non_exhaustive()
+    }
+}
+impl Executor {
+    /// Adopt this exact multithread runtime without changing its configuration.
+    /// The lifetime must be open. Construct inside the cartridge initializer;
+    /// never pass a Rust Runtime or Handle through the native cartridge ABI.
+    pub fn owned(runtime: Runtime, lifetime: &AppContext) -> AppResult<Self> {
+        // Transfer ownership before checking the lifetime: even rejected input
+        // must never synchronously drop a Runtime on the UI thread.
+        let owner = std::rc::Rc::new(ExecutorOwner::owned(runtime)?);
+        if let Err(error) = lifetime.retain_cleanup(owner.clone()) {
+            // Rejected adoption also retains cleanup until acknowledgement.
+            return Err(error.into());
+        }
+        Ok(Self(owner))
+    }
+    /// Borrow a continuously driven runtime. Its external owner must outlive
+    /// cleanup; this adapter never shuts down that runtime.
+    pub fn borrowed(handle: Handle, lifetime: &AppContext) -> AppResult<Self> {
+        let owner = std::rc::Rc::new(ExecutorOwner::borrowed(handle));
+        lifetime.retain_cleanup(owner.clone())?;
+        Ok(Self(owner))
+    }
+    /// Access the exact supplied runtime for advanced, untracked work.
+    pub fn handle(&self) -> Result<Handle, AsyncError> {
+        self.0.handle()
+    }
+    /// Bind work to this application lifetime.
+    pub fn for_application(&self, app: &AppContext) -> Result<BoundTasks, AsyncError> {
+        self.0.for_application(app)
+    }
+    /// Bind work to the exact node supplied by the caller.
+    pub fn for_node(&self, node: &impl AsyncScopeSource) -> Result<BoundTasks, AsyncError> {
+        self.0.for_node(node)
+    }
+    /// Bind work to an explicit operation or other scope.
+    pub fn for_scope(&self, scope: AsyncScope) -> Result<BoundTasks, AsyncError> {
+        self.0.for_scope(scope)
+    }
+}
+
 /// Application-owned Tokio client. Owned mode holds the runtime on a dedicated
 /// owner thread so even fallback destruction never waits on the UI thread.
 /// Borrowed mode never shuts down the external runtime; its owner must keep it
 /// alive and continuously driven, including when it has current-thread flavor.
-pub struct TokioService {
+struct ExecutorOwner {
     handle: Handle,
     shutdown: RefCell<Option<mpsc::Sender<ShutdownComplete>>>,
     tracking: Arc<Mutex<Tracking>>,
 }
-impl TokioService {
+impl ExecutorOwner {
     /// Own a multithread runtime. A current-thread runtime needs a continuously
     /// driven service thread and the borrowed-handle constructor instead.
     pub fn owned(runtime: Runtime) -> AppResult<Self> {
-        if runtime.handle().runtime_flavor() != RuntimeFlavor::MultiThread {
-            // Consuming an invalid runtime must not block the UI either.
-            runtime.shutdown_background();
-            return Err("TokioService::owned requires a multi-thread runtime; continuously drive a current-thread runtime externally and use borrowed(handle)".into());
-        }
+        let unsupported = runtime.handle().runtime_flavor() != RuntimeFlavor::MultiThread;
         let handle = runtime.handle().clone();
         let (shutdown, requests) = mpsc::channel::<ShutdownComplete>();
         // Keep a fallback owner outside the closure in case thread creation
@@ -84,16 +131,22 @@ impl TokioService {
                 }
             })
         {
-            if let Some(runtime) = lock(&transfer).take() {
-                runtime.shutdown_background();
-            }
+            // No thread exists that can safely destroy this Runtime. Retain the
+            // failed transfer with an unacknowledged cleanup ticket rather than
+            // declaring code quiescent while detached blocking jobs still run.
+            retire_failed_owner(std::rc::Rc::new(FailedRuntimeTransfer(transfer)));
             return Err(error.into());
         }
-        Ok(Self {
+        let owner = Self {
             handle,
             shutdown: RefCell::new(Some(shutdown)),
             tracking: Arc::new(Mutex::new(Tracking::default())),
-        })
+        };
+        if unsupported {
+            retire_failed_owner(std::rc::Rc::new(owner));
+            return Err("Executor::owned requires a multi-thread runtime; continuously drive a current-thread runtime externally and use borrowed(handle, lifetime)".into());
+        }
+        Ok(owner)
     }
     /// Borrow an explicitly supplied, continuously driven runtime. A Handle
     /// alone does not keep the Runtime alive and does not drive current-thread I/O.
@@ -132,7 +185,24 @@ impl TokioService {
         })
     }
 }
-impl ManagedService for TokioService {
+
+struct FailedRuntimeTransfer(#[allow(dead_code)] Arc<Mutex<Option<Runtime>>>);
+impl Cleanup for FailedRuntimeTransfer {
+    fn begin_shutdown(&self) -> ShutdownTicket {
+        let (ticket, signal) = ShutdownTicket::pending();
+        // Thread creation failed: there is no safe destruction acknowledgement.
+        // The kernel reports the failure/deadline and retains the runtime/code.
+        drop(signal);
+        ticket
+    }
+}
+fn retire_failed_owner(owner: std::rc::Rc<dyn Cleanup>) {
+    use pax_runtime_api::{application::ApplicationInstance, AppOptions, StopReason, TargetInfo};
+    let app = ApplicationInstance::prepare(TargetInfo::default(), AppOptions::default()).unwrap();
+    app.context().retain_cleanup(owner).unwrap();
+    app.finish_close(StopReason::PreparationDiscarded);
+}
+impl Cleanup for ExecutorOwner {
     fn begin_shutdown(&self) -> ShutdownTicket {
         let mut tracking = lock(&self.tracking);
         if tracking.closed {
@@ -163,7 +233,7 @@ impl ManagedService for TokioService {
         ticket
     }
 }
-impl Drop for TokioService {
+impl Drop for ExecutorOwner {
     fn drop(&mut self) {
         lock(&self.tracking).closed = true;
         // Disconnecting the owner also initiates cleanup after failed setup.
@@ -296,6 +366,58 @@ mod tests {
             .build()
             .unwrap()
     }
+    #[test]
+    fn application_close_retains_owned_runtime_after_last_client_is_dropped() {
+        use pax_runtime_api::{
+            application::ApplicationInstance, AppOptions, AppPhase, StopReason, TargetInfo,
+        };
+        let app =
+            ApplicationInstance::prepare(TargetInfo::default(), AppOptions::default()).unwrap();
+        let context = app.context();
+        let executor = app
+            .initialize(|cx| Executor::owned(runtime(), cx.lifetime()))
+            .unwrap();
+        let handle = executor.handle().unwrap();
+        let (started, observed) = mpsc::channel();
+        let (release, held) = mpsc::channel();
+        handle.spawn_blocking(move || {
+            started.send(()).unwrap();
+            held.recv().unwrap();
+        });
+        observed.recv_timeout(Duration::from_secs(2)).unwrap();
+        drop(executor);
+        app.activate();
+        app.finish_close(StopReason::HostClosed);
+        drop(app);
+        assert_eq!(context.phase(), AppPhase::Closing);
+        assert!(pax_runtime_api::application_shutdown::pending_shutdowns() > 0);
+        release.send(()).unwrap();
+        wait_until(|| {
+            pax_runtime_api::application_shutdown::pump_shutdowns();
+            context.phase() == AppPhase::Closed
+        });
+    }
+
+    #[test]
+    fn rejected_runtime_adoption_retains_cleanup_until_worker_acknowledges() {
+        use pax_runtime_api::{application::ApplicationInstance, AppOptions, TargetInfo};
+        let app =
+            ApplicationInstance::prepare(TargetInfo::default(), AppOptions::default()).unwrap();
+        let context = app.context();
+        drop(app);
+        let runtime = runtime();
+        let (started, observed) = mpsc::channel();
+        let (release, held) = mpsc::channel();
+        runtime.spawn_blocking(move || {
+            started.send(()).unwrap();
+            held.recv().unwrap();
+        });
+        observed.recv_timeout(Duration::from_secs(2)).unwrap();
+        assert!(Executor::owned(runtime, &context).is_err());
+        assert!(pax_runtime_api::application_shutdown::pending_shutdowns() > 0);
+        release.send(()).unwrap();
+        wait_until(|| pax_runtime_api::application_shutdown::pump_shutdowns() == 0);
+    }
     fn wait_until(mut ready: impl FnMut() -> bool) {
         let deadline = std::time::Instant::now() + Duration::from_secs(5);
         while !ready() {
@@ -307,7 +429,7 @@ mod tests {
     fn managed_owned_timer_publishes_without_a_ui_tokio_context() {
         let dispatcher = AsyncDispatcher::new(AsyncLimits::default());
         let scope = dispatcher.scope().unwrap();
-        let service = TokioService::owned(runtime()).unwrap();
+        let service = ExecutorOwner::owned(runtime()).unwrap();
         let tasks = service.for_scope(scope.clone()).unwrap();
         let result = Property::new(0usize);
         let task = tasks
@@ -329,7 +451,7 @@ mod tests {
     #[test]
     fn cancel_suppresses_callback_and_borrowed_shutdown_leaves_runtime_alive() {
         let runtime = runtime();
-        let service = TokioService::borrowed(runtime.handle().clone());
+        let service = ExecutorOwner::borrowed(runtime.handle().clone());
         let dispatcher = AsyncDispatcher::new(AsyncLimits::default());
         let scope = dispatcher.scope().unwrap();
         dispatcher.activate();
@@ -359,7 +481,7 @@ mod tests {
     }
     #[test]
     fn panic_is_observable_in_control_and_ui_completion() {
-        let service = TokioService::owned(runtime()).unwrap();
+        let service = ExecutorOwner::owned(runtime()).unwrap();
         let dispatcher = AsyncDispatcher::new(AsyncLimits::default());
         let scope = dispatcher.scope().unwrap();
         dispatcher.activate();
@@ -394,7 +516,7 @@ mod tests {
                 panic!("expected abort drop panic");
             }
         }
-        let service = TokioService::owned(runtime()).unwrap();
+        let service = ExecutorOwner::owned(runtime()).unwrap();
         let dispatcher = AsyncDispatcher::new(AsyncLimits::default());
         let scope = dispatcher.scope().unwrap();
         dispatcher.activate();
@@ -425,11 +547,11 @@ mod tests {
             .enable_all()
             .build()
             .unwrap();
-        assert!(TokioService::owned(runtime).is_err());
+        assert!(ExecutorOwner::owned(runtime).is_err());
     }
     #[test]
     fn native_loopback_io_is_driven_on_workers() {
-        let service = TokioService::owned(runtime()).unwrap();
+        let service = ExecutorOwner::owned(runtime()).unwrap();
         let dispatcher = AsyncDispatcher::new(AsyncLimits::default());
         let scope = dispatcher.scope().unwrap();
         dispatcher.activate();
@@ -487,7 +609,7 @@ mod tests {
                 let _ = stopped.await;
             });
         });
-        let service = TokioService::borrowed(handle_receiver.recv().unwrap());
+        let service = ExecutorOwner::borrowed(handle_receiver.recv().unwrap());
         let dispatcher = AsyncDispatcher::new(AsyncLimits::default());
         let scope = dispatcher.scope().unwrap();
         dispatcher.activate();
@@ -510,7 +632,7 @@ mod tests {
     }
     #[test]
     fn blocking_work_keeps_owned_shutdown_pending_until_actual_completion() {
-        let service = TokioService::owned(runtime()).unwrap();
+        let service = ExecutorOwner::owned(runtime()).unwrap();
         let (started, start) = mpsc::channel();
         let (release, wait) = mpsc::channel();
         service.handle().unwrap().spawn_blocking(move || {

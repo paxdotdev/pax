@@ -243,7 +243,12 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
             prepared.project_metadata.configured_hot_reload(),
         )?;
         validate_hot_reload_target(&ctx.target, mode)?;
-        mode
+        if mode == HotReloadMode::All {
+            eprintln!("Pax: --hot-reload=all now enables template reload only; Rust changes require rebuilding and restarting (or reloading the web page).");
+            HotReloadMode::Pax
+        } else {
+            mode
+        }
     } else {
         HotReloadMode::Off
     };
@@ -290,10 +295,13 @@ fn resolve_hot_reload_mode(
     Ok(HotReloadMode::default())
 }
 
-fn validate_hot_reload_target(target: &RunTarget, hot_reload: HotReloadMode) -> Result<(), Report> {
-    if matches!(target, RunTarget::iOS | RunTarget::iPadOS) && hot_reload == HotReloadMode::Logic {
+fn validate_hot_reload_target(
+    _target: &RunTarget,
+    hot_reload: HotReloadMode,
+) -> Result<(), Report> {
+    if hot_reload == HotReloadMode::Logic {
         return Err(eyre!(
-            "The `logic` hot-reload mode is unavailable for iOS and iPadOS because those chassis do not dynamically replace application logic. Use `pax` or `all`, or rebuild the app after logic changes."
+            "The `logic` hot-reload mode is unavailable: Rust replacement has been retired. Use `pax` or `off`; rebuild and restart after Rust changes (or reload the web page)."
         ));
     }
     Ok(())
@@ -1729,6 +1737,21 @@ mod tests {
             .parse::<toml_edit::Document>()
             .unwrap();
         assert_created_debug_profile(&override_manifest, "counter-app", "increment");
+        let host = &override_manifest["target"]
+            ["cfg(any(target_os = \"macos\", target_os = \"ios\"))"]["dependencies"]["pax-host"];
+        assert_eq!(host["version"].as_str(), Some("9.8.7"));
+        assert!(host.get("path").is_none());
+        assert_eq!(host["optional"].as_bool(), Some(true));
+        assert!(override_project.join("src/main.rs").is_file());
+        assert_eq!(
+            override_manifest["package"]["default-run"].as_str(),
+            Some("counter-app")
+        );
+        assert!(override_manifest["bin"]
+            .as_array_of_tables()
+            .unwrap()
+            .iter()
+            .any(|bin| bin["name"].as_str() == Some("counter-app")));
 
         let libdev_project = dir.path().join("libdev-app");
         perform_create(&CreateContext {
@@ -1894,12 +1917,20 @@ codegen-units = 32
     }
 
     #[test]
-    fn mobile_rejects_logic_only_but_accepts_pax_and_all() {
-        let error = validate_hot_reload_target(&RunTarget::iOS, HotReloadMode::Logic)
-            .expect_err("mobile has no logic-only reload lane");
-        assert!(error.to_string().contains("unavailable for iOS and iPadOS"));
-        assert!(validate_hot_reload_target(&RunTarget::iOS, HotReloadMode::Pax).is_ok());
-        assert!(validate_hot_reload_target(&RunTarget::iPadOS, HotReloadMode::All).is_ok());
+    fn all_chassis_reject_logic_replacement_but_accept_template_reload() {
+        for target in [
+            RunTarget::Web,
+            RunTarget::macOS,
+            RunTarget::iOS,
+            RunTarget::iPadOS,
+        ] {
+            let error = validate_hot_reload_target(&target, HotReloadMode::Logic).unwrap_err();
+            assert!(error
+                .to_string()
+                .contains("Rust replacement has been retired"));
+            assert!(validate_hot_reload_target(&target, HotReloadMode::Pax).is_ok());
+            assert!(validate_hot_reload_target(&target, HotReloadMode::All).is_ok());
+        }
     }
 
     fn release_context(should_run_designtime: bool) -> RunContext {
@@ -2131,6 +2162,7 @@ pub fn perform_create(ctx: &CreateContext) -> Result<(), String> {
     update_pax_dependency_versions(&mut doc, &ctx.version);
     sanitize_created_project_dependencies(&mut doc)?;
     rename_created_project_profile_overrides(&mut doc, &crate_name)?;
+    rename_created_project_launcher(&mut doc, &crate_name);
 
     // Update the `package` section
     if let Some(package) = doc
@@ -2181,6 +2213,36 @@ pub fn perform_create(ctx: &CreateContext) -> Result<(), String> {
     Ok(())
 }
 
+fn rename_created_project_launcher(doc: &mut toml_edit::Document, crate_name: &str) {
+    let Some(original) = doc["package"]["name"].as_str().map(str::to_owned) else {
+        return;
+    };
+    let mut renamed = false;
+    if let Some(bins) = doc
+        .get_mut("bin")
+        .and_then(|item| item.as_array_of_tables_mut())
+    {
+        for bin in bins.iter_mut() {
+            if bin.get("name").and_then(|item| item.as_str()) == Some(original.as_str())
+                && bin
+                    .get("required-features")
+                    .and_then(|item| item.as_array())
+                    .is_some_and(|features| {
+                        features
+                            .iter()
+                            .any(|value| value.as_str() == Some("standalone"))
+                    })
+            {
+                bin["name"] = toml_edit::value(crate_name);
+                renamed = true;
+            }
+        }
+    }
+    if renamed && doc["package"]["default-run"].as_str() == Some(original.as_str()) {
+        doc["package"]["default-run"] = toml_edit::value(crate_name);
+    }
+}
+
 fn rename_created_project_profile_overrides(
     doc: &mut toml_edit::Document,
     crate_name: &str,
@@ -2224,31 +2286,17 @@ fn rename_created_project_profile_overrides(
 }
 
 fn sanitize_created_project_dependencies(doc: &mut toml_edit::Document) -> Result<(), String> {
-    let Some(dependencies) = doc
-        .get_mut("dependencies")
-        .and_then(|item| item.as_table_mut())
-    else {
-        return Ok(());
-    };
-    for (name, dependency) in dependencies.iter_mut() {
-        if let toml_edit::Item::Value(toml_edit::Value::InlineTable(table)) = dependency {
+    helpers::for_each_dependency_mut(doc, |name, dependency| {
+        if let Some(table) = dependency.as_table_like_mut() {
             if table.contains_key("path") && !name.starts_with("pax-") {
                 return Err(format!(
                     "Bundled example dependency `{name}` uses a monorepo-relative path"
                 ));
             }
             table.remove("path");
-        } else if dependency
-            .as_table()
-            .map(|table| table.contains_key("path"))
-            .unwrap_or(false)
-        {
-            return Err(format!(
-                "Bundled example dependency `{name}` uses an unsupported path table"
-            ));
         }
-    }
-    Ok(())
+        Ok(())
+    })
 }
 
 fn write_project_agent_instructions(

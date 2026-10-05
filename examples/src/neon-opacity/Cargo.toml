@@ -2,7 +2,7 @@
 name = "neon-opacity"
 version = "0.39.0"
 edition = "2021"
-default-run = "run"
+default-run = "neon-opacity"
 
 [package.metadata.pax]
 title = "Neon Opacity"
@@ -25,3 +25,14 @@ opt-level = 1
 
 [profile.dev.package.neon-opacity]
 opt-level = 0
+
+[features]
+standalone = ["dep:pax-host"]
+
+[[bin]]
+name = "neon-opacity"
+path = "src/main.rs"
+required-features = ["standalone"]
+
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+pax-host = { version = "0.39.0", path = "../../../pax-host", optional = true }

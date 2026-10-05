@@ -1329,6 +1329,23 @@ pub trait DefinitionToInstanceTraverser {
         project_query: String,
     ) -> std::option::Option<std::rc::Rc<RefCell<pax_designtime::DesigntimeManager>>>;
 
+    /// Adopt the initializer's allocation without converting or defaulting it.
+    /// Component settings and timeline bindings still apply to the supplied values.
+    fn get_main_component_with_properties(
+        &self,
+        id: &str,
+        properties: Rc<RefCell<PaxAny>>,
+    ) -> Rc<crate::ComponentInstance> {
+        let main_component_type_id = self.get_manifest().main_component_type_id.clone();
+        let mut args = self.build_component_args(&main_component_type_id);
+        args.template_node_identifier = Some(pax_manifest::UniqueTemplateNodeIdentifier::build(
+            TypeId::build_singleton(id, Some("RootComponent")),
+            pax_manifest::TemplateNodeId::build(0),
+        ));
+        args.prototypical_properties = args.prototypical_properties.adopt(properties);
+        crate::ComponentInstance::instantiate(args)
+    }
+
     fn get_main_component(&self, id: &str) -> std::rc::Rc<crate::ComponentInstance> {
         let main_component_type_id = {
             let manifest = self.get_manifest();

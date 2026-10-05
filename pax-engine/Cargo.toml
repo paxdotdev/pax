@@ -27,6 +27,12 @@ wasm-bindgen = {version = "0.2.92", optional=true}
 wasm-bindgen-futures = {version = "0.4.42", optional=true}
 log = "0.4.20"
 
+[target.'cfg(target_os = "ios")'.dependencies]
+# backtrace 0.3.76 uses dyld declarations that libc 0.2.190 hides on iOS.
+# Keep this constraint in the always-present facade so initial Cargo metadata
+# resolves it before the CLI enables an optional platform chassis feature.
+libc = "=0.2.189"
+
 [features]
 # Opt-in GPU subtree filters, including runtime WGSL validation.
 shaders = ["pax-runtime/shaders"]

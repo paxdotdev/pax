@@ -1,12 +1,12 @@
 # pax-tokio
-<!-- summary: Optional Tokio integration for native Pax applications, without a custom main. -->
+<!-- summary: Explicit Tokio ownership and scoped tasks for native Pax applications. -->
 <!-- tags: api, pax-tokio -->
 
-Optional Tokio integration for native Pax applications, without a custom main.
+Explicit Tokio ownership and scoped tasks for native Pax applications.
 
-Register [`TokioService`] with `AppBuilder::provide_managed`. Tasks use an
-explicit runtime handle and a Pax lifetime. No Tokio context is entered around
-UI callbacks. Browser applications use their browser executor instead.
+Construct your runtime, then pass it and `cx.lifetime()` to [`Executor::owned`]
+from the root initializer. The adapter uses that exact runtime and retains
+cleanup until workers finish. UI callbacks do not implicitly enter Tokio.
 
 ## Structs
 ### `BoundTasks`
@@ -35,32 +35,42 @@ closure inline on the executor. Cancellation suppresses queued delivery.
 
 ---
 
-### `TokioService`
-Application-owned Tokio client. Owned mode holds the runtime on a dedicated
-owner thread so even fallback destruction never waits on the UI thread.
-Borrowed mode never shuts down the external runtime; its owner must keep it
-alive and continuously driven, including when it has current-thread flavor.
+### `Executor`
+An explicitly supplied Tokio runtime bound to an application's lifetime.
+Cloning this client shares the same runtime; dropping a client does not end
+application authority. Closing the application cancels work and retains the
+runtime on its owner thread until shutdown is acknowledged.
 
 #### Implementations
 ##### `borrowed`
-<pre><code class="api-signature language-rust ignore">pub fn borrowed(handle: Handle) -&gt; Self</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn borrowed(handle: Handle, lifetime: &amp;<a href="../../api/pax-runtime-api/application.md#appcontext">AppContext</a>) -&gt; <a href="../../api/pax-runtime-api/application.md#appresult">AppResult</a>&lt;Self&gt;</code></pre>
 
-Borrow an explicitly supplied, continuously driven runtime. A Handle
-alone does not keep the Runtime alive and does not drive current-thread I/O.
+Borrow a continuously driven runtime. Its external owner must outlive
+cleanup; this adapter never shuts down that runtime.
+
+##### `for_application`
+<pre><code class="api-signature language-rust ignore">pub fn for_application(&amp;self, app: &amp;<a href="../../api/pax-runtime-api/application.md#appcontext">AppContext</a>) -&gt; Result&lt;BoundTasks, <a href="../../api/pax-runtime-api/async_runtime.md#asyncerror">AsyncError</a>&gt;</code></pre>
+
+Bind work to this application lifetime.
 
 ##### `for_node`
 <pre><code class="api-signature language-rust ignore">pub fn for_node(&amp;self, node: &amp;impl <a href="../../api/pax-runtime-api/async_runtime.md#asyncscopesource">AsyncScopeSource</a>) -&gt; Result&lt;BoundTasks, <a href="../../api/pax-runtime-api/async_runtime.md#asyncerror">AsyncError</a>&gt;</code></pre>
 
-Uses this exact node's context, not the component owning a handler's self.
+Bind work to the exact node supplied by the caller.
+
+##### `for_scope`
+<pre><code class="api-signature language-rust ignore">pub fn for_scope(&amp;self, scope: <a href="../../api/pax-runtime-api/async_runtime.md#asyncscope">AsyncScope</a>) -&gt; Result&lt;BoundTasks, <a href="../../api/pax-runtime-api/async_runtime.md#asyncerror">AsyncError</a>&gt;</code></pre>
+
+Bind work to an explicit operation or other scope.
 
 ##### `handle`
 <pre><code class="api-signature language-rust ignore">pub fn handle(&amp;self) -&gt; Result&lt;Handle, <a href="../../api/pax-runtime-api/async_runtime.md#asyncerror">AsyncError</a>&gt;</code></pre>
 
-Advanced untracked work: raw tasks are neither staged nor cancelled by
-Pax scopes. Prefer the bound helpers for component/application work.
+Access the exact supplied runtime for advanced, untracked work.
 
 ##### `owned`
-<pre><code class="api-signature language-rust ignore">pub fn owned(runtime: Runtime) -&gt; <a href="../../api/pax-runtime-api/application.md#appresult">AppResult</a>&lt;Self&gt;</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn owned(runtime: Runtime, lifetime: &amp;<a href="../../api/pax-runtime-api/application.md#appcontext">AppContext</a>) -&gt; <a href="../../api/pax-runtime-api/application.md#appresult">AppResult</a>&lt;Self&gt;</code></pre>
 
-Own a multithread runtime. A current-thread runtime needs a continuously
-driven service thread and the borrowed-handle constructor instead.
+Adopt this exact multithread runtime without changing its configuration.
+The lifetime must be open. Construct inside the cartridge initializer;
+never pass a Rust Runtime or Handle through the native cartridge ABI.

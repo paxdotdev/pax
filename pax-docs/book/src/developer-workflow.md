@@ -15,77 +15,49 @@ web examples need an open browser tab connected to the running application.
 ## Hot reloading
 
 Debug runs use **Pax-only hot reload** by default. Saving a `.pax` template
-can update the mounted interface. Changing Rust application logic requires
-stopping and rerunning the application unless you opt into logic reload.
+can update the mounted interface. Rust application changes require rebuilding
+and restarting on native targets, or rebuilding and reloading the browser page.
+The initializer runs once per application instance, including after a restart.
 
-The two reload lanes are independent:
-
-| Mode | Saved `.pax` changes | Saved application-logic changes |
+| Mode | Saved `.pax` changes | Saved Rust changes |
 | --- | --- | --- |
 | `pax` — default | Reload | Rebuild and restart manually |
-| `all` | Reload | Rebuild and activate automatically on supported targets |
-| `logic` | Wait for the next logic rebuild or restart | Rebuild and activate automatically on supported targets |
 | `off` | Wait for restart | Rebuild and restart manually |
-
-Choose a mode for a run:
+| `all` — legacy | Reload, with a migration notice | Rebuild and restart manually |
+| `logic` — retired | Rejected with a migration diagnostic | Rebuild and restart manually |
 
 ```sh
 pax-cli run --target web --hot-reload=pax
-pax-cli run --target web --hot-reload=all
-pax-cli run --target web --hot-reload=logic
 pax-cli run --target web --hot-reload=off
 ```
 
-Run one of these at a time. `all` is useful when iterating between a template
-and its Rust handlers. A logic reload still compiles application code; allow
-the build and activation to finish before judging the changed behavior.
-
 ### Target support and restart boundaries
 
-Web and macOS support both lanes. iOS and iPadOS support `.pax` reload, while
-Rust logic changes require rebuilding and relaunching. On those mobile
-targets, `all` keeps template reload enabled and reports that saved logic
-changes need a restart. `logic` alone is rejected as unsupported.
+macOS, iOS, iPadOS and web use the same policy. `all` is accepted as a migration
+alias for `pax`; it no longer replaces Rust code in the running process. No
+automatic restart is implied. Inline templates in `.rs` files also require a
+rebuild. A new component type or event handler may need compiled information
+that the running application lacks; follow the reload diagnostic and restart.
 
-Some template edits also need new compiled Rust information—for example, a
-new component type or handler that the running build does not know about.
-Check the reload diagnostics and rebuild when necessary. Inline templates
-inside `.rs` files follow the Rust-source change path.
-
-Disabling a lane leaves your saved files intact. Their changes become part of
-the next applicable rebuild or restart. With `off`, the development service
-continues to support inspection; it simply stops activating source edits.
-
-Reloading can replace component instances or the application. Do not rely on
-arbitrary local state, focus, or scroll position surviving every kind of
-reload. Reproduce important test state explicitly. A failed logic build keeps
-the previously active revision available; read the error, correct the source,
-and wait for a successful activation. Component-owned stores follow the
-[provider lifetime rules](components-composition.md#lifetime-and-lookup-errors):
-stable handles can survive template updates, while changed binding aliases or
-recreated providers remount their affected subtrees. Successful logic reloads
-create fresh stores.
-
-Release builds disable both lanes. Use a debug session for editing and tools,
-then check the actual release output before shipping. [How Pax Runs](how-pax-runs.md#debug-and-release)
-explains that boundary.
+Template reload preserves the initialized root and its dependencies. Affected
+nodes can still unmount and remount, revoking their scopes and recreating local
+stores. Focus, scroll position and arbitrary node-local state need not survive.
+See [provider lifetime rules](components-composition.md#lifetime-and-lookup-errors).
+Disabling reload leaves source edits intact for the next build and preserves dev
+inspection. Release builds always disable reload and dev replacement.
 
 ### Configure a project default
 
-To store the preference with the project, add this to `Cargo.toml`:
-
 ```toml
 [package.metadata.pax.dev]
-hot_reload = "all"
+hot_reload = "pax"
 ```
 
-The accepted values are `pax`, `all`, `logic`, and `off`. Selection precedence
-is the `--hot-reload` flag, then the `PAX_HOT_RELOAD` environment variable,
-then Cargo metadata, then the `pax` debug default. An explicit flag is useful
-when checking whether a shell or project preference is affecting a run.
-
-Generated `cargo run` wrappers forward trailing arguments, so
-`cargo run -- --hot-reload=all` can select the same policy.
+Selection precedence is the `--hot-reload` flag, then `PAX_HOT_RELOAD`, then Cargo
+metadata, then the `pax` debug default. The same migration rules apply to every
+source of the setting. Use `pax-cli run` for code generation, packaging and the
+dev session. The native Cargo binary is the application entry, not a wrapper
+that recursively invokes the CLI.
 
 ## Format Pax source
 

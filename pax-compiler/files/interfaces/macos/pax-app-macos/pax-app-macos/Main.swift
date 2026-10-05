@@ -69,7 +69,7 @@ final class PaxMacosAppDelegate: NSObject, NSApplicationDelegate {
         let title = (Bundle.main.object(forInfoDictionaryKey: "CFBundleDisplayName") as? String)
             ?? (Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String)
             ?? "Pax"
-        let hostingController = NSHostingController(rootView: PaxViewMacos())
+        let hostingController = NSHostingController(rootView: PaxStandaloneView())
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 900, height: 450),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -85,13 +85,13 @@ final class PaxMacosAppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
-@main
 struct pax_app_macosApp: App {
     @NSApplicationDelegateAdaptor(PaxMacosAppDelegate.self) var appDelegate
 
     var body: some Scene {
         WindowGroup {
-            PaxViewMacos()
+            PaxStandaloneView()
         }
+        .commands { CommandGroup(replacing: .newItem) {} }
     }
 }

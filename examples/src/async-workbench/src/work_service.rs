@@ -2,21 +2,21 @@
 use pax_kit::*;
 
 #[cfg(not(target_arch = "wasm32"))]
-pub use pax_tokio::{BoundTasks, TokioService as Executor};
+pub use pax_tokio::{BoundTasks, Executor};
 #[cfg(target_arch = "wasm32")]
-pub use pax_web_async::{BoundTasks, BrowserService as Executor};
+pub use pax_web_async::{BoundTasks, Executor};
 
-pub fn configure(app: &mut AppBuilder) -> AppResult {
+pub fn executor(cx: &InitContext) -> AppResult<Executor> {
     #[cfg(not(target_arch = "wasm32"))]
-    app.provide_managed(Executor::owned(
+    return Executor::owned(
         tokio::runtime::Builder::new_multi_thread()
             .worker_threads(2)
             .enable_all()
             .build()?,
-    )?)?;
+        cx.lifetime(),
+    );
     #[cfg(target_arch = "wasm32")]
-    app.provide_managed(Executor::default())?;
-    Ok(())
+    Ok(Executor::new(cx.lifetime())?)
 }
 
 pub fn record(history: &Property<Vec<String>>, message: String) {

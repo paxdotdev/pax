@@ -2,7 +2,7 @@
 name = "route-card"
 version = "0.39.0"
 edition = "2021"
-default-run = "run"
+default-run = "route-card"
 
 [package.metadata.pax]
 title = "Route Card"
@@ -24,3 +24,14 @@ opt-level = 1
 
 [profile.dev.package.route-card]
 opt-level = 0
+
+[features]
+standalone = ["dep:pax-host"]
+
+[[bin]]
+name = "route-card"
+path = "src/main.rs"
+required-features = ["standalone"]
+
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+pax-host = { version = "0.39.0", path = "../../../pax-host", optional = true }

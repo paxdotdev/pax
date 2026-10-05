@@ -2,7 +2,7 @@
 name = "starter-project"
 version = "0.39.0"
 edition = "2021"
-default-run = "run"
+default-run = "starter-project"
 
 [package.metadata.pax]
 title = "Starter Project"
@@ -33,3 +33,14 @@ opt-level = 1
 
 [profile.dev.package.starter-project]
 opt-level = 0
+
+[features]
+standalone = ["dep:pax-host"]
+
+[[bin]]
+name = "starter-project"
+path = "src/main.rs"
+required-features = ["standalone"]
+
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+pax-host = { version = "0.39.0", path = "../../../pax-host", optional = true }

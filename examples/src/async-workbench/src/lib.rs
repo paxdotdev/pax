@@ -2,16 +2,19 @@ use pax_kit::*;
 mod application;
 mod request_panel;
 mod work_service;
-use application::{WorkbenchApplication, WorkbenchState};
+use application::WorkbenchResources;
 #[allow(unused_imports)]
 use request_panel::RequestPanel;
 
 #[pax]
 #[main]
-#[application(WorkbenchApplication)]
+#[init(application::init)]
 #[file("lib.pax")]
 pub struct AsyncWorkbench {
+    #[pax(rust)]
+    pub resources: Option<std::rc::Rc<WorkbenchResources>>,
     pub clicks: Property<usize>,
+    pub note: Property<String>,
     pub shared_value: Property<usize>,
     pub starts: Property<usize>,
     pub mounts: Property<usize>,
@@ -23,19 +26,14 @@ pub struct AsyncWorkbench {
 
 impl AsyncWorkbench {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        let state = ctx.application().service::<WorkbenchState>().unwrap();
-        fn follow<T: pax_kit::api::properties::SharedPropertyValue>(
-            target: &Property<T>,
-            source: &Property<T>,
-        ) {
-            let local = source.local();
-            let deps = [local.untyped()];
-            target.replace_with(LocalProperty::computed(move || local.get(), &deps));
-        }
-        follow(&self.shared_value, &state.value);
-        follow(&self.starts, &state.starts);
-        follow(&self.mounts, &state.mounts);
-        follow(&self.phase, &state.phase);
+        let resources = self
+            .resources
+            .as_ref()
+            .expect("root initializer supplies dependencies")
+            .clone();
+        let state = &resources.state;
+        ctx.provide_store((*resources).clone())
+            .expect("root is mounting");
         let history = state.history.local();
         let deps = [history.untyped()];
         self.history.replace_with(LocalProperty::computed(
@@ -51,7 +49,6 @@ impl AsyncWorkbench {
             },
             &deps,
         ));
-        self.mounted.set(true);
         self.backend.set(
             if ctx.platform == Platform::Web {
                 "Browser futures · bounded delivery"
@@ -67,15 +64,11 @@ impl AsyncWorkbench {
     pub fn toggle_panel(&mut self, _: &NodeContext, _: Event<ButtonClick>) {
         self.mounted.update(|mounted| *mounted = !*mounted);
     }
-    pub fn publish(&mut self, ctx: &NodeContext, _: Event<ButtonClick>) {
-        ctx.application()
-            .service::<WorkbenchState>()
-            .unwrap()
-            .value
-            .update(|n| *n += 1);
+    pub fn publish(&mut self, _: &NodeContext, _: Event<ButtonClick>) {
+        self.shared_value.update(|n| *n += 1);
     }
-    pub fn burst(&mut self, ctx: &NodeContext, _: Event<ButtonClick>) {
-        let state = ctx.application().service::<WorkbenchState>().unwrap();
+    pub fn burst(&mut self, _: &NodeContext, _: Event<ButtonClick>) {
+        let state = &self.resources.as_ref().unwrap().state;
         let value = state.value.clone();
         #[cfg(not(target_arch = "wasm32"))]
         {

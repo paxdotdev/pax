@@ -401,8 +401,8 @@ impl Drop for ScopeInner {
 /// later receive contexts for child controls.
 ///
 /// ```compile_fail
-/// use pax_runtime_api::{application::{ApplicationInstance, EmptyApplication}, TargetInfo};
-/// let app = ApplicationInstance::prepare::<EmptyApplication>(TargetInfo::default()).unwrap();
+/// use pax_runtime_api::{application::{ApplicationInstance, AppOptions}, TargetInfo};
+/// let app = ApplicationInstance::prepare(TargetInfo::default(), AppOptions::default()).unwrap();
 /// let scope = app.context().async_scope().unwrap();
 /// std::thread::spawn(move || scope.cancel());
 /// ```

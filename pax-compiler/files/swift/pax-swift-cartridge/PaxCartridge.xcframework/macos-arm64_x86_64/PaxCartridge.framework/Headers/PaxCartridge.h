@@ -30,6 +30,7 @@ bool pax_has_pending_properties(struct PaxEngineContainer *container);
 
 void pax_set_shutdown_waker(uint64_t token, void (*wake)(uint64_t));
 uint64_t pax_pump_shutdowns(void);
+uint32_t pax_cartridge_abi_version(void);
 void pax_shutdown_for_replacement(PaxEngineContainer *container);
 
 void pax_set_property_waker(struct PaxEngineContainer *container, uint64_t token, void (*wake)(uint64_t));
@@ -85,3 +86,7 @@ struct NativeMessageQueue *pax_designtime_replace_node(struct PaxEngineContainer
                                                        const struct InterruptBuffer *request_buffer);
 
 void pax_dealloc_message_queue(struct NativeMessageQueue *queue);
+
+// Inputs are copied during the call. Reply bytes are borrowed for the callback.
+PaxEngineContainer *pax_init_with_data(float width, float height, const uint8_t *data, size_t len);
+void pax_cartridge_request(PaxEngineContainer *engine, const uint8_t *data, size_t len, void *context, void (*reply)(void *, uint32_t, const uint8_t *, size_t));

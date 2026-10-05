@@ -7,11 +7,10 @@
 
 import SwiftUI
 
-@main
 struct pax_app_iosApp: App {
     var body: some Scene {
         WindowGroup {
-            PaxViewIos().edgesIgnoringSafeArea(.all)
+            PaxStandaloneView().edgesIgnoringSafeArea(.all)
         }
     }
 }

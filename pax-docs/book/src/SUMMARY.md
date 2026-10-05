@@ -97,6 +97,8 @@
       - [shaders::impressionist](api/pax-std/shaders/impressionist.md)
   - [pax-tokio](api/pax-tokio/index.md)
   - [pax-web-async](api/pax-web-async/index.md)
+  - [pax-host](api/pax-host/index.md)
+    - [native](api/pax-host/native.md)
 
 - [Maintainer Reference](api/internal/index.md)
 

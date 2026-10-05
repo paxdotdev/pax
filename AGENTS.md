@@ -125,24 +125,16 @@ New features are often proven on one "chassis" at a time (platform target.)  In 
 ## Hot reloading
 
 Debug `pax-cli run` sessions use `--hot-reload=pax` by default. `.pax` changes
-reload through the Pax lane on every supported target. Application-logic
-changes require rebuilding and restarting by default. Web and macOS can opt
-into the separate logic lane with `--hot-reload=all`; iOS and iPadOS still
-require rebuilding and relaunching after logic changes.
+reload through the Pax lane on every supported target. Rust application-logic
+changes require rebuilding and restarting (refresh the browser after rebuilding).
+Rust logic replacement is no longer a supported workflow. `--hot-reload=all`
+migrates to `pax` with a notice; `--hot-reload=logic` reports an error.
 
-Use `--hot-reload=all`, `--hot-reload=logic`, or `--hot-reload=off` to enable or
-suppress individual lanes. The same values can be set with `PAX_HOT_RELOAD` or
-the `hot_reload` key under `[package.metadata.pax.dev]`; precedence is CLI,
-environment, Cargo metadata, then the `pax` debug default. `logic` is
-language-neutral so future interpreted application modules can use the same
-policy. Disabled lanes still save source edits, but do not update the mounted
-app until a permitted logic build or restart. Release cartridges always disable
-both lanes and do not support dynamic linking, interpreted module replacement,
-or `.pax` live reload.
-
-This should allow you to have a tight feedback loop for iterating on visual
-content, design, and application behavior while making the active reload
-boundary explicit.
+Use `--hot-reload=pax` or `--hot-reload=off`. The same values can be set with
+`PAX_HOT_RELOAD` or `[package.metadata.pax.dev].hot_reload`; precedence is CLI,
+environment, Cargo metadata, then the `pax` debug default. Release cartridges
+always disable both reload lanes. The separate cartridge ABI remains in place
+for platform linking and future replacement work.
 
 ## Creative fidelity
 

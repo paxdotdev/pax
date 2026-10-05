@@ -18,6 +18,7 @@ members = [
     "pax-designtime",
     "pax-engine",
     "pax-kit",
+    "pax-host",
     "pax-language",
     "pax-language-server",
     "pax-macro",

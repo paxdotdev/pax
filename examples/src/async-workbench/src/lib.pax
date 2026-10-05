@@ -2,7 +2,7 @@
     <Group id=workbench_body x=50% anchor_x=50% width={(Math::min(1120, $viewport.width - 40))px}>
         <Text x=0px y=36px width=100% height=44px text="Async Workbench" style={font_size: 32px, fill: rgb(244, 241, 231)} />
         <Text x=0px y=88px width=100% height=28px text={self.backend} style={font_size: 14px, fill: rgb(126, 208, 204)} />
-        <Text x=0px y=118px width=100% height=28px text="Scoped work · shared state · a responsive UI" style={font_size: 15px, fill: rgb(171, 184, 194)} />
+        <Textbox id=cartridge_input x=0px y=120px width=100% height=34px text=bind:note placeholder="Cartridge-owned input · test focus and text entry" />
         <Button id=interact height=44px label={"Interact · " + self.clicks} @button_click=self.click />
         <Button id=panel_toggle height=44px label={self.mounted ? "Unmount panel" : "Remount panel"} @button_click=self.toggle_panel />
         <Group id=request_area>

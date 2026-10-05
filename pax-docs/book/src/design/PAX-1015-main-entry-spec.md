@@ -1,8 +1,11 @@
 # PAX-1015 — User-owned main and initialization
 
-Status: **Ready for implementation review; implementation has not started.**
-Investigated 2026-10-04. This document separates observations, feasibility
-inferences, and proposed contracts. All new API sketches below are unimplemented.
+Status: **Phase 1 implemented; qualification evidence below. Phase 2 has not started.**
+Investigated 2026-10-04; implementation qualification updated 2026-10-05.
+The investigation and API sketches below record the approved design. Section
+8’s implementation evidence distinguishes delivered APIs from future work;
+canonical usage is documented in [Targets](../targets-build-deploy.md#entry-and-mounting)
+and [Events and Rust](../event-handling-rust.md#application-setup).
 
 Issue: [PAX-1015](https://linear.app/paxdev/issue/PAX-1015/design-user-owned-main-entry-points-and-main-driven-initialization).
 Related: [PAX-1013](https://linear.app/paxdev/issue/PAX-1013/validate-tokio-support).
@@ -16,7 +19,8 @@ which predates PAX-1013. The clean local main checkout was inspected read-only a
 `14b6f8d6a868fc49a2f53668f907a14ab773b640`. Source paths and line numbers in this
 document refer to that latter revision, including `29bab61a8` (async) and
 `14b6f8d6a` (async tweaks). Neither commit is a proposed wholesale revert target.
-No checkout, rebase, commit, implementation, prototype, or API change was made.
+No implementation was made during that investigation. Phase-one execution
+subsequently began on the rebased branch, as recorded in section 9.
 
 Both issue descriptions, all available comments, status, labels, projects and
 relations were read. PAX-1015 is In Progress in Pax Core, related to PAX-1013,
@@ -26,9 +30,7 @@ deferred custom main while delivering independent safety and async work.
 
 Section 9 records the execution baseline and the two-phase scope. No further
 product decision is needed to start phase one; platform feasibility and lifetime
-correctness remain implementation gates, not assumed results. This readiness
-assessment is not a record of an instruction to start implementation. Once
-implementation is authorized, remove the superseded public services/custom init
+correctness remain implementation gates, not assumed results. Zack has now authorized Phase 1 as recorded in section 9. Remove the superseded public services/custom init
 surface before implementing its replacement, preserving the safety kernel in
 section 7. Git operations remain Zack's.
 
@@ -80,8 +82,7 @@ of retaining separately linked artifacts.
 
 On 2026-10-04 Zack said backing out, feature-flagging or stubbing Rust hot reload
 is acceptable if that simplifies this work. This resolves the requirement to
-preserve in-process Rust replacement; it does not approve implementation or select
-a particular code-removal strategy yet.
+preserve in-process Rust replacement; the subsequent Phase 1 authorization selects the retirement strategy below.
 
 Revised recommendation: rebuild/restart for Rust changes on native targets and
 rebuild/reload the page on web, retaining `.pax` hot reload. Do not design a new
@@ -99,7 +100,10 @@ environment and project metadata can opt in to logic reload. The present default
 requires a manual rebuild/restart for Rust changes; automatic restart-on-save is
 not implicitly added to this task.
 
-## 3. Current startup and ownership
+## 3. Pre-refactor startup and ownership
+
+This section records the PAX-1013 baseline at `14b6f8d6a`, including APIs
+removed by Phase 1. It is historical evidence, not current usage guidance.
 
 ### Artifact map
 
@@ -1090,8 +1094,54 @@ layout), Events and Rust (replace setup/services section and preserve async
 contracts), Components (dependency ownership), How Pax Runs (startup), Developer
 Workflow (restart/reload), Targets (artifacts/platform constraints), relevant
 `///` comments, architecture topology and canonical examples. Review a new public
-chapter outline with Zack if one becomes necessary. This draft changes no public
-behavior, so it does not teach proposed APIs as already available.
+chapter outline with Zack if one becomes necessary. Phase-one implementation updates those canonical articles and generated API
+references together; the older sketches in this spec are not a substitute for
+the implemented signatures.
+
+### Phase-one implementation evidence — 2026-10-05
+
+The implementation retains `#[main]`, adds `#[init(path)]` typed root construction
+and `#[pax(rust)]` dependency fields, and removes the public Application/hooks/
+service registry. Root adoption preserves the supplied allocation and Property
+identity. `pax-host` is a dependency-free native launcher SDK linked only to the
+Swift `PaxHost` framework; the app cartridge remains separately linked. The same
+native mount core serves Rust standalone entry and caller-owned native views.
+Browser hosts call explicit `Pax.init_web` and own an independently closable region.
+Startup inputs and request/reply use copied, bounded bytes. User-configured Tokio
+and browser executors attach only lifecycle ownership to the application.
+
+All 49 application examples now have a feature-gated standalone binary and keep
+their existing library/source paths. Fresh-project creation rewrites the binary
+name/default-run and target-specific dependencies correctly. Rust logic reload is
+retired at the supported policy boundary (`all` migrates to `pax`; `logic` errors).
+The old native replacement internals remain isolated from that supported workflow.
+No example directory moves or phase-two root syntax are included.
+
+| Area | Recorded evidence |
+| --- | --- |
+| Runtime/compiler | 201 compiler tests; 236 runtime tests passed, one ignored; 119 runtime-API tests, seven macro tests, ten Tokio tests. Core runtime/API/macro/Tokio checks also passed in release; the added bounded-error-reply regression passed in both modes. |
+| Release representation | Seven manifest roundtrip tests passed in debug/release. Live root/closure/runtime ownership stays outside ProgramIR, binary and generated Rust-manifest data; no serialized schema was added. Workbench's baked release root retained initialized state and dependencies. |
+| Web | Final debug and release Workbench builds passed. Explicit mount, failure/retry, startup cancellation, duplicate rejection, copied startup `7`/reply `8`, independent host/Pax input, async timer, 100-event stream, resize, collapse, close and remount were exercised. Import does not auto-mount. |
+| Template reload | A disposable debug Workbench served with `--hot-reload=all` displayed the migration notice and live-updated a `.pax` title. Initialized input text, counter and root interaction state survived; initializer count stayed one; its executor still completed a timer. |
+| macOS | Final universal release has x86_64 + arm64 slices in the Rust main, PaxHost and PaxCartridge; strict deep code-signature verification passed. Executable linkage contains PaxHost and libSystem, not another cartridge engine. Earlier interactive debug embedding and signed-release standalone checks covered real controls, timer/TCP, host survival and explicit Rust window options. |
+| iOS/iPadOS | Debug and final release simulator builds passed for both target configurations, using existing iPhone 17 Pro and iPad Pro 11-inch (M5), iOS 26.4. Earlier interactive debug checks covered standalone/embedding, native text focus/input, request/reply, async interaction, duplicate/close/remount and iPhone rotation. Simulator builds deliberately disable Xcode signing; they are not device/distribution signature qualification. |
+| Final native lifecycle | `tests/src/host-embedding/LifecycleProbe.swift` passed against all three final release frameworks. It verifies executor retirement after failed initialization, zero-height readiness and request delivery, resize preserving state, duplicate rejection, close acknowledgement, fresh-state replacement and close while collapsed. It never pumps an engine or shutdown queue itself. The macOS probe also passed against the final debug host and while the display clock was unavailable. |
+| Native async regression | Debug/release wake-only cartridge probes passed timers, stale-result suppression, bounded stream, TCP, local callback, progress, panic reporting, blocking cleanup, discarded preparation, replacement and shutdown without periodic ticks. |
+| Web host checks | All 34 JavaScript tests passed. Full TypeScript checking remains blocked by pre-existing diagnostics; comparison against HEAD found no new diagnostics. |
+| Templates/docs | A newly generated project built for web with local patches to unpublished workspace crates; a fresh lockfile selects the iOS-compatible libc pin. API reference/source bundles were regenerated. mdBook and publication-link checking passed (136 pages, 11,108 links, zero errors). |
+
+Qualification limits: physical-device signing, device lifecycle, notarization,
+IME and new accessibility capabilities are not claimed. The Mac locked during
+the last native visual pass. Earlier interactive native observations and the
+final automated host probes are recorded separately above; the final visual
+recheck of collapsed/resized native fixtures remains for an unlocked desktop.
+The release web embedding fixture is available from the Workbench build output.
+This is implementation/review evidence, not approval to publish or ship.
+
+The two pre-ship decisions remain open: choose the preferred run workflow, and
+coordinate any example flattening with PAX-1005's showcase/fixture organization.
+Phase two (explicit cartridge/root declarations and flexible UI package layout)
+remains deferred until review of phase one.
 
 ## 9. Execution baseline and remaining engineering gates
 
@@ -1139,9 +1189,10 @@ pending work, and equivalent debug/release root construction. Section 8 makes
 those acceptance gates. A failed gate requires reporting the concrete issue,
 not substituting a synthetic main, disabling controls or weakening cleanup.
 
-Readiness assessment is complete; implementation has not begun. The phase
-ordering and pre-ship review checkpoints are recorded. Discussion of execution
-readiness is not itself recorded as an instruction to start coding.
+Zack explicitly authorized Phase 1 ("Okay commence with Phase 1") and rebased
+the implementation branch onto `14b6f8d6a`; work continues at `c219e7ad3` plus
+uncommitted implementation changes. The phase ordering and pre-ship review
+checkpoints remain in effect. No further spec approval is needed for Phase 1.
 
 ## 10. Checks performed in this investigation
 

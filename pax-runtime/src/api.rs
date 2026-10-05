@@ -139,7 +139,7 @@ impl NodeContext {
             .async_scope(&self.runtime_context)
     }
 
-    /// Access services belonging to this application instance.
+    /// Access the owning application lifetime, cancellation and error reporting.
     pub fn application(&self) -> AppContext {
         self.runtime_context.application.context()
     }

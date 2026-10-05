@@ -5,3 +5,4 @@ pax-macro
 pax-kit
 pax-tokio
 pax-web-async
+pax-host

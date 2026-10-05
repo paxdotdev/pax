@@ -1963,6 +1963,57 @@ pub extern "C" fn pax_dealloc_message_queue(queue: *mut NativeMessageQueue) {
     }
 }
 
+/// Copy a bounded request into the application's UI queue. The reply buffer is
+/// borrowed only during the callback; the host must copy it before returning.
+/// Every accepted call replies once, including cancellation. Host callbacks must
+/// defer user code so it cannot reenter an engine during delivery or teardown.
+///
+/// # Safety
+/// `container` is a live engine on its UI owner. `data` addresses `len` readable
+/// bytes (or is null for zero bytes); `reply` and `context` remain valid until
+/// the one reply. Status zero is success; nonzero carries a UTF-8 error.
+#[no_mangle]
+pub unsafe extern "C" fn pax_cartridge_request(
+    container: *mut PaxEngineContainer,
+    data: *const u8,
+    len: usize,
+    context: *mut std::ffi::c_void,
+    reply: extern "C" fn(*mut std::ffi::c_void, u32, *const u8, usize),
+) {
+    let respond = move |result: Result<Vec<u8>, String>| {
+        let (status, bytes) = match result {
+            Ok(bytes) => (0, bytes),
+            Err(error) => (1, error.into_bytes()),
+        };
+        reply(context, status, bytes.as_ptr(), bytes.len());
+    };
+    if container.is_null()
+        || len > pax_runtime::api::HOST_MESSAGE_LIMIT
+        || (len != 0 && data.is_null())
+    {
+        respond(Err("invalid host request".into()));
+        return;
+    }
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let engine = unsafe { &*(*container)._engine };
+        let bytes = if len == 0 {
+            Vec::new()
+        } else {
+            unsafe { std::slice::from_raw_parts(data, len) }.to_vec()
+        };
+        engine
+            .runtime_context
+            .application
+            .context()
+            .request(bytes, respond);
+    }));
+    // A panic in a foreign callback is not recoverable. Rust callback panics are
+    // already converted to errors inside the application's request dispatcher.
+    if result.is_err() {
+        std::process::abort();
+    }
+}
+
 /// Activate a successfully mounted application after host/revision commitment.
 #[no_mangle]
 pub extern "C" fn pax_activate_application(container: *mut PaxEngineContainer) {

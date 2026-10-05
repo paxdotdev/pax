@@ -1,4 +1,5 @@
 [package]
+default-run = "group-compositing"
 name = "group-compositing"
 version = "0.39.0"
 edition = "2021"
@@ -17,3 +18,14 @@ opt-level = 1
 
 [profile.dev.package.group-compositing]
 opt-level = 0
+
+[features]
+standalone = ["dep:pax-host"]
+
+[[bin]]
+name = "group-compositing"
+path = "src/main.rs"
+required-features = ["standalone"]
+
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+pax-host = { version = "0.39.0", path = "../../../pax-host", optional = true }

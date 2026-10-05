@@ -185,7 +185,7 @@ mod native {
             host.click("Cancel");
             host.until("Task: Cancelled");
             host.click("Burst +1000");
-            host.until("Retained shared value: 1000");
+            host.until("Application counter: 1000");
             host.click("Run · 600 ms");
             host.click("Unmount panel");
             host.click("Remount panel");
@@ -216,7 +216,7 @@ mod native {
             host.text.clear();
             host.tick();
             host.until("Application starts: 1");
-            host.until("Retained shared value: 0");
+            host.until("Application counter: 0");
             host.click("Run · 600 ms");
             host.until("600 ms timer completed");
             println!("PASS prepared discard + replacement isolates application state");

@@ -17,7 +17,7 @@ From the monorepo root:
 
 ```sh
 cargo build -p pax-cli
-PAX_WORKSPACE_ROOT="$PWD" target/debug/pax-cli run --path examples/src/calculator --target web --hot-reload=all --libdev
+PAX_WORKSPACE_ROOT="$PWD" target/debug/pax-cli run --path examples/src/calculator --target web --hot-reload=pax --libdev
 ```
 
 Use the CLI built from this checkout when developing unreleased capabilities.

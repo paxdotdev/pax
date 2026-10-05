@@ -19,7 +19,10 @@ function getMouseButton(event: MouseEvent) {
 }
 
 
-export function setupEventListeners(chassis: PaxChassisWeb): () => void {
+export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement): () => void {
+    let disposed = false;
+    let dragging = false;
+    let currentButton = "Left";
     let disposers: Array<() => void> = [];
     let addDisposer = (disposer: () => void) => {
         disposers.push(disposer);
@@ -29,8 +32,16 @@ export function setupEventListeners(chassis: PaxChassisWeb): () => void {
         listener: (event: any) => void,
         options?: boolean | AddEventListenerOptions,
     ) => {
-        window.addEventListener(type, listener, options);
-        disposers.push(() => window.removeEventListener(type, listener, options));
+        // A sensor permission Promise may settle after the region was disposed.
+        if (disposed) return;
+        const continuation = type === "mousemove" || type === "mouseup";
+        const target = continuation || type === "deviceorientation" || type === "devicemotion" ? window : mount;
+        const scoped = (event: Event) => {
+            if (disposed || (continuation && !dragging && !mount.contains(event.target as Node))) return;
+            listener(event);
+        };
+        target.addEventListener(type, scoped, options);
+        disposers.push(() => target.removeEventListener(type, scoped, options));
     };
 
     let lastPositions = new Map<number, {x: number, y: number}>();
@@ -45,8 +56,8 @@ export function setupEventListeners(chassis: PaxChassisWeb): () => void {
             let delta_y = touch.clientY - lastPosition.y;
             lastPositions.set(touch.identifier, { x: touch.clientX, y: touch.clientY });
             return {
-                x: touch.clientX,
-                y: touch.clientY,
+                x: touch.clientX - mount.getBoundingClientRect().left,
+                y: touch.clientY - mount.getBoundingClientRect().top,
                 identifier: touch.identifier,
                 delta_x: delta_x,
                 delta_y: delta_y
@@ -76,8 +87,8 @@ export function setupEventListeners(chassis: PaxChassisWeb): () => void {
 
         let clickEvent = {
             "Click": {
-                "x": evt.clientX,
-                "y": evt.clientY,
+                "x": evt.clientX - mount.getBoundingClientRect().left,
+                "y": evt.clientY - mount.getBoundingClientRect().top,
                 "button": getMouseButton(evt),
                 "modifiers": convertModifiers(evt)
             }
@@ -90,8 +101,8 @@ export function setupEventListeners(chassis: PaxChassisWeb): () => void {
     addWindowListener('dblclick', (evt) => {
         let event = {
             "DoubleClick": {
-                "x": evt.clientX,
-                "y": evt.clientY,
+                "x": evt.clientX - mount.getBoundingClientRect().left,
+                "y": evt.clientY - mount.getBoundingClientRect().top,
                 "button": getMouseButton(evt),
                 "modifiers": convertModifiers(evt)
             }
@@ -119,12 +130,11 @@ export function setupEventListeners(chassis: PaxChassisWeb): () => void {
         }
     }, true);
     addWindowListener('mousemove', (evt) => {
-        // this value was previously set on window
-        let button = (window as any).current_button || 'Left';
+        let button = currentButton;
         let event = {
             "MouseMove": {
-                "x": evt.clientX,
-                "y": evt.clientY,
+                "x": evt.clientX - mount.getBoundingClientRect().left,
+                "y": evt.clientY - mount.getBoundingClientRect().top,
                 "button": button,
                 "modifiers": convertModifiers(evt)
             }
@@ -137,8 +147,8 @@ export function setupEventListeners(chassis: PaxChassisWeb): () => void {
     addWindowListener('wheel', (evt) => {
         let event = {
             "Wheel": {
-                "x": evt.clientX,
-                "y": evt.clientY,
+                "x": evt.clientX - mount.getBoundingClientRect().left,
+                "y": evt.clientY - mount.getBoundingClientRect().top,
                 "delta_x": evt.deltaX,
                 "delta_y": evt.deltaY,
                 "modifiers": convertModifiers(evt)
@@ -150,13 +160,14 @@ export function setupEventListeners(chassis: PaxChassisWeb): () => void {
         }
     }, {"passive": false, "capture": true});
     addWindowListener('mousedown', (evt) => {
+        if (!(evt.target as Element)?.closest('input, textarea, select, button, [contenteditable]')) mount.focus({preventScroll: true});
         let button = getMouseButton(evt);
-        // set non-existent window prop to keep track of value
-        (window as any).current_button = button;
+        currentButton = button;
+        dragging = true;
         let event = {
             "MouseDown": {
-                "x": evt.clientX,
-                "y": evt.clientY,
+                "x": evt.clientX - mount.getBoundingClientRect().left,
+                "y": evt.clientY - mount.getBoundingClientRect().top,
                 "button": getMouseButton(evt),
                 "modifiers": convertModifiers(evt)
             }
@@ -167,10 +178,11 @@ export function setupEventListeners(chassis: PaxChassisWeb): () => void {
         }
     }, true);
     addWindowListener('mouseup', (evt) => {
+        dragging = false;
         let event = {
             "MouseUp": {
-                "x": evt.clientX,
-                "y": evt.clientY,
+                "x": evt.clientX - mount.getBoundingClientRect().left,
+                "y": evt.clientY - mount.getBoundingClientRect().top,
                 "button": getMouseButton(evt),
                 "modifiers": convertModifiers(evt)
             }
@@ -183,8 +195,8 @@ export function setupEventListeners(chassis: PaxChassisWeb): () => void {
     addWindowListener('contextmenu', (evt) => {
         let event = {
             "ContextMenu": {
-                "x": evt.clientX,
-                "y": evt.clientY,
+                "x": evt.clientX - mount.getBoundingClientRect().left,
+                "y": evt.clientY - mount.getBoundingClientRect().top,
                 "button": getMouseButton(evt),
                 "modifiers": convertModifiers(evt)
             }
@@ -194,7 +206,7 @@ export function setupEventListeners(chassis: PaxChassisWeb): () => void {
             evt.preventDefault();
         }
     }, true);
-    addWindowListener('touchstart', (evt) => {
+    addWindowListener('touchstart', (evt: TouchEvent) => {
         let event = {
             "TouchStart": {
                 "touches": getTouchMessages(evt.touches)
@@ -215,7 +227,7 @@ export function setupEventListeners(chassis: PaxChassisWeb): () => void {
             evt.preventDefault();
         }
     }, {"passive": true, "capture": true});
-    addWindowListener('touchmove', (evt) => {
+    addWindowListener('touchmove', (evt: TouchEvent) => {
         if (activeTapTouchIdentifier !== undefined && activeTapStart !== undefined) {
             let activeTouch = Array.from(evt.touches as TouchList).find(
                 touch => touch.identifier === activeTapTouchIdentifier,
@@ -243,7 +255,7 @@ export function setupEventListeners(chassis: PaxChassisWeb): () => void {
         }
 
     }, {"passive": false, "capture": true});
-    addWindowListener('touchend', (evt) => {
+    addWindowListener('touchend', (evt: TouchEvent) => {
         let event = {
             "TouchEnd": {
                 "touches": getTouchMessages(evt.changedTouches)
@@ -261,8 +273,8 @@ export function setupEventListeners(chassis: PaxChassisWeb): () => void {
                 };
                 let tapEvent = {
                     "Tap": {
-                        "x": touch.clientX,
-                        "y": touch.clientY,
+                        "x": touch.clientX - mount.getBoundingClientRect().left,
+                        "y": touch.clientY - mount.getBoundingClientRect().top,
                     }
                 };
                 tapPreventDefault = chassis.interrupt(tapEvent, []).prevent_default;
@@ -277,7 +289,7 @@ export function setupEventListeners(chassis: PaxChassisWeb): () => void {
             lastPositions.delete(touch.identifier);
         });
     }, {"passive": true, "capture": true});
-    addWindowListener('touchcancel', (evt) => {
+    addWindowListener('touchcancel', (evt: TouchEvent) => {
         let event = {
             "TouchCancel": {
                 "touches": getTouchMessages(evt.changedTouches)
@@ -294,7 +306,7 @@ export function setupEventListeners(chassis: PaxChassisWeb): () => void {
         });
     }, {"passive": true, "capture": true});
     addWindowListener('keydown', (evt) => {
-        let dom_node_selected = document.activeElement != document.body;
+        let dom_node_selected = document.activeElement != mount;
         // TODO figure out how to handle this more robustly
         if (dom_node_selected) {
             return;
@@ -313,7 +325,7 @@ export function setupEventListeners(chassis: PaxChassisWeb): () => void {
         }
     }, true);
     addWindowListener('keyup', (evt) => {
-        if (document.activeElement != document.body) {
+        if (document.activeElement != mount) {
             return;
         }
         let event = {
@@ -329,7 +341,7 @@ export function setupEventListeners(chassis: PaxChassisWeb): () => void {
         }
     }, true);
     addWindowListener('keypress', (evt) => {
-        if (document.activeElement != document.body) {
+        if (document.activeElement != mount) {
             return;
         }
         let event = {
@@ -345,7 +357,7 @@ export function setupEventListeners(chassis: PaxChassisWeb): () => void {
         }
     }, true);
     addWindowListener('focus', (evt) => {
-        if (document.activeElement != document.body) {
+        if (document.activeElement != mount) {
             return;
         }
         let event = {
@@ -359,15 +371,16 @@ export function setupEventListeners(chassis: PaxChassisWeb): () => void {
     addWindowListener('drop', async (evt) => {
         evt.stopPropagation();
         evt.preventDefault();
-        if (document.activeElement != document.body) {
+        if (document.activeElement != mount) {
             return;
         }
         let file = evt.dataTransfer?.files[0]!;
         let bytes = await readFileAsByteArray(file);
+        if (disposed) return;
         let event = {
             "DropFile": {
-                "x": evt.clientX,
-                "y": evt.clientY,
+                "x": evt.clientX - mount.getBoundingClientRect().left,
+                "y": evt.clientY - mount.getBoundingClientRect().top,
                 "name": file.name,
                 "mime_type": file.type,
                 "size": file.size,
@@ -386,6 +399,7 @@ export function setupEventListeners(chassis: PaxChassisWeb): () => void {
     setupDeviceSensorListeners(chassis, addWindowListener, addDisposer);
 
     return () => {
+        disposed = true;
         while (disposers.length > 0) {
             let dispose = disposers.pop();
             dispose?.();

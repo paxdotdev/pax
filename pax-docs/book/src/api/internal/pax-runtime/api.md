@@ -176,7 +176,7 @@ A structural invalidation signal for `retained_received_children`.
 ##### `application`
 <pre><code class="api-signature language-rust ignore">pub fn application(&amp;self) -&gt; <a href="../../../api/pax-runtime-api/application.md#appcontext">AppContext</a></code></pre>
 
-Access services belonging to this application instance.
+Access the owning application lifetime, cancellation and error reporting.
 
 ##### `async_scope`
 <pre><code class="api-signature language-rust ignore">pub fn async_scope(&amp;self) -&gt; Result&lt;<a href="../../../api/pax-runtime-api/async_runtime.md#asyncscope">AsyncScope</a>, <a href="../../../api/pax-runtime-api/async_runtime.md#asyncerror">AsyncError</a>&gt;</code></pre>

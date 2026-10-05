@@ -151,7 +151,7 @@ struct PaxViewIos: View {
         private static var propertyWakes: [UInt64: () -> Void] = [:]
         private var propertyWakeToken: UInt64?
         private var ownedEngine: OpaquePointer?
-        private static var shutdownWakeInstalled = false
+        private weak var hostSession = PaxHostSession.active
 
         private func installPropertyWaker(_ engine: OpaquePointer) {
             let token = Self.nextPropertyWakeToken
@@ -167,6 +167,7 @@ struct PaxViewIos: View {
                 DispatchQueue.main.async { PaxViewIos.PaxCanvasViewIos.propertyWakes[token]?() }
             }
             pax_activate_application(engine)
+            PaxHostSession.canvasReady { [weak self] in self?.shutdown() }
         }
         private var previousViewportSize: CGSize = .zero
         private var publishedSafeAreaInsets: UIEdgeInsets?
@@ -457,20 +458,18 @@ struct PaxViewIos: View {
             propertyWakeToken = nil
             displayLink?.invalidate()
             displayLink = nil
-            if let engine = ownedEngine {
-                if PaxEngineContainer.paxEngineContainer == engine {
-                    PaxEngineContainer.paxEngineContainer = nil
-                }
-                ownedEngine = nil
-                pax_dealloc_engine(engine)
-            }
+            // SwiftUI can discard sizing views before they adopt an engine.
+            // A late dismantle belongs to this session, never its replacement.
+            if ownedEngine != nil { hostSession?.close() }
+            ownedEngine = nil
         }
 
         deinit { shutdown() }
 
         @discardableResult
         private func tick(measurePhases: Bool = false) -> PaxFramePhaseDurations {
-            guard !isShutdown else { return PaxFramePhaseDurations() }
+            guard !isShutdown, let hostSession,
+                PaxHostSession.active === hostSession, hostSession.status < 3 else { return PaxFramePhaseDurations() }
             let totalStart = measurePhases ? CACurrentMediaTime() : 0
             var phaseStart = totalStart
             var phases = PaxFramePhaseDurations()
@@ -480,28 +479,12 @@ struct PaxViewIos: View {
                 phases.viewportMs = Self.elapsedMilliseconds(since: phaseStart)
                 phaseStart = CACurrentMediaTime()
             }
-            guard viewportSize.width > 0, viewportSize.height > 0 else {
-                if measurePhases {
-                    phases.totalMs = Self.elapsedMilliseconds(since: totalStart)
-                }
-                return phases
-            }
             noteViewportSize(viewportSize)
 
             let width = Float(viewportSize.width)
             let height = Float(viewportSize.height)
             let scale = Float(currentScale())
 
-            if !Self.shutdownWakeInstalled {
-                Self.shutdownWakeInstalled = true
-                pax_set_shutdown_waker(1) { _ in
-                    DispatchQueue.main.async { _ = pax_pump_shutdowns() }
-                }
-            }
-            if PaxEngineContainer.paxEngineContainer == nil {
-                PaxEngineContainer.paxEngineContainer = pax_init(width, height)
-                ownedEngine = PaxEngineContainer.paxEngineContainer
-            }
             if measurePhases {
                 phases.engineInitMs = Self.elapsedMilliseconds(since: phaseStart)
                 phaseStart = CACurrentMediaTime()
@@ -514,6 +497,7 @@ struct PaxViewIos: View {
                 return phases
             }
 
+            ownedEngine = engineContainer
             if propertyWakeToken == nil { installPropertyWaker(engineContainer) }
             // The SwiftUI content intentionally ignores safe areas. Read the owning
             // window's safe rectangle and convert it to the canvas coordinate space.
@@ -562,6 +546,12 @@ struct PaxViewIos: View {
                 phaseStart = CACurrentMediaTime()
             }
 
+            // Keep initialization and UI delivery alive while the host region
+            // is collapsed, without acquiring a zero-sized Metal drawable.
+            guard width > 0, height > 0 else {
+                if measurePhases { phases.totalMs = Self.elapsedMilliseconds(since: totalStart) }
+                return phases
+            }
             surfaceManager.sync(
                 engineContainer: engineContainer,
                 rootView: self,

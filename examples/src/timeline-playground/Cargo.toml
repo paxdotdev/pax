@@ -2,7 +2,7 @@
 name = "timeline-playground"
 version = "0.39.0"
 edition = "2021"
-default-run = "run"
+default-run = "timeline-playground"
 
 [package.metadata.pax]
 title = "Timeline Playground"
@@ -25,3 +25,14 @@ opt-level = 1
 
 [profile.dev.package.timeline-playground]
 opt-level = 0
+
+[features]
+standalone = ["dep:pax-host"]
+
+[[bin]]
+name = "timeline-playground"
+path = "src/main.rs"
+required-features = ["standalone"]
+
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+pax-host = { version = "0.39.0", path = "../../../pax-host", optional = true }

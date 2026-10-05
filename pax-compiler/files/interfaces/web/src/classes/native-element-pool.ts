@@ -133,7 +133,10 @@ export class NativeElementPool {
         });
     }
 
-    attach(chassis: PaxChassisWeb, mount: Element){
+    private allowPageScroll = false;
+
+    attach(chassis: PaxChassisWeb, mount: Element, allowPageScroll = false){
+        this.allowPageScroll = allowPageScroll;
         this.chassis = chassis;
         this.mount = mount instanceof HTMLElement ? mount : undefined;
         injectScrollerChromeCss(mount.ownerDocument ?? document);
@@ -2287,6 +2290,7 @@ export class NativeElementPool {
         scrollX?: number,
         scrollY?: number,
     ) {
+        if (!this.allowPageScroll) return;
         let root = document.documentElement;
         if (active) {
             root.style.overflow = "auto";
@@ -2497,6 +2501,7 @@ export class NativeElementPool {
     }
 
     private applyPageScrollSnapType(snapType: string) {
+        if (!this.allowPageScroll) return;
         let root = document.documentElement;
         let body = document.body;
         if (snapType === "none") {
@@ -2551,7 +2556,7 @@ export class NativeElementPool {
         patch: ScrollerUpdatePatch,
         state: ScrollerMeasurementState,
     ) {
-        if (!supportsPageScrollDelegation()) {
+        if (!this.allowPageScroll || !supportsPageScrollDelegation()) {
             return false;
         }
         if (!state.isRootScroller) {
@@ -3503,7 +3508,7 @@ export class NativeElementPool {
     }
 
     setCursor(patch: SetCursorPatch) {
-        document.body.style.cursor = patch.cursor!;
+        if (this.mount) this.mount.style.cursor = patch.cursor!;
     }
 }
 

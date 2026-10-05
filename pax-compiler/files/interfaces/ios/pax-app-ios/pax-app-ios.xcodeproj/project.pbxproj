@@ -48,20 +48,24 @@
 
 /* Begin PBXGroup section */
 		1405D1132ACF5B1C006EBEF1 = {
-			isa = PBXGroup;
-			children = (
-				1405D11E2ACF5B1C006EBEF1 /* pax-app-ios */,
-				1405D11D2ACF5B1C006EBEF1 /* Products */,
+			"isa" = "PBXGroup";
+			"sourceTree" = "<group>";
+			"children" = (
+				"1405D11E2ACF5B1C006EBEF1",
+				"1405D11D2ACF5B1C006EBEF1",
+				"FACE1015000000000000000C",
 			);
-			sourceTree = "<group>";
 		};
-		1405D11D2ACF5B1C006EBEF1 /* Products */ = {
-			isa = PBXGroup;
-			children = (
-				1405D11C2ACF5B1C006EBEF1 /* Pax iOS (Development).app */,
+		1405D11D2ACF5B1C006EBEF1 = {
+			"isa" = "PBXGroup";
+			"name" = "Products";
+			"children" = (
+				"1405D11C2ACF5B1C006EBEF1",
+				"FACE1015000000000000000E",
+				"FACE1015000000000000000F",
+				"FACE10150000000000000010",
 			);
-			name = Products;
-			sourceTree = "<group>";
+			"sourceTree" = "<group>";
 		};
 		1405D11E2ACF5B1C006EBEF1 /* pax-app-ios */ = {
 			isa = PBXGroup;
@@ -88,76 +92,74 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		1405D11B2ACF5B1C006EBEF1 /* Pax iOS (Development) */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 1405D12A2ACF5B1D006EBEF1 /* Build configuration list for PBXNativeTarget "Pax iOS (Development)" */;
-			buildPhases = (
-				1405D1182ACF5B1C006EBEF1 /* Sources */,
-				1405D1192ACF5B1C006EBEF1 /* Frameworks */,
-				1405D11A2ACF5B1C006EBEF1 /* Resources */,
+		1405D11B2ACF5B1C006EBEF1 = {
+			"buildConfigurationList" = "1405D12A2ACF5B1D006EBEF1";
+			"productReference" = "1405D11C2ACF5B1C006EBEF1";
+			"productType" = "com.apple.product-type.application";
+			"packageProductDependencies" = (
 			);
-			buildRules = (
+			"productName" = "pax-app-ios";
+			"isa" = "PBXNativeTarget";
+			"buildPhases" = (
+				"FACE10150000000000000017",
+				"1405D11A2ACF5B1C006EBEF1",
+				"FACE1015000000000000001A",
 			);
-			dependencies = (
+			"dependencies" = (
+				"FACE10150000000000000016",
 			);
-			name = "Pax iOS (Development)";
-			packageProductDependencies = (
-				141DEF6C2AD4E82D000EFF82 /* PaxCartridge */,
-				141DEF6E2AD4E82D000EFF82 /* PaxCartridgeAssets */,
-				141DEF712AD4E83E000EFF82 /* FlexBuffers */,
-				141DEF732AD4E83E000EFF82 /* Messages */,
-				141DEF752AD4E83E000EFF82 /* Rendering */,
+			"name" = "Pax iOS (Development)";
+			"buildRules" = (
 			);
-			productName = "pax-app-ios";
-			productReference = 1405D11C2ACF5B1C006EBEF1 /* Pax iOS (Development).app */;
-			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
-		1405D1142ACF5B1C006EBEF1 /* Project object */ = {
-			isa = PBXProject;
-			attributes = {
-				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 1500;
-				LastUpgradeCheck = 1500;
-				TargetAttributes = {
-					1405D11B2ACF5B1C006EBEF1 = {
-						CreatedOnToolsVersion = 15.0;
+		1405D1142ACF5B1C006EBEF1 = {
+			"buildConfigurationList" = "1405D1172ACF5B1C006EBEF1";
+			"packageReferences" = (
+				"141DEF6B2AD4E82D000EFF82",
+				"141DEF702AD4E83E000EFF82",
+			);
+			"targets" = (
+				"1405D11B2ACF5B1C006EBEF1",
+				"FACE10150000000000000014",
+			);
+			"developmentRegion" = "en";
+			"knownRegions" = (
+				"en",
+				"Base",
+			);
+			"isa" = "PBXProject";
+			"compatibilityVersion" = "Xcode 14.0";
+			"productRefGroup" = "1405D11D2ACF5B1C006EBEF1";
+			"projectDirPath" = "";
+			"attributes" = {
+				"LastSwiftUpdateCheck" = "1500";
+				"BuildIndependentTargetsInParallel" = "1";
+				"LastUpgradeCheck" = "1500";
+				"TargetAttributes" = {
+					"1405D11B2ACF5B1C006EBEF1" = {
+						"CreatedOnToolsVersion" = "15.0";
 					};
 				};
 			};
-			buildConfigurationList = 1405D1172ACF5B1C006EBEF1 /* Build configuration list for PBXProject "pax-app-ios" */;
-			compatibilityVersion = "Xcode 14.0";
-			developmentRegion = en;
-			hasScannedForEncodings = 0;
-			knownRegions = (
-				en,
-				Base,
-			);
-			mainGroup = 1405D1132ACF5B1C006EBEF1;
-			packageReferences = (
-				141DEF6B2AD4E82D000EFF82 /* XCLocalSwiftPackageReference "../../common/pax-swift-cartridge" */,
-				141DEF702AD4E83E000EFF82 /* XCLocalSwiftPackageReference "../../common/pax-swift-common" */,
-			);
-			productRefGroup = 1405D11D2ACF5B1C006EBEF1 /* Products */;
-			projectDirPath = "";
-			projectRoot = "";
-			targets = (
-				1405D11B2ACF5B1C006EBEF1 /* Pax iOS (Development) */,
-			);
+			"hasScannedForEncodings" = "0";
+			"projectRoot" = "";
+			"mainGroup" = "1405D1132ACF5B1C006EBEF1";
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		1405D11A2ACF5B1C006EBEF1 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				1405D1272ACF5B1D006EBEF1 /* Preview Assets.xcassets in Resources */,
-				1405D1242ACF5B1D006EBEF1 /* Assets.xcassets in Resources */,
+		1405D11A2ACF5B1C006EBEF1 = {
+			"isa" = "PBXResourcesBuildPhase";
+			"buildActionMask" = "2147483647";
+			"files" = (
+				"1405D1272ACF5B1D006EBEF1",
+				"1405D1242ACF5B1D006EBEF1",
+				"FACE1015000000000000001B",
 			);
-			runOnlyForDeploymentPostprocessing = 0;
+			"runOnlyForDeploymentPostprocessing" = "0";
 		};
 /* End PBXResourcesBuildPhase section */
 
@@ -295,63 +297,67 @@
 			};
 			name = Release;
 		};
-		1405D12B2ACF5B1D006EBEF1 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "pax-app-ios/pax_app_ios.entitlements";
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"pax-app-ios/Preview Content\"";
-				DEVELOPMENT_TEAM = "";
-				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "pax-app-ios/Info.plist";
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
-				LD_RUNPATH_SEARCH_PATHS = (
+		1405D12B2ACF5B1D006EBEF1 = {
+			"isa" = "XCBuildConfiguration";
+			"buildSettings" = {
+				"CODE_SIGN_ENTITLEMENTS" = "pax-app-ios/pax_app_ios.entitlements";
+				"MARKETING_VERSION" = "1.0";
+				"DEVELOPMENT_TEAM" = "";
+				"CURRENT_PROJECT_VERSION" = "1";
+				"PAX_APP_BUNDLE_IDENTIFIER" = "dev.pax.pax-app-ios";
+                "PRODUCT_BUNDLE_IDENTIFIER" = "$(PAX_APP_BUNDLE_IDENTIFIER)";
+				"ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME" = "AccentColor";
+				"PROVISIONING_PROFILE_SPECIFIER" = "";
+				"DEVELOPMENT_ASSET_PATHS" = "\"pax-app-ios/Preview Content\"";
+				"TARGETED_DEVICE_FAMILY" = "1,2";
+				"CODE_SIGN_STYLE" = "Automatic";
+				"ASSETCATALOG_COMPILER_APPICON_NAME" = "AppIcon";
+				"LD_RUNPATH_SEARCH_PATHS" = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "dev.pax.pax-app-ios";
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				PROVISIONING_PROFILE_SPECIFIER = "";
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				"SWIFT_VERSION" = "5.0";
+				"PRODUCT_NAME" = "$(TARGET_NAME)";
+				"IPHONEOS_DEPLOYMENT_TARGET" = "15.0";
+				"CODE_SIGN_IDENTITY" = "Apple Development";
+				"ENABLE_PREVIEWS" = "YES";
+				"SWIFT_EMIT_LOC_STRINGS" = "YES";
+				"INFOPLIST_FILE" = "pax-app-ios/Info.plist";
+				"GENERATE_INFOPLIST_FILE" = "NO";
+				"ENABLE_USER_SCRIPT_SANDBOXING" = "NO";
 			};
-			name = Debug;
+			"name" = "Debug";
 		};
-		1405D12C2ACF5B1D006EBEF1 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "pax-app-ios/pax_app_ios.entitlements";
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"pax-app-ios/Preview Content\"";
-				DEVELOPMENT_TEAM = "";
-				ENABLE_PREVIEWS = YES;
-				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = "pax-app-ios/Info.plist";
-				IPHONEOS_DEPLOYMENT_TARGET = 15.0;
-				LD_RUNPATH_SEARCH_PATHS = (
+		1405D12C2ACF5B1D006EBEF1 = {
+			"isa" = "XCBuildConfiguration";
+			"buildSettings" = {
+				"CODE_SIGN_ENTITLEMENTS" = "pax-app-ios/pax_app_ios.entitlements";
+				"MARKETING_VERSION" = "1.0";
+				"DEVELOPMENT_TEAM" = "";
+				"CURRENT_PROJECT_VERSION" = "1";
+				"PAX_APP_BUNDLE_IDENTIFIER" = "dev.pax.pax-app-ios";
+                "PRODUCT_BUNDLE_IDENTIFIER" = "$(PAX_APP_BUNDLE_IDENTIFIER)";
+				"ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME" = "AccentColor";
+				"PROVISIONING_PROFILE_SPECIFIER" = "";
+				"DEVELOPMENT_ASSET_PATHS" = "\"pax-app-ios/Preview Content\"";
+				"TARGETED_DEVICE_FAMILY" = "1,2";
+				"CODE_SIGN_STYLE" = "Automatic";
+				"ASSETCATALOG_COMPILER_APPICON_NAME" = "AppIcon";
+				"LD_RUNPATH_SEARCH_PATHS" = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "dev.pax.pax-app-ios";
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				PROVISIONING_PROFILE_SPECIFIER = "";
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				"SWIFT_VERSION" = "5.0";
+				"PRODUCT_NAME" = "$(TARGET_NAME)";
+				"IPHONEOS_DEPLOYMENT_TARGET" = "15.0";
+				"CODE_SIGN_IDENTITY" = "Apple Development";
+				"ENABLE_PREVIEWS" = "YES";
+				"SWIFT_EMIT_LOC_STRINGS" = "YES";
+				"INFOPLIST_FILE" = "pax-app-ios/Info.plist";
+				"GENERATE_INFOPLIST_FILE" = "NO";
+				"ENABLE_USER_SCRIPT_SANDBOXING" = "NO";
 			};
-			name = Release;
+			"name" = "Release";
 		};
 /* End XCBuildConfiguration section */
 
@@ -409,6 +415,255 @@
 			productName = Rendering;
 		};
 /* End XCSwiftPackageProductDependency section */
+/* Pax host and external Cargo executable targets */
+		FACE10150000000000000001 = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "14BA758F2AD4C4DE001B3A61";
+		};
+		FACE10150000000000000002 = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "1405D1212ACF5B1C006EBEF1";
+		};
+		FACE10150000000000000003 = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "1405D11F2ACF5B1C006EBEF1";
+		};
+		FACE10150000000000000004 = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "1405D12B2ACF5B1C006EBEF1";
+		};
+		FACE10150000000000000005 = {
+			"isa" = "PBXSourcesBuildPhase";
+			"buildActionMask" = "2147483647";
+			"files" = (
+				"FACE10150000000000000001",
+				"FACE10150000000000000002",
+				"FACE10150000000000000003",
+				"FACE10150000000000000004",
+				"FACE1015000000000000000D",
+			);
+			"runOnlyForDeploymentPostprocessing" = "0";
+		};
+		FACE10150000000000000006 = {
+			"isa" = "PBXBuildFile";
+			"productRef" = "141DEF732AD4E83E000EFF82";
+		};
+		FACE10150000000000000007 = {
+			"isa" = "PBXBuildFile";
+			"productRef" = "141DEF752AD4E83E000EFF82";
+		};
+		FACE10150000000000000008 = {
+			"isa" = "PBXBuildFile";
+			"productRef" = "141DEF6C2AD4E82D000EFF82";
+		};
+		FACE10150000000000000009 = {
+			"isa" = "PBXBuildFile";
+			"productRef" = "141DEF712AD4E83E000EFF82";
+		};
+		FACE1015000000000000000A = {
+			"isa" = "PBXBuildFile";
+			"productRef" = "141DEF6E2AD4E82D000EFF82";
+		};
+		FACE1015000000000000000B = {
+			"isa" = "PBXFrameworksBuildPhase";
+			"buildActionMask" = "2147483647";
+			"files" = (
+				"FACE10150000000000000006",
+				"FACE10150000000000000007",
+				"FACE10150000000000000008",
+				"FACE10150000000000000009",
+				"FACE1015000000000000000A",
+			);
+			"runOnlyForDeploymentPostprocessing" = "0";
+		};
+		FACE1015000000000000000C = {
+			"isa" = "PBXFileReference";
+			"lastKnownFileType" = "sourcecode.swift";
+			"path" = "../../common/pax-swift-common/Host/PaxHost.swift";
+			"sourceTree" = "SOURCE_ROOT";
+		};
+		FACE1015000000000000000D = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "FACE1015000000000000000C";
+		};
+		FACE1015000000000000000E = {
+			"isa" = "PBXFileReference";
+			"explicitFileType" = "wrapper.framework";
+			"includeInIndex" = "0";
+			"path" = "PaxHost.framework";
+			"sourceTree" = "BUILT_PRODUCTS_DIR";
+		};
+		FACE1015000000000000000F = {
+			"isa" = "PBXFileReference";
+			"explicitFileType" = "wrapper.framework";
+			"includeInIndex" = "0";
+			"path" = "PaxCartridge.framework";
+			"sourceTree" = "BUILT_PRODUCTS_DIR";
+		};
+		FACE10150000000000000010 = {
+			"isa" = "PBXFileReference";
+			"explicitFileType" = "wrapper.cfbundle";
+			"includeInIndex" = "0";
+			"path" = "PaxSwiftCartridge_PaxCartridgeAssets.bundle";
+			"sourceTree" = "BUILT_PRODUCTS_DIR";
+		};
+		FACE10150000000000000011 = {
+			"isa" = "XCBuildConfiguration";
+			"buildSettings" = {
+				"MARKETING_VERSION" = "1.0";
+				"DEVELOPMENT_TEAM" = "";
+				"CURRENT_PROJECT_VERSION" = "1";
+				"PRODUCT_BUNDLE_IDENTIFIER" = "dev.pax.host";
+				"PROVISIONING_PROFILE_SPECIFIER" = "";
+				"TARGETED_DEVICE_FAMILY" = "1,2";
+				"CODE_SIGN_STYLE" = "Automatic";
+				"LD_RUNPATH_SEARCH_PATHS" = (
+					"$(inherited)",
+					"@loader_path/..",
+					"@executable_path/../Frameworks",
+					"@executable_path/Frameworks",
+				);
+				"SWIFT_VERSION" = "5.0";
+				"PRODUCT_NAME" = "PaxHost";
+				"IPHONEOS_DEPLOYMENT_TARGET" = "15.0";
+				"CODE_SIGN_IDENTITY" = "Apple Development";
+				"SWIFT_EMIT_LOC_STRINGS" = "YES";
+				"GENERATE_INFOPLIST_FILE" = "YES";
+				"DEFINES_MODULE" = "YES";
+				"SKIP_INSTALL" = "YES";
+				"MACH_O_TYPE" = "mh_dylib";
+				"DYLIB_INSTALL_NAME_BASE" = "@rpath";
+				"INSTALL_PATH" = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+			};
+			"name" = "Debug";
+		};
+		FACE10150000000000000012 = {
+			"isa" = "XCBuildConfiguration";
+			"buildSettings" = {
+				"MARKETING_VERSION" = "1.0";
+				"DEVELOPMENT_TEAM" = "";
+				"CURRENT_PROJECT_VERSION" = "1";
+				"PRODUCT_BUNDLE_IDENTIFIER" = "dev.pax.host";
+				"PROVISIONING_PROFILE_SPECIFIER" = "";
+				"TARGETED_DEVICE_FAMILY" = "1,2";
+				"CODE_SIGN_STYLE" = "Automatic";
+				"LD_RUNPATH_SEARCH_PATHS" = (
+					"$(inherited)",
+					"@loader_path/..",
+					"@executable_path/../Frameworks",
+					"@executable_path/Frameworks",
+				);
+				"SWIFT_VERSION" = "5.0";
+				"PRODUCT_NAME" = "PaxHost";
+				"IPHONEOS_DEPLOYMENT_TARGET" = "15.0";
+				"CODE_SIGN_IDENTITY" = "Apple Development";
+				"SWIFT_EMIT_LOC_STRINGS" = "YES";
+				"GENERATE_INFOPLIST_FILE" = "YES";
+				"DEFINES_MODULE" = "YES";
+				"SKIP_INSTALL" = "YES";
+				"MACH_O_TYPE" = "mh_dylib";
+				"DYLIB_INSTALL_NAME_BASE" = "@rpath";
+				"INSTALL_PATH" = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+			};
+			"name" = "Release";
+		};
+		FACE10150000000000000013 = {
+			"isa" = "XCConfigurationList";
+			"buildConfigurations" = (
+				"FACE10150000000000000011",
+				"FACE10150000000000000012",
+			);
+			"defaultConfigurationIsVisible" = "0";
+			"defaultConfigurationName" = "Release";
+		};
+		FACE10150000000000000014 = {
+			"isa" = "PBXNativeTarget";
+			"buildConfigurationList" = "FACE10150000000000000013";
+			"buildPhases" = (
+				"FACE10150000000000000005",
+				"FACE1015000000000000000B",
+			);
+			"buildRules" = (
+			);
+			"dependencies" = (
+			);
+			"name" = "PaxHost";
+			"packageProductDependencies" = (
+				"141DEF6C2AD4E82D000EFF82",
+				"141DEF6E2AD4E82D000EFF82",
+				"141DEF712AD4E83E000EFF82",
+				"141DEF732AD4E83E000EFF82",
+				"141DEF752AD4E83E000EFF82",
+			);
+			"productName" = "PaxHost";
+			"productReference" = "FACE1015000000000000000E";
+			"productType" = "com.apple.product-type.framework";
+		};
+		FACE10150000000000000015 = {
+			"isa" = "PBXContainerItemProxy";
+			"containerPortal" = "1405D1142ACF5B1C006EBEF1";
+			"proxyType" = "1";
+			"remoteGlobalIDString" = "FACE10150000000000000014";
+			"remoteInfo" = "PaxHost";
+		};
+		FACE10150000000000000016 = {
+			"isa" = "PBXTargetDependency";
+			"target" = "FACE10150000000000000014";
+			"targetProxy" = "FACE10150000000000000015";
+		};
+		FACE10150000000000000017 = {
+			"isa" = "PBXShellScriptBuildPhase";
+			"buildActionMask" = "2147483647";
+			"files" = (
+			);
+			"inputPaths" = (
+				"$(PAX_NATIVE_EXECUTABLE)",
+			);
+			"outputPaths" = (
+				"$(TARGET_BUILD_DIR)/$(EXECUTABLE_PATH)",
+			);
+			"name" = "Install Cargo executable";
+			"runOnlyForDeploymentPostprocessing" = "0";
+			"shellPath" = "/bin/sh";
+			"shellScript" = "set -eu\n: \"${PAX_NATIVE_EXECUTABLE:?Build the standalone Cargo target with pax-cli first}\"\nmkdir -p \"$(dirname \"$TARGET_BUILD_DIR/$EXECUTABLE_PATH\")\"\ncp \"$PAX_NATIVE_EXECUTABLE\" \"$TARGET_BUILD_DIR/$EXECUTABLE_PATH\"\nchmod +x \"$TARGET_BUILD_DIR/$EXECUTABLE_PATH\"\n";
+		};
+		FACE10150000000000000018 = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "FACE1015000000000000000E";
+			"settings" = {
+				"ATTRIBUTES" = (
+					"CodeSignOnCopy",
+					"RemoveHeadersOnCopy",
+				);
+			};
+		};
+		FACE10150000000000000019 = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "FACE1015000000000000000F";
+			"settings" = {
+				"ATTRIBUTES" = (
+					"CodeSignOnCopy",
+					"RemoveHeadersOnCopy",
+				);
+			};
+		};
+		FACE1015000000000000001A = {
+			"isa" = "PBXCopyFilesBuildPhase";
+			"buildActionMask" = "2147483647";
+			"dstPath" = "";
+			"dstSubfolderSpec" = "10";
+			"files" = (
+				"FACE10150000000000000018",
+				"FACE10150000000000000019",
+			);
+			"name" = "Embed Pax frameworks";
+			"runOnlyForDeploymentPostprocessing" = "0";
+		};
+		FACE1015000000000000001B = {
+			"isa" = "PBXBuildFile";
+			"fileRef" = "FACE10150000000000000010";
+		};
+
 	};
 	rootObject = 1405D1142ACF5B1C006EBEF1 /* Project object */;
 }

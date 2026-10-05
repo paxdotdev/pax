@@ -50,9 +50,9 @@ pax-cli run
 ```
 
 The debug default is `--hot-reload=pax`: `.pax` edits update the mounted app,
-while Rust edits require rebuilding and restarting. On web and macOS, opt into
-logic reload with `pax-cli run --hot-reload=all` when its rebuild latency is
-appropriate for the task.
+while Rust edits require rebuilding and restarting. `--hot-reload=all` now enables only template reload
+with a migration notice; `--hot-reload=logic` is rejected. Rebuild and restart
+after Rust changes on every target (refresh the browser after rebuilding).
 
 The dev Cargo profile optimizes runtime dependencies at level 1 and keeps this
 application at level 0 for quick Rust rebuilds. Preserve the app-specific

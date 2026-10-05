@@ -2,7 +2,7 @@
 name = "pick-up-sticks"
 version = "0.39.0"
 edition = "2021"
-default-run = "run"
+default-run = "pick-up-sticks"
 
 [package.metadata.pax]
 title = "Pick Up Sticks"
@@ -25,3 +25,14 @@ opt-level = 1
 
 [profile.dev.package.pick-up-sticks]
 opt-level = 0
+
+[features]
+standalone = ["dep:pax-host"]
+
+[[bin]]
+name = "pick-up-sticks"
+path = "src/main.rs"
+required-features = ["standalone"]
+
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+pax-host = { version = "0.39.0", path = "../../../pax-host", optional = true }

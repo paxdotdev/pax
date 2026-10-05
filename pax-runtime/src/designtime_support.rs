@@ -382,8 +382,19 @@ pub fn apply_designtime_userland_reload(
     for reload_type in reload_queue {
         match reload_type {
             ReloadType::Tree => {
+                // Template reload must keep the initialized root and its Rust
+                // dependencies. Only a process/page restart reruns initialization.
+                let properties = engine
+                    .runtime_context
+                    .userland_root_expanded_node
+                    .borrow()
+                    .as_ref()
+                    .expect("mounted userland root")
+                    .properties
+                    .borrow()
+                    .clone();
                 let root = definition_to_instance_traverser
-                    .get_main_component(USERLAND_COMPONENT_ROOT)
+                    .get_main_component_with_properties(USERLAND_COMPONENT_ROOT, properties)
                     as Rc<dyn InstanceNode>;
                 engine.full_reload_userland(root);
             }

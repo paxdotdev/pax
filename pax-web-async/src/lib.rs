@@ -6,10 +6,11 @@ use futures_util::{
     FutureExt,
 };
 use pax_runtime_api::{
+    application_shutdown::Cleanup,
     async_runtime::{panic_message, AsyncScopeSource},
     properties::SharedPropertyValue,
-    AppContext, AsyncError, AsyncScope, ManagedService, Property, ShutdownComplete, ShutdownTicket,
-    TaskControl, TaskOutcome, TaskStatus,
+    AppContext, AsyncError, AsyncScope, Property, ShutdownComplete, ShutdownTicket, TaskControl,
+    TaskOutcome, TaskStatus,
 };
 use std::{
     cell::{Cell, RefCell},
@@ -37,11 +38,22 @@ impl Drop for Running {
         }
     }
 }
-/// Managed browser executor service. Futures stay on the browser's thread;
+/// Explicitly owned browser executor. Futures stay on the browser's thread;
 /// component cancellation aborts their polling and revokes result authority.
-#[derive(Default)]
-pub struct BrowserService(Rc<Inner>);
-impl BrowserService {
+#[derive(Clone)]
+pub struct Executor(Rc<Inner>);
+impl std::fmt::Debug for Executor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Executor").finish_non_exhaustive()
+    }
+}
+impl Executor {
+    /// Attach local browser futures to the supplied application lifetime.
+    pub fn new(lifetime: &AppContext) -> Result<Self, AsyncError> {
+        let inner = Rc::new(Inner::default());
+        lifetime.retain_cleanup(inner.clone())?;
+        Ok(Self(inner))
+    }
     pub fn for_application(&self, app: &AppContext) -> Result<BoundTasks, AsyncError> {
         self.for_scope(app.async_scope()?)
     }
@@ -58,17 +70,17 @@ impl BrowserService {
         })
     }
 }
-impl ManagedService for BrowserService {
+impl Cleanup for Inner {
     fn begin_shutdown(&self) -> ShutdownTicket {
-        if self.0.closed.replace(true) {
+        if self.closed.replace(true) {
             return ShutdownTicket::ready(Err("browser executor shutdown requested twice".into()));
         }
-        if self.0.aborts.borrow().is_empty() {
+        if self.aborts.borrow().is_empty() {
             return ShutdownTicket::ready(Ok(()));
         }
         let (ticket, completed) = ShutdownTicket::pending();
-        *self.0.shutdown.borrow_mut() = Some(completed);
-        let aborts: Vec<_> = self.0.aborts.borrow().values().cloned().collect();
+        *self.shutdown.borrow_mut() = Some(completed);
+        let aborts: Vec<_> = self.aborts.borrow().values().cloned().collect();
         for abort in aborts {
             abort.abort();
         }

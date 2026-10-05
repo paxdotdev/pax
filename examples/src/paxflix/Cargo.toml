@@ -2,7 +2,7 @@
 name = "paxflix"
 version = "0.39.0"
 edition = "2021"
-default-run = "run"
+default-run = "paxflix"
 
 [package.metadata.pax]
 title = "Paxflix"
@@ -24,3 +24,14 @@ debug = 0
 
 [profile.dev.package.paxflix]
 opt-level = 0
+
+[features]
+standalone = ["dep:pax-host"]
+
+[[bin]]
+name = "paxflix"
+path = "src/main.rs"
+required-features = ["standalone"]
+
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+pax-host = { version = "0.39.0", path = "../../../pax-host", optional = true }

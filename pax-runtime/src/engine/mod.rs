@@ -315,7 +315,7 @@ impl PaxEngine {
         self.runtime_context.application.activate();
     }
 
-    /// Stops new application work, unmounts, then releases application services.
+    /// Stops new application work, unmounts, then begins retained resource cleanup.
     pub fn shutdown(&mut self, reason: pax_runtime_api::StopReason) {
         let closing = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             self.runtime_context.application.begin_close()

@@ -2,6 +2,7 @@
 name = "async-workbench"
 version = "0.39.0"
 edition = "2021"
+default-run = "async-workbench"
 
 [package.metadata.pax]
 title = "Async Workbench"
@@ -10,10 +11,20 @@ title = "Async Workbench"
 "com.apple.security.network.client" = true
 "com.apple.security.network.server" = true
 
+[features]
+default = []
+standalone = ["dep:pax-host"]
+
+[[bin]]
+name = "async-workbench"
+path = "src/main.rs"
+required-features = ["standalone"]
+
 [dependencies]
 pax-kit = { version = "0.39.0", path = "../../../pax-kit" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+pax-host = { path = "../../../pax-host", optional = true }
 pax-tokio = { path = "../../../pax-tokio" }
 tokio = { version = "1", features = ["rt-multi-thread", "time", "sync", "net", "io-util", "macros"] }
 

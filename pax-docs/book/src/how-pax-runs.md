@@ -386,8 +386,10 @@ never execute on a publishing worker. A raw shared read returns the latest
 published snapshot even before a local view has imported it.
 
 Mounted nodes own their local attachment lifetimes. Unmount detaches those
-connections; retained raw shared values remain usable as data. The generated
-entry point also supports per-application configuration and activation hooks.
+connections; retained raw shared values remain usable as data. The generated cartridge invokes one typed root initializer inside its property
+graph. The host adopts that exact root allocation, attaches its wake route and
+viewport, then activates staged work. Apple launchers use a real Rust `main`
+with a SwiftUI library bridge; web calls `init_web` explicitly.
 See [State and Properties](state-properties.md#shared-state-and-local-views) and
 [Application setup](event-handling-rust.md#application-setup) for the implemented
-APIs and the current limits on managed async work.
+APIs and the current limits on scoped async work. See [Entry and mounting](targets-build-deploy.md#entry-and-mounting) for standalone and embedded hosts.

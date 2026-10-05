@@ -178,7 +178,7 @@ Pax targets high performance across several axes:
 | Application targets | Web browsers via WebAssembly, native macOS, iOS, and iPadOS                                                                                                                                                                                                                     |
 | Development workstations | macOS, Debian/Ubuntu Linux, and Windows for the web install/create/run workflow; Apple targets require macOS and Xcode                                                                                                                                                          |
 | Template hot reload | `.pax` changes reload in debug sessions on web, macOS, iOS, and iPadOS.  Hot reloading is only available on debug builds; release build program definitions are immutable.                                                                                                      |
-| Rust logic hot reload | Supported on web and macOS; iOS and iPadOS require a rebuild and relaunch after Rust changes. The default `--hot-reload=pax` avoids automatic logic rebuilds; opt in with `pax-cli run --hot-reload=all`. |
+| Rust logic hot reload | Requires rebuilding and restarting on every target (refresh the web page after rebuilding). `--hot-reload=pax` remains the debug default; `all` migrates to template-only reload and `logic` is rejected. |
 | Future plans | Pax is designed to be platform agnostic, with a well defined interface between the shared engine and platform-specific bindings.  Support is planned for Linux/GTK, Android, and Windows, and other platforms (like tvOS, watchOS, and embedded) are within reach. Any target is open to open source contribution.              
 
 ## Development loop

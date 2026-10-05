@@ -50,6 +50,8 @@ import { updateDocumentRouteMetadata } from "./utils/route-metadata";
 
 import { FrameScheduler } from "./utils/frame-scheduler";
 
+declare global { interface Window { chassis?: PaxChassisWeb; } }
+
 let objectManager = new ObjectManager(SUPPORTED_OBJECTS);
 let nativePool = new NativeElementPool(objectManager);
 let initializedChassis = false;
@@ -74,49 +76,103 @@ let teardownEventListeners: (() => void) | null = null;
 let teardownResizeHandler: (() => void) | null = null;
 let teardownHiddenTabPump: (() => void) | null = null;
 let teardownRouteLocationSync: (() => void) | null = null;
-let pendingReloadRequest: PrepareAppRevision | null = null;
-let reloadInProgress = false;
-let reloadInFlightBuildId: string | null = null;
-let reloadRetryBuildId: string | null = null;
-let reloadRetryAttempt = 0;
-let reloadRetryDelayMs = 500;
-let reloadRetryHandle: number | null = null;
-const RELOAD_RETRY_MAX_DELAY_MS = 5_000;
-const ACTIVATION_PREFLIGHT_TIMEOUT_MS = 15_000;
-const ACTIVATION_POLL_INTERVAL_MS = 25;
+let liveSession: MountSession | null = null;
 const perfTraceEnabled = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("pax_scroll_perf");
 let perfTraceSequence = 0;
 
-type PrepareAppRevision = {
-    logic_revision_id: string;
-    execution_mode: "compiled-artifact" | "interpreted-module";
-    artifact: {
-        kind: string;
-        location: string;
-    };
-};
+export interface WebInitOptions {
+    element: HTMLElement;
+    cartridgeUrl: string;
+    /** Application-defined bytes copied before initialization; maximum 64 KiB. */
+    startupData?: Uint8Array;
+    /** Standalone pages may delegate the root scroller to browser page scrolling. */
+    pageScroll?: boolean;
+    /** Opt into page history/title ownership. Embedded regions default to false. */
+    documentRouting?: boolean;
+    /** Cancels startup or closes the mounted region; cleanup remains retained. */
+    signal?: AbortSignal;
+}
 
-type AppRevisionActivationStatus =
-    | "unknown"
-    | "preparing"
-    | "prepared"
-    | "committing"
-    | "committed"
-    | "rejected";
+/** Owns one mounted region. `closed` observes independently driven cleanup. */
+export interface MountedApp { readonly closed: Promise<void>; close(): void; request(bytes: Uint8Array): Promise<Uint8Array>; }
 
-class ReloadActivationError extends Error {
-    constructor(message: string, readonly retryable: boolean) {
-        super(message);
+class MountSession implements MountedApp {
+    readonly closed: Promise<void>;
+    private acknowledge!: () => void;
+    private closing = false;
+    private starting = true;
+    private abort = () => this.close();
+    private pump: (() => number) | null = null;
+    readonly region: HTMLDivElement;
+    constructor(readonly options: WebInitOptions) {
+        this.closed = new Promise(resolve => { this.acknowledge = resolve; });
+        this.region = document.createElement("div");
+        this.region.className = "pax-mount";
+        this.region.tabIndex = 0;
+        options.element.appendChild(this.region);
+        options.signal?.addEventListener("abort", this.abort, {once: true});
+    }
+    request(bytes: Uint8Array): Promise<Uint8Array> {
+        if (this.closing || liveSession !== this || !currentChassis) return Promise.reject(new Error("application is closed"));
+        if (!(bytes instanceof Uint8Array) || bytes.byteLength > 65536) return Promise.reject(new Error("request must be Uint8Array of at most 64 KiB"));
+        return currentChassis.request(bytes).catch(error => { throw hostError(error); });
+    }
+    checkOpen() {
+        if (this.closing || this.options.signal?.aborted) throw new DOMException("Pax initialization cancelled", "AbortError");
+    }
+    finishStartup() {
+        this.starting = false;
+        this.cleanupWake(this.pump?.() ?? 0);
+    }
+    installPump(pump: () => number) { this.pump = pump; }
+    cleanupWake(pending: number) {
+        if (!this.closing || this.starting || pending !== 0) return;
+        if (liveSession === this) liveSession = null;
+        this.acknowledge();
+    }
+    /** Remove only Pax's region. Idempotent and never waits on the host thread. */
+    close() {
+        if (this.closing) return;
+        this.closing = true;
+        this.options.signal?.removeEventListener("abort", this.abort);
+        if (liveSession === this) disposeCurrentChassis();
+        this.region.remove();
+        this.cleanupWake(this.pump?.() ?? 0);
     }
 }
 
-function waitForActivationPoll(): Promise<void> {
-    return new Promise((resolve) => window.setTimeout(resolve, ACTIVATION_POLL_INTERVAL_MS));
+/** Explicit browser entry. Resolves after mounting, or rejects after starting
+ * cleanup. Importing this library or a cartridge never mounts an application.
+ * The caller owns the container, page layout and browser event loop.
+ */
+export async function init_web(options: WebInitOptions): Promise<MountedApp> {
+    if (liveSession !== null) throw new Error("Pax supports one live mount; await closed before mounting another");
+    if (!(options.element instanceof HTMLElement) || options.element.ownerDocument !== document) {
+        throw new Error("Pax requires an HTMLElement in the current document");
+    }
+    if (options.startupData !== undefined && (!(options.startupData instanceof Uint8Array) || options.startupData.byteLength > 65536)) {
+        throw new Error("startupData must be Uint8Array of at most 64 KiB");
+    }
+    // Snapshot caller-owned bytes before module/network awaits can interleave
+    // with application mutations to the original buffer.
+    const session = new MountSession({...options, startupData: options.startupData?.slice()});
+    liveSession = session;
+    try {
+        session.checkOpen();
+        ensureInterfaceStylesheet(options.cartridgeUrl);
+        await startRenderLoop(options.cartridgeUrl, session.region, session);
+        session.checkOpen();
+        return session;
+    } catch (error) {
+        session.close();
+        throw hostError(error);
+    } finally {
+        session.finishStartup();
+    }
 }
 
-function hasSupersedingReload(logicRevisionId: string): boolean {
-    return pendingReloadRequest != null
-        && pendingReloadRequest.logic_revision_id !== logicRevisionId;
+function hostError(error: unknown): Error {
+    return error instanceof Error ? error : new Error(String(error));
 }
 
 function withProfileMeasure<T>(name: string, fn: () => T): T {
@@ -137,29 +193,10 @@ function withProfileMeasure<T>(name: string, fn: () => T): T {
     }
 }
 
-export function mount(selector_or_element: string | Element, extensionlessUrl: string) {
-    if (renderLoopStarting || renderLoopStarted) {
-        console.warn("Pax render loop already started; ignoring duplicate mount() call.");
-        return;
-    }
-
-    ensureInterfaceStylesheet(extensionlessUrl);
-
-    let mount: Element;
-    if (typeof selector_or_element === "string") {
-        mount = document.querySelector(selector_or_element) as Element;
-    } else {
-        mount = selector_or_element;
-    }
-
-    // Update to pass wasmUrl to bootstrap function
-    if (mount) {
-        currentMount = mount;
-        currentExtensionlessUrl = extensionlessUrl;
-        startRenderLoop(extensionlessUrl, mount).then();
-    } else {
-        console.error("Unable to find mount element");
-    }
+/** Compatibility spelling; new hosts should call init_web with explicit inputs. */
+export function mount(selector_or_element: string | HTMLElement, extensionlessUrl: string): Promise<MountedApp> {
+    const element = typeof selector_or_element === "string" ? document.querySelector(selector_or_element) : selector_or_element;
+    return init_web({element: element as HTMLElement, cartridgeUrl: extensionlessUrl, pageScroll: true, documentRouting: true});
 }
 
 function ensureInterfaceStylesheet(extensionlessUrl: string) {
@@ -175,45 +212,42 @@ function ensureInterfaceStylesheet(extensionlessUrl: string) {
     document.head.appendChild(link);
 }
 
-async function loadWasmModule(
-    extensionlessUrl: string,
-    reloadCacheKey?: string,
-): Promise<{ chassis: PaxChassisWeb }> {
-    try {
-        const glueCodeUrl = new URL(`${extensionlessUrl}.js`, document.baseURI);
-        const wasmUrl = new URL(`${extensionlessUrl}_bg.wasm`, document.baseURI);
-        if (reloadCacheKey != null) {
-            glueCodeUrl.searchParams.set("pax-reload", reloadCacheKey);
-            wasmUrl.searchParams.set("pax-reload", reloadCacheKey);
-        }
-        const glueCodeModule = await import(glueCodeUrl.href) as typeof import("./types/pax-cartridge");
-
-        const wasmBinary = await fetch(wasmUrl.href, reloadCacheKey == null ? undefined : {cache: "no-store"});
-        if (!wasmBinary.ok) {
-            throw new Error(`Failed to fetch WASM binary: HTTP ${wasmBinary.status}`);
-        }
-        const wasmArrayBuffer = await wasmBinary.arrayBuffer();
-        await glueCodeModule.default({module_or_path: wasmArrayBuffer});
-
-        let shutdownWakeQueued = false;
-        glueCodeModule.pax_set_shutdown_waker(() => {
-            if (shutdownWakeQueued) return;
-            shutdownWakeQueued = true;
-            queueMicrotask(() => {
-                shutdownWakeQueued = false;
-                glueCodeModule.pax_pump_shutdowns();
-            });
+async function loadWasmModule(extensionlessUrl: string, session: MountSession): Promise<void> {
+    const glueCodeUrl = new URL(`${extensionlessUrl}.js`, document.baseURI);
+    const wasmUrl = new URL(`${extensionlessUrl}_bg.wasm`, document.baseURI);
+    const glue = await import(glueCodeUrl.href) as typeof import("./types/pax-cartridge");
+    session.checkOpen();
+    const response = await fetch(wasmUrl.href, {signal: session.options.signal});
+    if (!response.ok) throw new Error(`Failed to fetch WASM binary: HTTP ${response.status}`);
+    await glue.default({module_or_path: await response.arrayBuffer()});
+    session.checkOpen();
+    session.installPump(() => glue.pax_pump_shutdowns());
+    let queued = false;
+    glue.pax_set_shutdown_waker(() => {
+        if (queued) return;
+        queued = true;
+        queueMicrotask(() => {
+            queued = false;
+            session.cleanupWake(glue.pax_pump_shutdowns());
         });
-        let chassis = await glueCodeModule.pax_init();
+    });
+    // The explicit Wasm entry invokes this host capability only after its typed
+    // initializer succeeds. JS owns the chassis from that call onward, including
+    // partial attachment failures; no GC finalizer is relied on for close.
+    await glue.init_web({startupData: session.options.startupData, mount: (chassis: PaxChassisWeb) => {
+        try { session.checkOpen(); } catch (error) { chassis.free(); throw error; }
+        resetHostState();
+        currentChassis = chassis;
+        currentMount = session.region;
+        currentExtensionlessUrl = extensionlessUrl;
         window.chassis = chassis;
-
-        return { chassis };
-    } catch (err) {
-        throw new Error(`Failed to load WASM module: ${err}`);
-    }
+        attachChassis(chassis, session.region);
+        return session;
+    }});
 }
 
 function resetHostState() {
+    nativePool.dispose();
     objectManager = new ObjectManager(SUPPORTED_OBJECTS);
     nativePool = new NativeElementPool(objectManager);
     initializedChassis = false;
@@ -222,44 +256,30 @@ function resetHostState() {
 }
 
 function disposeCurrentChassis() {
-    frameScheduler.clear();
-    teardownHiddenTabPump?.();
-    teardownHiddenTabPump = null;
-    teardownRouteLocationSync?.();
-    teardownRouteLocationSync = null;
-    teardownResizeHandler?.();
-    teardownResizeHandler = null;
-    teardownEventListeners?.();
-    teardownEventListeners = null;
-    nativePool.dispose();
-    currentChassis?.free();
+    const chassis = currentChassis;
+    // Revoke routing before running disposers, which can trigger host callbacks.
     currentChassis = null;
-    renderLoopStarted = false;
-    renderLoopStarting = false;
-    initializedChassis = false;
-    frameInProgress = false;
-    pendingAsyncInterruptFlush = false;
+    currentMount = null;
+    delete window.chassis;
+    const disposers = [() => frameScheduler.clear(), teardownHiddenTabPump,
+        teardownRouteLocationSync, teardownResizeHandler, teardownEventListeners,
+        () => nativePool.dispose(), () => chassis?.free()];
+    teardownHiddenTabPump = teardownRouteLocationSync = teardownResizeHandler = teardownEventListeners = null;
+    renderLoopStarted = renderLoopStarting = initializedChassis = frameInProgress = pendingAsyncInterruptFlush = false;
+    for (const dispose of disposers) {
+        try { dispose?.(); } catch (error) { console.error("Pax host disposal failed", error); }
+    }
 }
 
-async function startRenderLoop(extensionlessUrl: string, mount: Element) {
-    if (renderLoopStarting || renderLoopStarted) {
-        return;
-    }
+async function startRenderLoop(extensionlessUrl: string, mount: Element, session: MountSession) {
     renderLoopStarting = true;
-    try {
-        let {chassis} = await loadWasmModule(extensionlessUrl);
-        resetHostState();
-        currentChassis = chassis;
-        currentMount = mount;
-        currentExtensionlessUrl = extensionlessUrl;
-        attachChassis(chassis, mount);
-        renderLoopStarted = true;
-        renderLoopStarting = false;
-        frameScheduler.schedule(() => renderLoop(chassis, mount));
-    } catch (error) {
-        renderLoopStarting = false;
-        console.error("Failed to load or instantiate Wasm module:", error);
-    }
+    await loadWasmModule(extensionlessUrl, session);
+    session.checkOpen();
+    renderLoopStarted = true;
+    renderLoopStarting = false;
+    const chassis = currentChassis!;
+    runFrame(chassis, mount);
+    frameScheduler.schedule(() => renderLoop(chassis, mount));
 }
 
 function attachChassis(chassis: PaxChassisWeb, mount: Element) {
@@ -273,11 +293,11 @@ function attachChassis(chassis: PaxChassisWeb, mount: Element) {
             requestFrameFlush(chassis, mount);
         });
     });
-    chassis.activate_application();
-    nativePool.attach(chassis, mount);
+    nativePool.attach(chassis, mount, liveSession?.options.pageScroll ?? false);
     nativePool.setPostAsyncInterruptFlush(() => requestFrameFlush(chassis, mount));
     initializeChassis(chassis, mount);
     ensureHiddenTabPump(chassis, mount);
+    chassis.activate_application();
 }
 
 function initializeChassis(chassis: PaxChassisWeb, mount: Element) {
@@ -292,11 +312,11 @@ function initializeChassis(chassis: PaxChassisWeb, mount: Element) {
     }, []);
     let syncRouteLocation = () => {
         let url = browserRouteLocation();
-        replaceCurrentRouteHistoryState(url);
+        if (liveSession?.options.documentRouting) replaceCurrentRouteHistoryState(url);
         chassis.interrupt({
             "RouteChange": serializeRouteLocation(url),
         }, []);
-        void updateDocumentRouteMetadata(url);
+        if (liveSession?.options.documentRouting) void updateDocumentRouteMetadata(url);
     };
     window.addEventListener("popstate", syncRouteLocation);
     window.addEventListener("hashchange", syncRouteLocation);
@@ -308,11 +328,10 @@ function initializeChassis(chassis: PaxChassisWeb, mount: Element) {
     let lastViewportWidth = -1;
     let lastViewportHeight = -1;
     let measureViewport = () => {
-        let root = document.documentElement;
         let mountElement = mount as HTMLElement;
         let rect = mountElement.getBoundingClientRect();
-        let width = rect.width || mountElement.clientWidth || root.clientWidth || window.innerWidth || 0;
-        let height = rect.height || mountElement.clientHeight || root.clientHeight || window.innerHeight || 0;
+        let width = rect.width;
+        let height = rect.height;
         return { width, height };
     };
     let resizeHandler = () => {
@@ -356,7 +375,7 @@ function initializeChassis(chassis: PaxChassisWeb, mount: Element) {
     // Initialize viewport-dependent layout before the first engine tick so native/scroller hosts do
     // not bootstrap against a transient 0x0 viewport.
     resizeHandler();
-    teardownEventListeners = setupEventListeners(chassis);
+    teardownEventListeners = setupEventListeners(chassis, mount as HTMLElement);
     initializedChassis = true;
 }
 
@@ -426,249 +445,13 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
                 chassis.render();
             });
         });
-        processReloadRequests(chassis);
+
     } finally {
         frameInProgress = false;
         if (pendingAsyncInterruptFlush && chassis === currentChassis && mount === currentMount) {
             pendingAsyncInterruptFlush = false;
             queueMicrotask(() => requestFrameFlush(chassis, mount));
         }
-    }
-}
-
-function takePreparedRevisions(chassis: PaxChassisWeb): PrepareAppRevision[] {
-    let value = (chassis as any).take_prepare_app_revisions?.();
-    if (!Array.isArray(value)) {
-        return [];
-    }
-    return value as PrepareAppRevision[];
-}
-
-function normalizedArtifactLocation(location: string): string {
-    return new URL(location, document.baseURI).href;
-}
-
-function beginReloadAttempt(buildId: string): number {
-    if (reloadRetryBuildId !== buildId) {
-        reloadRetryBuildId = buildId;
-        reloadRetryAttempt = 0;
-        reloadRetryDelayMs = 500;
-    }
-    return reloadRetryAttempt++;
-}
-
-function clearReloadRetry(buildId: string) {
-    if (reloadRetryBuildId !== buildId) {
-        return;
-    }
-    reloadRetryBuildId = null;
-    reloadRetryAttempt = 0;
-    reloadRetryDelayMs = 500;
-    if (reloadRetryHandle != null) {
-        window.clearTimeout(reloadRetryHandle);
-        reloadRetryHandle = null;
-    }
-}
-
-function retryReloadAfterDelay(request: PrepareAppRevision) {
-    if (pendingReloadRequest != null && pendingReloadRequest.logic_revision_id !== request.logic_revision_id) {
-        clearReloadRetry(request.logic_revision_id);
-        return;
-    }
-    pendingReloadRequest = request;
-    const delay = reloadRetryDelayMs;
-    reloadRetryDelayMs = Math.min(reloadRetryDelayMs * 2, RELOAD_RETRY_MAX_DELAY_MS);
-    console.warn(`Retrying Pax cartridge ${request.logic_revision_id} in ${delay}ms`);
-    reloadRetryHandle = window.setTimeout(() => {
-        reloadRetryHandle = null;
-        void reloadMountedApp();
-    }, delay);
-}
-
-function processReloadRequests(chassis: PaxChassisWeb) {
-    let requests = takePreparedRevisions(chassis);
-    if (requests.length === 0) {
-        return;
-    }
-    let request = requests[requests.length - 1];
-    if (request.execution_mode !== "compiled-artifact" || request.artifact.kind !== "web-cartridge") {
-        console.warn("Ignoring unsupported Pax logic revision", request);
-        return;
-    }
-    if (
-        pendingReloadRequest?.logic_revision_id === request.logic_revision_id
-        || reloadInFlightBuildId === request.logic_revision_id
-    ) {
-        return;
-    }
-    if (
-        currentExtensionlessUrl != null
-        && normalizedArtifactLocation(currentExtensionlessUrl) === normalizedArtifactLocation(request.artifact.location)
-    ) {
-        chassis.activate_app_revision(request.logic_revision_id);
-        return;
-    }
-    pendingReloadRequest = request;
-    if (reloadRetryHandle != null) {
-        window.clearTimeout(reloadRetryHandle);
-        reloadRetryHandle = null;
-    }
-    if (!reloadInProgress) {
-        queueMicrotask(() => void reloadMountedApp());
-    }
-}
-
-async function reloadMountedApp() {
-    if (reloadInProgress) {
-        return;
-    }
-    reloadInProgress = true;
-    try {
-        while (pendingReloadRequest != null) {
-            let request = pendingReloadRequest;
-            pendingReloadRequest = null;
-            let mount = currentMount;
-            if (!mount) {
-                clearReloadRetry(request.logic_revision_id);
-                continue;
-            }
-            reloadInFlightBuildId = request.logic_revision_id;
-            const attempt = beginReloadAttempt(request.logic_revision_id);
-            let candidateChassis: PaxChassisWeb | null = null;
-            let finalCommitStarted = false;
-            try {
-                let { chassis } = await loadWasmModule(
-                    request.artifact.location,
-                    `${request.logic_revision_id}-${attempt}`,
-                );
-                candidateChassis = chassis;
-                // `loadWasmModule` exposes the newest allocation for debugging,
-                // but the mounted chassis remains authoritative until commit.
-                (window as any).chassis = currentChassis;
-                if (hasSupersedingReload(request.logic_revision_id)) {
-                    // A newer candidate superseded this one while its module was
-                    // loading. Never replace the last known good chassis with a
-                    // revision the coordinator can no longer activate.
-                    (chassis as any).free?.();
-                    candidateChassis = null;
-                    clearReloadRetry(request.logic_revision_id);
-                    continue;
-                }
-
-                const preflightDeadline = performance.now() + ACTIVATION_PREFLIGHT_TIMEOUT_MS;
-                let requested = false;
-                while (!requested) {
-                    if (hasSupersedingReload(request.logic_revision_id)) {
-                        throw new ReloadActivationError(
-                            `Pax logic revision ${request.logic_revision_id} was superseded before preflight`,
-                            false,
-                        );
-                    }
-                    requested = chassis.request_app_revision_activation(request.logic_revision_id);
-                    if (requested) {
-                        break;
-                    }
-                    if (performance.now() >= preflightDeadline) {
-                        throw new ReloadActivationError(
-                            `Timed out preparing Pax logic revision ${request.logic_revision_id}`,
-                            false,
-                        );
-                    }
-                    await waitForActivationPoll();
-                }
-
-                while (true) {
-                    const status = chassis.poll_app_revision_activation(
-                        request.logic_revision_id,
-                    ) as AppRevisionActivationStatus;
-                    if (status === "prepared") {
-                        break;
-                    }
-                    if (status === "rejected") {
-                        throw new ReloadActivationError(
-                            `Design server rejected Pax logic revision ${request.logic_revision_id}`,
-                            false,
-                        );
-                    }
-                    if (hasSupersedingReload(request.logic_revision_id)) {
-                        chassis.cancel_app_revision_activation(request.logic_revision_id);
-                        throw new ReloadActivationError(
-                            `Pax logic revision ${request.logic_revision_id} was superseded during preflight`,
-                            false,
-                        );
-                    }
-                    if (performance.now() >= preflightDeadline) {
-                        chassis.cancel_app_revision_activation(request.logic_revision_id);
-                        throw new ReloadActivationError(
-                            `Timed out validating Pax logic revision ${request.logic_revision_id}`,
-                            false,
-                        );
-                    }
-                    await waitForActivationPoll();
-                }
-
-                if (!chassis.activate_app_revision(request.logic_revision_id)) {
-                    chassis.cancel_app_revision_activation(request.logic_revision_id);
-                    throw new ReloadActivationError(
-                        `Could not start final commit for Pax logic revision ${request.logic_revision_id}`,
-                        false,
-                    );
-                }
-                finalCommitStarted = true;
-
-                // There is deliberately no timeout after this boundary. The
-                // server may have committed just before a disconnect, so the
-                // candidate must reconnect and replay final commit until the
-                // matching authoritative manifest arrives.
-                while (true) {
-                    const status = chassis.poll_app_revision_activation(
-                        request.logic_revision_id,
-                    ) as AppRevisionActivationStatus;
-                    if (status === "committed") {
-                        break;
-                    }
-                    if (status === "rejected") {
-                        throw new ReloadActivationError(
-                            `Design server rejected final commit for Pax logic revision ${request.logic_revision_id}`,
-                            false,
-                        );
-                    }
-                    await waitForActivationPoll();
-                }
-
-                currentChassis?.shutdown_for_replacement();
-                disposeCurrentChassis();
-                resetHostState();
-                currentChassis = chassis;
-                candidateChassis = null;
-                currentMount = mount;
-                currentExtensionlessUrl = request.artifact.location;
-                (window as any).chassis = chassis;
-                attachChassis(chassis, mount);
-                renderLoopStarted = true;
-                frameScheduler.schedule(() => renderLoop(chassis, mount));
-                clearReloadRetry(request.logic_revision_id);
-            } catch (error) {
-                console.error(`Failed to reload Pax cartridge ${request.logic_revision_id}:`, error);
-                if (!finalCommitStarted) {
-                    candidateChassis?.cancel_app_revision_activation(request.logic_revision_id);
-                }
-                candidateChassis?.free();
-                (window as any).chassis = currentChassis;
-                const retryable = !(error instanceof ReloadActivationError) || error.retryable;
-                if (retryable && pendingReloadRequest == null) {
-                    retryReloadAfterDelay(request);
-                    return;
-                }
-                clearReloadRetry(request.logic_revision_id);
-            } finally {
-                if (reloadInFlightBuildId === request.logic_revision_id) {
-                    reloadInFlightBuildId = null;
-                }
-            }
-        }
-    } finally {
-        reloadInProgress = false;
     }
 }
 
@@ -882,7 +665,8 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
             let msg = unwrapped_msg["Navigate"];
             let patch : NavigationPatch = objectManager.getFromPool(NAVIGATION_PATCH);
             patch.fromPatch(msg);
-            nativePool.navigate(patch)
+            if (liveSession?.options.documentRouting) nativePool.navigate(patch);
+            else currentMount?.dispatchEvent(new CustomEvent("pax-navigate", {detail: {url: patch.url, target: patch.target}, bubbles: true}));
         } else if (unwrapped_msg["SetCursor"]) {
             let msg = unwrapped_msg["SetCursor"];
             let patch : SetCursorPatch = objectManager.getFromPool(SET_CURSOR_PATCH);

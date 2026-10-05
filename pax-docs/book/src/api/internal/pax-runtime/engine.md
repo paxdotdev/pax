@@ -128,7 +128,7 @@ Called by chassis when viewport size changes, e.g. with native window resizes
 ##### `shutdown`
 <pre><code class="api-signature language-rust ignore">pub fn shutdown(&amp;mut self, reason: <a href="../../../api/pax-runtime-api/application.md#stopreason">StopReason</a>)</code></pre>
 
-Stops new application work, unmounts, then releases application services.
+Stops new application work, unmounts, then begins retained resource cleanup.
 
 ##### `tick`
 <pre><code class="api-signature language-rust ignore">pub fn tick(&amp;mut self) -&gt; Vec&lt;<a href="../../../api/internal/pax-message/index.md#nativemessage">NativeMessage</a>&gt;</code></pre>

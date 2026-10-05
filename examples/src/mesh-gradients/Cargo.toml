@@ -1,4 +1,5 @@
 [package]
+default-run = "mesh-gradients"
 name = "mesh-gradients"
 version = "0.39.0"
 edition = "2021"
@@ -17,3 +18,14 @@ opt-level = 1
 
 [profile.dev.package.mesh-gradients]
 opt-level = 0
+
+[features]
+standalone = ["dep:pax-host"]
+
+[[bin]]
+name = "mesh-gradients"
+path = "src/main.rs"
+required-features = ["standalone"]
+
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+pax-host = { version = "0.39.0", path = "../../../pax-host", optional = true }

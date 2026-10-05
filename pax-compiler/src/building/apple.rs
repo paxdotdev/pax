@@ -413,6 +413,123 @@ pub struct MacosLogicReloadBuild {
     pub dylib_path: PathBuf,
 }
 
+fn build_native_launcher(
+    ctx: &RunContext,
+    pax_dir: &Path,
+    mappings: &[AppleTargetMapping],
+    framework_dir: &Path,
+    children: &Arc<Mutex<Vec<u64>>>,
+) -> Result<PathBuf, eyre::Report> {
+    let metadata = MetadataCommand::new()
+        .manifest_path(ctx.project_path.join("Cargo.toml"))
+        .no_deps()
+        .exec()?;
+    let package = metadata
+        .root_package()
+        .ok_or_else(|| eyre!("Select a Pax application package"))?;
+    let bins: Vec<_> = package
+        .targets
+        .iter()
+        .filter(|target| {
+            target.kind.iter().any(|kind| kind == "bin")
+                && target
+                    .required_features
+                    .iter()
+                    .any(|feature| feature == "standalone")
+        })
+        .collect();
+    let selected = if let Some(name) = package.default_run.as_deref() {
+        bins.iter().copied().find(|target| target.name == name)
+    } else if bins.len() == 1 { Some(bins[0]) } else { None }
+        .ok_or_else(|| eyre!("Native launch requires a Cargo binary with required-features = [\"standalone\"]. Add src/main.rs using pax_host::init()?.run(), and set package.default-run when there is more than one launcher."))?;
+    let mode = if ctx.is_release { "release" } else { "debug" };
+    let platform = if matches!(ctx.target, RunTarget::macOS) {
+        "macos"
+    } else {
+        "ios"
+    };
+    let mut requested = vec![platform];
+    if ctx.should_run_designtime {
+        requested.push("designtime");
+    }
+    let mut features = pax_project_feature_args(&ctx.project_path, &requested);
+    features.push("standalone".into());
+    let mut binaries = Vec::new();
+    for mapping in mappings {
+        let mut cmd = Command::new("cargo");
+        cmd.current_dir(&ctx.project_path)
+            .arg("rustc")
+            .arg("--bin")
+            .arg(&selected.name)
+            .arg("--target")
+            .arg(mapping.rust_target)
+            .arg("--features")
+            .arg(features.join(","))
+            .env("PAX_DIR", pax_dir)
+            .env("MACOSX_DEPLOYMENT_TARGET", "12.0")
+            .env("IPHONEOS_DEPLOYMENT_TARGET", "15.0")
+            .stdout(std::process::Stdio::inherit())
+            .stderr(std::process::Stdio::inherit());
+        configure_pax_build_env(
+            &mut cmd,
+            if matches!(ctx.target, RunTarget::iPadOS) {
+                "ipados"
+            } else {
+                platform
+            },
+            ctx.should_run_designtime,
+        );
+        if ctx.is_release {
+            cmd.arg("--release");
+        }
+        cmd.arg("--")
+            .arg("-L")
+            .arg(format!("framework={}", framework_dir.display()))
+            .arg("-C")
+            .arg(if platform == "macos" {
+                "link-arg=-Wl,-rpath,@executable_path/../Frameworks"
+            } else {
+                "link-arg=-Wl,-rpath,@executable_path/Frameworks"
+            });
+        #[cfg(unix)]
+        unsafe {
+            cmd.pre_exec(crate::pre_exec_hook);
+        }
+        let output = wait_with_output(children, cmd.spawn()?);
+        if !output.status.success() {
+            return Err(eyre!(
+                "Failed to build standalone Rust binary `{}`",
+                selected.name
+            ));
+        }
+        binaries.push(
+            ctx.project_path
+                .join("target")
+                .join(mapping.rust_target)
+                .join(mode)
+                .join(&selected.name),
+        );
+    }
+    let launcher = framework_dir.join("pax-native-main");
+    if binaries.len() == 1 {
+        fs::copy(&binaries[0], &launcher)?;
+    } else {
+        let output = wait_with_output(
+            children,
+            Command::new("lipo")
+                .arg("-create")
+                .args(&binaries)
+                .arg("-output")
+                .arg(&launcher)
+                .spawn()?,
+        );
+        if !output.status.success() {
+            return Err(eyre!("Failed to combine native launcher architectures"));
+        }
+    }
+    Ok(launcher)
+}
+
 pub fn build_apple_project_with_cartridge(
     ctx: &RunContext,
     pax_dir: &PathBuf,
@@ -520,6 +637,7 @@ pub fn build_apple_project_with_cartridge(
 
             cmd.current_dir(&project_path)
                 .arg("build")
+                .arg("--lib")
                 .arg("--color")
                 .arg("always")
                 .arg("--target")
@@ -834,11 +952,7 @@ pub fn build_apple_project_with_cartridge(
     } else {
         "macosx"
     };
-    let xcode_archs = if apple_mobile_target.is_some() {
-        Some(xcode_archs_for_target_mappings(&target_mappings))
-    } else {
-        None
-    };
+    let xcode_archs = xcode_archs_for_target_mappings(&target_mappings);
 
     println!("{} 💻 Building xcodeproject...", *PAX_BADGE);
     let mut cmd = Command::new("xcodebuild");
@@ -861,13 +975,14 @@ pub fn build_apple_project_with_cartridge(
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::piped());
 
-    if let Some(xcode_archs) = xcode_archs.as_deref() {
-        cmd.arg(format!("ARCHS={xcode_archs}"));
-    }
+    // The host library must cover every launcher architecture, including a
+    // universal macOS release built on an Apple Silicon workstation.
+    cmd.arg(format!("ARCHS={xcode_archs}"))
+        .arg("ONLY_ACTIVE_ARCH=NO");
 
     if let Some(identity) = ios_app_identity.as_ref() {
         cmd.arg(format!(
-            "PRODUCT_BUNDLE_IDENTIFIER={}",
+            "PAX_APP_BUNDLE_IDENTIFIER={}",
             identity.bundle_identifier
         ))
         .arg(format!(
@@ -889,6 +1004,11 @@ pub fn build_apple_project_with_cartridge(
     }
 
     for (key, value) in project_metadata.apple_xcode_build_settings(target) {
+        let key = if key == "PRODUCT_BUNDLE_IDENTIFIER" {
+            "PAX_APP_BUNDLE_IDENTIFIER"
+        } else {
+            &key
+        };
         cmd.arg(format!("{key}={value}"));
     }
 
@@ -904,6 +1024,44 @@ pub fn build_apple_project_with_cartridge(
         cmd.arg("-quiet");
         cmd.arg("GCC_WARN_INHIBIT_ALL_WARNINGS=YES");
     }
+
+    // Build the Swift host as a library before compiling the real Cargo main.
+    // The app target installs that executable before Xcode's normal signing.
+    let mut host_cmd = Command::new("xcodebuild");
+    let mut scheme_value = false;
+    for arg in cmd.get_args() {
+        if scheme_value {
+            host_cmd.arg("PaxHost");
+            scheme_value = false;
+        } else {
+            let text = arg.to_string_lossy();
+            if !text.starts_with("PAX_APP_BUNDLE_IDENTIFIER=")
+                && !text.starts_with("INFOPLIST_KEY_CFBundleDisplayName=")
+            {
+                host_cmd.arg(arg);
+            }
+            scheme_value = arg == "-scheme";
+        }
+    }
+    host_cmd
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit());
+    #[cfg(unix)]
+    unsafe {
+        host_cmd.pre_exec(crate::pre_exec_hook);
+    }
+    let output = wait_with_output(&process_child_ids, host_cmd.spawn()?);
+    if !output.status.success() {
+        return Err(eyre!("Failed to build PaxHost framework"));
+    }
+    let launcher = build_native_launcher(
+        ctx,
+        &pax_dir,
+        &target_mappings,
+        &executable_output_dir_path,
+        &process_child_ids,
+    )?;
+    cmd.arg(format!("PAX_NATIVE_EXECUTABLE={}", launcher.display()));
 
     #[cfg(unix)]
     unsafe {
