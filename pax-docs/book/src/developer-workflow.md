@@ -120,18 +120,37 @@ details. Check these before using tools, particularly when several projects,
 worktrees, or browser tabs are open.
 
 Most `dev` commands accept `--path` to locate a project's active session and
-`--session` to select an exact session ID. The explicit ID takes precedence.
-For example, from a repository checkout:
+`--session` to select an exact session ID. An explicit `--path` (or `-p`)
+restricts selection to that project, including when the path is `.`. For
+example, from a repository checkout:
 
 ```sh
 pax-cli dev status --path examples/src/increment
+pax-cli dev look --path examples/src/increment
 ```
 
-Project selection normally finds the active session recorded under that
-project's `.pax` directory. If it cannot, the CLI falls back to the single live
-session on the machine; with several candidates, it asks for an explicit ID.
-Consequently, `--path` alone is not an isolation guarantee. Before an automated
-source edit, check status and use the intended session ID.
+Project selection uses the active session recorded under that project's
+`.pax` directory and checks that its live registration belongs to the same
+project. Relative paths are resolved from the current directory; symlink
+aliases and `..` are resolved before comparing project roots. A missing or
+stale active session, invalid path, or mismatched registration produces an
+error. An explicit path never falls back to another project's session. Start
+the intended project's debug app, or use `pax-cli dev list` to find a live ID.
+
+`--session <id>` alone selects that exact live session regardless of the
+current directory. When both `--session` and `--path` are supplied, the ID
+selects the session and the path checks its project. The session need not be
+the project's active session, but a different or unknown project root is
+rejected before inspection, capture, or source mutation.
+
+With **neither flag**, the CLI first tries the current directory's active
+session. If none is live, it can select the sole live session anywhere on the
+machine; several candidates require an explicit ID. Use `--path .` to constrain
+commands to the current project, especially in automation.
+
+This changes older CLI behavior: scripts that relied on `--path` falling back
+globally must select the intended `--session` explicitly. Scripts supplying
+both flags must now make them agree, or omit `--path` to select solely by ID.
 
 Session IDs describe running sessions and can change after a restart. Re-read
 them instead of hardcoding one into a permanent script. Stale registrations

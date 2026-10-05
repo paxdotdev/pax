@@ -21,6 +21,7 @@ use serde::Serialize;
 pub fn command() -> App<'static, 'static> {
     SubCommand::with_name("dev")
         .about("Developer tooling for running designtime Pax sessions")
+        .after_help("Without --path or --session, commands try the current project's active session, then the sole live session on the machine. Use --path . to require the current project.")
         .subcommand(list_command())
         .subcommand(status_command())
         .subcommand(look_command())
@@ -758,15 +759,35 @@ fn live_registered_sessions() -> Result<Vec<DevSession>, Report> {
 
 fn resolve_session(args: &ArgMatches<'_>) -> Result<DevSession, Report> {
     let live_sessions = live_registered_sessions()?;
+    // Keep an explicit project constraint distinct from current-directory discovery.
+    let explicit_project = args
+        .value_of("path")
+        .map(|_| project_root(args))
+        .transpose()?;
     if let Some(session_id) = args.value_of("session") {
-        return live_sessions
+        let session = live_sessions
             .into_iter()
             .find(|session| session.session_id == session_id)
-            .ok_or_else(|| eyre!("no live dev session with id {}", session_id));
+            .ok_or_else(|| eyre!("no live dev session with id {}", session_id))?;
+        if let Some(project_root) = &explicit_project {
+            require_session_project(&session, project_root)?;
+        }
+        return Ok(session);
     }
 
-    if let Some(project_session) = resolve_project_session(args, &live_sessions)? {
+    let project_root = match &explicit_project {
+        Some(project_root) => project_root.clone(),
+        None => project_root(args)?,
+    };
+    if let Some(project_session) = resolve_project_session(&project_root, &live_sessions)? {
         return Ok(project_session);
+    }
+
+    if explicit_project.is_some() {
+        return Err(eyre!(
+            "no live dev session found for project {}; start this project's debug app with `pax-cli run --path <project>`, or run `pax-cli dev list` and pass --session <id> with the matching --path",
+            project_root.display()
+        ));
     }
 
     match live_sessions.len() {
@@ -781,10 +802,9 @@ fn resolve_session(args: &ArgMatches<'_>) -> Result<DevSession, Report> {
 }
 
 fn resolve_project_session(
-    args: &ArgMatches<'_>,
+    project_root: &Path,
     live_sessions: &[DevSession],
 ) -> Result<Option<DevSession>, Report> {
-    let project_root = project_root(args)?;
     let pax_dir = project_root.join(".pax");
     if !project_dev_dir(&pax_dir).exists() {
         return Ok(None);
@@ -792,10 +812,30 @@ fn resolve_project_session(
     let Some(active) = read_project_active_session(&pax_dir)? else {
         return Ok(None);
     };
-    Ok(live_sessions
+    let session = live_sessions
         .iter()
-        .find(|session| session.session_id == active.session_id)
-        .cloned())
+        .find(|session| session.session_id == active.session_id);
+    if let Some(session) = session {
+        // An active-session file can survive a project copy or worktree move.
+        require_session_project(session, project_root)?;
+    }
+    Ok(session.cloned())
+}
+
+fn require_session_project(session: &DevSession, project_root: &Path) -> Result<(), Report> {
+    let registered_root = session
+        .project_root
+        .as_ref()
+        .and_then(|path| fs::canonicalize(path).ok());
+    if registered_root.as_deref() == Some(project_root) {
+        return Ok(());
+    }
+    Err(eyre!(
+        "dev session {} does not belong to project {} (registered project: {}); run `pax-cli dev list` and select a session with a matching --path, or omit --path to target solely by --session <id>",
+        session.session_id,
+        project_root.display(),
+        session.project_root.as_ref().map(|path| path.display().to_string()).unwrap_or_else(|| "unknown".to_string())
+    ))
 }
 
 fn session_project_root(session: &DevSession, args: &ArgMatches<'_>) -> Result<PathBuf, Report> {
@@ -856,7 +896,16 @@ fn project_root(args: &ArgMatches<'_>) -> Result<PathBuf, Report> {
     } else {
         std::env::current_dir()?.join(path)
     };
-    Ok(joined)
+    let canonical = fs::canonicalize(&joined).map_err(|err| {
+        eyre!("could not resolve project path {}: {}; pass --path <project> for an existing project directory", joined.display(), err)
+    })?;
+    if !canonical.is_dir() {
+        return Err(eyre!(
+            "project path {} is not a directory",
+            canonical.display()
+        ));
+    }
+    Ok(canonical)
 }
 
 fn arg_path() -> Arg<'static, 'static> {
@@ -864,8 +913,7 @@ fn arg_path() -> Arg<'static, 'static> {
         .short("p")
         .long("path")
         .takes_value(true)
-        .default_value(".")
-        .help("Project path used to resolve the active local session when --session is omitted")
+        .help("Require this project's active session, or verify --session belongs to it; never fall back globally")
 }
 
 fn arg_session() -> Arg<'static, 'static> {
@@ -873,7 +921,7 @@ fn arg_session() -> Arg<'static, 'static> {
         .short("s")
         .long("session")
         .takes_value(true)
-        .help("Explicit dev session id to target; overrides project-based resolution")
+        .help("Target an exact live session; an explicit --path must match its project")
 }
 
 fn parse_u64(args: &ArgMatches<'_>, name: &str) -> Result<u64, Report> {
