@@ -33,6 +33,11 @@ use {
 #[derive(Clone)]
 /// Runtime context passed into user component lifecycle methods and event handlers.
 ///
+/// For an inline binding, Rust `self` belongs to the component that authored
+/// the binding, while this context describes the child receiving the call.
+/// Bounds, expression stack access, subscriptions, and async lifetime remain target-local.
+/// Component-level bindings receive their own component's state and context.
+///
 /// Child-related fields intentionally separate semantic payload from engine
 /// transport:
 ///

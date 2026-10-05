@@ -1,0 +1,10 @@
+<Text text="Lifecycle handler scope" x=24px y=20px width={100% - 48px} height=40px
+    style={ font_size: 28px, fill: rgb(243, 247, 252) } />
+<Group id="toggle" x=24px y=76px width=220px height=42px @click=self.toggle>
+    <Text text={self.visible ? "Unmount children" : "Mount children"} width=100% height=100%
+        style={ font_size: 16px, fill: rgb(16, 25, 36), align_horizontal: TextAlignHorizontal::Center, align_vertical: TextAlignVertical::Center } />
+    <Rectangle width=100% height=100% fill=rgb(112, 224, 189) />
+</Group>
+<ScopeProbe label="Owner A" visible={self.visible} x=24px y=144px width={50% - 36px} height=330px />
+<ScopeProbe label="Owner B" visible={self.visible} x={50% + 12px} y=144px width={50% - 36px} height=330px />
+<Rectangle width=100% height=100% fill=rgb(16, 25, 36) />

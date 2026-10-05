@@ -273,6 +273,40 @@ name, bind it explicitly, for example `@mount: initialize` in `@settings`,
 with a public `initialize(&mut self, ctx: &NodeContext)` method. An explicit
 binding replaces automatic selection for that lifecycle event.
 
+Lifecycle bindings also work inline on a child element:
+
+```pax
+<Group width=100% height=120px @mount=self.panel_mount>
+    <Text text={self.title} width=100% height=100% />
+</Group>
+```
+
+```rust
+impl Notes {
+    pub fn panel_mount(&mut self, ctx: &NodeContext) {
+        log::info!("{}: panel mounted at {:?}", self.title.get(), ctx.bounds_self.get());
+    }
+}
+```
+
+For inline `@mount`, `@tick`, `@pre_render`, and `@unmount`, `self` is the
+specific component instance that authored the binding (`Notes` here).
+`ctx` describes the child receiving the call (`Group` here), including its
+bounds, tree identity, expression stack, and subscription lifetime. Moving that
+child to a different rendering parent does not change the handler's Rust
+state owner. Each instance keeps its own state. Reactive bindings created by
+the handler belong to that authored owner; subscriptions and async work started
+through `ctx` retain the child's lifetime.
+
+A child's own lifecycle methods or `@settings` bindings still run on the
+child's state. An inline binding on its invocation can run alongside them;
+it does not replace them or bubble to ancestors. Suspended nodes skip tick
+and pre-render handlers, but still run mount and unmount handlers when their
+mounted lifetime changes. These ownership rules apply in debug and release.
+Component mask-source subtrees have a mounted logical lifetime and follow
+the same lifecycle ownership rules, even though their output is used as a
+mask rather than presented directly.
+
 `on_tick` is driven by the runtime, with no fixed frame-rate guarantee. Use
 elapsed time for behavior that should progress at a stable real-time rate;
 `ctx.elapsed_frames` and `ctx.elapsed_millis` expose the runtime's clocks.

@@ -1,0 +1,19 @@
+<Stacker direction=StackerDirection::Vertical width=100% height=180px @pre_render=self.stack_pre_render>
+    <Text text={self.label} style={ font_size: 22px, fill: rgb(243, 247, 252) } />
+    <Text text={"Group mount / unmount: " + self.mounts + " / " + self.unmounts}
+        style={ font_size: 16px, fill: rgb(198, 212, 229) } />
+    <Text text={"Child inline mount / unmount: " + self.child_mounts + " / " + self.child_unmounts}
+        style={ font_size: 16px, fill: rgb(198, 212, 229) } />
+    <Text text={"Tick / render / Stacker: " + (self.tick_seen ? "yes" : "no") + " / " + (self.render_seen ? "yes" : "no") + " / " + (self.stack_render_seen ? "yes" : "no")}
+        style={ font_size: 16px, fill: rgb(198, 212, 229) } />
+    <Text text={"Group context width: " + self.target_width}
+        style={ font_size: 16px, fill: rgb(198, 212, 229) } />
+</Stacker>
+if self.visible {
+    <Group x=0px y=200px width=240px height=90px
+        @mount=self.card_mount @tick=self.card_tick
+        @pre_render=self.card_pre_render @unmount=self.card_unmount>
+        <LifecycleChild width=100% height=100% @mount=self.child_mount @unmount=self.child_unmount />
+        <Rectangle width=100% height=100% fill=rgb(35, 53, 75) />
+    </Group>
+}

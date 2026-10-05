@@ -73,12 +73,13 @@ Type: [`HandlerLocation`](../../../api/internal/pax-runtime/engine.md#handlerloc
 ##### `new_component_handler`
 <pre><code class="api-signature language-rust ignore">pub fn new_component_handler(function: fn()) -&gt; Self</code></pre>
 
-Build a handler whose `self` argument is the containing component.
+Build a handler whose `self` and context both belong to the target component.
 
 ##### `new_inline_handler`
 <pre><code class="api-signature language-rust ignore">pub fn new_inline_handler(function: fn()) -&gt; Self</code></pre>
 
-Build a handler whose `self` argument is the inline primitive/component.
+Build a handler whose `self` is the component that authored the inline binding.
+The context still describes the primitive or child component receiving the call.
 
 ---
 
@@ -149,8 +150,11 @@ Detach the mounted root component tree, leaving the runtime kernel empty.
 
 ## Enums
 ### `HandlerLocation`
-Indicates whether a handler should receive inline-node or containing-component properties.
+Selects the Rust state owner independently of the handler's target `NodeContext`.
 
 #### Variants
 ##### `Inline`
+A binding on a template element: use the component that authored the element.
+
 ##### `Component`
+A component's own settings or conventional method: use the target component.

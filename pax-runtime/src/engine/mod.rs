@@ -255,9 +255,11 @@ pub struct PaxEngine {
     pub scroller_tiling_policy: layer_tiling::ScrollerTilingPolicy,
 }
 
-/// Indicates whether a handler should receive inline-node or containing-component properties.
+/// Selects the Rust state owner independently of the handler's target `NodeContext`.
 pub enum HandlerLocation {
+    /// A binding on a template element: use the component that authored the element.
     Inline,
+    /// A component's own settings or conventional method: use the target component.
     Component,
 }
 
@@ -268,7 +270,8 @@ pub struct Handler {
 }
 
 impl Handler {
-    /// Build a handler whose `self` argument is the inline primitive/component.
+    /// Build a handler whose `self` is the component that authored the inline binding.
+    /// The context still describes the primitive or child component receiving the call.
     pub fn new_inline_handler(
         function: fn(Rc<RefCell<PaxAny>>, &NodeContext, Option<PaxAny>),
     ) -> Self {
@@ -278,7 +281,7 @@ impl Handler {
         }
     }
 
-    /// Build a handler whose `self` argument is the containing component.
+    /// Build a handler whose `self` and context both belong to the target component.
     pub fn new_component_handler(
         function: fn(Rc<RefCell<PaxAny>>, &NodeContext, Option<PaxAny>),
     ) -> Self {

@@ -822,6 +822,18 @@ impl ExpandedNode {
             })
     }
 
+    fn handler_owner(self: &Rc<Self>, location: &HandlerLocation) -> Rc<Self> {
+        // Ownership follows the authored component, not the render parent.
+        // Resolve current state at dispatch time so reload cannot leave a stale handle.
+        match location {
+            HandlerLocation::Component => self.clone(),
+            HandlerLocation::Inline => self
+                .containing_component
+                .upgrade()
+                .unwrap_or_else(|| self.clone()),
+        }
+    }
+
     fn run_event_handlers_for_key<T: Clone + 'static>(
         self: &Rc<Self>,
         handler_key: &str,
@@ -842,13 +854,7 @@ impl ExpandedNode {
             if let Some(handlers) = borrowed_registry.handlers.get(handler_key) {
                 let context = self.get_node_context(ctx);
                 for handler in handlers {
-                    let owner = if let HandlerLocation::Component = &handler.location {
-                        self.clone()
-                    } else {
-                        self.containing_component
-                            .upgrade()
-                            .unwrap_or_else(|| self.clone())
-                    };
+                    let owner = self.handler_owner(&handler.location);
                     if owner.attached.get() == 0 {
                         continue;
                     }
@@ -858,6 +864,31 @@ impl ExpandedNode {
                     let _scope = owner.property_binding_scope.borrow().enter();
                     let properties = Rc::clone(&*borrow!(owner.properties));
                     (handler.function)(properties, &context, Some(event.clone().to_pax_any()));
+                }
+            }
+        }
+    }
+
+    fn run_lifecycle_handlers_for_key(
+        self: &Rc<Self>,
+        handler_key: &str,
+        context: &Rc<RuntimeContext>,
+    ) {
+        if let Some(registry) = borrow!(self.instance_node).base().get_handler_registry() {
+            if let Some(handlers) = borrow!(registry).handlers.get(handler_key) {
+                for handler in handlers {
+                    // Refresh target-local layout for each callback, then enter
+                    // the authored owner's scope for any bindings it creates.
+                    let target_context = self.get_node_context(context);
+                    let owner = self.handler_owner(&handler.location);
+                    let _scope = owner.property_binding_scope.borrow().enter();
+                    // Final unmount marks ancestors detached before invoking
+                    // children; their state and binding scopes are still live here.
+                    (handler.function)(
+                        Rc::clone(&*borrow!(owner.properties)),
+                        &target_context,
+                        None,
+                    );
                 }
             }
         }
@@ -2595,33 +2626,19 @@ impl ExpandedNode {
         res
     }
 
-    /// This method recursively updates all node properties. When dirty-dag exists, this won't
-    /// need to be here since all property dependencies can be set up and removed during mount/unmount
+    /// Run tick or pre-render handlers on this node unless it is detached or suspended.
+    /// Inline handlers receive their authored component's state and this node's context.
     pub fn run_lifecycle_handlers(
         self: &Rc<Self>,
         handler_key: &str,
         context: &Rc<RuntimeContext>,
     ) {
-        if self.attached.get() == 0 {
+        if self.attached.get() == 0 || self.suspended.get() {
             return;
         }
         let _graph = context.property_graph.enter();
         let _scope = self.property_binding_scope.borrow().enter();
-        if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
-            if !self.suspended.get() {
-                for handler in borrow!(registry)
-                    .handlers
-                    .get(handler_key)
-                    .unwrap_or(&Vec::new())
-                {
-                    (handler.function)(
-                        Rc::clone(&*borrow!(self.properties)),
-                        &self.get_node_context(context),
-                        None,
-                    )
-                }
-            }
-        }
+        self.run_lifecycle_handlers_for_key(handler_key, context);
     }
 
     pub fn recurse_update(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
@@ -2743,19 +2760,7 @@ impl ExpandedNode {
             self.attached.set(self.attached.get() + 1);
             self.start_self_enter_transition(context);
             context.add_to_cache(&self);
-            if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
-                for handler in borrow!(registry)
-                    .handlers
-                    .get("mount")
-                    .unwrap_or(&Vec::new())
-                {
-                    (handler.function)(
-                        Rc::clone(&*borrow!(self.properties)),
-                        &self.get_node_context(context),
-                        None,
-                    )
-                }
-            }
+            self.run_lifecycle_handlers_for_key("mount", context);
             // Native source leaves have no GPU coverage. Keep their properties
             // available to component logic, but create no native surfaces or
             // native update subscriptions.
@@ -2809,19 +2814,7 @@ impl ExpandedNode {
             if !self.suppresses_native_presentation() {
                 borrow!(self.instance_node).handle_unmount(&self, context);
             }
-            if let Some(ref registry) = borrow!(self.instance_node).base().handler_registry {
-                for handler in borrow!(registry)
-                    .handlers
-                    .get("unmount")
-                    .unwrap_or(&Vec::new())
-                {
-                    (handler.function)(
-                        Rc::clone(&*borrow!(self.properties)),
-                        &self.get_node_context(context),
-                        None,
-                    )
-                }
-            }
+            self.run_lifecycle_handlers_for_key("unmount", context);
 
             if !self.is_render_source()
                 && self.instance_node.borrow().base().flags().layer == Layer::Canvas
