@@ -561,3 +561,23 @@ explicit strings. `PaxKeyboardTests` and `native_keyboard_probe` share a fixture
 that passes the actual Swift bytes through a built Calculator cartridge; run
 the probe against both debug and baked release builds. Test native host focus
 and actual keyboard arithmetic as well as the isolated event state machine.
+
+## 2026-10-05 — Cargo target selection does not isolate features or resource lookup
+
+The phase-three graph prototype showed that an ordinary single-package
+`cargo run` builds the package's `cdylib` alongside its implicit `rlib`
+dependency, but `standalone` features apply to that library as well as the
+binary. A binary's `required-features` is a selection gate, not a private
+feature set. Binary-specific link directives can keep `PaxHost` out of the
+cartridge's native dependencies; they do not undo Cargo feature unification.
+The phase-three spec records the resulting design decision. Do not infer
+strict feature isolation from a successful build or from absent host symbols.
+
+The native proof also failed initially because font/resource discovery
+assumed `Bundle.main` contained the Swift assets bundle. A bare Cargo binary
+has no application resource directory. Swift's generated `Bundle.module`
+lookup worked after copying the assets bundle into the owning host framework;
+exposing the accessor alone was insufficient. Test direct execution from
+another working directory with Cargo/Pax/dyld launch variables removed, and
+distinguish a root-mount callback from visual or input validation. These are
+prototype findings; the released/CLI workflow has not changed.

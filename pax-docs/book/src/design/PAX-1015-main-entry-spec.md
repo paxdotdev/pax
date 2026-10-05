@@ -1,11 +1,14 @@
 # PAX-1015 — User-owned main and initialization
 
-Status: **Phases 1 and 2 implemented; qualification evidence below. Run workflow under assessment; example migration explicitly deferred.**
+Status: **Phases 1 and 2 implemented; phase three authorized, dependency-graph experiments expose a feature-isolation decision at the first gate. Example migration explicitly deferred.**
 Investigated 2026-10-04; implementation qualification updated 2026-10-05.
-The investigation and API sketches below record the approved design. Section
+The original investigation and API sketches record the approved entry design. Section
 8’s implementation evidence and the phase-two qualification below distinguish delivered APIs from future work;
 canonical usage is documented in [Targets](../targets-build-deploy.md#entry-and-mounting)
 and [Events and Rust](../event-handling-rust.md#application-setup).
+The [phase-three specification](#phase-three-cargo-integration) specifies Cargo integration
+and caller-controlled packaging; its new APIs and commands are design targets,
+not available capabilities.
 
 Issue: [PAX-1015](https://linear.app/paxdev/issue/PAX-1015/design-user-owned-main-entry-points-and-main-driven-initialization).
 Related: [PAX-1013](https://linear.app/paxdev/issue/PAX-1013/validate-tokio-support).
@@ -1053,6 +1056,8 @@ entry/build-workflow questions are settled. This branch retains current example
 paths. The preferred run workflow remains under assessment, including plain
 Cargo integration and caller-controlled packaging; retaining `pax-cli run` as
 the sole canonical path has not been selected.
+The [phase-three proposal](#phase-three-cargo-integration) below records the
+recommended direction and the build-graph proof required before adopting it.
 
 ### Release representation audit
 
@@ -1484,3 +1489,467 @@ mode. Its separate-host fixture reaches Ready and renders the graph on the
 iPad Pro 11-inch (M5), iOS 26.4; it is available for the same manual script.
 This launch observation is not a claim that the release interaction script has
 already been completed.
+
+<a id="phase-three-cargo-integration"></a>
+
+## Phase three — Cargo integration and caller-controlled packaging
+
+**Proposed and authorized for execution 2026-10-05.** Zack approved proceeding
+after reviewing this specification. Start with the dependency-graph proof below;
+the remaining stages depend on that result. This phase addresses the run-workflow
+checkpoint and does not start PAX-1005. Existing phase-one/two runtime APIs and
+qualification remain the baseline; proposed APIs are not delivered until qualified.
+
+### Outcome and scope
+
+Make Pax usable through ordinary Rust build tools, with a versioned Rust API for
+the steps Cargo does not perform. The recommended default for a new macOS app
+is a real `cargo run`, from a checkout with no generated Pax artifacts and no
+globally installed Pax CLI. The resulting executable must also launch directly
+and under a debugger in its development output tree. A project can separately
+package its artifacts, select a simulator, sign an application or serve a web
+build using its own tooling.
+
+`pax-cli` remains the convenient frontend for target shortcuts, development
+watching, inspection, serving and deployment preparation. It should use the
+same build implementation as project-owned tooling. The objective is control
+over the build and its outputs; adding a `cargo pax` spelling alone would not
+meet it.
+
+This phase covers the existing macOS, web, iOS and iPadOS backends. macOS is the
+first plain-Cargo build/run target. Web and mobile receive composable build and
+packaging paths with explicit platform launch steps. This does not add Android,
+Windows or Linux hosts, restore Rust logic reload, change application lifetime
+or executor ownership, or add a dependency/service registry. Example directory
+flattening and showcase/fixture curation stay deferred to PAX-1005.
+
+### Constraints established by the current implementation
+
+The work is larger than moving `perform_build` into `build.rs`:
+
+- `pax_compiler::perform_build(&RunContext)` is already a Rust entry point, but
+  combines source preparation, compilation, packaging and optional launch.
+  `prepare_cartridge_sources` also prepares interfaces, resources and metadata;
+  it is not yet a standalone code-generation API.
+- Apple builds compile the UI library as a cartridge, build the Swift host,
+  then compile the Rust launcher with `PAX_BUILD_CARTRIDGE=false`. The same
+  package's implicit library compilation during a binary build is significant:
+  phase-two testing already found a framework-linking failure there.
+- Generated code currently comes from `PAX_DIR/cartridge.partial.rs`.
+  `pax-host/build.rs` only propagates a supplied framework search path; it does
+  not build the framework. Native resource discovery assumes an application
+  bundle, so linking a bare Cargo binary is not sufficient to make it runnable.
+- Web uses `wasm-pack build`, followed by optimization and web/resource assembly.
+  Producing a `.wasm` file alone does not produce the browser application.
+
+Cargo build scripts execute before their package compiles; their generated
+files belong in `OUT_DIR`. They can generate Rust and build native prerequisites,
+but cannot consume that package's completed executable as a packaging hook.
+Target configuration must come from Cargo's target environment, independently
+of the machine executing the script. These are the relevant
+[Cargo build-script contracts](https://doc.rust-lang.org/cargo/reference/build-scripts.html).
+
+Cargo's explicit dependencies on compiled `cdylib` artifacts still require
+unstable `-Z bindeps`, as checked on 2026-10-05. This proposal requires stable
+Cargo; it cannot assume that facility is available.
+See [Cargo artifact dependencies](https://doc.rust-lang.org/cargo/reference/unstable.html#artifact-dependencies).
+
+### First gate: prove the Cargo dependency graph
+
+Before freezing the helper API or changing starter defaults, build a minimal
+macOS proof from an empty target directory. Keep the native cartridge as a real
+separate ABI artifact. Draw the dependency graph and show precisely which step
+produces generated Rust, the cartridge, the host framework, the launcher and
+resources, and which step makes each artifact discoverable.
+
+The preferred graph is:
+
+```text
+Pax/Rust sources + resolved project configuration
+    -> source generation + native host prerequisites
+    -> Cargo compilation of cartridge and launcher
+    -> directly runnable development artifacts
+    -> optional application packaging -> optional signing/install/launch
+```
+
+The arrow between cartridge and launcher compilation must represent an actual
+supported Cargo dependency or an explicit orchestration step, not assumed
+target ordering. In particular, establish whether stable Cargo can produce
+and locate the separate cartridge during an ordinary single-package binary
+build. Exercise both the package containing its own UI and the existing
+separate-host/separate-UI fixture before choosing how workspace builds work.
+
+Required invariants:
+
+1. No build script invokes Cargo to build the application or its workspace, and
+   no application startup compiles missing artifacts or shells into `pax-cli`.
+   A separate target directory is not a justification for recursive builds.
+2. The launcher retains user-owned `main`. It does not become a wrapper that
+   builds and launches a different executable. The host/cartridge ABI remains
+   real; linking the UI's `rlib` into the host must not silently replace it.
+3. Cartridge exports, root selection and init ownership remain correct when
+   Cargo also builds an `rlib`, test harness or dependency copy. Inspect linked
+   symbols and loaded images for unintended cartridge exports and additional
+   engine instances; do not rely on unused code being discarded by the linker.
+4. No preexisting `.pax`, environment prepared by a previous CLI run, unstable
+   artifact dependencies, global CLI installation or repository-relative path
+   is required. Test a small project outside the monorepo as well.
+
+If stable Cargo cannot meet these invariants with the current package layout,
+return with the concrete graph and measured alternatives before widening the
+implementation. Compare a deliberate launcher/cartridge package split against
+an explicit project-owned build task. Do not silently sacrifice the cartridge,
+require nightly, or label an `xtask` wrapper as completed plain `cargo run`
+support. The reusable build API can still be valuable, but that is a distinct
+partial result and requires an explicit scope decision.
+
+### Developer-facing setup and defaults
+
+Keep the runtime-facing API unchanged:
+
+```rust
+fn main() -> Result<(), pax_kit::host::Error> {
+    pax_kit::init()?.run()
+}
+```
+
+The proposed build dependency is `pax-build`, versioned with the Pax toolchain
+and resolved through the project's Cargo lockfile. It is a build-time dependency;
+application code continues to use `pax_kit`. Do not pull the compiler, server or
+packaging tools into the application's runtime facade to save a manifest entry.
+The intended simple build script is:
+
+```rust,ignore
+// Proposed build.rs API; not implemented.
+fn main() {
+    pax_build::compile().expect("Pax compilation failed");
+}
+```
+
+Here `compile` means prepare generated code and native prerequisites for the
+enclosing Cargo compilation. It does not compile the application with a nested
+Cargo command. Final naming and signatures follow the graph proof. The advanced
+form accepts explicit configuration and returns structured outputs/errors,
+instead of requiring callers to synthesize undocumented environment variables.
+
+Subject to that proof, recommend these starter defaults:
+
+- Preserve `[lib] crate-type = ["rlib", "cdylib"]`, the real application binary,
+  `package.default-run`, and `required-features = ["standalone"]` on that binary.
+- Enable `standalone = ["pax-kit/host"]` by default **in application starters**,
+  so macOS `cargo run` needs no extra flag. Reusable UI/component libraries do
+  not enable it by default. This changes today's starter default and therefore
+  needs an explicit migration note and CLI compatibility test.
+- A consumer reusing an application library disables its default features.
+  Web and cartridge-only invocations select `--lib --no-default-features` and
+  the desired UI features. The build plan must keep launcher-only features out
+  of the cartridge compilation. A build script cannot undo Cargo feature
+  unification; failure to separate these roles is a graph-gate failure.
+- Preserve the explicit `runnable!` root and
+  `[package.metadata.pax.cartridge]` selection. Do not infer a UI package from
+  whichever manifest happens to be the current directory. Nested `ui` modules,
+  custom library names and shared components remain supported.
+
+These are intended commands after implementation, not commands supported by the
+current checkout:
+
+```sh
+# macOS application starter, with platform SDK prerequisites installed
+cargo check
+cargo run
+cargo run --release -- --application-argument
+cargo build --release
+./target/release/my_app --application-argument
+
+# Library/cartridge compilation; packaging and launch are separate
+cargo build --lib --no-default-features --target wasm32-unknown-unknown
+```
+
+The direct executable example assumes Cargo's default target directory and no
+explicit target triple; report the real artifact path when either is changed.
+The exact web feature arguments must be established by the prototype, including
+migration from existing `web`/`macos`/`ios` feature forwarding. Do not document
+the abbreviated web command as working until target inference handles it.
+
+### Target, feature and configuration ownership
+
+| Concern | Proposed owner and behavior |
+| --- | --- |
+| Rust ABI / compilation target | Cargo `--target`, `CARGO_BUILD_TARGET`, or Cargo configuration; the helper reads the resolved target. Without an override, use Cargo's host target. |
+| Standalone launcher vs embedded UI | Cargo capabilities and selected targets; `standalone` enables host entry. Disabling it does not change the platform or mount the UI automatically. |
+| iPhone vs iPad; simulator vs device | Rust target selects simulator/device ABI; platform build options select device family and launch destination. iPad is not another Rust target triple. |
+| App identity, assets and default packaging settings | Existing Cargo Pax metadata, extended only where necessary. Host metadata owns packaging; the selected UI package owns its templates and assets. |
+| One invocation's packaging, signing, launch and serving | Explicit Rust API/task options; documented environment overrides may support CI. No requirement to commit local simulator IDs or signing credentials. |
+| Application arguments | Everything after `cargo run --` reaches the user's main unchanged. Pax build/packaging options are not intercepted from application arguments. |
+
+For Pax-owned settings, precedence is explicit invocation options, documented
+environment overrides, project metadata, then platform defaults. The resolved
+plan identifies the source of each setting. This precedence cannot override
+the enclosing Cargo invocation's target or feature resolution. Universal macOS
+packaging is an explicit composition of matching per-architecture builds;
+ordinary host-target `cargo run` need not build a second architecture.
+
+An environment variable naming a Pax platform cannot retarget an already-running
+Cargo compilation. Reject conflicting target selections with a useful error.
+Avoid mutually exclusive platform features as the primary interface: Cargo
+features are unified and intended to be additive.
+See [Cargo feature unification](https://doc.rust-lang.org/cargo/reference/features.html#feature-unification).
+
+Cargo's ordinary package/binary selection, target directory, compiler flags and
+profiles remain authoritative. Do not silently apply today's web size-oriented
+profile overrides to a caller-owned Cargo build; expose optimization as an
+explicit preset. `dev` uses the development representation and `release` uses
+the baked representation. Specify and test an explicit representation choice
+for custom profiles; optimization level alone does not identify a release build.
+Keep the chosen representation consistent through generation, compilation and
+packaging. Release reload restrictions remain intact.
+
+### Build API boundaries
+
+Extract one implementation used by the Cargo helper, CLI and project-owned
+tasks. Start from the existing compiler rather than creating a second generator.
+The following are operation contracts, not finalized public type names:
+
+| Operation | Inputs and outputs | Permitted effects |
+| --- | --- | --- |
+| Resolve/plan | Host and cartridge identities, Cargo configuration, platform settings → validated inputs, steps, output locations and tool requirements | Read configuration; provide an inspectable plan without building or launching. |
+| Prepare | Resolved inputs → generated Rust, baked/debug program data, prepared resources and native host prerequisites | Run source generation and required native compilation; write only declared build outputs. Safe to invoke from a Cargo build script. |
+| Compile | Prepared plan → actual Rust/Swift/Wasm artifacts and provenance | An outer project task or CLI may invoke Cargo/toolchain processes. This operation is unavailable inside the build-script adapter. |
+| Package | Explicit compiled artifacts and package options → app bundle, embedding payload or web directory | Assemble resources and bindings; perform selected post-compilation optimization. No automatic install or launch. |
+| Sign/install/launch/serve | Explicit package and destination/options → process or session handle | Separate opt-in operations, so an external bundler/server/deployer can replace each one. |
+
+The build-script entry uses only the preparation layer and emits the necessary
+Cargo directives. Keep dev servers, simulator control and watch orchestration
+out of its default dependency graph. A project-owned Rust `xtask` can depend on
+the orchestration API and call all stages sequentially, without an installed
+CLI. Expose artifact paths and errors rather than forcing callers to parse
+colored CLI output. Long-running operations provide cancellation and ownership
+of their child processes; building one package must not terminate unrelated
+applications or watchers.
+
+Shelling into a pinned `pax-cli` is an acceptable documented transition recipe
+for an existing project task. It is not the build-script implementation or the
+long-term integration API. No generated Cargo wrapper may call back into itself.
+
+### Generated artifacts, resources and incremental behavior
+
+Cargo integration writes generated source and prerequisites under its assigned
+`OUT_DIR`, with tracked inputs and atomic replacement of complete generations.
+It does not rewrite source files or require generated `.pax` content in version
+control. Keep the current CLI output layout working through the transition;
+make final packaging output an explicit option rather than a source-location
+assumption.
+
+Track Rust/Pax source inputs, resolved component dependencies, additions/removals
+in relevant source and asset directories, metadata, enabled features and target
+configuration. Keep source analysis consistent with the enclosing Cargo
+resolution, including workspace dependencies, lockfile and feature selection.
+Any metadata subprocess must respect locked/offline operation and must not
+create another compilation cycle. Generation must not initialize the app,
+Tokio, a GPU, or a host event loop.
+
+Expose an artifact descriptor recording package/root identity, target, build
+configuration, representation, ABI versions, resource locations and the actual
+produced files. Its schema starts as an internal versioned interchange format;
+do not promise a permanently stable cache format. Reject stale or incompatible
+host/cartridge combinations rather than selecting a nearby file by name. Keep
+simultaneous target/profile/package builds isolated. Record native SDK/tool
+inputs needed to invalidate their artifacts. Respect `cargo clean`; do not
+create unbounded parallel caches outside Cargo's ownership.
+
+On macOS, implement explicit resource/cartridge resolution for both development
+outputs and packaged applications. Development artifacts can refer to their
+build tree and need not be independently distributable; they must launch from
+another working directory without Cargo's injected dynamic-library environment.
+Packaged applications must use relocatable bundle resources and run after being
+copied away from the checkout. Shared native code must locate the resources of
+the Pax mount, including in another application's bundle; relying solely on
+`Bundle.main` does not satisfy embedding. Preserve existing ABI consumers or
+version any required ABI extension explicitly.
+
+No build script downloads fonts, installs toolchains, starts a server, watches
+files, signs for distribution or installs on a device. Cargo may fetch declared
+dependencies normally; other provisioning is an explicit preparatory operation
+with actionable missing-tool/asset diagnostics. A warm, offline build must work
+with those declared prerequisites present.
+
+### Platform workflows and development sessions
+
+| Platform / use | Compilation and execution contract |
+| --- | --- |
+| macOS standalone | Cold `cargo run` executes the user's actual binary; `cargo build` leaves directly runnable development outputs. Bundle/signing operations remain separately callable. |
+| macOS embedded | Build the UI cartridge and embedding payload without launching. A separate host uses the existing mounting/lifetime API. Its build task may orchestrate the stages explicitly; do not assume a Cargo Rust dependency schedules the `cdylib` artifact. |
+| Web standalone or embedded | Cargo builds the Wasm library. Post-compilation tooling generates matching JS bindings, assembles the web interface/resources and optionally optimizes. Callers can use their own server and DOM mount. This phase does not promise `cargo run --target wasm32-unknown-unknown` for the library target. |
+| iOS/iPadOS standalone | Cargo builds for the selected Apple target; explicit packaging, signing as required, installation and platform launch follow. The ordinary Rust main remains the native entry, but a bare mobile executable is not a desktop-runnable program. |
+| iOS/iPadOS embedded | Produce a version-matched embedding payload and resources for the caller's application. Do not impose a standalone main or launch that application during compilation. |
+| Android | Unsupported backend; clear diagnostic. Preserve the architectural boundary for future integration without claiming an Android build or host implementation. |
+
+A Cargo target runner may provide an optional mobile package/install/launch
+adapter **after** the executable exists. It cannot supply missing pre-compilation
+code generation. Account for runners also applying to tests/benchmarks; do not
+accidentally launch the app for a test harness. Runner setup must work from a
+workspace root and compose with an existing caller-owned runner.
+See [Cargo target runners](https://doc.rust-lang.org/cargo/reference/config.html#targettriplerunner).
+An optional runner is not a requirement for ordinary macOS development execution.
+
+Plain `cargo run` is a build-and-run operation with no automatic watch session.
+`pax-cli run` retains the current debug Pax-template reload experience. A Rust
+task may opt into the same supervisor separately; do not start it from
+`build.rs` or implicitly inside `init`. Application-logic changes still require
+a rebuild/restart, and release builds disable reload. Documentation must explain
+this difference without implying that Cargo itself watches `.pax` files.
+
+### Delivery sequence and acceptance
+
+1. **Prove the graph.** Produce the minimal cold macOS experiment, linked-image
+   inspection and separate-package analysis described above. Measure build
+   time/output size and record remaining constraints before finalizing manifests
+   or the public helper API. This is the stop-and-reassess gate if stable Cargo
+   cannot preserve the boundary.
+2. **Extract preparation and orchestration.** Split the existing pipeline into
+   the stated operations and demonstrate a project-owned Rust task on each
+   supported backend. Keep existing CLI entry points working against those same
+   operations. Audit the debug and binary-baked release generation paths.
+3. **Deliver the macOS Cargo path.** Add the build helper, proven starter setup,
+   development resource discovery and ordinary check/build/run/debugger support.
+   Migrate a focused canonical example and the project template first, without
+   moving the example tree or removing its historical wrappers in bulk.
+4. **Qualify and document platform recipes.** Exercise web packaging and mobile
+   standalone/embedding through the Rust API, plus CLI compatibility. Add the
+   optional runner only if it makes those recipes simpler and satisfies its
+   test-harness contract. Record the selected workflow, then revisit PAX-1005.
+
+Required acceptance evidence:
+
+- Fresh single-package starter and separate-package fixture, with no `.pax` or
+  preexisting application artifacts, stable Cargo and no global Pax CLI. Test
+  workspace-root invocation, a package outside the repository, custom library
+  names, explicit root selection and feature isolation. State precisely which
+  recipes use plain Cargo and which use the outer task.
+- `cargo check` and rust-analyzer's normal check path diagnose changed Pax/Rust
+  sources without launching anything. Ordinary library tests/doctests do not
+  initialize the application. Missing native prerequisites report their remedy.
+- macOS debug/release: `cargo run`, direct executable, debugger launch, arguments,
+  exit behavior and working directory. Repeat with explicit target and target
+  directory. Copy a packaged app away from the checkout and launch it. Preserve
+  the CLI's universal-build path and verify matching cartridge/host slices.
+- Correct incremental rebuilds after template, Rust, asset, dependency and
+  metadata changes; deleted assets do not remain in output. An unchanged warm
+  build avoids unnecessary generation/native compilation. Verify locked/offline
+  operation after provisioning, concurrent target isolation and a custom profile
+  with explicit representation selection.
+- Use Calculator, Paxflix and Living Quilt for representative output/resource
+  coverage. All three get macOS debug standalone Cargo/direct-binary checks and
+  separate-host checks. Calculator additionally gets release Cargo and relocated
+  bundle checks. On web, check standalone and separate-DOM-host mounts for all
+  three, with at least one debug and one baked release build. On mobile, check
+  Calculator debug on iPhone and a resource-rich release app on iPad in both
+  standalone and separate-host modes. Confirm input, resize, close/remount and
+  continued host responsiveness where applicable; retain the native keyboard
+  focus regression. Record actual invokers and targets, not a Cartesian-matrix
+  claim inferred from a few successful launches.
+- Existing `pax-cli run` still builds, packages, launches and reloads templates on
+  web/macOS and the supported mobile path. CLI and Rust-task outputs agree on
+  root, metadata, assets, representation and ABI. Release artifacts have no
+  enabled reload lane. Android and untested physical-device behavior stay marked
+  unsupported/unverified rather than included in pass counts.
+
+For implementation, update Getting Started, Targets/Build/Deployment, Developer
+Workflow, `pax-kit`/build-helper API docs, CLI help and starter/example guidance
+together. Teach the short default path first, then explicit packaging and host
+integration. Regenerate affected API/example artifacts, build the book and check
+links. This specification-only change does not alter current public instructions
+or assert that the proposed helper exists.
+
+Phase three is complete when the macOS Cargo path and the composable platform
+recipes pass these checks, the CLI uses the shared implementation, and the
+pre-ship run-workflow choice is recorded. A Rust task alone, a warm build that
+depends on earlier CLI output, or a renamed CLI command is not completion.
+
+### Phase-three graph experiments — 2026-10-05
+
+These are prototype observations, not delivered build-helper APIs or a completed
+qualification matrix. Experiments used stable Rust/Cargo 1.93.0 and Xcode 26.4
+on Apple Silicon. They leave starter defaults and the approved runtime API
+unchanged. The feature-isolation requirement above needs a decision before
+the single-package implementation can proceed.
+
+**Single-package artifact ordering works.** A fresh, dependency-free Cargo
+fixture with `[lib] crate-type = ["cdylib", "rlib"]` and a binary built both
+library forms before the binary during `cargo run`. The verbose command gave
+the binary an implicit `--extern graph_ui=…/libgraph_ui.rlib` dependency. The
+dynamic library was in `target/debug/deps`; the top-level copy was absent in
+this run. The executable loaded the dynamic library and called its exported
+entry point. That first minimal build took 0.77 seconds; a subsequent fresh
+fixture with a native host framework and binary-specific link directives took
+1.68 seconds. These small timings are graph tests, not Pax build benchmarks.
+
+**Cargo feature sets are not isolated per target.** The same verbose output
+passed `feature="standalone"` to both the library and binary. Forwarding it to
+the facade's `host` feature enabled the host dependency for both. Moving the
+framework link directive from the shared host crate to the application's
+`cargo:rustc-link-arg-bin` directives prevented the cartridge from depending
+on that framework, but did not remove the host feature from its compilation.
+`required-features` gates whether Cargo selects a binary; it does not scope
+those features to that binary. Thus the literal requirement to exclude
+launcher-only Cargo features fails for the proposed single-package layout.
+
+**A real native Pax prototype mounted successfully.** An external package used
+the existing source analyzer and cartridge generator from `build.rs`, followed
+by an Xcode build of the real Swift host. A header-only Swift package supplied
+the cartridge's C declarations, so building the host did not require an
+already-compiled Rust cartridge. Cargo then compiled the application's dynamic
+library and ordinary user-owned `main`:
+
+```text
+build.rs: analyze/generate + compile Swift host against C declarations
+    → Cargo: application library (cdylib + rlib)
+    → Cargo: application binary, linked to PaxHost only
+    → run: PaxHost dynamically loads the sibling cartridge
+```
+
+The prototype's native host and generated data lived under Cargo's `OUT_DIR`.
+It used an explicit framework rpath, a cartridge path relative to the running
+executable, and the Swift resource bundle copied into the host framework.
+After deleting all `PAX_*`, `CARGO_*`, and `DYLD_*` variables from the launch
+environment and changing to `/private/tmp`, direct binary invocation printed
+`PASS Cargo proof root mounted` from the actual root's mount handler. No Cargo
+compilation or CLI invocation occurred at runtime. An embedded Info.plist was
+also tested, but the computer-use app selector could not attach to the bare
+executable, so this is lifecycle evidence rather than a visual interaction pass.
+
+`otool -L` showed the executable depending on `PaxHost`, and no `PaxHost`
+dependency in the cartridge. `nm -gU` found the cartridge ABI exports
+(`pax_init`, `pax_tick`, `pax_interrupt`, `pax_dealloc_engine`, and
+`pax_cartridge_abi_version`) in the cartridge and not in the executable.
+The prototype generated baked program data with a debug Cargo profile to
+exercise the graph; this is not release-profile qualification. It also reused
+the workstation's dependency build cache. A complete cold Pax build, runtime
+image/instance audit, production root/reuse matrix, and all other acceptance
+checks remain outstanding.
+
+**Separate-package selection remains an orchestration problem.** The existing
+`cartridge-layouts/host` selects its UI through Pax metadata and has no Rust
+dependency on it; Cargo does not schedule artifacts from arbitrary metadata.
+A small separate-host analogue with an ordinary Rust dependency did schedule
+the UI's dynamic library, but its root macro's `CARGO_PRIMARY_PACKAGE` guard
+suppressed cartridge entry points. The host failed its symbol lookup. This
+does not prove every split-package design impossible; it shows that adding a
+dependency is insufficient, and changing root selection requires another
+reuse/duplicate-export qualification. The synthetic consumer-alone and
+workspace builds succeeded, but that is not a production Pax reuse pass.
+
+The alternatives at this gate are:
+
+| Approach | Evidence and consequence |
+| --- | --- |
+| Keep one package; require native linkage/runtime separation, while allowing shared Cargo features | The native prototype mounts through a real cartridge. Keeps the simple starter and ordinary `cargo run`. Requires explicitly revising the feature-isolation sentence, then proving the remaining root, instance, incremental, and target cases. Recommended for the intended ergonomics. |
+| Separate launcher and cartridge packages | Can give the packages different feature requests, but ordinary workspace feature unification still needs care. Adds manifest/layout overhead and still needs an explicit artifact/root-selection recipe; not a proven drop-in solution. |
+| Keep the current layout and use a project-owned Rust build task | Separate build invocations can retain the existing strict launcher/cartridge feature distinction. Preserves the cartridge and exposes caller control, but does not fulfill the requested single-command plain `cargo run` path. Requires a scope decision, as stated by the first gate. |
+
+The spec explicitly says to “return with the concrete graph and measured
+alternatives before widening the implementation” if the graph cannot satisfy
+its invariants. The open decision is feature isolation versus artifact/runtime
+isolation, not whether to erase the cartridge boundary. No alternative may
+silently substitute a statically mounted UI, require nightly Cargo, or compile
+the application recursively from its build script.
