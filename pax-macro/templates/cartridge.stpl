@@ -45,7 +45,7 @@
 
     <% if build_config.macos || build_config.ios || build_config.ipados { %>
     #[no_mangle]
-    pub extern "C" fn pax_cartridge_abi_version() -> u32 { 1 }
+    pub extern "C" fn pax_cartridge_abi_version() -> u32 { 2 }
 
     #[no_mangle]
     pub extern "C" fn pax_init(initial_width: f32, initial_height: f32) -> *mut <%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::PaxEngineContainer {

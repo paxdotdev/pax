@@ -36,7 +36,7 @@ mod native {
         engine: Engine,
         tick: unsafe extern "C" fn(Engine, *mut c_void, f32, f32, f32) -> *mut Queue,
         free_queue: unsafe extern "C" fn(*mut Queue),
-        interrupt: unsafe extern "C" fn(Engine, *const Interrupt),
+        interrupt: unsafe extern "C" fn(Engine, *const Interrupt) -> bool,
         pending: unsafe extern "C" fn(Engine) -> bool,
         buttons: HashMap<String, u64>,
         text: HashMap<u64, String>,

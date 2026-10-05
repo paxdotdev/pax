@@ -32,6 +32,7 @@ final class PaxHostSession {
     private var release: (@convention(c) (UnsafeMutableRawPointer?) -> Void)?
     private var controller: PaxPlatformController?
     var stopCanvas: (() -> Void)?
+    var isStandalone = false
     private var engine: OpaquePointer?
     #if os(macOS)
     var windowTitle: String?
@@ -57,7 +58,7 @@ final class PaxHostSession {
         session.engine = PaxCartridgeRuntime.shared.initEngine(width: 0, height: 0, data: data)
         PaxViewMacos.PaxEngineContainer.paxEngineContainer = session.engine
         #else
-        guard pax_cartridge_abi_version() == 1 else {
+        guard pax_cartridge_abi_version() == 2 else {
             active = nil
             _ = fail("Incompatible Pax cartridge ABI")
             return nil
@@ -158,6 +159,7 @@ final class PaxHostSession {
         controller = nil
         // Revoke interrupt routing before resetting the shared native controls.
         NativeInterruptDispatcher.shared.sendData = { _ in }
+        NativeInterruptDispatcher.shared.requestKeyboardFocus = nil
         PaxNativeHostState.reset()
         if let engine {
             self.engine = nil
@@ -250,6 +252,7 @@ private func session(_ pointer: UnsafeMutableRawPointer) -> PaxHostSession {
     guard Thread.isMainThread, PaxHostSession.active === session(pointer), session(pointer).status == 0 else {
         return PaxHostSession.fail("Standalone run requires a fresh prepared application on the main thread")
     }
+    session(pointer).isStandalone = true
     #if os(macOS)
     pax_app_macosApp.main()
     #else

@@ -35,7 +35,8 @@ void pax_shutdown_for_replacement(PaxEngineContainer *container);
 
 void pax_set_property_waker(struct PaxEngineContainer *container, uint64_t token, void (*wake)(uint64_t));
 
-void pax_interrupt(struct PaxEngineContainer *engine_container, const void * interrupt);
+// Cartridge ABI 2: keyboard interrupts return whether the native default was prevented.
+bool pax_interrupt(struct PaxEngineContainer *engine_container, const void * interrupt);
 
 struct NativeMessageQueue *pax_tick(struct PaxEngineContainer *engine_container,
                                     void *cgContext,

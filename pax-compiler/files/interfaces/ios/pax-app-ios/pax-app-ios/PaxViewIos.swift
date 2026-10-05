@@ -124,7 +124,7 @@ struct PaxViewIos: View {
     }
 
 
-    class PaxCanvasViewIos: UIView, NativeMessageHandling {
+    class PaxCanvasViewIos: PaxKeyboardView, NativeMessageHandling {
         let textElements = TextElements.singleton
         let frameElements = FrameElements.singleton
         let scrollerElements = ScrollerElements.singleton
@@ -168,6 +168,7 @@ struct PaxViewIos: View {
             }
             pax_activate_application(engine)
             PaxHostSession.canvasReady { [weak self] in self?.shutdown() }
+            if hostSession?.isStandalone == true { focusForKeyboardInput() }
         }
         private var previousViewportSize: CGSize = .zero
         private var publishedSafeAreaInsets: UIEdgeInsets?
@@ -204,6 +205,15 @@ struct PaxViewIos: View {
 
         private func installNativeInterruptDispatcher() {
             NativeInterruptDispatcher.shared.sendData = sendInterruptToEngine
+            NativeInterruptDispatcher.shared.requestKeyboardFocus = { [weak self] in self?.focusForKeyboardInput() }
+            keyboardInterrupt = { [weak self] data in
+                guard let self, !self.isShutdown, let engine = self.ownedEngine,
+                      PaxHostSession.active === self.hostSession else { return false }
+                return data.withUnsafeBytes { bytes in
+                    var buffer = InterruptBuffer(data_ptr: bytes.baseAddress!, length: UInt64(bytes.count))
+                    return withUnsafePointer(to: &buffer) { pax_interrupt(engine, $0) }
+                }
+            }
             NativeInterruptDispatcher.shared.convertWindowPointToPax = { [weak self] point, window in
                 guard let self else {
                     return nil
@@ -453,6 +463,7 @@ struct PaxViewIos: View {
 
         func shutdown() {
             guard !isShutdown else { return }
+            endKeyboardInput()
             isShutdown = true
             if let token = propertyWakeToken { Self.propertyWakes.removeValue(forKey: token) }
             propertyWakeToken = nil

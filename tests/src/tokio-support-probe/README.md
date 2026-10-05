@@ -64,6 +64,21 @@ Open `/wake-only.html` on the fixture's dev server. Allow initial Pax reload to
 settle, then run the timer and stream without further input. Both should update
 through the host wake routes. The normal app still uses its normal frame loop.
 
+`native_keyboard_probe` uses a built macOS Calculator cartridge to check the
+Swift keyboard wire fixture, default prevention, key down/up/press dispatch and
+`6+2=8`. Run the Swift encoder/focus regressions too; together these catch wire
+formats that round-trip within Swift but fail Rust's modifier-enum decoder.
+
+```sh
+swift test --package-path pax-compiler/files/swift/pax-swift-common --scratch-path /tmp/pax-keyboard-tests --filter PaxKeyboardTests
+cargo run --manifest-path tests/src/tokio-support-probe/Cargo.toml --bin native_keyboard_probe -- 'examples/src/calculator/.pax/build/debug/macos/app/Pax macOS (Development).app/Contents/Frameworks/PaxCartridge.framework/PaxCartridge'
+```
+
+Repeat against the corresponding release cartridge after a `pax-cli build
+--target macos --release`. The probe itself can stay unoptimized: it is the
+loaded cartridge whose baked event-handler path must be checked. Real native
+input and embedding focus still need app-level checks.
+
 These headless checks do not establish native visual/input, physical iOS,
 background/resume behavior. Rust logic replacement is no longer supported. See the fixture README for
 the qualification matrix and remaining limits.

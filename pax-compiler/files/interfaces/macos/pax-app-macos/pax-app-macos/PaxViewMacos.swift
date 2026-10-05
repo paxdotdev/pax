@@ -43,7 +43,7 @@ fileprivate struct LoadedPaxCartridgeAPI {
     typealias PaxSetShutdownWaker = @convention(c) (UInt64, @convention(c) (UInt64) -> Void) -> Void
     typealias PaxPumpShutdowns = @convention(c) () -> UInt64
     typealias PaxDeallocEngine = @convention(c) (OpaquePointer?) -> Void
-    typealias PaxInterrupt = @convention(c) (OpaquePointer?, UnsafeRawPointer?) -> Void
+    typealias PaxInterrupt = @convention(c) (OpaquePointer?, UnsafeRawPointer?) -> Bool
     typealias PaxTick = @convention(c) (
         OpaquePointer?,
         UnsafeMutableRawPointer?,
@@ -207,7 +207,7 @@ final class PaxCartridgeRuntime {
 
         do {
             let version = try resolveSymbol(handle: handle, name: "pax_cartridge_abi_version", as: (@convention(c) () -> UInt32).self)
-            guard version() == 1 else {
+            guard version() == 2 else {
                 throw NSError(domain: "PaxCartridgeRuntime", code: 5,
                     userInfo: [NSLocalizedDescriptionKey: "Incompatible Pax cartridge ABI; rebuild the host and cartridge together"])
             }
@@ -457,11 +457,13 @@ final class PaxCartridgeRuntime {
         api.paxDeallocEngine(engineContainer)
     }
 
-    func interrupt(_ engineContainer: OpaquePointer?, _ interrupt: UnsafeRawPointer?) {
+    @discardableResult
+    func interrupt(_ engineContainer: OpaquePointer?, _ interrupt: UnsafeRawPointer?) -> Bool {
         do {
-            try currentAPI().paxInterrupt(engineContainer, interrupt)
+            return try currentAPI().paxInterrupt(engineContainer, interrupt)
         } catch {
             print("Failed to send Pax interrupt: \(error)")
+            return false
         }
     }
 
@@ -927,7 +929,7 @@ struct PaxViewMacos: View {
     }
 
 
-    class PaxCanvasViewMacos: NSView, NativeMessageHandling {
+    class PaxCanvasViewMacos: PaxKeyboardView, NativeMessageHandling {
 
         let textElements = TextElements.singleton
         let frameElements = FrameElements.singleton
@@ -972,6 +974,7 @@ struct PaxViewMacos: View {
             }
             PaxCartridgeRuntime.shared.activateApplication(engine)
             PaxHostSession.canvasReady { [weak self] in self?.shutdown() }
+            if hostSession?.isStandalone == true { focusForKeyboardInput() }
         }
         #if DEBUG
         private var pendingLogicReload: PendingPaxLogicReload?
@@ -1051,6 +1054,15 @@ struct PaxViewMacos: View {
 
         private func installNativeInterruptDispatcher() {
             NativeInterruptDispatcher.shared.sendData = sendInterruptToEngine
+            NativeInterruptDispatcher.shared.requestKeyboardFocus = { [weak self] in self?.focusForKeyboardInput() }
+            keyboardInterrupt = { [weak self] data in
+                guard let self, !self.isShuttingDown, let engine = self.ownedEngine,
+                      PaxHostSession.active === self.hostSession else { return false }
+                return data.withUnsafeBytes { bytes in
+                    var buffer = InterruptBuffer(data_ptr: bytes.baseAddress!, length: UInt64(bytes.count))
+                    return withUnsafePointer(to: &buffer) { PaxCartridgeRuntime.shared.interrupt(engine, $0) }
+                }
+            }
             NativeInterruptDispatcher.shared.convertWindowPointToPax = { [weak self] point, window in
                 guard let self else {
                     return nil
@@ -1161,6 +1173,7 @@ struct PaxViewMacos: View {
             guard !isShuttingDown else {
                 return
             }
+            endKeyboardInput()
             tickStateLock.lock()
             isShuttingDown = true
             tickStateLock.unlock()

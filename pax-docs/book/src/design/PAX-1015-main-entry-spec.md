@@ -1,6 +1,6 @@
 # PAX-1015 — User-owned main and initialization
 
-Status: **Phases 1 and 2 implemented; qualification evidence below. Pre-ship decisions remain open.**
+Status: **Phases 1 and 2 implemented; qualification evidence below. Run workflow under assessment; example migration explicitly deferred.**
 Investigated 2026-10-04; implementation qualification updated 2026-10-05.
 The investigation and API sketches below record the approved design. Section
 8’s implementation evidence and the phase-two qualification below distinguish delivered APIs from future work;
@@ -1047,6 +1047,13 @@ migration before shipping; any deferral must be explicit with Zack. Resolving
 the classification/path map later is deliberate sequencing, not a reason to
 delay the entry/lifetime refactor now.
 
+Checkpoint update, 2026-10-05: Zack explicitly agreed to defer example cleanup
+and the combined PAX-1005 classification/path migration until the remaining
+entry/build-workflow questions are settled. This branch retains current example
+paths. The preferred run workflow remains under assessment, including plain
+Cargo integration and caller-controlled packaging; retaining `pax-cli run` as
+the sole canonical path has not been selected.
+
 ### Release representation audit
 
 At `14b6f8d6a`, `pax-compiler/src/lib.rs:389` passes
@@ -1428,10 +1435,8 @@ and remount followed by collapsed close. Automated mobile touch interaction is
 unverified: the computer-use tool captured device windows but rejected tap coordinates with
 `windowNotFoundAtPosition`. This is an automation limitation, not a successful
 touch check. Zack subsequently confirmed Calculator clicks on macOS and taps
-on iPhone, and confirmed hardware keys do not update either editor. Inspection
-establishes that the global keyboard bridge exists only on web; native text
-controls retain their own input paths. Proper macOS/iOS global key routing and
-focus ownership remain a separate capability to implement and qualify.
+on iPhone, and exposed the then-missing Apple keyboard bridge. The follow-up
+below implements and qualifies that capability separately.
 
 The Calculator macOS graph initially opened near x=-256, y=256 and reported
 `NO RESOLVED CURVE` in both standalone and caller-owned hosts. AppKit's
@@ -1444,4 +1449,38 @@ corrected graph is visually verified in both host modes. All 48 shared Swift
 tests pass; four focused scroller regressions also pass with optimization,
 including fractional placement, content shrink/growth, offsets arriving before
 geometry, and continued native scroll reporting. This does not establish a
-physical-device pass or native hardware-key support.
+physical-device pass. Native keyboard qualification follows below.
+
+### Native keyboard bridge — 2026-10-05
+
+Apple canvases now forward native first-responder key events to the existing
+global `KeyDown`, `KeyUp`, and `KeyPress` handlers. Standalone hosts initially
+focus the canvas; embedded mounts preserve host focus until a canvas click/tap.
+Native text controls retain their platform input. Handled keys return
+default-prevention status to AppKit/UIKit; unhandled keys continue through the
+native responder chain. Held keys release on focus loss, deactivation and close.
+This adds neither IME composition nor a software keyboard for canvas editors.
+
+`pax_interrupt` now returns `bool`, so the internal cartridge ABI advances to 2;
+hosts reject older cartridges and must be rebuilt with them. The public host
+embedding ABI remains 1. Existing keyboard bindings and binary-baked handler
+metadata are unchanged.
+
+Qualification: all 52 shared Swift tests pass, including four keyboard tests
+that also pass with optimization. The native Calculator probe checks the exact
+Swift modifier payload, cancellation, and `6+2=8` through both debug and baked
+release cartridge ABIs. Real keyboard input also produces `6+2=8` on macOS
+(debug and release) and the iPhone 17 Pro iOS 26.4
+simulator; iPhone arrow/Backspace editing works. A separate macOS host verifies
+initial host text focus, canvas/scroller focus, return to the host editor, close
+and remount. Zack subsequently completed the same manual script on the iPhone
+simulator's debug embedding fixture: host text input stays isolated, canvas
+keyboard arithmetic works, focus returns to the host, close/remount preserves
+the host, and background/resume while holding an arrow key leaves input usable.
+Physical-device keyboards and iOS repeat timing remain unverified.
+
+The updated ABI-2 Calculator also builds for the iPad simulator in release
+mode. Its separate-host fixture reaches Ready and renders the graph on the
+iPad Pro 11-inch (M5), iOS 26.4; it is available for the same manual script.
+This launch observation is not a claim that the release interaction script has
+already been completed.

@@ -133,6 +133,13 @@ complete adapter. Swift/Objective-C hosts use the versioned C declarations in
 `pax-host/include/pax_host.h`; see the repository's
 `tests/src/host-embedding` fixture for containment and callback ownership.
 
+An embedded Apple mount preserves the host's keyboard focus. Clicking or
+tapping Pax's rendered content focuses its canvas; native text controls keep
+their own input. See [Keyboard delivery](event-handling-rust.md#keyboard-delivery).
+Rebuild the Apple host and cartridge together when updating Pax: cartridge ABI
+2 returns keyboard default-prevention status from `pax_interrupt`, and the host
+rejects older cartridges. The public embedding API in `pax_host.h` remains ABI 1.
+
 `mount.ready()` observes installation of the viewport and wake route.
 `mount.close()` revokes work and removes only Pax's child. `mount.closed()`
 observes cleanup acknowledgement. These futures must be driven by the caller's

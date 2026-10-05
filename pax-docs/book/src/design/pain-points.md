@@ -483,11 +483,9 @@ stale model fields over actual user scrolling. Cover fractional placement,
 content shrink/growth, offset-before-geometry ordering, and native movement in
 the Swift tests; verify the mounted example as well.
 
-The same qualification pass confirmed that Calculator's hardware-key handler
-has no macOS/iOS bridge yet. Click/tap success does not establish keyboard
-support. Track proper native key routing and focus ownership as a separate
-capability; do not add calculator-specific event monitors that steal keys from
-an embedding host or native text controls.
+The same qualification pass exposed the missing macOS/iOS keyboard bridge,
+addressed separately above. Click/tap success does not establish keyboard
+support; qualify those input paths independently.
 
 ## 2026-10-05 — Single-package launchers need transitive framework search paths
 
@@ -546,3 +544,20 @@ finding remains separate from the corrected launcher link failure.
   exposed an existing CGContext decoding failure. The layout fixture uses the
   existing RGBA Space Game assets to exercise portable asset packaging; grayscale
   scene-image decoding remains a separate renderer issue.
+
+## 2026-10-05 — Native keys need focus ownership and a cross-language wire test
+
+Calculator already handled `@key_down`, but Apple hosts did not forward hardware
+keys. The bridge now uses the canvas's native first-responder methods. Standalone
+apps acquire initial focus; embedded mounts preserve host focus until a canvas
+click/tap. Do not use process-wide event monitors: they can steal keys from host
+editors and Pax native controls. Release held keys on focus loss and teardown,
+and return Rust's default-prevention result to the native responder chain.
+
+A Swift-only encode/decode test missed a real crash on shifted keys. Swift's
+typed string vector decoded as `Key` elements in Rust flexbuffers 2, while
+Serde's modifier enums require `String` elements. Emit an untyped vector with
+explicit strings. `PaxKeyboardTests` and `native_keyboard_probe` share a fixture
+that passes the actual Swift bytes through a built Calculator cartridge; run
+the probe against both debug and baked release builds. Test native host focus
+and actual keyboard arithmetic as well as the isolated event state machine.

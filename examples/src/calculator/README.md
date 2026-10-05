@@ -27,10 +27,12 @@ run `nvm use` before commands that build the web interface.
 
 ## Controls
 
-Click/tap the keys, or use a hardware keyboard on web. The macOS and iOS
-chassis do not yet forward global key events to this calculator-owned editor.
-Clicking an expression places
-its character cursor. Function keys insert the opening parenthesis too.
+Click/tap the keys, or use a hardware keyboard on web, macOS, and iOS/iPadOS.
+The standalone Apple app initially focuses the calculator. When embedded,
+click/tap its canvas to move keyboard focus from the host. Native text controls
+keep their own input. Clicking an expression places its character cursor.
+Function keys insert the opening parenthesis too. The canvas editor does not
+summon the iOS software keyboard or provide IME composition.
 
 | Input | Action |
 | --- | --- |
@@ -226,7 +228,16 @@ and caller-owned hosts after correcting AppKit layout notifications that
 overwrote the initial offset. Embedded zoom, drag, resize, collapse/restore,
 close and remount pass. Four native scroller regressions pass in debug and
 optimized Swift builds. Manual checks confirm macOS clicks and iPhone 17 Pro
-(iOS 26.4 simulator) taps; hardware-key input remains web-only.
+(iOS 26.4 simulator) taps. The native keyboard bridge now passes keyboard-driven
+`6+2=8` on macOS (debug and release) and the iPhone simulator, including shifted
+`+`, Tab, and Enter;
+iPhone cursor movement and Backspace also work. Separate-host macOS checks
+cover host text-field isolation, canvas/scroller focus, close and remount.
+Zack also passed the iPhone simulator debug embedding script, including host
+text-field isolation, focus transfer, close/remount and background/resume with
+an arrow key held.
+The shared Swift suite passes 52 tests, with four keyboard tests also passing
+under optimization. Hardware keyboards on physical iOS devices are unverified.
 
 The previous physical iPhone zoom-out crash was a separate native surface
 allocation bug: a 4,096-point pane became a 12,288-pixel texture at 3x density.

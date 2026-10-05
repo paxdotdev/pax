@@ -175,7 +175,7 @@ boundary and [Event delivery](#event-delivery) for propagation.
 ## Do application work
 
 Handlers are ordinary Rust methods. They can validate input, call helpers,
-update several properties, and invoke application services. Keep reusable
+update several properties, and call ordinary Rust dependencies. Keep reusable
 work in a helper when more than one interaction needs it.
 
 For example, let the right arrow key advance the panel as well as the button.
@@ -217,7 +217,7 @@ keyboard dispatch and default-prevention boundaries are explained below.
 
 Pax calls event handlers synchronously. Keep their work short enough for
 the interface to remain responsive. For network requests or lengthy work,
-start a scoped task through an application service. Shared `Property` handles
+start a scoped task through an explicit executor. Shared `Property` handles
 can receive worker publications; expressions and UI callbacks stay on the UI
 thread. Declaring a handler `async fn` produces a compile-time diagnostic:
 Pax does not implicitly await a handler's return value.
@@ -498,11 +498,9 @@ or prevent a native control from changing its value.
 
 ### Keyboard delivery
 
-The global `@key_down`, `@key_up`, and `@key_press` event bridge is currently
-implemented on web. The macOS and iOS chassis do not yet forward hardware keys
-to these handlers. Native text controls still use their platform's own text
-input; a canvas-based editor such as Calculator needs the missing event bridge
-before its hardware-key handler can work on Apple targets.
+The global `@key_down`, `@key_up`, and `@key_press` event bridge is implemented
+on web, macOS, and iOS/iPadOS with a hardware keyboard. The binding and Rust
+handler shown above work on each of these targets.
 
 Keyboard events currently dispatch across the mounted Pax tree, so multiple
 components with keyboard handlers may receive the same key. If a shortcut
@@ -511,8 +509,31 @@ handler before acting on it.
 
 On web, the chassis forwards these global keyboard events only while the
 document body is the active element. When a Textbox or another native DOM
-element has focus, its keyboard input stays with that control. A component's
-`@key_down` binding does not by itself give that component keyboard focus.
+element has focus, its keyboard input stays with that control.
+
+On Apple targets, the Pax canvas receives keys as the native first responder.
+A standalone app initially focuses its canvas. An embedded mount preserves the
+host's focus; click or tap Pax's rendered content to focus the canvas. Native
+text controls and the host's own controls retain their normal input paths.
+Losing focus, deactivating the app, or closing the mount releases held keys
+through `@key_up`. A component's `@key_down` binding does not by itself give
+that component keyboard focus.
+
+`event.keyboard.key` carries the typed character, or names such as `Enter`,
+`Backspace`, `Delete`, `Tab`, `Escape`, and `ArrowLeft`. Modifiers use
+`ModifierKey::{Shift, Control, Alt, Command}`. macOS preserves the native repeat
+flag; on iOS, repeated key-down deliveries before a key-up are marked as repeats.
+Pax does not synthesize a repeat timer on iOS. Physical keyboard layout and
+system shortcuts still affect which events the OS delivers.
+
+On Apple targets, calling `event.prevent_default()` suppresses forwarding that
+key to the next native responder. Unhandled keys continue through the native
+responder chain. Cancelling `@key_down` also suppresses the legacy `@key_press`
+event; otherwise it is emitted for printable characters and Enter without
+Control or Command. Prefer `@key_down`/`@key_up` for shortcuts and held-key state.
+These canvas events do not implement IME composition or summon an iOS software
+keyboard; use native text controls for platform text entry.
+
 Read [Native Controls](accessibility-native-controls.md) for the control-specific
 focus and accessibility model.
 
@@ -639,7 +660,9 @@ request. Synchronous blocking code in the initializer still blocks the host
 thread. Target facts are available during initialization; actual viewport bounds
 are established by mounting.
 
-### Services and application lifetime
+<a id="services-and-application-lifetime"></a>
+
+### Dependencies and application lifetime
 
 Dependencies are ordinary Rust fields, constructor inputs or lexical component
 stores. Mark a field `#[pax(rust)]` when it owns a Rust value that must stay out of
@@ -669,7 +692,9 @@ in that function; replace
 arguments or lexical stores. Move UI-specific work from `started` into the root's
 mount handler. There is no replacement lifecycle-hook trait.
 
-### Managed service shutdown
+<a id="managed-service-shutdown"></a>
+
+### Executor and resource shutdown
 
 Executor adapters retain their cleanup owners with the application. Closing
 first invalidates work and unmounts the tree, then starts asynchronous cleanup.

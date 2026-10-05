@@ -20,8 +20,9 @@ use pax_gpu::render_backend::{RenderBackend, RenderConfig, SharedGpuContext};
 use pax_gpu::{Transform2D, WgpuRenderer, NATIVE_VECTOR_RESOURCE_CACHE_BYTES};
 use pax_runtime::api::math::Point2;
 use pax_runtime::api::{
-    Accel, ButtonClick, CheckboxChange, Click, Event, Focus, Gyro, ModifierKey, MouseButton,
-    MouseDown, MouseEventArgs, MouseMove, MouseUp, PhotoPickerChange, RenderContext, Scroll,
+    Accel, ButtonClick, CheckboxChange, Click, Event, Focus, Gyro, KeyDown, KeyPress, KeyUp,
+    KeyboardEventArgs, ModifierKey, MouseButton, MouseDown, MouseEventArgs, MouseMove, MouseUp,
+    PhotoPickerChange, RenderContext, Scroll,
     SelectStart, SliderChange, TextboxChange, TextboxInput, Touch, TouchCancel, TouchEnd,
     TouchMove, TouchStart,
 };
@@ -852,11 +853,13 @@ pub extern "C" fn pax_designtime_prime_app_revision(
 /// Note that in any single-threaded environment, these interrupts will happen
 /// synchronously between engine ticks, allowing for safe unwrapping / borrowing
 /// of engine and runtime here.
+/// Returns whether a keyboard handler prevented the native default action.
+/// Other interrupt kinds currently return false.
 #[no_mangle]
 pub extern "C" fn pax_interrupt(
     engine_container: *mut PaxEngineContainer,
     buffer: *const InterruptBuffer,
-) {
+) -> bool {
     let mut engine_container = unsafe { Box::from_raw(engine_container) };
     let engine = unsafe { Box::from_raw(engine_container._engine) };
 
@@ -874,8 +877,36 @@ pub extern "C" fn pax_interrupt(
         flexbuffers::from_slice(slice);
     let interrupt = interrupt_wrapped.unwrap();
     let globals = engine.runtime_context.globals();
+    let mut prevent_default = false;
 
     match &interrupt {
+        NativeInterrupt::KeyDown(args) => {
+            prevent_default = engine.global_dispatch_key_down(KeyDown {
+                keyboard: KeyboardEventArgs {
+                    key: args.key.clone(),
+                    modifiers: args.modifiers.iter().map(ModifierKey::from).collect(),
+                    is_repeat: args.is_repeat,
+                },
+            });
+        }
+        NativeInterrupt::KeyUp(args) => {
+            prevent_default = engine.global_dispatch_key_up(KeyUp {
+                keyboard: KeyboardEventArgs {
+                    key: args.key.clone(),
+                    modifiers: args.modifiers.iter().map(ModifierKey::from).collect(),
+                    is_repeat: args.is_repeat,
+                },
+            });
+        }
+        NativeInterrupt::KeyPress(args) => {
+            prevent_default = engine.global_dispatch_key_press(KeyPress {
+                keyboard: KeyboardEventArgs {
+                    key: args.key.clone(),
+                    modifiers: args.modifiers.iter().map(ModifierKey::from).collect(),
+                    is_repeat: args.is_repeat,
+                },
+            });
+        }
         NativeInterrupt::Focus(_args) => {
             engine.global_dispatch_focus(Focus {});
         }
@@ -1373,6 +1404,7 @@ pub extern "C" fn pax_interrupt(
 
     engine_container._engine = Box::into_raw(engine);
     let _ = Box::into_raw(engine_container);
+    prevent_default
 }
 
 /// Perform full tick of engine, including property computation, lifecycle event handling, and rendering side-effects.

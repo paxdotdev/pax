@@ -59,6 +59,8 @@ public final class NativeInterruptDispatcher {
     public static let shared = NativeInterruptDispatcher()
 
     public var sendData: ((Data) -> Void)?
+    // Only canvas-owned pointer/touch paths request focus; native controls keep theirs.
+    public var requestKeyboardFocus: (() -> Void)?
 #if os(iOS) || os(tvOS) || os(watchOS)
     public var convertWindowPointToPax: ((CGPoint, UIWindow?) -> CGPoint?)?
 #elseif os(macOS)
@@ -404,6 +406,7 @@ public func dispatchTap(x: Double, y: Double) {
 }
 
 public func dispatchPointerMouseInterrupt(type: String, x: Double, y: Double, button: String = "Left") {
+    if type == "MouseDown" { NativeInterruptDispatcher.shared.requestKeyboardFocus?() }
     dispatchNativeInterrupt { builder in
         builder.addMapWithStringKey(type) { messageBuilder in
             messageBuilder.addWithStringKey("x", x)
@@ -489,6 +492,7 @@ public func dispatchTextMeasurementResponse(id: PaxNodeId, generation: UInt64, w
 }
 
 public func dispatchTouchStart(touches: [TouchInterruptMessage]) {
+    if !touches.isEmpty { NativeInterruptDispatcher.shared.requestKeyboardFocus?() }
     dispatchTouchInterrupt(type: "TouchStart", touches: touches)
 }
 
