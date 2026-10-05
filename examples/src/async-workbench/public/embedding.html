@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pax embedding fixture</title>
+<style>
+body { margin: 24px; font: 16px system-ui; background: #f4f6fa; color: #182033; }
+header { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+#region { width: min(100%, 1100px); height: 690px; margin-top: 20px; border: 2px solid #54647b; resize: both; overflow: hidden; }
+button, input { font: inherit; padding: 8px; }
+output { display: block; margin: 12px 0; }
+</style>
+</head>
+<body>
+<h1>Caller-owned host</h1>
+<header>
+<label>Host text <input id="host-text" value="This input belongs to the host"></label>
+<button id="host-click">Host clicks: 0</button>
+<button id="mount">Mount Pax</button><button id="duplicate">Try second mount</button>
+<button id="request">Request increment</button><button id="abort">Cancel startup</button>
+<button id="resize">Resize region</button><button id="collapse">Collapse region</button><button id="fail-init">Fail initialization</button>
+<button id="close">Close Pax</button><button id="hide">Hide / show</button>
+</header>
+<output id="status" aria-live="polite">Not mounted</output>
+<div id="region"></div>
+<script src="pax-interface-web.js"></script>
+<script>
+let app; let clicks = 0;
+const region = document.getElementById('region');
+const status = document.getElementById('status');
+const options = {element: region, cartridgeUrl: new URL('pax-cartridge', document.baseURI).href, startupData: new TextEncoder().encode('7')};
+document.getElementById('host-click').onclick = event => { event.target.textContent = `Host clicks: ${++clicks}`; };
+document.getElementById('mount').onclick = async () => {
+  status.textContent = 'Initializing';
+  try { app = await Pax.init_web(options); status.textContent = 'Ready: Pax mounted in the caller region'; }
+  catch (error) { status.textContent = String(error); }
+};
+document.getElementById('request').onclick = async () => {
+  try { status.textContent = `Cartridge replied: ${new TextDecoder().decode(await app.request(new TextEncoder().encode('increment')))}`; }
+  catch (error) { status.textContent = String(error); }
+};
+document.getElementById('abort').onclick = async () => {
+  const controller = new AbortController();
+  const pending = Pax.init_web({...options, signal: controller.signal});
+  controller.abort();
+  try { await pending; status.textContent = 'Unexpected startup'; }
+  catch (error) { status.textContent = `Cancelled: ${error.message}`; }
+};
+document.getElementById('duplicate').onclick = async () => {
+  try { await Pax.init_web(options); status.textContent = 'Unexpected second mount'; }
+  catch (error) { status.textContent = `Second mount rejected: ${error.message}`; }
+};
+document.getElementById('close').onclick = async () => {
+  if (!app) return;
+  const closing = app; app = undefined;
+  closing.close(); status.textContent = 'Closing: host remains responsive';
+  await closing.closed; status.textContent = 'Closed: cleanup acknowledged; ready to mount again';
+};
+document.getElementById('resize').onclick = () => {
+  region.style.width = region.style.width === '380px' ? '' : '380px';
+  region.style.height = region.style.height === '400px' ? '690px' : '400px';
+};
+document.getElementById('collapse').onclick = () => { region.style.height = region.style.height === '0px' ? '690px' : '0px'; };
+document.getElementById('fail-init').onclick = async () => {
+  try { await Pax.init_web({...options, startupData: new TextEncoder().encode('invalid counter')}); status.textContent = 'Unexpected initialization success'; }
+  catch (error) { status.textContent = `Initializer error: ${error.message}`; }
+};
+document.getElementById('hide').onclick = () => { region.style.visibility = region.style.visibility === 'hidden' ? '' : 'hidden'; };
+</script>
+</body>
+</html>
