@@ -32,6 +32,16 @@ Type: `u64`
 
 Canvas candidates examined for those masks.
 
+##### `rebuild_reason`
+Type: `Option`<&'`static` `str`>
+
+Cause of the most recent full reconciliation, for opt-in profiling.
+
+##### `rebuild_node`
+Type: `Option`<`u32`>
+
+Triggering expanded node, when the cause was not structural.
+
 ## Functions
 ### `update_node_occlusion`
 <pre><code class="api-signature language-rust ignore">pub fn update_node_occlusion(root_node: &amp;Rc&lt;ExpandedNode&gt;, ctx: &amp;<a href="../../../../api/internal/pax-runtime/properties.md#runtimecontext">RuntimeContext</a>)</code></pre>

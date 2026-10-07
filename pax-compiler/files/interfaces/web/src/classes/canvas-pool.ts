@@ -11,6 +11,10 @@ function tileDebugEnabled() {
 export class CanvasPool {
     private free: HTMLCanvasElement[] = [];
     private allocated = 0;
+    // One entry per actual pool allocation, also while retired/leased. A new
+    // assignment reserves its planned backing before async initialization starts.
+    private backings = new Map<HTMLCanvasElement, number>();
+    private backingLimit = Infinity;
     private maxCanvases: number;
     private objectManager: ObjectManager;
     private host?: HTMLDivElement;
@@ -38,6 +42,7 @@ export class CanvasPool {
             const canvas = event.target as HTMLCanvasElement;
             if (this.free.includes(canvas) && !canvasSurfaceIsOwned(canvas)) {
                 releaseCanvasBacking(canvas);
+                this.backings.set(canvas, 0);
                 // The event can originate inside a Rust destructor. Re-enter the
                 // chassis only after its borrow/initialization stack has unwound.
                 queueMicrotask(() => this.onAvailable());
@@ -53,11 +58,26 @@ export class CanvasPool {
         }
     }
 
-    checkout(): HTMLCanvasElement | null {
+    setBackingLimit(pixels: number) { this.backingLimit = Math.max(0, pixels); }
+
+    private backingPixels(canvas: HTMLCanvasElement) {
+        return Math.max(this.backings.get(canvas) ?? 0, canvas.width * canvas.height);
+    }
+
+    reserveBacking(canvas: HTMLCanvasElement, pixels: number): boolean {
+        const current = this.free.includes(canvas) && !canvasSurfaceIsOwned(canvas) ? 0 : this.backingPixels(canvas);
+        const extra = Math.max(0, pixels - current);
+        if (extra > 0 && extra > this.backingLimit - this.capacitySnapshot().backingPixels) return false;
+        this.backings.set(canvas, pixels);
+        return true;
+    }
+
+    checkout(pixels = 0): HTMLCanvasElement | null {
         // A released element is not reusable until all async initializers and
         // renderers have dropped their ownership, even at pool capacity.
         const eligibleIndex = this.free.findIndex(canvas => !canvasSurfaceIsOwned(canvas));
         if (eligibleIndex >= 0) {
+            if (!this.reserveBacking(this.free[eligibleIndex], pixels)) return null;
             return this.free.splice(eligibleIndex, 1)[0];
         }
         if (this.allocated >= this.maxCanvases) {
@@ -66,13 +86,17 @@ export class CanvasPool {
             });
             return null;
         }
+        if (pixels > this.backingLimit - this.capacitySnapshot().backingPixels) return null;
         this.allocated += 1;
         this.debugLog("checkout-new", {
             allocated: this.allocated,
             maxCanvases: this.maxCanvases,
             free: this.free.length,
         });
-        return this.objectManager.getFromPool(CANVAS);
+        const canvas = this.objectManager.getFromPool<HTMLCanvasElement>(CANVAS);
+        if (pixels > 0) { canvas.width = 1; canvas.height = 1; }
+        this.backings.set(canvas, pixels);
+        return canvas;
     }
 
     release(canvas: HTMLCanvasElement) {
@@ -85,12 +109,30 @@ export class CanvasPool {
             canvas.parentElement?.removeChild(canvas);
         }
         releaseCanvasBacking(canvas);
+        // Keep the actual backing charged until the final lease releases it.
+        if (!canvasSurfaceIsOwned(canvas)) this.backings.set(canvas, 0);
         this.free.push(canvas);
         this.debugLog("release", {
             allocated: this.allocated,
             maxCanvases: this.maxCanvases,
             free: this.free.length,
         });
+    }
+
+    capacitySnapshot() {
+        const retiring = this.free.filter(canvasSurfaceIsOwned).length;
+        let backingPixels = 0, retiringPixels = 0;
+        const retired = new Set(this.free);
+        for (const canvas of this.backings.keys()) {
+            // Free 1x1 placeholders carry no renderable backing or reservation.
+            const pixels = retired.has(canvas) && !canvasSurfaceIsOwned(canvas) ? 0 : this.backingPixels(canvas);
+            backingPixels += pixels;
+            if (retired.has(canvas)) retiringPixels += pixels;
+        }
+        return {limit: this.maxCanvases, allocated: this.allocated,
+            assigned: this.allocated - this.free.length, retiring,
+            available: this.maxCanvases - this.allocated + this.free.length - retiring,
+            backingPixels, retiringPixels};
     }
 }
 

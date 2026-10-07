@@ -1,10 +1,45 @@
 use pax_runtime::engine::layer_tiling::ScrollerTilingPolicy;
+use std::{cell::Cell, rc::Rc};
 use wasm_bindgen::JsValue;
 use web_sys::Window;
 
+// Shared by the plan exporter and renderer. Discovering a device limit changes
+// the plan contract once, rather than making JS repeatedly repair valid sizes.
+#[derive(Clone)]
+pub(crate) struct WebSurfacePolicy {
+    pub(crate) browser: BrowserSurfacePolicy,
+    backend_limit: Rc<Cell<u32>>,
+    revision: Rc<Cell<u32>>,
+}
+
+impl WebSurfacePolicy {
+    pub(crate) fn new(browser: BrowserSurfacePolicy) -> Self {
+        Self {
+            browser,
+            backend_limit: Rc::new(Cell::new(u32::MAX)),
+            revision: Rc::new(Cell::new(0)),
+        }
+    }
+
+    pub(crate) fn observe_backend_limit(&self, limit: u32) {
+        let limit = limit.max(1).min(self.backend_limit.get());
+        if limit != self.backend_limit.replace(limit) {
+            self.revision.set(self.revision.get().wrapping_add(1));
+        }
+    }
+
+    pub(crate) fn revision(&self) -> u32 {
+        self.revision.get()
+    }
+
+    pub(crate) fn max_surface_dimension(&self, layer: usize) -> u32 {
+        self.browser
+            .effective_max_surface_dimension(layer, self.backend_limit.get())
+    }
+}
+
 const PIET_BROWSER_SURFACE_DIMENSION_CAP: u32 = 2048;
 const PIET_TARGET_TILE_BACKING_DIMENSION: f64 = 2048.0;
-const IOS_NESTED_LAYER_MIN_DPR: f64 = 0.25;
 const PIET_TOTAL_CANVAS_BUDGET: usize = 56;
 const PIET_PREWARM_VIEWPORT_PAD_X_MULTIPLIER: f64 = 2.0;
 const PIET_PREWARM_VIEWPORT_PAD_Y_MULTIPLIER: f64 = 6.0;
@@ -73,14 +108,6 @@ impl BrowserSurfacePolicy {
             .unwrap_or(backend_limit)
     }
 
-    pub(crate) fn minimum_dpr(self, layer: usize) -> f64 {
-        if self.surface_dimension_cap.is_some() && layer > 0 {
-            IOS_NESTED_LAYER_MIN_DPR
-        } else {
-            1.0
-        }
-    }
-
     pub(crate) fn defer_transient_root_host_surfaces(self, layer: usize) -> bool {
         self.surface_dimension_cap.is_some() && layer > 0
     }
@@ -89,6 +116,11 @@ impl BrowserSurfacePolicy {
         let mut policy = ScrollerTilingPolicy::default();
         policy.tile_overscan_columns = WEB_TILE_OVERSCAN_COLUMNS;
         policy.tile_overscan_rows = WEB_TILE_OVERSCAN_ROWS;
+        // Prove smaller preparation units on WebGPU without changing native or
+        // Piet canvas-count assumptions. The sizing algorithm stays shared.
+        if !cfg!(feature = "piet") && !self.use_piet_fallback {
+            policy.target_tile_viewports = Some(1.0);
+        }
         if self.use_piet_fallback {
             // Piet replays dirty draws into browser canvases. Spend more canvas memory on
             // warm runway so fast scrolls are less likely to expose tiles before replay catches up.
@@ -123,12 +155,32 @@ mod tests {
         "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/140.0 Safari/537.36";
 
     #[test]
+    fn discovered_limits_invalidate_shared_plan_policy_once() {
+        let policy = WebSurfacePolicy::new(BrowserSurfacePolicy::default());
+        let renderer = policy.clone();
+        assert_eq!(policy.revision(), 0);
+        renderer.observe_backend_limit(8192);
+        assert_eq!(policy.max_surface_dimension(1), 8192);
+        assert_eq!(policy.revision(), 1);
+        renderer.observe_backend_limit(8192);
+        renderer.observe_backend_limit(16384);
+        assert_eq!(policy.revision(), 1);
+        renderer.observe_backend_limit(2048);
+        assert_eq!(policy.max_surface_dimension(1), 2048);
+        assert_eq!(policy.revision(), 2);
+    }
+
+    #[test]
     fn desktop_webgpu_uses_gpu_policy() {
         let policy = BrowserSurfacePolicy::from_browser_capabilities(DESKTOP_USER_AGENT, true);
 
         assert!(!policy.use_piet_fallback());
         assert_eq!(policy.surface_dimension_cap, None);
         assert_eq!(policy.scroller_tiling_policy().max_surfaces_per_layer, None);
+        assert_eq!(
+            policy.scroller_tiling_policy().target_tile_viewports,
+            (!cfg!(feature = "piet")).then_some(1.0)
+        );
     }
 
     #[test]
@@ -136,6 +188,7 @@ mod tests {
         let policy = BrowserSurfacePolicy::from_browser_capabilities(DESKTOP_USER_AGENT, false);
 
         assert!(policy.use_piet_fallback());
+        assert_eq!(policy.scroller_tiling_policy().target_tile_viewports, None);
         assert_eq!(policy.surface_dimension_cap, None);
         assert_eq!(
             policy.scroller_tiling_policy().max_surfaces_per_layer,
@@ -153,7 +206,6 @@ mod tests {
             policy.effective_max_surface_dimension(1, u32::MAX),
             PIET_BROWSER_SURFACE_DIMENSION_CAP
         );
-        assert_eq!(policy.minimum_dpr(1), IOS_NESTED_LAYER_MIN_DPR);
         assert_eq!(
             tiling.max_tile_backing_area,
             Some((PIET_BROWSER_SURFACE_DIMENSION_CAP as f64).powi(2))

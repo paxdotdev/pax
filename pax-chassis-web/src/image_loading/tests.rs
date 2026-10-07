@@ -216,9 +216,14 @@ fn completion_invalidates_only_its_live_requesting_node_and_current_layer() {
 #[test]
 fn concurrent_requests_for_one_source_each_receive_completion() {
     let (mut engine, nodes, mut renderer) = fixture(&["shared.png", "shared.png"]);
-    for node in &nodes {
-        complete(&engine, &mut renderer, node.id.to_u32(), "shared.png");
-    }
+    renderer.load_image("shared.png", &[255, 0, 0, 255], 1, 1);
+    wake_image_nodes(
+        &engine,
+        &nodes
+            .iter()
+            .map(|node| node.id.to_u32())
+            .collect::<Vec<_>>(),
+    );
     engine.render(&mut renderer);
     for node in &nodes {
         assert_eq!(
@@ -231,6 +236,11 @@ fn concurrent_requests_for_one_source_each_receive_completion() {
 #[test]
 fn late_completion_after_unmount_keeps_the_cache_without_scheduling_stale_nodes() {
     let (mut engine, nodes, mut renderer) = fixture(&["old.png"]);
+    // Model the parent's control-flow removal, not an unmounted child left in
+    // the render tree with its property scope already torn down.
+    let root = engine.root_expanded_node.as_ref().unwrap();
+    root.children.set(Vec::new());
+    root.mounted_children.borrow_mut().clear();
     nodes[0].clone().recurse_unmount(&engine.runtime_context);
     engine.render(&mut renderer);
     assert!(engine.get_expanded_node(nodes[0].id).is_none());

@@ -71,18 +71,33 @@ siblings appear in front; that is why each note's Text precedes its Rectangle.
 
 ### Rendering density
 
-Web vector surfaces, including tiled Scroller content, render at the browser's
-device-pixel ratio in debug and release builds. A 2× display uses two backing
-pixels per CSS pixel on each axis; becoming scrollable or tiled does not opt
-content into lower-resolution rendering. This applies to WebGPU and the
-Piet/Canvas2D fallback. Native text retains the browser's own rasterization.
+Web vector surfaces, including tiled Scroller content, target the browser's
+device-pixel ratio at their **presented scale**, in debug and release builds.
+For example, a 1,000-unit-wide Scroller inside `scale=50%` appears 500 CSS pixels
+wide. On a 2× display it needs about 1,000 backing pixels, not 2,000. A backing
+density below one per local unit can therefore still match the screen. Becoming
+scrollable or tiled does not opt content into lower-resolution rendering.
+The sizing contract is shared by WebGPU and the Piet/Canvas2D fallback. Native
+text retains the browser's own rasterization.
+
+The full affine transform determines density: rotated orthogonal axes retain
+their individual scales; shear uses a conservative bound. Density is rounded
+up in small steps, grows immediately, and shrinks after 500ms at a stable scale
+to avoid reallocating for tiny variations. Translation and pure rotation do not
+change density. Singular transforms do not request drawable surfaces.
+
+The web host checks each backing against the dimensions produced by the same
+Rust sizing calculation used for allocation, including fractional-DPR rounding
+and hard limits. A valid, unchanged canvas does not request repeated surface
+refreshes. Discovering a backend limit invalidates the plan once; it does not
+switch tiled content to a separate lower-density policy.
 
 When a pane cannot fit the tile budget at screen density, Pax splits it into
 smaller surfaces and retains a bounded window around the viewport. It does not
 reduce resolution merely to keep a pane on one canvas. Hard backend/browser
 surface-dimension limits still guard allocation: an exceptional clamp emits a
 warning and marks the affected canvas with `data-pax-resolution-fallback`,
-including requested/actual density and the limit. This is a safety fallback,
+including actual density and the limit. This is a safety fallback,
 not an adaptive scrolling-performance mode. Investigate repeated warnings;
 high-density rendering still requires profiling complex or heavily animated
 scenes on the devices you support.
@@ -619,6 +634,32 @@ recreated backing surface receives a new renderer even if its tile key is the
 same. Pending warm replay follows surviving tile identities through reordering,
 and visible affected tiles replay together before deferred warm work.
 
+On the WGPU path, bounded canvas primitives retain a tile-independent drawing
+program as well as tile-local GPU state. A new or resized tile can replay an
+unchanged program without calling the component's render hooks again. Programs
+include their ancestor clips, vector mask sources, and opacity scopes; paths and
+paint values are snapshots, not live property handles. The cache is bounded and
+shared across tiles in the same runtime. A first visit, an evicted program, or
+changed content still requires ordinary component rendering. This does not
+virtualize component state or eliminate image decoding/upload and GPU setup.
+The Piet fallback retains its existing component-replay path.
+
+On WebGPU, ready surfaces can also replay those records **before** the next
+application tick, including a coalesced wake-up after async surface completion.
+At most one extra pass runs between ordinary frames. This presentation-only pass does not advance clocks, dispatch
+lifecycle handlers, evaluate layout, or mount components. Pending effects,
+geometry, or native-compositing changes block the pass. Removals and canvas/lighting
+dirtiness block their layer; dirty content blocks the affected replay region,
+not unrelated cold layers;
+missing drawing records fall back to the ordinary frame. Masks and opacity use
+the same captured drawing programs as normal replay. The normal tick still runs.
+An adaptive CPU-cost estimate limits starting additional replay jobs, with an
+initial 4ms allowance and at least one eligible job allowed to progress. An
+individual upload/encode is not preemptible and can overrun the allowance. This
+is a bounded pre-tick opportunity, **not** a frame-time limit on ordinary content
+rendering, surface initialization, or all visible repair work. Native chassis do
+not yet invoke this shared Rust path; Piet remains on normal rendering.
+
 Tile replay does not replace a simultaneous content change. When a card animates
 across a tile boundary, its opacity, transform, and artwork updates must reach
 the surviving tiles as well as newly exposed ones. Browser surface allocation
@@ -634,23 +675,149 @@ to a different scroller host uses a fresh assignment; an old row's retained pixe
 must never be exposed in the new host. Reuse is governed by ownership, not a delay.
 
 Browser scrollers share a bounded canvas pool. In both desktop and mobile browsers,
-the retained warm set uses that same budget: scrollers visible through their
-ancestor viewports take priority over offscreen preparation, and the root surface
-and required ancestor scrollers reserve space first. Warm distances use transformed
-presentation bounds, so scaling an embedded app does not mix local dimensions
-with screen-space distances. Obsolete canvas assignments across layers retire
+admission is per surface across the app, not all-or-nothing per scroller.
+The Web adapter supplies measured geometry, movement, and readiness to a shared
+Rust policy; it does not maintain a separate JavaScript ranking algorithm.
+This shared policy is currently enabled on Web; native chassis activation is
+a separate rollout. Web admission limits both surface count and physical backing
+pixels. Speculative coverage has a base allowance of two screenfuls of pixels.
+After ordinary admission, forward coverage may borrow unused capacity while
+leaving four canvas slots and one screenful of backing pixels as headroom for
+new visible demand. Borrowing does not increase the overall caps or displace
+already-admitted near/safety coverage. New visible demand always takes priority;
+the headroom limits borrowing, not mandatory rendering. Assigned, initializing, and
+retiring backings remain charged until their allocation or last lease releases.
+These are color-backing estimates, not a bound on total GPU or application memory.
+Visible coverage, including stationary siblings and the root page, precedes
+speculative preparation. Actual local scroll movement prioritizes preparation
+ahead of moving scrollers, with a 250ms activity tail and immediate direction
+reversal. Hover alone does not claim priority; input remains native.
+Among equally near candidates, already-submitted content wins the tie; having
+a canvas assigned does not by itself mean the content is ready.
+
+Admitted warm hosts stay presentable under their existing native scroller and
+Frame clips. They are not CSS-hidden until a later visibility tick: browser
+scrolling can reveal prepared pixels before the application thread runs again.
+Cold, unallocated hosts may still be parked. This does not expand clipping bounds
+or change viewport-proximity events.
+
+Preparation follows the clipped exposure of the whole scroll ancestry. A moving
+vertical catalog prepares the portion of an upcoming horizontal shelf that can
+actually appear; it does not grant that idle shelf an independent horizontal
+warm window. Simultaneously moving ancestors and children share one bounded
+prediction horizon. Currently exposed scrollers also request a half-viewport
+safety margin on either side of each scrollable axis, even at rest. These are
+separate possible movements: parent and child safety margins are not multiplied
+into a larger diagonal/nested region. Offscreen children inherit only the
+exposure their ancestors can reveal. The margin is independent of tile size,
+so stopping exactly at a tile boundary does not remove first-scroll coverage.
+
+Near already-submitted tiles remain eligible within a one-viewport retention
+margin through pauses and reversals. Retention starts no new work and has lower
+priority than visible, predicted-forward, and safety coverage. It yields under
+the same canvas/pixel budgets or when the tile moves too far away; expiration
+of the 250ms motion signal alone does not discard it. The candidate bounding
+rectangle includes this retain-only area, but cold tiles there are not admitted.
+
+Forward prediction uses observed speed and a bounded preparation-time estimate.
+The Web adapter measures from assignment until first observing submission,
+including queueing and first drawing, once per content revision. The shared
+policy adapts its horizon between 250 and 750ms, capped at six local viewports
+of travel. This is conservative CPU-side readiness feedback, not a guarantee
+that asynchronous image loading or compositor presentation has completed.
+These distances are initial policy calibration, not per-Scroller authoring APIs.
+Beyond that urgent prediction, recently moving axes offer a lower-priority
+forward reserve of up to six local viewports. It fills only after visible,
+predicted, and stationary-near coverage, within the existing preparation-time
+allowance. Paused reserves drop in priority, with a further downgrade after
+1.5 seconds, but can finish filling during idle time while capacity permits.
+Unchanged observations across a long idle sampling gap preserve this remembered
+direction without refreshing urgent motion. Reversal immediately switches the
+reserve direction, and new moving branches precede paused reserves.
+An offscreen child inherits the ancestor's exposure,
+not additional independent-axis overscan. The opposite direction retains the
+ordinary smaller safety/retention margins. These are capacity-limited candidate
+windows, not a promise that all six viewports are already rendered. Abrupt jumps
+outside ready coverage can still reveal unfinished content.
+All optional work remains subject to the existing global budgets.
+
+Tiles stay anchored in content space;
+changing a clip or preparation priority does not resize or rename survivors.
+WebGPU scrolling-axis cells are capped near one host viewport, rounded upward
+in 256-physical-pixel buckets and subject to the existing backend size/area
+limits. A narrow embedded shelf therefore does not prepare a long row of
+offscreen posters merely because one large tile intersects the viewport. This
+changes preparation granularity, not raster density. The grid uses the host's
+viewport, not its changing ancestor clip; resizing or changing projected density
+can still require new cells. Native and Piet retain their prior sizing policy.
+
+Coverage uses transformed presentation bounds, so scaling an embedded app
+does not mix local dimensions with screen-space distances. Affine projection
+preserves rotation/reflection; nonrectangular clips use conservative bounds,
+not exact pixel occlusion. Empty ancestor layers do not consume a canvas merely
+to retain their DOM ancestry. Obsolete canvas assignments across layers retire
 before replacement allocation; GPU ownership must still finish before reuse.
 Scrolling through a long collection can release distant drawing surfaces
 and recreate them on return. This does not unmount application components or defer
 image decoding. The pool size and warm distances are implementation details, not
 viewport lifecycle thresholds or a bound on all application memory.
 
-WebGPU initialization is asynchronous. Existing tiles remain usable while
-additions initialize, and results for removed or replaced surfaces are discarded.
-Queued browser initialization prioritizes currently visible scroller hosts over
-offscreen hosts, reevaluating priorities as initialization slots open. It does not
+Application-generated or virtualized content needs its own bounded preparation
+region. For example, a plot that creates paths only for the current viewport
+has no geometry to paint just beyond it, regardless of available warm canvases.
+Generate or mount nearby content before exposure; choose that application-level
+margin with its generation cost in mind. Surface preparation does not replace
+application content preparation.
+
+If visible demand itself exceeds the pool budget, the host preserves valid
+visible survivors and admits remaining visible work deterministically, without
+speculative work, a larger cap, or lower density. The mount's
+`data-surface-budget-state` reports `visible-demand-exceeds-budget`.
+`data-surface-backing-bytes-estimate` estimates color backing bytes, **not total
+GPU memory**: textures, attachments, and caches cost more.
+
+WebGPU initialization can wait asynchronously for a device. When the shared
+device is already ready, eligible additions can initialize during queue servicing
+without waiting for another microtask. Immediate creation is capped at four
+attempts per queue service; remaining work is revisited during subsequent
+layout/presentation passes. Existing tiles remain usable while additions
+initialize, and results for removed or replaced surfaces are discarded.
+The host publishes an installed plan after retirement and allocation; pending
+allocations are not initialized targets. Browser initialization consumes the same
+global rank as admission, reconsidering it between individual surface creations.
+After waiting for the shared GPU context, it selects again from the current
+installed plan and yields to more urgent uninitialized surfaces. Queued replay
+is also reranked on plan changes; work for removed assignments is discarded.
+A tile does not retain priority merely because it was previously visible or
+missed a predicted exposure time.
+Visible replay precedes speculative replay across layers. Priority changes do
+not change surface identity. This does not
 cancel initialization already in flight or guarantee that an abrupt jump cannot
 expose an unfinished tile.
+
+WebGPU also uses that ordering for cold first drawing. Missing vector/image
+drawing commands can be recorded in small steps, retaining ancestor clipping,
+mask-source, and opacity state without uploading or presenting a partial tile.
+Completed commands are replayed and submitted one physical tile at a time;
+remaining work is reconsidered against the current installed plan. Ordinary
+application changes still update their drawings, including animations while a
+tile is cold. This does not defer component mounting or lifecycle handlers.
+
+The shared runtime gives these preparation passes a cooperative 4ms CPU
+allowance: it stops starting more work based on elapsed time and recent cost,
+while allowing one eligible unit to make progress. A primitive capture or tile
+submission is atomic and can overrun the allowance. If commands cannot fit in
+the bounded cache, an atomic direct draw of the selected tile preserves
+correctness instead of retrying forever. Ordinary scene updates, browser image
+decoding, and GPU initialization are not covered by this allowance. Preparation
+reselects the next eligible batch after each submission, using the remaining
+allowance rather than stopping after one batch per layer. A blocked layer waits
+until the next pass while eligible siblings can continue; this does not relax
+the settled-scene checks or submit incomplete tiles.
+The browser coalesces preparation after rendering and asynchronous completion;
+preparation never advances the application clock. This first-draw policy is
+currently enabled for WebGPU, not Piet or native chassis; the implementation and
+opt-in are in the shared Rust runtime.
 If an addition fails, survivors remain usable; another attempt waits for a layout
 change. New tiles still incur surface allocation and first-draw costs. Sibling
 tiles using the same GPU context share immutable image textures by image identity,
@@ -662,6 +829,68 @@ and return. This avoids repeating device and pipeline initialization during scro
 Native GPU sharing remains within each logical layer. These behaviors apply in debug
 and release, not the Piet fallback or native image controls. Separate apps or GPU
 contexts do not share textures.
+
+For browser diagnosis, add `?pax_surface_trace=1` to a debug or release URL.
+Invalid scroller geometry (negative extents, non-finite measurements, or a
+singular transform) makes only that scroller and its descendants unavailable
+to surface preparation. Unrelated branches continue rendering. A valid later
+observation automatically restores the branch; stale coverage is not retained
+as a substitute for valid geometry. Tracing reports `preparation-branch-rejected`
+and `preparation-branch-recovered`, with the host ID and rejection reason.
+This branch isolation is shared scheduler policy, currently exercised by Web.
+It does not make malformed application layout valid. In particular, pausing an
+embedded example's animation must not skip its initial layout or resize handling.
+
+The app mount exposes a local `paxSurfaceTrace` array (at most 2048 events) for
+visible demand (including denied tiles), admission, installed plans, refreshes,
+initialization queue/start/completion or rejection, retirement, lease release,
+and first submission. Installed-plan events include assigned, retiring, and
+available canvas counts; waiting for a lease is distinct from impossible visible
+demand. Canvas `data-surface-*` attributes expose generation, content
+revision, and timestamps. A submitted revision means a frame was submitted for
+that tile—not that every asynchronous image has loaded. Image events separately
+report requests/coalescing, decoding and CPU publication, missing decoded pixels,
+GPU uploads/cache hits, changed image drawings, and their subsequent surface
+submission (`image-content-submit`). The snapshot includes cumulative image
+counts and bounded waiting/recorded-not-submitted state. Submission is a CPU-side
+presentation event, not proof of GPU completion or a capture of every displayed
+pixel; these diagnostics do not establish completeness of arbitrary application
+content. Image GPU events apply to WGPU, not the Piet fallback.
+Tracing is opt-in and sends no data anywhere. Profile component mounting and
+image decoding separately; graphics admission cannot remove those costs. The isolated
+`examples/fixtures/surface-scheduling` fixture has no external images.
+
+Admission events include each tile's owner, local `[left, top, width, height]`,
+rank, and submitted-readiness flag, plus borrowed forward pixels and the
+borrowing ceiling. These distinguish allocated depth from submitted coverage;
+the farthest ready tile alone does not establish a gap-free forward buffer.
+
+Open **Surface trace snapshot** in the corner to inspect the bounded event log;
+close and reopen it to refresh. `visible-unready` transitions preserve transient
+gaps even after the view settles. Add `&pax_scroll_perf=1` to include frame phases
+taking over 20ms, including individual `tick.*` phases. `settled-presentation`
+events report recorded drawings, submitted/deferred jobs, cache misses, atomic
+fallbacks, and CPU elapsed time for preparation. `occlusion-work` records cumulative
+native-compositing counters and the most recent full-rebuild reason/node, so
+repeated scene reconciliation can be distinguished from tile initialization.
+The inspector's **Probe scroller** and **Probe duration** controls
+can move one vertical viewport in 200, 400, or 1,000ms in either direction. Probe
+events record actual callback intervals and detailed frame phases; this is
+programmatic scroll input, not a physical touch/momentum test or a capture of
+every compositor-presented frame. Continuous input can still expose preparation
+delays that this probe misses, because its input stops while the main thread is
+busy. Native scrolling does not. With both diagnostic flags enabled,
+`scroll-sample` records observed offsets and `scroll-phase` records phase timings
+through a 250ms tail after observed movement. These measurements start when the
+main thread samples movement, not when the compositor first displays it.
+Settled screenshots do not establish that every intermediate frame was complete.
+The preparation allowance does not cover ordinary rendering and is not a hard
+frame-time guarantee. Pixel admission alone does not cap frame time or eliminate
+cold-jump gaps.
+
+Readiness covers the surface revision, not application-level
+draw-ahead: a graph generated only for the current viewport can still expose
+empty regions during native scrolling, even on an already-submitted canvas.
 
 The image index holds weak references: after the last tile drops its binding,
 Pax retains no unused image texture for future scrolling (in-flight GPU work may
@@ -730,14 +959,13 @@ wheel or touch input cancels that animation so direct scrolling takes over.
 
 Run it with `pax-cli run --path examples/paxflix --target web`. The example's
 README documents the asset inventory and a repeatable culling/interaction check.
-Each shelf defers its ten card trees until it is within one catalog-local
-viewport ahead of or behind the visible range, then retains them. This uses the
-catalog's bound scroll position and local height rather than global proximity:
-an embedding device Frame is a hard clip and would remove the offscreen
-preparation region. Card entrance animations still use visible proximity
-samples. Initial mounting therefore avoids expanding the entire catalog,
-but visiting every shelf can still retain all 210 cards. This is first-visit
-lazy mounting, not list virtualization or offscreen eviction.
+All 210 card trees mount with each Paxflix instance. The prior provisional
+scroll-dependent shelf gate has been removed: GPU preparation must not silently
+schedule application lifecycle work. Card entrance animations still use visible
+proximity samples, and GPU tiles/bindings can be prepared or retired independently
+of those mounted cards. The website's two instances therefore mount 420 cards
+when their enclosing showcase is instantiated; they share image resources in
+the same web app. This is not list virtualization or runtime lazy evaluation.
 
 ## Read more
 

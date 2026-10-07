@@ -1,16 +1,18 @@
-export async function readImageToByteBuffer(imagePath: string): Promise<{ pixels: Uint8ClampedArray, width: number, height: number }> {
+export async function readImageToByteBuffer(imagePath: string, signal?: AbortSignal): Promise<{ pixels: Uint8ClampedArray, width: number, height: number }> {
     let attempts = 8;
     let delay = 100;
     let lastError: unknown = new Error("image load did not start");
     while (attempts > 0) {
         try {
-            const response = await fetch(imagePath);
+            signal?.throwIfAborted();
+            const response = await fetch(imagePath, {signal});
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status} ${response.statusText}`.trim());
             }
             const blob = await response.blob();
             const img = await createImageBitmap(blob);
             try {
+                signal?.throwIfAborted();
                 const canvas = new OffscreenCanvas(img.width, img.height);
                 const ctx = canvas.getContext('2d');
                 if (ctx == null) {
@@ -23,12 +25,23 @@ export async function readImageToByteBuffer(imagePath: string): Promise<{ pixels
                 img.close();
             }
         } catch (error) {
+            signal?.throwIfAborted();
             lastError = error;
             attempts--;
             if (attempts === 0) {
                 break;
             }
-            await new Promise(resolve => setTimeout(resolve, delay));
+            await new Promise<void>((resolve, reject) => {
+                const abort = () => {
+                    clearTimeout(timer);
+                    reject(signal!.reason);
+                };
+                const timer = setTimeout(() => {
+                    signal?.removeEventListener('abort', abort);
+                    resolve();
+                }, delay);
+                signal?.addEventListener('abort', abort, {once: true});
+            });
             delay *= 2;
         }
     }

@@ -62,6 +62,7 @@ pub struct Calculator {
     /// Use a full-bleed surface and host-supplied safe_* insets, not device spacers.
     pub embedded: Property<bool>,
     /// Retain the session while skipping per-frame display and graph updates.
+    /// Initial layout and subsequent resizes still prepare valid content.
     pub paused: Property<bool>,
     /// Leave global keyboard events to the surrounding application.
     pub disable_keyboard: Property<bool>,
@@ -166,10 +167,12 @@ impl Calculator {
         self.frame(ctx);
     }
     pub fn frame(&mut self, ctx: &NodeContext) {
-        if self.paused.get() {
-            return;
-        }
-        let (w, h) = ctx.bounds_self.get();
+        let _ = ctx.with_store(|store: &mut CalculatorStore| {
+            self.update_frame(store, ctx.bounds_self.get(), ctx.elapsed_millis.get());
+        });
+    }
+
+    fn update_frame(&mut self, store: &mut CalculatorStore, (w, h): (f64, f64), millis: u64) {
         let next = if self.native_full_screen.get() || self.embedded.get() {
             Layout::for_ios(
                 (w - self.safe_left.get() - self.safe_right.get()).max(0.),
@@ -178,113 +181,117 @@ impl Calculator {
         } else {
             Layout::for_window(w, h)
         };
-        let _ = ctx.with_store(|store: &mut CalculatorStore| {
-            let old = store.layout;
-            let resized = old != next;
-            if resized {
-                store
-                    .model
-                    .fit_opening_view(next.plot_width, next.plot_height);
+        let old = store.layout;
+        let resized = old != next;
+        // Pausing stops recurring work, not initialization or geometry
+        // settlement. Otherwise offscreen mounts expose negative scroller
+        // extents (e.g. screen_width - padding) until first visibility.
+        if self.paused.get() && !resized {
+            return;
+        }
+        if resized {
+            store
+                .model
+                .fit_opening_view(next.plot_width, next.plot_height);
+        }
+        let scale = graph::zoom_scale(store.model.zoom_level);
+        let zoomed = self.graph_scale.get() != scale;
+        if resized || zoomed {
+            let view = graph::View {
+                left: self.scroll_x.get(),
+                top: self.scroll_y.get(),
+                width: old.plot_width,
+                height: old.plot_height,
+                scale: self.graph_scale.get().max(graph::DEFAULT_SCALE / 4.),
             }
-            let scale = graph::zoom_scale(store.model.zoom_level);
-            let zoomed = self.graph_scale.get() != scale;
-            if resized || zoomed {
-                let view = graph::View {
-                    left: self.scroll_x.get(),
-                    top: self.scroll_y.get(),
-                    width: old.plot_width,
-                    height: old.plot_height,
-                    scale: self.graph_scale.get().max(graph::DEFAULT_SCALE / 4.),
-                }
-                .reframe(next.plot_width, next.plot_height, scale);
-                self.graph_scale.set(scale);
-                self.graph_extent.set(view.extent());
-                if old.width > 0. {
-                    self.set_scroll(view.left, view.top, next);
-                }
-                store.drag = None;
-                store.model.dirty = true;
-                store.model.plot_dirty = true;
+            .reframe(next.plot_width, next.plot_height, scale);
+            self.graph_scale.set(scale);
+            self.graph_extent.set(view.extent());
+            if old.width > 0. {
+                self.set_scroll(view.left, view.top, next);
             }
-            if resized {
-                store.layout = next;
-                self.edge_to_edge.set(next.edge_to_edge);
-                self.body_width.set(next.width);
-                self.body_height.set(next.height);
-                self.body_top.set(next.top);
-                self.page_height.set(next.page_height);
-                self.screen_width.set(next.screen_width);
-                self.screen_height.set(next.screen_height);
-                self.graph_width.set(next.plot_width);
-                self.graph_height.set(next.plot_height);
-                self.key_width.set((next.width - 44. - 32.) / 5.);
-                self.dpad_width
-                    .set((2. * self.key_width.get() + 8.).min(140.));
-                self.key_pitch.set(layout::KEY_PITCH);
-                self.key_height.set(layout::KEY_TARGET);
-                self.utility_top.set(layout::UTILITY_TOP);
-                self.keypad_top.set(layout::KEYPAD_TOP);
-                self.keypad_height.set(layout::KEYPAD_HEIGHT);
-                self.graph_top.set(layout::GRAPH_TOP);
-                // The shared light is in calculator-viewport coordinates, outside
-                // the scroller, so both layouts keep it under the pointer.
-                self.light_x.set(
-                    self.safe_left.get()
-                        + (w - self.safe_left.get() - self.safe_right.get() - next.width) * 0.5
-                        + next.width * 0.22,
-                );
-                self.light_y
-                    .set(self.safe_top.get() + next.top + next.height * 0.15);
+            store.drag = None;
+            store.model.dirty = true;
+            store.model.plot_dirty = true;
+        }
+        if resized {
+            store.layout = next;
+            self.edge_to_edge.set(next.edge_to_edge);
+            self.body_width.set(next.width);
+            self.body_height.set(next.height);
+            self.body_top.set(next.top);
+            self.page_height.set(next.page_height);
+            self.screen_width.set(next.screen_width);
+            self.screen_height.set(next.screen_height);
+            self.graph_width.set(next.plot_width);
+            self.graph_height.set(next.plot_height);
+            self.key_width.set((next.width - 44. - 32.) / 5.);
+            self.dpad_width
+                .set((2. * self.key_width.get() + 8.).min(140.));
+            self.key_pitch.set(layout::KEY_PITCH);
+            self.key_height.set(layout::KEY_TARGET);
+            self.utility_top.set(layout::UTILITY_TOP);
+            self.keypad_top.set(layout::KEYPAD_TOP);
+            self.keypad_height.set(layout::KEYPAD_HEIGHT);
+            self.graph_top.set(layout::GRAPH_TOP);
+            // The shared light is in calculator-viewport coordinates, outside
+            // the scroller, so both layouts keep it under the pointer.
+            self.light_x.set(
+                self.safe_left.get()
+                    + (w - self.safe_left.get() - self.safe_right.get() - next.width) * 0.5
+                    + next.width * 0.22,
+            );
+            self.light_y
+                .set(self.safe_top.get() + next.top + next.height * 0.15);
+        }
+        if store.model.home_requested {
+            self.set_scroll(
+                self.graph_extent.get() * 0.5 - next.plot_width * 0.5,
+                self.graph_extent.get() * 0.5 - next.plot_height * 0.5,
+                next,
+            );
+            store.model.home_requested = false;
+            store.model.plot_dirty = true;
+        }
+        if store.model.pan != (0., 0.) {
+            self.set_scroll(
+                self.scroll_x.get() + store.model.pan.0,
+                self.scroll_y.get() + store.model.pan.1,
+                next,
+            );
+            store.model.pan = (0., 0.);
+        }
+        if store.model.dirty {
+            self.refresh_display(&mut store.model, next);
+            store.model.dirty = false;
+        }
+        if store.model.graph_mode {
+            let pos = (self.scroll_x.get(), self.scroll_y.get());
+            if store.model.plot_dirty
+                || store.graph_cache.map_or(true, |(x, y)| {
+                    (pos.0 - x).abs() > 0.5 || (pos.1 - y).abs() > 0.5
+                })
+            {
+                self.refresh_plot(&store.model, next);
+                store.graph_cache = Some(pos);
+                store.model.plot_dirty = false;
             }
-            if store.model.home_requested {
-                self.set_scroll(
-                    self.graph_extent.get() * 0.5 - next.plot_width * 0.5,
-                    self.graph_extent.get() * 0.5 - next.plot_height * 0.5,
-                    next,
-                );
-                store.model.home_requested = false;
-                store.model.plot_dirty = true;
-            }
-            if store.model.pan != (0., 0.) {
-                self.set_scroll(
-                    self.scroll_x.get() + store.model.pan.0,
-                    self.scroll_y.get() + store.model.pan.1,
-                    next,
-                );
-                store.model.pan = (0., 0.);
-            }
-            if store.model.dirty {
-                self.refresh_display(&mut store.model, next);
-                store.model.dirty = false;
-            }
-            if store.model.graph_mode {
-                let pos = (self.scroll_x.get(), self.scroll_y.get());
-                if store.model.plot_dirty
-                    || store.graph_cache.map_or(true, |(x, y)| {
-                        (pos.0 - x).abs() > 0.5 || (pos.1 - y).abs() > 0.5
-                    })
-                {
-                    self.refresh_plot(&store.model, next);
-                    store.graph_cache = Some(pos);
-                    store.model.plot_dirty = false;
-                }
-                let v = graph::View {
-                    left: pos.0,
-                    top: pos.1,
-                    width: next.plot_width,
-                    height: next.plot_height,
-                    scale,
-                };
-                self.graph_range.set_if_neq(format!(
-                    "x {:.1} … {:.1}   y {:.1} … {:.1}",
-                    v.world_x(0.),
-                    v.world_x(v.width),
-                    v.world_y(v.height),
-                    v.world_y(0.)
-                ));
-            }
-        });
-        let blink = (ctx.elapsed_millis.get() / 550) % 2 == 0;
+            let v = graph::View {
+                left: pos.0,
+                top: pos.1,
+                width: next.plot_width,
+                height: next.plot_height,
+                scale,
+            };
+            self.graph_range.set_if_neq(format!(
+                "x {:.1} … {:.1}   y {:.1} … {:.1}",
+                v.world_x(0.),
+                v.world_x(v.width),
+                v.world_y(v.height),
+                v.world_y(0.)
+            ));
+        }
+        let blink = (millis / 550) % 2 == 0;
         self.cursor_visible
             .set_if_neq(blink && (!self.graph_mode.get() || self.graph_editing.get()));
     }
@@ -719,5 +726,41 @@ fn key_spec(
         secondary_action: secondary_action.into(),
         column: column as f64,
         row: row as f64,
+    }
+}
+
+#[cfg(test)]
+mod frame_tests {
+    use super::*;
+
+    #[test]
+    fn paused_mount_and_resize_prepare_geometry_but_stable_pause_skips_work() {
+        let mut calculator = Calculator::default();
+        calculator.embedded.set(true);
+        calculator.paused.set(true);
+        let mut store = CalculatorStore {
+            model: Model::default(),
+            layout: Layout::default(),
+            graph_cache: None,
+            drag: None,
+        };
+        for bounds in [(0.0, 0.0), (374.0, 756.0), (320.0, 600.0)] {
+            calculator.update_frame(&mut store, bounds, 0);
+            assert!(calculator.screen_width.get() > 28.0);
+            assert!(calculator.history_height.get() >= 0.0);
+            assert!(calculator.graph_width.get() > 0.0);
+            assert!(!calculator.curve.get().is_empty());
+            assert!(!store.model.dirty);
+            assert!(!store.model.plot_dirty);
+        }
+        let cursor = calculator.cursor_visible.get();
+        store.model.dirty = true;
+        store.model.plot_dirty = true;
+        calculator.update_frame(&mut store, (320.0, 600.0), 600);
+        assert!(store.model.dirty && store.model.plot_dirty);
+        assert_eq!(calculator.cursor_visible.get(), cursor);
+        calculator.paused.set(false);
+        calculator.update_frame(&mut store, (320.0, 600.0), 600);
+        assert!(!store.model.dirty && !store.model.plot_dirty);
     }
 }

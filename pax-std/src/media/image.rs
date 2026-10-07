@@ -21,6 +21,9 @@ use crate::common::{begin_bounded_canvas_node, patch_if_needed};
 /// element is preferable.
 /// On WGPU and browser Piet, common opacity fades the composed canvas subtree;
 /// source pixel alpha remains part of the content. Native surfaces fade separately.
+/// On web, concurrent URL requests with the same source string share one decode
+/// per chassis; completion schedules every still-mounted waiting image to redraw.
+/// GPU texture preparation is separate from decoding and component mounting.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[primitive("pax_std::media::image::ImageInstance")]
@@ -322,6 +325,7 @@ impl InstanceNode for ImageInstance {
                     ImageSource::Url(url) => {
                         let Some((image_width, image_height)) = rc.get_image_size(&url) else {
                             // image not loaded yet
+                            rc.image_pending(scope.layer_id, scope.node_id, url);
                             return None;
                         };
                         Some((image_width, image_height, url.to_string()))

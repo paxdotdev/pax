@@ -433,8 +433,18 @@ Ordinary leaf animation updates shared scene geometry and queries nearby native
 surfaces to refresh punch-through masks. Both the old and new coverage matter:
 a moving or disappearing shape must uncover the surface it leaves behind.
 Scroll-content geometry stays indexed in content coordinates, so scrolling a
-leaf-only native scroller queries the old and new visible regions without
-reindexing every descendant.
+clipped, independently layered scroller queries the old and new visible regions
+without reindexing every descendant. Nested Scrollers and Frames retain their
+compositing topology during scroll-only movement: Pax refreshes affected container
+presentation bounds and nearby native masks in the descendant scroll islands.
+Rotated views use a conservative query envelope consistent with native masking.
+
+When an existing Frame or geometry Mask animates its clip, the shared runtime
+refreshes the records inheriting that clip and the native masks overlapping
+their old or new paint. Unrelated branches are not traversed just because a
+clip animates elsewhere. Adding/removing a clip boundary still changes topology
+and requires full reconciliation. This does not change exact clipping into
+bounding-box clipping; bounds only narrow which native masks need recomputing.
 
 On macOS and iOS, the Swift native host also applies leaf patches to retained
 views by element ID. An unchanged native control keeps its view, selection, and
@@ -455,11 +465,11 @@ glass-backed content, and other native controls stay attached. Enabling VoiceOve
 or Switch Control restores the full native hierarchy. This culling optimization
 is currently macOS-only; web, iOS, and iPadOS retain their existing behavior.
 Nested presentation containers and unclipped/escaping content keep the
-conservative rendering path.
+conservative view-detachment path (their native views stay attached).
 
-Structural changes, inherited clip/container
-changes, escaping unclippable branches, and scroll domains with nested
-presentation containers, disabled clipping, or disabled scroll islands currently use full
+Structural changes, scroller-container geometry changes,
+escaping unclippable branches, and scroll domains with
+disabled clipping or disabled scroll islands currently use full
 reconciliation. These optimizations do not guarantee a particular frame
 rate; layout, native controls, and GPU work still contribute to frame time.
 

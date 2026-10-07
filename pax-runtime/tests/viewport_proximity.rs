@@ -905,13 +905,14 @@ fn assert_masks_match_full(engine: &mut PaxEngine, native: &[Rc<ExpandedNode>]) 
     let hashes: Vec<_> = native.iter().map(|n| n.native_mask_hash.get()).collect();
     engine.runtime_context.mark_occlusion_dirty();
     engine.tick();
-    assert_eq!(
-        hashes,
-        native
-            .iter()
-            .map(|n| n.native_mask_hash.get())
-            .collect::<Vec<_>>()
-    );
+    for (node, hash) in native.iter().zip(hashes) {
+        assert_eq!(
+            hash,
+            node.native_mask_hash.get(),
+            "mask for node {}",
+            node.id.to_u32()
+        );
+    }
 }
 
 #[test]
@@ -1034,6 +1035,64 @@ fn indexed_native_masks_and_scroll_queries_stay_local_in_large_scene() {
 }
 
 #[test]
+fn animated_clip_updates_only_its_dependents_and_matches_full_reconciliation() {
+    TRACK_OCCLUSION.with(|flag| flag.set(true));
+    let inner = Probe::new(
+        Kind::Clip,
+        rect(0.0),
+        &[],
+        vec![
+            Probe::new(Kind::Paint, rect(0.0), &[], vec![]),
+            Probe::new(Kind::Native, rect(0.0), &[], vec![]),
+        ],
+    );
+    let mut children: Vec<Rc<dyn InstanceNode>> = vec![
+        Probe::new(Kind::Clip, rect(0.0), &[], vec![inner]),
+        Probe::new(Kind::Native, rect(0.0), &[], vec![]),
+    ];
+    for i in 0..300 {
+        children.push(Probe::new(
+            Kind::Native,
+            rect(5000.0 + i as f64 * 200.0),
+            &[],
+            vec![],
+        ));
+    }
+    let (mut engine, root) = mount(children);
+    engine.tick();
+    let clip = root.children.get()[0].clone();
+    let inner = clip.children.get()[0].clone();
+    let natives = [
+        inner.children.get()[1].clone(),
+        root.children.get()[1].clone(),
+    ];
+    for (height, offset, rotation) in [
+        (50.0, 0.0, 0.0),
+        (0.0, 0.0, 0.0),
+        (100.0, 40.0, 12.0),
+        (100.0, 0.0, 0.0),
+    ] {
+        let props = clip.get_common_properties();
+        props.borrow().height.set(Some(Size::Pixels(height.into())));
+        props
+            .borrow()
+            .rotate
+            .set(Some(Rotation::Degrees(rotation.into())));
+        y(&clip, offset);
+        let before = engine.runtime_context.occlusion_stats();
+        engine.tick();
+        let after = engine.runtime_context.occlusion_stats();
+        assert_eq!(after.rebuilds, before.rebuilds);
+        assert!(after.records_updated - before.records_updated <= 5);
+        assert!(after.masks_evaluated - before.masks_evaluated <= 3);
+        let presentation = inner.presentation_cache_hash.get();
+        assert_masks_match_full(&mut engine, &natives);
+        assert_eq!(inner.presentation_cache_hash.get(), presentation);
+    }
+    TRACK_OCCLUSION.with(|flag| flag.set(false));
+}
+
+#[test]
 fn nested_scroll_masks_remain_equivalent_to_full_reconciliation() {
     TRACK_OCCLUSION.with(|flag| flag.set(true));
     let inner = Probe::new(
@@ -1056,12 +1115,115 @@ fn nested_scroll_masks_remain_equivalent_to_full_reconciliation() {
     let inner = outer.children.get()[0].clone();
     let paint = inner.children.get()[0].clone();
     let native = inner.children.get()[1].clone();
+    scroll(&engine.runtime_context, &outer, 0.0, 0.0);
+    scroll(&engine.runtime_context, &inner, 0.0, 0.0);
+    engine.tick();
     for offset in [0.0, 20.0, 100.0, 0.0] {
+        let before = engine.runtime_context.occlusion_stats().rebuilds;
         scroll(&engine.runtime_context, &outer, 0.0, offset);
         scroll(&engine.runtime_context, &inner, 0.0, offset / 2.0);
         y(&paint, offset / 3.0);
         engine.tick();
+        assert_eq!(engine.runtime_context.occlusion_stats().rebuilds, before);
+        let presentation = inner.presentation_cache_hash.get();
         assert_masks_match_full(&mut engine, &[native.clone()]);
+        assert_eq!(inner.presentation_cache_hash.get(), presentation);
+    }
+    TRACK_OCCLUSION.with(|flag| flag.set(false));
+}
+
+#[test]
+fn nested_scroll_reconciles_containers_without_visiting_cold_leaves() {
+    TRACK_OCCLUSION.with(|flag| flag.set(true));
+    let mut rows: Vec<Rc<dyn InstanceNode>> = Vec::new();
+    for row in 0..12 {
+        let mut leaves: Vec<Rc<dyn InstanceNode>> = Vec::new();
+        for col in 0..80 {
+            let r = Rect::new(col as f64 * 140.0, 0.0, col as f64 * 140.0 + 100.0, 80.0);
+            leaves.push(Probe::new(Kind::Paint, r, &[], vec![]));
+            leaves.push(Probe::new(Kind::Native, r, &[], vec![]));
+        }
+        rows.push(Probe::new(
+            Kind::Clip,
+            Rect::new(0.0, row as f64 * 120.0, 300.0, row as f64 * 120.0 + 100.0),
+            &[],
+            vec![Probe::new(
+                Kind::Scroll,
+                Rect::new(0.0, 0.0, 280.0, 90.0),
+                &[],
+                leaves,
+            )],
+        ));
+    }
+    let (mut engine, root) = mount(vec![Probe::new(
+        Kind::Scroll,
+        Rect::new(0.0, 0.0, 320.0, 240.0),
+        &[],
+        rows,
+    )]);
+    engine.tick();
+    let outer = root.children.get()[0].clone();
+    outer
+        .get_common_properties()
+        .borrow()
+        .scale_x
+        .set(Some(Size::Percent(75.0.into())));
+    outer
+        .get_common_properties()
+        .borrow()
+        .scale_y
+        .set(Some(Size::Percent(75.0.into())));
+    outer
+        .get_common_properties()
+        .borrow()
+        .rotate
+        .set(Some(Rotation::Degrees(5.0.into())));
+    engine.tick();
+    let frames = outer.children.get();
+    let inners: Vec<_> = frames
+        .iter()
+        .map(|frame| frame.children.get()[0].clone())
+        .collect();
+    let natives: Vec<_> = inners
+        .iter()
+        .flat_map(|inner| {
+            inner
+                .children
+                .get()
+                .iter()
+                .skip(1)
+                .step_by(2)
+                .cloned()
+                .collect::<Vec<_>>()
+        })
+        .collect();
+    scroll(&engine.runtime_context, &outer, 0.0, 0.0);
+    for inner in &inners {
+        scroll(&engine.runtime_context, inner, 0.0, 0.0);
+    }
+    engine.tick();
+    for offset in [0.0, 150.0, 900.0, 850.0, 0.0] {
+        let before = engine.runtime_context.occlusion_stats();
+        scroll(&engine.runtime_context, &outer, 0.0, offset);
+        scroll(&engine.runtime_context, &inners[1], offset, 0.0);
+        engine.tick();
+        let after = engine.runtime_context.occlusion_stats();
+        assert_eq!(after.rebuilds, before.rebuilds);
+        assert!(after.masks_evaluated - before.masks_evaluated < 100);
+        let hashes: Vec<_> = frames
+            .iter()
+            .chain(inners.iter())
+            .map(|n| n.presentation_cache_hash.get())
+            .collect();
+        assert_masks_match_full(&mut engine, &natives);
+        assert_eq!(
+            hashes,
+            frames
+                .iter()
+                .chain(inners.iter())
+                .map(|n| n.presentation_cache_hash.get())
+                .collect::<Vec<_>>()
+        );
     }
     TRACK_OCCLUSION.with(|flag| flag.set(false));
 }

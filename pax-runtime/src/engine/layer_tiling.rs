@@ -13,6 +13,10 @@ const DEFAULT_PREWARM_VIEWPORT_PAD_MIN_Y: f64 = 512.0;
 #[derive(Clone, Copy, Debug)]
 pub struct ScrollerTilingPolicy {
     pub target_tile_backing_dimension: f64,
+    /// Optional scrolling-axis cap, in host viewports, rounded up in 256-physical-
+    /// pixel buckets. Only the explicit-coverage planner opts into this sizing.
+    /// The grid depends on the host viewport, never on its moving ancestor clip.
+    pub target_tile_viewports: Option<f64>,
     pub max_tile_backing_width: Option<f64>,
     pub max_tile_backing_height: Option<f64>,
     pub max_tile_backing_area: Option<f64>,
@@ -31,6 +35,7 @@ impl Default for ScrollerTilingPolicy {
     fn default() -> Self {
         Self {
             target_tile_backing_dimension: DEFAULT_SCROLLER_TARGET_TILE_BACKING_DIMENSION,
+            target_tile_viewports: None,
             max_tile_backing_width: None,
             max_tile_backing_height: None,
             max_tile_backing_area: None,
@@ -176,7 +181,7 @@ pub fn scroller_canvas_plan_with_policy(
     let viewport_height = clamp_dimension(viewport_height, content_height);
     let scroll_x = clamp_offset(scroll_x, content_width, viewport_width);
     let scroll_y = clamp_offset(scroll_y, content_height, viewport_height);
-    let dpr = device_pixel_ratio.max(1.0);
+    let dpr = valid_density(device_pixel_ratio);
 
     if can_render_as_single_surface(content_width, content_height, dpr, policy) {
         return single_surface_plan(layer_id, host_signature, content_width, content_height);
@@ -187,6 +192,7 @@ pub fn scroller_canvas_plan_with_policy(
     let tile_dimensions = compute_logical_tile_dimensions(
         content_width,
         content_height,
+        None,
         horizontal_scrollable,
         vertical_scrollable,
         dpr,
@@ -311,6 +317,72 @@ pub fn scroller_canvas_plan_with_policy(
     }
 }
 
+fn valid_density(value: f64) -> f64 {
+    if value.is_finite() && value > 0.0 {
+        value
+    } else {
+        1.0
+    }
+}
+
+/// Select content-anchored tiles from an already clipped preparation region.
+/// Unlike the compatibility planner, this does not add another warm margin or
+/// crop tile dimensions to a changing clip. Identity is the absolute grid cell,
+/// so adding/removing optional coverage cannot rename surviving visible tiles.
+pub fn scroller_canvas_plan_for_coverage(
+    layer_id: usize,
+    host_signature: String,
+    content: [f64; 2],
+    viewport: [f64; 2],
+    coverage: super::surface_scheduling::CoverageRect,
+    device_pixel_ratio: f64,
+    policy: ScrollerTilingPolicy,
+) -> LayerCanvasPlan {
+    let mut plan = LayerCanvasPlan {
+        layer_id,
+        active: true,
+        surfaces: Vec::new(),
+    };
+    if !coverage.has_area() || content.iter().any(|v| !v.is_finite() || *v <= 0.0) {
+        return plan;
+    }
+    let dims = compute_logical_tile_dimensions(
+        content[0],
+        content[1],
+        Some(viewport),
+        content[0] > viewport[0] + 0.5,
+        content[1] > viewport[1] + 0.5,
+        valid_density(device_pixel_ratio),
+        policy,
+    );
+    let start_column = (coverage.left.max(0.0) / dims.width).floor() as i64;
+    let start_row = (coverage.top.max(0.0) / dims.height).floor() as i64;
+    let end_column = (coverage.right.min(content[0]) / dims.width).ceil() as i64;
+    let end_row = (coverage.bottom.min(content[1]) / dims.height).ceil() as i64;
+    for row in start_row..end_row {
+        for column in start_column..end_column {
+            let left = column as f64 * dims.width;
+            let top = row as f64 * dims.height;
+            let width = (content[0] - left).min(dims.width);
+            let height = (content[1] - top).min(dims.height);
+            let key = format!("{column}:{row}");
+            plan.surfaces.push(SurfaceCanvasDescriptor {
+                id: format!("layer-{layer_id}-cell-{column}-{row}"),
+                key,
+                left,
+                top,
+                width,
+                height,
+                replay_priority: 0,
+                surface_signature: format!("cell:{column},{row}:{width}x{height}:{host_signature}"),
+                transform_signature: format!("{left},{top}"),
+                host_signature: host_signature.clone(),
+            });
+        }
+    }
+    plan
+}
+
 fn compute_logical_tile_size(device_pixel_ratio: f64, policy: ScrollerTilingPolicy) -> f64 {
     let tile_size = (policy.target_tile_backing_dimension.max(1.0) / device_pixel_ratio).floor();
     tile_size.max(policy.min_logical_tile_size.max(1.0))
@@ -319,6 +391,7 @@ fn compute_logical_tile_size(device_pixel_ratio: f64, policy: ScrollerTilingPoli
 fn compute_logical_tile_dimensions(
     content_width: f64,
     content_height: f64,
+    viewport: Option<[f64; 2]>,
     horizontal_scrollable: bool,
     vertical_scrollable: bool,
     device_pixel_ratio: f64,
@@ -329,6 +402,23 @@ fn compute_logical_tile_dimensions(
     let max_height = max_logical_tile_height(device_pixel_ratio, policy);
     let mut width = target_tile_size.min(max_width).max(1.0);
     let mut height = target_tile_size.min(max_height).max(1.0);
+
+    if let (Some(viewport), Some(span)) = (viewport, policy.target_tile_viewports) {
+        if span.is_finite() && span > 0.0 {
+            let cap = |extent: f64| {
+                let physical = extent.max(1.0) * device_pixel_ratio * span;
+                ((physical / 256.0).ceil().max(1.0) * 256.0 / device_pixel_ratio)
+                    .floor()
+                    .max(1.0)
+            };
+            if horizontal_scrollable {
+                width = width.min(cap(viewport[0]));
+            }
+            if vertical_scrollable {
+                height = height.min(cap(viewport[1]));
+            }
+        }
+    }
 
     if vertical_scrollable && !horizontal_scrollable {
         width = content_width.max(1.0).min(max_width).max(1.0);
@@ -392,19 +482,19 @@ fn finite_positive_or(value: Option<f64>, fallback: f64) -> f64 {
 }
 
 fn max_logical_tile_width(device_pixel_ratio: f64, policy: ScrollerTilingPolicy) -> f64 {
-    (max_tile_backing_width(policy) / device_pixel_ratio.max(1.0))
+    (max_tile_backing_width(policy) / valid_density(device_pixel_ratio))
         .floor()
         .max(1.0)
 }
 
 fn max_logical_tile_height(device_pixel_ratio: f64, policy: ScrollerTilingPolicy) -> f64 {
-    (max_tile_backing_height(policy) / device_pixel_ratio.max(1.0))
+    (max_tile_backing_height(policy) / valid_density(device_pixel_ratio))
         .floor()
         .max(1.0)
 }
 
 fn backing_extent(logical_extent: f64, device_pixel_ratio: f64) -> f64 {
-    (logical_extent.max(1.0) * device_pixel_ratio.max(1.0))
+    (logical_extent.max(1.0) * valid_density(device_pixel_ratio))
         .ceil()
         .max(1.0)
 }
@@ -421,7 +511,7 @@ fn constrain_axis_by_area(
 ) -> f64 {
     let max_area = max_tile_backing_area(policy);
     let cross_backing = backing_extent(cross_axis, device_pixel_ratio);
-    let max_axis = (max_area / cross_backing / device_pixel_ratio.max(1.0))
+    let max_axis = (max_area / cross_backing / valid_density(device_pixel_ratio))
         .floor()
         .max(1.0);
     axis.min(max_axis).max(1.0)
@@ -590,6 +680,147 @@ mod tests {
     use super::*;
 
     #[test]
+    fn viewport_sized_cells_are_stable_across_clipping_and_equivalent_scales() {
+        use super::super::surface_scheduling::CoverageRect;
+        let policy = ScrollerTilingPolicy {
+            target_tile_viewports: Some(1.0),
+            ..Default::default()
+        };
+        let plan = |scale: f64, left: f64, right: f64| {
+            scroller_canvas_plan_for_coverage(
+                4,
+                "host".into(),
+                [6000.0 * scale, 200.0 * scale],
+                [374.0 * scale, 200.0 * scale],
+                CoverageRect {
+                    left: left * scale,
+                    top: 0.0,
+                    right: right * scale,
+                    bottom: 200.0 * scale,
+                },
+                2.0 / scale,
+                policy,
+            )
+        };
+        let initial = plan(1.0, 0.0, 374.0);
+        assert_eq!(initial.surfaces.len(), 1);
+        assert_eq!(initial.surfaces[0].width, 384.0);
+        let moved = plan(1.0, 100.0, 474.0);
+        assert_eq!(moved.surfaces.len(), 2);
+        assert_eq!(
+            initial.surfaces[0].surface_signature,
+            moved.surfaces[0].surface_signature
+        );
+        assert_eq!(
+            initial.surfaces[0].transform_signature,
+            moved.surfaces[0].transform_signature
+        );
+        let doubled = plan(2.0, 0.0, 374.0);
+        assert_eq!(doubled.surfaces[0].width, initial.surfaces[0].width * 2.0);
+        assert_eq!(plan(1.0, 384.0, 768.0).surfaces.len(), 1);
+    }
+
+    #[test]
+    fn viewport_sizing_rounds_up_but_preserves_hard_caps_and_default_native_policy() {
+        for density in [0.25, 0.5, 1.0, 1.5, 2.0, 2.2, 3.0] {
+            let policy = ScrollerTilingPolicy {
+                target_tile_viewports: Some(1.0),
+                max_tile_backing_area: Some(2048.0 * 2048.0),
+                max_tile_backing_width: Some(2048.0),
+                max_tile_backing_height: Some(2048.0),
+                ..Default::default()
+            };
+            let dims = compute_logical_tile_dimensions(
+                6000.0,
+                9000.0,
+                Some([374.0, 712.0]),
+                true,
+                true,
+                density,
+                policy,
+            );
+            assert!((dims.width * density).ceil() <= 2048.0);
+            assert!((dims.height * density).ceil() <= 2048.0);
+            assert!(dims.width >= 374.0 || dims.width * density >= 2048.0 - density);
+            assert!(dims.width * density <= (374.0 * density / 256.0).ceil() * 256.0);
+        }
+        assert!(ScrollerTilingPolicy::default()
+            .target_tile_viewports
+            .is_none());
+    }
+
+    #[test]
+    fn clipped_coverage_changes_do_not_resize_or_rename_surviving_cells() {
+        use super::super::surface_scheduling::CoverageRect;
+        let plan = |left, right| {
+            scroller_canvas_plan_for_coverage(
+                4,
+                "host".into(),
+                [20000.0, 200.0],
+                [1000.0, 200.0],
+                CoverageRect {
+                    left,
+                    top: 0.0,
+                    right,
+                    bottom: 200.0,
+                },
+                2.0,
+                Default::default(),
+            )
+        };
+        let small = plan(10.0, 100.0);
+        let wider = plan(500.0, 3000.0);
+        assert_eq!(small.surfaces.len(), 1);
+        assert_eq!(small.surfaces[0].id, wider.surfaces[0].id);
+        assert_eq!(
+            small.surfaces[0].surface_signature,
+            wider.surfaces[0].surface_signature
+        );
+        assert_eq!(
+            small.surfaces[0].transform_signature,
+            wider.surfaces[0].transform_signature
+        );
+        assert_eq!(wider.surfaces.len(), 3);
+        assert_eq!(
+            plan(1248.0, 2496.0).surfaces.len(),
+            1,
+            "exact edge does not add a redundant cell"
+        );
+    }
+
+    #[test]
+    fn explicit_coverage_respects_backend_limits_even_below_local_one_x() {
+        use super::super::surface_scheduling::CoverageRect;
+        for density in [0.25, 0.5, 1.0, 2.0, 2.2, 3.0] {
+            let policy = ScrollerTilingPolicy {
+                max_tile_backing_width: Some(2048.0),
+                max_tile_backing_height: Some(2048.0),
+                max_tile_backing_area: Some(2048.0 * 2048.0),
+                ..Default::default()
+            };
+            let p = scroller_canvas_plan_for_coverage(
+                4,
+                "host".into(),
+                [20000.0, 20000.0],
+                [800.0, 600.0],
+                CoverageRect {
+                    left: 350.0,
+                    top: 350.0,
+                    right: 1150.0,
+                    bottom: 950.0,
+                },
+                density,
+                policy,
+            );
+            assert!(!p.surfaces.is_empty());
+            for tile in p.surfaces {
+                assert!((tile.width * density).ceil() <= 2048.0);
+                assert!((tile.height * density).ceil() <= 2048.0);
+            }
+        }
+    }
+
+    #[test]
     fn single_surface_must_fit_at_requested_screen_density() {
         let policy = ScrollerTilingPolicy::default();
         assert!(can_render_as_single_surface(2000.0, 600.0, 1.0, policy));
@@ -600,7 +831,7 @@ mod tests {
 
     #[test]
     fn screen_density_tiles_stay_within_physical_budgets_and_cover_the_viewport() {
-        for dpr in [1.0, 1.25, 1.5, 2.0, 3.0] {
+        for dpr in [0.25, 0.5, 1.0, 1.25, 1.5, 2.0, 3.0] {
             for cap in [2048.0, 2496.0, 4096.0] {
                 let mut policy = ScrollerTilingPolicy::default();
                 policy.target_tile_backing_dimension = cap;

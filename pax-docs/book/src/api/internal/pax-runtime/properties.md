@@ -53,6 +53,14 @@ Type: `Rc`<`RefCell`<`Vec`<`bool`>>>
 
 Add a node to runtime lookup caches.
 
+##### `can_present_settled_surfaces`
+<pre><code class="api-signature language-rust ignore">pub fn can_present_settled_surfaces(&amp;self) -&gt; bool</code></pre>
+
+Whether a presentation-only pass may inspect cached geometry without evaluating
+scene state. Pending geometry, native compositing, and effects block the pass.
+Lighting/removals are checked per layer, and content per selected node:
+never-rendered cold layers must not block unrelated cached surfaces forever.
+
 ##### `canvas_geometry_for_node`
 <pre><code class="api-signature language-rust ignore">pub fn canvas_geometry_for_node(&amp;self, node: &amp;ExpandedNode) -&gt; Rc&lt;<a href="../../../api/internal/pax-runtime/scene_geometry.md#preparedcanvasgeometry">PreparedCanvasGeometry</a>&gt;</code></pre>
 
@@ -245,7 +253,8 @@ Remove cached scroller surface state.
 ##### `request_canvas_replay`
 <pre><code class="api-signature language-rust ignore">pub fn request_canvas_replay(&amp;self, update: <a href="../../../api/pax-runtime-api/rendering.md#replaycanvaslayerupdate">ReplayCanvasLayerUpdate</a>)</code></pre>
 
-Apply a backend's replay region request through the shared scene index.
+Select surface replay candidates without invalidating unchanged content. The engine
+asks its backend which drawings are reusable before marking cache misses dirty.
 
 ##### `resize_canvas_layers_to`
 <pre><code class="api-signature language-rust ignore">pub fn resize_canvas_layers_to(&amp;self, id: usize)</code></pre>

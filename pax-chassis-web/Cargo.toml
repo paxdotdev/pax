@@ -47,6 +47,10 @@ web-time = "1.1.0"
 # from the registry package; workspace tests still exercise the dependency.
 pax-std = { path = "../pax-std" }
 
+[[example]]
+name = "surface_schedule_fixture"
+required-features = ["designtime"]
+
 [dependencies.web-sys]
 version = "0.3.10"
 features = [

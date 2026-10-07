@@ -10,6 +10,7 @@ impl BrowserCanvasLease {
     pub fn acquire(canvas: HtmlCanvasElement) -> Self {
         let owners = owner_count(&canvas);
         let _ = canvas.set_attribute("data-pax-surface-owners", &(owners + 1).to_string());
+        super::record_browser_surface_event(&canvas, "initialization-start");
         Self { canvas }
     }
 }
@@ -28,6 +29,7 @@ impl Drop for BrowserCanvasLease {
             .canvas
             .set_attribute("data-pax-surface-owners", &remaining.to_string());
         if remaining == 0 {
+            super::record_browser_surface_event(&self.canvas, "lease-released");
             let options = web_sys::EventInit::new();
             options.set_bubbles(true);
             if let Ok(event) =
