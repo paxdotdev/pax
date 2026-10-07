@@ -24,13 +24,3 @@ zero. In the Scroll Matrix smoke test, relaunching after the display became
 available restored rendering without source changes. Inspect the app's system
 log before treating an idle blank window as a renderer regression. The current
 display-link setup does not retry that startup failure automatically.
-
-## 2026-10-07 — Standalone language tests need a property-graph scope
-
-During the PAX-1028 rebase onto `93705fda6`, `cargo test -p pax-language`
-passed 67 tests and failed 14 interpreter tests with `shared property graph
-access requires PropertyGraph::enter on its owner thread`. The same 14 failures
-reproduced using an isolated copy of `pax-language` from that main revision,
-including its original `color-eyre` dependency. The interpreter fixtures need
-the graph scope required by the updated runtime API; the rebase does not change
-those fixtures or that contract.

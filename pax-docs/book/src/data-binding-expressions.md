@@ -397,6 +397,29 @@ See [Relative values and property ownership](animation-motion.md#relative-values
 for using `$base` in timeline keyframes, setting a base layout value, and
 understanding when an inline assignment overrides an ordinary timeline track.
 
+## Evaluating expressions from Rust
+
+Tools using `pax-language` can evaluate an expression against a
+`HashMap<String, PaxValue>` without mounting an app or entering a
+`PropertyGraph`. With the crate's default `parser` feature enabled:
+
+```rust
+use pax_language::interpreter::compute_paxel;
+use pax_runtime_api::{Functions, Numeric, PaxValue};
+use std::{collections::HashMap, rc::Rc};
+
+Functions::register_all_functions();
+let values = HashMap::from([("count".to_string(), PaxValue::Numeric(Numeric::I64(3)))]);
+let result = compute_paxel("count * 2", Rc::new(values)).unwrap();
+assert_eq!(result, PaxValue::Numeric(Numeric::I64(6)));
+```
+
+The map resolver creates local snapshots of its entries. It does not subscribe
+to shared application state. Custom resolvers that bind shared `Property<T>`
+values still need an entered graph; see
+[State and Properties](state-properties.md#shared-state-and-local-views) for local
+computations and the shared-state boundary.
+
 ## Read more
 
 [State and Properties](state-properties.md) is the next step for the Rust side

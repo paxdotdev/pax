@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use pax_runtime_api::{PaxValue, Property, Variable};
+use pax_runtime_api::{LocalProperty, PaxValue, Variable};
 
 use super::{
     PaxAccessor, PaxExpression, PaxInfix, PaxNullCoalesce, PaxPostfix, PaxPrefix, PaxPrimary,
@@ -105,7 +105,9 @@ impl DependencyCollector for PaxNullCoalesce {
 impl IdentifierResolver for HashMap<String, PaxValue> {
     fn resolve(&self, name: String) -> Result<Variable, String> {
         self.get(&name)
-            .map(|v| Variable::new_from_typed_property(Property::new(v.clone())))
+            // A value map supplies local snapshots, not shared application state.
+            // Resolving it must not require a PropertyGraph attachment.
+            .map(|v| Variable::new_from_typed_property(LocalProperty::new(v.clone())))
             .ok_or(format!("Identifier not found: {}", name))
     }
 }
