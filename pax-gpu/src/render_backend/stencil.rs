@@ -1,5 +1,8 @@
+use super::data::GpuTransform;
+use super::transform_pages::{self, TransformPages, TRANSFORMS_PER_PAGE};
 use bytemuck::{Pod, Zeroable};
 use lyon::tessellation::VertexBuffers;
+use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use wgpu::util::DeviceExt;
@@ -67,6 +70,7 @@ pub struct StencilRenderer {
     height: u32,
     sample_count: u32,
     stencil_bind_group: wgpu::BindGroup,
+    transforms: Rc<RefCell<TransformPages>>,
 }
 
 #[derive(Clone)]
@@ -76,6 +80,7 @@ pub(crate) struct StencilPipelineResources {
     color_stencil_pipeline: Rc<RenderPipeline>,
     color_decrement_pipeline: Rc<RenderPipeline>,
     stencil_bind_group_layout: Rc<wgpu::BindGroupLayout>,
+    transform_layout: wgpu::BindGroupLayout,
 }
 
 #[repr(C)]
@@ -118,18 +123,59 @@ impl StencilRenderer {
         clip_transforms: &wgpu::Buffer,
         resources: StencilPipelineResources,
     ) -> Self {
+        let transforms = Rc::new(RefCell::new(TransformPages::from_buffer(
+            device,
+            resources.transform_layout.clone(),
+            clip_transforms,
+        )));
+        Self::with_transform_pages(
+            device,
+            width,
+            height,
+            sample_count,
+            globals,
+            resources,
+            transforms,
+        )
+    }
+
+    pub(crate) fn with_shared_transforms(
+        device: &Device,
+        width: u32,
+        height: u32,
+        sample_count: u32,
+        globals: &wgpu::Buffer,
+        source: &Self,
+        resources: StencilPipelineResources,
+    ) -> Self {
+        // Mask-source captures have their own stencil texture/stack but use the
+        // same scene clip IDs, including pages allocated after the first capture.
+        Self::with_transform_pages(
+            device,
+            width,
+            height,
+            sample_count,
+            globals,
+            resources,
+            Rc::clone(&source.transforms),
+        )
+    }
+
+    fn with_transform_pages(
+        device: &Device,
+        width: u32,
+        height: u32,
+        sample_count: u32,
+        globals: &wgpu::Buffer,
+        resources: StencilPipelineResources,
+        transforms: Rc<RefCell<TransformPages>>,
+    ) -> Self {
         let stencil_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: resources.stencil_bind_group_layout.as_ref(),
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: globals.as_entire_binding(),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: clip_transforms.as_entire_binding(),
-                },
-            ],
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: globals.as_entire_binding(),
+            }],
             label: Some("stencil_bind_group"),
         });
         let (stencil_texture, stencil_view) =
@@ -150,6 +196,7 @@ impl StencilRenderer {
             cached_geometry: HashMap::new(),
             cached_clip_instances: HashMap::new(),
             stencil_bind_group,
+            transforms,
         }
     }
 
@@ -165,34 +212,23 @@ impl StencilRenderer {
 
         let stencil_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
+                entries: &[wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
                     },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::VERTEX,
-                        ty: wgpu::BindingType::Buffer {
-                            ty: wgpu::BufferBindingType::Uniform,
-                            has_dynamic_offset: false,
-                            min_binding_size: None,
-                        },
-                        count: None,
-                    },
-                ],
+                    count: None,
+                }],
                 label: Some("stencil_bind_group_layout"),
             });
 
+        let transform_layout = transform_pages::layout(device);
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Stencil Pipeline Layout"),
-            bind_group_layouts: &[&stencil_bind_group_layout],
+            bind_group_layouts: &[&stencil_bind_group_layout, &transform_layout],
             immediate_size: 0,
         });
 
@@ -319,6 +355,7 @@ impl StencilRenderer {
             color_stencil_pipeline: Rc::new(color_stencil_pipeline),
             color_decrement_pipeline: Rc::new(color_decrement_pipeline),
             stencil_bind_group_layout: Rc::new(stencil_bind_group_layout),
+            transform_layout,
         }
     }
 
@@ -547,6 +584,13 @@ impl StencilRenderer {
             );
             return;
         };
+        render_pass.set_bind_group(
+            1,
+            self.transforms
+                .borrow()
+                .bind_group(entry.clip_id as usize / TRANSFORMS_PER_PAGE),
+            &[],
+        );
         render_pass.set_vertex_buffer(0, cached_geometry.vertices_buffer.slice(..));
         render_pass.set_vertex_buffer(1, instance_buffer.slice(..));
         render_pass.set_index_buffer(
@@ -554,6 +598,17 @@ impl StencilRenderer {
             wgpu::IndexFormat::Uint16,
         );
         render_pass.draw_indexed(0..cached_geometry.index_count, 0, 0..1);
+    }
+
+    pub(crate) fn update_transforms(
+        &mut self,
+        device: &Device,
+        queue: &Queue,
+        transforms: &[GpuTransform],
+    ) {
+        self.transforms
+            .borrow_mut()
+            .update(device, queue, transforms);
     }
 
     pub fn needs_stack_sync(&self, depth: u32, clips: &[ClipDraw<'_>]) -> bool {

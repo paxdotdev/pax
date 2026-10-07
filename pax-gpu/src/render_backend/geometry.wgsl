@@ -18,7 +18,7 @@ struct Primitive {
 };
 
 struct Primitives {
-    primitives: array<Primitive, 512>,
+    primitives: array<Primitive, 256>,
 };
 
 
@@ -88,7 +88,8 @@ struct SceneLighting {
 
 @group(0) @binding(0) var<uniform> globals: Globals;
 @group(0) @binding(1) var<uniform> u_primitives: Primitives;
-@group(0) @binding(2) var<uniform> transforms: Transforms;
+@group(0) @binding(2) var<uniform> u_primitives_upper: Primitives;
+@group(3) @binding(0) var<uniform> transforms: Transforms;
 @group(0) @binding(3) var<uniform> colors: Colors;
 @group(0) @binding(4) var<storage, read> gradients: Gradients;
 @group(0) @binding(5) var<uniform> materials: Materials;
@@ -122,8 +123,8 @@ fn vs_main(
     var p = model.position;
 
     // apply transform
-    let primitive = u_primitives.primitives[model.prim_id];
-    let m = transforms.transforms[primitive.transform_id];
+    let primitive = scene_primitive(model.prim_id);
+    let m = scene_transform(primitive.transform_id);
 
     let t_p_x = p.x * m.xx + p.y * m.yx + m.zx;
     let t_p_y = p.x * m.xy + p.y * m.yy + m.zy;
@@ -143,11 +144,26 @@ fn vs_main(
     return out;
 }
 
+fn scene_primitive(id: u32) -> Primitive {
+    if id < 256u {
+        return u_primitives.primitives[id];
+    }
+    return u_primitives_upper.primitives[id - 256u];
+}
+
+// Identity is shared by every page and never aliases an allocated scene transform.
+fn scene_transform(id: u32) -> Transform {
+    if id == 0u {
+        return Transform(1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0);
+    }
+    return transforms.transforms[id % 480u];
+}
+
 // Fragment shader
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
 
-    let primitive = u_primitives.primitives[in.prim_id];
+    let primitive = scene_primitive(in.prim_id);
     if primitive.draw_range.z > 0.5 {
         let draw_start = clamp(primitive.draw_range.x, 0.0, 1.0);
         let draw_end = clamp(primitive.draw_range.y, 0.0, 1.0);
@@ -177,7 +193,7 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
             color = vec4<f32>(premultiplied.rgb / premultiplied.a, premultiplied.a);
         }
     }
-    color.a *= transforms.transforms[primitive.transform_id].opacity;
+    color.a *= scene_transform(primitive.transform_id).opacity;
     color.a *= textureSampleLevel(alpha_mask, alpha_sampler,
         (in.clip_position.xy / globals.dpr + globals.origin - alpha_domain.xy) / alpha_domain.zw, 0.0).r;
     color = apply_lighting(

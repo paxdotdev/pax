@@ -3,7 +3,8 @@ use std::collections::HashMap;
 use pax_runtime_api::{PaxValue, Property, Variable};
 
 use super::{
-    PaxAccessor, PaxExpression, PaxInfix, PaxNullCoalesce, PaxPostfix, PaxPrefix, PaxPrimary, PaxTernary,
+    PaxAccessor, PaxExpression, PaxInfix, PaxNullCoalesce, PaxPostfix, PaxPrefix, PaxPrimary,
+    PaxTernary,
 };
 
 /// Trait for resolving identifiers to values

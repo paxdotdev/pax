@@ -24,6 +24,8 @@ mod gpu_resources;
 pub(crate) mod mesh_paint;
 pub mod stencil;
 mod texture;
+mod transform_pages;
+use transform_pages::{transform_runs, TransformPages, TransformRun, TRANSFORMS_PER_PAGE};
 
 #[cfg(all(test, target_os = "macos"))]
 mod retained_clip_tests;
@@ -80,6 +82,7 @@ pub struct GpuContext {
     primitive_bind_group_layout: BindGroupLayout,
     alpha_mask_layout: BindGroupLayout,
     mesh_paint_layout: BindGroupLayout,
+    transform_layout: BindGroupLayout,
     vector_pipelines: RefCell<HashMap<VectorPipelineKey, Rc<RenderPipeline>>>,
     texture_pipelines: RefCell<HashMap<VectorPipelineKey, TexturePipelineResources>>,
     image_textures: RefCell<ImageTextureCache>,
@@ -119,6 +122,8 @@ impl GpuContext {
         };
         #[cfg(not(target_arch = "wasm32"))]
         let required_limits = adapter.limits();
+        #[cfg(test)]
+        let required_limits = _config.required_limits.clone().unwrap_or(required_limits);
         let (device, queue) = adapter
             .request_device(&wgpu::DeviceDescriptor {
                 label: None,
@@ -138,6 +143,7 @@ impl GpuContext {
         let primitive_bind_group_layout = create_primitive_bind_group_layout(&device);
         let alpha_mask_layout = alpha_mask::sampling_layout(&device);
         let mesh_paint_layout = mesh_paint::sampling_layout(&device);
+        let transform_layout = transform_pages::layout(&device);
 
         Ok(Rc::new(Self {
             instance,
@@ -148,6 +154,7 @@ impl GpuContext {
             primitive_bind_group_layout,
             alpha_mask_layout,
             mesh_paint_layout,
+            transform_layout,
             vector_pipelines: RefCell::new(HashMap::new()),
             texture_pipelines: RefCell::new(HashMap::new()),
             image_textures: RefCell::new(ImageTextureCache::default()),
@@ -171,6 +178,7 @@ impl GpuContext {
             &self.primitive_bind_group_layout,
             &self.alpha_mask_layout,
             &self.mesh_paint_layout,
+            &self.transform_layout,
         ));
         self.vector_pipelines
             .borrow_mut()
@@ -257,6 +265,8 @@ fn default_power_preference() -> wgpu::PowerPreference {
 
 /// GPU resource sizing and initial surface configuration.
 pub struct RenderConfig {
+    #[cfg(test)]
+    required_limits: Option<wgpu::Limits>,
     pub debug: bool,
     index_buffer_size: u64,
     vertex_buffer_size: u64,
@@ -276,16 +286,14 @@ pub(crate) const MAX_BATCH_PRIMITIVES: usize = 512;
 pub(crate) const MAX_BATCH_COLORS: usize = 512;
 pub(crate) const MAX_BATCH_GRADIENTS: usize = 64;
 pub(crate) const MAX_BATCH_MATERIALS: usize = 512;
-pub(crate) const MAX_BATCH_TRANSFORMS: usize = 480;
-// Downlevel browser adapters can expose a 16 KiB max uniform binding size. Keep the scene
-// transform uniform arena under that ceiling.
-pub(crate) const MAX_SCENE_TRANSFORMS: usize = 480;
-pub(crate) const MAX_SCENE_CLIPS: usize = 480;
+pub(crate) const MAX_BATCH_TRANSFORMS: usize = TRANSFORMS_PER_PAGE;
 
 impl RenderConfig {
     /// Construct default buffer capacities for an initial surface size.
     pub fn new(_debug: bool, width: u32, height: u32, dpr: [f32; 2]) -> Self {
         Self {
+            #[cfg(test)]
+            required_limits: None,
             debug: false,
             index_buffer_size: 2 << 12,
             vertex_buffer_size: 2 << 12,
@@ -293,8 +301,8 @@ impl RenderConfig {
             colors_buffer_size: MAX_BATCH_COLORS as u64,
             gradients_buffer_size: MAX_BATCH_GRADIENTS as u64,
             materials_buffer_size: MAX_BATCH_MATERIALS as u64,
-            transforms_buffer_size: MAX_SCENE_TRANSFORMS as u64,
-            clip_transforms_buffer_size: MAX_SCENE_CLIPS as u64,
+            transforms_buffer_size: TRANSFORMS_PER_PAGE as u64,
+            clip_transforms_buffer_size: TRANSFORMS_PER_PAGE as u64,
             initial_width: width,
             initial_height: height,
             initial_dpr: dpr,
@@ -421,7 +429,8 @@ pub struct RenderBackend<'w> {
     index_buffer: wgpu::Buffer,
     primitive_buffer: wgpu::Buffer,
     transforms_buffer: wgpu::Buffer,
-    clip_transforms_buffer: wgpu::Buffer,
+    scene_transforms: TransformPages,
+    batch_transform_bind_group: BindGroup,
     colors_buffer: wgpu::Buffer,
     gradients_buffer: wgpu::Buffer,
     materials_buffer: wgpu::Buffer,
@@ -443,6 +452,7 @@ pub struct RenderBackend<'w> {
     retained_surfaces: Option<capture::RetainedSurfaces>,
     pending_clear: bool,
     pending_command_buffers: Vec<CommandBuffer>,
+    retained_encoder: Option<wgpu::CommandEncoder>,
     staging_belt_pending_recall: bool,
     needs_device_poll: bool,
     pending_capture_ids: Vec<u32>,
@@ -491,6 +501,7 @@ pub(crate) struct SharedRetainedVectorResource {
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     index_count: u32,
+    transform_runs: Vec<TransformRun>,
     vertex_capacity: usize,
     index_capacity: usize,
     primitive_capacity: usize,
@@ -579,6 +590,18 @@ struct PrimitiveBatchRenderPlan {
     scissor: Option<(u32, u32, u32, u32)>,
     index_start: u32,
     index_count: u32,
+}
+
+// Two 12 KiB views preserve the 512-primitive batch without requiring a >16 KiB
+// uniform binding. They share one allocation and add no padding or upload work.
+const PRIMITIVES_PER_BINDING: usize = MAX_BATCH_PRIMITIVES / 2;
+fn primitive_binding(buffer: &wgpu::Buffer, bank: u64) -> wgpu::BindingResource<'_> {
+    let size = (PRIMITIVES_PER_BINDING * std::mem::size_of::<GpuPrimitive>()) as u64;
+    wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+        buffer,
+        offset: bank * size,
+        size: wgpu::BufferSize::new(size),
+    })
 }
 
 fn create_primitive_bind_group_layout(device: &Device) -> BindGroupLayout {
@@ -674,11 +697,11 @@ impl<'w> RenderBackend<'w> {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: self.primitive_buffer.as_entire_binding(),
+                    resource: primitive_binding(&self.primitive_buffer, 0),
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: self.transforms_buffer.as_entire_binding(),
+                    resource: primitive_binding(&self.primitive_buffer, 1),
                 },
                 wgpu::BindGroupEntry {
                     binding: 3,
@@ -745,13 +768,10 @@ impl<'w> RenderBackend<'w> {
             rebind_main_group = true;
         }
 
-        if required_transforms > self.config.transforms_buffer_size as usize {
-            log::error!(
-                "render backend: transform arena capacity exceeded (required {}, capacity {})",
-                required_transforms,
-                self.config.transforms_buffer_size
-            );
-        }
+        assert!(
+            required_transforms <= self.config.transforms_buffer_size as usize,
+            "transient batch exceeds one transform page"
+        );
 
         if required_colors > self.config.colors_buffer_size as usize {
             self.config.colors_buffer_size = next_capacity(required_colors);
@@ -1094,6 +1114,9 @@ impl<'w> RenderBackend<'w> {
             BufferUsages::UNIFORM | BufferUsages::COPY_DST,
         );
 
+        let batch_transform_bind_group =
+            transform_pages::bind_group(&device, &context.transform_layout, &transforms_buffer);
+        let scene_transforms = TransformPages::new(context.transform_layout.clone());
         let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: &context.primitive_bind_group_layout,
             entries: &[
@@ -1103,11 +1126,11 @@ impl<'w> RenderBackend<'w> {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: primitive_buffer.as_entire_binding(),
+                    resource: primitive_binding(&primitive_buffer, 0),
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: transforms_buffer.as_entire_binding(),
+                    resource: primitive_binding(&primitive_buffer, 1),
                 },
                 wgpu::BindGroupEntry {
                     binding: 3,
@@ -1182,7 +1205,8 @@ impl<'w> RenderBackend<'w> {
             index_buffer,
             primitive_buffer,
             transforms_buffer,
-            clip_transforms_buffer,
+            scene_transforms,
+            batch_transform_bind_group,
             globals_buffer,
             colors_buffer,
             gradients_buffer,
@@ -1198,6 +1222,7 @@ impl<'w> RenderBackend<'w> {
             retained_surfaces: None,
             pending_clear: false,
             pending_command_buffers: Vec::new(),
+            retained_encoder: None,
             staging_belt_pending_recall: false,
             needs_device_poll: false,
             pending_capture_ids: Vec::new(),
@@ -1231,6 +1256,7 @@ impl<'w> RenderBackend<'w> {
         primitive_bind_group_layout: &BindGroupLayout,
         alpha_mask_layout: &BindGroupLayout,
         mesh_paint_layout: &BindGroupLayout,
+        transform_layout: &BindGroupLayout,
     ) -> RenderPipeline {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("Shader"),
@@ -1250,6 +1276,7 @@ impl<'w> RenderBackend<'w> {
                     primitive_bind_group_layout,
                     alpha_mask_layout,
                     mesh_paint_layout,
+                    transform_layout,
                 ],
                 immediate_size: 0,
             });
@@ -1344,6 +1371,7 @@ impl<'w> RenderBackend<'w> {
         // translucent retained geometry blends over the target.
         self.pending_clear = true;
         self.pending_command_buffers.clear();
+        self.retained_encoder = None;
         // Resize abandons encoded uploads. Forget their mask signatures and
         // staging allocations instead of recalling work that was never submitted.
         // Dropped WGPU handles remain alive for any older in-flight commands.
@@ -1386,7 +1414,26 @@ impl<'w> RenderBackend<'w> {
         );
     }
 
+    fn finish_retained_encoding(&mut self) {
+        if let Some(encoder) = self.retained_encoder.take() {
+            self.pending_command_buffers.push(encoder.finish());
+        }
+    }
+
+    fn take_retained_encoder(&mut self) -> wgpu::CommandEncoder {
+        // A large mixed scene can alternate thousands of stencil and color passes.
+        // One encoder preserves their order without exhausting Metal's finite pool
+        // of unsubmitted command buffers while wgpu prepares a queue submission.
+        self.retained_encoder.take().unwrap_or_else(|| {
+            self.device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("Retained scene encoder"),
+                })
+        })
+    }
+
     fn enqueue_command_buffer(&mut self, command_buffer: CommandBuffer) {
+        self.finish_retained_encoding();
         self.pending_command_buffers.push(command_buffer);
     }
 
@@ -1398,6 +1445,7 @@ impl<'w> RenderBackend<'w> {
     }
 
     pub(crate) fn take_pending_command_buffers(&mut self) -> Vec<CommandBuffer> {
+        self.finish_retained_encoding();
         std::mem::take(&mut self.pending_command_buffers)
     }
 
@@ -1507,11 +1555,11 @@ impl<'w> RenderBackend<'w> {
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: primitive_buffer.as_entire_binding(),
+                    resource: primitive_binding(&primitive_buffer, 0),
                 },
                 wgpu::BindGroupEntry {
                     binding: 2,
-                    resource: self.transforms_buffer.as_entire_binding(),
+                    resource: primitive_binding(&primitive_buffer, 1),
                 },
                 wgpu::BindGroupEntry {
                     binding: 3,
@@ -1626,6 +1674,7 @@ impl<'w> RenderBackend<'w> {
                 vertex_buffer,
                 index_buffer,
                 index_count: buffers.geometry.indices.len() as u32,
+                transform_runs: transform_runs(&buffers.geometry, retained_primitives),
                 vertex_capacity,
                 index_capacity,
                 primitive_capacity,
@@ -1713,21 +1762,32 @@ impl<'w> RenderBackend<'w> {
                 bytemuck::cast_slice(&materials),
             );
         }
+        if dirty.geometry || dirty.primitives {
+            shared.transform_runs = transform_runs(&buffers.geometry, retained_primitives);
+        }
         shared.index_count = buffers.geometry.indices.len() as u32;
         Some(upload_bytes)
     }
 
-    pub(crate) fn update_scene_transforms(&self, transforms: &[GpuTransform]) {
-        self.queue
-            .write_buffer(&self.transforms_buffer, 0, bytemuck::cast_slice(transforms));
+    pub(crate) fn update_scene_transforms(&mut self, transforms: &[GpuTransform]) {
+        self.scene_transforms
+            .update(&self.device, &self.queue, transforms);
     }
 
-    pub(crate) fn update_scene_clip_transforms(&self, transforms: &[GpuTransform]) {
-        self.queue.write_buffer(
-            &self.clip_transforms_buffer,
-            0,
-            bytemuck::cast_slice(transforms),
-        );
+    pub(crate) fn update_scene_clip_transforms(&mut self, transforms: &[GpuTransform]) {
+        self.stencil_renderer
+            .update_transforms(&self.device, &self.queue, transforms);
+    }
+
+    fn draw_transform_runs<'a>(
+        &'a self,
+        pass: &mut wgpu::RenderPass<'a>,
+        resource: &'a RetainedVectorResource,
+    ) {
+        for run in &resource.shared.transform_runs {
+            pass.set_bind_group(3, self.scene_transforms.bind_group(run.page), &[]);
+            pass.draw_indexed(run.indices.clone(), 0, 0..1);
+        }
     }
 
     #[allow(dead_code)]
@@ -1785,7 +1845,7 @@ impl<'w> RenderBackend<'w> {
             render_pass.set_stencil_reference(stencil_index);
             render_pass
                 .set_index_buffer(resource.shared.index_buffer.slice(..), IndexFormat::Uint16);
-            render_pass.draw_indexed(0..resource.shared.index_count, 0, 0..1);
+            self.draw_transform_runs(&mut render_pass, resource);
         }
 
         if self.should_render_capture_target() {
@@ -1832,7 +1892,7 @@ impl<'w> RenderBackend<'w> {
             render_pass.set_stencil_reference(stencil_index);
             render_pass
                 .set_index_buffer(resource.shared.index_buffer.slice(..), IndexFormat::Uint16);
-            render_pass.draw_indexed(0..resource.shared.index_count, 0, 0..1);
+            self.draw_transform_runs(&mut render_pass, resource);
         }
 
         self.enqueue_command_buffer(encoder.finish());
@@ -1872,13 +1932,13 @@ impl<'w> RenderBackend<'w> {
         let width = extent[0] as u32;
         let height = extent[1] as u32;
         let mut stencil = self.source_stencil.take().unwrap_or_else(|| {
-            StencilRenderer::with_pipeline_resources(
+            StencilRenderer::with_shared_transforms(
                 &self.device,
                 width,
                 height,
                 self.sample_count,
                 &self.globals_buffer,
-                &self.clip_transforms_buffer,
+                &self.stencil_renderer,
                 self.context
                     .stencil_pipeline_resources(self.surface_config.format, self.sample_count),
             )
@@ -2034,11 +2094,7 @@ impl<'w> RenderBackend<'w> {
 
         let load_op = self.take_color_load_op();
         self.ensure_active_frame();
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Retained Batch Runs Encoder"),
-            });
+        let mut encoder = self.take_retained_encoder();
 
         {
             let (screen_texture, resolve_target) = self.current_color_attachment_view_clones();
@@ -2100,7 +2156,7 @@ impl<'w> RenderBackend<'w> {
                                 resource.shared.index_buffer.slice(..),
                                 IndexFormat::Uint16,
                             );
-                            render_pass.draw_indexed(0..resource.shared.index_count, 0, 0..1);
+                            self.draw_transform_runs(&mut render_pass, resource);
                         }
                         RetainedDraw::Image { texture, draw } => {
                             self.texture_renderer.draw_retained_image_in_pass(
@@ -2176,7 +2232,7 @@ impl<'w> RenderBackend<'w> {
                                 resource.shared.index_buffer.slice(..),
                                 IndexFormat::Uint16,
                             );
-                            render_pass.draw_indexed(0..resource.shared.index_count, 0, 0..1);
+                            self.draw_transform_runs(&mut render_pass, resource);
                         }
                         RetainedDraw::Image { texture, draw } => {
                             self.texture_renderer.draw_retained_image_in_pass(
@@ -2190,21 +2246,17 @@ impl<'w> RenderBackend<'w> {
             }
         }
 
-        self.enqueue_command_buffer(encoder.finish());
+        self.retained_encoder = Some(encoder);
     }
 
     pub(crate) fn sync_stencil_stack(&mut self, depth: u32, clips: &[stencil::ClipDraw<'_>]) {
         if !self.stencil_renderer.needs_stack_sync(depth, clips) {
             return;
         }
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Stencil Sync Encoder"),
-            });
+        let mut encoder = self.take_retained_encoder();
         self.stencil_renderer
             .encode_stencil_stack_sync(&self.device, &mut encoder, depth, clips);
-        self.enqueue_command_buffer(encoder.finish());
+        self.retained_encoder = Some(encoder);
     }
 
     pub(crate) fn retain_stencil_resources(
@@ -2525,6 +2577,7 @@ impl<'w> RenderBackend<'w> {
                     render_pass.set_pipeline(self.pipeline.as_ref());
                     render_pass.set_bind_group(0, &self.bind_group, &[]);
                     render_pass.set_bind_group(2, &self.empty_mesh_page.bind_group, &[]);
+                    render_pass.set_bind_group(3, &self.batch_transform_bind_group, &[]);
                     render_pass.set_bind_group(
                         1,
                         self.alpha_masks.bind_group(plan.alpha_mask),
@@ -2640,6 +2693,7 @@ impl<'w> RenderBackend<'w> {
                     render_pass.set_pipeline(self.pipeline.as_ref());
                     render_pass.set_bind_group(0, &self.bind_group, &[]);
                     render_pass.set_bind_group(2, &self.empty_mesh_page.bind_group, &[]);
+                    render_pass.set_bind_group(3, &self.batch_transform_bind_group, &[]);
                     render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
                     render_pass.set_stencil_reference(stencil_reference);
                     render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
@@ -2692,6 +2746,7 @@ impl<'w> RenderBackend<'w> {
                     render_pass.set_pipeline(self.pipeline.as_ref());
                     render_pass.set_bind_group(0, &self.bind_group, &[]);
                     render_pass.set_bind_group(2, &self.empty_mesh_page.bind_group, &[]);
+                    render_pass.set_bind_group(3, &self.batch_transform_bind_group, &[]);
                     render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
                     render_pass.set_stencil_reference(stencil_reference);
                     render_pass.set_index_buffer(self.index_buffer.slice(..), IndexFormat::Uint16);
@@ -2808,6 +2863,7 @@ impl<'w> RenderBackend<'w> {
     }
 
     pub(crate) fn finish_frame(&mut self) {
+        self.finish_retained_encoding();
         if self.pending_clear {
             let load_op = self.take_color_load_op();
             self.ensure_active_frame();

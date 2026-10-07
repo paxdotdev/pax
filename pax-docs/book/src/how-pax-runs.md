@@ -121,6 +121,18 @@ skipped. The GPU path retains rendering data, and the runtime can avoid a
 canvas rendering pass when there is no canvas work pending. Native elements
 receive their own updates through the chassis.
 
+The GPU renderer retains independent transforms and opacity values for scenes
+with more than 480 transformed drawing operations. It stores transforms and
+geometric clips in small uniform-buffer pages that grow with scene demand,
+including on the browser's conservative GPU limits. The page size is an
+internal batching detail, not a limit on the number of elements you can author.
+Moving or fading retained vectors can reuse their geometry; a draw spanning
+multiple transform pages is split while preserving paint order. Memory and
+rendering cost still grow with the scene, and ordinary visibility culling does
+not unmount nodes or release their retained identities. Removing nodes makes
+their slots available for reuse. This behavior is shared by debug and release
+GPU builds; it does not change the Piet renderer.
+
 The amount of work is therefore related to the dependencies and surfaces
 affected by a change. A single property write can still have a broad effect:
 resizing a container, removing an overlapping element, or changing a clip
@@ -162,6 +174,10 @@ is a browser control or Apple-native view. The runtime sends the native
 element its required updates; user input returns through the chassis to the
 runtime and application handlers. The platform still handles native concerns
 such as editing interactions and input-method behavior.
+
+On macOS, native scene updates are applied during the chassis frame cycle,
+before that frame's GPU submission. Animated native controls therefore receive
+the current geometry without waiting for a later SwiftUI view update.
 
 This division preserves useful native behavior, while making backend and
 element type important when choosing an effect. An effect supported on drawn

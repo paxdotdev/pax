@@ -2,7 +2,7 @@ mod rules;
 
 use crate::helpers::{replace_by_line_column, InlinedTemplateFinder};
 use crate::{parse_pax_err, Pair, Rule};
-use color_eyre::eyre::{self, Report, WrapErr};
+use eyre::{Report, WrapErr};
 use std::fs;
 use std::path::{Path, PathBuf};
 use syn::parse_file;

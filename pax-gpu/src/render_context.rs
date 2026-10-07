@@ -10,8 +10,6 @@ use crate::render_backend::MAX_BATCH_GRADIENTS;
 use crate::render_backend::MAX_BATCH_MATERIALS;
 use crate::render_backend::MAX_BATCH_PRIMITIVES;
 use crate::render_backend::MAX_BATCH_TRANSFORMS;
-use crate::render_backend::MAX_SCENE_CLIPS;
-use crate::render_backend::MAX_SCENE_TRANSFORMS;
 use crate::render_backend::{RetainedBatchRun, RetainedDraw};
 use crate::Box2D;
 use crate::Image;
@@ -195,6 +193,11 @@ impl ResourceChurnStats {
 }
 
 /// Retained scene renderer that records Pax vector/image commands and flushes them through wgpu.
+///
+/// Transform and clip identities remain stable until their owning node releases them.
+/// GPU uniform pages grow with scene demand; the 480-entry page size is not a scene
+/// limit. Moving or fading retained geometry updates transform pages without
+/// retessellating or uploading vertex/index buffers.
 pub struct WgpuRenderer<'w> {
     render_backend: RenderBackend<'w>,
     scene: HashMap<u32, RetainedNode>,
@@ -495,7 +498,7 @@ struct ClipArena {
 impl ClipArena {
     fn new() -> Self {
         Self {
-            slots: vec![GpuTransform::default(); MAX_SCENE_CLIPS],
+            slots: Vec::new(),
             key_to_id: HashMap::new(),
             entries: HashMap::new(),
             free_ids: Vec::new(),
@@ -519,19 +522,15 @@ impl ClipArena {
         let clip_id = if let Some(clip_id) = self.key_to_id.get(&key).copied() {
             clip_id
         } else {
-            let Some(clip_id) = self.free_ids.pop().or_else(|| {
-                ((self.next_id as usize) < MAX_SCENE_CLIPS).then(|| {
-                    let clip_id = self.next_id;
-                    self.next_id += 1;
-                    clip_id
-                })
-            }) else {
-                log::error!(
-                    "clip arena capacity exceeded (capacity {})",
-                    MAX_SCENE_CLIPS
-                );
-                return None;
-            };
+            let clip_id = self.free_ids.pop().unwrap_or_else(|| {
+                let clip_id = self.next_id;
+                self.next_id = self
+                    .next_id
+                    .checked_add(1)
+                    .expect("clip ID space exhausted");
+                self.slots.push(GpuTransform::default());
+                clip_id
+            });
             self.key_to_id.insert(key, clip_id);
             self.dirty = true;
             clip_id
@@ -584,7 +583,7 @@ impl ClipArena {
         self.entries.get(&clip_id)
     }
 
-    fn flush_to_gpu<'w>(&mut self, render_backend: &RenderBackend<'w>) {
+    fn flush_to_gpu<'w>(&mut self, render_backend: &mut RenderBackend<'w>) {
         if !self.dirty {
             return;
         }
@@ -596,7 +595,7 @@ impl ClipArena {
 impl TransformArena {
     fn new() -> Self {
         Self {
-            slots: vec![GpuTransform::default(); MAX_SCENE_TRANSFORMS],
+            slots: vec![GpuTransform::default()],
             entries: HashMap::new(),
             free_slots: Vec::new(),
             next_slot: 1,
@@ -618,23 +617,15 @@ impl TransformArena {
                 op_index: (transform_index - 1) as u32,
             };
             let slot = self.entries.get(&key).copied().unwrap_or_else(|| {
-                let slot = self
-                    .free_slots
-                    .pop()
-                    .or_else(|| {
-                        ((self.next_slot as usize) < MAX_SCENE_TRANSFORMS).then(|| {
-                            let slot = self.next_slot;
-                            self.next_slot += 1;
-                            slot
-                        })
-                    })
-                    .unwrap_or_else(|| {
-                        log::error!(
-                            "transform arena capacity exceeded (capacity {})",
-                            MAX_SCENE_TRANSFORMS
-                        );
-                        0
-                    });
+                let slot = self.free_slots.pop().unwrap_or_else(|| {
+                    let slot = self.next_slot;
+                    self.next_slot = self
+                        .next_slot
+                        .checked_add(1)
+                        .expect("transform ID space exhausted");
+                    self.slots.push(GpuTransform::default());
+                    slot
+                });
                 self.entries.insert(key, slot);
                 self.dirty = true;
                 slot
@@ -661,7 +652,7 @@ impl TransformArena {
         }
     }
 
-    fn flush_to_gpu<'w>(&mut self, render_backend: &RenderBackend<'w>) {
+    fn flush_to_gpu<'w>(&mut self, render_backend: &mut RenderBackend<'w>) {
         if !self.dirty {
             return;
         }
@@ -1012,7 +1003,10 @@ impl<'w> WgpuRenderer<'w> {
             }
             self.cached_images.insert(
                 image_key.to_owned(),
-                CachedImageEntry { texture, version: image_version },
+                CachedImageEntry {
+                    texture,
+                    version: image_version,
+                },
             );
         }
         let transform = self.current_transform();
@@ -1108,8 +1102,8 @@ impl<'w> WgpuRenderer<'w> {
         }
         self.render_backend.ensure_frame_cleared();
         self.ensure_vector_resources_for_immediate_scene();
-        self.transform_arena.flush_to_gpu(&self.render_backend);
-        self.clip_arena.flush_to_gpu(&self.render_backend);
+        self.transform_arena.flush_to_gpu(&mut self.render_backend);
+        self.clip_arena.flush_to_gpu(&mut self.render_backend);
         self.resource_churn_stats.retained_nodes_considered += self.sorted_nodes.len() as u64;
         // Each retained renderer represents one physical surface tile. Cull retained nodes against
         // that tile-local viewport before batching so newly revealed tiles do not replay the full
@@ -1897,8 +1891,9 @@ impl<'w> WgpuRenderer<'w> {
     }
 
     fn flush_vector_scene_batch(&mut self, defer_submit: bool) {
-        self.transform_arena.flush_to_gpu(&self.render_backend);
-        self.clip_arena.flush_to_gpu(&self.render_backend);
+        // This path uploads batch-local transforms. Leave the scene arena dirty
+        // until a later mixed/retained frame actually needs its GPU pages.
+        self.clip_arena.flush_to_gpu(&mut self.render_backend);
         let viewport_bounds = self.viewport_bounds();
         let mut current_clip_stack: Vec<u32> = Vec::new();
         let mut current_batch_clip_stack: Option<Vec<ClipReference>> = None;
@@ -1934,16 +1929,22 @@ impl<'w> WgpuRenderer<'w> {
                 current_batch_clip_stack = Some(node.clip_stack.clone());
             }
 
-            if has_geometry && would_exceed_batch_capacity(&current_buffers, &node.buffers) {
+            // A clip change ends a segment, not the accumulated uniform batch.
+            // Check all buffered geometry even when the current segment is empty.
+            if !current_buffers.geometry.indices.is_empty()
+                && would_exceed_batch_capacity(&current_buffers, &node.buffers)
+            {
                 if let Some(batch_clip_stack) = current_batch_clip_stack.as_ref() {
-                    push_primitive_segment(
-                        &mut segments,
-                        &mut current_clip_stack,
-                        batch_clip_stack,
-                        &self.clip_arena,
-                        current_segment_start.take().unwrap_or(0),
-                        current_buffers.geometry.indices.len(),
-                    );
+                    if has_geometry {
+                        push_primitive_segment(
+                            &mut segments,
+                            &mut current_clip_stack,
+                            batch_clip_stack,
+                            &self.clip_arena,
+                            current_segment_start.take().unwrap_or(0),
+                            current_buffers.geometry.indices.len(),
+                        );
+                    }
                     push_primitive_batch(
                         &mut batches,
                         std::mem::replace(&mut current_buffers, new_cpu_buffers()),
@@ -3939,6 +3940,110 @@ impl DrawRange {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn retained_transform_identity_survives_more_than_480_live_transforms() {
+        let mut arena = TransformArena::new();
+        let identity = GpuTransform::default();
+        let mut slots = HashSet::new();
+        for node_id in 0..600 {
+            let transform = GpuTransform {
+                transform: Transform2D::translation(node_id as f32 + 1.0, 7.0).to_arrays(),
+                opacity: 0.5,
+                ..identity
+            };
+            let (_, ids) = arena.sync_node(node_id, &[identity, transform]);
+            slots.insert(ids[1]);
+        }
+        assert_eq!(arena.slots[0].transform, identity.transform);
+        assert_eq!(arena.slots[0].opacity, 1.0);
+        assert!(!slots.contains(&0));
+        assert_eq!(slots.len(), 600);
+    }
+
+    #[test]
+    fn retained_transform_slots_are_stable_and_reused_without_aliases() {
+        let mut arena = TransformArena::new();
+        let identity = GpuTransform::default();
+        let mut owned = Vec::new();
+        for frame in 0..8 {
+            let mut live = HashSet::new();
+            for node in 0..1000 {
+                let transform = GpuTransform {
+                    transform: Transform2D::translation(node as f32, frame as f32).to_arrays(),
+                    opacity: (node % 10) as f32 / 10.0,
+                    ..identity
+                };
+                let (keys, ids) = arena.sync_node(node, &[identity, transform]);
+                assert!(live.insert(ids[1]));
+                assert_ne!(ids[1], 0);
+                assert_eq!(arena.slots[ids[1] as usize].transform, transform.transform);
+                assert_eq!(arena.slots[ids[1] as usize].opacity, transform.opacity);
+                if frame == 0 {
+                    owned.push((keys, ids[1]));
+                } else {
+                    assert_eq!(ids[1], owned[node as usize].1);
+                }
+            }
+            assert_eq!(arena.slots.len(), 1001);
+        }
+        for (keys, _) in owned.iter().step_by(2) {
+            arena.release_keys(keys);
+        }
+        let retained: HashSet<_> = owned
+            .iter()
+            .skip(1)
+            .step_by(2)
+            .map(|entry| entry.1)
+            .collect();
+        let mut reused = HashSet::new();
+        for node in 1000..1500 {
+            let (_, ids) = arena.sync_node(node, &[identity, identity]);
+            assert!(reused.insert(ids[1]));
+            assert!(!retained.contains(&ids[1]));
+        }
+        assert_eq!(arena.slots.len(), 1001);
+        assert_eq!(arena.entries.len(), 1000);
+        assert_eq!(arena.slots[0].transform, identity.transform);
+    }
+
+    #[test]
+    fn clip_slots_grow_and_reuse_only_released_owners() {
+        let mut arena = ClipArena::new();
+        let mut keys = Vec::new();
+        for node in 0..1000 {
+            let (key, id) = arena
+                .sync_clip(
+                    node,
+                    0,
+                    node as u64,
+                    VertexBuffers::new(),
+                    Transform2D::translation(node as f32, 0.0),
+                )
+                .unwrap();
+            assert_eq!(id, node);
+            keys.push(key);
+        }
+        arena.release_keys(&keys[..500]);
+        for node in 1000..1500 {
+            let (_, id) = arena
+                .sync_clip(
+                    node,
+                    0,
+                    node as u64,
+                    VertexBuffers::new(),
+                    Transform2D::translation(node as f32, 0.0),
+                )
+                .unwrap();
+            assert!(id < 500);
+            assert_eq!(arena.get(id).unwrap().geometry_signature, node as u64);
+        }
+        for node in 500..1000 {
+            assert_eq!(arena.get(node).unwrap().geometry_signature, node as u64);
+        }
+        assert_eq!(arena.slots.len(), 1000);
+        assert_eq!(arena.entries.len(), 1000);
+    }
 
     fn rect_path(width: f32, height: f32) -> Path {
         let mut builder = Path::builder();

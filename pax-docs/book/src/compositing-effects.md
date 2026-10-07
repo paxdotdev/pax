@@ -421,6 +421,12 @@ uses SVG/CSS masks; the Apple rasterization cost is not a measurement of that pa
 macOS text snapshots consume that same coverage, including fully hidden pixels
 and partial opacity; changing text reapplies the mask to the new snapshot.
 
+On macOS, masked Text snapshots include the text's painted overflow when
+`clip=false`; entering an overlap does not itself crop the label to its layout
+box. `clip=true` and ancestor Frame clips still constrain the text. Occlusion
+candidates are currently selected using layout bounds, so give text a box that
+covers its visible content when accurate masking of all overflow is required.
+
 ### Updating native content
 
 Ordinary leaf animation updates shared scene geometry and queries nearby native

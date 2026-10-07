@@ -21,7 +21,7 @@ struct StencilTransforms {
 };
 
 @group(0) @binding(0) var<uniform> globals: Globals;
-@group(0) @binding(1) var<uniform> stencil_transforms: StencilTransforms;
+@group(1) @binding(0) var<uniform> stencil_transforms: StencilTransforms;
 
 struct VertexOutput {
     @builtin(position) clip_position: vec4<f32>,
@@ -33,7 +33,7 @@ fn vs_main(
     @location(1) transform_id: u32,
 ) -> VertexOutput {
 	var out: VertexOutput;
-    let stencil_transform = stencil_transforms.transforms[transform_id];
+    let stencil_transform = stencil_transforms.transforms[transform_id % 480u];
     let t_p_x = position.x * stencil_transform.xx + position.y * stencil_transform.yx + stencil_transform.zx;
     let t_p_y = position.x * stencil_transform.xy + position.y * stencil_transform.yy + stencil_transform.zy;
     var pos = vec2<f32>(t_p_x, t_p_y);

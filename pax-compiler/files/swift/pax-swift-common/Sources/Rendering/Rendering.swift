@@ -880,7 +880,7 @@ public struct NativeRenderingLayer: View {
     let eventBlockerElements = EventBlockerElements.singleton
     let glassSurfaceElements = GlassSurfaceElements.singleton
 
-    fileprivate enum NativeLeafKind {
+    enum NativeLeafKind {
         case text(TextElement)
         case glassSurface(GlassSurfaceElement)
         case button(ButtonElement)
@@ -904,9 +904,8 @@ public struct NativeRenderingLayer: View {
                 if element.editable {
                     return "text-editable"
                 }
-                // Unclipped selectable text stays on the static text layer. Native text views
-                // impose their own clip region, so we only switch view types when clipping or
-                // editing semantics require it.
+                // UIKit uses its static layer for unclipped, non-editable text so
+                // native text-view clipping does not cut off overflowing glyphs.
                 if element.selectable && element.clip {
                     return "text-selectable"
                 }
@@ -1089,7 +1088,7 @@ public struct NativeRenderingLayer: View {
         }
     }
 
-    private struct NativeRenderItem: Identifiable {
+    struct NativeRenderItem: Identifiable {
         let id: PaxNodeId
         let zIndex: Int
         let parentFrame: PaxNodeId?
@@ -1177,14 +1176,14 @@ public struct NativeRenderingLayer: View {
     }
 
 #if os(iOS) || os(tvOS) || os(watchOS)
-    fileprivate typealias PlatformBaseView = UIView
+    typealias PlatformBaseView = UIView
     fileprivate typealias PlatformBaseViewController = UIViewController
 #elseif os(macOS)
-    fileprivate typealias PlatformBaseView = NSView
+    typealias PlatformBaseView = NSView
     fileprivate typealias PlatformBaseViewController = NSViewController
 #endif
 
-    private class PlatformContainerView: PlatformBaseView {
+    class PlatformContainerView: PlatformBaseView {
         private let clipMaskLayer = CAShapeLayer()
 #if os(iOS)
         private var glassContainerView: UIVisualEffectView?
@@ -1601,7 +1600,7 @@ public struct NativeRenderingLayer: View {
         }
     }
 
-    private final class PlatformMaskedLeafView: PlatformContainerView {
+    final class PlatformMaskedLeafView: PlatformContainerView {
         private var currentMaskLayer: CALayer?
 #if os(macOS)
         private let snapshotLayer = CALayer()
@@ -1669,8 +1668,10 @@ public struct NativeRenderingLayer: View {
             }
 #if os(macOS)
             updateSnapshot(for: item, contentSignature: contentSignature)
-#endif
+            updateMask(maskInSnapshotCoordinates(item.mask))
+#else
             updateMask(item.mask)
+#endif
         }
 
         private func ensureContentView(for kind: NativeLeafKind) {
@@ -1694,6 +1695,28 @@ public struct NativeRenderingLayer: View {
         }
 
 #if os(macOS)
+        private func maskInSnapshotCoordinates(_ mask: ResolvedNativeMask?) -> ResolvedNativeMask? {
+            guard let mask, snapshotLayer.superlayer != nil else { return mask }
+            let rect = snapshotLayer.frame
+            if rect == CGRect(origin: .zero, size: mask.size) { return mask }
+            let translation = CGAffineTransform(translationX: -rect.minX, y: -rect.minY)
+            var signature = Hasher()
+            signature.combine(mask.signature)
+            combineCGFloat(rect.minX, into: &signature)
+            combineCGFloat(rect.minY, into: &signature)
+            combineCGSize(rect.size, into: &signature)
+            return ResolvedNativeMask(
+                signature: UInt64(bitPattern: Int64(signature.finalize())), size: rect.size,
+                holes: mask.holes.map { hole in
+                    let path = hole.path.applying(translation)
+                    let clips = hole.clips.map { $0.applying(translation) }
+                    return ResolvedMaskHole(signature: hole.signature, path: path, clips: clips,
+                                            cgPath: path.cgPath, clipCGPaths: clips.map(\.cgPath),
+                                            opacity: hole.opacity)
+                }
+            )
+        }
+
         private func updateSnapshot(for item: NativeRenderItem, contentSignature: Int) {
             guard let contentView else {
                 return
@@ -1718,9 +1741,16 @@ public struct NativeRenderingLayer: View {
                 backingLayer.addSublayer(snapshotLayer)
             }
 
-            let rect = CGRect(origin: .zero, size: item.size)
+            // Text's paint bounds can exceed its layout bounds. Switching to an
+            // occlusion snapshot must preserve those pixels and the same local origin.
+            let rect = (contentView as? PaxNativeTextLeafView)?.paintBounds
+                ?? CGRect(origin: .zero, size: item.size)
             let scale = Self.currentMaskScale()
-            let snapshotSignature = contentSignature ^ Int(bitPattern: UInt(item.id))
+            var signature = Hasher()
+            signature.combine(contentSignature)
+            signature.combine(item.id)
+            combineCGFloat(scale, into: &signature)
+            let snapshotSignature = signature.finalize()
             if appliedSnapshotSignature != snapshotSignature {
                 let previousAlpha = contentView.alphaValue
                 let previousHidden = contentView.isHidden
@@ -1728,8 +1758,8 @@ public struct NativeRenderingLayer: View {
                 if contentView.alphaValue != 1.0 { contentView.alphaValue = 1.0 }
                 if contentView.layer?.opacity != 1.0 { contentView.layer?.opacity = 1.0 }
                 contentView.layoutSubtreeIfNeeded()
-                let pixelWidth = max(Int(ceil(item.size.width * scale)), 1)
-                let pixelHeight = max(Int(ceil(item.size.height * scale)), 1)
+                let pixelWidth = max(Int(ceil(rect.width * scale)), 1)
+                let pixelHeight = max(Int(ceil(rect.height * scale)), 1)
                 if let rep = NSBitmapImageRep(
                     bitmapDataPlanes: nil,
                     pixelsWide: pixelWidth,
@@ -1743,7 +1773,7 @@ public struct NativeRenderingLayer: View {
                     bytesPerRow: 0,
                     bitsPerPixel: 0
                 ) {
-                    rep.size = item.size
+                    rep.size = rect.size
                     contentView.cacheDisplay(in: rect, to: rep)
                     snapshotSourceImage = rep.cgImage
                     snapshotLayer.contents = rep.cgImage
@@ -3022,6 +3052,29 @@ public struct NativeRenderingLayer: View {
         }
 #endif
 
+#if os(macOS)
+        private var sceneObserver: NSObjectProtocol?
+
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            // Publish native patches in the same frame as the GPU scene.
+            sceneObserver = NotificationCenter.default.addObserver(
+                forName: NativeSceneInvalidation.didInvalidate, object: nil, queue: nil
+            ) { [weak self] _ in
+                self?.update(scene: NativeRenderingLayer(),
+                             generation: NativeSceneInvalidation.singleton.generation)
+            }
+        }
+
+        deinit {
+            if let sceneObserver { NotificationCenter.default.removeObserver(sceneObserver) }
+        }
+
+        required init?(coder: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+#endif
+
 #if os(iOS) || os(tvOS) || os(watchOS)
         private var sceneObserver: NSObjectProtocol?
         private var appliedGeneration: UInt64?
@@ -3993,7 +4046,16 @@ private func noWrapOverflowFrame(_ frame: CGRect, measured: CGSize, element: Tex
     }
 
     var frame = frame
-    frame.size.width = max(frame.size.width, ceil(max(0, measured.width)))
+    let overflow = max(0, ceil(max(0, measured.width)) - frame.width)
+    switch element.textStyle.alignment.horizontal {
+    case .center:
+        frame.origin.x -= overflow * 0.5
+    case .trailing:
+        frame.origin.x -= overflow
+    default:
+        break
+    }
+    frame.size.width += overflow
     return frame
 }
 
@@ -5295,6 +5357,16 @@ final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
         clip || bounds.contains(paintFrame)
     }
 
+    var paintBounds: CGRect {
+        guard layer?.masksToBounds != true else { return bounds }
+        switch content {
+        case .label(let field): return bounds.union(field.frame)
+        case .document(let scroll, _): return bounds.union(scroll.frame)
+        case .staticText(let textLayer): return bounds.union(textLayer.frame)
+        case nil: return bounds
+        }
+    }
+
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         wantsLayer = true
@@ -5353,12 +5425,16 @@ final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
             scroll.borderType = .noBorder
             scroll.documentView = text
             scroll.contentView.drawsBackground = false
+            scroll.contentView.autoresizesSubviews = false
             text.drawsBackground = false
             text.backgroundColor = .clear
             text.delegate = self
             text.textContainerInset = .zero
             text.textContainer?.lineFragmentPadding = 0
             text.isVerticallyResizable = false
+            text.isHorizontallyResizable = false
+            text.textContainer?.widthTracksTextView = false
+            text.textContainer?.heightTracksTextView = false
             for view in [scroll, scroll.contentView, text] {
                 view.wantsLayer = true
                 view.layerContentsRedrawPolicy = .duringViewResize
@@ -5491,10 +5567,9 @@ final class PaxNativeTextLeafView: NSView, NSTextViewDelegate {
                 text.isEditable = element.editable
                 text.isSelectable = element.selectable || element.editable
                 text.textContainer?.lineBreakMode = paragraph.lineBreakMode
-                text.textContainer?.widthTracksTextView = element.wrap
-                text.isHorizontallyResizable = !element.wrap
             }
-            let container = CGSize(width: element.wrap ? size.width : CGFloat.greatestFiniteMagnitude,
+            // AppKit must not derive wrapping width from a rotated backing-space viewport.
+            let container = CGSize(width: element.wrap ? size.width : paintFrame.width,
                 height: element.clip ? size.height : CGFloat.greatestFiniteMagnitude)
             if text.textContainer?.containerSize != container { text.textContainer?.containerSize = container }
             let rect = CGRect(origin: .zero, size: paintFrame.size)

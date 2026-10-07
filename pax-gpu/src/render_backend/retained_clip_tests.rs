@@ -1670,3 +1670,353 @@ fn unchanged_lighting_does_not_redraw_retained_scene() {
         assert_eq!(stats.opacity_group_renders, u64::from(grouped));
     }
 }
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn retained_transform_pages_pixels() {
+    for (low_limits, mixed) in [(false, false), (true, false), (true, true)] {
+        let layer = MetalLayer::new();
+        let mut config = RenderConfig::new(true, 360, 256, [1.0, 1.0]);
+        if low_limits {
+            config.required_limits = Some(wgpu::Limits {
+                max_storage_buffers_per_shader_stage: 1,
+                max_storage_buffer_binding_size: 128 * 1024 * 1024,
+                ..wgpu::Limits::downlevel_webgl2_defaults()
+            });
+        }
+        let mut backend = pollster::block_on(unsafe {
+            RenderBackend::to_core_animation_layer(layer.0.cast(), config)
+        })
+        .expect("Metal backend");
+        let device = backend.device.clone();
+        // Cover the browser-style mirror and deferred submission together.
+        backend.surface_config.usage.remove(TextureUsages::COPY_SRC);
+        let mut renderer = WgpuRenderer::new(backend);
+        if mixed {
+            // One image selects the retained mixed-resource path instead of CPU batching.
+            renderer.begin_node(1001, 1001, 0);
+            renderer.draw_image(
+                "blue",
+                0,
+                &Image {
+                    rgba: vec![0, 0, 255, 255],
+                    pixel_width: 1,
+                    pixel_height: 1,
+                },
+                Box2D::new(point(350.0, 245.0), point(360.0, 256.0)),
+            );
+            renderer.end_node(1001);
+        }
+        for frame_id in 0..4 {
+            eprintln!("limits={low_limits}, mixed={mixed}, frame={frame_id}");
+            renderer.begin_node(1000, -1, 0);
+            renderer.fill_path(
+                rect(0.0, 0.0, 360.0, 256.0),
+                Fill::Solid(Color::rgba(0.0, 0.0, 1.0, 1.0)),
+            );
+            renderer.end_node(1000);
+            if frame_id == 2 {
+                for id in 0..600 {
+                    assert!(renderer.remove_node(id));
+                }
+            }
+            for id in 0..600 {
+                let x = (id % 30) as f32 * 12.0 + 1.0 + (frame_id % 2) as f32;
+                let y = (id / 30) as f32 * 12.0 + 1.0;
+                renderer.begin_node(id, id as i32, 0);
+                renderer.save();
+                renderer.transform(Transform2D::from_array([1.0, 0.1, 0.0, 1.0, x, y]));
+                renderer.clip(rect(1.0, 1.0, 6.0, 6.0));
+                renderer.fill_path_with_opacity(
+                    rect(0.0, 0.0, 10.0, 10.0),
+                    Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),
+                    if id % 2 == 0 { 1.0 } else { 0.5 },
+                );
+                renderer.restore();
+                renderer.end_node(id);
+            }
+            renderer.request_screenshot_capture(frame_id);
+            renderer.flush_deferred();
+            let commands = renderer.take_pending_command_buffers();
+            assert!(
+                commands.len() <= 4,
+                "clip count must not multiply command buffers"
+            );
+            renderer.submit_command_buffers(commands);
+            renderer.complete_submitted_work();
+            renderer.present_deferred_frame();
+            device
+                .poll(wgpu::PollType::wait_indefinitely())
+                .expect("GPU readback");
+            let capture = renderer
+                .take_screenshot_capture(frame_id)
+                .expect("captured frame");
+            for id in 0..600 {
+                let x = (id % 30) as usize * 12 + 4 + (frame_id % 2) as usize;
+                let y = (id / 30) as usize * 12 + 4;
+                let expected = if id % 2 == 0 {
+                    [255, 0, 0, 255]
+                } else {
+                    [128, 0, 127, 255]
+                };
+                let offset = (y * capture.width as usize + x) * 4;
+                for (actual, expected) in capture.rgba[offset..offset + 4].iter().zip(expected) {
+                    assert!(
+                        (*actual as i32 - expected).abs() <= 1,
+                        "limits={low_limits}, frame={frame_id}, node={id}, actual={:?}",
+                        &capture.rgba[offset..offset + 4]
+                    );
+                }
+                assert_pixel(&capture, x + 5, y, [0, 0, 255, 255]);
+            }
+            assert_pixel(&capture, 359, 255, [0, 0, 255, 255]);
+            let stats = renderer.take_resource_churn_stats();
+            if frame_id == 1 || frame_id == 3 {
+                assert_eq!(stats.vector_geometry_rebuilds, 0);
+                assert_eq!(stats.vector_resource_creates, 0);
+                assert_eq!(stats.vector_resource_update_bytes, 0);
+            }
+        }
+    }
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn retained_resource_page_spans_pixels() {
+    let layer = MetalLayer::new();
+    let mut config = RenderConfig::new(true, 360, 256, [1.0, 1.0]);
+    config.required_limits = Some(wgpu::Limits {
+        max_storage_buffers_per_shader_stage: 1,
+        max_storage_buffer_binding_size: 128 * 1024 * 1024,
+        ..wgpu::Limits::downlevel_webgl2_defaults()
+    });
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(layer.0.cast(), config)
+    })
+    .expect("Metal backend");
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    for frame_id in 0..4 {
+        // Grow past the page boundary after resources have already been retained.
+        let groups = if frame_id == 0 { 1 } else { 2 };
+        for group in 0..groups {
+            renderer.begin_node(group, group as i32, 0);
+            for local in 0..300 {
+                let id = group * 300 + local;
+                renderer.save();
+                renderer.transform(Transform2D::translation(
+                    (id % 30) as f32 * 12.0 + 1.0 + (frame_id % 2) as f32,
+                    (id / 30) as f32 * 12.0 + 1.0,
+                ));
+                renderer.fill_path_with_opacity(
+                    rect(0.0, 0.0, 6.0, 6.0),
+                    Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),
+                    if id % 2 == 0 { 1.0 } else { 0.5 },
+                );
+                renderer.restore();
+            }
+            // Identity appears after page-spanning geometry and must not use that page's slot 0.
+            renderer.fill_path(
+                rect(0.0, 244.0 + group as f32 * 6.0, 6.0, 4.0),
+                Fill::Solid(Color::rgba(0.0, 1.0, 0.0, 1.0)),
+            );
+            renderer.end_node(group);
+        }
+        renderer.begin_node(1000, -1, 0);
+        renderer.fill_path(
+            rect(0.0, 0.0, 360.0, 256.0),
+            Fill::Solid(Color::rgba(0.0, 0.0, 1.0, 1.0)),
+        );
+        renderer.end_node(1000);
+        renderer.request_screenshot_capture(frame_id);
+        renderer.flush();
+        device
+            .poll(wgpu::PollType::wait_indefinitely())
+            .expect("GPU readback");
+        let capture = renderer
+            .take_screenshot_capture(frame_id)
+            .expect("captured frame");
+        for id in 0..groups * 300 {
+            let x = (id % 30) as usize * 12 + 4 + (frame_id % 2) as usize;
+            let y = (id / 30) as usize * 12 + 4;
+            let expected = if id % 2 == 0 {
+                [255, 0, 0, 255]
+            } else {
+                [128, 0, 127, 255]
+            };
+            let offset = (y * capture.width as usize + x) * 4;
+            for (actual, expected) in capture.rgba[offset..offset + 4].iter().zip(expected) {
+                assert!(
+                    (*actual as i32 - expected).abs() <= 1,
+                    "frame={frame_id}, node={id}"
+                );
+            }
+        }
+        for group in 0..groups {
+            assert_pixel(&capture, 2, 246 + group as usize * 6, [0, 255, 0, 255]);
+        }
+        let stats = renderer.take_resource_churn_stats();
+        if frame_id >= 2 {
+            assert_eq!(stats.vector_geometry_rebuilds, 0);
+            assert_eq!(stats.vector_resource_creates, 0);
+            assert_eq!(stats.vector_resource_update_bytes, 0);
+        }
+    }
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn retained_shared_surfaces_keep_transform_pages_independent() {
+    let layers = [MetalLayer::new(), MetalLayer::new()];
+    let mut context = None;
+    let mut renderers: Vec<WgpuRenderer<'static>> = Vec::new();
+    for layer in &layers {
+        let mut config = RenderConfig::new(true, 360, 240, [1.0, 1.0]);
+        config.required_limits = Some(wgpu::Limits {
+            max_storage_buffers_per_shader_stage: 1,
+            max_storage_buffer_binding_size: 128 * 1024 * 1024,
+            ..wgpu::Limits::downlevel_webgl2_defaults()
+        });
+        let (backend, shared) = pollster::block_on(unsafe {
+            RenderBackend::to_core_animation_layer_with_context(
+                layer.0.cast(),
+                config,
+                context.clone(),
+            )
+        })
+        .expect("Metal surface");
+        context = Some(shared);
+        let mut renderer = WgpuRenderer::new(backend);
+        if let Some(first) = renderers.first() {
+            renderer.share_vector_caches_from(first);
+        }
+        renderers.push(renderer);
+    }
+    for frame_id in 0..3 {
+        let mut commands = Vec::new();
+        for (surface, renderer) in renderers.iter_mut().enumerate() {
+            for group in 0..2 {
+                renderer.begin_node(group, group as i32, 0);
+                for local in 0..300 {
+                    let id = group * 300 + local;
+                    renderer.save();
+                    renderer.transform(Transform2D::translation(
+                        (id % 30) as f32 * 12.0 + 1.0 + surface as f32 * 6.0 + frame_id as f32,
+                        (id / 30) as f32 * 12.0 + 1.0,
+                    ));
+                    renderer.fill_path(
+                        rect(0.0, 0.0, 3.0, 3.0),
+                        Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),
+                    );
+                    renderer.restore();
+                }
+                renderer.end_node(group);
+            }
+            renderer.request_screenshot_capture(frame_id);
+            renderer.flush_deferred();
+            commands.extend(renderer.take_pending_command_buffers());
+            let stats = renderer.take_resource_churn_stats();
+            if surface == 1 && frame_id == 0 {
+                assert_eq!(stats.vector_resource_creates, 0);
+                assert_eq!(stats.vector_resource_cache_hits, 2);
+            }
+            if frame_id > 0 {
+                assert_eq!(stats.vector_resource_creates, 0);
+                assert_eq!(stats.vector_resource_update_bytes, 0);
+            }
+        }
+        context.as_ref().unwrap().submit_command_buffers(commands);
+        context
+            .as_ref()
+            .unwrap()
+            .device
+            .poll(wgpu::PollType::wait_indefinitely())
+            .expect("GPU readback");
+        for (surface, renderer) in renderers.iter_mut().enumerate() {
+            renderer.complete_submitted_work();
+            renderer.present_deferred_frame();
+            let frame = renderer
+                .take_screenshot_capture(frame_id)
+                .expect("captured surface");
+            for id in 0..600 {
+                let x = id % 30 * 12 + 2 + surface * 6 + frame_id as usize;
+                let y = id / 30 * 12 + 2;
+                assert_pixel(&frame, x, y, [255, 0, 0, 255]);
+            }
+        }
+    }
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn retained_mask_source_clip_pages_pixels() {
+    let layer = MetalLayer::new();
+    let mut config = RenderConfig::new(true, 360, 240, [1.0, 1.0]);
+    config.required_limits = Some(wgpu::Limits {
+        max_storage_buffers_per_shader_stage: 1,
+        max_storage_buffer_binding_size: 128 * 1024 * 1024,
+        ..wgpu::Limits::downlevel_webgl2_defaults()
+    });
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(layer.0.cast(), config)
+    })
+    .expect("Metal backend");
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    for frame_id in 0..3 {
+        // Grow the clip arena after the source stencil exists, then move its clips.
+        let count = if frame_id == 0 { 300 } else { 600 };
+        let shift = if frame_id == 2 { 1.0 } else { 0.0 };
+        renderer.begin_node(1000, 0, 0);
+        renderer.save();
+        renderer.begin_alpha_source(Transform2D::identity(), 0.0);
+        for id in 0..count {
+            let x = (id % 30) as f32 * 12.0 + 1.0 + shift;
+            let y = (id / 30) as f32 * 12.0 + 1.0;
+            renderer.begin_node(id, id as i32, 0);
+            renderer.save();
+            // Shear prevents the clip from taking the axis-aligned scissor shortcut.
+            renderer.transform(Transform2D::from_array([1.0, 0.1, 0.0, 1.0, x, y]));
+            renderer.clip(rect(1.0, 1.0, 6.0, 6.0));
+            renderer.fill_path(
+                rect(0.0, 0.0, 10.0, 10.0),
+                Fill::Solid(Color::rgba(1.0, 1.0, 1.0, 1.0)),
+            );
+            renderer.restore();
+            renderer.end_node(id);
+        }
+        renderer.end_alpha_source();
+        renderer.fill_path(
+            rect(0.0, 0.0, 360.0, 240.0),
+            Fill::Mesh {
+                rows: (0..2)
+                    .map(|y| {
+                        (0..2)
+                            .map(|x| ([x as f32, y as f32], Color::rgba(1.0, 0.0, 0.0, 1.0)))
+                            .collect()
+                    })
+                    .collect(),
+                pos: point(0.0, 0.0),
+                main_axis: Vector2D::new(360.0, 0.0),
+                off_axis: Vector2D::new(0.0, 240.0),
+            },
+        );
+        renderer.restore();
+        renderer.end_node(1000);
+        renderer.request_screenshot_capture(frame_id);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let frame = renderer.take_screenshot_capture(frame_id).unwrap();
+        for id in 0..600 {
+            let x = (id % 30) as usize * 12 + 4 + shift as usize;
+            let y = (id / 30) as usize * 12 + 4;
+            let expected = if id < count {
+                [255, 0, 0, 255]
+            } else {
+                [0, 0, 0, 0]
+            };
+            assert_pixel(&frame, x, y, expected);
+            assert_pixel(&frame, x + 5, y, [0, 0, 0, 0]);
+        }
+    }
+}

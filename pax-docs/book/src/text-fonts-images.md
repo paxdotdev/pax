@@ -85,6 +85,10 @@ lines and reports the height it needs. Pax uses that measurement for the
 omitted dimension. Supplying both width and height gives Text a fixed box;
 it does not reduce the font size to make everything fit.
 
+Wrapping uses the Text's local layout width. Rotating, translating, or scaling
+the node or an ancestor transforms that layout without changing its line breaks.
+Changing the layout width can reflow the text.
+
 Measurements can change when the string, width, style, or loaded font changes.
 Allow the layout to settle before relying on a measured size. A following
 element at a fixed `y` will not move just because the paragraph grew. Use an
@@ -95,6 +99,9 @@ For a single-line label, `wrap=false` disables automatic line breaking.
 `clip=true` cuts off content outside the Text's bounds. Clipping does not
 insert an ellipsis. By default `clip` is false, so text may paint beyond its
 box; an ancestor Frame can still clip it.
+An unclipped single-line label keeps its horizontal alignment when it overflows:
+centered text extends on both sides of the box, and right-aligned text extends
+to the left.
 
 ```pax
 <Text x=24px y=24px width=220px height=28px wrap=false clip=true
@@ -221,6 +228,7 @@ Selection is target-dependent: the current iOS/iPadOS path uses an interactive
 selection view for clipped text, while ordinary unclipped, non-editable text
 uses its static rendering path. Test selection on the device rather than
 assuming the property guarantees identical interaction everywhere.
+On macOS, both clipped and unclipped selectable Text use the native text view.
 
 `editable=true` makes Text a native editing surface. Edits update that Text
 node's `text` property. Use an explicit two-way binding when the edited value

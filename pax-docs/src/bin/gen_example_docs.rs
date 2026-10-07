@@ -439,15 +439,27 @@ fn write_if_changed(path: &Path, bytes: &[u8]) -> io::Result<()> {
 fn engine_build_recipe(workspace: &Path) -> io::Result<String> {
     let mut recipe = BUILD_RECIPE.to_string();
     for package in [
-        "pax-cli", "pax-compiler", "pax-engine", "pax-gpu", "pax-kit",
-        "pax-language", "pax-macro", "pax-manifest", "pax-message",
-        "pax-runtime", "pax-runtime-api", "pax-std",
+        "pax-cli",
+        "pax-compiler",
+        "pax-engine",
+        "pax-gpu",
+        "pax-kit",
+        "pax-language",
+        "pax-macro",
+        "pax-manifest",
+        "pax-message",
+        "pax-runtime",
+        "pax-runtime-api",
+        "pax-std",
     ] {
         for suffix in ["src", "templates"] {
             let relative = format!("{package}/{suffix}");
             let path = workspace.join(&relative);
             if path.is_dir() {
-                recipe.push_str(&format!(":{relative}={}", examples::fingerprint_dir(&path)?));
+                recipe.push_str(&format!(
+                    ":{relative}={}",
+                    examples::fingerprint_dir(&path)?
+                ));
             }
         }
     }

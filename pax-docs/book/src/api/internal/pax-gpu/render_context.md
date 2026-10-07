@@ -289,6 +289,11 @@ Type: [`StrokeJoin`](../../../api/pax-runtime-api/drawing.md#strokejoin)
 ### `WgpuRenderer`
 Retained scene renderer that records Pax vector/image commands and flushes them through wgpu.
 
+Transform and clip identities remain stable until their owning node releases them.
+GPU uniform pages grow with scene demand; the 480-entry page size is not a scene
+limit. Moving or fading retained geometry updates transform pages without
+retessellating or uploading vertex/index buffers.
+
 #### Implementations
 ##### `begin_alpha_source`
 <pre><code class="api-signature language-rust ignore">pub fn begin_alpha_source(&amp;mut self, mapping: <a href="../../../api/pax-runtime-api/transform.md#transform2d">Transform2D</a>, feather: f32)</code></pre>

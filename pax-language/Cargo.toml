@@ -17,12 +17,13 @@ serde = { version="1.0.95", features=["derive"]}
 pax-runtime-api = {path="../pax-runtime-api", version="0.39.0"}
 log = "0.4.20"
 syn = { version = "1.0", features = ["full", "parsing", "visit"], optional = true }
-color-eyre = { version = "0.6.2", optional = true }
+# Parsers also run on mobile; terminal reporting hooks belong to the CLI.
+eyre = { version = "0.6", optional = true }
 proc-macro2 = { version = "1.0", features = ["span-locations"], optional = true }
 
 [features]
 default = ["parser"]
-parser = ["dep:pest", "dep:pest_derive", "dep:syn", "dep:color-eyre", "dep:proc-macro2"]
+parser = ["dep:pest", "dep:pest_derive", "dep:syn", "dep:eyre", "dep:proc-macro2"]
 
 [profile.dev]
 debug = false
