@@ -20,9 +20,8 @@ quote = "1.0"
 pax-codegen = { version = "0.39.0", path = "../pax-codegen" }
 cargo_metadata = "0.18.1"
 color-eyre = "0.6.2"
-serde_json = "1"
+serde_json = "1.0.151"
 sha2 = "0.10.8"
-pax-runtime = {version = "0.39.0", path="../pax-runtime"}
 pax-manifest = {version = "0.39.0", path="../pax-manifest", features=["runnable"]}
 sailfish = "0.6.0"
 serde = { version = "1.0.159", features=["derive"] }
@@ -30,4 +29,5 @@ serde_derive = "1.0.159"
 litrs = "0.4.0"
 
 [features]
-designtime = ["pax-runtime/designtime"]
+# Controls generated code; the consuming engine owns runtime dependencies.
+designtime = []

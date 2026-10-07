@@ -49,7 +49,6 @@ miniz_oxide = "0.8"
 notify = "6.1.1"
 pax-manifest = {version= "0.39.0", path="../pax-manifest", features=["compiler"]}
 pax-message = {version = "0.39.0", path="../pax-message"}
-pax-runtime = {path = "../pax-runtime", version="0.39.0" }
 pax-runtime-api = {path = "../pax-runtime-api", version="0.39.0" }
 pax-designtime = { path = "../pax-designtime", version = "0.39.0" }
 pax-language = {version = "0.39.0", path="../pax-language"}

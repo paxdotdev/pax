@@ -12,6 +12,8 @@ python3 pax-codegen/tests/fixtures/cfg-handoff/verify.py \
 ```
 
 The verifier uses offline Cargo resolution; dependencies must already be cached.
+It also checks that the macro and packager dependency graphs exclude the runtime
+renderer, so cross compilation does not build a host GPU stack for these tools.
 It checks native app/dependency feature differences, wasm cross compilation,
 library versus test units, a dependency build-script cfg, explicit rustc cfg,
 release configuration, repeated runnable declarations, overlapping roots, and

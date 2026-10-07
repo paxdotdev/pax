@@ -20,6 +20,20 @@ environment = dict(os.environ, CARGO_NET_OFFLINE="true")
 assert not (root / "app/build.rs").exists()
 assert not (root / "widgets/src/missing.rs").exists()
 
+# Macro execution needs source/codegen types, never a host rendering engine.
+# A runtime edge here makes cross compilation build a second GPU stack.
+repository = root.parents[3]
+for package in ["pax-macro", "pax-compiler"]:
+    graph = subprocess.check_output(
+        ["cargo", "tree", "--offline", "--manifest-path", str(repository / "Cargo.toml"),
+         "-p", package, "--features", "designtime", "--edges", "normal,build",
+         "--prefix", "none", "--format", "{p}"],
+        env=environment, text=True,
+    )
+    names = {line.split()[0] for line in graph.splitlines() if line.strip()}
+    assert not (names & {"pax-runtime", "pax-gpu", "wgpu", "naga"}), (package, names)
+print("PASS build-tools-without-renderer", flush=True)
+
 
 def run(name, command, app_fancy, widget_fancy, web=False, debug=True,
         test_units=(False,), marker=False, explicit_flag=False):

@@ -343,11 +343,20 @@ fn expose_selected_web_entrypoint(interface_path: &Path, entrypoint: &str) -> ey
     Ok(())
 }
 
-fn compile_web_interface_artifacts(
+fn web_build_mode(ctx: &RunContext) -> &'static str {
+    if ctx.profile_wasm_size {
+        "profiling"
+    } else if ctx.is_release {
+        "release"
+    } else {
+        "debug"
+    }
+}
+
+pub(crate) fn compile_web_cartridge(
     ctx: &RunContext,
     pax_dir: &PathBuf,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
-    assets_dirs: Vec<String>,
     timings: &mut BuildTimings,
 ) -> Result<(PathBuf, &'static str), eyre::Report> {
     let layout = crate::project_layout::ProjectLayout::resolve(&ctx.project_path)?;
@@ -358,13 +367,7 @@ fn compile_web_interface_artifacts(
 
     crate::validate_release_cargo_feature_boundary(&cartridge_ctx, &["wasm32-unknown-unknown"])?;
 
-    let build_mode_name: &str = if is_profiling {
-        "profiling"
-    } else if is_release {
-        "release"
-    } else {
-        "debug"
-    };
+    let build_mode_name = web_build_mode(ctx);
 
     let interface_path = pax_dir.join(INTERFACE_DIR_NAME).join("web");
 
@@ -434,6 +437,14 @@ fn compile_web_interface_artifacts(
         })?;
     }
 
+    Ok((interface_path, build_mode_name))
+}
+
+fn copy_web_assets(
+    interface_path: &Path,
+    assets_dirs: Vec<String>,
+    timings: &mut BuildTimings,
+) -> eyre::Result<()> {
     timings.record("copy assets", || {
         // Copy assets
         let asset_dest = interface_path.join(ASSETS_DIR_NAME);
@@ -455,9 +466,7 @@ fn compile_web_interface_artifacts(
             }
         }
         Ok(())
-    })?;
-
-    Ok((interface_path, build_mode_name))
+    })
 }
 
 fn materialize_web_build_dir(
@@ -583,13 +592,8 @@ pub fn rebuild_staged_web_cartridge(
 
     let prepared = prepare_cartridge_sources(&ctx)?;
     let mut timings = BuildTimings::start();
-    let (interface_path, _build_mode_name) = compile_web_interface_artifacts(
-        &ctx,
-        &prepared.pax_dir,
-        process_child_ids,
-        prepared.assets_dirs,
-        &mut timings,
-    )?;
+    let interface_path = prepared.pax_dir.join(INTERFACE_DIR_NAME).join("web");
+    copy_web_assets(&interface_path, prepared.assets_dirs, &mut timings)?;
 
     let build_id = now_ms().to_string();
     let staged_dir = serve_dir.join("__reloads__").join(&build_id);
@@ -614,13 +618,26 @@ pub fn build_web_project_with_cartridge(
     project_root: &Path,
     timings: &mut BuildTimings,
 ) -> Result<PathBuf, eyre::Report> {
+    compile_web_cartridge(ctx, pax_dir, process_child_ids, timings)?;
+    finish_web_project_with_cartridge(ctx, pax_dir, assets_dirs, manifest, project_root, timings)
+}
+
+pub(crate) fn finish_web_project_with_cartridge(
+    ctx: &RunContext,
+    pax_dir: &PathBuf,
+    assets_dirs: Vec<String>,
+    manifest: PaxManifest,
+    project_root: &Path,
+    timings: &mut BuildTimings,
+) -> Result<PathBuf, eyre::Report> {
     let lifecycle_notifier = RunLifecycleNotifier::new(ctx);
     let target: &RunTarget = &ctx.target;
     let target_str: &str = target.into();
     let target_str_lower = &target_str.to_lowercase();
 
-    let (interface_path, build_mode_name) =
-        compile_web_interface_artifacts(ctx, pax_dir, process_child_ids, assets_dirs, timings)?;
+    let interface_path = pax_dir.join(INTERFACE_DIR_NAME).join("web");
+    let build_mode_name = web_build_mode(ctx);
+    copy_web_assets(&interface_path, assets_dirs, timings)?;
     let public_dir = project_public_dir(project_root);
     timings.record("public files", || {
         if ctx.should_also_run {

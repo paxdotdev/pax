@@ -4,9 +4,20 @@ use pax_runtime_api::{
     functions::Functions, CoercionRules, Color, ColorChannel, Duration, Numeric, PaxValue, Size,
 };
 
-use crate::{interpreter::compute_paxel, parse_pax_pairs, DependencyCollector, Rule};
+use crate::{parse_pax_pairs, DependencyCollector, Rule};
 
 use super::{parse_pax_expression, PaxExpression, PaxInfix, PaxOperator, PaxPrimary};
+
+fn compute_paxel(
+    expression: &str,
+    resolver: Rc<dyn super::IdentifierResolver>,
+) -> Result<PaxValue, String> {
+    // Identifier resolution creates properties and therefore needs the same
+    // explicit graph ownership that an engine supplies during evaluation.
+    let graph = pax_runtime_api::PropertyGraph::new(|| {});
+    let _scope = graph.enter();
+    super::compute_paxel(expression, resolver)
+}
 
 fn initialize_test_resolver() -> Rc<HashMap<String, PaxValue>> {
     Functions::register_all_functions();
@@ -505,6 +516,18 @@ fn test_collect_dependencies() {
     let expected = vec!["a".to_string(), "b".to_string()];
     let result = PaxExpression::collect_dependencies(&parse_pax_expression(expr).unwrap());
     assert_eq!(expected, result);
+}
+
+#[test]
+fn collected_primary_dependencies_keep_first_occurrence_order() {
+    let expression =
+        parse_pax_expression("[_slot_count, i, _slot_count, items[index], i]").unwrap();
+    for _ in 0..32 {
+        assert_eq!(
+            expression.collect_dependencies(),
+            ["_slot_count", "i", "items", "index"]
+        );
+    }
 }
 
 #[test]

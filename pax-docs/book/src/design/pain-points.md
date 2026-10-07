@@ -724,3 +724,140 @@ A default development entry must distinguish workstation orchestration from a
 native application that also enables designtime. Carry the application role as a
 tracked compile-time input (`PAX_BUILD_ROLE`) rather than inferring it from
 `designtime` or debug assertions. Explicit `init_with!` stays in-process.
+
+## 2026-10-07 — Narrow package selection does not make the development launcher cheap
+
+The `-p pax-logo` workaround removes unrelated examples, but leaves a substantial
+workstation build. A Cargo unit-graph comparison between branch base
+`14b6f8d6a` and `7c11d31eb`, using the same dependency lockfile and installed
+nightly Cargo for planning, found the following on an Apple Silicon Mac:
+
+| Build selection | Package/version identities | Rust compilation units |
+| --- | ---: | ---: |
+| Base: example's default native Cargo wrapper | 148 | 279 |
+| Base: wrapper with `pax-kit/designtime` | 279 | 549 |
+| Before performance pass: `cargo build -p pax-logo` defaults | 458 | 768 |
+| Before performance pass: `cargo build --example pax-logo` | 509 | 818 |
+| Base: development Wasm library | 283 | 503 |
+| Before performance pass: development Wasm library | 301 | 525 |
+
+Units count rustc invocations, including compilation of build scripts, but omit
+running those scripts. They are build plans, not measured cold-build durations;
+do not sum the workstation and Wasm rows as though caches cannot be shared.
+The old wrapper invoked an external CLI, whose installation/compilation cost is
+outside its row. Default designtime and moving the compiler/packager into the
+application materially change this comparison: `pax-kit/designtime` now brings
+in `pax-compiler` on workstations. macOS also selects its native chassis before
+the development launcher can choose web. That implementation added a target `cargo check`
+to obtain the compiler-selected manifest before its actual target build;
+previously manifest extraction was static analysis inside the CLI.
+
+Duplicate build/runtime dependencies amplified these costs. Before the performance
+pass, the workstation built `pax-codegen`, `pax-runtime`,
+`pax-designtime`, wgpu and Naga at both optimization levels 0 and 1. Profile
+alignment alone reduced the planned compilation count from 768 to 612 in a
+diagnostic experiment; that does not establish a wall-time or runtime-performance
+improvement and is not a reason to change profiles without timing them.
+
+An isolated source-copy experiment removed the unused direct `pax-runtime`
+dependency from `pax-macro`, retaining `designtime` as a macro configuration
+feature. The runtime names in macro templates are emitted through the consumer's
+engine facade and do not require this host dependency. All eight macro tests
+passed; workstation compilation units fell from 768 to 648, and development
+Wasm units from 525 to 393. The Wasm build no longer needed a host GPU renderer.
+This dependency predates the branch. The follow-up implementation and validation
+are recorded below.
+
+Qualify complete cold and warm builds in separate target directories, recording
+launcher compilation, manifest extraction, target compilation and packaging
+separately. Preserve the compiler-selected cfg/feature handoff; returning to
+configuration-blind scanning would trade away correctness. Functional smoke
+tests and Wasm payload measurements do not qualify build latency.
+
+### Follow-up performance pass
+
+Removed the unused runtime edge from both `pax-macro` and `pax-compiler` (the
+latter only imported Serde's `Deserialize` through it). The compiler-handoff
+fixture now guards both tools' graphs against pulling in `pax-runtime`,
+`pax-gpu`, wgpu or Naga. The native launcher still needs its application runtime,
+so its unique package count remains 458, while Rust compilation units fall to
+648. Development Wasm needs 254 package versions and 393 compilation units.
+
+Web packaging now invokes wasm-pack once, reads the manifest produced by that
+same compilation, and then prepares routes, assets, and served output. It does
+not run a preliminary check or build. Apple manifest preparation uses a real
+target build, allowing subsequent native packaging to reuse its artifacts.
+Compiler-selected source, dependency features, custom cfgs, and release baking
+remain authoritative. The public application bootstrap is unchanged.
+
+Warm-build diagnostics exposed generated metadata invalidating itself. Cargo
+reported the manifest sidecar as newer than the invocation producing it, and
+JSON comparisons showed both arbitrary object-key order and shuffled expression
+dependency lists. Serialize the sidecar with sorted object keys; retain first
+occurrence order when deduplicating expression and template dependencies.
+Template discovery also orders dependency asset directories, so its iteration
+must be stable. Preserve meaningful array order and values. The release binary
+schema is unchanged; manifest/ProgramIR round trips verify dependency order.
+The sidecar remains a tracked input so deleting it causes regeneration. Its
+initial creation can require one additional app compilation on the first warm
+run; repeated unchanged runs should then perform no Rust compilation.
+
+A trial aligning build dependencies at optimization level 1 reduced the planned
+native compilation count further, but did not improve measured cold latency.
+Keep the existing profiles: dependencies at level 1, build dependencies and app
+code at level 0. Changing profiles merely to improve a crate count is misleading.
+
+Measured `cargo run --timings -p pax-logo -- pax --target=web --build` on this
+Apple Silicon workstation with Rust/Cargo 1.93.0, the same dependency lockfile,
+separate empty Rust target directories, and cached registry/platform tools:
+
+| Measurement | Before pass (`7c11d31eb`) | After pass |
+| --- | ---: | ---: |
+| Complete cold build | 336.64 s | 269.15 s |
+| First unchanged rerun | 12.55 s | 11.12 s |
+| Second unchanged rerun | Not measured | 5.11 s |
+
+The final cold run spent about 154 seconds building the launcher and 113 seconds
+in Cargo/wasm-pack for the destination. The second unchanged rerun performed no
+Rust compilation. These are individual workstation measurements, not statistical
+claims or download/installation timings. The cold reduction is about 20%; it
+does not make the remaining four-and-a-half-minute first build lightweight.
+Use `scripts/benchmark-cargo-web.py` for repeatable cold/first-warm/steady-warm
+trials without deleting an existing development cache.
+
+Validation includes 326 focused tests across language, macro, codegen, compiler,
+and manifest crates; the native/wasm/release/custom-cfg configuration-handoff
+matrix; independent native engine initialization; and release web packaging via
+the CLI. The language suite's older evaluation fixtures needed explicit property
+graph ownership in their test helper; production evaluation was not changed.
+These checks do not claim a new full simulator, device, or other-workstation
+qualification pass. Remaining first-touch cost includes compiling the native
+engine and the packager into the workstation launcher before it selects web.
+
+## 2026-10-07 — Repository example builds and browser payload are different graphs
+
+The root package currently lists 49 example libraries as dev dependencies.
+`cargo run --example pax-logo -- pax --target=web` therefore has a much broader
+workstation build than `cargo run -p pax-logo -- pax --target=web`. Use package
+selection while investigating one example. The example wrappers need a narrower
+dependency arrangement; their unrelated libraries are not all bundled into the
+selected browser application.
+
+Audit target dependencies with `cargo tree --target wasm32-unknown-unknown
+--edges normal,no-proc-macro`, separately from workstation/proc-macro builds.
+Comparing the branch base (`14b6f8d6a`) with `7c11d31eb` showed no new
+`pax-compiler`, `pax-codegen`, Actix, or Cargo-metadata browser dependencies.
+Development already enabled parsing/code-generation helpers through
+`pax-designtime`. However, preserving the application's `standalone` default
+also introduces `pax-host`, `include_dir`, and `serde_json` into release Wasm's
+compilation graph. Those native packaging dependencies should be gated more
+narrowly, even when their unused code is removed at link time.
+
+A controlled current-branch `pax-logo` release comparison, after wasm-bindgen
+0.2.129 with the name section removed and before optional wasm-opt, measured
+3,239,469 bytes with `standalone` versus 3,239,472 without it. Gzip sizes were
+946,923 and 946,866 bytes respectively. The symbol-preserving release input
+contained no `pax_host`, `serde_json`, `include_dir`, `pax_compiler`, or
+`pax_codegen` names. This qualifies the hosting-feature concern; it is not a
+complete pre-branch/current binary-size benchmark. Keep that distinction when
+reporting the result.

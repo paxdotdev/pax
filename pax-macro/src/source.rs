@@ -515,7 +515,7 @@ fn drive(mut request: Request, session: &mut Session) -> Result<String> {
     if crate::is_root_crate() {
         if let Some(path) = std::env::var_os("PAX_MANIFEST_OUTPUT") {
             let path = PathBuf::from(path);
-            let bytes = serde_json::to_vec(&manifest)?;
+            let bytes = manifest_bytes(&manifest)?;
             if std::fs::read(&path).ok().as_deref() != Some(bytes.as_slice()) {
                 std::fs::write(&path, bytes)?;
             }
@@ -652,6 +652,58 @@ fn drive(mut request: Request, session: &mut Session) -> Result<String> {
     session.programs.insert(key, program.clone());
     output.push_str(&program);
     Ok(output)
+}
+
+fn manifest_bytes(manifest: &impl Serialize) -> Result<Vec<u8>> {
+    // Cargo tracks this sidecar through include_bytes!. Hash-map iteration
+    // order must not rewrite it and invalidate an otherwise unchanged build.
+    let mut value = serde_json::to_value(manifest)?;
+    value.sort_all_objects();
+    Ok(serde_json::to_vec(&value)?)
+}
+
+#[cfg(test)]
+mod manifest_output_tests {
+    use super::*;
+
+    #[test]
+    fn sidecar_order_is_stable_without_changing_array_order_or_values() {
+        #[derive(Serialize)]
+        struct Forward {
+            a: u8,
+            z: u8,
+        }
+        #[derive(Serialize)]
+        struct Reverse {
+            z: u8,
+            a: u8,
+        }
+        #[derive(Serialize)]
+        struct Nested<T> {
+            items: Vec<T>,
+        }
+
+        let forward = Nested {
+            items: vec![Forward { a: 1, z: 2 }, Forward { a: 3, z: 4 }],
+        };
+        let reverse = Nested {
+            items: vec![Reverse { z: 2, a: 1 }, Reverse { z: 4, a: 3 }],
+        };
+        assert_ne!(
+            serde_json::to_vec(&forward).unwrap(),
+            serde_json::to_vec(&reverse).unwrap()
+        );
+        let bytes = manifest_bytes(&forward).unwrap();
+        assert_eq!(bytes, manifest_bytes(&reverse).unwrap());
+        assert_eq!(
+            serde_json::from_slice::<serde_json::Value>(&bytes).unwrap(),
+            serde_json::to_value(&forward).unwrap()
+        );
+        let changed = Nested {
+            items: vec![Forward { a: 3, z: 4 }, Forward { a: 1, z: 2 }],
+        };
+        assert_ne!(bytes, manifest_bytes(&changed).unwrap());
+    }
 }
 
 fn initializer_name(site: &Site) -> String {

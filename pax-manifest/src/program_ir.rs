@@ -707,6 +707,7 @@ mod tests {
         Functions::register_all_functions();
         for source in [
             "items[indices[index]]",
+            "[items[index], items[indices[index]], items[index]]",
             "1 + 2 > 2",
             "true || false && false",
             "2 * 3 %% 2",
@@ -748,6 +749,8 @@ mod tests {
             };
             assert_eq!(actual.expression, expr.expression, "{source}");
             assert_eq!(actual.dependencies, expr.dependencies, "{source}");
+            let regenerated = crate::ExpressionInfo::new(parse_pax_expression(source).unwrap());
+            assert_eq!(actual.dependencies, regenerated.dependencies, "{source}");
             let mut expected_deps = expr.expression.collect_dependencies();
             let mut actual_deps = actual.dependencies.clone();
             expected_deps.sort();

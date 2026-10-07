@@ -100,6 +100,14 @@ with `pax --target=macos` or `pax --target=ios`. The development executable call
 Pax's compilation and packaging library; it does not shell into an installed
 CLI. Native SDK assembly is deferred until native execution is requested.
 Development executables retain source paths and are not distribution bundles.
+The first development build compiles both workstation tooling and destination
+code. Compiler/proc-macro dependencies run on the workstation; their appearance
+in Cargo output does not mean they are included in the browser Wasm. Web
+packaging compiles the Wasm and its manifest together, using the target's actual
+cfgs, features, and profile, then reads that manifest to package routes and assets.
+Apple packaging obtains its manifest during a target `cargo build` and reuses
+the compiled library in its platform build. Neither needs a separate
+`cargo check` compilation to extract the manifest.
 If several standalone binaries exist, set `default-run`.
 A host package may select a separate workspace UI library
 through `[package.metadata.pax.cartridge]`; see

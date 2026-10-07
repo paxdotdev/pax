@@ -33,7 +33,7 @@ impl DependencyCollector for PaxExpression {
 
 impl DependencyCollector for PaxPrimary {
     fn collect_dependencies(&self) -> Vec<String> {
-        let ret = match self {
+        let mut ret = match self {
             PaxPrimary::Literal(_) => vec![],
             PaxPrimary::Grouped(expr, _) => expr.collect_dependencies(),
             PaxPrimary::Identifier(i, accessors) => {
@@ -60,8 +60,11 @@ impl DependencyCollector for PaxPrimary {
             PaxPrimary::Tuple(t) => t.iter().flat_map(|e| e.collect_dependencies()).collect(),
             PaxPrimary::List(l) => l.iter().flat_map(|e| e.collect_dependencies()).collect(),
         };
-        let deduped_deps: std::collections::HashSet<String> = ret.into_iter().collect();
-        deduped_deps.into_iter().collect()
+        // Keep first occurrence order: these dependencies are serialized into
+        // generated manifests and baked programs, whose identity must be stable.
+        let mut seen = std::collections::HashSet::new();
+        ret.retain(|dependency| seen.insert(dependency.clone()));
+        ret
     }
 }
 

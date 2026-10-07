@@ -2,7 +2,7 @@ use colored::{ColoredString, Colorize};
 use include_dir::{include_dir, Dir};
 use lazy_static::lazy_static;
 use pax_manifest::HostCrateInfo;
-use pax_runtime::api::serde::Deserialize;
+use serde::Deserialize;
 use std::collections::{BTreeSet, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};

@@ -258,17 +258,28 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
     let mut effective_ctx = ctx.clone();
     effective_ctx.hot_reload = Some(hot_reload);
 
-    //7. Build full project from source
-    println!("{} 🧱 Building project with `cargo`", *PAX_BADGE);
-    let build_dir = build_project_with_cartridge(
-        &prepared.pax_dir,
-        &effective_ctx,
-        Arc::clone(&ctx.process_child_ids),
-        prepared.assets_dirs,
-        prepared.userland_manifest.clone(),
-        prepared.project_metadata.clone(),
-        &mut timings,
-    )?;
+    let build_dir = if ctx.target == RunTarget::Web {
+        // Wasm and its compiler-selected manifest were produced together during
+        // preparation. Finish packaging without entering Cargo a second time.
+        Some(building::web::finish_web_project_with_cartridge(
+            &effective_ctx,
+            &prepared.pax_dir,
+            prepared.assets_dirs,
+            prepared.userland_manifest.clone(),
+            prepared.project_metadata.manifest_dir(),
+            &mut timings,
+        )?)
+    } else {
+        build_project_with_cartridge(
+            &prepared.pax_dir,
+            &effective_ctx,
+            Arc::clone(&ctx.process_child_ids),
+            prepared.assets_dirs,
+            prepared.userland_manifest.clone(),
+            prepared.project_metadata.clone(),
+            &mut timings,
+        )?
+    };
 
     Ok((prepared.userland_manifest, build_dir))
 }
@@ -348,9 +359,7 @@ fn prepare_cartridge_sources_with_timings(
         project_metadata::apply_copied_interface_metadata(ctx, &pax_dir, &project_metadata)
     })?;
 
-    let mut userland_manifest = timings.record("compiler-selected manifest", || {
-        compile_selected_manifest(ctx, &layout, &pax_dir)
-    })?;
+    let mut userland_manifest = compile_selected_manifest(ctx, &layout, &pax_dir, timings)?;
     println!("{} 🔎 Loaded compiler-selected manifest", *PAX_BADGE);
 
     if ctx.target == RunTarget::Web {
@@ -389,7 +398,19 @@ fn compile_selected_manifest(
     ctx: &RunContext,
     layout: &project_layout::ProjectLayout,
     pax_dir: &Path,
+    timings: &mut BuildTimings,
 ) -> eyre::Result<PaxManifest> {
+    if ctx.target == RunTarget::Web {
+        building::web::compile_web_cartridge(
+            ctx,
+            &pax_dir.to_path_buf(),
+            Arc::clone(&ctx.process_child_ids),
+            timings,
+        )?;
+        return timings.record("compiler-selected manifest", || {
+            read_compiled_manifest(pax_dir, "wasm32-unknown-unknown")
+        });
+    }
     let (platform, target) = match ctx.target {
         RunTarget::Web => ("web", "wasm32-unknown-unknown"),
         RunTarget::macOS => ("macos", building::apple::manifest_target(ctx)?),
@@ -406,9 +427,12 @@ fn compile_selected_manifest(
     }
     let output = pax_dir.join(format!("manifest-{target}.json"));
     let mut command = Command::new("cargo");
+    // Generate the sidecar while producing the actual target artifact. A check
+    // pass uses different Cargo units and repeats type checking before packaging.
+    // The packaging command can reuse this build only with identical profiles.
     command
         .current_dir(&layout.cartridge_dir)
-        .args(["check", "--lib", "--target", target, "--features"])
+        .args(["build", "--lib", "--target", target, "--features"])
         .arg(helpers::pax_project_feature_args(&layout.cartridge_dir, &features).join(","))
         .env("PAX_DIR", pax_dir)
         .env("PAX_MANIFEST_OUTPUT", &output)
@@ -423,13 +447,18 @@ fn compile_selected_manifest(
     unsafe {
         command.pre_exec(pre_exec_hook);
     }
-    let child = command.spawn()?;
-    if !wait_with_output(&ctx.process_child_ids, child)
-        .status
-        .success()
-    {
-        return Err(eyre!("Cargo could not generate the selected Pax program"));
-    }
+    timings.record("cargo/cartridge", || -> eyre::Result<()> {
+        let child = command.spawn()?;
+        if !wait_with_output(&ctx.process_child_ids, child).status.success() {
+            return Err(eyre!("Cargo could not generate the selected Pax program"));
+        }
+        Ok(())
+    })?;
+    timings.record("compiler-selected manifest", || read_compiled_manifest(pax_dir, target))
+}
+
+fn read_compiled_manifest(pax_dir: &Path, target: &str) -> eyre::Result<PaxManifest> {
+    let output = pax_dir.join(format!("manifest-{target}.json"));
     let bytes = fs::read(&output).map_err(|error|eyre!("Missing compiler-selected manifest {}: {error}. The UI library must declare runnable!.", output.display()))?;
     Ok(serde_json::from_slice(&bytes)?)
 }

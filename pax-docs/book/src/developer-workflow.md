@@ -348,6 +348,27 @@ Development profiles live at the workspace root: runtime dependencies use
 optimization level 1, while each example's own code and build dependencies use
 level 0. The CLI restores these profiles when exporting a standalone project.
 
+To measure the complete Cargo web build, including its workstation launcher,
+use a fresh target directory without deleting your development cache:
+
+```sh
+python3 scripts/benchmark-cargo-web.py \
+  --target-dir /tmp/pax-build-benchmark-target \
+  --logs /tmp/pax-build-benchmark-logs
+```
+
+The script builds `pax-logo` once with an empty Rust target directory and twice
+unchanged, records wall times and logs, and enables Cargo's timing report for
+the launcher. Registry dependencies and platform tools must already be cached;
+resolution is offline. Existing `.pax` output and external tool caches are
+retained, so this measures Rust compilation and packaging rather than downloads
+or initial workstation setup. It rejects a nonempty target directory. Select
+another example with `--package <name>` and use fresh directories for each trial.
+The repeated warm run distinguishes steady cache reuse from any one-time
+invalidation caused by files generated during the cold build.
+Compare the launcher, manifest-producing target build, and packaging timings
+separately; a package count alone does not establish build latency.
+
 The CLI also has `docs build` for contributors rebuilding the documentation
 assets in a Pax repository. It can regenerate API pages, example metadata/
 bundles, and the CLI's search content. It is not required to browse installed

@@ -2164,7 +2164,7 @@ fn parse_pascal_identifiers_from_component_definition_string(
     pax: &str,
 ) -> std::result::Result<Vec<String>, String> {
     let pax_component_definition = parse_pax_str(Rule::pax_component_definition, pax)?;
-    let pascal_identifiers: Rc<RefCell<HashSet<String>>> = Rc::new(RefCell::new(HashSet::new()));
+    let pascal_identifiers = Rc::new(RefCell::new(Vec::new()));
 
     pax_component_definition
         .into_inner()
@@ -2178,13 +2178,17 @@ fn parse_pascal_identifiers_from_component_definition_string(
             _ => {}
         });
 
-    let identifiers = Rc::try_unwrap(pascal_identifiers).unwrap().into_inner();
-    Ok(identifiers.into_iter().collect())
+    // Discovery also orders dependency asset directories in the manifest.
+    // Deduplicate without randomizing the source traversal between builds.
+    let mut identifiers = Rc::try_unwrap(pascal_identifiers).unwrap().into_inner();
+    let mut seen = HashSet::new();
+    identifiers.retain(|identifier| seen.insert(identifier.clone()));
+    Ok(identifiers)
 }
 
 fn recurse_visit_tag_pairs_for_pascal_identifiers(
     any_tag_pair: Pair<Rule>,
-    pascal_identifiers: Rc<RefCell<HashSet<String>>>,
+    pascal_identifiers: Rc<RefCell<Vec<String>>>,
 ) {
     match any_tag_pair.as_rule() {
         Rule::matched_tag => {
@@ -2193,7 +2197,7 @@ fn recurse_visit_tag_pairs_for_pascal_identifiers(
             let pascal_identifier = open_tag.into_inner().next().unwrap().as_str();
             pascal_identifiers
                 .borrow_mut()
-                .insert(pascal_identifier.to_string());
+                .push(pascal_identifier.to_string());
 
             let prospective_inner_nodes = matched_tag.clone().into_inner().nth(1).unwrap();
             if prospective_inner_nodes.as_rule() == Rule::inner_nodes {
@@ -2217,7 +2221,7 @@ fn recurse_visit_tag_pairs_for_pascal_identifiers(
             let pascal_identifier = any_tag_pair.into_inner().next().unwrap().as_str();
             pascal_identifiers
                 .borrow_mut()
-                .insert(pascal_identifier.to_string());
+                .push(pascal_identifier.to_string());
         }
         Rule::statement_control_flow => {
             let matched_tag = any_tag_pair.into_inner().next().unwrap();
@@ -3018,6 +3022,18 @@ mod tests {
     }
 
     use super::*;
+
+    #[test]
+    fn template_dependencies_preserve_first_source_occurrence() {
+        for _ in 0..32 {
+            assert_eq!(
+                parse_pascal_identifiers_from_component_definition_string(
+                    "<Zed><Alpha/><Zed/></Zed><Beta/><Alpha/>"
+                ).unwrap(),
+                ["Zed", "Alpha", "Beta"]
+            );
+        }
+    }
     use tempfile::TempDir;
 
     #[test]
