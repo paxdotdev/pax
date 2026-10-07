@@ -123,3 +123,59 @@ test('an unowned canvas remains usable while a former owner is still initializin
     assert.equal(available.width, 1);
     assert.equal(pool.checkout(), available);
 });
+
+test('capacity accounting distinguishes assigned, retiring, and reusable canvases', () => {
+    const {pool} = harness(3);
+    const survivor = pool.checkout(), retiring = pool.checkout();
+    retiring.setAttribute('data-pax-surface-owners', '1');
+    pool.release(retiring);
+    assert.deepEqual({...pool.capacitySnapshot()},
+        {limit: 3, allocated: 2, assigned: 1, retiring: 1, available: 1, backingPixels:120000,retiringPixels:60000});
+    const replacement = pool.checkout();
+    assert.notEqual(replacement, retiring);
+    assert.equal(pool.checkout(), null);
+    assert.equal(pool.capacitySnapshot().available, 0);
+    retiring.releaseOwner(0);
+    assert.equal(pool.capacitySnapshot().retiring, 0);
+    assert.equal(pool.capacitySnapshot().available, 1);
+    assert.equal(pool.checkout(), retiring);
+    pool.release(survivor);
+    pool.release(replacement);
+    pool.release(retiring);
+    assert.equal(pool.capacitySnapshot().available, 3);
+});
+
+test('physical reservations and retiring leases share one hard backing limit', () => {
+    const {pool} = harness(4);
+    pool.setBackingLimit(10000);
+    const a = pool.checkout(6000);
+    assert.ok(a);
+    assert.equal(pool.checkout(5000),null,'in-flight reservation counts before canvas resize');
+    a.width=100; a.height=60;
+    a.setAttribute('data-pax-surface-owners','2');
+    pool.release(a);
+    assert.equal(pool.capacitySnapshot().retiringPixels,6000);
+    const b = pool.checkout(4000);
+    assert.ok(b);
+    assert.equal(pool.capacitySnapshot().backingPixels,10000,'backing and reservation are not double-counted');
+    assert.equal(pool.checkout(1),null);
+    a.releaseOwner(1);
+    assert.equal(pool.checkout(1),null,'one remaining owner still holds the backing');
+    a.releaseOwner(0);
+    assert.equal(pool.checkout(6000),a);
+    assert.equal(pool.capacitySnapshot().backingPixels,10000);
+    assert.equal(pool.reserveBacking(b,4001),false,'resize cannot exceed the hard limit');
+});
+
+test('retirement keeps an initializer reservation before its backing is configured', () => {
+    const {pool}=harness(2);
+    pool.setBackingLimit(10000);
+    const pending=pool.checkout(8000);
+    pending.setAttribute('data-pax-surface-owners','1');
+    assert.equal(pending.width,1);
+    pool.release(pending);
+    assert.equal(pool.capacitySnapshot().retiringPixels,8000);
+    assert.equal(pool.checkout(3000),null);
+    pending.releaseOwner(0);
+    assert.ok(pool.checkout(10000));
+});

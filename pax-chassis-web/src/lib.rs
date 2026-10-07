@@ -37,9 +37,12 @@ use_RefCell!();
 
 mod browser_surface_policy;
 mod image_loading;
+mod installed_surfaces;
+mod surface_metrics;
+mod surface_scheduling;
 pub mod web_render_contexts;
 
-use crate::browser_surface_policy::BrowserSurfacePolicy;
+use crate::browser_surface_policy::{BrowserSurfacePolicy, WebSurfacePolicy};
 use pax_runtime::PaxEngine;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -237,7 +240,15 @@ pub(crate) fn read_dev_console_entries_json(since_seq: Option<u64>, limit: usize
 #[wasm_bindgen]
 pub struct PaxChassisWeb {
     render_context: Box<dyn RenderContext>,
+    surface_policy: WebSurfacePolicy,
+    installed_surfaces: installed_surfaces::InstalledSurfaces,
+    surface_activity: RefCell<pax_runtime::engine::surface_scheduling::ScrollActivityTracker>,
+    surface_density: RefCell<surface_metrics::RasterDensityTracker>,
+    surface_preparation: RefCell<Option<surface_scheduling::PreparedTransaction>>,
+    surface_preparation_latency:
+        RefCell<pax_runtime::engine::surface_preparation::PreparationLatency>,
     engine: Rc<RefCell<PaxEngine>>,
+    surface_work_budget: pax_runtime::engine::surface_work::SurfaceWorkBudget,
     native_scroller_positions: HashMap<u32, (f64, f64)>,
     synthetic_scroll_gesture: Option<SyntheticScrollGesture>,
     #[cfg(feature = "designtime")]
@@ -279,11 +290,74 @@ pub struct InterruptResult {
     pub prevent_default: bool,
 }
 
+#[derive(pax_message::serde::Serialize)]
+#[serde(crate = "pax_message::serde", rename_all = "camelCase")]
+struct WebLayerCanvasPlan {
+    layer_id: usize,
+    active: bool,
+    density_pending: bool,
+    surfaces: Vec<WebSurfaceDescriptor>,
+}
+
+#[derive(pax_message::serde::Serialize)]
+#[serde(crate = "pax_message::serde", rename_all = "camelCase")]
+struct WebSurfaceDescriptor {
+    #[serde(flatten)]
+    geometry: pax_runtime::engine::layer_tiling::SurfaceCanvasDescriptor,
+    backing_width: u32,
+    backing_height: u32,
+    density_clamped: bool,
+}
+
+impl WebLayerCanvasPlan {
+    fn new(
+        plan: LayerCanvasPlan,
+        density: [f64; 2],
+        density_pending: bool,
+        policy: &WebSurfacePolicy,
+    ) -> Self {
+        let layer_id = plan.layer_id;
+        let surfaces = plan
+            .surfaces
+            .into_iter()
+            .map(|mut geometry| {
+                let metrics = surface_metrics::projected_surface_metrics(
+                    geometry.width,
+                    geometry.height,
+                    density,
+                    policy.max_surface_dimension(layer_id),
+                );
+                geometry.surface_signature.push_str(&format!(
+                    ":backing={}x{}",
+                    metrics.surface_width, metrics.surface_height
+                ));
+                WebSurfaceDescriptor {
+                    geometry,
+                    backing_width: metrics.surface_width,
+                    backing_height: metrics.surface_height,
+                    density_clamped: metrics.density_clamped,
+                }
+            })
+            .collect();
+        Self {
+            layer_id,
+            active: plan.active,
+            density_pending,
+            surfaces,
+        }
+    }
+}
+
 // Two impl blocks: one for "private" functions,
 //                  the second for FFI-exposed functions
 
 impl PaxChassisWeb {
     fn drain_render_surface_updates(&mut self) {
+        // Bounded preparation owns cold/replay jobs. Converting them into scene
+        // dirtiness would let ordinary rendering drain speculative work wholesale.
+        if self.render_context.prepares_surface_content() {
+            return;
+        }
         for layer_id in self.render_context.take_ready_canvas_layers() {
             let engine = borrow!(self.engine);
             engine
@@ -321,7 +395,8 @@ impl PaxChassisWeb {
     pub fn new_designtime(
         userland_definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
     ) -> Self {
-        let (width, height, os_info, surface_policy, get_time, renderer) = Self::init_common();
+        let (width, height, os_info, surface_policy, installed_surfaces, get_time, renderer) =
+            Self::init_common();
         let query_string = window()
             .unwrap()
             .location()
@@ -340,14 +415,21 @@ impl PaxChassisWeb {
             Platform::Web,
             os_info,
             get_time,
-            surface_policy.scroller_tiling_policy(),
+            surface_policy.browser.scroller_tiling_policy(),
         );
 
         let engine_container: Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
 
         Self {
             engine: engine_container,
+            surface_work_budget: pax_runtime::engine::surface_work::SurfaceWorkBudget::new(4.0),
             render_context: renderer,
+            surface_policy,
+            installed_surfaces,
+            surface_activity: RefCell::new(Default::default()),
+            surface_density: RefCell::new(Default::default()),
+            surface_preparation: RefCell::new(None),
+            surface_preparation_latency: RefCell::new(Default::default()),
             native_scroller_positions: HashMap::new(),
             synthetic_scroll_gesture: None,
             userland_definition_to_instance_traverser,
@@ -359,7 +441,8 @@ impl PaxChassisWeb {
 
     #[cfg(not(feature = "designtime"))]
     pub fn new(definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>) -> Self {
-        let (width, height, os_info, surface_policy, get_time, renderer) = Self::init_common();
+        let (width, height, os_info, surface_policy, installed_surfaces, get_time, renderer) =
+            Self::init_common();
 
         let main_component_instance =
             definition_to_instance_traverser.get_main_component(USERLAND_COMPONENT_ROOT);
@@ -369,14 +452,21 @@ impl PaxChassisWeb {
             Platform::Web,
             os_info,
             get_time,
-            surface_policy.scroller_tiling_policy(),
+            surface_policy.browser.scroller_tiling_policy(),
         );
 
         let engine_container: Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
 
         Self {
             engine: engine_container,
+            surface_work_budget: pax_runtime::engine::surface_work::SurfaceWorkBudget::new(4.0),
             render_context: renderer,
+            surface_policy,
+            installed_surfaces,
+            surface_activity: RefCell::new(Default::default()),
+            surface_density: RefCell::new(Default::default()),
+            surface_preparation: RefCell::new(None),
+            surface_preparation_latency: RefCell::new(Default::default()),
             native_scroller_positions: HashMap::new(),
             synthetic_scroll_gesture: None,
         }
@@ -386,7 +476,8 @@ impl PaxChassisWeb {
         f64,
         f64,
         OS,
-        BrowserSurfacePolicy,
+        WebSurfacePolicy,
+        installed_surfaces::InstalledSurfaces,
         Box<dyn Fn() -> u128>,
         Box<dyn RenderContext>,
     ) {
@@ -400,11 +491,26 @@ impl PaxChassisWeb {
 
         let width = window.inner_width().unwrap().as_f64().unwrap();
         let height = window.inner_height().unwrap().as_f64().unwrap();
-        let surface_policy = BrowserSurfacePolicy::detect(&window);
+        let surface_policy = WebSurfacePolicy::new(BrowserSurfacePolicy::detect(&window));
+        let installed_surfaces = Rc::new(std::cell::RefCell::new(
+            installed_surfaces::InstalledSurfacePlan::default(),
+        ));
         let start = Instant::now();
-        let renderer = web_render_contexts::get_render_context(window, surface_policy);
+        let renderer = web_render_contexts::get_render_context(
+            window,
+            surface_policy.clone(),
+            installed_surfaces.clone(),
+        );
         let get_time = Box::new(move || start.elapsed().as_millis());
-        (width, height, os_info, surface_policy, get_time, renderer)
+        (
+            width,
+            height,
+            os_info,
+            surface_policy,
+            installed_surfaces,
+            get_time,
+            renderer,
+        )
     }
 
     #[cfg(feature = "designtime")]
@@ -1287,6 +1393,48 @@ impl PaxChassisWeb {
         borrow_mut!(self.engine).render(self.render_context.as_mut());
     }
 
+    /// Prepare and submit tiles from settled scene state with a cooperative CPU
+    /// allowance. Drawing hooks may capture cold content, but this never advances
+    /// the application clock or runs component lifecycle handlers.
+    pub fn present_ready_surfaces(&mut self) -> JsValue {
+        let start = Instant::now();
+        let report = borrow!(self.engine).present_settled_surfaces(
+            self.render_context.as_mut(),
+            &mut self.surface_work_budget,
+            || start.elapsed().as_secs_f64() * 1000.0,
+        );
+        js_value_serde::to_value(&report)
+    }
+
+    pub fn set_surface_ready_callback(&mut self, callback: Option<js_sys::Function>) {
+        self.render_context
+            .set_surface_ready_callback(callback.map(|callback| {
+                Rc::new(move || {
+                    let _ = callback.call0(&JsValue::NULL);
+                }) as Rc<dyn Fn()>
+            }));
+    }
+
+    /// The same tick with opt-in, CPU-side phase timings in milliseconds.
+    /// Returns [native messages, [phase, duration] samples, compositing counters];
+    /// these are never GPU timestamps.
+    pub fn tick_profiled(&mut self) -> JsValue {
+        let mut previous = Instant::now();
+        let mut timings = Vec::new();
+        #[cfg(feature = "designtime")]
+        self.designtime_tick();
+        self.drain_render_surface_updates();
+        let mut observe = |phase| {
+            let now = Instant::now();
+            timings.push((phase, (now - previous).as_secs_f64() * 1000.0));
+            previous = now;
+        };
+        observe("surface_updates");
+        let messages = borrow_mut!(self.engine).tick_with_phase_observer(&mut observe);
+        let compositing = borrow!(self.engine).runtime_context.occlusion_stats();
+        js_value_serde::to_value(&(messages, timings, compositing))
+    }
+
     pub fn layer_canvas_plan_generation(&self) -> u32 {
         self.engine
             .borrow()
@@ -1294,11 +1442,105 @@ impl PaxChassisWeb {
             .layer_canvas_plan_generation()
     }
 
+    pub fn surface_policy_revision(&self) -> u32 {
+        self.surface_policy.revision()
+    }
+
+    pub fn install_surface_plan(&mut self, value: JsValue) -> Result<(), JsValue> {
+        let next: installed_surfaces::InstalledSurfacePlan = serde_wasm_bindgen::from_value(value)
+            .map_err(|error| JsValue::from_str(&error.to_string()))?;
+        let mut installed = self.installed_surfaces.borrow_mut();
+        if !installed.accepts(&next) {
+            return Err(JsValue::from_str("invalid or stale installed surface plan"));
+        }
+        *installed = next;
+        Ok(())
+    }
+
+    pub fn begin_surface_plan(&self) {
+        self.installed_surfaces.borrow_mut().updating = true;
+    }
+
+    pub fn schedule_surfaces(&self, value: JsValue) -> Result<JsValue, JsValue> {
+        let mut snapshot: surface_scheduling::Snapshot = serde_wasm_bindgen::from_value(value)
+            .map_err(|e| JsValue::from_str(&format!("invalid surface snapshot: {e}")))?;
+        if let Some(limit) = self
+            .engine
+            .borrow()
+            .scroller_tiling_policy
+            .max_surfaces_per_layer
+        {
+            // Preserve the lower fallback budget when the global scheduler,
+            // rather than independent per-layer windows, selects the work.
+            let unavailable = snapshot
+                .resources
+                .as_ref()
+                .map_or(0, |r| r.unavailable_surfaces);
+            snapshot.capacity = snapshot.capacity.min(limit.saturating_sub(unavailable));
+        }
+        self.surface_density
+            .borrow_mut()
+            .retain(&snapshot.layers.iter().copied().collect());
+        let decision = surface_scheduling::schedule(
+            snapshot,
+            &mut self.surface_activity.borrow_mut(),
+            self.surface_preparation.borrow().as_ref(),
+        )
+        .map_err(JsValue::from_str)?;
+        Ok(js_value_serde::to_value(&decision))
+    }
+
+    pub fn prepare_surface_hosts(&self, value: JsValue) -> Result<JsValue, JsValue> {
+        let snapshot = serde_wasm_bindgen::from_value(value)
+            .map_err(|e| JsValue::from_str(&format!("invalid preparation snapshot: {e}")))?;
+        let prepared = surface_scheduling::prepare(
+            snapshot,
+            &mut self.surface_activity.borrow_mut(),
+            &mut self.surface_preparation_latency.borrow_mut(),
+        )
+        .map_err(JsValue::from_str)?;
+        let result = js_value_serde::to_value(&prepared.summaries());
+        *self.surface_preparation.borrow_mut() = Some(prepared);
+        Ok(result)
+    }
+
     pub fn get_layer_canvas_plan(&self, layer: usize) -> JsValue {
+        self.get_layer_canvas_plan_for_transform(layer, 1.0, 0.0, 0.0, 1.0, 0.0)
+    }
+
+    pub fn get_layer_canvas_plan_for_transform(
+        &self,
+        layer: usize,
+        a: f64,
+        b: f64,
+        c: f64,
+        d: f64,
+        now: f64,
+    ) -> JsValue {
         let engine = self.engine.borrow();
         let ctx = &engine.runtime_context;
         let window = window().unwrap();
-        let dpr = window.device_pixel_ratio().max(1.0);
+        let Some(density) = pax_runtime::engine::surface_scheduling::projected_density(
+            [a, b, c, d],
+            window.device_pixel_ratio(),
+        ) else {
+            return js_value_serde::to_value(&WebLayerCanvasPlan {
+                layer_id: layer,
+                active: false,
+                density_pending: false,
+                surfaces: Vec::new(),
+            });
+        };
+        let (density, density_pending) = self.surface_density.borrow_mut().observe(
+            layer,
+            ctx.get_layer_scroller_owner(layer)
+                .map(|owner| owner.to_u32()),
+            density,
+            now,
+        );
+        // The legacy square tile grid uses the conservative axis; actual
+        // backings retain independent X/Y density under orthogonal transforms.
+        let dpr = density[0].max(density[1]);
 
         let plan = if let Some(owner) = ctx.get_layer_scroller_owner(layer) {
             let scroller_id = owner.to_u32();
@@ -1327,18 +1569,44 @@ impl PaxChassisWeb {
                 }
             }
             if ctx.layer_has_canvas_drawables(layer) {
-                scroller_canvas_plan_with_policy(
-                    layer,
-                    host_signature,
-                    state.content_width,
-                    state.content_height,
-                    viewport_width,
-                    viewport_height,
-                    scroll_x,
-                    scroll_y,
-                    dpr,
-                    engine.scroller_tiling_policy,
-                )
+                let preparation = self.surface_preparation.borrow();
+                if let Some(prepared) = preparation.as_ref().filter(|p| p.now == now) {
+                    let Some(host) = prepared.hosts.get(&scroller_id) else {
+                        return JsValue::NULL;
+                    };
+                    let prepared_plan = &prepared.plans[&scroller_id];
+                    if prepared_plan.unavailable_reason.is_some() {
+                        return js_value_serde::to_value(&WebLayerCanvasPlan {
+                            layer_id: layer,
+                            active: false,
+                            density_pending: false,
+                            surfaces: Vec::new(),
+                        });
+                    }
+                    let coverage = prepared_plan.prepared;
+                    pax_runtime::engine::layer_tiling::scroller_canvas_plan_for_coverage(
+                        layer,
+                        host_signature,
+                        host.content,
+                        host.geometry.viewport,
+                        coverage,
+                        dpr,
+                        engine.scroller_tiling_policy,
+                    )
+                } else {
+                    scroller_canvas_plan_with_policy(
+                        layer,
+                        host_signature,
+                        state.content_width,
+                        state.content_height,
+                        viewport_width,
+                        viewport_height,
+                        scroll_x,
+                        scroll_y,
+                        dpr,
+                        engine.scroller_tiling_policy,
+                    )
+                }
             } else {
                 LayerCanvasPlan {
                     layer_id: layer,
@@ -1367,7 +1635,12 @@ impl PaxChassisWeb {
             return JsValue::NULL;
         };
 
-        js_value_serde::to_value(&plan)
+        js_value_serde::to_value(&WebLayerCanvasPlan::new(
+            plan,
+            density,
+            density_pending,
+            &self.surface_policy,
+        ))
     }
 
     pub fn request_layer_screenshot(&mut self, layer: usize, request_id: u32) {
@@ -1508,6 +1781,26 @@ impl PaxChassisWeb {
 
     pub fn image_loaded(&mut self, path: &str) -> bool {
         self.render_context.image_loaded(path)
+    }
+
+    /// Publish one decoded URL image and wake all live consumers of that request.
+    /// The browser coalesces in-flight requests; pixel transfer and version change
+    /// happen once, not once per mounted Image. Retired nodes are ignored.
+    pub fn image_load_complete(
+        &mut self,
+        path: &str,
+        width: usize,
+        height: usize,
+        rgba: &[u8],
+        ids: &[u32],
+    ) {
+        self.render_context.load_image(path, rgba, width, height);
+        image_loading::wake_image_nodes(&borrow!(self.engine), ids);
+    }
+
+    /// Wake consumers of an already-decoded URL without replacing its pixels.
+    pub fn image_ready(&mut self, ids: &[u32]) {
+        image_loading::wake_image_nodes(&borrow!(self.engine), ids);
     }
 }
 

@@ -390,6 +390,12 @@ Queue a filled vector path with an extra opacity multiplier.
 
 Create a retained renderer around a low-level `RenderBackend`.
 
+##### `reset_drawing_state`
+<pre><code class="api-signature language-rust ignore">pub fn reset_drawing_state(&amp;mut self)</code></pre>
+
+Return to the surface's base transform between independent logical drawing programs.
+Retained nodes, resources, and the tile's pixels remain intact.
+
 ##### `reset_retained_scene`
 <pre><code class="api-signature language-rust ignore">pub fn reset_retained_scene(&amp;mut self)</code></pre>
 
@@ -458,6 +464,11 @@ Queue a stroked vector path with an extra opacity multiplier.
 <pre><code class="api-signature language-rust ignore">pub fn take_resource_churn_stats(&amp;mut self) -&gt; <a href="../../../api/internal/pax-gpu/render_context.md#resourcechurnstats">ResourceChurnStats</a></code></pre>
 
 Return and reset accumulated resource churn counters.
+
+##### `trace_image_pending`
+<pre><code class="api-signature language-rust ignore">pub fn trace_image_pending(&amp;mut self, node: u32, path: &amp;str)</code></pre>
+
+Report a missing CPU image dependency to opt-in backend diagnostics.
 
 ## Enums
 ### `Fill`

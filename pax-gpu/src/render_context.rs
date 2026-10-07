@@ -1030,10 +1030,26 @@ impl<'w> WgpuRenderer<'w> {
         self.render_backend.clear();
     }
 
+    /// Return to the surface's base transform between independent logical drawing programs.
+    /// Retained nodes, resources, and the tile's pixels remain intact.
+    pub fn reset_drawing_state(&mut self) {
+        debug_assert!(self.source_recordings.is_empty());
+        self.transform_stack.truncate(1);
+        self.clip_stack.clear();
+        self.saves.clear();
+        self.current_node = None;
+    }
+
     /// Image identity and version must identify the same pixels across renderers sharing a GPU
     /// context. Change the version when replacing image content.
     pub fn draw_image(&mut self, image_key: &str, image_version: u64, image: &Image, rect: Box2D) {
         self.draw_image_with_opacity(image_key, image_version, image, rect, 1.0);
+    }
+
+    /// Report a missing CPU image dependency to opt-in backend diagnostics.
+    pub fn trace_image_pending(&mut self, node: u32, path: &str) {
+        self.render_backend
+            .trace_image_event("image-waiting-decoded", node, path, 0, 0);
     }
 
     /// Multiplies source pixel alpha by `opacity` without reuploading the texture.
@@ -1070,6 +1086,17 @@ impl<'w> WgpuRenderer<'w> {
             } else {
                 self.resource_churn_stats.texture_cache_hits += 1;
             }
+            self.render_backend.trace_image_event(
+                if uploaded {
+                    "image-upload"
+                } else {
+                    "image-gpu-cache-hit"
+                },
+                self.current_node.as_ref().map_or(0, |node| node.id),
+                image_key,
+                image_version,
+                if uploaded { image.rgba.len() } else { 0 },
+            );
             self.cached_images.insert(
                 image_key.to_owned(),
                 CachedImageEntry {
@@ -1096,6 +1123,15 @@ impl<'w> WgpuRenderer<'w> {
         };
         let signature = signature.finish();
         let unchanged = matches!(self.scene.get(&current_node.id), Some(RetainedNode::Image(node)) if node.signature == signature);
+        if !unchanged {
+            self.render_backend.trace_image_event(
+                "image-draw-ready",
+                current_node.id,
+                image_key,
+                image_version,
+                0,
+            );
+        }
         let draw = if unchanged {
             None
         } else {

@@ -104,6 +104,10 @@ pub(crate) struct SceneGeometry {
 }
 
 impl SceneGeometry {
+    pub(crate) fn is_settled(&self) -> bool {
+        self.dirty.is_empty()
+    }
+
     pub fn invalidate(&mut self, id: u32) {
         if self.dirty.insert(id) {
             self.pending.push(id);

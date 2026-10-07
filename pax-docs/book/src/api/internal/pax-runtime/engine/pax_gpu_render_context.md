@@ -67,6 +67,13 @@ Create a layer target from physical surface renderers.
 
 Mutable access to each physical renderer backing this logical layer.
 
+##### `with_incremental_initialization`
+<pre><code class="api-signature language-rust ignore">pub fn with_incremental_initialization(self) -&gt; Self</code></pre>
+
+Publish valid partial surface batches and requeue missing surfaces.
+Web uses this to reconsider global priority between GPU creations.
+The default remains whole-layer initialization for native chassis.
+
 ---
 
 ### `PaxGpuRenderer`
@@ -84,6 +91,15 @@ Create a renderer that lazily asks the chassis for layer backends.
 Prioritize queued layer creation using current chassis presentation state.
 Lower values start first; equal values retain FIFO order. This does not
 preempt in-flight work or increase the initialization concurrency limit.
+Return `i32::MAX` while a host has no installed targets; it remains queued
+without occupying an initialization slot until a later layout refresh.
+
+##### `with_surface_content_preparation`
+<pre><code class="api-signature language-rust ignore">pub fn with_surface_content_preparation(self) -&gt; Self</code></pre>
+
+Opt into bounded cold drawing preparation. The chassis must drive
+`PaxEngine::present_settled_surfaces` after ordinary scene updates settle.
+Native chassis retain ordinary first drawing unless they opt in explicitly.
 
 ## Enums
 ### `RenderLayerState`

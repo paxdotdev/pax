@@ -1098,6 +1098,52 @@ impl RuntimeContext {
         self.scene_lighting_dirty.replace(false)
     }
 
+    /// Whether a presentation-only pass may inspect cached geometry without evaluating
+    /// scene state. Pending geometry, native compositing, and effects block the pass.
+    /// Lighting/removals are checked per layer, and content per selected node:
+    /// never-rendered cold layers must not block unrelated cached surfaces forever.
+    pub fn can_present_settled_surfaces(&self) -> bool {
+        self.settled_surface_blocker().is_none()
+    }
+
+    pub(crate) fn settled_surface_blocker(&self) -> Option<&'static str> {
+        if pax_runtime_api::properties::has_pending_effects() {
+            Some("effects")
+        } else if self.occlusion_dirty.get() {
+            Some("occlusion")
+        } else if !borrow!(self.scene_geometry).is_settled() {
+            Some("geometry")
+        } else {
+            None
+        }
+    }
+
+    pub(crate) fn can_replay_settled_layer(&self, layer: usize, nodes: &[u32]) -> bool {
+        self.can_prepare_settled_layer(layer)
+            && !nodes
+                .iter()
+                .any(|id| self.is_canvas_node_dirty(&ExpandedNodeIdentifier(*id)))
+    }
+
+    pub(crate) fn can_prepare_settled_layer(&self, layer: usize) -> bool {
+        // A settled layer can contain render-dirty nodes which never had a GPU
+        // target, or are awaiting decoded pixels. They need bounded capture, not
+        // another application tick. Application invalidation dirties the layer
+        // and/or the scene/effect guards checked by the caller.
+        !self.is_canvas_dirty(&layer)
+            && !borrow!(self.removed_canvas_nodes)
+                .iter()
+                .any(|(owner, _)| *owner == layer)
+    }
+
+    pub(crate) fn settled_canvas_nodes_intersecting(
+        &self,
+        layer: usize,
+        regions: &[kurbo::Rect],
+    ) -> Vec<u32> {
+        borrow_mut!(self.scene_geometry).query_exact(layer, regions, false)
+    }
+
     pub fn mark_occlusion_dirty(&self) {
         self.occlusion_dirty.set(true);
         self.occlusion_state.borrow_mut().structural = true;
@@ -1572,7 +1618,8 @@ impl RuntimeContext {
         borrow_mut!(self.scene_geometry).query_exact(layer, regions, native)
     }
 
-    /// Apply a backend's replay region request through the shared scene index.
+    /// Select surface replay candidates without invalidating unchanged content. The engine
+    /// asks its backend which drawings are reusable before marking cache misses dirty.
     pub fn request_canvas_replay(&self, update: pax_runtime_api::ReplayCanvasLayerUpdate) {
         if let Some(ids) = update
             .regions
@@ -1580,7 +1627,6 @@ impl RuntimeContext {
             .and_then(|regions| self.canvas_nodes_intersecting(update.layer, regions))
         {
             self.mark_targeted_canvas_replay_nodes(update.layer, &ids);
-            self.mark_canvas_nodes_on_layer_dirty_by_id(update.layer, &ids);
         } else {
             self.mark_canvas_nodes_on_layer_dirty(update.layer);
         }
@@ -1607,8 +1653,7 @@ impl RuntimeContext {
         let mut targeted = borrow_mut!(self.targeted_canvas_replay_node_ids);
         let layer_nodes = targeted.entry(layer).or_default();
         let dirty = borrow!(self.dirty_canvas_nodes);
-        // A second region request may include nodes already dirtied by replay.
-        // Never relabel an independently dirty node as replay-only, though: its
+        // Never relabel an independently dirty node as replay-only: its
         // changed pixels need updating outside the requested region as well.
         for id in node_ids {
             if !dirty.contains(&ExpandedNodeIdentifier(*id)) {

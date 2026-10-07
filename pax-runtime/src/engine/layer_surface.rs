@@ -733,6 +733,31 @@ mod replay_priority_tests {
         assert!(coordinator.pending_replay_surfaces(0).is_empty());
     }
 
+    #[test]
+    fn pending_replay_can_demote_old_visible_work_then_drop_it() {
+        let mut coordinator = SurfaceReplayCoordinator::default();
+        let a = Rect::new(0.0, 0.0, 10.0, 10.0);
+        let b = Rect::new(10.0, 0.0, 20.0, 10.0);
+        let bounds = HashMap::from([(0, vec![a]), (1, vec![b])]);
+        coordinator.set_targeted_replay_batches(
+            0,
+            replay_batches_by_priority(vec![(0, 0), (1, 20)]),
+            bounds.clone(),
+        );
+        assert_eq!(coordinator.targeted_replay_scope(0), Some(vec![0]));
+        // The first job has not run; scrolling makes the other tile visible.
+        coordinator.set_targeted_replay_batches(
+            0,
+            replay_batches_by_priority(vec![(0, 20), (1, 0)]),
+            bounds,
+        );
+        assert_eq!(coordinator.targeted_replay_scope(0), Some(vec![1]));
+        coordinator.remap_surfaces(0, &[1]);
+        assert_eq!(coordinator.pending_replay_surfaces(0), vec![(0, vec![b])]);
+        assert!(!coordinator.advance_targeted_replay_queue(0));
+        assert!(coordinator.targeted_replay_scope(0).is_none());
+    }
+
     fn test_surface(
         origin_x: f32,
         origin_y: f32,

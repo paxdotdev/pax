@@ -50,9 +50,7 @@ if !embedded {
         <Group anchor=0% width=100% height={(hero_height + row_height * shelf_count + 128 + safe_bottom)px}>
             for shelf in shelves {
                 <MovieShelf anchor=0% y={(hero_height + 20 + shelf.id * row_height)px} width=100% height={(row_height)px} shelf={shelf}
-                    selected_id=bind:selected_id modal_open=bind:modal_open card_width={card_width} gutter={gutter} light_mode={light_mode}
-                    catalog_y={hero_height + 20 + shelf.id * row_height} catalog_scroll_y={scroll_y}
-                    catalog_viewport_height={view_height - top_inset - 68}/>
+                    selected_id=bind:selected_id modal_open=bind:modal_open card_width={card_width} gutter={gutter} light_mode={light_mode}/>
             }
             <Text class="muted" anchor=0% x={(gutter)px} y={(hero_height + row_height * shelf_count + 40)px} width={100% - (gutter * 2)px}
                 height=32px text="Paxflix  /  Original stories. An imaginary cinema. Built with Pax."/>

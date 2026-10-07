@@ -1,5 +1,44 @@
 #[cfg(target_arch = "wasm32")]
 mod browser_canvas;
+
+/// Emit opt-in browser surface lifecycle diagnostics. First submission is
+/// recorded once per installed content revision, not once per animated frame.
+/// It does not imply that asynchronous images have finished loading.
+#[cfg(target_arch = "wasm32")]
+pub fn record_browser_surface_event(canvas: &web_sys::HtmlCanvasElement, event: &str) {
+    if event == "first-submit" {
+        let Some(revision) = canvas.get_attribute("data-surface-content-revision") else {
+            return;
+        };
+        if canvas
+            .get_attribute("data-surface-submitted-revision")
+            .as_ref()
+            == Some(&revision)
+        {
+            return;
+        }
+        let _ = canvas.set_attribute("data-surface-submitted-revision", &revision);
+    }
+    // Readiness is part of scheduling, independent of optional diagnostics.
+    if canvas.get_attribute("data-surface-trace").as_deref() != Some("1") {
+        return;
+    }
+    let _ = canvas.set_attribute("data-surface-event", event);
+    let timestamp_attribute = match event {
+        "first-submit" => Some("data-surface-submitted-at"),
+        "initialization-start" => Some("data-surface-init-started-at"),
+        "initialization-complete" => Some("data-surface-init-completed-at"),
+        _ => None,
+    };
+    if let Some(attribute) = timestamp_attribute {
+        let _ = canvas.set_attribute(attribute, &js_sys::Date::now().to_string());
+    }
+    let options = web_sys::EventInit::new();
+    options.set_bubbles(true);
+    if let Ok(event) = web_sys::Event::new_with_event_init_dict("pax-surface-trace", &options) {
+        let _ = canvas.dispatch_event(&event);
+    }
+}
 pub(crate) mod capture;
 #[cfg(feature = "shaders")]
 mod effects;
@@ -464,6 +503,8 @@ pub struct RenderBackend<'w> {
     // Drop this last, after every surface/frame handle has released the canvas.
     #[cfg(target_arch = "wasm32")]
     browser_canvas: Option<browser_canvas::BrowserCanvasLease>,
+    #[cfg(target_arch = "wasm32")]
+    image_trace_pending: bool,
 }
 
 struct ActiveFrame {
@@ -1199,6 +1240,8 @@ impl<'w> RenderBackend<'w> {
             surface,
             #[cfg(target_arch = "wasm32")]
             browser_canvas: None,
+            #[cfg(target_arch = "wasm32")]
+            image_trace_pending: false,
             device,
             queue,
             staging_belt,
@@ -2944,7 +2987,47 @@ impl<'w> RenderBackend<'w> {
     pub(crate) fn present_queued_frame(&mut self) {
         if let Some(screen_surface) = self.active_frame.take() {
             screen_surface.surface.present();
+            #[cfg(target_arch = "wasm32")]
+            if let Some(lease) = &self.browser_canvas {
+                record_browser_surface_event(&lease.canvas, "first-submit");
+                if std::mem::take(&mut self.image_trace_pending) {
+                    record_browser_surface_event(&lease.canvas, "image-content-submit");
+                }
+            }
         }
+    }
+
+    pub(crate) fn trace_image_event(
+        &mut self,
+        event: &str,
+        node: u32,
+        path: &str,
+        version: u64,
+        bytes: usize,
+    ) {
+        #[cfg(target_arch = "wasm32")]
+        if let Some(lease) = &self.browser_canvas {
+            let canvas = &lease.canvas;
+            if canvas.get_attribute("data-surface-trace").as_deref() != Some("1") {
+                return;
+            }
+            let _ = canvas.set_attribute("data-image-node", &node.to_string());
+            let _ = canvas.set_attribute("data-image-path", path);
+            let _ = canvas.set_attribute("data-image-version", &version.to_string());
+            let _ = canvas.set_attribute("data-image-bytes", &bytes.to_string());
+            record_browser_surface_event(canvas, event);
+            for name in [
+                "data-image-node",
+                "data-image-path",
+                "data-image-version",
+                "data-image-bytes",
+            ] {
+                let _ = canvas.remove_attribute(name);
+            }
+            self.image_trace_pending |= event == "image-draw-ready";
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        let _ = (event, node, path, version, bytes);
     }
 
     pub(crate) fn present(&mut self) {

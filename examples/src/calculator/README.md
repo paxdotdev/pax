@@ -27,6 +27,11 @@ run `nvm use` before commands that build the web interface.
 
 ## Controls
 
+When embedding `Calculator`, `paused=true` stops recurring display, cursor, and
+graph updates while retaining the session. Initial layout and resize updates
+still run, including the initial plot, so an offscreen paused instance has valid
+scroller dimensions and can be prepared before it enters the viewport.
+
 Click/tap the keys or use a hardware keyboard. Clicking an expression places
 its character cursor. Function keys insert the opening parenthesis too.
 

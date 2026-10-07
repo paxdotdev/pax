@@ -29,8 +29,15 @@ export function setupEventListeners(chassis: PaxChassisWeb): () => void {
         listener: (event: any) => void,
         options?: boolean | AddEventListenerOptions,
     ) => {
-        window.addEventListener(type, listener, options);
-        disposers.push(() => window.removeEventListener(type, listener, options));
+        const scopedListener = (event: any) => {
+            // The opt-in inspector is browser UI, not a Pax hit-test surface.
+            // Window capture runs before its controls; stopPropagation there
+            // would be too late and probe clicks could activate content below.
+            if (event.target instanceof Element && event.target.closest('[data-pax-surface-inspector]')) return;
+            listener(event);
+        };
+        window.addEventListener(type, scopedListener, options);
+        disposers.push(() => window.removeEventListener(type, scopedListener, options));
     };
 
     let lastPositions = new Map<number, {x: number, y: number}>();

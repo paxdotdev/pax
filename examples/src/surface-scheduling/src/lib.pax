@@ -1,0 +1,23 @@
+<Button anchor=0% x=12px y=12px width={25% - 16px} height=36px label="1 direct" @button_click=self.single/>
+<Button anchor=0% x={25% + 4px} y=12px width={25% - 16px} height=36px label="1 scaled" @button_click=self.scaled/>
+<Button anchor=0% x={50% + 4px} y=12px width={25% - 16px} height=36px label="2 direct" @button_click=self.pair/>
+<Button anchor=0% x={75% + 4px} y=12px width={25% - 16px} height=36px label="2 scaled" @button_click=self.pair_scaled/>
+<Text anchor=0% x=12px y=56px width={100% - 24px} height=40px
+    text={"Mode " + mode + " / identical presented content; scaled modes add a 0.5x embedding transform."} style={
+        font: "Arial"
+        font_size: 14px
+        fill: rgb(238, 238, 238)
+    }/>
+for branch in 0..branches {
+    <Frame anchor=0% x={(12 + branch * (pane_width + 12))px} y=104px width={(pane_width)px} height={(pane_height)px}
+        corner_radius=12>
+        <Group anchor=0% width={(pane_width * units)px} height={(pane_height * units)px} scale={(100 / units)%}>
+            <Catalog anchor=0% width=100% height=100% units={units} branch={branch}/>
+        </Group>
+    </Frame>
+}
+<Rectangle anchor=0% width=100% height=100% fill=rgb(17, 17, 17)/>
+
+@settings {
+    @pre_render: layout
+}

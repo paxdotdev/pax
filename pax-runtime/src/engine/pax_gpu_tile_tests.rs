@@ -50,7 +50,25 @@ fn with_target<T>(renderer: &mut PaxGpuRenderer, f: impl FnOnce(&mut LayerTarget
 
 fn paint(renderer: &mut PaxGpuRenderer, dirty: Rc<RefCell<Vec<bool>>>) {
     renderer.clear(0);
+    let replay = renderer.replay_region_bounds(0).map(|regions| {
+        let ids: Vec<_> = [(1, 0.0), (2, 32.0), (3, 64.0)]
+            .into_iter()
+            .filter(|(_, x)| {
+                regions
+                    .iter()
+                    .any(|r| r.intersect(Rect::new(x + 1.0, 1.0, x + 31.0, 31.0)).area() > 0.0)
+            })
+            .map(|(id, _)| id)
+            .collect();
+        renderer.prepare_canvas_replay(0, &ids)
+    });
     for (id, x) in [(1, 0.0), (2, 32.0), (3, 64.0)] {
+        if replay
+            .as_ref()
+            .is_some_and(|missing| !missing.contains(&id))
+        {
+            continue;
+        }
         let bounds = Rect::new(x + 1.0, 1.0, x + 31.0, 31.0);
         if renderer.begin_node_with_bounds(0, id, 0, bounds, 0) {
             renderer.draw_image(0, "red", bounds);
@@ -166,6 +184,22 @@ fn lighting_invalidates_only_recipient_tiles_across_layers() {
 #[test]
 #[ignore = "requires a macOS Metal device"]
 fn incremental_tiles_preserve_survivor_scene_and_uploads() {
+    exercise_tile_lifecycle(false, false);
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn incremental_batches_preserve_survivor_scene_and_uploads() {
+    exercise_tile_lifecycle(true, false);
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn prepared_tiles_publish_only_complete_current_jobs() {
+    exercise_tile_lifecycle(false, true);
+}
+
+fn exercise_tile_lifecycle(incremental: bool, prepared: bool) {
     let a = entry("a", "a:1", 0.0);
     let b = entry("b", "b:1", 32.0);
     let c = entry("c", "c:1", 64.0);
@@ -247,21 +281,83 @@ fn incremental_tiles_preserve_survivor_scene_and_uploads() {
                         surface.surface.surface_height,
                         surface.surface.dpr,
                     ));
+                    if incremental {
+                        break;
+                    }
                 }
                 if let Some(changed) = after_creation.borrow_mut().take() {
                     *layout.borrow_mut() = changed;
                 }
+                let target = LayerTarget::new(tiles, snapshot.active);
                 Some((
-                    LayerTarget::new(tiles, snapshot.active),
+                    if incremental {
+                        target.with_incremental_initialization()
+                    } else {
+                        target
+                    },
                     Box::pin(move || layout.borrow().clone())
                         as Pin<Box<dyn Fn() -> LayerSurfaceLayout>>,
                 ))
             })
         }
     });
+    if prepared {
+        renderer = renderer.with_surface_content_preparation();
+    }
     let dirty = Rc::new(RefCell::new(vec![true]));
     renderer.load_image("red", &[255, 0, 0, 255], 1, 1);
     renderer.resize_layers_to(1, Rc::clone(&dirty));
+    if prepared {
+        let jobs = renderer.take_settled_surface_replays();
+        assert_eq!(jobs.len(), 1);
+        assert_eq!(renderer.targeted_replay_scope(0), Some(vec![0]));
+        let bounds = Rect::new(1.0, 1.0, 31.0, 31.0);
+        assert!(renderer.begin_node_with_bounds(0, 1, 0, bounds, 0));
+        renderer.draw_image(0, "red", bounds);
+        assert!(renderer.end_node(0, 1));
+        renderer.clear(0);
+        renderer.flush(0, Rc::clone(&dirty));
+        assert!(with_target(&mut renderer, |t| t
+            .renderers
+            .iter()
+            .all(|r| !r.presentation_ready)));
+        assert_eq!(renderer.missing_surface_drawings(0, &[1]), Some(vec![]));
+        renderer.invalidate_drawing(0, 1);
+        assert!(renderer.begin_surface_recording(0));
+        assert!(renderer.begin_node_with_bounds(0, 1, 0, bounds, 0));
+        renderer.draw_image(0, "red", bounds);
+        renderer.end_node(0, 1);
+        assert!(renderer.end_surface_recording(0));
+        assert!(renderer.flushed_surfaces.borrow().is_empty());
+        assert!(renderer.prepare_settled_surface_replay(0, &[1]));
+        renderer.flush(0, Rc::clone(&dirty));
+        assert_eq!(
+            with_target(&mut renderer, |t| t
+                .renderers
+                .iter()
+                .map(|r| r.presentation_ready)
+                .collect::<Vec<_>>()),
+            vec![true, false]
+        );
+        assert_eq!(renderer.flushed_surfaces.borrow().len(), 1);
+        assert_eq!(renderer.flushed_surfaces.borrow()[0].1, 0);
+        renderer.take_settled_surface_replays();
+        assert_eq!(renderer.targeted_replay_scope(0), Some(vec![1]));
+        assert!(renderer.begin_surface_fallback(0));
+        assert!(!renderer.begin_node_with_bounds(0, 1, 0, bounds, 0));
+        let second = Rect::new(33.0, 1.0, 63.0, 31.0);
+        assert!(renderer.begin_node_with_bounds(0, 2, 0, second, 0));
+        renderer.draw_image(0, "red", second);
+        renderer.end_node(0, 2);
+        renderer.flush(0, Rc::clone(&dirty));
+        assert!(with_target(&mut renderer, |t| t
+            .renderers
+            .iter()
+            .all(|r| r.presentation_ready)));
+        assert_eq!(renderer.flushed_surfaces.borrow().len(), 1);
+        assert_eq!(renderer.flushed_surfaces.borrow()[0].1, 1);
+        return;
+    }
     assert_eq!(renderer.take_ready_canvas_layers(), vec![0]);
     renderer.take_replay_canvas_layer_updates();
     paint(&mut renderer, Rc::clone(&dirty));
@@ -338,7 +434,108 @@ fn incremental_tiles_preserve_survivor_scene_and_uploads() {
     renderer.refresh_layers(&[0]);
     assert_eq!(renderer.targeted_replay_scope(0), Some(vec![0]));
     renderer.take_replay_canvas_layer_updates();
+    let hits_before = renderer.drawings.hits;
     paint(&mut renderer, Rc::clone(&dirty));
+    assert!(
+        renderer.drawings.hits > hits_before,
+        "resized tile must reuse logical drawing"
+    );
+    let flushed = renderer.flushed_surfaces.borrow().clone();
+    assert_eq!(flushed.len(), 1, "cached replay must leave B untouched");
+
+    // Content work is independent of the replay scope: an update to B still lands while
+    // C needs a replay, and C's cached command record survives B's unrelated update.
+    layout.borrow_mut().surfaces[0].surface.dpr = [1.0, 1.0];
+    layout.borrow_mut().surfaces[0].surface.surface_width = 32;
+    layout.borrow_mut().surfaces[0].surface.surface_height = 32;
+    renderer.refresh_layers(&[0]);
+    renderer.take_replay_canvas_layer_updates();
+    assert!(renderer.prepare_canvas_replay(0, &[3]).is_empty());
+    let bounds = Rect::new(33.0, 1.0, 63.0, 31.0);
+    assert!(renderer.begin_node_with_bounds(0, 2, 0, bounds, 0));
+    renderer.draw_image_with_opacity(0, "red", bounds, 0.5);
+    renderer.end_node(0, 2);
+    renderer.flush(0, Rc::clone(&dirty));
+    assert_eq!(renderer.flushed_surfaces.borrow().len(), 2);
+    assert!(renderer.drawings.get(0, 3).is_some());
+
+    // A cached leaf carries a complete detached alpha-source program and its clip
+    // owner. Replaying it at another density must not rerun source components or
+    // turn the masked image into an unmasked rectangle.
+    renderer.remove_node(0, 2);
+    renderer.remove_node(0, 3);
+    assert!(renderer.begin_node(0, 10, 0, 0));
+    renderer.save(0);
+    renderer.begin_alpha_source(0, kurbo::Affine::IDENTITY, 0, 0.0);
+    let source = Rect::new(40.0, 8.0, 88.0, 24.0);
+    assert!(renderer.begin_node_with_bounds(0, 20, 0, source, 0));
+    renderer.fill(
+        0,
+        source.to_path(0.1),
+        &pax_runtime_api::Paint::Solid(pax_runtime_api::Color::WHITE),
+    );
+    renderer.end_node(0, 20);
+    renderer.end_alpha_source(0);
+    renderer.end_node(0, 10);
+    let bounds = Rect::new(32.0, 0.0, 96.0, 32.0);
+    assert!(renderer.begin_node_with_bounds(0, 50, 0, bounds, 0));
+    renderer.set_node_opacity_scopes(
+        0,
+        50,
+        &[pax_runtime_api::OpacityScope {
+            node_id: 90,
+            opacity: 0.5,
+        }],
+    );
+    renderer.save(0);
+    renderer.draw_image(0, "red", bounds);
+    renderer.restore(0);
+    renderer.end_node(0, 50);
+    renderer.restore(0);
+    renderer.flush(0, Rc::clone(&dirty));
+    layout.borrow_mut().surfaces[0].surface.dpr = [2.0, 2.0];
+    layout.borrow_mut().surfaces[0].surface.surface_width = 64;
+    layout.borrow_mut().surfaces[0].surface.surface_height = 64;
+    renderer.refresh_layers(&[0]);
+    renderer.take_replay_canvas_layer_updates();
+    assert!(!renderer.prepare_settled_surface_replay(0, &[50, 999_999]));
+    assert!(
+        renderer
+            .pending_drawings
+            .get(&0)
+            .is_none_or(|p| p.is_empty()),
+        "a cache miss must not queue a partial frame"
+    );
+    assert!(renderer.prepare_settled_surface_replay(0, &[50]));
+    with_target(&mut renderer, |target| {
+        target.renderers[0].renderer.request_screenshot_capture(101)
+    });
+    renderer.flush(0, Rc::clone(&dirty));
+    with_target(&mut renderer, |target| {
+        let gpu = &mut target.renderers[0].renderer;
+        let mut frame = gpu.take_screenshot_capture(101);
+        for _ in 0..100 {
+            if frame.is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(2));
+            gpu.clear();
+            gpu.flush();
+            frame = gpu.take_screenshot_capture(101);
+        }
+        let frame = frame.expect("cached mask replay readback");
+        let pixel = &frame.rgba[(32 * 64 + 32) * 4..(32 * 64 + 32) * 4 + 4];
+        assert!(
+            (127..=128).contains(&pixel[0]) && (127..=128).contains(&pixel[3]),
+            "cached opacity scope lost: {pixel:?}"
+        );
+        assert_eq!(&pixel[1..3], &[0, 0]);
+        assert_eq!(
+            frame.rgba[(4 * 64 + 4) * 4 + 3],
+            0,
+            "alpha clip lost during cached replay"
+        );
+    });
 
     // Replacement + failed addition keeps B live and does not repeatedly allocate.
     let replacement = entry("c", "c:2", 64.0);

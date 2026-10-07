@@ -51,6 +51,9 @@ export class PaxChassisWeb {
 * @returns {any}
 */
   tick(): any;
+  tick_profiled(): [any, [string, number][], {rebuilds: number; records_updated: number; masks_evaluated: number; mask_candidates: number; rebuild_reason: string | null; rebuild_node: number | null}];
+  set_surface_ready_callback(callback: (() => void) | undefined): void;
+  present_ready_surfaces(): {submitted: number; deferred: number; cache_misses: number; blocked: boolean; blocker: string | null; elapsed_ms: number};
 /**
 */
   render(): void;
@@ -58,11 +61,17 @@ export class PaxChassisWeb {
 * @returns {number}
 */
   layer_canvas_plan_generation(): number;
+  surface_policy_revision(): number;
+  install_surface_plan(snapshot: import('../classes/surface-coordinator').InstalledSurfacePlan): void;
+  begin_surface_plan(): void;
 /**
 * @param {number} layer
 * @returns {any}
 */
   get_layer_canvas_plan(layer: number): any;
+  get_layer_canvas_plan_for_transform(layer: number, a: number, b: number, c: number, d: number, now: number): any;
+  schedule_surfaces(snapshot: any): any;
+  prepare_surface_hosts(snapshot: any): {id: number; visible: number[]; required: number[]; prepared: number[]; horizonMs: number; unavailableReason?: string}[];
 /**
 * @param {number} layer
 * @param {number} request_id
@@ -109,6 +118,8 @@ export class PaxChassisWeb {
 * @returns {boolean}
 */
   image_loaded(path: string): boolean;
+  image_load_complete(path: string, width: number, height: number, rgba: Uint8Array | Uint8ClampedArray, ids: Uint32Array): void;
+  image_ready(ids: Uint32Array): void;
 }
 
 

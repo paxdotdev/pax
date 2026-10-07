@@ -49,6 +49,7 @@ import { browserRouteLocation, replaceCurrentRouteHistoryState, serializeRouteLo
 import { updateDocumentRouteMetadata } from "./utils/route-metadata";
 
 import { FrameScheduler } from "./utils/frame-scheduler";
+import { SurfacePresentationScheduler } from "./utils/surface-presentation";
 
 let objectManager = new ObjectManager(SUPPORTED_OBJECTS);
 let nativePool = new NativeElementPool(objectManager);
@@ -56,6 +57,7 @@ let initializedChassis = false;
 let renderLoopStarting = false;
 let renderLoopStarted = false;
 let frameInProgress = false;
+let surfacePresentation: SurfacePresentationScheduler | undefined;
 let hiddenTabPumpHandle: number | null = null;
 let pendingAsyncInterruptFlush = false;
 const frameScheduler = new FrameScheduler(new URLSearchParams(window.location.search).get("pax_suspended") === "1");
@@ -131,7 +133,8 @@ function withProfileMeasure<T>(name: string, fn: () => T): T {
         return fn();
     } finally {
         performance.mark(endMark);
-        performance.measure(`pax:${name}`, startMark, endMark);
+        const measure = performance.measure(`pax:${name}`, startMark, endMark);
+        nativePool.recordSurfaceFramePhase(name, measure.duration);
         performance.clearMarks(startMark);
         performance.clearMarks(endMark);
     }
@@ -231,6 +234,9 @@ function disposeCurrentChassis() {
     teardownResizeHandler = null;
     teardownEventListeners?.();
     teardownEventListeners = null;
+    currentChassis?.set_surface_ready_callback(undefined);
+    surfacePresentation?.dispose();
+    surfacePresentation = undefined;
     nativePool.dispose();
     currentChassis?.free();
     currentChassis = null;
@@ -275,6 +281,12 @@ function attachChassis(chassis: PaxChassisWeb, mount: Element) {
     });
     chassis.activate_application();
     nativePool.attach(chassis, mount);
+    const presentation = new SurfacePresentationScheduler(() => {
+        const report = withProfileMeasure("surfacePresentation", () => chassis.present_ready_surfaces());
+        nativePool.recordSurfacePresentation(report);
+    }, () => !frameScheduler.suspended && chassis === currentChassis && mount === currentMount);
+    surfacePresentation = presentation;
+    chassis.set_surface_ready_callback(() => presentation.request());
     nativePool.setPostAsyncInterruptFlush(() => requestFrameFlush(chassis, mount));
     initializeChassis(chassis, mount);
     ensureHiddenTabPump(chassis, mount);
@@ -413,8 +425,18 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
     try {
         initializeChassis(chassis, mount);
         withProfileMeasure("renderLoopFrame", () => {
+            // Surface completion is not an application update. Reuse the most
+            // recent settled records before another (potentially costly) tick.
+            // The Rust guard leaves all jobs untouched when content is unsettled.
+            surfacePresentation?.present();
             nativePool.sampleFrameInputs();
-            const messages = withProfileMeasure("tick", () => chassis.tick());
+            const messages = withProfileMeasure("tick", () => {
+                if (!perfTraceEnabled) return chassis.tick();
+                const [messages, phases, compositing] = chassis.tick_profiled();
+                for (const [name, duration] of phases) nativePool.recordSurfaceFramePhase(`tick.${name}`, duration);
+                nativePool.recordSurfaceCompositing(compositing);
+                return messages;
+            });
             withProfileMeasure("processMessages", () => {
                 processMessages(messages, chassis, objectManager);
             });
@@ -425,6 +447,12 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
             withProfileMeasure("render", () => {
                 chassis.render();
             });
+            // At most one extra presentation pass between ordinary frames, even
+            // when many async initializations finish in successive microtasks.
+            surfacePresentation?.afterFrame();
+            // Cold drawing capture needs settled scene state. Coalesce it with
+            // asynchronous surface completions, without advancing another tick.
+            surfacePresentation?.request();
         });
         processReloadRequests(chassis);
     } finally {

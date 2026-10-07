@@ -168,7 +168,8 @@ struct NativeMaskStats {
 struct NativeMaskStats;
 
 /// Cumulative native-compositing work, independent of canvas replay counters.
-#[derive(Clone, Copy, Default, Debug)]
+#[derive(Clone, Copy, Default, Debug, pax_message::serde::Serialize)]
+#[serde(crate = "pax_message::serde")]
 pub struct OcclusionStats {
     /// Full structural/presentation reconciliations.
     pub rebuilds: u64,
@@ -178,6 +179,10 @@ pub struct OcclusionStats {
     pub masks_evaluated: u64,
     /// Canvas candidates examined for those masks.
     pub mask_candidates: u64,
+    /// Cause of the most recent full reconciliation, for opt-in profiling.
+    pub rebuild_reason: Option<&'static str>,
+    /// Triggering expanded node, when the cause was not structural.
+    pub rebuild_node: Option<u32>,
 }
 
 struct OcclusionRecord {
@@ -202,9 +207,15 @@ pub(crate) struct OcclusionState {
     pub(crate) dirty: HashSet<u32>,
     pub(crate) scrolled: HashSet<u32>,
     records: HashMap<u32, OcclusionRecord>,
+    // Exact inherited clip membership, rebuilt only when topology changes.
+    // Animated clip geometry must not reconcile unrelated scroll islands.
+    clip_dependents: HashMap<u32, Vec<u32>>,
     scroll_regions: HashMap<u32, (usize, Rect)>,
+    // Topology-only indexes. Scroll updates touch containers and native leaves
+    // in the affected islands, without rebuilding unrelated scene records.
+    scroll_containers: HashMap<u32, Vec<u32>>,
+    leaf_scroll_regions: HashSet<u32>,
     owned_layers: HashMap<u32, usize>,
-    has_native_targets: bool,
     unsafe_layers: HashSet<usize>,
     canvas_counts: HashMap<usize, usize>,
     culling_dirty: bool,
@@ -217,9 +228,12 @@ pub(crate) struct OcclusionState {
 impl OcclusionState {
     pub(crate) fn remove(&mut self, id: u32) {
         self.records.remove(&id);
+        self.clip_dependents.remove(&id);
         self.dirty.remove(&id);
         self.scrolled.remove(&id);
         self.scroll_regions.remove(&id);
+        self.scroll_containers.remove(&id);
+        self.leaf_scroll_regions.remove(&id);
         self.owned_layers.remove(&id);
     }
 }
@@ -229,62 +243,82 @@ pub fn update_node_occlusion(root_node: &Rc<ExpandedNode>, ctx: &RuntimeContext)
     let mut state_guard = ctx.occlusion_state.borrow_mut();
     let state = &mut *state_guard;
     state.culling_dirty = true;
-    let dirty = std::mem::take(&mut state.dirty);
-    let mut scrolled = std::mem::take(&mut state.scrolled);
-    // Scroll islands present canvas-only content without a native-mask pass.
-    // Preserve that fast path even for large grids of nested scrollers.
-    if !state.has_native_targets {
-        scrolled.clear();
-    }
-    let rebuild = std::mem::take(&mut state.structural)
-        || state.records.is_empty()
-        || dirty.iter().any(|id| {
-            let Some(record) = state.records.get(id) else {
-                return true;
-            };
-            let Some(node) = ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(*id))
-            else {
-                return true;
-            };
-            let instance = borrow!(node.instance_node);
-            let layer = if instance.materializes_native_surface(&node) {
-                Layer::Native
-            } else {
-                instance.base().flags().layer
-            };
-            // Clip/container changes have inherited effects. They retain the
-            // complete reconciliation path; leaf geometry does not change topology.
-            state.unsafe_layers.contains(&record.render_layer_id)
-                || record.scrolls
-                || record.clip.is_some()
-                || instance.scrolls_content(&node)
-                || instance.resolve_effect_clip_path(&node).is_some()
-                || record.layer != layer
-                || record.before_children
-                    != (instance.materializes_native_surface(&node)
-                        && instance.materializes_native_surface_before_children(&node))
-                || record.unclippable
-                    != node
-                        .get_common_properties()
-                        .borrow()
-                        .unclippable
-                        .get()
-                        .unwrap_or(false)
-        })
-        || scrolled.iter().any(|id| {
-            // Scroll islands with inherited presentation containers need their
-            // Frame/Scroller presentation patches reconciled together. The common
-            // leaf-only content island can update masks using two region queries.
-            !state.scroll_regions.contains_key(id)
-        });
-    if rebuild {
+    let mut dirty = std::mem::take(&mut state.dirty);
+    let scrolled = std::mem::take(&mut state.scrolled);
+    let rebuild = if std::mem::take(&mut state.structural) || state.records.is_empty() {
+        Some(("structure", None))
+    } else {
+        dirty
+            .iter()
+            .find_map(|id| {
+                let Some(record) = state.records.get(id) else {
+                    return Some(("new-record", Some(*id)));
+                };
+                let Some(node) = ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(*id))
+                else {
+                    return Some(("missing-node", Some(*id)));
+                };
+                let instance = borrow!(node.instance_node);
+                let layer = if instance.materializes_native_surface(&node) {
+                    Layer::Native
+                } else {
+                    instance.base().flags().layer
+                };
+                // Scroller geometry and changed clip membership retain the
+                // conservative path. Existing clip geometry is branch-local.
+                let reason = if state.unsafe_layers.contains(&record.render_layer_id) {
+                    "unsafe-layer"
+                } else if record.scrolls || instance.scrolls_content(&node) {
+                    "scroll-container"
+                } else if record.clip.is_some()
+                    != instance.resolve_effect_clip_path(&node).is_some()
+                {
+                    "clip-topology"
+                } else if record.layer != layer
+                    || record.before_children
+                        != (instance.materializes_native_surface(&node)
+                            && instance.materializes_native_surface_before_children(&node))
+                    || record.unclippable
+                        != node
+                            .get_common_properties()
+                            .borrow()
+                            .unclippable
+                            .get()
+                            .unwrap_or(false)
+                {
+                    "presentation-topology"
+                } else {
+                    return None;
+                };
+                Some((reason, Some(*id)))
+            })
+            .or_else(|| {
+                scrolled.iter().find_map(|id| {
+                    // Escaped/unclipped content and shared-layer scrolling still require
+                    // conservative reconciliation. Nested clipped islands do not.
+                    (!state.scroll_regions.contains_key(id))
+                        .then_some(("unisolated-scroll", Some(*id)))
+                })
+            })
+    };
+    if let Some((reason, node)) = rebuild {
+        state.stats.rebuild_reason = Some(reason);
+        state.stats.rebuild_node = node;
         state.culling_rebuild = true;
         state.records.clear();
+        state.clip_dependents.clear();
         state.canvas_counts.clear();
         state.scroll_regions.clear();
+        state.scroll_containers.clear();
+        state.leaf_scroll_regions.clear();
         state.owned_layers.clear();
         state.unsafe_layers.clear();
         rebuild_node_occlusion(root_node, ctx, state);
+        for (&id, record) in &state.records {
+            for &clip in &record.clips {
+                state.clip_dependents.entry(clip).or_default().push(id);
+            }
+        }
         ctx.prepare_scene_geometry();
         let ids: Vec<_> = state.records.keys().copied().collect();
         for id in ids {
@@ -304,9 +338,7 @@ pub fn update_node_occlusion(root_node: &Rc<ExpandedNode>, ctx: &RuntimeContext)
         // Classify each layer once. Searching all records for every scroller
         // makes the initial mount quadratic for grids of nested scroll regions.
         let mut container_layers = HashSet::new();
-        state.has_native_targets = false;
         for (&id, record) in &state.records {
-            state.has_native_targets |= record.layer == Layer::Native;
             if record.scrolls || record.clip.is_some() || record.unclippable {
                 container_layers.insert(record.render_layer_id);
             }
@@ -315,12 +347,46 @@ pub fn update_node_occlusion(root_node: &Rc<ExpandedNode>, ctx: &RuntimeContext)
                 state.unsafe_layers.insert(record.render_layer_id);
             }
         }
+        let mut unsafe_branches = HashSet::new();
+        for (&id, record) in &state.records {
+            let is_container = record.scrolls || record.clip.is_some();
+            let unsafe_branch = record.unclippable
+                || (record.scrolls
+                    && (!record.clips_content || !state.owned_layers.contains_key(&id)));
+            if !is_container && !unsafe_branch {
+                continue;
+            }
+            let Some(node) = ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(id)) else {
+                continue;
+            };
+            let mut parent = node.render_parent_node();
+            while let Some(ancestor) = parent {
+                let ancestor_id = ancestor.id.to_u32();
+                if state.owned_layers.contains_key(&ancestor_id) {
+                    if is_container {
+                        state
+                            .scroll_containers
+                            .entry(ancestor_id)
+                            .or_default()
+                            .push(id);
+                    }
+                    if unsafe_branch {
+                        unsafe_branches.insert(ancestor_id);
+                    }
+                }
+                parent = ancestor.render_parent_node();
+            }
+        }
         for (&id, &layer) in &state.owned_layers {
             if state.records.get(&id).is_some_and(|r| r.clips_content)
-                && !container_layers.contains(&layer)
+                && !unsafe_branches.contains(&id)
+                && !state.unsafe_layers.contains(&layer)
             {
                 if let Some(region) = scroll_region(id, ctx) {
                     state.scroll_regions.insert(id, (layer, region));
+                    if !container_layers.contains(&layer) {
+                        state.leaf_scroll_regions.insert(id);
+                    }
                 }
             }
         }
@@ -328,6 +394,37 @@ pub fn update_node_occlusion(root_node: &Rc<ExpandedNode>, ctx: &RuntimeContext)
         return;
     }
 
+    // Clip lineage and layer/z-order remain fixed on this path. Revisit only
+    // records inheriting a dirty clip, including their old/new native overlaps.
+    // The same index includes nested containers but excludes escaped content.
+    let clips: Vec<_> = dirty
+        .iter()
+        .copied()
+        .filter(|id| state.records[id].clip.is_some())
+        .collect();
+    let mut containers = HashSet::new();
+    for id in clips {
+        dirty.extend(
+            state
+                .clip_dependents
+                .get(&id)
+                .into_iter()
+                .flatten()
+                .copied(),
+        );
+    }
+    for &id in &dirty {
+        let record = state.records.get_mut(&id).unwrap();
+        if record.clip.is_some() {
+            let node = ctx
+                .get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(id))
+                .unwrap();
+            record.clip = borrow!(node.instance_node).resolve_effect_clip_path(&node);
+        }
+        if record.clip.is_some() || record.scrolls {
+            containers.insert(id);
+        }
+    }
     ctx.prepare_scene_geometry();
     let mut affected = HashSet::new();
     for id in dirty {
@@ -368,7 +465,20 @@ pub fn update_node_occlusion(root_node: &Rc<ExpandedNode>, ctx: &RuntimeContext)
         }
         record.geometry = Some(geometry);
     }
+    let mut affected_scrollers = scrolled.clone();
     for id in scrolled {
+        containers.insert(id);
+        for &child in state.scroll_containers.get(&id).into_iter().flatten() {
+            containers.insert(child);
+            if state.scroll_regions.contains_key(&child) {
+                affected_scrollers.insert(child);
+            }
+        }
+    }
+    for id in containers {
+        update_container_presentation(id, ctx, state);
+    }
+    for id in affected_scrollers {
         if let Some(region) = scroll_region(id, ctx) {
             let (layer, previous) = state.scroll_regions.get_mut(&id).unwrap();
             let previous = std::mem::replace(previous, region);
@@ -404,6 +514,9 @@ pub(crate) fn update_native_culling(
     }
     let mut warm = HashMap::<usize, HashSet<u32>>::new();
     for (&id, &(layer, _)) in &state.scroll_regions {
+        if !state.leaf_scroll_regions.contains(&id) {
+            continue;
+        }
         let Some(surface) = ctx.get_scroller_surface_state(id) else {
             continue;
         };
@@ -478,6 +591,72 @@ pub(crate) fn update_native_culling(
     }
 }
 
+fn update_container_presentation(id: u32, ctx: &RuntimeContext, state: &OcclusionState) {
+    let Some(record) = state.records.get(&id) else {
+        return;
+    };
+    if record.before_children {
+        return;
+    }
+    let Some(node) = ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(id)) else {
+        return;
+    };
+    let presentation = ctx.presentation_scroll_transform_for_node(&node);
+    let bounds = OcclusionBox::new_from_transform_and_bounds_with_affine(
+        node.transform_and_bounds.get(),
+        presentation,
+    );
+    let viewport = ctx.globals().viewport.get().bounds;
+    let mut clipped = OcclusionBox::from_viewport(viewport.0, viewport.1);
+    // Match full reconciliation's conservative clip bounds. Exact paths still
+    // belong to Frame/Scroller and native masks; no bbox replaces those masks.
+    for clip_id in record.clips.iter().copied().chain(std::iter::once(id)) {
+        let Some(owner_record) = state.records.get(&clip_id) else {
+            continue;
+        };
+        let Some(owner) = ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(clip_id))
+        else {
+            continue;
+        };
+        let transform = ctx.presentation_scroll_transform_for_node(&owner);
+        if owner_record.scrolls {
+            let bounds = OcclusionBox::new_from_transform_and_bounds_with_affine(
+                owner.transform_and_bounds.get(),
+                transform,
+            );
+            clipped = clipped.intersect(&bounds).unwrap_or(clipped);
+        }
+        if let Some(path) = &owner_record.clip {
+            if let Some(bounds) = OcclusionBox::new_from_path(&(transform * path.clone())) {
+                clipped = clipped.intersect(&bounds).unwrap_or(clipped);
+            }
+        }
+    }
+    let hash = hash_presentation_bounds(Some(bounds), Some(clipped));
+    if node.presentation_cache_hash.get() == hash {
+        return;
+    }
+    if record.scrolls {
+        ctx.enqueue_native_message(pax_message::NativeMessage::ScrollerUpdate(ScrollerPatch {
+            id,
+            content_layer_id: state.owned_layers.get(&id).map(|layer| *layer as u32),
+            presented_bounds: Some(bounds.as_array()),
+            presented_clip_bounds: Some(clipped.as_array()),
+            ..Default::default()
+        }));
+    } else if record.clip.is_some() {
+        ctx.enqueue_native_message(pax_message::NativeMessage::FrameUpdate(
+            pax_message::FramePatch {
+                id,
+                presented_bounds: Some(bounds.as_array()),
+                presented_clip_bounds: Some(clipped.as_array()),
+                ..Default::default()
+            },
+        ));
+    }
+    node.presentation_cache_hash.set(hash);
+}
+
 fn scroll_region(id: u32, ctx: &RuntimeContext) -> Option<Rect> {
     let node = ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(id))?;
     let bounds = node.transform_and_bounds.get().bounds;
@@ -485,12 +664,23 @@ fn scroll_region(id: u32, ctx: &RuntimeContext) -> Option<Rect> {
         .get_scroller_surface_scroll(id)
         .or_else(|| borrow!(node.instance_node).resolve_scroll_offset(&node))
         .unwrap_or_default();
-    Some(Rect::new(
-        scroll.0,
-        scroll.1,
-        scroll.0 + bounds.0,
-        scroll.1 + bounds.1,
-    ))
+    // Native mask rejection uses presentation-space AABBs. Under rotation,
+    // their conservative overlap can include leaves just outside the local
+    // viewport. Query that same envelope rather than dropping those leaves.
+    let transform = ctx.presentation_scroll_transform_for_node(&node)
+        * Affine::from(node.transform_and_bounds.get().transform);
+    if !transform
+        .inverse()
+        .as_coeffs()
+        .iter()
+        .all(|v| v.is_finite())
+    {
+        return None;
+    }
+    let region = transform.inverse().transform_rect_bbox(
+        transform.transform_rect_bbox(Rect::new(0.0, 0.0, bounds.0, bounds.1)),
+    );
+    Some(region + kurbo::Vec2::new(scroll.0, scroll.1))
 }
 
 fn path_in_surface_bounds(path: &BezPath, geometry: &PreparedCanvasGeometry) -> Rect {

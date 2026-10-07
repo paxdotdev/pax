@@ -22,9 +22,14 @@ pub mod layer_surface;
 pub mod layer_tiling;
 pub mod node_interface;
 pub mod occlusion;
+pub mod surface_metrics;
+pub mod surface_preparation;
+pub mod surface_scheduling;
+pub mod surface_work;
 // TODO move these to not be in engine - make separate crates?
 pub mod pax_gpu_render_context;
 pub mod piet_render_context;
+mod recorded_drawing;
 #[cfg(test)]
 mod render_lifecycle_tests;
 
@@ -571,6 +576,16 @@ impl PaxEngine {
     ///     a. find lowest node (last child of last node)
     ///     b. start rendering, from lowest node on-up, throughout tree
     pub fn tick(&mut self) -> Vec<NativeMessage> {
+        self.tick_with_phase_observer(|_| {})
+    }
+
+    /// Run the ordinary tick, reporting completed phase boundaries for opt-in
+    /// host timing. Observation does not change lifecycle or clock advancement.
+    /// The observer must not mutate the application or re-enter the engine.
+    pub fn tick_with_phase_observer(
+        &mut self,
+        mut completed: impl FnMut(&'static str),
+    ) -> Vec<NativeMessage> {
         if matches!(
             self.runtime_context.application.context().phase(),
             pax_runtime_api::AppPhase::Closing | pax_runtime_api::AppPhase::Closed
@@ -585,10 +600,13 @@ impl PaxEngine {
         //
         if let Some(root_expanded_node) = &self.root_expanded_node {
             root_expanded_node.recurse_update(&self.runtime_context);
+            completed("update_nodes");
             if self.runtime_context.has_import_settings_nodes() {
                 root_expanded_node.recurse_sync_import_settings(&self.runtime_context);
             }
         }
+
+        completed("import_settings");
 
         let ctx = &self.runtime_context;
         ctx.drain_node_effects();
@@ -601,10 +619,13 @@ impl PaxEngine {
             self.shutdown(pax_runtime_api::StopReason::HostClosed);
             return Vec::new();
         }
+        completed("effects_before_handlers");
         self.run_lifecycle_handlers(TICK_HANDLERS, ctx.tick_handler_nodes());
         ctx.drain_node_effects();
+        completed("tick_handlers");
         self.run_lifecycle_handlers(PRE_RENDER_HANDLERS, ctx.pre_render_handler_nodes());
         ctx.drain_node_effects();
+        completed("pre_render_handlers");
 
         let globals = ctx.globals();
         let time = &globals.elapsed_frames;
@@ -619,22 +640,29 @@ impl PaxEngine {
         // Settle those effects before final layout and the retained render plan;
         // otherwise a replay can clear the old subtree but omit its replacement.
         ctx.drain_node_effects();
+        completed("clock_events_effects");
         ctx.prepare_scene_geometry();
+        completed("geometry_before_proximity");
         ctx.dispatch_viewport_proximity();
+        completed("proximity");
         // Handler mutations settle for drawing, but observation samples at most once
         // per tick. Their invalidations remain pending for the next display tick.
         // Observation uses layout/scroll geometry, not compositing assignments.
         // Finalize occlusion only after handlers settle, so animation plus a
         // proximity callback does not traverse the whole scene twice in one tick.
         ctx.drain_node_effects();
+        completed("proximity_effects");
         if ctx.take_occlusion_dirty() {
             if let Some(root) = &self.root_expanded_node {
                 occlusion::update_node_occlusion(root, ctx);
             }
             ctx.drain_node_effects();
         }
+        completed("occlusion");
         ctx.prepare_scene_geometry();
+        completed("geometry_after_occlusion");
         occlusion::update_native_culling(ctx, self.scroller_tiling_policy);
+        completed("native_culling");
         let native_messages = ctx.take_native_messages();
         native_messages
     }
@@ -711,6 +739,181 @@ impl PaxEngine {
         true
     }
 
+    /// Prepare surfaces from settled scene state without advancing a tick or
+    /// invoking lifecycle handlers. Supporting backends capture missing primitive
+    /// drawings in bounded units before atomically submitting a complete tile.
+    /// Capture reads current properties and inherited rendering hooks; cached
+    /// replay needs no component callbacks. Reselect after each submission while
+    /// the allowance permits. Blocked layers wait until the next pass without
+    /// preventing eligible siblings from using the remaining allowance.
+    pub fn present_settled_surfaces(
+        &self,
+        rcs: &mut dyn RenderContext,
+        budget: &mut surface_work::SurfaceWorkBudget,
+        now_ms: impl Fn() -> f64,
+    ) -> surface_work::SurfaceWorkReport {
+        let mut report = surface_work::SurfaceWorkReport::default();
+        if matches!(
+            self.runtime_context.application.context().phase(),
+            pax_runtime_api::AppPhase::Closing | pax_runtime_api::AppPhase::Closed
+        ) {
+            report.blocked = true;
+            report.blocker = Some("app_closing");
+            return report;
+        }
+        let _graph = self.runtime_context.property_graph.enter();
+        if let Some(blocker) = self.runtime_context.settled_surface_blocker() {
+            report.blocked = true;
+            report.blocker = Some(blocker);
+            return report;
+        }
+        let start = now_ms();
+        let mut completed_units = 0;
+        let captures_cold = rcs.prepares_surface_content();
+        let can_prepare = |layer, ids: &[u32]| {
+            if captures_cold {
+                self.runtime_context.can_prepare_settled_layer(layer)
+            } else {
+                self.runtime_context.can_replay_settled_layer(layer, ids)
+            }
+        };
+        let mut deferred = Vec::new();
+        loop {
+            let mut updates = rcs.take_settled_surface_replays().into_iter();
+            let Some(update) = updates.next() else {
+                break;
+            };
+            let elapsed = now_ms() - start;
+            if !budget.admits(completed_units, elapsed) {
+                deferred.push(update.layer);
+                deferred.extend(updates.map(|job| job.layer));
+                break;
+            }
+            // Submission can expose a higher-priority batch on the same layer.
+            // Return the other candidates before selecting again, rather than
+            // draining a stale layer snapshot or imposing a one-batch/frame cap.
+            for pending in updates {
+                rcs.defer_surface_replay(pending.layer);
+            }
+            // Merging newly initialized surfaces can enqueue a layer again.
+            // Still only try a blocked layer once per preparation pass.
+            if deferred.contains(&update.layer) {
+                continue;
+            }
+            if let Some(blocker) = self.runtime_context.settled_surface_blocker() {
+                deferred.push(update.layer);
+                report.blocked = true;
+                report.blocker = Some(blocker);
+                break;
+            }
+            let Some(regions) = update.regions.as_deref() else {
+                deferred.push(update.layer);
+                report.cache_misses += 1;
+                continue;
+            };
+            let ids = self
+                .runtime_context
+                .settled_canvas_nodes_intersecting(update.layer, regions);
+            if !can_prepare(update.layer, &ids) {
+                deferred.push(update.layer);
+                continue;
+            }
+            let mut direct = false;
+            if let Some(missing) = rcs.missing_surface_drawings(update.layer, &ids) {
+                report.cache_misses += usize::from(!missing.is_empty());
+                for id in missing {
+                    if !budget.admits(completed_units, now_ms() - start) {
+                        break;
+                    }
+                    let capture_start = now_ms();
+                    if !self.record_surface_node(rcs, update.layer, id) {
+                        direct = true;
+                        break;
+                    }
+                    completed_units += 1;
+                    report.recorded += 1;
+                    budget.observe(now_ms() - capture_start);
+                }
+                if !can_prepare(update.layer, &ids)
+                    || self.runtime_context.settled_surface_blocker().is_some()
+                    || (!direct && !budget.admits(completed_units, now_ms() - start))
+                {
+                    deferred.push(update.layer);
+                    continue;
+                }
+            }
+            let submit_start = now_ms();
+            if direct {
+                // A single overlarge record or cache churn must not deadlock a
+                // cold tile. This rare fallback is one non-preemptible unit,
+                // confined to the currently selected physical surface.
+                if !rcs.begin_surface_fallback(update.layer) {
+                    deferred.push(update.layer);
+                    continue;
+                }
+                self.render_surface_nodes(rcs, update.layer, &ids);
+                report.fallbacks += 1;
+            } else if !rcs.prepare_settled_surface_replay(update.layer, &ids) {
+                deferred.push(update.layer);
+                report.cache_misses += 1;
+                continue;
+            }
+            rcs.flush(
+                update.layer,
+                Rc::clone(&self.runtime_context.dirty_canvases),
+            );
+            budget.observe(now_ms() - submit_start);
+            report.submitted += 1;
+            completed_units += 1;
+        }
+        deferred.sort_unstable();
+        deferred.dedup();
+        report.deferred = deferred.len();
+        for layer in deferred {
+            rcs.defer_surface_replay(layer);
+        }
+        report.elapsed_ms = now_ms() - start;
+        report
+    }
+
+    fn record_surface_node(&self, rcs: &mut dyn RenderContext, layer: usize, id: u32) -> bool {
+        if !rcs.begin_surface_recording(layer) {
+            return false;
+        }
+        self.render_surface_nodes(rcs, layer, &[id]);
+        let retained = rcs.end_surface_recording(layer);
+        retained
+            && rcs
+                .missing_surface_drawings(layer, &[id])
+                .is_some_and(|missing| missing.is_empty())
+    }
+
+    fn render_surface_nodes(&self, rcs: &mut dyn RenderContext, layer: usize, ids: &[u32]) {
+        let Some(root) = &self.root_expanded_node else {
+            return;
+        };
+        // These are render-only flags, not an application invalidation: geometry
+        // and reactive state are already settled. Ancestor clips use the layer bit.
+        self.runtime_context
+            .mark_canvas_nodes_on_layer_dirty_by_id(layer, ids);
+        self.runtime_context.set_canvas_dirty(layer);
+        let node_ids: Vec<_> = ids.iter().map(|id| ExpandedNodeIdentifier(*id)).collect();
+        match self.build_filtered_render_plan(root, &node_ids) {
+            Ok(plan) => root.recurse_render_filtered(
+                &self.runtime_context,
+                rcs,
+                &plan.render_path_nodes,
+                &plan.dirty_nodes,
+                &mut expanded_node::FilteredRenderStats::default(),
+            ),
+            // Preserve the ordinary unclippable/render-parent semantics. Only
+            // requested nodes were dirtied; other layers cannot be drawn here.
+            Err(_) => root.recurse_render_queue(&self.runtime_context, rcs),
+        }
+        self.runtime_context.recurse_flush_queued_renders(rcs);
+        self.runtime_context.dirty_canvases.borrow_mut()[layer] = false;
+    }
+
     pub fn render(&mut self, rcs: &mut dyn RenderContext) {
         if matches!(
             self.runtime_context.application.context().phase(),
@@ -759,10 +962,16 @@ impl PaxEngine {
         let prepare_timing = Span::new(Phase::Prepare);
         let removal_layers: HashSet<_> = removals.iter().map(|(layer, _)| *layer).collect();
         let targeted_replay_node_ids = self.runtime_context.take_targeted_canvas_replay_node_ids();
+        for (layer, ids) in &targeted_replay_node_ids {
+            let ids: Vec<_> = ids.iter().copied().collect();
+            let missing = rcs.prepare_canvas_replay(*layer, &ids);
+            self.runtime_context
+                .mark_canvas_nodes_on_layer_dirty_by_id(*layer, &missing);
+        }
         let dirty_node_ids_before_expansion = self.runtime_context.dirty_canvas_node_ids();
         let retains_canvas_nodes = rcs.retains_canvas_nodes();
         let mut retained_full_replay_layers = Vec::new();
-        if retains_canvas_nodes {
+        if retains_canvas_nodes && !rcs.separates_surface_replay() {
             for layer in &dirty_layers {
                 let has_retained_removal = removal_layers.contains(layer);
                 let has_targeted_conflict =
@@ -1271,6 +1480,12 @@ mod tests {
 
         assert_eq!(TICK_CALLS.load(Ordering::SeqCst), 1);
         assert_eq!(PRE_RENDER_CALLS.load(Ordering::SeqCst), 1);
+        let mut phases = Vec::new();
+        let _ = engine.tick_with_phase_observer(|phase| phases.push(phase));
+        assert_eq!(TICK_CALLS.load(Ordering::SeqCst), 2);
+        assert_eq!(PRE_RENDER_CALLS.load(Ordering::SeqCst), 2);
+        assert_eq!(phases.first(), Some(&"update_nodes"));
+        assert_eq!(phases.last(), Some(&"native_culling"));
     }
 
     #[test]

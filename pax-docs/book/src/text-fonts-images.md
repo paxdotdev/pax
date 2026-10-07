@@ -309,7 +309,18 @@ dimensions determine its proportions, but do not automatically size the
 node. Set width and height for the area the image should occupy.
 
 Image assets load asynchronously. Once decoding finishes, Pax schedules a
-redraw of the mounted image.
+redraw of the mounted image. On web, concurrent `Image` requests with the same
+source string in one app share one fetch/decode operation and one transfer of
+the decoded pixels into the renderer. Every still-mounted waiting image is
+scheduled to redraw. Requesting a different URL detaches that node from its
+previous pending request; disposing the app aborts outstanding fetches. This does not extend to
+`NativeImage`, unrelated app instances, or the Apple loaders.
+
+Decoded pixels and GPU textures have separate lifetimes. Scrolling can require
+preparing a new tile's draw bindings or uploading pixels that are no longer
+resident on the GPU, without another network request or decode. Tile preparation
+does not defer component mounting. See
+[Scrolling & Viewports](scrolling-viewports.md) for resource sharing and diagnostics.
 
 A string is shorthand for `ImageSource::Url`. `source={self.image_path}`
 works the same way when `image_path` is a `Property<String>`; updating the

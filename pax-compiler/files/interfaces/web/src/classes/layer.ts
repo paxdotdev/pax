@@ -5,6 +5,7 @@ import { CanvasPool, releaseCanvasBacking } from "./canvas-pool";
 import type { LayerCanvasPlan, SurfaceCanvasDescriptor } from "./surface-host-policy";
 
 let nextSurfaceGeneration = 0;
+let nextSurfaceContentRevision = 0;
 
 function tileDebugEnabled() {
     return typeof window !== "undefined"
@@ -159,7 +160,7 @@ export class Layer {
         });
     }
 
-    syncCanvasLayout() {
+    syncCanvasLayout(enqueue?: (priority: number, install: () => void) => void) {
         if (this.renderLayerId == null || this.canvasMap == null) {
             return;
         }
@@ -188,46 +189,60 @@ export class Layer {
         }
         this.retireUnusedCanvases();
         let missingSurface = false;
+        let remaining = plan.surfaces.length;
+        const finishSurface = () => {
+            if (--remaining > 0) return;
+            this.lastPlanSignature = missingSurface ? undefined : planSignature;
+            this.lastVisibleHost = missingSurface ? undefined : visibleHost;
+            this.debugPlan(missingSurface ? "missing-surface" : "synced", plan);
+        };
+        const schedule = enqueue ?? ((_priority, install) => install());
 
         [...plan.surfaces].sort((a, b) => a.replayPriority - b.replayPriority).forEach((descriptor) => {
-            let canvas = this.canvases.get(descriptor.id);
-            if (canvas == null) {
-                if (this.canvasPool) {
-                    const available = this.canvasPool.checkout();
-                    if (available == null) {
-                        missingSurface = true;
-                        return;
+            schedule(descriptor.replayPriority, () => {
+                let canvas = this.canvases.get(descriptor.id);
+                if (canvas == null) {
+                    if (this.canvasPool) {
+                        const available = this.canvasPool.checkout((descriptor.backingWidth ?? 0) * (descriptor.backingHeight ?? 0));
+                        if (available == null) {
+                            missingSurface = true;
+                            finishSurface();
+                            return;
+                        }
+                        canvas = available;
+                    } else {
+                        canvas = this.objectManager.getFromPool<HTMLCanvasElement>(CANVAS);
                     }
-                    canvas = available;
-                } else {
-                    canvas = this.objectManager.getFromPool<HTMLCanvasElement>(CANVAS);
+                    // A pooled element may return to the same logical tile after its
+                    // backing store was cleared. DOM identity alone is not a lease.
+                    canvas.dataset.surfaceGeneration = String(++nextSurfaceGeneration);
+                    delete canvas.dataset.surfaceRetiredId;
+                    delete canvas.dataset.surfaceRetiredRevision;
+                    canvas.style.position = "absolute";
+                    canvas.style.pointerEvents = "none";
+                    canvas.style.backgroundColor = "transparent";
+                    this.canvases.set(descriptor.id, canvas);
+                    this.canvasMap!.set(descriptor.id, canvas);
                 }
-                // A pooled element may return to the same logical tile after its
-                // backing store was cleared. DOM identity alone is not a lease.
-                canvas.dataset.surfaceGeneration = String(++nextSurfaceGeneration);
-                canvas.style.position = "absolute";
-                canvas.style.pointerEvents = "none";
-                canvas.style.backgroundColor = "transparent";
-                this.canvases.set(descriptor.id, canvas);
-                this.canvasMap!.set(descriptor.id, canvas);
-            }
-            this.configureCanvas(canvas, descriptor);
-            if (visibleHost != null && canvas.parentElement !== visibleHost) {
-                visibleHost.appendChild(canvas);
-            }
-        });
-
-        if (missingSurface) {
-            this.lastPlanSignature = undefined;
-            this.lastVisibleHost = undefined;
-            this.debugPlan("missing-surface", plan, {
-                expected: plan.surfaces.length,
+                if (this.canvasPool && !this.canvasPool.reserveBacking(canvas,
+                    (descriptor.backingWidth ?? 0) * (descriptor.backingHeight ?? 0))) {
+                    // A resizing assignment can need more pixels while another
+                    // canvas still has a live lease. Do not publish guessed sizes.
+                    this.canvases.delete(descriptor.id);
+                    this.canvasMap!.delete(descriptor.id);
+                    this.prepareCanvasForRelease(canvas);
+                    this.canvasPool.release(canvas);
+                    missingSurface = true;
+                    finishSurface();
+                    return;
+                }
+                this.configureCanvas(canvas, descriptor);
+                if (visibleHost != null && canvas.parentElement !== visibleHost) {
+                    visibleHost.appendChild(canvas);
+                }
+                finishSurface();
             });
-        } else {
-            this.lastPlanSignature = planSignature;
-            this.lastVisibleHost = visibleHost;
-            this.debugPlan("synced", plan);
-        }
+        });
     }
 
     public cleanUp() {
@@ -258,6 +273,15 @@ export class Layer {
         canvas: HTMLCanvasElement,
         descriptor: SurfaceCanvasDescriptor,
     ) {
+        if (canvas.dataset.surfaceSignature !== descriptor.surfaceSignature
+            || canvas.dataset.transformSignature !== descriptor.transformSignature
+            || canvas.dataset.hostSignature !== descriptor.hostSignature) {
+            canvas.dataset.surfaceContentRevision = String(++nextSurfaceContentRevision);
+            canvas.dataset.surfacePreparedAt = String(performance.now());
+            delete canvas.dataset.surfacePreparationLatency;
+            delete canvas.dataset.surfaceFirstVisibleAt;
+            delete canvas.dataset.surfaceSubmittedAt;
+        }
         canvas.id = descriptor.id;
         canvas.dataset.layerId = String(this.renderLayerId);
         canvas.dataset.tileKey = descriptor.key;
@@ -265,6 +289,11 @@ export class Layer {
         canvas.dataset.tileOriginY = String(descriptor.top);
         canvas.dataset.logicalWidth = String(descriptor.width);
         canvas.dataset.logicalHeight = String(descriptor.height);
+        if (descriptor.backingWidth != null && descriptor.backingHeight != null) {
+            canvas.dataset.expectedBackingWidth = String(descriptor.backingWidth);
+            canvas.dataset.expectedBackingHeight = String(descriptor.backingHeight);
+        }
+        canvas.dataset.densityClamped = String(!!descriptor.densityClamped);
         canvas.dataset.replayPriority = String(descriptor.replayPriority);
         canvas.dataset.surfaceSignature = descriptor.surfaceSignature;
         canvas.dataset.transformSignature = descriptor.transformSignature;
@@ -282,6 +311,12 @@ export class Layer {
     }
 
     private prepareCanvasForRelease(canvas: HTMLCanvasElement) {
+        if (canvas.dataset.surfaceTrace === '1') {
+            canvas.dataset.surfaceRetiredId = canvas.id;
+            canvas.dataset.surfaceRetiredRevision = canvas.dataset.surfaceContentRevision;
+            canvas.dataset.surfaceEvent = 'retirement';
+            canvas.dispatchEvent(new Event('pax-surface-trace', {bubbles: true}));
+        }
         // Do not clear a canvas still held by an asynchronous GPU initializer.
         // The pool shrinks it once the final surface owner releases it.
         releaseCanvasBacking(canvas);
@@ -294,10 +329,21 @@ export class Layer {
         canvas.removeAttribute("data-tile-origin-y");
         canvas.removeAttribute("data-logical-width");
         canvas.removeAttribute("data-logical-height");
+        canvas.removeAttribute("data-expected-backing-width");
+        canvas.removeAttribute("data-expected-backing-height");
         canvas.removeAttribute("data-replay-priority");
         canvas.removeAttribute("data-surface-signature");
         canvas.removeAttribute("data-transform-signature");
         canvas.removeAttribute("data-host-signature");
+        canvas.removeAttribute("data-surface-content-revision");
+        canvas.removeAttribute("data-surface-prepared-at");
+        canvas.removeAttribute("data-surface-preparation-latency");
+        canvas.removeAttribute("data-surface-submitted-revision");
+        canvas.removeAttribute("data-surface-first-visible-at");
+        canvas.removeAttribute("data-surface-submitted-at");
+        canvas.removeAttribute("data-surface-init-started-at");
+        canvas.removeAttribute("data-surface-init-completed-at");
+        canvas.removeAttribute("data-surface-queued-revision");
     }
 
     private computePlanSignature(plan: LayerCanvasPlan): string {
@@ -311,6 +357,7 @@ export class Layer {
                 `${descriptor.id}|${descriptor.left},${descriptor.top},${descriptor.width},${descriptor.height}`
                 + `|${descriptor.surfaceSignature}|${descriptor.transformSignature}|${descriptor.hostSignature ?? ""}`
                 + `|priority=${descriptor.replayPriority}`,
+                `backing=${descriptor.backingWidth}x${descriptor.backingHeight}`,
             );
         });
         return parts.join(";");
