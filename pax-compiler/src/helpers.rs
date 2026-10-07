@@ -22,15 +22,10 @@ lazy_static! {
 pub static PAX_CREATE_AGENTS_TEMPLATE: &str = include_str!("../files/new-project/AGENTS.md");
 pub static PAX_WEB_INTERFACE_TEMPLATE: Dir<'_> =
     include_dir!("$CARGO_MANIFEST_DIR/files/interfaces/web/public/");
-pub static PAX_MACOS_INTERFACE_TEMPLATE: Dir<'_> =
-    include_dir!("$CARGO_MANIFEST_DIR/files/interfaces/macos/");
-pub static PAX_IOS_INTERFACE_TEMPLATE: Dir<'_> =
-    include_dir!("$CARGO_MANIFEST_DIR/files/interfaces/ios/");
-
-pub static PAX_SWIFT_CARTRIDGE_TEMPLATE: Dir<'_> =
-    include_dir!("$CARGO_MANIFEST_DIR/files/swift/pax-swift-cartridge/");
-pub static PAX_SWIFT_COMMON_TEMPLATE: Dir<'_> =
-    include_dir!("$CARGO_MANIFEST_DIR/files/swift/pax-swift-common/");
+pub use pax_host::sources::{
+    PAX_IOS_INTERFACE_TEMPLATE, PAX_MACOS_INTERFACE_TEMPLATE, PAX_SWIFT_CARTRIDGE_TEMPLATE,
+    PAX_SWIFT_COMMON_TEMPLATE,
+};
 
 pub const INTERFACE_DIR_NAME: &str = "interface";
 pub const BUILD_DIR_NAME: &str = "build";
@@ -48,6 +43,7 @@ pub const ALL_PKGS: &[&str] = &[
     "pax-chassis-web",
     "pax-cli",
     "pax-compiler",
+    "pax-codegen",
     "pax-designtime",
     "pax-kit",
     "pax-host",
@@ -133,7 +129,12 @@ pub fn pax_project_feature_args(project_path: &Path, requested_features: &[&str]
             .collect();
     };
 
-    let mut features = vec![];
+    // Expand application defaults explicitly so production can omit the one
+    // development switch without dropping unrelated application capabilities.
+    // An alias or dependency that re-enables designtime is rejected by the
+    // resolved release-graph check rather than silently changing its meaning.
+    let mut features =
+        retained_default_features(project_path, requested_features.contains(&"designtime"));
     for requested_feature in requested_features {
         if config.has_local_feature(requested_feature) {
             push_unique(&mut features, *requested_feature);
@@ -154,6 +155,27 @@ pub fn pax_project_feature_args(project_path: &Path, requested_features: &[&str]
     }
 
     features
+}
+
+pub(crate) fn retained_default_features(project: &Path, designtime: bool) -> Vec<String> {
+    let Some(document) = fs::read_to_string(project.join("Cargo.toml"))
+        .ok()
+        .and_then(|source| source.parse::<toml_edit::Document>().ok())
+    else {
+        return Vec::new();
+    };
+    document
+        .get("features")
+        .and_then(|item| item.get("default"))
+        .and_then(|item| item.as_array())
+        .into_iter()
+        .flatten()
+        .filter_map(|item| item.as_str())
+        .filter(|feature| {
+            designtime || (*feature != "designtime" && !feature.ends_with("/designtime"))
+        })
+        .map(str::to_owned)
+        .collect()
 }
 
 /// Resolves the exact Cargo graph built for the requested release features and
@@ -189,8 +211,13 @@ pub fn pax_project_release_devtime_activators(
             .arg("--color")
             .arg("never")
             .arg("--quiet");
-        if !requested_features.is_empty() {
-            command.arg("--features").arg(requested_features.join(","));
+        command.arg("--no-default-features");
+        let mut features = retained_default_features(project_path, false);
+        for feature in requested_features {
+            push_unique(&mut features, feature);
+        }
+        if !features.is_empty() {
+            command.arg("--features").arg(features.join(","));
         }
 
         let output = command
@@ -261,15 +288,45 @@ fn collect_release_devtime_activators(
 }
 
 pub fn configure_pax_build_env(cmd: &mut Command, target: &str, should_run_designtime: bool) {
-    cmd.env("PAX_BUILD_TARGET", target).env(
-        "PAX_BUILD_DESIGNTIME",
-        if should_run_designtime { "1" } else { "0" },
-    );
+    cmd.arg("--no-default-features");
+    cmd.env("PAX_BUILD_ROLE", "application")
+        .env("PAX_BUILD_TARGET", target)
+        .env(
+            "PAX_BUILD_DESIGNTIME",
+            if should_run_designtime { "1" } else { "0" },
+        );
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn production_removes_development_default_but_preserves_application_defaults() {
+        let dir = write_manifest(
+            r#"
+[package]
+name = "app"
+version = "0.1.0"
+[dependencies]
+pax-kit = "0.39.0"
+[features]
+default = ["standalone", "designtime", "database"]
+standalone = ["pax-kit/host"]
+designtime = ["pax-kit/designtime"]
+database = []
+"#,
+        );
+        let production = pax_project_feature_args(dir.path(), &["web"]);
+        assert!(production.contains(&"standalone".into()));
+        assert!(production.contains(&"database".into()));
+        assert!(production.contains(&"pax-kit/web".into()));
+        assert!(!production
+            .iter()
+            .any(|feature| feature.contains("designtime")));
+        let development = pax_project_feature_args(dir.path(), &["web", "designtime"]);
+        assert!(development.contains(&"designtime".into()));
+    }
 
     fn write_manifest(contents: &str) -> tempfile::TempDir {
         let dir = tempfile::tempdir().expect("tempdir should be created");

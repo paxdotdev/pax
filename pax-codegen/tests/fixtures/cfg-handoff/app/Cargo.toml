@@ -1,0 +1,16 @@
+[package]
+name = "cfg-app"
+version = "0.0.0"
+edition = "2021"
+publish = false
+[features]
+fancy = []
+widget-fancy = ["renamed-widgets/fancy"]
+[dependencies]
+pax-kit = { path = "../../../../../pax-kit" }
+renamed-widgets = { package = "cfg-widgets", path = "../widgets" }
+[lints.rust]
+unexpected_cfgs = { level = "deny", check-cfg = ["cfg(widget_config)", "cfg(proof_flag)"] }
+
+[lib]
+crate-type = ["rlib", "cdylib"]

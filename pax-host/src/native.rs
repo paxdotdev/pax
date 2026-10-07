@@ -1,7 +1,7 @@
+pub use crate::{Error, InitOptions};
 use std::{
     cell::{Cell, RefCell},
     ffi::c_void,
-    fmt,
     future::Future,
     marker::PhantomData,
     pin::Pin,
@@ -10,51 +10,217 @@ use std::{
     task::{Context, Poll, Waker},
 };
 
-// Unit tests of platform-independent policy do not need a packaged framework.
-#[cfg_attr(not(test), link(name = "PaxHost", kind = "framework"))]
 extern "C" {
-    fn pax_host_version() -> u32;
-    fn pax_host_prepare_with_data(data: *const u8, len: usize) -> *mut c_void;
-    fn pax_host_request(
-        session: *mut c_void,
-        data: *const u8,
-        len: usize,
-        context: *mut c_void,
-        reply: extern "C" fn(*mut c_void, u32, *const u8, usize),
-    );
+    fn dlopen(path: *const std::ffi::c_char, flags: i32) -> *mut c_void;
+    fn dlsym(handle: *mut c_void, name: *const std::ffi::c_char) -> *mut c_void;
+    fn dlerror() -> *const std::ffi::c_char;
+}
+struct NativeApi {
+    _handle: usize,
+    configure: unsafe extern "C" fn(*const u8, usize) -> i32,
+    pax_host_version: unsafe extern "C" fn() -> u32,
+    pax_host_prepare_with_data: unsafe extern "C" fn(*const u8, usize) -> *mut c_void,
+    pax_host_request: unsafe extern "C" fn(
+        *mut c_void,
+        *const u8,
+        usize,
+        *mut c_void,
+        extern "C" fn(*mut c_void, u32, *const u8, usize),
+    ),
     #[cfg(target_os = "macos")]
-    fn pax_host_window_options(
-        session: *mut c_void,
-        title: *const u8,
-        len: usize,
-        width: f64,
-        height: f64,
-        min_width: f64,
-        min_height: f64,
-        resizable: bool,
-    ) -> i32;
-    fn pax_host_run(session: *mut c_void) -> i32;
-    fn pax_host_mount(session: *mut c_void, view: *mut c_void, controller: *mut c_void) -> i32;
-    fn pax_host_observe(
-        session: *mut c_void,
-        context: *mut c_void,
-        notify: extern "C" fn(*mut c_void, u32),
+    pax_host_window_options:
+        unsafe extern "C" fn(*mut c_void, *const u8, usize, f64, f64, f64, f64, bool) -> i32,
+    pax_host_run: unsafe extern "C" fn(*mut c_void) -> i32,
+    pax_host_mount: unsafe extern "C" fn(*mut c_void, *mut c_void, *mut c_void) -> i32,
+    pax_host_observe: unsafe extern "C" fn(
+        *mut c_void,
+        *mut c_void,
+        extern "C" fn(*mut c_void, u32),
         release: extern "C" fn(*mut c_void),
-    );
-    fn pax_host_close(session: *mut c_void);
-    fn pax_host_release(session: *mut c_void);
-    fn pax_host_error(buffer: *mut u8, capacity: usize) -> usize;
+    ),
+    pax_host_close: unsafe extern "C" fn(*mut c_void),
+    pax_host_release: unsafe extern "C" fn(*mut c_void),
+    pax_host_error: unsafe extern "C" fn(*mut u8, usize) -> usize,
+}
+static NATIVE_API: std::sync::OnceLock<Result<NativeApi, String>> = std::sync::OnceLock::new();
+fn bundled_framework(name: &str) -> Option<std::path::PathBuf> {
+    let executable = std::env::current_exe().ok()?;
+    let directory = executable.parent()?;
+    let frameworks = if directory.file_name()? == "MacOS" {
+        directory.parent()?.join("Frameworks")
+    } else {
+        directory.join("Frameworks")
+    };
+    let path = frameworks.join(format!("{name}.framework/{name}"));
+    path.is_file().then_some(path)
 }
 
-/// An initialization or mounting failure reported by the native host.
-#[derive(Debug, Clone)]
-pub struct Error(String);
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.0.fmt(f)
+fn host_framework_path() -> Result<std::path::PathBuf, String> {
+    if let Some(path) = bundled_framework("PaxHost")
+        .or_else(|| option_env!("PAX_HOST_SDK").map(std::path::PathBuf::from))
+    {
+        return Ok(path);
     }
+    #[cfg(all(feature = "designtime", target_os = "macos"))]
+    {
+        let executable = std::env::current_exe().map_err(|error| error.to_string())?;
+        let directory = executable.parent().ok_or("Executable has no directory")?;
+        return crate::sdk::build(
+            &directory.join("pax-native-sdk"),
+            std::env::consts::ARCH,
+            cfg!(debug_assertions),
+        )
+        .map_err(|error| error.to_string());
+    }
+    #[cfg(not(all(feature = "designtime", target_os = "macos")))]
+    Err("PaxHost is missing. Enable pax-kit/host for native Cargo builds, or package the native application.".into())
 }
-impl std::error::Error for Error {}
+
+fn configure(value: &serde_json::Value) -> Result<(), Error> {
+    let api = native_api()?;
+    let bytes = serde_json::to_vec(value).map_err(|e| Error(e.to_string()))?;
+    if unsafe { (api.configure)(bytes.as_ptr(), bytes.len()) } != 0 {
+        return Err(last_error());
+    }
+    Ok(())
+}
+
+/// Used by the facade's launch macros to carry copied build metadata across
+/// the native ABI. The application library is never called through Rust.
+#[doc(hidden)]
+pub fn __init_cartridge(recipe: &str, options: InitOptions) -> Result<PreparedApp, Error> {
+    let mut recipe: serde_json::Value =
+        serde_json::from_str(recipe).map_err(|e| Error(e.to_string()))?;
+    recipe["entry"] = options.entry.as_deref().unwrap_or("").into();
+    if bundled_framework("PaxCartridge").is_none() {
+        let executable = std::env::current_exe().map_err(|e| Error(e.to_string()))?;
+        let directory = executable
+            .parent()
+            .ok_or_else(|| Error("Executable has no directory".into()))?;
+        let profile = if directory.file_name().is_some_and(|name| name == "examples") {
+            directory.parent().unwrap()
+        } else {
+            directory
+        };
+        let library = recipe["library"]
+            .as_str()
+            .ok_or_else(|| Error("Missing UI library name".into()))?;
+        let cartridge = profile
+            .join("deps")
+            .join(format!("lib{}.dylib", library.replace('-', "_")));
+        if !cartridge.is_file() {
+            return Err(Error(format!("Missing UI library {}. Build the launcher and its cdylib together with Cargo, or package them with pax-cli.", cartridge.display())));
+        }
+        recipe["cartridge"] = cartridge.to_string_lossy().as_ref().into();
+    } else {
+        // Packaged resources and libraries are relocatable; source-tree paths
+        // in development metadata must not override a signed bundle.
+        recipe["assets"] = serde_json::json!([]);
+        recipe["programId"] = serde_json::Value::Null;
+    }
+    configure(&recipe)?;
+    prepare(options)
+}
+unsafe fn symbol<T: Copy>(handle: *mut c_void, name: &[u8]) -> Result<T, String> {
+    let ptr = dlsym(handle, name.as_ptr().cast());
+    if ptr.is_null() {
+        return Err(format!("missing native symbol {:?}", name));
+    }
+    Ok(std::mem::transmute_copy(&ptr))
+}
+fn native_api() -> Result<&'static NativeApi, Error> {
+    NATIVE_API
+        .get_or_init(|| unsafe {
+            let path = std::ffi::CString::new(host_framework_path()?.to_string_lossy().as_ref())
+                .map_err(|e| e.to_string())?;
+            let handle = dlopen(path.as_ptr(), 2);
+            if handle.is_null() {
+                let error = dlerror();
+                return Err(if error.is_null() {
+                    "Unable to load PaxHost".into()
+                } else {
+                    std::ffi::CStr::from_ptr(error)
+                        .to_string_lossy()
+                        .into_owned()
+                });
+            }
+            Ok(NativeApi {
+                _handle: handle as usize,
+                configure: symbol(handle, b"pax_host_configure\0")?,
+                pax_host_version: symbol(handle, b"pax_host_version\0")?,
+                pax_host_prepare_with_data: symbol(handle, b"pax_host_prepare_with_data\0")?,
+                pax_host_request: symbol(handle, b"pax_host_request\0")?,
+                #[cfg(target_os = "macos")]
+                pax_host_window_options: symbol(handle, b"pax_host_window_options\0")?,
+                pax_host_run: symbol(handle, b"pax_host_run\0")?,
+                pax_host_mount: symbol(handle, b"pax_host_mount\0")?,
+                pax_host_observe: symbol(handle, b"pax_host_observe\0")?,
+                pax_host_close: symbol(handle, b"pax_host_close\0")?,
+                pax_host_release: symbol(handle, b"pax_host_release\0")?,
+                pax_host_error: symbol(handle, b"pax_host_error\0")?,
+            })
+        })
+        .as_ref()
+        .map_err(|error| Error(error.clone()))
+}
+unsafe fn pax_host_version() -> u32 {
+    (native_api().expect("host was prepared").pax_host_version)()
+}
+unsafe fn pax_host_prepare_with_data(data: *const u8, len: usize) -> *mut c_void {
+    (native_api()
+        .expect("host was prepared")
+        .pax_host_prepare_with_data)(data, len)
+}
+unsafe fn pax_host_request(
+    session: *mut c_void,
+    data: *const u8,
+    len: usize,
+    context: *mut c_void,
+    reply: extern "C" fn(*mut c_void, u32, *const u8, usize),
+) {
+    (native_api().expect("host was prepared").pax_host_request)(session, data, len, context, reply)
+}
+#[cfg(target_os = "macos")]
+unsafe fn pax_host_window_options(
+    session: *mut c_void,
+    title: *const u8,
+    len: usize,
+    width: f64,
+    height: f64,
+    min_width: f64,
+    min_height: f64,
+    resizable: bool,
+) -> i32 {
+    (native_api()
+        .expect("host was prepared")
+        .pax_host_window_options)(
+        session, title, len, width, height, min_width, min_height, resizable,
+    )
+}
+unsafe fn pax_host_run(session: *mut c_void) -> i32 {
+    (native_api().expect("host was prepared").pax_host_run)(session)
+}
+unsafe fn pax_host_mount(session: *mut c_void, view: *mut c_void, controller: *mut c_void) -> i32 {
+    (native_api().expect("host was prepared").pax_host_mount)(session, view, controller)
+}
+unsafe fn pax_host_observe(
+    session: *mut c_void,
+    context: *mut c_void,
+    notify: extern "C" fn(*mut c_void, u32),
+    release: extern "C" fn(*mut c_void),
+) {
+    (native_api().expect("host was prepared").pax_host_observe)(session, context, notify, release)
+}
+unsafe fn pax_host_close(session: *mut c_void) {
+    (native_api().expect("host was prepared").pax_host_close)(session)
+}
+unsafe fn pax_host_release(session: *mut c_void) {
+    (native_api().expect("host was prepared").pax_host_release)(session)
+}
+unsafe fn pax_host_error(buffer: *mut u8, capacity: usize) -> usize {
+    (native_api().expect("host was prepared").pax_host_error)(buffer, capacity)
+}
+
 fn last_error() -> Error {
     unsafe {
         let size = pax_host_error(std::ptr::null_mut(), 0);
@@ -113,19 +279,17 @@ pub fn init() -> Result<PreparedApp, Error> {
     init_with(InitOptions::default())
 }
 
-/// Copied application inputs for the separately linked cartridge.
-#[derive(Default)]
-pub struct InitOptions {
-    /// Application-defined encoding, at most 64 KiB. The root initializer
-    /// decodes these bytes through `InitContext::startup_data()`.
-    pub startup_data: Vec<u8>,
-}
-
 /// Prepare a cartridge with explicit encoded inputs. No Rust allocation or
 /// object identity is shared with the cartridge. See [`init`] for lifecycle.
 pub fn init_with(options: InitOptions) -> Result<PreparedApp, Error> {
+    configure(&serde_json::json!({"entry": options.entry.as_deref().unwrap_or("")}))?;
+    prepare(options)
+}
+
+fn prepare(options: InitOptions) -> Result<PreparedApp, Error> {
+    native_api()?;
     unsafe {
-        if pax_host_version() != 1 {
+        if pax_host_version() != 2 {
             return Err(Error("incompatible PaxHost framework".into()));
         }
         let session = NonNull::new(pax_host_prepare_with_data(

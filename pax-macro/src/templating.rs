@@ -27,6 +27,8 @@ pub enum InternalDefinitions {
 #[derive(TemplateOnce)]
 #[template(path = "../templates/cartridge.stpl", escape = false)]
 pub struct TemplateArgsCartridge {
+    pub catalog: bool,
+    pub web_entrypoint: String,
     pub root_path: String,
     pub initializer: String,
     pub cartridge_snippet: String,
@@ -70,6 +72,8 @@ mod tests {
         TemplateArgsDerivePax {
             cartridge: if root {
                 TemplateArgsCartridge {
+                    catalog: false,
+                    web_entrypoint: "init_web".into(),
                     root_path: "EmbeddedExample".into(),
                     initializer: "example_init".into(),
                     cartridge_snippet: "const CARTRIDGE_OWNER: bool = true;".into(),

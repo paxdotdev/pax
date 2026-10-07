@@ -10,23 +10,6 @@ A readiness/cleanup observer. It may be dropped without cancelling cleanup.
 
 ---
 
-### `Error`
-An initialization or mounting failure reported by the native host.
-
----
-
-### `InitOptions`
-Copied application inputs for the separately linked cartridge.
-
-#### Properties
-##### `startup_data`
-Type: `Vec`<`u8`>
-
-Application-defined encoding, at most 64 KiB. The root initializer
-decodes these bytes through `InitContext::startup_data()`.
-
----
-
 ### `MountedApp`
 An owned single-region mount. Drop or `close` removes only Pax's child
 hierarchy and revokes its work. Cleanup continues through host wakeups even
@@ -64,20 +47,20 @@ once with `run` or `mount`. Dropping it starts retained asynchronous cleanup.
 
 #### Implementations
 ##### `mount`
-<pre><code class="api-signature language-rust ignore">pub fn mount&lt;&#39;a&gt;(self, host: <a href="../../api/pax-host/native.md#viewhost">ViewHost</a>&lt;&#39;a&gt;) -&gt; Result&lt;<a href="../../api/pax-host/native.md#mountedapp">MountedApp</a>&lt;&#39;a&gt;, <a href="../../api/pax-host/native.md#error">Error</a>&gt;</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn mount&lt;&#39;a&gt;(self, host: <a href="../../api/pax-host/native.md#viewhost">ViewHost</a>&lt;&#39;a&gt;) -&gt; Result&lt;<a href="../../api/pax-host/native.md#mountedapp">MountedApp</a>&lt;&#39;a&gt;, <a href="../../api/pax-host/index.md#error">Error</a>&gt;</code></pre>
 
 Attach the full Pax hierarchy, including native controls, to a region of
 the caller's view. The caller continues to own its window and event loop.
 
 ##### `run`
-<pre><code class="api-signature language-rust ignore">pub fn run(self) -&gt; Result&lt;(), <a href="../../api/pax-host/native.md#error">Error</a>&gt;</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn run(self) -&gt; Result&lt;(), <a href="../../api/pax-host/index.md#error">Error</a>&gt;</code></pre>
 
 Enter the platform's standalone SwiftUI application loop on the main
 thread. On iOS this normally does not return. Configure process services
 before calling this; cartridge-local services belong in its initializer.
 
 ##### `run_with`
-<pre><code class="api-signature language-rust ignore">pub fn run_with(self, options: <a href="../../api/pax-host/native.md#windowoptions">WindowOptions</a>) -&gt; Result&lt;(), <a href="../../api/pax-host/native.md#error">Error</a>&gt;</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn run_with(self, options: <a href="../../api/pax-host/native.md#windowoptions">WindowOptions</a>) -&gt; Result&lt;(), <a href="../../api/pax-host/index.md#error">Error</a>&gt;</code></pre>
 
 Enter the standalone macOS loop with an explicit window policy.
 
@@ -127,7 +110,7 @@ Type: `bool`
 
 ## Functions
 ### `init`
-<pre><code class="api-signature language-rust ignore">pub fn init() -&gt; Result&lt;<a href="../../api/pax-host/native.md#preparedapp">PreparedApp</a>, <a href="../../api/pax-host/native.md#error">Error</a>&gt;</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn init() -&gt; Result&lt;<a href="../../api/pax-host/native.md#preparedapp">PreparedApp</a>, <a href="../../api/pax-host/index.md#error">Error</a>&gt;</code></pre>
 
 Prepare the bundled cartridge and invoke its typed root initializer once.
 Must be called on the process main thread. No window or nested event loop is
@@ -137,7 +120,7 @@ work; staged work becomes eligible when the host is ready.
 ---
 
 ### `init_with`
-<pre><code class="api-signature language-rust ignore">pub fn init_with(options: <a href="../../api/pax-host/native.md#initoptions">InitOptions</a>) -&gt; Result&lt;<a href="../../api/pax-host/native.md#preparedapp">PreparedApp</a>, <a href="../../api/pax-host/native.md#error">Error</a>&gt;</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn init_with(options: <a href="../../api/pax-host/index.md#initoptions">InitOptions</a>) -&gt; Result&lt;<a href="../../api/pax-host/native.md#preparedapp">PreparedApp</a>, <a href="../../api/pax-host/index.md#error">Error</a>&gt;</code></pre>
 
 Prepare a cartridge with explicit encoded inputs. No Rust allocation or
 object identity is shared with the cartridge. See [`init`] for lifecycle.

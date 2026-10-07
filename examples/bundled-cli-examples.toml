@@ -3,17 +3,17 @@ default = "living-quilt"
 [[examples]]
 name = "living-quilt"
 description = "A monochrome geometric tapestry with the animated Pax logo, organic feathered color waves, and sliding panels."
-source = "examples/src/living-quilt"
+source = "examples/living-quilt"
 caveats = "Requires the WGPU renderer for painted alpha masks. Web verified; Apple target validation remains separate."
 
 [[examples]]
 name = "ink-and-light"
 description = "A responsive living postcard with handwriting, local assets, and one Rust-owned interaction."
-source = "examples/src/ink-and-light"
+source = "examples/ink-and-light"
 caveats = "Authored gradients provide the essential glow on every backend."
 
 [[examples]]
 name = "increment"
 description = "The minimal click counter for learning the Pax template-to-Rust loop."
-source = "examples/src/increment"
+source = "examples/increment"
 caveats = "Intentionally minimal; it does not demonstrate responsive composition."

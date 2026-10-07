@@ -299,7 +299,7 @@ an explicit display area:
 ```
 
 For this snippet, copy `spaceship.png` from the canonical
-`examples/src/space-game/assets/` directory into your project's `assets/`.
+`examples/space-game/assets/` directory into your project's `assets/`.
 You can substitute your own image and keep the same layout. The path is
 relative to the app's asset layout, not the directory containing its `.pax`
 template.

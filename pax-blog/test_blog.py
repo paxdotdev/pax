@@ -30,7 +30,7 @@ class WebsiteStagingTests(unittest.TestCase):
             blog.main()
 
     def test_stage_and_unstage_use_the_root_sibling_without_touching_old_location(self):
-        old_location = self.repo / "examples/src/pax-website/public/blog"
+        old_location = self.repo / "examples/pax-website/public/blog"
         old_location.mkdir(parents=True)
         sentinel = old_location / "keep.txt"
         sentinel.write_text("unrelated content")

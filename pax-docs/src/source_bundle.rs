@@ -9,7 +9,7 @@ pub fn example_workspace(manifest: &Path, out: &Path) -> io::Result<PathBuf> {
     let workspace = manifest
         .parent()
         .ok_or_else(|| invalid("Missing crate parent"))?;
-    if workspace.join("examples/src").is_dir() {
+    if workspace.join("examples").is_dir() {
         return Ok(workspace.to_path_buf());
     }
     let bytes = fs::read(manifest.join("bundled-example-sources.json"))?;
@@ -34,7 +34,7 @@ pub fn materialize(bytes: &[u8], out: &Path) -> io::Result<PathBuf> {
     for (name, contents) in files {
         let path = Path::new(name);
         if name.contains('\\')
-            || !name.starts_with("examples/src/")
+            || !name.starts_with("examples/")
             || !path
                 .components()
                 .all(|part| matches!(part, Component::Normal(_)))

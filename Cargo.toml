@@ -8,12 +8,14 @@ publish = false
 [workspace]
 resolver = "2"
 members = [
+    "examples/*",
     "pax-chassis-common",
     "pax-chassis-ios",
     "pax-chassis-macos",
     "pax-chassis-web",
     "pax-cli",
     "pax-compiler",
+    "pax-codegen",
     "pax-docs",
     "pax-designtime",
     "pax-engine",
@@ -35,11 +37,216 @@ members = [
 exclude = [
     "pax-compiler/files",
     "pax-website",
-    "examples",
     "tests",
 ]
+
+# Keep rendering responsive in debug builds while application edits compile quickly.
+[profile.dev]
+opt-level = 1
+
+[profile.dev.build-override]
+opt-level = 0
+
+[profile.dev.package.adaptive-cards]
+opt-level = 0
+
+[profile.dev.package.architecture-diagram]
+opt-level = 0
+
+[profile.dev.package.async-workbench]
+opt-level = 0
+
+[profile.dev.package.auto-sized-containers]
+opt-level = 0
+
+[profile.dev.package.breakout]
+opt-level = 0
+
+[profile.dev.package.calculator]
+opt-level = 0
+
+[profile.dev.package.color-picker]
+opt-level = 0
+
+[profile.dev.package.dynamic-linking-lab]
+opt-level = 0
+
+[profile.dev.package.example-host]
+opt-level = 0
+
+[profile.dev.package.fireworks]
+opt-level = 0
+
+[profile.dev.package.game-of-life]
+opt-level = 0
+
+[profile.dev.package.glow-buttons]
+opt-level = 0
+
+[profile.dev.package.group-compositing]
+opt-level = 0
+
+[profile.dev.package.gyro-helper]
+opt-level = 0
+
+[profile.dev.package.increment]
+opt-level = 0
+
+[profile.dev.package.ink-and-light]
+opt-level = 0
+
+[profile.dev.package.liquid-glass]
+opt-level = 0
+
+[profile.dev.package.living-quilt]
+opt-level = 0
+
+[profile.dev.package.marionette]
+opt-level = 0
+
+[profile.dev.package.mask-strokes]
+opt-level = 0
+
+[profile.dev.package.materials]
+opt-level = 0
+
+[profile.dev.package.mesh-gradients]
+opt-level = 0
+
+[profile.dev.package.mouse-animation]
+opt-level = 0
+
+[profile.dev.package.native-text-compatibility]
+opt-level = 0
+
+[profile.dev.package.neon-opacity]
+opt-level = 0
+
+[profile.dev.package.occlusion]
+opt-level = 0
+
+[profile.dev.package.particles]
+opt-level = 0
+
+[profile.dev.package.path-drawing]
+opt-level = 0
+
+[profile.dev.package.pax-logo]
+opt-level = 0
+
+[profile.dev.package.paxflix]
+opt-level = 0
+
+[profile.dev.package.photo-picker]
+opt-level = 0
+
+[profile.dev.package.pick-up-sticks]
+opt-level = 0
+
+[profile.dev.package.responsive-helpers]
+opt-level = 0
+
+[profile.dev.package.rounded-scroller-tiles]
+opt-level = 0
+
+[profile.dev.package.route-card]
+opt-level = 0
+
+[profile.dev.package.router-playground]
+opt-level = 0
+
+[profile.dev.package.runtime-settings-themes]
+opt-level = 0
+
+[profile.dev.package.scroll-cull-stress]
+opt-level = 0
+
+[profile.dev.package.scroll-garden]
+opt-level = 0
+
+[profile.dev.package.scroll-matrix]
+opt-level = 0
+
+[profile.dev.package.scroll-swatch]
+opt-level = 0
+
+[profile.dev.package.slot-particles]
+opt-level = 0
+
+[profile.dev.package.slot-projection-resolver]
+opt-level = 0
+
+[profile.dev.package.space-game]
+opt-level = 0
+
+[profile.dev.package.starter-project]
+opt-level = 0
+
+[profile.dev.package.store-ownership]
+opt-level = 0
+
+[profile.dev.package.timeline-playground]
+opt-level = 0
+
+[profile.dev.package.transition-grid]
+opt-level = 0
+
+[profile.dev.package.viewport-proximity]
+opt-level = 0
 
 [profile.release]
 lto = true
 opt-level = "z" 
 codegen-units = 1  
+
+[dev-dependencies]
+pax-kit = { path = "pax-kit", features = ["host", "designtime"] }
+adaptive-cards = { path = "examples/adaptive-cards", default-features = false }
+architecture-diagram = { path = "examples/architecture-diagram", default-features = false }
+async-workbench = { path = "examples/async-workbench", default-features = false }
+auto-sized-containers = { path = "examples/auto-sized-containers", default-features = false }
+breakout = { path = "examples/breakout", default-features = false }
+calculator = { path = "examples/calculator", default-features = false }
+color-picker = { path = "examples/color-picker", default-features = false }
+dynamic-linking-lab = { path = "examples/dynamic-linking-lab", default-features = false }
+example-host = { path = "examples/example-host", default-features = false }
+fireworks = { path = "examples/fireworks", default-features = false }
+game-of-life = { path = "examples/game-of-life", default-features = false }
+glow-buttons = { path = "examples/glow-buttons", default-features = false }
+group-compositing = { path = "examples/group-compositing", default-features = false }
+gyro-helper = { path = "examples/gyro-helper", default-features = false }
+increment = { path = "examples/increment", default-features = false }
+ink-and-light = { path = "examples/ink-and-light", default-features = false }
+liquid-glass = { path = "examples/liquid-glass", default-features = false }
+living-quilt = { path = "examples/living-quilt", default-features = false }
+marionette = { path = "examples/marionette", default-features = false }
+mask-strokes = { path = "examples/mask-strokes", default-features = false }
+materials = { path = "examples/materials", default-features = false }
+mesh-gradients = { path = "examples/mesh-gradients", default-features = false }
+mouse-animation = { path = "examples/mouse-animation", default-features = false }
+native-text-compatibility = { path = "examples/native-text-compatibility", default-features = false }
+neon-opacity = { path = "examples/neon-opacity", default-features = false }
+occlusion = { path = "examples/occlusion", default-features = false }
+particles = { path = "examples/particles", default-features = false }
+path-drawing = { path = "examples/path-drawing", default-features = false }
+pax-logo = { path = "examples/pax-logo", default-features = false }
+paxflix = { path = "examples/paxflix", default-features = false }
+photo-picker = { path = "examples/photo-picker", default-features = false }
+pick-up-sticks = { path = "examples/pick-up-sticks", default-features = false }
+responsive-helpers = { path = "examples/responsive-helpers", default-features = false }
+rounded-scroller-tiles = { path = "examples/rounded-scroller-tiles", default-features = false }
+route-card = { path = "examples/route-card", default-features = false }
+router-playground = { path = "examples/router-playground", default-features = false }
+runtime-settings-themes = { path = "examples/runtime-settings-themes", default-features = false }
+scroll-cull-stress = { path = "examples/scroll-cull-stress", default-features = false }
+scroll-garden = { path = "examples/scroll-garden", default-features = false }
+scroll-matrix = { path = "examples/scroll-matrix", default-features = false }
+scroll-swatch = { path = "examples/scroll-swatch", default-features = false }
+slot-particles = { path = "examples/slot-particles", default-features = false }
+slot-projection-resolver = { path = "examples/slot-projection-resolver", default-features = false }
+space-game = { path = "examples/space-game", default-features = false }
+starter-project = { path = "examples/starter-project", default-features = false }
+store-ownership = { path = "examples/store-ownership", default-features = false }
+timeline-playground = { path = "examples/timeline-playground", default-features = false }
+transition-grid = { path = "examples/transition-grid", default-features = false }
+viewport-proximity = { path = "examples/viewport-proximity", default-features = false }

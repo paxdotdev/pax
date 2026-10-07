@@ -1,0 +1,22 @@
+[package]
+publish = false
+name = "liquid-glass"
+version = "0.39.0"
+edition = "2021"
+default-run = "liquid-glass"
+
+[dependencies]
+pax-kit = { version = "0.39.0", path="../../pax-kit" }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["standalone", "designtime"]
+standalone = ["pax-kit/host"]
+designtime = ["pax-kit/designtime"]
+
+[[bin]]
+name = "liquid-glass"
+path = "src/main.rs"
+required-features = ["standalone"]

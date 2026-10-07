@@ -21,7 +21,7 @@ fn main() {
     unsafe {
         let abi: libloading::Symbol<unsafe extern "C" fn() -> u32> =
             library.get(b"pax_cartridge_abi_version").unwrap();
-        assert_eq!(abi(), 2);
+        assert_eq!(abi(), 3);
         let init: libloading::Symbol<unsafe extern "C" fn(f32, f32) -> Engine> =
             library.get(b"pax_init").unwrap();
         let activate: libloading::Symbol<unsafe extern "C" fn(Engine)> =
@@ -74,7 +74,7 @@ fn main() {
         };
         frame(&mut text);
         // This exact payload is also checked against Swift's live encoder in PaxKeyboardTests.
-        let hex = include_str!("../../../../../pax-compiler/files/swift/pax-swift-common/Tests/PaxSwiftCommonTests/Fixtures/keyboard-interrupt.hex").trim();
+        let hex = include_str!("../../../../../pax-host/native/common/pax-swift-common/Tests/PaxSwiftCommonTests/Fixtures/keyboard-interrupt.hex").trim();
         let bytes: Vec<u8> = (0..hex.len())
             .step_by(2)
             .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).unwrap())

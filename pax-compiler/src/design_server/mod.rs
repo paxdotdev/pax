@@ -1352,7 +1352,7 @@ pub(crate) fn start_server_with_ready_callback(
     std::env::set_var("RUST_LOG", "actix_web=info");
     env_logger::Builder::from_env(env_logger::Env::default())
         .format(|buf, record| writeln!(buf, "{} 🍱 Served {}", *PAX_BADGE, record.args()))
-        .init();
+        .try_init().ok();
 
     let app_ready_marker = ready_file.as_deref().and_then(prepare_app_ready_marker);
     let initial_state = AppState::new(

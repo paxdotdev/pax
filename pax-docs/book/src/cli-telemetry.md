@@ -90,3 +90,11 @@ telemetry event. Update checks run in a background thread and never delay CLI
 exit; an update notice is shown only if the result is already available.
 
 [mixpanel-geolocation]: https://docs.mixpanel.com/docs/tracking-best-practices/geolocation
+
+## Cargo workflows
+
+Ordinary `cargo build`, the `cargo run -- pax ...` development entry, and direct
+native execution do not emit Pax CLI telemetry. The Cargo development entry also
+does not perform the CLI update check.
+CLI usage therefore covers only the CLI cohort; it cannot be treated as a count
+of all active Pax developers or all Cargo builds.

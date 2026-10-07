@@ -1,0 +1,25 @@
+[package]
+publish = false
+name = "adaptive-cards"
+version = "0.39.0"
+edition = "2021"
+default-run = "adaptive-cards"
+
+[package.metadata.pax]
+title = "Adaptive Cards"
+
+[dependencies]
+pax-kit = { version = "0.39.0", path = "../../pax-kit" }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["standalone", "designtime"]
+standalone = ["pax-kit/host"]
+designtime = ["pax-kit/designtime"]
+
+[[bin]]
+name = "adaptive-cards"
+path = "src/main.rs"
+required-features = ["standalone"]

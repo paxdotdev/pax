@@ -41,14 +41,26 @@ must mutate state or interact with the outside world.
 Pax source order also defines stacking order: an earlier sibling is drawn above
 a later sibling. Check source order before compensating with layout math.
 
-## Work Through the CLI
+## Run and Inspect the Application
 
-Run the application from its project root:
+Run from the project root on macOS, Linux, or Windows:
 
 ```sh
-pax-cli run
+cargo run
 ```
 
+The default development target is web. `cargo build` compiles without launching.
+No installed CLI or Cargo runner configuration is needed to run the project.
+On macOS with Xcode, select a native target explicitly:
+
+```sh
+cargo run -- pax --target=macos
+cargo run -- pax --target=ios
+cargo run -- pax --target=ipados
+```
+
+Use `cargo run -- pax --help` for development options, including `--port` on web.
+See Targets, Build & Deployment for mobile setup, devices, and distribution limits.
 The debug default is `--hot-reload=pax`: `.pax` edits update the mounted app,
 while Rust edits require rebuilding and restarting. `--hot-reload=all` now enables only template reload
 with a migration notice; `--hot-reload=logic` is rejected. Rebuild and restart
@@ -57,7 +69,7 @@ after Rust changes on every target (refresh the browser after rebuilding).
 The dev Cargo profile optimizes runtime dependencies at level 1 and keeps this
 application at level 0 for quick Rust rebuilds. Preserve the app-specific
 `[profile.dev.package.<package-name>]` override when changing the package name.
-Use `CARGO_PROFILE_DEV_OPT_LEVEL=0 pax-cli run` for fully unoptimized debugging;
+Use `CARGO_PROFILE_DEV_OPT_LEVEL=0 cargo run` for fully unoptimized debugging;
 normal dev debug information, safety checks, and hot reload remain enabled.
 
 Use the open-source developer tools to inspect the running result:
@@ -78,5 +90,5 @@ build:
 ```sh
 pax-cli fmt
 pax-cli fmt --check
-pax-cli build --target=web
+cargo run -- pax --build --target=web
 ```

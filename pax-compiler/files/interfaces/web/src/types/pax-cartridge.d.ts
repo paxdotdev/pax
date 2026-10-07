@@ -31,4 +31,4 @@ export default function __wbg_init (module_or_path?: InitInput | Promise<InitInp
 export function pax_set_shutdown_waker(callback: () => void): void;
 export function pax_pump_shutdowns(): number;
 
-export function init_web(host: {startupData?: Uint8Array; mount(chassis: import("./pax-chassis-web").PaxChassisWeb): unknown}): Promise<unknown>;
+export function init_web(host: {entry?: string; startupData?: Uint8Array; mount(chassis: import("./pax-chassis-web").PaxChassisWeb): unknown}): Promise<unknown>;

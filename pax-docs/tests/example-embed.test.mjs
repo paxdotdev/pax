@@ -51,7 +51,7 @@ async function setup({ available = true, height = '820', fetchOk = true, observe
     root.append(host);
     const manifest = {
         path: 'transition-grid',
-        run_command: 'pax-cli run --path examples/src/transition-grid --target web',
+        run_command: 'pax-cli run --path examples/transition-grid --target web',
         app: { available, index: 'app/index.html', build_skipped: !available },
         files: [
             { path: 'src/lib.pax', language: 'pax', contents: '<Stacker />' },

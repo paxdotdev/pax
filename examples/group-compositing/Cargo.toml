@@ -1,0 +1,25 @@
+[package]
+publish = false
+default-run = "group-compositing"
+name = "group-compositing"
+version = "0.39.0"
+edition = "2021"
+
+[package.metadata.pax]
+title = "Group Compositing"
+
+[dependencies]
+pax-kit = { version = "0.39.0", path = "../../pax-kit" }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["standalone", "designtime"]
+standalone = ["pax-kit/host"]
+designtime = ["pax-kit/designtime"]
+
+[[bin]]
+name = "group-compositing"
+path = "src/main.rs"
+required-features = ["standalone"]

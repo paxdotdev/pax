@@ -1,21 +1,40 @@
 # pax-host
-<!-- summary: Native process entry and mounting without linking the application cartridge -->
+<!-- summary: Apple process entry and mounting across a separate cartridge ABI. -->
 <!-- tags: api, pax-host -->
 
-Native process entry and mounting without linking the application cartridge
-into the launcher. Build Apple applications with `pax-cli`; it links the
-matching PaxHost framework and packages the separate cartridge.
-Applications normally use `pax_kit::init` or `pax_kit::init_with`, with options,
-errors and embedding types in `pax_kit::host`. Enable the `pax-kit/host`
-feature; no direct `pax-host` dependency is needed.
+Apple process entry and mounting across a separate cartridge ABI.
+Applications use `pax_kit::init!` and `pax_kit::init_with!`; options, errors,
+and embedding types live in `pax_kit::host`. Enable `pax-kit/host` without
+adding a direct `pax-host` dependency. The SDK is built on demand for native
+development. The shared compiler provides bundles and iOS deployment through
+either the Cargo development entry or the CLI.
 
 ```ignore
-# #[cfg(any(target_os = "macos", target_os = "ios"))]
 fn main() -> Result<(), pax_kit::host::Error> {
-    let application = pax_kit::init()?;
-    application.run()
+    pax_kit::init!()?.run()
 }
 ```
 
 ## Submodules
 - [native](native.md)
+
+## Structs
+### `Error`
+An initialization, development launch, or mounting failure.
+
+---
+
+### `InitOptions`
+Copied application inputs for the separately linked cartridge.
+
+#### Properties
+##### `startup_data`
+Type: `Vec`<`u8`>
+
+Application-defined encoding, at most 64 KiB. The root initializer reads
+these bytes through `InitContext::startup_data()`.
+
+##### `entry`
+Type: `Option`<`String`>
+
+Canonical root path from `runnable!`; required for multiple distinct roots.

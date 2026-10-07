@@ -581,3 +581,146 @@ exposing the accessor alone was insufficient. Test direct execution from
 another working directory with Cargo/Pax/dyld launch variables removed, and
 distinguish a root-mount callback from visual or input validation. These are
 prototype findings; the released/CLI workflow has not changed.
+
+### Cargo and macro source generation (PAX-1015 phase three)
+
+- A library and binary in one Cargo package share feature requests. Gating the
+  binary with `required-features` does not isolate its dependency features.
+  Preserve native artifact/linkage and runtime ownership explicitly; inspect
+  symbols and loaded libraries instead of treating a Cargo feature as a mount.
+- Static analysis of source files inside a procedural macro cannot assume that
+  compiler-owned spans are offsets into those files. The no-build-script proof
+  failed that way for inline Pax. A scoped source-parser backend preserved the
+  actual source, including whitespace; do not repair this by stringifying tokens
+  or moving compiler token streams to another thread.
+- Multiple runnable declarations should feed one per-compilation program catalog.
+  Resolve aliases before deduplicating component definitions, retain initializer
+  choices separately, and require explicit root selection when ambiguous. A
+  runnable component used as a child must not run its application initializer.
+- Cargo may compile different dependency units for `build`, `check`, test
+  harnesses and profiles. The generic native SDK can be cached within those
+  units, but promising one SDK build across all Cargo modes is inaccurate.
+- Source discovery currently traverses disabled `#[cfg]` branches too. A
+  macro-build stress case with `#[cfg(any())]` produced a duplicate-component
+  error even though Rust would remove the item. Moving discovery into a macro
+  does not fix configuration handling; qualify against the actual Cargo target,
+  features and custom cfgs before switching the default frontend.
+- A proc macro can ask the owning compiler to select literal cfg answers through
+  conditional continuation invocations. A dependency must export answers it
+  selected while compiling; leaving predicates inside an exported macro would
+  evaluate them against the consumer. The real-Pax configuration fixture proves
+  differing app/dependency features, dependency build-script cfgs, wasm, release
+  and the app-test/dependency-library distinction without an app build script.
+- An automatic configuration-helper emitter cannot be the first textual Pax
+  declaration: that declaration may be disabled. Select a deterministic active
+  source site after configuration. Cache parsed source and completed discovery;
+  repeated declarations still have callback overhead that needs qualification
+  against the complete standard library.
+- `#[pax]` and the manifest scanner must agree on conditional fields. Filtering
+  the source manifest alone leaves attribute-generated Rust referring to fields
+  rustc removes. The fixture feeds the same configured definition to both.
+- Expanding `cfg_attr` synthesizes the outer attribute span. Recover inline Pax
+  from its original parenthesized argument group, not the synthetic `#[...]`
+  span or token-string formatting, to preserve whitespace and Unicode.
+- Host-side code generation and target-side rich manifest loading need matching
+  JSON representation features. Cargo resolver 2 does not inherit a proc macro's
+  `pax-manifest/json` feature into the target library. The fixture enables both
+  `pax-engine/json` and `pax-manifest/json` explicitly for rich reconstruction;
+  baked constructors are independently exercised.
+
+### Cargo-native rollout: configuration helpers and broad example checks
+
+Generated macro helper names must be unique to their owning library. A shared
+`__pax_source_config` name was reexported by facade/component globs and became
+ambiguous when a runnable example depended on another runnable example. Use a
+stable helper identity derived from the library source entry, and preserve the
+requesting crate's syntax context through callbacks. Export dependency snapshots
+from their owning compilation rather than re-evaluating their cfgs in consumers.
+
+When reconstructing a configured item from source, do not replay attributes that
+rustc already expanded before `#[pax]` (for example, a preceding `derive`). Keep
+the remaining compiler-input attributes while selecting fields from the source
+snapshot. Otherwise ordinary derives gain duplicate trait implementations.
+
+Turning the examples into real Cargo targets catches Rust/template drift that
+proxy launchers hid: color-picker's callback needed `LocalProperty<Color>`,
+store-ownership still used `Stroke.color`, and mouse-animation used a bare Color
+for Paint and the removed `PathElement::close()` constructor. Keep the full
+example target check alongside targeted native/web launch tests.
+
+A failed re-export lookup can mean the owning dependency's configuration has
+not arrived yet, rather than that the name is absent. Preserve the typed
+missing-source request through optional name-resolution fallbacks and contextual
+errors. The production fixture combines a renamed dependency, a transitive
+private-module re-export and a custom library path to exercise this distinction.
+
+Cargo ignores profiles inside workspace members. Moving the examples into the
+main workspace therefore requires moving their selective debug optimization
+policy to the workspace root, and restoring it when exporting CLI-created
+standalone projects. Keep both forms under the bundled-example regression test.
+
+A `runnable!` declaration may live in a library root containing only module
+exports, without `use pax_kit::*`. Generated cartridge modules must import their
+own engine/API traits and facade standard-library alias. The separate-host
+fixture deliberately keeps that lean library root, a renamed UI dependency,
+and a custom library target name; adding a user prelude to hide generated-code
+imports would miss the integration bug.
+
+`cargo check --target wasm32-unknown-unknown` cannot catch duplicate wasm exports.
+Slot Particles reuses runnable Fireworks: a real wasm link first caught the native
+program-identity symbol, then wasm-bindgen caught both libraries exporting
+`init_web`. Keep native C identity exports native-only, namespace each web adapter
+by Cargo package/target identity, and let packaging alias the explicitly selected
+adapter to `init_web`. Gating on unified features or primary-package status would
+not handle multiple selected workspace packages reliably.
+
+The same Slot Particles smoke test exposed a pre-existing retained GPU scene
+limit: `TransformArena` has 480 slots including reserved identity slot zero.
+Exhaustion logs an error and aliases overflowing entries onto that identity slot;
+the WGSL uniform array is fixed at the same size to fit low adapter limits. A
+proper fix needs allocation/binding work, not fewer particles or a larger magic
+number. Follow-up [PAX-1028](https://linear.app/paxdev/issue/PAX-1028/remove-the-retained-gpu-scenes-480-transform-ceiling)
+records reproduction, source evidence and the adjacent clip-arena audit. Zack
+deferred this renderer work from the Cargo-native rollout.
+
+Compiling an iOS target alone does not assemble a runnable app. A Cargo simulator
+runner prototype successfully packaged and launched Increment, including a tap
+that changed its counter. Its separate cartridge matched the executable and
+packaging preserved the original Cargo artifact hashes. It was then backed out
+at Zack's direction: a Cargo configuration forwarding to an installed `pax-cli`
+adds setup without removing the tool dependency. Keep `cargo run` for macOS and
+`pax-cli run --target web|ios|ipados` for the other existing launch workflows.
+
+Cargo does not load a dependency's `.cargo/config.toml` or install its binary
+targets on `PATH`. Shipping a helper inside `pax-kit` therefore cannot activate a
+runner by itself. A project-local tooling crate could avoid a global install, but
+still needs explicit configuration and more scaffolding. A diagnostic probe also
+showed that runners receive the executable and app arguments, not `TARGET` or
+`PROFILE`; any future artifact-consuming packager needs explicit metadata and
+must preserve profile, target, feature/cfg selection, and Cargo example identity.
+
+The prototype exposed an existing packaging issue: Apple install-name edits
+mutate Cargo's original dylib. Future packaging should edit staged copies before
+relocation/signing. Production distribution and App Store qualification are
+tracked in [PAX-1029](https://linear.app/paxdev/issue/PAX-1029/support-cargo-driven-production-distribution-and-validate-apple).
+
+Dependency build scripts are not reliable usage hooks: Cargo caching suppresses
+warm-build invocations, while transitive dependencies may build without active
+Pax development. CLI telemetry remains limited to the CLI cohort. Prefer explicit
+opt-in developer-tool events and active-day/return metrics if extending coverage;
+do not introduce network activity into macro expansion or compile-time hooks.
+
+
+### Development launch and wrapper argument boundaries (2026-10-06)
+
+`wasm-pack` starts forwarding trailing Cargo switches after an unrecognized Cargo
+option such as `--no-default-features`. Appending wasm-pack's `--dev` afterward
+sent it to `cargo build`, which rejected it. Build wrapper/profile options first,
+then append Cargo feature switches. The production feature boundary now expands
+application defaults explicitly, omits the direct designtime default, and checks
+normal target dependencies for transitive activation.
+
+A default development entry must distinguish workstation orchestration from a
+native application that also enables designtime. Carry the application role as a
+tracked compile-time input (`PAX_BUILD_ROLE`) rather than inferring it from
+`designtime` or debug assertions. Explicit `init_with!` stays in-process.

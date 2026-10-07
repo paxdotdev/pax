@@ -268,7 +268,7 @@ Text and native controls can report measurements after initial layout, and
 autosized ancestors react to those updates. Fonts, wrapping, and platform
 controls influence the result. Check the settled layout with realistic
 content rather than depending on its first frame. The
-[`auto-sized-containers` example](https://github.com/paxproject/pax/tree/dev/examples/src/auto-sized-containers)
+[`auto-sized-containers` example](https://github.com/paxproject/pax/tree/dev/examples/auto-sized-containers)
 explores the available surfaces.
 
 ## Responsive layout
@@ -367,7 +367,7 @@ If Notes already has a mount method, add the computation there. Change the
 settings condition to `if self.compact`; it now follows Notes' allocated
 width. Read bounds in the component's lifecycle context here, rather than a
 Button's event context. The latter would describe the Button. The
-[`materials` example](https://github.com/paxproject/pax/tree/dev/examples/src/materials)
+[`materials` example](https://github.com/paxproject/pax/tree/dev/examples/materials)
 uses this bounds-derived pattern.
 
 Avoid making the measured property depend on the very size rule it controls.
@@ -499,7 +499,7 @@ measurement. The read-only `inset` output supports deliberate positioning:
 ```
 
 Declare `pub safe_top: Property<f64>` on the owning Rust component. The
-[calculator example](https://github.com/paxproject/pax/tree/main/examples/src/calculator) binds all four edges to keep its
+[calculator example](https://github.com/paxproject/pax/tree/main/examples/calculator) binds all four edges to keep its
 content clear while its background covers the whole window.
 It also uses an edge-to-edge case below 600 logical pixels of window width
 on web and macOS; native iOS and iPadOS always use that presentation. This

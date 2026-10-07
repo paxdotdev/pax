@@ -12,6 +12,7 @@ package = "layout-ui"
 lib = "workspace_ui"
 
 [features]
+default = ["standalone"]
 standalone = ["pax-kit/host"]
 
 [[bin]]
@@ -20,4 +21,5 @@ path = "src/main.rs"
 required-features = ["standalone"]
 
 [dependencies]
+my-ui = { package = "layout-ui", path = "../ui" }
 pax-kit = { path = "../../../../pax-kit" }

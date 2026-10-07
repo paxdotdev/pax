@@ -15,15 +15,15 @@ extern crate serde;
 extern crate core;
 mod building;
 mod bundled_examples;
-mod cartridge_generation;
 pub mod dev_session;
 pub mod helpers;
+pub mod launcher;
 mod hot_reload;
-mod project_layout;
+use pax_codegen::project_layout;
 pub mod project_metadata;
 mod route_metadata;
-pub mod static_analysis;
-pub mod svg_import;
+pub use pax_codegen::static_analysis;
+pub use pax_codegen::svg_import;
 
 pub mod design_server;
 
@@ -34,9 +34,8 @@ use color_eyre::eyre::Report;
 use eyre::eyre;
 use helpers::{copy_dir_recursively, wait_with_output};
 use pax_manifest::{
-    ComponentDefinition, ComponentTemplate, GradientElement, GradientShapeDefinition,
-    LiteralBlockDefinition, PaxExpression, PaxManifest, SettingElement, SettingsBlockElement,
-    TemplateNodeDefinition, TypeId, ValueDefinition,
+    GradientElement, GradientShapeDefinition, LiteralBlockDefinition, PaxExpression, PaxManifest,
+    SettingElement, SettingsBlockElement, ValueDefinition,
 };
 use pax_runtime_api::PaxValue;
 use reqwest::blocking::Client;
@@ -54,7 +53,6 @@ use std::os::unix::process::CommandExt;
 
 use crate::building::build_project_with_cartridge;
 
-use crate::cartridge_generation::generate_cartridge_partial_rs;
 use crate::project_metadata::PaxProjectMetadata;
 use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
@@ -80,6 +78,10 @@ pub trait RunLifecycleObserver: Send + Sync {
 /// in hot-reload selection should leave [`RunContext::hot_reload`] as `None`.
 #[derive(Clone)]
 pub struct RunContext {
+    /// Requested web server port. `None` lets the server select an available port.
+    pub port: Option<u16>,
+    /// The current executable implements the embedded `pax` command namespace.
+    pub embedded_launcher: bool,
     pub target: RunTarget,
     pub project_path: PathBuf,
     pub verbose: bool,
@@ -346,15 +348,10 @@ fn prepare_cartridge_sources_with_timings(
         project_metadata::apply_copied_interface_metadata(ctx, &pax_dir, &project_metadata)
     })?;
 
-    let mut userland_manifest = timings.record("manifest", || {
-        static_analysis::build_manifest_with_options(
-            &layout.cartridge_dir,
-            static_analysis::BuildManifestOptions {
-                is_designtime: ctx.should_run_designtime,
-            },
-        )
+    let mut userland_manifest = timings.record("compiler-selected manifest", || {
+        compile_selected_manifest(ctx, &layout, &pax_dir)
     })?;
-    println!("{} 🔎 Built manifest via static analysis", *PAX_BADGE);
+    println!("{} 🔎 Loaded compiler-selected manifest", *PAX_BADGE);
 
     if ctx.target == RunTarget::Web {
         timings.record("web route metadata", || {
@@ -369,27 +366,7 @@ fn prepare_cartridge_sources_with_timings(
 
     let merged_manifest = userland_manifest.clone();
 
-    //Hack: add a wrapper component so UniqueTemplateNodeIdentifier is a suitable uniqueid, even for root nodes
-    let wrapper_type_id = TypeId::build_singleton("ROOT_COMPONENT", Some("RootComponent"));
-    let mut tnd = TemplateNodeDefinition::default();
-    tnd.type_id = userland_manifest.main_component_type_id.clone();
-    let mut wrapper_component_template = ComponentTemplate::new(wrapper_type_id.clone(), None);
-    wrapper_component_template.add(tnd);
-    userland_manifest.components.insert(
-        wrapper_type_id.clone(),
-        ComponentDefinition {
-            type_id: wrapper_type_id.clone(),
-            is_main_component: false,
-            is_primitive: false,
-            is_struct_only_component: false,
-            module_path: "".to_string(),
-            primitive_instance_import_path: None,
-            template: Some(wrapper_component_template),
-            settings: None,
-            timelines: vec![],
-            route_branch: None,
-        },
-    );
+    pax_codegen::add_runtime_root(&mut userland_manifest);
 
     if matches!(
         ctx.target,
@@ -400,22 +377,61 @@ fn prepare_cartridge_sources_with_timings(
         })?;
     }
 
-    println!("{} 🦀 Generating Rust", *PAX_BADGE);
-    timings.record("generate rust", || {
-        generate_cartridge_partial_rs(
-            &pax_dir,
-            &merged_manifest,
-            &userland_manifest,
-            ctx.should_run_designtime,
-            ctx.is_release && !ctx.should_run_designtime,
-        );
-    });
     Ok(PreparedCartridgeSources {
         pax_dir,
         userland_manifest,
         assets_dirs: merged_manifest.assets_dirs,
         project_metadata,
     })
+}
+
+fn compile_selected_manifest(
+    ctx: &RunContext,
+    layout: &project_layout::ProjectLayout,
+    pax_dir: &Path,
+) -> eyre::Result<PaxManifest> {
+    let (platform, target) = match ctx.target {
+        RunTarget::Web => ("web", "wasm32-unknown-unknown"),
+        RunTarget::macOS => ("macos", building::apple::manifest_target(ctx)?),
+        RunTarget::iOS => ("ios", building::apple::manifest_target(ctx)?),
+        RunTarget::iPadOS => ("ipados", building::apple::manifest_target(ctx)?),
+    };
+    let mut features = vec![if platform == "ipados" {
+        "ios"
+    } else {
+        platform
+    }];
+    if ctx.should_run_designtime {
+        features.push("designtime");
+    }
+    let output = pax_dir.join(format!("manifest-{target}.json"));
+    let mut command = Command::new("cargo");
+    command
+        .current_dir(&layout.cartridge_dir)
+        .args(["check", "--lib", "--target", target, "--features"])
+        .arg(helpers::pax_project_feature_args(&layout.cartridge_dir, &features).join(","))
+        .env("PAX_DIR", pax_dir)
+        .env("PAX_MANIFEST_OUTPUT", &output)
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit());
+    if ctx.is_release {
+        command.arg("--release");
+    }
+    layout.configure_cartridge(&mut command);
+    helpers::configure_pax_build_env(&mut command, platform, ctx.should_run_designtime);
+    #[cfg(unix)]
+    unsafe {
+        command.pre_exec(pre_exec_hook);
+    }
+    let child = command.spawn()?;
+    if !wait_with_output(&ctx.process_child_ids, child)
+        .status
+        .success()
+    {
+        return Err(eyre!("Cargo could not generate the selected Pax program"));
+    }
+    let bytes = fs::read(&output).map_err(|error|eyre!("Missing compiler-selected manifest {}: {error}. The UI library must declare runnable!.", output.display()))?;
+    Ok(serde_json::from_slice(&bytes)?)
 }
 
 fn validate_release_feature_boundary(ctx: &RunContext) -> Result<(), Report> {
@@ -703,14 +719,8 @@ fn copy_default_interface_files(interface_path: &Path, ctx: &RunContext) {
             .join("interfaces")
             .join("web")
             .join("public"),
-        RunTarget::macOS => pax_compiler_root
-            .join("files")
-            .join("interfaces")
-            .join("macos"),
-        RunTarget::iOS | RunTarget::iPadOS => pax_compiler_root
-            .join("files")
-            .join("interfaces")
-            .join("ios"),
+        RunTarget::macOS => Path::new(pax_host::sources::SOURCE_DIR).join("macos"),
+        RunTarget::iOS | RunTarget::iPadOS => Path::new(pax_host::sources::SOURCE_DIR).join("ios"),
     };
 
     if ctx.is_libdev_mode || interface_src.exists() {
@@ -735,15 +745,9 @@ fn copy_default_interface_files(interface_path: &Path, ctx: &RunContext) {
 fn copy_common_swift_files(ctx: &RunContext, common_dest: &Path) {
     let _ = std::fs::remove_dir_all(common_dest);
     std::fs::create_dir_all(common_dest).expect("Failed to create swift common destination");
-    let pax_compiler_root = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let common_swift_cartridge_src = pax_compiler_root
-        .join("files")
-        .join("swift")
-        .join("pax-swift-cartridge");
-    let common_swift_common_src = pax_compiler_root
-        .join("files")
-        .join("swift")
-        .join("pax-swift-common");
+    let common_src = Path::new(pax_host::sources::SOURCE_DIR).join("common");
+    let common_swift_cartridge_src = common_src.join("pax-swift-cartridge");
+    let common_swift_common_src = common_src.join("pax-swift-common");
 
     if ctx.is_libdev_mode
         || (common_swift_cartridge_src.exists() && common_swift_common_src.exists())
@@ -1524,7 +1528,7 @@ mod tests {
 
     #[test]
     fn collects_object_font_source_from_static_manifest() {
-        let manifest = static_analysis::build_manifest(Path::new("../examples/src/increment"))
+        let manifest = static_analysis::build_manifest(Path::new("../examples/increment"))
             .expect("increment manifest should build");
         let collected = collect_web_font_sources(&manifest);
 
@@ -1750,7 +1754,7 @@ mod tests {
             Some("pax-kit/host")
         );
         let main = fs::read_to_string(override_project.join("src/main.rs")).unwrap();
-        assert!(main.contains("pax_kit::init()?.run()"));
+        assert!(main.contains("pax_kit::init!()?.run()"));
         assert_eq!(
             override_manifest["package"]["default-run"].as_str(),
             Some("counter-app")
@@ -1943,6 +1947,8 @@ codegen-units = 32
 
     fn release_context(should_run_designtime: bool) -> RunContext {
         RunContext {
+            port: None,
+            embedded_launcher: false,
             target: RunTarget::Web,
             project_path: PathBuf::from("."),
             verbose: false,

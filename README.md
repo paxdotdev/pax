@@ -6,9 +6,9 @@ Pax is a language-first GUI framework for Rust, combining declarative UI
 authoring with Rust application logic and a portable, high-performance runtime
 for macOS, iOS, iPadOS, and the web.
 
-[Get started with the Pax CLI](https://docs.pax.dev/getting-started/) ·
+[Get started](https://docs.pax.dev/getting-started/) ·
 [Read the docs](https://docs.pax.dev/) ·
-[Explore examples](examples/src) ·
+[Explore examples](examples) ·
 [Join Discord](https://discord.com/invite/Eq8KWAUc6b)
 
 ## Get started
@@ -25,15 +25,30 @@ AI-assisted: Prompt your coding agent naturally and include the primer URL:
 
 **(2) Run your first project**
 
+With Rust and the [web prerequisites](pax-docs/book/src/getting-started.md#prepare-your-workstation) installed:
+
 ```sh
 cargo install pax-cli
 pax-cli create my-first-project
 cd my-first-project
-pax-cli run
+cargo run
 ```
 
-`pax-cli run` targets the web by default. Use `--target macos`, `--target ios`,
-or `--target ipados` to run an Apple target from a supported macOS workstation.
+The CLI scaffolds the project. After that, Cargo launches web development through
+`pax-kit`, including template hot reload; no installed CLI, application `build.rs`,
+or Cargo runner is required to run an existing project. Open the printed URL.
+
+```sh
+cargo run -- pax --target=web --port=8080
+cargo run -- pax --target=macos  # macOS and full Xcode
+cargo run -- pax --target=ios    # macOS, Xcode and an iOS simulator
+```
+
+`cargo build` compiles without launching. `cargo run -- pax --build --release --target=web` packages production web output without designtime. `pax-cli` remains
+available for the same platform packaging, development tools, and scaffolding.
+Full macOS/iOS App Store delivery is not yet qualified.
+From this repository, use `cargo run -p increment` or
+`cargo run --example increment`; both default to web development.
 
 
 ## Source example
@@ -97,6 +112,21 @@ impl Counter {
 }
 ```
 
+Its native launcher is an ordinary Rust program:
+
+```rust
+// src/main.rs
+fn main() -> Result<(), pax_kit::host::Error> {
+    pax_kit::init!()?.run()
+}
+```
+
+The generated project manifest declares the UI as an `rlib`/`cdylib` and enables
+the launcher through its default `standalone` feature. The UI remains a separate
+library that another host can mount. See
+[entry and mounting](pax-docs/book/src/targets-build-deploy.md#entry-and-mounting)
+for manifest details, other platforms, and embedding.
+
 Pax UI definitions are 100% declarative by grammatical constraint, relegating imperative work to the Rust layer.
 
 In this example, when the handler updates `count`, Pax reactively reevaluates the expressions
@@ -104,7 +134,7 @@ that depend on it and updates the running interface. Pax propagates the change
 through its reactive dependency graph, invalidating the affected layout and
 rendering work, including the minimal set of necessary GPU uploads (when using a default GPU rendering backend).  This model is inspired by the spreadsheet, but instead of updating cells, Pax updates pixels.
 
-Browse the [repository examples](examples/src), or open a live example on the
+Browse the [repository examples](examples), or open a live example on the
 [Pax website](https://www.pax.dev/) and click the **View Source** button on any of the page sections.
 
 The first-party [website](pax-website/README.md) and [blog](pax-blog/README.md)
@@ -218,5 +248,5 @@ Install the CLI, create a project, and start building:
 cargo install pax-cli
 pax-cli create my-first-project
 cd my-first-project
-pax-cli run
+cargo run
 ```

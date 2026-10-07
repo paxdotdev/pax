@@ -1,0 +1,25 @@
+[package]
+publish = false
+name = "example-host"
+version = "0.39.0"
+edition = "2021"
+default-run = "example-host"
+
+[package.metadata.pax]
+title = "ExampleHost"
+
+[dependencies]
+pax-kit = { version = "0.39.0", path = "../../pax-kit" }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["standalone", "designtime"]
+standalone = ["pax-kit/host"]
+designtime = ["pax-kit/designtime"]
+
+[[bin]]
+name = "example-host"
+path = "src/main.rs"
+required-features = ["standalone"]

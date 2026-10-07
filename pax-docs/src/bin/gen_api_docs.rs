@@ -463,6 +463,10 @@ fn run_rustdoc_json(workspace_root: &Path, krate: &str) -> Result<(), Box<dyn st
     ) {
         command.arg("--features").arg("shaders");
     }
+    // Include the facade application API alongside the component exports.
+    if krate == "pax-kit" {
+        command.arg("--features").arg("host,designtime");
+    }
     let status = command
         .arg("--")
         .arg("-Z")
@@ -481,8 +485,9 @@ fn run_rustdoc_json(workspace_root: &Path, krate: &str) -> Result<(), Box<dyn st
 
 fn rustdoc_json_path(workspace_root: &Path, krate: &str) -> PathBuf {
     let file_name = krate.replace('-', "_");
-    workspace_root
-        .join("target")
+    std::env::var_os("CARGO_TARGET_DIR")
+        .map(|path| workspace_root.join(path))
+        .unwrap_or_else(|| workspace_root.join("target"))
         .join("doc")
         .join(format!("{file_name}.json"))
 }

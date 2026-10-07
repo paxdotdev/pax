@@ -11,7 +11,6 @@ include = [
     "files/**/*",
     "!files/interfaces/web/node_modules/**/*",
     "!files/interfaces/web/package-lock.json",
-    "templates/**/*",
     "src/**/*",
     "/README.md",
 ]
@@ -24,6 +23,10 @@ designtime = []
 [lib]
 
 [dependencies]
+clap = "2.33.3"
+ctrlc = { version = "3.4.4", features = ["termination"] }
+pax-host = { version = "0.39.0", path = "../pax-host" }
+pax-codegen = { version = "0.39.0", path = "../pax-codegen" }
 actix = "0.13.1"
 actix-files = "0.6"
 actix-web = "4"
@@ -49,25 +52,19 @@ pax-message = {version = "0.39.0", path="../pax-message"}
 pax-runtime = {path = "../pax-runtime", version="0.39.0" }
 pax-runtime-api = {path = "../pax-runtime-api", version="0.39.0" }
 pax-designtime = { path = "../pax-designtime", version = "0.39.0" }
-proc-macro2 = { version = "1.0", features = ["span-locations"] }
 pax-language = {version = "0.39.0", path="../pax-language"}
 plist = "1.8"
 rand = "0.8.4"
 regex = "1"
 reqwest = { version = "0.11.18", features = ["blocking"] }
-roxmltree = "0.21.1"
 rmp-serde = "1.1.2"
 schemars = "0.8.16"
 serde = { version = "1.0.159", features=["derive"] }
 serde_derive = "1.0.159"
 serde_json = { version = "1.0.95", optional = true }
-serde_with = { version= "3.6.1", features = ["json"] }
 sha2 = "0.10.8"
 similar = "2.2.1"
-svgtypes = "0.16.1"
-syn = { version = "1.0", features = ["full", "parsing", "visit"] }
 tempfile = "3.9.0"
-tera = "1"
 tokio = { version = "1", features = ["full"] }
 toml_edit = "0.14.4"
 walkdir = "2.3.2"
@@ -76,6 +73,5 @@ wasm-bindgen = { version = "0.2.92", features=["serde-serialize"] }
 [dev-dependencies]
 actix-test = "0.1.2"
 awc = "3.3.0"
-filetime = "0.2.25"
 futures-util = "0.3.30"
 serde_json = { version = "1.0.95"}

@@ -1,0 +1,26 @@
+[package]
+publish = false
+name = "paxflix"
+version = "0.39.0"
+edition = "2021"
+default-run = "paxflix"
+
+[package.metadata.pax]
+title = "Paxflix"
+
+[dependencies]
+pax-kit = { version = "0.39.0", path = "../../pax-kit" }
+serde_json = "1"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["standalone", "designtime"]
+standalone = ["pax-kit/host"]
+designtime = ["pax-kit/designtime"]
+
+[[bin]]
+name = "paxflix"
+path = "src/main.rs"
+required-features = ["standalone"]

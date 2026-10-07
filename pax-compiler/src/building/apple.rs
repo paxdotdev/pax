@@ -194,6 +194,31 @@ fn select_apple_target_mappings(
     }
 }
 
+pub(crate) fn manifest_target(ctx: &RunContext) -> eyre::Result<&'static str> {
+    let device = if let Some(target) = apple_mobile_target(&ctx.target) {
+        if ctx.should_also_run || ctx.ios_device.is_some() {
+            Some(resolve_ios_device(
+                ctx.ios_device.as_deref(),
+                target,
+                &ctx.process_child_ids,
+            )?)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+    select_apple_target_mappings(
+        &ctx.target,
+        ctx.is_release,
+        device.as_ref(),
+        std::env::consts::ARCH,
+    )
+    .first()
+    .map(|mapping| mapping.rust_target)
+    .ok_or_else(|| eyre!("No Apple target selected"))
+}
+
 fn ios_build_destination(
     is_release: bool,
     resolved_ios_device: Option<&ResolvedIosDevice>,
@@ -444,7 +469,7 @@ fn build_native_launcher(
     let selected = if let Some(name) = package.default_run.as_deref() {
         bins.iter().copied().find(|target| target.name == name)
     } else if bins.len() == 1 { Some(bins[0]) } else { None }
-        .ok_or_else(|| eyre!("Native launch requires a Cargo binary with required-features = [\"standalone\"]. Add src/main.rs using pax_kit::init()?.run(), and set package.default-run when there is more than one launcher."))?;
+        .ok_or_else(|| eyre!("Native launch requires a Cargo binary with required-features = [\"standalone\"]. Add src/main.rs using pax_kit::init!()?.run(), and set package.default-run when there is more than one launcher."))?;
     let mode = if ctx.is_release { "release" } else { "debug" };
     let platform = if matches!(ctx.target, RunTarget::macOS) {
         "macos"
@@ -459,13 +484,18 @@ fn build_native_launcher(
     let mut features = if layout.cartridge_dir == ctx.project_path.canonicalize()? {
         pax_project_feature_args(&ctx.project_path, &requested)
     } else {
-        requested
+        let mut features = crate::helpers::retained_default_features(
+            &ctx.project_path, ctx.should_run_designtime,
+        );
+        features.extend(requested
             .into_iter()
             .filter(|feature| package.features.contains_key(*feature))
-            .map(str::to_owned)
-            .collect()
+            .map(str::to_owned));
+        features
     };
     features.push("standalone".into());
+    features.sort();
+    features.dedup();
     let mut binaries = Vec::new();
     for mapping in mappings {
         let mut cmd = Command::new("cargo");
@@ -666,6 +696,10 @@ pub fn build_apple_project_with_cartridge(
                 .arg("--features")
                 .arg(cargo_features.join(","))
                 .env("PAX_DIR", &pax_dir)
+                .env(
+                    "PAX_MANIFEST_OUTPUT",
+                    pax_dir.join(format!("manifest-{}.json", target_mapping.rust_target)),
+                )
                 .stdout(std::process::Stdio::piped())
                 .stderr(std::process::Stdio::piped());
             layout.configure_cartridge(&mut cmd);
@@ -685,7 +719,8 @@ pub fn build_apple_project_with_cartridge(
             //Execute `cargo build`, which generates our dylibs
             let output = wait_with_output(&process_child_ids_threadsafe, child);
 
-            let dylib_src = layout.target_dir
+            let dylib_src = layout
+                .target_dir
                 .join(target_mapping.rust_target)
                 .join(build_mode_name)
                 .join(&dylib_file_name);
@@ -1213,6 +1248,7 @@ pub fn build_apple_project_with_cartridge(
                     .unwrap()
                     .join("design-server-url.txt");
                 let server = Some(spawn_designtime_server_process(
+                    ctx.embedded_launcher,
                     &pax_dir,
                     &project_path,
                     &manifest,
@@ -1342,6 +1378,7 @@ pub fn build_apple_project_with_cartridge(
                         crate::design_server::prepare_app_ready_marker(&ready_file);
                     designtime_run_dir = Some(run_dir);
                     designtime_server = Some(spawn_designtime_server_process(
+                    ctx.embedded_launcher,
                         &pax_dir,
                         &project_path,
                         &manifest,
@@ -2397,6 +2434,8 @@ pub fn rebuild_staged_macos_logic_dylib(
 ) -> Result<MacosLogicReloadBuild, eyre::Report> {
     let process_child_ids = Arc::new(Mutex::new(vec![]));
     let ctx = RunContext {
+        port: None,
+        embedded_launcher: false,
         target: RunTarget::macOS,
         project_path: project_root.clone(),
         verbose: false,
@@ -2710,6 +2749,7 @@ fn wait_for_registered_session_app_pid(
 }
 
 fn spawn_designtime_server_process(
+    embedded_launcher: bool,
     pax_dir: &PathBuf,
     project_root: &PathBuf,
     manifest: &PaxManifest,
@@ -2732,6 +2772,13 @@ fn spawn_designtime_server_process(
         hot_reload,
         ready_file,
     );
+
+    if embedded_launcher {
+        let arguments: Vec<_> = cmd.get_args().skip(1).map(|arg| arg.to_owned()).collect();
+        let mut worker = Command::new(&current_exe);
+        worker.args(["pax", "__designtime-server"]).args(arguments);
+        cmd = worker;
+    }
 
     #[cfg(unix)]
     unsafe {
@@ -2833,8 +2880,9 @@ mod tests {
     use super::*;
     use std::ffi::OsStr;
 
-    const MACOS_HOST_SWIFT: &str =
-        include_str!("../../files/interfaces/macos/pax-app-macos/pax-app-macos/PaxViewMacos.swift");
+    const MACOS_HOST_SWIFT: &str = include_str!(
+        "../../../pax-host/native/macos/pax-app-macos/pax-app-macos/PaxViewMacos.swift"
+    );
 
     fn resolved_ios_device(kind: IosDeviceKind) -> ResolvedIosDevice {
         ResolvedIosDevice {

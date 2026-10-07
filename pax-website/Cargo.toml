@@ -13,7 +13,7 @@ title = "Pax — A declarative language for native and web UI"
 [package.metadata.pax.web]
 server_owned_prefixes = ["/blog", "/ai", "/ai.md"]
 title = "Pax — A declarative language for native and web UI"
-favicon = "../pax-compiler/files/interfaces/macos/pax-app-macos/pax-app-macos/Assets.xcassets/AppIcon.appiconset/pax-logo-1024.png"
+favicon = "../pax-host/native/macos/pax-app-macos/pax-app-macos/Assets.xcassets/AppIcon.appiconset/pax-logo-1024.png"
 site_name = "Pax"
 site_url = "https://pax.dev"
 social_image = "pax-favicon.png"
@@ -21,9 +21,9 @@ social_image_alt = "Pax logo"
 
 [dependencies]
 pax-kit = { version = "0.39.0", path = "../pax-kit", features = ["shaders"] }
-pax-logo = { version = "0.39.0", path = "../examples/src/pax-logo" }
-calculator = { version = "0.39.0", path = "../examples/src/calculator" }
-paxflix = { version = "0.39.0", path = "../examples/src/paxflix" }
+pax-logo = { version = "0.39.0", path = "../examples/pax-logo" }
+calculator = { version = "0.39.0", path = "../examples/calculator" }
+paxflix = { version = "0.39.0", path = "../examples/paxflix" }
 # Pest 2.9's stacker/psm path imports an unresolved stack pointer on wasm32.
 # Keep this web app's development parser on the working 2.8 series.
 pest = "=2.8.7"

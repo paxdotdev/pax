@@ -1,0 +1,31 @@
+[package]
+name = "pax-codegen"
+version = "0.39.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+homepage = "https://pax.dev/"
+repository = "https://github.com/paxproject/pax"
+description = "Shared Pax source analysis and cartridge code generation"
+
+[dependencies]
+cargo_metadata = "0.18.1"
+color-eyre = "0.6.2"
+include_dir = "0.7.3"
+pax-language = { version = "0.39.0", path = "../pax-language" }
+pax-manifest = { version = "0.39.0", path = "../pax-manifest", features = ["compiler"] }
+pax-runtime-api = { version = "0.39.0", path = "../pax-runtime-api" }
+proc-macro2 = { version = "1.0", features = ["span-locations"] }
+quote = "1.0"
+roxmltree = "0.21.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_with = { version = "3.6.1", features = ["json"] }
+sha2 = "0.10.8"
+svgtypes = "0.16.1"
+syn = { version = "1.0", features = ["full", "parsing", "visit"] }
+tera = "1"
+walkdir = "2.3.2"
+
+[dev-dependencies]
+filetime = "0.2.25"
+tempfile = "3.9.0"

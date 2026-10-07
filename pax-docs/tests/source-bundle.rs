@@ -59,7 +59,7 @@ fn packaged_snapshot_preserves_example_catalog_and_inline_sources() {
     }
 
     let canonical = manifest.parent().unwrap();
-    if canonical.join("examples/src").is_dir() {
+    if canonical.join("examples").is_dir() {
         assert_eq!(paths, examples::discover_example_paths(canonical).unwrap());
         for name in &paths {
             assert_eq!(
@@ -86,9 +86,9 @@ fn invalid_bundle_cannot_write_outside_its_source_directory() {
     let temp = tempfile::tempdir().unwrap();
     for name in [
         "../escape.rs",
-        "examples/src/../escape.rs",
+        "examples/../escape.rs",
         "/absolute.rs",
-        "examples/src/a\\escape.rs",
+        "examples/a\\escape.rs",
     ] {
         let bundle = serde_json::json!({"schema":1,"files":{name:"unsafe"}});
         assert!(
@@ -102,14 +102,14 @@ fn invalid_bundle_cannot_write_outside_its_source_directory() {
 #[test]
 fn new_snapshot_cannot_retain_removed_sources() {
     let temp = tempfile::tempdir().unwrap();
-    let old = br#"{"schema":1,"files":{"examples/src/demo/old.rs":"old"}}"#;
-    let new = br#"{"schema":1,"files":{"examples/src/demo/new.rs":"new"}}"#;
+    let old = br#"{"schema":1,"files":{"examples/demo/old.rs":"old"}}"#;
+    let new = br#"{"schema":1,"files":{"examples/demo/new.rs":"new"}}"#;
     let old_root = source_bundle::materialize(old, temp.path()).unwrap();
     let new_root = source_bundle::materialize(new, temp.path()).unwrap();
     assert_ne!(old_root, new_root);
-    assert!(!new_root.join("examples/src/demo/old.rs").exists());
+    assert!(!new_root.join("examples/demo/old.rs").exists());
     assert_eq!(
-        fs::read_to_string(new_root.join("examples/src/demo/new.rs")).unwrap(),
+        fs::read_to_string(new_root.join("examples/demo/new.rs")).unwrap(),
         "new"
     );
 }

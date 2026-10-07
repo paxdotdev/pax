@@ -66,21 +66,21 @@ impl HomePage {
         });
         hero_sources.extend(section_sources(
             "pax-logo/src/animated_pax_logo.pax",
-            include_str!("../../examples/src/pax-logo/src/animated_pax_logo.pax"),
+            include_str!("../../examples/pax-logo/src/animated_pax_logo.pax"),
             "pax-logo/src/animated_pax_logo.rs",
-            include_str!("../../examples/src/pax-logo/src/animated_pax_logo.rs"),
+            include_str!("../../examples/pax-logo/src/animated_pax_logo.rs"),
         ));
         hero_sources.extend(section_sources(
             "pax-logo/src/animated_pax_logo_banner.pax",
-            include_str!("../../examples/src/pax-logo/src/animated_pax_logo_banner.pax"),
+            include_str!("../../examples/pax-logo/src/animated_pax_logo_banner.pax"),
             "pax-logo/src/animated_pax_logo_banner.rs",
-            include_str!("../../examples/src/pax-logo/src/animated_pax_logo_banner.rs"),
+            include_str!("../../examples/pax-logo/src/animated_pax_logo_banner.rs"),
         ));
         hero_sources.extend(section_sources(
             "pax-logo/src/animated_pax_logo_post.pax",
-            include_str!("../../examples/src/pax-logo/src/animated_pax_logo_post.pax"),
+            include_str!("../../examples/pax-logo/src/animated_pax_logo_post.pax"),
             "pax-logo/src/animated_pax_logo_post.rs",
-            include_str!("../../examples/src/pax-logo/src/animated_pax_logo_post.rs"),
+            include_str!("../../examples/pax-logo/src/animated_pax_logo_post.rs"),
         ));
         self.hero_sources.set(hero_sources);
         let mut resource_sources = section_sources(

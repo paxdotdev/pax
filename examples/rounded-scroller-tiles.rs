@@ -1,8 +1,3 @@
-mod scripts;
-use scripts::run_example;
-
-fn main() {
-    if let Err(error) = run_example() {
-        eprintln!("Error: {}", error);
-    }
+fn main() -> Result<(), pax_kit::host::Error> {
+    pax_kit::init!(rounded_scroller_tiles)?.run()
 }

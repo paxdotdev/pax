@@ -43,7 +43,7 @@ def load_registry() -> dict:
         name = entry["name"]
         if not name or any(char not in "abcdefghijklmnopqrstuvwxyz0123456789-" for char in name):
             raise ValueError(f"invalid example name: {name!r}")
-        expected = PurePosixPath("examples", "src", name)
+        expected = PurePosixPath("examples", name)
         source = PurePosixPath(entry["source"])
         if source != expected:
             raise ValueError(f"{name}: source must be {expected}")
@@ -66,7 +66,18 @@ def included_files(source: Path) -> list[tuple[str, bytes, int]]:
         if not path.is_file() or path.name in EXCLUDED_NAMES or path.suffix == ".pyc":
             continue
         mode = 0o755 if os.access(path, os.X_OK) else 0o644
-        files.append((relative.as_posix(), path.read_bytes(), mode))
+        data = path.read_bytes()
+        if relative.as_posix() == "Cargo.toml":
+            # Cargo ignores member profiles. Restore the workspace policy when
+            # exporting a self-contained project from the canonical example.
+            name = tomllib.loads(data.decode())["package"]["name"]
+            data += (
+                '\n[profile.dev]\nopt-level = 1\n'
+                '\n[profile.dev.build-override]\nopt-level = 0\n'
+                f'\n[profile.dev.package.{name}]\nopt-level = 0\n'
+                '\n[profile.release]\nlto = true\nopt-level = "z"\ncodegen-units = 1\n'
+            ).encode()
+        files.append((relative.as_posix(), data, mode))
     if not any(path == "Cargo.toml" for path, _, _ in files):
         raise ValueError(f"{source}: missing Cargo.toml")
     return files

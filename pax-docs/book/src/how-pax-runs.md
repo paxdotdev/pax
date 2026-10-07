@@ -23,15 +23,22 @@ Three parts work together to run your application:
 | Runtime | Instantiates the scene, maintains reactive relationships, handles events, computes layout, and coordinates rendering and native-element updates |
 | Chassis | Connects the runtime to a target's window or browser, graphics surfaces, input, native elements, and platform services |
 
-The CLI coordinates the build. Rust application logic is compiled for the
-selected target: WebAssembly for the browser, or native code for the Apple
-targets. Pax's generated program data describes templates, bindings, events,
-and timelines so the runtime can instantiate them.
+Cargo compiles Rust application logic and expands Pax's macros for the selected
+target: WebAssembly for the browser, or native code for Apple targets. The macros
+analyze the Rust source and templates selected by that target's configuration,
+then generate program data describing templates, bindings, events, and timelines.
+The development entry and `pax-cli` share asset packaging, web serving, hot
+reload, and Apple deployment. With the starter's default `designtime` feature,
+ordinary `cargo run` starts web development; `cargo run -- pax --target=macos`
+selects a native application. Neither command needs a preceding CLI build.
 
 You may encounter the word **cartridge** in build output or engine code. It
 names the application-specific part that connects your program to the shared
-runtime. The CLI generates this connection; you do not maintain a cartridge
-file by hand. Build for each destination target—there is no single executable
+runtime. `runnable!` generates this connection during compilation; you do not
+maintain a cartridge file by hand. On Apple platforms it remains a separately
+linked library, which a Rust launcher or an existing host can mount. See
+[entry and mounting](targets-build-deploy.md#entry-and-mounting).
+Build for each destination target—there is no single executable
 cartridge file that you can interchange between a browser and an iOS app.
 
 At a high level:
@@ -253,21 +260,21 @@ ordinary release build for the shipping comparison.
 
 ## Inspect an update in a working example
 
-The repository's `examples/src/increment` app has a useful pair of behaviors:
+The repository's `examples/increment` app has a useful pair of behaviors:
 clicking its rounded rectangle changes the count and starts a rotation, while
 a `@pre_render` handler continuously changes the rectangle's color.
 
 From a Pax repository checkout, start it with:
 
 ```sh
-pax-cli run --path examples/src/increment --target web
+pax-cli run --path examples/increment --target web
 ```
 
 With that session running, use another terminal in the same checkout:
 
 ```sh
-pax-cli dev inspect tree --path examples/src/increment --max-depth 3
-pax-cli dev logs --path examples/src/increment --limit 50
+pax-cli dev inspect tree --path examples/increment --max-depth 3
+pax-cli dev logs --path examples/increment --limit 50
 ```
 
 The tree shows the running instances behind the template. The log command

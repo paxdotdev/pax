@@ -159,6 +159,6 @@ companion would add to that open-source workflow rather than unlock it.
 [Install the CLI, create a project, and run it](getting-started.md).
 
 If you prefer to explore before installing, browse the
-[repository examples](https://github.com/paxdotdev/pax/tree/dev/examples/src)
+[repository examples](https://github.com/paxdotdev/pax/tree/dev/examples)
 and return to the authoring loop above when you want to understand how their
 templates and Rust code fit together.

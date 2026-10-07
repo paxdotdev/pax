@@ -1,0 +1,25 @@
+[package]
+publish = false
+name = "responsive-helpers"
+version = "0.39.0"
+edition = "2021"
+default-run = "responsive-helpers"
+
+[package.metadata.pax]
+title = "Responsive Helpers"
+
+[dependencies]
+pax-kit = { version = "0.39.0", path = "../../pax-kit" }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["standalone", "designtime"]
+standalone = ["pax-kit/host"]
+designtime = ["pax-kit/designtime"]
+
+[[bin]]
+name = "responsive-helpers"
+path = "src/main.rs"
+required-features = ["standalone"]

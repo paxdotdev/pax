@@ -360,7 +360,7 @@ exceeds those limits, or cannot meet the subdivision error budget within 128
 steps per patch axis, paints no mesh field and reports the limit rather than
 silently dropping endpoints or reducing quality.
 
-The runnable `examples/src/mesh-gradients` study demonstrates nested bindings,
+The runnable `examples/mesh-gradients` study demonstrates nested bindings,
 whole-row bindings, a continuous Handwriter mask, a revealed stroke, and
 translucent anchors. Its Pause, Show/Hide anchors, and Narrow controls help
 inspect the field as it moves and resizes. The stroke extends its outer anchors
@@ -404,13 +404,13 @@ the provider setup, scope, and override order. A child component imports the
 settings needed by its own template; placing a theme above it does not
 automatically style its internals.
 
-The canonical `examples/src/runtime-settings-themes` example separates color,
+The canonical `examples/runtime-settings-themes` example separates color,
 typography, and corners into providers and switches them with ordinary
 reactive state. It is a useful next step when one shared class has grown into
 a theme. Keep event handlers responsible for state changes and let bindings
 select the visual values, as described in [PAXEL](data-binding-expressions.md).
 
-`examples/src/paxflix` shows a shared runtime dark/light choice across nested
+`examples/paxflix` shows a shared runtime dark/light choice across nested
 components. Each visual component imports `CinemaTheme is_dark={!light_mode}`
 and uses its semantic classes for text, surfaces, controls, and image fades.
 The profile menu changes the root's bound mode; the imported provider updates
@@ -527,7 +527,7 @@ pax-cli svg-import assets/signature.svg
 ```
 
 For a concrete source to try, copy
-`examples/src/path-drawing/assets/svg/signature-strokes.svg` to that location.
+`examples/path-drawing/assets/svg/signature-strokes.svg` to that location.
 The command reports its viewBox, generated path count, and warnings. Review
 those warnings and compare the result visually before adopting the artwork.
 

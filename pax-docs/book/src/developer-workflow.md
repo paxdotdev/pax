@@ -14,7 +14,8 @@ web examples need an open browser tab connected to the running application.
 
 ## Hot reloading
 
-Debug runs use **Pax-only hot reload** by default. Saving a `.pax` template
+Debug `cargo run` and `pax-cli run` sessions use **Pax-only hot reload** by default.
+Saving a `.pax` template in either development session
 can update the mounted interface. Rust application changes require rebuilding
 and restarting on native targets, or rebuilding and reloading the browser page.
 The initializer runs once per application instance, including after a restart.
@@ -27,8 +28,8 @@ The initializer runs once per application instance, including after a restart.
 | `logic` — retired | Rejected with a migration diagnostic | Rebuild and restart manually |
 
 ```sh
-pax-cli run --target web --hot-reload=pax
-pax-cli run --target web --hot-reload=off
+cargo run -- pax --target=web --hot-reload=pax
+cargo run -- pax --target=web --hot-reload=off
 ```
 
 ### Target support and restart boundaries
@@ -55,9 +56,10 @@ hot_reload = "pax"
 
 Selection precedence is the `--hot-reload` flag, then `PAX_HOT_RELOAD`, then Cargo
 metadata, then the `pax` debug default. The same migration rules apply to every
-source of the setting. Use `pax-cli run` for code generation, packaging and the
-dev session. The native Cargo binary is the application entry, not a wrapper
-that recursively invokes the CLI.
+source of the setting. The Cargo development entry and `pax-cli run` call the
+same packaging and development-session library. Target applications carry an
+explicit application role and never recursively launch the development tools.
+Use `init_with!` for explicit in-process native startup and embedding.
 
 ## Format Pax source
 
@@ -97,8 +99,8 @@ restricts selection to that project, including when the path is `.`. For
 example, from a repository checkout:
 
 ```sh
-pax-cli dev status --path examples/src/increment
-pax-cli dev look --path examples/src/increment
+pax-cli dev status --path examples/increment
+pax-cli dev look --path examples/increment
 ```
 
 Project selection uses the active session recorded under that project's
@@ -329,11 +331,22 @@ Viewing source through `docs examples` does not create a project or install
 its assets. To create a runnable project from the curated bundled set, use
 [`create --example`](#create-from-a-bundled-example) below.
 In a repository checkout, canonical examples live under
-`examples/src`; run one from the repository root with:
+`examples`; run one from the repository root with:
 
 ```sh
-pax-cli run --path examples/src/increment --target web
+cargo run --example increment       # web development, from the repository root
+cargo run -p increment              # build just this example's dependency graph
+pax-cli run --path examples/increment --target web
 ```
+
+Each `examples/<name>` directory is an ordinary Cargo package with its own
+library, native `main`, templates, and assets. The top-level `.rs` launchers are
+real Cargo example targets. Cargo shares the root package's dev-dependencies
+across its example targets, so `-p <name>` is the narrower development command.
+This layout keeps all examples together; showcase/fixture curation is separate.
+Development profiles live at the workspace root: runtime dependencies use
+optimization level 1, while each example's own code and build dependencies use
+level 0. The CLI restores these profiles when exporting a standalone project.
 
 The CLI also has `docs build` for contributors rebuilding the documentation
 assets in a Pax repository. It can regenerate API pages, example metadata/
@@ -370,7 +383,7 @@ repository checkout. An unknown example name reports the available choices
 without creating a partial project. The curated create set is smaller than
 the source-reading catalog in `docs examples`.
 
-Each CLI release carries its own snapshot. For contributors, `examples/src/*`
+Each CLI release carries its own snapshot. For contributors, `examples/*`
 is canonical; `examples/bundled-cli-examples.toml` selects the create set and
 `scripts/sync-cli-examples.py` synchronizes the packaged archive. Release tooling
 runs that synchronization after version updates and before packaging.

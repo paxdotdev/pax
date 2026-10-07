@@ -1,30 +1,45 @@
 # Getting Started
-<!-- summary: Install Pax, create a project, and run it in your browser. -->
-<!-- tags: foundations, cli, build -->
+<!-- summary: Create a Pax project and launch web or Apple development with Cargo. -->
+<!-- tags: foundations, cargo, cli, build -->
 
 Pax is a UI framework for Rust, with targets for web, macOS, iOS, and iPadOS.
-This guide starts with the web target: install Pax, run a project in your
-browser, and get to know the files you'll work with.
+Ordinary Cargo launches web development on macOS, Linux, and Windows. Apple
+application targets require a macOS workstation with full Xcode.
 
 ## Quick start
 
-The CLI's telemetry policy and opt-out controls are described in
-[CLI Telemetry](cli-telemetry.md).
-
-If you have Rust, your operating system's build tools, the
-`wasm32-unknown-unknown` target, and `wasm-pack` installed, run these commands in
-your terminal:
+Install Rust and your workstation's [web prerequisites](#prepare-your-workstation), then run:
 
 ```sh
 cargo install pax-cli
 pax-cli create my-first-project
 cd my-first-project
-pax-cli run --target=web
+cargo run
 ```
 
-Open the local URL printed by the last command. Keep the terminal running while
-you use the app; press **Ctrl-C** there to stop it. Installation and the first
-build compile dependencies and can take some time.
+Open the local URL printed by the last command. The CLI creates the starter;
+Cargo builds a development executable that uses Pax's shared compilation,
+packaging, and serving library. Running an existing project requires no installed
+Pax CLI, application `build.rs`, or Cargo runner configuration. The first build
+compiles the development tools and can take time. `.pax` edits reload in the
+running session; Rust changes require rebuilding and restarting.
+
+Choose a target or web port under the `pax` argument namespace:
+
+```sh
+cargo run -- pax --target=web --port=8080
+cargo run -- pax --target=macos
+cargo run -- pax --target=ios
+cargo run -- pax --help
+```
+
+The Apple commands require Xcode; web development does not build the Apple SDK.
+Cargo's arguments come before the first `--`. Pax's arguments follow `pax`.
+See [run, build, and release](targets-build-deploy.md#run-build-and-release) for
+production packaging and explicit native startup.
+
+The CLI's telemetry policy is described in [CLI Telemetry](cli-telemetry.md).
+The Cargo development entry does not initialize CLI telemetry or update checks.
 
 Need the prerequisites? Start with [Prepare your workstation](#prepare-your-workstation).
 Already running? Continue to [Project anatomy](#project-anatomy).
@@ -34,28 +49,37 @@ Already running? Continue to [Project anatomy](#project-anatomy).
 ## Prepare your workstation
 
 You can develop Pax web applications on macOS, Debian/Ubuntu Linux, or Windows.
-This guide uses the web target. Pax also runs on macOS, iOS, and iPadOS; building
-for those Apple targets requires a macOS workstation with Xcode.
+Native macOS, iOS, and iPadOS development requires a macOS workstation with full
+Xcode. A plain `cargo run` defaults to web development; select an Apple target explicitly.
 
 Choose the instructions for your workstation below. If Rust is already
-installed, you can skip its installation commands. You'll still need the
-WebAssembly target and `wasm-pack` for web builds.
+installed, you can skip its installation commands. The WebAssembly target and
+`wasm-pack` are needed only for web builds.
 
 ### macOS
 
-Install Xcode Command Line Tools, then complete the installer before continuing:
+For native applications, install full Xcode and complete its first-launch setup.
+Confirm that your shell selects that installation:
 
 ```sh
-xcode-select --install
+xcode-select -p
+xcodebuild -version
 ```
 
-If the tools are already installed, you can continue. Install Rust and the web
-build tools:
+See [Apple preparation](targets-build-deploy.md#prepare-the-apple-toolchain) if
+these report only a Command Line Tools installation. For web-only development,
+Command Line Tools installed with `xcode-select --install` are sufficient.
+
+Install Rust:
 
 ```sh
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 . "$HOME/.cargo/env"
+```
 
+To build for the browser as well, install the web tools:
+
+```sh
 rustup target add wasm32-unknown-unknown
 cargo install wasm-pack --version 0.15.0
 ```
@@ -180,8 +204,7 @@ The version command confirms that your shell can find the installed CLI.
 Installing it compiles Pax and its dependencies, so expect compilation output
 before the command finishes.
 
-If you completed the Quick Start, you can skip this installation and the next
-two steps.
+If you completed the Quick Start, continue to [Project anatomy](#project-anatomy).
 
 ## Create a project
 
@@ -201,13 +224,32 @@ For a smaller starting point, use `pax-cli create my-counter --example=increment
 The curated alternatives and their purpose are covered in
 [Developer Workflow](developer-workflow.md#create-from-a-bundled-example).
 
+## Run it natively on macOS
+
+Enter the project directory and use Cargo:
+
+```sh
+cd my-first-project
+cargo run -- pax --target=macos
+```
+
+The window displays Living Quilt, an interactive geometric tapestry. Click the
+quilt to send out a color wave, or click its card to replay the entrance.
+Template edits reload during this development session; Rust changes require
+rebuilding and restarting. Use `cargo build` to compile without launching.
+[Distribution bundles](targets-build-deploy.md#run-build-and-release) are a
+separate packaging step, even when Cargo builds optimized artifacts.
+
+Use `--target=ios` or `--target=ipados` for a simulator session; see
+[mobile development](targets-build-deploy.md#ios-and-ipados-development).
+
 ## Run it on the web
 
 Enter the project directory and start the web target:
 
 ```sh
 cd my-first-project
-pax-cli run --target=web
+cargo run
 ```
 
 The first run builds your application and its dependencies. Once the server is
@@ -224,7 +266,7 @@ see [When something goes wrong](#when-something-goes-wrong).
 
 Leave the command running while you use the app. To stop the development session,
 press **Ctrl-C** in its terminal. You can start it again with
-`pax-cli run --target=web` from the project directory.
+`cargo run` from the project directory.
 
 ## Project anatomy
 
@@ -233,23 +275,29 @@ Open the project in your editor. These are the main roles to recognize:
 | File or directory | What it contains |
 | --- | --- |
 | `Cargo.toml` | The Rust package definition, dependencies, and optional Pax project metadata. |
-| `src/main.rs` | Native process entry; calls `pax_kit::init()?.run()` to prepare and launch the UI. |
+| `src/main.rs` | Calls `pax_kit::init!()?.run()` to start development tools on a workstation or the UI in a packaged native application. |
 | `src/lib.rs` | Library that declares `pax_kit::runnable! { root: ..., init: ... }` and exports its UI modules. |
 | Rust source (`.rs`) | Component definitions, application state, event handlers, and other application logic. |
 | Pax templates (`.pax`) | UI elements, layout, styles, expressions, and bindings to event handlers. Templates can also be embedded in Rust source. |
 | `assets/`, when present | Application media such as images and fonts. |
-| `.pax/` | Generated build and development files, created by the CLI. Make application changes in the source files above. |
+| `.pax/` | Generated build and development files, created by Pax's packaging tools. Make application changes in the source files above. |
 
 Pax templates describe the interface. Rust holds the state and behavior behind
 it. Expressions inside templates connect property values to what you see on
 screen. You'll work with these parts together as you build an interface.
 
-The library builds as both `rlib` and `cdylib`. The native executable has its
-own `[[bin]]` target, gated by `required-features = ["standalone"]`. `pax-cli`
-selects these targets explicitly: web and linked builds select the library,
-while native standalone builds also enable the launcher. Ordinary dependencies
-never auto-launch the app. Continue using `pax-cli run` for a complete build;
-plain `cargo run` alone does not generate or package the host framework.
+The library builds as both `rlib` and `cdylib`. Its macros compile the Pax
+program during ordinary Rust compilation; your application needs no `build.rs`.
+The native executable has its own `[[bin]]` target, gated by
+`required-features = ["standalone"]`, and starters enable `standalone` and
+`designtime` by default. `cargo run` starts a browser development session on
+macOS, Linux, or Windows. `cargo run -- pax --target=macos` builds and launches
+an Apple app bundle; Xcode is required for Apple targets.
+
+The development entry includes Pax's packaging tools, so running an existing
+project needs neither an installed `pax-cli` nor Cargo runner configuration.
+The CLI remains available for project creation, inspection, and the same
+packaging workflows. Depending on a UI library never auto-launches it.
 See [application setup](event-handling-rust.md#application-setup) for typed root
 construction and [entry and mounting](targets-build-deploy.md#entry-and-mounting)
 for platform details. Components can live in a nested `ui/` module or a separate
@@ -269,11 +317,11 @@ to:
 width={is_compact ? 320px : 420px}
 ```
 
-Save with the development session still running. The card becomes wider through
-Pax's default template hot reload. The expression chooses a compact width for
-smaller windows and a larger width otherwise; try resizing the browser. Restore
-the original values whenever you like. Rust changes require rebuilding and restarting
-the run. See [Hot reloading](developer-workflow.md#hot-reloading).
+Save to see the wider card. Both Cargo and CLI development sessions update
+the template through the default Pax hot-reload lane. The expression chooses a compact width for smaller windows
+and a larger width otherwise; try resizing the window or browser. Restore the
+original values whenever you like. Rust changes require rebuilding and
+restarting on either path. See [Hot reloading](developer-workflow.md#hot-reloading).
 
 ## When something goes wrong
 
@@ -322,7 +370,8 @@ file selection, inline templates, and CI usage.
 
 ### Hot reloading
 
-Debug runs reload `.pax` templates by default. For Rust changes, stop and rerun
+Debug `pax-cli run` sessions reload `.pax` templates by default. Bare Cargo runs
+require rebuilding and restarting after source edits. For Rust changes, stop and rerun
 the app on every target; refresh the browser after rebuilding. See
 [Hot reloading](developer-workflow.md#hot-reloading) for the mode matrix,
 target boundaries, and project configuration.

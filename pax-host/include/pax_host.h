@@ -3,10 +3,13 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-// Version 1 host ABI. Every operation runs on the process main thread. Handles
+// Version 2 host ABI. Every operation runs on the process main thread. Handles
 // originate from prepare, are consumed once by run/mount, and require release.
 // close is idempotent; retain the observer context until its release callback.
 uint32_t pax_host_version(void);
+// Optional copied JSON launch configuration (entry, title, development paths).
+// Call before prepare with no active mount. Maximum 1 MiB; 0 is success.
+int32_t pax_host_configure(const uint8_t *data, size_t len);
 void *pax_host_prepare(void);
 int32_t pax_host_run(void *session);
 int32_t pax_host_mount(void *session, void *view, void *controller);

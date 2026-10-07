@@ -57,7 +57,7 @@ pub fn expand_examples_for_cli(markdown: &str, workspace: &Path) -> String {
 }
 
 pub fn example_dir(workspace: &Path, path: &str) -> Option<PathBuf> {
-    normalize_relative_path(path).map(|path| workspace.join("examples").join("src").join(path))
+    normalize_relative_path(path).map(|path| workspace.join("examples").join(path))
 }
 
 pub fn source_file_paths_for_embed(workspace: &Path, embed: &ExampleEmbed) -> Vec<PathBuf> {
@@ -72,7 +72,7 @@ pub fn source_file_paths_for_embed(workspace: &Path, embed: &ExampleEmbed) -> Ve
 }
 
 pub fn discover_example_paths(workspace: &Path) -> io::Result<Vec<String>> {
-    let examples_dir = workspace.join("examples").join("src");
+    let examples_dir = workspace.join("examples");
     let mut out = Vec::new();
     let Ok(entries) = fs::read_dir(examples_dir) else {
         return Ok(out);
@@ -151,7 +151,7 @@ pub fn hosted_example_url(path: &str) -> String {
 }
 
 pub fn run_command(path: &str) -> String {
-    format!("pax-cli run --path examples/src/{path} --target web")
+    format!("pax-cli run --path examples/{path} --target web")
 }
 
 pub fn render_example_source_markdown(
@@ -412,7 +412,7 @@ fn render_cli_fallback(embed: &ExampleEmbed, workspace: &Path) -> String {
     out.push_str("\nSource files:\n");
     for source_path in &source_paths {
         out.push_str(&format!(
-            "- `examples/src/{}/{}`\n",
+            "- `examples/{}/{}`\n",
             embed.path,
             source_path.to_string_lossy().replace('\\', "/")
         ));
@@ -439,7 +439,7 @@ fn render_cli_fallback(embed: &ExampleEmbed, workspace: &Path) -> String {
 fn render_source_markdown(path: &str, title: String, source_files: &[ExampleSourceFile]) -> String {
     let mut out = String::new();
     out.push_str(&format!("# Example: {title}\n\n"));
-    out.push_str(&format!("Path: `examples/src/{path}`\n\n"));
+    out.push_str(&format!("Path: `examples/{path}`\n\n"));
     out.push_str("From the Pax repository root (requires a source checkout):\n\n");
     out.push_str("```sh\n");
     out.push_str(&run_command(path));

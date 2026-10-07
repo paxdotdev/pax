@@ -15,7 +15,7 @@ EXCLUDED = {".git", ".pax", "target", "node_modules", "__pycache__"}
 
 def snapshot(workspace):
     files = {}
-    examples = workspace / "examples/src"
+    examples = workspace / "examples"
     for example in sorted(examples.iterdir()):
         if example.is_symlink() or not (example / "Cargo.toml").is_file():
             continue

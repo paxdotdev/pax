@@ -62,7 +62,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("cargo:rerun-if-changed={}", summary_path.display());
     println!(
         "cargo:rerun-if-changed={}",
-        workspace_dir.join("examples").join("src").display()
+        workspace_dir.join("examples").display()
     );
     visit_markdown_files(&book_dir)?;
     visit_referenced_example_files(workspace_dir, &book_dir)?;
@@ -227,9 +227,9 @@ fn load_example_entries(workspace_dir: &Path) -> Result<Vec<DocEntry>, Box<dyn s
             slug: format!("examples/{example_path}"),
             kind: DocKind::Example,
             depth: 0,
-            path: format!("examples/src/{example_path}"),
+            path: format!("examples/{example_path}"),
             body_markdown,
-            summary: format!("Source files for `examples/src/{example_path}`."),
+            summary: format!("Source files for `examples/{example_path}`."),
             tags,
         });
     }

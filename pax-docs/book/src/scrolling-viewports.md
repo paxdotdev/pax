@@ -246,7 +246,7 @@ position bindings drive subsequent updates; the application does not accumulate
 a second position from scroll events. Sampling the viewport rather than the
 whole pane keeps work bounded as the person explores.
 
-Run `pax-cli run --path examples/src/calculator --target web` from a source
+Run `pax-cli run --path examples/calculator --target web` from a source
 checkout and switch to Graph. Try `1/x`, pan, then resize the window. The Rust
 expression engine deliberately leaves gaps across undefined domains and caps
 sampling work. Its finite world is −256 through 256 on each axis; this example
@@ -439,7 +439,7 @@ pub fn release(&mut self, _ctx: &NodeContext, _event: Event<ViewportProximityExi
 This policy compares two samples; it does not infer a physical scroll velocity.
 Layout, resizing, and transforms can also change the visible height. Observe a
 stable wrapper and animate its children so the animation does not change its
-own measurement. The runnable `examples/src/viewport-proximity` example adds
+own measurement. The runnable `examples/viewport-proximity` example adds
 270 cards with visit/sample counters, a small uniform scale from 92% to 100%,
 and restoration when scrolling reverses. The explicit 50% anchors keep scaling
 centered inside the stable 200px observation wrapper. At rest, `y=80px` locates
@@ -539,7 +539,7 @@ frame without an extra full compositing pass.
 Run the example from the repository root:
 
 ```sh
-pax-cli run --path examples/src/viewport-proximity --target web
+pax-cli run --path examples/viewport-proximity --target web
 ```
 
 ## Nested viewports and native content
@@ -695,19 +695,19 @@ Exercise the finished view with its real text, images, and controls:
 From the repository root, these examples offer larger inspection surfaces:
 
 ```sh
-pax-cli run --path examples/src/rounded-scroller-tiles --target web
-pax-cli run --path examples/src/scroll-matrix --target web
-pax-cli run --path examples/src/scroll-garden --target web
+pax-cli run --path examples/rounded-scroller-tiles --target web
+pax-cli run --path examples/scroll-matrix --target web
+pax-cli run --path examples/scroll-garden --target web
 ```
 
 Run one at a time. `rounded-scroller-tiles` focuses on rounded viewports and
 mixed content; `scroll-matrix` exercises nesting, transforms, and controls;
 `scroll-garden` explores scroll-driven scenes. Their source lives under
-`examples/src/` and remains the place to follow the complete applications.
+`examples/` and remains the place to follow the complete applications.
 
 ### A cinematic catalog
 
-`examples/src/paxflix` combines a large hero with 21 horizontal movie shelves
+`examples/paxflix` combines a large hero with 21 horizontal movie shelves
 inside one vertical Scroller. Its 210 cards reuse 35 local images through stable
 thumbnail paths; a selected film opens a full-resolution root-level detail panel.
 Each shelf's viewport spans the screen, with gutter space inside its scrolling
@@ -728,7 +728,7 @@ positions. Short landscape windows use a side-by-side detail layout.
 Its previous/next controls animate the bound scroll position with `ease_to`;
 wheel or touch input cancels that animation so direct scrolling takes over.
 
-Run it with `pax-cli run --path examples/src/paxflix --target web`. The example's
+Run it with `pax-cli run --path examples/paxflix --target web`. The example's
 README documents the asset inventory and a repeatable culling/interaction check.
 Each shelf defers its ten card trees until it is within one catalog-local
 viewport ahead of or behind the visible range, then retains them. This uses the

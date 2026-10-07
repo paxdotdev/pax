@@ -85,6 +85,8 @@ export interface WebInitOptions {
     cartridgeUrl: string;
     /** Application-defined bytes copied before initialization; maximum 64 KiB. */
     startupData?: Uint8Array;
+    /** Canonical runnable root, e.g. "crate::App"; optional for a single root. */
+    entry?: string;
     /** Standalone pages may delegate the root scroller to browser page scrolling. */
     pageScroll?: boolean;
     /** Opt into page history/title ownership. Embedded regions default to false. */
@@ -152,6 +154,9 @@ export async function init_web(options: WebInitOptions): Promise<MountedApp> {
     }
     if (options.startupData !== undefined && (!(options.startupData instanceof Uint8Array) || options.startupData.byteLength > 65536)) {
         throw new Error("startupData must be Uint8Array of at most 64 KiB");
+    }
+    if (options.entry !== undefined && typeof options.entry !== "string") {
+        throw new Error("entry must name a declared runnable root");
     }
     // Snapshot caller-owned bytes before module/network awaits can interleave
     // with application mutations to the original buffer.
@@ -234,7 +239,7 @@ async function loadWasmModule(extensionlessUrl: string, session: MountSession): 
     // The explicit Wasm entry invokes this host capability only after its typed
     // initializer succeeds. JS owns the chassis from that call onward, including
     // partial attachment failures; no GC finalizer is relied on for close.
-    await glue.init_web({startupData: session.options.startupData, mount: (chassis: PaxChassisWeb) => {
+    await glue.init_web({entry: session.options.entry, startupData: session.options.startupData, mount: (chassis: PaxChassisWeb) => {
         try { session.checkOpen(); } catch (error) { chassis.free(); throw error; }
         resetHostState();
         currentChassis = chassis;

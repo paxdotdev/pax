@@ -54,7 +54,7 @@ if [[ "$cwd" != "$repo_root" ]]; then
   exit 64
 fi
 
-if [[ ! -f Cargo.toml || ! -d pax-cli || ! -d examples/src ]]; then
+if [[ ! -f Cargo.toml || ! -d pax-cli || ! -d examples ]]; then
   echo "error: current directory does not look like the Pax monorepo root" >&2
   exit 64
 fi

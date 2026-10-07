@@ -96,6 +96,7 @@
       - [shaders::gaussian_blur](api/pax-std/shaders/gaussian_blur.md)
       - [shaders::impressionist](api/pax-std/shaders/impressionist.md)
   - [pax-kit](api/pax-kit/index.md)
+    - [host](api/pax-kit/host.md)
   - [pax-tokio](api/pax-tokio/index.md)
   - [pax-web-async](api/pax-web-async/index.md)
   - [pax-host](api/pax-host/index.md)

@@ -1,14 +1,69 @@
 # PAX-1015 — User-owned main and initialization
 
-Status: **Phases 1 and 2 implemented; phase three authorized, dependency-graph experiments expose a feature-isolation decision at the first gate. Example migration explicitly deferred.**
-Investigated 2026-10-04; implementation qualification updated 2026-10-05.
+## Development launch through the existing entry (2026-10-06)
+
+Zack authorized implementation after selecting the command namespace
+`cargo run -- pax --target=web --port=8080`. This supersedes the earlier rule
+that `init!` never orchestrates a development session. The source-level entry
+remains `fn main() -> Result<(), pax_kit::host::Error> { pax_kit::init!()?.run() }`;
+no second launcher source, application build script, Cargo runner, or installed
+Pax CLI is required. Ordinary development defaults to web on every workstation.
+
+Application starters enable `designtime` by default. This enables runtime
+inspection/template changes, independently of whether an executable is a
+workstation launcher or the target application. Packaging explicitly selects the
+application role. Production packaging selects release, removes the starter's
+development default while preserving other defaults, and rejects transitive
+designtime activation in the shipped runtime graph. Build tools are permitted
+in the build graph, not in the production runtime.
+
+The development entry reads options only beneath the leading `pax` argument.
+Target selection uses `--target`, not a positional target. Explicit arguments
+override `PAX_TARGET`, project development metadata, and finally `web`.
+`init_with!` remains explicit in-process initialization for caller-owned native
+startup/embedding. Application root initialization remains in the target-side
+`runnable!` initializer, with explicit executor ownership. Code before an
+ordinary `init!` call still runs in the invoking process; it is not transported
+to a browser/device. macOS and standalone iOS retain real native Rust main;
+web retains its JS-invoked initializer. No Android or Linux/Windows native chassis
+is implied by supporting those workstations for web development.
+
+Validation must cover namespace parsing, target/application role separation,
+production feature exclusion, Cargo package/example invocation, existing CLI
+compatibility, web launch/reload, and Apple launch. Unavailable workstation
+validation must be reported separately from cross-compilation checks.
+
+Qualification on 2026-10-06:
+
+- Increment launched through the embedded development entry on web, macOS,
+  and the iOS simulator; clicks/taps updated the counter on each. A web template
+  edit reloaded without resetting its state, and the source was restored.
+- `cargo run --example increment -- pax --help` passed. The resulting example
+  executable also built and served release web output; its baked UI responded
+  to a click. The release runtime dependency graph excludes `pax-compiler` and
+  `pax-designtime`.
+- An external native host using `init_with!` and `designtime` enabled completed
+  initialization in its own process, including lazy SDK assembly. The UI
+  automation adapter could not select that unbundled host process; visual
+  interaction was verified in the packaged native application instead.
+- Existing CLI web launch, generated-project tests, 176 compiler tests,
+  45 code-generation tests, eight macro tests, and 29 CLI unit tests passed.
+  API references were regenerated and the book built successfully.
+- Linux and Windows workstation execution is covered by new CI entry checks,
+  but was not executed locally. Physical-device signing and App Store
+  publication remain outside this validation; see PAX-1029.
+
+Status: **Main entry, macro-driven compilation, example migration, and the Cargo
+development entry are implemented. Qualification of the latest entry changes
+is recorded below; example curation remains separate.**
+Investigated 2026-10-04; implementation qualification updated 2026-10-06.
 The original investigation and API sketches record the approved entry design. Section
 8’s implementation evidence and the phase-two qualification below distinguish delivered APIs from future work;
 canonical usage is documented in [Targets](../targets-build-deploy.md#entry-and-mounting)
 and [Events and Rust](../event-handling-rust.md#application-setup).
-The [phase-three specification](#phase-three-cargo-integration) specifies Cargo integration
-and caller-controlled packaging; its new APIs and commands are design targets,
-not available capabilities.
+The [phase-three specification](#phase-three-cargo-integration) preserves the
+earlier design investigation. The current development-entry section above and
+canonical articles describe the delivered behavior and supersede earlier sketches.
 
 Issue: [PAX-1015](https://linear.app/paxdev/issue/PAX-1015/design-user-owned-main-entry-points-and-main-driven-initialization).
 Related: [PAX-1013](https://linear.app/paxdev/issue/PAX-1013/validate-tokio-support).
@@ -112,12 +167,12 @@ removed by Phase 1. It is historical evidence, not current usage guidance.
 
 | Layer | Current artifact and owner | Evidence |
 | --- | --- | --- |
-| Application source | Library target, commonly `cdylib` plus `rlib`; annotated main component is a root designation, not Rust process main | `examples/src/async-workbench/Cargo.toml:28`; `src/lib.rs:8` |
+| Application source | Library target, commonly `cdylib` plus `rlib`; annotated main component is a root designation, not Rust process main | `examples/async-workbench/Cargo.toml:28`; `src/lib.rs:8` |
 | Generated cartridge | Rust source injected into active root crate; root dependencies suppress platform entry exports | `pax-macro/templates/derive_pax.stpl:1`; `pax-macro/src/templating.rs:103` |
 | Browser | `wasm-pack build --target web`; JS glue plus `pax-cartridge_bg.wasm`; TypeScript host controls mount and frames | `pax-compiler/src/building/web.rs:341`; `files/interfaces/web/src/index.ts:142` |
 | macOS | Rust cdylib embedded in a framework/app; SwiftUI executable is the process owner; symbol table allows debug replacement | `pax-compiler/src/building/apple.rs:473`, `:519`, `:606`, `:1988`; macOS `PaxViewMacos.swift:241` |
 | iOS/iPadOS | Rust cdylib packaged into framework/xcframework slices; SwiftUI app executable calls C exports | Apple builder `:644`; iOS `Main.swift:10`; `PaxViewIos.swift:502` |
-| Example CLI launcher | A separate executable that launches `./pax run`; its runtime is not the GUI application's runtime | `examples/src/runtime-settings-themes/bin/run.rs:4` |
+| Example CLI launcher | A separate executable that launches `./pax run`; its runtime is not the GUI application's runtime | `examples/runtime-settings-themes/bin/run.rs:4` |
 
 Apple paths in this section are under
 `pax-compiler/files/interfaces/{macos,ios}/pax-app-{macos,ios}/pax-app-{macos,ios}`.
@@ -342,7 +397,7 @@ the runnable declaration and the root component's source location. None of
 `main.rs`, `lib.rs`, `App`, `Main` or a directory name determines the UI root.
 The layout above is a starter template, not an imposed application architecture.
 
-At the phase-one baseline, `examples/src/increment/src/lib.rs` used `#[main]`
+At the phase-one baseline, `examples/increment/src/lib.rs` used `#[main]`
 and the active application's marked component injected cartridge source and
 platform exports. Phase two separates that ownership from the component marker.
 Package identity now also accepts the explicitly selected cartridge library;
@@ -666,7 +721,7 @@ The [Tokio Builder](https://docs.rs/tokio/1.53.1/tokio/runtime/struct.Builder.ht
 exposes runtime configuration directly. This recommendation preserves that
 control rather than translating it into a Pax-specific set of Tokio settings.
 
-Current evidence: `examples/src/async-workbench/src/work_service.rs:12` already
+Current evidence: `examples/async-workbench/src/work_service.rs:12` already
 constructs its own Runtime through Builder, and `pax-tokio/src/lib.rs:64` consumes
 that exact runtime in `TokioService::owned`. The change removes public
 `provide_managed`/service-lookup coupling while preserving off-UI destruction,
@@ -923,7 +978,7 @@ This is a hunk-level plan after approval, not a git revert command.
 | Property and rendering changes | None as a consequence of main ownership | Shared Property, LocalProperty, untyped thread affinity, mixed graph, stable snapshots, bounds and all correctness regressions |
 | Apple host/build metadata | Entry selection and packaging only where necessary | Info.plist/entitlements overlays, signed-network fixes, initial frame and display-link retry, disposal fixes, native controls |
 | Rust logic-reload paths in compiler, macOS host and web host | Disable supported replacement and migrate CLI diagnostics; remove isolated obsolete machinery where warranted | `.pax` reload, dev inspection, normal startup/disposal safety; any retained replacement internals keep their code-lifetime protections |
-| `examples/src/async-workbench` | application.rs hook implementation, work_service configure, service lookups in root/request_panel | Same timer/I/O/cancel/remount/stream/panic scenarios and visual proof; migrate to explicit inputs/owners |
+| `examples/async-workbench` | application.rs hook implementation, work_service configure, service lookups in root/request_panel | Same timer/I/O/cancel/remount/stream/panic scenarios and visual proof; migrate to explicit inputs/owners |
 | `tests/src/tokio-support-probe` and runtime tests | Hook/registry fixtures | Thread-safety, delivery/cancellation, wake-only, shutdown, code lifetime and release checks |
 | Public docs/generated references/bundles | Application setup/services guidance and examples | Shared/local property teaching, platform capability restrictions, unrelated API docs; regenerate only after implementation |
 
@@ -1019,7 +1074,7 @@ be lost in implementation or treated as settled by the illustrative Cargo setup.
 The investigation checkout confirms the historical runner structure:
 `examples/<name>.rs` calls `examples/scripts/mod.rs`, whose comment explicitly
 describes proxying Cargo's example discovery. The helper enters
-`examples/src/<name>` and runs Cargo; that package's `bin/run.rs` invokes
+`examples/<name>` and runs Cargo; that package's `bin/run.rs` invokes
 `./pax run`. The root workspace excludes `examples`; there is no enclosing
 `examples/Cargo.toml` here. This supports reassessing the extra `src` layer and
 wrappers, but does not establish that plain Cargo already builds a complete
@@ -1605,7 +1660,7 @@ partial result and requires an explicit scope decision.
 
 ### Developer-facing setup and defaults
 
-Keep the runtime-facing API unchanged:
+The original runtime-facing sketch remains the current public API:
 
 ```rust
 fn main() -> Result<(), pax_kit::host::Error> {
@@ -1613,8 +1668,10 @@ fn main() -> Result<(), pax_kit::host::Error> {
 }
 ```
 
-The proposed build dependency is `pax-build`, versioned with the Pax toolchain
-and resolved through the project's Cargo lockfile. It is a build-time dependency;
+The original proposal used a `pax-build` build dependency, versioned with the Pax toolchain
+and resolved through the project's Cargo lockfile. The later no-application-`build.rs`
+investigation below supersedes this as the preferred default to pursue. An
+explicit helper remains a possible advanced integration. It is a build-time dependency;
 application code continues to use `pax_kit`. Do not pull the compiler, server or
 packaging tools into the application's runtime facade to save a manifest entry.
 The intended simple build script is:
@@ -1642,9 +1699,11 @@ Subject to that proof, recommend these starter defaults:
   needs an explicit migration note and CLI compatibility test.
 - A consumer reusing an application library disables its default features.
   Web and cartridge-only invocations select `--lib --no-default-features` and
-  the desired UI features. The build plan must keep launcher-only features out
-  of the cartridge compilation. A build script cannot undo Cargo feature
-  unification; failure to separate these roles is a graph-gate failure.
+  the desired UI features. The original requirement to exclude launcher-only
+  Cargo features is superseded for the approved follow-up investigation:
+  shared Cargo capabilities are acceptable if native linkage, ABI ownership
+  and runtime instances remain separate. A build script cannot undo Cargo
+  feature unification. Audit actual linked artifacts and initialization.
 - Preserve the explicit `runnable!` root and
   `[package.metadata.pax.cartridge]` selection. Do not infer a UI package from
   whichever manifest happens to be the current directory. Nested `ui` modules,
@@ -1871,8 +1930,8 @@ depends on earlier CLI output, or a renamed CLI command is not completion.
 These are prototype observations, not delivered build-helper APIs or a completed
 qualification matrix. Experiments used stable Rust/Cargo 1.93.0 and Xcode 26.4
 on Apple Silicon. They leave starter defaults and the approved runtime API
-unchanged. The feature-isolation requirement above needs a decision before
-the single-package implementation can proceed.
+unchanged. These results prompted the subsequent approved investigation below;
+the original feature-isolation gate is retained here as experiment history.
 
 **Single-package artifact ordering works.** A fresh, dependency-free Cargo
 fixture with `[lib] crate-type = ["cdylib", "rlib"]` and a binary built both
@@ -1949,7 +2008,252 @@ The alternatives at this gate are:
 
 The spec explicitly says to “return with the concrete graph and measured
 alternatives before widening the implementation” if the graph cannot satisfy
-its invariants. The open decision is feature isolation versus artifact/runtime
+its invariants. At that checkpoint, the open decision was feature isolation versus artifact/runtime
 isolation, not whether to erase the cartridge boundary. No alternative may
 silently substitute a statically mounted UI, require nightly Cargo, or compile
 the application recursively from its build script.
+
+
+### Follow-up: macro generation and multiple runnable roots — 2026-10-05
+
+Zack authorized pursuit of a default that requires no application `build.rs`,
+then clarified that multiple `runnable!` declarations and overlapping component
+definitions should be supported. **One active native mount is acceptable for
+this phase.** Concurrent mounts remain a follow-up; each must eventually own an
+engine, property graph, root instance and lifetime. Shared definitions must not
+become shared mutable instance state.
+
+The candidate graph is now:
+
+```text
+Pax dependency build script -> generic native host SDK
+runnable! -> source analysis + generated program Rust
+Cargo -> application library (rlib + cdylib) + user-owned binary
+init! at the call site -> explicit development artifact description
+run -> dynamically load host + separate cartridge -> selected root instance
+```
+
+`init!` is experimental syntax, not a delivered replacement for `init()` or
+`init_with()`. The helper captures caller metadata without an application build
+script. The macro does not invoke a native compiler or recursively compile the
+application. The prototype invokes locked, offline Cargo metadata; production
+must carry the actual target/features/configuration through discovery rather
+than accidentally analyzing a default-feature graph.
+
+**Delivered compiler infrastructure in this worktree:** source analysis, SVG
+import, project layout and cartridge templates now live in `pax-codegen`.
+`pax-compiler` delegates to them and preserves its public analysis/SVG paths as
+re-exports. Generation can return Rust in memory. A new build-time program
+catalog analyzes the union of runnable roots once, retains declaration scopes
+and initializer paths, and selects manifest root roles without reanalysis.
+The catalog stores no application instances and does not change the public
+macro's current single-root restriction by itself.
+
+**Isolated macOS proof:** an external project with no application build script
+built its generic Swift host through a dependency, generated a real cartridge
+from its macro, and entered an ordinary user-owned Rust `main`. Direct execution
+from another directory with Pax/Cargo/dyld environment variables removed mounted
+the root. Neither executable nor cartridge linked `PaxHost`; the executable
+loaded the host dynamically, and the host loaded the cartridge. Cartridge ABI
+exports appeared once in the cartridge and were absent from the executable.
+A template edit rebuilt the application without rebuilding the generic host.
+Substituting an older cartridge was rejected by the program-identity check
+before root initialization.
+
+The extended proof declared `App`, `Shell` containing `App`, and a repeated
+`App` declaration. One analysis and one generated descriptor set served all
+three declarations in that library compilation. Runtime selection launched
+both roots in separate runs. `Shell` initialization mounted its `App` child
+without calling `App`'s runnable initializer. Unknown and unspecified entries
+failed before initialization. `cargo run --locked --offline` launched the selected outer root and reused the
+native SDK outputs. `cargo check --all-targets` also passed without
+running application code; its library and test units each performed their own
+analysis. Deduplication is per Cargo compilation unit, not a promise to share
+all work across profiles, targets or test harnesses.
+
+The prototype uses an experimental cartridge ABI revision for an explicit root
+argument, leaving startup data available to the application. The repository's
+public ABI remains unchanged. Production must choose one deterministic emission
+site for shared exports, independently of macro expansion order; repeats and
+aliases must not duplicate exports. Repeated compatible declarations should be
+idempotent. Different initializers for the same component must remain distinct
+entry choices or produce an explicit ambiguity diagnostic, never silently use
+whichever declaration was found first.
+
+**Remaining qualification:** the copied prototype adapters are not production
+APIs. Source tracking currently covers the proof package, not the complete
+resolved dependency/asset/configuration graph. Stable source spans inside a
+procedural macro require an explicit source-parser backend: treating invocation
+spans as source-file offsets failed, while the prototype's scoped
+`proc-macro2::fallback` parser worked. Cache invalidation, macro/parser isolation,
+private-module visibility, feature/cfg handling, dependency reuse, separate-host
+selection, resources, custom profiles, complete cold builds, real release
+profiles and mobile/web integration still need production qualification. These
+observations do not claim a full visual/input pass or complete phase three.
+
+
+**Configuration stress test:** adding an unreachable `#[cfg(any())]` alternative
+for an existing component caused a duplicate-component discovery error in the
+macro proof. Rust would remove that item before normal type checking. This is
+an existing source-scanner limitation, now made concrete by ordinary Cargo
+qualification. Merely moving the scanner into a macro or reading default Cargo
+metadata does not make it respect the actual compilation configuration. Keep
+this as an acceptance failure until target/feature/cfg discovery is corrected;
+do not silently drop alternate definitions or choose the first declaration.
+
+Compiler-extraction validation passed 39 code-generation/catalog tests, all 171
+compiler library tests, and three compiler integration tests for binary manifest,
+ProgramIR and code serialization. The book builds; source-link corrections and
+the bundled example-source snapshot are current. Catalog tests exercise rich
+and baked representations; the native macro proof still uses a debug Cargo
+profile with baked program constructors, not a qualified release-profile build.
+
+### Compiler-owned configuration handoff proof — 2026-10-06
+
+The configuration handoff now has a reproducible real-Pax acceptance fixture at
+`pax-codegen/tests/fixtures/cfg-handoff`, beyond the initial small Rust-only
+experiment. It does not switch the production macro or the CLI default.
+
+The frontend emits complementary `#[cfg(predicate)]` continuation invocations.
+Rust selects one in the crate being compiled; the continuation receives a
+literal answer. Discovery resumes with that fact. Unknown facts never default
+to false. Parent module conditions are resolved before opening child files;
+`cfg_attr` is expanded before choosing module paths, template attributes,
+component definitions and fields. The configured AST also filters enum variants
+and impl members. Inline Pax retains its original argument-group source span,
+including when the enclosing attribute was synthesized from `cfg_attr`.
+
+Every active `#[pax]` can initiate discovery, but a deterministic earliest active
+source site emits the crate's one hidden configuration helper. Thus a reusable
+component library needs neither a `runnable!` nor a new registration declaration.
+The helper exports already-selected facts. Evaluating dependency predicates in
+the consuming app would incorrectly substitute the app's configuration. The
+test facade applies the same configured component definition to the real Pax
+attribute macro and to source analysis; filtering only the manifest would leave
+conditional fields inconsistent with generated Rust.
+
+Original Rust sources are parsed once per compiler session, and completed
+discovery is cached by entry source and selected facts. Individual declarations
+still perform continuation and AST-cloning work; this is not a claim of zero
+per-declaration overhead. One deterministic runnable site generates the union
+catalog. The fixture's two roots and three declarations generate one catalog
+per compilation unit and parse three participating source files. Switching the
+dependency's selected module can change the helper emitter without duplicating
+exports. Library and test harness units remain separate.
+
+The eight-case verifier passed on stable Rust 1.93: native app-only feature,
+native rich/baked reconstruction, native dependency-only feature, wasm target,
+release tests, explicit `rustc --cfg`, a dependency-source edit and restoration.
+The app and dependency deliberately use the same feature name with different
+values. A dependency build script's custom cfg remains dependency-local, and its
+`cfg(test)` stays false while the app test harness sees true. Disabled duplicate
+components, absent module/template files, nested conditional template attributes
+and conditional inline Pax are exercised. Debug and release runtime tests
+reconstruct both generated manifest representations. There is no application
+build script and no application initializer executes during compilation.
+
+**Remaining integration boundary:** these are test wrappers around real Pax
+macros, not installed production entrypoints. The fixture keeps its component
+graph within instrumented crates; it does not yet instrument the standard
+library. Production integration must qualify helper forwarding through
+transitive/re-exported dependencies, renamed/versioned package identities,
+optional/target dependency resolution, private scopes, full-library callback
+cost/depth, and complete source/template/resource tracking. Arbitrary Rust macro
+expansion and `include!` are not implemented by this source scanner; `#[path]`
+on inline modules is explicitly rejected by configured discovery. No native
+host, cartridge ABI, mobile runtime or visual/input behavior was tested in this
+configuration fixture. The earlier native launch proof remains separate.
+
+`pax-codegen::configured_source` and the configured catalog entry are internal
+experimental infrastructure. Missing selected sources produce a typed request;
+the scanner cannot silently fall back to unconfigured dependency files. The
+existing public workflow stays documented as delivered until the complete
+ordinary-Cargo frontend meets these remaining qualifications.
+
+After this addition, validation passed 44 code-generation/source tests, all 171
+compiler library tests, the three compiler integration tests, the eight-case
+handoff verifier and `mdbook build pax-docs/book`. The bundled example-source
+snapshot and whitespace checks remain current. Public getting-started and
+hosting instructions are unchanged because no public launch workflow changed.
+
+### Repository rollout — 2026-10-06
+
+The preceding prototype and configuration-handoff notes record the investigation
+at those dates. The production `pax` and `runnable!` macros now use the shared
+`pax-codegen` frontend. Owning rustc invocations answer cfg predicates; component
+libraries, including `pax-std`, export hidden helpers carrying their selected
+configuration. A catalog deduplicates overlapping root definitions while retaining
+root-specific initialization. The application needs no build script and no
+recursive Cargo compilation occurs in macro expansion or host initialization.
+
+`init!`/`init_with!` carry a literal launch recipe through a UI library's metadata
+helper, without referencing its Rust objects in the executable. The function
+forms remain for hosts that already package their cartridge. The generic Apple
+sources now belong to `pax-host`; its build script builds the macOS SDK, and the
+CLI reuses the same sources for packaging. Cartridge ABI 3 accepts a runnable
+entry name; host ABI 2 accepts copied launch configuration. These require matching
+host and cartridge versions.
+
+All 49 example packages now live at `examples/<name>`, with ordinary Rust mains
+and repository-root Cargo example launchers. They retain their own `src/`
+directories. Workspace profiles preserve the previous selective debug settings;
+exported CLI examples receive equivalent standalone profiles. Showcase/fixture
+curation remains a separate task.
+
+The CLI obtains its manifest by compiling the selected library with the actual
+platform configuration, then packages the generated cartridge. It retains web
+serving, resource packaging, hot reload, signing, and simulator/device deployment.
+Web adapters export distinct symbols for each Cargo package/library identity;
+packaging aliases the selected adapter to `init_web` in JavaScript and TypeScript.
+This preserves runnable library reuse without relying on primary-package status
+or unified features to choose the browser entrypoint.
+Ordinary Cargo native launch is currently macOS; iOS requires an application
+bundle/runner, browsers use `init_web`, and Android/Linux/Windows native hosting
+remain unimplemented. Development binaries use adjacent Cargo libraries and
+source assets; distributed applications should use packaged bundles.
+
+Rollout qualification on this workstation:
+
+- All 49 repository example launchers pass Cargo checking. A root Cargo example
+  build links the full shared example dependency graph, and `cargo run --example
+  increment` enters the native application loop.
+- Direct native execution from an unrelated directory works with Pax/Cargo/dyld
+  environment variables removed. The same check passes for the separate-host
+  fixture with a renamed UI dependency, custom library target, lean module root,
+  public re-exports, and a reused legacy `#[main]` component.
+- Bare `cargo build -p increment --target aarch64-apple-ios-sim` produces an
+  arm64 iOS-simulator executable and UI dylib without CLI build environment.
+  Mobile bundle/install/launch uses the CLI. A working simulator Cargo-runner
+  prototype was deliberately backed out: forwarding Cargo to an installed CLI
+  did not justify the added project configuration. First-touch docs prefer Cargo
+  on macOS and distinguish compilation from platform packaging.
+- The production configuration matrix passes native, wasm, release, custom cfg,
+  dependency edit/restoration, renamed dependency, transitive private re-export,
+  and custom library-path cases. Its native ABI probe rejects ambiguous/unknown
+  entries without initialization and creates independent engines for two roots,
+  with one selected initializer call per root.
+- Code-generation and compiler suites pass (45 and 172 tests), macro tests pass
+  (8), and binary-manifest, ProgramIR, and JSON round-trip tests pass (3).
+  Release-tooling tests pass (18); the release graph includes the new codegen
+  crate and excludes all example packages.
+- CLI web Increment renders, responds to clicks, and preserves state across a
+  template edit/restoration with the default hot-reload mode. Packaged macOS
+  Slot Particles renders its reused Fireworks subtree. Packaged iOS Calculator
+  renders its graph and accepts keyboard arithmetic (`6 + 2 = 8`).
+- Real debug and baked-release Slot Particles web links pass with both its own
+  and Fireworks' runnable exports present; the generated public alias selects
+  Slot Particles. Runtime
+  inspection exposed an existing retained-GPU 480-transform limit, tracked in
+  [PAX-1028](https://linear.app/paxdev/issue/PAX-1028/remove-the-retained-gpu-scenes-480-transform-ceiling).
+  Zack explicitly deferred that renderer fix; this is not a clean rendering pass
+  for Slot Particles.
+- Public articles and generated API pages were updated; mdBook and both bundled
+  example drift checks pass. CLI packaging no longer renders a redundant
+  `cartridge.partial.rs` after Cargo has generated the program.
+
+This is compilation coverage across the example corpus plus live target smoke
+checks, not a claim that all 49 applications were manually exercised on every
+platform. Physical-device signing and the unsupported native platforms are
+outside this pass. Arbitrary macro-generated component declarations,
+`#[path]` on inline modules, source-path remapping and simultaneous versions of
+one component dependency remain outside the qualified scanner surface.

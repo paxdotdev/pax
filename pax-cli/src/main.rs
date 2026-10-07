@@ -163,6 +163,8 @@ fn cli() -> App<'static, 'static> {
                 .about("Build and run the Pax application for the selected platform")
                 .arg( ARG_PATH.clone() )
                 .arg( ARG_TARGET.clone() )
+                .arg(Arg::with_name("port").long("port").takes_value(true)
+                    .help("Web server port; fail if the requested port is occupied"))
                 .arg( ARG_IOS_DEVICE.clone() )
                 .arg( ARG_IOS_DEVELOPMENT_TEAM.clone() )
                 .arg( ARG_VERBOSE.clone() )
@@ -303,7 +305,17 @@ fn run_context(
             "run --release currently supports ios and ipados; use build --release for other targets"
         ));
     }
+    let port = args
+        .value_of("port")
+        .map(str::parse::<u16>)
+        .transpose()
+        .map_err(|_| eyre!("--port must be between 0 and 65535"))?;
+    if port.is_some() && target != RunTarget::Web {
+        return Err(eyre!("--port configures the web target only"));
+    }
     Ok(RunContext {
+        port,
+        embedded_launcher: false,
         target,
         is_libdev_mode: resolve_libdev_mode(args, &path)?,
         project_path: path,
@@ -356,6 +368,8 @@ fn perform_nominal_action(
             }
 
             let _ = pax_compiler::perform_build(&RunContext {
+                port: None,
+                embedded_launcher: false,
                 target: parse_run_target(&target)?,
                 project_path: PathBuf::from(path),
                 should_also_run: false,
@@ -401,6 +415,8 @@ fn perform_nominal_action(
             let is_libdev_mode = resolve_libdev_mode(args, Path::new("."))?;
 
             let _ = pax_compiler::perform_eject(&RunContext {
+                port: None,
+                embedded_launcher: false,
                 target: parse_run_target(&target)?,
                 project_path: PathBuf::from("."),
                 should_also_run: false,
@@ -608,7 +624,7 @@ fn auto_libdev_mode_for_project(project_path: &Path) -> bool {
     let project_path = absolute_path(project_path);
 
     [
-        workspace_root.join("examples").join("src"),
+        workspace_root.join("examples"),
         workspace_root.join("tests").join("src"),
     ]
     .iter()
@@ -792,6 +808,24 @@ mod tests {
     use super::*;
 
     #[test]
+    fn explicit_port_is_only_accepted_for_web() {
+        for (target, port, valid) in [
+            ("web", "8123", true),
+            ("web", "65536", false),
+            ("ios", "8123", false),
+        ] {
+            let matches = cli()
+                .get_matches_from_safe(vec!["pax-cli", "run", "--target", target, "--port", port])
+                .unwrap();
+            let result = run_context(matches.subcommand_matches("run").unwrap(), Arc::default());
+            assert_eq!(result.is_ok(), valid);
+            if let Ok(context) = result {
+                assert_eq!(context.port, Some(8123));
+            }
+        }
+    }
+
+    #[test]
     fn mobile_release_run_disables_designtime_and_hot_reload() {
         for target in ["ios", "ipados", "ipad"] {
             let matches = cli()
@@ -911,7 +945,6 @@ mod tests {
         assert!(auto_libdev_mode_for_project(
             &workspace_root
                 .join("examples")
-                .join("src")
                 .join("starter-project")
         ));
         assert!(auto_libdev_mode_for_project(

@@ -23,9 +23,9 @@ Start with the local docs before inventing patterns.  The most useful entry poin
 - `pax-docs/book/src/data-binding-expressions.md` for PAXEL expressions and reactive bindings.
 - `pax-docs/book/src/event-handling-rust.md` for Rust event handlers and state updates.
 - [How Pax Runs](pax-docs/book/src/how-pax-runs.md#architecture-schematic) for the architectural overview and interactive schematic.
-- The [full-sheet architecture PNG](pax-docs/book/src/images/pax-architecture.png) and the schematic's [source references](examples/src/architecture-diagram/src/content.rs) for component responsibilities, causal connections, and established names. The PNG is a revisioned overview; check the referenced code before changing an engine contract. Capture provenance and refresh instructions live in the [example README](examples/src/architecture-diagram/README.md#composed-raster-export); internal topology and design history are archived in [PAX-1010](https://linear.app/paxdev/issue/PAX-1010).
+- The [full-sheet architecture PNG](pax-docs/book/src/images/pax-architecture.png) and the schematic's [source references](examples/architecture-diagram/src/content.rs) for component responsibilities, causal connections, and established names. The PNG is a revisioned overview; check the referenced code before changing an engine contract. Capture provenance and refresh instructions live in the [example README](examples/architecture-diagram/README.md#composed-raster-export); internal topology and design history are archived in [PAX-1010](https://linear.app/paxdev/issue/PAX-1010).
 - `pax-docs/book/src/SUMMARY.md` for the full docs table of contents, including the API docs (generated from this codebase's code comments.)
-- `examples/src/*` for code samples and working patterns.
+- `examples/*` for code samples and working patterns.
 
 These docs are also available by CLI: `pax-cli docs`
 
@@ -42,7 +42,7 @@ that need an explanation of how to use them.
 
 - Before implementation, identify the affected human-facing articles through
   `pax-docs/book/src/SUMMARY.md`, relevant public API comments, and examples in
-  `examples/src/*`. Search for old names, syntax, commands, and behavioral
+  `examples/*`. Search for old names, syntax, commands, and behavioral
   claims so related guidance does not quietly become stale. Check the README
   and CLI help when the change affects first-touch instructions or commands.
 - Update the canonical human-facing article where a concept is taught. For a
@@ -124,7 +124,7 @@ New features are often proven on one "chassis" at a time (platform target.)  In 
 
 ## Hot reloading
 
-Debug `pax-cli run` sessions use `--hot-reload=pax` by default. `.pax` changes
+Debug `cargo run` and `pax-cli run` sessions use `--hot-reload=pax` by default. `.pax` changes
 reload through the Pax lane on every supported target. Rust application-logic
 changes require rebuilding and restarting (refresh the browser after rebuilding).
 Rust logic replacement is no longer a supported workflow. `--hot-reload=all`
@@ -214,7 +214,7 @@ Before commits, the user may ask for a cleanup pass.  Follow this protocol at th
 - Keep tests, examples, and docs aligned with behavior changes.
 - If a partial implementation must stay, make the boundary explicit with a short comment or follow-up issue reference.
 - Run the narrowest meaningful validation first; broaden only when the change touches shared compiler/runtime behavior.
-- When we're ready to merge and close out the ticket, run `scripts/clean-temp-files.sh` from the monorepo root to remove generated temp directories (`target`, `examples/src/**/target`, and relevant `.pax` dirs). These cost gigabytes per worktree and are best to remove when we are about to wrap up work on a branch, as this workstation's 1TB drive fills up surprisingly quickly.
+- When we're ready to merge and close out the ticket, run `scripts/clean-temp-files.sh` from the monorepo root to remove generated temp directories (`target`, `examples/**/target`, and relevant `.pax` dirs). These cost gigabytes per worktree and are best to remove when we are about to wrap up work on a branch, as this workstation's 1TB drive fills up surprisingly quickly.
 
 ## Comments
 

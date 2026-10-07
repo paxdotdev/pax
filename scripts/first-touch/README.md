@@ -62,6 +62,11 @@ monorepo, patches `pax-kit` back to the synced source tree, builds the
 generated project for web, and launches `pax-cli run --target web` long enough
 to verify that the local web server responds.
 
+This VM smoke qualifies the web workflow. The docs now lead with native
+`cargo run` on macOS, which requires full Xcode; the current Command Line Tools
+VM baseline does not qualify that native path. Native Cargo validation currently
+runs on the development workstation with Xcode installed.
+
 ## Ubuntu
 
 Build the Ubuntu ARM64 VM from the Pax repo root:

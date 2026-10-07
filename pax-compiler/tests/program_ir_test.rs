@@ -9,7 +9,7 @@ fn increment_static_manifest_round_trips_through_program_ir_binary() {
         .parent()
         .expect("pax-compiler should have a workspace parent")
         .to_path_buf();
-    let project_path = workspace_dir.join("examples/src/increment");
+    let project_path = workspace_dir.join("examples/increment");
 
     let manifest = build_manifest(&project_path).expect("increment manifest should build");
     let ir = ProgramIR::from_manifest(&manifest);

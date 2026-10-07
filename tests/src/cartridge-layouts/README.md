@@ -7,8 +7,11 @@ from private modules. The dependency retains a legacy `#[main]` marker to check
 that it behaves as an ordinary subtree when another cartridge selects the root.
 `consumer` selects its own `Shell` and reuses the explicit UI cartridge's `App`.
 Each UI library selects its root with `pax_kit::runnable!`.
-The launcher also depends only on `pax-kit`, enabling `pax-kit/host` through
-`standalone` and calling `pax_kit::init()?.run()`.
+The launcher uses `pax-kit` plus a renamed `my-ui` Cargo dependency on the UI
+package. Its default `standalone` feature enables `pax-kit/host`.
+`pax_kit::init!()?.run()` resolves the metadata selection through that dependency
+without importing UI Rust objects into the launcher. On macOS, run directly with
+`cargo run --manifest-path tests/src/cartridge-layouts/host/Cargo.toml`.
 The UI library publicly re-exports `Counter`, so the consumer can name that
 transitive component without depending directly on the widgets package.
 

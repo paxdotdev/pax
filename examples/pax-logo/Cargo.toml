@@ -1,0 +1,25 @@
+[package]
+publish = false
+name = "pax-logo"
+version = "0.39.0"
+edition = "2021"
+default-run = "pax-logo"
+
+[package.metadata.pax]
+title = "Animated Pax Logo"
+
+[dependencies]
+pax-kit = { version = "0.39.0", path = "../../pax-kit" }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["standalone", "designtime"]
+standalone = ["pax-kit/host"]
+designtime = ["pax-kit/designtime"]
+
+[[bin]]
+name = "pax-logo"
+path = "src/main.rs"
+required-features = ["standalone"]

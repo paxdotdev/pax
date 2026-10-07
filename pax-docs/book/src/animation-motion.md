@@ -311,7 +311,7 @@ their count until a transition finishes. WebGPU mixes them in the paint shader.
 The Piet browser fallback accumulates them in a reusable canvas limited to the
 current surface, then clips and draws the resulting paint once.
 
-`examples/src/paxflix` demonstrates the 400 ms policy on every visual component's
+`examples/paxflix` demonstrates the 400 ms policy on every visual component's
 `CinemaTheme` import. Open the profile menu and toggle Dark/Light mode; text,
 surfaces, outlines, artwork fades, and the hero's radial highlight transition while the catalog and scroll
 positions remain mounted. Toggle again during a fade to reverse it continuously.

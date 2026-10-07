@@ -226,7 +226,7 @@ fn print_example_list(examples: &[&pax_docs::DocEntry]) {
     for (idx, entry) in examples.iter().enumerate() {
         let name = entry
             .path
-            .strip_prefix("examples/src/")
+            .strip_prefix("examples/")
             .unwrap_or(entry.path.as_str());
         println!("{}. {} | {}", idx + 1, name, entry.summary);
     }
@@ -267,7 +267,7 @@ fn example_entry_matches(entry: &pax_docs::DocEntry, query_lower: &str) -> bool 
         }
     }
 
-    for prefix in ["examples/", "examples/src/"] {
+    for prefix in ["examples/", "examples/"] {
         if let Some(value) = entry.slug.strip_prefix(prefix) {
             if value.eq_ignore_ascii_case(query_lower) {
                 return true;

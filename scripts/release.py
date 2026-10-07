@@ -29,13 +29,20 @@ sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[1]
 DEPENDENCIES = ("dependencies", "build-dependencies", "dev-dependencies")
 REQUIRED_FILES = {
+    "pax-codegen": {
+        "templates/cartridge_generation/cartridge.tera",
+        "templates/cartridge_generation/macros.tera",
+    },
     "pax-compiler": {
         "files/interfaces/web/public/pax-interface-web.js",
         "files/interfaces/web/public/pax-interface-web.css",
         "files/new-project/bundled-examples.paxbundle",
         "files/new-project/AGENTS.md",
-        "files/swift/pax-swift-common/Package.swift",
-        "files/interfaces/ios/pax-app-ios/pax-app-ios/Assets.xcassets/AppIcon.appiconset/pax-icon-ios-1024.png",
+    },
+    "pax-host": {
+        "native/common/pax-swift-common/Package.swift",
+        "native/ios/pax-app-ios/pax-app-ios/Assets.xcassets/AppIcon.appiconset/pax-icon-ios-1024.png",
+        "build.rs",
     },
     "pax-docs": {"bundled-example-sources.json", "build.rs", "book/src/SUMMARY.md",
                  "book/src/getting-started.md", "book/src/versions.json"},
@@ -199,7 +206,7 @@ def clear_package_archives(target_dir, names, version):
 
 def source_digest(workspace):
     digest = hashlib.sha256()
-    extra = {Path("Cargo.lock"), *(Path("pax-compiler") / p for p in REQUIRED_FILES["pax-compiler"])}
+    extra = {Path("Cargo.lock"), *(Path(crate) / p for crate, paths in REQUIRED_FILES.items() for p in paths)}
     for relative in sorted(set(source_files(workspace)) | extra):
         path = workspace / relative
         digest.update(relative.as_posix().encode() + b"\0")

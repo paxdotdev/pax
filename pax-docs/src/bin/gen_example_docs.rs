@@ -319,7 +319,7 @@ fn build_example(pax_cli: &Path, workspace: &Path, example_path: &str) -> io::Re
         .current_dir(workspace)
         .arg("build")
         .arg("--path")
-        .arg(format!("examples/src/{example_path}"))
+        .arg(format!("examples/{example_path}"))
         .arg("--target")
         .arg("web")
         .arg("--release")
@@ -489,8 +489,8 @@ mod tests {
                 std::process::id(),
                 NEXT.fetch_add(1, Ordering::Relaxed)
             ));
-            fs::create_dir_all(root.join("examples/src/demo/src")).unwrap();
-            fs::write(root.join("examples/src/demo/src/lib.pax"), "<Group />").unwrap();
+            fs::create_dir_all(root.join("examples/demo/src")).unwrap();
+            fs::write(root.join("examples/demo/src/lib.pax"), "<Group />").unwrap();
             fs::write(root.join("cli"), format!("#!/bin/sh\n{script}\n")).unwrap();
             fs::set_permissions(root.join("cli"), fs::Permissions::from_mode(0o755)).unwrap();
             Self(root)
@@ -516,7 +516,7 @@ mod tests {
         fn seed_legacy(&self) {
             fs::create_dir_all(self.0.join("out/demo/app")).unwrap();
             fs::write(self.0.join("out/demo/app/index.html"), "old debug").unwrap();
-            let fingerprint = examples::fingerprint_dir(&self.0.join("examples/src/demo")).unwrap();
+            let fingerprint = examples::fingerprint_dir(&self.0.join("examples/demo")).unwrap();
             fs::write(
                 self.0.join("out/demo/manifest.json"),
                 json!({"built_fingerprint":fingerprint}).to_string(),
@@ -532,7 +532,7 @@ mod tests {
 
     #[test]
     fn legacy_debug_cache_rebuilds_as_release_then_reuses_verified_output() {
-        let f = Fixture::new("printf '%s\\n' \"$@\" > args\nmkdir -p examples/src/demo/.pax/build/release/web\nprintf release > examples/src/demo/.pax/build/release/web/index.html");
+        let f = Fixture::new("printf '%s\\n' \"$@\" > args\nmkdir -p examples/demo/.pax/build/release/web\nprintf release > examples/demo/.pax/build/release/web/index.html");
         f.seed_legacy();
         let manifest = f.run(false);
         assert_eq!(manifest["build_recipe"], BUILD_RECIPE);
@@ -550,7 +550,7 @@ mod tests {
 
     #[test]
     fn engine_changes_invalidate_unchanged_example_cache() {
-        let f = Fixture::new("mkdir -p examples/src/demo/.pax/build/release/web\nprintf release > examples/src/demo/.pax/build/release/web/index.html");
+        let f = Fixture::new("mkdir -p examples/demo/.pax/build/release/web\nprintf release > examples/demo/.pax/build/release/web/index.html");
         assert_eq!(f.run(false)["app"]["available"], true);
         fs::create_dir_all(f.0.join("pax-gpu/src")).unwrap();
         fs::write(f.0.join("pax-gpu/src/lib.rs"), "// changed renderer").unwrap();

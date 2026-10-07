@@ -328,6 +328,21 @@ pub struct WebLogicReloadBuild {
     pub extensionless_url: String,
 }
 
+fn expose_selected_web_entrypoint(interface_path: &Path, entrypoint: &str) -> eyre::Result<()> {
+    // wasm-bindgen retains exports from runnable dependencies too. Select by
+    // Cargo package/target identity, never by export order or unified features.
+    let alias = format!("\nexport {{ {entrypoint} as init_web }};\n");
+    for extension in ["js", "d.ts"] {
+        let path = interface_path.join(format!("pax-cartridge.{extension}"));
+        let mut contents = fs::read_to_string(&path)?;
+        if !contents.ends_with(&alias) {
+            contents.push_str(&alias);
+            fs::write(path, contents)?;
+        }
+    }
+    Ok(())
+}
+
 fn compile_web_interface_artifacts(
     ctx: &RunContext,
     pax_dir: &PathBuf,
@@ -369,12 +384,11 @@ fn compile_web_interface_artifacts(
                 .to_str()
                 .unwrap(),
         )
-        .arg(format!("--features={}", web_cargo_features(&cartridge_ctx)))
         .env("PAX_DIR", &pax_dir)
+        .env("PAX_MANIFEST_OUTPUT", pax_dir.join("manifest-wasm32-unknown-unknown.json"))
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit());
     layout.configure_cartridge(&mut cmd);
-    configure_pax_build_env(&mut cmd, "web", ctx.should_run_designtime);
 
     if is_profiling {
         cmd.arg("--profiling");
@@ -387,6 +401,10 @@ fn compile_web_interface_artifacts(
     } else {
         cmd.arg("--dev");
     }
+    // wasm-pack forwards trailing Cargo switches verbatim. Put its own profile
+    // flags first so --dev/--profiling never reach `cargo build` as Cargo flags.
+    cmd.arg(format!("--features={}", web_cargo_features(&cartridge_ctx)));
+    configure_pax_build_env(&mut cmd, "web", ctx.should_run_designtime);
     #[cfg(unix)]
     unsafe {
         cmd.pre_exec(crate::pre_exec_hook);
@@ -404,6 +422,7 @@ fn compile_web_interface_artifacts(
     if !output.status.success() {
         return Err(eyre!("failed to compile project with wasm-pack"));
     }
+    expose_selected_web_entrypoint(&interface_path, &layout.web_entrypoint)?;
 
     if is_release {
         timings.record("wasm-opt", || {
@@ -545,6 +564,8 @@ pub fn rebuild_staged_web_cartridge(
 ) -> Result<WebLogicReloadBuild, eyre::Report> {
     let process_child_ids = Arc::new(Mutex::new(vec![]));
     let ctx = RunContext {
+        port: None,
+        embedded_launcher: false,
         target: RunTarget::Web,
         project_path: project_root.clone(),
         verbose: false,
@@ -629,7 +650,7 @@ pub fn build_web_project_with_cartridge(
                 build_dest.to_str().unwrap(),
                 project_root.to_str().unwrap(),
                 manifest,
-                None,
+                ctx.port,
                 None,
                 true,
                 Some(dev_session.clone()),
@@ -651,6 +672,7 @@ pub fn build_web_project_with_cartridge(
             crate::design_server::static_server::start_server_with_ready_callback(
                 build_dest.clone(),
                 existing_project_public_dir(project_root),
+                ctx.port,
                 lifecycle_notifier.into_callback(),
             )?;
         }
@@ -706,6 +728,30 @@ fn cleanup_web_dev_session(
 mod tests {
     use super::copy_web_reload_artifacts;
     use std::fs;
+
+    #[test]
+    fn selects_one_web_entrypoint_without_removing_dependency_exports() {
+        let interface = tempfile::tempdir().unwrap();
+        for extension in ["js", "d.ts"] {
+            fs::write(
+                interface.path().join(format!("pax-cartridge.{extension}")),
+                "export function dependency() {}\nexport function selected() {}\n",
+            )
+            .unwrap();
+        }
+        for _ in 0..2 {
+            super::expose_selected_web_entrypoint(interface.path(), "selected").unwrap();
+        }
+        for extension in ["js", "d.ts"] {
+            let contents = fs::read_to_string(
+                interface.path().join(format!("pax-cartridge.{extension}")),
+            )
+            .unwrap();
+            assert!(contents.contains("export function dependency()"));
+            assert_eq!(contents.matches("as init_web").count(), 1);
+            assert!(contents.ends_with("export { selected as init_web };\n"));
+        }
+    }
     use tempfile::tempdir;
 
     #[test]

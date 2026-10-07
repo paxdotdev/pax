@@ -1,0 +1,3 @@
+native/**/xcuserdata/
+native/**/.build/
+native/**/.DS_Store

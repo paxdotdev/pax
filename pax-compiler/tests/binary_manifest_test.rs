@@ -8,7 +8,7 @@ fn increment_static_manifest_round_trips_through_binary_manifest() {
         .parent()
         .expect("pax-compiler should have a workspace parent")
         .to_path_buf();
-    let project_path = workspace_dir.join("examples/src/increment");
+    let project_path = workspace_dir.join("examples/increment");
 
     let manifest = build_manifest(&project_path).expect("increment manifest should build");
     let bytes = pax_manifest::binary::to_vec(&manifest).expect("manifest should serialize");

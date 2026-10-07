@@ -363,7 +363,7 @@ opacities do not keep a crossfading silhouette fully opaque.
 separately. Live native text and controls, and content in separate native
 Scroller surfaces, fade independently. Their overlap can therefore differ
 from an exact image of the whole mixed subtree. The native coverage masks
-below remain approximate. The focused `examples/src/group-compositing` fixture
+below remain approximate. The focused `examples/group-compositing` fixture
 has matching overlap probes on web WGPU, native macOS, iPhone/iPad simulators
 and a physical iPad. Its interrupted exit preserves edited native text on
 web, macOS and that iPad. These checks do not establish full accessibility
@@ -560,7 +560,7 @@ does not provide the same response. Web retains ordinary controls without
 the Apple glass treatment. Give that fallback an intentional, readable
 composition rather than depending on glass for contrast.
 
-Use `examples/src/liquid-glass` to explore the native effect and nested
+Use `examples/liquid-glass` to explore the native effect and nested
 opt-outs on Apple targets. A successful web run checks the fallback, not
 the Apple appearance. The [LiquidGlass API](api/pax-std/core/liquid_glass.md)
 lists the scope's properties.
@@ -608,7 +608,7 @@ compare the surface arrangement as well as the element's local geometry.
 From the repository root, run a canonical testbed:
 
 ```sh
-pax-cli run --path examples/src/occlusion --target web
+pax-cli run --path examples/occlusion --target web
 ```
 
 `neon-opacity` adds animated nested transparency and mixed controls.

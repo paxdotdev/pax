@@ -11,17 +11,18 @@ description = "Main entrypoint for building with Pax"
 [dependencies]
 pax-engine = { path = "../pax-engine", version = "0.39.0"}
 pax-std = { path = "../pax-std", version = "0.39.0" }
-
-[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
 pax-host = { path = "../pax-host", version = "0.39.0", optional = true }
+
+[target.'cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))'.dependencies]
+pax-compiler = { path = "../pax-compiler", version = "0.39.0", optional = true }
 
 [features]
 # Opt-in GPU subtree filters, including runtime WGSL validation.
 shaders = ["pax-engine/shaders", "pax-std/shaders"]
-host = ["dep:pax-host"]
+host = ["dep:pax-host", "pax-host/native"]
 gpu = ["pax-engine/gpu"]
 piet = ["pax-engine/piet"]
-designtime = ["pax-engine/designtime", "pax-std/designtime"]
+designtime = ["pax-engine/designtime", "pax-std/designtime", "pax-host?/designtime", "dep:pax-compiler"]
 web = ["pax-engine/web"]
 ios = ["pax-engine/ios"]
 macos = ["pax-engine/macos"]
@@ -29,3 +30,14 @@ macos = ["pax-engine/macos"]
 [profile.release]
 lto = true
 opt-level = "z"
+
+# The compilation target chooses its chassis; Cargo features remain available
+# for explicit capability requests and compatibility with existing manifests.
+[target.'cfg(target_os = "macos")'.dependencies]
+pax-engine = { path = "../pax-engine", version = "0.39.0", features = ["macos"] }
+
+[target.'cfg(target_os = "ios")'.dependencies]
+pax-engine = { path = "../pax-engine", version = "0.39.0", features = ["ios"] }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+pax-engine = { path = "../pax-engine", version = "0.39.0", features = ["web"] }

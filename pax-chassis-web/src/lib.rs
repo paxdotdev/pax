@@ -442,6 +442,14 @@ pub fn web_mount_callback(host: &JsValue) -> Result<js_sys::Function, JsValue> {
         .map_err(|_| JsValue::from_str("init_web requires a prepared web host"))
 }
 
+/// Select a declared runnable root; omission uses the sole declared root.
+#[doc(hidden)]
+pub fn web_runnable_entry(host: &JsValue) -> Result<String, JsValue> {
+    let value = js_sys::Reflect::get(host, &JsValue::from_str("entry"))?;
+    if value.is_undefined() || value.is_null() { Ok(String::new()) }
+    else { value.as_string().ok_or_else(|| JsValue::from_str("Pax host.entry must be a string")) }
+}
+
 /// Copy the host's encoded inputs before running any user initialization.
 #[doc(hidden)]
 pub fn web_init_options(host: &JsValue) -> Result<pax_runtime::api::AppOptions, JsValue> {

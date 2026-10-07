@@ -1,6 +1,34 @@
 extern crate proc_macro;
 extern crate proc_macro2;
+mod launch;
 mod root_crate;
+mod source;
+
+/// Prepare a separately linked UI library. With no arguments, select this
+/// package's library or its `package.metadata.pax.cartridge` selection;
+/// `init!(my_ui)` selects an explicit dependency.
+/// With `designtime` on a workstation, `run()` starts development orchestration
+/// using the reserved `pax` argument namespace. Packaged native applications run
+/// in process. Use `init_with!` for explicit native startup and embedding.
+#[proc_macro]
+pub fn init(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    launch::init(input, false)
+}
+
+/// Prepare a UI with `InitOptions`: `init_with!(options)` or
+/// `init_with!(my_ui, options)` for a separate UI dependency.
+/// Always initializes in the current native process; never parses development
+/// arguments or starts a workstation build/server.
+#[proc_macro]
+pub fn init_with(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    launch::init(input, true)
+}
+
+#[doc(hidden)]
+#[proc_macro]
+pub fn __pax_launch(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    launch::expand(input)
+}
 mod templating;
 use std::fs::File;
 use std::io::Read;
@@ -45,30 +73,39 @@ fn is_root_crate() -> bool {
 ///
 /// `init` is an ordinary `fn(&InitContext) -> AppResult<Root>`; omitting it
 /// constructs `Root::default()`. Paths resolve at the declaration, and normal
-/// Rust visibility applies. Declare one runnable per library, without a
-/// `#[main]` component. Dependency use retains the components but emits no host
-/// entrypoints. `pax-cli` selects the library and generates its program before
-/// compiling it; neither this macro nor static discovery runs the initializer
-/// or mounts the UI. The declared UI is compiled into a cartridge, which keeps
-/// its separate platform linkage boundary.
+/// Rust visibility applies. Multiple declarations share one catalog; repeated
+/// roots are deduplicated and each root has one initializer. Select a root with
+/// `InitOptions::entry` when more than one is declared. Do not mix `runnable!`
+/// with `#[main]` in the same library.
+///
+/// Rust selects conditional source in each owning crate, including dependency
+/// features and custom cfgs. The macro compiles the selected program during
+/// ordinary Cargo compilation, without a user build script or nested build.
+/// Neither compilation nor dependency use evaluates initializers or mounts UI.
+/// Platform exports remain in the separately linked library cartridge.
 /// Direct `pax-engine` users can set `engine_import_path: pax_engine`.
 #[proc_macro]
 pub fn runnable(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let declaration = parse_macro_input!(input as pax_manifest::runnable::RunnableDeclaration);
-    let root = declaration.root.to_token_stream().to_string();
-    let initializer = declaration
-        .init
-        .map(|path| path.to_token_stream().to_string());
-    let engine = declaration
-        .engine_import_path
-        .map(|path| path.to_token_stream().to_string())
-        .unwrap_or_else(|| "pax_kit::pax_engine".into());
-    TokenStream::from_str(&render_cartridge(&root, initializer, &engine))
-        .unwrap()
-        .into()
+    source::runnable(input)
 }
 
 fn render_cartridge(root: &str, initializer: Option<String>, engine: &str) -> String {
+    render_generated_cartridge(
+        root,
+        initializer,
+        engine,
+        String::new(),
+        template_build_config(),
+    )
+}
+
+fn render_generated_cartridge(
+    root: &str,
+    initializer: Option<String>,
+    engine: &str,
+    generated: String,
+    build_config: TemplateBuildConfig,
+) -> String {
     let initializer = initializer.unwrap_or_else(|| format!("|_| Ok(<{root}>::default())"));
     // Keep the signature check and path resolution at the declaration's scope,
     // including when the library is reused without its platform adapter.
@@ -88,10 +125,9 @@ fn render_cartridge(root: &str, initializer: Option<String>, engine: &str) -> St
         const _: Option<&str> = option_env!("CARGO_PRIMARY_PACKAGE");
     "#
     );
-    if !is_root_crate() {
+    if generated.is_empty() && !is_root_crate() {
         return output;
     }
-    let build_config = template_build_config();
     if !(build_config.web || build_config.macos || build_config.ios || build_config.ipados) {
         return output;
     }
@@ -99,6 +135,8 @@ fn render_cartridge(root: &str, initializer: Option<String>, engine: &str) -> St
         && env_flag_explicitly_disabled("PAX_BUILD_DESIGNTIME")
     {
         "compile_error!(\"Pax release builds cannot include the `pax-engine/designtime` feature. Remove the transitive designtime feature activation or build this app in debug mode.\");".into()
+    } else if !generated.is_empty() {
+        generated
     } else if let Some(pax_dir) = env::var_os("PAX_DIR") {
         let path = PathBuf::from(pax_dir).join("cartridge.partial.rs");
         format!("include!({:?});", path.to_string_lossy())
@@ -106,6 +144,8 @@ fn render_cartridge(root: &str, initializer: Option<String>, engine: &str) -> St
         "compile_error!(\"PAX_DIR was not set for the selected Pax cartridge. Build the application through pax-cli to generate its cartridge.\");".into()
     };
     let adapter = TemplateArgsCartridge {
+        catalog: false,
+        web_entrypoint: "init_web".into(),
         root_path: "super::__PaxSelectedRoot".into(),
         initializer: "super::__pax_initialize".into(),
         cartridge_snippet: snippet,
@@ -162,9 +202,16 @@ fn cargo_feature_enabled(feature: &str) -> bool {
     .is_some()
 }
 
+pub(crate) fn designtime_enabled() -> bool {
+    match std::env::var("PAX_BUILD_DESIGNTIME") {
+        Ok(_) => env_flag("PAX_BUILD_DESIGNTIME"),
+        Err(_) => cfg!(feature = "designtime"),
+    }
+}
+
 fn template_build_config() -> TemplateBuildConfig {
     let pax_build_target = env::var("PAX_BUILD_TARGET").unwrap_or_default();
-    let designtime = env_flag("PAX_BUILD_DESIGNTIME") || cargo_feature_enabled("designtime");
+    let designtime = designtime_enabled();
 
     TemplateBuildConfig {
         web: pax_build_target == "web" || cargo_feature_enabled("web"),
@@ -677,6 +724,22 @@ fn validate_config(
 
 #[proc_macro_attribute]
 pub fn pax(
+    args: proc_macro::TokenStream,
+    input: proc_macro::TokenStream,
+) -> proc_macro::TokenStream {
+    let _ = args;
+    source::pax(input)
+}
+
+#[doc(hidden)]
+#[proc_macro]
+pub fn __pax_resume(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    source::resume(input)
+}
+
+#[doc(hidden)]
+#[proc_macro_attribute]
+pub fn __pax_expand(
     _args: proc_macro::TokenStream,
     input: proc_macro::TokenStream,
 ) -> proc_macro::TokenStream {
