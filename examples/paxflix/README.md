@@ -60,15 +60,12 @@ a page: Pax keyboard events are global, so this leaves Escape and other keys to
 the host; each instance's close and backdrop controls still work. Standalone
 defaults and native safe-area behavior are unchanged.
 
-Shelf geometry and controls mount up front, but each shelf defers its ten card
-trees until it is within one local catalog viewport ahead of or behind the
-visible range, then retains them and their horizontal scroll state. Preparation
-uses the catalog's scroll offset and local height, so a scaled device's hard
-Frame clip cannot delay mounting until the row is already visible. Two embedded
-copies therefore do not initialize all 420 cards at once.
-This is first-visit lazy mounting, not eviction: visiting the whole catalog can
-still retain every card. Card and shelf mount subscriptions are explicitly
-wired in their templates so the scheduled text entrances actually run.
+Each instance mounts all 210 card trees with its shelves. Scroll preparation
+only governs rendering resources, not application lifecycle; there is no
+first-visit row-mount gate. Two embedded instances therefore mount 420 cards.
+This intentionally separates startup cost from tile and image readiness during
+scrolling. Card and shelf mount subscriptions remain explicitly wired so the
+scheduled text entrances run normally.
 
 The website uses two live instances, inside scaled tablet and phone frames,
 and mounts them on viewport approach. It imports the source directly and links

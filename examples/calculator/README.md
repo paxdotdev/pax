@@ -27,6 +27,11 @@ run `nvm use` before commands that build the web interface.
 
 ## Controls
 
+When embedding `Calculator`, `paused=true` stops recurring display, cursor, and
+graph updates while retaining the session. Initial layout and resize updates
+still run, including the initial plot, so an offscreen paused instance has valid
+scroller dimensions and can be prepared before it enters the viewport.
+
 Click/tap the keys, or use a hardware keyboard on web, macOS, and iOS/iPadOS.
 The standalone Apple app initially focuses the calculator. When embedded,
 click/tap its canvas to move keyboard focus from the host. Native text controls

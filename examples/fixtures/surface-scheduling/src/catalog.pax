@@ -1,0 +1,22 @@
+<Scroller anchor=0% width=100% height=100% scroll_height={(6720 * units)px}>
+    <Group anchor=0% width=100% height={(6720 * units)px}>
+        for row in 0..24 {
+            <Scroller anchor=0% x=0px y={(row * 280 * units)px} width=100% height={(252 * units)px} scroll_width={(3840 * units)px}>
+                <Group anchor=0% width={(3840 * units)px} height={(252 * units)px}>
+                    for column in 0..16 {
+                        <Group anchor=0% x={(column * 240 * units)px} width={(224 * units)px} height={(252 * units)px}>
+                            <Text anchor=0% x={(16 * units)px} y={(16 * units)px} width={(192 * units)px} height={(64 * units)px}
+                                text={"CATALOG " + branch + " / ROW " + row + " / TILE " + column} style={
+                                    font: "Arial"
+                                    font_size: {(18 * units)px}
+                                    fill: rgb(255, 255, 255)
+                                }/>
+                            <Ellipse anchor=0% x={(48 * units)px} y={(96 * units)px} width={(128 * units)px} height={(128 * units)px} fill=rgb(238, 238, 238)/>
+                            <Rectangle anchor=0% width=100% height=100% fill={column %% 2 == 0 ? rgb(85, 85, 85) : rgb(136, 136, 136)}/>
+                        </Group>
+                    }
+                </Group>
+            </Scroller>
+        }
+    </Group>
+</Scroller>

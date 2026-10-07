@@ -1,20 +1,22 @@
 use std::pin::Pin;
 
-use crate::browser_surface_policy::BrowserSurfacePolicy;
+use crate::browser_surface_policy::{BrowserSurfacePolicy, WebSurfacePolicy};
+use crate::installed_surfaces::{InstalledSurface, InstalledSurfaces};
 use pax_runtime::api::RenderContext;
 use pax_runtime::engine::layer_surface::{LayerSurfaceEntry, LayerSurfaceLayout, LayerSurfaceSize};
 use wasm_bindgen::JsCast;
-use wasm_bindgen::{closure::Closure, JsValue};
-use wasm_bindgen_futures::JsFuture;
+use wasm_bindgen::JsValue;
 use web_sys::{Document, HtmlCanvasElement, Window};
 
-struct SurfaceMetrics {
-    logical_width: f32,
-    logical_height: f32,
-    surface_width: u32,
-    surface_height: u32,
-    dpr: [f32; 2],
-    density_clamped: bool,
+#[cfg(test)]
+use crate::surface_metrics::projected_surface_metrics;
+use crate::surface_metrics::{installed_surface_metrics, SurfaceMetrics};
+
+fn trace_surface(canvas: &HtmlCanvasElement, event: &str) {
+    #[cfg(target_arch = "wasm32")]
+    pax_gpu::render_backend::record_browser_surface_event(canvas, event);
+    #[cfg(not(target_arch = "wasm32"))]
+    let _ = (canvas, event);
 }
 
 struct LayerCanvasTarget {
@@ -28,61 +30,9 @@ struct LayerCanvasTarget {
     surface: SurfaceMetrics,
 }
 
-fn compute_surface_metrics(
-    logical_width: f64,
-    logical_height: f64,
-    desired_dpr: f64,
-    max_surface_dimension: u32,
-    minimum_dpr: f64,
-) -> SurfaceMetrics {
-    let logical_width = logical_width.max(0.0);
-    let logical_height = logical_height.max(0.0);
-    let minimum_dpr = minimum_dpr.clamp(0.1, 1.0);
-    let desired_dpr = desired_dpr.max(minimum_dpr);
-    let max_surface_dimension = max_surface_dimension.max(1) as f64;
-
-    let width_limit = if logical_width > 0.0 {
-        max_surface_dimension / logical_width
-    } else {
-        desired_dpr
-    };
-    let height_limit = if logical_height > 0.0 {
-        max_surface_dimension / logical_height
-    } else {
-        desired_dpr
-    };
-    let requested_dpr_x = desired_dpr.min(width_limit).max(minimum_dpr);
-    let requested_dpr_y = desired_dpr.min(height_limit).max(minimum_dpr);
-    let surface_width =
-        ((logical_width * requested_dpr_x).round() as u32).clamp(1, max_surface_dimension as u32);
-    let surface_height =
-        ((logical_height * requested_dpr_y).round() as u32).clamp(1, max_surface_dimension as u32);
-    let dpr_x = if logical_width > 0.0 {
-        surface_width as f64 / logical_width
-    } else {
-        desired_dpr
-    };
-    let dpr_y = if logical_height > 0.0 {
-        surface_height as f64 / logical_height
-    } else {
-        desired_dpr
-    };
-
-    SurfaceMetrics {
-        logical_width: logical_width as f32,
-        logical_height: logical_height as f32,
-        surface_width,
-        surface_height,
-        dpr: [dpr_x as f32, dpr_y as f32],
-        density_clamped: (surface_width as f64) < (logical_width * desired_dpr).round().max(1.0)
-            || (surface_height as f64) < (logical_height * desired_dpr).round().max(1.0),
-    }
-}
-
 fn report_density_fallback(
     canvas: &HtmlCanvasElement,
     surface: &SurfaceMetrics,
-    desired_dpr: f64,
     max_surface_dimension: u32,
 ) {
     const ATTRIBUTE: &str = "data-pax-resolution-fallback";
@@ -90,7 +40,7 @@ fn report_density_fallback(
     // inspectable on the canvas and logged once per changed fallback, not frame.
     if surface.density_clamped {
         let detail = format!(
-            "requested={desired_dpr:.3};actual={:.3}x{:.3};limit={max_surface_dimension}",
+            "actual={:.3}x{:.3};limit={max_surface_dimension}",
             surface.dpr[0], surface.dpr[1],
         );
         if canvas.get_attribute(ATTRIBUTE).as_deref() != Some(detail.as_str()) {
@@ -108,14 +58,16 @@ fn report_density_fallback(
 
 pub(crate) fn get_render_context(
     window: Window,
-    surface_policy: BrowserSurfacePolicy,
+    policy: WebSurfacePolicy,
+    installed: InstalledSurfaces,
 ) -> Box<dyn RenderContext> {
+    let surface_policy = policy.browser;
     if cfg!(feature = "piet") || surface_policy.use_piet_fallback() {
         log::info!("render backend: using Piet/Canvas2D browser renderer");
-        Box::new(get_piet_render_context(window, surface_policy))
+        Box::new(get_piet_render_context(window, surface_policy, installed))
     } else {
         log::info!("render backend: using WebGPU browser renderer");
-        Box::new(get_gpu_render_context(window, surface_policy))
+        Box::new(get_gpu_render_context(window, policy, installed))
     }
 }
 
@@ -176,6 +128,10 @@ impl pax_runtime::piet_render_context::PietSurface for WebPietSurface {
 
     fn context(&mut self) -> &mut Self::Context {
         &mut self.renderer
+    }
+
+    fn did_submit(&mut self) {
+        trace_surface(&self.canvas, "first-submit");
     }
 
     fn clear(&mut self) {
@@ -251,17 +207,17 @@ impl pax_runtime::piet_render_context::PietSurface for WebPietSurface {
 fn get_piet_render_context(
     window: Window,
     surface_policy: BrowserSurfacePolicy,
+    installed: InstalledSurfaces,
 ) -> impl RenderContext {
     use pax_runtime::piet_render_context::{PietLayerRenderer, PietLayerTarget, PietRenderer};
 
     PietRenderer::new(move |layer| {
         let document = window.document().unwrap();
         let targets = query_layer_canvas_targets(
+            &installed,
             &document,
             layer,
-            window.device_pixel_ratio(),
             surface_policy.effective_max_surface_dimension(layer, u32::MAX),
-            surface_policy.minimum_dpr(layer),
             surface_policy.defer_transient_root_host_surfaces(layer),
         );
         let layout = layer_surface_layout_from_targets(targets.iter());
@@ -286,14 +242,13 @@ fn get_piet_render_context(
             .collect();
         let layout_provider: Box<dyn Fn() -> LayerSurfaceLayout> = Box::new({
             let document = document.clone();
-            let window = window.clone();
+            let installed = installed.clone();
             move || {
                 build_layer_surface_layout(
+                    &installed,
                     &document,
                     layer,
-                    window.device_pixel_ratio(),
                     surface_policy.effective_max_surface_dimension(layer, u32::MAX),
-                    surface_policy.minimum_dpr(layer),
                     surface_policy.defer_transient_root_host_surfaces(layer),
                 )
             }
@@ -443,8 +398,10 @@ fn paint_blend_callback(
 
 fn get_gpu_render_context(
     window: Window,
-    surface_policy: BrowserSurfacePolicy,
+    policy: WebSurfacePolicy,
+    installed: InstalledSurfaces,
 ) -> impl RenderContext {
+    let surface_policy = policy.browser;
     use pax_gpu::{
         render_backend::{RenderBackend, RenderConfig, SharedGpuContext},
         Transform2D, WgpuRenderer,
@@ -456,33 +413,48 @@ fn get_gpu_render_context(
     let browser_context =
         std::rc::Rc::new(futures_util::lock::Mutex::new(None::<SharedGpuContext>));
     let priority_document = window.document().unwrap();
+    let priority_installed = installed.clone();
     PaxGpuRenderer::new(move |layer, request| {
         let window = window.clone();
         let surface_policy = surface_policy;
+        let policy = policy.clone();
+        let installed = installed.clone();
         let browser_context = browser_context.clone();
         Box::pin(async move {
             let document = window.document().unwrap();
-            let initial_targets = wait_for_layer_canvas_targets(
-                &window,
+            // Waiting for a shared context is not permission to retain stale
+            // urgency. Select from the latest committed plan after the await.
+            let mut browser_context = browser_context.lock().await;
+            let current_priority = installed
+                .borrow()
+                .initialization_priority(None, |s| unowned_installed_canvas(&document, s));
+            let initial_targets = query_layer_canvas_targets(
+                &installed,
                 &document,
                 layer,
-                window.device_pixel_ratio(),
                 surface_policy
                     .effective_max_surface_dimension(layer, request.max_surface_dimension),
-                surface_policy.minimum_dpr(layer),
                 surface_policy.defer_transient_root_host_surfaces(layer),
-            )
-            .await;
+            );
             let mut renderers = Vec::with_capacity(initial_targets.len());
             let mut backend_limit = request.max_surface_dimension;
-            // Do not hold the context lock while waiting for DOM layout to settle.
-            // Revalidate each target below after this await as well as GPU creation.
-            let mut browser_context = browser_context.lock().await;
+            // Only committed targets enter this factory. Revalidate assignment
+            // identity after this await and after asynchronous GPU creation.
             let mut shared_context = browser_context.clone().or(request.shared_context.clone());
-            for target in &initial_targets {
+            for target in initial_targets
+                .iter()
+                .filter(|target| request.needs_surface(&target.key, &target.host_signature))
+                .filter(|target| {
+                    target.active
+                        && target.replay_priority <= current_priority
+                        && current_priority != i32::MAX
+                })
+                .take(1)
+            {
                 // Earlier surfaces can await device creation. A later canvas in this
                 // snapshot may have been reassigned while we were suspended.
                 if canvas_host_signature(&target.canvas) != target.host_signature {
+                    trace_surface(&target.canvas, "stale-initialization-rejected");
                     continue;
                 }
                 if !request.needs_surface(&target.key, &target.host_signature) {
@@ -506,6 +478,7 @@ fn get_gpu_render_context(
                 {
                     Ok(backend) => backend,
                     Err(err) => {
+                        trace_surface(&target.canvas, "initialization-failed");
                         log::warn!(
                             "failed to create browser render backend for layer {} tile {}: {}",
                             layer,
@@ -515,8 +488,16 @@ fn get_gpu_render_context(
                         return None;
                     }
                 };
+                trace_surface(&target.canvas, "initialization-complete");
                 browser_context.get_or_insert_with(|| context.clone());
                 shared_context.get_or_insert(context);
+
+                if canvas_host_signature(&target.canvas) != target.host_signature {
+                    trace_surface(&target.canvas, "stale-initialization-rejected");
+                    // The lease stays with `backend` until it is dropped here;
+                    // never publish a late result into a retired assignment.
+                    continue;
+                }
 
                 let mut renderer = WgpuRenderer::new(backend);
                 renderer.set_surface_transform(Transform2D::from_array([
@@ -528,6 +509,7 @@ fn get_gpu_render_context(
                     -target.origin_y,
                 ]));
                 backend_limit = backend_limit.min(renderer.max_surface_dimension());
+                policy.observe_backend_limit(backend_limit);
                 renderers.push(LayerRenderer::new(
                     target.key.clone(),
                     target.host_signature.clone(),
@@ -547,14 +529,13 @@ fn get_gpu_render_context(
                 surface_policy.effective_max_surface_dimension(layer, backend_limit);
             let resize_provider = Box::pin({
                 let document = document.clone();
-                let window = window.clone();
+                let installed = installed.clone();
                 move || {
                     build_layer_surface_layout(
+                        &installed,
                         &document,
                         layer,
-                        window.device_pixel_ratio(),
                         effective_max_surface_dimension,
-                        surface_policy.minimum_dpr(layer),
                         surface_policy.defer_transient_root_host_surfaces(layer),
                     )
                 }
@@ -563,7 +544,8 @@ fn get_gpu_render_context(
             // Browser-owned scroller layers can intentionally shed every canvas target while they
             // are well outside the viewport. Keep an empty target alive here so later layout syncs
             // can rehydrate the renderer instead of treating "no surfaces right now" as fatal.
-            let mut target = LayerTarget::new(renderers, layout.active);
+            let mut target =
+                LayerTarget::new(renderers, layout.active).with_incremental_initialization();
             for renderer in target.renderers_mut() {
                 let Some(surface) = layout
                     .surfaces
@@ -596,188 +578,100 @@ fn get_gpu_render_context(
             Some((target, resize_provider))
         })
     })
+    .with_surface_content_preparation()
     .with_layer_initialization_priority(move |layer| {
-        query_layer_canvases(&priority_document, layer)
-            .iter()
-            .map(|canvas| {
-                let offscreen = canvas.parent_element().is_some_and(|host| {
-                    host.get_attribute("data-viewport-visible").as_deref() == Some("false")
-                });
-                let tile_priority = canvas
-                    .get_attribute("data-replay-priority")
-                    .and_then(|value| value.parse::<i32>().ok())
-                    .unwrap_or(0)
-                    .max(0);
-                // An offscreen shelf can contain locally visible tiles. Its
-                // ancestor-aware visibility must outrank that local tile score.
-                if offscreen {
-                    tile_priority.saturating_add(1_000_000)
-                } else {
-                    tile_priority
-                }
+        priority_installed
+            .borrow()
+            .initialization_priority(Some(layer), |s| {
+                unowned_installed_canvas(&priority_document, s)
             })
-            .min()
-            .unwrap_or(i32::MAX)
     })
 }
 
-async fn wait_for_canvas_layout_settle(window: &Window, document: &Document, layer: usize) {
-    let mut last_signature = String::new();
-    let mut stable_frames = 0;
-    for _ in 0..12 {
-        let canvases = query_layer_canvases(document, layer);
-        let parent_role = canvases
-            .first()
-            .and_then(|canvas| canvas.parent_element())
-            .and_then(|node| node.get_attribute("data-role"));
-        // Non-root canvas layers are mounted into browser-owned scroller hosts. Give the DOM a
-        // frame to settle there before sizing the backing surface, otherwise we can initialize
-        // against the bootstrap size and immediately force a second surface configure.
-        let on_scroller_host = parent_role.as_deref() == Some("scroller-canvas-host");
-        let on_root_host = parent_role.is_none();
-        if !on_scroller_host {
-            if layer == 0 || !on_root_host {
-                return;
-            }
-        }
-        let signature = canvases
-            .iter()
-            .map(canvas_layout_signature)
-            .collect::<Vec<_>>()
-            .join("|");
-        let has_size = !canvases.is_empty()
-            && canvases.iter().all(|canvas| {
-                planned_canvas_logical_width(canvas) > 0.0
-                    && planned_canvas_logical_height(canvas) > 0.0
-            });
-        if has_size && signature == last_signature {
-            stable_frames += 1;
-        } else {
-            stable_frames = 0;
-            last_signature = signature;
-        }
-        if has_size && stable_frames >= 1 {
-            // Non-root layers often appear on the root host for a frame before an explicit
-            // scroller-island claim rebinds them into their browser-owned canvas host. Waiting for
-            // one stable frame avoids bootstrapping browser render surfaces against that transient
-            // root placement, which is especially costly on iOS WebKit where the total canvas
-            // budget is small.
-            return;
-        }
-        wait_for_animation_frame(window).await;
-    }
+fn unowned_installed_canvas(document: &Document, surface: &InstalledSurface) -> bool {
+    installed_canvas(document, surface).is_some_and(|canvas| {
+        canvas
+            .get_attribute("data-pax-surface-owners")
+            .and_then(|v| v.parse::<u32>().ok())
+            .unwrap_or(0)
+            == 0
+    })
 }
 
-async fn wait_for_layer_canvas_targets(
-    window: &Window,
-    document: &Document,
-    layer: usize,
-    desired_dpr: f64,
-    max_surface_dimension: u32,
-    minimum_dpr: f64,
-    defer_transient_root_host_surfaces: bool,
-) -> Vec<LayerCanvasTarget> {
-    if layer != 0 && query_layer_canvases(document, layer).is_empty() {
-        return Vec::new();
+fn installed_canvas(document: &Document, surface: &InstalledSurface) -> Option<HtmlCanvasElement> {
+    let canvas: HtmlCanvasElement = document.get_element_by_id(&surface.id)?.dyn_into().ok()?;
+    if canvas.get_attribute("data-surface-generation").as_deref()
+        != Some(surface.generation.as_str())
+        || canvas_host_owner_signature(&canvas) != surface.host_signature
+        || canvas.parent_element().is_none()
+    {
+        return None;
     }
-    for _ in 0..24 {
-        wait_for_canvas_layout_settle(window, document, layer).await;
-        let targets = query_layer_canvas_targets(
-            document,
-            layer,
-            desired_dpr,
-            max_surface_dimension,
-            minimum_dpr,
-            defer_transient_root_host_surfaces,
-        );
-        if !targets.is_empty() {
-            return targets;
-        }
-        wait_for_animation_frame(window).await;
-    }
-    Vec::new()
+    Some(canvas)
 }
 
 fn query_layer_canvas_targets(
+    installed: &InstalledSurfaces,
     document: &Document,
     layer: usize,
-    desired_dpr: f64,
     max_surface_dimension: u32,
-    minimum_dpr: f64,
     defer_transient_root_host_surfaces: bool,
 ) -> Vec<LayerCanvasTarget> {
-    // The web chassis discovers however many physical canvases currently represent this logical
-    // layer. Root layers usually expose one canvas; browser-owned nested scroller hosts can expose
-    // an active tile set instead. The Rust render path mirrors that set without changing node code.
-    query_layer_canvases(document, layer)
-        .into_iter()
-        .filter(|canvas| {
-            if !defer_transient_root_host_surfaces {
-                return true;
+    let registry = installed.borrow();
+    let mut targets: Vec<_> = registry
+        .surfaces
+        .iter()
+        .filter(|s| s.layer_id == layer)
+        .filter_map(|s| {
+            let canvas = installed_canvas(document, s)?;
+            if defer_transient_root_host_surfaces
+                && canvas
+                    .parent_element()?
+                    .get_attribute("data-role")
+                    .is_none()
+            {
+                return None;
             }
-            let Some(parent) = canvas.parent_element() else {
-                return false;
-            };
-            let parent_role = parent.get_attribute("data-role");
-            if parent_role.is_some() {
-                return true;
+            // A backend limit may have changed since planning. Wait for the
+            // policy-revision replan rather than install a different size.
+            if s.backing_width > max_surface_dimension || s.backing_height > max_surface_dimension {
+                return None;
             }
-            false
-        })
-        .map(|canvas| {
-            let key = canvas
-                .get_attribute("data-tile-key")
-                .unwrap_or_else(|| canvas.id());
-            let active = canvas_render_state(&canvas) != "parked";
-            let host_signature = canvas_host_signature(&canvas);
-            let origin_x = canvas
-                .get_attribute("data-tile-origin-x")
-                .and_then(|value: String| value.parse::<f32>().ok())
-                .unwrap_or(0.0);
-            let origin_y = canvas
-                .get_attribute("data-tile-origin-y")
-                .and_then(|value: String| value.parse::<f32>().ok())
-                .unwrap_or(0.0);
-            let replay_priority = canvas
-                .get_attribute("data-replay-priority")
-                .and_then(|value: String| value.parse::<i32>().ok())
-                .unwrap_or(0);
-            let surface = compute_surface_metrics(
-                planned_canvas_logical_width(&canvas),
-                planned_canvas_logical_height(&canvas),
-                desired_dpr,
-                max_surface_dimension,
-                minimum_dpr,
+            let surface = installed_surface_metrics(
+                s.width,
+                s.height,
+                [s.backing_width, s.backing_height],
+                s.density_clamped,
             );
-            report_density_fallback(&canvas, &surface, desired_dpr, max_surface_dimension);
-            LayerCanvasTarget {
-                key,
-                host_signature,
+            report_density_fallback(&canvas, &surface, max_surface_dimension);
+            Some(LayerCanvasTarget {
+                key: s.key.clone(),
+                host_signature: canvas_host_signature(&canvas),
                 canvas,
-                origin_x,
-                origin_y,
-                replay_priority,
-                active,
+                origin_x: s.left as f32,
+                origin_y: s.top as f32,
+                replay_priority: s.replay_priority,
+                active: s.active,
                 surface,
-            }
+            })
         })
-        .collect()
+        .collect();
+    targets.sort_by_key(|target| target.replay_priority);
+    targets
 }
 
 fn build_layer_surface_layout(
+    installed: &InstalledSurfaces,
     document: &Document,
     layer: usize,
-    desired_dpr: f64,
     max_surface_dimension: u32,
-    minimum_dpr: f64,
     defer_transient_root_host_surfaces: bool,
 ) -> LayerSurfaceLayout {
     let targets = query_layer_canvas_targets(
+        installed,
         document,
         layer,
-        desired_dpr,
         max_surface_dimension,
-        minimum_dpr,
         defer_transient_root_host_surfaces,
     );
     layer_surface_layout_from_targets(targets.iter())
@@ -843,68 +737,6 @@ fn clear_piet_canvas_context(
     let _ = context.restore();
 }
 
-fn query_layer_canvases(document: &Document, layer: usize) -> Vec<HtmlCanvasElement> {
-    let mut canvases = Vec::new();
-    let layer_marker = layer.to_string();
-    let node_list = document.get_elements_by_tag_name("canvas");
-    for index in 0..node_list.length() {
-        let Some(node) = node_list.item(index) else {
-            continue;
-        };
-        let Ok(canvas) = node.dyn_into::<HtmlCanvasElement>() else {
-            continue;
-        };
-        let layer_id = canvas.get_attribute("data-layer-id");
-        if layer_id.as_deref() != Some(layer_marker.as_str()) {
-            continue;
-        }
-        canvases.push(canvas);
-    }
-    if canvases.is_empty() {
-        if let Some(canvas) = document
-            .get_element_by_id(layer.to_string().as_str())
-            .and_then(|node| node.dyn_into::<HtmlCanvasElement>().ok())
-        {
-            canvases.push(canvas);
-        }
-    }
-    canvases.sort_by(|left, right| {
-        // The engine plans ring-stable physical tile slots; DOM origin can change when a slot is
-        // reused for a new content tile. Keep layout-provider order aligned with renderer identity.
-        parse_tile_key(left)
-            .cmp(&parse_tile_key(right))
-            .then(left.id().cmp(&right.id()))
-    });
-    canvases
-}
-
-fn parse_tile_key(canvas: &HtmlCanvasElement) -> (i32, i32) {
-    canvas
-        .get_attribute("data-tile-key")
-        .and_then(|key| {
-            let (column, row) = key.split_once(':')?;
-            Some((column.parse().ok()?, row.parse().ok()?))
-        })
-        .unwrap_or((0, 0))
-}
-
-fn canvas_layout_signature(canvas: &HtmlCanvasElement) -> String {
-    let host_signature = attached_canvas_host_signature(canvas);
-    format!(
-        "{}x{}@{}",
-        planned_canvas_logical_width(canvas),
-        planned_canvas_logical_height(canvas),
-        host_signature,
-    )
-}
-
-fn canvas_render_state(canvas: &HtmlCanvasElement) -> String {
-    canvas
-        .parent_element()
-        .and_then(|node| node.get_attribute("data-render-state"))
-        .unwrap_or_else(|| "active".to_string())
-}
-
 thread_local! {
     static CANVAS_GENERATIONS: (js_sys::WeakMap, std::cell::Cell<u32>) =
         (js_sys::WeakMap::new(), std::cell::Cell::new(0));
@@ -962,65 +794,6 @@ fn canvas_host_owner_signature(canvas: &HtmlCanvasElement) -> String {
         .unwrap_or_default()
 }
 
-fn planned_canvas_logical_width(canvas: &HtmlCanvasElement) -> f64 {
-    canvas
-        .get_attribute("data-logical-width")
-        .and_then(|value| value.parse::<f64>().ok())
-        .unwrap_or(canvas.client_width() as f64)
-}
-
-fn planned_canvas_logical_height(canvas: &HtmlCanvasElement) -> f64 {
-    canvas
-        .get_attribute("data-logical-height")
-        .and_then(|value| value.parse::<f64>().ok())
-        .unwrap_or(canvas.client_height() as f64)
-}
-
-fn attached_canvas_host_signature(canvas: &HtmlCanvasElement) -> String {
-    let parent = canvas.parent_element();
-    let parent_role = parent
-        .as_ref()
-        .and_then(|node| node.get_attribute("data-role"));
-    let scroller_id = parent
-        .as_ref()
-        .and_then(|node| node.get_attribute("data-scroller-id"));
-    if let (Some(role), Some(scroller_id)) = (parent_role, scroller_id) {
-        return format!("{role}:{scroller_id}");
-    }
-    parent
-        .as_ref()
-        .and_then(|node| node.get_attribute("data-role"))
-        .or_else(|| {
-            parent
-                .as_ref()
-                .and_then(|node| node.get_attribute("pax_id"))
-        })
-        .or_else(|| parent.as_ref().and_then(|node| node.get_attribute("class")))
-        .unwrap_or_else(|| canvas_host_signature(canvas))
-}
-
-async fn wait_for_animation_frame(window: &Window) {
-    let mut maybe_window = Some(window.clone());
-    let promise = js_sys::Promise::new(&mut move |resolve, _reject| {
-        let Some(window) = maybe_window.take() else {
-            let _ = resolve.call0(&JsValue::UNDEFINED);
-            return;
-        };
-        let resolve_for_callback = resolve.clone();
-        let callback = Closure::once(move || {
-            let _ = resolve_for_callback.call0(&JsValue::UNDEFINED);
-        });
-        if window
-            .request_animation_frame(callback.as_ref().unchecked_ref())
-            .is_err()
-        {
-            let _ = resolve.call0(&JsValue::UNDEFINED);
-        }
-        callback.forget();
-    });
-    let _ = JsFuture::from(promise).await;
-}
-
 #[cfg(test)]
 mod density_tests {
     use super::*;
@@ -1028,9 +801,9 @@ mod density_tests {
     #[test]
     fn carousel_tiles_match_screen_density() {
         for dpr in [1.0, 1.25, 1.5, 2.0, 3.0] {
-            let surface = compute_surface_metrics(1248.0, 534.0, dpr, 4096, 1.0);
-            assert_eq!(surface.surface_width, (1248.0 * dpr).round() as u32);
-            assert_eq!(surface.surface_height, (534.0 * dpr).round() as u32);
+            let surface = projected_surface_metrics(1248.0, 534.0, [dpr; 2], 4096);
+            assert_eq!(surface.surface_width, (1248.0 * dpr).ceil() as u32);
+            assert_eq!(surface.surface_height, (534.0 * dpr).ceil() as u32);
             assert!((surface.dpr[0] as f64 - dpr).abs() < 0.002);
             assert!((surface.dpr[1] as f64 - dpr).abs() < 0.002);
         }
@@ -1038,18 +811,18 @@ mod density_tests {
 
     #[test]
     fn fractional_logical_bounds_only_round_to_physical_pixels() {
-        let surface = compute_surface_metrics(73.8181, 534.25, 2.0, 4096, 1.0);
+        let surface = projected_surface_metrics(73.8181, 534.25, [2.0; 2], 4096);
         assert_eq!((surface.surface_width, surface.surface_height), (148, 1069));
         assert_eq!(surface.logical_width, 73.8181_f32);
         assert_eq!(surface.logical_height, 534.25);
         assert!(!surface.density_clamped);
-        let tiny = compute_surface_metrics(0.6, 0.6, 2.0, 4096, 1.0);
+        let tiny = projected_surface_metrics(0.6, 0.6, [2.0; 2], 4096);
         assert!(!tiny.density_clamped);
     }
 
     #[test]
     fn hard_limits_remain_a_bounded_last_resort() {
-        let surface = compute_surface_metrics(3000.0, 600.0, 3.0, 2048, 0.25);
+        let surface = projected_surface_metrics(3000.0, 600.0, [3.0; 2], 2048);
         assert_eq!(
             (surface.surface_width, surface.surface_height),
             (2048, 1800)
@@ -1058,7 +831,7 @@ mod density_tests {
         assert_eq!(surface.dpr[1], 3.0);
         assert!(surface.density_clamped);
         // Smaller tiles restore density, rather than retaining a degraded mode.
-        let tile = compute_surface_metrics(682.0, 600.0, 3.0, 2048, 0.25);
+        let tile = projected_surface_metrics(682.0, 600.0, [3.0; 2], 2048);
         assert_eq!((tile.surface_width, tile.surface_height), (2046, 1800));
         assert_eq!(tile.dpr, [3.0, 3.0]);
         assert!(!tile.density_clamped);

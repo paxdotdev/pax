@@ -38,6 +38,7 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement):
         const target = continuation || type === "deviceorientation" || type === "devicemotion" ? window : mount;
         const scoped = (event: Event) => {
             if (disposed || (continuation && !dragging && !mount.contains(event.target as Node))) return;
+            if (event.target instanceof Element && event.target.closest('[data-pax-surface-inspector]')) return;
             listener(event);
         };
         target.addEventListener(type, scoped, options);

@@ -658,6 +658,15 @@ impl PropertyTable {
         self.enqueue_effect_if_registered(id);
     }
 
+    pub(crate) fn has_pending_effects(&self) -> bool {
+        let owner = super::shared_graph::current_graph_id();
+        self.queued_effect_set
+            .borrow()
+            .iter()
+            .chain(self.queued_cutoff_set.borrow().iter())
+            .any(|id| self.work_belongs_to_graph(*id, owner))
+    }
+
     pub(crate) fn drain_effects(&self, max_iterations: usize) -> usize {
         let mut work_ran = 0;
         while work_ran < max_iterations {
@@ -815,15 +824,19 @@ impl PropertyTable {
     fn pop_owned_work(&self, queue: &RefCell<VecDeque<PropertyId>>) -> Option<PropertyId> {
         let owner = super::shared_graph::current_graph_id();
         let mut queue = queue.borrow_mut();
-        let position = queue.iter().position(|id| {
-            let map = self.property_map.borrow();
-            let graph = map
-                .get(*id)
-                .and_then(|entry| entry.data.as_ref())
-                .and_then(|data| data.owner_graph);
-            owner.is_none() || graph.is_none() || graph == owner
-        })?;
+        let position = queue
+            .iter()
+            .position(|id| self.work_belongs_to_graph(*id, owner))?;
         queue.remove(position)
+    }
+
+    fn work_belongs_to_graph(&self, id: PropertyId, owner: Option<u64>) -> bool {
+        let map = self.property_map.borrow();
+        let graph = map
+            .get(id)
+            .and_then(|entry| entry.data.as_ref())
+            .and_then(|data| data.owner_graph);
+        owner.is_none() || graph.is_none() || graph == owner
     }
 
     fn work_enabled(&self, id: PropertyId) -> bool {

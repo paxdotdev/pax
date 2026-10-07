@@ -57,6 +57,10 @@ pub trait RenderContext {
     /// Finish the boundary begun by `begin_shader_effect`.
     #[cfg(feature = "shaders")]
     fn end_shader_effect(&mut self, _layer: usize, _id: u32) {}
+    /// Optional diagnostics for an Image whose decoded pixels are not available yet.
+    /// This does not change readiness, scheduling, or component lifecycle.
+    fn image_pending(&mut self, _layer: usize, _node_id: u32, _path: &str) {}
+
     // Drawing
     /// Fills a path at full opacity.
     fn fill(&mut self, layer: usize, path: kurbo::BezPath, fill: &Paint) {
@@ -283,6 +287,71 @@ pub trait RenderContext {
     /// Returns whether the backend retains individual canvas nodes across frames.
     fn retains_canvas_nodes(&self) -> bool {
         true
+    }
+
+    /// Whether surface replay is independent of ordinary content recording. Such backends
+    /// update all affected resident surfaces for content changes even while replay is pending.
+    fn separates_surface_replay(&self) -> bool {
+        false
+    }
+
+    /// Queue valid logical drawings for surface replay and return only cache misses that
+    /// need component rendering. Called after scene changes settle, before content recording.
+    /// The default immediate/legacy path needs all selected nodes to render again.
+    fn prepare_canvas_replay(&mut self, _layer: usize, nodes: &[u32]) -> Vec<u32> {
+        nodes.to_vec()
+    }
+
+    /// Opt-in presentation-only jobs, ordered by current visibility/scroll priority.
+    /// Returned regions must cover all selected physical surfaces. Chassis may call this
+    /// only against a settled scene; unsupported backends leave their queues untouched.
+    fn take_settled_surface_replays(&mut self) -> Vec<ReplayCanvasLayerUpdate> {
+        Vec::new()
+    }
+
+    /// Notify the chassis after asynchronous surface completion. The callback must
+    /// schedule work, never synchronously reenter the renderer. Clear it on teardown.
+    fn set_surface_ready_callback(&mut self, _callback: Option<Rc<dyn Fn()>>) {}
+
+    /// Requeue an unsubmitted job without discarding its physical replay scope.
+    fn defer_surface_replay(&mut self, _layer: usize) {}
+
+    /// Queue all requested cached drawings atomically. A cache miss must leave the
+    /// target unchanged and return false, so a later capture or ordinary render can repair it.
+    fn prepare_settled_surface_replay(&mut self, _layer: usize, _nodes: &[u32]) -> bool {
+        false
+    }
+
+    /// Whether the chassis should leave surface jobs with the bounded preparation
+    /// pass instead of converting them into ordinary scene dirtiness.
+    fn prepares_surface_content(&self) -> bool {
+        false
+    }
+
+    /// Missing immutable drawings for a current surface job. `None` means this
+    /// backend does not support recording cold content separately from submission.
+    fn missing_surface_drawings(&mut self, _layer: usize, _nodes: &[u32]) -> Option<Vec<u32>> {
+        None
+    }
+
+    /// Begin an isolated, CPU-only drawing capture for one layer. Drawing hooks
+    /// may run, but no GPU target may change or become presentable during capture.
+    fn begin_surface_recording(&mut self, _layer: usize) -> bool {
+        false
+    }
+
+    /// Finish capture and discard transient graphics state. Completed immutable
+    /// records may survive; incomplete records must not become replayable. Return
+    /// false if capacity pressure requires the atomic direct-drawing fallback.
+    fn end_surface_recording(&mut self, _layer: usize) -> bool {
+        false
+    }
+
+    /// Begin an atomic direct-drawing fallback for the selected surface job when
+    /// its drawings cannot fit in the retained command cache. Until `flush`, all
+    /// drawing must be restricted to that job's targets. Defaults to unsupported.
+    fn begin_surface_fallback(&mut self, _layer: usize) -> bool {
+        false
     }
 
     /// Begins rendering a node and returns false when the backend can skip it.

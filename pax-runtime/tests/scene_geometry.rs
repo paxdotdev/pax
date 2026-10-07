@@ -35,13 +35,65 @@ struct Recorder {
     layers: usize,
     cleared_replays: Vec<usize>,
     non_retained: bool,
+    cached_replay: bool,
+    replayed: Vec<u32>,
+    jobs: Vec<ReplayCanvasLayerUpdate>,
+    drawings: HashSet<u32>,
+    capturing: bool,
+    reject_capture: bool,
+    submitted: usize,
+    fallbacks: usize,
 }
 impl RenderContext for Recorder {
+    fn prepares_surface_content(&self) -> bool {
+        true
+    }
+    fn take_settled_surface_replays(&mut self) -> Vec<ReplayCanvasLayerUpdate> {
+        std::mem::take(&mut self.jobs)
+    }
+    fn defer_surface_replay(&mut self, _: usize) {}
+    fn missing_surface_drawings(&mut self, _: usize, ids: &[u32]) -> Option<Vec<u32>> {
+        Some(
+            ids.iter()
+                .copied()
+                .filter(|id| !self.drawings.contains(id))
+                .collect(),
+        )
+    }
+    fn begin_surface_recording(&mut self, _: usize) -> bool {
+        self.capturing = true;
+        true
+    }
+    fn end_surface_recording(&mut self, _: usize) -> bool {
+        self.capturing = false;
+        !self.reject_capture
+    }
+    fn begin_surface_fallback(&mut self, _: usize) -> bool {
+        self.fallbacks += 1;
+        true
+    }
+    fn prepare_settled_surface_replay(&mut self, _: usize, ids: &[u32]) -> bool {
+        ids.iter().all(|id| self.drawings.contains(id))
+    }
+    fn separates_surface_replay(&self) -> bool {
+        self.cached_replay
+    }
+    fn prepare_canvas_replay(&mut self, _: usize, ids: &[u32]) -> Vec<u32> {
+        if self.cached_replay {
+            self.replayed.extend(ids);
+            vec![]
+        } else {
+            ids.to_vec()
+        }
+    }
     fn retains_canvas_nodes(&self) -> bool {
         !self.non_retained
     }
     fn begin_node(&mut self, _: usize, id: u32, _: i32, _: u32) -> bool {
         self.nodes.insert(id);
+        if self.capturing {
+            self.drawings.insert(id);
+        }
         true
     }
     fn remove_node(&mut self, _: usize, id: u32) -> bool {
@@ -82,7 +134,9 @@ impl RenderContext for Recorder {
     fn clear(&mut self, _: usize) {
         self.nodes.clear();
     }
-    fn flush(&mut self, _: usize, _: Rc<RefCell<Vec<bool>>>) {}
+    fn flush(&mut self, _: usize, _: Rc<RefCell<Vec<bool>>>) {
+        self.submitted += 1;
+    }
     fn resize(&mut self, _: usize, _: usize) {}
     fn refresh_layers(&mut self, _: &[usize]) {}
     fn clear_targeted_replay(&mut self, layer: usize) {
@@ -94,6 +148,7 @@ struct GeometryLeaf {
     base: BaseInstance,
     preparations: Cell<usize>,
     drawn: RefCell<Option<Rc<PreparedCanvasGeometry>>>,
+    renders: Cell<usize>,
 }
 impl InstanceNode for GeometryLeaf {
     fn instantiate(args: InstantiationArgs) -> Rc<Self> {
@@ -110,6 +165,7 @@ impl InstanceNode for GeometryLeaf {
             ),
             preparations: Cell::new(0),
             drawn: RefCell::new(None),
+            renders: Cell::new(0),
         })
     }
     fn base(&self) -> &BaseInstance {
@@ -140,6 +196,7 @@ impl InstanceNode for GeometryLeaf {
         CanvasGeometry::for_layout(node.transform_and_bounds.get().bounds)
     }
     fn render(&self, node: &ExpandedNode, ctx: &Rc<RuntimeContext>, rc: &mut dyn RenderContext) {
+        self.renders.set(self.renders.get() + 1);
         let geometry = ctx.canvas_geometry_for_node(node);
         rc.begin_node_with_bounds(
             geometry.layer,
@@ -170,6 +227,63 @@ fn fixture() -> (PaxEngine, Rc<GeometryLeaf>, Rc<ExpandedNode>) {
     engine.tick();
     let node = root.children.get()[0].clone();
     (engine, leaf, node)
+}
+
+#[test]
+fn cold_drawing_capture_resumes_without_tick_or_partial_submission() {
+    let (mut engine, leaf, node) = fixture();
+    let mut renderer = Recorder::default();
+    engine.render(&mut renderer);
+    renderer.submitted = 0;
+    let initial_renders = leaf.renders.get();
+    // A failed first draw can leave a node dirty without any remaining layer or
+    // scene work. Capture must repair it without waiting for another user event.
+    engine.runtime_context.mark_canvas_node_dirty(node.id);
+    engine.runtime_context.prepare_scene_geometry();
+    let geometry = engine.runtime_context.canvas_geometry_for_node(&node);
+    let job = || ReplayCanvasLayerUpdate {
+        layer: geometry.layer,
+        regions: Some(vec![geometry.coverage_bounds.unwrap()]),
+    };
+    renderer.jobs = vec![job()];
+    let mut budget = pax_runtime::engine::surface_work::SurfaceWorkBudget::new(0.0);
+    let now = Cell::new(0.0);
+    let first = engine.present_settled_surfaces(&mut renderer, &mut budget, || {
+        let t = now.get();
+        now.set(t + 0.1);
+        t
+    });
+    assert_eq!(first.recorded, 1);
+    assert_eq!(first.submitted, 0);
+    assert_eq!(renderer.submitted, 0);
+    assert_eq!(leaf.renders.get(), initial_renders + 1);
+    assert!(!engine.runtime_context.is_canvas_node_dirty(&node.id));
+    renderer.jobs = vec![job()];
+    let second = engine.present_settled_surfaces(&mut renderer, &mut budget, || 0.0);
+    assert_eq!(second.recorded, 0);
+    assert_eq!(second.submitted, 1);
+    assert_eq!(leaf.renders.get(), initial_renders + 1);
+}
+
+#[test]
+fn rejected_cold_record_has_atomic_direct_fallback_instead_of_starvation() {
+    let (mut engine, _, node) = fixture();
+    let mut renderer = Recorder {
+        reject_capture: true,
+        ..Default::default()
+    };
+    engine.render(&mut renderer);
+    renderer.submitted = 0;
+    let geometry = engine.runtime_context.canvas_geometry_for_node(&node);
+    renderer.jobs = vec![ReplayCanvasLayerUpdate {
+        layer: geometry.layer,
+        regions: Some(vec![geometry.coverage_bounds.unwrap()]),
+    }];
+    let mut budget = pax_runtime::engine::surface_work::SurfaceWorkBudget::new(4.0);
+    let report = engine.present_settled_surfaces(&mut renderer, &mut budget, || 0.0);
+    assert_eq!(report.fallbacks, 1);
+    assert_eq!(report.submitted, 1);
+    assert_eq!(renderer.fallbacks, 1);
 }
 
 #[test]
@@ -211,6 +325,41 @@ fn replay_and_drawing_share_prepared_geometry_before_first_draw_and_at_rest() {
         after_render,
         "idle adds no geometry work"
     );
+}
+
+#[test]
+fn surface_replay_reuses_content_without_component_rendering() {
+    let (mut engine, leaf, node) = fixture();
+    let mut recorder = Recorder {
+        cached_replay: true,
+        ..Default::default()
+    };
+    engine.render(&mut recorder);
+    let initial_renders = leaf.renders.get();
+    let ctx = engine.runtime_context.clone();
+    let geometry = ctx.canvas_geometry_for_node(&node);
+    ctx.request_canvas_replay(ReplayCanvasLayerUpdate {
+        layer: geometry.layer,
+        regions: Some(vec![geometry.coverage_bounds.unwrap()]),
+    });
+    assert!(!ctx.is_canvas_node_dirty(&node.id));
+    engine.render(&mut recorder);
+    assert_eq!(leaf.renders.get(), initial_renders);
+    assert_eq!(recorder.replayed, [node.id.to_u32()]);
+    assert!(recorder.cleared_replays.is_empty());
+
+    // Ordinary content invalidation must win over a queued cached replay, without
+    // cancelling narrowed surface work or widening it to a whole-layer traversal.
+    recorder.replayed.clear();
+    ctx.request_canvas_replay(ReplayCanvasLayerUpdate {
+        layer: geometry.layer,
+        regions: Some(vec![geometry.coverage_bounds.unwrap()]),
+    });
+    ctx.mark_canvas_node_dirty(node.id);
+    engine.render(&mut recorder);
+    assert_eq!(leaf.renders.get(), initial_renders + 1);
+    assert!(recorder.replayed.is_empty());
+    assert!(recorder.cleared_replays.is_empty());
 }
 
 #[test]

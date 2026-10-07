@@ -33,8 +33,8 @@ impl PaxflixShowcase {
     }
 
     pub fn prepare(&mut self, _: &NodeContext, _: Event<ViewportProximityEnter>) {
-        // Retain the two sessions after their first visit. Paxflix's shelves
-        // defer their card trees, and cards reveal their copy on viewport entry.
+        // Retain the two sessions after their first visit. Each mounts all its
+        // cards up front; text reveals remain independent viewport animations.
         self.loaded.set(true);
     }
 

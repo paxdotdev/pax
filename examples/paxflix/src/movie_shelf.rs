@@ -79,29 +79,7 @@ impl MovieShelf {
     }
 
     pub fn on_mount(&mut self, ctx: &NodeContext) {
-        let top = self.catalog_y.clone();
-        let scroll = self.catalog_scroll_y.clone();
-        let viewport = self.catalog_viewport_height.clone();
-        let bounds = ctx.bounds_self.clone();
-        let loaded = self.loaded.clone();
-        ctx.subscribe(
-            &[
-                top.untyped(),
-                scroll.untyped(),
-                viewport.untyped(),
-                bounds.untyped(),
-            ],
-            move || {
-                if !loaded.get()
-                    && should_prepare_row(top.get(), bounds.get().1, scroll.get(), viewport.get())
-                {
-                    // Mount one local viewport ahead/behind and retain visited
-                    // rows, including their image loads and horizontal position.
-                    loaded.set(true);
-                }
-            },
-        );
-        let entrances = self.entrances.clone();
+        let entrances = self.entrances.local();
         let now = ctx.elapsed_millis.clone();
         ctx.subscribe(&[entrances.untyped()], move || {
             // Proximity handlers enqueue a whole sampled batch before effects
@@ -149,14 +127,10 @@ mod entrance_tests {
     use super::*;
 
     #[test]
-    fn rows_prepare_before_entering_a_clipped_embedded_viewport() {
-        assert!(should_prepare_row(900.0, 345.0, 0.0, 700.0));
-        assert!(!should_prepare_row(1500.0, 345.0, 0.0, 700.0));
-        assert!(should_prepare_row(1500.0, 345.0, 300.0, 700.0));
-        assert!(should_prepare_row(900.0, 345.0, 1700.0, 700.0));
-        assert!(!should_prepare_row(900.0, 345.0, 2000.0, 700.0));
-        assert!(!should_prepare_row(0.0, 345.0, 0.0, 0.0));
-        assert!(should_prepare_row(374.0, 303.0, -50.0, 712.0));
+    fn cards_mount_with_the_shelf_not_with_scroll_preparation() {
+        let template = include_str!("movie_shelf.pax");
+        assert!(template.contains("for (movie, index) in shelf.movies"));
+        assert!(!template.contains("if loaded"));
     }
 
     #[test]

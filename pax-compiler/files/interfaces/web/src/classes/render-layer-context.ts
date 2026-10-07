@@ -386,9 +386,15 @@ export class RenderLayerManager {
         if (retired.length > 0) {
             onRetired?.(retired);
         }
+        const work: {priority: number; install: () => void}[] = [];
         [...(this.layers ?? [])]
             .sort((a, b) => a.canvasLayoutPriority() - b.canvasLayoutPriority())
-            .forEach(layer => layer.syncCanvasLayout());
+            .forEach(layer => layer.syncCanvasLayout((priority, install) => work.push({priority, install})));
+        work.sort((a, b) => a.priority - b.priority).forEach(item => item.install());
+    }
+
+    layerIds(): number[] {
+        return (this.layers ?? []).map((_layer, id) => id);
     }
 
     setRootPageScrollMode(active: boolean) {
@@ -768,6 +774,12 @@ function applyContainerStyles(
     height: number,
     opacity: number,
 ) {
+    // Clip wrappers intentionally have no layout box on Chromium. Preserve
+    // conservative path bounds for scheduler visibility instead of treating
+    // the wrapper's zero-sized DOM rect as the clipping region.
+    const bounds = pathData ? svgPathDataBounds(pathData) : undefined;
+    if (bounds) element.dataset.clipBounds = JSON.stringify(bounds);
+    else delete element.dataset.clipBounds;
     applyContainerClipPath(element, clipPath, pathData, width, height);
     element.dataset.paxContainerOpacity = `${opacity}`;
     element.style.opacity = "1";

@@ -18,7 +18,7 @@ function load(file) {
     const module = {exports: {}};
     const source = readFileSync(new URL(`../src/classes/${file}.ts`, import.meta.url), 'utf8');
     vm.runInNewContext(transformSync(source, {loader: 'ts', format: 'cjs'}).code, {
-        module, exports: module.exports, HTMLElement: Element,
+        module, exports: module.exports, HTMLElement: Element, performance,
         require: () => ({releaseCanvasBacking() {}}),
     });
     return module.exports;
@@ -32,6 +32,7 @@ function harness(capacity) {
     const map = new Map(), free = [], leased = new Set();
     let allocated = 0, misses = 0;
     const pool = {
+        reserveBacking: () => true,
         checkout() {
             const available = free.findIndex(canvas => !leased.has(canvas));
             if (available >= 0) return free.splice(available, 1)[0];
@@ -76,6 +77,16 @@ test('visible layers allocate before warm layers regardless of numeric layer ord
     h.manager.syncLayerCanvasLayouts(id => plan(surface(`layer-${id}`)));
     assert.ok(h.map.has('layer-1'));
     assert.equal(h.map.has('layer-0'), false);
+});
+
+test('global materialization rank beats layer-local optional ordering', () => {
+    const h = harness(2);
+    const plans = [plan(surface('first-visible', -2), surface('optional', 1)),
+        plan(surface('second-visible', -1)), plan()];
+    h.manager.syncLayerCanvasLayouts(id => plans[id]);
+    assert.ok(h.map.has('first-visible'));
+    assert.ok(h.map.has('second-visible'));
+    assert.equal(h.map.has('optional'), false);
 });
 
 test('single-layer turnover retires first and prioritizes visible tiles', () => {

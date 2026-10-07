@@ -7,6 +7,10 @@
 - [engine::layer_tiling](engine/layer_tiling.md)
 - [engine::node_interface](engine/node_interface.md)
 - [engine::occlusion](engine/occlusion.md)
+- [engine::surface_metrics](engine/surface_metrics.md)
+- [engine::surface_preparation](engine/surface_preparation.md)
+- [engine::surface_scheduling](engine/surface_scheduling.md)
+- [engine::surface_work](engine/surface_work.md)
 - [engine::pax_gpu_render_context](engine/pax_gpu_render_context.md)
 - [engine::piet_render_context](engine/piet_render_context.md)
 
@@ -103,7 +107,7 @@ Type: `Rc`<[`RuntimeContext`](../../../api/internal/pax-runtime/properties.md#ru
 Type: `Option`<`Rc`<`ExpandedNode`>>
 
 ##### `scroller_tiling_policy`
-Type: `ScrollerTilingPolicy`
+Type: [`ScrollerTilingPolicy`](../../../api/internal/pax-runtime/engine/layer_tiling.md#scrollertilingpolicy)
 
 #### Implementations
 Central instance of the PaxEngine and runtime, intended to be created by a particular chassis.
@@ -119,6 +123,17 @@ until their revision is committed.
 <pre><code class="api-signature language-rust ignore">pub fn mount_root_component(&amp;mut self, main_component_instance: Rc&lt;<a href="../../../api/internal/pax-runtime/component.md#componentinstance">ComponentInstance</a>&gt;) -&gt; Rc&lt;ExpandedNode&gt;</code></pre>
 
 Mount a root component tree into an existing runtime kernel.
+
+##### `present_settled_surfaces`
+<pre><code class="api-signature language-rust ignore">pub fn present_settled_surfaces(&amp;self, rcs: &amp;mut dyn <a href="../../../api/pax-runtime-api/rendering.md#rendercontext">RenderContext</a>, budget: &amp;mut <a href="../../../api/internal/pax-runtime/engine/surface_work.md#surfaceworkbudget">SurfaceWorkBudget</a>, now_ms: impl Fn() -&gt; f64) -&gt; SurfaceWorkReport</code></pre>
+
+Prepare surfaces from settled scene state without advancing a tick or
+invoking lifecycle handlers. Supporting backends capture missing primitive
+drawings in bounded units before atomically submitting a complete tile.
+Capture reads current properties and inherited rendering hooks; cached
+replay needs no component callbacks. Reselect after each submission while
+the allowance permits. Blocked layers wait until the next pass without
+preventing eligible siblings from using the remaining allowance.
 
 ##### `set_viewport_size`
 <pre><code class="api-signature language-rust ignore">pub fn set_viewport_size(&amp;mut self, new_viewport_size: (f64, f64))</code></pre>
@@ -142,6 +157,13 @@ Three phases:
 3. Render:
     a. find lowest node (last child of last node)
     b. start rendering, from lowest node on-up, throughout tree
+
+##### `tick_with_phase_observer`
+<pre><code class="api-signature language-rust ignore">pub fn tick_with_phase_observer(&amp;mut self, completed: impl FnMut(&amp;&#39;static str)) -&gt; Vec&lt;<a href="../../../api/internal/pax-message/index.md#nativemessage">NativeMessage</a>&gt;</code></pre>
+
+Run the ordinary tick, reporting completed phase boundaries for opt-in
+host timing. Observation does not change lifecycle or clock advancement.
+The observer must not mutate the application or re-enter the engine.
 
 ##### `unmount`
 <pre><code class="api-signature language-rust ignore">pub fn unmount(&amp;mut self)</code></pre>

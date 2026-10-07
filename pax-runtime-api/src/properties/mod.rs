@@ -85,6 +85,13 @@ pub fn register_effect_property_with_name(prop: &LocalProperty<()>, debug_name: 
     PROPERTY_TABLE.with(|t| t.register_effect_with_name(prop.untyped.id, Some(debug_name)));
 }
 
+/// Whether the entered graph has effects or cutoff propagation awaiting a drain.
+/// Like draining, this includes unowned work; without an entered graph it checks all work.
+#[doc(hidden)]
+pub fn has_pending_effects() -> bool {
+    PROPERTY_TABLE.with(|t| t.has_pending_effects())
+}
+
 #[doc(hidden)]
 pub fn drain_effects(max_iterations: usize) -> usize {
     PROPERTY_TABLE.with(|t| t.drain_effects(max_iterations))

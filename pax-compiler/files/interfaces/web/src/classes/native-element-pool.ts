@@ -9,6 +9,7 @@ import {ScrollerUpdatePatch} from "./messages/scroller-update-patch";
 import {ButtonUpdatePatch} from "./messages/button-update-patch";
 import {PhotoPickerUpdatePatch} from "./messages/photo-picker-update-patch";
 import {ImageLoadPatch} from "./messages/image-load-patch";
+import {ImageLoader} from "./image-loader";
 import {ContainerStyle, RenderLayerManager, setLeafLocalOpacity} from "./render-layer-context";
 import {ObjectManager} from "../pools/object-manager";
 import {
@@ -57,29 +58,32 @@ import { NativeMaskUpdatePatch } from "./messages/native-mask-update-patch";
 
 import html2canvas from 'html2canvas';
 import {
-    describeSurfaceHost,
-    estimateWarmLayerCanvasCount,
     isIOSWebKitBrowser,
 } from "./surface-host-policy";
 import type { LayerCanvasPlan } from "./surface-host-policy";
 import { CanvasPool } from "./canvas-pool";
+import { SurfaceCoordinator } from "./surface-coordinator";
+import { SurfaceTrace } from "./surface-trace";
+import { materializeSurfaceSchedule } from "./surface-scheduler";
+import type { SurfaceCandidate } from "./surface-scheduler";
 import { serializeRouteLocation } from "../utils/route-location";
 
 const SCREENSHOT_FONT_STYLE_ATTRIBUTE = 'data-pax-screenshot-font-style';
 const SCROLLER_CHROME_STYLE_ATTRIBUTE = 'data-pax-scroller-chrome-style';
 const SCREENSHOT_OVERLAY_BLACK = '#000000';
 const SCREENSHOT_OVERLAY_WHITE = '#ffffff';
-const TILED_SCROLLER_SURFACE_DPR = 1.0;
-const IOS_BROWSER_SURFACE_DIMENSION_CAP = 2048;
-const IOS_NESTED_LAYER_MIN_DPR = 0.25;
 
 
 export class NativeElementPool {
     private canvases: Map<string, HTMLCanvasElement>;
-    private lastCanvasSurfaceSignatures = new Map<string, string>();
-    private lastCanvasTransformSignatures = new Map<string, string>();
-    private lastCanvasLayerCounts = new Map<number, number>();
+    private surfaceCoordinator?: SurfaceCoordinator;
+    private surfaceTrace?: SurfaceTrace;
+    private imageLoader?: ImageLoader;
+    private lastTraceDecision?: string;
+    private admittedPlans = new Map<number, LayerCanvasPlan>();
+    private lastAdmissionSignature?: string;
     private layerCanvasPlanCache = new Map<number, LayerCanvasPlan | null>();
+    private layerCanvasBasisCache = new Map<number, string>();
     layers: RenderLayerManager;
     private nodesLookup = new Map<number, HTMLElement>();
     private scrollerHosts = new Map<number, ScrollerDomHosts>();
@@ -89,6 +93,7 @@ export class NativeElementPool {
     private surfaceRefreshPending = false;
     private lastLayerCanvasPlanGeneration?: number;
     private lastLayerCanvasPlanDevicePixelRatio?: number;
+    private lastSurfacePolicyRevision?: number;
     private chassis?: PaxChassisWeb;
     private mount?: HTMLElement;
     private activePageScrollScrollerId?: number;
@@ -139,6 +144,24 @@ export class NativeElementPool {
         this.allowPageScroll = allowPageScroll;
         this.chassis = chassis;
         this.mount = mount instanceof HTMLElement ? mount : undefined;
+        if (this.mount && new URLSearchParams(window.location.search).has('pax_surface_trace')) {
+            this.surfaceTrace = new SurfaceTrace(this.mount);
+        }
+        this.imageLoader = new ImageLoader({
+            loaded: path => chassis.image_loaded(path),
+            decode: (path, signal) => {
+                // Preserve the canvas loader's existing app-relative asset contract.
+                const pathname = new URL(document.baseURI).pathname;
+                const base = pathname.substring(0, pathname.lastIndexOf('/') + 1);
+                return readImageToByteBuffer((base + path).replace('//', '/'), signal);
+            },
+            complete: (path, image, ids) => {
+                chassis.image_load_complete(path, image.width, image.height, image.pixels, new Uint32Array(ids));
+                this.postAsyncInterruptFlush?.();
+            },
+            ready: ids => { chassis.image_ready(new Uint32Array(ids)); },
+            trace: (event, details) => this.surfaceTrace?.record(event, details),
+        });
         injectScrollerChromeCss(mount.ownerDocument ?? document);
         this.canvasPool = new CanvasPool(
             this.objectManager,
@@ -194,9 +217,14 @@ export class NativeElementPool {
         }
 
         this.canvases.clear();
-        this.lastCanvasSurfaceSignatures.clear();
-        this.lastCanvasTransformSignatures.clear();
-        this.lastCanvasLayerCounts.clear();
+        this.imageLoader?.dispose();
+        this.imageLoader = undefined;
+        this.surfaceCoordinator = undefined;
+        this.surfaceTrace?.dispose();
+        this.surfaceTrace = undefined;
+        this.lastTraceDecision = undefined;
+        this.admittedPlans.clear();
+        this.lastAdmissionSignature = undefined;
         this.layerCanvasPlanCache.clear();
         this.nodesLookup.clear();
         this.scrollerHosts.clear();
@@ -243,15 +271,7 @@ export class NativeElementPool {
             state.lastMeasuredPresentationScrollX = measurement.presentationScrollX;
             state.lastMeasuredPresentationScrollY = measurement.presentationScrollY;
 
-            if (
-                isIOSWebKitBrowser()
-                && (state.active || moved)
-            ) {
-                state.lastWarmAt =
-                    typeof performance !== "undefined" && typeof performance.now === "function"
-                        ? performance.now()
-                        : Date.now();
-            }
+            if (moved) this.surfaceTrace?.observeScroll(id, measurement.presentationScrollX, measurement.presentationScrollY);
 
             if (state.active || moved) {
                 this.emitScrollerPosition(id, measurement, state);
@@ -1465,144 +1485,95 @@ export class NativeElementPool {
         return parentId;
     }
 
-    private getWarmClipBaseForCandidate(
-        candidate: ScrollerWarmCandidate,
-        candidates: Map<number, ScrollerWarmCandidate>,
-    ): { bounds: AxisAlignedRect; viewportWidth: number; viewportHeight: number } {
-        if (candidate.parentId != null) {
-            let parentCandidate = candidates.get(candidate.parentId);
-            if (parentCandidate != null) {
-                let bounds = parentCandidate.record.presentedBounds;
-                return {
-                    bounds,
-                    // The runway and bounds must both be in presentation space.
-                    viewportWidth: rectWidth(bounds),
-                    viewportHeight: rectHeight(bounds),
-                };
+    // Measure clips only. Ancestor viewports are deliberately not folded into
+    // this clip: that would erase future child exposure before Rust can plan it.
+    private getIntermediateScrollerClip(hosts: ScrollerDomHosts, parentId?: number): AxisAlignedRect | undefined {
+        const stop = parentId == null ? this.mount : this.scrollerHosts.get(parentId)?.leaf;
+        let clip: AxisAlignedRect | undefined;
+        for (let node = hosts.leaf.parentElement; node && node !== stop && node !== this.mount; node = node.parentElement) {
+            const style = node.style;
+            if (/hidden|clip|scroll|auto/.test(style.overflow + style.overflowX + style.overflowY)) {
+                const r = node.getBoundingClientRect();
+                clip = clip ? intersectRects(clip, r) : {left:r.left, top:r.top, right:r.right, bottom:r.bottom};
             }
-
-            let parentHosts = this.scrollerHosts.get(candidate.parentId);
-            let parentState = this.scrollerMeasurementStates.get(candidate.parentId);
-            if (parentHosts != null && parentState != null) {
-                let record = this.getWarmthPresentationRecord(
-                    candidate.parentId,
-                    parentHosts.leaf,
-                    parentState,
-                );
-                return {
-                    bounds: record.presentedBounds,
-                    viewportWidth: rectWidth(record.presentedBounds),
-                    viewportHeight: rectHeight(record.presentedBounds),
-                };
+            if (node.dataset.clipBounds) {
+                const r = JSON.parse(node.dataset.clipBounds) as AxisAlignedRect;
+                const origin = node.getBoundingClientRect();
+                const bounds = {left:r.left + origin.left, top:r.top + origin.top,
+                    right:r.right + origin.left, bottom:r.bottom + origin.top};
+                clip = clip ? intersectRects(clip, bounds) : bounds;
             }
         }
-
-        let bounds = candidate.record.presentedClipBounds;
-        return {
-            bounds,
-            viewportWidth: rectWidth(bounds),
-            viewportHeight: rectHeight(bounds),
-        };
+        return clip;
     }
 
     private buildWarmScrollerCandidates(now: number) {
-        let candidates = new Map<number, ScrollerWarmCandidate>();
-        this.scrollerHosts.forEach((hosts, id) => {
-            let state = this.scrollerMeasurementStates.get(id);
-            if (state == null || !hosts.vectorIslandEnabled) {
-                return;
+        const candidates = new Map<number, ScrollerWarmCandidate>();
+        const observations: any[] = [];
+        const edges = (r: AxisAlignedRect) => [r.left,r.top,r.right,r.bottom];
+        let viewport = [0,0,window.innerWidth,window.innerHeight];
+        if (isIOSWebKitBrowser() && this.activePageScrollScrollerId != null) {
+            const v = this.readVisiblePageViewport(), p = this.readPageScrollPosition();
+            viewport = [p.scrollX + v.offsetX,p.scrollY + v.offsetY,
+                p.scrollX + v.offsetX + v.width,p.scrollY + v.offsetY + v.height];
+        }
+        for (const [id,hosts] of this.scrollerHosts) {
+            const state = this.scrollerMeasurementStates.get(id);
+            if (!state) continue;
+            const record = this.getWarmthPresentationRecord(id,hosts.leaf,state);
+            const parentId = this.getParentScrollerId(hosts);
+            const width = state.viewportWidth ?? hosts.leaf.clientWidth;
+            const height = state.viewportHeight ?? hosts.leaf.clientHeight;
+            let clip = this.getIntermediateScrollerClip(hosts,parentId);
+            // Page-delegating WebKit reports document-space presentation bounds.
+            if (clip && isIOSWebKitBrowser() && this.activePageScrollScrollerId != null) {
+                const p = this.readPageScrollPosition();
+                clip = {left:clip.left+p.scrollX, right:clip.right+p.scrollX,
+                    top:clip.top+p.scrollY, bottom:clip.bottom+p.scrollY};
             }
-            let record = this.getWarmthPresentationRecord(id, hosts.leaf, state);
-            candidates.set(id, {
-                id,
-                hosts,
-                state,
-                record,
-                parentId: this.getParentScrollerId(hosts),
-                intent: "cold",
-                visibleBounds: {left: 0, top: 0, right: 0, bottom: 0},
-                distance: rectCenterDistance(record.presentedBounds, record.presentedClipBounds),
-                surfaceCost: this.estimateScrollerWarmSurfaceCost(hosts, state),
-                mandatory: state.isRootScroller || state.delegatesToPageScroll,
-            });
+            observations.push({id,parent:parentId ?? null,bounds:edges(record.presentedBounds),
+                visible:edges(record.presentedClipBounds),viewport:[width,height],
+                content:[state.contentWidth ?? width,state.contentHeight ?? height],
+                offset:[state.lastMeasuredPresentationScrollX,state.lastMeasuredPresentationScrollY],
+                observed:[state.lastMeasuredScrollX,state.lastMeasuredScrollY],
+                basis:state.transform?.slice(0,4) ?? [rectWidth(record.presentedBounds)/Math.max(1,width),0,0,rectHeight(record.presentedBounds)/Math.max(1,height)],
+                intermediateClip:clip ? edges(clip) : null, active:true,
+                geometry:[parentId,width,height,state.contentWidth,state.contentHeight].join(':')});
+            candidates.set(id,{id,hosts,state,record,parentId,intent:'cold',
+                visibleBounds:{left:0,top:0,right:0,bottom:0},distance:0,
+                mandatory:state.isRootScroller || state.delegatesToPageScroll});
+        }
+        const readiness: [string, number][] = [];
+        this.canvases.forEach((canvas, id) => {
+            const d = canvas.dataset;
+            if (!d.surfaceContentRevision || d.surfaceSubmittedRevision !== d.surfaceContentRevision
+                || d.surfacePreparedAt == null) return;
+            // Sample once on observing a submitted revision, not every idle
+            // frame. This includes queue/record/submit latency, with at most
+            // one observation interval of conservative overestimate.
+            d.surfacePreparationLatency ??= String(Math.max(0, now - Number(d.surfacePreparedAt)));
+            readiness.push([`${id}:${d.surfaceGeneration}:${d.surfaceContentRevision}`, Number(d.surfacePreparationLatency)]);
         });
-
-        let resolving = new Set<number>();
-        let resolved = new Set<number>();
-        let resolveIntent = (candidate: ScrollerWarmCandidate): ScrollerWarmIntent => {
-            if (resolved.has(candidate.id)) {
-                return candidate.intent;
+        const prepared = this.chassis!.prepare_surface_hosts({version:1,now,viewport,hosts:observations,readiness});
+        if (this.mount && prepared.length) this.mount.dataset.surfacePreparationHorizon = String(prepared[0].horizonMs);
+        for (const p of prepared) {
+            const c = candidates.get(p.id)!;
+            const previous = c.hosts.canvasHost.dataset.preparationRejection;
+            if (p.unavailableReason) {
+                if (previous !== p.unavailableReason) this.surfaceTrace?.record('preparation-branch-rejected', {
+                    id: p.id, reason: p.unavailableReason,
+                });
+                c.hosts.canvasHost.dataset.preparationRejection = p.unavailableReason;
+            } else if (previous) {
+                delete c.hosts.canvasHost.dataset.preparationRejection;
+                this.surfaceTrace?.record('preparation-branch-recovered', {id: p.id});
             }
-            if (resolving.has(candidate.id)) {
-                candidate.intent = "active";
-                return candidate.intent;
-            }
-            resolving.add(candidate.id);
-
-            candidate.visibleBounds = intersectRects(
-                candidate.record.presentedBounds, candidate.record.presentedClipBounds,
-            );
-
-            if (candidate.mandatory) {
-                candidate.intent = "active";
-                candidate.state.lastWarmAt = now;
-                resolving.delete(candidate.id);
-                resolved.add(candidate.id);
-                return candidate.intent;
-            }
-
-            let parentIntent: ScrollerWarmIntent = "active";
-            if (candidate.parentId != null) {
-                let parentCandidate = candidates.get(candidate.parentId);
-                if (parentCandidate != null) {
-                    parentIntent = resolveIntent(parentCandidate);
-                    candidate.visibleBounds = intersectRects(
-                        candidate.visibleBounds, parentCandidate.visibleBounds,
-                    );
-                }
-            }
-
-            if (parentIntent === "cold") {
-                candidate.intent = "cold";
-                resolving.delete(candidate.id);
-                resolved.add(candidate.id);
-                return candidate.intent;
-            }
-
-            // Warmth propagates recursively: a child island must be inside its parent scroller's
-            // own runway, not just inside the page-level viewport runway.
-            let clipBase = this.getWarmClipBaseForCandidate(candidate, candidates);
-            let activeClipBounds = expandRect(
-                clipBase.bounds,
-                activeScrollablePadX(clipBase.viewportWidth),
-                activeScrollablePadY(clipBase.viewportHeight),
-            );
-            let prewarmClipBounds = expandRect(
-                clipBase.bounds,
-                prewarmScrollablePadX(clipBase.viewportWidth),
-                prewarmScrollablePadY(clipBase.viewportHeight),
-            );
-            let activeEligible = rectsIntersect(candidate.record.presentedBounds, activeClipBounds);
-            let recentlyWarm =
-                isIOSWebKitBrowser()
-                && now - candidate.state.lastWarmAt <= IOS_WARM_LINGER_MS;
-            if (activeEligible) {
-                candidate.state.lastWarmAt = now;
-                candidate.intent = parentIntent === "active" ? "active" : "prewarm";
-            } else if (recentlyWarm) {
-                candidate.intent = parentIntent === "active" ? "active" : "prewarm";
-            } else if (rectsIntersect(candidate.record.presentedBounds, prewarmClipBounds)) {
-                candidate.intent = "prewarm";
-            } else {
-                candidate.intent = "cold";
-            }
-            candidate.distance = rectCenterDistance(candidate.record.presentedBounds, clipBase.bounds);
-            resolving.delete(candidate.id);
-            resolved.add(candidate.id);
-            return candidate.intent;
-        };
-
-        candidates.forEach(candidate => resolveIntent(candidate));
+            const [left,top,right,bottom] = p.visible;
+            c.visibleBounds = {left,top,right,bottom};
+            c.intent = right > left && bottom > top ? 'active'
+                : p.prepared[2] > p.prepared[0] && p.prepared[3] > p.prepared[1] ? 'prewarm' : 'cold';
+            c.coverageKey = `${p.unavailableReason ?? ''}|${p.prepared.join(',')}`;
+        }
         return candidates;
     }
 
@@ -1619,6 +1590,24 @@ export class NativeElementPool {
         };
         let clipBounds = viewport;
         if (!isIOSWebKitBrowser()) {
+            // Use conservative bounds for arbitrary clip paths. A transformed
+            // native overlay may have a huge box, but a fixed Frame still clips
+            // current visibility. Future preparation is evaluated separately.
+            for (let node = leaf.parentElement; node && node !== this.mount; node = node.parentElement) {
+                const style = node.style;
+                if (/hidden|clip|scroll|auto/.test(style.overflow + style.overflowX + style.overflowY)) {
+                    const bounds = node.getBoundingClientRect();
+                    clipBounds = intersectRects(clipBounds, bounds);
+                }
+                if (node.dataset.clipBounds) {
+                    const bounds = JSON.parse(node.dataset.clipBounds) as AxisAlignedRect;
+                    const origin = node.getBoundingClientRect();
+                    clipBounds = intersectRects(clipBounds, {
+                        left: bounds.left + origin.left, top: bounds.top + origin.top,
+                        right: bounds.right + origin.left, bottom: bounds.bottom + origin.top,
+                    });
+                }
+            }
             return {
                 presentedBounds: {
                     left: rect.left,
@@ -1743,23 +1732,6 @@ export class NativeElementPool {
         this.surfaceRefreshPending = true;
     }
 
-    private prewarmScrollerHosts(hosts: ScrollerDomHosts) {
-        if (
-            hosts.parked
-            && hosts.canvasHost.dataset.renderState === "active"
-            && hosts.contentHost.dataset.renderState === "parked"
-            && hosts.canvasHost.style.visibility === "hidden"
-        ) {
-            return;
-        }
-        hosts.parked = true;
-        hosts.canvasHost.dataset.renderState = "active";
-        hosts.contentHost.dataset.renderState = "parked";
-        hosts.canvasHost.style.visibility = "hidden";
-        hosts.contentHost.style.visibility = "hidden";
-        this.surfaceRefreshPending = true;
-    }
-
     private promoteScrollerHosts(hosts: ScrollerDomHosts) {
         if (hosts.warmed) {
             return false;
@@ -1781,181 +1753,185 @@ export class NativeElementPool {
         return true;
     }
 
-    private estimateScrollerWarmSurfaceCost(hosts: ScrollerDomHosts, state: ScrollerMeasurementState) {
-        let layerIds = this.layers.estimateScrollerIslandOwnedLayers(
-            hosts.id,
-            state.contentLayerId,
-        );
-        if (layerIds.length === 0) {
-            return 1;
+    private candidatePlan(layerId: number, basis?: number[], now = 0, coverageKey = '') {
+        this.layerCanvasBasisCache ??= new Map();
+        const key = basis?.join(',') + '|' + coverageKey;
+        if (basis && (this.layerCanvasBasisCache.get(layerId) !== key
+            || this.layerCanvasPlanCache.get(layerId)?.densityPending)) {
+            this.layerCanvasPlanCache.delete(layerId);
+            this.layerCanvasBasisCache.set(layerId, key);
         }
-        return Math.max(
-            1,
-            layerIds.reduce((total, layerId) => {
-                return total + Math.max(1, this.estimateWarmLayerCanvasCount(layerId, hosts.canvasHost));
-            }, 0),
-        );
+        if (!this.layerCanvasPlanCache.has(layerId)) {
+            const b = basis ?? [1, 0, 0, 1];
+            this.layerCanvasPlanCache.set(layerId,
+                this.chassis?.get_layer_canvas_plan_for_transform(layerId, b[0], b[1], b[2], b[3], now) ?? null);
+        }
+        return this.layerCanvasPlanCache.get(layerId);
     }
 
     private syncWarmScrollerHosts() {
-        let now =
-            typeof performance !== "undefined" && typeof performance.now === "function"
-                ? performance.now()
-                : Date.now();
-        let candidatesById = this.buildWarmScrollerCandidates(now);
-        let candidates = Array.from(candidatesById.values());
-        for (let candidate of candidates) {
-            let visible = rectWidth(candidate.visibleBounds) > 0 && rectHeight(candidate.visibleBounds) > 0;
-            let host = candidate.hosts.canvasHost;
-            if (host.dataset.viewportVisible !== String(visible)) {
-                host.dataset.viewportVisible = String(visible);
-                this.surfaceRefreshPending = true;
+        const now = performance.now();
+        let hosts: Map<number, ScrollerWarmCandidate>;
+        try { hosts = this.buildWarmScrollerCandidates(now); }
+        catch (error) {
+            // Incomplete measurements must not retire compatible survivors.
+            this.surfaceRefreshPending = true;
+            this.surfaceTrace?.record('preparation-rejected', {reason:String(error)});
+            return false;
+        }
+        const candidates: SurfaceCandidate[] = [];
+        const owners = new Map<number, ScrollerWarmCandidate>();
+        for (const host of hosts.values()) {
+            const s = host.state;
+            for (const layer of this.layers.estimateScrollerIslandOwnedLayers(host.id, s.contentLayerId)) {
+                owners.set(layer, host);
+            }
+            host.hosts.canvasHost.dataset.viewportVisible = String(
+                rectWidth(host.visibleBounds) > 0 && rectHeight(host.visibleBounds) > 0);
+        }
+        const pendingLayers = new Set<number>();
+        const liveLayers = new Set(this.layers.layerIds());
+        this.layerCanvasBasisCache?.forEach((_basis, id) => {
+            if (!liveLayers.has(id)) this.layerCanvasBasisCache.delete(id);
+        });
+        for (const layerId of this.layers.layerIds()) {
+            const host = owners.get(layerId);
+            const plan = this.candidatePlan(layerId, host?.state.transform?.slice(0, 4) ?? [1, 0, 0, 1], now, host?.coverageKey);
+            if (!plan) { pendingLayers.add(layerId); continue; }
+            if (host?.intent === "cold") continue;
+            for (const surface of plan.surfaces) {
+                const installed = this.canvases.get(surface.id);
+                const retained = installed?.dataset.hostSignature === surface.hostSignature
+                    && installed?.dataset.transformSignature === surface.transformSignature
+                    && installed?.dataset.surfaceSignature === surface.surfaceSignature;
+                const ready = !!retained && !!installed?.dataset.surfaceContentRevision
+                    && installed.dataset.surfaceSubmittedRevision === installed.dataset.surfaceContentRevision;
+                candidates.push({layerId, branch: host?.id ?? -1, surface, rank: {
+                    coverage: 0, distance: 0, retained, ready,
+                }});
             }
         }
-        this.scrollerHosts.forEach((hosts, id) => {
-            if (candidatesById.has(id)) {
-                return;
-            }
-            let state = this.scrollerMeasurementStates.get(id);
-            if (state == null || !hosts.vectorIslandEnabled) {
-                this.unparkScrollerHosts(hosts);
+        // Unknown plans preserve installed surfaces and reserve their slots.
+        // Retiring async leases remain physically unavailable in CanvasPool;
+        // the coordinator records any desired-but-unallocated assignments.
+        let pendingCount = 0;
+        let pendingPixels = 0;
+        this.canvases.forEach(canvas => {
+            if (pendingLayers.has(Number(canvas.dataset.layerId))) {
+                pendingCount++;
+                pendingPixels += Math.max(canvas.width * canvas.height,
+                    Number(canvas.dataset.expectedBackingWidth ?? 0) * Number(canvas.dataset.expectedBackingHeight ?? 0));
             }
         });
-
-        let nestedSurfaceBudget = browserNestedScrollerSurfaceBudget();
-        let totalCanvasBudget = browserTotalCanvasBudget();
-        if (nestedSurfaceBudget != null) {
-            let rootCanvasCost = 0;
-            if (totalCanvasBudget != null && this.mount != null) {
-                rootCanvasCost = Math.max(1, this.estimateWarmLayerCanvasCount(0, this.mount));
+        const resources = this.canvasPool?.capacitySnapshot();
+        const shared = this.chassis!.schedule_surfaces({version: 2, now,
+            layers: this.layers.layerIds(),
+            capacity: Math.max(0, browserCanvasPoolBudget() - pendingCount - (resources?.retiring ?? 0)),
+            resources: {viewportPixels: Math.ceil(window.innerWidth * (window.devicePixelRatio || 1))
+                    * Math.ceil(window.innerHeight * (window.devicePixelRatio || 1)),
+                unreleasedPixels: pendingPixels + (resources?.retiringPixels ?? 0),
+                unavailableSurfaces: pendingCount + (resources?.retiring ?? 0)},
+            candidates: candidates.map(c => ({id: c.surface.id, owner: c.branch < 0 ? null : c.branch,
+                rect: [c.surface.left, c.surface.top, c.surface.left + c.surface.width, c.surface.top + c.surface.height],
+                retained: !!c.rank.retained, ready: !!c.rank.ready,
+                pixels: (c.surface.backingWidth ?? 0) * (c.surface.backingHeight ?? 0)}))});
+        const decision = materializeSurfaceSchedule(candidates, shared);
+        this.canvasPool?.setBackingLimit(shared.backingLimit);
+        if (this.surfaceTrace) {
+            this.surfaceTrace.observeDemand(candidates);
+            const detail = JSON.stringify({admitted: decision.admitted.map(c => ({id: c.surface.id, rank: c.rank,
+                    owner: c.branch, rect: [c.surface.left, c.surface.top, c.surface.width, c.surface.height]})),
+                denied: decision.denied, pendingCount, pendingLayers: [...pendingLayers], resources,
+                borrowedForwardPixels: shared.borrowedForwardPixels, forwardLimit: shared.forwardLimit,
+                backingPixels: shared.backingPixels, optionalPixels: shared.optionalPixels});
+            if (detail !== this.lastTraceDecision) {
+                this.surfaceTrace.record('admission', JSON.parse(detail));
+                this.lastTraceDecision = detail;
             }
-            let mandatoryCost = candidates.reduce((total, candidate) => {
-                return candidate.mandatory
-                    ? total + Math.max(1, candidate.surfaceCost)
-                    : total;
-            }, 0);
-            candidates.sort((left, right) => {
-                // Local shelf visibility is not global visibility: reserve space
-                // for the intersection with every ancestor before warm runways.
-                let visibleDelta = Number(right.hosts.canvasHost.dataset.viewportVisible === "true")
-                    - Number(left.hosts.canvasHost.dataset.viewportVisible === "true");
-                if (visibleDelta !== 0) {
-                    return visibleDelta;
-                }
-                let rankDelta = scrollerWarmIntentRank(left.intent) - scrollerWarmIntentRank(right.intent);
-                if (rankDelta !== 0) {
-                    return -rankDelta;
-                }
-                // Keep the warm set tied to proximity so later scrollers can take over
-                // a limited surface budget as the user advances through a long list.
-                let distanceDelta = left.distance - right.distance;
-                if (distanceDelta !== 0) {
-                    return distanceDelta;
-                }
-                let warmedDelta = Number(left.hosts.warmed) - Number(right.hosts.warmed);
-                if (warmedDelta !== 0) {
-                    return -warmedDelta;
-                }
-                return left.id - right.id;
-            });
-            let selected = new Set<number>();
-            let remainingBudget = nestedSurfaceBudget;
-            if (totalCanvasBudget != null) {
-                remainingBudget = Math.min(
-                    remainingBudget,
-                    Math.max(0, totalCanvasBudget - rootCanvasCost),
-                );
-            }
-            remainingBudget = Math.max(0, remainingBudget - mandatoryCost);
-            for (let candidate of candidates) {
-                if (!candidate.mandatory) {
-                    continue;
-                }
-                selected.add(candidate.id);
-            }
-            let mandatorySelectionCount = selected.size;
-            let trySelectCandidate = (candidate: ScrollerWarmCandidate): boolean => {
-                if (selected.has(candidate.id)) {
-                    return true;
-                }
-                if (candidate.mandatory) {
-                    selected.add(candidate.id);
-                    return true;
-                }
-                if (candidate.intent === "cold" && !candidate.hosts.warmed) {
-                    return false;
-                }
-                if (candidate.parentId != null) {
-                    let parentCandidate = candidatesById.get(candidate.parentId);
-                    if (parentCandidate != null && !trySelectCandidate(parentCandidate)) {
-                        return false;
-                    }
-                }
-                let cost = Math.max(1, candidate.surfaceCost);
-                let canAfford = remainingBudget >= cost;
-                let mustKeep = totalCanvasBudget == null
-                    && candidate.intent === "active"
-                    && selected.size === mandatorySelectionCount;
-                if (!canAfford && !mustKeep) {
-                    return false;
-                }
-                selected.add(candidate.id);
-                remainingBudget = Math.max(0, remainingBudget - cost);
-                return true;
-            };
-            for (let candidate of candidates) {
-                if (candidate.mandatory) {
-                    continue;
-                }
-                if (
-                    candidate.intent === "cold"
-                    && !candidate.hosts.warmed
-                ) {
-                    continue;
-                }
-                trySelectCandidate(candidate);
-            }
-            for (let candidate of candidates) {
-                if (selected.has(candidate.id)) {
-                    this.promoteScrollerHosts(candidate.hosts);
-                    if (candidate.intent === "active" || candidate.mandatory) {
-                        this.unparkScrollerHosts(candidate.hosts);
-                    } else {
-                        this.prewarmScrollerHosts(candidate.hosts);
-                    }
-                } else {
-                    this.demoteScrollerHosts(candidate.hosts);
-                }
-            }
-            return;
         }
-        for (let candidate of candidates) {
-            if (candidate.intent === "active" || candidate.mandatory) {
-                this.promoteScrollerHosts(candidate.hosts);
-                this.unparkScrollerHosts(candidate.hosts);
-            } else if (candidate.intent === "prewarm") {
-                this.promoteScrollerHosts(candidate.hosts);
-                this.prewarmScrollerHosts(candidate.hosts);
-            } else if (candidate.hosts.warmed) {
-                this.prewarmScrollerHosts(candidate.hosts);
-            } else {
-                this.parkScrollerHosts(candidate.hosts);
+        this.admittedPlans = decision.plans;
+        const selectedHosts = new Set<number>();
+        for (const candidate of decision.admitted) {
+            let host = owners.get(candidate.layerId);
+            while (host && !selectedHosts.has(host.id)) {
+                selectedHosts.add(host.id);
+                host = host.parentId == null ? undefined : hosts.get(host.parentId);
             }
+        }
+        for (const host of hosts.values()) {
+            const pending = this.layers.estimateScrollerIslandOwnedLayers(host.id, host.state.contentLayerId)
+                .some(layer => pendingLayers.has(layer));
+            if (pending) continue;
+            // Canvas admission must never hide a visible native-only scroller,
+            // or its controls when genuine GPU demand exceeds capacity.
+            if (selectedHosts.has(host.id) || host.mandatory || host.intent === "active") {
+                this.promoteScrollerHosts(host.hosts);
+                // Warm pixels must already be presentable when the native
+                // compositor scrolls them into view, before the next JS tick.
+                // Ancestor scroller/Frame clips provide the visibility boundary;
+                // a CSS hidden flag here defeats advance preparation entirely.
+                this.unparkScrollerHosts(host.hosts);
+            } else this.demoteScrollerHosts(host.hosts);
+        }
+        const signature = [...decision.plans.values()].flatMap(plan =>
+            plan.surfaces.map(s => `${s.id}:${s.replayPriority}`)).join("|");
+        if (signature !== this.lastAdmissionSignature) {
+            this.lastAdmissionSignature = signature;
+            this.surfaceRefreshPending = true;
+        }
+        if (this.mount) {
+            this.mount.dataset.surfaceDemand = String(candidates.length);
+            this.mount.dataset.surfaceAdmitted = String(decision.admitted.length);
+            this.mount.dataset.surfaceBudgetState = decision.overloaded ? "visible-demand-exceeds-budget" : "within-budget";
+            this.mount.dataset.surfaceBackingBytesEstimate = String(decision.backingPixels * 4);
+            this.mount.dataset.surfaceOptionalPixels = String(shared.optionalPixels);
+            this.mount.dataset.surfaceOptionalLimit = String(shared.optionalLimit);
+            this.mount.dataset.surfaceBackingLimit = String(shared.backingLimit);
+            this.mount.dataset.surfaceBorrowedForwardPixels = String(shared.borrowedForwardPixels);
+        }
+        return true;
+    }
+
+    recordSurfaceFramePhase(phase: string, duration: number) {
+        this.surfaceTrace?.recordPhase(phase,duration);
+    }
+
+    private lastCompositingWork = '';
+    recordSurfaceCompositing(report: {rebuilds: number; records_updated: number; masks_evaluated: number; mask_candidates: number; rebuild_reason: string | null; rebuild_node: number | null}) {
+        const key = `${report.rebuilds}:${report.records_updated}:${report.masks_evaluated}:${report.mask_candidates}`;
+        if (key !== this.lastCompositingWork) {
+            this.surfaceTrace?.record('occlusion-work', report);
+            this.lastCompositingWork = key;
+        }
+    }
+
+    private lastPresentationBlocker: string | null | undefined;
+    recordSurfacePresentation(report: {submitted: number; deferred: number; cache_misses: number; blocked: boolean; blocker: string | null; elapsed_ms: number}) {
+        if (report.submitted || report.deferred || report.cache_misses || report.blocker !== this.lastPresentationBlocker) {
+            this.surfaceTrace?.record('settled-presentation', report);
+            this.lastPresentationBlocker = report.blocker;
         }
     }
 
     syncRenderSurfaceLayouts() {
+        this.surfaceCoordinator ??= new SurfaceCoordinator(this.canvases, this.layers,
+            layers => this.requestLayerSurfaceRefresh(layers),
+            snapshot => this.chassis?.install_surface_plan?.(snapshot),
+            () => this.chassis?.begin_surface_plan?.(), this.surfaceTrace,
+            () => this.canvasPool?.capacitySnapshot());
         let layerCanvasPlanGeneration = this.chassis?.layer_canvas_plan_generation() ?? -1;
+        let policyRevision = this.chassis?.surface_policy_revision?.() ?? 0;
         let devicePixelRatio =
             typeof window !== "undefined" ? Math.max(window.devicePixelRatio || 1, 1) : 1;
         let planInputsChanged =
             this.lastLayerCanvasPlanGeneration !== layerCanvasPlanGeneration
+            || this.lastSurfacePolicyRevision !== policyRevision
             || this.lastLayerCanvasPlanDevicePixelRatio !== devicePixelRatio;
         if (planInputsChanged) {
             this.layerCanvasPlanCache.clear();
         }
-        this.syncWarmScrollerHosts();
-        let backingMismatchLayers = this.collectCanvasBackingMismatchLayers(devicePixelRatio);
+        if (!this.syncWarmScrollerHosts()) return;
+        let backingMismatchLayers = this.surfaceCoordinator.collectBackingMismatchLayers();
         if (backingMismatchLayers.size > 0) {
             this.surfaceRefreshPending = true;
         }
@@ -1966,105 +1942,15 @@ export class NativeElementPool {
             return;
         }
         this.lastLayerCanvasPlanGeneration = layerCanvasPlanGeneration;
+        this.lastSurfacePolicyRevision = policyRevision;
         this.lastLayerCanvasPlanDevicePixelRatio = devicePixelRatio;
-        this.layers.syncLayerCanvasLayouts((layerId) => {
-            if (!this.chassis) {
-                return undefined;
-            }
-            let plan = this.chassis.get_layer_canvas_plan(layerId);
-            this.layerCanvasPlanCache.set(layerId, plan ?? null);
-            if (plan && layerId !== 0) {
-                let warmState = this.layerWarmState(layerId);
-                if (warmState === "cold") {
-                    return {
-                        layerId: plan.layerId ?? layerId,
-                        active: false,
-                        surfaces: [],
-                    };
-                }
-            }
-            return plan;
-        }, (retiredLayers) => this.requestLayerSurfaceRefresh(retiredLayers));
-        backingMismatchLayers = this.collectCanvasBackingMismatchLayers(devicePixelRatio);
-        let surfaceChanged = this.surfaceRefreshPending || backingMismatchLayers.size > 0;
-        let nextSurfaceSignatures = new Map<string, string>();
-        let nextTransformSignatures = new Map<string, string>();
-        let nextLayerCounts = new Map<number, number>();
-        let surfaceChangedLayers = new Set<number>(backingMismatchLayers);
-        let transformChangedLayers = new Set<number>();
-        let transformChanged = false;
-        this.canvases.forEach((canvas, id) => {
-            let parent = canvas.parentElement;
-            if (parent == null) {
-                return;
-            }
-            let hostSignature = canvas.dataset.hostSignature ?? describeSurfaceHost(parent);
-            let layerId = Number.parseInt(canvas.dataset.layerId ?? "", 10);
-            let surfaceSignature =
-                `${canvas.dataset.surfaceSignature
-                    ?? `${canvas.clientWidth}x${canvas.clientHeight}@${hostSignature}`}#host=${hostSignature}`
-                + `#generation=${canvas.dataset.surfaceGeneration ?? ""}`;
-            let transformSignature =
-                (canvas.dataset.transformSignature
-                    ?? `${canvas.dataset.tileOriginX ?? "0"},${canvas.dataset.tileOriginY ?? "0"}`)
-                + `|priority=${canvas.dataset.replayPriority ?? "0"}`;
-            nextSurfaceSignatures.set(id, surfaceSignature);
-            nextTransformSignatures.set(id, transformSignature);
-            if (Number.isFinite(layerId)) {
-                nextLayerCounts.set(layerId, (nextLayerCounts.get(layerId) ?? 0) + 1);
-            }
-            if (this.lastCanvasSurfaceSignatures.get(id) !== surfaceSignature) {
-                surfaceChanged = true;
-                if (Number.isFinite(layerId)) {
-                    surfaceChangedLayers.add(layerId);
-                }
-            }
-            if (this.lastCanvasTransformSignatures.get(id) !== transformSignature) {
-                transformChanged = true;
-                if (Number.isFinite(layerId)) {
-                    transformChangedLayers.add(layerId);
-                }
-            }
-        });
-        if (nextSurfaceSignatures.size !== this.lastCanvasSurfaceSignatures.size) {
-            surfaceChanged = true;
-        }
-        if (nextTransformSignatures.size !== this.lastCanvasTransformSignatures.size) {
-            transformChanged = true;
-        }
-        let layerCountsChanged = false;
-        this.lastCanvasLayerCounts.forEach((count, layerId) => {
-            if ((nextLayerCounts.get(layerId) ?? 0) !== count) {
-                surfaceChangedLayers.add(layerId);
-                layerCountsChanged = true;
-            }
-        });
-        nextLayerCounts.forEach((count, layerId) => {
-            if ((this.lastCanvasLayerCounts.get(layerId) ?? 0) !== count) {
-                surfaceChangedLayers.add(layerId);
-                layerCountsChanged = true;
-            }
-        });
-        if (layerCountsChanged) {
-            surfaceChanged = true;
-        }
-        if (this.surfaceRefreshPending && surfaceChangedLayers.size === 0) {
-            nextLayerCounts.forEach((_count, layerId) => {
-                surfaceChangedLayers.add(layerId);
-            });
-        }
-        this.lastCanvasSurfaceSignatures = nextSurfaceSignatures;
-        this.lastCanvasTransformSignatures = nextTransformSignatures;
-        this.lastCanvasLayerCounts = nextLayerCounts;
-        if (surfaceChanged || transformChanged) {
-            this.surfaceRefreshPending = false;
-            // A warm row can gain/lose canvases in the same frame another layer
-            // retargets a tile. Both need replay before either is presented.
-            let layers = Array.from(new Set([
-                ...surfaceChangedLayers, ...transformChangedLayers,
-            ])).sort((left, right) => left - right);
-            this.requestLayerSurfaceRefresh(layers);
-        }
+        this.surfaceCoordinator.sync((layerId) => {
+            if (!this.chassis) return undefined;
+            const plan = this.candidatePlan(layerId);
+            if (!plan) return undefined;
+            return this.admittedPlans.get(layerId) ?? {layerId, active: false, surfaces: []};
+        }, this.surfaceRefreshPending);
+        this.surfaceRefreshPending = false;
     }
 
     private requestLayerSurfaceRefresh(layers: number[]) {
@@ -2088,80 +1974,6 @@ export class NativeElementPool {
         }
     }
 
-    private layerWarmState(layerId: number) {
-        for (let [id, hosts] of this.scrollerHosts) {
-            let state = this.scrollerMeasurementStates.get(id);
-            if (state == null || state.contentLayerId == null) {
-                continue;
-            }
-            if (state.contentLayerId === layerId) {
-                return hosts.warmed ? "warm" : "cold";
-            }
-        }
-        return "unknown";
-    }
-
-    private collectCanvasBackingMismatchLayers(devicePixelRatio: number) {
-        let layers = new Set<number>();
-        this.canvases.forEach((canvas) => {
-            let layerId = Number.parseInt(canvas.dataset.layerId ?? "", 10);
-            if (!Number.isFinite(layerId)) {
-                return;
-            }
-            let logicalWidth = Number.parseFloat(canvas.dataset.logicalWidth ?? "");
-            let logicalHeight = Number.parseFloat(canvas.dataset.logicalHeight ?? "");
-            if (
-                !Number.isFinite(logicalWidth)
-                || !Number.isFinite(logicalHeight)
-                || logicalWidth <= 0
-                || logicalHeight <= 0
-            ) {
-                return;
-            }
-
-            let parentRole = canvas.parentElement?.dataset.role;
-            let desiredDpr =
-                parentRole === "scroller-canvas-host" && canvas.dataset.tileKey !== "single"
-                    ? TILED_SCROLLER_SURFACE_DPR
-                    : devicePixelRatio;
-            let maxSurfaceDimension = Number.POSITIVE_INFINITY;
-            let minimumDpr = 1.0;
-            if (isIOSWebKitBrowser() && layerId > 0) {
-                maxSurfaceDimension = IOS_BROWSER_SURFACE_DIMENSION_CAP;
-                minimumDpr = IOS_NESTED_LAYER_MIN_DPR;
-            }
-            let expected = expectedCanvasBackingSize(
-                logicalWidth,
-                logicalHeight,
-                desiredDpr,
-                maxSurfaceDimension,
-                minimumDpr,
-            );
-            if (
-                Math.abs(canvas.width - expected.width) > 1
-                || Math.abs(canvas.height - expected.height) > 1
-            ) {
-                layers.add(layerId);
-            }
-        });
-        return layers;
-    }
-
-
-    private estimateWarmLayerCanvasCount(layerId: number, host?: HTMLElement) {
-        let cachedPlan = this.layerCanvasPlanCache.get(layerId);
-        if (cachedPlan && Array.isArray(cachedPlan.surfaces)) {
-            return cachedPlan.surfaces.length;
-        }
-        if (this.chassis) {
-            let plan = this.chassis.get_layer_canvas_plan(layerId);
-            this.layerCanvasPlanCache.set(layerId, plan ?? null);
-            if (plan && Array.isArray(plan.surfaces)) {
-                return plan.surfaces.length;
-            }
-        }
-        return estimateWarmLayerCanvasCount(layerId, host);
-    }
 
     private installPageScrollActivityListeners() {
         if (this.pageScrollActivityListenersInstalled) {
@@ -2852,10 +2664,6 @@ export class NativeElementPool {
                 lastSentScrollY: Number.NaN,
                 lastSentPresentationScrollX: Number.NaN,
                 lastSentPresentationScrollY: Number.NaN,
-                lastWarmAt:
-                    typeof performance !== "undefined" && typeof performance.now === "function"
-                        ? performance.now()
-                        : Date.now(),
                 snapPointsX: undefined,
                 snapPointsY: undefined,
             });
@@ -3469,36 +3277,7 @@ export class NativeElementPool {
         if (this.chassis !== chassis) {
             return
         }
-        if (chassis.image_loaded(patch.path ?? "")) {
-            return
-        }
-        //Check the full path of our index.js; use the prefix of this path also for our image assets
-        function getBasePath() {
-            const baseURI = document.baseURI;
-            const url = new URL(baseURI);
-            return url.pathname.substring(0, url.pathname.lastIndexOf('/') + 1);
-        }
-    
-        const BASE_PATH = getBasePath();
-
-        let path = (BASE_PATH + patch.path!).replace("//", "/");
-        let image_data = await readImageToByteBuffer(path!)
-        // A cartridge reload may dispose this pool while image decoding is in
-        // flight. Never call back into a freed or superseded Wasm chassis.
-        if (this.chassis !== chassis) {
-            return
-        }
-        let message = {
-            "Image": {
-                "Data": {
-                    "id": patch.id!,
-                    "path": patch.path!,
-                    "width": image_data.width,
-                    "height": image_data.height,
-                }
-            }
-        }
-        chassis.interrupt(message, image_data.pixels);
+        await this.imageLoader?.request(patch.path ?? "", patch.id!);
     }
 
     navigate(patch: NavigationPatch) {
@@ -4710,7 +4489,6 @@ type ScrollerMeasurementState = {
     lastSentScrollY: number;
     lastSentPresentationScrollX: number;
     lastSentPresentationScrollY: number;
-    lastWarmAt: number;
     snapPointsX?: number[];
     snapPointsY?: number[];
 };
@@ -4762,8 +4540,8 @@ type ScrollerWarmCandidate = {
     intent: ScrollerWarmIntent;
     visibleBounds: AxisAlignedRect;
     distance: number;
-    surfaceCost: number;
     mandatory: boolean;
+    coverageKey?: string;
 };
 
 type AxisAlignedRect = {
@@ -4778,46 +4556,7 @@ type PresentationRecord = {
     presentedClipBounds?: AxisAlignedRect;
 };
 
-const IOS_WARM_LINGER_MS = 3000;
-const DEFAULT_ACTIVE_SCROLLABLE_PAD_X_MULTIPLIER = 4.0;
-const DEFAULT_ACTIVE_SCROLLABLE_PAD_Y_MULTIPLIER = 4.0;
-const DEFAULT_ACTIVE_SCROLLABLE_MIN_PAD_X = 960;
-const DEFAULT_ACTIVE_SCROLLABLE_MIN_PAD_Y = 1024;
-const DEFAULT_PREWARM_SCROLLABLE_PAD_X_MULTIPLIER = 8.0;
-const DEFAULT_PREWARM_SCROLLABLE_PAD_Y_MULTIPLIER = 8.0;
-const DEFAULT_PREWARM_SCROLLABLE_MIN_PAD_X = 1920;
-const DEFAULT_PREWARM_SCROLLABLE_MIN_PAD_Y = 2048;
-const IOS_ACTIVE_SCROLLABLE_PAD_X_MULTIPLIER = 8.0;
-const IOS_ACTIVE_SCROLLABLE_PAD_Y_MULTIPLIER = 4.0;
-const IOS_ACTIVE_SCROLLABLE_MIN_PAD_X = 1920;
-const IOS_ACTIVE_SCROLLABLE_MIN_PAD_Y = 1024;
-const IOS_PREWARM_SCROLLABLE_PAD_X_MULTIPLIER = 16.0;
-const IOS_PREWARM_SCROLLABLE_PAD_Y_MULTIPLIER = 8.0;
-const IOS_PREWARM_SCROLLABLE_MIN_PAD_X = 3840;
-const IOS_PREWARM_SCROLLABLE_MIN_PAD_Y = 2048;
-// The ordinary iOS path uses Piet/2D canvas. Keep enough
-// browser canvases around to prevent fast scrolls from exposing cold, uninitialized tile slots.
-const IOS_NESTED_BROWSER_SURFACE_BUDGET = 64;
-const IOS_TOTAL_CANVAS_BUDGET = 64;
-const DEFAULT_TOTAL_CANVAS_BUDGET = 64;
-
-function browserNestedScrollerSurfaceBudget() {
-    return isIOSWebKitBrowser() ? IOS_NESTED_BROWSER_SURFACE_BUDGET : DEFAULT_TOTAL_CANVAS_BUDGET;
-}
-
-function browserTotalCanvasBudget() {
-    // Every browser uses a bounded CanvasPool. An unlimited warm set can retain
-    // all of its canvases in distant rows and permanently starve visible ones.
-    return isIOSWebKitBrowser() ? IOS_TOTAL_CANVAS_BUDGET : DEFAULT_TOTAL_CANVAS_BUDGET;
-}
-
-function browserCanvasPoolBudget() {
-    let budget = browserTotalCanvasBudget();
-    if (budget != null) {
-        return budget;
-    }
-    return DEFAULT_TOTAL_CANVAS_BUDGET;
-}
+function browserCanvasPoolBudget() { return 64; }
 
 function browserOwnedVectorScrollerIslandsEnabled() {
     return true;
@@ -4832,85 +4571,11 @@ function rectFromMessageBounds(bounds: number[]): AxisAlignedRect {
     };
 }
 
-function expectedCanvasBackingSize(
-    logicalWidth: number,
-    logicalHeight: number,
-    desiredDpr: number,
-    maxSurfaceDimension: number,
-    minimumDpr: number,
-) {
-    let minDpr = clampNumber(minimumDpr, 0.1, 1.0);
-    let requestedDpr = Math.max(desiredDpr, minDpr);
-    let dimensionLimit = Number.isFinite(maxSurfaceDimension)
-        ? Math.max(1, maxSurfaceDimension)
-        : Number.POSITIVE_INFINITY;
-    let widthLimit = logicalWidth > 0 ? dimensionLimit / logicalWidth : requestedDpr;
-    let heightLimit = logicalHeight > 0 ? dimensionLimit / logicalHeight : requestedDpr;
-    let requestedDprX = Math.max(minDpr, Math.min(requestedDpr, widthLimit));
-    let requestedDprY = Math.max(minDpr, Math.min(requestedDpr, heightLimit));
-    let maxBacking = Number.isFinite(dimensionLimit)
-        ? dimensionLimit
-        : Number.MAX_SAFE_INTEGER;
-    return {
-        width: Math.max(1, Math.min(maxBacking, Math.round(logicalWidth * requestedDprX))),
-        height: Math.max(1, Math.min(maxBacking, Math.round(logicalHeight * requestedDprY))),
-    };
-}
 
 function clampNumber(value: number, min: number, max: number) {
     return Math.max(min, Math.min(max, value));
 }
 
-function scrollerWarmIntentRank(intent: ScrollerWarmIntent) {
-    switch (intent) {
-        case "active":
-            return 2;
-        case "prewarm":
-            return 1;
-        default:
-            return 0;
-    }
-}
-
-function activeScrollablePadX(viewportWidth: number) {
-    let multiplier = DEFAULT_ACTIVE_SCROLLABLE_PAD_X_MULTIPLIER;
-    let minPad = DEFAULT_ACTIVE_SCROLLABLE_MIN_PAD_X;
-    if (isIOSWebKitBrowser()) {
-        multiplier = IOS_ACTIVE_SCROLLABLE_PAD_X_MULTIPLIER;
-        minPad = IOS_ACTIVE_SCROLLABLE_MIN_PAD_X;
-    }
-    return Math.max(viewportWidth * multiplier, minPad);
-}
-
-function activeScrollablePadY(viewportHeight: number) {
-    let multiplier = DEFAULT_ACTIVE_SCROLLABLE_PAD_Y_MULTIPLIER;
-    let minPad = DEFAULT_ACTIVE_SCROLLABLE_MIN_PAD_Y;
-    if (isIOSWebKitBrowser()) {
-        multiplier = IOS_ACTIVE_SCROLLABLE_PAD_Y_MULTIPLIER;
-        minPad = IOS_ACTIVE_SCROLLABLE_MIN_PAD_Y;
-    }
-    return Math.max(viewportHeight * multiplier, minPad);
-}
-
-function prewarmScrollablePadX(viewportWidth: number) {
-    let multiplier = DEFAULT_PREWARM_SCROLLABLE_PAD_X_MULTIPLIER;
-    let minPad = DEFAULT_PREWARM_SCROLLABLE_MIN_PAD_X;
-    if (isIOSWebKitBrowser()) {
-        multiplier = IOS_PREWARM_SCROLLABLE_PAD_X_MULTIPLIER;
-        minPad = IOS_PREWARM_SCROLLABLE_MIN_PAD_X;
-    }
-    return Math.max(viewportWidth * multiplier, minPad);
-}
-
-function prewarmScrollablePadY(viewportHeight: number) {
-    let multiplier = DEFAULT_PREWARM_SCROLLABLE_PAD_Y_MULTIPLIER;
-    let minPad = DEFAULT_PREWARM_SCROLLABLE_MIN_PAD_Y;
-    if (isIOSWebKitBrowser()) {
-        multiplier = IOS_PREWARM_SCROLLABLE_PAD_Y_MULTIPLIER;
-        minPad = IOS_PREWARM_SCROLLABLE_MIN_PAD_Y;
-    }
-    return Math.max(viewportHeight * multiplier, minPad);
-}
 
 function rectWidth(rect: AxisAlignedRect) {
     return Math.max(0, rect.right - rect.left);
@@ -4920,15 +4585,6 @@ function rectHeight(rect: AxisAlignedRect) {
     return Math.max(0, rect.bottom - rect.top);
 }
 
-function expandRect(rect: AxisAlignedRect, expandX: number, expandY: number): AxisAlignedRect {
-    return {
-        left: rect.left - expandX,
-        top: rect.top - expandY,
-        right: rect.right + expandX,
-        bottom: rect.bottom + expandY,
-    };
-}
-
 function intersectRects(a: AxisAlignedRect, b: AxisAlignedRect): AxisAlignedRect {
     return {
         left: Math.max(a.left, b.left),
@@ -4936,41 +4592,6 @@ function intersectRects(a: AxisAlignedRect, b: AxisAlignedRect): AxisAlignedRect
         right: Math.min(a.right, b.right),
         bottom: Math.min(a.bottom, b.bottom),
     };
-}
-
-function rectsIntersect(a: AxisAlignedRect, b: AxisAlignedRect): boolean {
-    return !(
-        a.right < b.left
-        || a.bottom < b.top
-        || a.left > b.right
-        || a.top > b.bottom
-    );
-}
-
-function rectSeparationDistance(a: AxisAlignedRect, b: AxisAlignedRect): number {
-    let dx = 0;
-    if (a.right < b.left) {
-        dx = b.left - a.right;
-    } else if (b.right < a.left) {
-        dx = a.left - b.right;
-    }
-
-    let dy = 0;
-    if (a.bottom < b.top) {
-        dy = b.top - a.bottom;
-    } else if (b.bottom < a.top) {
-        dy = a.top - b.bottom;
-    }
-
-    return Math.hypot(dx, dy);
-}
-
-function rectCenterDistance(a: AxisAlignedRect, b: AxisAlignedRect): number {
-    let aCenterX = (a.left + a.right) * 0.5;
-    let aCenterY = (a.top + a.bottom) * 0.5;
-    let bCenterX = (b.left + b.right) * 0.5;
-    let bCenterY = (b.top + b.bottom) * 0.5;
-    return Math.hypot(aCenterX - bCenterX, aCenterY - bCenterY);
 }
 
 function isViewportAnchoredTransform(transform: number[]) {

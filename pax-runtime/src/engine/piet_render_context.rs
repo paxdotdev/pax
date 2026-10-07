@@ -54,6 +54,8 @@ pub trait PietSurface: Sized {
     type Context: piet::RenderContext;
 
     fn context(&mut self) -> &mut Self::Context;
+    /// Called after recorded draws are submitted. Native surfaces need no hook.
+    fn did_submit(&mut self) {}
     fn clear(&mut self);
     fn configure(&mut self, origin: (f32, f32), size: (u32, u32), dpr: [f32; 2]);
     /// Create a transparent surface with the same dimensions and coordinate space.
@@ -236,6 +238,7 @@ impl<S: PietSurface> PietLayerRenderer<S> {
 
     fn flush(&mut self) {
         paint_draws(&mut self.surface, &mut self.scratch, &self.draws, 0);
+        self.surface.did_submit();
         self.draws.clear();
     }
 
