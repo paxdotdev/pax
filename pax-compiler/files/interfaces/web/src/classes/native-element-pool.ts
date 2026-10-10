@@ -1472,8 +1472,9 @@ export class NativeElementPool {
                 let bounds = parentCandidate.record.presentedBounds;
                 return {
                     bounds,
-                    viewportWidth: parentCandidate.hosts.leaf.clientWidth || rectWidth(bounds),
-                    viewportHeight: parentCandidate.hosts.leaf.clientHeight || rectHeight(bounds),
+                    // The runway and bounds must both be in presentation space.
+                    viewportWidth: rectWidth(bounds),
+                    viewportHeight: rectHeight(bounds),
                 };
             }
 
@@ -1487,8 +1488,8 @@ export class NativeElementPool {
                 );
                 return {
                     bounds: record.presentedBounds,
-                    viewportWidth: parentHosts.leaf.clientWidth || rectWidth(record.presentedBounds),
-                    viewportHeight: parentHosts.leaf.clientHeight || rectHeight(record.presentedBounds),
+                    viewportWidth: rectWidth(record.presentedBounds),
+                    viewportHeight: rectHeight(record.presentedBounds),
                 };
             }
         }
@@ -1516,6 +1517,7 @@ export class NativeElementPool {
                 record,
                 parentId: this.getParentScrollerId(hosts),
                 intent: "cold",
+                visibleBounds: {left: 0, top: 0, right: 0, bottom: 0},
                 distance: rectCenterDistance(record.presentedBounds, record.presentedClipBounds),
                 surfaceCost: this.estimateScrollerWarmSurfaceCost(hosts, state),
                 mandatory: state.isRootScroller || state.delegatesToPageScroll,
@@ -1534,6 +1536,10 @@ export class NativeElementPool {
             }
             resolving.add(candidate.id);
 
+            candidate.visibleBounds = intersectRects(
+                candidate.record.presentedBounds, candidate.record.presentedClipBounds,
+            );
+
             if (candidate.mandatory) {
                 candidate.intent = "active";
                 candidate.state.lastWarmAt = now;
@@ -1547,6 +1553,9 @@ export class NativeElementPool {
                 let parentCandidate = candidates.get(candidate.parentId);
                 if (parentCandidate != null) {
                     parentIntent = resolveIntent(parentCandidate);
+                    candidate.visibleBounds = intersectRects(
+                        candidate.visibleBounds, parentCandidate.visibleBounds,
+                    );
                 }
             }
 
@@ -1792,6 +1801,14 @@ export class NativeElementPool {
                 : Date.now();
         let candidatesById = this.buildWarmScrollerCandidates(now);
         let candidates = Array.from(candidatesById.values());
+        for (let candidate of candidates) {
+            let visible = rectWidth(candidate.visibleBounds) > 0 && rectHeight(candidate.visibleBounds) > 0;
+            let host = candidate.hosts.canvasHost;
+            if (host.dataset.viewportVisible !== String(visible)) {
+                host.dataset.viewportVisible = String(visible);
+                this.surfaceRefreshPending = true;
+            }
+        }
         this.scrollerHosts.forEach((hosts, id) => {
             if (candidatesById.has(id)) {
                 return;
@@ -1815,6 +1832,13 @@ export class NativeElementPool {
                     : total;
             }, 0);
             candidates.sort((left, right) => {
+                // Local shelf visibility is not global visibility: reserve space
+                // for the intersection with every ancestor before warm runways.
+                let visibleDelta = Number(right.hosts.canvasHost.dataset.viewportVisible === "true")
+                    - Number(left.hosts.canvasHost.dataset.viewportVisible === "true");
+                if (visibleDelta !== 0) {
+                    return visibleDelta;
+                }
                 let rankDelta = scrollerWarmIntentRank(left.intent) - scrollerWarmIntentRank(right.intent);
                 if (rankDelta !== 0) {
                     return -rankDelta;
@@ -1957,7 +1981,7 @@ export class NativeElementPool {
                 }
             }
             return plan;
-        });
+        }, (retiredLayers) => this.requestLayerSurfaceRefresh(retiredLayers));
         backingMismatchLayers = this.collectCanvasBackingMismatchLayers(devicePixelRatio);
         let surfaceChanged = this.surfaceRefreshPending || backingMismatchLayers.size > 0;
         let nextSurfaceSignatures = new Map<string, string>();
@@ -1978,8 +2002,9 @@ export class NativeElementPool {
                     ?? `${canvas.clientWidth}x${canvas.clientHeight}@${hostSignature}`}#host=${hostSignature}`
                 + `#generation=${canvas.dataset.surfaceGeneration ?? ""}`;
             let transformSignature =
-                canvas.dataset.transformSignature
-                ?? `${canvas.dataset.tileOriginX ?? "0"},${canvas.dataset.tileOriginY ?? "0"}`;
+                (canvas.dataset.transformSignature
+                    ?? `${canvas.dataset.tileOriginX ?? "0"},${canvas.dataset.tileOriginY ?? "0"}`)
+                + `|priority=${canvas.dataset.replayPriority ?? "0"}`;
             nextSurfaceSignatures.set(id, surfaceSignature);
             nextTransformSignatures.set(id, transformSignature);
             if (Number.isFinite(layerId)) {
@@ -2882,12 +2907,18 @@ export class NativeElementPool {
             this.surfaceRefreshPending = true;
         }
 
-        const shouldClip = patch.clipContent ?? true;
+        let state = this.scrollerMeasurementStates.get(patch.id!);
+        const shouldClip = patch.clipContent ?? state?.clipContent ?? true;
+        // Only the authored pane defines scrollable overflow. The native overlay
+        // below it cancels the leaf's world transform; under a downscale its box
+        // becomes larger than the pane and must not extend the browser's range.
+        // `clip` bounds that overflow without adding another scrolling element or
+        // paint containment (which can suppress nested canvas presentation).
+        scrollerInner.style.overflow = shouldClip ? "clip" : "visible";
         const viewportWidth = (patch.sizeX ?? parseFloat(leaf.style.width)) || 0;
         const viewportHeight = (patch.sizeY ?? parseFloat(leaf.style.height)) || 0;
         const contentWidth = (patch.sizeInnerPaneX ?? parseFloat(scrollerInner.style.width)) || 0;
         const contentHeight = (patch.sizeInnerPaneY ?? parseFloat(scrollerInner.style.height)) || 0;
-        let state = this.scrollerMeasurementStates.get(patch.id!);
         let hosts = this.scrollerHosts.get(patch.id!);
         canvasHost.dataset.viewportWidth = String(viewportWidth);
         canvasHost.dataset.viewportHeight = String(viewportHeight);
@@ -4724,6 +4755,7 @@ type ScrollerWarmCandidate = {
     };
     parentId?: number;
     intent: ScrollerWarmIntent;
+    visibleBounds: AxisAlignedRect;
     distance: number;
     surfaceCost: number;
     mandatory: boolean;

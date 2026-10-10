@@ -42,6 +42,41 @@ with a local HTTP server; opening its HTML as a file does not load Wasm correctl
 
 ## Design and structure
 
+### Embedding the live app
+
+`Paxflix` can also be imported as a component through a Cargo path dependency.
+Its responsive layout, theme typography, and detail dialogs use its own logical
+bounds, not the outer browser window. Each instance owns its catalog selection,
+scroll positions, open dialogs, and appearance independently.
+
+```pax
+<Paxflix width=100% height=100% embedded=true top_inset=48 safe_bottom=24
+    disable_keyboard=true/>
+```
+
+`embedded=true` leaves safe-area values to the host instead of mounting native
+`DynamicIslandSpacer`s. Set `disable_keyboard=true` when multiple instances share
+a page: Pax keyboard events are global, so this leaves Escape and other keys to
+the host; each instance's close and backdrop controls still work. Standalone
+defaults and native safe-area behavior are unchanged.
+
+Shelf geometry and controls mount up front, but each shelf defers its ten card
+trees until it is within one local catalog viewport ahead of or behind the
+visible range, then retains them and their horizontal scroll state. Preparation
+uses the catalog's scroll offset and local height, so a scaled device's hard
+Frame clip cannot delay mounting until the row is already visible. Two embedded
+copies therefore do not initialize all 420 cards at once.
+This is first-visit lazy mounting, not eviction: visiting the whole catalog can
+still retain every card. Card and shelf mount subscriptions are explicitly
+wired in their templates so the scheduled text entrances actually run.
+
+The website uses two live instances, inside scaled tablet and phone frames,
+and mounts them on viewport approach. It imports the source directly and links
+`pax-website/assets` to this example's assets, so artwork is not duplicated in
+source control. The built web output contains ordinary copied assets.
+
+### Visual treatment
+
 The visual identity pairs Georgia film titles with neutral Arial labels and a
 peach ImageGen wordmark. Dark mode starts by default; the profile menu switches to
 warm ivory surfaces with dark text. All typography, metadata, gradients,

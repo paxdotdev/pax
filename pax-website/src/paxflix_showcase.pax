@@ -1,0 +1,35 @@
+<Group width=100% height={(self.content_height)px} @viewport_proximity_enter=self.prepare>
+    <Button x=50% y={(self.devices_height + 20)px} anchor_x=50% width=242px height=40px label="Open Paxflix full screen ↗"
+        color={SiteTheme::surface()} hover_color={SiteTheme::rule()} corner_radius=0 outline={
+            paint: {SiteTheme::rule()}
+            width: 1px
+        }
+        style={
+            font_size: 13px
+            fill: {SiteTheme::paper()}
+            align_horizontal: TextAlignHorizontal::Center
+            align_vertical: TextAlignVertical::Center
+        }
+        @button_click=self.expand/>
+    <Group x={(self.phone_x)px} y={(self.phone_y)px} anchor=0% width=390px height=844px scale={(self.phone_scale)%}
+        layout_role=LayoutRole::Breakout>
+        <DeviceFrame width=100% height=100% kind="phone" edge_to_edge=true>
+            if self.loaded {
+                <Paxflix width=100% height=100% embedded=true top_inset=48 safe_bottom=24 disable_keyboard=true/>
+            }
+        </DeviceFrame>
+    </Group>
+    <Group x={(self.tablet_x)px} y={(self.tablet_y)px} anchor=0% width=1048px height=812px scale={(self.tablet_scale)%}
+        layout_role=LayoutRole::Breakout>
+        <DeviceFrame width=100% height=100% kind="tablet">
+            if self.loaded {
+                <Paxflix width=100% height=100% embedded=true disable_keyboard=true/>
+            }
+        </DeviceFrame>
+    </Group>
+</Group>
+
+@settings {
+    @mount: layout
+    @pre_render: layout
+}

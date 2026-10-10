@@ -8,6 +8,9 @@ use pax_kit::*;
 #[pax]
 #[file("movie_detail.pax")]
 pub struct MovieDetail {
+    /// Logical bounds of the containing app, independent of the outer window.
+    pub view_width: Property<f64>,
+    pub view_height: Property<f64>,
     pub light_mode: Property<bool>,
     pub movie: Property<Movie>,
     pub modal_open: Property<bool>,

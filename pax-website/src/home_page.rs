@@ -1,10 +1,13 @@
 #![allow(unused_imports)]
 
+use crate::SiteTheme;
 use pax_kit::*;
+use paxflix::Paxflix;
 
 #[pax]
 #[file("home_page.pax")]
 pub struct HomePage {
+    pub demo_open: Property<bool>,
     pub hero_height: Property<f64>,
     pub framework_height: Property<f64>,
     pub authoring_height: Property<f64>,
@@ -20,6 +23,17 @@ pub struct HomePage {
 }
 
 impl HomePage {
+    pub fn close_demo(&mut self, _: &NodeContext, _: Event<ButtonClick>) {
+        self.demo_open.set(false);
+    }
+
+    pub fn demo_key_down(&mut self, _: &NodeContext, event: Event<KeyDown>) {
+        if self.demo_open.get() && event.keyboard.key == "Escape" {
+            self.demo_open.set(false);
+            event.prevent_default();
+        }
+    }
+
     pub fn handle_mount(&mut self, _ctx: &NodeContext) {
         let mut hero_sources = section_sources(
             "src/hero_section.pax",
@@ -120,12 +134,94 @@ impl HomePage {
             "framework_section.rs",
             include_str!("framework_section.rs"),
         ));
-        self.runtime_sources.set(section_sources(
+        let mut runtime_sources = section_sources(
             "runtime_section.pax",
             include_str!("runtime_section.pax"),
             "runtime_section.rs",
             include_str!("runtime_section.rs"),
+        );
+        runtime_sources.extend(section_sources(
+            "paxflix_showcase.pax",
+            include_str!("paxflix_showcase.pax"),
+            "paxflix_showcase.rs",
+            include_str!("paxflix_showcase.rs"),
         ));
+        runtime_sources.extend(section_sources(
+            "device_frame.pax",
+            include_str!("device_frame.pax"),
+            "device_frame.rs",
+            include_str!("device_frame.rs"),
+        ));
+        for (label, code) in [
+            (
+                "paxflix/lib.pax",
+                include_str!("../../examples/src/paxflix/src/lib.pax"),
+            ),
+            (
+                "paxflix/lib.rs",
+                include_str!("../../examples/src/paxflix/src/lib.rs"),
+            ),
+            (
+                "paxflix/theme.pax",
+                include_str!("../../examples/src/paxflix/src/theme.pax"),
+            ),
+            (
+                "paxflix/movie_shelf.pax",
+                include_str!("../../examples/src/paxflix/src/movie_shelf.pax"),
+            ),
+            (
+                "paxflix/movie_shelf.rs",
+                include_str!("../../examples/src/paxflix/src/movie_shelf.rs"),
+            ),
+            (
+                "paxflix/movie_card.pax",
+                include_str!("../../examples/src/paxflix/src/movie_card.pax"),
+            ),
+            (
+                "paxflix/movie_card.rs",
+                include_str!("../../examples/src/paxflix/src/movie_card.rs"),
+            ),
+            (
+                "paxflix/movie_detail.pax",
+                include_str!("../../examples/src/paxflix/src/movie_detail.pax"),
+            ),
+            (
+                "paxflix/movie_detail.rs",
+                include_str!("../../examples/src/paxflix/src/movie_detail.rs"),
+            ),
+            (
+                "paxflix/film_artwork.pax",
+                include_str!("../../examples/src/paxflix/src/film_artwork.pax"),
+            ),
+            (
+                "paxflix/film_artwork.rs",
+                include_str!("../../examples/src/paxflix/src/film_artwork.rs"),
+            ),
+            (
+                "paxflix/profile_menu.pax",
+                include_str!("../../examples/src/paxflix/src/profile_menu.pax"),
+            ),
+            (
+                "paxflix/profile_menu.rs",
+                include_str!("../../examples/src/paxflix/src/profile_menu.rs"),
+            ),
+            (
+                "paxflix/catalog.rs",
+                include_str!("../../examples/src/paxflix/src/catalog.rs"),
+            ),
+        ] {
+            runtime_sources.push(ExampleSource {
+                label: label.into(),
+                language: if label.ends_with(".rs") {
+                    "rust"
+                } else {
+                    "pax"
+                }
+                .into(),
+                code: code.into(),
+            });
+        }
+        self.runtime_sources.set(runtime_sources);
         self.feature_gallery_sources.set(vec![
             ExampleSource {
                 label: "feature_gallery/studies.pax".to_string(),
@@ -168,11 +264,7 @@ impl HomePage {
                 code: include_str!("feature_gallery/mod.rs").to_string(),
             },
         ]);
-        for sources in [
-            &self.framework_sources,
-            &self.authoring_sources,
-            &self.runtime_sources,
-        ] {
+        for sources in [&self.framework_sources, &self.authoring_sources] {
             sources.update(|files| {
                 files.extend(section_sources(
                     "device_frame.pax",

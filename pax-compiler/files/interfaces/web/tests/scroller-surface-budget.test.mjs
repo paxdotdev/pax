@@ -22,6 +22,7 @@ function harness(ios) {
         };
         candidates.set(id, {
             id, hosts, state: {}, surfaceCost, mandatory, distance,
+            visibleBounds: {left: 0, top: 0, right: distance === 0 ? 100 : 0, bottom: 100},
             parentId: mandatory ? undefined : 1, intent: 'active',
         });
     }
@@ -36,7 +37,7 @@ function harness(ios) {
         estimateWarmLayerCanvasCount: () => 1,
         surfaceRefreshPending: false,
     });
-    return {pool, candidates, cost: () => 1 + [...candidates.values()]
+    return {pool, candidates, prototype: module.exports.NativeElementPool.prototype, cost: () => 1 + [...candidates.values()]
         .filter(c => c.hosts.warmed).reduce((sum, c) => sum + c.surfaceCost, 0)};
 }
 
@@ -56,6 +57,7 @@ for (const ios of [false, true]) {
                 if (c.mandatory) continue;
                 c.distance = (atBottom ? c.id - 2 : 22 - c.id) * 345;
                 c.intent = c.distance < 1500 ? 'active' : 'cold';
+                c.visibleBounds.right = c.distance === 0 ? 100 : 0;
             }
             h.pool.syncWarmScrollerHosts();
             assert.ok(h.cost() <= 64);
@@ -64,3 +66,47 @@ for (const ios of [false, true]) {
         }
     });
 }
+
+test('visible nested shelves outrank closer warm-only candidates', () => {
+    const h = harness(false);
+    const visible = h.candidates.get(2);
+    visible.visibleBounds = {left: 0, top: 0, right: 100, bottom: 100};
+    visible.distance = 10000;
+    h.pool.syncWarmScrollerHosts();
+    assert.equal(visible.hosts.warmed, true);
+    assert.ok(h.cost() <= 64);
+});
+
+test('nested warm runways use presentation-space dimensions and visibility intersects ancestors', () => {
+    const h = harness(false);
+    const rect = (left, top, right, bottom) => ({left, top, right, bottom});
+    const states = new Map();
+    const hosts = new Map();
+    const records = new Map();
+    function add(id, parentId, bounds, localWidth, localHeight) {
+        hosts.set(id, {id, parentId, vectorIslandEnabled: true, leaf: {clientWidth: localWidth, clientHeight: localHeight}});
+        states.set(id, {isRootScroller: id === 1, lastWarmAt: -10000});
+        records.set(id, {presentedBounds: bounds, presentedClipBounds: rect(0, 0, 1000, 900)});
+    }
+    add(1, undefined, rect(0, 0, 1000, 900), 1000, 900);
+    add(2, 1, rect(100, 100, 600, 450), 1000, 700); // 0.5x embedding
+    add(3, 2, rect(100, 2200, 600, 2300), 1000, 200);
+    add(4, 2, rect(100, 200, 600, 300), 1000, 200);
+    add(5, 3, rect(100, 2200, 500, 2250), 800, 100);
+    Object.assign(h.pool, {
+        scrollerHosts: hosts, scrollerMeasurementStates: states,
+        getWarmthPresentationRecord: id => records.get(id),
+        getParentScrollerId: host => host.parentId,
+        estimateScrollerWarmSurfaceCost: () => 1,
+    });
+    const candidates = h.prototype.buildWarmScrollerCandidates.call(h.pool, 10000);
+    assert.equal(candidates.get(3).intent, 'prewarm', 'do not expand 700 local px as 700 screen px');
+    assert.equal(candidates.get(4).visibleBounds.top, 200);
+    assert.ok(candidates.get(5).visibleBounds.bottom <= candidates.get(5).visibleBounds.top);
+    for (const [width, height] of [[200, 150], [2000, 1400], [700, 1000]]) {
+        candidates.get(2).record.presentedBounds = rect(0, 0, width, height);
+        const base = h.pool.getWarmClipBaseForCandidate(candidates.get(4), candidates);
+        assert.equal(base.viewportWidth, width);
+        assert.equal(base.viewportHeight, height);
+    }
+});

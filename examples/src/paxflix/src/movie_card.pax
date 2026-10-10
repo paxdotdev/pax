@@ -5,8 +5,8 @@
 <Group anchor=0% width=100% height=100% @click=self.open @mouse_over=self.over @mouse_out=self.out
     @viewport_proximity_change=self.reveal @viewport_proximity_exit=self.reset_reveal>
     <Frame anchor=0% width=100% height=100% corner_radius=6>
-        <Text id=card_title class="card_title" anchor=0% y={100% - 70px} width={100% - 32px} height=40px text={movie.title}/>
-        <Text id=card_subtitle class="muted" anchor=0% y={100% - 24px} width={100% - 32px} height=18px
+        <Text class="card_title" id=card_title anchor=0% y={100% - 70px} width={100% - 32px} height=40px text={movie.title}/>
+        <Text class="muted" id=card_subtitle anchor=0% y={100% - 24px} width={100% - 32px} height=18px
             text={movie.year + "   ·   " + movie.runtime + "   ·   " + movie.rating}/>
         if hover {
             <Group anchor=0% x={100% - 40px} y=10px width=30px height=30px>
@@ -21,16 +21,39 @@
     </Frame>
 </Group>
 
+@settings {
+    @mount: on_mount
+    @unmount: on_unmount
+}
+
 @timeline reveal {
     duration: 100,
     playhead: {self.reveal_progress},
     loop: false,
     #card_title {
-        x: { 0%: 48px, 10%: 48px, OutQuad, 80%: 16px, 100%: 16px, },
-        opacity: { 0%: 0, 10%: 0, OutQuad, 80%: 1, 100%: 1, },
-    },
+        x: {
+            0%: 48px,
+            10%: 48px, OutQuad,
+            80%: 16px,
+            100%: 16px,
+        }
+        opacity: {
+            0%: 0,
+            10%: 0, OutQuad,
+            80%: 1,
+            100%: 1,
+        }
+    }
     #card_subtitle {
-        x: { 0%: 48px, 26%: 48px, OutQuad, 100%: 16px, },
-        opacity: { 0%: 0, 26%: 0, OutQuad, 100%: 1, },
-    },
+        x: {
+            0%: 48px,
+            26%: 48px, OutQuad,
+            100%: 16px,
+        }
+        opacity: {
+            0%: 0,
+            26%: 0, OutQuad,
+            100%: 1,
+        }
+    }
 }

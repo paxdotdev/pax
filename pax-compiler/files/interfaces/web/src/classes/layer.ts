@@ -102,6 +102,39 @@ export class Layer {
         this.canvasPlan = plan;
     }
 
+    canvasLayoutPriority() {
+        return this.visibleCanvasParent instanceof HTMLElement
+            && this.visibleCanvasParent.dataset.viewportVisible === "false" ? 1 : 0;
+    }
+
+    retireUnusedCanvases(): boolean {
+        if (this.canvasPlan == null) {
+            return false;
+        }
+        const expectedIds = new Set(this.canvasPlan.surfaces.map(surface => surface.id));
+        let retired = false;
+        this.canvases.forEach((canvas, id) => {
+            if (expectedIds.has(id)) {
+                return;
+            }
+            this.canvasMap?.delete(id);
+            this.prepareCanvasForRelease(canvas);
+            if (this.canvasPool) {
+                this.canvasPool.release(canvas);
+            } else {
+                canvas.parentElement?.removeChild(canvas);
+                this.objectManager.returnToPool(CANVAS, canvas);
+            }
+            this.canvases.delete(id);
+            retired = true;
+        });
+        if (retired) {
+            this.lastPlanSignature = undefined;
+            this.lastVisibleHost = undefined;
+        }
+        return retired;
+    }
+
     private debugPlan(event: string, plan: LayerCanvasPlan, extra: Record<string, unknown> = {}) {
         if (!tileDebugEnabled()) {
             return;
@@ -153,20 +186,21 @@ export class Layer {
         if (planSignature === this.lastPlanSignature && visibleHost === this.lastVisibleHost) {
             return;
         }
-        let expectedIds = new Set(plan.surfaces.map((descriptor) => descriptor.id));
+        this.retireUnusedCanvases();
         let missingSurface = false;
 
-        plan.surfaces.forEach((descriptor) => {
+        [...plan.surfaces].sort((a, b) => a.replayPriority - b.replayPriority).forEach((descriptor) => {
             let canvas = this.canvases.get(descriptor.id);
             if (canvas == null) {
                 if (this.canvasPool) {
-                    canvas = this.canvasPool.checkout();
-                    if (canvas == null) {
+                    const available = this.canvasPool.checkout();
+                    if (available == null) {
                         missingSurface = true;
                         return;
                     }
+                    canvas = available;
                 } else {
-                    canvas = this.objectManager.getFromPool(CANVAS);
+                    canvas = this.objectManager.getFromPool<HTMLCanvasElement>(CANVAS);
                 }
                 // A pooled element may return to the same logical tile after its
                 // backing store was cleared. DOM identity alone is not a lease.
@@ -183,26 +217,11 @@ export class Layer {
             }
         });
 
-        this.canvases.forEach((canvas, id) => {
-            if (expectedIds.has(id)) {
-                return;
-            }
-            this.canvasMap?.delete(id);
-            this.prepareCanvasForRelease(canvas);
-            if (this.canvasPool) {
-                this.canvasPool.release(canvas);
-            } else {
-                canvas.parentElement?.removeChild(canvas);
-                this.objectManager.returnToPool(CANVAS, canvas);
-            }
-            this.canvases.delete(id);
-        });
-
         if (missingSurface) {
             this.lastPlanSignature = undefined;
             this.lastVisibleHost = undefined;
             this.debugPlan("missing-surface", plan, {
-                expected: expectedIds.size,
+                expected: plan.surfaces.length,
             });
         } else {
             this.lastPlanSignature = planSignature;
@@ -290,7 +309,8 @@ export class Layer {
         plan.surfaces.forEach((descriptor) => {
             parts.push(
                 `${descriptor.id}|${descriptor.left},${descriptor.top},${descriptor.width},${descriptor.height}`
-                + `|${descriptor.surfaceSignature}|${descriptor.transformSignature}|${descriptor.hostSignature ?? ""}`,
+                + `|${descriptor.surfaceSignature}|${descriptor.transformSignature}|${descriptor.hostSignature ?? ""}`
+                + `|priority=${descriptor.replayPriority}`,
             );
         });
         return parts.join(";");

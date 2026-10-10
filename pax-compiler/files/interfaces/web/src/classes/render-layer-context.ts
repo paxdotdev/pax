@@ -369,12 +369,26 @@ export class RenderLayerManager {
         this.parent = undefined;
     }
 
-    syncLayerCanvasLayouts(planProvider?: (layerId: number) => LayerCanvasPlan | null | undefined) {
+    syncLayerCanvasLayouts(
+        planProvider?: (layerId: number) => LayerCanvasPlan | null | undefined,
+        onRetired?: (layerIds: number[]) => void,
+    ) {
+        const retired: number[] = [];
         this.layers?.forEach((layer, layerId) => {
             let plan = planProvider ? planProvider(layerId) ?? undefined : undefined;
             layer.setCanvasPlan(plan);
-            layer.syncCanvasLayout();
+            if (layer.retireUnusedCanvases()) {
+                retired.push(layerId);
+            }
         });
+        // Release the renderer's ownership before checkout, not merely the DOM
+        // assignment. In-flight initializers remain leased until they complete.
+        if (retired.length > 0) {
+            onRetired?.(retired);
+        }
+        [...(this.layers ?? [])]
+            .sort((a, b) => a.canvasLayoutPriority() - b.canvasLayoutPriority())
+            .forEach(layer => layer.syncCanvasLayout());
     }
 
     setRootPageScrollMode(active: boolean) {

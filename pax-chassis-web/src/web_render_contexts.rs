@@ -595,6 +595,29 @@ fn get_gpu_render_context(
             Some((target, resize_provider))
         })
     })
+    .with_layer_initialization_priority(move |layer| {
+        query_layer_canvases(&priority_document, layer)
+            .iter()
+            .map(|canvas| {
+                let offscreen = canvas.parent_element().is_some_and(|host| {
+                    host.get_attribute("data-viewport-visible").as_deref() == Some("false")
+                });
+                let tile_priority = canvas
+                    .get_attribute("data-replay-priority")
+                    .and_then(|value| value.parse::<i32>().ok())
+                    .unwrap_or(0)
+                    .max(0);
+                // An offscreen shelf can contain locally visible tiles. Its
+                // ancestor-aware visibility must outrank that local tile score.
+                if offscreen {
+                    tile_priority.saturating_add(1_000_000)
+                } else {
+                    tile_priority
+                }
+            })
+            .min()
+            .unwrap_or(i32::MAX)
+    })
 }
 
 async fn wait_for_canvas_layout_settle(window: &Window, document: &Document, layer: usize) {

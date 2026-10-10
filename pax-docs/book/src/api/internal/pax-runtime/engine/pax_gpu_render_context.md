@@ -78,6 +78,13 @@ Runtime `RenderContext` implementation backed by `pax-gpu`/wgpu.
 
 Create a renderer that lazily asks the chassis for layer backends.
 
+##### `with_layer_initialization_priority`
+<pre><code class="api-signature language-rust ignore">pub fn with_layer_initialization_priority(self, priority: impl Fn(usize) -&gt; i32 + &#39;static) -&gt; Self</code></pre>
+
+Prioritize queued layer creation using current chassis presentation state.
+Lower values start first; equal values retain FIFO order. This does not
+preempt in-flight work or increase the initialization concurrency limit.
+
 ## Enums
 ### `RenderLayerState`
 Lifecycle state for a lazily-created render layer.

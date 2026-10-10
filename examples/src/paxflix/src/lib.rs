@@ -17,6 +17,12 @@ pub use profile_menu::*;
 #[main]
 #[file("lib.pax")]
 pub struct Paxflix {
+    /// Let a host supply safe-area insets instead of reading the native window.
+    pub embedded: Property<bool>,
+    /// Embedded copies should leave global keyboard events to their host.
+    pub disable_keyboard: Property<bool>,
+    pub view_width: Property<f64>,
+    pub view_height: Property<f64>,
     // The default false value starts the app in dark mode.
     pub light_mode: Property<bool>,
     pub shelves: Property<Vec<Shelf>>,
@@ -47,6 +53,16 @@ impl Paxflix {
     }
 
     pub fn mount(&mut self, ctx: &NodeContext) {
+        let bounds = ctx.bounds_self.clone();
+        self.view_width.replace_with(Property::computed(
+            move || bounds.get().0,
+            &[ctx.bounds_self.untyped()],
+        ));
+        let bounds = ctx.bounds_self.clone();
+        self.view_height.replace_with(Property::computed(
+            move || bounds.get().1,
+            &[ctx.bounds_self.untyped()],
+        ));
         let bounds = ctx.bounds_self.clone();
         self.compact.replace_with(LocalProperty::computed(
             move || bounds.get().0 < 700.0,
@@ -119,6 +135,9 @@ impl Paxflix {
     }
 
     pub fn key_down(&mut self, _ctx: &NodeContext, event: Event<KeyDown>) {
+        if self.disable_keyboard.get() {
+            return;
+        }
         if self.modal_open.get() || self.profile_open.get() {
             if event.keyboard.key == "Escape" {
                 self.modal_open.set(false);
@@ -133,4 +152,6 @@ impl Paxflix {
 #[file("theme.pax")]
 pub struct CinemaTheme {
     pub is_dark: Property<bool>,
+    pub compact: Property<bool>,
+    pub short_landscape: Property<bool>,
 }

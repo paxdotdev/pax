@@ -64,6 +64,14 @@ test('unchanged surfaces do not request replay', () => {
     assert.deepEqual(h.sync(), []);
 });
 
+test('a warm tile becoming visible refreshes replay priority without changing its backing', () => {
+    const tile = canvas(2);
+    tile.dataset.replayPriority = '3';
+    const h = harness([['row', tile]]);
+    tile.dataset.replayPriority = '0';
+    assert.deepEqual(h.sync(), [2]);
+});
+
 test('a recycled canvas at the same tile address receives a fresh renderer', () => {
     const tile = canvas(2);
     tile.dataset.surfaceGeneration = '7';

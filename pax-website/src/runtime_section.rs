@@ -1,6 +1,6 @@
 #![allow(unused_imports)]
 
-use crate::{DeviceFrame, MaterialStudy, NativeScrollStudy, SiteTheme};
+use crate::{PaxflixShowcase, SiteTheme};
 use pax_kit::*;
 
 const COMPACT_BREAKPOINT_PX: f64 = 760.0;
@@ -10,6 +10,8 @@ const COMPACT_BREAKPOINT_PX: f64 = 760.0;
 pub struct RuntimeSection {
     pub content_height: Property<f64>,
     pub compact: Property<bool>,
+    pub showcase_height: Property<f64>,
+    pub demo_open: Property<bool>,
 }
 
 impl RuntimeSection {

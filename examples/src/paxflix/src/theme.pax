@@ -114,7 +114,7 @@
                 family: "Georgia"
                 weight: 700
             }
-            font_size: {$viewport.width < 700 ? 43px : 52px}
+            font_size: {self.compact ? 43px : 52px}
             fill: {self.is_dark ? rgb(247, 245, 242) : rgb(31, 29, 28)}
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Left
@@ -139,7 +139,7 @@
                 family: "Georgia"
                 weight: 700
             }
-            font_size: {($viewport.width > 650 && $viewport.height < 620) ? 26px : ($viewport.width < 700 ? 29px : 37px)}
+            font_size: {self.short_landscape ? 26px : (self.compact ? 29px : 37px)}
             fill: {self.is_dark ? rgb(247, 245, 242) : rgb(31, 29, 28)}
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Left

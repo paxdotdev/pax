@@ -1,21 +1,25 @@
 <ImportSettings transition=SettingsTransition::Ease(300ms, TransitionCurve::InOutQuad)>
-    <CinemaTheme is_dark={!light_mode}/>
+    <CinemaTheme is_dark={!light_mode} compact={compact}/>
 </ImportSettings>
-<DynamicIslandSpacer inset=bind:top_inset/>
-<DynamicIslandSpacer edge=SafeAreaEdge::Left inset=bind:safe_left/>
-<DynamicIslandSpacer edge=SafeAreaEdge::Right x=100% anchor_x=100% inset=bind:safe_right/>
-<DynamicIslandSpacer edge=SafeAreaEdge::Bottom y=100% anchor_y=100% inset=bind:safe_bottom/>
+if !embedded {
+    <DynamicIslandSpacer inset=bind:top_inset/>
+    <DynamicIslandSpacer edge=SafeAreaEdge::Left inset=bind:safe_left/>
+    <DynamicIslandSpacer edge=SafeAreaEdge::Right x=100% anchor_x=100% inset=bind:safe_right/>
+    <DynamicIslandSpacer edge=SafeAreaEdge::Bottom y=100% anchor_y=100% inset=bind:safe_bottom/>
+}
 <Group anchor=0% width=100% height=100%>
     if modal_open {
-        <MovieDetail x=50% y={50% + ((top_inset - safe_bottom) / 2)px} anchor=50% width={(Math::min(880, $viewport.width - 32 - 2 * Math::max(safe_left, safe_right)))px}
-            height={(Math::min(670, $viewport.height - top_inset - safe_bottom - 32))px} movie={selected} modal_open=bind:modal_open light_mode={light_mode}/>
+        <MovieDetail x=50% y={50% + ((top_inset - safe_bottom) / 2)px} anchor=50%
+            width={(Math::min(880, view_width - 32 - 2 * Math::max(safe_left, safe_right)))px}
+            height={(Math::min(670, view_height - top_inset - safe_bottom - 32))px} movie={selected} modal_open=bind:modal_open
+            light_mode={light_mode} view_width={view_width} view_height={view_height}/>
         <EventBlocker class="modal_backdrop" width=100% height=100% @click=self.close @in=@timeline {
             duration: 320ms,
             opacity: {
                 0: 0, InOutQuad,
                 100%: 1,
             }
-        } 
+        }
             @out=@timeline {
                 duration: 220ms,
                 opacity: {
@@ -25,7 +29,8 @@
             }/>
     }
     if profile_open {
-        <ProfileMenu anchor=0% x={100% - (gutter + 264)px} y={(top_inset + 60)px} width=264px open=bind:profile_open light_mode=bind:light_mode/>
+        <ProfileMenu anchor=0% x={100% - (gutter + 264)px} y={(top_inset + 60)px} width=264px open=bind:profile_open
+            light_mode=bind:light_mode/>
         <EventBlocker width=100% height=100% background=rgba(0, 0, 0, 0) @click=self.close_profile/>
     }
     <Group anchor=0% width=100% height={(top_inset + 68)px}>
@@ -33,18 +38,21 @@
         <Frame anchor=0% x={(gutter)px} y={(top_inset + 13)px} width=134px height=42px>
             <Image anchor=0% x=-9px y=-4px width=150px height=50px source={ImageSource::Url("assets/paxflix-logo.png")} fit=ImageFit::Fit/>
         </Frame>
-        <Group id=profile_toggle anchor=0% x={100% - (gutter + 32)px} y={(top_inset + 19)px} width=32px height=32px @click=self.toggle_profile @mouse_over=self.button_over @mouse_out=self.button_out>
+        <Group id=profile_toggle anchor=0% x={100% - (gutter + 32)px} y={(top_inset + 19)px} width=32px height=32px
+            @click=self.toggle_profile @mouse_over=self.button_over @mouse_out=self.button_out>
             <Text class="profile_text" anchor=0% width=100% height=100% text="P"/>
             <Rectangle class="profile_surface" anchor=0% width=100% height=100% corner_radius=8/>
         </Group>
         <Rectangle class="page_surface" anchor=0% width=100% height=100%/>
     </Group>
-    <Scroller anchor=0% id=catalog_page x=0px y={(top_inset + 68)px} width=100% height={100% - (top_inset + 68)px} scroll_width=100% 
+    <Scroller anchor=0% id=catalog_page x=0px y={(top_inset + 68)px} width=100% height={100% - (top_inset + 68)px} scroll_width=100%
         scroll_height={(hero_height + row_height * shelf_count + 128 + safe_bottom)px} scroll_pos_y=bind:scroll_y>
         <Group anchor=0% width=100% height={(hero_height + row_height * shelf_count + 128 + safe_bottom)px}>
             for shelf in shelves {
-                <MovieShelf anchor=0% y={(hero_height + 20 + shelf.id * row_height)px} width=100% height={(row_height)px} shelf={shelf} 
-                    selected_id=bind:selected_id modal_open=bind:modal_open card_width={card_width} gutter={gutter} light_mode={light_mode}/>
+                <MovieShelf anchor=0% y={(hero_height + 20 + shelf.id * row_height)px} width=100% height={(row_height)px} shelf={shelf}
+                    selected_id=bind:selected_id modal_open=bind:modal_open card_width={card_width} gutter={gutter} light_mode={light_mode}
+                    catalog_y={hero_height + 20 + shelf.id * row_height} catalog_scroll_y={scroll_y}
+                    catalog_viewport_height={view_height - top_inset - 68}/>
             }
             <Text class="muted" anchor=0% x={(gutter)px} y={(hero_height + row_height * shelf_count + 40)px} width={100% - (gutter * 2)px}
                 height=32px text="Paxflix  /  Original stories. An imaginary cinema. Built with Pax."/>
@@ -53,23 +61,25 @@
                     <Text class="eyebrow" anchor=0% width=100% height=20px text="Paxflix ORIGINAL"/>
                     <Text class="hero_title" anchor=0% y=30px width=100% height=60px text="THE LAST"/>
                     <Text class="hero_title" anchor=0% y={compact ? 78px : 88px} width=100% height=60px text="SIGNAL"/>
-                    <Text class="label" anchor=0% y={compact ? 140px : 160px} width=100% height=24px 
+                    <Text class="label" anchor=0% y={compact ? 140px : 160px} width=100% height=24px
                         text="2026    ·    PG-13    ·    2h 08m    ·    Sci-fi"/>
-                    <Text class="hero_copy" anchor=0% y={compact ? 178px : 198px} width={compact ? (Math::min(282, $viewport.width - 40))px : 425px} height=58px
-                        text="A message from tomorrow. One night to change everything."/>
-                    <Group anchor=0% y={compact ? 246px : 268px} width=132px height=44px @click=self.open_feature @mouse_over=self.button_over @mouse_out=self.button_out>
+                    <Text class="hero_copy" anchor=0% y={compact ? 178px : 198px} width={compact ? (Math::min(282, view_width - 40))px : 425px}
+                        height=58px text="A message from tomorrow. One night to change everything."/>
+                    <Group anchor=0% y={compact ? 246px : 268px} width=132px height=44px @click=self.open_feature @mouse_over=self.button_over
+                        @mouse_out=self.button_out>
                         <Text class="primary_text" anchor=0% width=100% height=100% text="Play film"/>
                         <Rectangle class="primary_surface" anchor=0% width=100% height=100% corner_radius=5/>
                     </Group>
-                    <Group anchor=0% x=144px y={compact ? 246px : 268px} width=138px height=44px @click=self.open_feature @mouse_over=self.button_over @mouse_out=self.button_out>
+                    <Group anchor=0% x=144px y={compact ? 246px : 268px} width=138px height=44px @click=self.open_feature
+                        @mouse_over=self.button_over @mouse_out=self.button_out>
                         <Text class="button_text" anchor=0% width=100% height=100% text="+   More info"/>
                         <Rectangle class="secondary_surface" anchor=0% width=100% height=100% corner_radius=5/>
                     </Group>
                 </Group>
                 <Rectangle class="hero_glow" anchor=0% width=100% height=100%/>
                 // Keep the text scrim tied to the copy width, not the whole landscape viewport.
-                <Rectangle class="hero_scrim" anchor=0% width={(Math::min($viewport.width, gutter + 720))px} height=100%/>
-                <FilmArtwork anchor=0% width=100% height=100% still="assets/stills/the-last-signal.jpg" 
+                <Rectangle class="hero_scrim" anchor=0% width={(Math::min(view_width, gutter + 720))px} height=100%/>
+                <FilmArtwork anchor=0% width=100% height=100% still="assets/stills/the-last-signal.jpg"
                     thumbnail="assets/thumbs/the-last-signal-thumb.jpg" light_mode={light_mode}/>
             </Group>
         </Group>

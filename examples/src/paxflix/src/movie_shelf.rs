@@ -55,6 +55,18 @@ pub struct MovieShelf {
     pub gutter: Property<f64>,
     pub scroll_x: Property<f64>,
     pub entrances: Property<Vec<CardEntrance>>,
+    pub loaded: Property<bool>,
+    pub catalog_y: Property<f64>,
+    pub catalog_scroll_y: Property<f64>,
+    pub catalog_viewport_height: Property<f64>,
+}
+
+// Use catalog-local coordinates: an embedding Frame deliberately keeps global
+// proximity strict, so it cannot provide an offscreen preparation runway.
+fn should_prepare_row(top: f64, height: f64, scroll: f64, viewport: f64) -> bool {
+    viewport > 0.0
+        && top < scroll.max(0.0) + viewport * 2.0
+        && top + height > scroll.max(0.0) - viewport
 }
 
 impl MovieShelf {
@@ -67,6 +79,28 @@ impl MovieShelf {
     }
 
     pub fn on_mount(&mut self, ctx: &NodeContext) {
+        let top = self.catalog_y.clone();
+        let scroll = self.catalog_scroll_y.clone();
+        let viewport = self.catalog_viewport_height.clone();
+        let bounds = ctx.bounds_self.clone();
+        let loaded = self.loaded.clone();
+        ctx.subscribe(
+            &[
+                top.untyped(),
+                scroll.untyped(),
+                viewport.untyped(),
+                bounds.untyped(),
+            ],
+            move || {
+                if !loaded.get()
+                    && should_prepare_row(top.get(), bounds.get().1, scroll.get(), viewport.get())
+                {
+                    // Mount one local viewport ahead/behind and retain visited
+                    // rows, including their image loads and horizontal position.
+                    loaded.set(true);
+                }
+            },
+        );
         let entrances = self.entrances.clone();
         let now = ctx.elapsed_millis.clone();
         ctx.subscribe(&[entrances.untyped()], move || {
@@ -113,6 +147,25 @@ impl MovieShelf {
 #[cfg(test)]
 mod entrance_tests {
     use super::*;
+
+    #[test]
+    fn rows_prepare_before_entering_a_clipped_embedded_viewport() {
+        assert!(should_prepare_row(900.0, 345.0, 0.0, 700.0));
+        assert!(!should_prepare_row(1500.0, 345.0, 0.0, 700.0));
+        assert!(should_prepare_row(1500.0, 345.0, 300.0, 700.0));
+        assert!(should_prepare_row(900.0, 345.0, 1700.0, 700.0));
+        assert!(!should_prepare_row(900.0, 345.0, 2000.0, 700.0));
+        assert!(!should_prepare_row(0.0, 345.0, 0.0, 0.0));
+        assert!(should_prepare_row(374.0, 303.0, -50.0, 712.0));
+    }
+
+    #[test]
+    fn entrance_subscriptions_and_cleanup_are_wired_to_lifecycle_events() {
+        assert!(include_str!("movie_shelf.pax").contains("@mount: on_mount"));
+        let card = include_str!("movie_card.pax");
+        assert!(card.contains("@mount: on_mount"));
+        assert!(card.contains("@unmount: on_unmount"));
+    }
 
     fn request(index: usize, at: u64) -> CardEntrance {
         CardEntrance {

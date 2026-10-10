@@ -58,6 +58,12 @@ tree to that size. A direct child at `height=100%` still receives the
 viewport-height layout frame. The explicit 720-pixel Group above gives its
 descendants a content-sized coordinate space.
 
+These dimensions and offsets are in the Scroller's local, unscaled coordinates.
+For example, putting the 240/720-pixel example inside a `scale=50%` Group
+halves its on-screen size, but its vertical scroll range remains 480 local
+pixels. On web, the declared content pane bounds browser scrollable overflow;
+transformed native overlays do not add empty travel beyond that extent.
+
 Scroller does not paint a background. Place painted content inside it, or a
 background sibling behind it, depending on which should move. Earlier Pax
 siblings appear in front; that is why each note's Text precedes its Rectangle.
@@ -620,15 +626,23 @@ to a different scroller host uses a fresh assignment; an old row's retained pixe
 must never be exposed in the new host. Reuse is governed by ownership, not a delay.
 
 Browser scrollers share a bounded canvas pool. In both desktop and mobile browsers,
-the retained warm set uses that same budget: nearby scrollers take priority over
-distant rows, and the root surface and required ancestor scrollers reserve space
-first. Scrolling through a long collection can release distant drawing surfaces
+the retained warm set uses that same budget: scrollers visible through their
+ancestor viewports take priority over offscreen preparation, and the root surface
+and required ancestor scrollers reserve space first. Warm distances use transformed
+presentation bounds, so scaling an embedded app does not mix local dimensions
+with screen-space distances. Obsolete canvas assignments across layers retire
+before replacement allocation; GPU ownership must still finish before reuse.
+Scrolling through a long collection can release distant drawing surfaces
 and recreate them on return. This does not unmount application components or defer
 image decoding. The pool size and warm distances are implementation details, not
 viewport lifecycle thresholds or a bound on all application memory.
 
 WebGPU initialization is asynchronous. Existing tiles remain usable while
 additions initialize, and results for removed or replaced surfaces are discarded.
+Queued browser initialization prioritizes currently visible scroller hosts over
+offscreen hosts, reevaluating priorities as initialization slots open. It does not
+cancel initialization already in flight or guarantee that an abrupt jump cannot
+expose an unfinished tile.
 If an addition fails, survivors remain usable; another attempt waits for a layout
 change. New tiles still incur surface allocation and first-draw costs. Sibling
 tiles using the same GPU context share immutable image textures by image identity,
@@ -694,8 +708,10 @@ the cards cross the fixed layout gutters and clip only at the viewport edges.
 Card titles and metadata sit over a dense lower image gradient that follows
 the selected dark or light theme.
 Each card observes a fixed wrapper through `@viewport_proximity_change` and
-fades its contents in while scaling from 96% to 100% over 420 ms at the first
-visible sample. There is no exit animation. `@viewport_proximity_exit` rearms
+slides and fades its title and metadata over a 480 ms timeline at the first
+visible sample; the artwork stays still and opaque. The shelf staggers nearby
+arrivals by 80 ms, with no more than 240 ms of added delay. There is no exit
+animation. `@viewport_proximity_exit` rearms
 the entrance only after a full departure from proximity, so small reversals
 at a viewport edge do not restart it. This animation does not defer image
 initialization or unmount the card.
@@ -706,8 +722,14 @@ wheel or touch input cancels that animation so direct scrolling takes over.
 
 Run it with `pax-cli run --path examples/src/paxflix --target web`. The example's
 README documents the asset inventory and a repeatable culling/interaction check.
-All 210 cards participate in tree expansion: use it to inspect viewport-aware
-drawing and asset reuse, not as an example of list virtualization.
+Each shelf defers its ten card trees until it is within one catalog-local
+viewport ahead of or behind the visible range, then retains them. This uses the
+catalog's bound scroll position and local height rather than global proximity:
+an embedding device Frame is a hard clip and would remove the offscreen
+preparation region. Card entrance animations still use visible proximity
+samples. Initial mounting therefore avoids expanding the entire catalog,
+but visiting every shelf can still retain all 210 cards. This is first-visit
+lazy mounting, not list virtualization or offscreen eviction.
 
 ## Read more
 

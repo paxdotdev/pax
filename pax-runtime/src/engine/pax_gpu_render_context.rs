@@ -481,6 +481,22 @@ impl LayerInitialization {
     }
 }
 
+fn pop_next_layer_initialization(
+    queue: &RefCell<VecDeque<Rc<LayerInitialization>>>,
+    priority: &dyn Fn(usize) -> i32,
+) -> Option<Rc<LayerInitialization>> {
+    let mut queue = queue.borrow_mut();
+    queue.retain(|entry| !entry.cancelled.get());
+    // Re-evaluate when a slot opens: native scrolling can make queued warm work
+    // visible while another layer is awaiting GPU initialization. Ties stay FIFO.
+    let index = queue
+        .iter()
+        .enumerate()
+        .min_by_key(|(index, entry)| (priority(entry.index), *index))
+        .map(|(index, _)| index)?;
+    queue.remove(index)
+}
+
 fn pump_layer_initialization_queue(
     factory: Rc<LayerFactory>,
     backends: Rc<RefCell<Vec<RenderLayerState>>>,
@@ -488,9 +504,10 @@ fn pump_layer_initialization_queue(
     in_flight: Rc<Cell<usize>>,
     ready_layers: Rc<RefCell<Vec<usize>>>,
     changed_layers: Rc<RefCell<Vec<usize>>>,
+    priority: Rc<dyn Fn(usize) -> i32>,
 ) {
     while in_flight.get() < MAX_CONCURRENT_LAYER_INITIALIZATIONS {
-        let next_layer = queue.borrow_mut().pop_front();
+        let next_layer = pop_next_layer_initialization(&queue, priority.as_ref());
         let Some(initialization) = next_layer else {
             break;
         };
@@ -511,6 +528,7 @@ fn pump_layer_initialization_queue(
         let in_flight_count = Rc::clone(&in_flight);
         let ready_layers = Rc::clone(&ready_layers);
         let changed_layers = Rc::clone(&changed_layers);
+        let priority = Rc::clone(&priority);
 
         let task = async move {
             let should_requeue = if initialization.cancelled.get() {
@@ -541,6 +559,7 @@ fn pump_layer_initialization_queue(
                 in_flight_count,
                 ready_layers,
                 changed_layers,
+                priority,
             );
         };
         #[cfg(target_arch = "wasm32")]
@@ -555,6 +574,7 @@ pub struct PaxGpuRenderer {
     #[cfg(test)]
     flushed_surfaces: RefCell<Vec<(usize, usize, ResourceChurnStats)>>,
     layer_factory: Rc<LayerFactory>,
+    layer_initialization_priority: Rc<dyn Fn(usize) -> i32>,
     changed_layers: Rc<RefCell<Vec<usize>>>,
     image_map: HashMap<String, Image>,
     image_versions: HashMap<String, u64>,
@@ -602,6 +622,7 @@ impl PaxGpuRenderer {
             #[cfg(test)]
             flushed_surfaces: Default::default(),
             layer_factory: Rc::new(layer_factory),
+            layer_initialization_priority: Rc::new(|_| 0),
             changed_layers: Default::default(),
             image_map: Default::default(),
             image_versions: Default::default(),
@@ -626,6 +647,17 @@ impl PaxGpuRenderer {
 }
 
 impl PaxGpuRenderer {
+    /// Prioritize queued layer creation using current chassis presentation state.
+    /// Lower values start first; equal values retain FIFO order. This does not
+    /// preempt in-flight work or increase the initialization concurrency limit.
+    pub fn with_layer_initialization_priority(
+        mut self,
+        priority: impl Fn(usize) -> i32 + 'static,
+    ) -> Self {
+        self.layer_initialization_priority = Rc::new(priority);
+        self
+    }
+
     fn queue_layer_initialization(&self, layer_index: usize) {
         let initialization = &self.layer_initializations[layer_index];
         if !initialization.scheduled.replace(true) {
@@ -1079,6 +1111,7 @@ impl PaxGpuRenderer {
             Rc::clone(&self.layer_initializations_in_flight),
             Rc::clone(&self.ready_layers),
             Rc::clone(&self.changed_layers),
+            Rc::clone(&self.layer_initialization_priority),
         );
     }
 
@@ -2653,6 +2686,7 @@ mod tests {
             Rc::clone(&in_flight),
             Rc::clone(&ready),
             changed,
+            Rc::new(|_| 0),
         );
         assert_eq!(calls.get(), 2);
         assert_eq!(*ready.borrow(), vec![0]);
@@ -2661,6 +2695,42 @@ mod tests {
         assert!(!replacement.scheduled.get());
         assert!(queue.borrow().is_empty());
         assert_eq!(in_flight.get(), 0);
+    }
+
+    #[test]
+    fn initialization_priority_tracks_visibility_and_keeps_fifo_ties() {
+        let queue = RefCell::new(VecDeque::from_iter(
+            (0..5).map(|index| Rc::new(LayerInitialization::new(index))),
+        ));
+        queue.borrow()[2].cancelled.set(true);
+        let visible = Cell::new(3);
+        let priority = |layer| if layer == visible.get() { 0 } else { 1 };
+        assert_eq!(
+            pop_next_layer_initialization(&queue, &priority)
+                .unwrap()
+                .index,
+            3
+        );
+        visible.set(4);
+        assert_eq!(
+            pop_next_layer_initialization(&queue, &priority)
+                .unwrap()
+                .index,
+            4
+        );
+        assert_eq!(
+            pop_next_layer_initialization(&queue, &priority)
+                .unwrap()
+                .index,
+            0
+        );
+        assert_eq!(
+            pop_next_layer_initialization(&queue, &priority)
+                .unwrap()
+                .index,
+            1
+        );
+        assert!(pop_next_layer_initialization(&queue, &priority).is_none());
     }
 
     #[test]
@@ -2688,6 +2758,7 @@ mod tests {
             Rc::new(Cell::new(0)),
             Rc::clone(&ready),
             Rc::new(RefCell::new(Vec::new())),
+            Rc::new(|_| 0),
         );
         let states = states.borrow();
         let RenderLayerState::Ready((target, _)) = &states[0] else {

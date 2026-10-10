@@ -1,8 +1,33 @@
+if self.demo_open {
+    <Group id=demo_overlay y={100% - ($viewport.height)px} anchor_y=0% width=100% height={($viewport.height)px} layout_role=LayoutRole::Breakout>
+        <Button x={100% - 12px} y=8px anchor_x=100% width=140px height=36px label="× Close demo" color={SiteTheme::surface()}
+            hover_color={SiteTheme::rule()} corner_radius=0 style={
+                font_size: 14px
+                fill: {SiteTheme::paper()}
+                align_horizontal: TextAlignHorizontal::Center
+                align_vertical: TextAlignVertical::Center
+            }
+            @button_click=self.close_demo/>
+        <Text x=16px y=8px width={100% - 180px} height=36px text="PAXFLIX / LIVE DEMO" style={
+            font_size: 12px
+            fill: {SiteTheme::paper()}
+            align_vertical: TextAlignVertical::Center
+        }/>
+        <Frame y=52px width=100% height={100% - 52px}>
+            <Paxflix width=100% height=100% embedded=true disable_keyboard=true/>
+        </Frame>
+        <EventBlocker width=100% height=100% background={SiteTheme::ink()}/>
+    </Group>
+}
 <Scroller width=100% height=100% autosize=true>
     <Stacker width=100% autosize=true direction=StackerDirection::Vertical gutter=0px>
         <ExampleHost width=100% height={(Math::max(580, self.hero_height))px} title="A declarative language" sources={self.hero_sources}
             drawer_open=false>
             <HeroSection content_height=bind:self.hero_height/>
+        </ExampleHost>
+        <ExampleHost width=100% height={(Math::max(790, self.runtime_height))px} title="Native and web" sources={self.runtime_sources}
+            drawer_open=false>
+            <RuntimeSection content_height=bind:self.runtime_height demo_open=bind:self.demo_open/>
         </ExampleHost>
         <ExampleHost width=100% height={(Math::max(640, self.framework_height))px} title="Creative freedom" sources={self.framework_sources}
             drawer_open=false>
@@ -11,10 +36,6 @@
         <ExampleHost width=100% height={(Math::max(900, self.authoring_height))px} title="The language and the logic"
             sources={self.authoring_sources} drawer_open=false>
             <AuthoringSection content_height=bind:self.authoring_height/>
-        </ExampleHost>
-        <ExampleHost width=100% height={(Math::max(790, self.runtime_height))px} title="Native and web" sources={self.runtime_sources}
-            drawer_open=false>
-            <RuntimeSection content_height=bind:self.runtime_height/>
         </ExampleHost>
         <ExampleHost width=100% height={(Math::max(760, self.gallery_height))px} title="Meet your creative toolkit"
             sources={self.feature_gallery_sources} drawer_open=false>
@@ -29,4 +50,5 @@
 
 @settings {
     @mount: handle_mount
+    @key_down: demo_key_down
 }

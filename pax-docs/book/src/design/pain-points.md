@@ -46,6 +46,24 @@ display-link setup does not retry that startup failure automatically.
   dev-look captures also showed native buttons/sliders duplicated at old positions
   while the live browser remained correct.
 
+## 2026-10-01 — Warm admission and canvas turnover are separate budgets
+
+The two scaled Paxflix embeds exposed intermittent black rows even after fixing
+scroll extents and mounting cards ahead of view. At native 2x density, diagnostics
+recorded checkouts against all 64 allocated canvases, plus delayed first draws.
+Warm admission compared screen-space bounds against unscaled viewport sizes, and
+canvas reconciliation requested replacements before retiring other layers' tiles.
+
+Use presentation-space sizes consistently, distinguish actual ancestor-clipped
+visibility from an offscreen warm runway, and retire obsolete assignments across
+all layers before allocating. Refresh retired layers synchronously so their GPU
+owners can release; do not remove the lease guard for asynchronous initializers.
+Visible hosts get allocation and queued-initialization priority, with FIFO ties
+and current visibility sampled when a slot opens. Preserve survivor canvases and
+screen-density backing stores. Verify first draw during scrolling, not just a
+settled screenshot; application tree mounting and image work can still stall a
+frame independently of canvas admission.
+
 ## 2026-09-29 — Small live studies inside a virtualized gallery
 
 A nested Rust component imported as `use paint_demo::FeaturePaintDemo` passed
@@ -98,6 +116,38 @@ the shared designtime-aware runtime/engine fixture constructors. A default-only
 test run would miss the latter integration issue.
 
 ## 2026-09-29 — Embedding a complete example without a second runtime
+
+Paxflix exposed a related composition trap: a root component can use local
+bounds for its main layout while detail dialogs and theme font sizes still use
+`$viewport`. Two device previews then disagree with their visible containers.
+Bind the app's logical width/height from `ctx.bounds_self`, pass those values to
+its detail panel, and pass explicit responsive flags into its settings provider.
+Keep mock safe-area ownership and global keyboard opt-out explicit, as below.
+The current static analyzer collects the root project's `assets/`; a Cargo
+dependency alone does not bring its media. A repo-relative asset symlink provides
+one source inventory for the website and standalone example; the web builder
+copies it into normal deployment files. Preserve symlinks when checking out the
+monorepo, and audit path collisions before adding another image-heavy example.
+
+Do not assume a Rust method named `on_mount` runs automatically. Paxflix's
+shelf/card subscription methods existed, but their templates omitted `@mount`
+bindings, leaving the scheduled titles invisible. Wire lifecycle setup and
+cleanup explicitly, and include a live visual check beyond scheduler unit tests.
+For a large embedded catalog, keep shelf footprints fixed and conditionally
+mount each shelf's card subtree with a preparation buffer in the catalog's
+local scroll coordinates; retain it after the first visit to preserve state.
+Global proximity is not an offscreen prefetch API through hard Frames: the
+device clip truncates its expanded region. Use the local scroll offset and
+viewport height to prepare rows before they enter that clip. This reduces
+initial scene expansion without claiming full virtualization or bounded
+retained memory.
+
+Browser-native overlay hosts cancel their Scroller's world transform. Under
+downscaling, their inverse-scaled boxes can inflate CSS scrollable overflow
+even when the Pax content extent is correct. Bound that overflow at the
+untransformed inner pane with `overflow: clip`, preserving the explicit pane
+size and the outer native scrolling element. Do not compensate in application
+scroll dimensions or add paint containment to nested canvas hosts.
 
 Expose the calculator as a normal component and keep a thin standalone root;
 a Cargo path dependency lets the website reuse its actual source, model, and
