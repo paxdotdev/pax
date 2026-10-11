@@ -51,7 +51,7 @@ scroll positions, open dialogs, and appearance independently.
 
 ```pax
 <Paxflix width=100% height=100% embedded=true top_inset=48 safe_bottom=24
-    disable_keyboard=true/>
+    disable_keyboard=true disable_card_entrances=true/>
 ```
 
 `embedded=true` leaves safe-area values to the host instead of mounting native
@@ -60,15 +60,26 @@ a page: Pax keyboard events are global, so this leaves Escape and other keys to
 the host; each instance's close and backdrop controls still work. Standalone
 defaults and native safe-area behavior are unchanged.
 
+`disable_card_entrances=true` shows titles and metadata immediately at their final
+position and opacity. The optional per-card proximity observers and per-shelf
+entrance scheduling subscriptions are not mounted in this mode. It does not
+disable scrolling, hover, dialogs, or image preparation. The default is `false`,
+so the standalone example retains its staggered text entrances. Changing the
+option dynamically mounts/unmounts only those animation helpers, not the cards.
+
 Each instance mounts all 210 card trees with its shelves. Scroll preparation
 only governs rendering resources, not application lifecycle; there is no
 first-visit row-mount gate. Two embedded instances therefore mount 420 cards.
 This intentionally separates startup cost from tile and image readiness during
-scrolling. Card and shelf mount subscriptions remain explicitly wired so the
-scheduled text entrances run normally.
+scrolling. In animated mode, helper components own the mount subscriptions and
+proximity bindings for scheduled text entrances.
 
 The website uses two live instances, inside scaled tablet and phone frames,
-and mounts them on viewport approach. It imports the source directly and links
+and mounts them with the page, with card entrances disabled. The calculator also
+mounts with the page; proximity only pauses its recurring offscreen work. These
+hosts no longer defer application lifecycle work until viewport approach. This
+can increase startup work; it is not a runtime lazy-init implementation.
+The website imports the source directly and links
 `pax-website/assets` to this example's assets, so artwork is not duplicated in
 source control. The built web output contains ordinary copied assets.
 
@@ -81,7 +92,7 @@ controls and rounded clips are authored in Pax; none is baked into the stills.
 The navigation logo is a transparent PNG with the same peach lettering in both
 modes.
 
-Movie cards use viewport proximity events to request a 480 ms entrance timeline
+By default, movie cards use viewport proximity events to request a 480 ms entrance timeline
 at the first sampled positive viewport overlap, with no visible-area threshold.
 The thumbnail stays fully opaque in its resting position beneath the stationary
 bottom gradient. Only the text animates: the title starts 48 ms into the timeline

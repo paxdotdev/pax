@@ -237,6 +237,12 @@ Starting an untracked thread does not give it automatic cancellation or a node
 lifetime. A retained shared value can outlive its view; unmount detaches the
 view's graph connections. Publishing that retained value cannot remount it.
 
+When the last shared owner disappears (even on a worker), the graph is notified
+to release its local binding at the next UI import boundary. Suspended bindings
+also retire when their retained local view disappears. Cleanup follows those
+lifetime notifications rather than scanning every live property on each import;
+it does not defer component mounting or evaluate discarded UI computations.
+
 Use `LocalProperty<T>` for `Rc`/node values and local computations. It and its
 untyped dependency handles cannot cross threads, even inside `Arc<Mutex<_>>`.
 A local `get` evaluates dirty dependencies before returning. Its `read` closure

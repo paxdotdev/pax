@@ -319,6 +319,10 @@ The provider can expose reactive properties of its own. Expressions in its
 settings use that provider's `self` and state, so a shared palette can change
 reactively. Stable imports reuse their provider layers on unchanged frames;
 provider-property updates continue through the existing reactive bindings.
+Import discovery subscribes to the tree's structural inputs rather than
+traversing it every tick. Conditional imports, provider order changes, and
+template reloads refresh those subscriptions and settings before rendering;
+ordinary palette-value changes do not rediscover the provider tree.
 See [Drawing and Styling](drawing-styling.md) for visual design
 choices and [PAXEL's `$base`](data-binding-expressions.md#base) for building on
 an earlier property value.

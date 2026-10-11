@@ -205,6 +205,12 @@ In `src/lib.pax`:
 Use plain numbers for these offsets: `480.0`, rather than `480px`. Their Rust
 type is `f64`; the extent properties use `Size` and accept `px` or `%`.
 
+On web, native position observations update the bound properties and render state without
+commanding the host to scroll back to that sampled position. An application write
+after an observation is still a scroll command, including during a gesture. This
+distinction applies independently to each axis and to nested scrollers as well as
+the page scroller; it avoids stale position echoes interrupting native momentum.
+
 The example's 480-pixel destination comes from its known dimensions. For a
 responsive document, derive destinations from current layout and content,
 and keep them within the available travel. Content shrinkage and viewport
@@ -704,6 +710,17 @@ into a larger diagonal/nested region. Offscreen children inherit only the
 exposure their ancestors can reveal. The margin is independent of tile size,
 so stopping exactly at a tile boundary does not remove first-scroll coverage.
 
+After movement identifies an axis, its currently exposed scroller also requests
+one local viewport of **reverse coverage** opposite its last direction. Unlike
+retention, this can initialize missing tiles. It persists through pauses and
+switches sides on the next observed reversal. Hidden descendants inherit the
+parent's reverse exposure, not an additional warm window on their own axes.
+Admission funds this buffer after visible demand but before forward speculation,
+within the same canvas and pixel limits. Execution still completes visible work
+and predicted incoming tiles before replenishing reverse coverage. This separates
+space reserved for reversibility from the order of drawing work; overload or
+insufficient preparation time can still leave the requested buffer incomplete.
+
 Near already-submitted tiles remain eligible within a one-viewport retention
 margin through pauses and reversals. Retention starts no new work and has lower
 priority than visible, predicted-forward, and safety coverage. It yields under
@@ -727,8 +744,8 @@ Unchanged observations across a long idle sampling gap preserve this remembered
 direction without refreshing urgent motion. Reversal immediately switches the
 reserve direction, and new moving branches precede paused reserves.
 An offscreen child inherits the ancestor's exposure,
-not additional independent-axis overscan. The opposite direction retains the
-ordinary smaller safety/retention margins. These are capacity-limited candidate
+not additional independent-axis overscan. The opposite direction uses the
+one-viewport reverse buffer rather than the six-viewport forward reserve. These are capacity-limited candidate
 windows, not a promise that all six viewports are already rendered. Abrupt jumps
 outside ready coverage can still reveal unfinished content.
 All optional work remains subject to the existing global budgets.
@@ -770,9 +787,11 @@ GPU memory**: textures, attachments, and caches cost more.
 
 WebGPU initialization can wait asynchronously for a device. When the shared
 device is already ready, eligible additions can initialize during queue servicing
-without waiting for another microtask. Immediate creation is capped at four
-attempts per queue service; remaining work is revisited during subsequent
-layout/presentation passes. Existing tiles remain usable while additions
+without waiting for another microtask. Cold-content preparation admits creation
+one unit at a time under the cooperative allowance described below; the legacy
+web initialization path permits up to four attempts per queue service.
+Remaining work is revisited during subsequent layout/presentation passes.
+Existing tiles remain usable while additions
 initialize, and results for removed or replaced surfaces are discarded.
 The host publishes an installed plan after retirement and allocation; pending
 allocations are not initialized targets. Browser initialization consumes the same
@@ -783,8 +802,13 @@ is also reranked on plan changes; work for removed assignments is discarded.
 A tile does not retain priority merely because it was previously visible or
 missed a predicted exposure time.
 Visible replay precedes speculative replay across layers. Priority changes do
-not change surface identity. This does not
-cancel initialization already in flight or guarantee that an abrupt jump cannot
+not change surface identity. For WebGPU cold-content preparation, the same
+ordering spans initialization and drawing: collecting completed surfaces does
+not start more creation. A runnable visible tile continues through capture and
+submission before speculative initialization, and already-ready visible work
+wins ties with new visible creation. Work is selected again from current demand
+after each unit; a blocked tile does not prevent eligible siblings progressing.
+This does not cancel initialization already in flight or guarantee that an abrupt jump cannot
 expose an unfinished tile.
 
 WebGPU also uses that ordering for cold first drawing. Missing vector/image
@@ -797,17 +821,35 @@ tile is cold. This does not defer component mounting or lifecycle handlers.
 
 The shared runtime gives these preparation passes a cooperative 4ms CPU
 allowance: it stops starting more work based on elapsed time and recent cost,
-while allowing one eligible unit to make progress. A primitive capture or tile
-submission is atomic and can overrun the allowance. If commands cannot fit in
+while allowing one eligible unit to make progress. The synchronous portion of
+one surface initialization, a primitive capture, or a tile submission is atomic
+and can overrun the allowance. Async initialization retains its existing slot
+and completion safety checks, then wakes presentation rather than recursively
+starting speculative initialization. If commands cannot fit in
 the bounded cache, an atomic direct draw of the selected tile preserves
 correctness instead of retrying forever. Ordinary scene updates, browser image
-decoding, and GPU initialization are not covered by this allowance. Preparation
+decoding, and asynchronously awaited GPU/device work are not covered by this allowance. Preparation
 reselects the next eligible batch after each submission, using the remaining
 allowance rather than stopping after one batch per layer. A blocked layer waits
 until the next pass while eligible siblings can continue; this does not relax
 the settled-scene checks or submit incomplete tiles.
-The browser coalesces preparation after rendering and asynchronous completion;
-preparation never advances the application clock. This first-draw policy is
+Within ordinary rendering, WebGPU services newly visible surfaces after current
+geometry, lighting, and removal setup, before unrelated drawing. Ordinary dirty
+drawing then completes visible logical layers before warm/offscreen layers,
+including their inherited clips, masks, and opacity. Newly completed visible
+layers can prepare their cold tiles immediately, without waiting for unrelated
+ordinary drawing. This split preserves order within each layer; unclippable or
+unresolved render paths retain the full-tree fallback. Failed removals or flushes
+keep their retry flags and block settled preparation on that layer.
+Unmounted nodes retire their pending drawing/replay requests without discarding
+the GPU removal request. A late invalidation of an unmounted node cannot force
+unrelated drawing back to full-tree traversal; remounting schedules fresh drawing.
+Any unused preparation allowance services remaining visible and warm work
+afterward. All these opportunities share one allowance and one guaranteed first
+unit—not a fresh allowance at each boundary. Ordinary drawing itself is not
+budgeted or deferred across application ticks by this policy.
+Asynchronous completions can request one additional coalesced opportunity between
+ordinary frames. Preparation never advances the application clock. This first-draw policy is
 currently enabled for WebGPU, not Piet or native chassis; the implementation and
 opt-in are in the shared Rust runtime.
 If an addition fails, survivors remain usable; another attempt waits for a layout
@@ -848,6 +890,12 @@ counts and bounded waiting/recorded-not-submitted state. Submission is a CPU-sid
 presentation event, not proof of GPU completion or a capture of every displayed
 pixel; these diagnostics do not establish completeness of arbitrary application
 content. Image GPU events apply to WGPU, not the Piet fallback.
+The snapshot also includes cumulative surface-completion wake-up outcomes:
+queued, coalesced with an existing request, or deferred because the extra pass
+was already used. `presentation-completion-wait` measures the delay from the
+first such deferral to the next service opportunity and reports whether scene
+state blocked that opportunity. It does not measure a particular tile's latency
+or establish that additional passes would improve throughput.
 Tracing is opt-in and sends no data anywhere. Profile component mounting and
 image decoding separately; graphics admission cannot remove those costs. The isolated
 `examples/src/surface-scheduling` fixture has no external images.
@@ -861,10 +909,53 @@ Open **Surface trace snapshot** in the corner to inspect the bounded event log;
 close and reopen it to refresh. `visible-unready` transitions preserve transient
 gaps even after the view settles. Add `&pax_scroll_perf=1` to include frame phases
 taking over 20ms, including individual `tick.*` phases. `settled-presentation`
-events report recorded drawings, submitted/deferred jobs, cache misses, atomic
-fallbacks, and CPU elapsed time for preparation. `occlusion-work` records cumulative
-native-compositing counters and the most recent full-rebuild reason/node, so
-repeated scene reconciliation can be distinguished from tile initialization.
+events report started initializations, recorded drawings, submitted/deferred jobs,
+cache misses, atomic fallbacks, and CPU elapsed time for preparation. The `source`
+field distinguishes `ordinary-visible`, `ordinary-remaining`, and `completion`
+opportunities; `dirty_layers` counts jobs deferred by layer safety checks.
+`unfiltered_layers` counts early captures deferred because an unclippable or
+otherwise unsupported render path needs full-tree traversal while other work is dirty.
+`render.geometry`, `render.lighting`, `render.reconcile`, `render.draw`, and
+`render.flush` distinguish ordinary setup/draw/submission costs from
+`render.visible_preparation` and `render.remaining_preparation`.
+When ordinary drawing can be split, `render.visible_draw`, `render.visible_flush`,
+and `render.visible_dirty_preparation` measure the early dirty-layer group;
+`render.draw` and `render.flush` then describe the remaining group. The
+`render.partition_*` phases identify an unclippable or unresolved path that
+required unsplit traversal. Pending nodes on clean, cold layers do not disable
+the split; they remain pending outside the visible group. The
+`ordinary-visible` report aggregates both early preparation opportunities; its
+`deferred` count describes the latest opportunity rather than summing queue sizes.
+Earlier CPU-side
+submission does not prove earlier browser presentation if a long synchronous
+task still blocks the host.
+`occlusion-work` includes cumulative native-compositing counters and a `delta`
+since the preceding report. Rebuild reason/node and up to eight aggregated
+structural-invalidation call sites are reported only when that interval contains
+a rebuild. The call-site records include a representative node and count; they
+are bounded diagnostics, not an exhaustive call log. Do not interpret cumulative
+record counts or a historical rebuild as work performed in the current frame.
+`records_updated`, `masks_evaluated`, and `mask_candidates` count incremental
+work only; a structural rebuild can be expensive even when those deltas are zero.
+Runtime timings distinguish `tick.property_import`, `tick.property_cleanup`,
+and `tick.property_effects` from `tick.imperative_update`, `tick.tick_handlers`,
+and `tick.pre_render_handlers`. Import/cleanup/effect phases can occur several
+times within one tick; sum their samples for a per-frame total. Handler timings
+exclude the following settlement pass. These are CPU phase boundaries, not GPU
+completion or compositor-presentation timestamps.
+
+To isolate browser Frame clipping during nested-scroll testing, add
+`&pax_frame_clip=box`. This experimental web path uses sized CSS boxes with
+`overflow: clip` and rounded corners for explicitly identified rectangular
+Frames, preserving descendant world coordinates with an inverse inner transform.
+It does not create another scroll container. Arbitrary Mask paths, singular or
+invalid transforms, and unsupported browsers retain the SVG path. Omit the flag
+or use `pax_frame_clip=svg` for the existing default. Compare on the same build,
+viewport, and input mode; physical trackpad and cross-browser behavior still
+need validation before making box clipping the default.
+`scroll-command` records engine-originated browser position writes, including
+their axis and whether the host was active; ordinary native observations should
+not produce these writes.
 The inspector's **Probe scroller** and **Probe duration** controls
 can move one vertical viewport in 200, 400, or 1,000ms in either direction. Probe
 events record actual callback intervals and detailed frame phases; this is
@@ -875,6 +966,39 @@ busy. Native scrolling does not. With both diagnostic flags enabled,
 `scroll-sample` records observed offsets and `scroll-phase` records phase timings
 through a 250ms tail after observed movement. These measurements start when the
 main thread samples movement, not when the compositor first displays it.
+`scroll-reversal` identifies per-axis direction changes between observed offsets;
+subpixel changes of at most 0.1 local units are ignored. Surface lifecycle events
+include their current demand coverage, owner, and installed replay priority, so
+work started after a reversal can be distinguished from earlier in-flight work.
+These diagnostics do not synthesize scroll intent or measure GPU preemption.
+`native-message-batch` breaks synchronous message processing down by message
+type: count, total milliseconds, and slowest call. It records during probes and
+observed scrolling, or when the batch exceeds 20ms. This includes patch parsing
+and handler work, including any forced layout inside a handler; it excludes
+deferred browser layout/paint and asynchronous image decoding. Comparing these
+counts and times helps distinguish many cheap frame updates from a few expensive
+mask or text updates. Timing itself adds overhead, so also test without tracing.
+
+With both flags enabled, `wheel-input` separates event timestamp-to-handler-entry
+delay (`deliveryDelayMs`) from synchronous Pax dispatch (`handlerMs`), and records
+trusted/cancelable input, deltas, cancellation requests, and observed default
+prevention. Incompatible timestamps report `null`, not zero. The inspector's
+`wheel-input-summary` keeps the last 128 samples independently of tile-log churn.
+Delivery delay includes browser dispatch/queueing; neither timing measures when
+the compositor first moved pixels or identifies a physical gesture boundary.
+Use actual wheel/trackpad input for this test: the programmatic probe does not
+exercise a cancellable wheel listener.
+
+For an explicit diagnostic comparison only, add `&pax_wheel_passive=1` alongside
+both flags. This makes the global wheel listener passive while still dispatching
+Pax handlers. **Wheel cancellation is disabled in this mode**: do not use it to
+validate custom wheel controls or scroll-blocking behavior, or as a deployment
+setting. Without both tracing flags, it has no effect. The normal path retains
+synchronous cancellation and performs no per-wheel timing. Compare the same
+content, warmed state, and input sequence; passive handlers may still be delivered
+late while the browser scrolls independently, so handler delay alone cannot prove
+or disprove smoother presentation.
+
 Settled screenshots do not establish that every intermediate frame was complete.
 The preparation allowance does not cover ordinary rendering and is not a hard
 frame-time guarantee. Pixel admission alone does not cap frame time or eliminate
@@ -936,7 +1060,7 @@ content. At zero scroll the first card aligns with the heading; scrolling lets
 the cards cross the fixed layout gutters and clip only at the viewport edges.
 Card titles and metadata sit over a dense lower image gradient that follows
 the selected dark or light theme.
-Each card observes a fixed wrapper through `@viewport_proximity_change` and
+By default, each card observes a fixed wrapper through `@viewport_proximity_change` and
 slides and fades its title and metadata over a 480 ms timeline at the first
 visible sample; the artwork stays still and opaque. The shelf staggers nearby
 arrivals by 80 ms, with no more than 240 ms of added delay. There is no exit
@@ -955,9 +1079,18 @@ All 210 card trees mount with each Paxflix instance. The prior provisional
 scroll-dependent shelf gate has been removed: GPU preparation must not silently
 schedule application lifecycle work. Card entrance animations still use visible
 proximity samples, and GPU tiles/bindings can be prepared or retired independently
-of those mounted cards. The website's two instances therefore mount 420 cards
-when their enclosing showcase is instantiated; they share image resources in
-the same web app. This is not list virtualization or runtime lazy evaluation.
+of those mounted cards. Hosts can set `disable_card_entrances=true` on `Paxflix`
+to show captions at their final position and opacity without mounting the
+per-card proximity observers or per-shelf entrance scheduling subscriptions.
+The standalone default remains animated; image readiness is independent of this
+option. Toggling it changes only the animation helpers, not card lifetime.
+
+The website uses this quiet mode and mounts both instances (420 cards) with the
+page, sharing image resources in the same web app. Its calculator also mounts
+with the page; visibility still pauses recurring offscreen animation/work, not
+initial layout or mounting. Removing these application-level approach gates
+moves work to startup rather than eliminating it. This is not list virtualization
+or runtime lazy evaluation.
 
 ## Read more
 

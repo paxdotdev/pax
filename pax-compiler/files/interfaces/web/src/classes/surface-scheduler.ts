@@ -1,9 +1,9 @@
 import type {SurfaceCanvasDescriptor, LayerCanvasPlan} from './surface-host-policy';
 
 export type SurfaceRank = {
-    // Visible, moving-ahead, retained-trailing, stationary-near, forward-reserve,
+    // Visible, moving-ahead, reversal-near, retained-trailing, stationary-near, forward-reserve,
     // farther-preparation, outside-preparation. Ordering belongs to Rust.
-    coverage: 0 | 1 | 2 | 3 | 4 | 5 | 6;
+    coverage: 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7;
     distance: number;
     retained: boolean;
     ready?: boolean;

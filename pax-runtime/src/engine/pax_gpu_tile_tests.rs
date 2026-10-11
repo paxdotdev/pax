@@ -308,8 +308,21 @@ fn exercise_tile_lifecycle(incremental: bool, prepared: bool) {
     renderer.load_image("red", &[255, 0, 0, 255], 1, 1);
     renderer.resize_layers_to(1, Rc::clone(&dirty));
     if prepared {
+        assert!(renderer.take_settled_surface_replays().is_empty());
+        assert!(renderer.start_surface_initialization(i32::MAX));
         let jobs = renderer.take_settled_surface_replays();
         assert_eq!(jobs.len(), 1);
+        assert_eq!(renderer.targeted_replay_scope(0), Some(vec![0]));
+        // Reversal can change rank alone. Pending replay must follow the new
+        // front without reallocating or resetting surviving physical tiles.
+        layout.borrow_mut().surfaces[0].replay_priority = 10;
+        layout.borrow_mut().surfaces[1].replay_priority = -1;
+        renderer.refresh_layers(&[0]);
+        assert_eq!(renderer.targeted_replay_scope(0), Some(vec![1]));
+        assert_eq!(&*creations.borrow(), &["a", "b"]);
+        layout.borrow_mut().surfaces[0].replay_priority = -2;
+        layout.borrow_mut().surfaces[1].replay_priority = 10;
+        renderer.refresh_layers(&[0]);
         assert_eq!(renderer.targeted_replay_scope(0), Some(vec![0]));
         let bounds = Rect::new(1.0, 1.0, 31.0, 31.0);
         assert!(renderer.begin_node_with_bounds(0, 1, 0, bounds, 0));

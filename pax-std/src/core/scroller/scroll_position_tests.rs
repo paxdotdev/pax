@@ -148,3 +148,67 @@ fn programmatic_scroll_preserves_host_presentation_delta() {
     context.drain_node_effects();
     assert_position(&context, &root, (4024.0, 4248.0));
 }
+
+fn observe(context: &RuntimeContext, root: &ExpandedNode, x: f64, y: f64) {
+    let node = root.children.get()[0].clone();
+    context.update_scroller_surface_scroll(node.id.to_u32(), x, y, x, y);
+    node.instance_node.borrow().handle_native_interrupt(
+        &node,
+        &NativeInterrupt::ScrollerPosition(pax_message::ScrollerPositionInterruptArgs {
+            id: node.id.to_u32(),
+            scroll_x: x,
+            scroll_y: y,
+            presentation_scroll_x: Some(x),
+            presentation_scroll_y: Some(y),
+        }),
+    );
+}
+
+fn updates(context: &RuntimeContext) -> Vec<ScrollerPatch> {
+    context
+        .take_native_messages()
+        .into_iter()
+        .filter_map(|message| match message {
+            pax_message::NativeMessage::ScrollerUpdate(patch) => Some(patch),
+            _ => None,
+        })
+        .collect()
+}
+
+#[test]
+fn native_observations_update_presentation_without_emitting_scroll_commands() {
+    let (context, root, props) = mount();
+    context.take_native_messages();
+    for (x, y) in [(30.0, 100.0), (45.0, 140.0), (45.0, 110.0)] {
+        observe(&context, &root, x, y);
+        context.drain_node_effects();
+        assert_eq!((props.scroll_pos_x.get(), props.scroll_pos_y.get()), (x, y));
+        let patches = updates(&context);
+        assert!(!patches.is_empty());
+        assert!(patches
+            .iter()
+            .all(|p| p.scroll_x.is_none() && p.scroll_y.is_none()));
+        assert!(patches.iter().any(|p| p.presentation_scroll_y == Some(y)));
+    }
+}
+
+#[test]
+fn authored_write_after_observation_is_a_command_only_on_its_axis() {
+    let (context, root, props) = mount();
+    context.take_native_messages();
+    observe(&context, &root, 30.0, 100.0);
+    props.scroll_pos_y.set(600.0);
+    context.drain_node_effects();
+    let patches = updates(&context);
+    assert!(patches.iter().all(|p| p.scroll_x.is_none()));
+    assert!(patches.iter().any(|p| p.scroll_y == Some(600.0)));
+    // The command's native acknowledgement must not become another command.
+    observe(&context, &root, 30.0, 600.0);
+    context.drain_node_effects();
+    assert!(updates(&context)
+        .iter()
+        .all(|p| p.scroll_x.is_none() && p.scroll_y.is_none()));
+    props.scroll_pos_y.set(800.0);
+    context.drain_node_effects();
+    assert!(updates(&context).iter().any(|p| p.scroll_y == Some(800.0)));
+}

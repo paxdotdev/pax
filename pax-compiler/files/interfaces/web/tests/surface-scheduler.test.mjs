@@ -58,9 +58,9 @@ test('batched observations preserve activity across snapshots and expire it', ()
         offset:[0,y],observed:[0,y],basis:[1,0,0,1],active:true,geometry:'same',
     }],candidates:[{id:'ahead',owner:1,rect:[0,300,100,400],retained:false,ready:false,pixels:10000}]});
     const results=sharedSurfaceDecisions([snapshot(0,0),snapshot(20,50),snapshot(300,50)]);
-    assert.equal(results[0].ranks[0].coverage,3);
+    assert.equal(results[0].ranks[0].coverage,4);
     assert.equal(results[1].ranks[0].coverage,1);
-    assert.equal(results[2].ranks[0].coverage,3);
+    assert.equal(results[2].ranks[0].coverage,4);
 });
 
 test('recursive preparation and admission use the same immutable observation transaction', () => {
@@ -114,7 +114,7 @@ test('safety survives idle boundaries; retention reuses ready content but yields
     const schedule=capacity=>({version:2,now:5000,capacity,hosts:[],candidates});
     const [,room,pressure]=sharedSurfaceDecisions([prepare,schedule(64),schedule(2)]);
     assert.deepEqual(room.admitted,[0,1,2]);
-    assert.deepEqual(room.ranks.map(r=>r.coverage),[0,3,5,6,6,6]);
+    assert.deepEqual(room.ranks.map(r=>r.coverage),[0,4,6,7,7,7]);
     assert.deepEqual(pressure.admitted,[0,1]);
     assert.ok(pressure.denied.some(([i,why])=>i===2&&why==='preparation-budget'));
 });
@@ -147,12 +147,39 @@ test('forward reserve borrows spare capacity without granting nested horizontal 
         prepare(0,0),prepare(50,10),schedule(50),prepare(500,10),schedule(500),schedule(500,4),
         prepare(1600,10),schedule(1600)]);
     assert.deepEqual(moving.admitted,[0,1]);
-    assert.equal(moving.ranks[1].coverage,4);
+    assert.equal(moving.ranks[1].coverage,5);
     assert.equal(moving.borrowedForwardPixels,30000);
     assert.equal(moving.optionalLimit,20000);
     assert.deepEqual(paused.admitted,[0,1]);
     assert.deepEqual(pressure.admitted,[0], 'borrowing leaves physical slot headroom');
     assert.deepEqual(expired.admitted,[0,1], 'idle filling remains eligible at lower priority');
     assert.ok(expired.ranks[1].distance > paused.ranks[1].distance);
-    assert.equal(moving.ranks[2].coverage,6);
+    assert.equal(moving.ranks[2].coverage,7);
+});
+
+test('reverse buffer is funded before forward demand and materializes the new execution rank',()=>{
+    const prepare=(now,y)=>({version:1,now,viewport:[0,0,100,100],hosts:[{
+        id:1,parent:null,bounds:[0,0,100,100],visible:[0,0,100,100],viewport:[100,100],
+        content:[100,4000],offset:[0,y],observed:[0,y],basis:[1,0,0,1],active:true,geometry:'root'}]});
+    const candidates=[
+        {id:'visible',owner:1,rect:[0,500,100,550],retained:true,ready:true,pixels:10000},
+        {id:'ahead',owner:1,rect:[0,620,100,640],retained:false,ready:false,pixels:15000},
+        {id:'reverse',owner:1,rect:[0,410,100,430],retained:false,ready:false,pixels:15000},
+        {id:'old-far-forward',owner:1,rect:[0,900,100,950],retained:true,ready:true,pixels:10000},
+    ];
+    const schedule=(now,capacity=64)=>({version:2,now,capacity,candidates,
+        resources:{viewportPixels:10000,unreleasedPixels:0}});
+    const [, ,moving,pressure, ,reversed]=sharedSurfaceDecisions([
+        prepare(0,400),prepare(50,500),schedule(50),schedule(50,2),prepare(100,480),schedule(100)]);
+    assert.equal(moving.ranks[2].coverage,2, 'cold reverse tile gets a protected preparation class');
+    assert.deepEqual(pressure.admitted,[0,2], 'same small budget chooses the reverse buffer over speculation');
+    assert.ok(moving.admitted.indexOf(1)<moving.admitted.indexOf(2), 'incoming executes before replenishment');
+    assert.equal(reversed.ranks[2].coverage,1);
+    assert.equal(reversed.ranks[1].coverage,2);
+    assert.equal(reversed.ranks[3].coverage,7);
+    const descriptors=candidates.map(c=>candidate(c.id,1,0));
+    const result=materializeSurfaceSchedule(descriptors,reversed);
+    assert.deepEqual(result.admitted.map(c=>c.surface.id),['visible','reverse','ahead']);
+    assert.ok(result.plans.get(1).surfaces[0].replayPriority<=0);
+    assert.ok(result.plans.get(1).surfaces[1].replayPriority<result.plans.get(1).surfaces[2].replayPriority);
 });

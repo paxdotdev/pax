@@ -23,6 +23,10 @@ pub struct PreparationPolicy {
     pub max_viewports: f64,
     /// Independent first-interaction coverage on currently exposed scroll axes.
     pub safety_viewports: f64,
+    /// Cold-capable coverage opposite the last movement on exposed axes.
+    /// Admission reserves this before forward speculation; execution remains
+    /// visible-first, then predicted incoming work.
+    pub reversal_viewports: f64,
     /// Spatial hysteresis for already submitted assignments; never starts work.
     pub retention_viewports: f64,
     /// Opportunistic forward distance, admitted only when capacity permits.
@@ -37,6 +41,7 @@ impl Default for PreparationPolicy {
             horizon_ms: 250.0,
             max_viewports: 6.0,
             safety_viewports: 0.5,
+            reversal_viewports: 1.0,
             retention_viewports: 1.0,
             reserve_viewports: 6.0,
             reserve_tail_ms: 1500.0,
@@ -96,6 +101,7 @@ pub struct PreparedHost {
     pub prepared: CoverageRect,
     clips: Vec<MovingClip>,
     safety: Vec<Vec<MovingClip>>,
+    reversal: Vec<Vec<MovingClip>>,
     retention: Vec<Vec<MovingClip>>,
     reserve: Vec<(Vec<MovingClip>, f64)>,
     horizon_ms: f64,
@@ -110,6 +116,7 @@ impl PreparedHost {
             prepared: CoverageRect::default(),
             clips: Vec::new(),
             safety: Vec::new(),
+            reversal: Vec::new(),
             retention: Vec::new(),
             reserve: Vec::new(),
             horizon_ms,
@@ -140,6 +147,8 @@ impl PreparedHost {
             (Coverage::Visible, 0.0)
         } else if let Some(deadline) = self.deadline(tile) {
             (Coverage::MovingAhead, deadline)
+        } else if let Some(distance) = nearest_intersection(&self.reversal, tile) {
+            (Coverage::ReversalNear, distance)
         } else if let Some(distance) = nearest_intersection(&self.safety, tile) {
             (Coverage::StationaryNear, distance)
         } else if let Some(distance) = self
@@ -455,6 +464,7 @@ pub fn prepare_hosts(
                 .collect();
             let clips = trajectory(&chain, viewport, &deltas);
             let mut safety = Vec::new();
+            let mut reversal = Vec::new();
             let mut retention = Vec::new();
             let mut reserve = Vec::new();
             let mut exposed = viewport;
@@ -472,6 +482,14 @@ pub fn prepare_hosts(
                 for axis in 0..2 {
                     if last.direction[axis] != 0.0 {
                         let mut deltas = vec![[0.0; 2]; chain.len()];
+                        deltas[index][axis] = clamped_travel(
+                            h,
+                            axis,
+                            -last.direction[axis]
+                                * policy.reversal_viewports
+                                * h.geometry.viewport[axis],
+                        );
+                        reversal.push(trajectory(&chain, viewport, &deltas));
                         deltas[index][axis] = clamped_travel(
                             h,
                             axis,
@@ -517,6 +535,7 @@ pub fn prepare_hosts(
                 unproject(visible, &host.geometry).ok_or("singular surface transform")?;
             let coverage = safety
                 .iter()
+                .chain(&reversal)
                 .chain(&retention)
                 .chain(reserve.iter().map(|(path, _)| path))
                 .fold(swept_intersection(&clips), |bounds, path| {
@@ -531,6 +550,7 @@ pub fn prepare_hosts(
                 prepared: intersect(prepared, content),
                 clips,
                 safety,
+                reversal,
                 retention,
                 reserve,
                 horizon_ms: policy.horizon_ms,
@@ -720,6 +740,7 @@ mod tests {
                 delta: [100.0, 100.0],
             }],
             safety: vec![],
+            reversal: vec![],
             retention: vec![],
             reserve: vec![],
             horizon_ms: 100.0,
@@ -774,7 +795,7 @@ mod tests {
     }
 
     #[test]
-    fn reversal_has_a_safety_margin_and_far_retention_yields() {
+    fn reversal_buffer_prepares_cold_tiles_through_pauses_and_switches_immediately() {
         let mut h = host(1, None, r(0.0, 0.0, 400.0, 300.0), [400.0, 5000.0]);
         h.geometry.offset[1] = 600.0;
         let hosts = BTreeMap::from([(1, h)]);
@@ -802,17 +823,11 @@ mod tests {
         assert_eq!(paused[&1].rank(near, true).0, Coverage::StationaryNear);
         assert_eq!(
             paused[&1].rank(r(0.0, -100.0, 400.0, 50.0), false).0,
-            Coverage::StationaryNear
+            Coverage::ReversalNear
         );
         let trailing = r(0.0, -250.0, 400.0, 50.0);
-        assert_eq!(
-            paused[&1].rank(trailing, false).0,
-            Coverage::OutsidePreparation
-        );
-        assert_eq!(
-            paused[&1].rank(trailing, true).0,
-            Coverage::FartherPreparation
-        );
+        assert_eq!(paused[&1].rank(trailing, false).0, Coverage::ReversalNear);
+        assert_eq!(paused[&1].rank(trailing, true).0, Coverage::ReversalNear);
         assert_eq!(
             paused[&1].rank(r(0.0, -500.0, 400.0, 50.0), true).0,
             Coverage::OutsidePreparation
@@ -827,6 +842,47 @@ mod tests {
         )
         .unwrap();
         assert_eq!(reversed[&1].rank(trailing, false).0, Coverage::MovingAhead);
+        assert_eq!(reversed[&1].rank(near, false).0, Coverage::ReversalNear);
+        assert_eq!(moving[&1].rank(trailing, false).0, Coverage::ReversalNear);
+    }
+
+    #[test]
+    fn reverse_coverage_inherits_parent_clip_without_warming_idle_child_axis() {
+        let mut parent = host(1, None, r(0.0, 0.0, 200.0, 150.0), [400.0, 5000.0]);
+        parent.geometry.viewport = [400.0, 300.0];
+        parent.geometry.offset[1] = 600.0;
+        parent.geometry.basis = [0.5, 0.0, 0.0, 0.5];
+        let mut child = host(2, Some(1), r(0.0, -125.0, 200.0, 50.0), [5000.0, 100.0]);
+        child.geometry.viewport = [400.0, 100.0];
+        child.geometry.basis = parent.geometry.basis;
+        let hosts = BTreeMap::from([(1, parent), (2, child)]);
+        let mut activity = ScrollActivityTracker::default();
+        activity.observe(1, [0.0, 500.0], 0.0, "");
+        activity.observe(1, [0.0, 600.0], 50.0, "");
+        // Historical child movement must not give this currently hidden shelf
+        // its own reverse/forward horizontal footprint.
+        activity.observe(2, [100.0, 0.0], 0.0, "");
+        activity.observe(2, [200.0, 0.0], 50.0, "");
+        let plans = prepare_hosts(
+            &hosts,
+            r(0.0, 0.0, 200.0, 150.0),
+            &activity,
+            5000.0,
+            Default::default(),
+        )
+        .unwrap();
+        assert_eq!(
+            plans[&2].rank(r(0.0, -125.0, 200.0, 50.0), false).0,
+            Coverage::ReversalNear
+        );
+        assert_eq!(
+            plans[&2].rank(r(250.0, -125.0, 100.0, 50.0), false).0,
+            Coverage::OutsidePreparation
+        );
+        assert_eq!(
+            plans[&1].rank(r(0.0, -151.0, 200.0, 1.0), false).0,
+            Coverage::OutsidePreparation
+        );
     }
 
     #[test]

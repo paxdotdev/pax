@@ -1,0 +1,7 @@
+// Observe the resting card bounds, never the animated text.
+<Group anchor=0% width=100% height=100% @viewport_proximity_change=self.reveal @viewport_proximity_exit=self.reset_reveal/>
+
+@settings {
+    @mount: on_mount
+    @unmount: on_unmount
+}

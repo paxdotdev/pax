@@ -171,6 +171,8 @@ struct NativeMaskStats;
 #[derive(Clone, Copy, Default, Debug, pax_message::serde::Serialize)]
 #[serde(crate = "pax_message::serde")]
 pub struct OcclusionStats {
+    /// Reconciliation passes, including incremental passes.
+    pub passes: u64,
     /// Full structural/presentation reconciliations.
     pub rebuilds: u64,
     /// Dirty records refreshed outside structural reconciliation.
@@ -183,6 +185,18 @@ pub struct OcclusionStats {
     pub rebuild_reason: Option<&'static str>,
     /// Triggering expanded node, when the cause was not structural.
     pub rebuild_node: Option<u32>,
+    /// Bounded origins of structural invalidation consumed by the last rebuild.
+    /// Populated only when diagnostic attribution is enabled.
+    pub rebuild_origins: [Option<OcclusionInvalidation>; 8],
+}
+
+#[derive(Clone, Copy, Debug, pax_message::serde::Serialize)]
+#[serde(crate = "pax_message::serde")]
+pub struct OcclusionInvalidation {
+    pub file: &'static str,
+    pub line: u32,
+    pub node: Option<u32>,
+    pub count: u32,
 }
 
 struct OcclusionRecord {
@@ -203,6 +217,8 @@ struct OcclusionRecord {
 
 #[derive(Default)]
 pub(crate) struct OcclusionState {
+    pub(crate) diagnostics: bool,
+    pub(crate) invalidations: [Option<OcclusionInvalidation>; 8],
     pub(crate) structural: bool,
     pub(crate) dirty: HashSet<u32>,
     pub(crate) scrolled: HashSet<u32>,
@@ -242,6 +258,7 @@ impl OcclusionState {
 pub fn update_node_occlusion(root_node: &Rc<ExpandedNode>, ctx: &RuntimeContext) {
     let mut state_guard = ctx.occlusion_state.borrow_mut();
     let state = &mut *state_guard;
+    state.stats.passes += 1;
     state.culling_dirty = true;
     let mut dirty = std::mem::take(&mut state.dirty);
     let scrolled = std::mem::take(&mut state.scrolled);
@@ -302,6 +319,7 @@ pub fn update_node_occlusion(root_node: &Rc<ExpandedNode>, ctx: &RuntimeContext)
             })
     };
     if let Some((reason, node)) = rebuild {
+        state.stats.rebuild_origins = std::mem::take(&mut state.invalidations);
         state.stats.rebuild_reason = Some(reason);
         state.stats.rebuild_node = node;
         state.culling_rebuild = true;

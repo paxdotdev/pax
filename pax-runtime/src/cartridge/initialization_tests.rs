@@ -732,6 +732,110 @@ fn unchanged_import_discovery_does_not_copy_settings_or_rebind() {
 }
 
 #[test]
+fn imported_settings_discovery_is_dependency_driven() {
+    let (mut engine, root) = fixture();
+    let ctx = engine.runtime_context.clone();
+    let theme = LocalProperty::new(8.0);
+    let import = settings_import(&root, &ctx);
+    let provider = settings_provider(&root, &ctx, &theme);
+    import.attach_sidecar_children(vec![provider.clone()], &ctx, &import.parent_frame);
+    root.children.set(vec![import.clone()]);
+    root.sync_imported_settings(&ctx);
+    let node = child(
+        &root,
+        &ctx,
+        template(&plan(vec![], None, None)),
+        HashMap::new(),
+    );
+    root.children.set(vec![import.clone(), node.clone()]);
+    ctx.drain_node_effects();
+    let discoveries = root.settings_discoveries.get();
+    let copies = provider.settings_layer_materializations.get();
+    for _ in 0..100 {
+        engine.tick();
+    }
+    assert_eq!(
+        root.settings_discoveries.get(),
+        discoveries,
+        "steady ticks do not traverse imports"
+    );
+    theme.set(13.0);
+    ctx.drain_node_effects();
+    assert_eq!(values(&node).0, 13.0);
+    assert_eq!(
+        root.settings_discoveries.get(),
+        discoveries,
+        "provider values use their existing DAG edges"
+    );
+    assert_eq!(provider.settings_layer_materializations.get(), copies);
+
+    let replacement = settings_provider(&root, &ctx, &LocalProperty::new(21.0));
+    import.attach_sidecar_children(vec![replacement], &ctx, &import.parent_frame);
+    ctx.drain_node_effects();
+    assert_eq!(values(&node).0, 21.0);
+    // A source retained outside the tree must no longer invalidate this owner.
+    let discoveries = root.settings_discoveries.get();
+    provider.children.set(vec![]);
+    ctx.drain_node_effects();
+    assert_eq!(root.settings_discoveries.get(), discoveries);
+    import.attach_sidecar_children(vec![], &ctx, &import.parent_frame);
+    ctx.drain_node_effects();
+    assert_eq!(values(&node).0, 7.0);
+    root.recurse_unmount(&ctx);
+    ctx.drain_node_effects();
+}
+
+#[test]
+fn import_observer_follows_nested_structure_and_same_identity_provider_reload() {
+    let (engine, root) = fixture();
+    let ctx = &engine.runtime_context;
+    let import = settings_import(&root, ctx);
+    let branch = child(&root, ctx, Leaf::instantiate(args()), HashMap::new());
+    import.attach_sidecar_children(vec![branch.clone()], ctx, &import.parent_frame);
+    root.children.set(vec![import.clone()]);
+    root.sync_imported_settings(ctx);
+    let node = child(
+        &root,
+        ctx,
+        template(&plan(vec![], None, None)),
+        HashMap::new(),
+    );
+    root.children.set(vec![import, node.clone()]);
+    ctx.drain_node_effects();
+    assert_eq!(values(&node).0, 7.0);
+    let theme = LocalProperty::new(5.0);
+    let provider = settings_provider(&root, ctx, &theme);
+    branch.children.set(vec![provider.clone()]);
+    ctx.drain_node_effects();
+    assert_eq!(values(&node).0, 5.0);
+    let mut replacement = args();
+    replacement.template_node_type_id = Some(TypeId::build_singleton("test::Theme", Some("Theme")));
+    replacement.component_settings = Some(vec![SettingsBlockElement::SelectorBlock(
+        pax_manifest::Token::new_without_location("Probe".into()),
+        LiteralBlockDefinition::new(vec![setting("value", expression("theme * 2"))]),
+    )]);
+    provider.recreate_with_new_data(ComponentInstance::instantiate(replacement), ctx);
+    ctx.drain_node_effects();
+    assert_eq!(
+        values(&node).0,
+        10.0,
+        "same provider id and type must still refresh edited settings"
+    );
+    let reloaded = provider.instance_node.borrow().clone();
+    provider.fully_recreate_with_new_data(reloaded, ctx);
+    ctx.drain_node_effects();
+    assert_eq!(values(&node).0, 10.0, "remount retains import observation");
+    theme.set(6.0);
+    ctx.drain_node_effects();
+    assert_eq!(values(&node).0, 12.0);
+    branch.children.set(vec![]);
+    ctx.drain_node_effects();
+    assert_eq!(values(&node).0, 7.0);
+    root.recurse_unmount(ctx);
+    ctx.drain_node_effects();
+}
+
+#[test]
 fn import_discovery_preserves_provider_order_replacement_and_removal() {
     let (engine, root) = fixture();
     let ctx = &engine.runtime_context;
@@ -745,15 +849,15 @@ fn import_discovery_preserves_provider_order_replacement_and_removal() {
     let node = child(&root, ctx, template(&plan), HashMap::new());
     root.children.set(vec![import.clone(), node.clone()]);
     assert_eq!(values(&node).0, 20.0);
-    *import.sidecar_children.borrow_mut() = vec![second, first];
-    root.sync_imported_settings(ctx);
+    import.attach_sidecar_children(vec![second, first], ctx, &import.parent_frame);
+    ctx.drain_node_effects();
     assert_eq!(values(&node).0, 10.0);
     let replacement = settings_provider(&root, ctx, &LocalProperty::new(30.0));
-    *import.sidecar_children.borrow_mut() = vec![replacement];
-    root.sync_imported_settings(ctx);
+    import.attach_sidecar_children(vec![replacement], ctx, &import.parent_frame);
+    ctx.drain_node_effects();
     assert_eq!(values(&node).0, 30.0);
-    import.sidecar_children.borrow_mut().clear();
-    root.sync_imported_settings(ctx);
+    import.attach_sidecar_children(vec![], ctx, &import.parent_frame);
+    ctx.drain_node_effects();
     assert_eq!(values(&node).0, 7.0);
     assert!(root.imported_settings_layers.borrow().is_empty());
     root.recurse_unmount(ctx);
@@ -786,7 +890,6 @@ fn import_discovery_keeps_transition_policy_reactive() {
         duration: Duration::Milliseconds(100.into()),
         curve: "Linear",
     }));
-    root.sync_imported_settings(ctx);
     ctx.drain_node_effects();
     let copies = provider.settings_layer_materializations.get();
     assert_eq!(copies, 2);
@@ -799,7 +902,6 @@ fn import_discovery_keeps_transition_policy_reactive() {
         duration: Duration::Milliseconds(200.into()),
         curve: "Linear",
     }));
-    root.sync_imported_settings(ctx);
     theme.set(20.0);
     ctx.drain_node_effects();
     ctx.globals().elapsed_millis.set(140);
@@ -807,7 +909,6 @@ fn import_discovery_keeps_transition_policy_reactive() {
     assert_eq!(provider.settings_layer_materializations.get(), copies);
 
     policy.set(None);
-    root.sync_imported_settings(ctx);
     ctx.drain_node_effects();
     assert_eq!(values(&node).0, 20.0);
     assert_eq!(provider.settings_layer_materializations.get(), copies + 1);

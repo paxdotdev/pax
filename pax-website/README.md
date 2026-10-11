@@ -53,6 +53,19 @@ migration is needed. Cargo dependency paths
 and favicon paths are relative to this manifest; Rust `include_str!` paths are
 relative to their source file.
 
+The two embedded Paxflix instances and footer calculator mount with the page;
+there is no mount-on-approach gate. Paxflix uses `disable_card_entrances=true`,
+which removes its optional caption proximity observers and entrance schedulers
+while leaving the card visuals and interaction mounted. The standalone example
+keeps those animations by default. The calculator also updates offscreen; its
+host has no proximity observer or pause gate. Every gallery card has a permanent
+projected slot; wrapping moves distant cards without recycling slot ownership.
+Feature-demo visibility only pauses recurring animation; each demo creates its
+initial picture on mount. Eager mounting can increase startup cost, but avoids
+a separate first-approach lifecycle burst. GPU tile admission/culling remains
+independent. Calculator graph geometry is still generated for its local viewport,
+so graph panning is a separate content-generation case, not a lazy mount.
+
 ## Website and blog boundary
 
 The website declares `/blog`, `/ai`, and `/ai.md` as `server_owned_prefixes`.

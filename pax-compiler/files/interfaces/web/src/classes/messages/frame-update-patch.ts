@@ -8,6 +8,7 @@ export class FrameUpdatePatch {
     public clipContent?: boolean;
     public borderRadius?: number;
     public clipPath?: string;
+    public clipIsRect?: boolean;
     public opacity?: number;
     public presentedBounds?: number[];
     public presentedClipBounds?: number[];
@@ -23,6 +24,7 @@ export class FrameUpdatePatch {
             this.clipContent = jsonMessage["clip_content"];
             this.borderRadius = jsonMessage["corner_radius"];
             this.clipPath = jsonMessage["clip_path"];
+            this.clipIsRect = jsonMessage["clip_is_rect"];
             this.opacity = jsonMessage["opacity"];
             this.presentedBounds = jsonMessage["presented_bounds"];
             this.presentedClipBounds = jsonMessage["presented_clip_bounds"];
@@ -39,6 +41,7 @@ export class FrameUpdatePatch {
         this.clipContent = undefined;
         this.borderRadius = undefined;
         this.clipPath = undefined;
+        this.clipIsRect = undefined;
         this.opacity = undefined;
         this.presentedBounds = undefined;
         this.presentedClipBounds = undefined;

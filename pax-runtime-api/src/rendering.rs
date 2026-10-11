@@ -232,7 +232,7 @@ pub trait RenderContext {
     fn set_scene_lighting(&mut self, _layer: usize, _lighting: &SceneLighting) {}
     /// Cancels any narrowed replay scope for a layer so subsequent work targets all surfaces.
     fn clear_targeted_replay(&mut self, _layer: usize) {}
-    /// Returns canvas layers ready to present.
+    /// Collects completed canvas layers without starting new initialization work.
     fn take_ready_canvas_layers(&mut self) -> Vec<usize> {
         vec![]
     }
@@ -307,6 +307,30 @@ pub trait RenderContext {
     /// only against a settled scene; unsupported backends leave their queues untouched.
     fn take_settled_surface_replays(&mut self) -> Vec<ReplayCanvasLayerUpdate> {
         Vec::new()
+    }
+
+    /// Current rank of a selected replay job. Nonpositive ranks are visible;
+    /// positive ranks are speculative. Re-read after presentation/plan changes.
+    fn surface_replay_priority(&self, _layer: usize) -> i32 {
+        0
+    }
+
+    /// Opt in to visible-first ordinary drawing for this logical layer. The rank
+    /// describes all currently installed surfaces, not only a selected replay job:
+    /// nonpositive means visible, positive means warm/offscreen. Layers are drawn
+    /// atomically with their ancestor hooks before becoming eligible for replay.
+    /// `None` preserves the ordinary unsplit path for unsupported backends.
+    fn ordinary_layer_priority(&self, _layer: usize) -> Option<i32> {
+        None
+    }
+
+    /// Starts at most one initialization unit ranked strictly before `before`.
+    /// Visible ranks compare as zero, so an already-runnable visible replay wins
+    /// over more creation. Returns whether work started, not whether it completed.
+    /// Async completions notify the host; they must not recursively dispatch work
+    /// outside the preparation allowance. Unsupported backends return false.
+    fn start_surface_initialization(&mut self, _before: i32) -> bool {
+        false
     }
 
     /// Notify the chassis after asynchronous surface completion. The callback must

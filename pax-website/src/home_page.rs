@@ -198,6 +198,10 @@ impl HomePage {
                 include_str!("../../examples/src/paxflix/src/movie_card.rs"),
             ),
             (
+                "paxflix/movie_card_entrance.pax",
+                include_str!("../../examples/src/paxflix/src/movie_card_entrance.pax"),
+            ),
+            (
                 "paxflix/movie_detail.pax",
                 include_str!("../../examples/src/paxflix/src/movie_detail.pax"),
             ),

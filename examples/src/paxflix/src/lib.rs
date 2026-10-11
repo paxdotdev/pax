@@ -21,6 +21,9 @@ pub struct Paxflix {
     pub embedded: Property<bool>,
     /// Embedded copies should leave global keyboard events to their host.
     pub disable_keyboard: Property<bool>,
+    /// Show card captions immediately without viewport observers or entrance scheduling.
+    /// Defaults to false; hosts can disable decorative reveals independently of embedding.
+    pub disable_card_entrances: Property<bool>,
     pub view_width: Property<f64>,
     pub view_height: Property<f64>,
     // The default false value starts the app in dark mode.

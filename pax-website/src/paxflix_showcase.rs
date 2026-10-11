@@ -14,7 +14,6 @@ pub struct PaxflixShowcase {
     pub tablet_y: Property<f64>,
     pub phone_x: Property<f64>,
     pub phone_y: Property<f64>,
-    pub loaded: Property<bool>,
     pub demo_open: Property<bool>,
     pub devices_height: Property<f64>,
 }
@@ -30,12 +29,6 @@ impl PaxflixShowcase {
         self.tablet_y.set_if_neq(layout.tablet_y);
         self.phone_x.set_if_neq(layout.phone_x);
         self.phone_y.set_if_neq(layout.phone_y);
-    }
-
-    pub fn prepare(&mut self, _: &NodeContext, _: Event<ViewportProximityEnter>) {
-        // Retain the two sessions after their first visit. Each mounts all its
-        // cards up front; text reveals remain independent viewport animations.
-        self.loaded.set(true);
     }
 
     pub fn expand(&mut self, _: &NodeContext, _: Event<ButtonClick>) {
@@ -106,6 +99,18 @@ impl DeviceLayout {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn showcases_mount_both_apps_without_proximity_gates_or_caption_reveals() {
+        let template = include_str!("paxflix_showcase.pax");
+        assert!(!template.contains("@viewport_proximity"));
+        assert!(!template.contains("if self.loaded"));
+        assert_eq!(template.matches("<Paxflix ").count(), 2);
+        assert_eq!(template.matches("disable_card_entrances=true").count(), 2);
+        assert!(include_str!("home_page.pax").contains(
+            "<Paxflix width=100% height=100% embedded=true disable_keyboard=true disable_card_entrances=true/>"
+        ));
+    }
 
     #[test]
     fn devices_fit_without_overlap_at_mobile_and_desktop_widths() {

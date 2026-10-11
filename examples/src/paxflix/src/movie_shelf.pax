@@ -2,6 +2,9 @@
     <CinemaTheme is_dark={!light_mode}/>
 </ImportSettings>
 <Group anchor=0% width=100% height=100% @wheel=self.wheel @touch_start=self.touch_start>
+    if !disable_card_entrances {
+        <ShelfEntranceScheduler width=0px height=0px entrances=bind:entrances/>
+    }
     <Group anchor=0% x={100% - (gutter + 76)px} y=0px width=36px height=32px @click=self.previous @mouse_over=self.button_over
         @mouse_out=self.button_out>
         <Text class="button_text" anchor=0% width=100% height=100% text="‹"/>
@@ -19,12 +22,9 @@
         <Group anchor=0% width={((card_width + 16) * 10 - 16 + gutter * 2)px} height=100%>
             for (movie, index) in shelf.movies {
                 <MovieCard anchor=0% x={(gutter + index * (card_width + 16))px} y=0px width={(card_width)px} height=100% movie={movie}
-                    index={index} entrances=bind:entrances selected_id=bind:selected_id modal_open=bind:modal_open light_mode={light_mode}/>
+                    index={index} entrances=bind:entrances selected_id=bind:selected_id modal_open=bind:modal_open light_mode={light_mode}
+                    disable_card_entrances={disable_card_entrances}/>
             }
         </Group>
     </Scroller>
 </Group>
-
-@settings {
-    @mount: on_mount
-}

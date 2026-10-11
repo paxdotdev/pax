@@ -1,5 +1,5 @@
 use super::*;
-use kurbo::{Affine, BezPath, Rect};
+use kurbo::{Affine, BezPath, Rect, Shape};
 use pax_runtime_api::{
     LocalProperty as Property, Paint, ResolvedMaterial, ResolvedStroke, SceneLighting,
 };
@@ -18,6 +18,12 @@ struct RecordingRenderer {
     cached: bool,
     blocked_layers: HashSet<usize>,
     followups: HashMap<usize, usize>,
+    priorities: HashMap<usize, i32>,
+    initializations: Vec<usize>,
+    events: Vec<(&'static str, usize)>,
+    ordinary_priorities: HashMap<usize, i32>,
+    clip_depths: HashMap<usize, usize>,
+    failed_flushes: HashSet<usize>,
 }
 
 impl RenderContext for RecordingRenderer {
@@ -31,10 +37,15 @@ impl RenderContext for RecordingRenderer {
         assert!(layer < self.layer_count);
         self.clears.push(layer);
     }
-    fn flush(&mut self, layer: usize, _: Rc<RefCell<Vec<bool>>>) {
+    fn flush(&mut self, layer: usize, dirty: Rc<RefCell<Vec<bool>>>) {
         assert!(layer < self.layer_count);
         self.flushes.push(layer);
+        assert_eq!(self.clip_depths.get(&layer).copied().unwrap_or(0), 0);
+        if self.failed_flushes.contains(&layer) {
+            dirty.borrow_mut()[layer] = true;
+        }
         self.presented.push(layer);
+        self.events.push(("submit", layer));
         if let Some(remaining) = self.followups.get_mut(&layer) {
             if *remaining > 0 {
                 *remaining -= 1;
@@ -43,8 +54,40 @@ impl RenderContext for RecordingRenderer {
         }
     }
     fn take_settled_surface_replays(&mut self) -> Vec<pax_runtime_api::ReplayCanvasLayerUpdate> {
-        self.jobs.sort_by_key(|job| job.layer);
+        self.jobs.sort_by_key(|job| {
+            (
+                self.priorities.get(&job.layer).copied().unwrap_or(0),
+                job.layer,
+            )
+        });
         std::mem::take(&mut self.jobs)
+    }
+    fn surface_replay_priority(&self, layer: usize) -> i32 {
+        self.priorities.get(&layer).copied().unwrap_or(0)
+    }
+    fn ordinary_layer_priority(&self, layer: usize) -> Option<i32> {
+        self.ordinary_priorities.get(&layer).copied()
+    }
+    fn begin_node(&mut self, layer: usize, _: u32, _: i32, _: u32) -> bool {
+        assert_eq!(self.clip_depths[&layer], 1, "ancestor clip missing");
+        self.events.push(("draw", layer));
+        true
+    }
+    fn start_surface_initialization(&mut self, before: i32) -> bool {
+        let selected = self
+            .initializations
+            .iter()
+            .enumerate()
+            .filter(|(_, layer)| self.surface_replay_priority(**layer).max(0) < before)
+            .min_by_key(|(_, layer)| self.surface_replay_priority(**layer))
+            .map(|(index, _)| index);
+        let Some(index) = selected else {
+            return false;
+        };
+        let layer = self.initializations.remove(index);
+        self.events.push(("initialize", layer));
+        self.jobs.push(replay_job(layer));
+        true
     }
     fn defer_surface_replay(&mut self, layer: usize) {
         self.deferred.push(layer);
@@ -82,14 +125,14 @@ impl RenderContext for RecordingRenderer {
     ) {
         unreachable!()
     }
-    fn save(&mut self, _: usize) {
-        unreachable!()
+    fn save(&mut self, layer: usize) {
+        *self.clip_depths.entry(layer).or_default() += 1;
     }
-    fn restore(&mut self, _: usize) {
-        unreachable!()
+    fn restore(&mut self, layer: usize) {
+        *self.clip_depths.get_mut(&layer).unwrap() -= 1;
     }
-    fn clip(&mut self, _: usize, _: BezPath) {
-        unreachable!()
+    fn clip(&mut self, layer: usize, _: BezPath) {
+        assert!(self.clip_depths[&layer] > 0);
     }
     fn transform(&mut self, _: usize, _: Affine) {
         unreachable!()
@@ -132,6 +175,484 @@ fn replay_job(layer: usize) -> pax_runtime_api::ReplayCanvasLayerUpdate {
         layer,
         regions: Some(vec![Rect::new(0.0, 0.0, 32.0, 32.0)]),
     }
+}
+
+struct RenderProbe {
+    base: crate::BaseInstance,
+    clips: bool,
+}
+
+impl crate::InstanceNode for RenderProbe {
+    fn instantiate(args: crate::InstantiationArgs) -> Rc<Self> {
+        let clips = args.children.is_some();
+        Rc::new(Self {
+            base: crate::BaseInstance::new(
+                args,
+                crate::InstanceFlags {
+                    invisible_to_slot: false,
+                    invisible_to_raycasting: true,
+                    layer: if clips {
+                        crate::api::Layer::DontCare
+                    } else {
+                        crate::api::Layer::Canvas
+                    },
+                    is_component: false,
+                    is_slot: false,
+                },
+            ),
+            clips,
+        })
+    }
+    fn base(&self) -> &crate::BaseInstance {
+        &self.base
+    }
+    fn resolve_debug(
+        &self,
+        f: &mut std::fmt::Formatter,
+        _: Option<&ExpandedNode>,
+    ) -> std::fmt::Result {
+        f.debug_struct("RenderProbe").finish()
+    }
+    fn handle_pre_render(
+        &self,
+        _: &ExpandedNode,
+        ctx: &Rc<RuntimeContext>,
+        rcs: &mut dyn RenderContext,
+    ) {
+        if self.clips {
+            for layer in ctx.dirty_canvas_layers() {
+                rcs.save(layer);
+                rcs.clip(layer, Rect::new(0.0, 0.0, 32.0, 32.0).to_path(0.1));
+            }
+        }
+    }
+    fn handle_post_render(
+        &self,
+        _: &ExpandedNode,
+        ctx: &Rc<RuntimeContext>,
+        rcs: &mut dyn RenderContext,
+    ) {
+        if self.clips {
+            for layer in ctx.dirty_canvas_layers() {
+                rcs.restore(layer);
+            }
+        }
+    }
+    fn render(&self, node: &ExpandedNode, ctx: &Rc<RuntimeContext>, rcs: &mut dyn RenderContext) {
+        if !self.clips && ctx.is_canvas_node_dirty(&node.id) {
+            let layer = node.occlusion.get().render_layer_id;
+            if rcs.begin_node(layer, node.id.to_u32(), node.occlusion.get().z_index, 0)
+                && rcs.end_node(layer, node.id.to_u32())
+            {
+                ctx.clear_canvas_node_dirty(&node.id);
+            }
+        }
+    }
+}
+
+fn render_probe_args() -> crate::InstantiationArgs {
+    crate::InstantiationArgs {
+        prototypical_common_properties: crate::CommonPropertiesInit::Default,
+        prototypical_properties: crate::PropertiesInit::Factory(Box::new(|_, existing| {
+            existing
+                .is_none()
+                .then(|| Rc::new(RefCell::new(PaxAny::Builtin(Default::default()))))
+        })),
+        handler_registry: None,
+        children: None,
+        component_template: None,
+        component_settings: None,
+        template_node_identifier: None,
+        template_node_type_id: None,
+        template_node_selector_info: None,
+        transition_config: Default::default(),
+        properties_scope: crate::PropertiesScopeInit::None,
+    }
+}
+
+fn dirty_render_probe() -> (PaxEngine, RecordingRenderer, Vec<Rc<ExpandedNode>>) {
+    use crate::InstanceNode;
+    let mut engine = engine();
+    let _graph = engine.runtime_context.property_graph.enter();
+    let mut clip_args = render_probe_args();
+    clip_args.children = Some(RefCell::new(vec![
+        RenderProbe::instantiate(render_probe_args()),
+        RenderProbe::instantiate(render_probe_args()),
+    ]));
+    let mut root_args = render_probe_args();
+    root_args.component_template = Some(RefCell::new(vec![RenderProbe::instantiate(clip_args)]));
+    let root = ExpandedNode::initialize_root(
+        ComponentInstance::instantiate(root_args),
+        &engine.runtime_context,
+    );
+    engine.root_expanded_node = Some(root.clone());
+    engine.tick();
+    let nodes = root.children.get()[0].children.get();
+    assert_eq!(nodes.len(), 2);
+    engine.runtime_context.layer_count.set(2);
+    engine.runtime_context.resize_canvas_layers_to(2);
+    let mut renderer = RecordingRenderer::default();
+    engine.render(&mut renderer);
+    for (index, node) in nodes.iter().enumerate() {
+        let mut occlusion = node.occlusion.get();
+        occlusion.render_layer_id = 1 - index; // Unprioritized traversal draws warm layer 0 first.
+        node.occlusion.set(occlusion);
+        engine.runtime_context.mark_canvas_node_dirty(node.id);
+        engine.runtime_context.set_canvas_dirty(1 - index);
+    }
+    renderer.events.clear();
+    renderer.ordinary_priorities = HashMap::from([(0, 5), (1, 0)]);
+    renderer.priorities = renderer.ordinary_priorities.clone();
+    renderer.cached = true;
+    (engine, renderer, nodes)
+}
+
+#[test]
+fn visible_dirty_drawing_and_replay_finish_before_warm_drawing() {
+    let (mut engine, mut renderer, nodes) = dirty_render_probe();
+    renderer.jobs = vec![replay_job(1)];
+    let (visible, _) = engine.render_with_surface_preparation(
+        &mut renderer,
+        &mut surface_work::SurfaceWorkBudget::new(4.0),
+        || 0.0,
+        &mut |_| {},
+    );
+    assert_eq!(visible.submitted, 1);
+    assert_eq!(
+        renderer.events,
+        vec![
+            ("draw", 1),
+            ("submit", 1),
+            ("submit", 1),
+            ("draw", 0),
+            ("submit", 0)
+        ]
+    );
+    assert!(!engine.runtime_context.has_dirty_canvas_layers());
+    for node in nodes {
+        assert!(!engine.runtime_context.is_canvas_node_dirty(&node.id));
+    }
+}
+
+#[test]
+fn visible_flush_failure_survives_remaining_drawing_and_blocks_replay() {
+    let (mut engine, mut renderer, _) = dirty_render_probe();
+    renderer.failed_flushes.insert(1);
+    renderer.jobs = vec![replay_job(1)];
+    let (visible, remaining) = engine.render_with_surface_preparation(
+        &mut renderer,
+        &mut surface_work::SurfaceWorkBudget::new(4.0),
+        || 0.0,
+        &mut |_| {},
+    );
+    assert_eq!(visible.submitted + remaining.submitted, 0);
+    assert!(engine.runtime_context.is_canvas_dirty(&1));
+    assert!(!engine.runtime_context.is_canvas_dirty(&0));
+    assert_eq!(
+        renderer.events,
+        vec![("draw", 1), ("submit", 1), ("draw", 0), ("submit", 0)]
+    );
+}
+
+#[test]
+fn dirty_visible_boundary_does_not_restart_preparation_allowance() {
+    let (mut engine, mut renderer, _) = dirty_render_probe();
+    engine.runtime_context.layer_count.set(3);
+    engine.update_layer_count(&mut renderer);
+    engine.runtime_context.dirty_canvases.borrow_mut()[2] = false;
+    renderer.priorities.insert(2, -1);
+    renderer.jobs = vec![replay_job(2), replay_job(1)];
+    let now = std::cell::Cell::new(0.0);
+    let (visible, remaining) = engine.render_with_surface_preparation(
+        &mut renderer,
+        &mut surface_work::SurfaceWorkBudget::new(4.0),
+        || {
+            let time = now.get();
+            now.set(time + 3.0);
+            time
+        },
+        &mut |_| {},
+    );
+    assert_eq!(visible.submitted, 1);
+    assert_eq!(remaining.submitted, 0);
+    assert!(renderer.jobs.iter().any(|job| job.layer == 1));
+    assert_eq!(
+        renderer.events,
+        vec![
+            ("submit", 2),
+            ("draw", 1),
+            ("submit", 1),
+            ("draw", 0),
+            ("submit", 0)
+        ]
+    );
+}
+
+#[test]
+fn failed_removal_prevents_early_dirty_layer_completion() {
+    let (mut engine, mut renderer, _) = dirty_render_probe();
+    renderer.pending = true;
+    engine.runtime_context.enqueue_canvas_node_removal(1, 999);
+    engine.render_with_surface_preparation(
+        &mut renderer,
+        &mut surface_work::SurfaceWorkBudget::new(4.0),
+        || 0.0,
+        &mut |_| {},
+    );
+    assert_eq!(
+        renderer.events,
+        vec![("draw", 0), ("draw", 1), ("submit", 0), ("submit", 1)]
+    );
+    assert!(engine.runtime_context.is_canvas_dirty(&1));
+    assert!(engine.runtime_context.has_canvas_node_removals());
+}
+
+#[test]
+fn pending_nodes_on_clean_cold_layers_do_not_disable_visible_partition() {
+    let (engine, renderer, nodes) = dirty_render_probe();
+    engine.runtime_context.dirty_canvases.borrow_mut()[0] = false;
+    let (layers, visible, remaining) = engine
+        .partition_visible_render_work(
+            &renderer,
+            &[1],
+            &nodes.iter().map(|n| n.id).collect::<Vec<_>>(),
+            &[],
+        )
+        .unwrap()
+        .unwrap();
+    assert_eq!(layers, vec![1]);
+    assert_eq!(visible, vec![nodes[0].id]);
+    assert_eq!(remaining, vec![nodes[1].id]);
+    assert!(engine.runtime_context.is_canvas_node_dirty(&nodes[1].id));
+}
+
+#[test]
+fn node_removal_retires_render_work_without_losing_gpu_removal_or_remount() {
+    let (engine, renderer, nodes) = dirty_render_probe();
+    let ctx = &engine.runtime_context;
+    let removed = &nodes[1];
+    ctx.clear_canvas_node_dirty(&removed.id);
+    ctx.mark_targeted_canvas_replay_nodes(0, &[removed.id.to_u32()]);
+    ctx.enqueue_canvas_node_removal(0, removed.id.to_u32());
+    ctx.remove_from_cache(removed);
+    assert!(ctx
+        .take_targeted_canvas_replay_node_ids()
+        .values()
+        .all(|ids| ids.is_empty()));
+    // Late invalidation during teardown must not resurrect an unresolved ID.
+    ctx.mark_canvas_node_dirty(removed.id);
+    assert!(!ctx.is_canvas_node_dirty(&removed.id));
+    assert!(ctx.has_canvas_node_removals());
+    assert!(engine
+        .partition_visible_render_work(&renderer, &[0, 1], &ctx.dirty_canvas_node_ids(), &[])
+        .unwrap()
+        .is_some());
+
+    ctx.add_to_cache(removed);
+    assert!(ctx.is_canvas_node_dirty(&removed.id));
+    ctx.remove_from_cache(removed);
+    assert!(!ctx.is_canvas_node_dirty(&removed.id));
+}
+
+#[test]
+fn unclippable_drawing_retains_unsplit_traversal() {
+    let (mut engine, mut renderer, nodes) = dirty_render_probe();
+    nodes[1]
+        .get_common_properties()
+        .borrow()
+        .unclippable
+        .set(Some(true));
+    // Validate without drawing: a queued unclippable would intentionally leave
+    // this fixture's ancestor clip, so its draw assertion should not apply.
+    assert!(engine
+        .partition_visible_render_work(
+            &renderer,
+            &[0, 1],
+            &nodes.iter().map(|n| n.id).collect::<Vec<_>>(),
+            &[]
+        )
+        .is_err());
+    nodes[1]
+        .get_common_properties()
+        .borrow()
+        .unclippable
+        .set(Some(false));
+    renderer.ordinary_priorities.clear();
+    engine.render_with_surface_preparation(
+        &mut renderer,
+        &mut surface_work::SurfaceWorkBudget::new(4.0),
+        || 0.0,
+        &mut |_| {},
+    );
+    assert_eq!(
+        renderer.events,
+        vec![("draw", 0), ("draw", 1), ("submit", 0), ("submit", 1)]
+    );
+}
+
+#[test]
+fn ordinary_render_services_new_visible_work_before_unrelated_dirty_layers() {
+    let mut engine = engine();
+    let mut renderer = RecordingRenderer::default();
+    engine.tick();
+    engine.runtime_context.layer_count.set(4);
+    engine.render(&mut renderer);
+    renderer.events.clear();
+    renderer.cached = true;
+    renderer.priorities = HashMap::from([(1, -1), (2, 5), (3, 0)]);
+    renderer.jobs = vec![replay_job(1)];
+    renderer.initializations = vec![2, 3];
+    engine.runtime_context.set_canvas_dirty(0);
+    let (visible, remaining) = engine.render_with_surface_preparation(
+        &mut renderer,
+        &mut surface_work::SurfaceWorkBudget::new(4.0),
+        || 0.0,
+        &mut |_| {},
+    );
+    assert_eq!(visible.submitted, 2);
+    assert_eq!(visible.initializations, 1);
+    assert_eq!(remaining.initializations, 1);
+    assert_eq!(
+        renderer.events,
+        vec![
+            ("submit", 1),
+            ("initialize", 3),
+            ("submit", 3),
+            ("submit", 0),
+            ("initialize", 2),
+            ("submit", 2),
+        ]
+    );
+}
+
+#[test]
+fn early_preparation_does_not_bypass_dirty_layers_or_failed_removals() {
+    let mut engine = engine();
+    let mut renderer = RecordingRenderer::default();
+    engine.tick();
+    engine.runtime_context.layer_count.set(3);
+    engine.render(&mut renderer);
+    renderer.events.clear();
+    renderer.cached = true;
+    renderer.pending = true;
+    engine.runtime_context.set_canvas_dirty(0);
+    engine.runtime_context.enqueue_canvas_node_removal(1, 42);
+    renderer.jobs = vec![replay_job(0), replay_job(1), replay_job(2)];
+    let (visible, remaining) = engine.render_with_surface_preparation(
+        &mut renderer,
+        &mut surface_work::SurfaceWorkBudget::new(4.0),
+        || 0.0,
+        &mut |_| {},
+    );
+    assert_eq!(visible.submitted, 1);
+    assert_eq!(visible.dirty_layers, 2);
+    assert_eq!(renderer.events[0], ("submit", 2));
+    assert_eq!(remaining.submitted, 1); // Layer 0 is now settled, layer 1 is not.
+    assert!(engine.runtime_context.is_canvas_dirty(&1));
+    assert!(engine.runtime_context.has_canvas_node_removals());
+    assert_eq!(
+        renderer
+            .jobs
+            .iter()
+            .map(|job| job.layer)
+            .collect::<Vec<_>>(),
+        vec![1]
+    );
+}
+
+#[test]
+fn ordinary_preparation_phases_share_one_allowance_without_a_second_first_job() {
+    let mut engine = engine();
+    let mut renderer = RecordingRenderer::default();
+    engine.tick();
+    engine.runtime_context.layer_count.set(3);
+    engine.render(&mut renderer);
+    renderer.events.clear();
+    renderer.cached = true;
+    renderer.priorities = HashMap::from([(1, 0), (2, 5)]);
+    renderer.jobs = vec![replay_job(1), replay_job(2)];
+    engine.runtime_context.set_canvas_dirty(0);
+    let now = std::cell::Cell::new(0.0);
+    let (visible, remaining) = engine.render_with_surface_preparation(
+        &mut renderer,
+        &mut surface_work::SurfaceWorkBudget::new(4.0),
+        || {
+            let t = now.get();
+            now.set(t + 3.0);
+            t
+        },
+        &mut |_| {},
+    );
+    assert_eq!(visible.submitted, 1);
+    assert_eq!(remaining.submitted, 0);
+    assert_eq!(renderer.events, vec![("submit", 1), ("submit", 0)]);
+    assert_eq!(renderer.jobs.len(), 1);
+}
+
+#[test]
+fn idle_ordinary_render_still_prepares_warm_work() {
+    let mut engine = engine();
+    let mut renderer = RecordingRenderer::default();
+    engine.tick();
+    engine.runtime_context.layer_count.set(1);
+    engine.render(&mut renderer);
+    renderer.cached = true;
+    renderer.priorities.insert(0, 5);
+    renderer.initializations.push(0);
+    let (visible, remaining) = engine.render_with_surface_preparation(
+        &mut renderer,
+        &mut surface_work::SurfaceWorkBudget::new(4.0),
+        || 0.0,
+        &mut |_| {},
+    );
+    assert_eq!(visible.initializations, 0);
+    assert_eq!(remaining.initializations, 1);
+    assert_eq!(remaining.submitted, 1);
+}
+
+#[test]
+fn unfiltered_capture_waits_until_unrelated_dirty_work_has_finished() {
+    use crate::{
+        CommonPropertiesInit, ComponentInstance, InstanceNode, InstantiationArgs, PropertiesInit,
+        PropertiesScopeInit,
+    };
+    let mut engine = engine();
+    let _graph = engine.runtime_context.property_graph.enter();
+    let root = ExpandedNode::initialize_root(
+        ComponentInstance::instantiate(InstantiationArgs {
+            prototypical_common_properties: CommonPropertiesInit::Default,
+            prototypical_properties: PropertiesInit::Factory(Box::new(|_, existing| {
+                existing
+                    .is_none()
+                    .then(|| Rc::new(RefCell::new(PaxAny::Builtin(Default::default()))))
+            })),
+            handler_registry: None,
+            children: None,
+            component_template: Some(RefCell::new(Vec::new())),
+            component_settings: None,
+            template_node_identifier: None,
+            template_node_type_id: None,
+            template_node_selector_info: None,
+            transition_config: Default::default(),
+            properties_scope: PropertiesScopeInit::None,
+        }),
+        &engine.runtime_context,
+    );
+    engine.root_expanded_node = Some(root.clone());
+    engine
+        .runtime_context
+        .dirty_canvases
+        .borrow_mut()
+        .resize(1, true);
+    assert!(engine.can_capture_surface_nodes(&[root.id.to_u32()]));
+    root.get_common_properties()
+        .borrow()
+        .unclippable
+        .set(Some(true));
+    assert!(!engine.can_capture_surface_nodes(&[root.id.to_u32()]));
+    assert!(engine.runtime_context.is_canvas_dirty(&0));
+    engine.runtime_context.clear_all_dirty_canvases();
+    assert!(engine.can_capture_surface_nodes(&[root.id.to_u32()]));
 }
 
 #[test]
@@ -243,6 +764,95 @@ fn settled_replay_drains_successive_batches_and_reselects_priority() {
     assert_eq!(report.submitted, 4);
     assert_eq!(renderer.presented, vec![1, 1, 1, 2]);
     assert!(renderer.jobs.is_empty());
+}
+
+#[test]
+fn settled_service_finishes_visible_before_initializing_speculative_work() {
+    let mut engine = engine();
+    let mut renderer = RecordingRenderer::default();
+    engine.tick();
+    engine.runtime_context.layer_count.set(4);
+    engine.render(&mut renderer);
+    renderer.events.clear();
+    renderer.cached = true;
+    renderer.priorities = HashMap::from([(0, 5), (1, -1), (2, -2), (3, 8)]);
+    renderer.jobs = vec![replay_job(0), replay_job(1)];
+    renderer.initializations = vec![3, 2];
+    let report = engine.present_settled_surfaces(
+        &mut renderer,
+        &mut surface_work::SurfaceWorkBudget::new(4.0),
+        || 0.0,
+    );
+    assert_eq!(report.initializations, 2);
+    assert_eq!(
+        renderer.events,
+        vec![
+            ("submit", 1),
+            ("initialize", 2),
+            ("submit", 2),
+            ("submit", 0),
+            ("initialize", 3),
+            ("submit", 3),
+        ]
+    );
+}
+
+#[test]
+fn initialization_is_budgeted_and_does_not_jump_a_visible_replay_on_resume() {
+    let mut engine = engine();
+    let mut renderer = RecordingRenderer::default();
+    engine.tick();
+    engine.runtime_context.layer_count.set(2);
+    engine.render(&mut renderer);
+    renderer.events.clear();
+    renderer.cached = true;
+    renderer.priorities = HashMap::from([(0, 0), (1, 5)]);
+    renderer.initializations = vec![0, 1];
+    let mut budget = surface_work::SurfaceWorkBudget::new(0.0);
+    let now = std::cell::Cell::new(0.0);
+    let clock = || {
+        let t = now.get();
+        now.set(t + 1.0);
+        t
+    };
+    let first = engine.present_settled_surfaces(&mut renderer, &mut budget, clock);
+    assert_eq!(first.initializations, 1);
+    assert_eq!(first.submitted, 0);
+    let second = engine.present_settled_surfaces(&mut renderer, &mut budget, clock);
+    assert_eq!(second.initializations, 0);
+    assert_eq!(second.submitted, 1);
+    assert_eq!(renderer.events, vec![("initialize", 0), ("submit", 0)]);
+    // Current visibility, not old enqueue urgency, selects the next pass.
+    renderer.priorities.insert(1, -1);
+    assert_eq!(
+        engine
+            .present_settled_surfaces(&mut renderer, &mut budget, clock)
+            .initializations,
+        1
+    );
+}
+
+#[test]
+fn blocked_visible_replay_does_not_prevent_another_surface_initializing() {
+    let mut engine = engine();
+    let mut renderer = RecordingRenderer::default();
+    engine.tick();
+    engine.runtime_context.layer_count.set(2);
+    engine.render(&mut renderer);
+    renderer.events.clear();
+    renderer.cached = true;
+    renderer.jobs = vec![replay_job(0)];
+    renderer.blocked_layers.insert(0);
+    renderer.initializations = vec![1];
+    renderer.priorities.insert(1, 4);
+    let report = engine.present_settled_surfaces(
+        &mut renderer,
+        &mut surface_work::SurfaceWorkBudget::new(4.0),
+        || 0.0,
+    );
+    assert_eq!(report.initializations, 1);
+    assert_eq!(report.deferred, 1);
+    assert_eq!(renderer.events, vec![("initialize", 1), ("submit", 1)]);
 }
 
 #[test]

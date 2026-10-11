@@ -45,6 +45,13 @@ Type: `f64`
 
 Independent first-interaction coverage on currently exposed scroll axes.
 
+##### `reversal_viewports`
+Type: `f64`
+
+Cold-capable coverage opposite the last movement on exposed axes.
+Admission reserves this before forward speculation; execution remains
+visible-first, then predicted incoming work.
+
 ##### `retention_viewports`
 Type: `f64`
 

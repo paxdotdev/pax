@@ -104,9 +104,12 @@ pub struct RuntimeSettingsSignatureEntry {
     pub transition_enabled: bool,
     pub provider_id: ExpandedNodeIdentifier,
     pub provider_type_id: TypeId,
+    /// Runtime template/sidecar revision; ordinary provider values are reactive
+    /// inputs, not changes to the imported layer's identity.
+    pub provider_revision: u64,
 }
 
-// Discovery runs every frame. Keep only handles until the ordered provider
+// Keep only handles until the ordered provider
 // signature changes; copying settings also copies their entire expression trees.
 struct DiscoveredSettingsProvider {
     node: Rc<ExpandedNode>,
@@ -122,6 +125,12 @@ impl DiscoveredSettingsProvider {
                 .and_then(|policy| policy.get())
                 .is_some(),
             provider_id: self.node.id,
+            provider_revision: self
+                .node
+                .settings_source_revision
+                .borrow()
+                .as_ref()
+                .map_or(0, LocalProperty::get),
             provider_type_id: borrow!(self.node.instance_node)
                 .base()
                 .template_node_type_id
@@ -460,6 +469,17 @@ pub struct ExpandedNode {
     pub exit_cleanup_active: Cell<bool>,
     /// Imported provider layers currently active for this component instance.
     pub imported_settings_layers: RefCell<Vec<RuntimeSettingsLayer>>,
+    // Allocated only for nodes visited by import discovery. Ordinary nodes do
+    // not need another graph edge until an importing component observes them.
+    settings_source_revision: RefCell<Option<LocalProperty<u64>>>,
+    imported_settings_observer: RefCell<
+        Option<(
+            LocalProperty<()>,
+            Vec<pax_runtime_api::properties::UntypedProperty>,
+        )>,
+    >,
+    #[cfg(test)]
+    pub(crate) settings_discoveries: Cell<usize>,
     #[cfg(test)]
     pub(crate) settings_layer_materializations: Cell<usize>,
     pub import_settings_transition:
@@ -1151,6 +1171,10 @@ impl ExpandedNode {
             exit_cleanup_listener: LocalProperty::default(),
             exit_cleanup_active: Cell::new(false),
             imported_settings_layers: RefCell::new(Vec::new()),
+            settings_source_revision: RefCell::new(None),
+            imported_settings_observer: RefCell::new(None),
+            #[cfg(test)]
+            settings_discoveries: Cell::new(0),
             #[cfg(test)]
             settings_layer_materializations: Cell::new(0),
             import_settings_transition: RefCell::new(None),
@@ -1192,7 +1216,11 @@ impl ExpandedNode {
                 .map(|(name, value)| (name.clone(), value.get_untyped_property().get_id()))
                 .collect::<HashMap<_, _>>()
         });
+        let source_changed = !Rc::ptr_eq(&borrow!(self.instance_node), &template);
         *borrow_mut!(self.instance_node) = Rc::clone(&template);
+        if source_changed {
+            self.invalidate_settings_source();
+        }
         template.base().bind_properties(self);
         self.refresh_properties_scope(&template);
         if let Some(previous) = previous {
@@ -1217,7 +1245,7 @@ impl ExpandedNode {
         self.bind_to_parent_bounds(context);
         self.bind_occlusion_listener(context);
         self.mark_non_reactive_update_subtree_dirty();
-        context.mark_occlusion_dirty();
+        context.mark_occlusion_dirty_for_node(self.id.to_u32());
         context.set_canvas_dirty(self.occlusion.get().render_layer_id);
         if self.attached.get() > 0 {
             context.refresh_scene_lighting_node(self);
@@ -1241,7 +1269,7 @@ impl ExpandedNode {
 
         self.bind_to_parent_bounds(context);
         self.mark_non_reactive_update_subtree_dirty();
-        context.mark_occlusion_dirty();
+        context.mark_occlusion_dirty_for_node(self.id.to_u32());
         Rc::clone(self).recurse_mount(context);
         context.drain_node_effects();
         self.recurse_emit_mount_updates();
@@ -1944,7 +1972,7 @@ impl ExpandedNode {
         // mark a pending branch update clean if cleanup and selection change in
         // the same frame, so invalidate it and let its evaluator reconcile.
         self.children.invalidate();
-        context.mark_occlusion_dirty();
+        context.mark_occlusion_dirty_for_node(self.id.to_u32());
 
         if borrow!(self.exiting_children).is_empty() {
             self.exit_cleanup_active.set(false);
@@ -2057,6 +2085,7 @@ impl ExpandedNode {
             child.ensure_parent_bindings(self, context, parent_frame, &self.liquid_glass_scope);
         }
         *borrow_mut!(self.sidecar_children) = new_children.clone();
+        self.invalidate_settings_source();
         self.mark_non_reactive_update_subtree_dirty();
         new_children
     }
@@ -2161,7 +2190,7 @@ impl ExpandedNode {
             }
             context.mark_canvas_node_dirty(self.id);
         }
-        context.mark_occlusion_dirty();
+        context.mark_occlusion_dirty_for_node(self.id.to_u32());
 
         let mounted_children = borrow!(self.mounted_children).clone();
         for child in mounted_children {
@@ -2312,7 +2341,7 @@ impl ExpandedNode {
         self.reset_removed_runtime_properties.set(false);
         self.refresh_properties_scope(&instance);
         self.mark_non_reactive_update_subtree_dirty();
-        context.mark_occlusion_dirty();
+        context.mark_occlusion_dirty_for_node(self.id.to_u32());
         context.set_canvas_dirty(self.occlusion.get().render_layer_id);
     }
 
@@ -2387,7 +2416,7 @@ impl ExpandedNode {
                             ancestor = parent.template_parent.upgrade();
                         }
                     }
-                    context.mark_occlusion_dirty();
+                    context.mark_occlusion_dirty_for_node(node.id.to_u32());
 
                     let (is_slot, is_component) = {
                         let instance = borrow!(node.instance_node);
@@ -2646,11 +2675,20 @@ impl ExpandedNode {
     }
 
     pub fn recurse_update(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
+        self.recurse_update_with_observer(context, |_| {});
+    }
+
+    pub(crate) fn recurse_update_with_observer(
+        self: &Rc<Self>,
+        context: &Rc<RuntimeContext>,
+        mut completed: impl FnMut(&'static str),
+    ) {
         // Settle queued reactive effects before checking which subtrees still need
         // imperative work, then flush any effects produced by that non-reactive pass.
-        context.drain_node_effects();
+        context.drain_node_effects_with_observer(&mut completed);
         self.recurse_update_mounted(context);
-        context.drain_node_effects();
+        completed("imperative_update");
+        context.drain_node_effects_with_observer(&mut completed);
     }
 
     fn recurse_update_mounted(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
@@ -2681,18 +2719,6 @@ impl ExpandedNode {
         }
         self.subtree_requires_non_reactive_update
             .set(subtree_requires_non_reactive_update);
-    }
-
-    pub fn recurse_sync_import_settings(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
-        if borrow!(self.instance_node).base().flags().is_component {
-            self.sync_imported_settings(context);
-        }
-        for child in self.children.get().iter() {
-            child.recurse_sync_import_settings(context);
-        }
-        for child in borrow!(self.sidecar_children).iter() {
-            child.recurse_sync_import_settings(context);
-        }
     }
 
     fn recurse_reapply_runtime_settings_for_component_owner(
@@ -2845,6 +2871,13 @@ impl ExpandedNode {
             borrow_mut!(self.import_settings_transition).take();
             borrow_mut!(self.imported_settings_layers).clear();
             borrow_mut!(self.imported_settings_signature).clear();
+            if let Some((observer, dependencies)) =
+                self.imported_settings_observer.borrow_mut().as_mut()
+            {
+                observer.replace_with(LocalProperty::default());
+                dependencies.clear();
+            }
+            self.invalidate_settings_source();
             borrow_mut!(self.resolved_property_columns).clear();
             borrow_mut!(self.resolved_property_provenance).clear();
             self.reset_removed_runtime_properties.set(false);
@@ -2926,8 +2959,13 @@ impl ExpandedNode {
         descend_components: bool,
         providers: &mut Vec<DiscoveredSettingsProvider>,
         transition: Option<LocalProperty<Option<crate::SettingsTransitionConfig>>>,
+        dependencies: &mut Vec<pax_runtime_api::properties::UntypedProperty>,
     ) {
+        node.settings_discovery_dependencies(dependencies);
         if node.is_import_settings_node() {
+            if let Some(policy) = node.import_settings_transition.borrow().as_ref() {
+                dependencies.push(policy.untyped());
+            }
             let sidecar_children = borrow!(node.sidecar_children).clone();
             for child in sidecar_children.iter() {
                 Self::collect_imported_settings_from_node(
@@ -2938,6 +2976,7 @@ impl ExpandedNode {
                     transition
                         .clone()
                         .or_else(|| node.import_settings_transition.borrow().clone()),
+                    dependencies,
                 );
             }
             return;
@@ -2964,6 +3003,7 @@ impl ExpandedNode {
                         true,
                         providers,
                         transition.clone(),
+                        dependencies,
                     );
                 }
                 let sidecar_children = borrow!(node.sidecar_children).clone();
@@ -2974,6 +3014,7 @@ impl ExpandedNode {
                         true,
                         providers,
                         transition.clone(),
+                        dependencies,
                     );
                 }
                 return;
@@ -2991,6 +3032,7 @@ impl ExpandedNode {
                 descend_components,
                 providers,
                 transition.clone(),
+                dependencies,
             );
         }
         let sidecar_children = borrow!(node.sidecar_children).clone();
@@ -3001,20 +3043,41 @@ impl ExpandedNode {
                 descend_components,
                 providers,
                 transition.clone(),
+                dependencies,
             );
         }
     }
 
     pub fn sync_imported_settings(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
+        #[cfg(test)]
+        self.settings_discoveries
+            .set(self.settings_discoveries.get() + 1);
+        let mut dependencies = Vec::new();
+        self.settings_discovery_dependencies(&mut dependencies);
         let mut providers = Vec::new();
         let children = self.children.get();
         for child in children.iter() {
-            Self::collect_imported_settings_from_node(child, false, false, &mut providers, None);
+            Self::collect_imported_settings_from_node(
+                child,
+                false,
+                false,
+                &mut providers,
+                None,
+                &mut dependencies,
+            );
         }
         let sidecar_children = borrow!(self.sidecar_children).clone();
         for child in sidecar_children.iter() {
-            Self::collect_imported_settings_from_node(child, false, false, &mut providers, None);
+            Self::collect_imported_settings_from_node(
+                child,
+                false,
+                false,
+                &mut providers,
+                None,
+                &mut dependencies,
+            );
         }
+        self.bind_imported_settings_observer(context, dependencies);
 
         let signature = providers
             .iter()
@@ -3038,6 +3101,68 @@ impl ExpandedNode {
             child.recurse_reapply_runtime_settings_for_component_owner(self.id, context);
             child.recurse_emit_mount_updates();
         }
+    }
+
+    fn settings_discovery_dependencies(
+        &self,
+        dependencies: &mut Vec<pax_runtime_api::properties::UntypedProperty>,
+    ) {
+        dependencies.push(self.children.untyped());
+        let mut revision = self.settings_source_revision.borrow_mut();
+        dependencies.push(
+            revision
+                .get_or_insert_with(|| LocalProperty::new(0))
+                .untyped(),
+        );
+    }
+
+    fn invalidate_settings_source(&self) {
+        if let Some(revision) = self.settings_source_revision.borrow().as_ref() {
+            revision.set(revision.get().wrapping_add(1));
+        }
+    }
+
+    fn bind_imported_settings_observer(
+        self: &Rc<Self>,
+        context: &Rc<RuntimeContext>,
+        dependencies: Vec<pax_runtime_api::properties::UntypedProperty>,
+    ) {
+        let mut observer = self.imported_settings_observer.borrow_mut();
+        if observer.as_ref().is_some_and(|(_, previous)| {
+            previous.len() == dependencies.len()
+                && previous
+                    .iter()
+                    .zip(&dependencies)
+                    .all(|(a, b)| a.get_id() == b.get_id())
+        }) {
+            return;
+        }
+        let weak_self = Rc::downgrade(self);
+        let ctx = Rc::clone(context);
+        let computation = LocalProperty::computed_with_name(
+            move || {
+                if let Some(node) = weak_self.upgrade() {
+                    node.sync_imported_settings(&ctx);
+                }
+            },
+            &dependencies,
+            "imported settings discovery",
+        );
+        // Preserve identity when a structural change replaces the dependencies,
+        // even when discovery is executing inside this effect. The replacement
+        // settles once; unchanged inputs never enqueue it again.
+        let effect = if let Some((effect, _)) = observer.as_ref() {
+            effect.replace_with(computation);
+            effect.clone()
+        } else {
+            computation
+        };
+        context.register_expanded_node_effect_property_named(
+            self,
+            &effect,
+            "imported settings discovery",
+        );
+        *observer = Some((effect, dependencies));
     }
 
     pub fn recurse_render_queue(

@@ -1,9 +1,7 @@
 <ImportSettings transition=SettingsTransition::Ease(300ms, TransitionCurve::InOutQuad)>
     <CinemaTheme is_dark={!light_mode}/>
 </ImportSettings>
-// Observe the resting card bounds, never the animated text.
-<Group anchor=0% width=100% height=100% @click=self.open @mouse_over=self.over @mouse_out=self.out
-    @viewport_proximity_change=self.reveal @viewport_proximity_exit=self.reset_reveal>
+<Group anchor=0% width=100% height=100% @click=self.open @mouse_over=self.over @mouse_out=self.out>
     <Frame anchor=0% width=100% height=100% corner_radius=6>
         <Text class="card_title" id=card_title anchor=0% y={100% - 70px} width={100% - 32px} height=40px text={movie.title}/>
         <Text class="muted" id=card_subtitle anchor=0% y={100% - 24px} width={100% - 32px} height=18px
@@ -19,16 +17,15 @@
         <Image anchor=0% y=0% width=100% height=100% source={ImageSource::Url(movie.thumbnail)} fit=ImageFit::Paint/>
         <Rectangle class="page_surface" anchor=0% width=100% height=100%/>
     </Frame>
+    if !self.disable_card_entrances {
+        <MovieCardEntrance anchor=0% width=100% height=100% index={self.index} entrances=bind:entrances reveal_progress=bind:reveal_progress
+            hover=bind:hover/>
+    }
 </Group>
-
-@settings {
-    @mount: on_mount
-    @unmount: on_unmount
-}
 
 @timeline reveal {
     duration: 100,
-    playhead: {self.reveal_progress},
+    playhead: {self.disable_card_entrances ? 100 : self.reveal_progress},
     loop: false,
     #card_title {
         x: {

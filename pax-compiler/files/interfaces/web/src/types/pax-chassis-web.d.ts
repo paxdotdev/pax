@@ -51,12 +51,13 @@ export class PaxChassisWeb {
 * @returns {any}
 */
   tick(): any;
-  tick_profiled(): [any, [string, number][], {rebuilds: number; records_updated: number; masks_evaluated: number; mask_candidates: number; rebuild_reason: string | null; rebuild_node: number | null}];
+  tick_profiled(): [any, [string, number][], {passes: number; rebuilds: number; records_updated: number; masks_evaluated: number; mask_candidates: number; rebuild_reason: string | null; rebuild_node: number | null; rebuild_origins: ({file: string; line: number; node: number | null; count: number} | null)[]}];
   set_surface_ready_callback(callback: (() => void) | undefined): void;
   present_ready_surfaces(): {submitted: number; deferred: number; cache_misses: number; blocked: boolean; blocker: string | null; elapsed_ms: number};
 /**
 */
   render(): void;
+  render_profiled(): [[string, number][], [{initializations: number; submitted: number; deferred: number; dirty_layers: number; cache_misses: number; blocked: boolean; blocker: string | null; elapsed_ms: number}, {initializations: number; submitted: number; deferred: number; dirty_layers: number; cache_misses: number; blocked: boolean; blocker: string | null; elapsed_ms: number}]];
 /**
 * @returns {number}
 */

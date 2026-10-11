@@ -16,6 +16,7 @@ struct InboxState {
     attached: HashSet<u64>,
     pending: HashSet<u64>,
     order: VecDeque<u64>,
+    retired: HashSet<u64>,
     closed: bool,
 }
 
@@ -25,13 +26,28 @@ pub(super) struct GraphInbox {
 }
 
 impl GraphInbox {
+    pub(super) fn retire(&self, id: u64) {
+        let wake = {
+            let mut state = lock(&self.state);
+            if state.closed {
+                return;
+            }
+            let wake = state.pending.is_empty() && state.retired.is_empty();
+            state.retired.insert(id);
+            wake
+        };
+        if wake {
+            self.wake();
+        }
+    }
+
     pub fn publish(&self, id: u64) {
         let wake = {
             let mut state = lock(&self.state);
             if state.closed || !state.attached.contains(&id) {
                 return;
             }
-            let wake = state.pending.is_empty();
+            let wake = state.pending.is_empty() && state.retired.is_empty();
             if state.pending.insert(id) {
                 state.order.push_back(id);
             }
@@ -109,7 +125,7 @@ trait Attachment {
     fn as_any(&self) -> &dyn Any;
     fn prepare_import(&self) -> Option<Box<dyn FnOnce()>>;
     fn live(&self) -> bool;
-    fn dormant(&self) -> Box<dyn DormantAttachment>;
+    fn into_dormant(self: Box<Self>) -> Box<dyn DormantAttachment>;
 }
 
 trait DormantAttachment {
@@ -121,6 +137,34 @@ trait DormantAttachment {
 struct Dormant<T: SharedPropertyValue> {
     shared: Weak<SharedCell<T>>,
     local: super::private::PropertyId,
+    lifetime: RefCell<Option<AttachmentLifetime<T>>>,
+    graph: u64,
+    id: u64,
+}
+
+// Keep the drop notification registered while publication is suspended. Neither
+// this lease nor the graph retains the shared application value.
+struct AttachmentLifetime<T> {
+    shared: Weak<SharedCell<T>>,
+    graph: u64,
+    id: u64,
+    inbox: Weak<GraphInbox>,
+}
+
+impl<T: SharedPropertyValue> Drop for Dormant<T> {
+    fn drop(&mut self) {
+        let _ = PROPERTY_TABLE.try_with(|table| {
+            table.unwatch_retirement(self.local, self.graph, self.id);
+        });
+    }
+}
+
+impl<T> Drop for AttachmentLifetime<T> {
+    fn drop(&mut self) {
+        if let Some(shared) = self.shared.upgrade() {
+            shared.unsubscribe(self.graph);
+        }
+    }
 }
 
 impl<T: SharedPropertyValue> DormantAttachment for Dormant<T> {
@@ -145,16 +189,20 @@ impl<T: SharedPropertyValue> DormantAttachment for Dormant<T> {
         let snapshot = property.cell.snapshot();
         PROPERTY_TABLE.with(|table| table.import_shared(self.local, (*snapshot.value).clone()));
         PROPERTY_TABLE.with(|table| table.invalidate(self.local));
-        graph.insert(&property, local, snapshot.revision);
+        graph.insert(
+            &property,
+            local,
+            snapshot.revision,
+            self.lifetime.borrow_mut().take(),
+        );
     }
 }
 
 struct TypedAttachment<T: SharedPropertyValue> {
-    graph: u64,
-    shared: Weak<SharedCell<T>>,
     local: LocalProperty<T>,
     revision: Rc<Cell<u64>>,
     _publication_effect: LocalProperty<()>,
+    lifetime: Option<AttachmentLifetime<T>>,
 }
 
 impl<T: SharedPropertyValue> Attachment for TypedAttachment<T> {
@@ -162,16 +210,30 @@ impl<T: SharedPropertyValue> Attachment for TypedAttachment<T> {
         self
     }
     fn live(&self) -> bool {
-        self.shared.strong_count() != 0
+        self.lifetime
+            .as_ref()
+            .is_some_and(|lifetime| lifetime.shared.strong_count() != 0)
     }
-    fn dormant(&self) -> Box<dyn DormantAttachment> {
+    fn into_dormant(mut self: Box<Self>) -> Box<dyn DormantAttachment> {
+        let lifetime = self.lifetime.take().expect("attached publication lifetime");
+        PROPERTY_TABLE.with(|table| {
+            table.watch_retirement(
+                self.local.untyped.get_id(),
+                lifetime.graph,
+                lifetime.id,
+                lifetime.inbox.clone(),
+            )
+        });
         Box::new(Dormant::<T> {
-            shared: self.shared.clone(),
+            shared: lifetime.shared.clone(),
             local: self.local.untyped.get_id(),
+            graph: lifetime.graph,
+            id: lifetime.id,
+            lifetime: RefCell::new(Some(lifetime)),
         })
     }
     fn prepare_import(&self) -> Option<Box<dyn FnOnce()>> {
-        let snapshot = self.shared.upgrade()?.snapshot();
+        let snapshot = self.lifetime.as_ref()?.shared.upgrade()?.snapshot();
         if snapshot.revision <= self.revision.get() {
             return None;
         }
@@ -188,9 +250,6 @@ impl<T: SharedPropertyValue> Attachment for TypedAttachment<T> {
 
 impl<T: SharedPropertyValue> Drop for TypedAttachment<T> {
     fn drop(&mut self) {
-        if let Some(shared) = self.shared.upgrade() {
-            shared.unsubscribe(self.graph);
-        }
         let _ =
             PROPERTY_TABLE.try_with(|table| table.clear_shared::<T>(self.local.untyped.get_id()));
     }
@@ -213,6 +272,7 @@ impl Drop for GraphInner {
         state.attached.clear();
         state.pending.clear();
         state.order.clear();
+        state.retired.clear();
     }
 }
 
@@ -253,11 +313,11 @@ impl PropertyGraph {
         self.inner.id
     }
 
-    /// Whether publications still need an owner-thread import. Hosts recheck
-    /// this after a queued wake because an intervening frame may settle them.
+    /// Whether publications or retirements still need owner-thread servicing.
+    /// Hosts recheck after a queued wake because an intervening frame may settle them.
     pub fn has_pending(&self) -> bool {
         let state = lock(&self.inner.inbox.state);
-        !state.closed && !state.pending.is_empty()
+        !state.closed && (!state.pending.is_empty() || !state.retired.is_empty())
     }
 
     /// Installs the host scheduler after construction and wakes it if work
@@ -266,7 +326,7 @@ impl PropertyGraph {
         *lock(&self.inner.inbox.wake) = Arc::new(wake);
         let pending = {
             let state = lock(&self.inner.inbox.state);
-            !state.closed && !state.pending.is_empty()
+            !state.closed && (!state.pending.is_empty() || !state.retired.is_empty())
         };
         if pending {
             self.inner.inbox.wake();
@@ -329,7 +389,7 @@ impl PropertyGraph {
         property.cell.subscribe(self.inner.id, &self.inner.inbox);
         let snapshot = property.cell.snapshot();
         let local = LocalProperty::new((*snapshot.value).clone());
-        self.insert(property, local.clone(), snapshot.revision);
+        self.insert(property, local.clone(), snapshot.revision, None);
         local
     }
 
@@ -362,7 +422,7 @@ impl PropertyGraph {
         self.record_owner(property.cell.id);
         self.inner.inbox.attach(property.cell.id);
         property.cell.subscribe(self.inner.id, &self.inner.inbox);
-        self.insert(&property, local, 0);
+        self.insert(&property, local, 0, None);
         property
     }
 
@@ -371,6 +431,7 @@ impl PropertyGraph {
         property: &Property<T>,
         local: LocalProperty<T>,
         revision: u64,
+        lifetime: Option<AttachmentLifetime<T>>,
     ) {
         let seen = Rc::new(Cell::new(revision));
         let weak = Arc::downgrade(&property.cell);
@@ -402,11 +463,15 @@ impl PropertyGraph {
         self.inner.attachments.borrow_mut().insert(
             property.cell.id,
             Box::new(TypedAttachment {
-                graph,
-                shared: weak,
                 local,
                 revision: seen,
                 _publication_effect: effect,
+                lifetime: Some(lifetime.unwrap_or_else(|| AttachmentLifetime {
+                    shared: Arc::downgrade(&property.cell),
+                    graph,
+                    id: property.cell.id,
+                    inbox: Arc::downgrade(&self.inner.inbox),
+                })),
             }),
         );
     }
@@ -421,6 +486,17 @@ impl PropertyGraph {
     /// Imports at most `limit` queued identities in FIFO order and requests a
     /// further host turn if work remains. Repeated writes occupy one slot.
     pub fn import_batch(&self, limit: usize) -> usize {
+        self.import_batch_with_observer(limit, |_| {})
+    }
+
+    /// Reports publication import and retirement cleanup separately, without
+    /// changing the import boundary. The observer must not re-enter the graph.
+    #[doc(hidden)]
+    pub fn import_batch_with_observer(
+        &self,
+        limit: usize,
+        mut completed: impl FnMut(&'static str),
+    ) -> usize {
         if self.inner.closed.get() {
             return 0;
         }
@@ -445,31 +521,41 @@ impl PropertyGraph {
         for action in actions {
             action();
         }
+        completed("property_import");
         self.collect();
+        completed("property_cleanup");
         if self.has_pending() {
             self.inner.inbox.wake();
         }
         count
     }
 
-    /// Releases local bindings whose shared allocation has no remaining owners.
+    /// Releases bindings notified by shared-owner or suspended-local destruction.
+    /// Work is proportional to retirement notifications, not all live bindings.
     pub fn collect(&self) {
-        self.inner
-            .dormant
-            .borrow_mut()
-            .retain(|_, attachment| attachment.live());
-        let dead: Vec<_> = self
-            .inner
-            .attachments
-            .borrow()
-            .iter()
-            .filter_map(|(id, attachment)| (!attachment.live()).then_some(*id))
+        let candidates = std::mem::take(&mut lock(&self.inner.inbox.state).retired);
+        let dead: Vec<_> = candidates
+            .into_iter()
+            .filter(|id| {
+                // A local retirement can race a same-thread remount. Only retire
+                // the current attachment if its own owners are gone.
+                let attached = self.inner.attachments.borrow();
+                if let Some(attachment) = attached.get(id) {
+                    return !attachment.live();
+                }
+                self.inner
+                    .dormant
+                    .borrow()
+                    .get(id)
+                    .is_some_and(|entry| !entry.live())
+            })
             .collect();
         let retired: Vec<_> = {
             let mut attachments = self.inner.attachments.borrow_mut();
             dead.into_iter()
                 .filter_map(|id| {
                     self.inner.inbox.detach(id);
+                    self.inner.dormant.borrow_mut().remove(&id);
                     if let Some(owners) = self.inner.owners.borrow_mut().remove(&id) {
                         let scopes = self.inner.scopes.borrow();
                         for owner in owners {
@@ -495,6 +581,7 @@ impl PropertyGraph {
         state.attached.clear();
         state.pending.clear();
         state.order.clear();
+        state.retired.clear();
     }
 
     pub fn close(&self) {
@@ -505,6 +592,7 @@ impl PropertyGraph {
             state.attached.clear();
             state.pending.clear();
             state.order.clear();
+            state.retired.clear();
         }
         let retired = std::mem::take(&mut *self.inner.attachments.borrow_mut());
         self.inner.dormant.borrow_mut().clear();
@@ -577,12 +665,9 @@ impl PropertyGraph {
             })
             .collect();
         for (id, attachment) in retired {
-            self.inner
-                .dormant
-                .borrow_mut()
-                .insert(id, attachment.dormant());
             self.inner.inbox.detach(id);
-            drop(attachment);
+            let dormant = attachment.into_dormant();
+            self.inner.dormant.borrow_mut().insert(id, dormant);
         }
     }
 }
@@ -697,5 +782,159 @@ impl Drop for PropertyGraphGuard {
         ACTIVE_SCOPE.with(|active| {
             active.replace(self.previous_scope.take());
         });
+    }
+}
+
+#[cfg(test)]
+mod retirement_tests {
+    use super::*;
+
+    #[test]
+    fn empty_import_does_not_visit_live_attachments() {
+        struct Counted(Rc<Cell<usize>>);
+        impl Attachment for Counted {
+            fn as_any(&self) -> &dyn Any {
+                self
+            }
+            fn prepare_import(&self) -> Option<Box<dyn FnOnce()>> {
+                None
+            }
+            fn live(&self) -> bool {
+                self.0.set(self.0.get() + 1);
+                true
+            }
+            fn into_dormant(self: Box<Self>) -> Box<dyn DormantAttachment> {
+                unreachable!()
+            }
+        }
+        let graph = PropertyGraph::new(|| {});
+        let visits = Rc::new(Cell::new(0));
+        for id in 0..1000 {
+            graph
+                .inner
+                .attachments
+                .borrow_mut()
+                .insert(id, Box::new(Counted(visits.clone())));
+        }
+        graph.import();
+        graph.collect();
+        assert_eq!(visits.get(), 0);
+        graph.inner.inbox.retire(40);
+        graph.collect();
+        assert_eq!(visits.get(), 1, "only the notified identity is checked");
+    }
+
+    #[test]
+    fn retirement_is_independent_of_publication_batch_limit() {
+        let graph = PropertyGraph::new(|| {});
+        let _graph = graph.enter();
+        let retained = Property::new(1_u32);
+        let retained_local = retained.local();
+        let values: Vec<_> = (0..1500)
+            .map(|n| {
+                let value = Property::new(n);
+                value.local();
+                value
+            })
+            .collect();
+        std::thread::spawn(move || drop(values)).join().unwrap();
+        retained.set(2);
+        assert!(graph.has_pending());
+        assert_eq!(graph.import_batch(0), 0);
+        assert_eq!(graph.inner.attachments.borrow().len(), 1);
+        assert_eq!(retained_local.get(), 1);
+        assert_eq!(graph.import(), 1);
+        assert_eq!(retained_local.get(), 2);
+        assert!(!graph.has_pending());
+    }
+
+    #[test]
+    fn suspended_local_drop_retires_metadata_without_dropping_shared_value() {
+        let graph = PropertyGraph::new(|| {});
+        let _graph = graph.enter();
+        let shared = Property::new(1_u32);
+        let scope = graph.binding_scope();
+        let local = {
+            let _scope = scope.enter();
+            shared.local()
+        };
+        scope.close();
+        assert_eq!(graph.inner.dormant.borrow().len(), 1);
+        drop(local);
+        assert!(graph.has_pending());
+        graph.import();
+        assert!(graph.inner.dormant.borrow().is_empty());
+        shared.set(2);
+        assert!(!graph.has_pending());
+        scope.resume();
+        let _scope = scope.enter();
+        assert_eq!(shared.local().get(), 2);
+    }
+
+    #[test]
+    fn suspended_shared_drop_on_worker_retires_but_preserves_retained_local() {
+        let graph = PropertyGraph::new(|| {});
+        let _graph = graph.enter();
+        let shared = Property::new(1_u32);
+        let scope = graph.binding_scope();
+        let local = {
+            let _scope = scope.enter();
+            shared.local()
+        };
+        scope.close();
+        std::thread::spawn(move || drop(shared)).join().unwrap();
+        graph.collect();
+        assert!(graph.inner.dormant.borrow().is_empty());
+        assert_eq!(local.get(), 1);
+        scope.resume();
+        assert!(scope.inner.properties.borrow().is_empty());
+    }
+
+    #[test]
+    fn delayed_local_retirement_does_not_detach_a_new_projection() {
+        let graph = PropertyGraph::new(|| {});
+        let _graph = graph.enter();
+        let shared = Property::new(1_u32);
+        let scope = graph.binding_scope();
+        let local = {
+            let _scope = scope.enter();
+            shared.local()
+        };
+        scope.close();
+        drop(local);
+        // Reattach before servicing the old local's destruction notification.
+        scope.resume();
+        let _scope = scope.enter();
+        let replacement = shared.local();
+        graph.collect();
+        shared.set(3);
+        assert_eq!(graph.import(), 1);
+        assert_eq!(replacement.get(), 3);
+    }
+
+    #[test]
+    fn repeated_suspend_resume_keeps_drop_notifications_and_publication() {
+        let graph = PropertyGraph::new(|| {});
+        let _graph = graph.enter();
+        let shared = Property::new(0_u32);
+        let scope = graph.binding_scope();
+        let local = {
+            let _scope = scope.enter();
+            shared.local()
+        };
+        for n in 1..10 {
+            scope.close();
+            shared.set(n);
+            assert!(!graph.has_pending());
+            scope.resume();
+            assert_eq!(local.get(), n);
+            shared.set(n + 100);
+            assert_eq!(graph.import(), 1);
+            assert_eq!(local.get(), n + 100);
+        }
+        drop(shared);
+        graph.collect();
+        assert!(graph.inner.attachments.borrow().is_empty());
+        assert_eq!(local.get(), 109);
     }
 }

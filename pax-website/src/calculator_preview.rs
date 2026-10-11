@@ -2,14 +2,12 @@ use crate::DeviceFrame;
 use calculator::Calculator;
 use pax_kit::*;
 
-/// A content-free live phone preview: mount on approach, then retain the session.
+/// A live phone preview that mounts and updates with the page, including offscreen.
 #[pax]
 #[file("calculator_preview.pax")]
 pub struct CalculatorPreview {
     pub content_height: Property<f64>,
     pub phone_scale: Property<f64>,
-    pub loaded: Property<bool>,
-    pub visible: Property<bool>,
 }
 
 impl CalculatorPreview {
@@ -18,15 +16,6 @@ impl CalculatorPreview {
         let scale = phone_scale(width);
         self.phone_scale.set_if_neq(scale * 100.0);
         self.content_height.set_if_neq(844.0 * scale);
-    }
-
-    pub fn prepare(&mut self, _ctx: &NodeContext, event: Event<ViewportProximityEnter>) {
-        self.loaded.set(true);
-        self.visible.set(event.current.is_in_viewport());
-    }
-
-    pub fn visibility(&mut self, _ctx: &NodeContext, event: Event<ViewportProximityChange>) {
-        self.visible.set_if_neq(event.current.is_in_viewport());
     }
 }
 
@@ -38,6 +27,14 @@ fn phone_scale(width: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn calculator_mount_and_updates_have_no_visibility_gate() {
+        let template = include_str!("calculator_preview.pax");
+        assert!(!template.contains("if self.loaded"));
+        assert!(!template.contains("@viewport_proximity"));
+        assert!(template.contains("paused=false"));
+    }
 
     #[test]
     fn phone_keeps_its_aspect_ratio_and_fits_its_assigned_column() {

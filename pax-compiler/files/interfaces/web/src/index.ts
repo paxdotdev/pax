@@ -22,6 +22,7 @@ import {
     NATIVE_MASK_UPDATE_PATCH,
 } from "./pools/supported-objects";
 import {NativeElementPool} from "./classes/native-element-pool";
+import {NativeMessageProfile} from "./classes/native-message-profile";
 import {AnyCreatePatch} from "./classes/messages/any-create-patch";
 import {TextUpdatePatch} from "./classes/messages/text-update-patch";
 import {CheckboxUpdatePatch} from "./classes/messages/checkbox-update-patch";
@@ -30,7 +31,7 @@ import {RadioListUpdatePatch} from "./classes/messages/radio-list-update-patch";
 import {EventBlockerUpdatePatch} from "./classes/messages/event-blocker-update-patch";
 import {ImageLoadPatch} from "./classes/messages/image-load-patch";
 import {ScrollerUpdatePatch} from "./classes/messages/scroller-update-patch";
-import {setupEventListeners} from "./events/listeners";
+import {setupEventListeners, wheelDiagnosticMode} from "./events/listeners";
 import "./styles/pax-web.css";
 import { ButtonUpdatePatch } from "./classes/messages/button-update-patch";
 import { PhotoPickerUpdatePatch } from "./classes/messages/photo-picker-update-patch";
@@ -286,7 +287,10 @@ function attachChassis(chassis: PaxChassisWeb, mount: Element) {
         nativePool.recordSurfacePresentation(report);
     }, () => !frameScheduler.suspended && chassis === currentChassis && mount === currentMount);
     surfacePresentation = presentation;
-    chassis.set_surface_ready_callback(() => presentation.request());
+    chassis.set_surface_ready_callback(() => {
+        const outcome = presentation.request();
+        nativePool.recordSurfaceCompletionRequest(outcome);
+    });
     nativePool.setPostAsyncInterruptFlush(() => requestFrameFlush(chassis, mount));
     initializeChassis(chassis, mount);
     ensureHiddenTabPump(chassis, mount);
@@ -368,7 +372,13 @@ function initializeChassis(chassis: PaxChassisWeb, mount: Element) {
     // Initialize viewport-dependent layout before the first engine tick so native/scroller hosts do
     // not bootstrap against a transient 0x0 viewport.
     resizeHandler();
-    teardownEventListeners = setupEventListeners(chassis);
+    // Cancellation is unchanged normally. The passive mode is an explicit
+    // diagnostic A/B, never an automatic scrolling policy or production fix.
+    const wheelMode = wheelDiagnosticMode(new URLSearchParams(window.location.search));
+    teardownEventListeners = setupEventListeners(chassis, wheelMode !== undefined ? {
+        passive: wheelMode,
+        record: sample => nativePool.recordWheelInput(sample),
+    } : undefined);
     initializedChassis = true;
 }
 
@@ -425,10 +435,6 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
     try {
         initializeChassis(chassis, mount);
         withProfileMeasure("renderLoopFrame", () => {
-            // Surface completion is not an application update. Reuse the most
-            // recent settled records before another (potentially costly) tick.
-            // The Rust guard leaves all jobs untouched when content is unsettled.
-            surfacePresentation?.present();
             nativePool.sampleFrameInputs();
             const messages = withProfileMeasure("tick", () => {
                 if (!perfTraceEnabled) return chassis.tick();
@@ -445,14 +451,18 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
             });
             // draw canvas elements
             withProfileMeasure("render", () => {
-                chassis.render();
+                if (!perfTraceEnabled) { chassis.render(); return; }
+                const [phases, [visible, remaining]] = chassis.render_profiled();
+                for (const [name, duration] of phases) nativePool.recordSurfaceFramePhase(`render.${name}`, duration);
+                nativePool.recordSurfacePresentation(visible, 'ordinary-visible');
+                nativePool.recordSurfacePresentation(remaining, 'ordinary-remaining');
             });
             // At most one extra presentation pass between ordinary frames, even
             // when many async initializations finish in successive microtasks.
             surfacePresentation?.afterFrame();
-            // Cold drawing capture needs settled scene state. Coalesce it with
-            // asynchronous surface completions, without advancing another tick.
-            surfacePresentation?.request();
+            // The automatic service now runs inside render, after fresh surface
+            // assignments and before ordinary draw work. Only actual asynchronous
+            // completions request the extra pass; do not add another allowance.
         });
         processReloadRequests(chassis);
     } finally {
@@ -718,7 +728,9 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
     if (messages.length === 0) {
         return;
     }
+    const profile = perfTraceEnabled ? new NativeMessageProfile() : undefined;
     messages?.forEach((unwrapped_msg) => {
+        const started = profile ? performance.now() : 0;
         if(unwrapped_msg["ShrinkLayersTo"] !== undefined) {
             let layers_needed = unwrapped_msg["ShrinkLayersTo"];
             nativePool.layers.shrinkTo(layers_needed);
@@ -922,5 +934,7 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
             patch.fromPatch(msg);
             nativePool.screenshot(patch, chassis);
         }
+        if (profile) profile.record(Object.keys(unwrapped_msg)[0] ?? 'unknown', performance.now()-started);
     });
+    if (profile) nativePool.recordNativeMessageBatch(profile.snapshot());
 }

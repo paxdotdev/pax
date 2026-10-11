@@ -8,10 +8,13 @@ export class SurfacePresentationScheduler {
     constructor(private run: () => void, private allowed: () => boolean,
                 private enqueue: (job: () => void) => void = job => queueMicrotask(job)) {}
 
-    request() {
-        if (this.disposed || this.queued || this.used) return;
+    request(): 'disposed' | 'coalesced' | 'used' | 'queued' {
+        if (this.disposed) return 'disposed';
+        if (this.queued) return 'coalesced';
+        if (this.used) return 'used';
         this.queued = true;
         this.enqueue(() => { this.queued = false; this.present(); });
+        return 'queued';
     }
 
     present() {

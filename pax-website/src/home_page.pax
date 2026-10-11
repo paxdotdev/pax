@@ -14,7 +14,7 @@ if self.demo_open {
             align_vertical: TextAlignVertical::Center
         }/>
         <Frame y=52px width=100% height={100% - 52px}>
-            <Paxflix width=100% height=100% embedded=true disable_keyboard=true/>
+            <Paxflix width=100% height=100% embedded=true disable_keyboard=true disable_card_entrances=true/>
         </Frame>
         <EventBlocker width=100% height=100% background={SiteTheme::ink()}/>
     </Group>

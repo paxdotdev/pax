@@ -29,14 +29,35 @@ impl SurfaceWorkBudget {
 
 #[derive(Default, serde::Serialize)]
 pub struct SurfaceWorkReport {
+    pub initializations: usize,
     pub recorded: usize,
     pub fallbacks: usize,
     pub submitted: usize,
     pub deferred: usize,
     pub cache_misses: usize,
+    pub dirty_layers: usize,
+    pub unfiltered_layers: usize,
     pub blocked: bool,
     pub blocker: Option<&'static str>,
     pub elapsed_ms: f64,
+}
+
+impl SurfaceWorkReport {
+    pub(super) fn accumulate(&mut self, next: Self) {
+        self.initializations += next.initializations;
+        self.recorded += next.recorded;
+        self.fallbacks += next.fallbacks;
+        self.submitted += next.submitted;
+        // Deferred is the queue snapshot from the latest opportunity, not work
+        // completed; the other counts describe attempts across opportunities.
+        self.deferred = next.deferred;
+        self.cache_misses += next.cache_misses;
+        self.dirty_layers += next.dirty_layers;
+        self.unfiltered_layers += next.unfiltered_layers;
+        self.blocked |= next.blocked;
+        self.blocker = next.blocker.or(self.blocker);
+        self.elapsed_ms += next.elapsed_ms;
+    }
 }
 
 #[cfg(test)]

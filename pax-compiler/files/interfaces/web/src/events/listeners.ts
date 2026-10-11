@@ -1,5 +1,34 @@
 import type {PaxChassisWeb} from "../types/pax-chassis-web";
 
+export type WheelInputSample = {
+    enteredAt: number;
+    deliveryDelayMs: number | null;
+    handlerMs: number;
+    passive: boolean;
+    trusted: boolean;
+    cancelable: boolean;
+    cancellationRequested: boolean;
+    defaultPrevented: boolean;
+    deltaX: number;
+    deltaY: number;
+};
+
+type WheelDiagnostics = {passive: boolean; record: (sample: WheelInputSample) => void};
+
+export function wheelDiagnosticMode(params: URLSearchParams): boolean | undefined {
+    if (!params.has('pax_scroll_perf') || !params.has('pax_surface_trace')) return undefined;
+    return params.get('pax_wheel_passive') === '1';
+}
+
+// Older hosts can report epoch timestamps. Reject missing/incompatible clocks
+// rather than presenting a fabricated queue delay as a measurement.
+export function wheelDeliveryDelay(timestamp: number, enteredAt: number, timeOrigin: number): number | null {
+    if (!Number.isFinite(timestamp) || timestamp <= 0) return null;
+    const createdAt = timestamp > 1e12 ? timestamp - timeOrigin : timestamp;
+    if (!Number.isFinite(createdAt) || createdAt < 0 || createdAt > enteredAt) return null;
+    return enteredAt - createdAt;
+}
+
 function convertModifiers(event: MouseEvent | KeyboardEvent) {
     let modifiers = [];
     if (event.shiftKey) modifiers.push('Shift');
@@ -19,7 +48,7 @@ function getMouseButton(event: MouseEvent) {
 }
 
 
-export function setupEventListeners(chassis: PaxChassisWeb): () => void {
+export function setupEventListeners(chassis: PaxChassisWeb, wheelDiagnostics?: WheelDiagnostics): () => void {
     let disposers: Array<() => void> = [];
     let addDisposer = (disposer: () => void) => {
         disposers.push(disposer);
@@ -142,6 +171,7 @@ export function setupEventListeners(chassis: PaxChassisWeb): () => void {
         }
     }, true);
     addWindowListener('wheel', (evt) => {
+        const enteredAt = wheelDiagnostics ? performance.now() : 0;
         let event = {
             "Wheel": {
                 "x": evt.clientX,
@@ -152,10 +182,25 @@ export function setupEventListeners(chassis: PaxChassisWeb): () => void {
             }
         };
         let res = chassis.interrupt(event, []);
-        if (res.prevent_default) {
+        if (res.prevent_default && !wheelDiagnostics?.passive) {
             evt.preventDefault();
         }
-    }, {"passive": false, "capture": true});
+        if (wheelDiagnostics) {
+            const handlerMs = performance.now() - enteredAt;
+            wheelDiagnostics.record({
+                enteredAt,
+                deliveryDelayMs: wheelDeliveryDelay(evt.timeStamp, enteredAt, performance.timeOrigin),
+                handlerMs,
+                passive: wheelDiagnostics.passive,
+                trusted: evt.isTrusted,
+                cancelable: evt.cancelable,
+                cancellationRequested: res.prevent_default,
+                defaultPrevented: evt.defaultPrevented,
+                deltaX: evt.deltaX,
+                deltaY: evt.deltaY,
+            });
+        }
+    }, {"passive": wheelDiagnostics?.passive ?? false, "capture": true});
     addWindowListener('mousedown', (evt) => {
         let button = getMouseButton(evt);
         // set non-existent window prop to keep track of value

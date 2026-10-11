@@ -1390,7 +1390,32 @@ impl PaxChassisWeb {
     }
 
     pub fn render(&mut self) {
-        borrow_mut!(self.engine).render(self.render_context.as_mut());
+        let start = Instant::now();
+        borrow_mut!(self.engine).render_with_surface_preparation(
+            self.render_context.as_mut(),
+            &mut self.surface_work_budget,
+            || start.elapsed().as_secs_f64() * 1000.0,
+            &mut |_| {},
+        );
+    }
+
+    /// Ordinary rendering with opt-in CPU phase timing and the early visible
+    /// preparation report. No additional rendering or preparation opportunity.
+    pub fn render_profiled(&mut self) -> JsValue {
+        let start = Instant::now();
+        let mut previous = start;
+        let mut phases = Vec::new();
+        let report = borrow_mut!(self.engine).render_with_surface_preparation(
+            self.render_context.as_mut(),
+            &mut self.surface_work_budget,
+            || start.elapsed().as_secs_f64() * 1000.0,
+            &mut |phase| {
+                let now = Instant::now();
+                phases.push((phase, (now - previous).as_secs_f64() * 1000.0));
+                previous = now;
+            },
+        );
+        js_value_serde::to_value(&(phases, report))
     }
 
     /// Prepare and submit tiles from settled scene state with a cooperative CPU
@@ -1419,6 +1444,9 @@ impl PaxChassisWeb {
     /// Returns [native messages, [phase, duration] samples, compositing counters];
     /// these are never GPU timestamps.
     pub fn tick_profiled(&mut self) -> JsValue {
+        borrow!(self.engine)
+            .runtime_context
+            .set_occlusion_diagnostics(true);
         let mut previous = Instant::now();
         let mut timings = Vec::new();
         #[cfg(feature = "designtime")]

@@ -4,7 +4,7 @@ import {ObjectManager} from "../pools/object-manager";
 import {ARRAY, DIV, LAYER} from "../pools/supported-objects";
 
 import { CLIPPING_CONTAINER, NATIVE_LEAF_CLASS } from "../utils/constants";
-import { affineMultiply } from "../utils/helpers";
+import { affineMultiply, invertAffineCoeffs } from "../utils/helpers";
 import type { NativeMaskEntry } from "./messages/native-mask-update-patch";
 import type { LayerCanvasPlan } from "./surface-host-policy";
 
@@ -149,7 +149,7 @@ export class RenderLayerManager {
 
         let elem = layer.querySelector(`[data-container-id="${id}"]`);
         if (elem != undefined) {
-            return elem!;
+            return containerContent(elem as HTMLElement);
         }
 
         let container = this.containers.get(id);
@@ -159,6 +159,19 @@ export class RenderLayerManager {
         let new_container: HTMLDivElement = this.objectManager.getFromPool(DIV);
         new_container.dataset.containerId = id.toString();
         new_container.setAttribute("class", CLIPPING_CONTAINER);
+        // Do not enlarge the default SVG DOM tree for an opt-in experiment.
+        let content = new_container;
+        if (nativeFrameBoxEnabled()) {
+            content = document.createElement('div');
+            content.dataset.paxClipContent = 'true';
+            content.style.position = 'absolute';
+            content.style.left = '0';
+            content.style.top = '0';
+            content.style.width = '0';
+            content.style.height = '0';
+            content.style.transformOrigin = '0 0';
+            new_container.appendChild(content);
+        }
         applyContainerStyles(
             new_container,
             container.clipPathValue(),
@@ -166,11 +179,12 @@ export class RenderLayerManager {
             container.styles.width,
             container.styles.height,
             container.styles.opacity,
+            container.styles,
         );
 
         let parent_container = this.getOrCreateContainer(container.parentFrame, renderLayerId);
         parent_container.appendChild(new_container);
-        return new_container;
+        return content;
     }
 
     addContainer(id: number, parentId: number | undefined) {
@@ -310,9 +324,21 @@ export class RenderLayerManager {
         if (container == null) {
             throw new Error("tried to update non existent container");
         }
+        const previousClip = container.clipPathData();
+        const previousClipValue = container.clipPathValue();
+        const sizeChanged = (styles.width != null && styles.width !== container.styles.width)
+            || (styles.height != null && styles.height !== container.styles.height);
+        const opacityChanged = styles.opacity != null && styles.opacity !== container.styles.opacity;
+        const shapeChanged = (styles.clipIsRect != null && styles.clipIsRect !== container.styles.clipIsRect)
+            || (styles.borderRadius != null && styles.borderRadius !== container.styles.borderRadius);
         container.update(styles);
-        this.effects.updateClipPath(container.clipPathId(), container.clipPathData());
-        this.applyContainerClipPath(id);
+        const clip = container.clipPathData();
+        // World-space frame movement does not change native leaf opacity.
+        // Unclipped frames need no DOM work at all for a transform-only patch.
+        if (clip === previousClip && previousClipValue === container.clipPathValue()
+            && !opacityChanged && !shapeChanged && !(clip && sizeChanged)) return;
+        if (clip !== previousClip) this.effects.updateClipPath(container.clipPathId(), clip);
+        this.applyContainerClipPath(id, opacityChanged);
     }
 
     updateContainerParent(id: number, new_parent_id: number | undefined) {
@@ -345,10 +371,12 @@ export class RenderLayerManager {
         let existing_layer_instantiations = document.querySelectorAll(`[data-container-id="${id}"]`);
         existing_layer_instantiations.forEach((elem, _key, _parent) => {
             let parent = elem.parentElement;
-            if (elem.children.length > 0) {
+            const content = containerContent(elem as HTMLElement);
+            if (content.children.length > 0) {
                 throw new Error(`tried to remove container width id ${id} while children still present`);
             }
             parent!.removeChild(elem);
+            if (content !== elem) elem.removeChild(content);
             this.objectManager.returnToPool(DIV, elem);
         })
     }
@@ -413,7 +441,7 @@ export class RenderLayerManager {
         }
     }
 
-    private applyContainerClipPath(id: number) {
+    private applyContainerClipPath(id: number, opacityChanged: boolean) {
         let container = this.containers.get(id);
         if (container == null) {
             return;
@@ -430,8 +458,9 @@ export class RenderLayerManager {
                         container.styles.width,
                         container.styles.height,
                         container.styles.opacity,
+                        container.styles,
                     );
-                    refreshLeafOpacities(elem as HTMLElement);
+                    if (opacityChanged) refreshLeafOpacities(elem as HTMLElement);
                 },
             );
     }
@@ -717,6 +746,13 @@ function clearContainerClipStyles(element: HTMLElement) {
     (element.style as any).webkitClipPath = "";
     element.style.width = "";
     element.style.height = "";
+    element.style.transform = "";
+    element.style.transformOrigin = "";
+    element.style.overflow = "";
+    element.style.borderRadius = "";
+    delete element.dataset.paxClipMode;
+    const content = containerContent(element);
+    if (content !== element) content.style.transform = "";
     element.style.maskImage = "";
     element.style.maskRepeat = "";
     element.style.maskPosition = "";
@@ -773,6 +809,7 @@ function applyContainerStyles(
     width: number,
     height: number,
     opacity: number,
+    styles: ContainerStyle,
 ) {
     // Clip wrappers intentionally have no layout box on Chromium. Preserve
     // conservative path bounds for scheduler visibility instead of treating
@@ -780,9 +817,47 @@ function applyContainerStyles(
     const bounds = pathData ? svgPathDataBounds(pathData) : undefined;
     if (bounds) element.dataset.clipBounds = JSON.stringify(bounds);
     else delete element.dataset.clipBounds;
-    applyContainerClipPath(element, clipPath, pathData, width, height);
+    const inverse = nativeFrameBoxInverse(styles);
+    if (inverse && nativeFrameBoxEnabled()) {
+        // Native leaves already carry world-space transforms. Cancel the box's
+        // transform below its clip so layout, hit testing and nested Frames keep
+        // their original coordinate system without rewriting every descendant.
+        clearContainerClipStyles(element);
+        delete element.dataset.clipBounds; // the sized DOM box supplies its bounds
+        element.style.width = `${width}px`;
+        element.style.height = `${height}px`;
+        element.style.transformOrigin = '0 0';
+        element.style.transform = `matrix(${styles.transform.join(',')})`;
+        element.style.overflow = 'clip'; // not a new scroll container
+        element.style.borderRadius = `${Math.max(0, Math.min(styles.borderRadius, width / 2, height / 2))}px`;
+        containerContent(element).style.transform = `matrix(${inverse.join(',')})`;
+        element.dataset.paxClipMode = 'box';
+    } else {
+        applyContainerClipPath(element, clipPath, pathData, width, height);
+        element.dataset.paxClipMode = 'svg';
+    }
     element.dataset.paxContainerOpacity = `${opacity}`;
     element.style.opacity = "1";
+}
+
+function containerContent(element: HTMLElement): HTMLElement {
+    const first = element.firstElementChild as HTMLElement | null;
+    return first?.dataset.paxClipContent ? first : element;
+}
+
+// Explicit shape metadata is essential: a Mask's arbitrary path can have the
+// same bounds as a Frame and must never silently become a rectangular clip.
+export function nativeFrameBoxInverse(styles: ContainerStyle): number[] | undefined {
+    if (!styles.clipContent || !styles.clipIsRect || styles.width <= 0 || styles.height <= 0
+        || ![styles.width, styles.height, styles.borderRadius, ...styles.transform].every(Number.isFinite)) return;
+    return invertAffineCoeffs(styles.transform);
+}
+
+function nativeFrameBoxEnabled(): boolean {
+    // Keep this A/B opt-in until physical nested-scroll and WebKit validation.
+    return typeof window !== 'undefined'
+        && new URLSearchParams(window.location.search).get('pax_frame_clip') === 'box'
+        && typeof CSS !== 'undefined' && CSS.supports('overflow', 'clip');
 }
 
 export function setLeafLocalOpacity(element: HTMLElement, opacity: number) {
@@ -991,6 +1066,7 @@ export class ContainerStyle {
     opacity: number;
     borderRadius: number;
     clipPath?: string;
+    clipIsRect = false;
 
     constructor() {
         this.clipContent = true;

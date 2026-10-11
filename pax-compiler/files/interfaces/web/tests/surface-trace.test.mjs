@@ -14,6 +14,54 @@ const candidate = (id, visible, transformSignature = '0,0') => ({
     rank: {coverage: visible ? 0 : 3, ready: true},
 });
 
+test('completion deferrals survive trace rollover and measure only the next opportunity', () => {
+    const h = harness(2);
+    h.trace.recordCompletionRequest('queued');
+    h.trace.recordCompletionRequest('coalesced');
+    h.trace.recordCompletionRequest('used');
+    const first = h.trace.completionDeferredAt;
+    h.trace.recordCompletionRequest('used');
+    assert.equal(h.trace.completionDeferredAt, first);
+    for (let i = 0; i < 10; i++) h.trace.record('unrelated');
+    assert.equal(h.trace.completionRequests.used, 2);
+    h.trace.recordPresentationOpportunity(true);
+    const event = h.mount.paxSurfaceTrace.at(-1);
+    assert.equal(event.event, 'presentation-completion-wait');
+    assert.equal(event.blocked, true);
+    assert.ok(event.waitMs >= 0);
+    h.trace.recordPresentationOpportunity(false);
+    assert.equal(h.trace.completionWait.opportunities, 1);
+    h.trace.dispose();
+    assert.equal(h.trace.completionRequests.used, 0);
+    assert.equal(h.trace.completionWait.opportunities, 0);
+});
+
+test('wheel input retains a bounded independent tail and opens phase timing before scroll moves', () => {
+    const h = harness(3);
+    for (let i = 0; i < 140; i++) h.trace.recordWheelInput({enteredAt: i});
+    assert.equal(h.trace.wheelInputs.length, 128);
+    assert.equal(h.trace.wheelInputs[0].enteredAt, 12);
+    h.trace.recordPhase('tick', 2);
+    assert.equal(h.mount.paxSurfaceTrace.at(-1).event, 'scroll-phase');
+    h.trace.dispose();
+    assert.equal(h.trace.wheelInputs.length, 0);
+});
+
+test('message batches retain type timings only during probes, scrolls, or slow work', () => {
+    const h = harness();
+    const types = [{type:'NativeMaskUpdate', count:12, totalMs:5, maxMs:1}];
+    h.trace.recordNativeMessageBatch(types);
+    assert.equal(h.mount.paxSurfaceTrace.length, 0);
+    h.trace.observeScroll(7, 0, 20);
+    h.trace.recordNativeMessageBatch(types);
+    assert.equal(h.mount.paxSurfaceTrace.at(-1).event, 'native-message-batch');
+    assert.equal(h.mount.paxSurfaceTrace.at(-1).duration, 5);
+    h.trace.scrollUntil = -Infinity;
+    h.trace.recordNativeMessageBatch([{type:'TextUpdate', count:100, totalMs:21, maxMs:2}]);
+    assert.equal(h.mount.paxSurfaceTrace.at(-1).duration, 21);
+    h.trace.dispose();
+});
+
 test('observed scroll opens bounded phase timing without synthesizing input', () => {
     const h = harness(32);
     h.trace.recordPhase('tick', 1);
@@ -26,6 +74,34 @@ test('observed scroll opens bounded phase timing without synthesizing input', ()
     h.trace.recordPhase('tick', 2);
     assert.equal(h.mount.paxSurfaceTrace.length, 2);
     h.trace.dispose();
+});
+
+test('reversals are per-axis observations and surface events carry current demand rank', () => {
+    const h = harness(32);
+    h.trace.observeScroll(7, 0, 200, [0,0]);
+    h.trace.observeScroll(7, 0, 200.05); // subpixel noise is not intent
+    h.trace.observeScroll(8, 0, -10); // independent branch
+    h.trace.observeScroll(7, 0, 190);
+    const reversals = h.mount.paxSurfaceTrace.filter(e => e.event === 'scroll-reversal');
+    assert.equal(reversals.length, 1);
+    assert.equal(reversals[0].scroller, 7);
+    assert.deepEqual(Array.from(reversals[0].reversedAxes), [1]);
+    assert.deepEqual(Array.from(reversals[0].direction), [0,-1]);
+    const tile = candidate('tile', false); tile.branch=7; tile.rank.coverage=2;
+    h.trace.observeDemand([tile]);
+    const canvas={id:'tile', dataset:{surfaceEvent:'initialization-start',replayPriority:'5'}};
+    h.listeners.get('pax-surface-trace')({target:canvas});
+    assert.equal(h.mount.paxSurfaceTrace.at(-1).coverage, 2);
+    assert.equal(h.mount.paxSurfaceTrace.at(-1).owner, 7);
+    tile.rank.coverage=0;
+    h.trace.observeDemand([tile]);
+    canvas.dataset.replayPriority='-1';
+    canvas.dataset.surfaceEvent='first-submit';
+    h.listeners.get('pax-surface-trace')({target:canvas});
+    assert.equal(h.mount.paxSurfaceTrace.at(-1).coverage, 0);
+    assert.equal(h.mount.paxSurfaceTrace.at(-1).priority, -1);
+    h.trace.dispose();
+    assert.equal(h.trace.scrollDirections.size, 0);
 });
 
 test('trace is bounded and teardown removes the listener, events and demand state', () => {

@@ -10,6 +10,7 @@ use std::cell::Cell;
 #[pax]
 #[file("movie_card.pax")]
 pub struct MovieCard {
+    pub disable_card_entrances: Property<bool>,
     pub light_mode: Property<bool>,
     pub movie: Property<Movie>,
     pub index: Property<usize>,
@@ -18,11 +19,22 @@ pub struct MovieCard {
     pub modal_open: Property<bool>,
     pub hover: Property<bool>,
     pub reveal_progress: Property<f64>,
+}
+
+// The visual card remains mounted in both modes; only the optional observation
+// and scheduling lifetime belongs to this component.
+#[pax]
+#[file("movie_card_entrance.pax")]
+pub struct MovieCardEntrance {
+    pub index: Property<usize>,
+    pub entrances: Property<Vec<CardEntrance>>,
+    pub hover: Property<bool>,
+    pub reveal_progress: Property<f64>,
     pub revealed: Property<bool>,
     pub reveal_visit: Property<u64>,
 }
 
-impl MovieCard {
+impl MovieCardEntrance {
     pub fn on_mount(&mut self, ctx: &NodeContext) {
         let entrances = self.entrances.local();
         let index = self.index.local();
@@ -111,7 +123,9 @@ impl MovieCard {
                 .update(|entries| entries.retain(|entry| entry.index != index));
         }
     }
+}
 
+impl MovieCard {
     pub fn open(&mut self, _ctx: &NodeContext, _event: Event<Click>) {
         if !self.modal_open.get() {
             self.selected_id.set(self.movie.get().id);
@@ -125,5 +139,20 @@ impl MovieCard {
     pub fn out(&mut self, ctx: &NodeContext, _event: Event<MouseOut>) {
         ctx.set_cursor(CursorStyle::Auto);
         self.hover.set(false);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn quiet_cards_have_no_proximity_handlers_and_keep_the_final_caption_state() {
+        let card = include_str!("movie_card.pax");
+        assert!(!card.contains("@viewport_proximity"));
+        assert!(!card.contains("@mount:"));
+        assert!(card.contains("if !self.disable_card_entrances"));
+        assert!(card.contains("self.disable_card_entrances ? 100 : self.reveal_progress"));
+        assert!(!MovieCard::default().disable_card_entrances.get());
     }
 }

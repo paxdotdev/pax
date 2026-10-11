@@ -2195,7 +2195,7 @@ mod tests {
                 node.is_none().then(|| {
                     Rc::new(RefCell::new(
                         pax_runtime::ConditionalProperties {
-                            boolean_expression: condition.clone(),
+                            boolean_expression: condition.local(),
                             conditional_branches: Vec::new(),
                         }
                         .to_pax_any(),

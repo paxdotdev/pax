@@ -453,6 +453,11 @@ impl InstanceNode for MaskInstance {
 
                     let updates = [
                         patch_if_needed(
+                            &mut old_state.clip_is_rect,
+                            &mut patch.clip_is_rect,
+                            false,
+                        ),
+                        patch_if_needed(
                             &mut old_state.clip_content,
                             &mut patch.clip_content,
                             !clip_path.is_empty(),
