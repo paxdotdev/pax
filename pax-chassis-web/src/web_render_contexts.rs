@@ -455,6 +455,7 @@ fn get_gpu_render_context(
     // The async mutex prevents concurrent first rows from each creating a device.
     let browser_context =
         std::rc::Rc::new(futures_util::lock::Mutex::new(None::<SharedGpuContext>));
+    let priority_document = window.document().unwrap();
     PaxGpuRenderer::new(move |layer, request| {
         let window = window.clone();
         let surface_policy = surface_policy;

@@ -775,7 +775,12 @@ fn vendor_apple_web_fonts(
         return Ok(());
     }
 
-    let font_sources = collect_web_font_sources(manifest);
+    // Bundled fonts are copied through assets_dirs and registered by the chassis.
+    // Exclude them before constructing a network client or downloading another face.
+    let font_sources: Vec<_> = collect_web_font_sources(manifest)
+        .into_iter()
+        .filter(|source| !is_bundled_apple_font(&source.url, &manifest.assets_dirs))
+        .collect();
     if font_sources.is_empty() {
         return Ok(());
     }
@@ -830,6 +835,31 @@ fn vendor_apple_web_fonts(
     }
 
     Ok(())
+}
+
+fn is_bundled_apple_font(url: &str, asset_dirs: &[String]) -> bool {
+    let Some(relative) = url
+        .strip_prefix("/assets/")
+        .or_else(|| url.strip_prefix("assets/"))
+    else {
+        return false;
+    };
+    let path = Path::new(relative);
+    // Match the paths that actually arrive in the bundle, not files outside assets/.
+    if !path
+        .components()
+        .all(|part| matches!(part, std::path::Component::Normal(_)))
+    {
+        return false;
+    }
+    let extension = path
+        .extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or("");
+    matches!(extension.to_ascii_lowercase().as_str(), "ttf" | "otf")
+        && asset_dirs
+            .iter()
+            .any(|root| Path::new(root).join(path).is_file())
 }
 
 fn collect_web_font_sources(manifest: &PaxManifest) -> Vec<WebFontSource> {
@@ -1359,6 +1389,26 @@ fn stable_hash(value: &str) -> String {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn bundled_apple_fonts_use_existing_assets_without_remote_vendoring() {
+        let dir = tempfile::tempdir().unwrap();
+        let fonts = dir.path().join("fonts");
+        fs::create_dir(&fonts).unwrap();
+        fs::write(fonts.join("Test Font.ttf"), b"bundled fixture").unwrap();
+        let roots = vec![dir.path().to_string_lossy().into_owned()];
+        assert!(is_bundled_apple_font("assets/fonts/Test Font.ttf", &roots));
+        assert!(is_bundled_apple_font("/assets/fonts/Test Font.ttf", &roots));
+        for source in [
+            "https://example.com/assets/fonts/Test Font.ttf",
+            "/assets/fonts/missing.ttf",
+            "/assets/../fonts/Test Font.ttf",
+            "/fonts/Test Font.ttf",
+            "",
+        ] {
+            assert!(!is_bundled_apple_font(source, &roots), "{source}");
+        }
+    }
 
     #[test]
     fn parses_font_web_literal_enum_shape() {

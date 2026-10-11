@@ -620,9 +620,11 @@ impl PartialEq<TextStyleMessage> for TextStyle {
 ///
 /// Nonempty URLs identify font files, except that Google Fonts URLs containing
 /// `fonts.googleapis.com/css` receive special stylesheet handling. Relative
-/// asset URLs work on web; the native Web-font loader does not resolve them
-/// into application bundle resources. Native targets also require the actual
-/// font family name, rather than a browser-only alias.
+/// asset URLs work on web. Apple chassis register TTF/OTF files from the project's
+/// `assets/` directory at startup; select their actual family name with an empty
+/// URL, or use that family with the web asset URL in a shared declaration. The
+/// native Web-font loader itself does not resolve relative URLs into bundle
+/// resources. Browser-only aliases do not name the registered Apple family.
 ///
 /// Font shorthand has no positional ("magic index") fields: named keys are
 /// canonical, and positional list/tuple forms are not accepted. Use the

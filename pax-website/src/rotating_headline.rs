@@ -1,4 +1,4 @@
-use crate::SiteTheme;
+use crate::{HeroCluster, HeroLetter, SiteTheme};
 use pax_kit::math::Point2;
 use pax_kit::*;
 
@@ -25,6 +25,13 @@ pub struct RotatingHeadline {
     pub word_opacity: Property<f64>,
     pub writing_progress: Property<f64>,
     pub mesh_rows: Property<Vec<Vec<MeshPoint>>>,
+    pub clusters: Property<Vec<HeroCluster>>,
+    pub vector_ready: Property<bool>,
+    pub baseline: Property<f64>,
+    pub run_width: Property<f64>,
+    pub cap_height: Property<f64>,
+    pub word_index: Property<usize>,
+    pub letter_ms: Property<f64>,
     pub _gradient_ms: Property<f64>,
     pub _creative_ms: Property<f64>,
     pub _elapsed_ms: Property<f64>,
@@ -35,6 +42,42 @@ impl RotatingHeadline {
     pub fn mount(&mut self, ctx: &NodeContext) {
         self._last_ms.set(ctx.elapsed_time_millis() as f64);
         self.mesh_rows.set(mesh_rows(0.0));
+        match crate::hero_font::shape_hero() {
+            Ok(runs) => {
+                self.baseline.set(runs[0].baseline);
+                self.cap_height.set(runs[0].cap_height);
+                let widths = runs.each_ref().map(|run| run.advance);
+                let index = self.word_index.clone();
+                let deps = [index.untyped()];
+                self.run_width.replace_with(Property::computed(
+                    move || {
+                        index
+                            .get()
+                            .checked_sub(1)
+                            .and_then(|i| widths.get(i))
+                            .copied()
+                            .unwrap_or(0.0)
+                    },
+                    &deps,
+                ));
+                let index = self.word_index.clone();
+                let deps = [index.untyped()];
+                self.clusters.replace_with(Property::computed(
+                    move || {
+                        index
+                            .get()
+                            .checked_sub(1)
+                            .and_then(|i| runs.get(i))
+                            .map(|run| run.clusters.clone())
+                            .unwrap_or_default()
+                    },
+                    &deps,
+                ));
+                self.vector_ready.set(true);
+            }
+            // Keep the headline readable if the pinned font is ever replaced incorrectly.
+            Err(error) => eprintln!("Hero lettering: {error}"),
+        }
         self.apply_pose(pose_at(0.0));
     }
 
@@ -56,6 +99,12 @@ impl RotatingHeadline {
                 .set_if_neq(rest_time(self._elapsed_ms.get()));
         }
         let pose = pose_at(self._elapsed_ms.get());
+        self.letter_ms.set_if_neq(letter_time(
+            self.letter_ms.get(),
+            dt,
+            self.word_index.get() != pose.index,
+            self.playing.get(),
+        ));
         // Keep the paint clock independent of the signboard's legible pose snap on pause.
         let previous_gradient_ms = self._gradient_ms.get();
         let next_gradient_ms = gradient_time(
@@ -80,6 +129,7 @@ impl RotatingHeadline {
     }
 
     fn apply_pose(&mut self, pose: WordPose) {
+        self.word_index.set_if_neq(pose.index);
         self.word.set_if_neq(WORDS[pose.index].to_string());
         self.word_x.set_if_neq(pose.x);
         self.word_y.set_if_neq(pose.y);
@@ -87,6 +137,16 @@ impl RotatingHeadline {
         self.word_scale_y.set_if_neq(pose.sy * 100.0);
         self.word_rotate.set_if_neq(pose.angle);
         self.word_opacity.set_if_neq(pose.opacity);
+    }
+}
+
+fn letter_time(previous: f64, dt: f64, changed: bool, playing: bool) -> f64 {
+    if !playing {
+        2500.0
+    } else if changed {
+        0.0
+    } else {
+        (previous + dt).min(2500.0)
     }
 }
 
@@ -190,6 +250,11 @@ fn pose_at(time: f64) -> WordPose {
     let excursion = half * half * (3.0 - 2.0 * half);
     if incoming {
         pose.index = (index + 1) % WORDS.len();
+        // Vector entrances own their per-cluster poses. The existing whole-word
+        // exits still hide the handoff; creative keeps its handwriting entrance.
+        if pose.index != 0 {
+            return pose;
+        }
     }
     let direction = if incoming { 1.0 } else { -1.0 };
     // The outgoing handoff is hidden. Creative writes in instead of fading in.
@@ -249,9 +314,8 @@ mod tests {
         for index in 0..4 {
             let midpoint = index as f64 * CYCLE_MS + HOLD_MS + CHANGE_MS / 2.0;
             assert_eq!(pose_at(midpoint - 0.01).opacity, 0.0);
-            if index != 3 {
-                assert_eq!(pose_at(midpoint).opacity, 0.0);
-            }
+            assert_eq!(pose_at(midpoint).opacity, 1.0);
+            assert_eq!(letter_time(1000.0, 16.0, true, true), 0.0);
         }
     }
 
@@ -264,6 +328,14 @@ mod tests {
         assert!(poses[1].sy < 1.0 && poses[1].x == 0.0);
         assert!(poses[2].y < 0.0 && poses[2].angle == 0.0);
         assert!(poses[3].angle < 0.0 && poses[3].sx < 1.0);
+    }
+
+    #[test]
+    fn letter_clock_settles_on_pause_and_does_not_replay_on_resume() {
+        assert_eq!(letter_time(100.0, 16.0, false, false), 2500.0);
+        assert_eq!(letter_time(2500.0, 16.0, false, true), 2500.0);
+        assert_eq!(letter_time(2500.0, 16.0, true, true), 0.0);
+        assert_eq!(letter_time(300.0, 0.0, false, true), 300.0);
     }
 
     #[test]

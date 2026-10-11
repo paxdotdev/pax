@@ -54,12 +54,12 @@ impl Paxflix {
 
     pub fn mount(&mut self, ctx: &NodeContext) {
         let bounds = ctx.bounds_self.clone();
-        self.view_width.replace_with(Property::computed(
+        self.view_width.replace_with(LocalProperty::computed(
             move || bounds.get().0,
             &[ctx.bounds_self.untyped()],
         ));
         let bounds = ctx.bounds_self.clone();
-        self.view_height.replace_with(Property::computed(
+        self.view_height.replace_with(LocalProperty::computed(
             move || bounds.get().1,
             &[ctx.bounds_self.untyped()],
         ));

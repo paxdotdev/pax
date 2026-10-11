@@ -463,6 +463,13 @@ contour deliberately when drawing a filled shape:
 />
 ```
 
+Fills use **non-zero winding**. Overlapping contours that run in the same
+direction remain filled; an inner contour running in the opposite direction
+cuts a hole. This also preserves overlaps within imported font outlines.
+Earlier GPU builds used even-odd winding for ordinary fills, which could cut
+out overlapping regions. If your drawing relied on that cancellation, reverse
+the intended hole's contour so it also works with non-zero winding.
+
 For data-driven drawings, keep a `Property<Vec<PathElement>>` in Rust and
 bind it to `elements`. Updating the property changes the drawing through
 the usual reactive loop. Rust helpers `Path::start`, `Path::line_to`, and

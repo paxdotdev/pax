@@ -70,7 +70,7 @@
         style: TextStyle {
             font: Font::Web(
                 "Manrope",
-                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
+                "/assets/fonts/Manrope.ttf",
                 FontStyle::Normal,
                 FontWeight::Bold)
             font_size: 23px
@@ -84,7 +84,7 @@
         style: TextStyle {
             font: Font::Web(
                 "Manrope",
-                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
+                "/assets/fonts/Manrope.ttf",
                 FontStyle::Normal,
                 FontWeight::Normal)
             font_size: 14px

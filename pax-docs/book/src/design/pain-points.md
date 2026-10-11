@@ -250,3 +250,62 @@ layered-stroke variant to 97%. Leave the handwriting-mask variant at 100% so
 its word remains complete. This is an explicit presentation workaround, not a
 renderer fix; the Drawing article records the current GPU limitation.
 
+## 2026-10-11 — Website assets share an example directory
+
+`pax-website/assets` originally symlinked the entire Paxflix asset directory.
+Adding a website-only font there would change the example too. The website now
+owns its asset directory, with individual symlinks retaining the shared Paxflix
+media. Its font lives in `assets/fonts/`, which is bundled on Apple as well as
+served on web; `public/` is web-only. Keep Rust `include_bytes!` and native font
+consumers on the same source bytes. Apple already registers bundled TTF/OTF
+files at startup: select their actual family name, not a browser alias. Check
+symlinks and existing chassis registration before adding asset-loading code.
+
+## 2026-10-11 — A successful Wasm build can still have unresolved imports
+
+A fresh website dependency resolution selected Pest 2.9.3, whose standard-library
+feature brings in `stacker` and `psm`. The build succeeded, but the browser could
+not resolve an `env` module for `rust_psm_stack_pointer`. Inspect both the emitted
+JavaScript imports and `WebAssembly.Module.imports` before diagnosing the rendering
+code. The website pins its parser family to 2.8.7, the working version, pending
+verification of the newer dependency's Wasm path. A build exit code alone is not
+a web smoke test.
+
+## 2026-10-11 — Filled font outlines need non-zero winding
+
+Manrope's glyphs contain overlapping contours. They rendered correctly in SVG,
+but Pax's GPU paths had small cutouts even while motion was paused. Ordinary
+fill tessellation still used Lyon's even-odd default, while mask coverage already
+used non-zero winding. Set ordinary fills to non-zero too; regression coverage
+checks that overlapping same-direction contours remain filled and reversed
+inner contours still make holes. Changing the font outlines to work around the
+renderer would conceal the underlying backend inconsistency.
+
+## 2026-10-11 — Apple font parity includes dependency and source parity
+
+A native build registers bundled TTF/OTF assets before drawing. A browser alias
+does not name that registered family. Use the font's actual family and ensure
+other components do not download competing versions of the same face. The
+website now uses one packaged Manrope across its theme, headline and gallery;
+Apple font vendoring recognizes existing `assets/` font sources.
+
+A fresh Apple mobile dependency graph selected `libc` 0.2.190, which hides dyld
+bindings that `backtrace` 0.3.76 still imports on iOS. The website pins the Apple
+`libc` dependency to 0.2.189 until that combination is fixed upstream. A passing
+macOS build does not establish iOS or simulator compatibility.
+
+## 2026-10-11 — Stop live reload before switching build targets
+
+Builds of one project share its `.pax/cartridge.partial.rs` and interface staging
+directory. Stop the previous preview's CLI before building another target or
+mode from that directory so a source edit cannot race the other build's generated
+inputs. Template live reload also cannot add fields to an already compiled Rust
+component: restart after changing both its template and Rust properties.
+Separate worktrees have separate generated directories.
+
+At this branch's baseline, release generation constructs the manifest through a
+large Rust expression. The website's generated cartridge exceeds 7 MB; a macOS
+release compile spent several minutes in LLVM's SROA/PromoteMemToReg optimization
+of the application crate. Use debug builds for visual iteration and distinguish
+an incomplete optimized build from a failing application. Apple release runtime
+validation still requires a completed build; debug previews do not establish it.

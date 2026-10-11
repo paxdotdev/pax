@@ -8,8 +8,10 @@ A 2D vector path for arbitrary Bézier and line-segment chains.
 
 `elements` describes the path in local coordinates. `fill` paints the
 interior of closed contours, while `stroke` paints the path itself; for
-open subpaths, the stroke cap controls the exposed endpoints. Path geometry
-may draw outside the element's layout bounds; use a `Frame` or `Mask` when
+open subpaths, the stroke cap controls the exposed endpoints. Fills use
+non-zero winding: overlapping contours with the same direction
+stay filled; reverse an inner contour's direction to create a hole.
+Path geometry may draw outside the element's layout bounds; use a `Frame` or `Mask` when
 that overflow should be clipped.
 
 #### Properties

@@ -49,6 +49,17 @@ impl HomePage {
             include_str!("rotating_headline.rs"),
         ));
         hero_sources.extend(section_sources(
+            "src/hero_letter.pax",
+            include_str!("hero_letter.pax"),
+            "src/hero_letter.rs",
+            include_str!("hero_letter.rs"),
+        ));
+        hero_sources.push(ExampleSource {
+            label: "src/hero_font.rs".into(),
+            language: "rust".into(),
+            code: include_str!("hero_font.rs").into(),
+        });
+        hero_sources.extend(section_sources(
             "pax-logo/src/animated_pax_logo.pax",
             include_str!("../../examples/src/pax-logo/src/animated_pax_logo.pax"),
             "pax-logo/src/animated_pax_logo.rs",

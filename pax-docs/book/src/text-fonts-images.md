@@ -198,15 +198,28 @@ Google Fonts stylesheet URLs containing `fonts.googleapis.com/css` receive
 special handling. Other nonempty URLs are treated as font files, so an
 arbitrary CSS stylesheet URL is not interchangeable with a font-file URL.
 
-The native Apple loader also handles direct remote font files and the Google
-Fonts CSS path, registering decoded fonts with the platform. The relative
-`assets/fonts/...` recipe above is web-specific: the current native Web-font
-loader does not resolve it into the application asset bundle. Choose an
-available native family or verify your remote font source on macOS, iOS, and
-iPadOS. Match the native font's actual family name; browser aliases alone do
-not establish that name on Apple targets.
+### Bundle fonts for Apple targets
 
-Font loading is asynchronous. A fallback may appear first and then change
+macOS, iOS, and iPadOS package the project's `assets/` directory and register
+its `.ttf` and `.otf` fonts at app startup. Put a licensed font in
+`assets/fonts/`, then select its actual family and desired weight, for example
+`font: {family: "Manrope", weight: 800}` with Manrope installed in that bundle.
+No download URL is needed on Apple. This also works in release cartridges.
+`public/` is a web-only directory and does not participate in Apple packaging.
+
+Web still needs the asset URL. A shared declaration can use both the actual
+family and that URL: Apple resolves the already registered family, while web
+loads the asset. Browser-only family aliases do not establish names on Apple.
+Weights select available named faces or named instances of a variable font;
+verify the font supplies the requested weight. This does not expose arbitrary
+variation-axis controls.
+
+The native Apple loader also handles direct remote font files and the Google
+Fonts CSS path. It does not resolve relative URLs into bundle resources: a
+missing or incorrectly named bundled family will not be rescued by its URL.
+Verify your remote font source on every shipping target.
+
+Remote and web font loading is asynchronous. A fallback may appear first and then change
 the paragraph's metrics. Include first-load and unavailable-font cases in
 your checks, and make sure the files you ship or host permit that use.
 

@@ -1,37 +1,44 @@
 <Group width=100% height=100%>
-    <Group x=0px y={self.compact ? 64px : 80px} width=100% height={self.compact ? (100% - 64px) : (100% - 80px)}>
-        slot()
-    </Group>
-    <Group x=0px y=0px width=100% height={self.compact ? 64px : 80px}>
-        <Link x={self.compact ? 18px : 38px} y={self.compact ? 16px : 24px} width={self.compact ? 68px : 210px} height=32px url="/"
-            target=Target::Current>
-            <BrandMark />
-        </Link>
-        if !self.compact {
-            <Stacker x={100% - 40px} anchor_x=100% y=20px width=414px height=40px direction=StackerDirection::Horizontal gutter=8px
-                sizes=[Some(74px), Some(78px), Some(88px), None]>
-                <Link width=100% height=100% url="https://docs.pax.dev" target=Target::New>
-                    <Text class="nav_link" width=100% height=100% text="Docs" selectable=false/>
-                </Link>
-                <Link width=100% height=100% url="https://github.com/paxdotdev/pax" target=Target::New>
-                    <Text class="nav_link" width=100% height=100% text="GitHub" selectable=false/>
-                </Link>
-                <Link width=100% height=100% url="https://discord.com/invite/Eq8KWAUc6b" target=Target::New>
-                    <Text class="nav_link" width=100% height=100% text="Discord" selectable=false/>
-                </Link>
-                <Link width=100% height=100% url="https://docs.pax.dev/getting-started/" target=Target::New>
-                    <Text class="nav_cta_label" width=100% height=100% text="Get started" selectable=false/>
+    <DynamicIslandSpacer inset=bind:self.safe_top />
+    <DynamicIslandSpacer edge=SafeAreaEdge::Bottom inset=bind:self.safe_bottom />
+    <DynamicIslandSpacer edge=SafeAreaEdge::Left inset=bind:self.safe_left />
+    <DynamicIslandSpacer edge=SafeAreaEdge::Right inset=bind:self.safe_right />
+    <Group x={(self.safe_left)px} y={(self.safe_top)px}
+        width={100% - (self.safe_left + self.safe_right)px} height={100% - (self.safe_top + self.safe_bottom)px}>
+        <Group x=0px y={self.compact ? 64px : 80px} width=100% height={self.compact ? (100% - 64px) : (100% - 80px)}>
+            slot()
+        </Group>
+        <Group x=0px y=0px width=100% height={self.compact ? 64px : 80px}>
+            <Link x={self.compact ? 18px : 38px} y={self.compact ? 16px : 24px} width={self.compact ? 68px : 210px} height=32px url="/"
+                target=Target::Current>
+                <BrandMark />
+            </Link>
+            if !self.compact {
+                <Stacker x={100% - 40px} anchor_x=100% y=20px width=414px height=40px direction=StackerDirection::Horizontal gutter=8px
+                    sizes=[Some(74px), Some(78px), Some(88px), None]>
+                    <Link width=100% height=100% url="https://docs.pax.dev" target=Target::New>
+                        <Text class="nav_link" width=100% height=100% text="Docs" selectable=false/>
+                    </Link>
+                    <Link width=100% height=100% url="https://github.com/paxdotdev/pax" target=Target::New>
+                        <Text class="nav_link" width=100% height=100% text="GitHub" selectable=false/>
+                    </Link>
+                    <Link width=100% height=100% url="https://discord.com/invite/Eq8KWAUc6b" target=Target::New>
+                        <Text class="nav_link" width=100% height=100% text="Discord" selectable=false/>
+                    </Link>
+                    <Link width=100% height=100% url="https://docs.pax.dev/getting-started/" target=Target::New>
+                        <Text class="nav_cta_label" width=100% height=100% text="Get started" selectable=false/>
+                        <Rectangle class="nav_cta_surface" width=100% height=100%/>
+                    </Link>
+                </Stacker>
+            } else {
+                <Link x={100% - 20px} anchor_x=100% y=14px width=116px height=36px url="https://docs.pax.dev/getting-started/"
+                    target=Target::New>
+                    <Text class="nav_cta_label" width=100% height=100% text="Get started →" selectable=false/>
                     <Rectangle class="nav_cta_surface" width=100% height=100%/>
                 </Link>
-            </Stacker>
-        } else {
-            <Link x={100% - 20px} anchor_x=100% y=14px width=116px height=36px url="https://docs.pax.dev/getting-started/"
-                target=Target::New>
-                <Text class="nav_cta_label" width=100% height=100% text="Get started →" selectable=false/>
-                <Rectangle class="nav_cta_surface" width=100% height=100%/>
-            </Link>
-        }
-        <Rectangle class="shell_nav_bg" width=100% height=100%/>
+            }
+            <Rectangle class="shell_nav_bg" width=100% height=100%/>
+        </Group>
     </Group>
     <Rectangle fill={SiteTheme::ink()} width=100% height=100%/>
 </Group>
@@ -50,7 +57,7 @@
         style: TextStyle {
             font: Font::Web(
                 "Manrope",
-                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
+                "/assets/fonts/Manrope.ttf",
                 FontStyle::Normal,
                 FontWeight::SemiBold)
             font_size: 13px
@@ -64,7 +71,7 @@
         style: TextStyle {
             font: Font::Web(
                 "Manrope",
-                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
+                "/assets/fonts/Manrope.ttf",
                 FontStyle::Normal,
                 FontWeight::Bold)
             font_size: 13px

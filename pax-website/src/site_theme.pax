@@ -21,7 +21,7 @@
         style: TextStyle {
             font: Font::Web(
                 "Manrope",
-                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
+                "/assets/fonts/Manrope.ttf",
                 FontStyle::Normal,
                 FontWeight::ExtraBold)
             font_size: {$viewport.width < 760 ? 34px : 48px}
@@ -35,7 +35,7 @@
         style: TextStyle {
             font: Font::Web(
                 "Manrope",
-                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
+                "/assets/fonts/Manrope.ttf",
                 FontStyle::Normal,
                 FontWeight::Normal)
             font_size: {$viewport.width < 760 ? 19px : 23px}
@@ -49,7 +49,7 @@
         style: TextStyle {
             font: Font::Web(
                 "Manrope",
-                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
+                "/assets/fonts/Manrope.ttf",
                 FontStyle::Normal,
                 FontWeight::Normal)
             font_size: {$viewport.width < 760 ? 16px : 18px}
@@ -63,7 +63,7 @@
         style: TextStyle {
             font: Font::Web(
                 "Manrope",
-                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
+                "/assets/fonts/Manrope.ttf",
                 FontStyle::Normal,
                 FontWeight::Normal)
             font_size: 14px
@@ -77,7 +77,7 @@
         style: TextStyle {
             font: Font::Web(
                 "Manrope",
-                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
+                "/assets/fonts/Manrope.ttf",
                 FontStyle::Normal,
                 FontWeight::Bold)
             font_size: {$viewport.width < 760 ? 22px : 26px}
@@ -145,7 +145,7 @@
         style: TextStyle {
             font: Font::Web(
                 "Manrope",
-                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
+                "/assets/fonts/Manrope.ttf",
                 FontStyle::Normal,
                 FontWeight::ExtraBold)
             fill: {SiteTheme::paper()}
@@ -158,7 +158,7 @@
         style: TextStyle {
             font: Font::Web(
                 "Manrope",
-                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
+                "/assets/fonts/Manrope.ttf",
                 FontStyle::Normal,
                 FontWeight::Normal)
             fill: {SiteTheme::muted()}
@@ -184,7 +184,7 @@
         style: TextStyle {
             font: Font::Web(
                 "Manrope",
-                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
+                "/assets/fonts/Manrope.ttf",
                 FontStyle::Normal,
                 FontWeight::Bold)
             font_size: 14px
@@ -202,7 +202,7 @@
         style: TextStyle {
             font: Font::Web(
                 "Manrope",
-                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
+                "/assets/fonts/Manrope.ttf",
                 FontStyle::Normal,
                 FontWeight::Bold)
             font_size: 14px

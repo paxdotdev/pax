@@ -9,6 +9,10 @@ const COMPACT_BREAKPOINT_PX: f64 = 760.0;
 #[file("site_shell.pax")]
 pub struct SiteShell {
     pub compact: Property<bool>,
+    pub safe_top: Property<f64>,
+    pub safe_bottom: Property<f64>,
+    pub safe_left: Property<f64>,
+    pub safe_right: Property<f64>,
 }
 
 impl SiteShell {
@@ -21,7 +25,9 @@ impl SiteShell {
     }
 
     fn sync_layout(&mut self, ctx: &NodeContext) {
-        self.compact
-            .set_if_neq(ctx.bounds_self.get().0 < COMPACT_BREAKPOINT_PX);
+        self.compact.set_if_neq(
+            ctx.bounds_self.get().0 - self.safe_left.get() - self.safe_right.get()
+                < COMPACT_BREAKPOINT_PX,
+        );
     }
 }

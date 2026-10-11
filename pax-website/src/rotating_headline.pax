@@ -33,7 +33,17 @@
                         </Mask>
                     </Group>
                 } else {
-                    <Text class="headline" width=100% height=100% text={self.word} wrap=false/>
+                    if self.vector_ready {
+                        // Clip only the resting selection box; iOS uses its interactive text view here.
+                        <Text class="selection" width={(self.run_width * self.font_px)px} height=100% text={self.word} wrap=false clip=true selectable=true/>
+                        for cluster in self.clusters key cluster.byte_start {
+                            <HeroLetter x={(cluster.x * self.font_px)px} y={(self.baseline * self.font_px)px}
+                                width={(self.font_px)px} height={(self.font_px)px} cluster={cluster} ordinal={cluster.ordinal}
+                                font_px={self.font_px} cap_height={self.cap_height} kind={self.word_index} time_ms={self.letter_ms}/>
+                        }
+                    } else {
+                        <Text class="headline" width=100% height=100% text={self.word} wrap=false/>
+                    }
                 }
             </Group>
         </Frame>
@@ -47,13 +57,19 @@
     @pre_render: tick
     .headline {
         style: TextStyle {
-            font: Font::Web(
-                "Manrope",
-                "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap",
-                FontStyle::Normal,
-                FontWeight::ExtraBold)
+            font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::ExtraBold)
             font_size: {(self.font_px)px}
             fill: {SiteTheme::paper()}
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .selection {
+        style: TextStyle {
+            font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::ExtraBold)
+            font_size: {(self.font_px)px}
+            fill: rgba(0, 0, 0, 0)
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left

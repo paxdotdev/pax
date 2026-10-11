@@ -2676,7 +2676,9 @@ fn tessellate_vector_geometry(
     };
     match op.kind {
         PendingVectorOpKind::Fill => {
-            let options = FillOptions::tolerance(tolerance);
+            // Match ordinary native/SVG fills and our mask coverage. Font outlines
+            // can overlap within a glyph; even-odd winding punches holes there.
+            let options = FillOptions::tolerance(tolerance).with_fill_rule(FillRule::NonZero);
             let mut geometry_builder =
                 BuffersBuilder::new(&mut geometry, |vertex: FillVertex| GpuVertex {
                     position: vertex.position().to_array(),
@@ -4301,6 +4303,46 @@ mod tests {
             DEFAULT_TESSELLATION_TOLERANCE,
         );
         assert!((tessellated_area(&geometry) - 150.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn ordinary_fills_preserve_overlaps_and_opposite_winding_holes() {
+        let mut hole = Path::builder();
+        hole.begin(point(0.0, 0.0));
+        hole.line_to(point(10.0, 0.0));
+        hole.line_to(point(10.0, 10.0));
+        hole.line_to(point(0.0, 10.0));
+        hole.end(true);
+        // The inner contour runs in the opposite direction.
+        hole.begin(point(3.0, 3.0));
+        hole.line_to(point(3.0, 7.0));
+        hole.line_to(point(7.0, 7.0));
+        hole.line_to(point(7.0, 3.0));
+        hole.end(true);
+
+        for (path, area) in [
+            (two_overlapping_rects_path(10.0, 10.0, 5.0), 150.0),
+            (hole.build(), 84.0),
+        ] {
+            let op = PendingVectorOp {
+                geometry_signature: hash_vector_path(&path, PendingVectorOpKind::Fill, PathSmoothing::None),
+                path,
+                fill: Fill::Solid(Color::rgba(1.0, 1.0, 1.0, 1.0)),
+                material: Material::default(),
+                light_mask: 0,
+                transform: Transform2D::identity(),
+                opacity: 1.0,
+                kind: PendingVectorOpKind::Fill,
+                draw_range: DrawRange::disabled(),
+                smoothing: PathSmoothing::None,
+            };
+            let geometry = tessellate_vector_geometry(DEFAULT_TESSELLATION_TOLERANCE, &op);
+            let coverage = VertexBuffers {
+                vertices: geometry.vertices.iter().map(|v| stencil::Vertex { position: v.position }).collect(),
+                indices: geometry.indices,
+            };
+            assert!((tessellated_area(&coverage) - area).abs() < 0.01);
+        }
     }
 
     #[test]

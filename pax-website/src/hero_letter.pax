@@ -1,0 +1,14 @@
+// The baseline is y=0. Rotate the whole cluster around its cap-height center.
+<Group x={((self.cluster.advance * 0.5 + self.dx) * self.font_px)px}
+    y={((self.dy - self.cap_height * 0.5) * self.font_px)px}
+    anchor=[50%, 50%] width={(self.cluster.advance * self.font_px)px} height={(self.cap_height * self.font_px)px}
+    scale_x={(self.sx)%} scale_y={(self.sy)%} rotate={(self.angle)deg} opacity={self.alpha}>
+    <Path x=0px y={(self.cap_height * self.font_px)px} width={(self.font_px)px} height={(self.font_px)px}
+        elements={self.cluster.elements} smoothing=PathSmoothing::None
+        fill={paint: {SiteTheme::paper()} material: {Material::unlit()}}/>
+</Group>
+
+@settings {
+    @mount: tick
+    @pre_render: tick
+}
