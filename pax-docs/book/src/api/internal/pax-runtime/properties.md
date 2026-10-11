@@ -232,6 +232,12 @@ Return whether a render layer currently has canvas work to paint.
 
 Store a screenshot payload delivered by the chassis.
 
+##### `mark_canvas_node_dirty`
+<pre><code class="api-signature language-rust ignore">pub fn mark_canvas_node_dirty(&amp;self, id: <a href="../../../api/internal/pax-runtime/properties.md#expandednodeidentifier">ExpandedNodeIdentifier</a>)</code></pre>
+
+Invalidate a registered node's drawing. Unmounted/unknown nodes are ignored;
+registering a new or remounted canvas node schedules its initial drawing.
+
 ##### `mark_node_occlusion_dirty`
 <pre><code class="api-signature language-rust ignore">pub fn mark_node_occlusion_dirty(&amp;self, id: u32)</code></pre>
 
@@ -314,6 +320,11 @@ Mark a canvas layer dirty.
 <pre><code class="api-signature language-rust ignore">pub fn set_canvas_drawable_layers(&amp;self, layers: HashSet&lt;usize&gt;)</code></pre>
 
 Replace the set of render layers that currently contain canvas drawables.
+
+##### `set_occlusion_diagnostics`
+<pre><code class="api-signature language-rust ignore">pub fn set_occlusion_diagnostics(&amp;self, enabled: bool)</code></pre>
+
+Enables bounded structural-invalidation origin attribution for profiling.
 
 ##### `set_root_scroller_id`
 <pre><code class="api-signature language-rust ignore">pub fn set_root_scroller_id(&amp;self, id: Option&lt;u32&gt;)</code></pre>

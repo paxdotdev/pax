@@ -151,6 +151,10 @@ Lexicographic coverage classes; these are not visual z-order.
 #### Variants
 ##### `Visible`
 ##### `MovingAhead`
+##### `ReversalNear`
+One-axis reverse coverage, reserved before forward speculation but
+prepared after current incoming work. Cold tiles are eligible too.
+
 ##### `ReadyTrailing`
 ##### `StationaryNear`
 ##### `ForwardReserve`
@@ -187,5 +191,7 @@ caused by its parent must not claim independent child-axis scroll intent.
 ### `schedule_surfaces`
 <pre><code class="api-signature language-rust ignore">pub fn schedule_surfaces(candidates: &amp;[<a href="../../../../api/internal/pax-runtime/engine/surface_scheduling.md#surfacecandidate">SurfaceCandidate</a>], budget: <a href="../../../../api/internal/pax-runtime/engine/surface_scheduling.md#surfacebudget">SurfaceBudget</a>) -&gt; <a href="../../../../api/internal/pax-runtime/engine/surface_scheduling.md#surfaceschedule">SurfaceSchedule</a></code></pre>
 
-Visible coverage precedes all speculation. Equal-ranked branches interleave;
-visible survivors win genuine overload without rotating evictions each tick.
+Visible coverage precedes all speculation. Reverse-buffer residency is
+funded next, before forward work can consume the optional allowance.
+Execution still follows coverage/deadline order. Equal-ranked branches
+interleave; visible survivors win genuine overload without rotating evictions.

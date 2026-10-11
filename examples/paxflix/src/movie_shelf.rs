@@ -47,6 +47,7 @@ fn schedule_entrances(entries: &mut [CardEntrance], now: u64) {
 #[pax]
 #[file("movie_shelf.pax")]
 pub struct MovieShelf {
+    pub disable_card_entrances: Property<bool>,
     pub light_mode: Property<bool>,
     pub shelf: Property<Shelf>,
     pub selected_id: Property<usize>,
@@ -57,6 +58,32 @@ pub struct MovieShelf {
     pub entrances: Property<Vec<CardEntrance>>,
 }
 
+// Conditional ownership removes the scheduling subscription altogether when a
+// host disables reveals. It does not change card lifetime or renderer readiness.
+#[pax]
+#[inlined(
+@settings {
+    @mount: on_mount
+}
+)]
+pub struct ShelfEntranceScheduler {
+    pub entrances: Property<Vec<CardEntrance>>,
+}
+
+impl ShelfEntranceScheduler {
+    pub fn on_mount(&mut self, ctx: &NodeContext) {
+        let entrances = self.entrances.local();
+        let now = ctx.elapsed_millis.clone();
+        ctx.subscribe(&[entrances.untyped()], move || {
+            // Publishing the settled batch dirties this effect once more;
+            // without pending requests the second evaluation is a no-op.
+            if entrances.read(|entries| entries.iter().any(|entry| entry.pending)) {
+                entrances.update(|entries| schedule_entrances(entries, now.get()));
+            }
+        });
+    }
+}
+
 impl MovieShelf {
     pub fn button_over(&mut self, ctx: &NodeContext, _event: Event<MouseOver>) {
         ctx.set_cursor(CursorStyle::Pointer);
@@ -64,19 +91,6 @@ impl MovieShelf {
 
     pub fn button_out(&mut self, ctx: &NodeContext, _event: Event<MouseOut>) {
         ctx.set_cursor(CursorStyle::Auto);
-    }
-
-    pub fn on_mount(&mut self, ctx: &NodeContext) {
-        let entrances = self.entrances.local();
-        let now = ctx.elapsed_millis.clone();
-        ctx.subscribe(&[entrances.untyped()], move || {
-            // Proximity handlers enqueue a whole sampled batch before effects
-            // drain. Publishing starts dirties this effect once more; with no
-            // pending requests it is a no-op, not another scheduling pass.
-            if entrances.read(|entries| entries.iter().any(|entry| entry.pending)) {
-                entrances.update(|entries| schedule_entrances(entries, now.get()));
-            }
-        });
     }
 
     pub fn next(&mut self, ctx: &NodeContext, _event: Event<Click>) {
@@ -123,8 +137,10 @@ mod entrance_tests {
 
     #[test]
     fn entrance_subscriptions_and_cleanup_are_wired_to_lifecycle_events() {
-        assert!(include_str!("movie_shelf.pax").contains("@mount: on_mount"));
-        let card = include_str!("movie_card.pax");
+        let shelf = include_str!("movie_shelf.pax");
+        assert!(shelf.contains("if !disable_card_entrances"));
+        assert!(shelf.contains("<ShelfEntranceScheduler"));
+        let card = include_str!("movie_card_entrance.pax");
         assert!(card.contains("@mount: on_mount"));
         assert!(card.contains("@unmount: on_unmount"));
     }

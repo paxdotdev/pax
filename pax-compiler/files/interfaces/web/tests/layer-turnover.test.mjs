@@ -25,6 +25,34 @@ function load(file) {
 }
 const {Layer} = load('layer');
 const {RenderLayerManager} = load('render-layer-context');
+
+test('frame movement updates clips without rescanning descendant opacity', () => {
+    const manager = Object.create(RenderLayerManager.prototype);
+    const container = {
+        styles: {clipContent:true, opacity:1, width:100, height:100, transform:[1,0,0,1,0,0]},
+        update(patch) { Object.assign(this.styles, patch); },
+        clipPathData() { return this.styles.clipContent ? String(this.styles.transform) : undefined; },
+        clipPathId: () => 'clip-1',
+        clipPathValue() { return this.styles.clipContent ? 'url(#clip-1)' : 'none'; },
+    };
+    const clips = [], applies = [];
+    manager.containers = new Map([[1, container]]);
+    manager.effects = {updateClipPath: (...args) => clips.push(args)};
+    manager.applyContainerClipPath = (...args) => applies.push(args);
+    manager.updateContainer(1, {transform:[1,0,0,1,0,50]});
+    assert.deepEqual(applies, [[1,false]]);
+    assert.equal(clips.length, 1);
+    manager.updateContainer(1, {opacity:0.5});
+    assert.deepEqual(applies.at(-1), [1,true]);
+    assert.equal(clips.length, 1, 'opacity alone does not rewrite SVG clips');
+    manager.updateContainer(1, {width:120});
+    assert.equal(applies.length, 3, 'same explicit path still updates WebKit mask dimensions');
+    manager.updateContainer(1, {clipContent:false});
+    assert.equal(clips.at(-1)[1], undefined);
+    const calls = applies.length;
+    manager.updateContainer(1, {transform:[1,0,0,1,0,80]});
+    assert.equal(applies.length, calls, 'unclipped transform-only changes need no DOM work');
+});
 const surface = (id, replayPriority = 0) => ({id, key: id, left: 0, top: 0, width: 100, height: 100, replayPriority});
 const plan = (...surfaces) => ({layerId: 0, active: true, surfaces});
 

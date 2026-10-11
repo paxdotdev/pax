@@ -1274,7 +1274,7 @@ impl ExpandedNode {
         self.bind_to_parent_bounds(context);
         self.bind_occlusion_listener(context);
         self.mark_non_reactive_update_subtree_dirty();
-        context.mark_occlusion_dirty();
+        context.mark_occlusion_dirty_for_node(self.id.to_u32());
         context.set_canvas_dirty(self.occlusion.get().render_layer_id);
         if self.attached.get() > 0 {
             context.refresh_scene_lighting_node(self);
@@ -1298,7 +1298,7 @@ impl ExpandedNode {
 
         self.bind_to_parent_bounds(context);
         self.mark_non_reactive_update_subtree_dirty();
-        context.mark_occlusion_dirty();
+        context.mark_occlusion_dirty_for_node(self.id.to_u32());
         Rc::clone(self).recurse_mount(context);
         context.drain_node_effects();
         self.recurse_emit_mount_updates();
@@ -2020,7 +2020,7 @@ impl ExpandedNode {
         // mark a pending branch update clean if cleanup and selection change in
         // the same frame, so invalidate it and let its evaluator reconcile.
         self.children.invalidate();
-        context.mark_occlusion_dirty();
+        context.mark_occlusion_dirty_for_node(self.id.to_u32());
 
         if borrow!(self.exiting_children).is_empty() {
             self.exit_cleanup_active.set(false);
@@ -2242,7 +2242,7 @@ impl ExpandedNode {
             }
             context.mark_canvas_node_dirty(self.id);
         }
-        context.mark_occlusion_dirty();
+        context.mark_occlusion_dirty_for_node(self.id.to_u32());
 
         let mounted_children = borrow!(self.mounted_children).clone();
         for child in mounted_children {
@@ -2393,7 +2393,7 @@ impl ExpandedNode {
         self.reset_removed_runtime_properties.set(false);
         self.refresh_properties_scope(&instance);
         self.mark_non_reactive_update_subtree_dirty();
-        context.mark_occlusion_dirty();
+        context.mark_occlusion_dirty_for_node(self.id.to_u32());
         context.set_canvas_dirty(self.occlusion.get().render_layer_id);
     }
 
@@ -2468,7 +2468,7 @@ impl ExpandedNode {
                             ancestor = parent.template_parent.upgrade();
                         }
                     }
-                    context.mark_occlusion_dirty();
+                    context.mark_occlusion_dirty_for_node(node.id.to_u32());
 
                     let (is_slot, is_component) = {
                         let instance = borrow!(node.instance_node);
@@ -2770,6 +2770,7 @@ impl ExpandedNode {
 
     pub fn recurse_update(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
         self.recurse_update_with_observer(context, |_| {});
+
     }
 
     pub(crate) fn recurse_update_with_observer(

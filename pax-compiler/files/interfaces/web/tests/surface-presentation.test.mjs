@@ -26,12 +26,15 @@ test('default microtask is called as a global, not with the scheduler as receive
 test('completion bursts get one presentation opportunity without advancing application frames', () => {
     const jobs = []; let calls = 0;
     const scheduler = new SurfacePresentationScheduler(() => calls++, () => true, job => jobs.push(job));
-    scheduler.request(); scheduler.request();
+    assert.equal(scheduler.request(), 'queued');
+    assert.equal(scheduler.request(), 'coalesced');
     assert.equal(jobs.length, 1); assert.equal(calls, 0);
-    jobs.shift()(); scheduler.request(); scheduler.present();
+    jobs.shift()(); assert.equal(scheduler.request(), 'used'); scheduler.present();
     assert.equal(calls, 1); assert.equal(jobs.length, 0);
     scheduler.afterFrame(); scheduler.request(); jobs.shift()();
     assert.equal(calls, 2);
+    scheduler.dispose();
+    assert.equal(scheduler.request(), 'disposed');
 });
 
 test('disposal suppresses queued old-chassis completions; suspension does not consume a pass', () => {

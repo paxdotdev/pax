@@ -1,4 +1,6 @@
 import type {SurfaceCandidate} from './surface-scheduler';
+import type {NativeMessageTiming} from './native-message-profile';
+import type {WheelInputSample} from '../events/listeners';
 
 export type SurfaceTraceEvent = {at: number; event: string; id?: string; generation?: string;
     contentRevision?: string; [key: string]: unknown};
@@ -7,13 +9,18 @@ export type SurfaceTraceEvent = {at: number; event: string; id?: string; generat
 // mingle their traces. No network reporting or per-frame console output.
 export class SurfaceTrace {
     private events: SurfaceTraceEvent[] = [];
-    private demand = new Map<string, {signature: string; firstVisibleAt?: number}>();
+    private demand = new Map<string, {signature: string; firstVisibleAt?: number; coverage: number; owner: number}>();
+    private scrollDirections = new Map<number, {offset: number[]; direction: number[]}>();
     private inspector?: HTMLDetailsElement;
     private lastUnready = '';
     private probeFrame?: number;
     private probeUntil = -Infinity;
     private scrollUntil = -Infinity;
+    private wheelInputs: WheelInputSample[] = [];
     private imageCounts: Record<string, number> = {};
+    private completionRequests = {queued: 0, coalesced: 0, used: 0, disposed: 0};
+    private completionDeferredAt?: number;
+    private completionWait = {opportunities: 0, totalMs: 0, maxMs: 0};
     private imageStates = new Map<string, string>();
     private pendingImages = new Map<string, {node: number; path: string; id: string}>();
     private recordedImages = new Map<string, Set<string>>();
@@ -55,6 +62,8 @@ export class SurfaceTrace {
             contentRevision: canvas.dataset.surfaceContentRevision ?? canvas.dataset.surfaceRetiredRevision,
             width: canvas.width, height: canvas.height,
             owners: Number(canvas.dataset.paxSurfaceOwners ?? 0),
+            coverage: this.demand.get(id)?.coverage, owner: this.demand.get(id)?.owner,
+            priority: canvas.dataset.replayPriority == null ? undefined : Number(canvas.dataset.replayPriority),
             ...(canvas.dataset.imageNode == null ? {} : {node, path: canvas.dataset.imagePath,
                 version: Number(canvas.dataset.imageVersion), bytes: Number(canvas.dataset.imageBytes)}),
         });
@@ -112,6 +121,9 @@ export class SurfaceTrace {
                     this.record('image-readiness-summary', {counts: {...this.imageCounts},
                         waitingDecoded: [...this.pendingImages.values()],
                         recordedNotSubmitted: [...this.recordedImages.entries()].map(([id, nodes]) => ({id, count:nodes.size}))});
+                    this.record('presentation-completion-summary', {requests: {...this.completionRequests},
+                        wait: {...this.completionWait}, pending: this.completionDeferredAt != null});
+                    this.record('wheel-input-summary', {samples: [...this.wheelInputs]});
                     output.textContent = JSON.stringify(this.events);
                 }
             });
@@ -144,6 +156,25 @@ export class SurfaceTrace {
         this.probeFrame=requestAnimationFrame(step);
     }
 
+    recordCompletionRequest(outcome: keyof SurfaceTrace['completionRequests']) {
+        this.completionRequests[outcome]++;
+        if (outcome === 'used' && this.completionDeferredAt == null) {
+            this.completionDeferredAt = performance.now();
+        }
+    }
+
+    recordPresentationOpportunity(blocked: boolean) {
+        if (this.completionDeferredAt == null) return;
+        const waitMs = Math.max(0, performance.now() - this.completionDeferredAt);
+        this.completionDeferredAt = undefined;
+        this.completionWait.opportunities++;
+        this.completionWait.totalMs += waitMs;
+        this.completionWait.maxMs = Math.max(this.completionWait.maxMs, waitMs);
+        // This measures the next service opportunity, not completion of any
+        // particular tile. The runtime may still reject unsettled scene state.
+        this.record('presentation-completion-wait', {waitMs, blocked});
+    }
+
     record(event: string, details: Record<string, unknown> = {}) {
         if (event.startsWith('image-') && event !== 'image-readiness-summary') {
             this.imageCounts[event] = (this.imageCounts[event] ?? 0) + 1;
@@ -159,11 +190,43 @@ export class SurfaceTrace {
         if (duration > 20) this.record('slow-frame-phase',{phase,duration});
     }
 
-    observeScroll(scroller: number, x: number, y: number) {
+    recordNativeMessageBatch(types: NativeMessageTiming[]) {
+        const duration = types.reduce((total, t) => total+t.totalMs, 0);
+        const now = performance.now();
+        if (now <= this.probeUntil || now <= this.scrollUntil || duration > 20) {
+            this.record('native-message-batch', {types, duration});
+        }
+    }
+
+    recordWheelInput(sample: WheelInputSample) {
+        // Keep a small independent tail so noisy tile traces cannot erase the
+        // input evidence before the inspector is opened. No event/DOM retention.
+        if (this.wheelInputs.length >= 128) this.wheelInputs.shift();
+        this.wheelInputs.push(sample);
+        this.scrollUntil = performance.now() + 250;
+        this.record('wheel-input', sample);
+    }
+
+    observeScroll(scroller: number, x: number, y: number, previousOffset?: [number, number]) {
         // Observe input; never synthesize movement. Timing begins when the main
         // thread samples it, not when the compositor first displayed the scroll.
         this.scrollUntil = performance.now() + 250;
         this.record('scroll-sample', {scroller, x, y});
+        const known = this.scrollDirections.has(scroller);
+        const old = this.scrollDirections.get(scroller)
+            ?? (previousOffset ? {offset: previousOffset, direction: [0,0]} : undefined);
+        const offset = [x,y], direction = old?.direction.slice() ?? [0,0];
+        const reversedAxes: number[] = [];
+        if (old) for (let axis=0; axis<2; axis++) {
+            const delta=offset[axis]-old.offset[axis];
+            if (Math.abs(delta)<=0.1) continue;
+            const next=Math.sign(delta);
+            if (direction[axis] !== 0 && direction[axis] !== next) reversedAxes.push(axis);
+            direction[axis]=next;
+        }
+        if (reversedAxes.length) this.record('scroll-reversal', {scroller, from: old!.offset, to: offset, direction, reversedAxes});
+        if (this.scrollDirections.size >= this.capacity && !known) this.scrollDirections.delete(this.scrollDirections.keys().next().value!);
+        this.scrollDirections.set(scroller, {offset, direction});
     }
 
     observeDemand(candidates: SurfaceCandidate[]) {
@@ -174,12 +237,13 @@ export class SurfaceTrace {
             this.record('visible-unready', {ids: unready});
             this.lastUnready = signature;
         }
-        const next = new Map<string, {signature: string; firstVisibleAt?: number}>();
+        const next = new Map<string, {signature: string; firstVisibleAt?: number; coverage: number; owner: number}>();
         for (const candidate of candidates) {
             const s = candidate.surface;
             const signature = `${s.hostSignature}|${s.surfaceSignature}|${s.transformSignature}`;
             const previous = this.demand.get(s.id);
-            const state = previous?.signature === signature ? previous : {signature, firstVisibleAt: undefined};
+            const state = {signature, firstVisibleAt: previous?.signature === signature ? previous.firstVisibleAt : undefined,
+                coverage: candidate.rank.coverage, owner: candidate.branch};
             if (candidate.rank.coverage === 0 && state.firstVisibleAt == null) {
                 state.firstVisibleAt = Date.now();
                 // Demand is observed before admission, including visible tiles
@@ -199,7 +263,12 @@ export class SurfaceTrace {
         this.inspector?.remove();
         delete (this.mount as any).paxSurfaceTrace;
         this.events.length = 0;
+        this.wheelInputs.length = 0;
         this.demand.clear();
+        this.scrollDirections.clear();
         this.imageStates.clear(); this.pendingImages.clear(); this.recordedImages.clear(); this.imageCounts = {};
+        this.completionRequests = {queued: 0, coalesced: 0, used: 0, disposed: 0};
+        this.completionDeferredAt = undefined;
+        this.completionWait = {opportunities: 0, totalMs: 0, maxMs: 0};
     }
 }

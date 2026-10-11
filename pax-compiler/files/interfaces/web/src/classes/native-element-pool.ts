@@ -292,12 +292,13 @@ export class NativeElementPool {
                 || Math.abs(measurement.presentationScrollX - state.lastMeasuredPresentationScrollX) > 0.1
                 || Math.abs(measurement.presentationScrollY - state.lastMeasuredPresentationScrollY) > 0.1;
 
+            if (moved) this.surfaceTrace?.observeScroll(id, measurement.presentationScrollX, measurement.presentationScrollY,
+                [state.lastMeasuredPresentationScrollX, state.lastMeasuredPresentationScrollY]);
+
             state.lastMeasuredScrollX = measurement.scrollX;
             state.lastMeasuredScrollY = measurement.scrollY;
             state.lastMeasuredPresentationScrollX = measurement.presentationScrollX;
             state.lastMeasuredPresentationScrollY = measurement.presentationScrollY;
-
-            if (moved) this.surfaceTrace?.observeScroll(id, measurement.presentationScrollX, measurement.presentationScrollY);
 
             if (state.active || moved) {
                 this.emitScrollerPosition(id, measurement, state);
@@ -1488,6 +1489,7 @@ export class NativeElementPool {
          if (patch.clipPath != null) {
              styles.clipPath = patch.clipPath;
          }
+         if (patch.clipIsRect != null) styles.clipIsRect = patch.clipIsRect;
          if (patch.opacity != null) {
              styles.opacity = patch.opacity;
          }
@@ -1571,18 +1573,19 @@ export class NativeElementPool {
 
     // Measure clips only. Ancestor viewports are deliberately not folded into
     // this clip: that would erase future child exposure before Rust can plan it.
-    private getIntermediateScrollerClip(hosts: ScrollerDomHosts, parentId?: number): AxisAlignedRect | undefined {
+    private getIntermediateScrollerClip(hosts: ScrollerDomHosts, parentId?: number,
+        measure = (element: HTMLElement) => element.getBoundingClientRect()): AxisAlignedRect | undefined {
         const stop = parentId == null ? this.mount : this.scrollerHosts.get(parentId)?.leaf;
         let clip: AxisAlignedRect | undefined;
         for (let node = hosts.leaf.parentElement; node && node !== stop && node !== this.mount; node = node.parentElement) {
             const style = node.style;
             if (/hidden|clip|scroll|auto/.test(style.overflow + style.overflowX + style.overflowY)) {
-                const r = node.getBoundingClientRect();
+                const r = measure(node);
                 clip = clip ? intersectRects(clip, r) : {left:r.left, top:r.top, right:r.right, bottom:r.bottom};
             }
             if (node.dataset.clipBounds) {
                 const r = JSON.parse(node.dataset.clipBounds) as AxisAlignedRect;
-                const origin = node.getBoundingClientRect();
+                const origin = measure(node);
                 const bounds = {left:r.left + origin.left, top:r.top + origin.top,
                     right:r.right + origin.left, bottom:r.bottom + origin.top};
                 clip = clip ? intersectRects(clip, bounds) : bounds;
@@ -1592,6 +1595,15 @@ export class NativeElementPool {
     }
 
     private buildWarmScrollerCandidates(now: number) {
+        // Read each shared ancestor once within this read-only geometry pass.
+        // Never reuse across frames: browser scroll, clips, and transforms can
+        // change without incrementing the runtime's canvas-plan generation.
+        const bounds = new Map<HTMLElement, DOMRect>();
+        const measure = (element: HTMLElement) => {
+            let rect = bounds.get(element);
+            if (!rect) { rect = element.getBoundingClientRect(); bounds.set(element, rect); }
+            return rect;
+        };
         const candidates = new Map<number, ScrollerWarmCandidate>();
         const observations: any[] = [];
         const edges = (r: AxisAlignedRect) => [r.left,r.top,r.right,r.bottom];
@@ -1604,11 +1616,11 @@ export class NativeElementPool {
         for (const [id,hosts] of this.scrollerHosts) {
             const state = this.scrollerMeasurementStates.get(id);
             if (!state) continue;
-            const record = this.getWarmthPresentationRecord(id,hosts.leaf,state);
+            const record = this.getWarmthPresentationRecord(id,hosts.leaf,state,measure);
             const parentId = this.getParentScrollerId(hosts);
             const width = state.viewportWidth ?? hosts.leaf.clientWidth;
             const height = state.viewportHeight ?? hosts.leaf.clientHeight;
-            let clip = this.getIntermediateScrollerClip(hosts,parentId);
+            let clip = this.getIntermediateScrollerClip(hosts,parentId,measure);
             // Page-delegating WebKit reports document-space presentation bounds.
             if (clip && isIOSWebKitBrowser() && this.activePageScrollScrollerId != null) {
                 const p = this.readPageScrollPosition();
@@ -1664,8 +1676,9 @@ export class NativeElementPool {
     private getPresentationRecordForLeaf(
         scrollerId: number,
         leaf: HTMLElement,
+        measure = (element: HTMLElement) => element.getBoundingClientRect(),
     ): { presentedBounds: AxisAlignedRect; presentedClipBounds: AxisAlignedRect } {
-        let rect = leaf.getBoundingClientRect();
+        let rect = measure(leaf);
         let viewport = {
             left: 0,
             top: 0,
@@ -1680,12 +1693,12 @@ export class NativeElementPool {
             for (let node = leaf.parentElement; node && node !== this.mount; node = node.parentElement) {
                 const style = node.style;
                 if (/hidden|clip|scroll|auto/.test(style.overflow + style.overflowX + style.overflowY)) {
-                    const bounds = node.getBoundingClientRect();
+                    const bounds = measure(node);
                     clipBounds = intersectRects(clipBounds, bounds);
                 }
                 if (node.dataset.clipBounds) {
                     const bounds = JSON.parse(node.dataset.clipBounds) as AxisAlignedRect;
-                    const origin = node.getBoundingClientRect();
+                    const origin = measure(node);
                     clipBounds = intersectRects(clipBounds, {
                         left: bounds.left + origin.left, top: bounds.top + origin.top,
                         right: bounds.right + origin.left, bottom: bounds.bottom + origin.top,
@@ -1713,7 +1726,7 @@ export class NativeElementPool {
             let node: HTMLElement | null = leaf;
             while (node != null) {
                 if (node.classList.contains(SCROLLER_CONTAINER)) {
-                    let nodeRect = node.getBoundingClientRect();
+                    let nodeRect = measure(node);
                     clipBounds = intersectRects(clipBounds, {
                         left: nodeRect.left,
                         top: nodeRect.top,
@@ -1742,6 +1755,7 @@ export class NativeElementPool {
         scrollerId: number,
         leaf: HTMLElement,
         state: ScrollerMeasurementState,
+        measure = (element: HTMLElement) => element.getBoundingClientRect(),
     ): { presentedBounds: AxisAlignedRect; presentedClipBounds: AxisAlignedRect } {
         if (isIOSWebKitBrowser() && this.activePageScrollScrollerId != null) {
             let transform = state.transform ?? [1, 0, 0, 1, 0, 0];
@@ -1770,7 +1784,7 @@ export class NativeElementPool {
                 },
             };
         }
-        return this.getPresentationRecordForLeaf(scrollerId, leaf);
+        return this.getPresentationRecordForLeaf(scrollerId, leaf, measure);
     }
 
     private updatePresentationRecord(
@@ -1980,19 +1994,44 @@ export class NativeElementPool {
         this.surfaceTrace?.recordPhase(phase,duration);
     }
 
-    private lastCompositingWork = '';
-    recordSurfaceCompositing(report: {rebuilds: number; records_updated: number; masks_evaluated: number; mask_candidates: number; rebuild_reason: string | null; rebuild_node: number | null}) {
-        const key = `${report.rebuilds}:${report.records_updated}:${report.masks_evaluated}:${report.mask_candidates}`;
-        if (key !== this.lastCompositingWork) {
-            this.surfaceTrace?.record('occlusion-work', report);
-            this.lastCompositingWork = key;
-        }
+    recordNativeMessageBatch(types: import('./native-message-profile').NativeMessageTiming[]) {
+        this.surfaceTrace?.recordNativeMessageBatch(types);
+    }
+
+    recordWheelInput(sample: import('../events/listeners').WheelInputSample) {
+        this.surfaceTrace?.recordWheelInput(sample);
+    }
+
+    private lastCompositingWork?: {passes: number; rebuilds: number; records_updated: number; masks_evaluated: number; mask_candidates: number};
+    recordSurfaceCompositing(report: {passes: number; rebuilds: number; records_updated: number; masks_evaluated: number; mask_candidates: number; rebuild_reason: string | null; rebuild_node: number | null; rebuild_origins?: unknown}) {
+        if (!this.surfaceTrace) return;
+        const previous = this.lastCompositingWork;
+        if (previous?.passes === report.passes) return;
+        const delta = {
+            passes: report.passes - (previous?.passes ?? 0),
+            rebuilds: report.rebuilds - (previous?.rebuilds ?? 0),
+            records_updated: report.records_updated - (previous?.records_updated ?? 0),
+            masks_evaluated: report.masks_evaluated - (previous?.masks_evaluated ?? 0),
+            mask_candidates: report.mask_candidates - (previous?.mask_candidates ?? 0),
+        };
+        this.surfaceTrace.record('occlusion-work', {...report, delta,
+            // Historical rebuild metadata is not a cause for this pass.
+            rebuild_reason: delta.rebuilds ? report.rebuild_reason : null,
+            rebuild_node: delta.rebuilds ? report.rebuild_node : null,
+            rebuild_origins: delta.rebuilds ? report.rebuild_origins : [],
+        });
+        this.lastCompositingWork = {...report};
     }
 
     private lastPresentationBlocker: string | null | undefined;
-    recordSurfacePresentation(report: {submitted: number; deferred: number; cache_misses: number; blocked: boolean; blocker: string | null; elapsed_ms: number}) {
-        if (report.submitted || report.deferred || report.cache_misses || report.blocker !== this.lastPresentationBlocker) {
-            this.surfaceTrace?.record('settled-presentation', report);
+    recordSurfaceCompletionRequest(outcome: 'disposed' | 'coalesced' | 'used' | 'queued') {
+        this.surfaceTrace?.recordCompletionRequest(outcome);
+    }
+
+    recordSurfacePresentation(report: {initializations?: number; submitted: number; deferred: number; cache_misses: number; blocked: boolean; blocker: string | null; elapsed_ms: number}, source = 'completion') {
+        this.surfaceTrace?.recordPresentationOpportunity(report.blocked);
+        if (report.initializations || report.submitted || report.deferred || report.cache_misses || report.blocker !== this.lastPresentationBlocker) {
+            this.surfaceTrace?.record('settled-presentation', {...report, source});
             this.lastPresentationBlocker = report.blocker;
         }
     }
@@ -2849,24 +2888,12 @@ export class NativeElementPool {
             }
         }
         let delegateToPageScroll = state != null && this.shouldDelegateToPageScroll(leaf, patch, state);
-        const ignoreActiveScrollPatch =
-            isIOSWebKitBrowser() && !delegateToPageScroll && state?.active;
         let approvedScrollX = patch.presentationScrollX
             ?? patch.scrollX
             ?? (state?.lastMeasuredPresentationScrollX ?? leaf.scrollLeft);
         let approvedScrollY = patch.presentationScrollY
             ?? patch.scrollY
             ?? (state?.lastMeasuredPresentationScrollY ?? leaf.scrollTop);
-        if (ignoreActiveScrollPatch) {
-            if (delegateToPageScroll) {
-                let pageScroll = this.readPageScrollPosition();
-                approvedScrollX = pageScroll.scrollX;
-                approvedScrollY = pageScroll.scrollY;
-            } else {
-                approvedScrollX = state?.lastMeasuredPresentationScrollX ?? leaf.scrollLeft;
-                approvedScrollY = state?.lastMeasuredPresentationScrollY ?? leaf.scrollTop;
-            }
-        }
         if (state != null) {
             this.setPageScrollDelegation(
                 patch.id!,
@@ -2896,43 +2923,37 @@ export class NativeElementPool {
         }
 
         if (patch.scrollX != null) {
-            if (!ignoreActiveScrollPatch) {
-                if (delegateToPageScroll) {
-                    let current = this.readPageScrollPosition();
-                    // During delegated root scrolling, engine scroll patches are usually an echo of the
-                    // browser's own page-scroll state from the previous frame. On iOS Safari, browser
-                    // chrome collapse can advance that page scroll asynchronously, so writing the stale
-                    // engine value back into `window.scrollTo` creates a visible tug-of-war. Only push
-                    // page scroll from the engine once the delegated scroller is idle again.
-                    if (!state?.active && Math.abs(current.scrollX - patch.scrollX) > 0.5) {
-                        this.setPageScrollPosition(patch.scrollX, undefined);
-                    }
-                    if (this.mount != null) {
-                        this.mount.dataset.approvedScrollX = String(approvedScrollX);
-                    }
-                } else if (Math.abs(leaf.scrollLeft - patch.scrollX) > 0.5) {
-                    leaf.scrollLeft = patch.scrollX;
+            // Only authored commands carry scrollX/Y. Native observations carry
+            // presentationScrollX/Y without writing back into browser momentum.
+            if (delegateToPageScroll) {
+                let current = this.readPageScrollPosition();
+                if (Math.abs(current.scrollX - patch.scrollX) > 0.5) {
+                    this.surfaceTrace?.record('scroll-command', {id: patch.id, axis: 'x', from: current.scrollX, to: patch.scrollX, active: !!state?.active, delegated: true});
+                    this.setPageScrollPosition(patch.scrollX, undefined);
                 }
+                if (this.mount != null) {
+                    this.mount.dataset.approvedScrollX = String(approvedScrollX);
+                }
+            } else if (Math.abs(leaf.scrollLeft - patch.scrollX) > 0.5) {
+                this.surfaceTrace?.record('scroll-command', {id: patch.id, axis: 'x', from: leaf.scrollLeft, to: patch.scrollX, active: !!state?.active, delegated: false});
+                leaf.scrollLeft = patch.scrollX;
             }
             canvasHost.dataset.approvedScrollX = String(approvedScrollX);
             this.activateScrollerMeasurement(patch.id!);
         }
         if (patch.scrollY != null) {
-            if (!ignoreActiveScrollPatch) {
-                if (delegateToPageScroll) {
-                    let current = this.readPageScrollPosition();
-                    // See scrollX note above: while Safari is animating browser chrome, keep the page
-                    // scroll browser-owned and only allow engine-originated corrections after motion
-                    // has settled.
-                    if (!state?.active && Math.abs(current.scrollY - patch.scrollY) > 0.5) {
-                        this.setPageScrollPosition(undefined, patch.scrollY);
-                    }
-                    if (this.mount != null) {
-                        this.mount.dataset.approvedScrollY = String(approvedScrollY);
-                    }
-                } else if (Math.abs(leaf.scrollTop - patch.scrollY) > 0.5) {
-                    leaf.scrollTop = patch.scrollY;
+            if (delegateToPageScroll) {
+                let current = this.readPageScrollPosition();
+                if (Math.abs(current.scrollY - patch.scrollY) > 0.5) {
+                    this.surfaceTrace?.record('scroll-command', {id: patch.id, axis: 'y', from: current.scrollY, to: patch.scrollY, active: !!state?.active, delegated: true});
+                    this.setPageScrollPosition(undefined, patch.scrollY);
                 }
+                if (this.mount != null) {
+                    this.mount.dataset.approvedScrollY = String(approvedScrollY);
+                }
+            } else if (Math.abs(leaf.scrollTop - patch.scrollY) > 0.5) {
+                this.surfaceTrace?.record('scroll-command', {id: patch.id, axis: 'y', from: leaf.scrollTop, to: patch.scrollY, active: !!state?.active, delegated: false});
+                leaf.scrollTop = patch.scrollY;
             }
             canvasHost.dataset.approvedScrollY = String(approvedScrollY);
             this.activateScrollerMeasurement(patch.id!);

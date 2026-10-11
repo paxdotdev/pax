@@ -756,6 +756,17 @@ impl PaxEngine {
         budget: &mut surface_work::SurfaceWorkBudget,
         now_ms: impl Fn() -> f64,
     ) -> surface_work::SurfaceWorkReport {
+        self.present_surfaces(rcs, budget, now_ms, i32::MAX, &Default::default())
+    }
+
+    fn present_surfaces(
+        &self,
+        rcs: &mut dyn RenderContext,
+        budget: &mut surface_work::SurfaceWorkBudget,
+        now_ms: impl Fn() -> f64,
+        priority_before: i32,
+        previous: &surface_work::SurfaceWorkReport,
+    ) -> surface_work::SurfaceWorkReport {
         let mut report = surface_work::SurfaceWorkReport::default();
         if matches!(
             self.runtime_context.application.context().phase(),
@@ -772,7 +783,7 @@ impl PaxEngine {
             return report;
         }
         let start = now_ms();
-        let mut completed_units = 0;
+        let mut completed_units = previous.initializations + previous.recorded + previous.submitted;
         let captures_cold = rcs.prepares_surface_content();
         let can_prepare = |layer, ids: &[u32]| {
             if captures_cold {
@@ -783,25 +794,47 @@ impl PaxEngine {
         };
         let mut deferred = Vec::new();
         loop {
-            let mut updates = rcs.take_settled_surface_replays().into_iter();
-            let Some(update) = updates.next() else {
-                break;
-            };
-            let elapsed = now_ms() - start;
-            if !budget.admits(completed_units, elapsed) {
-                deferred.push(update.layer);
-                deferred.extend(updates.map(|job| job.layer));
+            let mut updates = rcs
+                .take_settled_surface_replays()
+                .into_iter()
+                .filter(|job| !deferred.contains(&job.layer));
+            let next = updates.next();
+            if !budget.admits(completed_units, previous.elapsed_ms + now_ms() - start) {
+                let pending: Vec<_> = next
+                    .into_iter()
+                    .chain(updates)
+                    .map(|job| job.layer)
+                    .collect();
+                deferred.extend(pending);
                 break;
             }
+            let before = next
+                .as_ref()
+                .map_or(priority_before, |job| {
+                    rcs.surface_replay_priority(job.layer).max(0)
+                })
+                .min(priority_before);
+            let init_start = now_ms();
+            if rcs.start_surface_initialization(before) {
+                for job in next.into_iter().chain(updates) {
+                    rcs.defer_surface_replay(job.layer);
+                }
+                report.initializations += 1;
+                completed_units += 1;
+                budget.observe(now_ms() - init_start);
+                continue;
+            }
+            let Some(update) = next else {
+                break;
+            };
             // Submission can expose a higher-priority batch on the same layer.
             // Return the other candidates before selecting again, rather than
             // draining a stale layer snapshot or imposing a one-batch/frame cap.
             for pending in updates {
                 rcs.defer_surface_replay(pending.layer);
             }
-            // Merging newly initialized surfaces can enqueue a layer again.
-            // Still only try a blocked layer once per preparation pass.
-            if deferred.contains(&update.layer) {
+            if rcs.surface_replay_priority(update.layer).max(0) >= priority_before {
+                deferred.push(update.layer);
                 continue;
             }
             if let Some(blocker) = self.runtime_context.settled_surface_blocker() {
@@ -819,6 +852,12 @@ impl PaxEngine {
                 .runtime_context
                 .settled_canvas_nodes_intersecting(update.layer, regions);
             if !can_prepare(update.layer, &ids) {
+                report.dirty_layers += 1;
+                deferred.push(update.layer);
+                continue;
+            }
+            if captures_cold && !self.can_capture_surface_nodes(&ids) {
+                report.unfiltered_layers += 1;
                 deferred.push(update.layer);
                 continue;
             }
@@ -826,7 +865,7 @@ impl PaxEngine {
             if let Some(missing) = rcs.missing_surface_drawings(update.layer, &ids) {
                 report.cache_misses += usize::from(!missing.is_empty());
                 for id in missing {
-                    if !budget.admits(completed_units, now_ms() - start) {
+                    if !budget.admits(completed_units, previous.elapsed_ms + now_ms() - start) {
                         break;
                     }
                     let capture_start = now_ms();
@@ -840,7 +879,8 @@ impl PaxEngine {
                 }
                 if !can_prepare(update.layer, &ids)
                     || self.runtime_context.settled_surface_blocker().is_some()
-                    || (!direct && !budget.admits(completed_units, now_ms() - start))
+                    || (!direct
+                        && !budget.admits(completed_units, previous.elapsed_ms + now_ms() - start))
                 {
                     deferred.push(update.layer);
                     continue;
@@ -892,6 +932,20 @@ impl PaxEngine {
                 .is_some_and(|missing| missing.is_empty())
     }
 
+    fn can_capture_surface_nodes(&self, ids: &[u32]) -> bool {
+        if !self.runtime_context.has_dirty_canvas_layers() {
+            return true;
+        }
+        let Some(root) = &self.root_expanded_node else {
+            return true;
+        };
+        let ids: Vec<_> = ids.iter().map(|id| ExpandedNodeIdentifier(*id)).collect();
+        // The unclippable fallback traverses the whole tree. During an early
+        // recording-only pass it could consume another layer's dirty flags
+        // without updating that layer's GPU content. Ordinary render owns it.
+        self.build_filtered_render_plan(root, &ids).is_ok()
+    }
+
     fn render_surface_nodes(&self, rcs: &mut dyn RenderContext, layer: usize, ids: &[u32]) {
         let Some(root) = &self.root_expanded_node else {
             return;
@@ -919,6 +973,52 @@ impl PaxEngine {
     }
 
     pub fn render(&mut self, rcs: &mut dyn RenderContext) {
+        self.render_with_callbacks(rcs, false, &mut |_| {}, &mut |_, _, _| {});
+    }
+
+    /// Service newly visible surfaces after current scene setup, before ordinary
+    /// drawing. Supporting backends also finish visible dirty layers before
+    /// unrelated drawing, preserving filtered ancestor hooks. Unclippable or
+    /// unresolved paths retain the full-tree fallback. Preparation uses the same
+    /// settled-scene guards and cooperative allowance as completion-driven work;
+    /// a dirty layer is never replayed before its whole ordinary draw completes.
+    /// The observer marks successive CPU phase boundaries, not GPU presentation.
+    /// Chassis opting in should replace their automatic preparation pass with this
+    /// opportunity, not add another per-frame allowance. Unused preparation time
+    /// services remaining work after ordinary drawing; both phases share one
+    /// allowance. Returns the visible and remaining phase reports separately.
+    pub fn render_with_surface_preparation(
+        &mut self,
+        rcs: &mut dyn RenderContext,
+        budget: &mut surface_work::SurfaceWorkBudget,
+        now_ms: impl Fn() -> f64,
+        observe: &mut dyn FnMut(&'static str),
+    ) -> (
+        surface_work::SurfaceWorkReport,
+        surface_work::SurfaceWorkReport,
+    ) {
+        let mut visible = surface_work::SurfaceWorkReport::default();
+        let mut remaining = surface_work::SurfaceWorkReport::default();
+        self.render_with_callbacks(rcs, true, observe, &mut |engine, rcs, early| {
+            // Rank zero includes every visible candidate; positive ranks stay
+            // behind ordinary application drawing at this opportunity.
+            if early {
+                let next = engine.present_surfaces(rcs, budget, &now_ms, 1, &visible);
+                visible.accumulate(next);
+            } else {
+                remaining = engine.present_surfaces(rcs, budget, &now_ms, i32::MAX, &visible);
+            }
+        });
+        (visible, remaining)
+    }
+
+    fn render_with_callbacks(
+        &mut self,
+        rcs: &mut dyn RenderContext,
+        prioritize_visible: bool,
+        observe: &mut dyn FnMut(&'static str),
+        prepare: &mut dyn FnMut(&Self, &mut dyn RenderContext, bool),
+    ) {
         if self.runtime_context.startup.borrow().blocks_presentation() { return; }
         if matches!(
             self.runtime_context.application.context().phase(),
@@ -931,8 +1031,13 @@ impl PaxEngine {
         let _render_timing = Span::new(Phase::Render);
         self.update_layer_count(rcs);
         self.runtime_context.prepare_scene_geometry();
+        observe("geometry");
 
         if !self.runtime_context.has_canvas_render_work() {
+            prepare(self, rcs, true);
+            observe("visible_preparation");
+            prepare(self, rcs, false);
+            observe("remaining_preparation");
             return;
         }
 
@@ -973,6 +1078,7 @@ impl PaxEngine {
         dirty_layers.extend(self.runtime_context.dirty_canvas_layers());
         dirty_layers.sort_unstable();
         dirty_layers.dedup();
+        observe("lighting");
         let prepare_timing = Span::new(Phase::Prepare);
         let removal_layers: HashSet<_> = removals.iter().map(|(layer, _)| *layer).collect();
         let targeted_replay_node_ids = self.runtime_context.take_targeted_canvas_replay_node_ids();
@@ -1050,12 +1156,140 @@ impl PaxEngine {
                 failed_removal_layers.push(layer);
             }
         }
+        observe("reconcile");
 
+        // Layout installation can introduce visible surfaces after tick. Give
+        // clean, settled layers their first pixels before unrelated draw work;
+        // never clear a dirty-layer bit to bypass the preparation guard.
+        prepare(self, rcs, true);
+        observe("visible_preparation");
+        // Cold recording can consume node flags on clean layers. Re-read rather
+        // than rendering a captured node again from the earlier dirty snapshot.
+        let mut dirty_node_ids = self.runtime_context.dirty_canvas_node_ids();
+
+        if prioritize_visible && retains_canvas_nodes {
+            let partition = self.partition_visible_render_work(
+                rcs,
+                &dirty_layers,
+                &dirty_node_ids,
+                &failed_removal_layers,
+            );
+            if let Err(reason) = &partition {
+                observe(reason);
+            }
+            if let Ok(Some((visible_layers, visible_nodes, remaining_nodes))) = partition {
+                self.draw_canvas_nodes(rcs, &visible_nodes);
+                observe("visible_draw");
+                // Only completed layers become clean. In particular, preserve
+                // unrelated dirty bits and pending removals across this boundary.
+                for layer in &visible_layers {
+                    self.runtime_context.dirty_canvases.borrow_mut()[*layer] = false;
+                    rcs.flush(*layer, Rc::clone(&self.runtime_context.dirty_canvases));
+                }
+                observe("visible_flush");
+                prepare(self, rcs, true);
+                observe("visible_dirty_preparation");
+                dirty_layers.retain(|layer| !visible_layers.contains(layer));
+                lighting_layers.retain(|layer| !visible_layers.contains(layer));
+                dirty_node_ids = remaining_nodes;
+            }
+        }
+
+        self.draw_canvas_nodes(rcs, &dirty_node_ids);
+        observe("draw");
+
+        // A failed early flush can re-dirty a completed layer. Do not erase it
+        // while finishing the remaining layers.
+        for layer in &dirty_layers {
+            self.runtime_context.dirty_canvases.borrow_mut()[*layer] = false;
+        }
+        for layer in failed_removal_layers {
+            self.runtime_context.set_canvas_dirty(layer);
+        }
+
+        drop(prepare_timing);
+        let _flush_timing = Span::new(Phase::Flush);
+        for layer in lighting_layers {
+            rcs.flush(layer, Rc::clone(&self.runtime_context.dirty_canvases));
+        }
+        observe("flush");
+        prepare(self, rcs, false);
+        observe("remaining_preparation");
+    }
+
+    fn partition_visible_render_work(
+        &self,
+        rcs: &dyn RenderContext,
+        layers: &[usize],
+        nodes: &[ExpandedNodeIdentifier],
+        failed_removals: &[usize],
+    ) -> Result<
+        Option<(
+            Vec<usize>,
+            Vec<ExpandedNodeIdentifier>,
+            Vec<ExpandedNodeIdentifier>,
+        )>,
+        &'static str,
+    > {
+        let mut ranked = Vec::with_capacity(layers.len());
+        for layer in layers {
+            let Some(rank) = rcs.ordinary_layer_priority(*layer) else {
+                return Ok(None);
+            };
+            if rank <= 0 && !failed_removals.contains(layer) {
+                ranked.push((rank, *layer));
+            }
+        }
+        if ranked.is_empty() {
+            return Ok(None);
+        }
+        ranked.sort_unstable();
+        let visible_layers: Vec<_> = ranked.into_iter().map(|(_, layer)| layer).collect();
+        // Validate the entire traversal before consuming any flags. A queued
+        // unclippable fallback is not separable into independent layer groups.
+        if !nodes.is_empty() {
+            self.build_filtered_render_plan(
+                self.root_expanded_node
+                    .as_ref()
+                    .ok_or("partition_missing_root")?,
+                nodes,
+            )
+            .map_err(|reason| match reason {
+                "unclippable_path" => "partition_unclippable_path",
+                "missing_dirty_node" => "partition_missing_node",
+                _ => "partition_unresolved_path",
+            })?;
+        }
+        let mut visible_nodes = Vec::new();
+        let mut remaining_nodes = Vec::new();
+        for id in nodes {
+            let node = self
+                .runtime_context
+                .get_expanded_node_by_eid(*id)
+                .ok_or("partition_missing_node")?;
+            let layer = node.occlusion.get().render_layer_id;
+            // Nodes awaiting a cold target or decoded image can remain dirty
+            // after their layer's previous ordinary pass. They belong to the
+            // remainder, not to a reason for disabling visible-first drawing.
+            if visible_layers.contains(&layer) {
+                visible_nodes.push(*id);
+            } else {
+                remaining_nodes.push(*id);
+            }
+        }
+        Ok(Some((visible_layers, visible_nodes, remaining_nodes)))
+    }
+
+    fn draw_canvas_nodes(
+        &self,
+        rcs: &mut dyn RenderContext,
+        dirty_node_ids: &[ExpandedNodeIdentifier],
+    ) {
         // This is pretty useful during debugging - left it here since I use it often. /Sam
         // crate::api::log(&format!("tree: {:#?}", self.root_node));
-        if has_dirty_nodes {
+        if !dirty_node_ids.is_empty() {
             if let Some(root_expanded_node) = &self.root_expanded_node {
-                match self.build_filtered_render_plan(root_expanded_node, &dirty_node_ids) {
+                match self.build_filtered_render_plan(root_expanded_node, dirty_node_ids) {
                     Ok(plan) => {
                         let mut stats = expanded_node::FilteredRenderStats::default();
                         root_expanded_node.recurse_render_filtered(
@@ -1088,17 +1322,6 @@ impl PaxEngine {
             }
         }
         self.runtime_context.recurse_flush_queued_renders(rcs);
-
-        self.runtime_context.clear_all_dirty_canvases();
-        for layer in failed_removal_layers {
-            self.runtime_context.set_canvas_dirty(layer);
-        }
-
-        drop(prepare_timing);
-        let _flush_timing = Span::new(Phase::Flush);
-        for layer in lighting_layers {
-            rcs.flush(layer, Rc::clone(&self.runtime_context.dirty_canvases));
-        }
     }
 
     pub fn get_expanded_node(&self, id: ExpandedNodeIdentifier) -> Option<Rc<ExpandedNode>> {

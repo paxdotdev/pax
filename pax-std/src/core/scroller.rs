@@ -149,6 +149,9 @@ impl Default for ScrollerHost {
 // Runtime instance backing `<ScrollerHost>`.
 pub struct ScrollerHostInstance {
     base: BaseInstance,
+    // Instance templates can expand more than once. Track observation revisions
+    // per mounted host, never as shared state between those expansions.
+    native_observations: Rc<RefCell<std::collections::HashMap<u32, [Option<u64>; 2]>>>,
 }
 
 fn mark_canvas_descendants_dirty(expanded_node: &ExpandedNode, context: &Rc<RuntimeContext>) {
@@ -308,6 +311,7 @@ impl InstanceNode for ScrollerHostInstance {
         Self: Sized,
     {
         Rc::new(Self {
+            native_observations: Default::default(),
             base: BaseInstance::new(
                 args,
                 InstanceFlags {
@@ -354,6 +358,8 @@ impl InstanceNode for ScrollerHostInstance {
             ..Default::default()
         }));
         let last_presentation_scroll = Rc::new(RefCell::new((0.0, 0.0)));
+        let native_observations = self.native_observations.clone();
+        native_observations.borrow_mut().insert(id, [None, None]);
 
         let deps: Vec<_> = borrow!(expanded_node.properties_scope)
             .values()
@@ -559,6 +565,22 @@ impl InstanceNode for ScrollerHostInstance {
                             || patch.scroll_y.is_some()
                             || patch.presentation_scroll_x.is_some()
                             || patch.presentation_scroll_y.is_some();
+                        // An observed native position updates layout/presentation, but is
+                        // not a command to rewind a host that may already have moved on.
+                        // Compare revisions, not values or "currently scrolling": an
+                        // application write after the observation must still reach the host.
+                        if let Some(observed) = native_observations.borrow().get(&id) {
+                            if observed[0].is_some()
+                                && observed[0] == properties.scroll_pos_x.observed_revision()
+                            {
+                                patch.scroll_x = None;
+                            }
+                            if observed[1].is_some()
+                                && observed[1] == properties.scroll_pos_y.observed_revision()
+                            {
+                                patch.scroll_y = None;
+                            }
+                        }
                         let visual_update = patch.size_x.is_some()
                             || patch.size_y.is_some()
                             || patch.size_inner_pane_x.is_some()
@@ -602,6 +624,9 @@ impl InstanceNode for ScrollerHostInstance {
     }
 
     fn handle_unmount(&self, expanded_node: &Rc<ExpandedNode>, context: &Rc<RuntimeContext>) {
+        self.native_observations
+            .borrow_mut()
+            .remove(&expanded_node.id.to_u32());
         expanded_node
             .changed_listener
             .replace_with(LocalProperty::default());
@@ -627,6 +652,13 @@ impl InstanceNode for ScrollerHostInstance {
                 if (props.scroll_pos_y.local().get() - args.scroll_y).abs() > 1e-4 {
                     props.scroll_pos_y.set(args.scroll_y);
                 }
+                self.native_observations.borrow_mut().insert(
+                    expanded_node.id.to_u32(),
+                    [
+                        Some(props.scroll_pos_x.revision()),
+                        Some(props.scroll_pos_y.revision()),
+                    ],
+                );
             });
         }
     }

@@ -473,6 +473,13 @@ Type: `Option`<`Vec`<`f64`>>
 ##### `clip_path`
 Type: `Option`<`String`>
 
+##### `clip_is_rect`
+Type: `Option`<`bool`>
+
+The clip is the transformed local box, rounded by `corner_radius`.
+False/absent keeps the arbitrary-path fallback; hosts must not infer shape
+from a path's bounds. Currently used by the web native-box clipping path.
+
 ##### `opacity`
 Type: `Option`<`f64`>
 
@@ -1204,8 +1211,12 @@ Type: `Option`<`Vec`<`f64`>>
 ##### `scroll_x`
 Type: `Option`<`f64`>
 
+Authored position command, not an acknowledgement of native scrolling.
+
 ##### `scroll_y`
 Type: `Option`<`f64`>
+
+Authored position command, not an acknowledgement of native scrolling.
 
 ##### `presentation_scroll_x`
 Type: `Option`<`f64`>

@@ -12,6 +12,11 @@ Axis-aligned bounds used by the occlusion and native-mask pass.
 Cumulative native-compositing work, independent of canvas replay counters.
 
 #### Properties
+##### `passes`
+Type: `u64`
+
+Reconciliation passes, including incremental passes.
+
 ##### `rebuilds`
 Type: `u64`
 
@@ -41,6 +46,12 @@ Cause of the most recent full reconciliation, for opt-in profiling.
 Type: `Option`<`u32`>
 
 Triggering expanded node, when the cause was not structural.
+
+##### `rebuild_origins`
+Type: [`Option`<`OcclusionInvalidation`>; 8]
+
+Bounded origins of structural invalidation consumed by the last rebuild.
+Populated only when diagnostic attribution is enabled.
 
 ## Functions
 ### `update_node_occlusion`

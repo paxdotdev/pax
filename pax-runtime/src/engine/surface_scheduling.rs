@@ -112,6 +112,9 @@ impl ScrollActivityTracker {
 pub enum Coverage {
     Visible,
     MovingAhead,
+    /// One-axis reverse coverage, reserved before forward speculation but
+    /// prepared after current incoming work. Cold tiles are eligible too.
+    ReversalNear,
     ReadyTrailing,
     StationaryNear,
     /// Deeper coverage on a recently moving axis; yields to all near coverage.
@@ -377,8 +380,10 @@ fn distance(value: f64) -> f64 {
     }
 }
 
-/// Visible coverage precedes all speculation. Equal-ranked branches interleave;
-/// visible survivors win genuine overload without rotating evictions each tick.
+/// Visible coverage precedes all speculation. Reverse-buffer residency is
+/// funded next, before forward work can consume the optional allowance.
+/// Execution still follows coverage/deadline order. Equal-ranked branches
+/// interleave; visible survivors win genuine overload without rotating evictions.
 pub fn schedule_surfaces(
     candidates: &[SurfaceCandidate],
     budget: SurfaceBudget,
@@ -442,7 +447,16 @@ pub fn schedule_surfaces(
         overloaded,
         ..Default::default()
     };
-    for &index in &ordered {
+    let mut admission_order = ordered.clone();
+    // Residency and execution answer different questions: protect a small
+    // reversible footprint without drawing trailing tiles before incoming ones.
+    // Stable sorting preserves distance and sibling fairness within each tier.
+    admission_order.sort_by_key(|&i| match candidates[i].coverage {
+        Coverage::Visible => 0,
+        Coverage::ReversalNear => 1,
+        _ => 2,
+    });
+    for &index in &admission_order {
         let c = &candidates[index];
         let visible = c.coverage == Coverage::Visible;
         let reason = if c.coverage == Coverage::OutsidePreparation {
@@ -495,13 +509,13 @@ pub fn schedule_surfaces(
             out.borrowed_forward_pixels += c.backing_pixels;
             false
         });
-        // Borrowing changes membership, not the global execution rank.
-        let admitted: HashSet<_> = out.admitted.iter().copied().collect();
-        out.admitted = ordered
-            .into_iter()
-            .filter(|i| admitted.contains(i))
-            .collect();
     }
+    // Residency protection and borrowing change membership, not execution rank.
+    let admitted: HashSet<_> = out.admitted.iter().copied().collect();
+    out.admitted = ordered
+        .into_iter()
+        .filter(|i| admitted.contains(i))
+        .collect();
     out
 }
 
@@ -796,6 +810,58 @@ mod tests {
             },
         );
         assert_eq!(result.admitted, [0, 1, 3]);
+    }
+
+    #[test]
+    fn reverse_residency_precedes_forward_but_execution_remains_incoming_first() {
+        let mut input = vec![
+            candidate("visible", 1, Coverage::Visible),
+            candidate("incoming", 1, Coverage::MovingAhead),
+            candidate("reverse", 1, Coverage::ReversalNear),
+            candidate("deep-forward", 1, Coverage::ForwardReserve),
+        ];
+        let budget = SurfaceBudget {
+            surfaces: 4,
+            backing_pixels: 80_000,
+            optional_pixels: 20_000,
+            forward_limit: None,
+        };
+        let protected = schedule_surfaces(&input, budget);
+        assert_eq!(protected.admitted, [0, 2]);
+        let borrowed = schedule_surfaces(
+            &input,
+            SurfaceBudget {
+                forward_limit: Some((3, 60_000)),
+                ..budget
+            },
+        );
+        assert_eq!(borrowed.admitted, [0, 1, 2]);
+        assert_eq!(borrowed.borrowed_forward_pixels, 20_000);
+        assert_eq!(borrowed.backing_pixels, 60_000);
+        // Reversal transfers membership and rank without a new identity or
+        // permission for distant old-direction work to keep its former rank.
+        input[1].coverage = Coverage::OutsidePreparation;
+        input[2].coverage = Coverage::MovingAhead;
+        input[3].coverage = Coverage::ReversalNear;
+        let reversed = schedule_surfaces(
+            &input,
+            SurfaceBudget {
+                forward_limit: Some((3, 60_000)),
+                ..budget
+            },
+        );
+        assert_eq!(reversed.admitted, [0, 2, 3]);
+        assert_eq!(reversed.denied, [(1, DenialReason::OutsidePreparation)]);
+        // Mandatory demand always wins even when no reverse buffer fits.
+        input[1].coverage = Coverage::Visible;
+        let exhausted = schedule_surfaces(
+            &input,
+            SurfaceBudget {
+                surfaces: 2,
+                ..budget
+            },
+        );
+        assert_eq!(exhausted.admitted, [1, 0]);
     }
 
     #[test]

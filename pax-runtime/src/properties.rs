@@ -433,12 +433,18 @@ impl RuntimeContext {
             self.import_settings_node_count
                 .set(self.import_settings_node_count.get() + 1);
         }
-        self.mark_occlusion_dirty();
+        self.mark_occlusion_dirty_for_node(node.id.to_u32());
     }
 
     /// Remove a node from runtime lookup caches.
     pub fn remove_from_cache(&self, node: &Rc<ExpandedNode>) {
         borrow_mut!(self.node_cache).remove_from_cache(node);
+        // Render work belongs to a mounted instance. A stale ID otherwise makes
+        // every filtered traversal fall back to the whole tree indefinitely.
+        borrow_mut!(self.dirty_canvas_nodes).remove(&node.id);
+        for ids in borrow_mut!(self.targeted_canvas_replay_node_ids).values_mut() {
+            ids.remove(&node.id.to_u32());
+        }
         if borrow_mut!(self.scene_lighting_nodes).remove(&node.id) {
             // Ancestor lights can affect canvases other than their own layer.
             self.set_all_canvases_dirty();
@@ -454,7 +460,7 @@ impl RuntimeContext {
             self.import_settings_node_count
                 .set(self.import_settings_node_count.get().saturating_sub(1));
         }
-        self.mark_occlusion_dirty();
+        self.mark_occlusion_dirty_for_node(node.id.to_u32());
     }
 
     pub fn has_import_settings_nodes(&self) -> bool {
@@ -775,7 +781,7 @@ impl RuntimeContext {
             ScrollerSurfaceStateChange::Structural => {
                 self.invalidate_viewport_presentation();
                 self.mark_layer_canvas_plans_dirty();
-                self.mark_occlusion_dirty();
+                self.mark_occlusion_dirty_for_node(id);
             }
         }
 
@@ -1169,9 +1175,48 @@ impl RuntimeContext {
         borrow_mut!(self.scene_geometry).query_exact(layer, regions, false)
     }
 
+    /// Enables bounded structural-invalidation origin attribution for profiling.
+    pub fn set_occlusion_diagnostics(&self, enabled: bool) {
+        self.occlusion_state.borrow_mut().diagnostics = enabled;
+    }
+
+    #[track_caller]
     pub fn mark_occlusion_dirty(&self) {
+        self.mark_occlusion_dirty_with_origin(None);
+    }
+
+    #[track_caller]
+    pub(crate) fn mark_occlusion_dirty_for_node(&self, id: u32) {
+        self.mark_occlusion_dirty_with_origin(Some(id));
+    }
+
+    #[track_caller]
+    fn mark_occlusion_dirty_with_origin(&self, node: Option<u32>) {
         self.occlusion_dirty.set(true);
-        self.occlusion_state.borrow_mut().structural = true;
+        let mut state = self.occlusion_state.borrow_mut();
+        state.structural = true;
+        if state.diagnostics {
+            let caller = std::panic::Location::caller();
+            // Aggregate repeated call sites; keep one representative node. Fixed
+            // storage avoids allocating or retaining scene nodes during profiling.
+            if let Some(origin) = state
+                .invalidations
+                .iter_mut()
+                .flatten()
+                .find(|origin| origin.file == caller.file() && origin.line == caller.line())
+            {
+                origin.count = origin.count.saturating_add(1);
+                origin.node = node;
+            } else if let Some(slot) = state.invalidations.iter_mut().find(|slot| slot.is_none()) {
+                *slot = Some(crate::engine::occlusion::OcclusionInvalidation {
+                    file: caller.file(),
+                    line: caller.line(),
+                    node,
+                    count: 1,
+                });
+            }
+        }
+        drop(state);
         // Reuse structural invalidation for layer ownership and LightFrame ancestry.
         // Geometry/scroll-only invalidation deliberately leaves these masks valid.
         borrow_mut!(self.layer_light_scopes).clear();
@@ -1225,11 +1270,15 @@ impl RuntimeContext {
         }
     }
 
+    /// Invalidate a registered node's drawing. Unmounted/unknown nodes are ignored;
+    /// registering a new or remounted canvas node schedules its initial drawing.
     pub fn mark_canvas_node_dirty(&self, id: ExpandedNodeIdentifier) {
+        let Some(node) = self.get_expanded_node_by_eid(id) else {
+            return;
+        };
         borrow_mut!(self.scene_geometry).invalidate(id.to_u32());
-        let owner = self
-            .get_expanded_node_by_eid(id)
-            .and_then(|node| node.render_source_owner())
+        let owner = node
+            .render_source_owner()
             .and_then(|id| self.get_expanded_node_by_eid(id));
         if let Some(owner) = owner {
             owner.changed_listener.invalidate();
@@ -2417,6 +2466,39 @@ mod light_scope_tests {
             Some(&sibling_frame),
             &nested_ancestry
         ));
+    }
+
+    #[test]
+    fn structural_invalidation_attribution_is_opt_in_bounded_and_consumed_per_rebuild() {
+        let fixture = scoped_lighting_fixture();
+        let ctx = &fixture.context;
+        ctx.mark_occlusion_dirty();
+        assert!(ctx
+            .occlusion_state
+            .borrow()
+            .invalidations
+            .iter()
+            .all(Option::is_none));
+        ctx.set_occlusion_diagnostics(true);
+        for id in 0..20 {
+            ctx.mark_occlusion_dirty_for_node(id);
+        }
+        let causes = ctx.occlusion_state.borrow().invalidations;
+        assert_eq!(causes.iter().flatten().count(), 1);
+        assert_eq!(causes[0].unwrap().count, 20);
+        assert_eq!(causes[0].unwrap().node, Some(19));
+        crate::engine::occlusion::update_node_occlusion(&fixture._root, ctx);
+        let stats = ctx.occlusion_stats();
+        assert_eq!(stats.rebuild_origins[0].unwrap().count, 20);
+        assert!(ctx
+            .occlusion_state
+            .borrow()
+            .invalidations
+            .iter()
+            .all(Option::is_none));
+        crate::engine::occlusion::update_node_occlusion(&fixture._root, ctx);
+        assert_eq!(ctx.occlusion_stats().passes, stats.passes + 1);
+        assert_eq!(ctx.occlusion_stats().rebuilds, stats.rebuilds);
     }
 
     #[test]

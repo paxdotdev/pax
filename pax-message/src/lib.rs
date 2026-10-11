@@ -604,6 +604,11 @@ pub struct FramePatch {
     pub size_y: Option<f64>,
     pub transform: Option<Vec<f64>>,
     pub clip_path: Option<String>,
+    /// The clip is the transformed local box, rounded by `corner_radius`.
+    /// False/absent keeps the arbitrary-path fallback; hosts must not infer shape
+    /// from a path's bounds. Currently used by the web native-box clipping path.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub clip_is_rect: Option<bool>,
     pub opacity: Option<f64>,
     pub presented_bounds: Option<[f64; 4]>,
     pub presented_clip_bounds: Option<[f64; 4]>,
@@ -1056,7 +1061,9 @@ pub struct ScrollerPatch {
     pub size_inner_pane_y: Option<f64>,
     pub snap_points_x: Option<Vec<f64>>,
     pub snap_points_y: Option<Vec<f64>>,
+    /// Authored position command, not an acknowledgement of native scrolling.
     pub scroll_x: Option<f64>,
+    /// Authored position command, not an acknowledgement of native scrolling.
     pub scroll_y: Option<f64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub presentation_scroll_x: Option<f64>,

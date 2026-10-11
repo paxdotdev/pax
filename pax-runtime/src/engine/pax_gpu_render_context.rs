@@ -484,7 +484,11 @@ impl LayerInitialization {
                     target.failed_layout = None;
                     *old_provider = provider;
                     changed_layers.borrow_mut().push(self.index);
-                    incremental && target.renderers.len() < layout.surfaces.len()
+                    // A nonincremental native factory can also return stale
+                    // additions after a host change. Requeue here, not as a
+                    // side effect of the next readiness collection.
+                    target.renderers.len() < layout.surfaces.len()
+                        && (incremental || requested_layout.as_ref() != Some(&layout))
                 } else if layer_layout_matches_bootstrapped_target(&additions, &layout) {
                     let incomplete =
                         incremental && additions.renderers.len() < layout.surfaces.len();
@@ -542,14 +546,17 @@ fn pump_layer_initialization_queue(
     changed_layers: Rc<RefCell<Vec<usize>>>,
     priority: Rc<dyn Fn(usize) -> i32>,
     surface_ready_callback: Rc<RefCell<Option<Rc<dyn Fn()>>>>,
-) {
+    managed: bool,
+) -> usize {
     // A browser with a shared device can create a surface synchronously. Do not
     // reserve all slots for unpolled microtasks while ordinary frames keep
-    // running. Bound immediate creation; subsequent refresh/presentation passes
-    // pump again, and genuinely pending device work retains its async waker.
-    let mut immediate = 0;
+    // running. Managed preparation starts one unit and returns to global replay
+    // selection; genuinely pending device work retains its async waker.
+    let mut started = 0;
     while in_flight.get() < MAX_CONCURRENT_LAYER_INITIALIZATIONS {
-        if cfg!(target_arch = "wasm32") && immediate >= MAX_CONCURRENT_LAYER_INITIALIZATIONS {
+        if (managed && started == 1)
+            || (cfg!(target_arch = "wasm32") && started >= MAX_CONCURRENT_LAYER_INITIALIZATIONS)
+        {
             break;
         }
         let next_layer = pop_next_layer_initialization(&queue, priority.as_ref());
@@ -570,6 +577,7 @@ fn pump_layer_initialization_queue(
             crate::render_instrumentation::Phase::LayerInit,
         );
         let mut future = (factory)(initialization.index, request);
+        started += 1;
         if let std::task::Poll::Ready(backend) = poll_initialization_once(future.as_mut()) {
             let should_requeue = initialization.complete(
                 backend,
@@ -583,7 +591,6 @@ fn pump_layer_initialization_queue(
                 initialization.scheduled.set(true);
                 queue.borrow_mut().push_back(initialization);
             }
-            immediate += 1;
             if let Some(callback) = surface_ready_callback.borrow().clone() {
                 callback();
             }
@@ -622,22 +629,26 @@ fn pump_layer_initialization_queue(
             if let Some(callback) = surface_ready_callback.borrow().clone() {
                 callback();
             }
-            pump_layer_initialization_queue(
-                factory,
-                backends,
-                queue,
-                in_flight_count,
-                ready_layers,
-                changed_layers,
-                priority,
-                surface_ready_callback,
-            );
+            if !managed {
+                pump_layer_initialization_queue(
+                    factory,
+                    backends,
+                    queue,
+                    in_flight_count,
+                    ready_layers,
+                    changed_layers,
+                    priority,
+                    surface_ready_callback,
+                    false,
+                );
+            }
         };
         #[cfg(target_arch = "wasm32")]
         wasm_bindgen_futures::spawn_local(task);
         #[cfg(not(target_arch = "wasm32"))]
         pollster::block_on(task);
     }
+    started
 }
 
 fn poll_initialization_once<T>(future: Pin<&mut dyn Future<Output = T>>) -> std::task::Poll<T> {
@@ -1378,6 +1389,9 @@ impl PaxGpuRenderer {
     }
 
     fn schedule_layer_initialization(&self) {
+        if self.prepare_surface_content {
+            return;
+        }
         pump_layer_initialization_queue(
             Rc::clone(&self.layer_factory),
             Rc::clone(&self.backends),
@@ -1387,6 +1401,7 @@ impl PaxGpuRenderer {
             Rc::clone(&self.changed_layers),
             Rc::clone(&self.layer_initialization_priority),
             Rc::clone(&self.surface_ready_callback),
+            false,
         );
     }
 
@@ -1394,16 +1409,13 @@ impl PaxGpuRenderer {
     where
         I: IntoIterator<Item = usize>,
     {
-        let mut needs_reinitialization = false;
         let mut backends = self.backends.borrow_mut();
         for layer_index in layer_indices {
             let Some(backend) = backends.get_mut(layer_index) else {
                 continue;
             };
             match backend {
-                RenderLayerState::Pending => {
-                    needs_reinitialization = true;
-                }
+                RenderLayerState::Pending => {}
                 RenderLayerState::Failed => {}
                 RenderLayerState::Ready((target, layout_provider)) => {
                     let layout = (layout_provider)();
@@ -1464,7 +1476,6 @@ impl PaxGpuRenderer {
                             && target.failed_layout.as_ref() != Some(&layout)
                         {
                             self.queue_layer_initialization(layer_index);
-                            needs_reinitialization = true;
                         }
                     }
 
@@ -1684,15 +1695,85 @@ impl PaxGpuRenderer {
             }
         }
         drop(backends);
-        if needs_reinitialization {
-            self.schedule_layer_initialization();
-        }
+        // Discovery/collection only queues work. Explicit refresh or the
+        // preparation service owns dispatch, never a readiness getter.
     }
 }
 
 impl RenderContext for PaxGpuRenderer {
     fn is_gpu(&self) -> bool {
         true
+    }
+
+    fn start_surface_initialization(&mut self, before: i32) -> bool {
+        if !self.prepare_surface_content {
+            return false;
+        }
+        let current_priority = self.layer_initialization_priority.clone();
+        let priority = Rc::new(move |layer| {
+            let rank = current_priority(layer);
+            if rank.max(0) < before {
+                rank
+            } else {
+                i32::MAX
+            }
+        });
+        pump_layer_initialization_queue(
+            self.layer_factory.clone(),
+            self.backends.clone(),
+            self.pending_layer_initializations.clone(),
+            self.layer_initializations_in_flight.clone(),
+            self.ready_layers.clone(),
+            self.changed_layers.clone(),
+            priority,
+            self.surface_ready_callback.clone(),
+            true,
+        ) != 0
+    }
+
+    fn surface_replay_priority(&self, layer: usize) -> i32 {
+        let states = self.backends.borrow();
+        let Some(RenderLayerState::Ready((target, provider))) = states.get(layer) else {
+            return i32::MAX;
+        };
+        let layout = provider();
+        if let Some(indices) = self.targeted_replay_scope(layer) {
+            replay_identity_priority(
+                &layout,
+                indices.into_iter().filter_map(|i| {
+                    target
+                        .renderers
+                        .get(i)
+                        .map(|r| (r.key.as_str(), r.host_signature.as_str()))
+                }),
+            )
+        } else {
+            layout
+                .surfaces
+                .iter()
+                .map(|s| s.replay_priority)
+                .min()
+                .unwrap_or(i32::MAX)
+        }
+    }
+
+    fn ordinary_layer_priority(&self, layer: usize) -> Option<i32> {
+        if !self.prepare_surface_content {
+            return None;
+        }
+        let states = self.backends.borrow();
+        let rank = match states.get(layer) {
+            Some(RenderLayerState::Ready((_, provider))) => {
+                let layout = provider();
+                if layout.active {
+                    layout.surfaces.iter().map(|s| s.replay_priority).min()
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        };
+        Some(rank.unwrap_or(i32::MAX))
     }
 
     fn set_surface_ready_callback(&mut self, callback: Option<Rc<dyn Fn()>>) {
@@ -2187,10 +2268,12 @@ impl RenderContext for PaxGpuRenderer {
     fn resize(&mut self, _width: usize, _height: usize) {
         let layer_count = self.backends.borrow().len();
         self.refresh_layer_layouts(0..layer_count);
+        self.schedule_layer_initialization();
     }
 
     fn refresh_layers(&mut self, layers: &[usize]) {
         self.refresh_layer_layouts(layers.iter().copied());
+        self.schedule_layer_initialization();
     }
 
     fn set_scene_lighting(&mut self, layer: usize, lighting: &SceneLighting) {
@@ -2229,22 +2312,13 @@ impl RenderContext for PaxGpuRenderer {
     }
 
     fn take_ready_canvas_layers(&mut self) -> Vec<usize> {
-        self.schedule_layer_initialization();
-        let mut ready = Vec::new();
-        // Native creation completes synchronously. Drain its additions before drawing; a stale
-        // completion can trigger another creation, so bound retries to avoid monopolizing a frame.
-        for _ in 0..MAX_CONCURRENT_LAYER_INITIALIZATIONS {
-            let newly_ready = std::mem::take(&mut *self.ready_layers.borrow_mut());
-            let mut changed = std::mem::take(&mut *self.changed_layers.borrow_mut());
-            changed.extend(newly_ready.iter().copied());
-            ready.extend(newly_ready);
-            changed.sort_unstable();
-            changed.dedup();
-            if changed.is_empty() {
-                break;
-            }
-            self.refresh_layer_layouts(changed);
-        }
+        let mut ready = std::mem::take(&mut *self.ready_layers.borrow_mut());
+        let mut changed = std::mem::take(&mut *self.changed_layers.borrow_mut());
+        changed.extend(ready.iter().copied());
+        changed.sort_unstable();
+        changed.dedup();
+        // Refresh may queue missing identities but cannot create more surfaces.
+        self.refresh_layer_layouts(changed);
         ready.sort_unstable();
         ready.dedup();
         for layer in &ready {
@@ -3114,6 +3188,51 @@ mod tests {
     }
 
     #[test]
+    fn ordinary_priority_uses_all_installed_demand_and_is_opt_in() {
+        use super::super::layer_surface::LayerSurfaceSize;
+        let layout = Rc::new(RefCell::new(LayerSurfaceLayout {
+            active: true,
+            surfaces: vec![LayerSurfaceEntry {
+                key: "visible".into(),
+                host_signature: "g1".into(),
+                origin_x: 0.0,
+                origin_y: 0.0,
+                replay_priority: -2,
+                surface: LayerSurfaceSize {
+                    logical_width: 1.0,
+                    logical_height: 1.0,
+                    surface_width: 1,
+                    surface_height: 1,
+                    dpr: [1.0, 1.0],
+                },
+            }],
+        }));
+        let mut renderer = PaxGpuRenderer::new(|_, _| panic!("no GPU needed"));
+        renderer
+            .backends
+            .borrow_mut()
+            .push(RenderLayerState::Ready((
+                LayerTarget::new(Vec::new(), true),
+                Box::pin({
+                    let layout = layout.clone();
+                    move || layout.borrow().clone()
+                }),
+            )));
+        assert_eq!(renderer.ordinary_layer_priority(0), None);
+        renderer = renderer.with_surface_content_preparation();
+        // A selected batch lacking a current resident target is not the rank of
+        // the whole layer. Its visible installed demand must still win.
+        renderer.set_targeted_replay_batches(0, vec![vec![0]], HashMap::new());
+        assert_eq!(renderer.surface_replay_priority(0), i32::MAX);
+        assert_eq!(renderer.ordinary_layer_priority(0), Some(-2));
+        layout.borrow_mut().surfaces[0].replay_priority = 8;
+        assert_eq!(renderer.ordinary_layer_priority(0), Some(8));
+        layout.borrow_mut().active = false;
+        assert_eq!(renderer.ordinary_layer_priority(0), Some(i32::MAX));
+        assert_eq!(renderer.ordinary_layer_priority(1), Some(i32::MAX));
+    }
+
+    #[test]
     fn cold_capture_needs_no_physical_target_and_preserves_clip_state() {
         let mut renderer =
             PaxGpuRenderer::new(|_, _| Box::pin(async { None })).with_surface_content_preparation();
@@ -3215,6 +3334,36 @@ mod tests {
     }
 
     #[test]
+    fn managed_readiness_collection_never_dispatches_and_creation_is_one_unit() {
+        let calls = Rc::new(Cell::new(0));
+        let observed = calls.clone();
+        let mut renderer = PaxGpuRenderer::new(move |_, _| {
+            observed.set(observed.get() + 1);
+            Box::pin(async { Some(empty_layer(true, true)) })
+        })
+        .with_surface_content_preparation();
+        renderer.resize_layers_to(3, Default::default());
+        assert!(renderer.take_ready_canvas_layers().is_empty());
+        assert!(renderer.take_settled_surface_replays().is_empty());
+        renderer.refresh_layers(&[0, 1, 2]);
+        assert_eq!(calls.get(), 0);
+        assert!(
+            !renderer.start_surface_initialization(0),
+            "equal visible rank must replay first"
+        );
+        assert!(renderer.start_surface_initialization(i32::MAX));
+        assert_eq!(calls.get(), 1);
+        assert_eq!(renderer.take_ready_canvas_layers(), vec![0]);
+        assert_eq!(
+            calls.get(),
+            1,
+            "collecting completion must not recursively initialize siblings"
+        );
+        assert!(renderer.start_surface_initialization(i32::MAX));
+        assert_eq!(calls.get(), 2);
+    }
+
+    #[test]
     fn stale_initialization_cannot_publish_into_reused_layer_slot() {
         let states = Rc::new(RefCell::new(vec![RenderLayerState::Pending]));
         let first = Rc::new(LayerInitialization::new(0));
@@ -3264,6 +3413,7 @@ mod tests {
             changed,
             Rc::new(|_| 0),
             Default::default(),
+            false,
         );
         assert_eq!(calls.get(), 2);
         assert_eq!(*ready.borrow(), vec![0]);
@@ -3436,6 +3586,7 @@ mod tests {
             Rc::new(RefCell::new(Vec::new())),
             Rc::new(|_| 0),
             Default::default(),
+            false,
         );
         let states = states.borrow();
         let RenderLayerState::Ready((target, _)) = &states[0] else {

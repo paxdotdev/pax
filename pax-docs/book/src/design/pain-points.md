@@ -1213,3 +1213,49 @@ carousel allocation or broadening this fix into renderer work.
 - 2026-10-26 — PAX-1039 website validation: after scrolling the release homepage down roughly 4800–5600 px, resizing from 1280×800 to 390×844 reports `reactive drain hit 100000 evaluations in one tick; deferring remaining work`. Expected a bounded responsive-layout update. Reproduces on both forced WebGPU and Vello CPU; no browser exception was observed. Evidence: `/private/tmp/pax-1039-migration/scroll-check.json` and `final-extended.json`; release Wasm SHA-256 `385371f94f9b03aa4941b405048cd257bb1ab00111e40fc0b1ec8dbd10edb223`. The warning is associated with resize, not the earlier scroll steps. Cause and relation to website layout work remain unestablished.
 
 - 2026-10-26 — PAX-1039 debug smoke of `examples/fixtures/responsive-helpers`: renderer-global text resolves correctly for CPU and GPU, but the fixture's external Inter font remains `document.fonts.status === "loading"`; native text stays hidden and Playwright's font-ready screenshot wait times out after 30 s. Expected a visible helper panel. Both backends reproduce on the static debug server at port 18745. Value checks used attached DOM text instead; the main website uses bundled fonts and its screenshots pass. External font/network behavior is not yet diagnosed.
+
+- 2026-10-10 — The surface trace inspector's 400ms phone-scroll probe on
+  `pax-website` lost its start/end events from the 2,048-event ring before the
+  snapshot was opened. Expected a complete bounded probe; per-phase samples
+  plus tile events exceeded retention. The retained tail cannot establish a
+  gap-free whole probe. Used a separately captured native-wheel interval for
+  ordering evidence instead; PAX-1014.
+- 2026-10-09 — A web-interface-only TypeScript edit followed by the same
+  `pax-cli build --target web --path pax-website --release --libdev` command
+  started another `pax-website` Rust compilation despite unchanged Rust source.
+  Expected only interface rebundling; the preceding release Cargo phase took
+  461.58s. Canceled the duplicate compile, ran the interface's
+  `build-interface.sh`, and copied its generated JS into the already-completed
+  release output for verification. An interface-only build/reload path would
+  avoid this feedback-loop cost. Observed on `518929f22` plus PAX-1014 changes.
+- 2026-10-08 — Profiling `pax-website` after chassis edits: expected a local
+  release build to include TypeScript changes, but root-level website builds
+  do not auto-enable libdev (only `examples/src` and `tests/src` do). The build
+  reused the old interface bundle while rebuilding Wasm. Use `--libdev` for
+  website library-development builds, or explicitly run `build-interface.sh`.
+  Also verify fresh Wasm loading: the in-app browser reused the prior asset on
+  reload during this run; a fresh localhost port loaded it correctly.
+  Evidence and profiling context: PAX-1014.
+- 2026-10-08 — Formatting the Paxflix templates with `pax-cli format` adds
+  trailing spaces before wrapped attributes, causing `git diff --check` to
+  fail. Expected whitespace-clean formatted source; observed on `lib.pax`,
+  `movie_card.pax`, and `movie_shelf.pax`. Removed trailing spaces after
+  formatting; unrelated formatter-only changes were discarded.
+  Reproduced Oct 10 on `pax-website/src/feature_gallery/marquee.pax` with
+  `pax-cli fmt`: the wrapped `ScrollerHost` opening line gains a trailing space.
+  Removed that space after formatting; `fmt --check` and whitespace-clean output
+  cannot both pass until the formatter is corrected.
+- 2026-10-11 — Profiling a 720px vertical wheel scroll in the website's embedded
+  Paxflix phone: expected timely presentation after image submission; the tile's
+  images submitted 6.5ms after visible demand, but `visible-unready` lasted 34.6ms.
+  Another 10.4ms visible draw plus 11.6ms remaining draw ran synchronously afterward.
+  All 37 unique images were already CPU-ready. Earlier submission alone does not
+  establish earlier browser presentation; evaluate a safe host-yield boundary.
+  Trace from the release preview on port 50515; findings and follow-up: PAX-1014.
+- 2026-10-11 — Reversal testing on release port 50516: a warmed 540px phone
+  reversal had no visible-unready transition but still included a 76.5ms CPU
+  frame. A 1080px reversal beyond the prepared footprint exposed one shelf for
+  36.2ms; new initialization was visible/incoming-first, not obsolete far-side
+  work. Prepared pixels and input/frame responsiveness remain separate concerns.
+  Concurrent builds make these diagnostic samples, not a controlled benchmark;
+  reproduction and trace details are recorded in PAX-1014.
