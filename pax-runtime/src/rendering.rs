@@ -314,6 +314,15 @@ impl std::fmt::Debug for dyn InstanceNode {
 ///
 /// (See `RepeatInstance::expand_node` where we visit a singular `InstanceNode` several times, producing multiple [`ExpandedNode`]s.)
 pub trait InstanceNode {
+    /// Resolve a userland subtree filter from ordinary reactive properties. Returning `Some`
+    /// replaces the subtree's GPU presentation, preserving original native coverage/hit testing.
+    /// Effect primitives must be `Layer::Canvas`, subscribe their inputs to canvas dirtification,
+    /// and exclude shader-only properties from `property_requires_occlusion_recompute`.
+    /// A shader primitive returns `Some` throughout its mounted lifetime; use an identity
+    /// recipe (or an identity parameter value) to disable filtering.
+    fn shader_effect(&self, _node: &ExpandedNode) -> Option<pax_runtime_api::ShaderEffect> {
+        None
+    }
     /// Whether ordinary render hooks are valid inside a detached vector alpha source.
     /// Native surfaces and cross-surface containers require separate capture support.
     fn supports_alpha_source_render(&self) -> bool {
@@ -452,6 +461,9 @@ pub trait InstanceNode {
             true,
         );
         expanded_node.children.set(new_children);
+        if self.shader_effect(expanded_node).is_some() {
+            crate::bind_shader_effect(expanded_node, context);
+        }
     }
 
     /// Fires during element unmount, when an element is about to be removed from the render tree (e.g. by a `Conditional`)

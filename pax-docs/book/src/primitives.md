@@ -238,3 +238,77 @@ introduces the existing drawing elements, and [How Pax Runs](how-pax-runs.md)
 explains the runtime and rendering model. For the lower-level interface,
 continue with the [runtime API reference](api/internal/pax-runtime/rendering.md#instancenode)
 and the source examples above.
+
+## Shader primitives
+
+`InstanceNode::shader_effect` is an experimental extension point for a
+GPU-only subtree filter. Return `Some(ShaderEffect)` from a primitive with
+`Layer::Canvas`. Keep returning `Some` throughout the node's mounted lifetime;
+use an identity pass or parameter value to disable filtering. The renderer
+captures its ordinary descendants and replaces
+their GPU presentation with the final pass output. The original nodes remain
+responsible for native coverage and hit testing.
+
+The standard-library implementations are in `pax-std/src/shaders/gaussian_blur.rs`
+and `pax-std/src/shaders/impressionist.rs`, with WGSL alongside them. They use
+the same public extension point available to application-defined primitives;
+the renderer has no effect-specific implementation or registration.
+The default mount hook expands children and calls `bind_shader_effect` to
+subscribe the primitive's typed properties, geometry, child list, and opacity.
+If you override mount, perform both steps yourself. Shader-only typed
+properties should return `false` from
+`property_requires_occlusion_recompute`; common geometry and opacity remain
+tracked independently.
+
+A `ShaderProgram` is an immutable Rust resource containing 1–8 ordered
+`ShaderPass` values. Each pass declares its WGSL source, diagnostic label,
+two inputs (the captured subtree or an earlier pass), a resolution divisor
+of 1, 2, 4, 8, or 16, and up to 32 typed parameters. Parameters support `Float`, `Uint`,
+`Vec2`, and `Vec4`; each occupies an explicit, zero-padded 16-byte uniform slot.
+`ShaderEffect.parameters` supplies one matching list of values per pass.
+Non-finite floats, mismatched schemas, invalid identifiers, and forward/cyclic
+pass references are rejected. WGSL is parsed and validated with the pinned
+Naga version, with the source label included in diagnostics.
+
+Implement this function in each pass:
+
+```wgsl
+fn effect(p: vec2<f32>) -> vec4<f32> {
+    return sample_input0(p) * parameters.tint;
+}
+```
+
+Here `tint` would be a declared `Vec4` parameter. Coordinates are local logical
+pixels. `sample_input0(p)` and `sample_input1(p)` sample the declared inputs,
+returning transparent outside their capture domain. `input0_pixel_size()`
+reports the local-axis texel spacing, including transform scale and DPR.
+The engine supplies entry points, bind groups, and attachments. User code
+cannot add entry points or GPU resources. Intermediate textures use the
+surface color format; the final output must be premultiplied RGBA. There are
+no compute passes, history textures, external texture bindings, or raw-device
+callbacks in this slice.
+
+`ShaderEffect.outset` is the maximum absolute local sampling displacement and output
+expansion on either axis for the **whole recipe**. Include support from consecutive passes.
+Keep it stable during parameter animation. Underdeclaring it can clip output
+or create tile seams; overdeclaring it increases capture memory and work.
+Nested support adds along the capture chain. Tile gutters preserve samples
+across edges, within the adapter's maximum texture dimensions. Output textures
+have a 256 MiB budget per physical tile; exceeding the limit produces a
+diagnostic. Visible attachments and source captures add to that output budget.
+
+The renderer caches source pixels separately from final output. Parameter-only
+changes reuse source pixels, shader pipelines, and same-sized output textures.
+Changes to source pixels, source-side clips, inner opacity, lighting, or nested
+output invalidate the relevant captures. Removed effects release their cached
+outputs. `ResourceChurnStats` exposes effect source renders/cache hits, pipeline
+compilations, texture allocations/bytes, pass counts, and rendered pixel counts.
+These counters measure submitted work and allocations, not GPU execution time.
+
+Recipes live in compiled Rust, while their public inputs use normal property
+serialization. No effect program or device handle enters the manifest or baked
+program format. User primitives follow the existing generated factory path in
+both debug cartridges and baked release cartridges.
+
+Read [shader container composition](compositing-effects.md#experimental-shader-containers)
+for clipping, native overlap, and the current target/content restrictions.

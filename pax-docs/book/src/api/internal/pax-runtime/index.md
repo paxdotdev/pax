@@ -15,6 +15,7 @@
 - [repeat](repeat.md)
 - [router](router.md)
 - [scene_geometry](scene_geometry.md)
+- [shader_effect](shader_effect.md)
 - [settings_motion](settings_motion.md)
 - [slot](slot.md)
 - [viewport_proximity](viewport_proximity.md)

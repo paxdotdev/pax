@@ -2020,3 +2020,436 @@ fn retained_mask_source_clip_pages_pixels() {
         }
     }
 }
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn shader_effect_pixels_clip_cache_and_tile_halo() {
+    use pax_runtime_api::{
+        ShaderEffect, ShaderInput, ShaderParameter, ShaderParameterType, ShaderPass, ShaderProgram,
+        ShaderValue,
+    };
+    static PROGRAM: ShaderProgram = ShaderProgram { label: "test displacement", passes: &[ShaderPass {
+        label: "translate.wgsl", source: "fn effect(p: vec2<f32>) -> vec4<f32> { return sample_input0(p - vec2<f32>(parameters.shift,0.0)); }",
+        parameters: &[ShaderParameter {name:"shift",ty:ShaderParameterType::Float}], inputs:[ShaderInput::Subtree;2],downsample:1,
+    }] };
+    for dpr in [1.0, 2.0, 3.0] {
+        let layer = MetalLayer::new();
+        let backend = pollster::block_on(unsafe {
+            RenderBackend::to_core_animation_layer(
+                layer.0.cast(),
+                RenderConfig::new(true, (64.0 * dpr) as u32, (32.0 * dpr) as u32, [dpr, dpr]),
+            )
+        })
+        .unwrap();
+        let device = backend.device.clone();
+        let mut renderer = WgpuRenderer::new(backend);
+        renderer.set_viewport(64., 32., [dpr, dpr]);
+        for frame in 0..3 {
+            renderer.begin_node(9, 9, 0);
+            renderer.save();
+            renderer.clip(rect(2., 0., 60., 32.));
+            renderer.end_node(9);
+            let effect = ShaderEffect {
+                program: &PROGRAM,
+                parameters: vec![vec![ShaderValue::Float(if frame == 0 { 0. } else { 16. })]],
+                outset: 20.,
+            };
+            renderer.begin_shader_effect(
+                1,
+                1,
+                &effect,
+                Transform2D::identity(),
+                (64., 32.),
+                &[],
+                &[2],
+            );
+            if frame == 0 {
+                renderer.begin_node(2, 0, 0);
+                renderer.fill_path(
+                    rect(-8., 8., 8., 16.),
+                    Fill::Solid(Color::rgba(1., 0., 0., 1.)),
+                );
+                renderer.end_node(2);
+            }
+            renderer.end_shader_effect();
+            renderer.restore();
+            renderer.request_screenshot_capture(frame);
+            renderer.flush();
+            device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+            let result = renderer.take_screenshot_capture(frame).unwrap();
+            assert_pixel(
+                &result,
+                (12. * dpr) as usize,
+                (16. * dpr) as usize,
+                if frame == 0 {
+                    [0, 0, 0, 0]
+                } else {
+                    [255, 0, 0, 255]
+                },
+            );
+            assert_pixel(&result, 0, (16. * dpr) as usize, [0, 0, 0, 0]);
+        }
+        let stats = renderer.take_resource_churn_stats();
+        assert_eq!(stats.effect_source_renders, 1);
+        assert_eq!(stats.effect_source_cache_hits, 2);
+        assert_eq!(stats.effect_pipeline_compilations, 1);
+        assert_eq!(stats.effect_texture_allocations, 1);
+        assert_eq!(stats.effect_passes, 2);
+        assert_eq!(stats.effect_cache_hits, 1);
+    }
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn shader_effect_nested_pixels_and_relative_opacity() {
+    use pax_runtime_api::{
+        OpacityScope, ShaderEffect, ShaderInput, ShaderParameter, ShaderParameterType, ShaderPass,
+        ShaderProgram, ShaderValue,
+    };
+    static PROGRAM:ShaderProgram=ShaderProgram {label:"user gain",passes:&[ShaderPass {label:"gain.wgsl",source:"fn effect(p: vec2<f32>) -> vec4<f32> { return sample_input0(p) * parameters.gain; }",parameters:&[ShaderParameter {name:"gain",ty:ShaderParameterType::Float}],inputs:[ShaderInput::Subtree;2],downsample:1}]};
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 64, 32, [1., 1.]),
+        )
+    })
+    .unwrap();
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    for frame in 0..3 {
+        let outer = ShaderEffect {
+            program: &PROGRAM,
+            parameters: vec![vec![ShaderValue::Float(1.)]],
+            outset: 0.,
+        };
+        let inner = ShaderEffect {
+            program: &PROGRAM,
+            parameters: vec![vec![ShaderValue::Float(if frame == 0 { 1. } else { 0.5 })]],
+            outset: 0.,
+        };
+        renderer.begin_shader_effect(
+            1,
+            3,
+            &outer,
+            Transform2D::identity(),
+            (64., 32.),
+            &[OpacityScope {
+                node_id: 1,
+                opacity: 0.5,
+            }],
+            &[2],
+        );
+        renderer.begin_shader_effect(2, 2, &inner, Transform2D::identity(), (64., 32.), &[], &[3]);
+        if frame != 1 {
+            renderer.begin_node(3, 1, 0);
+            renderer.set_node_opacity_scopes(
+                3,
+                &[OpacityScope {
+                    node_id: 3,
+                    opacity: 0.5,
+                }],
+            );
+            renderer.draw_image(
+                "source",
+                frame as u64,
+                &Image {
+                    rgba: vec![255, 0, 0, if frame == 0 { 255 } else { 128 }],
+                    pixel_width: 1,
+                    pixel_height: 1,
+                },
+                Box2D::new(point(8., 8.), point(40., 24.)),
+            );
+            renderer.end_node(3);
+        }
+        renderer.end_shader_effect();
+        renderer.end_shader_effect();
+        renderer.request_screenshot_capture(frame);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let result = renderer.take_screenshot_capture(frame).unwrap();
+        let expected = [64, 32, 16][frame as usize];
+        let offset = (16 * result.width as usize + 16) * 4;
+        for channel in [0, 3] {
+            assert!(
+                (result.rgba[offset + channel] as i32 - expected).abs() <= 1,
+                "frame {frame}: {:?}",
+                &result.rgba[offset..offset + 4]
+            );
+        }
+    }
+    let stats = renderer.take_resource_churn_stats();
+    assert_eq!(
+        stats.effect_source_renders, 5,
+        "inner source changes only with image version; outer source also changes with inner uniforms"
+    );
+    assert_eq!(stats.effect_texture_allocations, 2);
+    assert_eq!(stats.effect_pipeline_compilations, 1);
+    assert_eq!(stats.effect_passes, 6);
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn shader_effect_gaussian_matches_across_tiles() {
+    use pax_runtime_api::{
+        ShaderEffect, ShaderInput, ShaderParameter, ShaderParameterType as T, ShaderPass,
+        ShaderProgram, ShaderValue as V,
+    };
+    const PARAMETERS: &[ShaderParameter] = &[
+        ShaderParameter {
+            name: "sigma",
+            ty: T::Float,
+        },
+        ShaderParameter {
+            name: "axis",
+            ty: T::Vec2,
+        },
+        ShaderParameter {
+            name: "spacing",
+            ty: T::Float,
+        },
+        ShaderParameter {
+            name: "enabled",
+            ty: T::Uint,
+        },
+    ];
+    const GAUSSIAN: &str = r#"fn effect(p: vec2<f32>) -> vec4<f32> {
+    if parameters.enabled == 0u { return vec4<f32>(0.0); }
+    let sigma = parameters.sigma;
+    if sigma < 0.001 { return sample_input0(p); }
+    let step_size = dot(input0_pixel_size(), parameters.axis) * parameters.spacing;
+    let n = i32(ceil(3.0 * sigma / step_size));
+    var sum = vec4<f32>(0.0);
+    var weight_sum = 0.0;
+    for (var i = -n; i <= n; i += 1) {
+        let offset = f32(i) * step_size;
+        let weight = exp(-0.5 * offset * offset / (sigma * sigma));
+        sum += sample_input0(p + parameters.axis * offset) * weight;
+        weight_sum += weight;
+    }
+    return sum / weight_sum;
+}
+"#;
+    static PROGRAM: ShaderProgram = ShaderProgram {
+        label: "reference blur",
+        passes: &[
+            ShaderPass {
+                label: "gaussian-x",
+                source: GAUSSIAN,
+                parameters: PARAMETERS,
+                inputs: [ShaderInput::Subtree; 2],
+                downsample: 1,
+            },
+            ShaderPass {
+                label: "gaussian-y",
+                source: GAUSSIAN,
+                parameters: PARAMETERS,
+                inputs: [ShaderInput::Pass(0); 2],
+                downsample: 1,
+            },
+        ],
+    };
+    static COARSE: ShaderProgram = ShaderProgram {
+        label: "coarse blur",
+        passes: &[
+            ShaderPass {
+                label: "gaussian-x",
+                source: GAUSSIAN,
+                parameters: PARAMETERS,
+                inputs: [ShaderInput::Subtree; 2],
+                downsample: 4,
+            },
+            ShaderPass {
+                label: "gaussian-y",
+                source: GAUSSIAN,
+                parameters: PARAMETERS,
+                inputs: [ShaderInput::Pass(0); 2],
+                downsample: 4,
+            },
+        ],
+    };
+    for (program, spacing) in [(&PROGRAM, 1.0), (&COARSE, 4.0)] {
+        for dpr in [1., 2., 3.] {
+            for sigma in [0., 2., 8., 48.] {
+                let mut frames = Vec::new();
+                for (width, origin) in [(62., 0.), (31., 0.), (31., 31.)] {
+                    let layer = MetalLayer::new();
+                    let backend = pollster::block_on(unsafe {
+                        RenderBackend::to_core_animation_layer(
+                            layer.0.cast(),
+                            RenderConfig::new(
+                                true,
+                                (width * dpr) as u32,
+                                (32. * dpr) as u32,
+                                [dpr, dpr],
+                            ),
+                        )
+                    })
+                    .unwrap();
+                    let device = backend.device.clone();
+                    let mut renderer = WgpuRenderer::new(backend);
+                    renderer.set_viewport(width, 32., [dpr, dpr]);
+                    renderer.transform(Transform2D::translation(-origin, 0.));
+                    let effect = ShaderEffect {
+                        program,
+                        parameters: vec![
+                            vec![
+                                V::Float(sigma),
+                                V::Vec2([1., 0.]),
+                                V::Float(spacing),
+                                V::Uint(1),
+                            ],
+                            vec![V::Float(sigma), V::Vec2([0., 1.]), V::Float(1.), V::Uint(1)],
+                        ],
+                        outset: 145.,
+                    };
+                    renderer.begin_shader_effect(
+                        1,
+                        2,
+                        &effect,
+                        Transform2D::identity(),
+                        (62., 32.),
+                        &[],
+                        &[2],
+                    );
+                    renderer.begin_node(2, 1, 0);
+                    renderer.fill_path(
+                        rect(28., 8., 8., 16.),
+                        Fill::Solid(Color::rgba(1., 1., 1., 1.)),
+                    );
+                    renderer.end_node(2);
+                    renderer.end_shader_effect();
+                    renderer.request_screenshot_capture(1);
+                    renderer.flush();
+                    device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+                    frames.push(renderer.take_screenshot_capture(1).unwrap());
+                }
+                if program.label == "reference blur" {
+                    let response = |pixel: i32, low: f32, high: f32| {
+                        if sigma == 0.0 {
+                            return if pixel >= (low * dpr) as i32 && pixel < (high * dpr) as i32 {
+                                1.0
+                            } else {
+                                0.0
+                            };
+                        }
+                        let n = (3.0 * sigma * dpr).ceil() as i32;
+                        let mut total = 0.0f64;
+                        let mut covered = 0.0f64;
+                        for i in -n..=n {
+                            let w = (-0.5 * (i as f64 / (sigma * dpr) as f64).powi(2)).exp();
+                            total += w;
+                            if pixel + i >= (low * dpr) as i32 && pixel + i < (high * dpr) as i32 {
+                                covered += w;
+                            }
+                        }
+                        covered / total
+                    };
+                    for x in [26., 30., 34., 38.] {
+                        for y in [8., 16., 24.] {
+                            let px = (x * dpr) as usize;
+                            let py = (y * dpr) as usize;
+                            let expected =
+                                response(px as i32, 28., 36.) * response(py as i32, 8., 24.) * 255.;
+                            let actual =
+                                frames[0].rgba[(py * frames[0].width as usize + px) * 4 + 3] as f64;
+                            assert!((actual-expected).abs()<=2.0,"Gaussian CPU reference: sigma={sigma} dpr={dpr}, ({x},{y}): {actual} vs {expected}");
+                        }
+                    }
+                }
+                for tile in 0..2 {
+                    for y in 0..frames[tile + 1].height as usize {
+                        for x in 0..frames[tile + 1].width as usize {
+                            let a = (y * frames[0].width as usize
+                                + x
+                                + tile * frames[tile + 1].width as usize)
+                                * 4;
+                            let b = (y * frames[tile + 1].width as usize + x) * 4;
+                            for channel in 0..4 {
+                                assert!(
+                                    (frames[0].rgba[a + channel] as i32
+                                        - frames[tile + 1].rgba[b + channel] as i32)
+                                        .abs()
+                                        <= 1,
+                                    "program={} sigma={sigma} dpr={dpr} tile={tile} pixel={x},{y}: {} vs {}", program.label,frames[0].rgba[a+channel],frames[tile+1].rgba[b+channel]
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn shader_effect_output_obeys_stencil_and_alpha() {
+    use pax_runtime_api::{ShaderEffect, ShaderInput, ShaderPass, ShaderProgram};
+    static PROGRAM: ShaderProgram = ShaderProgram {
+        label: "identity",
+        passes: &[ShaderPass {
+            label: "identity.wgsl",
+            source: "fn effect(p: vec2<f32>) -> vec4<f32> {return sample_input0(p);}",
+            parameters: &[],
+            inputs: [ShaderInput::Subtree; 2],
+            downsample: 1,
+        }],
+    };
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 64, 32, [1., 1.]),
+        )
+    })
+    .unwrap();
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    renderer.begin_node(9, 9, 0);
+    renderer.save();
+    let mut path = Path::builder();
+    path.begin(point(0., 0.));
+    path.line_to(point(64., 0.));
+    path.line_to(point(0., 32.));
+    path.end(true);
+    renderer.clip(path.build());
+    renderer.clip_alpha(
+        vec![crate::AlphaMaskPaint {
+            path: rect(0., 0., 64., 32.),
+            transform: Transform2D::identity(),
+            fill: Fill::Solid(Color::rgba(1., 1., 1., 0.5)),
+            opacity: 1.,
+            composition: None,
+        }],
+        0.,
+    );
+    renderer.end_node(9);
+    renderer.begin_shader_effect(
+        1,
+        2,
+        &ShaderEffect {
+            program: &PROGRAM,
+            parameters: vec![vec![]],
+            outset: 0.,
+        },
+        Transform2D::identity(),
+        (64., 32.),
+        &[],
+        &[2],
+    );
+    renderer.begin_node(2, 1, 0);
+    renderer.fill_path(
+        rect(0., 0., 64., 32.),
+        Fill::Solid(Color::rgba(1., 0., 0., 1.)),
+    );
+    renderer.end_node(2);
+    renderer.end_shader_effect();
+    renderer.restore();
+    renderer.request_screenshot_capture(1);
+    renderer.flush();
+    device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+    let frame = renderer.take_screenshot_capture(1).unwrap();
+    assert_pixel(&frame, 8, 8, [128, 0, 0, 128]);
+    assert_pixel(&frame, 48, 24, [0, 0, 0, 0]);
+}

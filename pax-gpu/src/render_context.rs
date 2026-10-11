@@ -1,3 +1,5 @@
+mod effects;
+use effects::{EffectCapture, EffectNode, EffectRecording};
 mod opacity;
 mod source_capture;
 use crate::render_backend::stencil;
@@ -78,6 +80,15 @@ type SharedVectorResourceCache = Rc<RefCell<VectorResourceCache>>;
 /// Resource churn counters for renderer profiling.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct ResourceChurnStats {
+    pub effect_source_renders: u64,
+    pub effect_source_cache_hits: u64,
+    pub effect_pipeline_compilations: u64,
+    pub effect_texture_allocations: u64,
+    pub effect_texture_bytes: u64,
+    pub effect_cache_hits: u64,
+    pub effect_passes: u64,
+    pub effect_pixels: u64,
+
     pub mesh_texture_allocations: u64,
     /// Bytes allocated for mesh textures during this sample (not current residency).
     pub mesh_texture_bytes: u64,
@@ -133,6 +144,14 @@ impl ResourceChurnStats {
         self.mesh_cache_hits += other.mesh_cache_hits;
         self.mesh_topology_allocations += other.mesh_topology_allocations;
         self.flushes += other.flushes;
+        self.effect_source_renders += other.effect_source_renders;
+        self.effect_source_cache_hits += other.effect_source_cache_hits;
+        self.effect_pipeline_compilations += other.effect_pipeline_compilations;
+        self.effect_texture_allocations += other.effect_texture_allocations;
+        self.effect_texture_bytes += other.effect_texture_bytes;
+        self.effect_cache_hits += other.effect_cache_hits;
+        self.effect_passes += other.effect_passes;
+        self.effect_pixels += other.effect_pixels;
         self.opacity_group_renders += other.opacity_group_renders;
         self.opacity_group_cache_hits += other.opacity_group_cache_hits;
         self.alpha_source_renders += other.alpha_source_renders;
@@ -178,6 +197,11 @@ impl ResourceChurnStats {
         let mut stats = *self;
         stats.flushes = 0;
         stats.mesh_cache_hits = 0;
+        stats.effect_source_renders = 0;
+        stats.effect_source_cache_hits = 0;
+        stats.effect_cache_hits = 0;
+        stats.effect_passes = 0;
+        stats.effect_pixels = 0;
         stats.opacity_group_renders = 0;
         stats.opacity_group_cache_hits = 0;
         stats.alpha_source_renders = 0;
@@ -205,6 +229,9 @@ pub struct WgpuRenderer<'w> {
     source_nodes: HashMap<u32, u32>,
     source_captures: HashMap<u32, SourceCapture>,
     source_recordings: Vec<SourceRecording>,
+    effect_captures: HashMap<u32, EffectCapture>,
+    effect_nodes: HashMap<u32, u32>,
+    effect_recordings: Vec<EffectRecording>,
     transform_arena: TransformArena,
     clip_arena: ClipArena,
     clip_owner_keys: HashMap<u32, Vec<ClipArenaKey>>,
@@ -672,6 +699,9 @@ impl<'w> WgpuRenderer<'w> {
             source_nodes: HashMap::new(),
             source_captures: HashMap::new(),
             source_recordings: Vec::new(),
+            effect_captures: HashMap::new(),
+            effect_nodes: HashMap::new(),
+            effect_recordings: Vec::new(),
             transform_arena: TransformArena::new(),
             clip_arena: ClipArena::new(),
             clip_owner_keys: HashMap::new(),
@@ -756,6 +786,9 @@ impl<'w> WgpuRenderer<'w> {
         self.source_nodes.clear();
         self.source_captures.clear();
         self.source_recordings.clear();
+        self.effect_captures.clear();
+        self.effect_nodes.clear();
+        self.effect_recordings.clear();
         self.render_backend.reset_captures();
         self.render_backend.alpha_mesh_pages.clear();
         self.transform_arena = TransformArena::new();
@@ -1109,8 +1142,9 @@ impl<'w> WgpuRenderer<'w> {
         // that tile-local viewport before batching so newly revealed tiles do not replay the full
         // layer scene.
         let source_capture_keys = self.render_alpha_sources(&active_alpha_masks);
-        let plan = self.opacity_plan();
         let mut active = source_capture_keys;
+        active.extend(self.render_effects());
+        let plan = self.opacity_plan();
         collect_opacity_group_keys(&plan, &mut active);
         self.draw_opacity_plan(&plan);
         self.render_backend.retain_captures(&active);
@@ -1166,6 +1200,11 @@ impl<'w> WgpuRenderer<'w> {
                 current_batch_clip_stack = Some(node.clip_stack().to_vec());
             }
             match node {
+                RetainedNode::Effect(node) => {
+                    if node.visible {
+                        current_batch.push(RetainedDraw::Effect(node.id));
+                    }
+                }
                 RetainedNode::Vector(node) => {
                     let Some(resource) = node.resource.as_ref() else {
                         continue;
@@ -1593,7 +1632,7 @@ impl<'w> WgpuRenderer<'w> {
                         existing.bounds = compute_vector_node_bounds(&buffers.ops);
                         Some(RetainedNode::Vector(existing))
                     }
-                    Some(RetainedNode::Image(_existing)) => {
+                    Some(RetainedNode::Image(_)) | Some(RetainedNode::Effect(_)) => {
                         let mut buffers_out = new_cpu_buffers();
                         rebuild_vector_buffers(
                             self.tolerance,
@@ -1717,6 +1756,9 @@ impl<'w> WgpuRenderer<'w> {
     }
 
     pub fn remove_node(&mut self, node_id: u32) -> bool {
+        self.effect_captures.remove(&node_id);
+        self.effect_nodes
+            .retain(|child, owner| *child != node_id && *owner != node_id);
         self.source_nodes.remove(&node_id);
         self.opacity_scopes.remove(&node_id);
         let mut removed = false;
@@ -2081,6 +2123,7 @@ struct PendingImageNode {
 }
 
 enum RetainedNode {
+    Effect(EffectNode),
     Vector(RetainedVectorNode),
     Image(RetainedImageNode),
 }
@@ -2090,6 +2133,7 @@ impl RetainedNode {
         match self {
             RetainedNode::Vector(node) => node.z_index,
             RetainedNode::Image(node) => node.z_index,
+            RetainedNode::Effect(node) => node.z_index,
         }
     }
 
@@ -2097,6 +2141,7 @@ impl RetainedNode {
         match self {
             RetainedNode::Vector(node) => &node.clip_stack,
             RetainedNode::Image(node) => &node.clip_stack,
+            RetainedNode::Effect(node) => &node.clip_stack,
         }
     }
 
@@ -2104,6 +2149,7 @@ impl RetainedNode {
         match self {
             RetainedNode::Vector(node) => boxes_intersect(&node.bounds, viewport_bounds),
             RetainedNode::Image(node) => boxes_intersect(&node.bounds, viewport_bounds),
+            RetainedNode::Effect(node) => boxes_intersect(&node.bounds, viewport_bounds),
         }
     }
 }
@@ -2174,7 +2220,7 @@ fn record_retained_batch_stats(stats: &mut ResourceChurnStats, draws: &[Retained
             RetainedDraw::Vector(resource) if resource.is_drawable() => {
                 stats.retained_vector_draws += 1
             }
-            RetainedDraw::Vector(_) => {}
+            RetainedDraw::Vector(_) | RetainedDraw::Effect(_) => {}
             RetainedDraw::Image { .. } => stats.retained_image_draws += 1,
         }
     }

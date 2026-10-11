@@ -162,7 +162,7 @@ impl WgpuRenderer<'_> {
             if !self.source_captures.contains_key(owner) {
                 continue;
             }
-            let required = margin(self, *owner, &mut HashSet::new());
+            let required = self.effect_margin() + margin(self, *owner, &mut HashSet::new());
             if self.render_backend.source_domain_fits(required) {
                 gutter = gutter.max(required);
             } else {

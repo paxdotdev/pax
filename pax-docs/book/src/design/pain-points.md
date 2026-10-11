@@ -24,3 +24,16 @@ zero. In the Scroll Matrix smoke test, relaunching after the display became
 available restored rendering without source changes. Inspect the app's system
 log before treating an idle blank window as a renderer regression. The current
 display-link setup does not retry that startup failure automatically.
+
+- 2026-10-11, shader-studio / PAX-1035: PAXEL does not accept Rust method calls
+  such as `self.phase.sin()`. Expose a `#[helpers]` associated function and call
+  `Landscape::sun_x(self.phase)`; grouped units work as `{(Landscape::sun_x(self.phase))%}`.
+  Numeric literals need a fractional digit (`24.0`, not `24.`). Frame's
+  `corner_radius` is `f64`, so use `18`, not `18px` (the latter warns and keeps
+  the default).
+- 2026-10-11, shader-studio web debug build: a fresh resolution to Pest 2.9.3
+  introduced the psm Wasm stack helper. macOS `ar`/`ranlib` warned that `wasm32.o`
+  was not Mach-O; the emitted JS imported unresolved `env::rust_psm_stack_pointer`
+  and the browser stayed blank. Install Rust's official `llvm-tools-preview`
+  component and set `AR_wasm32_unknown_unknown` to that toolchain's `llvm-ar`
+  for the web build. This links the real helper and removes the `env` import.

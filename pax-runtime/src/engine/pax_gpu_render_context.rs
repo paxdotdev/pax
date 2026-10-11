@@ -570,6 +570,7 @@ pub struct PaxGpuRenderer {
     surface_replay: RefCell<SurfaceReplayCoordinator>,
     clean_skipped_canvas_nodes: RefCell<HashSet<(usize, u32)>>,
     alpha_source_scopes: Vec<(usize, usize)>,
+    shader_effect_scopes: Vec<(usize, usize)>,
     #[cfg(debug_assertions)]
     tile_cull_stats: RefCell<Vec<TileCullStats>>,
 }
@@ -607,6 +608,7 @@ impl PaxGpuRenderer {
             surface_replay: Default::default(),
             clean_skipped_canvas_nodes: Default::default(),
             alpha_source_scopes: Vec::new(),
+            shader_effect_scopes: Vec::new(),
             #[cfg(debug_assertions)]
             tile_cull_stats: Default::default(),
         }
@@ -1928,6 +1930,58 @@ impl RenderContext for PaxGpuRenderer {
         screenshots
     }
 
+    fn begin_shader_effect(
+        &mut self,
+        layer: usize,
+        id: u32,
+        z: i32,
+        effect: &pax_runtime_api::ShaderEffect,
+        transform: kurbo::Affine,
+        bounds: (f64, f64),
+        scopes: &[pax_runtime_api::OpacityScope],
+        children: &[u32],
+    ) -> bool {
+        let inherited = self
+            .shader_effect_scopes
+            .last()
+            .map_or(0, |s| s.1)
+            .min(scopes.len());
+        let mut replay = false;
+        let mut selected = Vec::new();
+        {
+            let mut backends = self.backends.borrow_mut();
+            if let Some(RenderLayerState::Ready((target, _))) = backends.get_mut(layer) {
+                if target.active {
+                    target.prepare_for_render();
+                    selected = self.active_render_scope(layer).unwrap_or_else(|| {
+                        self.targeted_or_all_indices(layer, target.renderers.len())
+                    });
+                    for index in &selected {
+                        replay |= target.renderers[*index].renderer.begin_shader_effect(
+                            id,
+                            z,
+                            effect,
+                            Transform2D::from_array(transform.as_coeffs().map(|v| v as f32)),
+                            bounds,
+                            &scopes[inherited..],
+                            children,
+                        );
+                    }
+                }
+            }
+        }
+        self.mark_render_surfaces_dirty(layer, selected.iter().copied());
+        self.push_render_scope(layer, selected);
+        self.shader_effect_scopes.push((layer, scopes.len()));
+        replay
+    }
+
+    fn end_shader_effect(&mut self, layer: usize, _id: u32) {
+        self.with_layer_context(layer, |context| context.end_shader_effect());
+        assert_eq!(self.shader_effect_scopes.pop().map(|s| s.0), Some(layer));
+        self.pop_render_scope(layer);
+    }
+
     fn supports_alpha_source_capture(&self) -> bool {
         true
     }
@@ -1970,6 +2024,7 @@ impl RenderContext for PaxGpuRenderer {
         let scopes = &scopes[self
             .alpha_source_scopes
             .last()
+            .or_else(|| self.shader_effect_scopes.last())
             .map_or(0, |s| s.1)
             .min(scopes.len())..];
         self.with_layer_context(layer, |context| {
@@ -1978,7 +2033,7 @@ impl RenderContext for PaxGpuRenderer {
     }
 
     fn begin_node(&mut self, layer: usize, node_id: u32, z_index: i32, light_mask: u32) -> bool {
-        if self.alpha_source_layer().is_some() {
+        if self.alpha_source_layer().is_some() || !self.shader_effect_scopes.is_empty() {
             let mut began = false;
             self.with_layer_context(layer, |context| {
                 began |= context.begin_node(node_id, z_index, light_mask);
@@ -2042,7 +2097,7 @@ impl RenderContext for PaxGpuRenderer {
         coverage_bounds: Rect,
         light_mask: u32,
     ) -> bool {
-        if self.alpha_source_layer().is_some() {
+        if self.alpha_source_layer().is_some() || !self.shader_effect_scopes.is_empty() {
             // Feather can read beyond a tile's visible viewport; capture culling owns that margin.
             return self.begin_node(layer, node_id, z_index, light_mask);
         }

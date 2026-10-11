@@ -10,3 +10,4 @@
 - [layout](layout.md)
 - [media](media.md)
 - [reference](reference.md)
+- [shaders](shaders.md)

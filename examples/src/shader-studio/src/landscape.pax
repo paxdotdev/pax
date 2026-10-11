@@ -1,0 +1,14 @@
+<Ellipse x={(Landscape::sun_x(self.phase))%} y=38% anchor=50% width=110px height=110px fill=rgb(248,213,141)/>
+<Ellipse x=78% y=98% anchor=50% width=92% height=60% fill=@gradient {
+    linear: { start: [0%, 0%], end: [100%, 100%] }
+    0%: rgb(62,109,106)
+    100%: rgb(14,52,61)
+}/>
+<Ellipse x=8% y=92% anchor=50% width=94% height=50% fill=rgb(49,98,99)/>
+<Rectangle y=70% anchor_y=0% width=100% height=30% fill=rgb(68,110,112)/>
+<Rectangle width=100% height=100% fill=@gradient {
+    linear: { start: [0%, 0%], end: [0%, 100%] }
+    0%: rgb(77,112,118)
+    55%: rgb(154,174,153)
+    100%: rgb(216,192,147)
+}/>

@@ -409,6 +409,7 @@ pub struct ExpandedNode {
     pub content_measurement_rebind_listener: LocalProperty<()>,
     /// Guards one-time setup of the reactive content-measurement listener pair.
     pub content_measurement_bound: Cell<bool>,
+    pub(crate) shader_effect_bound: Cell<bool>,
     /// Cached update traversal state. Structural effects mark ancestors dirty when child
     /// ownership changes; the update pass clears this for subtrees with no remaining
     /// imperative update work.
@@ -1127,6 +1128,7 @@ impl ExpandedNode {
             content_measurement_listener: LocalProperty::default(),
             content_measurement_rebind_listener: LocalProperty::default(),
             content_measurement_bound: Cell::new(false),
+            shader_effect_bound: Cell::new(false),
             subtree_requires_non_reactive_update: Cell::new(true),
             projected_children_changed: LocalProperty::default(),
             slot_projection_changed: LocalProperty::default(),
@@ -3075,6 +3077,9 @@ impl ExpandedNode {
             return;
         }
         stats.path_nodes_visited += 1;
+        if self.render_shader_effect(ctx, rcs) {
+            return;
+        }
         borrow!(self.instance_node).handle_pre_render(&self, ctx, rcs);
         for child in self.children.get().iter().rev() {
             if render_path_nodes.contains(&child.id) {
@@ -3092,6 +3097,9 @@ impl ExpandedNode {
 
     pub fn recurse_render(self: &Rc<Self>, ctx: &Rc<RuntimeContext>, rcs: &mut dyn RenderContext) {
         if self.is_render_source() {
+            return;
+        }
+        if self.render_shader_effect(ctx, rcs) {
             return;
         }
         borrow!(self.instance_node).handle_pre_render(&self, ctx, rcs);
@@ -3126,6 +3134,10 @@ impl ExpandedNode {
         rcs: &mut dyn RenderContext,
         deferred: &mut Vec<Rc<ExpandedNode>>,
     ) {
+        assert!(
+            borrow!(self.instance_node).shader_effect(self).is_none(),
+            "shader effects inside detached mask sources are unsupported"
+        );
         let supported = borrow!(self.instance_node).supports_alpha_source_render();
         let structural = {
             let instance = borrow!(self.instance_node);

@@ -37,6 +37,23 @@ impl crate::Interpolatable for OpacityScope {}
 
 /// The drawing contract shared by Pax runtime backends.
 pub trait RenderContext {
+    /// Begin an experimental GPU-only subtree effect. Returns whether source draws need replay.
+    /// The default rejects programmable effects rather than silently changing their appearance.
+    fn begin_shader_effect(
+        &mut self,
+        _layer: usize,
+        _id: u32,
+        _z: i32,
+        _effect: &ShaderEffect,
+        _transform: kurbo::Affine,
+        _bounds: (f64, f64),
+        _scopes: &[OpacityScope],
+        _children: &[u32],
+    ) -> bool {
+        panic!("shader effects require the WGPU renderer; this backend does not support them")
+    }
+    /// Finish the boundary begun by `begin_shader_effect`.
+    fn end_shader_effect(&mut self, _layer: usize, _id: u32) {}
     // Drawing
     /// Fills a path at full opacity.
     fn fill(&mut self, layer: usize, path: kurbo::BezPath, fill: &Paint) {

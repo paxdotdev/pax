@@ -585,11 +585,12 @@ requires the WGPU renderer; Piet shows the unlit fills and strokes.
   files="src/lib.pax,src/lib.rs">
 </pax-example>
 
-A general-purpose Gaussian blur wrapper, configurable blend modes, and
-portable backdrop materials are not part of the current public toolkit.
-You can still build depth with offset shapes, gradients, transparency,
-and motion. Keep authored shadows and glows distinct from a sampled
-backdrop effect when explaining what an example demonstrates.
+An experimental GPU subtree blur is available through
+[`GaussianBlur`](#experimental-shader-containers). Configurable blend modes
+and portable backdrop materials are not part of the current public toolkit.
+You can also build depth with offset shapes, gradients, transparency, and
+motion. Keep authored shadows and glows distinct from a sampled backdrop
+effect when explaining what an example demonstrates.
 
 ## Check the finished composition
 
@@ -624,3 +625,78 @@ coordinates and scroll-driven composition. Revisit
 [Animation](animation-motion.md) for changing those values over time.
 The [Frame](api/pax-std/core/frame.md), [Mask](api/pax-std/core/mask.md), and
 [EventBlocker](api/pax-std/core/event_blocker.md) references list their public APIs.
+
+## Experimental shader containers
+
+A userland primitive can filter its rendered descendants with a sequence of
+WGSL fragment passes. `pax_std::shaders` provides `GaussianBlur` and
+`Impressionist`, also exported by `pax_std::*` and `pax_kit::*`. Both use the
+same public renderer extension API available to your own primitives. The
+`shader-studio` example imports these standard-library components.
+
+```pax
+<Frame width=420px height=280px corner_radius=18>
+    <GaussianBlur width=100% height=100% radius=8.0>
+        <Ellipse x=40% y=40% width=120px height=120px fill=CYAN />
+        <Rectangle width=100% height=100% fill=rgb(20,31,32) />
+    </GaussianBlur>
+</Frame>
+```
+
+This experimental slice captures vectors and renderer-backed `Image` nodes.
+Native `Text`, `NativeImage`, controls, native materials, descendant Scrollers,
+and `unclippable` descendants cannot be captured; unsupported content produces
+a diagnostic. A shader container may live **inside** a Scroller. Effects inside
+detached mask sources are also unsupported. Use the WGPU backend; the legacy
+Piet backend does not implement this API. The first target is web WebGPU, with
+Metal pixel tests covering the shared renderer.
+
+Clips and opacity inside a shader container become part of its source image.
+Clips outside the container apply to the filtered output, and the container's
+own opacity applies after filtering. Nested containers run from the inside
+out. Filters may expand beyond layout bounds by their declared sampling
+support; an enclosing Frame clips that expansion. Layout and hit testing
+continue to use the original tree.
+
+When filtered GPU content overlaps native content, native punch-through masks
+continue to use the **original geometry and coverage opacity**. Ordinary
+transforms, clips, and opacity still update those masks. Shader displacement,
+output alpha, and blurred edges do not change the native cutout. This deliberate
+approximation means native overlap need not match the filtered silhouette.
+Native pixels are not sampled by the shader.
+
+### Built-in effects
+
+`GaussianBlur.radius` is Gaussian standard deviation in local logical pixels,
+clamped to 0–48. Zero is identity. Its reference mode performs full-resolution
+horizontal and vertical convolution truncated at three standard deviations.
+The default mode smoothly blends to quarter-resolution convolution between
+6 and 10 logical pixels. That reduced-resolution result is an approximation;
+it trades fine detail for lower sampling cost at large radii. `reference=true`
+keeps the full-resolution result for comparison. Both operate on premultiplied
+RGBA in the renderer's capture color space, without a linear-light guarantee.
+
+`Impressionist` samples a local orientation field and paints three scales of
+procedural marks. `seed` fixes mark locations; `phase` changes their breathing
+motion. Marks stay anchored to the container, while their colors respond to
+changing source content. There is no motion tracking or previous-frame state.
+Stopping phase updates freezes the brush motion while source updates continue.
+Identical source content, seed, size, and phase give identical output.
+`size` is measured in local logical pixels and clamped to 4–32. Its default
+value of zero resolves to the minimum size; the example uses `size=24.0`.
+
+See the API references for
+[`GaussianBlur`](api/pax-std/shaders/gaussian_blur.md) and
+[`Impressionist`](api/pax-std/shaders/impressionist.md).
+
+These inputs are ordinary properties. Bind or animate them using existing
+[expressions and motion](animation-motion.md), without an effect-specific clock.
+The example keeps brush phase and source animation independently controllable.
+
+Run the canonical example from the repository root:
+
+```sh
+pax-cli run -p examples/src/shader-studio -t web
+```
+
+For the Rust extension contract, see [shader primitives](primitives.md#shader-primitives).

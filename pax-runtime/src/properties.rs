@@ -1149,6 +1149,21 @@ impl RuntimeContext {
             return;
         }
         borrow_mut!(self.dirty_canvas_nodes).insert(id);
+        // Filter support can reach neighboring tiles beyond a leaf's original coverage. Include
+        // the owning boundaries in damage/replay selection; native coverage remains unchanged.
+        let mut parent = self
+            .get_expanded_node_by_eid(id)
+            .and_then(|n| n.render_parent_node());
+        while let Some(node) = parent {
+            if node.shader_effect_bound.get() {
+                borrow_mut!(self.dirty_canvas_nodes).insert(node.id);
+                for ids in borrow_mut!(self.targeted_canvas_replay_node_ids).values_mut() {
+                    ids.remove(&node.id.to_u32());
+                }
+            }
+            parent = node.render_parent_node();
+        }
+
         // Replay is surface-local; an independent content/animation change must
         // also reach surviving tiles, even when this node intersects the replay.
         for ids in borrow_mut!(self.targeted_canvas_replay_node_ids).values_mut() {

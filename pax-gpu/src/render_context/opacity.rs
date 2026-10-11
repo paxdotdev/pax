@@ -28,7 +28,9 @@ impl WgpuRenderer<'_> {
         let visible: Vec<_> = self
             .sorted_nodes
             .iter()
-            .filter(|(_, id)| !self.source_nodes.contains_key(id))
+            .filter(|(_, id)| {
+                !self.source_nodes.contains_key(id) && !self.effect_nodes.contains_key(id)
+            })
             .filter_map(|(_, id)| {
                 self.scene
                     .get(id)
@@ -116,6 +118,10 @@ impl WgpuRenderer<'_> {
         let node = &self.scene[&id];
         node.z_index().hash(hash);
         match node {
+            RetainedNode::Effect(n) => {
+                n.visible.hash(hash);
+                self.effect_captures[&n.id].signature.hash(hash);
+            }
             RetainedNode::Vector(n) => {
                 n.resource_key.hash(hash);
                 n.transform_signature.hash(hash);
@@ -192,6 +198,7 @@ impl RetainedNode {
         match self {
             Self::Vector(node) => node.bounds,
             Self::Image(node) => node.bounds,
+            Self::Effect(node) => node.bounds,
         }
     }
 }

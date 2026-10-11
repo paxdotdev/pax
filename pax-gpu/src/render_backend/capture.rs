@@ -9,6 +9,7 @@ use wgpu::Buffer;
 pub(crate) enum CaptureKey {
     Opacity(u32, u32),
     Alpha(u32),
+    EffectSource(u32),
 }
 
 struct CachedGroup {
@@ -38,6 +39,24 @@ struct Vertex {
 }
 
 impl RetainedSurfaces {
+    pub(super) fn effect_source(
+        &self,
+        key: CaptureKey,
+        globals: &data::GpuGlobals,
+    ) -> (Texture, [f32; 4]) {
+        let group = &self.groups[&key];
+        let (x, y, w, h) = group.rect;
+        (
+            group.texture.clone(),
+            [
+                globals.origin[0] + x as f32 / globals.dpr[0],
+                globals.origin[1] + y as f32 / globals.dpr[1],
+                w as f32 / globals.dpr[0],
+                h as f32 / globals.dpr[1],
+            ],
+        )
+    }
+
     pub(super) fn texture_view(&self, key: CaptureKey, size: [u32; 2]) -> (TextureView, [f32; 4]) {
         let group = &self.groups[&key];
         let (x, y, w, h) = group.rect;
@@ -129,7 +148,22 @@ impl RenderBackend<'_> {
     }
 
     pub(crate) fn retain_captures(&mut self, active: &HashSet<CaptureKey>) {
-        if !active.iter().any(|key| matches!(key, CaptureKey::Alpha(_))) {
+        if let Some(effects) = &mut self.effects {
+            effects.retain(
+                &active
+                    .iter()
+                    .filter_map(|k| match k {
+                        CaptureKey::EffectSource(id) => Some(*id),
+                        _ => None,
+                    })
+                    .collect(),
+            );
+        }
+
+        if !active
+            .iter()
+            .any(|key| matches!(key, CaptureKey::Alpha(_) | CaptureKey::EffectSource(_)))
+        {
             self.source_stencil = None;
         }
         if let Some(surfaces) = &mut self.retained_surfaces {
@@ -147,6 +181,7 @@ impl RenderBackend<'_> {
 
     pub(crate) fn reset_captures(&mut self) {
         self.retained_surfaces = None;
+        self.effects = None;
         self.source_stencil = None;
     }
 
@@ -252,6 +287,16 @@ impl RenderBackend<'_> {
             self.surface_config.height,
         )
         .expect("visible group bounds");
+        self.end_capture_rect(key, signature, rect);
+    }
+
+    /// Use an exact physical rectangle when an effect has already aligned its coarse pixel grid.
+    pub(crate) fn end_capture_rect(
+        &mut self,
+        key: CaptureKey,
+        signature: u64,
+        rect: (u32, u32, u32, u32),
+    ) {
         let surfaces = self.retained_surfaces.as_mut().unwrap();
         let mut scratch = surfaces.stack.pop().unwrap();
         if surfaces.groups.get(&key).is_none_or(|g| g.rect != rect) {
@@ -404,7 +449,7 @@ impl RenderBackend<'_> {
         self.retained_surfaces.as_ref().map_or(0, |s| {
             s.groups
                 .keys()
-                .filter(|key| matches!(key, CaptureKey::Alpha(_)))
+                .filter(|key| matches!(key, CaptureKey::Alpha(_) | CaptureKey::EffectSource(_)))
                 .count()
         })
     }

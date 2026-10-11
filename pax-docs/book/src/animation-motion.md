@@ -659,3 +659,8 @@ alpha-mask source strokes use the same retained geometry for reveal progress;
 a changing mask reveal redraws its texture without rebuilding CPU outlines.
 Width/cap/join changes may require new tessellation. See
 [Paint layers](drawing-styling.md#paint-layers) for the full value model.
+
+Experimental [shader containers](compositing-effects.md#experimental-shader-containers)
+expose ordinary properties for effect parameters. A phase property can drive
+surface-anchored brush motion; stopping that phase does not stop changes in the
+captured source. Filters do not introduce a separate animation clock.

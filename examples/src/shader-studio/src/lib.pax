@@ -1,0 +1,49 @@
+<Scroller width=100% height=100% autosize=true>
+    <Stacker x=50% anchor_x=50% width={(self.panel_width)px} autosize=true gutter=18px>
+        <Group width=100% height=22px/>
+        <Text width=100% height=20px text="PAX / SHADER STUDIES / 01" style={font: "Arial" font_size: 12px fill: rgb(167,142,112)}/>
+        <Text width=100% height=62px text="A living surface." style={font: "Georgia" font_size: 40px fill: rgb(245,231,204)}/>
+        <Text width=100% height=55px text="One scene, two ways of seeing. Brush marks stay on the canvas as the light moves through them." style={font: "Arial" font_size: 16px fill: rgb(181,187,176)}/>
+        <Group width=100% height=42px>
+            <Button width=48% height=40px label={self.playing ? "Pause strokes" : "Resume strokes"} @button_click=toggle_play/>
+            <Button x=52% anchor_x=0% width=48% height=40px label={self.moving ? "Freeze source" : "Animate source"} @button_click=toggle_source/>
+        </Group>
+        <Frame width=100% height=340px corner_radius=18>
+            <Impressionist width=100% height=100% phase={self.phase} size=24.0 seed=17>
+                <Landscape width=100% height=100% phase={self.source_phase}/>
+            </Impressionist>
+        </Frame>
+        <Text width=100% height=24px text="01 / PIGMENT     —     SURFACE-ANCHORED STROKES" style={font: "Arial" font_size: 12px fill: rgb(181,187,176)}/>
+        <Group width=100% height=42px>
+            <Button width=48% height=40px label={"Radius: " + self.radius + " px"} @button_click=blur_more/>
+            <Button x=52% anchor_x=0% width=48% height=40px label={self.reference ? "Reference" : "Adaptive"} @button_click=toggle_reference/>
+        </Group>
+        <Frame width=100% height=260px corner_radius=18>
+            <GaussianBlur width=100% height=100% radius={self.radius} reference={self.reference}>
+                <Landscape width=100% height=100% phase={self.source_phase}/>
+            </GaussianBlur>
+        </Frame>
+        <Text width=100% height=62px text="02 / DIFFUSION — GAUSSIAN BLUR. Radius is standard deviation. Adaptive mode blends into quarter-resolution passes from 6 to 10 px." style={font: "Arial" font_size: 12px fill: rgb(181,187,176)}/>
+        <Frame width=100% height=220px corner_radius=18>
+            <GaussianBlur width=100% height=100% radius=2.0>
+                <Impressionist width=100% height=100% phase={self.phase} size=18.0 seed=7>
+                    <Landscape width=100% height=100% phase={self.source_phase}/>
+                </Impressionist>
+            </GaussianBlur>
+        </Frame>
+        <Text width=100% height=70px text="03 / LAYERS — PAINT, THEN DIFFUSE. Native text and controls remain outside the effects. Nested shaders compose through the same userland API." style={font: "Arial" font_size: 12px fill: rgb(181,187,176)}/>
+        <Group width=100% height=96px>
+            <GaussianBlur width=100% height=100% radius={self.radius}>
+                <Rectangle x=40% anchor_x=0% width=18% height=100% fill=rgb(248,213,141)/>
+            </GaussianBlur>
+            <Text y=30px width=100% height=40px text="ORIGINAL COVERAGE" style={font: "Georgia" font_size: 28px fill: rgb(245,231,204)}/>
+        </Group>
+        <Text width=100% height=70px text="04 / NATIVE OVERLAP — ORIGINAL CUTOUT. The text cutout follows the rectangle; blur does not reshape it." style={font: "Arial" font_size: 12px fill: rgb(181,187,176)}/>
+        <Group width=100% height=24px/>
+    </Stacker>
+</Scroller>
+<Rectangle width=100% height=100% fill=rgb(20,31,32)/>
+@settings {
+    @mount: mount
+    @tick: tick
+}

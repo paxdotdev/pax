@@ -9,6 +9,7 @@ repository = "https://www.github.com/paxproject/pax"
 description = "WGPU rendering library for the pax framework"
 
 [dependencies]
+naga = { version = "28.0.0", features = ["wgsl-in"] }
 pax-runtime-api = {path = "../pax-runtime-api", version="0.39.0"}
 log = "0.4.20"
 bytemuck = { version = "1.14", features = ["derive"] }
@@ -22,8 +23,6 @@ wasm-bindgen-futures = "0.4.38"
 [features]
 default = []
 
-[dev-dependencies]
-naga = { version = "28.0.0", features = ["wgsl-in"] }
 
 [target.'cfg(target_os = "macos")'.dev-dependencies]
 objc2 = "0.6.4"

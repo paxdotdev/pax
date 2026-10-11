@@ -16,6 +16,8 @@ mod render_instrumentation;
 pub mod repeat;
 pub mod router;
 pub mod scene_geometry;
+pub mod shader_effect;
+pub use shader_effect::bind_shader_effect;
 pub mod settings_motion;
 pub mod slot;
 mod store;
