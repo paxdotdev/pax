@@ -388,7 +388,10 @@ pub(crate) fn compile_web_cartridge(
                 .unwrap(),
         )
         .env("PAX_DIR", &pax_dir)
-        .env("PAX_MANIFEST_OUTPUT", pax_dir.join("manifest-wasm32-unknown-unknown.json"))
+        .env(
+            "PAX_MANIFEST_OUTPUT",
+            pax_dir.join("manifest-wasm32-unknown-unknown.json"),
+        )
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit());
     layout.configure_cartridge(&mut cmd);
@@ -759,10 +762,9 @@ mod tests {
             super::expose_selected_web_entrypoint(interface.path(), "selected").unwrap();
         }
         for extension in ["js", "d.ts"] {
-            let contents = fs::read_to_string(
-                interface.path().join(format!("pax-cartridge.{extension}")),
-            )
-            .unwrap();
+            let contents =
+                fs::read_to_string(interface.path().join(format!("pax-cartridge.{extension}")))
+                    .unwrap();
             assert!(contents.contains("export function dependency()"));
             assert_eq!(contents.matches("as init_web").count(), 1);
             assert!(contents.ends_with("export { selected as init_web };\n"));

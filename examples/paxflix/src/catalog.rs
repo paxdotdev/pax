@@ -64,9 +64,15 @@ pub fn shelves(movies: &[Movie]) -> Vec<Shelf> {
         ("Together, somehow", [2, 6, 9, 10, 13, 21, 26, 29, 31, 32]),
         ("Turn up the volume", [16, 4, 25, 10, 21, 29, 12, 22, 6, 32]),
         ("Far from familiar", [8, 30, 3, 0, 20, 18, 23, 27, 5, 26]),
-        ("Small moments, big stories", [31, 13, 2, 24, 34, 9, 17, 11, 6, 22]),
+        (
+            "Small moments, big stories",
+            [31, 13, 2, 24, 34, 9, 17, 11, 6, 22],
+        ),
         ("Under cover of night", [1, 7, 14, 28, 18, 33, 11, 0, 4, 30]),
-        ("Take the scenic route", [21, 17, 19, 26, 15, 9, 5, 33, 24, 2]),
+        (
+            "Take the scenic route",
+            [21, 17, 19, 26, 15, 9, 5, 33, 24, 2],
+        ),
     ] {
         shelves.push(Shelf {
             id: shelves.len(),

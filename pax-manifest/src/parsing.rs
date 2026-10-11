@@ -1879,7 +1879,10 @@ fn type_ends_with_ident(ty: &Type, ident: &str) -> bool {
     }
 }
 
-fn source_root_module_path(rust_source_file_path: &str, target_module_path: &str) -> Option<String> {
+fn source_root_module_path(
+    rust_source_file_path: &str,
+    target_module_path: &str,
+) -> Option<String> {
     let path = Path::new(rust_source_file_path);
     let components = path
         .components()

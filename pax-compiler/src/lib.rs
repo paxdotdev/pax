@@ -446,12 +446,17 @@ fn compile_selected_manifest(
     }
     timings.record("cargo/cartridge", || -> eyre::Result<()> {
         let child = command.spawn()?;
-        if !wait_with_output(&ctx.process_child_ids, child).status.success() {
+        if !wait_with_output(&ctx.process_child_ids, child)
+            .status
+            .success()
+        {
             return Err(eyre!("Cargo could not generate the selected Pax program"));
         }
         Ok(())
     })?;
-    timings.record("compiler-selected manifest", || read_compiled_manifest(pax_dir, target))
+    timings.record("compiler-selected manifest", || {
+        read_compiled_manifest(pax_dir, target)
+    })
 }
 
 fn read_compiled_manifest(pax_dir: &Path, target: &str) -> eyre::Result<PaxManifest> {

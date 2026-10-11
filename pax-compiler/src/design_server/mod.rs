@@ -1352,7 +1352,8 @@ pub(crate) fn start_server_with_ready_callback(
     std::env::set_var("RUST_LOG", "actix_web=info");
     env_logger::Builder::from_env(env_logger::Env::default())
         .format(|buf, record| writeln!(buf, "{} 🍱 Served {}", *PAX_BADGE, record.args()))
-        .try_init().ok();
+        .try_init()
+        .ok();
 
     let app_ready_marker = ready_file.as_deref().and_then(prepare_app_ready_marker);
     let initial_state = AppState::new(
@@ -1454,7 +1455,13 @@ pub fn setup_file_watcher(state: Data<AppState>, path: &str) -> Result<Recommend
     // components reused from another package. Watch those directories too.
     if let Some(manifest) = state.revisions.lock().unwrap().active_manifest_clone() {
         roots.extend(manifest.components.values().filter_map(|component| {
-            component.template.as_ref()?.get_file_path().map(PathBuf::from)?.parent().map(Path::to_path_buf)
+            component
+                .template
+                .as_ref()?
+                .get_file_path()
+                .map(PathBuf::from)?
+                .parent()
+                .map(Path::to_path_buf)
         }));
         roots.extend(manifest.assets_dirs.iter().map(PathBuf::from));
     }
@@ -1516,7 +1523,10 @@ pub fn setup_file_watcher(state: Data<AppState>, path: &str) -> Result<Recommend
 }
 
 fn minimal_watch_roots(roots: Vec<PathBuf>) -> Vec<PathBuf> {
-    let mut roots = roots.into_iter().filter_map(|root| root.canonicalize().ok()).collect::<Vec<_>>();
+    let mut roots = roots
+        .into_iter()
+        .filter_map(|root| root.canonicalize().ok())
+        .collect::<Vec<_>>();
     roots.sort_by_key(|root| root.components().count());
     let mut selected: Vec<PathBuf> = Vec::new();
     for root in roots {

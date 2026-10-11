@@ -289,11 +289,10 @@ fn collect_release_devtime_activators(
 
 pub fn configure_pax_build_env(cmd: &mut Command, target: &str, should_run_designtime: bool) {
     cmd.arg("--no-default-features");
-    cmd.env("PAX_BUILD_TARGET", target)
-        .env(
-            "PAX_BUILD_DESIGNTIME",
-            if should_run_designtime { "1" } else { "0" },
-        );
+    cmd.env("PAX_BUILD_TARGET", target).env(
+        "PAX_BUILD_DESIGNTIME",
+        if should_run_designtime { "1" } else { "0" },
+    );
 }
 
 #[cfg(test)]

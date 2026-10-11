@@ -104,7 +104,9 @@ impl Example {
             cache.rust_source = args.text.clone();
         });
         if !self.rust_compile_in_flight.get() {
-            self.set_rust_status("Rust preview modified. Save changes externally, rebuild and restart.".to_string());
+            self.set_rust_status(
+                "Rust preview modified. Save changes externally, rebuild and restart.".to_string(),
+            );
         }
     }
 
@@ -125,20 +127,26 @@ impl Example {
     ) {
         if response.path.ends_with(".rs") {
             if response.status == "ok" {
-                self.set_rust_status("Rust source saved. Rebuild and restart to apply it.".to_string());
+                self.set_rust_status(
+                    "Rust source saved. Rebuild and restart to apply it.".to_string(),
+                );
             } else {
                 self.rust_compile_in_flight.set(false);
-                self.set_rust_status(response.error.unwrap_or_else(|| {
-                    "Rust rebuild failed for an unknown reason.".to_string()
-                }));
+                self.set_rust_status(
+                    response.error.unwrap_or_else(|| {
+                        "Rust rebuild failed for an unknown reason.".to_string()
+                    }),
+                );
             }
         } else if response.path.ends_with(".pax") {
             if response.status == "ok" {
                 self.set_pax_status("Applied Pax update.".to_string());
             } else {
-                self.set_pax_status(response.error.unwrap_or_else(|| {
-                    "Pax apply failed for an unknown reason.".to_string()
-                }));
+                self.set_pax_status(
+                    response
+                        .error
+                        .unwrap_or_else(|| "Pax apply failed for an unknown reason.".to_string()),
+                );
             }
         }
     }
@@ -202,8 +210,7 @@ impl Example {
         }
         if force_reset_preview || self.logic_message.get().is_empty() {
             self.logic_message.set(
-                "Historical editor fixture. Only Pax template edits can reload live."
-                    .to_string(),
+                "Historical editor fixture. Only Pax template edits can reload live.".to_string(),
             );
         }
         if force_reset_preview || self.logic_button_label.get().is_empty() {
@@ -246,4 +253,3 @@ fn with_editor_cache<R>(f: impl FnOnce(&mut EditorCache) -> R) -> R {
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     f(&mut cache)
 }
-																							

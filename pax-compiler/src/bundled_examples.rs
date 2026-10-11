@@ -272,24 +272,54 @@ mod tests {
     fn canonical_and_exported_examples_use_selective_debug_profiles() {
         let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap();
         let workspace_manifest = workspace.join("Cargo.toml");
-        if !workspace_manifest.is_file() { return; }
-        let workspace_doc = fs::read_to_string(workspace_manifest).unwrap()
-            .parse::<toml_edit::Document>().unwrap();
+        if !workspace_manifest.is_file() {
+            return;
+        }
+        let workspace_doc = fs::read_to_string(workspace_manifest)
+            .unwrap()
+            .parse::<toml_edit::Document>()
+            .unwrap();
         let assert_profile = |doc: &toml_edit::Document, name: &str| {
             assert_eq!(doc["profile"]["dev"]["opt-level"].as_integer(), Some(1));
-            assert_eq!(doc["profile"]["dev"]["build-override"]["opt-level"].as_integer(), Some(0));
-            assert_eq!(doc["profile"]["dev"]["package"][name]["opt-level"].as_integer(), Some(0), "{name}");
-            assert!(!doc["profile"]["dev"]["package"].as_table().unwrap().contains_key("*"));
+            assert_eq!(
+                doc["profile"]["dev"]["build-override"]["opt-level"].as_integer(),
+                Some(0)
+            );
+            assert_eq!(
+                doc["profile"]["dev"]["package"][name]["opt-level"].as_integer(),
+                Some(0),
+                "{name}"
+            );
+            assert!(!doc["profile"]["dev"]["package"]
+                .as_table()
+                .unwrap()
+                .contains_key("*"));
         };
         for entry in fs::read_dir(workspace.join("examples")).unwrap() {
             let manifest = entry.unwrap().path().join("Cargo.toml");
-            if !manifest.is_file() { continue; }
-            let doc = fs::read_to_string(manifest).unwrap().parse::<toml_edit::Document>().unwrap();
+            if !manifest.is_file() {
+                continue;
+            }
+            let doc = fs::read_to_string(manifest)
+                .unwrap()
+                .parse::<toml_edit::Document>()
+                .unwrap();
             assert_profile(&workspace_doc, doc["package"]["name"].as_str().unwrap());
-            assert!(doc.get("profile").is_none(), "member profiles are ignored by Cargo");
+            assert!(
+                doc.get("profile").is_none(),
+                "member profiles are ignored by Cargo"
+            );
         }
-        for file in parse_bundle().unwrap().files.iter().filter(|file| file.path.ends_with("/Cargo.toml")) {
-            let doc = std::str::from_utf8(&file.data).unwrap().parse::<toml_edit::Document>().unwrap();
+        for file in parse_bundle()
+            .unwrap()
+            .files
+            .iter()
+            .filter(|file| file.path.ends_with("/Cargo.toml"))
+        {
+            let doc = std::str::from_utf8(&file.data)
+                .unwrap()
+                .parse::<toml_edit::Document>()
+                .unwrap();
             assert_profile(&doc, doc["package"]["name"].as_str().unwrap());
         }
     }

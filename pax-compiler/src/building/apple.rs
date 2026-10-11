@@ -484,13 +484,14 @@ fn build_native_launcher(
     let mut features = if layout.cartridge_dir == ctx.project_path.canonicalize()? {
         pax_project_feature_args(&ctx.project_path, &requested)
     } else {
-        let mut features = crate::helpers::retained_default_features(
-            &ctx.project_path, ctx.should_run_designtime,
+        let mut features =
+            crate::helpers::retained_default_features(&ctx.project_path, ctx.should_run_designtime);
+        features.extend(
+            requested
+                .into_iter()
+                .filter(|feature| package.features.contains_key(*feature))
+                .map(str::to_owned),
         );
-        features.extend(requested
-            .into_iter()
-            .filter(|feature| package.features.contains_key(*feature))
-            .map(str::to_owned));
         features
     };
     features.push("standalone".into());

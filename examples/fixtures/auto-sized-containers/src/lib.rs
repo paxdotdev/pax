@@ -37,12 +37,10 @@ impl Example {
     fn refresh_labels(&mut self) {
         self.primary_action_label
             .set(format!("PING {}", self.tap_count.get()));
-        self.armed_label.set(
-            if self.controls_armed.get() {
-                "ARMED".to_string()
-            } else {
-                "SAFE".to_string()
-            },
-        );
+        self.armed_label.set(if self.controls_armed.get() {
+            "ARMED".to_string()
+        } else {
+            "SAFE".to_string()
+        });
     }
 }

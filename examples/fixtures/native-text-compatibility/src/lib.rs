@@ -13,7 +13,8 @@ pub struct Example {
 impl Example {
     pub fn on_mount(&mut self, _ctx: &NodeContext) {
         self.note.set("Edit this note".into());
-        self.paragraph.set("First line\nSecond line\nThird line".into());
+        self.paragraph
+            .set("First line\nSecond line\nThird line".into());
     }
 
     pub fn top(&mut self, _ctx: &NodeContext, _event: Event<ButtonClick>) {
