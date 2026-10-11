@@ -1,0 +1,11 @@
+[package]
+name = "trace-hero"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[dependencies]
+pax-text = { path = "../../../pax-text" }
+sha2 = "0.10"

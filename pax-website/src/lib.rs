@@ -14,7 +14,7 @@ pub mod device_frame;
 pub mod feature_gallery;
 pub mod framework_section;
 pub mod hero_section;
-mod hero_font;
+mod hero_outlines;
 pub mod hero_letter;
 pub mod home_page;
 pub mod paxflix_showcase;

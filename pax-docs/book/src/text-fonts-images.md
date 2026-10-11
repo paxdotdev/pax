@@ -68,6 +68,56 @@ scale across components, see [Imported settings](template-language.md#imported-s
 and `ImportSettings`. Ancestor text styling is not a substitute for explicitly
 applying the intended style to each Text node.
 
+## Experimental font outlines
+
+The repository includes an unpublished, opt-in Rust helper, `pax-text`, for
+turning a supplied variable font into shaped Bézier outlines. It is separate
+from `pax-std` and is not imported by `pax-kit`. There is no `TextGPU` tag or
+rendering flag on `Text` yet. Use native `Text` for the existing text-layout and
+selection behavior described in this chapter.
+
+The helper currently supports face zero, a `wght` axis with cap-height metrics,
+and one Latin LTR line. HarfRust supplies whole-line shaping and Skrifa extracts
+unhinted curves. Invalid fonts, out-of-range weights, unsupported input, or
+missing glyphs return errors. It provides no wrapping, bidi paragraph layout,
+font fallback, font discovery, selection, accessibility layer, or renderer.
+
+For experiments in a repository checkout, add a Cargo path dependency on
+`pax-text`, then supply owned font bytes or a static byte slice:
+
+```rust
+use pax_text::OutlineFont;
+
+const FONT: &[u8] = include_bytes!("assets/fonts/Manrope.ttf");
+let mut font = OutlineFont::new(FONT, 800.0)?;
+let run = font.shape_line("portable")?;
+for cluster in &run.clusters {
+    println!("source bytes {}..{}, x={}, advance={}",
+        cluster.byte_start, cluster.byte_end, cluster.x, cluster.advance);
+}
+```
+
+Run the corresponding checkout example with
+`cargo run -p pax-text --example shape_line`. `include_bytes!` embeds the font
+in that executable; callers that load owned bytes supply their own platform
+asset-loading path. The helper itself does not fetch fonts.
+
+Font metrics and cluster-local outlines use em units, with baseline y=0 and
+positive y downward. Preserve advance placement, overhangs, and contour winding
+when converting commands into ordinary `PathElement`s. Clusters retain UTF-8
+source ranges, ordinals, and glyph IDs: a ligature or combining sequence may
+span multiple characters, and repeated glyph IDs are not unique instance keys.
+Use whole clusters for transforms and animation; changing only paint or motion
+does not require reshaping. The cache belongs to the font instance, while the
+returned runs own their data and can outlive it.
+
+Fixed copy can be extracted ahead of time and rendered through ordinary Pax
+Paths. The [website hero source](https://github.com/paxdotdev/pax/tree/main/pax-website) is the
+working example: its explicit extraction tool writes checked-in geometry, and
+tests compare every coordinate with fresh shaping. The website has no runtime
+dependency on this helper. This is independent of Pax's release cartridge
+baking: debug and release apps consume the same generated source asset.
+
 ## Size and wrap text
 
 A paragraph usually needs a width and an omitted height:

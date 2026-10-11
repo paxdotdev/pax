@@ -2,7 +2,12 @@ use crate::{HeroCluster, HeroLetter, SiteTheme};
 use pax_kit::math::Point2;
 use pax_kit::*;
 
-const WORDS: [&str; 4] = ["creative", "high-performance", "native", "portable"];
+const WORDS: [&str; 4] = [
+    "creative",
+    crate::hero_outlines::WORDS[0],
+    crate::hero_outlines::WORDS[1],
+    crate::hero_outlines::WORDS[2],
+];
 const HOLD_MS: f64 = 4200.0;
 const CHANGE_MS: f64 = 900.0;
 const CYCLE_MS: f64 = HOLD_MS + CHANGE_MS;
@@ -42,42 +47,37 @@ impl RotatingHeadline {
     pub fn mount(&mut self, ctx: &NodeContext) {
         self._last_ms.set(ctx.elapsed_time_millis() as f64);
         self.mesh_rows.set(mesh_rows(0.0));
-        match crate::hero_font::shape_hero() {
-            Ok(runs) => {
-                self.baseline.set(runs[0].baseline);
-                self.cap_height.set(runs[0].cap_height);
-                let widths = runs.each_ref().map(|run| run.advance);
-                let index = self.word_index.clone();
-                let deps = [index.untyped()];
-                self.run_width.replace_with(Property::computed(
-                    move || {
-                        index
-                            .get()
-                            .checked_sub(1)
-                            .and_then(|i| widths.get(i))
-                            .copied()
-                            .unwrap_or(0.0)
-                    },
-                    &deps,
-                ));
-                let index = self.word_index.clone();
-                let deps = [index.untyped()];
-                self.clusters.replace_with(Property::computed(
-                    move || {
-                        index
-                            .get()
-                            .checked_sub(1)
-                            .and_then(|i| runs.get(i))
-                            .map(|run| run.clusters.clone())
-                            .unwrap_or_default()
-                    },
-                    &deps,
-                ));
-                self.vector_ready.set(true);
-            }
-            // Keep the headline readable if the pinned font is ever replaced incorrectly.
-            Err(error) => eprintln!("Hero lettering: {error}"),
-        }
+        let runs = crate::hero_outlines::hero_runs();
+        self.baseline.set(runs[0].baseline);
+        self.cap_height.set(runs[0].cap_height);
+        let widths = runs.each_ref().map(|run| run.advance);
+        let index = self.word_index.clone();
+        let deps = [index.untyped()];
+        self.run_width.replace_with(Property::computed(
+            move || {
+                index
+                    .get()
+                    .checked_sub(1)
+                    .and_then(|i| widths.get(i))
+                    .copied()
+                    .unwrap_or(0.0)
+            },
+            &deps,
+        ));
+        let index = self.word_index.clone();
+        let deps = [index.untyped()];
+        self.clusters.replace_with(Property::computed(
+            move || {
+                index
+                    .get()
+                    .checked_sub(1)
+                    .and_then(|i| runs.get(i))
+                    .map(|run| run.clusters.clone())
+                    .unwrap_or_default()
+            },
+            &deps,
+        ));
+        self.vector_ready.set(true);
         self.apply_pose(pose_at(0.0));
     }
 

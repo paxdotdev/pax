@@ -309,3 +309,27 @@ release compile spent several minutes in LLVM's SROA/PromoteMemToReg optimizatio
 of the application crate. Use debug builds for visual iteration and distinguish
 an incomplete optimized build from a failing application. Apple release runtime
 validation still requires a completed build; debug previews do not establish it.
+
+A cached browser preview can keep rendering after its server stops. During a
+website release build, unloading that preview restored the compiler from low CPU
+utilization to nearly a full core. Check CPU time as well as elapsed time before
+diagnosing a compiler hang; temporarily navigate the task's own preview to a blank
+page and restore it after the build. Stopping the server alone does not stop the
+already loaded Wasm application.
+
+## 2026-10-11 — Fixed lettering need not ship a runtime font engine
+
+The hero's runtime HarfRust/Skrifa path added about 470 KiB gzip to the matched
+website release, including an embedded copy of its separately served font.
+Import/dependency lists alone do not establish the shipped size: the mounted
+headline explicitly called the shaper. A matched baseline retained the same
+Cargo dependencies but had no reachable shaping call and shipped no font bytes.
+
+For fixed copy, use the explicit `pax-website/tools/trace-hero` extractor and
+check in its output. It retains whole-phrase shaping, cluster ranges, advances,
+and exact curves, while the runtime loads ordinary Path elements. The retained
+`pax-text` helper is only a tool/test dependency of the website. Keep the native
+font asset for selection, and compare every baked coordinate with fresh shaping
+after font or generator changes. Confirm removal with the normal target-specific
+Cargo dependency graph and the emitted Wasm, rather than searching source-drawer
+strings inside the binary.

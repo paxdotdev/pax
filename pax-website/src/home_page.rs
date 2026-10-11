@@ -55,9 +55,14 @@ impl HomePage {
             include_str!("hero_letter.rs"),
         ));
         hero_sources.push(ExampleSource {
-            label: "src/hero_font.rs".into(),
+            label: "src/hero_outlines.rs".into(),
             language: "rust".into(),
-            code: include_str!("hero_font.rs").into(),
+            code: include_str!("hero_outlines.rs").into(),
+        });
+        hero_sources.push(ExampleSource {
+            label: "src/hero_outlines_data.rs".into(),
+            language: "rust".into(),
+            code: include_str!("hero_outlines_data.rs").into(),
         });
         hero_sources.extend(section_sources(
             "pax-logo/src/animated_pax_logo.pax",

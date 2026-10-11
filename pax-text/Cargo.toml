@@ -1,0 +1,11 @@
+[package]
+name = "pax-text"
+version = "0.39.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+description = "Experimental font shaping and outline extraction for Pax"
+publish = false
+
+[dependencies]
+harfrust = "=0.14.0"
+skrifa = { version = "=0.48.0", default-features = false, features = ["std"] }

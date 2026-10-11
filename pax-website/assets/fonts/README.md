@@ -8,8 +8,10 @@ the Google Fonts metadata names upstream revision
 
 SHA-256: `3ae11c49db0455a3cc33e37d380f20fdb8c7f8b41dc07625c177e3d87a9d6ae6`.
 
-The hero embeds these exact bytes for HarfRust shaping and Skrifa outlines at
-weight 800. All website Manrope styles use this same asset and the actual family
+The explicit `tools/trace-hero` generator uses these exact bytes for HarfRust
+shaping and Skrifa outlines at weight 800. The website ships the resulting paths
+instead of embedding the font in Wasm; regenerate and check the outlines as
+described in the [website README](../../README.md#hero-lettering). All website Manrope styles use this same asset and the actual family
 name, `Manrope`. Web loads `/assets/fonts/Manrope.ttf`; Apple chassis register
 the bundled file at startup and select its ExtraBold named instance (weight 800).
 Keep all consumers on the same file when updating the font.

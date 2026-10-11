@@ -141,5 +141,6 @@
     - [render_backend](api/internal/pax-gpu/render_backend.md)
       - [render_backend::stencil](api/internal/pax-gpu/render_backend/stencil.md)
     - [render_context](api/internal/pax-gpu/render_context.md)
+  - [pax-text](api/internal/pax-text/index.md)
   - [Runtime & Cartridge Notes (historical)](architecture-runtime-cartridge.md)
   <!-- API-END -->

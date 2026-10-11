@@ -90,29 +90,56 @@ Content and visual design history are archived in
 
 ## Hero lettering
 
-The three Manrope words in `RotatingHeadline` are shaped at mount time by
-HarfRust and outlined by Skrifa, at weight 800 of the [bundled font](assets/fonts/README.md).
-`HeroLetter` animates ordinary Pax paths: high-performance accelerates and brakes,
-native presses and rebounds, and portable assembles along short arcs. Creative
-keeps its EMSLeague handwriting and CMY mesh treatment. The source drawer includes
-the shaping helper and letter component.
+The three Manrope words in `RotatingHeadline` use checked-in Bézier outlines at
+weight 800 of the [bundled font](assets/fonts/README.md). `HeroLetter` animates
+ordinary Pax paths: high-performance accelerates and brakes, native presses and
+rebounds, and portable assembles along short arcs. Creative keeps its EMSLeague
+handwriting and CMY mesh treatment. The source drawer includes the path loader,
+generated geometry, and letter component.
 
-This is a website-local, single-line Latin LTR implementation. It preserves whole-run
-kerning, advances, and shaping clusters (including ligatures and combining marks).
-It has no wrapping, bidi layout, font fallback or arbitrary font-loading API.
-Coordinates stay in em units; resizing changes bounds, and playback changes scalar
-transforms without reshaping or replacing path elements. All three runs share an
-outline cache during prewarming; their data lives with the mounted headline.
-Unsupported glyphs or text outside this scope are rejected; if prewarming fails,
-the headline keeps its native Text rendering. Accent support depends on the
-font's glyph coverage, not just on the input being Latin.
+The one-off extraction uses the experimental `pax-text` library (HarfRust +
+Skrifa) to shape each complete phrase before splitting it into clusters. Its
+runtime shaping work remains in that independent library; the website uses it
+only for extraction and regression tests. Ordinary website builds run no tracing
+step and have no runtime shaping dependency or embedded font bytes.
+
+From the monorepo root, explicitly regenerate after changing the font, weight,
+or the phrase list in `tools/trace-hero/src/main.rs`:
+
+```sh
+cargo run --manifest-path pax-website/tools/trace-hero/Cargo.toml
+cargo run --manifest-path pax-website/tools/trace-hero/Cargo.toml -- --check
+cargo test --manifest-path pax-website/Cargo.toml --lib hero_outlines
+```
+
+Commit `src/hero_outlines_data.rs` with the source change. It records the font
+checksum, weight, and shaping versions, shares 17 unique cluster outlines
+across the three phrases, and retains source ranges, glyph IDs, advances and
+baseline metrics. The regression compares every baked coordinate and cluster
+placement against fresh shaping. No manual curve fitting or raster tracing is
+involved. The existing `build.rs` still only generates the AI primer.
+
+This is fixed, single-line Latin LTR copy, with no runtime wrapping, bidi layout,
+font fallback or arbitrary text API. `hero_outlines::hero_runs()` expands the
+baked data into the same `HeroCluster`/`PathElement` values once at mount.
+Coordinates stay in em units; resizing changes bounds, and playback changes
+scalar transforms without reshaping or replacing path elements. General runtime
+shaping limits and usage are documented in the [font article](../pax-docs/book/src/text-fonts-images.md#experimental-font-outlines).
+Neither a `TextGPU` component nor a `Text` rendering flag is implemented.
+
+The optimized web build measured 1,758,864 bytes with gzip level 9, versus
+2,208,106 bytes for the runtime-shaped predecessor: about 439 KiB recovered.
+Brotli level 11 recovered about 329 KiB. These are whole-Wasm measurements,
+including the source drawer, and exclude the separate native font asset; they
+do not establish the production server's compression settings.
 
 Each vector word has one clipped native Text counterpart with transparent ink and
 the same packaged font. Its selection rectangles follow the resting layout, not
 the animated letters. Pause before selecting for the closest alignment; copying
 uses the actual phrase. This is approximate selection, not a complete accessibility
-implementation or a public replacement for `Text`. The font bytes are embedded
-in the cartridge and also packaged for native text (a deliberate duplicate).
+implementation or a public replacement for `Text`. The font remains a separate
+asset for native text and selection; it is no longer embedded in the cartridge
+for shaping.
 All website Manrope styles use the same `assets/fonts/Manrope.ttf` source and
 actual family name. Web loads the file by URL; Apple registers the bundled file
 at startup, without downloading another Manrope face. The existing Apple
@@ -140,10 +167,13 @@ The site shell uses `DynamicIslandSpacer` insets on Apple mobile targets so the
 header and scrolling content avoid the status bar, cutout, and home indicator,
 while the background remains edge to edge.
 
-Apple parity has been checked in debug builds on an Apple Silicon Mac and in
-the iPhone 17 Pro and iPad Pro 11-inch simulators, including iPad rotation.
+The runtime-shaped predecessor was checked in debug builds on an Apple Silicon
+Mac and in the iPhone 17 Pro and iPad Pro 11-inch simulators, including iPad rotation.
 The paused native word can be selected and copied on macOS; iPhone selection
 shows the platform's handles and Copy menu. These checks do not cover physical
 devices or optimized Apple apps. The full macOS release build was stopped during
 lengthy LLVM optimization of the application crate, which includes this baseline's
-large generated Rust manifest. That release runtime check remains open.
+large generated Rust manifest. That release runtime check remains open. The
+pre-traced replacement passes exact geometry/placement comparisons, an optimized
+web build, and desktop/mobile browser checks including paused selection and
+copying. The updated Apple application has not been rerun.
