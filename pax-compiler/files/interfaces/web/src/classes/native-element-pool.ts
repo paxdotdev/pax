@@ -1936,11 +1936,12 @@ export class NativeElementPool {
         const decision = materializeSurfaceSchedule(candidates, shared);
         this.canvasPool?.setBackingLimit(shared.backingLimit);
         if (this.surfaceTrace) {
-            this.surfaceTrace.observeDemand(candidates);
+            this.surfaceTrace.observeDemand(candidates, decision.denied);
             const detail = JSON.stringify({admitted: decision.admitted.map(c => ({id: c.surface.id, rank: c.rank,
                     owner: c.branch, rect: [c.surface.left, c.surface.top, c.surface.width, c.surface.height]})),
                 denied: decision.denied, pendingCount, pendingLayers: [...pendingLayers], resources,
-                borrowedForwardPixels: shared.borrowedForwardPixels, forwardLimit: shared.forwardLimit,
+                borrowedForwardPixels: shared.borrowedForwardPixels,
+                borrowedReversePixels: shared.borrowedReversePixels, borrowingLimit: shared.borrowingLimit,
                 backingPixels: shared.backingPixels, optionalPixels: shared.optionalPixels});
             if (detail !== this.lastTraceDecision) {
                 this.surfaceTrace.record('admission', JSON.parse(detail));
@@ -1986,6 +1987,7 @@ export class NativeElementPool {
             this.mount.dataset.surfaceOptionalLimit = String(shared.optionalLimit);
             this.mount.dataset.surfaceBackingLimit = String(shared.backingLimit);
             this.mount.dataset.surfaceBorrowedForwardPixels = String(shared.borrowedForwardPixels);
+            this.mount.dataset.surfaceBorrowedReversePixels = String(shared.borrowedReversePixels);
         }
         return true;
     }

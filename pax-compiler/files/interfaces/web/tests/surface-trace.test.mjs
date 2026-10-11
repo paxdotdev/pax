@@ -154,6 +154,28 @@ test('transient visible readiness gaps remain inspectable after they settle', ()
     assert.deepEqual(Array.from(gaps, e => Array.from(e.ids)), [['tile'], []]);
 });
 
+test('retirement distinguishes explicit denial, candidate omission and submitted generation', () => {
+    const h = harness(16);
+    const canvas = {id:'tile', width:100, height:100, dataset:{surfaceEvent:'retirement',
+        surfaceGeneration:'3', surfaceContentRevision:'12', surfaceSubmittedRevision:'12'}};
+    const emit = () => h.listeners.get('pax-surface-trace')({target:canvas});
+    h.trace.observeDemand([candidate('tile', false)], [{id:'tile',reason:'optional-pixel-budget'}]);
+    emit();
+    assert.equal(h.mount.paxSurfaceTrace.at(-1).admission, 'optional-pixel-budget');
+    assert.equal(h.mount.paxSurfaceTrace.at(-1).submitted, true);
+    assert.equal(h.mount.paxSurfaceTrace.at(-1).generation, '3');
+    h.trace.observeDemand([]);
+    emit();
+    assert.equal(h.mount.paxSurfaceTrace.at(-1).admission, 'not-candidate');
+    h.trace.observeDemand([candidate('tile', false)]);
+    canvas.dataset.surfaceGeneration = '4';
+    canvas.dataset.surfaceContentRevision = '13';
+    emit();
+    assert.equal(h.mount.paxSurfaceTrace.at(-1).admission, 'admitted');
+    assert.equal(h.mount.paxSurfaceTrace.at(-1).submitted, false);
+    assert.equal(h.mount.paxSurfaceTrace.at(-1).submittedRevision, '12');
+});
+
 test('image readiness distinguishes decoding, drawing, and submission and clears retired owners', () => {
     const h = harness(32);
     const canvas = {id: 'tile', width: 100, height: 100, dataset: {surfaceGeneration: '1',
