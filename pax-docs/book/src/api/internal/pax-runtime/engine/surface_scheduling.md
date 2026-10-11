@@ -114,11 +114,12 @@ Type: `u64`
 ##### `optional_pixels`
 Type: `u64`
 
-##### `forward_limit`
+##### `borrowing_limit`
 Type: `Option`<(`usize`, `u64`)>
 
 Optional second-pass ceiling (total surfaces, total backing pixels).
-Only forward coverage may borrow it, after ordinary admission finishes.
+Bounded reverse coverage borrows before forward coverage, after ordinary
+admission finishes. This ceiling preserves headroom for visible demand.
 
 #### Implementations
 ##### `count_only`
@@ -143,6 +144,11 @@ Exposure time for directional preparation, distance for stationary work.
 Type: `Vec`<`usize`>
 
 Indices into the immutable input snapshot, in preparation order.
+
+##### `borrowed_reverse_pixels`
+Type: `u64`
+
+Reverse coverage admitted above the ordinary optional allowance.
 
 ## Enums
 ### `Coverage`

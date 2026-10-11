@@ -679,7 +679,8 @@ Rust policy; it does not maintain a separate JavaScript ranking algorithm.
 This shared policy is currently enabled on Web; native chassis activation is
 a separate rollout. Web admission limits both surface count and physical backing
 pixels. Speculative coverage has a base allowance of two screenfuls of pixels.
-After ordinary admission, forward coverage may borrow unused capacity while
+After ordinary admission, bounded reverse coverage and then forward coverage
+may borrow unused capacity while
 leaving four canvas slots and one screenful of backing pixels as headroom for
 new visible demand. Borrowing does not increase the overall caps or displace
 already-admitted near/safety coverage. New visible demand always takes priority;
@@ -716,7 +717,11 @@ retention, this can initialize missing tiles. It persists through pauses and
 switches sides on the next observed reversal. Hidden descendants inherit the
 parent's reverse exposure, not an additional warm window on their own axes.
 Admission funds this buffer after visible demand but before forward speculation,
-within the same canvas and pixel limits. Execution still completes visible work
+within the same canvas and pixel limits. If the base optional-pixel allowance
+cannot fit it, reverse coverage gets first use of the borrowing capacity; a ready
+reverse tile is not discarded merely because only forward work could borrow.
+Already-admitted stationary safety coverage and visible headroom remain protected.
+Execution still completes visible work
 and predicted incoming tiles before replenishing reverse coverage. This separates
 space reserved for reversibility from the order of drawing work; overload or
 insufficient preparation time can still leave the requested buffer incomplete.
@@ -901,9 +906,14 @@ image decoding separately; graphics admission cannot remove those costs. The iso
 `examples/src/surface-scheduling` fixture has no external images.
 
 Admission events include each tile's owner, local `[left, top, width, height]`,
-rank, and submitted-readiness flag, plus borrowed forward pixels and the
+rank, and submitted-readiness flag, plus separate borrowed reverse/forward pixels and the
 borrowing ceiling. These distinguish allocated depth from submitted coverage;
 the farthest ready tile alone does not establish a gap-free forward buffer.
+Retirement events distinguish a tile omitted from current candidates
+(`not-candidate`) from an explicit admission denial or an admitted replacement.
+They include its generation, submitted revision, and whether that revision matches
+the retiring content. This separates footprint exits from budget-driven eviction
+without treating surface submission as proof that all image content is ready.
 
 Open **Surface trace snapshot** in the corner to inspect the bounded event log;
 close and reopen it to refresh. `visible-unready` transitions preserve transient

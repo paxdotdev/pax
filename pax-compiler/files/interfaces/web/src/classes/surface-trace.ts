@@ -1,4 +1,4 @@
-import type {SurfaceCandidate} from './surface-scheduler';
+import type {SurfaceCandidate, SurfaceDenial} from './surface-scheduler';
 import type {NativeMessageTiming} from './native-message-profile';
 import type {WheelInputSample} from '../events/listeners';
 
@@ -9,7 +9,7 @@ export type SurfaceTraceEvent = {at: number; event: string; id?: string; generat
 // mingle their traces. No network reporting or per-frame console output.
 export class SurfaceTrace {
     private events: SurfaceTraceEvent[] = [];
-    private demand = new Map<string, {signature: string; firstVisibleAt?: number; coverage: number; owner: number}>();
+    private demand = new Map<string, {signature: string; firstVisibleAt?: number; coverage: number; owner: number; denial?: string}>();
     private scrollDirections = new Map<number, {offset: number[]; direction: number[]}>();
     private inspector?: HTMLDetailsElement;
     private lastUnready = '';
@@ -63,6 +63,13 @@ export class SurfaceTrace {
             width: canvas.width, height: canvas.height,
             owners: Number(canvas.dataset.paxSurfaceOwners ?? 0),
             coverage: this.demand.get(id)?.coverage, owner: this.demand.get(id)?.owner,
+            ...(name === 'retirement' ? {
+                admission: !this.demand.has(id) ? 'not-candidate'
+                    : this.demand.get(id)?.denial ?? 'admitted',
+                submittedRevision: canvas.dataset.surfaceSubmittedRevision,
+                submitted: canvas.dataset.surfaceContentRevision != null
+                    && canvas.dataset.surfaceSubmittedRevision === canvas.dataset.surfaceContentRevision,
+            } : {}),
             priority: canvas.dataset.replayPriority == null ? undefined : Number(canvas.dataset.replayPriority),
             ...(canvas.dataset.imageNode == null ? {} : {node, path: canvas.dataset.imagePath,
                 version: Number(canvas.dataset.imageVersion), bytes: Number(canvas.dataset.imageBytes)}),
@@ -229,7 +236,8 @@ export class SurfaceTrace {
         this.scrollDirections.set(scroller, {offset, direction});
     }
 
-    observeDemand(candidates: SurfaceCandidate[]) {
+    observeDemand(candidates: SurfaceCandidate[], denied: SurfaceDenial[] = []) {
+        const denials = new Map(denied.map(d => [d.id, d.reason]));
         const unready = candidates.filter(c => c.rank.coverage === 0 && !c.rank.ready)
             .map(c => c.surface.id).sort();
         const signature = unready.join('|');
@@ -237,13 +245,13 @@ export class SurfaceTrace {
             this.record('visible-unready', {ids: unready});
             this.lastUnready = signature;
         }
-        const next = new Map<string, {signature: string; firstVisibleAt?: number; coverage: number; owner: number}>();
+        const next: typeof this.demand = new Map();
         for (const candidate of candidates) {
             const s = candidate.surface;
             const signature = `${s.hostSignature}|${s.surfaceSignature}|${s.transformSignature}`;
             const previous = this.demand.get(s.id);
             const state = {signature, firstVisibleAt: previous?.signature === signature ? previous.firstVisibleAt : undefined,
-                coverage: candidate.rank.coverage, owner: candidate.branch};
+                coverage: candidate.rank.coverage, owner: candidate.branch, denial: denials.get(s.id)};
             if (candidate.rank.coverage === 0 && state.firstVisibleAt == null) {
                 state.firstVisibleAt = Date.now();
                 // Demand is observed before admission, including visible tiles

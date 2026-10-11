@@ -183,3 +183,33 @@ test('reverse buffer is funded before forward demand and materializes the new ex
     assert.ok(result.plans.get(1).surfaces[0].replayPriority<=0);
     assert.ok(result.plans.get(1).surfaces[1].replayPriority<result.plans.get(1).surfaces[2].replayPriority);
 });
+
+test('nested ready reverse surfaces borrow beyond the optional allowance before far forward work',()=>{
+    const prepare=(now,y)=>({version:1,now,viewport:[0,0,100,100],hosts:[
+        {id:1,parent:null,bounds:[0,0,100,100],visible:[0,0,100,100],viewport:[100,100],
+            content:[100,4000],offset:[0,y],observed:[0,y],basis:[1,0,0,1],active:true,geometry:'root'},
+        {id:2,parent:1,bounds:[0,400-y,100,450-y],visible:[0,0,0,0],viewport:[100,50],
+            content:[2000,50],offset:[0,0],observed:[0,0],basis:[1,0,0,1],active:false,geometry:'shelf'},
+    ]});
+    const candidates=[
+        {id:'visible',owner:1,rect:[0,500,100,550],retained:true,ready:true,pixels:10000},
+        {id:'reverse-shelf',owner:2,rect:[0,0,100,50],retained:true,ready:true,pixels:30000},
+        {id:'far-forward',owner:1,rect:[0,900,100,950],retained:false,ready:false,pixels:30000},
+        {id:'idle-child-axis',owner:2,rect:[300,0,400,50],retained:true,ready:true,pixels:10000},
+    ];
+    const schedule=(capacity=64,unreleasedPixels=0)=>({version:2,now:50,capacity,candidates,
+        resources:{viewportPixels:10000,unreleasedPixels}});
+    const [, , room, slots, pixels]=sharedSurfaceDecisions([
+        prepare(0,400),prepare(50,500),schedule(),schedule(5),schedule(64,64*1024*1024-55000)]);
+    assert.equal(room.ranks[1].coverage,2, 'reverse exposure inherits the parent axis');
+    assert.equal(room.ranks[3].coverage,7, 'no added horizontal child warmth');
+    assert.deepEqual(room.admitted,[0,1,2]);
+    assert.equal(room.optionalLimit,20000);
+    assert.equal(room.borrowedReversePixels,30000);
+    assert.equal(room.borrowedForwardPixels,30000);
+    assert.deepEqual(room.borrowingLimit,[60,64*1024*1024-10000]);
+    assert.deepEqual(slots.admitted,[0], 'four slots of headroom remain intact');
+    assert.deepEqual(pixels.admitted,[0,1], 'reverse coverage gets limited borrowing pixels first');
+    assert.equal(pixels.borrowedForwardPixels,0);
+    assert.equal(pixels.backingPixels,40000);
+});

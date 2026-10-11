@@ -295,8 +295,9 @@ pub struct SurfaceBudget {
     pub backing_pixels: u64,
     pub optional_pixels: u64,
     /// Optional second-pass ceiling (total surfaces, total backing pixels).
-    /// Only forward coverage may borrow it, after ordinary admission finishes.
-    pub forward_limit: Option<(usize, u64)>,
+    /// Bounded reverse coverage borrows before forward coverage, after ordinary
+    /// admission finishes. This ceiling preserves headroom for visible demand.
+    pub borrowing_limit: Option<(usize, u64)>,
 }
 
 impl SurfaceBudget {
@@ -306,7 +307,7 @@ impl SurfaceBudget {
             surfaces,
             backing_pixels: u64::MAX,
             optional_pixels: u64::MAX,
-            forward_limit: None,
+            borrowing_limit: None,
         }
     }
 }
@@ -344,7 +345,7 @@ impl ResidencyPolicy {
                 .min(backing_pixels),
             // Keep one screen of pixels and four slots free for new visible
             // demand. These are borrowing limits, never limits on visibility.
-            forward_limit: Some((
+            borrowing_limit: Some((
                 surfaces.saturating_sub(4),
                 backing_pixels.saturating_sub(viewport_pixels),
             )),
@@ -370,6 +371,8 @@ pub struct SurfaceSchedule {
     pub backing_pixels: u64,
     pub optional_pixels: u64,
     pub borrowed_forward_pixels: u64,
+    /// Reverse coverage admitted above the ordinary optional allowance.
+    pub borrowed_reverse_pixels: u64,
 }
 
 fn distance(value: f64) -> f64 {
@@ -486,15 +489,17 @@ pub fn schedule_surfaces(
             }
         }
     }
-    // First preserve the ordinary near/safety allowance. Letting forward work
-    // borrow inline would spend that allowance before stationary neighbors get
-    // their first-interaction safety coverage.
-    if let Some((surfaces, pixels)) = budget.forward_limit.filter(|_| !overloaded) {
+    // Preserve ordinary near/safety admission before borrowing. Denials retain
+    // admission order: bounded reverse coverage gets spare capacity before
+    // forward speculation, even when the base optional allowance was too small.
+    // This avoids evicting useful reverse tiles while farther cold work borrows.
+    if let Some((surfaces, pixels)) = budget.borrowing_limit.filter(|_| !overloaded) {
         out.denied.retain(|&(index, reason)| {
             let c = &candidates[index];
             let forward = matches!(c.coverage, Coverage::MovingAhead | Coverage::ForwardReserve);
+            let reverse = c.coverage == Coverage::ReversalNear;
             if reason != DenialReason::OptionalPixels
-                || !forward
+                || !(forward || reverse)
                 || out.admitted.len() >= surfaces.min(budget.surfaces)
                 || c.backing_pixels
                     > pixels
@@ -506,7 +511,11 @@ pub fn schedule_surfaces(
             out.admitted.push(index);
             out.backing_pixels += c.backing_pixels;
             out.optional_pixels += c.backing_pixels;
-            out.borrowed_forward_pixels += c.backing_pixels;
+            if reverse {
+                out.borrowed_reverse_pixels += c.backing_pixels;
+            } else {
+                out.borrowed_forward_pixels += c.backing_pixels;
+            }
             false
         });
     }
@@ -716,7 +725,7 @@ mod tests {
                 surfaces: 64,
                 backing_pixels: 60_000,
                 optional_pixels: 20_000,
-                forward_limit: None,
+                borrowing_limit: None,
             },
         );
         assert_eq!(out.admitted, [0, 2]);
@@ -738,7 +747,7 @@ mod tests {
                 surfaces: 64,
                 backing_pixels: 20_000,
                 optional_pixels: 20_000,
-                forward_limit: None,
+                borrowing_limit: None,
             },
         );
         assert!(result.overloaded);
@@ -792,7 +801,7 @@ mod tests {
                 surfaces: 8,
                 backing_pixels: 200_000,
                 optional_pixels: 40_000,
-                forward_limit: Some((4, 180_000)),
+                borrowing_limit: Some((4, 180_000)),
             },
         );
         assert_eq!(result.admitted, [0, 1, 2, 3]);
@@ -806,7 +815,7 @@ mod tests {
                 surfaces: 8,
                 backing_pixels: 200_000,
                 optional_pixels: 0,
-                forward_limit: Some((4, 180_000)),
+                borrowing_limit: Some((4, 180_000)),
             },
         );
         assert_eq!(result.admitted, [0, 1, 3]);
@@ -824,14 +833,14 @@ mod tests {
             surfaces: 4,
             backing_pixels: 80_000,
             optional_pixels: 20_000,
-            forward_limit: None,
+            borrowing_limit: None,
         };
         let protected = schedule_surfaces(&input, budget);
         assert_eq!(protected.admitted, [0, 2]);
         let borrowed = schedule_surfaces(
             &input,
             SurfaceBudget {
-                forward_limit: Some((3, 60_000)),
+                borrowing_limit: Some((3, 60_000)),
                 ..budget
             },
         );
@@ -846,7 +855,7 @@ mod tests {
         let reversed = schedule_surfaces(
             &input,
             SurfaceBudget {
-                forward_limit: Some((3, 60_000)),
+                borrowing_limit: Some((3, 60_000)),
                 ..budget
             },
         );
@@ -865,6 +874,124 @@ mod tests {
     }
 
     #[test]
+    fn reverse_coverage_borrows_before_cold_forward_within_existing_caps() {
+        let mut input = vec![
+            candidate("visible", 1, Coverage::Visible),
+            candidate("near-reverse", 2, Coverage::ReversalNear),
+            candidate("ready-reverse", 3, Coverage::ReversalNear),
+            candidate("forward", 1, Coverage::ForwardReserve),
+        ];
+        for (c, pixels) in input.iter_mut().zip([20, 15, 10, 40]) {
+            c.backing_pixels = pixels;
+        }
+        input[1].ready = true;
+        input[2].ready = true;
+        input[2].distance = 1.0;
+        let budget = SurfaceBudget {
+            surfaces: 8,
+            backing_pixels: 100,
+            optional_pixels: 20,
+            borrowing_limit: Some((6, 90)),
+        };
+        let result = schedule_surfaces(&input, budget);
+        assert_eq!(result.admitted, [0, 1, 2, 3]);
+        assert!(result.denied.is_empty());
+        assert_eq!(result.backing_pixels, 85);
+        assert_eq!(result.borrowed_reverse_pixels, 10);
+        assert_eq!(result.borrowed_forward_pixels, 40);
+
+        // Limited spare pixels fund the reverse footprint, not colder forward
+        // speculation. This also prepares missing reverse content proactively.
+        input[2].ready = false;
+        let result = schedule_surfaces(
+            &input,
+            SurfaceBudget {
+                borrowing_limit: Some((6, 80)),
+                ..budget
+            },
+        );
+        assert_eq!(result.admitted, [0, 1, 2]);
+        assert_eq!(result.denied, [(3, DenialReason::OptionalPixels)]);
+        assert_eq!(result.borrowed_reverse_pixels, 10);
+
+        // Borrowing never exceeds either hard caps or visible headroom, even
+        // when the caller supplies a more permissive second-pass ceiling.
+        for limits in [
+            (2, 100, (6, 90)),
+            (8, 40, (6, 90)),
+            (8, 100, (2, 90)),
+            (8, 100, (6, 40)),
+        ] {
+            let result = schedule_surfaces(
+                &input,
+                SurfaceBudget {
+                    surfaces: limits.0,
+                    backing_pixels: limits.1,
+                    borrowing_limit: Some(limits.2),
+                    ..budget
+                },
+            );
+            assert_eq!(result.admitted, [0, 1]);
+            assert_eq!(result.borrowed_reverse_pixels, 0);
+        }
+        input[3].coverage = Coverage::Visible;
+        let result = schedule_surfaces(
+            &input,
+            SurfaceBudget {
+                backing_pixels: 50,
+                ..budget
+            },
+        );
+        assert!(result.overloaded);
+        assert!(result
+            .admitted
+            .iter()
+            .all(|&i| input[i].coverage == Coverage::Visible));
+        assert_eq!(result.borrowed_reverse_pixels, 0);
+    }
+
+    #[test]
+    fn reverse_borrowing_preserves_safety_ready_ties_and_current_membership() {
+        let mut input = vec![
+            candidate("visible", 1, Coverage::Visible),
+            candidate("cold-reverse", 2, Coverage::ReversalNear),
+            candidate("ready-reverse", 3, Coverage::ReversalNear),
+            candidate("neighbor", 4, Coverage::StationaryNear),
+            candidate("forward", 1, Coverage::MovingAhead),
+        ];
+        input[1].backing_pixels = 30_000;
+        input[2].backing_pixels = 30_000;
+        input[2].ready = true;
+        input[4].backing_pixels = 30_000;
+        let budget = SurfaceBudget {
+            surfaces: 8,
+            backing_pixels: 200_000,
+            optional_pixels: 20_000,
+            borrowing_limit: Some((3, 100_000)),
+        };
+        let result = schedule_surfaces(&input, budget);
+        assert_eq!(result.admitted, [0, 2, 3]);
+        assert_eq!(result.borrowed_reverse_pixels, 30_000);
+        assert_eq!(result.borrowed_forward_pixels, 0);
+        // A new observation invalidates the old reverse entitlement immediately.
+        input[2].coverage = Coverage::OutsidePreparation;
+        let result = schedule_surfaces(&input, budget);
+        assert_eq!(result.admitted, [0, 1, 3]);
+        assert!(result
+            .denied
+            .contains(&(2, DenialReason::OutsidePreparation)));
+        // When capacity permits, execution still services incoming work first.
+        let result = schedule_surfaces(
+            &input,
+            SurfaceBudget {
+                borrowing_limit: Some((4, 120_000)),
+                ..budget
+            },
+        );
+        assert_eq!(result.admitted, [0, 4, 1, 3]);
+    }
+
+    #[test]
     fn borrowed_forward_respects_visible_headroom_and_retires_on_new_demand() {
         let mut input = vec![candidate("visible", 1, Coverage::Visible)];
         input.extend(
@@ -874,7 +1001,7 @@ mod tests {
             surfaces: 8,
             backing_pixels: 200_000,
             optional_pixels: 20_000,
-            forward_limit: Some((4, 100_000)),
+            borrowing_limit: Some((4, 100_000)),
         };
         let result = schedule_surfaces(&input, budget);
         assert_eq!(result.admitted.len(), 4);
@@ -890,7 +1017,7 @@ mod tests {
             .take(4)
             .all(|&i| input[i].coverage == Coverage::Visible));
         let b = ResidencyPolicy::default().available(64, 4_000_000, 10_000_000);
-        assert_eq!(b.forward_limit, Some((60, 64 * 1024 * 1024 - 14_000_000)));
+        assert_eq!(b.borrowing_limit, Some((60, 64 * 1024 * 1024 - 14_000_000)));
     }
 
     #[test]
