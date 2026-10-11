@@ -41,17 +41,17 @@ function find(root, className) {
     }
 }
 
-async function setup({ available = true, height = '820', fetchOk = true, observe = true, source } = {}) {
+async function setup({ available = true, height = '820', fetchOk = true, observe = true, source, path = 'transition-grid' } = {}) {
     const root = new Element('main');
     const host = new Element('pax-example');
-    host.setAttribute('path', 'transition-grid');
+    host.setAttribute('path', path);
     host.setAttribute('title', 'Transition Grid');
     host.setAttribute('height', height);
     if (source !== undefined) host.setAttribute('source', source);
     root.append(host);
     const manifest = {
         path: 'transition-grid',
-        run_command: 'pax-cli run --path examples/transition-grid --target web',
+        run_command: 'pax-cli run --path examples/fixtures/transition-grid --target web',
         app: { available, index: 'app/index.html', build_skipped: !available },
         files: [
             { path: 'src/lib.pax', language: 'pax', contents: '<Stacker />' },
@@ -84,6 +84,12 @@ async function setup({ available = true, height = '820', fetchOk = true, observe
     await new Promise(resolve => setImmediate(resolve));
     return { root, requests, document, observers };
 }
+
+test('fixture paths keep the existing hosted example URL', async () => {
+    const { root, requests } = await setup({ path: 'fixtures/transition-grid' });
+    assert.equal(requests[0], 'https://docs.example/0.38.3/_pax_examples/transition-grid/manifest.json');
+    assert.match(find(root, 'pax-example-frame').src, /_pax_examples\/transition-grid\/app\//);
+});
 
 test('offscreen and hidden embeds suspend without replacing their state', async () => {
     const {root, document, observers} = await setup();

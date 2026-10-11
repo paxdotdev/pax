@@ -695,9 +695,9 @@ Exercise the finished view with its real text, images, and controls:
 From the repository root, these examples offer larger inspection surfaces:
 
 ```sh
-pax-cli run --path examples/rounded-scroller-tiles --target web
-pax-cli run --path examples/scroll-matrix --target web
-pax-cli run --path examples/scroll-garden --target web
+pax-cli run --path examples/fixtures/rounded-scroller-tiles --target web
+pax-cli run --path examples/fixtures/scroll-matrix --target web
+pax-cli run --path examples/fixtures/scroll-garden --target web
 ```
 
 Run one at a time. `rounded-scroller-tiles` focuses on rounded viewports and

@@ -15,6 +15,7 @@
     }
 
     function exampleUrl(path, suffix) {
+        path = path.replace(/^fixtures\//, "");
         return new URL(`${path}/${suffix}`, examplesRoot).href;
     }
 

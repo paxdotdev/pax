@@ -7,9 +7,10 @@ mod source;
 /// Prepare a separately linked UI library. With no arguments, select this
 /// package's library or its `package.metadata.pax.cartridge` selection;
 /// `init!(my_ui)` selects an explicit dependency.
-/// With `designtime` on a workstation, `run()` starts development orchestration
-/// using the reserved `pax` argument namespace. Packaged native applications run
-/// in process. Use `init_with!` for explicit native startup and embedding.
+/// Initializes the selected root in the current native process. `run()` enters
+/// its platform application loop. Neither operation parses application arguments
+/// or starts build tools or development servers, including with `designtime`.
+/// Use `init_with!` to provide explicit startup options.
 #[proc_macro]
 pub fn init(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     launch::init(input, false)

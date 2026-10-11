@@ -14,6 +14,38 @@ use syn::{Attribute, Fields, Item, Meta, NestedMeta};
 pub type Facts = BTreeMap<String, bool>;
 pub type Sources = BTreeMap<PathBuf, syn::File>;
 
+/// Source identity and dependency edges supplied by the owning compilation.
+/// Declarations come from no-deps metadata; links come from dependency helpers,
+/// so Cargo's selected version, rename, and configuration remain authoritative.
+#[doc(hidden)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct SourcePackage {
+    pub entry: PathBuf,
+    pub manifest_dir: PathBuf,
+    pub name: String,
+    pub crate_name: String,
+    pub dependencies: BTreeMap<String, String>,
+    pub links: BTreeMap<String, PathBuf>,
+}
+
+#[derive(Debug)]
+pub struct NeedsDependency {
+    pub owner: PathBuf,
+    pub name: String,
+}
+
+impl std::fmt::Display for NeedsDependency {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "{} needs compiler-selected dependency {}",
+            self.owner.display(),
+            self.name
+        )
+    }
+}
+impl std::error::Error for NeedsDependency {}
+
 #[derive(Debug)]
 pub struct NeedsPredicate(pub String);
 

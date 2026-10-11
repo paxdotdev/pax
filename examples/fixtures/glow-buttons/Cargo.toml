@@ -1,0 +1,25 @@
+[package]
+publish = false
+name = "glow-buttons"
+version = "0.39.0"
+edition = "2021"
+default-run = "glow-buttons"
+
+[package.metadata.pax]
+title = "Glow Buttons"
+
+[dependencies]
+pax-kit = { version = "0.39.0", path = "../../../pax-kit" }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["standalone", "designtime"]
+standalone = ["pax-kit/host"]
+designtime = ["pax-kit/designtime"]
+
+[[bin]]
+name = "glow-buttons"
+path = "src/main.rs"
+required-features = ["standalone"]

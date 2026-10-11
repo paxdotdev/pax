@@ -1,9 +1,9 @@
 //! Apple process entry and mounting across a separate cartridge ABI.
 //! Applications use `pax_kit::init!` and `pax_kit::init_with!`; options, errors,
 //! and embedding types live in `pax_kit::host`. Enable `pax-kit/host` without
-//! adding a direct `pax-host` dependency. The SDK is built on demand for native
-//! development. The shared compiler provides bundles and iOS deployment through
-//! either the Cargo development entry or the CLI.
+//! adding a direct `pax-host` dependency. Cargo builds the SDK for native hosting.
+//! The CLI provides bundles, development servers, and iOS deployment;
+//! initialization itself stays in the calling native process.
 //!
 //! ```ignore
 //! fn main() -> Result<(), pax_kit::host::Error> {
@@ -20,10 +20,7 @@ pub use native::*;
 #[doc(hidden)]
 pub mod sources;
 
-#[cfg(all(feature = "designtime", target_os = "macos"))]
-mod sdk;
-
-/// An initialization, development launch, or mounting failure.
+/// An initialization, native application loop, or mounting failure.
 #[derive(Debug, Clone)]
 pub struct Error(pub(crate) String);
 impl Error {

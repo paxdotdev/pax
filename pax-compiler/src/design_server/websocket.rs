@@ -2198,7 +2198,7 @@ mod tests {
     fn source_paths_match_relative_project_prefixed_request_path() {
         let temp_dir = tempdir().unwrap();
         let cwd = temp_dir.path();
-        let project_root = cwd.join("examples/dynamic-linking-lab");
+        let project_root = cwd.join("examples/fixtures/dynamic-linking-lab");
         let source_path = project_root.join("src/lib.pax");
         fs::create_dir_all(source_path.parent().unwrap()).unwrap();
         fs::write(&source_path, "<Group/>").unwrap();
@@ -2208,8 +2208,8 @@ mod tests {
 
         let matches = source_paths_match(
             "src/lib.pax",
-            "examples/dynamic-linking-lab/src/lib.pax",
-            Path::new("examples/dynamic-linking-lab"),
+            "examples/fixtures/dynamic-linking-lab/src/lib.pax",
+            Path::new("examples/fixtures/dynamic-linking-lab"),
         );
 
         std::env::set_current_dir(previous_dir).unwrap();

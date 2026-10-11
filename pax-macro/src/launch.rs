@@ -18,42 +18,44 @@ pub fn init(input: TokenStream, with_options: bool) -> TokenStream {
         }
         let manifest_dir =
             std::path::PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap());
-        let manifest = manifest_dir.join("Cargo.toml");
+        let manifest = manifest_dir.join("Cargo.toml").canonicalize()?;
         let metadata = cargo_metadata::MetadataCommand::new()
             .manifest_path(&manifest)
+            .no_deps()
             .other_options(vec!["--offline".into()])
             .exec()?;
         let caller = metadata
             .packages
             .iter()
-            .find(|p| p.manifest_path.as_std_path() == manifest)
+            .find(|p| {
+                p.manifest_path.as_std_path().canonicalize().ok().as_deref()
+                    == Some(manifest.as_path())
+            })
             .unwrap();
-        let node = metadata
-            .resolve
-            .as_ref()
-            .unwrap()
-            .nodes
-            .iter()
-            .find(|n| n.id == caller.id)
-            .unwrap();
-        let (library, target_package): (syn::Path, _) = if let Some(argument) = arguments.pop() {
+        let (library, helper_package): (syn::Path, String) = if let Some(argument) = arguments.pop()
+        {
             let path = match argument {
                 Expr::Path(path) if path.path.segments.len() == 1 => path.path,
                 _ => color_eyre::eyre::bail!("expected a UI library crate name, such as my_ui"),
             };
             let name = path.segments[0].ident.to_string();
-            let package = if let Some(dependency) = node.deps.iter().find(|d| d.name == name) {
-                metadata
-                    .packages
-                    .iter()
-                    .find(|p| p.id == dependency.pkg)
-                    .unwrap()
-            } else if caller.targets.iter().any(|t| {
-                t.name.replace('-', "_") == name && t.crate_types.iter().any(|k| k == "cdylib")
+            let package = if caller.targets.iter().any(|t| {
+                t.name.replace('-', "_") == name
+                    && t.kind
+                        .iter()
+                        .any(|k| k == "lib" || k == "cdylib" || k == "rlib")
             }) {
-                caller
+                caller.name.clone()
             } else {
-                color_eyre::eyre::bail!("UI library `{name}` must be this package's library or a direct Cargo dependency");
+                caller
+                    .dependencies
+                    .iter()
+                    .find(|d| d.rename.as_ref().unwrap_or(&d.name).replace('-', "_") == name)
+                    .map(|d| d.name.clone())
+                    // A custom library target can differ from its package name.
+                    // Rust resolves this path; that library also exports a helper
+                    // under its target name. No second dependency graph is needed.
+                    .unwrap_or(name)
             };
             (path, package)
         } else {
@@ -61,7 +63,16 @@ pub fn init(input: TokenStream, with_options: bool) -> TokenStream {
             let package = metadata
                 .packages
                 .iter()
-                .find(|p| p.manifest_path.parent().unwrap().as_std_path() == layout.cartridge_dir)
+                .find(|p| {
+                    p.manifest_path
+                        .parent()
+                        .unwrap()
+                        .as_std_path()
+                        .canonicalize()
+                        .ok()
+                        .as_deref()
+                        == Some(layout.cartridge_dir.as_path())
+                })
                 .ok_or_else(|| {
                     color_eyre::eyre::eyre!(
                         "Selected UI library must be a Cargo dependency of the host"
@@ -70,51 +81,32 @@ pub fn init(input: TokenStream, with_options: bool) -> TokenStream {
             let name = if package.id == caller.id {
                 layout.library_name.replace('-', "_")
             } else {
-                node.deps
+                let dependency = caller
+                    .dependencies
                     .iter()
-                    .find(|d| d.pkg == package.id)
+                    .find(|d| d.name == package.name)
                     .ok_or_else(|| {
                         color_eyre::eyre::eyre!(
                             "Add `{}` as a direct Cargo dependency of the host",
                             package.name
                         )
-                    })?
-                    .name
+                    })?;
+                dependency
+                    .rename
                     .clone()
+                    .unwrap_or(layout.library_name)
+                    .replace('-', "_")
             };
-            (syn::parse_str(&name)?, package)
+            (syn::parse_str(&name)?, package.name.clone())
         };
-        let target = target_package
-            .targets
-            .iter()
-            .find(|t| t.crate_types.iter().any(|k| k == "cdylib"))
-            .ok_or_else(|| {
-                color_eyre::eyre::eyre!(
-                    "The selected UI library needs crate-type = [\"rlib\", \"cdylib\"]"
-                )
-            })?;
         let helper = quote::format_ident!(
             "{}",
-            crate::source::helper_name(target.src_path.as_std_path(), "program")
+            crate::source::handoff_helper_name(&helper_package, "program")
         );
-        // Cargo examples select a UI dependency; a standalone host keeps its
-        // own package metadata (including a separate cartridge selection).
-        let launch_package = if caller.targets.iter().any(|target| {
-            target.kind.iter().any(|kind| kind == "bin")
-                && target
-                    .required_features
-                    .iter()
-                    .any(|feature| feature == "standalone")
-        }) {
-            caller
-        } else {
-            target_package
-        };
-        let project = launch_package.manifest_path.parent().unwrap().as_str();
         Ok(quote!({
-            const __PAX_ROLE: Option<&str> = option_env!("PAX_BUILD_ROLE");
+            const _: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml"));
             #library::#helper!(pax_kit::pax_engine::pax_macro::__pax_launch,
-                (#options, #project, #with_options || __PAX_ROLE == Some("application")))
+                #options)
         }))
     })();
     match result {

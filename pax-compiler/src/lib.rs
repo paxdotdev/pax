@@ -17,7 +17,6 @@ mod building;
 mod bundled_examples;
 pub mod dev_session;
 pub mod helpers;
-pub mod launcher;
 mod hot_reload;
 use pax_codegen::project_layout;
 pub mod project_metadata;
@@ -80,8 +79,6 @@ pub trait RunLifecycleObserver: Send + Sync {
 pub struct RunContext {
     /// Requested web server port. `None` lets the server select an available port.
     pub port: Option<u16>,
-    /// The current executable implements the embedded `pax` command namespace.
-    pub embedded_launcher: bool,
     pub target: RunTarget,
     pub project_path: PathBuf,
     pub verbose: bool,
@@ -1977,7 +1974,6 @@ codegen-units = 32
     fn release_context(should_run_designtime: bool) -> RunContext {
         RunContext {
             port: None,
-            embedded_launcher: false,
             target: RunTarget::Web,
             project_path: PathBuf::from("."),
             verbose: false,

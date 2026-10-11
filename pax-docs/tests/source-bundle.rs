@@ -34,7 +34,15 @@ fn packaged_snapshot_preserves_example_catalog_and_inline_sources() {
     let unpacked = source_bundle::example_workspace(&packaged, &temp.path().join("out")).unwrap();
     let paths = examples::discover_example_paths(&unpacked).unwrap();
     assert!(paths.iter().any(|path| path == "living-quilt"));
-    assert!(paths.iter().any(|path| path == "space-game"));
+    assert!(paths.iter().any(|path| path == "fixtures/space-game"));
+    assert_eq!(paths.len(), 49);
+    assert_eq!(
+        paths
+            .iter()
+            .filter(|path| path.starts_with("fixtures/"))
+            .count(),
+        40
+    );
     assert!(!paths.iter().any(|path| path == "pax-website"));
     let entries = pax_docs::entries().unwrap();
     assert_eq!(
@@ -79,6 +87,42 @@ fn packaged_snapshot_preserves_example_catalog_and_inline_sources() {
             }
         }
     }
+}
+
+#[test]
+fn fixtures_keep_short_lookup_and_hosted_identity_with_canonical_run_paths() {
+    let root = tempfile::tempdir().unwrap();
+    let fixture = root.path().join("examples/fixtures/demo");
+    fs::create_dir_all(fixture.join("src")).unwrap();
+    fs::write(fixture.join("Cargo.toml"), "[package]\nname = 'demo'\n").unwrap();
+    fs::write(fixture.join("src/lib.rs"), "// fixture source\n").unwrap();
+    for name in ["demo", "fixtures/demo", "examples/fixtures/demo"] {
+        assert_eq!(
+            examples::example_dir(root.path(), name),
+            Some(fixture.clone())
+        );
+    }
+    let rendered = examples::expand_examples_for_cli("<pax-example path=\"demo\" />", root.path());
+    assert!(rendered.contains("pax-cli run --path examples/fixtures/demo --target web"));
+    assert!(rendered.contains("examples/fixtures/demo/src/lib.rs"));
+    assert!(rendered.contains("https://docs.pax.dev/_pax_examples/demo/app/"));
+    assert_eq!(
+        examples::hosted_example_url("fixtures/demo"),
+        examples::hosted_example_url("demo")
+    );
+    assert_eq!(examples::humanize_example_title("fixtures/demo"), "Demo");
+    assert!(examples::example_dir(root.path(), "fixtures/../demo").is_none());
+
+    let curated = root.path().join("examples/first");
+    fs::create_dir_all(&curated).unwrap();
+    fs::write(curated.join("Cargo.toml"), "").unwrap();
+    assert_eq!(
+        examples::discover_example_paths(root.path()).unwrap(),
+        ["first", "fixtures/demo"]
+    );
+    fs::create_dir_all(root.path().join("examples/demo")).unwrap();
+    fs::write(root.path().join("examples/demo/Cargo.toml"), "").unwrap();
+    assert!(examples::discover_example_paths(root.path()).is_err());
 }
 
 #[test]

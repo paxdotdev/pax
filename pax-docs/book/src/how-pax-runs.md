@@ -27,10 +27,16 @@ Cargo compiles Rust application logic and expands Pax's macros for the selected
 target: WebAssembly for the browser, or native code for Apple targets. The macros
 analyze the Rust source and templates selected by that target's configuration,
 then generate program data describing templates, bindings, events, and timelines.
-The development entry and `pax-cli` share asset packaging, web serving, hot
-reload, and Apple deployment. With the starter's default `designtime` feature,
-ordinary `cargo run` starts web development; `cargo run -- pax --target=macos`
-selects a native application. Neither command needs a preceding CLI build.
+`pax-cli` handles asset packaging, web serving, hot reload, and Apple deployment.
+On macOS, ordinary `cargo run` runs the native application directly, without a
+preceding CLI build or a development server. `init!` initializes within that
+process; it never selects or launches another development target.
+
+Reusable component libraries supply the source configuration selected by their
+own compilation, including dependency features and custom `cfg` values. A library
+can live in a different Cargo workspace: macro expansion does not resolve or
+fetch that workspace's unrelated dependencies. This works with ordinary Cargo
+path dependencies and does not require an application `build.rs` or CLI setup.
 
 You may encounter the word **cartridge** in build output or engine code. It
 names the application-specific part that connects your program to the shared

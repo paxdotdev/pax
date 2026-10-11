@@ -21,6 +21,7 @@ use syn::{
     NestedMeta, PathArguments, Type, UseTree,
 };
 
+use crate::configured_source::{NeedsDependency, SourcePackage};
 use crate::program_catalog::{ProgramCatalog, RunnableEntry, RunnableSource};
 use crate::svg_import::import_svg_file;
 
@@ -176,39 +177,32 @@ pub fn build_program_catalog_from_metadata(
 #[doc(hidden)]
 pub fn build_program_catalog_from_sources(
     project_path: &Path,
-    metadata: &Metadata,
+    packages: &[SourcePackage],
     options: BuildManifestOptions,
     sources: crate::configured_source::Sources,
 ) -> Result<ProgramCatalog> {
-    let manifest_path = canonical_manifest_path(project_path)?;
-    let project_dir = manifest_path.parent().unwrap();
-    let root_package = find_root_package(metadata, &manifest_path)?;
-    let mut registry = build_registry(metadata, root_package)?;
-    registry.configured_sources = Some(sources);
+    let mut registry = build_source_registry(packages, sources)?;
     registry.ensure_root_package_scanned()?;
-    build_program_catalog(project_dir, &mut registry, options)
+    build_program_catalog(project_path, &mut registry, options)
 }
 
 /// Resolve a component library's source dependencies without constructing UI
-/// instances. The frontend uses missing-source requests to collect each
-/// dependency's own compiler configuration before exporting its source helper.
+/// instances. The frontend collects dependency helpers through Rust's own crate
+/// paths, without asking Cargo to resolve a second dependency graph.
 #[doc(hidden)]
 pub fn resolve_library_sources(
-    project_path: &Path,
-    metadata: &Metadata,
+    packages: &[SourcePackage],
     sources: crate::configured_source::Sources,
 ) -> Result<()> {
-    let manifest = canonical_manifest_path(project_path)?;
-    let root = find_root_package(metadata, &manifest)?;
-    let mut registry = build_registry(metadata, root)?;
-    registry.configured_sources = Some(sources);
+    let mut registry = build_source_registry(packages, sources)?;
     registry.ensure_root_package_scanned()?;
-    let roots = registry
+    let mut roots = registry
         .items_by_import_path
         .values()
-        .filter(|item| item.package_name == root.name)
+        .filter(|item| item.package_name == registry.root_package_name)
         .cloned()
         .collect::<Vec<_>>();
+    roots.sort_by(|a, b| a.import_path.cmp(&b.import_path));
     let mut context = ParsingContext::default();
     for item in roots {
         build_item_recursive(&mut context, &mut registry, &item.import_path)?;
@@ -940,7 +934,8 @@ fn optional_resolution(result: Result<String>) -> Result<Option<String>> {
         Err(error)
             if error
                 .downcast_ref::<crate::configured_source::NeedsSource>()
-                .is_some() =>
+                .is_some()
+                || error.downcast_ref::<NeedsDependency>().is_some() =>
         {
             Err(error)
         }
@@ -970,7 +965,7 @@ fn resolve_identifier_to_import_path(
         }
         registry.ensure_import_path_scanned(&canonical_import_path)?;
         if let Some(path) = optional_resolution(registry.resolve_declared_root(
-            &canonical_import_path,
+            import_path,
             scope,
             &mut HashSet::new(),
         ))? {
@@ -1104,6 +1099,94 @@ fn build_registry(metadata: &Metadata, root_package: &Package) -> Result<StaticR
         );
     }
     registry.root_package_name = root_package.name.clone();
+    Ok(registry)
+}
+
+// The first package belongs to the current compiler unit. Every other package
+// and edge was returned by a helper exported by an already compiled dependency.
+fn build_source_registry(
+    packages: &[SourcePackage],
+    sources: crate::configured_source::Sources,
+) -> Result<StaticRegistry> {
+    let root = packages
+        .first()
+        .ok_or_else(|| eyre!("Missing source root"))?;
+    let mut registry = StaticRegistry::default();
+    registry.configured_sources = Some(sources);
+    registry.root_package_name = root.name.clone();
+    let mut names = BTreeMap::new();
+    names.insert(root.entry.clone(), "crate".to_string());
+    for package in packages.iter().skip(1) {
+        let name = if package.name == "pax-std" {
+            "pax_std".into()
+        } else {
+            root.links
+                .iter()
+                .find(|(_, entry)| *entry == &package.entry)
+                .map(|(alias, _)| alias.clone())
+                .unwrap_or_else(|| package.crate_name.clone())
+        };
+        if names.values().any(|existing| existing == &name) {
+            return Err(eyre!("Multiple component packages use import root `{name}`; separate versions of one component library are not yet supported"));
+        }
+        names.insert(package.entry.clone(), name);
+    }
+    for package in packages {
+        let owner = &names[&package.entry];
+        registry.register_package(PackageContext {
+            manifest_dir: package.manifest_dir.clone(),
+            entry_file: package.entry.clone(),
+            package_name: package.name.clone(),
+            import_root: owner.clone(),
+        })?;
+        let mut dependencies = package.dependencies.clone();
+        // A custom library target name need not match its Cargo package name.
+        // Such paths are learned by invoking the helper through the Rust import.
+        for (alias, entry) in &package.links {
+            let dependency = packages
+                .iter()
+                .find(|p| &p.entry == entry)
+                .ok_or_else(|| eyre!("Missing source descriptor for {}", entry.display()))?;
+            dependencies.insert(alias.clone(), dependency.name.clone());
+        }
+        for (alias, dependency_name) in &dependencies {
+            // Intrinsic API definitions are built in; they have no source helper.
+            let intrinsic = matches!(
+                dependency_name.as_str(),
+                "pax-kit" | "pax-engine" | "pax-runtime-api" | "pax-runtime" | "pax-manifest"
+            );
+            let target = if intrinsic {
+                dependency_name.replace('-', "_")
+            } else if let Some(entry) = package.links.get(alias) {
+                names
+                    .get(entry)
+                    .ok_or_else(|| eyre!("Missing source descriptor for {}", entry.display()))?
+                    .clone()
+            } else {
+                let pending = if dependency_name == "pax-std" {
+                    "pax_std".into()
+                } else if owner == "crate" {
+                    alias.clone()
+                } else {
+                    format!("__pax_dependency_{}", registry.pending_dependencies.len())
+                };
+                registry
+                    .pending_dependencies
+                    .entry(pending.clone())
+                    .or_insert_with(|| NeedsDependency {
+                        owner: package.entry.clone(),
+                        name: alias.clone(),
+                    });
+                pending
+            };
+            registry
+                .dependency_aliases
+                .insert((owner.clone(), alias.clone()), target.clone());
+            if owner == "crate" && package.links.contains_key(alias) {
+                registry.available_import_roots.insert(target);
+            }
+        }
+    }
     Ok(registry)
 }
 
@@ -1995,7 +2078,7 @@ fn resolve_canonical_path(
         return Ok(crate_relative_candidate);
     }
 
-    Ok(canonical_path)
+    registry.dependency_path(&canonical_path, scope)
 }
 fn collect_scope(items: &[Item], module_path: String, import_root: String) -> Result<ScopeImports> {
     let mut scope = ScopeImports {
@@ -2301,6 +2384,8 @@ struct ScannedRunnable {
 #[derive(Default)]
 struct StaticRegistry {
     configured_sources: Option<crate::configured_source::Sources>,
+    dependency_aliases: HashMap<(String, String), String>,
+    pending_dependencies: HashMap<String, NeedsDependency>,
     runnables: Vec<ScannedRunnable>,
     scopes: HashMap<String, ScopeImports>,
     accessible_modules: HashSet<String>,
@@ -2314,6 +2399,42 @@ struct StaticRegistry {
 }
 
 impl StaticRegistry {
+    fn dependency_path(&self, raw: &str, scope: &ScopeImports) -> Result<String> {
+        let first = raw.split("::").next().unwrap_or(raw);
+        if let Some(root) = self
+            .dependency_aliases
+            .get(&(scope.import_root.clone(), first.to_owned()))
+        {
+            return Ok(format!("{root}{}", &raw[first.len()..]));
+        }
+        if self.configured_sources.is_some()
+            && !matches!(
+                first,
+                "crate"
+                    | "self"
+                    | "super"
+                    | "std"
+                    | "core"
+                    | "alloc"
+                    | "pax_kit"
+                    | "pax_engine"
+                    | "pax_runtime_api"
+                    | "pax_runtime"
+                    | "pax_manifest"
+            )
+            && !self.packages_by_import_root.contains_key(first)
+            && (raw.contains("::") || scope.glob_roots.iter().any(|glob| glob == raw))
+        {
+            let owner = &self.packages_by_import_root[&scope.import_root];
+            return Err(NeedsDependency {
+                owner: owner.entry_file.clone(),
+                name: first.into(),
+            }
+            .into());
+        }
+        Ok(raw.to_owned())
+    }
+
     fn register_scope(&mut self, scope: &ScopeImports, items: &[Item]) -> Result<()> {
         self.scopes.insert(scope.module_path.clone(), scope.clone());
         for item in items {
@@ -2453,6 +2574,13 @@ impl StaticRegistry {
         }
 
         let Some(package_context) = self.packages_by_import_root.get(import_root).cloned() else {
+            if let Some(dependency) = self.pending_dependencies.get(import_root) {
+                return Err(NeedsDependency {
+                    owner: dependency.owner.clone(),
+                    name: dependency.name.clone(),
+                }
+                .into());
+            }
             return Ok(());
         };
 
@@ -2595,7 +2723,8 @@ impl StaticRegistry {
             if expanded != raw {
                 return self.resolve_declared_root(&expanded, scope, seen);
             }
-            canonicalize_path(&expanded, scope)?
+            let path = canonicalize_path(&expanded, scope)?;
+            self.dependency_path(&path, scope)?
         } else if matches!(first, "crate" | "self" | "super") {
             canonicalize_path(raw, scope)?
         } else {
@@ -2610,7 +2739,7 @@ impl StaticRegistry {
             {
                 local
             } else {
-                raw.to_string()
+                self.dependency_path(raw, scope)?
             }
         };
         if !seen.insert(path.clone()) {
@@ -3029,7 +3158,8 @@ mod tests {
             assert_eq!(
                 parse_pascal_identifiers_from_component_definition_string(
                     "<Zed><Alpha/><Zed/></Zed><Beta/><Alpha/>"
-                ).unwrap(),
+                )
+                .unwrap(),
                 ["Zed", "Alpha", "Beta"]
             );
         }

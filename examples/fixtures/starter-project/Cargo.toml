@@ -1,0 +1,30 @@
+[package]
+publish = false
+name = "starter-project"
+version = "0.39.0"
+edition = "2021"
+default-run = "starter-project"
+
+[package.metadata.pax]
+title = "Starter Project"
+icon = "assets/app-icon.png"
+
+[dependencies]
+pax-kit = { version = "0.39.0", path="../../../pax-kit"}
+fireworks = { version = "0.39.0", path="../fireworks" , default-features = false }
+color-picker = { version = "0.39.0", path="../color-picker" , default-features = false }
+breakout = { version = "0.39.0", path="../breakout" , default-features = false }
+space-game = { version = "0.39.0", path="../space-game" , default-features = false }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["standalone", "designtime"]
+standalone = ["pax-kit/host"]
+designtime = ["pax-kit/designtime"]
+
+[[bin]]
+name = "starter-project"
+path = "src/main.rs"
+required-features = ["standalone"]

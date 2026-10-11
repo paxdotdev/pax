@@ -36,7 +36,7 @@ Both handles are eight bytes. These figures include amortized table/attachment b
 
 ## Application proof and remaining qualification
 
-[Async Workbench](../../../examples/async-workbench/README.md) uses the normal generated host and `#[init(path)]` typed root initializer. It now exercises explicit Tokio/browser executors and scoped tasks, cancellation, guarded publication, bounded callback delivery, local I/O and asynchronous shutdown. The focused `pax-tokio` tests also cover owned/borrowed runtimes, a dedicated current-thread/LocalSet service, panic observation, and non-abortable blocking work.
+[Async Workbench](../../../examples/fixtures/async-workbench/README.md) uses the normal generated host and `#[init(path)]` typed root initializer. It now exercises explicit Tokio/browser executors and scoped tasks, cancellation, guarded publication, bounded callback delivery, local I/O and asynchronous shutdown. The focused `pax-tokio` tests also cover owned/borrowed runtimes, a dedicated current-thread/LocalSet service, panic observation, and non-abortable blocking work.
 
 The root remains a cartridge library. The standalone Apple executable has a real Rust `main` and calls the SwiftUI host bridge; browser JavaScript calls `init_web`. Frame scheduling remains with the host. The launcher and cartridge are distinct linkage domains, so runtime handles must not cross that ABI. A native runtime needs an explicit application owner and continuously driven executor. A `Handle` does not keep its runtime alive. Browser Wasm uses browser-compatible futures and does not gain desktop Tokio sockets, filesystem or timers.
 
@@ -55,7 +55,7 @@ remount, task panic, blocking work and managed teardown. It advances frames only
 for input or a host wake. Run it with:
 
 ```sh
-cargo run --manifest-path tests/src/tokio-support-probe/Cargo.toml --bin native_cartridge_probe -- examples/async-workbench/target/aarch64-apple-darwin/debug/deps/libasync_workbench.dylib
+cargo run --manifest-path tests/src/tokio-support-probe/Cargo.toml --bin native_cartridge_probe -- examples/fixtures/async-workbench/target/aarch64-apple-darwin/debug/deps/libasync_workbench.dylib
 ```
 
 After a debug web build, `python3 tests/src/tokio-support-probe/prepare-wake-only-web.py`
@@ -93,7 +93,7 @@ process, then run from the repository root:
 ```sh
 clang -dynamiclib -framework CoreVideo -framework AppKit tests/src/tokio-support-probe/macos-display-link-failure.m -o /tmp/pax-display-link-failure.dylib
 touch /tmp/pax-display-link-block
-DYLD_INSERT_LIBRARIES=/tmp/pax-display-link-failure.dylib PAX_DISPLAY_LINK_PROBE_BLOCK=/tmp/pax-display-link-block PAX_DISPLAY_LINK_PROBE_STAGE=create 'examples/async-workbench/.pax/build/debug/macos/app/Pax macOS (Development).app/Contents/MacOS/Pax macOS (Development)' > /tmp/pax-display-link-probe.log 2>&1 &
+DYLD_INSERT_LIBRARIES=/tmp/pax-display-link-failure.dylib PAX_DISPLAY_LINK_PROBE_BLOCK=/tmp/pax-display-link-block PAX_DISPLAY_LINK_PROBE_STAGE=create 'examples/fixtures/async-workbench/.pax/build/debug/macos/app/Pax macOS (Development).app/Contents/MacOS/Pax macOS (Development)' > /tmp/pax-display-link-probe.log 2>&1 &
 pax_probe_pid=$!
 ```
 

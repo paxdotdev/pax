@@ -625,7 +625,9 @@ not produce activation on release.
 
 Native applications own a normal Rust `fn main` on macOS, iOS and iPadOS.
 `pax_kit::init!()?.run()` prepares the separate UI cartridge and enters the
-platform host loop. Web pages explicitly call `Pax.init_web`; importing a
+platform host loop in that process. Initialization does not parse application
+arguments, start development tools, or create an async runtime, even with
+`designtime` enabled. Web pages explicitly call `Pax.init_web`; importing a
 component library does not launch an app. See [entry and mounting](targets-build-deploy.md#entry-and-mounting)
 for Cargo targets, supplied host views and browser elements.
 
@@ -853,7 +855,7 @@ and fetch, not desktop Tokio drivers. Dropping a future only cancels its Rust
 polling; the I/O implementation must release or abort external resources.
 Browser suspension, mobile backgrounding and abrupt process termination do not
 guarantee cleanup or continued execution. Native I/O remains subject to platform
-permissions. The fixture README at `examples/async-workbench/README.md`
+permissions. The fixture README at `examples/fixtures/async-workbench/README.md`
 records which targets and build modes have actually been qualified.
 
 For networking in a sandboxed macOS release, explicitly configure the required
@@ -863,17 +865,17 @@ limits. Using Tokio does not grant operating-system permissions.
 
 ### Try Async Workbench
 
-The repository's `examples/async-workbench` is a complete application using
+The repository's `examples/fixtures/async-workbench` is a complete application using
 these APIs. From the repository root, with a built `pax-cli`, run one target:
 
 ```sh
-pax-cli run --path examples/async-workbench --target macos
-pax-cli run --path examples/async-workbench --target web
-pax-cli run --path examples/async-workbench --target ios --ios-device simulator
+pax-cli run --path examples/fixtures/async-workbench --target macos
+pax-cli run --path examples/fixtures/async-workbench --target web
+pax-cli run --path examples/fixtures/async-workbench --target ios --ios-device simulator
 ```
 
 For the sandboxed native release, use
-`pax-cli build --path examples/async-workbench --target macos --release`
+`pax-cli build --path examples/fixtures/async-workbench --target macos --release`
 and open the resulting app. The fixture opts into both macOS network entitlements.
 Its Cargo dependencies select Tokio on native targets and browser futures on web.
 

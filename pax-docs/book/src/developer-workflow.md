@@ -14,9 +14,9 @@ web examples need an open browser tab connected to the running application.
 
 ## Hot reloading
 
-Debug `cargo run` and `pax-cli run` sessions use **Pax-only hot reload** by default.
-Saving a `.pax` template in either development session
-can update the mounted interface. Rust application changes require rebuilding
+Debug `pax-cli run` sessions use **Pax-only hot reload** by default. Direct native
+`cargo run` does not start a development server. Saving a `.pax` template in a
+CLI session can update the mounted interface. Rust application changes require rebuilding
 and restarting on native targets, or rebuilding and reloading the browser page.
 The initializer runs once per application instance, including after a restart.
 
@@ -28,8 +28,8 @@ The initializer runs once per application instance, including after a restart.
 | `logic` — retired | Rejected with a migration diagnostic | Rebuild and restart manually |
 
 ```sh
-cargo run -- pax --target=web --hot-reload=pax
-cargo run -- pax --target=web --hot-reload=off
+pax-cli run --target web --hot-reload=pax
+pax-cli run --target web --hot-reload=off
 ```
 
 ### Target support and restart boundaries
@@ -56,10 +56,9 @@ hot_reload = "pax"
 
 Selection precedence is the `--hot-reload` flag, then `PAX_HOT_RELOAD`, then Cargo
 metadata, then the `pax` debug default. The same migration rules apply to every
-source of the setting. The Cargo development entry and `pax-cli run` call the
-same packaging and development-session library. Target applications carry an
-explicit application role and never recursively launch the development tools.
-Use `init_with!` for explicit in-process native startup and embedding.
+source of the setting. The CLI owns development orchestration. Both `init!` and
+`init_with!` initialize in the current native process; enabling `designtime`
+does not change this or start a server.
 
 ## Format Pax source
 
@@ -330,44 +329,56 @@ website. Check `pax-cli --version` when comparing instructions across releases.
 Viewing source through `docs examples` does not create a project or install
 its assets. To create a runnable project from the curated bundled set, use
 [`create --example`](#create-from-a-bundled-example) below.
-In a repository checkout, canonical examples live under
-`examples`; run one from the repository root with:
+In a repository checkout, nine curated examples live at `examples/<name>`;
+focused studies, platform probes, and historical experiments live at
+`examples/fixtures/<name>`. Start with the [curated example index](https://github.com/paxdotdev/pax/tree/dev/examples#readme)
+or browse its fixture index. Run one from the repository root with:
 
 ```sh
-cargo run --example increment       # web development, from the repository root
+cargo run --example increment       # direct native execution on macOS
 cargo run -p increment              # build just this example's dependency graph
 pax-cli run --path examples/increment --target web
+pax-cli run --path examples/fixtures/auto-sized-containers --target web
+pax-cli docs examples auto-sized-containers
 ```
 
-Each `examples/<name>` directory is an ordinary Cargo package with its own
-library, native `main`, templates, and assets. The top-level `.rs` launchers are
-real Cargo example targets. Cargo shares the root package's dev-dependencies
+Each example directory is an ordinary Cargo package with its own
+library, native `main`, templates, and assets. The adjacent `.rs` launchers are
+real Cargo example targets, including those under `fixtures`. Cargo shares the root package's dev-dependencies
 across its example targets, so `-p <name>` is the narrower development command.
-This layout keeps all examples together; showcase/fixture curation is separate.
+Moving a package into `fixtures` changes its filesystem path and CLI `--path`,
+but preserves `cargo run -p <name>` and `cargo run --example <name>`.
+`docs examples --list` separates curated and supporting examples; source lookup
+accepts the short name or the canonical `examples/fixtures/<name>` path.
+Hosted example URLs retain their short names. Starter eligibility remains
+controlled by the separate bundled-example registry below.
 Development profiles live at the workspace root: runtime dependencies use
 optimization level 1, while each example's own code and build dependencies use
 level 0. The CLI restores these profiles when exporting a standalone project.
 
-To measure the complete Cargo web build, including its workstation launcher,
-use a fresh target directory without deleting your development cache:
+To measure target compilation and web packaging, use an already-built CLI and
+a fresh target directory without deleting your development cache:
 
 ```sh
 python3 scripts/benchmark-cargo-web.py \
+  --pax-cli /absolute/path/to/pax-cli \
   --target-dir /tmp/pax-build-benchmark-target \
   --logs /tmp/pax-build-benchmark-logs
 ```
 
 The script builds `pax-logo` once with an empty Rust target directory and twice
-unchanged, records wall times and logs, and enables Cargo's timing report for
-the launcher. Registry dependencies and platform tools must already be cached;
+unchanged, recording wall times and logs. It excludes building/installing the
+CLI itself. Registry dependencies and platform tools must already be cached;
 resolution is offline. Existing `.pax` output and external tool caches are
-retained, so this measures Rust compilation and packaging rather than downloads
-or initial workstation setup. It rejects a nonempty target directory. Select
-another example with `--package <name>` and use fresh directories for each trial.
-The repeated warm run distinguishes steady cache reuse from any one-time
-invalidation caused by files generated during the cold build.
-Compare the launcher, manifest-producing target build, and packaging timings
-separately; a package count alone does not establish build latency.
+retained, so it excludes downloads and initial workstation setup. It rejects a
+nonempty target directory. Select another example with `--package <name>` and
+use fresh directories for each trial. The repeated warm run distinguishes
+steady cache reuse from files generated during the cold build.
+
+These measurements are not directly comparable to the earlier embedded-launcher
+benchmark, which also compiled workstation tooling inside the application.
+Compare compiler and packaging timings separately; a package count alone does
+not establish build latency.
 
 The CLI also has `docs build` for contributors rebuilding the documentation
 assets in a Pax repository. It can regenerate API pages, example metadata/
@@ -375,6 +386,12 @@ bundles, and the CLI's search content. It is not required to browse installed
 docs, and should not be run casually over an in-progress documentation edit.
 
 The HTML docs use optimized release builds for their interactive examples.
+The book's `<pax-example>` declarations select the apps and displayed source
+files; the generator writes each build's `manifest.json` under
+`_pax_examples/<name>/`. Short names such as `space-game` resolve to either
+`examples/<name>` or `examples/fixtures/<name>`, so moving a fixture preserves its
+embed URL. Generated run commands use the actual source location. Cached apps
+rebuild when their source, engine/compiler inputs, Cargo manifests, or lockfile changes.
 An example runs automatically while its stage is visible and suspends frame
 updates and drawing when scrolled out of view or when the docs tab is hidden.
 Returning to it preserves its state; **Restart** starts over, and **Open
@@ -404,8 +421,8 @@ repository checkout. An unknown example name reports the available choices
 without creating a partial project. The curated create set is smaller than
 the source-reading catalog in `docs examples`.
 
-Each CLI release carries its own snapshot. For contributors, `examples/*`
-is canonical; `examples/bundled-cli-examples.toml` selects the create set and
+Each CLI release carries its own snapshot. For contributors, `examples/<name>` and
+`examples/fixtures/<name>` are canonical; `examples/bundled-cli-examples.toml` selects the create set and
 `scripts/sync-cli-examples.py` synchronizes the packaged archive. Release tooling
 runs that synchronization after version updates and before packaging.
 

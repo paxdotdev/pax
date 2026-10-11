@@ -8,7 +8,7 @@ The generated copies live under .pax and must not be committed.
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[3]
-build = root / "examples/async-workbench/.pax/build/debug/web"
+build = root / "examples/fixtures/async-workbench/.pax/build/debug/web"
 source = (build / "pax-interface-web.js").read_text()
 start = source.index("  function renderLoop(chassis, mount2) {")
 end = source.index("\n  }", start)

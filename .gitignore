@@ -12,7 +12,7 @@ pax_macro_writeln.txt
 
 xcuserdata
 
-examples/*/.pax/
+examples/**/.pax/
 tests/src/*/.pax/
 
 pax-compiler/files/interfaces/web/public/pax-interface-web.css

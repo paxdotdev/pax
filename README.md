@@ -25,30 +25,33 @@ AI-assisted: Prompt your coding agent naturally and include the primer URL:
 
 **(2) Run your first project**
 
-With Rust and the [web prerequisites](pax-docs/book/src/getting-started.md#prepare-your-workstation) installed:
+Start with the web target on macOS, Linux, or Windows. With Rust and the
+[web prerequisites](pax-docs/book/src/getting-started.md#prepare-your-workstation) installed:
 
 ```sh
 cargo install pax-cli
 pax-cli create my-first-project
 cd my-first-project
-cargo run
+pax-cli run --target web
 ```
 
-The CLI scaffolds the project. After that, Cargo launches web development through
-`pax-kit`, including template hot reload; no installed CLI, application `build.rs`,
-or Cargo runner is required to run an existing project. Open the printed URL.
+The CLI scaffolds the project, builds the selected target, and serves the web
+app with template hot reload. Open the printed URL. Pax macros compile the UI
+without an application `build.rs`.
 
 ```sh
-cargo run -- pax --target=web --port=8080
-cargo run -- pax --target=macos  # macOS and full Xcode
-cargo run -- pax --target=ios    # macOS, Xcode and an iOS simulator
+pax-cli run --target web --port 8080
+pax-cli run --target macos  # macOS and full Xcode
+pax-cli run --target ios    # macOS, Xcode and an iOS simulator
 ```
 
-`cargo build` compiles without launching. `cargo run -- pax --build --release --target=web` packages production web output without designtime. `pax-cli` remains
-available for the same platform packaging, development tools, and scaffolding.
-Full macOS/iOS App Store delivery is not yet qualified.
-From this repository, use `cargo run -p increment` or
-`cargo run --example increment`; both default to web development.
+On macOS, `cargo run` runs the native app directly without a development server.
+`cargo build` compiles without launching. Use `pax-cli build --release --target web`
+to package production web output without designtime. Full macOS/iOS App Store
+delivery is not yet qualified.
+From this repository, `cargo run -p increment` or `cargo run --example increment`
+runs the native macOS example; `-p` selects the narrower dependency graph.
+Use `pax-cli run --path examples/increment --target web` for browser development.
 
 
 ## Source example
@@ -134,7 +137,8 @@ that depend on it and updates the running interface. Pax propagates the change
 through its reactive dependency graph, invalidating the affected layout and
 rendering work, including the minimal set of necessary GPU uploads (when using a default GPU rendering backend).  This model is inspired by the spreadsheet, but instead of updating cells, Pax updates pixels.
 
-Browse the [repository examples](examples), or open a live example on the
+Start with the nine [curated examples](examples), explore the
+[supporting fixtures](examples/fixtures), or open a live example on the
 [Pax website](https://www.pax.dev/) and click the **View Source** button on any of the page sections.
 
 The first-party [website](pax-website/README.md) and [blog](pax-blog/README.md)
@@ -248,5 +252,5 @@ Install the CLI, create a project, and start building:
 cargo install pax-cli
 pax-cli create my-first-project
 cd my-first-project
-cargo run
+pax-cli run --target web
 ```

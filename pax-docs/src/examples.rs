@@ -57,7 +57,34 @@ pub fn expand_examples_for_cli(markdown: &str, workspace: &Path) -> String {
 }
 
 pub fn example_dir(workspace: &Path, path: &str) -> Option<PathBuf> {
-    normalize_relative_path(path).map(|path| workspace.join("examples").join(path))
+    example_source_path(workspace, path).map(|path| workspace.join("examples").join(path))
+}
+
+// Embeds and hosted URLs keep their short names; source paths follow the category.
+pub fn example_source_path(workspace: &Path, path: &str) -> Option<String> {
+    let path = normalize_relative_path(path.strip_prefix("examples/").unwrap_or(path))?;
+    if let Some(name) = path.strip_prefix("fixtures/") {
+        return (!name.contains('/')).then_some(path);
+    }
+    if path.contains('/') {
+        return None;
+    }
+    let examples = workspace.join("examples");
+    if !examples.join(&path).join("Cargo.toml").is_file()
+        && examples
+            .join("fixtures")
+            .join(&path)
+            .join("Cargo.toml")
+            .is_file()
+    {
+        Some(format!("fixtures/{path}"))
+    } else {
+        Some(path)
+    }
+}
+
+pub fn example_name(path: &str) -> &str {
+    path.strip_prefix("fixtures/").unwrap_or(path)
 }
 
 pub fn source_file_paths_for_embed(workspace: &Path, embed: &ExampleEmbed) -> Vec<PathBuf> {
@@ -74,28 +101,44 @@ pub fn source_file_paths_for_embed(workspace: &Path, embed: &ExampleEmbed) -> Ve
 pub fn discover_example_paths(workspace: &Path) -> io::Result<Vec<String>> {
     let examples_dir = workspace.join("examples");
     let mut out = Vec::new();
-    let Ok(entries) = fs::read_dir(examples_dir) else {
-        return Ok(out);
-    };
-
-    for entry in entries {
-        let entry = entry?;
-        if !entry.file_type()?.is_dir() {
-            continue;
-        }
-        let path = entry.path();
-        if !path.join("Cargo.toml").exists() {
-            continue;
-        }
-        let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
-            continue;
+    let mut names = BTreeSet::new();
+    for directory in [&examples_dir, &examples_dir.join("fixtures")] {
+        let entries = match fs::read_dir(directory) {
+            Ok(entries) => entries,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(error),
         };
-        if let Some(path) = normalize_relative_path(name) {
-            out.push(path);
+        for entry in entries {
+            let entry = entry?;
+            if !entry.file_type()?.is_dir() {
+                continue;
+            }
+            let path = entry.path();
+            if path == examples_dir.join("fixtures") {
+                continue;
+            }
+            if !path.join("Cargo.toml").exists() {
+                continue;
+            }
+            let Some(name) = path.file_name().and_then(|name| name.to_str()) else {
+                continue;
+            };
+            if !names.insert(name.to_string()) {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("Duplicate example name: {name}"),
+                ));
+            }
+            out.push(
+                path.strip_prefix(&examples_dir)
+                    .unwrap()
+                    .to_string_lossy()
+                    .replace('\\', "/"),
+            );
         }
     }
 
-    out.sort();
+    out.sort_by_key(|path| (path.starts_with("fixtures/"), path.clone()));
     Ok(out)
 }
 
@@ -128,7 +171,8 @@ pub fn source_file_relative_paths(example_dir: &Path, requested_files: &[String]
 }
 
 pub fn humanize_example_title(path: &str) -> String {
-    path.split(['-', '_', '/'])
+    example_name(path)
+        .split(['-', '_', '/'])
         .filter(|part| !part.is_empty())
         .map(|part| {
             let mut chars = part.chars();
@@ -146,7 +190,7 @@ pub fn hosted_example_url(path: &str) -> String {
         "{}/{}/{}/app/",
         HOSTED_DOCS_BASE_URL.trim_end_matches('/'),
         EXAMPLES_ASSET_DIR,
-        path.trim_matches('/')
+        example_name(path).trim_matches('/')
     )
 }
 
@@ -166,7 +210,7 @@ pub fn render_example_source_markdown(
     }
 
     Some(render_source_markdown(
-        path,
+        &example_source_path(workspace, path)?,
         title
             .map(|title| title.to_string())
             .unwrap_or_else(|| humanize_example_title(path)),
@@ -385,6 +429,8 @@ fn normalize_relative_path(path: &str) -> Option<String> {
 }
 
 fn render_cli_fallback(embed: &ExampleEmbed, workspace: &Path) -> String {
+    let example_path =
+        example_source_path(workspace, &embed.path).unwrap_or_else(|| embed.path.clone());
     let title = embed
         .title
         .clone()
@@ -397,7 +443,7 @@ fn render_cli_fallback(embed: &ExampleEmbed, workspace: &Path) -> String {
     ));
     out.push_str("From the Pax repository root (requires a source checkout):\n\n");
     out.push_str("```sh\n");
-    out.push_str(&run_command(&embed.path));
+    out.push_str(&run_command(&example_path));
     out.push_str("\n```\n");
 
     let Some(example_dir) = example_dir(workspace, &embed.path) else {
@@ -413,7 +459,7 @@ fn render_cli_fallback(embed: &ExampleEmbed, workspace: &Path) -> String {
     for source_path in &source_paths {
         out.push_str(&format!(
             "- `examples/{}/{}`\n",
-            embed.path,
+            example_path,
             source_path.to_string_lossy().replace('\\', "/")
         ));
     }
@@ -569,6 +615,13 @@ pub fn fingerprint_dir(dir: &Path) -> io::Result<String> {
     }
 
     Ok(format!("{hash:016x}"))
+}
+
+pub fn fingerprint_file(path: &Path) -> io::Result<String> {
+    Ok(format!(
+        "{:016x}",
+        fnv1a(1469598103934665603, &fs::read(path)?)
+    ))
 }
 
 fn collect_fingerprint_files(

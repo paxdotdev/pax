@@ -46,20 +46,21 @@ a later sibling. Check source order before compensating with layout math.
 Run from the project root on macOS, Linux, or Windows:
 
 ```sh
-cargo run
+pax-cli run --target web
 ```
 
-The default development target is web. `cargo build` compiles without launching.
-No installed CLI or Cargo runner configuration is needed to run the project.
-On macOS with Xcode, select a native target explicitly:
+The CLI owns development serving, template reload, and platform packaging.
+`cargo build` compiles without launching. On macOS, `cargo run` runs the native
+app directly without a development server. With Xcode, use the CLI for native
+development sessions:
 
 ```sh
-cargo run -- pax --target=macos
-cargo run -- pax --target=ios
-cargo run -- pax --target=ipados
+pax-cli run --target macos
+pax-cli run --target ios
+pax-cli run --target ipados
 ```
 
-Use `cargo run -- pax --help` for development options, including `--port` on web.
+Use `pax-cli run --help` for development options, including `--port` on web.
 See Targets, Build & Deployment for mobile setup, devices, and distribution limits.
 The debug default is `--hot-reload=pax`: `.pax` edits update the mounted app,
 while Rust edits require rebuilding and restarting. `--hot-reload=all` now enables only template reload
@@ -70,7 +71,8 @@ The dev Cargo profile optimizes runtime dependencies at level 1 and keeps this
 application at level 0 for quick Rust rebuilds. Preserve the app-specific
 `[profile.dev.package.<package-name>]` override when changing the package name.
 Use `CARGO_PROFILE_DEV_OPT_LEVEL=0 cargo run` for fully unoptimized debugging;
-normal dev debug information, safety checks, and hot reload remain enabled.
+normal dev debug information and safety checks remain enabled. Use a CLI run
+for template hot reload.
 
 Use the open-source developer tools to inspect the running result:
 
@@ -90,5 +92,5 @@ build:
 ```sh
 pax-cli fmt
 pax-cli fmt --check
-cargo run -- pax --build --target=web
+pax-cli build --target web
 ```

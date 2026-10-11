@@ -1,0 +1,27 @@
+[package]
+publish = false
+name = "gyro-helper"
+version = "0.39.0"
+edition = "2021"
+default-run = "gyro-helper"
+
+[package.metadata.pax]
+title = "Gyro Helper"
+icon = "assets/app-icon.png"
+
+[dependencies]
+pax-kit = { version = "0.39.0", path = "../../../pax-kit" }
+wasm-bindgen = "0.2.93"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["standalone", "designtime"]
+standalone = ["pax-kit/host"]
+designtime = ["pax-kit/designtime"]
+
+[[bin]]
+name = "gyro-helper"
+path = "src/main.rs"
+required-features = ["standalone"]

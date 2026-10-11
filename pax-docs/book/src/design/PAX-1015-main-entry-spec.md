@@ -1,6 +1,143 @@
 # PAX-1015 — User-owned main and initialization
 
-## Development launch through the existing entry (2026-10-06)
+Example curation shipped in this checkout on 2026-10-11: secondary examples now
+live under `examples/fixtures/<name>`. Cargo names are unchanged. Older evidence
+paths below record their original locations; use the
+[PAX-1005 migration map](PAX-1005-example-curation.md#complete-path-map) for current paths.
+
+## Current decision: native-only initialization (2026-10-09)
+
+Withdraw development orchestration from `init!`. Both initialization macros now
+initialize in the current native process, with application arguments and executor
+ownership left to the caller. They do not invoke build tools, servers, or target
+launchers. Native SDK assembly belongs to Cargo's build step. `designtime` retains
+runtime inspection/template-edit support; the CLI owns the development server.
+
+Preserve real native main (including iOS), embedding, the separate cartridge ABI,
+macro-driven compilation, multiple runnable declarations, and the recent
+single-pass target builds and deterministic manifest fixes. `cargo run` runs a
+native macOS app. Linux/Windows workstations use the CLI's web target; web and
+mobile packaging/deployment also use the CLI. There is no reserved `pax` namespace
+in application arguments and no implicit web default in initialization.
+
+Defer `cargo pax` until developer feedback establishes that requiring `pax-cli`
+materially impedes adoption. The canonical getting-started workflow is
+`pax-cli` plus web on macOS, Linux, and Windows; native Cargo execution remains
+an optional macOS path. Keep one tooling interface for now. No new runner
+config, userland backend feature, or package-layout requirement is introduced
+here. Prebuilt tool distribution remains deferred. Example curation follows the
+final workstation and build-time qualification, under PAX-1005.
+
+Defer automatic `main_web` discovery as well. Keep the shared, typed
+`runnable!` initializer as the portable application-setup boundary, with native
+`main` and browser `init_web` as the outer entries. IDE qualification (completion,
+navigation, rename, and diagnostics around initializer registration) is deferred
+by agreement on 2026-10-09; it is not a gate for this task.
+
+Rollback qualification on 2026-10-09:
+
+- 174 compiler tests, 9 macro tests, and 29 CLI tests passed. The compiler's
+  socket tests required normal localhost access outside the sandbox.
+- Native Increment built and reached its platform loop with the former
+  `pax --help` arguments, without a development-worker child. The UI automation
+  adapter cannot select that unbundled process; no direct-native visual check
+  is claimed. `cargo check --example increment` passed.
+- CLI web debug rendered Pax Logo and served its live inspection tree; CLI
+  release web packaging passed. The iOS simulator app built, responded to a tap,
+  and accepted a template edit through its CLI-owned worker. Test source was
+  restored. No Linux/Windows execution or physical-device validation was run.
+- Dependency checks exclude the packager from `pax-kit` with host/designtime,
+  and preserve the renderer-free macro/compiler graphs. API references were
+  regenerated, the book built, and changed-page local links and both example
+  source bundles passed their checks.
+
+The section below records the **superseded** embedded-launcher experiment and its
+historical validation, not current usage. Canonical instructions are in
+[Targets](../targets-build-deploy.md#entry-and-mounting).
+
+### Final workstation and timing qualification (2026-10-10)
+
+IDE qualification is deferred. The example organization proposal is recorded in
+[PAX-1005](PAX-1005-example-curation.md); roster and physical moves await Zack's
+input.
+
+The post-rollback CLI web benchmark used Pax Logo on macOS 26.6.2/arm64 and
+Rust 1.93.0, with the checked-out source and existing lockfile, a freshly rebuilt
+CLI, no Cargo profile environment overrides, and an initially empty Rust target
+directory. Registry/platform-tool caches and generated `.pax` output were
+retained, and dependency resolution was offline. The Ubuntu CLI installation
+finished before this benchmark began. This is a shared workstation measurement,
+not an isolated performance lab or a fresh-machine installation timing.
+
+| Run | End-to-end wall time | Cargo compilation |
+| --- | --- | --- |
+| Rust-cold | 137.400 s | 254 distinct package/version compilation lines; Cargo reported 2m 10s |
+| First unchanged warm | 8.966 s | Pax Logo recompiled; Cargo reported 5.66s |
+| Second unchanged warm | 3.201 s | No packages compiled; Cargo reported 0.32s |
+
+CLI-reported `cargo/wasm-pack` time was 134.32s, 8.81s and 3.06s respectively.
+The one application recompilation on the first warm run is recorded rather than
+silently treating it as steady state. The counts are Cargo log entries, not a
+Wasm dependency/size measurement. These timings exclude building/installing the
+CLI and are not directly comparable to earlier embedded-launcher cold builds.
+
+Reproduce with `scripts/benchmark-cargo-web.py`; the qualification logs are in
+`/private/tmp/pax-init-closeout-benchmark-logs` on this workstation. The script's
+previous `Path.parent()` typo was corrected before the run.
+
+<a id="open-finding-cold-dependency-workspace-metadata"></a>
+#### Resolved: cold dependency-workspace metadata
+
+The Ubuntu ARM64 first-touch check found that an external Living Quilt project,
+source-linked to this checkout's `pax-kit`, failed while compiling `pax-std`.
+The component macro requested full offline metadata from the dependency's own
+workspace, requiring the unrelated, uncached `actix-http-test v3.2.0` dependency.
+Moving the same library sources outside the monorepo was a diagnostic control,
+not an acceptable first-touch prerequisite.
+
+The macro frontend now reads package declarations with `cargo metadata --no-deps`
+and obtains component dependency identities, source paths, and compiler-evaluated
+cfg facts through helpers exported by the compiled libraries. Rust resolves
+those helper calls through the consumer's actual dependency aliases. Transitive
+libraries forward their selected source graphs, which are deduplicated by source
+identity. Native `init!`/`init_with!` also use this handoff for the program recipe,
+without full dependency resolution. Application APIs and runtime dependencies
+are unchanged; the baking format is unchanged.
+
+Helpers use package-qualified names, plus a custom library-name alias where
+needed, to avoid glob-import collisions. Because they carry absolute paths,
+generated code tracks `CARGO_MANIFEST_DIR` and `Cargo.toml` for Cargo invalidation.
+This matters when moving source checkouts while sharing a target directory:
+otherwise Cargo can reuse a helper pointing at the previous source location.
+
+Validation on 2026-10-10:
+
+- 46 codegen tests and nine macro tests passed. The configuration matrix passed
+  native/Wasm, app and dependency features, dependency build-script cfgs, explicit
+  rustc cfgs, source edits, debug/release manifest reconstruction, repeated roots,
+  and separate engine instances.
+- The external-workspace regression makes an unrelated dependency intentionally
+  unresolvable, verifies that full metadata fails, then successfully runs plain
+  Cargo tests without `PAX_*` setup. It covers custom library names, renamed
+  transitive dependencies, and relocation with unchanged source contents/mtimes.
+- Native host checks cover explicit/default UI selection, a renamed dependency,
+  custom library targets with and without dependency renaming, the ordinary
+  same-package `main`, and the diagnostic for a missing `cdylib` target. These
+  checks compile the entry paths; they do not launch another native UI session.
+- The original Ubuntu source-linked project builds offline with a fresh Rust
+  target directory and the unrelated `actix-http-test` still absent before and
+  after the build. Existing registry/platform-tool caches were retained. A first
+  retry using the earlier source-copy control's target cache encountered mixed
+  crate artifacts; the fresh directory avoided that contamination.
+- Living Quilt subsequently runs through `pax-cli run --target web --port 8149`.
+  Visual rendering and a live scene-tree request succeeded. Compilation,
+  packaging, and serving run in Ubuntu; the browser runs on macOS through an SSH
+  tunnel. This does not claim Linux browser/GPU, Windows, or physical-device
+  validation.
+
+The preview is available at `http://127.0.0.1:8149/` while the VM/tunnel is running.
+
+## Superseded: development launch through the existing entry (2026-10-06)
 
 Zack authorized implementation after selecting the command namespace
 `cargo run -- pax --target=web --port=8080`. This supersedes the earlier rule

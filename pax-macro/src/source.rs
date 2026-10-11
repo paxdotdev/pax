@@ -2,7 +2,7 @@
 extern crate proc_macro;
 use color_eyre::eyre::{eyre, Result};
 use pax_codegen::configured_source::{
-    self as source, Facts, NeedsPredicate, NeedsSource, SourceCache, Sources,
+    self as source, Facts, NeedsDependency, NeedsPredicate, SourceCache, SourcePackage, Sources,
 };
 use quote::ToTokens;
 use sailfish::TemplateOnce;
@@ -23,7 +23,7 @@ struct Site {
 }
 #[derive(Clone, Serialize, Deserialize)]
 struct Snapshot {
-    entry: PathBuf,
+    package: SourcePackage,
     facts: Facts,
 }
 #[derive(Clone, Serialize, Deserialize)]
@@ -34,12 +34,12 @@ struct Request {
     engine: String,
     snapshot: Snapshot,
     dependencies: Vec<Snapshot>,
+    pending: Option<String>,
 }
 #[derive(Default)]
 struct Session {
     source: SourceCache,
     facts: Facts,
-    metadata: Option<cargo_metadata::Metadata>,
     package_metadata: Option<cargo_metadata::Metadata>,
     programs: BTreeMap<String, String>,
     discoveries: BTreeMap<String, Sources>,
@@ -105,29 +105,6 @@ fn package(session: &mut Session) -> Result<cargo_metadata::Package> {
         .ok_or_else(|| eyre!("Current Cargo package is missing from metadata"))
 }
 
-fn metadata<'a>(session: &'a mut Session, facts: &Facts) -> Result<&'a cargo_metadata::Metadata> {
-    if session.metadata.is_none() {
-        let selected_features = package(session)?
-            .features
-            .keys()
-            .filter(|name| facts.get(&format!("feature = {name:?}")) == Some(&true))
-            .cloned()
-            .collect::<Vec<_>>();
-        session.metadata = Some(
-            cargo_metadata::MetadataCommand::new()
-                .features(cargo_metadata::CargoOpt::NoDefaultFeatures)
-                .features(cargo_metadata::CargoOpt::SomeFeatures(selected_features))
-                .manifest_path(
-                    PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap())
-                        .join("Cargo.toml"),
-                )
-                .other_options(vec!["--offline".into()])
-                .exec()?,
-        );
-    }
-    Ok(session.metadata.as_ref().unwrap())
-}
-
 fn begin(
     anchor: proc_macro::Span,
     runnable: bool,
@@ -156,10 +133,28 @@ fn begin(
                 attributes,
                 engine,
                 snapshot: Snapshot {
-                    entry: target.src_path.clone().into(),
+                    package: SourcePackage {
+                        entry: target.src_path.clone().into(),
+                        manifest_dir: manifest.parent().unwrap().to_owned(),
+                        name: package.name.clone(),
+                        crate_name: target_name,
+                        dependencies: package
+                            .dependencies
+                            .iter()
+                            .filter(|d| d.kind != cargo_metadata::DependencyKind::Build)
+                            .map(|d| {
+                                (
+                                    d.rename.as_ref().unwrap_or(&d.name).replace('-', "_"),
+                                    d.name.clone(),
+                                )
+                            })
+                            .collect(),
+                        links: BTreeMap::new(),
+                    },
                     facts: Facts::new(),
                 },
                 dependencies: Vec::new(),
+                pending: None,
             },
             session,
         )
@@ -217,15 +212,28 @@ pub fn resume(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
         "dependency" => {
             let snapshots: Vec<Snapshot> = serde_json::from_str(&strings[2]).unwrap();
+            let name = request
+                .pending
+                .take()
+                .expect("dependency request without an import");
+            request
+                .snapshot
+                .package
+                .links
+                .insert(name, snapshots[0].package.entry.clone());
             for snapshot in snapshots {
                 if let Some(existing) = request
                     .dependencies
                     .iter()
-                    .find(|s| s.entry == snapshot.entry)
+                    .find(|s| s.package.entry == snapshot.package.entry)
                 {
                     assert_eq!(
                         existing.facts, snapshot.facts,
                         "conflicting configuration for a dependency source"
+                    );
+                    assert_eq!(
+                        existing.package, snapshot.package,
+                        "conflicting dependency source graph"
                     );
                 } else {
                     request.dependencies.push(snapshot);
@@ -311,11 +319,15 @@ fn sites(sources: &Sources, runnable: bool) -> BTreeMap<Site, syn::Item> {
 }
 
 fn discover(snapshot: &Snapshot, session: &mut Session) -> Result<Sources> {
-    let key = serde_json::to_string(snapshot)?;
+    let key = serde_json::to_string(&(&snapshot.package.entry, &snapshot.facts))?;
     if let Some(sources) = session.discoveries.get(&key) {
         return Ok(sources.clone());
     }
-    let sources = source::discover(&snapshot.entry, &snapshot.facts, &mut session.source)?;
+    let sources = source::discover(
+        &snapshot.package.entry,
+        &snapshot.facts,
+        &mut session.source,
+    )?;
     session.discoveries.insert(key, sources.clone());
     Ok(sources)
 }
@@ -394,14 +406,11 @@ fn drive(mut request: Request, session: &mut Session) -> Result<String> {
         for dependency in &request.dependencies {
             library_sources.extend(discover(dependency, session)?);
         }
-        let metadata = metadata(session, &request.snapshot.facts)?.clone();
-        let project = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap());
-        if let Err(error) = pax_codegen::static_analysis::resolve_library_sources(
-            &project,
-            &metadata,
-            library_sources,
-        ) {
-            return request_dependency(&request, &metadata, error);
+        let packages = source_packages(&request);
+        if let Err(error) =
+            pax_codegen::static_analysis::resolve_library_sources(&packages, library_sources)
+        {
+            return request_dependency(&request, error);
         }
     }
     if !request.runnable {
@@ -456,16 +465,32 @@ fn drive(mut request: Request, session: &mut Session) -> Result<String> {
         "#));
     }
     if &request.site == emitter {
+        // Helpers contain absolute source paths and package declarations. Cargo
+        // may reuse artifacts across relocated checkouts, so track both the
+        // manifest directory environment and the manifest file explicitly.
+        output.push_str(r#"const _: &[u8] = include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.toml"));"#);
         let mut snapshots = vec![request.snapshot.clone()];
         snapshots.extend(request.dependencies.clone());
         let json = serde_json::to_string(&snapshots)?;
-        let helper = helper_name(&request.snapshot.entry, "source_config");
+        // A package-qualified name avoids glob-reexport collisions with other
+        // component libraries while remaining discoverable without their paths.
+        let helper = handoff_helper_name(&request.snapshot.package.name, "source_config");
         output.push_str(&format!(r#"
             #[doc(hidden)] #[macro_export]
             macro_rules! {helper} {{
                 ($callback:path, $anchor:ident, $state:literal) => {{ $callback!(($anchor, $state, "dependency", {json:?})); }};
             }}
         "#));
+        if request.snapshot.package.crate_name != request.snapshot.package.name.replace('-', "_") {
+            let alternate =
+                handoff_helper_name(&request.snapshot.package.crate_name, "source_config");
+            output.push_str(&format!(r#"
+                #[doc(hidden)] #[macro_export]
+                macro_rules! {alternate} {{
+                    ($callback:path, $anchor:ident, $state:literal) => {{ $callback!(($anchor, $state, "dependency", {json:?})); }};
+                }}
+            "#));
+        }
         for path in sources.keys() {
             output.push_str(&format!("const _: &[u8] = include_bytes!({path:?});"));
         }
@@ -488,10 +513,10 @@ fn drive(mut request: Request, session: &mut Session) -> Result<String> {
         all_sources.extend(discover(dependency, session)?);
     }
     let project = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap());
-    let metadata = metadata(session, &request.snapshot.facts)?.clone();
+    let packages = source_packages(&request);
     let catalog = match pax_codegen::static_analysis::build_program_catalog_from_sources(
         &project,
-        &metadata,
+        &packages,
         pax_codegen::static_analysis::BuildManifestOptions {
             is_designtime: crate::designtime_enabled(),
         },
@@ -499,7 +524,7 @@ fn drive(mut request: Request, session: &mut Session) -> Result<String> {
     ) {
         Ok(catalog) => catalog,
         Err(e) => {
-            return request_dependency(&request, &metadata, e);
+            return request_dependency(&request, e);
         }
     };
     let manifest = catalog.manifest_for(Some(&catalog.entries()[0].root))?;
@@ -600,15 +625,11 @@ fn drive(mut request: Request, session: &mut Session) -> Result<String> {
         ipados: std::env::var("PAX_BUILD_TARGET").as_deref() == Ok("ipados"),
         designtime,
     };
-    let package = metadata
-        .packages
-        .iter()
-        .find(|p| p.manifest_path.as_std_path() == project.join("Cargo.toml"))
-        .unwrap();
+    let package = package(session)?;
     let library = package
         .targets
         .iter()
-        .find(|t| t.src_path.as_std_path() == request.snapshot.entry)
+        .find(|t| t.src_path.as_std_path() == request.snapshot.package.entry)
         .unwrap();
     let adapter = crate::TemplateArgsCartridge {
         catalog: true,
@@ -628,7 +649,27 @@ fn drive(mut request: Request, session: &mut Session) -> Result<String> {
         "title": package.metadata.get("pax").and_then(|p|p.get("title")).and_then(|s|s.as_str()).unwrap_or(&package.name),
         "roots": roots,
     }))?;
-    let helper = helper_name(&request.snapshot.entry, "program");
+    let mut helpers = vec![handoff_helper_name(&package.name, "program")];
+    if library.name.replace('-', "_") != package.name.replace('-', "_") {
+        helpers.push(handoff_helper_name(&library.name, "program"));
+    }
+    let callback = if library.crate_types.iter().any(|kind| kind == "cdylib") {
+        format!("$($callback)::+!(({recipe:?}, $options))")
+    } else {
+        r#"compile_error!("The selected UI library needs crate-type = [\"rlib\", \"cdylib\"]")"#
+            .into()
+    };
+    let program_helpers = helpers
+        .into_iter()
+        .map(|helper| {
+            format!(
+                r#"
+        #[doc(hidden)] #[macro_export]
+        macro_rules! {helper} {{ ($($callback:ident)::+, $options:expr) => {{ {callback} }}; }}
+    "#
+            )
+        })
+        .collect::<String>();
     let standard_library = if engine.replace(' ', "") == "pax_kit::pax_engine" {
         "use pax_kit::pax_std;"
     } else {
@@ -645,8 +686,7 @@ fn drive(mut request: Request, session: &mut Session) -> Result<String> {
             {adapter}
         }}
         pub use __pax_cartridge::*;
-        #[doc(hidden)] #[macro_export]
-        macro_rules! {helper} {{ ($($callback:ident)::+, $options:expr) => {{ $($callback)::+!(({recipe:?}, $options)) }}; }}
+        {program_helpers}
     "#
     );
     session.programs.insert(key, program.clone());
@@ -769,66 +809,56 @@ fn normalize_legacy(items: &mut Vec<syn::Item>) -> Result<()> {
     Ok(())
 }
 
-fn request_dependency(
-    request: &Request,
-    metadata: &cargo_metadata::Metadata,
-    error: color_eyre::Report,
-) -> Result<String> {
-    let project = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap());
-    let callback = format!("{}::pax_macro::__pax_resume", request.engine);
-    if let Some(NeedsSource(file)) = error.downcast_ref::<NeedsSource>() {
-        if request
-            .dependencies
-            .iter()
-            .any(|dependency| &dependency.entry == file)
-        {
-            return Err(eyre!("Configuration helper returned {} again without supplying the requested source graph", file.display()));
-        }
-        let package = metadata
-            .packages
-            .iter()
-            .find(|p| p.targets.iter().any(|t| t.src_path.as_std_path() == file))
-            .ok_or_else(|| eyre!("No package for {}", file.display()))?;
-        let root = metadata
-            .packages
-            .iter()
-            .find(|p| p.manifest_path.as_std_path() == project.join("Cargo.toml"))
-            .unwrap();
-        let node = metadata
-            .resolve
-            .as_ref()
-            .unwrap()
-            .nodes
-            .iter()
-            .find(|n| n.id == root.id)
-            .unwrap();
-        let name = if let Some(dependency) = node.deps.iter().find(|d| d.pkg == package.id) {
-            dependency.name.clone()
-        } else if package.name == "pax-std" {
-            let kit = node
-                .deps
-                .iter()
-                .find(|d| {
-                    metadata
-                        .packages
-                        .iter()
-                        .any(|p| p.id == d.pkg && p.name == "pax-kit")
-                })
-                .ok_or_else(|| eyre!("Cannot reach pax-std configuration from this cartridge"))?;
-            format!("{}::pax_std", kit.name)
-        } else {
-            return Err(eyre!(
-                "Configuration provider for {} must be reachable through a direct dependency",
-                package.name
-            ));
-        };
-        let json = serde_json::to_string(&request)?;
-        let helper = helper_name(file, "source_config");
-        return Ok(format!(
-            "::{name}::{helper}!({callback}, __pax_anchor, {json:?});"
+pub(crate) fn handoff_helper_name(name: &str, kind: &str) -> String {
+    format!("__pax_{kind}_v1_{}", name.replace('-', "_"))
+}
+
+fn source_packages(request: &Request) -> Vec<SourcePackage> {
+    std::iter::once(&request.snapshot)
+        .chain(&request.dependencies)
+        .map(|snapshot| {
+            let mut package = snapshot.package.clone();
+            if !package.dependencies.values().any(|name| name == "pax-std") {
+                if let Some((alias, _)) = package
+                    .dependencies
+                    .iter()
+                    .find(|(_, name)| *name == "pax-kit")
+                {
+                    package
+                        .dependencies
+                        .insert(format!("{alias}::pax_std"), "pax-std".into());
+                }
+            }
+            package
+        })
+        .collect()
+}
+
+fn request_dependency(request: &Request, error: color_eyre::Report) -> Result<String> {
+    let Some(dependency) = error.downcast_ref::<NeedsDependency>() else {
+        return Err(error);
+    };
+    if dependency.owner != request.snapshot.package.entry {
+        return Err(eyre!(
+            "Dependency helper for {} did not supply its {} source graph",
+            dependency.owner.display(),
+            dependency.name
         ));
     }
-    Err(error)
+    let mut request = request.clone();
+    request.pending = Some(dependency.name.clone());
+    let callback = format!("{}::pax_macro::__pax_resume", request.engine);
+    let json = serde_json::to_string(&request)?;
+    let packages = source_packages(&request);
+    let package_name = packages[0]
+        .dependencies
+        .get(&dependency.name)
+        .unwrap_or(&dependency.name);
+    let helper = handoff_helper_name(package_name, "source_config");
+    Ok(format!(
+        "::{}::{helper}!({callback}, __pax_anchor, {json:?});",
+        dependency.name
+    ))
 }
 
 fn legacy_tokens(
@@ -869,10 +899,4 @@ fn anchor_tokens(
             token
         })
         .collect()
-}
-
-pub(crate) fn helper_name(entry: &Path, kind: &str) -> String {
-    let path = entry.canonicalize().unwrap_or_else(|_| entry.to_owned());
-    let digest = Sha256::digest(path.to_string_lossy().as_bytes());
-    format!("__pax_{kind}_{digest:x}")
 }

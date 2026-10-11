@@ -8,9 +8,9 @@ intentionally a different caller exercising the public C ABI.
 Build the cartridge/framework with the repository CLI first:
 
 ```sh
-PAX_WORKSPACE_ROOT="$PWD" target/debug/pax-cli build --path examples/async-workbench --target macos --libdev
+PAX_WORKSPACE_ROOT="$PWD" target/debug/pax-cli build --path examples/fixtures/async-workbench --target macos --libdev
 python3 tests/src/host-embedding/build.py \
-  'examples/async-workbench/.pax/build/debug/macos/app/Pax macOS (Development).app' \
+  'examples/fixtures/async-workbench/.pax/build/debug/macos/app/Pax macOS (Development).app' \
   /tmp/pax-host-embedding.app
 ```
 
@@ -52,7 +52,7 @@ For an automated ABI/lifecycle regression, add `probe` after the platform:
 
 ```sh
 python3 tests/src/host-embedding/build.py \
-  'examples/async-workbench/.pax/build/release/macos/app/Pax macOS (Release).app' \
+  'examples/fixtures/async-workbench/.pax/build/release/macos/app/Pax macOS (Release).app' \
   /tmp/pax-host-lifecycle-probe.app macos probe
 /tmp/pax-host-lifecycle-probe.app/Contents/MacOS/HostEmbeddingProof
 ```

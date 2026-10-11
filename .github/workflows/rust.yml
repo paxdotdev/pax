@@ -14,7 +14,7 @@ env:
   SCCACHE_CACHE_SIZE: "1G"
 
 jobs:
-  cargo-development-entry:
+  cargo-native-entry:
     strategy:
       fail-fast: false
       matrix:
@@ -29,8 +29,19 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libgtk-4-dev libpango1.0-dev libcairo2-dev libharfbuzz-dev
-      - name: Check development entry without an installed Pax CLI
-        run: cargo run -p increment -- pax --help
+      - name: Check native entry without an installed Pax CLI
+        run: cargo check -p increment
+      - name: Check unsupported native target diagnostic
+        if: runner.os != 'macOS'
+        shell: python
+        run: |
+          import subprocess
+          result = subprocess.run(["cargo", "run", "-p", "increment"], text=True,
+                                  stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+          print(result.stdout)
+          assert result.returncode != 0
+          assert "Native hosting is unavailable on this platform" in result.stdout
+          assert "pax-cli run --target web" in result.stdout
 
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -95,7 +106,7 @@ jobs:
       run: |
         pushd examples/increment
         sccache --start-server
-        cargo run -- pax --build --target=web --release
+        cargo run -p pax-cli -- build --path . --target web --release
         sccache --show-stats
         popd
 

@@ -574,7 +574,6 @@ pub fn rebuild_staged_web_cartridge(
     let process_child_ids = Arc::new(Mutex::new(vec![]));
     let ctx = RunContext {
         port: None,
-        embedded_launcher: false,
         target: RunTarget::Web,
         project_path: project_root.clone(),
         verbose: false,

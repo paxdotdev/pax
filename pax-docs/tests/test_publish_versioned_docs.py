@@ -23,6 +23,12 @@ SPEC.loader.exec_module(publisher)
 
 
 class PublicationTests(unittest.TestCase):
+    def test_fixture_embeds_preserve_hosted_identity(self):
+        collector = publisher.ExampleCollector()
+        collector.feed('<pax-example path="fixtures/transition-grid"></pax-example>')
+        collector.feed('<pax-example path="transition-grid"></pax-example>')
+        self.assertEqual(collector.examples, {"transition-grid"})
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)

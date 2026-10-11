@@ -92,6 +92,8 @@ fn discover_build_plans(
     workspace: &Path,
     book_src: &Path,
 ) -> Result<BTreeMap<String, ExampleBuildPlan>, Box<dyn std::error::Error>> {
+    // Duplicate short names would otherwise overwrite a hosted bundle.
+    examples::discover_example_paths(workspace)?;
     let mut plans = BTreeMap::new();
     visit_markdown(book_src, &mut |path, markdown| {
         for embed in examples::discover_embeds(markdown) {
@@ -109,7 +111,7 @@ fn discover_build_plans(
             }
 
             let plan = plans
-                .entry(embed.path.clone())
+                .entry(examples::example_name(&embed.path).to_string())
                 .or_insert_with(|| ExampleBuildPlan {
                     path: embed.path.clone(),
                     title: embed
@@ -230,7 +232,7 @@ fn process_example(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let example_dir = examples::example_dir(workspace, &plan.path)
         .ok_or_else(|| format!("invalid example path: {}", plan.path))?;
-    let example_out = out_dir.join(&plan.path);
+    let example_out = out_dir.join(examples::example_name(&plan.path));
     fs::create_dir_all(&example_out)?;
 
     let source_fingerprint = examples::fingerprint_dir(&example_dir)?;
@@ -277,6 +279,7 @@ fn process_example(
         None
     };
     write_manifest(
+        workspace,
         &example_out,
         plan,
         &source_fingerprint,
@@ -315,6 +318,8 @@ fn process_example(
 }
 
 fn build_example(pax_cli: &Path, workspace: &Path, example_path: &str) -> io::Result<()> {
+    let example_path = examples::example_source_path(workspace, example_path)
+        .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "invalid example path"))?;
     let status = Command::new(pax_cli)
         .current_dir(workspace)
         .arg("build")
@@ -345,6 +350,7 @@ fn read_manifest_string(path: &Path, key: &str) -> Option<String> {
 }
 
 fn write_manifest(
+    workspace: &Path,
     example_out: &Path,
     plan: &ExampleBuildPlan,
     source_fingerprint: &str,
@@ -368,10 +374,10 @@ fn write_manifest(
         .collect::<Vec<_>>();
 
     let manifest = json!({
-        "path": plan.path,
+        "path": examples::example_name(&plan.path),
         "title": plan.title,
         "height": plan.height,
-        "run_command": examples::run_command(&plan.path),
+        "run_command": examples::run_command(&examples::example_source_path(workspace, &plan.path).unwrap()),
         "hosted_url": examples::hosted_example_url(&plan.path),
         "source_fingerprint": source_fingerprint,
         "built_fingerprint": built_fingerprint,
@@ -438,11 +444,15 @@ fn write_if_changed(path: &Path, bytes: &[u8]) -> io::Result<()> {
 // Exclude docs so editorial changes alone can reuse the compiled applications.
 fn engine_build_recipe(workspace: &Path) -> io::Result<String> {
     let mut recipe = BUILD_RECIPE.to_string();
+    let mut configuration = vec!["Cargo.toml".to_string(), "Cargo.lock".to_string()];
     for package in [
+        "pax-chassis-web",
         "pax-cli",
+        "pax-codegen",
         "pax-compiler",
         "pax-engine",
         "pax-gpu",
+        "pax-host",
         "pax-kit",
         "pax-language",
         "pax-macro",
@@ -452,6 +462,10 @@ fn engine_build_recipe(workspace: &Path) -> io::Result<String> {
         "pax-runtime-api",
         "pax-std",
     ] {
+        configuration.extend([
+            format!("{package}/Cargo.toml"),
+            format!("{package}/build.rs"),
+        ]);
         for suffix in ["src", "templates"] {
             let relative = format!("{package}/{suffix}");
             let path = workspace.join(&relative);
@@ -461,6 +475,15 @@ fn engine_build_recipe(workspace: &Path) -> io::Result<String> {
                     examples::fingerprint_dir(&path)?
                 ));
             }
+        }
+    }
+    for relative in configuration {
+        let path = workspace.join(&relative);
+        if path.is_file() {
+            recipe.push_str(&format!(
+                ":{relative}={}",
+                examples::fingerprint_file(&path)?
+            ));
         }
     }
     let interface = workspace.join("pax-compiler/files/interfaces/web/src");
@@ -531,6 +554,33 @@ mod tests {
     }
 
     #[test]
+    fn fixture_build_keeps_hosted_name_and_uses_moved_source() {
+        let f = Fixture::new("printf '%s\\n' \"$@\" > args\nmkdir -p examples/fixtures/demo/.pax/build/release/web\nprintf release > examples/fixtures/demo/.pax/build/release/web/index.html");
+        fs::create_dir_all(f.0.join("examples/fixtures")).unwrap();
+        fs::rename(
+            f.0.join("examples/demo"),
+            f.0.join("examples/fixtures/demo"),
+        )
+        .unwrap();
+        fs::write(f.0.join("examples/fixtures/demo/Cargo.toml"), "").unwrap();
+        let manifest = f.run(false);
+        assert_eq!(manifest["path"], "demo");
+        assert_eq!(
+            manifest["run_command"],
+            "pax-cli run --path examples/fixtures/demo --target web"
+        );
+        assert_eq!(
+            manifest["hosted_url"],
+            "https://docs.pax.dev/_pax_examples/demo/app/"
+        );
+        assert_eq!(manifest["app"]["available"], true);
+        assert!(fs::read_to_string(f.0.join("args"))
+            .unwrap()
+            .contains("examples/fixtures/demo"));
+        assert!(f.0.join("out/demo/app/index.html").is_file());
+    }
+
+    #[test]
     fn legacy_debug_cache_rebuilds_as_release_then_reuses_verified_output() {
         let f = Fixture::new("printf '%s\\n' \"$@\" > args\nmkdir -p examples/demo/.pax/build/release/web\nprintf release > examples/demo/.pax/build/release/web/index.html");
         f.seed_legacy();
@@ -556,6 +606,28 @@ mod tests {
         fs::write(f.0.join("pax-gpu/src/lib.rs"), "// changed renderer").unwrap();
         assert_eq!(f.run(true)["app"]["available"], false);
         assert_eq!(f.run(false)["app"]["available"], true);
+    }
+
+    #[test]
+    fn initialization_compilation_and_cargo_changes_invalidate_cached_embeds() {
+        let f = Fixture::new("mkdir -p examples/demo/.pax/build/release/web\nprintf release > examples/demo/.pax/build/release/web/index.html");
+        assert_eq!(f.run(false)["app"]["available"], true);
+        for relative in [
+            "pax-codegen/src/lib.rs",
+            "pax-codegen/templates/cartridge.rs.tera",
+            "pax-host/src/lib.rs",
+            "pax-host/build.rs",
+            "pax-chassis-web/src/lib.rs",
+            "pax-kit/Cargo.toml",
+            "Cargo.toml",
+            "Cargo.lock",
+        ] {
+            let path = f.0.join(relative);
+            fs::create_dir_all(path.parent().unwrap()).unwrap();
+            fs::write(path, "changed").unwrap();
+            assert_eq!(f.run(true)["app"]["available"], false, "{relative}");
+            assert_eq!(f.run(false)["app"]["available"], true, "{relative}");
+        }
     }
 
     #[test]

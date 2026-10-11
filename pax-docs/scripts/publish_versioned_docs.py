@@ -250,7 +250,7 @@ class ExampleCollector(HTMLParser):
             name = dict(attrs).get("path") or ""
             if not name or "\\" in name or any(part in ("", ".", "..") for part in name.split("/")):
                 raise SystemExit(f"Invalid embedded example path: {name!r}")
-            self.examples.add(name)
+            self.examples.add(name.removeprefix("fixtures/"))
 
 
 def validate_example(name: str) -> None:

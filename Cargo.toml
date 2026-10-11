@@ -8,7 +8,16 @@ publish = false
 [workspace]
 resolver = "2"
 members = [
-    "examples/*",
+    "examples/calculator",
+    "examples/increment",
+    "examples/ink-and-light",
+    "examples/liquid-glass",
+    "examples/living-quilt",
+    "examples/materials",
+    "examples/pax-logo",
+    "examples/paxflix",
+    "examples/viewport-proximity",
+    "examples/fixtures/*",
     "pax-chassis-common",
     "pax-chassis-ios",
     "pax-chassis-macos",
@@ -201,52 +210,213 @@ codegen-units = 1
 
 [dev-dependencies]
 pax-kit = { path = "pax-kit", features = ["host", "designtime"] }
-adaptive-cards = { path = "examples/adaptive-cards", default-features = false }
-architecture-diagram = { path = "examples/architecture-diagram", default-features = false }
-async-workbench = { path = "examples/async-workbench", default-features = false }
-auto-sized-containers = { path = "examples/auto-sized-containers", default-features = false }
-breakout = { path = "examples/breakout", default-features = false }
+adaptive-cards = { path = "examples/fixtures/adaptive-cards", default-features = false }
+architecture-diagram = { path = "examples/fixtures/architecture-diagram", default-features = false }
+async-workbench = { path = "examples/fixtures/async-workbench", default-features = false }
+auto-sized-containers = { path = "examples/fixtures/auto-sized-containers", default-features = false }
+breakout = { path = "examples/fixtures/breakout", default-features = false }
 calculator = { path = "examples/calculator", default-features = false }
-color-picker = { path = "examples/color-picker", default-features = false }
-dynamic-linking-lab = { path = "examples/dynamic-linking-lab", default-features = false }
-example-host = { path = "examples/example-host", default-features = false }
-fireworks = { path = "examples/fireworks", default-features = false }
-game-of-life = { path = "examples/game-of-life", default-features = false }
-glow-buttons = { path = "examples/glow-buttons", default-features = false }
-group-compositing = { path = "examples/group-compositing", default-features = false }
-gyro-helper = { path = "examples/gyro-helper", default-features = false }
+color-picker = { path = "examples/fixtures/color-picker", default-features = false }
+dynamic-linking-lab = { path = "examples/fixtures/dynamic-linking-lab", default-features = false }
+example-host = { path = "examples/fixtures/example-host", default-features = false }
+fireworks = { path = "examples/fixtures/fireworks", default-features = false }
+game-of-life = { path = "examples/fixtures/game-of-life", default-features = false }
+glow-buttons = { path = "examples/fixtures/glow-buttons", default-features = false }
+group-compositing = { path = "examples/fixtures/group-compositing", default-features = false }
+gyro-helper = { path = "examples/fixtures/gyro-helper", default-features = false }
 increment = { path = "examples/increment", default-features = false }
 ink-and-light = { path = "examples/ink-and-light", default-features = false }
 liquid-glass = { path = "examples/liquid-glass", default-features = false }
 living-quilt = { path = "examples/living-quilt", default-features = false }
-marionette = { path = "examples/marionette", default-features = false }
-mask-strokes = { path = "examples/mask-strokes", default-features = false }
+marionette = { path = "examples/fixtures/marionette", default-features = false }
+mask-strokes = { path = "examples/fixtures/mask-strokes", default-features = false }
 materials = { path = "examples/materials", default-features = false }
-mesh-gradients = { path = "examples/mesh-gradients", default-features = false }
-mouse-animation = { path = "examples/mouse-animation", default-features = false }
-native-text-compatibility = { path = "examples/native-text-compatibility", default-features = false }
-neon-opacity = { path = "examples/neon-opacity", default-features = false }
-occlusion = { path = "examples/occlusion", default-features = false }
-particles = { path = "examples/particles", default-features = false }
-path-drawing = { path = "examples/path-drawing", default-features = false }
+mesh-gradients = { path = "examples/fixtures/mesh-gradients", default-features = false }
+mouse-animation = { path = "examples/fixtures/mouse-animation", default-features = false }
+native-text-compatibility = { path = "examples/fixtures/native-text-compatibility", default-features = false }
+neon-opacity = { path = "examples/fixtures/neon-opacity", default-features = false }
+occlusion = { path = "examples/fixtures/occlusion", default-features = false }
+particles = { path = "examples/fixtures/particles", default-features = false }
+path-drawing = { path = "examples/fixtures/path-drawing", default-features = false }
 pax-logo = { path = "examples/pax-logo", default-features = false }
 paxflix = { path = "examples/paxflix", default-features = false }
-photo-picker = { path = "examples/photo-picker", default-features = false }
-pick-up-sticks = { path = "examples/pick-up-sticks", default-features = false }
-responsive-helpers = { path = "examples/responsive-helpers", default-features = false }
-rounded-scroller-tiles = { path = "examples/rounded-scroller-tiles", default-features = false }
-route-card = { path = "examples/route-card", default-features = false }
-router-playground = { path = "examples/router-playground", default-features = false }
-runtime-settings-themes = { path = "examples/runtime-settings-themes", default-features = false }
-scroll-cull-stress = { path = "examples/scroll-cull-stress", default-features = false }
-scroll-garden = { path = "examples/scroll-garden", default-features = false }
-scroll-matrix = { path = "examples/scroll-matrix", default-features = false }
-scroll-swatch = { path = "examples/scroll-swatch", default-features = false }
-slot-particles = { path = "examples/slot-particles", default-features = false }
-slot-projection-resolver = { path = "examples/slot-projection-resolver", default-features = false }
-space-game = { path = "examples/space-game", default-features = false }
-starter-project = { path = "examples/starter-project", default-features = false }
-store-ownership = { path = "examples/store-ownership", default-features = false }
-timeline-playground = { path = "examples/timeline-playground", default-features = false }
-transition-grid = { path = "examples/transition-grid", default-features = false }
+photo-picker = { path = "examples/fixtures/photo-picker", default-features = false }
+pick-up-sticks = { path = "examples/fixtures/pick-up-sticks", default-features = false }
+responsive-helpers = { path = "examples/fixtures/responsive-helpers", default-features = false }
+rounded-scroller-tiles = { path = "examples/fixtures/rounded-scroller-tiles", default-features = false }
+route-card = { path = "examples/fixtures/route-card", default-features = false }
+router-playground = { path = "examples/fixtures/router-playground", default-features = false }
+runtime-settings-themes = { path = "examples/fixtures/runtime-settings-themes", default-features = false }
+scroll-cull-stress = { path = "examples/fixtures/scroll-cull-stress", default-features = false }
+scroll-garden = { path = "examples/fixtures/scroll-garden", default-features = false }
+scroll-matrix = { path = "examples/fixtures/scroll-matrix", default-features = false }
+scroll-swatch = { path = "examples/fixtures/scroll-swatch", default-features = false }
+slot-particles = { path = "examples/fixtures/slot-particles", default-features = false }
+slot-projection-resolver = { path = "examples/fixtures/slot-projection-resolver", default-features = false }
+space-game = { path = "examples/fixtures/space-game", default-features = false }
+starter-project = { path = "examples/fixtures/starter-project", default-features = false }
+store-ownership = { path = "examples/fixtures/store-ownership", default-features = false }
+timeline-playground = { path = "examples/fixtures/timeline-playground", default-features = false }
+transition-grid = { path = "examples/fixtures/transition-grid", default-features = false }
 viewport-proximity = { path = "examples/viewport-proximity", default-features = false }
+
+# Secondary examples retain their public Cargo example names.
+[[example]]
+name = "adaptive-cards"
+path = "examples/fixtures/adaptive-cards.rs"
+
+[[example]]
+name = "architecture-diagram"
+path = "examples/fixtures/architecture-diagram.rs"
+
+[[example]]
+name = "async-workbench"
+path = "examples/fixtures/async-workbench.rs"
+
+[[example]]
+name = "auto-sized-containers"
+path = "examples/fixtures/auto-sized-containers.rs"
+
+[[example]]
+name = "breakout"
+path = "examples/fixtures/breakout.rs"
+
+[[example]]
+name = "color-picker"
+path = "examples/fixtures/color-picker.rs"
+
+[[example]]
+name = "dynamic-linking-lab"
+path = "examples/fixtures/dynamic-linking-lab.rs"
+
+[[example]]
+name = "example-host"
+path = "examples/fixtures/example-host.rs"
+
+[[example]]
+name = "fireworks"
+path = "examples/fixtures/fireworks.rs"
+
+[[example]]
+name = "game-of-life"
+path = "examples/fixtures/game-of-life.rs"
+
+[[example]]
+name = "glow-buttons"
+path = "examples/fixtures/glow-buttons.rs"
+
+[[example]]
+name = "group-compositing"
+path = "examples/fixtures/group-compositing.rs"
+
+[[example]]
+name = "gyro-helper"
+path = "examples/fixtures/gyro-helper.rs"
+
+[[example]]
+name = "marionette"
+path = "examples/fixtures/marionette.rs"
+
+[[example]]
+name = "mask-strokes"
+path = "examples/fixtures/mask-strokes.rs"
+
+[[example]]
+name = "mesh-gradients"
+path = "examples/fixtures/mesh-gradients.rs"
+
+[[example]]
+name = "mouse-animation"
+path = "examples/fixtures/mouse-animation.rs"
+
+[[example]]
+name = "native-text-compatibility"
+path = "examples/fixtures/native-text-compatibility.rs"
+
+[[example]]
+name = "neon-opacity"
+path = "examples/fixtures/neon-opacity.rs"
+
+[[example]]
+name = "occlusion"
+path = "examples/fixtures/occlusion.rs"
+
+[[example]]
+name = "particles"
+path = "examples/fixtures/particles.rs"
+
+[[example]]
+name = "path-drawing"
+path = "examples/fixtures/path-drawing.rs"
+
+[[example]]
+name = "photo-picker"
+path = "examples/fixtures/photo-picker.rs"
+
+[[example]]
+name = "pick-up-sticks"
+path = "examples/fixtures/pick-up-sticks.rs"
+
+[[example]]
+name = "responsive-helpers"
+path = "examples/fixtures/responsive-helpers.rs"
+
+[[example]]
+name = "rounded-scroller-tiles"
+path = "examples/fixtures/rounded-scroller-tiles.rs"
+
+[[example]]
+name = "route-card"
+path = "examples/fixtures/route-card.rs"
+
+[[example]]
+name = "router-playground"
+path = "examples/fixtures/router-playground.rs"
+
+[[example]]
+name = "runtime-settings-themes"
+path = "examples/fixtures/runtime-settings-themes.rs"
+
+[[example]]
+name = "scroll-cull-stress"
+path = "examples/fixtures/scroll-cull-stress.rs"
+
+[[example]]
+name = "scroll-garden"
+path = "examples/fixtures/scroll-garden.rs"
+
+[[example]]
+name = "scroll-matrix"
+path = "examples/fixtures/scroll-matrix.rs"
+
+[[example]]
+name = "scroll-swatch"
+path = "examples/fixtures/scroll-swatch.rs"
+
+[[example]]
+name = "slot-particles"
+path = "examples/fixtures/slot-particles.rs"
+
+[[example]]
+name = "slot-projection-resolver"
+path = "examples/fixtures/slot-projection-resolver.rs"
+
+[[example]]
+name = "space-game"
+path = "examples/fixtures/space-game.rs"
+
+[[example]]
+name = "starter-project"
+path = "examples/fixtures/starter-project.rs"
+
+[[example]]
+name = "store-ownership"
+path = "examples/fixtures/store-ownership.rs"
+
+[[example]]
+name = "timeline-playground"
+path = "examples/fixtures/timeline-playground.rs"
+
+[[example]]
+name = "transition-grid"
+path = "examples/fixtures/transition-grid.rs"

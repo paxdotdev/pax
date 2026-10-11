@@ -45,12 +45,11 @@ actually uses in its test plan.
 ## Entry and mounting
 
 `pax_kit::host` contains the options, errors, and embedding types.
-The common launcher is `pax_kit::init!()?.run()`: the macro selects this package's
-UI library and prepares either a workstation development session or native UI.
-`init!(my_ui)` selects a separate UI dependency. The workstation launcher builds
-and starts the destination app; native initialization invokes its root initializer
-and `run` enters the platform application loop. `init_with!` always selects
-in-process native initialization.
+The common native entry is `pax_kit::init!()?.run()`: the macro selects this
+package's UI library and initializes its root in the current native process.
+`init!(my_ui)` selects a separate UI dependency; `init_with!` adds startup options.
+`run` enters the platform application loop. Neither macro parses application
+arguments or starts development tools, regardless of `designtime`.
 Only copied build metadata crosses from that library into the launcher; the
 engine and application objects stay in the separately loaded cartridge.
 Depend on `pax-kit` and enable its `host` feature in the launcher.
@@ -94,15 +93,11 @@ The compilation target automatically selects the macOS, iOS, or web chassis.
 can use `default-features = false`; feature unification is safe because loading
 and runtime ownership remain separate.
 
-With `designtime` enabled, `cargo run`, `cargo run -p my-app`, and the
-resulting development executable launch web by default. Select Apple targets
-with `pax --target=macos` or `pax --target=ios`. The development executable calls
-Pax's compilation and packaging library; it does not shell into an installed
-CLI. Native SDK assembly is deferred until native execution is requested.
-Development executables retain source paths and are not distribution bundles.
-The first development build compiles both workstation tooling and destination
-code. Compiler/proc-macro dependencies run on the workstation; their appearance
-in Cargo output does not mean they are included in the browser Wasm. Web
+On macOS, `cargo run`, `cargo run -p my-app`, and the resulting executable run
+the native application directly. Cargo builds the native host SDK before
+execution. `designtime` enables runtime inspection and template changes; the CLI starts the server needed for those sessions.
+The application does not depend on Pax's packager. Macro/compiler dependencies
+run during compilation, not inside the native or browser application. Web
 packaging compiles the Wasm and its manifest together, using the target's actual
 cfgs, features, and profile, then reads that manifest to package routes and assets.
 Apple packaging obtains its manifest during a target `cargo build` and reuses
@@ -121,19 +116,15 @@ fn main() -> Result<(), pax_kit::host::Error> {
 }
 ```
 
-This is the complete bootstrap for the common case. `designtime` is enabled
-by default in starters. On a workstation, `init!` prepares a development session;
-its `run` builds, packages, and launches the requested application. No target
-initializer runs in the development tool. The packaged native executable carries
-an explicit application role, so the same expression initializes and runs its UI
-without starting another build.
+This is the complete bootstrap for the common native case. The same process
+owns code before and after initialization, both in direct Cargo runs and in
+packaged applications. Application arguments remain yours to parse. Use
+`init_with!` for startup data or an explicit root selection, and `mount` for
+embedding in a caller-owned view.
 
-Code before this expression still runs in the invoking process. It is not
-transported into a browser or device. Put target UI setup in the `runnable!`
-initializer. For application-owned process startup, argument parsing, window
-options, or embedding, use `init_with!`: it always initializes in the current
-process and never starts development orchestration. Each native application
-retains its own executor policy; the development server's runtime is unrelated.
+Put portable UI setup in the `runnable!` initializer, which runs in the target
+application. Native `main` is not transported into a browser. Pax creates no
+async runtime; each application retains its own executor policy.
 
 The actual application `main` runs on all three Apple targets, including iOS and
 iPadOS. `run` hands control to SwiftUI and normally never returns on mobile. Web
@@ -260,67 +251,66 @@ a pointer and passed through this interface.
 
 ## Run, build, and release
 
-From an application package:
+From an application package on macOS:
 
 ```sh
-cargo run                                     # web development, with template reload
-cargo run -- pax --target=web --port=8080
-cargo run -- pax --target=macos                 # Apple workstation
-cargo run -- pax --target=ios                   # iPhone simulator
-cargo run -- pax --target=ipados                # iPad simulator
-cargo run -- pax --help
-cargo build                                   # compile only; no packaging or server
+cargo run                  # native application; no development server
+cargo build                # compile only; no packaging or server
 ```
 
-In the repository, use `-p increment` or `--example increment` before Cargo's
-`--`. The target flag after `pax` selects the application destination. Cargo's
-own `--target` compiles the executable itself for a Rust target triple; compiling
-a workstation launcher for Wasm or iOS does not make it executable on the workstation.
+In the repository, use `cargo run -p increment` or `cargo run --example increment`.
+The package form compiles fewer unrelated example dependencies. Application
+arguments follow Cargo's `--`; Pax initialization does not intercept them.
+Native Linux and Windows hosting is not yet supported. Use the CLI's web target
+on those workstations.
 
-Selection precedence is the explicit `--target`, then `PAX_TARGET`, then
-`[package.metadata.pax.dev].target`, then `web`. An explicit occupied web port
-fails rather than silently selecting another. No positional target is accepted.
-Other arguments are not treated as application arguments by this bootstrap;
-custom native parsers should use explicit `init_with!` startup.
+For a development session with template reload, serving, or simulator deployment:
+
+```sh
+pax-cli run --target web --port 8080
+pax-cli run --target macos
+pax-cli run --target ios        # iPhone simulator, on macOS
+pax-cli run --target ipados     # iPad simulator, on macOS
+pax-cli run --help
+```
+
+An explicit occupied web port fails rather than silently selecting another.
+The CLI runs on the workstation; the native application's `main` runs in the
+launched application process. Browser applications use `init_web` instead.
 
 To package without launching, including production web output:
 
 ```sh
-cargo run -- pax --build --target=web --release
-cargo run -- pax --build --target=macos --release
+pax-cli build --target web --release
+pax-cli build --target macos --release
 ```
 
-These commands call the same packager as `pax-cli build`. Production packaging
-requires release artifacts without `designtime`. Pax omits the starter's direct
-`designtime` default, preserves other application defaults, and rejects aliases
-or dependencies that re-enable designtime in the target runtime graph. Reusable
-UI dependencies should use `default-features = false` and forward development
-features optionally. Build-time compiler dependencies are permitted; runtime
-editing/replacement code is not part of the production application.
+Production packaging requires release artifacts without `designtime`. Pax omits
+the starter's direct `designtime` default, preserves other application defaults,
+and rejects aliases or dependencies that re-enable designtime in the target
+runtime graph. Reusable UI dependencies should use `default-features = false`
+and forward development features optionally. Build-time compiler dependencies
+are permitted; runtime editing/replacement code is not part of the production
+application.
 
-Cargo's outer `--release` optimizes the workstation executable; it does not
-request a production target package. Likewise, outer Cargo feature, locked, and
-offline flags are not automatically forwarded as arguments to the inner build.
-The `pax --release` flag selects the application's release packaging path.
-
-Explicit in-process native Cargo builds remain available on macOS:
+For a direct native Cargo build without development capabilities:
 
 ```sh
 cargo run --no-default-features --features standalone
 cargo build --release --no-default-features --features standalone
 ```
 
-Add any other application features you require. These compile and run the native
-application directly, without a development server. Native `init_with!` also
-supports in-process initialization with designtime enabled. Raw iOS Cargo builds
-can use `--target aarch64-apple-ios-sim`, but producing/installing an app bundle
-requires the development launcher or CLI packaging. No Cargo runner is required.
+Add any other application features you require. Cargo's `--release` selects
+optimized compilation; it does not package an application or remove default
+features. Raw iOS Cargo builds can use `--target aarch64-apple-ios-sim`, but
+producing/installing an app bundle requires CLI packaging. No Cargo runner is
+configured by Pax.
 
 For only the UI library, use `cargo build --lib --no-default-features` and add
 the Rust `--target` you need. A raw WebAssembly build similarly needs JavaScript
 bindings, its platform interface and assets before it can run in a browser.
 
-The CLI remains an alternative frontend for local platform bundles, serving,
+The CLI manages local platform bundles, serving,
 template reload, and mobile deployment:
 
 ```sh
@@ -670,11 +660,10 @@ still goes under the host application's `.pax/` directory.
 
 ### macOS
 
-For native development through the shared packager:
+For direct native execution without a development server:
 
 ```sh
-cargo run -- pax --target=macos
-cargo run -- pax --build --target=macos --release
+cargo run
 ```
 
 For template hot reload or an application bundle:
@@ -692,18 +681,16 @@ it is not evidence that signing, notarization, or store submission is complete.
 
 ### iOS and iPadOS development
 
-The Cargo development entry assembles and launches the mobile app against an
-available simulator:
+The CLI assembles and launches the mobile app against an available simulator:
 
 ```sh
-cargo run -- pax --target=ios
-cargo run -- pax --target=ipados
+pax-cli run --target ios
+pax-cli run --target ipados
 ```
 
-The development entry calls the shared packaging library; no installed CLI or
-Cargo runner configuration is required. `pax-cli run` remains available as an
-alternative frontend. Full Xcode and an installed iOS
-simulator runtime are required.
+Full Xcode and an installed iOS simulator runtime are required. No Cargo runner
+configuration is needed. The application's native `main` executes in the iOS
+process, independently of the workstation CLI.
 
 The default selector chooses an appropriate phone or tablet simulator. List
 available simulators with `xcrun simctl list devices available`, then select

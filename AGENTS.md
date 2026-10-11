@@ -23,9 +23,9 @@ Start with the local docs before inventing patterns.  The most useful entry poin
 - `pax-docs/book/src/data-binding-expressions.md` for PAXEL expressions and reactive bindings.
 - `pax-docs/book/src/event-handling-rust.md` for Rust event handlers and state updates.
 - [How Pax Runs](pax-docs/book/src/how-pax-runs.md#architecture-schematic) for the architectural overview and interactive schematic.
-- The [full-sheet architecture PNG](pax-docs/book/src/images/pax-architecture.png) and the schematic's [source references](examples/architecture-diagram/src/content.rs) for component responsibilities, causal connections, and established names. The PNG is a revisioned overview; check the referenced code before changing an engine contract. Capture provenance and refresh instructions live in the [example README](examples/architecture-diagram/README.md#composed-raster-export); internal topology and design history are archived in [PAX-1010](https://linear.app/paxdev/issue/PAX-1010).
+- The [full-sheet architecture PNG](pax-docs/book/src/images/pax-architecture.png) and the schematic's [source references](examples/fixtures/architecture-diagram/src/content.rs) for component responsibilities, causal connections, and established names. The PNG is a revisioned overview; check the referenced code before changing an engine contract. Capture provenance and refresh instructions live in the [example README](examples/fixtures/architecture-diagram/README.md#composed-raster-export); internal topology and design history are archived in [PAX-1010](https://linear.app/paxdev/issue/PAX-1010).
 - `pax-docs/book/src/SUMMARY.md` for the full docs table of contents, including the API docs (generated from this codebase's code comments.)
-- `examples/*` for code samples and working patterns.
+- [Curated examples](examples/README.md) and [supporting fixtures](examples/fixtures/README.md) for code samples and working patterns.
 
 These docs are also available by CLI: `pax-cli docs`
 
@@ -124,8 +124,9 @@ New features are often proven on one "chassis" at a time (platform target.)  In 
 
 ## Hot reloading
 
-Debug `cargo run` and `pax-cli run` sessions use `--hot-reload=pax` by default. `.pax` changes
-reload through the Pax lane on every supported target. Rust application-logic
+Debug `pax-cli run` sessions use `--hot-reload=pax` by default. `.pax` changes
+reload through the Pax lane on every supported target. Direct native `cargo run`
+does not start a development server; use the CLI for template reload. Rust application-logic
 changes require rebuilding and restarting (refresh the browser after rebuilding).
 Rust logic replacement is no longer a supported workflow. `--hot-reload=all`
 migrates to `pax` with a notice; `--hot-reload=logic` reports an error.

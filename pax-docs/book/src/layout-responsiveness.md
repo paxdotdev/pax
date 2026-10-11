@@ -268,7 +268,7 @@ Text and native controls can report measurements after initial layout, and
 autosized ancestors react to those updates. Fonts, wrapping, and platform
 controls influence the result. Check the settled layout with realistic
 content rather than depending on its first frame. The
-[`auto-sized-containers` example](https://github.com/paxproject/pax/tree/dev/examples/auto-sized-containers)
+[`auto-sized-containers` example](https://github.com/paxproject/pax/tree/dev/examples/fixtures/auto-sized-containers)
 explores the available surfaces.
 
 ## Responsive layout

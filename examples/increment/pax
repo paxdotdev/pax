@@ -2,7 +2,7 @@
 set -eu
 
 project_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-monorepo_cli="$project_dir/../../../pax-cli/Cargo.toml"
+monorepo_cli="$project_dir/../../pax-cli/Cargo.toml"
 
 if [ -f "$monorepo_cli" ]; then
     cargo run --manifest-path "$monorepo_cli" -- "$@" --path="$project_dir" --libdev

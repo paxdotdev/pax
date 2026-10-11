@@ -16,9 +16,19 @@ EXCLUDED = {".git", ".pax", "target", "node_modules", "__pycache__"}
 def snapshot(workspace):
     files = {}
     examples = workspace / "examples"
-    for example in sorted(examples.iterdir()):
+    candidates = list(examples.iterdir())
+    fixtures = examples / "fixtures"
+    if fixtures.is_dir() and not fixtures.is_symlink():
+        candidates.extend(fixtures.iterdir())
+    seen = set()
+    for example in sorted(candidates):
+        if example == fixtures:
+            continue
         if example.is_symlink() or not (example / "Cargo.toml").is_file():
             continue
+        if example.name in seen:
+            raise ValueError(f"Duplicate example name: {example.name}")
+        seen.add(example.name)
         for directory, directories, names in os.walk(example, followlinks=False):
             directories[:] = sorted(
                 name for name in directories

@@ -93,8 +93,8 @@ exit; an update notice is shown only if the result is already available.
 
 ## Cargo workflows
 
-Ordinary `cargo build`, the `cargo run -- pax ...` development entry, and direct
-native execution do not emit Pax CLI telemetry. The Cargo development entry also
-does not perform the CLI update check.
+Ordinary `cargo build`, `cargo check`, and direct native `cargo run` do not emit
+Pax CLI telemetry or perform its update check. Sessions started through `pax-cli`
+use the CLI preferences described above.
 CLI usage therefore covers only the CLI cohort; it cannot be treated as a count
 of all active Pax developers or all Cargo builds.

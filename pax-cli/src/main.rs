@@ -315,7 +315,6 @@ fn run_context(
     }
     Ok(RunContext {
         port,
-        embedded_launcher: false,
         target,
         is_libdev_mode: resolve_libdev_mode(args, &path)?,
         project_path: path,
@@ -369,7 +368,6 @@ fn perform_nominal_action(
 
             let _ = pax_compiler::perform_build(&RunContext {
                 port: None,
-                embedded_launcher: false,
                 target: parse_run_target(&target)?,
                 project_path: PathBuf::from(path),
                 should_also_run: false,
@@ -416,7 +414,6 @@ fn perform_nominal_action(
 
             let _ = pax_compiler::perform_eject(&RunContext {
                 port: None,
-                embedded_launcher: false,
                 target: parse_run_target(&target)?,
                 project_path: PathBuf::from("."),
                 should_also_run: false,
@@ -943,9 +940,10 @@ mod tests {
         let workspace_root = local_pax_workspace_root().expect("test should run in Pax workspace");
 
         assert!(auto_libdev_mode_for_project(
-            &workspace_root
-                .join("examples")
-                .join("starter-project")
+            &workspace_root.join("examples/increment")
+        ));
+        assert!(auto_libdev_mode_for_project(
+            &workspace_root.join("examples/fixtures/starter-project")
         ));
         assert!(auto_libdev_mode_for_project(
             &workspace_root.join("tests").join("src").join("path-test")

@@ -1,0 +1,26 @@
+[package]
+publish = false
+name = "scroll-garden"
+version = "0.39.0"
+edition = "2021"
+default-run = "scroll-garden"
+
+[package.metadata.pax]
+title = "Scroll Garden"
+icon = "assets/app-icon.png"
+
+[dependencies]
+pax-kit = { version = "0.39.0", path="../../../pax-kit" }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["standalone", "designtime"]
+standalone = ["pax-kit/host"]
+designtime = ["pax-kit/designtime"]
+
+[[bin]]
+name = "scroll-garden"
+path = "src/main.rs"
+required-features = ["standalone"]

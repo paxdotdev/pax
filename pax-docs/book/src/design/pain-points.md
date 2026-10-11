@@ -861,3 +861,65 @@ contained no `pax_host`, `serde_json`, `include_dir`, `pax_compiler`, or
 `pax_codegen` names. This qualifies the hosting-feature concern; it is not a
 complete pre-branch/current binary-size benchmark. Keep that distinction when
 reporting the result.
+
+## 2026-10-11 — Example moves cross discovery and cleanup boundaries
+
+Moving secondary packages into `examples/fixtures` requires more than Cargo
+path updates: immediate-child discovery silently drops them from CLI docs,
+short hosted names must resolve separately from source paths, and the old
+`examples/*/.pax/` ignore rule prevents cleanup from deleting nested build
+artifacts. Discovery now covers exactly the curated and fixture levels and
+rejects duplicate short names. The ignore rule covers both levels; cleanup
+retains its ignored-directory and tracked-file safeguards. The scaffold helper
+registers fixture Cargo targets explicitly and supports an explicit showcase
+location. Audit extensionless `pax` helpers too: their old three-level CLI path
+was still present in curated packages after the earlier flattening. Verify both
+source bundles and use the CLI/package tests after moves. Docs embed manifests
+must distinguish hosted names from source paths; validate the actual release
+builds as well as mocked commands. Include the extracted code-generation/host
+crates and Cargo configuration in the embed cache recipe so initialization
+refactors cannot leave a stale app behind an up-to-date source tab.
+
+## 2026-10-10 — Dependency macros must not resolve their enclosing workspace
+
+A newly created project on Ubuntu failed while compiling source-linked `pax-std`:
+full offline `cargo metadata` inside its macro demanded an uncached dependency of
+an unrelated monorepo member. Warm workstation caches hid the assumption. The
+fix uses no-deps package metadata and compiled library helpers to hand off source
+identity, actual cfg facts, and dependency links. Native initialization uses the
+same style of handoff for its program recipe. No application build script or
+extra dependency fetching is required.
+
+A fixed generic helper name collides through glob re-exports, so helpers use
+package-qualified names, with aliases for custom library target names. The
+consumer's Rust import selects the compiled dependency. Track both
+`CARGO_MANIFEST_DIR` and `Cargo.toml` in emitted code: helpers contain absolute
+source paths, and Cargo can otherwise reuse them after a source checkout moves
+with preserved mtimes and a shared target directory. Compare canonical paths
+when matching workspace selections, including macOS `/var` and `/private/var`.
+
+The regression deliberately gives a library's unrelated workspace member an
+unresolvable dependency, then compiles an external consumer with ordinary Cargo.
+It also relocates the library sources without clearing the target cache. Keep
+these controls cold with respect to the unrelated dependency; fetching the whole
+workspace is not evidence that this failure has been fixed. See the
+[qualification record](PAX-1015-main-entry-spec.md#resolved-cold-dependency-workspace-metadata).
+
+## 2026-10-09 — Initialization should not also be a workstation build tool
+
+The embedded development launcher made native `main` ambiguous: code before
+`init!` ran on the workstation for web/mobile launches, and could run again when
+the executable served as a native reload worker. It also pulled the packager
+into the application dependency graph. The rollback restores in-process native
+initialization, removes the `pax-kit` → `pax-compiler` edge, and uses the CLI for
+serving, packaging and deployment. Native SDK assembly happens during Cargo
+compilation, not during initialization. The macro/compiler split and single-pass
+target builds remain. The older measurements below describe the superseded
+embedded-launcher architecture; the benchmark script now excludes CLI installation.
+
+The post-rollback Pax Logo measurement was 137.400s Rust-cold, 8.966s first-warm,
+and 3.201s steady-warm, with no Rust compilation on the final run. The first warm
+run rebuilt only the application after initial sidecar creation. See the
+[qualification record](PAX-1015-main-entry-spec.md#final-workstation-and-timing-qualification-2026-10-10)
+for the cache/toolchain conditions; these numbers exclude CLI installation and
+must not be compared directly with the old combined launcher/target totals.

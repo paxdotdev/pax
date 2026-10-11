@@ -421,12 +421,12 @@ and the value is returned as `request_id`. On web, prefer direct activation
 of the picker itself: browsers restrict opening file dialogs without a
 user gesture, so a delayed property update is not a reliable substitute.
 
-The canonical `examples/photo-picker` project shows library and camera
+The canonical `examples/fixtures/photo-picker` project shows library and camera
 selection, metadata, size limits, and thumbnail previews. From the repository
 root, run it with:
 
 ```sh
-pax-cli run --path examples/photo-picker --target web
+pax-cli run --path examples/fixtures/photo-picker --target web
 ```
 
 ## Current support

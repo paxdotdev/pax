@@ -23,8 +23,6 @@ designtime = []
 [lib]
 
 [dependencies]
-clap = "2.33.3"
-ctrlc = { version = "3.4.4", features = ["termination"] }
 pax-host = { version = "0.39.0", path = "../pax-host" }
 pax-codegen = { version = "0.39.0", path = "../pax-codegen" }
 actix = "0.13.1"

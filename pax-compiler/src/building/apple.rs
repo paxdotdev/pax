@@ -1248,7 +1248,6 @@ pub fn build_apple_project_with_cartridge(
                     .unwrap()
                     .join("design-server-url.txt");
                 let server = Some(spawn_designtime_server_process(
-                    ctx.embedded_launcher,
                     &pax_dir,
                     &project_path,
                     &manifest,
@@ -1378,7 +1377,6 @@ pub fn build_apple_project_with_cartridge(
                         crate::design_server::prepare_app_ready_marker(&ready_file);
                     designtime_run_dir = Some(run_dir);
                     designtime_server = Some(spawn_designtime_server_process(
-                    ctx.embedded_launcher,
                         &pax_dir,
                         &project_path,
                         &manifest,
@@ -2435,7 +2433,6 @@ pub fn rebuild_staged_macos_logic_dylib(
     let process_child_ids = Arc::new(Mutex::new(vec![]));
     let ctx = RunContext {
         port: None,
-        embedded_launcher: false,
         target: RunTarget::macOS,
         project_path: project_root.clone(),
         verbose: false,
@@ -2749,7 +2746,6 @@ fn wait_for_registered_session_app_pid(
 }
 
 fn spawn_designtime_server_process(
-    embedded_launcher: bool,
     pax_dir: &PathBuf,
     project_root: &PathBuf,
     manifest: &PaxManifest,
@@ -2772,13 +2768,6 @@ fn spawn_designtime_server_process(
         hot_reload,
         ready_file,
     );
-
-    if embedded_launcher {
-        let arguments: Vec<_> = cmd.get_args().skip(1).map(|arg| arg.to_owned()).collect();
-        let mut worker = Command::new(&current_exe);
-        worker.args(["pax", "__designtime-server"]).args(arguments);
-        cmd = worker;
-    }
 
     #[cfg(unix)]
     unsafe {

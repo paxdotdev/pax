@@ -61,18 +61,6 @@ fn host_framework_path() -> Result<std::path::PathBuf, String> {
     {
         return Ok(path);
     }
-    #[cfg(all(feature = "designtime", target_os = "macos"))]
-    {
-        let executable = std::env::current_exe().map_err(|error| error.to_string())?;
-        let directory = executable.parent().ok_or("Executable has no directory")?;
-        return crate::sdk::build(
-            &directory.join("pax-native-sdk"),
-            std::env::consts::ARCH,
-            cfg!(debug_assertions),
-        )
-        .map_err(|error| error.to_string());
-    }
-    #[cfg(not(all(feature = "designtime", target_os = "macos")))]
     Err("PaxHost is missing. Enable pax-kit/host for native Cargo builds, or package the native application.".into())
 }
 

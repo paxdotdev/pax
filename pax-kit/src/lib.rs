@@ -1,22 +1,22 @@
 //! The application-facing Pax facade: components, properties, `runnable!`, and
 //! platform hosting through one dependency.
 //!
-//! Starters enable `standalone` (hosting) and `designtime` by default. Ordinary
-//! `cargo run` launches web development; `cargo run -- pax --target=ios` selects
-//! an Apple target on a Mac. The shared packager needs no installed Pax CLI or
-//! application build script. `init_with!` always initializes in the current
-//! native process for application-owned startup and embedding. Merely building
-//! or depending on a UI library never launches it.
+//! Starters enable `standalone` (hosting) and `designtime` by default. On macOS,
+//! `cargo run` runs the native application. `init!` and `init_with!` initialize
+//! in the current native process, without parsing arguments or starting
+//! development tools. Use `pax-cli` for serving, template reload, and platform
+//! packaging/deployment. Macros compile the UI without an application build
+//! script; merely building or depending on a UI library never launches it.
 
 //Reexport primary modules
 pub use pax_engine;
 pub use pax_std;
 
-/// Development launch, native application entry, and Apple view embedding.
-/// Enable the `host` feature in the launcher, normally through
+/// Native application entry and Apple view embedding.
+/// Enable the `host` feature in the executable, normally through
 /// `standalone = ["pax-kit/host"]` in the application's Cargo manifest.
-/// `designtime` adds workstation launch through the shared packager. Production
-/// packaging excludes designtime; packaged native applications run directly.
+/// `designtime` enables runtime inspection and template changes; it does not
+/// start a development server. Production packaging excludes designtime.
 ///
 /// ```ignore
 /// fn main() -> Result<(), pax_kit::host::Error> {

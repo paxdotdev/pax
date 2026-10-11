@@ -5,6 +5,7 @@ import ctypes
 import sys
 import json
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import tempfile
@@ -33,6 +34,17 @@ for package in ["pax-macro", "pax-compiler"]:
     names = {line.split()[0] for line in graph.splitlines() if line.strip()}
     assert not (names & {"pax-runtime", "pax-gpu", "wgpu", "naga"}), (package, names)
 print("PASS build-tools-without-renderer", flush=True)
+
+# Even a native app with development capabilities must not link its packager.
+# Inspect build edges too: tools must not sneak in through an application macro.
+graph = subprocess.check_output(
+    ["cargo", "tree", "--offline", "--manifest-path", str(repository / "Cargo.toml"),
+     "-p", "pax-kit", "--features", "host,designtime", "--edges", "normal,build",
+     "--prefix", "none", "--format", "{p}"], env=environment, text=True,
+)
+names = {line.split()[0] for line in graph.splitlines() if line.strip()}
+assert not (names & {"pax-compiler", "pax-cli", "actix-web"}), names
+print("PASS application-without-packager", flush=True)
 
 
 def run(name, command, app_fancy, widget_fancy, web=False, debug=True,
@@ -110,4 +122,111 @@ try:
 finally:
     source.write_text(original)
 run("restored-source", ["check", "--features", "fancy", "--lib"], True, False)
+# Reproduce a dependency living inside a different, cold Cargo workspace. Its
+# unrelated member cannot resolve at all, so even a fully warm developer cache
+# cannot hide a macro that incorrectly requests that workspace's full graph.
+with tempfile.TemporaryDirectory(prefix="pax-source-workspace-") as temporary:
+    fixture = Path(temporary)
+    workspace = fixture / "libraries"
+    workspace.mkdir()
+    (workspace / "Cargo.toml").write_text(
+        '[workspace]\nmembers = ["leaf", "widgets", "unrelated"]\nresolver = "2"\n')
+    unrelated = workspace / "unrelated"
+    unrelated.mkdir()
+    (unrelated / "Cargo.toml").write_text(
+        '[package]\nname = "unrelated"\nversion = "0.0.0"\n'
+        '[lib]\npath = "lib.rs"\n[dependencies]\n'
+        'pax-handoff-unrelated-must-never-resolve = "=0.0.0"\n')
+    (unrelated / "lib.rs").write_text("")
+    consumer = fixture / "app"
+    for name, destination in [("leaf", workspace / "leaf"),
+                              ("widgets", workspace / "widgets"), ("app", consumer)]:
+        shutil.copytree(root / name, destination, ignore=shutil.ignore_patterns("target", ".pax"))
+        manifest = destination / "Cargo.toml"
+        text = manifest.read_text().replace("../../../../../pax-kit", str(repository / "pax-kit"))
+        if name == "app":
+            text = text.replace('../widgets', '../libraries/widgets')
+            text += '\n[workspace]\nresolver = "2"\n'
+        manifest.write_text(text)
+    shutil.copyfile(root / "Cargo.lock", consumer / "Cargo.lock")
+    # Exercise custom library names, with a transitive Rust import that cannot
+    # be inferred from the package name in --no-deps metadata.
+    manifest = workspace / "leaf/Cargo.toml"
+    manifest.write_text(manifest.read_text().replace('[lib]', '[lib]\nname = "leaf_components"'))
+    source = workspace / "widgets/src/lib.rs"
+    source.write_text(source.read_text().replace('cfg_leaf::', 'leaf_components::'))
+    metadata = subprocess.run(
+        ["cargo", "metadata", "--format-version", "1", "--offline", "--manifest-path",
+         str(workspace / "widgets/Cargo.toml")],
+        env=environment, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    assert metadata.returncode and "pax-handoff-unrelated-must-never-resolve" in metadata.stdout, metadata.stdout
+    (logs / "unrelated-workspace-metadata.log").write_text(metadata.stdout)
+    plain_environment = {key: value for key, value in environment.items() if not key.startswith("PAX_")}
+    def test_external(name):
+        result = subprocess.run(
+            ["cargo", "test", "--offline", "--manifest-path", str(consumer / "Cargo.toml"),
+             "--target-dir", str(args.target_dir), "--lib", "--features", "widget-fancy", "-j4"],
+            env=plain_environment, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        (logs / f"{name}.log").write_text(result.stdout)
+        assert result.returncode == 0, result.stdout[-6000:]
+        assert "generated_descriptors_match_rust_configuration ... ok" in result.stdout, result.stdout[-3000:]
+        print(f"PASS {name}", flush=True)
+    test_external("external-workspace-with-unresolvable-unrelated-member")
+    manifest = workspace / "widgets/Cargo.toml"
+    manifest.write_text(manifest.read_text().replace('cfg-leaf = {', 'renamed-leaf = { package = "cfg-leaf",'))
+    source.write_text(source.read_text().replace('leaf_components::', 'renamed_leaf::'))
+    test_external("external-workspace-transitive-rename")
+    # Absolute paths in exported helpers must invalidate when a source checkout
+    # moves, even when its file contents/mtimes and shared target cache survive.
+    relocated = fixture / "relocated-libraries"
+    workspace.rename(relocated)
+    workspace = relocated
+    manifest = consumer / "Cargo.toml"
+    manifest.write_text(manifest.read_text().replace('../libraries/widgets', '../relocated-libraries/widgets'))
+    test_external("relocated-component-workspace")
+    # Exercise default selection, renamed UI dependencies, custom library
+    # targets, explicit options, and the ordinary same-package executable.
+    (fixture / "Cargo.toml").write_text('[workspace]\nmembers = ["app", "host"]\nresolver = "2"\n')
+    manifest = consumer / "Cargo.toml"
+    text = manifest.read_text().replace('\n[workspace]\nresolver = "2"\n', '')
+    text = text.replace('[lib]', '[lib]\nname = "custom_ui"')
+    text = text.replace('pax-kit = { path = ', 'pax-kit = { features = ["host"], path = ')
+    manifest.write_text(text)
+    (consumer / "src/main.rs").write_text(
+        'fn main() -> Result<(), pax_kit::host::Error> { pax_kit::init!()?.run() }\n')
+    host = fixture / "host"
+    (host / "src").mkdir(parents=True)
+    (host / "Cargo.toml").write_text(
+        '[package]\nname = "cfg-native-host"\nversion = "0.0.0"\nedition = "2021"\n'
+        '[package.metadata.pax.cartridge]\npackage = "cfg-app"\nlib = "custom_ui"\n'
+        '[dependencies]\nrenamed-ui = { package = "cfg-app", path = "../app" }\n'
+        f'pax-kit = {{ path = "{repository / "pax-kit"}", features = ["host"] }}\n')
+    (host / "src/lib.rs").write_text(
+        'pub fn implicit() -> Result<pax_kit::host::Application, pax_kit::host::Error> { pax_kit::init!() }\n'
+        'pub fn explicit() -> Result<pax_kit::host::Application, pax_kit::host::Error> { pax_kit::init!(renamed_ui) }\n'
+        'pub fn options() -> Result<pax_kit::host::Application, pax_kit::host::Error> { pax_kit::init_with!(renamed_ui, pax_kit::host::InitOptions::default()) }\n')
+    shutil.copyfile(consumer / "Cargo.lock", fixture / "Cargo.lock")
+    def check_host():
+        return subprocess.run(
+            ["cargo", "check", "--offline", "--manifest-path", str(fixture / "Cargo.toml"),
+             "--target-dir", str(args.target_dir), "--workspace", "--all-targets", "-j4"],
+            env=plain_environment, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+    result = check_host()
+    (logs / "external-native-host.log").write_text(result.stdout)
+    assert result.returncode == 0, result.stdout[-6000:]
+    print("PASS external-native-host-and-same-package-main", flush=True)
+    host_manifest = host / "Cargo.toml"
+    host_manifest.write_text(host_manifest.read_text().replace(
+        'renamed-ui = { package = "cfg-app",', 'cfg-app = {'))
+    host_source = host / "src/lib.rs"
+    host_source.write_text(host_source.read_text().replace('renamed_ui', 'custom_ui'))
+    result = check_host()
+    (logs / "custom-library-native-host.log").write_text(result.stdout)
+    assert result.returncode == 0, result.stdout[-6000:]
+    print("PASS native-init-custom-library-without-rename", flush=True)
+    manifest.write_text(text.replace('["rlib", "cdylib"]', '["rlib"]'))
+    result = check_host()
+    (logs / "missing-cdylib.log").write_text(result.stdout)
+    assert result.returncode and 'The selected UI library needs crate-type' in result.stdout, result.stdout[-6000:]
+    print("PASS native-init-rejects-missing-cdylib", flush=True)
 print(f"All configuration-handoff cases passed. Logs: {logs}")

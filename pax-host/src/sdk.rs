@@ -1,5 +1,4 @@
-//! Generic Apple SDK assembly. Included by build.rs and by development-only
-//! explicit native initialization; never linked into a production application.
+//! Generic Apple SDK assembly for build.rs; never executed by initialization.
 use std::{
     fs,
     path::{Path, PathBuf},

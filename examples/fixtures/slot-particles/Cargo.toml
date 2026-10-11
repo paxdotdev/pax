@@ -1,0 +1,29 @@
+[package]
+publish = false
+name = "slot-particles"
+version = "0.39.0"
+edition = "2021"
+default-run = "slot-particles"
+
+[package.metadata.pax]
+title = "Slot Particles"
+icon = "assets/app-icon.png"
+
+[dependencies]
+rand = { version = "0.8.5" }
+getrandom = { version = "0.2.15", features = ["js"] }
+pax-kit = { version = "0.39.0", path="../../../pax-kit" }
+fireworks = {version = "0.39.0", path="../fireworks" , default-features = false }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["standalone", "designtime"]
+standalone = ["pax-kit/host"]
+designtime = ["pax-kit/designtime"]
+
+[[bin]]
+name = "slot-particles"
+path = "src/main.rs"
+required-features = ["standalone"]

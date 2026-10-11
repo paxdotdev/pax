@@ -223,7 +223,17 @@ fn handle_examples(args: &ArgMatches<'_>) -> Result<(), Report> {
 }
 
 fn print_example_list(examples: &[&pax_docs::DocEntry]) {
+    let mut previous_category = None;
     for (idx, entry) in examples.iter().enumerate() {
+        let category = if entry.path.starts_with("examples/fixtures/") {
+            "Fixtures and supporting examples"
+        } else {
+            "Curated examples"
+        };
+        if previous_category != Some(category) {
+            println!("\n{category}:");
+            previous_category = Some(category);
+        }
         let name = entry
             .path
             .strip_prefix("examples/")
@@ -267,7 +277,7 @@ fn example_entry_matches(entry: &pax_docs::DocEntry, query_lower: &str) -> bool 
         }
     }
 
-    for prefix in ["examples/", "examples/"] {
+    for prefix in ["examples/", "examples/fixtures/"] {
         if let Some(value) = entry.slug.strip_prefix(prefix) {
             if value.eq_ignore_ascii_case(query_lower) {
                 return true;
@@ -506,11 +516,11 @@ fn should_skip_watch_dir(workspace: &Path, path: &Path, options: DocsBuildOption
         return true;
     }
 
-    options.skip_examples && path == workspace.join("examples").join("src")
+    options.skip_examples && path == workspace.join("examples")
 }
 
 fn should_watch_file(workspace: &Path, path: &Path, options: DocsBuildOptions) -> bool {
-    if path.starts_with(workspace.join("examples").join("src")) {
+    if path.starts_with(workspace.join("examples")) {
         return !options.skip_examples;
     }
 
@@ -842,5 +852,64 @@ fn spawn_shell_or_direct(command: &str) -> std::io::Result<Child> {
         }
     } else {
         Command::new(command).stdin(Stdio::piped()).spawn()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fixture_lookup_accepts_short_and_canonical_names() {
+        let entries = pax_docs::entries().unwrap();
+        let examples = entries
+            .iter()
+            .filter(|entry| entry.kind == pax_docs::DocKind::Example)
+            .collect::<Vec<_>>();
+        let expected = "examples/fixtures/auto-sized-containers";
+        for query in [
+            "auto-sized-containers",
+            "fixtures/auto-sized-containers",
+            expected,
+            "Auto Sized Containers",
+        ] {
+            assert_eq!(find_example_entry(&examples, query).unwrap().path, expected);
+        }
+        assert_eq!(
+            find_example_entry(&examples, "increment").unwrap().path,
+            "examples/increment"
+        );
+    }
+
+    #[test]
+    fn docs_watch_includes_both_example_levels_and_honors_skip() {
+        let root = Path::new("/workspace");
+        for skip_examples in [false, true] {
+            let options = DocsBuildOptions { skip_examples };
+            assert_eq!(
+                should_skip_watch_dir(root, &root.join("examples"), options),
+                skip_examples
+            );
+            for relative in [
+                "examples/increment/src/lib.pax",
+                "examples/fixtures/demo/src/lib.pax",
+                "examples/fixtures/demo/assets/image.png",
+            ] {
+                assert_eq!(
+                    should_watch_file(root, &root.join(relative), options),
+                    !skip_examples
+                );
+            }
+            assert!(should_skip_watch_dir(
+                root,
+                &root.join("examples/fixtures/demo/.pax"),
+                options
+            ));
+            assert!(should_skip_watch_dir(
+                root,
+                &root.join("examples/fixtures/demo/target"),
+                options
+            ));
+        }
     }
 }

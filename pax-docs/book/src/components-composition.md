@@ -512,7 +512,7 @@ sites or a changing slot index can change which children reach the remainder.
 Likewise, `if` and `for` in caller content can change the currently available
 projected children. Wrap several elements in one Group when they should be
 supplied together as one child. The
-[`slot-projection-resolver` example](https://github.com/paxproject/pax/tree/dev/examples/slot-projection-resolver)
+[`slot-projection-resolver` example](https://github.com/paxproject/pax/tree/dev/examples/fixtures/slot-projection-resolver)
 explores these dynamic cases.
 
 The frame's private background and layout structure stay inside its template.
@@ -610,7 +610,7 @@ until it returns; cloning a property inside the closure lets later reads,
 writes, and callbacks happen after the borrow ends. To display store state
 in another component, connect the handle to one of that component's fields
 using a [computed property](state-properties.md#computed-properties), as the
-[store-ownership example](https://github.com/paxproject/pax/tree/dev/examples/store-ownership)
+[store-ownership example](https://github.com/paxproject/pax/tree/dev/examples/fixtures/store-ownership)
 does in `CounterConsumer::mount`. Stores are looked up from Rust, not directly
 from PAXEL. Plain Rust fields in a store do not become reactive automatically.
 
@@ -706,10 +706,10 @@ The reset example uses `expect` because its provider is required; a component
 that also works independently should handle `Missing` explicitly. Keep
 expiration and conflicting borrows distinct from optional absence.
 
-Try the [store-ownership example](https://github.com/paxproject/pax/tree/dev/examples/store-ownership)
+Try the [store-ownership example](https://github.com/paxproject/pax/tree/dev/examples/fixtures/store-ownership)
 for shared private/projected consumers, sibling isolation, nested shadowing,
 keyed reorder, and remove/remount controls. The
-[router-playground example](https://github.com/paxproject/pax/tree/dev/examples/router-playground)
+[router-playground example](https://github.com/paxproject/pax/tree/dev/examples/fixtures/router-playground)
 uses a store for mobile-menu state. Read
 [Property handles](state-properties.md#property-handles) for sharing and thread
 constraints, and the [`NodeContext` reference](api/internal/pax-runtime/api.md#nodecontext)
