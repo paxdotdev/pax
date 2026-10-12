@@ -84,6 +84,11 @@ The website's source is inspected in the running site, not through the CLI's
 bundled `examples/` catalog. After moving or changing reusable examples, refresh
 that separate snapshot with `python3 scripts/sync-docs-examples.py`.
 
+The shared `ExampleHost` drawer uses dark grayscale surfaces, white active tabs,
+and CMY plus lightened RGB syntax colors. Its 160px source tabs stay single-line
+and scroll horizontally; very long labels clip within the tab, with the selected
+path also shown above the strip.
+
 Content and visual design history are archived in
 [PAX-869](https://linear.app/paxdev/issue/PAX-869).
 

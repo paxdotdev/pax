@@ -15,6 +15,17 @@ const MIN_DRAWER_WIDTH_PX: f64 = 280.0;
 const RESIZE_MIN_DELTA_PX: f64 = 2.0;
 const DRAWER_EASE_MS: u64 = 250;
 
+// Keep the chrome neutral; reserve CMY and lifted RGB for source semantics.
+const CODE_FOREGROUND: &str = "#f5f5f5";
+const CODE_COMMENT: &str = "#929292";
+const CODE_PUNCTUATION: &str = "#b8b8b8";
+const CODE_TYPE: &str = "#00ffff";
+const CODE_NUMBER: &str = "#ff00ff";
+const CODE_STRING: &str = "#ffff00";
+const CODE_PROPERTY: &str = "#ff8080";
+const CODE_FUNCTION: &str = "#80ff80";
+const CODE_KEYWORD: &str = "#8c9eff";
+
 /// A display wrapper for documentation/demo examples.
 ///
 /// `ExampleHost` renders every projected child with `slot()` and offers an
@@ -252,71 +263,164 @@ mod tests {
             Some((false, 960.0))
         );
     }
+
+    #[test]
+    fn source_palette_distinguishes_pax_and_rust_tokens() {
+        let cases = [
+            (
+                "pax",
+                "<Text width=24px text=\"Hello\" />",
+                vec![
+                    (CODE_TYPE, "Text"),
+                    (CODE_PROPERTY, "width"),
+                    (CODE_NUMBER, "24"),
+                    (CODE_STRING, "&quot;Hello&quot;"),
+                ],
+            ),
+            (
+                "rust",
+                "pub fn update(value: f64) { log!(value); } // note",
+                vec![
+                    (CODE_KEYWORD, "pub"),
+                    (CODE_FUNCTION, "update"),
+                    (CODE_FUNCTION, "log"),
+                    (CODE_PROPERTY, "value"),
+                    (CODE_COMMENT, "// note"),
+                ],
+            ),
+        ];
+        for (language, code, tokens) in cases {
+            let markup = highlighted_code_markup(&ExampleSource {
+                label: "test".into(),
+                language: language.into(),
+                code: code.into(),
+            });
+            for (color, token) in tokens {
+                assert!(markup.contains(&format!("<span style=\"color:{color}\">{token}</span>")));
+            }
+        }
+    }
+
+    #[test]
+    fn highlighted_source_preserves_escaping_and_plain_identifiers() {
+        let mut markup = String::new();
+        highlight_line(
+            "value == other && path::call(\"<é & >\")",
+            "rust",
+            &mut markup,
+        );
+        assert!(markup.starts_with("value "));
+        assert!(markup.contains(" path<span"));
+        assert!(markup.contains("&lt;é &amp; &gt;"));
+        assert!(!markup.contains(CODE_PROPERTY));
+    }
+
+    #[test]
+    fn all_source_colors_contrast_with_the_code_surface() {
+        fn luminance(hex: &str) -> f64 {
+            let value = u32::from_str_radix(&hex[1..], 16).unwrap();
+            [16, 8, 0]
+                .into_iter()
+                .zip([0.2126, 0.7152, 0.0722])
+                .map(|(shift, weight)| {
+                    let channel = ((value >> shift) & 255) as f64 / 255.0;
+                    weight
+                        * if channel <= 0.04045 {
+                            channel / 12.92
+                        } else {
+                            ((channel + 0.055) / 1.055).powf(2.4)
+                        }
+                })
+                .sum()
+        }
+        // Match example_host_code_bg in the template, including muted comments.
+        let background = luminance("#111111");
+        for color in [
+            CODE_FOREGROUND,
+            CODE_COMMENT,
+            CODE_PUNCTUATION,
+            CODE_TYPE,
+            CODE_NUMBER,
+            CODE_STRING,
+            CODE_PROPERTY,
+            CODE_FUNCTION,
+            CODE_KEYWORD,
+        ] {
+            let contrast = (luminance(color) + 0.05) / (background + 0.05);
+            assert!(
+                contrast >= 4.5,
+                "{color} has insufficient contrast: {contrast}"
+            );
+        }
+    }
 }
 
 // Internal source tab used by `ExampleHost`.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[inlined(
-    <Group width=100% height=100% @click=self.select_source>
-        <Text class="example_host_tab_label" x=50% y=50% width={100% - 16px} height=18px text={source.label} selectable=false clip=true />
-        if self.index == self.selected {
-            <Path class="example_host_tab_active" width=100% height=100% />
-        }
-        if self.index != self.selected {
-            <Path class="example_host_tab_idle" width=100% height=100% />
-        }
-    </Group>
+<Group width=100% height=100% @click=self.select_source>
+    <Text class="example_host_tab_label" x=50% y=50% width={100% - 16px} height=18px text={source.label} selectable=false
+        wrap=false clip=true/>
+    if self.index == self.selected {
+        <Path class="example_host_tab_active" width=100% height=100%/>
+    }
+    if self.index != self.selected {
+        <Path class="example_host_tab_idle" width=100% height=100%/>
+    }
+</Group>
 
-    @settings {
-        .example_host_tab_label {
-            style: TextStyle {
-                font: Font::Web("Space Grotesk", "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap", FontStyle::Normal, FontWeight::Medium)
-                font_size: 11px
-                fill: WHITE
-                align_vertical: TextAlignVertical::Center
-                align_horizontal: TextAlignHorizontal::Center
-                align_multiline: TextAlignHorizontal::Center
-                underline: false
-            }
-        }
-
-        .example_host_tab_active {
-            fill: rgba(61, 103, 180, 255)
-            elements: [
-                PathElement::Point(0%, 100%),
-                PathElement::Line,
-                PathElement::Point(2.5%, 17%),
-                PathElement::Quadratic(2.5%, 0%),
-                PathElement::Point(5%, 0%),
-                PathElement::Line,
-                PathElement::Point(95%, 0%),
-                PathElement::Quadratic(97.5%, 0%),
-                PathElement::Point(97.5%, 17%),
-                PathElement::Line,
-                PathElement::Point(100%, 100%),
-                PathElement::Close
-            ]
-        }
-
-        .example_host_tab_idle {
-            fill: rgba(20, 24, 32, 255)
-            elements: [
-                PathElement::Point(0%, 100%),
-                PathElement::Line,
-                PathElement::Point(2.5%, 17%),
-                PathElement::Quadratic(2.5%, 0%),
-                PathElement::Point(5%, 0%),
-                PathElement::Line,
-                PathElement::Point(95%, 0%),
-                PathElement::Quadratic(97.5%, 0%),
-                PathElement::Point(97.5%, 17%),
-                PathElement::Line,
-                PathElement::Point(100%, 100%),
-                PathElement::Close
-            ]
+@settings {
+    .example_host_tab_label {
+        style: TextStyle {
+            font: Font::Web(
+                "Space Grotesk",
+                "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap",
+                FontStyle::Normal,
+                FontWeight::Medium)
+            font_size: 11px
+            fill: {self.index == self.selected ? BLACK : rgb(184, 184, 184)}
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+            align_multiline: TextAlignHorizontal::Center
+            underline: false
         }
     }
+    .example_host_tab_active {
+        fill: WHITE
+        elements: [
+            PathElement::Point(0%, 100%),
+            PathElement::Line,
+            PathElement::Point(2.5%, 17%),
+            PathElement::Quadratic(2.5%, 0%),
+            PathElement::Point(5%, 0%),
+            PathElement::Line,
+            PathElement::Point(95%, 0%),
+            PathElement::Quadratic(97.5%, 0%),
+            PathElement::Point(97.5%, 17%),
+            PathElement::Line,
+            PathElement::Point(100%, 100%),
+            PathElement::Close
+        ]
+    }
+    .example_host_tab_idle {
+        fill: rgb(40, 40, 40)
+        elements: [
+            PathElement::Point(0%, 100%),
+            PathElement::Line,
+            PathElement::Point(2.5%, 17%),
+            PathElement::Quadratic(2.5%, 0%),
+            PathElement::Point(5%, 0%),
+            PathElement::Line,
+            PathElement::Point(95%, 0%),
+            PathElement::Quadratic(97.5%, 0%),
+            PathElement::Point(97.5%, 17%),
+            PathElement::Line,
+            PathElement::Point(100%, 100%),
+            PathElement::Close
+        ]
+    }
+}
 )]
 pub struct ExampleHostSourceTab {
     // Source represented by this tab.
@@ -360,8 +464,8 @@ fn source_markups(sources: &[ExampleSource]) -> Vec<String> {
 }
 
 fn highlighted_code_markup(source: &ExampleSource) -> String {
-    let mut out = String::from(
-        "<pre data-pax-code-markup=\"example-host\" style=\"margin:0; white-space:pre; line-height:18px; color:#e0eafa;\">",
+    let mut out = format!(
+        "<pre data-pax-code-markup=\"example-host\" style=\"margin:0; white-space:pre; line-height:18px; color:{CODE_FOREGROUND};\">",
     );
     for line in source.code.lines() {
         highlight_line(line, source.language.as_str(), &mut out);
@@ -377,36 +481,45 @@ fn highlight_line(line: &str, language: &str, out: &mut String) {
     while index < bytes.len() {
         let rest = &line[index..];
         if rest.starts_with("//") {
-            push_span(out, "#7f8da8", rest);
+            push_span(out, CODE_COMMENT, rest);
             return;
         }
 
         let ch = rest.chars().next().unwrap_or_default();
         if ch == '"' {
             let end = string_end(rest, '"');
-            push_span(out, "#ffd166", &rest[..end]);
+            push_span(out, CODE_STRING, &rest[..end]);
             index += end;
             continue;
         }
         if ch == '\'' {
             let end = string_end(rest, '\'');
-            push_span(out, "#ffd166", &rest[..end]);
+            push_span(out, CODE_STRING, &rest[..end]);
             index += end;
             continue;
         }
         if ch.is_ascii_digit() {
             let len = token_len(rest, |c| c.is_ascii_digit() || c == '.');
-            push_span(out, "#c792ea", &rest[..len]);
+            push_span(out, CODE_NUMBER, &rest[..len]);
             index += len;
             continue;
         }
         if is_ident_start(ch) {
             let len = token_len(rest, is_ident_continue);
             let token = &rest[..len];
+            let following = rest[len..].trim_start();
             if is_keyword(token, language) {
-                push_span(out, "#82aaff", token);
+                push_span(out, CODE_KEYWORD, token);
             } else if token.chars().next().is_some_and(|c| c.is_ascii_uppercase()) {
-                push_span(out, "#7ee787", token);
+                push_span(out, CODE_TYPE, token);
+            } else if following.starts_with('(')
+                || (following.starts_with('!') && !following.starts_with("!="))
+            {
+                push_span(out, CODE_FUNCTION, token);
+            } else if (following.starts_with('=') && !following.starts_with("=="))
+                || (following.starts_with(':') && !following.starts_with("::"))
+            {
+                push_span(out, CODE_PROPERTY, token);
             } else {
                 escape_html_into(out, token);
             }
@@ -414,7 +527,7 @@ fn highlight_line(line: &str, language: &str, out: &mut String) {
             continue;
         }
         if "{}[]()<>=+-*/.,:;!&|?%@".contains(ch) {
-            push_span(out, "#89ddff", &rest[..ch.len_utf8()]);
+            push_span(out, CODE_PUNCTUATION, &rest[..ch.len_utf8()]);
             index += ch.len_utf8();
             continue;
         }
