@@ -2180,14 +2180,14 @@ mod tests {
             args.prototypical_common_properties =
                 CommonPropertiesInit::Factory(Box::new(move |_, _| {
                     Some(Rc::new(RefCell::new(CommonProperties {
-                        width: Property::new(Some(Size::Pixels(172.into()))),
-                        height: Property::new(Some(Size::Pixels(height.into()))),
+                        width: LocalProperty::new(Some(Size::Pixels(172.into()))),
+                        height: LocalProperty::new(Some(Size::Pixels(height.into()))),
                         ..Default::default()
                     })))
                 }));
             TestLeaf::instantiate(args)
         }
-        let expanded = Property::new(false);
+        let expanded = LocalProperty::new(false);
         let condition = expanded.clone();
         let mut conditional_args = primitive_args(vec![leaf(3), leaf(3), leaf(18)]);
         conditional_args.prototypical_properties =

@@ -2103,6 +2103,83 @@ fn shader_effect_pixels_clip_cache_and_tile_halo() {
 #[cfg(feature = "shaders")]
 #[test]
 #[ignore = "requires a macOS Metal device"]
+fn shader_effect_movement_reuses_textures_and_updates_coordinates() {
+    use pax_runtime_api::{OpacityScope, ShaderEffect, ShaderInput, ShaderPass, ShaderProgram};
+    static PROGRAM: ShaderProgram = ShaderProgram {
+        label: "local coordinates",
+        passes: &[ShaderPass {
+            label: "local-colors.wgsl",
+            source: "fn effect(p: vec2<f32>) -> vec4<f32> { let a = sample_input0(p).a; return select(vec4<f32>(a,0.0,0.0,a),vec4<f32>(0.0,a,0.0,a),p.x >= 8.0); }",
+            parameters: &[],
+            inputs: [ShaderInput::Subtree; 2],
+            downsample: 1,
+        }],
+    };
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 64, 32, [1., 1.]),
+        )
+    })
+    .unwrap();
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    let effect = ShaderEffect {
+        program: &PROGRAM,
+        parameters: vec![vec![]],
+        outset: 0.,
+    };
+    let transforms = [
+        Transform2D::translation(8., 8.),
+        Transform2D::translation(24., 8.),
+        Transform2D::from_array([0., 1., -1., 0., 40., 8.]),
+    ];
+    for (frame, transform) in transforms.into_iter().enumerate() {
+        renderer.begin_shader_effect(
+            1,
+            1,
+            &effect,
+            transform,
+            (16., 16.),
+            &[OpacityScope {
+                node_id: 1,
+                opacity: 0.5,
+            }],
+            &[2],
+        );
+        renderer.begin_node(2, 0, 0);
+        renderer.save();
+        renderer.transform(transform);
+        renderer.fill_path(
+            rect(0., 0., 16., 16.),
+            Fill::Solid(Color::rgba(1., 1., 1., 1.)),
+        );
+        renderer.restore();
+        renderer.end_node(2);
+        renderer.end_shader_effect();
+        renderer.request_screenshot_capture(frame as u32);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let pixels = renderer.take_screenshot_capture(frame as u32).unwrap();
+        let (red, green) = match frame {
+            0 => ((12, 12), (20, 12)),
+            1 => ((28, 12), (36, 12)),
+            _ => ((36, 12), (36, 20)),
+        };
+        assert_pixel(&pixels, red.0, red.1, [128, 0, 0, 128]);
+        assert_pixel(&pixels, green.0, green.1, [0, 128, 0, 128]);
+        assert_pixel(&pixels, if frame == 0 { 28 } else { 12 }, 12, [0, 0, 0, 0]);
+        let stats = renderer.take_resource_churn_stats();
+        assert_eq!(stats.effect_texture_allocations, u64::from(frame == 0));
+        assert_eq!(stats.effect_pipeline_compilations, u64::from(frame == 0));
+        assert_eq!(stats.effect_passes, 1);
+    }
+}
+
+#[cfg(feature = "shaders")]
+#[test]
+#[ignore = "requires a macOS Metal device"]
 fn shader_effect_nested_pixels_and_relative_opacity() {
     use pax_runtime_api::{
         OpacityScope, ShaderEffect, ShaderInput, ShaderParameter, ShaderParameterType, ShaderPass,

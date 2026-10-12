@@ -13,14 +13,15 @@ const HOLD_MS: f64 = 4200.0 * HERO_TIMING_SCALE;
 const CHANGE_MS: f64 = 900.0 * HERO_TIMING_SCALE;
 const CYCLE_MS: f64 = HOLD_MS + CHANGE_MS;
 const WRITE_MS: f64 = 1600.0 * HERO_TIMING_SCALE;
-const GRADIENT_PERIOD_MS: f64 = 10000.0 * HERO_TIMING_SCALE;
+const GRADIENT_PERIOD_MS: f64 = 2500.0 * HERO_TIMING_SCALE;
 const LETTER_SETTLED_MS: f64 = 2500.0 * HERO_TIMING_SCALE;
-const LIGHT_SWEEP_MS: f64 = 2600.0 * HERO_TIMING_SCALE;
+const LIGHT_SWEEP_MS: f64 = 1300.0 * HERO_TIMING_SCALE;
 
 /// A fixed three-line signboard. Creative masks a morphing CMY mesh with Handwriter;
 /// its native text equivalent lives outside the mask. Only the current word mounts.
 #[pax]
 #[file("rotating_headline.pax")]
+#[has_helpers]
 pub struct RotatingHeadline {
     pub font_px: Property<f64>,
     pub playing: Property<bool>,
@@ -41,6 +42,7 @@ pub struct RotatingHeadline {
     pub word_index: Property<usize>,
     pub letter_ms: Property<f64>,
     pub light_x: Property<f64>,
+    pub pigment_phase: Property<f64>,
     pub _light_ms: Property<f64>,
     pub _gradient_ms: Property<f64>,
     pub _creative_ms: Property<f64>,
@@ -104,6 +106,11 @@ impl RotatingHeadline {
                 .set_if_neq(rest_time(self._elapsed_ms.get()));
         }
         let pose = pose_at(self._elapsed_ms.get());
+        if pose.index >= 2 && pose.opacity == 1.0 && self.playing.get() {
+            // Freeze the painted field during exit so only its cached composite fades.
+            self.pigment_phase
+                .set(self.pigment_phase.get() + dt * 0.0015);
+        }
         let changed = self.word_index.get() != pose.index;
         self.letter_ms.set_if_neq(letter_time(
             self.letter_ms.get(),
@@ -148,6 +155,46 @@ impl RotatingHeadline {
         self.word_scale_y.set_if_neq(pose.sy * 100.0);
         self.word_rotate.set_if_neq(pose.angle);
         self.word_opacity.set_if_neq(pose.opacity);
+    }
+}
+
+#[helpers]
+impl RotatingHeadline {
+    pub fn treatment_kind(word_index: usize) -> usize {
+        match word_index {
+            2 => 3, // Native: painted field and arc entrance.
+            3 => 2, // Portable: Gauguin field and a traveling bounce.
+            _ => word_index,
+        }
+    }
+
+    pub fn pigment_x(phase: f64, index: usize) -> f64 {
+        0.08 + index as f64 * 0.168 + 0.16 * (phase * 0.8 + index as f64 * 2.1).sin()
+    }
+
+    pub fn pigment_y(phase: f64, index: usize) -> f64 {
+        0.70 + 0.38 * (phase * 1.1 + index as f64 * 1.7).cos()
+    }
+
+    pub fn star_phase(phase: f64, index: usize) -> f64 {
+        (phase * (0.11 + (index % 4) as f64 * 0.035) + index as f64 * 0.61803398875).rem_euclid(1.0)
+    }
+
+    pub fn star_tail(index: usize) -> f64 {
+        0.22 + (index % 4) as f64 * 0.075
+    }
+
+    pub fn star_y(index: usize) -> f64 {
+        0.24 + (index as f64 * 0.61803398875).fract() * 1.04
+    }
+
+    pub fn pigment_color(index: usize, alpha: f64) -> Color {
+        let [r, g, b] = match index % 3 {
+            0 => [0.0, 0.92, 1.0],
+            1 => [1.0, 0.04, 0.80],
+            _ => [1.0, 0.91, 0.0],
+        };
+        Color::from_rgba_0_1([r, g, b, alpha])
     }
 }
 
@@ -200,18 +247,18 @@ fn mesh_positions(time: f64) -> [[[f64; 2]; 3]; 3] {
     // Only slide boundary anchors along their edges, preserving full coverage.
     // Offsetting their phases from the center shears the field instead of panning it.
     [
-        [[0.0, 0.0], [50.0 + 10.0 * phase.sin(), 0.0], [100.0, 0.0]],
+        [[0.0, 0.0], [50.0 + 26.0 * phase.sin(), 0.0], [100.0, 0.0]],
         [
-            [0.0, 50.0 + 10.0 * phase.cos()],
+            [0.0, 50.0 + 26.0 * phase.cos()],
             [
-                50.0 + 18.0 * (phase + std::f64::consts::FRAC_PI_3).sin(),
-                50.0 + 18.0 * phase.cos(),
+                50.0 + 30.0 * (phase + std::f64::consts::FRAC_PI_3).sin(),
+                50.0 + 30.0 * phase.cos(),
             ],
-            [100.0, 50.0 - 10.0 * phase.sin()],
+            [100.0, 50.0 - 26.0 * phase.sin()],
         ],
         [
             [0.0, 100.0],
-            [50.0 + 10.0 * phase.cos(), 100.0],
+            [50.0 + 26.0 * phase.cos(), 100.0],
             [100.0, 100.0],
         ],
     ]
@@ -278,34 +325,20 @@ fn pose_at(time: f64) -> WordPose {
         pose.index = (index + 1) % WORDS.len();
         // Vector entrances own their per-cluster poses. The existing whole-word
         // exits still hide the handoff; creative keeps its handwriting entrance.
-        if pose.index != 0 {
-            return pose;
-        }
+        return pose;
     }
-    let direction = if incoming { 1.0 } else { -1.0 };
     // The outgoing handoff is hidden. Creative writes in instead of fading in.
     pose.opacity = (1.0 - excursion * 1.35).clamp(0.0, 1.0);
-    match index {
+    match RotatingHeadline::treatment_kind(index) {
         0 => {
-            pose.x = direction * excursion * 1.65;
+            pose.x = -excursion * 1.65;
         } // Express slide → high-performance.
         1 => {
             pose.sy = (1.0 - excursion).max(0.015);
         } // Split-flap → native.
-        2 => {
-            pose.y = direction * excursion * 1.15;
-        } // Vertical roll → portable.
-        _ => {
-            if incoming {
-                pose.opacity = 1.0;
-            } else {
-                // Portable rocks away; the next word is revealed by its strokes.
-                pose.angle = direction * excursion * 12.0;
-                pose.y = excursion * 0.28;
-                pose.sx = 1.0 - excursion * 0.14;
-                pose.sy = 1.0 - excursion * 0.14;
-            }
-        }
+        // Keep filtered captures stationary: the cached painted word can fade
+        // without resizing its source, shader outputs, or letter mask each frame.
+        _ => {}
     }
     pose
 }
@@ -346,14 +379,19 @@ mod tests {
     }
 
     #[test]
-    fn each_change_uses_a_distinct_affine_gesture() {
+    fn unfiltered_exits_move_and_filtered_exits_only_fade() {
         let poses: Vec<_> = (0..4)
             .map(|i| pose_at(i as f64 * CYCLE_MS + HOLD_MS + 225.0))
             .collect();
         assert!(poses[0].x < 0.0 && poses[0].y == 0.0);
         assert!(poses[1].sy < 1.0 && poses[1].x == 0.0);
-        assert!(poses[2].y < 0.0 && poses[2].angle == 0.0);
-        assert!(poses[3].angle < 0.0 && poses[3].sx < 1.0);
+        for pose in &poses[2..] {
+            assert_eq!(
+                (pose.x, pose.y, pose.sx, pose.sy, pose.angle),
+                (0.0, 0.0, 1.0, 1.0, 0.0)
+            );
+            assert!(pose.opacity < 1.0);
+        }
     }
 
     #[test]

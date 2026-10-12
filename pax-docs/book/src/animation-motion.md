@@ -128,9 +128,10 @@ pub struct Example {
 
 impl Example {
     pub fn replay(&mut self, _ctx: &NodeContext, _event: Event<ButtonClick>) {
-        self.playhead.local().cancel_transitions();
-        self.playhead.set(0.0);
-        self.playhead.local().ease_to(
+        let playhead = self.playhead.local();
+        playhead.cancel_transitions();
+        playhead.set(0.0);
+        playhead.ease_to(
             100.0,
             Duration::Milliseconds(900.into()),
             EasingCurve::Linear,
@@ -142,6 +143,11 @@ impl Example {
     }
 }
 ```
+
+Reset and ease through the same local view so the transition starts at the new
+value immediately. A shared `Property::set` publication reaches the local view
+at the next UI settlement boundary; mixing that reset with an immediate local
+`ease_to` can start from the previous position.
 
 In `src/lib.pax`:
 

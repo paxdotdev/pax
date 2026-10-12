@@ -313,7 +313,12 @@ impl RenderBackend<'_> {
     ) {
         let surfaces = self.retained_surfaces.as_mut().unwrap();
         let mut scratch = surfaces.stack.pop().unwrap();
-        if surfaces.groups.get(&key).is_none_or(|g| g.rect != rect) {
+        // Moving a capture changes its copy/composite origin, not its storage size.
+        if surfaces
+            .groups
+            .get(&key)
+            .is_none_or(|g| g.texture.width() != rect.2 || g.texture.height() != rect.3)
+        {
             let texture = self.device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("Retained subtree"),
                 size: wgpu::Extent3d {
@@ -363,6 +368,7 @@ impl RenderBackend<'_> {
             );
         }
         let group = surfaces.groups.get_mut(&key).unwrap();
+        group.rect = rect;
         group.signature = signature;
         group.domain_size = (self.surface_config.width, self.surface_config.height);
         let mut encoder = self

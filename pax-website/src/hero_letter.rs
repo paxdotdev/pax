@@ -49,7 +49,7 @@ impl HeroLetter {
         let deps = [kind.untyped()];
         self.material.replace_with(LocalProperty::computed(
             move || {
-                if kind.get() == 1 || kind.get() == 2 {
+                if kind.get() == 1 {
                     // Lift this material's ambient response, without adding a
                     // layer-wide AmbientLight that would change nearby demos.
                     Material::custom(MaterialParams {
@@ -84,10 +84,8 @@ fn letter_paint(kind: usize, index: usize) -> Paint {
     if kind != 1 && kind != 2 {
         return Paint::Solid(SiteTheme::paper());
     }
-    let base = if kind == 1 {
-        Color::from_rgba_0_1([0.76, 0.81, 0.88, 1.0])
-    } else {
-        // Champagne, copper, rose, violet titanium, cobalt, and oxidized teal.
+    if kind == 2 {
+        // The bouncing treatment uses individual colors without reflective bands or lighting.
         let colors = [
             (0.88, 0.72, 0.39),
             (0.88, 0.49, 0.29),
@@ -97,8 +95,9 @@ fn letter_paint(kind: usize, index: usize) -> Paint {
             (0.33, 0.80, 0.69),
         ];
         let (r, g, b) = colors[index % colors.len()];
-        Color::from_rgba_0_1([r, g, b, 1.0])
-    };
+        return Paint::Solid(Color::from_rgba_0_1([r, g, b, 1.0]));
+    }
+    let base = Color::from_rgba_0_1([0.76, 0.81, 0.88, 1.0]);
     // Narrow opposing value bands suggest polished metal even without GPU lights.
     let stops = [
         (0.0, 0.64),

@@ -26,6 +26,8 @@ struct Output {
     recipe: &'static pax_runtime_api::ShaderProgram,
     source: Texture,
     domain: [[f32; 4]; 5],
+    domain_buffer: wgpu::Buffer,
+    rect_buffer: wgpu::Buffer,
     passes: Vec<PassOutput>,
     composite: BindGroup,
     signature: Option<u64>,
@@ -285,7 +287,7 @@ impl RenderBackend<'_> {
         if effects
             .outputs
             .get(&id)
-            .is_none_or(|o| o.recipe != effect.program || o.source != source || o.domain != domain)
+            .is_none_or(|o| o.recipe != effect.program || o.source != source)
         {
             let required: u64 = effect
                 .program
@@ -312,7 +314,7 @@ impl RenderBackend<'_> {
                 .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                     label: Some("Effect coordinates"),
                     contents: bytemuck::cast_slice(&domain),
-                    usage: BufferUsages::UNIFORM,
+                    usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
                 });
             let source_view = source.create_view(&Default::default());
             let mut passes: Vec<PassOutput> = Vec::new();
@@ -381,7 +383,7 @@ impl RenderBackend<'_> {
                 .create_buffer_init(&wgpu::util::BufferInitDescriptor {
                     label: Some("Effect output rectangle"),
                     contents: bytemuck::cast_slice(&rect),
-                    usage: BufferUsages::UNIFORM,
+                    usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
                 });
             let composite = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("Effect output"),
@@ -413,6 +415,8 @@ impl RenderBackend<'_> {
                     recipe: effect.program,
                     source,
                     domain,
+                    domain_buffer,
+                    rect_buffer,
                     passes,
                     composite,
                     signature: None,
@@ -421,6 +425,16 @@ impl RenderBackend<'_> {
             );
         }
         let output = effects.outputs.get_mut(&id).unwrap();
+        if output.domain != domain {
+            // Coordinate changes reuse pass textures and bindings. Only a new
+            // source texture or recipe changes their resource dependencies.
+            self.queue
+                .write_buffer(&output.domain_buffer, 0, bytemuck::cast_slice(&domain));
+            self.queue
+                .write_buffer(&output.rect_buffer, 0, bytemuck::cast_slice(&rect));
+            output.domain = domain;
+            output.signature = None;
+        }
         if output.signature == Some(signature) {
             stats.effect_cache_hits += 1;
             return;

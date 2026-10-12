@@ -16,6 +16,35 @@ Last triaged: 2026-10-05 — [PAX-972](https://linear.app/paxdev/issue/PAX-972/p
 
 ## Untriaged findings
 
+- 2026-10-12, pre-merge validation: a website build did not compile a new
+  `pax-std` autosize test, which still constructed runtime `CommonProperties`
+  and `ConditionalProperties` with shared `Property` values after the property
+  migration. These internal fixture fields require `LocalProperty`; authored
+  component fields still use `Property`. Run the affected library's `cargo test
+  --lib` after rebasing test fixtures, as an application build cannot catch this.
+- 2026-10-12, website hero: an interactive `AnimatedPaxLogo` used a one-way
+  `progress={self.logo_progress}` expression alongside a per-frame progress writer.
+  Keep its replay controller and parent on the same `progress=bind:logo_progress`
+  playhead; start the initial reveal with a transition, then let the component's
+  default `click_to_replay=true` handler own subsequent transitions. Replay also
+  exposed a shared/local migration bug in the component: `progress.set(0.0)`
+  publishes a reset, but an immediate `progress.local().ease_to(...)` still starts
+  from the old UI value. Reset and ease through the same local view. A regression
+  test reproduced progress staying at 1.0; it now covers replay from rest and midway.
+
+- 2026-10-12, website hero: `creative` used `opacity=0` on its native backing
+  Text, hiding the selection highlight along with the glyphs. Use transparent
+  text fill with normal node opacity, `selectable=true`, and `clip=true` instead;
+  clipping also selects the interactive iOS/iPadOS text path. The Manrope
+  selection remains approximate under EMS League handwriting.
+
+- 2026-10-12, website / PAX-1030: an application-local shader primitive declared
+  with `#[primitive("pax_website::hero_metal::HeroMetalInstance")]` passed static
+  analysis but failed the generated cartridge with E0433 (the application cannot
+  import itself by dependency name). Use `crate::hero_metal::HeroMetalInstance`
+  for a primitive defined in the application; library primitives use their crate
+  import path. Verify custom primitives with a cartridge build, not only Rust tests.
+
 ## 2026-10-06 — macOS display-link startup
 
 A macOS example can open a blank window if CoreVideo reports
@@ -45,6 +74,22 @@ display-link setup does not retry that startup failure automatically.
   remains useful for inspecting GPU brush pixels. After hot reload and scrolling,
   dev-look captures also showed native buttons/sliders duplicated at old positions
   while the live browser remained correct.
+
+## 2026-10-12 — Moving shader paint can resize a fixed container's capture
+
+The website's Signac letters allocated two new shader outputs on almost every
+painted frame. Their radial-gradient Ellipses moved beyond the fixed container,
+changing its capture envelope. The exit also rotated and shrank the entire
+filtered word. Capture dimensions include child bounds plus sampling support;
+a fixed layout box alone does not make them stable.
+
+Animate radial centers inside fixed Rectangles, or keep moving discs within the
+field's bounds. Freeze source motion and phase during a stationary ancestor fade
+to reuse the painted result. The renderer now retains same-sized capture textures
+when their origin changes and updates shader coordinate uniforms without replacing
+pass textures. Dimension changes still allocate, and transform changes still
+invalidate rendered pixels. Use resource-churn traces to distinguish allocation
+from shader work; they are not frame-time measurements.
 
 ## 2026-10-01 — Warm admission and canvas turnover are separate budgets
 

@@ -4342,7 +4342,11 @@ mod tests {
             (hole.build(), 84.0),
         ] {
             let op = PendingVectorOp {
-                geometry_signature: hash_vector_path(&path, PendingVectorOpKind::Fill, PathSmoothing::None),
+                geometry_signature: hash_vector_path(
+                    &path,
+                    PendingVectorOpKind::Fill,
+                    PathSmoothing::None,
+                ),
                 path,
                 fill: Fill::Solid(Color::rgba(1.0, 1.0, 1.0, 1.0)),
                 material: Material::default(),
@@ -4355,7 +4359,13 @@ mod tests {
             };
             let geometry = tessellate_vector_geometry(DEFAULT_TESSELLATION_TOLERANCE, &op);
             let coverage = VertexBuffers {
-                vertices: geometry.vertices.iter().map(|v| stencil::Vertex { position: v.position }).collect(),
+                vertices: geometry
+                    .vertices
+                    .iter()
+                    .map(|v| stencil::Vertex {
+                        position: v.position,
+                    })
+                    .collect(),
                 indices: geometry.indices,
             };
             assert!((tessellated_area(&coverage) - area).abs() < 0.01);

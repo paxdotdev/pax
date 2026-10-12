@@ -9,16 +9,17 @@
             <Group x=0px y=50% width=920.72px height=463.95px anchor_x=0px anchor_y=50% scale={(self.logo_scale)%}
                 layout_role=LayoutRole::Breakout>
                 <AnimatedPaxLogo width=920.72px height=463.95px background_mode=LogoBackgroundMode::Dark fill={SiteTheme::ink()}
-                    letter_fill={SiteTheme::paper()} progress={self.logo_progress}/>
+                    letter_fill={SiteTheme::paper()} progress=bind:logo_progress click_to_replay=true/>
             </Group>
         </Group>
         <Stacker width=100% autosize=true gutter=26px>
-            <RotatingHeadline width=100% height={(self.font_px * 3.7)px} font_px={self.font_px} playing={self.playing}/>
+            <RotatingHeadline width=100% height={(self.font_px * 3.7)px} font_px={self.font_px} playing=true/>
             <Stacker width=100% autosize=true gutter=12px>
                 <Text class="hero_copy" width=100%
-                    text="Write application logic in Rust, alongside Pax: a declarative language designed for making UIs powerful, expressive, and fun."/>
+                    text="Write application logic in Rust, alongside Pax: a declarative language for making UIs powerful, expressive, and fun."/>
                 <Text class="hero_copy" width=100%
-                    text="Ship to native macOS, iOS, iPadOS, and the web. This website is built in Pax."/>
+                    text="Ship to native macOS, iOS, iPadOS, and the web."/>
+                <Text class="hero_copy" width=100% text="This website is built in Pax."/>
             </Stacker>
             <Stacker width=100% height=48px direction=StackerDirection::Horizontal gutter=10px>
                 <Link width=100% height=100% url="https://docs.pax.dev/getting-started/" target=Target::New>
@@ -31,21 +32,10 @@
                 </Link>
             </Stacker>
             <Stacker width=100% autosize=true gutter=4px>
+                <Text class="hero_command" width=100% text="cargo install pax-cli" selectable=true/>
                 <Text class="hero_command" width=100% text="pax-cli create my-app" selectable=true/>
                 <Text class="hero_command" width=100% text="cd my-app && pax-cli run" selectable=true/>
             </Stacker>
-            <Button width=154px height=32px label={self.playing ? "Pause hero motion" : "Resume hero motion"} color={SiteTheme::ink()}
-                hover_color={SiteTheme::surface()} corner_radius=0 outline=Stroke {
-                    paint: {SiteTheme::rule()}
-                    width: 1px
-                }
-                style=TextStyle {
-                    font_size: 11px
-                    fill: {SiteTheme::muted()}
-                    align_vertical: TextAlignVertical::Center
-                    align_horizontal: TextAlignHorizontal::Center
-                }
-                @button_click=self.toggle_motion/>
         </Stacker>
     </Stacker>
     <Rectangle x=50% y={100% - 1px} width={self.compact ? (100% - 48px) : 88%} height=1px anchor_x=50% fill={SiteTheme::rule()}/>

@@ -9,8 +9,11 @@
             <Group x={(self.word_x * self.font_px)px} y={(self.font_px * (0.75 + self.word_y))px} anchor_y=50% width=100% height=100%
                 scale_x={(self.word_scale_x)%} scale_y={(self.word_scale_y)%} rotate={(self.word_rotate)deg} opacity={self.word_opacity}>
                 if self.word == "creative" {
-                    // Native leaves in a mask source are suppressed; keep the text equivalent here.
-                    <Text class="headline" width=100% height=100% text="creative" opacity=0 wrap=false/>
+                    // Transparent ink preserves the native selection highlight; node opacity=0 would hide it.
+                    // Keep this Text outside the mask, where native source leaves are suppressed.
+                    <Text class="selection" x={(self.font_px * 0.05)px}
+                        width={(self.font_px * 0.86 * 4060.8 / 815.55)px} height=100%
+                        text="creative" wrap=false clip=true selectable=true/>
                     // EMS League's "creative" has source bounds 4060.8 x 815.55.
                     // Handwriter normalizes each axis, so preserve that ratio in its box.
                     <Group x={(self.font_px * 0.05)px} y={(self.font_px * 0.29)px} width={(self.font_px * 0.86 * 4060.8 / 815.55)px}
@@ -28,7 +31,7 @@
                             <Handwriter width=100% height=100% text="creative" font=HandwriterFont::EMSLeague smoothing=PathSmoothing::Strong
                                 draw_end={self.writing_progress} stroke={
                                     paint: WHITE
-                                    width: {(Math::max(1.6, self.font_px * 0.038) + 1.0)px}
+                                    width: {(Math::max(1.6, self.font_px * 0.038) + 1.5)px}
                                     cap: StrokeCap::Round
                                     material: {Material::unlit()}
                                 }/>
@@ -38,18 +41,71 @@
                     if self.vector_ready {
                         // Clip only the resting selection box; iOS uses its interactive text view here.
                         <Text class="selection" width={(self.run_width * self.font_px)px} height=100% text={self.word} wrap=false clip=true selectable=true/>
-                        <LightFrame width=100% height=100%>
-                            for cluster in self.clusters key cluster.byte_start {
-                                <HeroLetter x={(cluster.x * self.font_px)px} y={(self.baseline * self.font_px)px}
-                                    width={(self.font_px)px} height={(self.font_px)px} cluster={cluster} ordinal={cluster.ordinal}
-                                    font_px={self.font_px} cap_height={self.cap_height} kind={self.word_index} time_ms={self.letter_ms}/>
-                            }
-                            if self.word_index == 1 || self.word_index == 2 {
-                                <LightSource x={(self.light_x * self.font_px)px} y={((self.baseline - self.cap_height * 0.45) * self.font_px)px}
-                                    width=1px height=1px z={(self.font_px * 0.65)px} radius={(self.font_px * 5.0)px}
-                                    intensity=2.8 color=rgb(242, 248, 255) layout_role=LayoutRole::Breakout/>
-                            }
-                        </LightFrame>
+                        if self.word_index >= 2 {
+                            // Filter the moving paint first, then clip it with the original letter coverage.
+                            <Mask width={(self.run_width * self.font_px)px} height=100% alpha=true>
+                                <Impressionist width=100% height=100%
+                                    mode={self.word_index == 2 ? ImpressionistMode::Signac : ImpressionistMode::Gauguin}
+                                    size={self.font_px * (self.word_index == 2 ? 0.50 : 0.08)} seed=17 phase={self.pigment_phase}>
+                                    if self.word_index == 2 {
+                                        // Move the radial paint inside fixed geometry to keep capture bounds stable.
+                                        for i in 0..6 {
+                                            <Rectangle width=100% height=100% fill={paint: @gradient {
+                                                radial: {
+                                                    start: {[(RotatingHeadline::pigment_x(self.pigment_phase, i) * 100.0)%, (RotatingHeadline::pigment_y(self.pigment_phase, i) / 1.5 * 100.0)%]}
+                                                    end: {[(RotatingHeadline::pigment_x(self.pigment_phase, i) * 100.0)%, (RotatingHeadline::pigment_y(self.pigment_phase, i) / 1.5 * 100.0)%]}
+                                                    radius: {self.font_px * 0.9}
+                                                }
+                                                0%: {RotatingHeadline::pigment_color(i, 1.0)}
+                                                35%: {RotatingHeadline::pigment_color(i, 0.95)}
+                                                100%: {RotatingHeadline::pigment_color(i, 0.0)}
+                                            } material: {Material::unlit()}}/>
+                                        }
+                                        <Rectangle width=100% height=100% fill={paint: {SiteTheme::paper()} material: {Material::unlit()}}/>
+                                    } else {
+                                        // Fixed diagonal strips; light travels through their gradients without resizing the capture.
+                                        for i in 0..18 {
+                                            <Rectangle x=50% y={(self.font_px * RotatingHeadline::star_y(i))px}
+                                                anchor_x=50% anchor_y=50% width=100%
+                                                height={(self.font_px * (0.055 + (i %% 3) * 0.023))px} rotate=-12deg
+                                                fill={paint: @gradient {
+                                                    linear: {
+                                                        start: {[(100.0 * (RotatingHeadline::star_phase(self.pigment_phase, i) * (1.0 + RotatingHeadline::star_tail(i)) - RotatingHeadline::star_tail(i)))%, 50%]}
+                                                        end: {[(100.0 * RotatingHeadline::star_phase(self.pigment_phase, i) * (1.0 + RotatingHeadline::star_tail(i)))%, 50%]}
+                                                    }
+                                                    0%: rgba(255, 255, 255, 0)
+                                                    25%: rgba(255, 255, 255, 35)
+                                                    65%: rgba(255, 255, 255, 128)
+                                                    82%: rgba(255, 255, 255, 230)
+                                                    94%: WHITE
+                                                    100%: rgba(255, 255, 255, 0)
+                                                } material: {Material::unlit()}}/>
+                                        }
+                                        <Rectangle width=100% height=100% fill={paint: rgba(255, 255, 255, 84) material: {Material::unlit()}}/>
+                                    }
+                                </Impressionist>
+                                <Group width=100% height=100%>
+                                    for cluster in self.clusters key cluster.byte_start {
+                                        <HeroLetter x={(cluster.x * self.font_px)px} y={(self.baseline * self.font_px)px}
+                                            width={(self.font_px)px} height={(self.font_px)px} cluster={cluster} ordinal={cluster.ordinal}
+                                            font_px={self.font_px} cap_height={self.cap_height} kind={RotatingHeadline::treatment_kind(self.word_index)} time_ms={self.letter_ms}/>
+                                    }
+                                </Group>
+                            </Mask>
+                        } else {
+                            <LightFrame width=100% height=100%>
+                                for cluster in self.clusters key cluster.byte_start {
+                                    <HeroLetter x={(cluster.x * self.font_px)px} y={(self.baseline * self.font_px)px}
+                                        width={(self.font_px)px} height={(self.font_px)px} cluster={cluster} ordinal={cluster.ordinal}
+                                        font_px={self.font_px} cap_height={self.cap_height} kind={RotatingHeadline::treatment_kind(self.word_index)} time_ms={self.letter_ms}/>
+                                }
+                                if self.word_index == 1 {
+                                    <LightSource x={(self.light_x * self.font_px)px} y={((self.baseline - self.cap_height * 0.45) * self.font_px)px}
+                                        width=1px height=1px z={(self.font_px * 0.65)px} radius={(self.font_px * 5.0)px}
+                                        intensity=2.8 color=rgb(242, 248, 255) layout_role=LayoutRole::Breakout/>
+                                }
+                            </LightFrame>
+                        }
                     } else {
                         <Text class="headline" width=100% height=100% text={self.word} wrap=false/>
                     }

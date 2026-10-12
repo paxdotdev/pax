@@ -8,6 +8,13 @@ while it is already playing. This uses the same `progress` property; a two-way
 binding keeps parent controls such as a scrubber in sync. Replay does not add
 automatic playback on mount.
 
+The replay handler resets and eases the same local progress view. Shared
+`Property::set` publications reach that view at a UI settlement boundary, so
+publishing a reset immediately before starting a local transition would use the
+old start value. External replay controls should likewise use
+`let progress = self.logo_progress.local(); progress.set(0.0); progress.ease_to(...)`
+after cancelling any active transition.
+
 ```pax
 <AnimatedPaxLogo width=920.72px height=463.95px
     background_mode=LogoBackgroundMode::Dark

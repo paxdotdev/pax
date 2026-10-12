@@ -92,23 +92,46 @@ Content and visual design history are archived in
 
 The three Manrope words in `RotatingHeadline` use checked-in Bézier outlines at
 weight 800 of the [bundled font](assets/fonts/README.md). `HeroLetter` animates
-ordinary Pax paths: high-performance accelerates and brakes, native presses and
-rebounds, and portable assembles along short arcs. Creative keeps its EMSLeague
-handwriting and CMY mesh treatment. The source drawer includes the path loader,
-generated geometry, and letter component.
+ordinary Pax paths: high-performance accelerates and brakes, native assembles along
+short arcs, and portable presses and rebounds. Native and portable freeze their
+painted fields and fade in place on exit, reusing the assembled pixels rather
+than resizing shader captures. Creative keeps its EMSLeague handwriting and CMY
+mesh treatment, with boundary control points moving up to 26 percentage points
+and the center up to 30, while keeping the cells convex. The mesh loops every
+two seconds, twice the previous morph speed.
+Its stroke width is `max(1.6, font_px * 0.038) + 1.5` logical pixels.
+The source drawer includes the path loader, generated geometry, and letter component.
 
-High-performance uses a cool silver gradient and a moving GPU light. Native
-uses the same polished finish with champagne, copper, rose, violet, cobalt,
-and teal assigned to its six letters. A local `LightFrame` contains the sweep;
-portable retains its unlit paper fill. The light begins during the reveal and
-finishes during the reading hold. Pausing settles the letters but freezes the
-light where it is. The Piet fallback retains the colored gradients without
-the lighting response; this treatment uses existing materials, not PAX-1035
-extensible shaders.
+High-performance uses a cool silver gradient and a moving GPU light scoped by
+`LightFrame`. Its sweep begins during the reveal and lasts 1.04 seconds.
+Portable uses `ImpressionistMode::Gauguin` on a field of 18 white star
+trails sweeping diagonally upward. Staggered speeds, lengths, and thicknesses
+create bright heads and long translucent tails; overlapping trails accumulate
+alpha over a 33%-alpha white ground. The smaller brush scale preserves the
+streaks, while the outer mask keeps each letter crisp.
+
+Native uses the built-in `ImpressionistMode::Signac` treatment on six moving
+radial-gradient dots (two each of cyan, magenta, and yellow) over a paper-colored
+ground. The animated letter paths provide an outer alpha mask, so the filtered
+colors move inside crisp letter contours. The shader is the Mask's content;
+the letter group is its separate source. Brush scale follows the font size.
+Both native and portable use this crisp outer letter mask. One phase drives
+their paint and source motion while either word enters or holds; it stops for
+the exit fade. The native selection Text stays outside both the shader and mask.
+
+The website enables `pax-kit/shaders`, including the generic effect runtime and
+WGSL validator in Wasm. This is separate from the offline font tracing; no
+runtime font outlining dependency has returned. These effects require WGPU and
+use one color-field capture per word, rather than one per letter. Native's radial
+centers move inside fixed rectangles; portable's gradient endpoints travel
+through fixed diagonal strips. Each trail clears the strip before its phase
+wraps. This keeps capture dimensions stable while their source pixels change.
+Letter outlines remain pretraced path geometry.
 
 Hero timings are 80% of the original durations: 3.36-second holds, 0.72-second
 handoffs, 1.28-second creative writing, and proportionally shorter letter
-entrances/staggers, mesh motion, and logo reveal. The word's clipping Frame has
+entrances/staggers and logo reveal. Creative's mesh uses the faster two-second
+period described above. The word's clipping Frame has
 `layout_role=LayoutRole::Breakout`: animated descendant bounds cannot change
 the ancestor Stacker's measured height. The fixed three-line signboard and its
 normal Text nodes determine the paragraph's position.
@@ -156,11 +179,15 @@ do not establish the production server's compression settings.
 
 Each vector word has one clipped native Text counterpart with transparent ink and
 the same packaged font. Its selection rectangles follow the resting layout, not
-the animated letters. Pause before selecting for the closest alignment; copying
+the animated letters. Select during the reading hold for the closest alignment; copying
 uses the actual phrase. This is approximate selection, not a complete accessibility
 implementation or a public replacement for `Text`. The font remains a separate
 asset for native text and selection; it is no longer embedded in the cartridge
 for shaping.
+Creative also has a clipped, transparent-ink Manrope counterpart outside its
+handwriting mask. Its selection is approximate because the visible strokes use
+EMS League. Keep the Text node itself opaque so the native selection highlight
+remains visible; hide only its ink.
 All website Manrope styles use the same `assets/fonts/Manrope.ttf` source and
 actual family name. Web loads the file by URL; Apple registers the bundled file
 at startup, without downloading another Manrope face. The existing Apple
@@ -168,9 +195,11 @@ font resolver selects its ExtraBold named instance (weight 800).
 The selection box is clipped to enable the existing iOS/iPadOS text-view path;
 the independently animated glyphs retain their original clipping behavior.
 
-The existing Pause hero motion button resolves lettering to a legible resting
-pose; resuming does not replay the entrance. Offscreen time does not advance.
-OS reduced-motion preferences are not queried automatically.
+Headline motion stops while offscreen. The website has no pause button or
+automatic OS reduced-motion handling yet. The logo plays once on mount and
+replays when clicked or tapped: `AnimatedPaxLogo.click_to_replay` already defaults
+to true. Its `progress=bind:logo_progress` shares one playhead with the website's
+initial 1440ms reveal; there is no competing per-frame progress writer.
 
 The manifest pins the website's Pest parser family to 2.8.7. A fresh resolution
 to Pest 2.9.3 introduced `stacker`/`psm` into the development Wasm and left an

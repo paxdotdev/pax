@@ -49,9 +49,12 @@ impl Default for AnimatedPaxLogo {
 impl AnimatedPaxLogo {
     fn replay_if_enabled(&self) {
         if self.click_to_replay.get() {
-            self.progress.local().cancel_transitions();
-            self.progress.set(0.0);
-            self.progress.local().ease_to(
+            // Reset the same owner-thread view that starts the transition. A
+            // shared publication is not imported until the next UI settlement.
+            let progress = self.progress.local();
+            progress.cancel_transitions();
+            progress.set(0.0);
+            progress.ease_to(
                 1.0,
                 Duration::Milliseconds(1440.into()),
                 EasingCurve::Linear,
@@ -99,11 +102,13 @@ mod tests {
 
     #[test]
     fn replay_restarts_the_shared_progress_even_mid_animation() {
-        use pax_kit::pax_engine::api::properties::register_millis;
-        let millis = Property::new(0_u64);
+        use pax_kit::pax_engine::api::properties::{register_millis, PropertyGraph};
+        let graph = PropertyGraph::new(|| {});
+        let _entered = graph.enter();
+        let millis = LocalProperty::new(0_u64);
         register_millis(&millis);
         let logo = AnimatedPaxLogo::default();
-        let bound_progress = logo.progress.clone();
+        let bound_progress = logo.progress.local();
         bound_progress.set(1.0);
         assert!(logo.click_to_replay.get());
         logo.replay_if_enabled();
@@ -118,8 +123,10 @@ mod tests {
 
     #[test]
     fn disabled_replay_preserves_external_playback() {
-        use pax_kit::pax_engine::api::properties::register_millis;
-        let millis = Property::new(0_u64);
+        use pax_kit::pax_engine::api::properties::{register_millis, PropertyGraph};
+        let graph = PropertyGraph::new(|| {});
+        let _entered = graph.enter();
+        let millis = LocalProperty::new(0_u64);
         register_millis(&millis);
         let logo = AnimatedPaxLogo::default();
         logo.click_to_replay.set(false);
@@ -130,8 +137,8 @@ mod tests {
         );
         millis.set(250);
         logo.replay_if_enabled();
-        assert!((logo.progress.get() - 0.25).abs() < 1e-9);
+        assert!((logo.progress.local().get() - 0.25).abs() < 1e-9);
         millis.set(750);
-        assert!((logo.progress.get() - 0.75).abs() < 1e-9);
+        assert!((logo.progress.local().get() - 0.75).abs() < 1e-9);
     }
 }

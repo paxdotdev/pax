@@ -680,6 +680,22 @@ out. Filters may expand beyond layout bounds by their declared sampling
 support; an enclosing Frame clips that expansion. Layout and hit testing
 continue to use the original tree.
 
+WGPU reuses capture textures when their pixel dimensions stay the same, including
+when only their origin changes. A shader container also reuses its pass textures
+and bindings when its coordinate transform changes without replacing its source
+texture or shader program. This avoids allocation churn; transformed or changed
+content still needs rendering. Resizing the capture can allocate new textures.
+The capture envelope includes descendant drawing bounds and sampling support,
+so a moving child that extends beyond the container can change that envelope
+although the container's layout size is fixed.
+
+For an inexpensive exit, stop both source animation and shader `phase`, then
+fade a stationary ancestor Group. WGPU can reuse the assembled pixels across
+that opacity-only fade. Continuing paint, mask, or transform changes adds work;
+opacity alone does not freeze those descendants. To animate a radial color field
+without moving its capture bounds, animate the gradient's center inside fixed
+geometry. Keep effects around the smallest useful subtree.
+
 When filtered GPU content overlaps native content, native punch-through masks
 continue to use the **original geometry and coverage opacity**. Ordinary
 transforms, clips, and opacity still update those masks. Shader displacement,

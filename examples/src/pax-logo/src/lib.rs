@@ -46,14 +46,16 @@ impl Example {
     }
 
     pub fn replay(&mut self, _ctx: &NodeContext, _args: Event<Click>) {
-        self.logo_progress.local().cancel_transitions();
-        self.logo_progress.set(0.0);
+        let progress = self.logo_progress.local();
+        progress.cancel_transitions();
+        progress.set(0.0);
         self.play_logo();
     }
 
     pub fn scrub_logo(&mut self, _ctx: &NodeContext, event: Event<SliderChange>) {
-        self.logo_progress.local().cancel_transitions();
-        self.logo_progress.set(event.value);
+        let progress = self.logo_progress.local();
+        progress.cancel_transitions();
+        progress.set(event.value);
     }
 
     fn play_logo(&self) {

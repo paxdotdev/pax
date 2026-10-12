@@ -1,5 +1,4 @@
 use crate::{RotatingHeadline, SiteTheme};
-use pax_kit::math::Point2;
 use pax_kit::*;
 use pax_logo::{AnimatedPaxLogo, LogoBackgroundMode};
 
@@ -11,40 +10,22 @@ pub struct HeroSection {
     pub font_px: Property<f64>,
     pub logo_scale: Property<f64>,
     pub logo_progress: Property<f64>,
-    pub playing: Property<bool>,
-    pub _last_ms: Property<f64>,
 }
 
 impl HeroSection {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
-        self.playing.set(true);
-        self._last_ms.set(ctx.elapsed_time_millis() as f64);
+        // Share the playhead with AnimatedPaxLogo so its default click-to-replay
+        // transition owns playback after this initial reveal.
+        self.logo_progress.local().ease_to(
+            1.0,
+            Duration::Milliseconds(1440.into()),
+            EasingCurve::Linear,
+        );
         self.sync_layout(ctx);
     }
 
     pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
         self.sync_layout(ctx);
-        let now = ctx.elapsed_time_millis() as f64;
-        let dt = (now - self._last_ms.get()).clamp(0.0, 50.0);
-        self._last_ms.set(now);
-        let origin = ctx.local_point(Point2::new(0.0, 0.0));
-        let height = ctx.bounds_self.get().1;
-        let visible =
-            -origin.y * height < ctx.viewport.get().height && (1.0 - origin.y) * height > 0.0;
-        if self.playing.get() && visible && self.logo_progress.get() < 1.0 {
-            self.logo_progress.set(
-                (self.logo_progress.get()
-                    + dt / (1800.0 * crate::rotating_headline::HERO_TIMING_SCALE))
-                    .min(1.0),
-            );
-        }
-    }
-
-    pub fn toggle_motion(&mut self, _ctx: &NodeContext, _event: Event<ButtonClick>) {
-        self.playing.set(!self.playing.get());
-        if !self.playing.get() {
-            self.logo_progress.set(1.0);
-        }
     }
 
     fn sync_layout(&mut self, ctx: &NodeContext) {
