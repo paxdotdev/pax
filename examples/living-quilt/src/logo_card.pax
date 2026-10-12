@@ -18,6 +18,7 @@
                     fill=rgba(17, 17, 15, 255)
                     letter_fill=rgba(252, 249, 242, 255)
                     progress={self.logo_progress}
+                    click_to_replay=false
                 />
             } else {
                 // Once the entrance completes, settled mask-free geometry
@@ -26,6 +27,7 @@
                 <StaticPaxLogo
                     width=920.72px
                     height=463.95px
+                    letter_fill=rgba(252, 249, 242, 255)
                 />
             }
         </Group>

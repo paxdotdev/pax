@@ -41,7 +41,7 @@
             <Text class="editorial_body" width=100%
                 text="Then work against the real thing: hot-reload templates, inspect the running scene, capture screenshots, and drive events with pax-cli dev. The same feedback loop is available to you and your coding agent."/>
             <Text class="editorial_note" width=100%
-                text="Template hot reload runs in debug builds on all current targets. Opt into Rust logic reload on web and macOS; iOS and iPadOS logic changes require a rebuild."/>
+                text="Template hot reload runs in debug CLI sessions on all current targets. Rust logic changes require rebuilding and restarting; refresh the browser after a web rebuild."/>
         </Stacker>
         <Link width=100% height=28px url="https://docs.pax.dev/template-language/" target=Target::New>
             <Text class="editorial_link" width=100% text="GET TO KNOW THE LANGUAGE →"/>

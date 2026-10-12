@@ -227,7 +227,7 @@ mod tests {
     #[test]
     fn registry_is_valid_and_has_expected_default() {
         let bundle = parse_bundle().unwrap();
-        assert_eq!(bundle.manifest.default, "living-quilt");
+        assert_eq!(bundle.manifest.default, "pax-logo");
         assert!(bundle
             .manifest
             .examples
@@ -261,7 +261,7 @@ mod tests {
         assert!(bundle
             .files
             .iter()
-            .any(|file| file.path == "living-quilt/src/animated_pax_logo_banner.rs"));
+            .any(|file| file.path == "living-quilt/src/logo_card.rs"));
         assert!(bundle
             .files
             .iter()

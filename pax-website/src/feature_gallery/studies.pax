@@ -1,9 +1,9 @@
 <Group width=100% height=100% @viewport_proximity_change=self.visibility>
     if self.kind == "hot" {
-        <Text class="note" x=18px y=10px width=135px height=18px text="src/lib.rs"/>
-        <Text class="code" x=18px y=39px width=150px height=20px text={self.alternate ? "radius.set(4);" : "radius.set(28);"}/>
+        <Text class="note" x=18px y=10px width=135px height=18px text="src/lib.pax"/>
+        <Text class="code" x=18px y=39px width=150px height=20px text={self.alternate ? "corner_radius=4" : "corner_radius=28"}/>
         <Text class="note" x=18px y=72px width=125px height=18px text="save → live preview"/>
-        <Text class="note" x=18px y=112px width=250px height=16px text="same running app · new logic"/>
+        <Text class="note" x=18px y=112px width=250px height=16px text="same running app · new template"/>
         <Rectangle class="paper" x=210px y=70px width=62px height=62px anchor=50% corner_radius={4 + self.progress * 24}/>
         <Rectangle class="rule" x=174px y=22px width=1px height=82px/>
     }

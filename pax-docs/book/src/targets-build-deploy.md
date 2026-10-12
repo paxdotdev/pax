@@ -14,6 +14,10 @@ requires additional signing and delivery steps.
 
 This chapter assumes you have completed [Getting Started](getting-started.md).
 Commands run from your project's directory unless stated otherwise.
+To select a project from another directory, use
+`pax-cli build --path ./my-app --target web --release`. Its release feature
+check and compilation both load that project's `.cargo/config.toml`, including
+local dependency patches and registry configuration.
 
 ## Targets and workstations
 

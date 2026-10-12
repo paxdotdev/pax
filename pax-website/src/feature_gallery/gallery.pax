@@ -9,9 +9,9 @@
         <MarqueeCarousel width=100% height={self.compact ? 546px : 522px} card_width_px={self.card_width_px} gap_px=24
             hover_paused=bind:marquee_hovered touch_paused=bind:marquee_touch_active>
             <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
-                category="DEV TOOLING" title="Rust Hot Reload"
-                summary="Reload Pax templates on supported targets and Rust application logic on web and macOS while keeping the running feedback loop alive."
-                proof="TEMPLATE + LOGIC LANES" docs_label="HOT RELOADING"
+                category="DEV TOOLING" title="Template Hot Reload"
+                summary="Reload Pax templates in debug CLI sessions on supported targets while keeping the app running. Rust logic changes require a rebuild and restart."
+                proof="LIVE PAX TEMPLATES" docs_label="HOT RELOADING"
                 docs_url="https://docs.pax.dev/getting-started.html#hot-reloading">
                 <FeatureStudy width=100% height=100% kind="hot"/>
             </FeatureCard>

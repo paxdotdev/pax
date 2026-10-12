@@ -38,7 +38,8 @@ Rust file together.
 
 ## Try it: Living Quilt
 
-Living Quilt is the project created by `pax-cli create`. Move the pointer to
+Living Quilt is an expressive showcase, available through
+`pax-cli create my-quilt --example=living-quilt`. Move the pointer to
 shift its light, click or tap the quilt to send a wave of color through the
 tiles, and click the Pax card to replay its entrance. The scene combines
 responsive components, Rust-driven motion, lighting, and feathered alpha masks.
@@ -46,9 +47,10 @@ Its color reveal requires the GPU renderer.
 
 <pax-example path="living-quilt" title="Living Quilt" height="640" files="src/lib.pax,src/lib.rs,src/quilt_scene.pax,src/logo_card.pax,src/wave.rs"></pax-example>
 
-The source tabs show how those parts fit together. You do not need to understand
-the whole scene to start editing it; [Getting Started](getting-started.md#make-a-first-edit)
-walks through a small change in the generated project.
+The source tabs show how those parts fit together. For a smaller first project,
+`pax-cli create my-app` starts with Pax Logo: a logo, slider, and buttons.
+[Getting Started](getting-started.md#make-a-first-edit) walks through editing
+that simpler scene.
 
 ## The Pax authoring loop
 

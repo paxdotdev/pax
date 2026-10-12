@@ -21,13 +21,8 @@ social_image_alt = "Pax logo"
 
 [dependencies]
 pax-kit = { version = "0.39.0", path = "../pax-kit", features = ["shaders"] }
-pax-logo = { version = "0.39.0", path = "../examples/pax-logo" }
-calculator = { version = "0.39.0", path = "../examples/calculator" }
-paxflix = { version = "0.39.0", path = "../examples/paxflix" }
-# Pest 2.9's stacker/psm path imports an unresolved stack pointer on wasm32.
-# Keep this web app's development parser on the working 2.8 series.
-pest = "=2.8.7"
-pest_derive = "=2.8.7"
+calculator = { version = "0.39.0", path = "../examples/calculator", default-features = false }
+paxflix = { version = "0.39.0", path = "../examples/paxflix", default-features = false }
 
 [target.'cfg(target_vendor = "apple")'.dependencies]
 # backtrace 0.3.76 needs dyld bindings removed from iOS in libc 0.2.190.

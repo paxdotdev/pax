@@ -1,8 +1,6 @@
 use pax_kit::*;
 // These component imports are resolved by the Pax template analyzer.
 #[allow(unused_imports)]
-use pax_logo::{AnimatedPaxLogo, AnimatedPaxLogoBanner, AnimatedPaxLogoPost, LogoBackgroundMode};
-
 mod connection_link;
 mod content;
 mod edge_layer;

@@ -1,6 +1,8 @@
 #![allow(unused_imports)]
 
-use pax_kit::*;
+use crate::*;
+use pax_engine::api::*;
+use pax_engine::*;
 
 const CANVAS_WIDTH_PX: f64 = 920.72;
 const CANVAS_HEIGHT_PX: f64 = 463.95;
@@ -48,9 +50,11 @@ const X_INITIAL_TRANSLATION_X: f64 = (A_SIDEBAR_LEFT_X + A_SIDEBAR_RIGHT_X) * 0.
 const X_INITIAL_TRANSLATION_Y: f64 = X_FINAL_Y_OFFSET_PX;
 const X_INITIAL_ROTATION_DEG: f64 = -90.0;
 
+/// The animated signboard and lettering used by [`AnimatedPaxLogo`].
 #[pax]
+#[engine_import_path("pax_engine")]
 #[custom(Default)]
-#[file("animated_pax_logo_banner.pax")]
+#[file("drawing/pax_logo/animated_pax_logo_banner.pax")]
 pub struct AnimatedPaxLogoBanner {
     pub fill: Property<Paint>,
     pub letter_fill: Property<Paint>,

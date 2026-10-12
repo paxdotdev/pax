@@ -10,7 +10,9 @@ description = "Platform-specific chassis allowing Pax cartridges to be executed 
 include = ["/src", "/interface/public"]
 
 [lib]
-crate-type = ["cdylib", "rlib"]
+# The application cartridge owns the Wasm binary. Keep chassis dependencies
+# hashed by Cargo so separate workspaces can safely share a target directory.
+crate-type = ["rlib"]
 
 [features]
 default = ["console_error_panic_hook", "gpu"]

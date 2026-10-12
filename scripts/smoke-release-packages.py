@@ -53,14 +53,14 @@ def main():
     reported = run([cli, '--version'], root, env, capture=True)
     if version not in reported:
         raise RuntimeError(f'Unexpected packaged CLI version: {reported}')
-    sources = run([cli, 'docs', 'examples', 'living-quilt'], root, env, capture=True)
-    if 'quilt_tile' not in sources or '<' not in sources:
-        raise RuntimeError('Packaged CLI is missing embedded Living Quilt sources')
+    sources = run([cli, 'docs', 'examples', 'pax-logo'], root, env, capture=True)
+    if 'AnimatedPaxLogo' not in sources or '<Slider' not in sources:
+        raise RuntimeError('Packaged CLI is missing embedded Pax Logo sources')
     (root / 'docs-example.txt').write_text(sources)
-    run([cli, 'create', root / 'fresh-quilt'], root, env)
-    project = root / 'fresh-quilt'
-    if not (project / 'src/quilt_tile.pax').is_file():
-        raise RuntimeError('Packaged CLI did not generate Living Quilt')
+    run([cli, 'create', root / 'fresh-logo'], root, env)
+    project = root / 'fresh-logo'
+    if sorted(p.name for p in (project / 'src').iterdir()) != ['lib.pax', 'lib.rs', 'main.rs']:
+        raise RuntimeError('Packaged CLI did not generate the compact Pax Logo starter')
     meta = json.loads(run(['cargo', 'metadata', '--format-version', '1',
                            '--features', 'pax-kit/web,pax-kit/designtime'], project, env, capture=True))
     pax_packages = [p for p in meta['packages'] if p['name'].startswith('pax-')]
@@ -78,6 +78,11 @@ def main():
         path.chmod(0o755)
     env['PATH'] = str(blocked) + os.pathsep + env['PATH']
     run([cli, 'build', '--target=web'], project, env)
+    bindings = (project / '.pax/build/debug/web/pax-cartridge.js').read_text()
+    # A linker success can still leave native symbols as unresolved Wasm
+    # imports (for example Pest 2.9.3's rust_psm_stack_pointer).
+    if re.search(r"""^\s*import\b[^\n]*\bfrom\s*["']env["']""", bindings, re.MULTILINE):
+        raise RuntimeError('Generated web bindings import the unresolved env module')
     log_path = root / 'run.log'
     with log_path.open('w') as log:
         process = subprocess.Popen([str(cli), 'run', '--target=web', '--hot-reload=off'],
@@ -108,8 +113,8 @@ def main():
                 process.wait(timeout=5)
     report = {'version': version, 'directory': str(root), 'cli': str(cli),
               'pax_dependencies': [p['name'] for p in pax_packages],
-              'checks': ['CLI build from archives', 'embedded docs sources', 'Living Quilt create',
-                         'candidate dependency provenance', 'web build without Node/npm', 'web run HTTP 200'],
+              'checks': ['CLI build from archives', 'embedded docs sources', 'Pax Logo create',
+                         'candidate dependency provenance', 'web build without Node/npm', 'no unresolved env imports', 'web run HTTP 200'],
               'limitation': 'Local archive patches; not published-channel proof'}
     (args.candidate.parent / 'package-smoke.json').write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps(report, indent=2))

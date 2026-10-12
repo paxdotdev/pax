@@ -208,7 +208,7 @@ fn cli() -> App<'static, 'static> {
                     .long("example")
                     .takes_value(true)
                     .value_name("name")
-                    .help("Create from a curated bundled example (default: living-quilt)."))
+                    .help("Create from a curated bundled example (default: pax-logo)."))
         )
         .subcommand(
             App::new("libdev")

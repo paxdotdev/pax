@@ -80,7 +80,8 @@ $extraPath = @(
     "$env:USERPROFILE\.local\pax-source\bin",
     "C:\Program Files\nodejs",
     "C:\BuildTools\VC\Tools\Llvm\bin",
-    "C:\Program Files\Git\cmd"
+    "C:\Program Files\Git\cmd",
+    "C:\Program Files\Git\bin"
 )
 $env:Path = (($extraPath + @($env:Path -split ";" | Where-Object { $_ })) -join ";")
 Import-MSVCEnvironment

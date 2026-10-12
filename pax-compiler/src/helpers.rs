@@ -188,16 +188,18 @@ pub fn pax_project_release_devtime_activators(
     requested_features: &[String],
     target_triples: &[&str],
 ) -> Result<Vec<String>, String> {
-    let manifest_path = project_path.join("Cargo.toml");
     let mut activators = BTreeSet::new();
 
     for target_triple in target_triples {
         let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
         let mut command = Command::new(cargo);
+        // Cargo discovers project configuration from cwd, not --manifest-path.
+        // Match the build so --path also honors local patches and registries.
         command
+            .current_dir(project_path)
             .arg("tree")
             .arg("--manifest-path")
-            .arg(&manifest_path)
+            .arg("Cargo.toml")
             .arg("--target")
             .arg(target_triple)
             .arg("--edges")
@@ -478,6 +480,32 @@ widget = { path = "widget" }
         assert_eq!(
             activators,
             vec!["runtime dependency path `app -> widget -> pax-engine` enables `designtime`"]
+        );
+    }
+
+    #[test]
+    fn release_guard_honors_project_cargo_config_from_another_directory() {
+        let fixture = tempfile::tempdir().unwrap();
+        let engine = fixture.path().join("pax-engine");
+        write_local_crate(&engine, "pax-engine", "[features]\ndesigntime = []\n");
+        let app = fixture.path().join("app");
+        write_local_crate(
+            &app,
+            "app",
+            "[dependencies]\npax-engine = { version = \"=0.1.0\", features = [\"designtime\"] }\n",
+        );
+        fs::create_dir(app.join(".cargo")).unwrap();
+        fs::write(
+            app.join(".cargo/config.toml"),
+            "[net]\noffline = true\n\n[patch.crates-io]\npax-engine = { path = \"../pax-engine\" }\n",
+        )
+        .unwrap();
+
+        let activators =
+            pax_project_release_devtime_activators(&app, &[], &["wasm32-unknown-unknown"]).unwrap();
+        assert_eq!(
+            activators,
+            vec!["runtime dependency path `app -> pax-engine` enables `designtime`"]
         );
     }
 

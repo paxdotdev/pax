@@ -120,7 +120,7 @@ mod tests {
     fn new_cards_follow_the_lead_pair_and_link_to_canonical_docs() {
         let gallery = include_str!("gallery.pax");
         let titles = [
-            "Rust Hot Reload",
+            "Template Hot Reload",
             "Path Drawing Animations",
             "Layered Paint",
             "Dynamic Vector Masks",

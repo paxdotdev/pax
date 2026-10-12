@@ -73,6 +73,7 @@ fn creates_bundled_examples_outside_the_monorepo() {
     let invalid = run_create(cli, &missing, &["--example=missing"]);
     assert!(!invalid.status.success());
     let error = String::from_utf8_lossy(&invalid.stderr);
+    assert!(error.contains("pax-logo"));
     assert!(error.contains("living-quilt"));
     assert!(error.contains("ink-and-light"));
     assert!(error.contains("increment"));
@@ -85,10 +86,17 @@ fn creates_bundled_examples_outside_the_monorepo() {
     assert!(!default_manifest.contains("../../../pax-kit"));
     assert!(default_manifest.contains("[profile.dev]\nopt-level = 1"));
     assert!(default_manifest.contains("[profile.dev.package.hello-pax]\nopt-level = 0"));
-    assert!(!default_manifest.contains("profile.dev.package.living-quilt"));
-    assert!(default.join("src/quilt_tile.pax").is_file());
-    assert!(default.join("src/animated_pax_logo.pax").is_file());
-    assert!(default.join("src/animated_pax_logo_banner.rs").is_file());
+    assert!(!default_manifest.contains("profile.dev.package.pax-logo"));
+    let template = fs::read_to_string(default.join("src/lib.pax")).unwrap();
+    assert!(template.contains("<AnimatedPaxLogo"));
+    assert!(template.contains("<Slider"));
+    let mut sources = fs::read_dir(default.join("src"))
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name())
+        .collect::<Vec<_>>();
+    sources.sort();
+    assert_eq!(sources, ["lib.pax", "lib.rs", "main.rs"]);
+    assert!(!default.join("assets").exists());
     assert!(fs::read_to_string(default.join("pax"))
         .unwrap()
         .contains("pax-cli \"$@\""));

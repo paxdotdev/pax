@@ -65,22 +65,22 @@ impl HomePage {
             code: include_str!("hero_outlines_data.rs").into(),
         });
         hero_sources.extend(section_sources(
-            "pax-logo/src/animated_pax_logo.pax",
-            include_str!("../../examples/pax-logo/src/animated_pax_logo.pax"),
-            "pax-logo/src/animated_pax_logo.rs",
-            include_str!("../../examples/pax-logo/src/animated_pax_logo.rs"),
+            "pax-std/src/drawing/pax_logo/animated_pax_logo.pax",
+            include_str!("../../pax-std/src/drawing/pax_logo/animated_pax_logo.pax"),
+            "pax-std/src/drawing/pax_logo/animated_pax_logo.rs",
+            include_str!("../../pax-std/src/drawing/pax_logo/animated_pax_logo.rs"),
         ));
         hero_sources.extend(section_sources(
-            "pax-logo/src/animated_pax_logo_banner.pax",
-            include_str!("../../examples/pax-logo/src/animated_pax_logo_banner.pax"),
-            "pax-logo/src/animated_pax_logo_banner.rs",
-            include_str!("../../examples/pax-logo/src/animated_pax_logo_banner.rs"),
+            "pax-std/src/drawing/pax_logo/animated_pax_logo_banner.pax",
+            include_str!("../../pax-std/src/drawing/pax_logo/animated_pax_logo_banner.pax"),
+            "pax-std/src/drawing/pax_logo/animated_pax_logo_banner.rs",
+            include_str!("../../pax-std/src/drawing/pax_logo/animated_pax_logo_banner.rs"),
         ));
         hero_sources.extend(section_sources(
-            "pax-logo/src/animated_pax_logo_post.pax",
-            include_str!("../../examples/pax-logo/src/animated_pax_logo_post.pax"),
-            "pax-logo/src/animated_pax_logo_post.rs",
-            include_str!("../../examples/pax-logo/src/animated_pax_logo_post.rs"),
+            "pax-std/src/drawing/pax_logo/animated_pax_logo_post.pax",
+            include_str!("../../pax-std/src/drawing/pax_logo/animated_pax_logo_post.pax"),
+            "pax-std/src/drawing/pax_logo/animated_pax_logo_post.rs",
+            include_str!("../../pax-std/src/drawing/pax_logo/animated_pax_logo_post.rs"),
         ));
         self.hero_sources.set(hero_sources);
         let mut resource_sources = section_sources(
@@ -97,15 +97,15 @@ impl HomePage {
         ));
         resource_sources.extend(section_sources(
             "calculator/src/lib.pax",
-            include_str!("../../examples/src/calculator/src/lib.pax"),
+            include_str!("../../examples/calculator/src/lib.pax"),
             "calculator/src/lib.rs",
-            include_str!("../../examples/src/calculator/src/lib.rs"),
+            include_str!("../../examples/calculator/src/lib.rs"),
         ));
         resource_sources.extend(section_sources(
             "calculator/src/key.pax",
-            include_str!("../../examples/src/calculator/src/key.pax"),
+            include_str!("../../examples/calculator/src/key.pax"),
             "calculator/src/key.rs",
-            include_str!("../../examples/src/calculator/src/key.rs"),
+            include_str!("../../examples/calculator/src/key.rs"),
         ));
         resource_sources.extend(section_sources(
             "src/device_frame.pax",
@@ -116,19 +116,19 @@ impl HomePage {
         for (label, code) in [
             (
                 "calculator/src/model.rs",
-                include_str!("../../examples/src/calculator/src/model.rs"),
+                include_str!("../../examples/calculator/src/model.rs"),
             ),
             (
                 "calculator/src/expression.rs",
-                include_str!("../../examples/src/calculator/src/expression.rs"),
+                include_str!("../../examples/calculator/src/expression.rs"),
             ),
             (
                 "calculator/src/graph.rs",
-                include_str!("../../examples/src/calculator/src/graph.rs"),
+                include_str!("../../examples/calculator/src/graph.rs"),
             ),
             (
                 "calculator/src/layout.rs",
-                include_str!("../../examples/src/calculator/src/layout.rs"),
+                include_str!("../../examples/calculator/src/layout.rs"),
             ),
         ] {
             resource_sources.push(ExampleSource {
@@ -171,59 +171,59 @@ impl HomePage {
         for (label, code) in [
             (
                 "paxflix/lib.pax",
-                include_str!("../../examples/src/paxflix/src/lib.pax"),
+                include_str!("../../examples/paxflix/src/lib.pax"),
             ),
             (
                 "paxflix/lib.rs",
-                include_str!("../../examples/src/paxflix/src/lib.rs"),
+                include_str!("../../examples/paxflix/src/lib.rs"),
             ),
             (
                 "paxflix/theme.pax",
-                include_str!("../../examples/src/paxflix/src/theme.pax"),
+                include_str!("../../examples/paxflix/src/theme.pax"),
             ),
             (
                 "paxflix/movie_shelf.pax",
-                include_str!("../../examples/src/paxflix/src/movie_shelf.pax"),
+                include_str!("../../examples/paxflix/src/movie_shelf.pax"),
             ),
             (
                 "paxflix/movie_shelf.rs",
-                include_str!("../../examples/src/paxflix/src/movie_shelf.rs"),
+                include_str!("../../examples/paxflix/src/movie_shelf.rs"),
             ),
             (
                 "paxflix/movie_card.pax",
-                include_str!("../../examples/src/paxflix/src/movie_card.pax"),
+                include_str!("../../examples/paxflix/src/movie_card.pax"),
             ),
             (
                 "paxflix/movie_card.rs",
-                include_str!("../../examples/src/paxflix/src/movie_card.rs"),
+                include_str!("../../examples/paxflix/src/movie_card.rs"),
             ),
             (
                 "paxflix/movie_detail.pax",
-                include_str!("../../examples/src/paxflix/src/movie_detail.pax"),
+                include_str!("../../examples/paxflix/src/movie_detail.pax"),
             ),
             (
                 "paxflix/movie_detail.rs",
-                include_str!("../../examples/src/paxflix/src/movie_detail.rs"),
+                include_str!("../../examples/paxflix/src/movie_detail.rs"),
             ),
             (
                 "paxflix/film_artwork.pax",
-                include_str!("../../examples/src/paxflix/src/film_artwork.pax"),
+                include_str!("../../examples/paxflix/src/film_artwork.pax"),
             ),
             (
                 "paxflix/film_artwork.rs",
-                include_str!("../../examples/src/paxflix/src/film_artwork.rs"),
+                include_str!("../../examples/paxflix/src/film_artwork.rs"),
             ),
             (
                 "paxflix/profile_menu.pax",
-                include_str!("../../examples/src/paxflix/src/profile_menu.pax"),
+                include_str!("../../examples/paxflix/src/profile_menu.pax"),
             ),
             (
                 "paxflix/profile_menu.rs",
-                include_str!("../../examples/src/paxflix/src/profile_menu.rs"),
+                include_str!("../../examples/paxflix/src/profile_menu.rs"),
             ),
             (
                 "paxflix/catalog.rs",
-                include_str!("../../examples/src/paxflix/src/catalog.rs"),
+                include_str!("../../examples/paxflix/src/catalog.rs"),
             ),
         ] {
             runtime_sources.push(ExampleSource {

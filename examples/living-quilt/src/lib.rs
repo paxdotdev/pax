@@ -2,25 +2,17 @@ use pax_kit::math::Point2;
 use pax_kit::*;
 use rand::Rng;
 
-pub mod animated_pax_logo;
-pub mod animated_pax_logo_banner;
-pub mod animated_pax_logo_post;
 pub mod logo_card;
 pub mod quilt_layer;
 pub mod quilt_panel;
 pub mod quilt_scene;
 pub mod quilt_tile;
-pub mod static_pax_logo;
 pub mod wave;
-pub use animated_pax_logo::*;
-pub use animated_pax_logo_banner::*;
-pub use animated_pax_logo_post::*;
 pub use logo_card::*;
 pub use quilt_layer::*;
 pub use quilt_panel::*;
 pub use quilt_scene::*;
 pub use quilt_tile::*;
-pub use static_pax_logo::*;
 pub use wave::*;
 
 const MAX_LIVE_RIPPLES: usize = 5;
@@ -259,9 +251,10 @@ impl Example {
     }
 
     fn play_logo(&self) {
-        self.logo_progress.local().cancel_transitions();
-        self.logo_progress.set(0.0);
-        self.logo_progress.local().ease_to(
+        let progress = self.logo_progress.local();
+        progress.cancel_transitions();
+        progress.set(0.0);
+        progress.ease_to(
             1.0,
             Duration::Milliseconds(1440.into()),
             EasingCurve::Linear,

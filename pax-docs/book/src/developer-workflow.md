@@ -405,12 +405,14 @@ The CLI includes complete project templates for a curated subset of examples:
 
 | Example | Starting point |
 | --- | --- |
-| `living-quilt` (default) | Interactive geometric tapestry with responsive components, motion, lighting, and GPU alpha masks |
+| `pax-logo` (default) | Animated standard-library logo with a position slider, replay, and a background toggle |
+| `living-quilt` | Interactive geometric tapestry with responsive components, motion, lighting, and GPU alpha masks |
 | `ink-and-light` | A responsive postcard with handwriting, local assets, and Rust interaction |
 | `increment` | A minimal counter for exploring the reactive update loop |
 
 ```sh
-pax-cli create my-quilt
+pax-cli create my-app
+pax-cli create my-quilt --example=living-quilt
 pax-cli create my-postcard --example=ink-and-light
 pax-cli create my-counter --example=increment
 ```

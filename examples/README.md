@@ -8,10 +8,10 @@ example target.
 | --- | --- |
 | [Calculator](calculator) | Graphing, native input, and two-axis scrolling |
 | [Paxflix](paxflix) | App composition, nested scrolling, and runtime themes |
-| [Living Quilt](living-quilt) | Expressive composition and interaction; the default CLI starter |
+| [Living Quilt](living-quilt) | Expressive composition and interaction |
 | [Ink & Light](ink-and-light) | A responsive postcard with local assets and Rust interaction |
 | [Increment](increment) | A minimal template-to-Rust interaction |
-| [Pax Logo](pax-logo) | Compact declarative motion and a reusable animated component |
+| [Pax Logo](pax-logo) | The default CLI starter: a standard-library logo, slider, and buttons |
 | [Liquid Glass](liquid-glass) | Apple native materials and the fallback on other targets |
 | [Materials](materials) | Lighting and material composition |
 | [Viewport Proximity](viewport-proximity) | Viewport events, data loading, and motion |
@@ -19,14 +19,14 @@ example target.
 From the repository root, run a web example on macOS, Linux, or Windows:
 
 ```sh
-pax-cli run --path examples/living-quilt --target web
+pax-cli run --path examples/pax-logo --target web
 ```
 
 For direct native execution on macOS:
 
 ```sh
-cargo run -p living-quilt
-cargo run --example living-quilt
+cargo run -p pax-logo
+cargo run --example pax-logo
 ```
 
 Prefer `-p <name>` when iterating: the root package shares all example
@@ -39,7 +39,7 @@ studies, platform probes, regression cases, and historical experiments. They
 remain runnable and available through `pax-cli docs examples <name>`.
 
 CLI starter eligibility is separate: [the starter registry](bundled-cli-examples.toml)
-continues to bundle Living Quilt, Ink & Light, and Increment only. Keeping an
+bundles Pax Logo, Living Quilt, Ink & Light, and Increment. Keeping an
 example here does not add it to every CLI installation.
 
 To contribute a supporting example, run `examples/create-example.sh <name>`.

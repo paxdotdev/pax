@@ -42,6 +42,7 @@ accepts `fixtures/<name>` and `examples/fixtures/<name>`.
 | [runtime-settings-themes](runtime-settings-themes) | Dynamic theme providers and transitions teaching example |
 | [scroll-garden](scroll-garden) | Scroll-driven kinetic composition study |
 | [scroll-swatch](scroll-swatch) | Nested two-axis scroll interaction study |
+| [shader-studio](shader-studio) | Interactive Gaussian blur and impressionist shader study |
 | [space-game](space-game) | Sprites, keyboard and touch controls teaching example |
 | [timeline-playground](timeline-playground) | Declarative timeline units and hierarchy study |
 | [transition-grid](transition-grid) | Transitions, exit handling and reflow teaching example |

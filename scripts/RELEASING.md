@@ -53,8 +53,9 @@ removed so an old command cannot accidentally publish. Preparation:
    archive; starting each output afresh prevents this.
    Other versions, retained candidate copies, and compilation caches are preserved.
 6. Unpacks the actual archives into a temporary directory outside the checkout,
-   builds the CLI there, reads embedded example sources, creates Living Quilt,
-   and checks web build/run while blocking Node/npm. Registry patches point only
+   builds the CLI there, reads embedded example sources, creates Pax Logo,
+   and checks web build/run while blocking Node/npm, rejecting unresolved `env`
+   imports in the generated browser bindings. Registry patches point only
    to unpacked candidate archives; metadata verifies every resolved Pax source.
    This check uses a shared compilation cache but no monorepo source dependency.
 7. Records commit, dirty state, source/lockfile/bundle hashes, package order,
@@ -213,7 +214,7 @@ pax-cli run --target=web
 ```
 
 Use a fresh directory outside the monorepo, no source patches, and no Node/npm
-requirement for the generated app. Inspect Living Quilt, CLI docs/example sources,
+requirement for the generated app. Inspect Pax Logo, CLI docs/example sources,
 and telemetry according to [CLI Telemetry](../pax-docs/book/src/cli-telemetry.md).
 Record installation/build/run results and exact package versions. The
 [first-touch harness](first-touch/README.md) supplies baseline details; its

@@ -618,9 +618,14 @@ inert finished pose:
     progress=1.0 click_to_replay=false/>
 ```
 
-Import `AnimatedPaxLogo` from the `pax-logo` example crate and scale an enclosing
-Group to fit its original coordinate system. Click replay does not start an
-animation on mount; the example's parent still owns its initial playback.
+[`AnimatedPaxLogo` and `LogoBackgroundMode`](api/pax-std/drawing/pax_logo/animated_pax_logo.md)
+are in `pax-std` and are re-exported
+by `pax_kit`; `use pax_kit::*;` makes them available to a component's template.
+Scale an enclosing Group from the original 920.72 × 463.95 coordinate system.
+Click replay does not start animation on mount; the parent owns initial playback.
+For a settled drawing without animation masks or click behavior, use
+`StaticPaxLogo` with the same size and palette properties. The `pax-logo` starter
+owns only the surrounding scene and controls; no example-crate dependency is needed.
 
 For handwriting or a drawn-line reveal, animate `draw_start` and
 `draw_end` on Path or Handwriter. Drawing owns the

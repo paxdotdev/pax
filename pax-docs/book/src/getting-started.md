@@ -212,11 +212,12 @@ From the directory where you keep your projects, run:
 pax-cli create my-first-project
 ```
 
-Choose a destination that does not already exist. The CLI creates Living Quilt,
-an interactive geometric tapestry, including its Rust package, UI sources, and
-assets. You can [try it in the introduction](what-is-pax.md#try-it-living-quilt).
-The project source is bundled with your CLI version; no repository checkout is
-needed.
+Choose a destination that does not already exist. The CLI creates Pax Logo:
+a small scene with an animation-position slider, Replay, and a light/dark
+background toggle. Its three source files contain the scene, controls, and native
+entry point. The logo itself comes from `pax-std`, re-exported by `pax_kit`;
+its geometry and animation sources stay out of your project. The starter is
+bundled with your CLI version; no repository checkout is needed.
 
 For a smaller starting point, use `pax-cli create my-counter --example=increment`.
 The curated alternatives and their purpose are covered in
@@ -236,10 +237,9 @@ ready, the terminal prints a local URL beginning with `http://127.0.0.1:`. Open
 that URL in your browser. Use the address from your current run, since the port
 can change between sessions.
 
-Your first-run checkpoint is a geometric quilt with a Pax card in the middle.
-Click or tap the quilt to send out a color wave, or click the card to replay
-its entrance. The color reveal uses GPU alpha masking; check the
-[rendering backend](how-pax-runs.md#rendering-backends) if that effect is absent.
+Your first-run checkpoint is the animated Pax logo. Drag the slider to choose
+an animation position; click **Replay** or the logo to play it again. The button
+at the top switches between light and dark backgrounds.
 A blank page or a build error means there's still something to resolve;
 see [When something goes wrong](#when-something-goes-wrong).
 
@@ -256,8 +256,8 @@ cd my-first-project
 pax-cli run --target macos
 ```
 
-The window displays Living Quilt, an interactive geometric tapestry. Click the
-quilt to send out a color wave, or click its card to replay the entrance.
+The window displays the same logo scene and controls. Drag the slider to scrub
+the animation, replay it, and try the background toggle.
 Template edits reload during this development session; Rust changes require
 rebuilding and restarting. Alternatively, `cargo run` runs the native app without
 a development server. Use `cargo build` to compile without launching.
@@ -275,7 +275,8 @@ Open the project in your editor. These are the main roles to recognize:
 | --- | --- |
 | `Cargo.toml` | The Rust package definition, dependencies, and optional Pax project metadata. |
 | `src/main.rs` | Calls `pax_kit::init!()?.run()` to initialize and run the UI in the native application process. |
-| `src/lib.rs` | Library that declares `pax_kit::runnable! { root: ..., init: ... }` and exports its UI modules. |
+| `src/lib.rs` | The scene's state and event handlers, plus `pax_kit::runnable! { root: crate::Example }`. An optional `init` callback customizes root construction. |
+| `src/lib.pax` | The starter's layout, logo instance, slider, and buttons. |
 | Rust source (`.rs`) | Component definitions, application state, event handlers, and other application logic. |
 | Pax templates (`.pax`) | UI elements, layout, styles, expressions, and bindings to event handlers. Templates can also be embedded in Rust source. |
 | `assets/`, when present | Application media such as images and fonts. |
@@ -304,23 +305,27 @@ workspace library; see [declare a runnable UI](components-composition.md#declare
 
 ## Make a first edit
 
-Open `src/lib.pax` and find the `LogoCard` near the top. Change its width from:
+Open `src/lib.pax` and find the Text element with `id=replay_label`. Change:
 
 ```pax
-width={is_compact ? 290px : 382px}
+text="Replay"
 ```
 
 to:
 
 ```pax
-width={is_compact ? 320px : 420px}
+text="Play again"
 ```
 
-Save to see the wider card. Both Cargo and CLI development sessions update
-the template through the default Pax hot-reload lane. The expression chooses a compact width for smaller windows
-and a larger width otherwise; try resizing the window or browser. Restore the
-original values whenever you like. Rust changes require rebuilding and
-restarting on either path. See [Hot reloading](developer-workflow.md#hot-reloading).
+Save to see the label update in your running `pax-cli run` session. The label is
+part of your scene; the animation behind `AnimatedPaxLogo` is a standard-library
+component. Follow `@click=self.replay` on its enclosing Group into `src/lib.rs`
+to see how the button resets and animates `logo_progress`. The slider binds to
+that same property, so it also follows playback.
+
+Bare `cargo run` requires rebuilding after source edits. Rust changes require
+rebuilding and restarting on either path. See
+[Hot reloading](developer-workflow.md#hot-reloading).
 
 ## When something goes wrong
 

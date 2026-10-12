@@ -10,5 +10,5 @@
 set -e
 rm -rf ./pax-create-sandbox
 cargo build --manifest-path=pax-cli/Cargo.toml
-target/debug/pax-cli create ./pax-create-sandbox --example=living-quilt --libdev
+target/debug/pax-cli create ./pax-create-sandbox --example=pax-logo --libdev
 target/debug/pax-cli run --target=web --path=./pax-create-sandbox --libdev

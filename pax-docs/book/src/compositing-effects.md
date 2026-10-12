@@ -803,7 +803,7 @@ slider ranges from −5× to 5×, initially 1×, and affects brush phase only.
 Run the canonical example from the repository root:
 
 ```sh
-pax-cli run -p examples/src/shader-studio -t web
+pax-cli run -p examples/fixtures/shader-studio -t web
 ```
 
 For the Rust extension contract, see [shader primitives](primitives.md#shader-primitives).

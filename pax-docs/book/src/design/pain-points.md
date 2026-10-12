@@ -16,6 +16,13 @@ Last triaged: 2026-10-05 — [PAX-972](https://linear.app/paxdev/issue/PAX-972/p
 
 ## Untriaged findings
 
+- 2026-10-13, initialization rebase: directory renames did not migrate Shader
+  Studio, which main added after the example-layout branch diverged, or rewrite
+  the website’s relative Paxflix asset symlinks. Compare incoming added files
+  against their final paths and check symlink targets, not only textual conflict
+  markers. Move the new fixture into the Cargo/example discovery layout and
+  repair asset links before regenerating bundled sources and building the site.
+
 - 2026-10-12, pre-merge validation: a website build did not compile a new
   `pax-std` autosize test, which still constructed runtime `CommonProperties`
   and `ConditionalProperties` with shared `Property` values after the property
@@ -923,3 +930,63 @@ run rebuilt only the application after initial sidecar creation. See the
 [qualification record](PAX-1015-main-entry-spec.md#final-workstation-and-timing-qualification-2026-10-10)
 for the cache/toolchain conditions; these numbers exclude CLI installation and
 must not be compared directly with the old combined launcher/target totals.
+
+## 2026-10-12 — Fresh dependency resolution can compile but fail to mount
+
+The fresh Pax Logo starter resolved Pest 2.9.3, while the repository lockfile
+retained 2.9.2. Both compiled, but 2.9.3 enables `stacker` and pins `psm` 0.1.24
+through its `std` feature. Its Wasm artifact imported the unresolved function
+`env.rust_psm_stack_pointer`; wasm-bindgen emitted an `env` module import and
+the browser rejected the application before mounting. `pax-language` now pins
+Pest and its derive crate to the existing tested 2.9.2 pair. Revisit the pin when
+upstream's Wasm stack-checking path is fixed. A fresh external starter must be
+mounted in a browser, not merely compiled; a successful Cargo or wasm-pack exit
+does not prove its imports resolve. The package smoke check now rejects this
+unresolved `env` import in the generated bindings.
+
+## 2026-10-12 — Reusable branding should not expand the starter
+
+The logo harness and Living Quilt carried duplicate animation geometry, while
+the website depended on the harness package just to mount its logo. Moving the
+animated and settled components into `pax-std` keeps a fresh Pax Logo starter to
+three source files and lets consumers use the existing `pax_kit` facade. Keep
+playback ownership at the call site: Living Quilt disables the shared logo’s
+click replay because its card already owns replay, and uses the settled
+mask-free component after the entrance. Update View Source includes, topology
+anchors, both bundled example snapshots, and create/package smoke assertions
+when moving a component out of a bundled starter.
+
+Replay must reset and enqueue its transition through the same local property
+view. A shared `Property::set` is imported on a later graph turn; mixing it
+with an immediate `local().ease_to` can retain the old starting position. The
+logo and its harness now reset locally. Animation unit tests need an entered
+`PropertyGraph`, `LocalProperty` clocks, and effect draining before reading the
+published progress, matching the engine’s frame settlement.
+
+## 2026-10-12 — Shared web caches and Windows source prerequisites
+
+An external starter and a monorepo fixture can select different dependency
+graphs while sharing `CARGO_TARGET_DIR`. In the Ubuntu VM, building the starter,
+then Space Game, then the starter again reused an incompatible
+`libpax_chassis_web.rlib`: Cargo reported the chassis as fresh, but Rust rejected
+apparently identical `JsValue`, `AppOptions`, and runtime types. The chassis's
+combined `cdylib`/`rlib` declaration produced an unhashed dependency artifact.
+The application cartridge already owns the final Wasm binary, so the web chassis
+now emits only an `rlib`, whose filename includes Cargo's dependency identity.
+The same starter → fixture → starter sequence then passed without clearing the
+cache. Retain cross-workspace cache switches in qualification; a fresh target
+directory can conceal this failure.
+
+The Windows source build also needs Git for Windows' `bin` directory on PATH,
+in addition to `cmd`: the source checkout rebuilds its JavaScript interface by
+invoking `bash`. The first-touch source harness now includes that directory.
+Published CLI packages contain the interface bundle already. Do not generalize
+source-checkout Node/Bash requirements to an ordinary published CLI installation.
+
+Release validation must also use the same working directory as compilation.
+`cargo tree --manifest-path` does not discover the selected project's
+`.cargo/config.toml` from another directory. A source-patched starter therefore
+built from its own directory but failed the CLI's release feature preflight when
+selected with `--path`. Run that resolver in the selected project directory.
+The regression uses a project-local patch and verifies that the guard still
+detects transitive development features through the patched dependency.

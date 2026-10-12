@@ -1,6 +1,5 @@
 use crate::{RotatingHeadline, SiteTheme};
 use pax_kit::*;
-use pax_logo::{AnimatedPaxLogo, LogoBackgroundMode};
 
 #[pax]
 #[file("hero_section.pax")]

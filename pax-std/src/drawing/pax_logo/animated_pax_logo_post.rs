@@ -1,6 +1,8 @@
 #![allow(unused_imports)]
 
-use pax_kit::*;
+use crate::*;
+use pax_engine::api::*;
+use pax_engine::*;
 
 const MID_X: f64 = 50.0768;
 const TOP_BACK_LEFT: Point = Point::new(MID_X, 0.0);
@@ -20,9 +22,11 @@ const Y_PX_PER_PERCENT: f64 = COMPONENT_HEIGHT_PX * CANVAS_Y_SCALE / 100.0;
 
 const INITIAL_ROLL_RADIUS_PX: f64 = 13.0;
 
+/// The rolling fabric post used by [`AnimatedPaxLogo`].
 #[pax]
+#[engine_import_path("pax_engine")]
 #[custom(Default)]
-#[file("animated_pax_logo_post.pax")]
+#[file("drawing/pax_logo/animated_pax_logo_post.pax")]
 pub struct AnimatedPaxLogoPost {
     pub fill: Property<Paint>,
     pub backing_fill: Property<Paint>,
@@ -120,6 +124,25 @@ fn computed_path(
     let motion = motion.clone();
     let dependencies = [motion.untyped()];
     LocalProperty::computed(move || build(motion.get()), &dependencies)
+}
+
+pub(crate) fn settled_post_paths() -> [Vec<PathElement>; 6] {
+    let motion = motion_from_controls(MotionControls {
+        rolling: 1.0,
+        extension: 1.0,
+        wave: 0.0,
+        swing: 0.0,
+        fall: 1.0,
+        roll_radius_px: 0.7,
+    });
+    [
+        roll_start_cap_path(motion),
+        roll_body_path(motion),
+        roll_end_cap_path(motion),
+        top_fabric_path(motion),
+        fabric_path(motion),
+        backing_fabric_path(1.0),
+    ]
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]

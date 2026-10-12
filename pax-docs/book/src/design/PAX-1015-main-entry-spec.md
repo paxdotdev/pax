@@ -137,6 +137,69 @@ Validation on 2026-10-10:
 
 The preview is available at `http://127.0.0.1:8149/` while the VM/tunnel is running.
 
+### Post-curation VM qualification (2026-10-12)
+
+Reused the existing Ubuntu 26.04 ARM64 and Windows 11 ARM64 VMs, starting
+from committed source `57bdc1240` and then applying the fixes described below.
+Each guest built its own CLI and created a fresh external Living Quilt starter,
+patched to that guest's source checkout through `.cargo/config.toml`.
+Ubuntu used Rust 1.97.1; Windows used Rust 1.96.0 and the ARM64 MSVC toolchain.
+Both used wasm-pack 0.15.0. Existing system/registry caches were retained;
+this was source-checkout qualification, not a new published-CLI installation.
+
+Both guests passed:
+
+- CLI compilation, external-starter debug and release web packaging.
+- `cargo run` compilation followed by the intentional unsupported-native error,
+  directing Linux/Windows workstation users to `pax-cli run --target web`.
+- Bundled `pax-cli docs examples space-game` lookup and a web build of the moved
+  `examples/fixtures/space-game` package.
+- CLI serving of the starter's HTML and Wasm. The Windows server was checked
+  through guest-local HTTP requests; the Ubuntu server through an SSH tunnel.
+
+Ubuntu additionally passed visible debug rendering, click-triggered waves,
+live scene inspection, and an opacity template edit followed by restoration.
+Both guests' release artifacts rendered and responded to clicks without browser
+console errors. These browser checks ran on macOS: Ubuntu through the tunnel,
+Windows from a copied release bundle served on host loopback. Neither guest's
+browser/GPU, x64 workstations, nor physical devices were qualified. Host access
+to the Windows preview port was blocked by its firewall; automatic approval
+review rejected a proposed temporary rule, so no firewall rule was added.
+The Windows console remained at an activation/setup screen.
+
+Final Living Quilt Wasm sizes, without optional Binaryen optimization, were
+3,311,201 bytes on Ubuntu and 3,322,418 bytes on Windows (about 3.16/3.17 MiB).
+Gzip level 9 produced 951,488 and 956,337 bytes respectively. Different guest
+toolchains/dependency resolutions make this a size sanity check, not a
+bit-for-bit reproducibility comparison. The Ubuntu chassis change reduced its
+uncompressed release artifact by 32 bytes relative to the same guest's control.
+
+Findings and fixes:
+
+- The old web chassis `cdylib`/`rlib` declaration left an unhashed
+  `libpax_chassis_web.rlib` in a shared Cargo target directory. Switching from an
+  external starter to the workspace fixture and back produced incompatible
+  dependency types while Cargo reported the chassis as fresh. The chassis now
+  emits only `rlib`; the application cartridge remains the Wasm `cdylib` boundary.
+  The starter → fixture → starter sequence passed without clearing the cache.
+  Restoring the old declaration reproduced the failure.
+- The Windows source harness now includes Git for Windows' `bin` directory in
+  PATH because rebuilding the source interface invokes Bash. Published CLI
+  bundles already contain that interface.
+- The release feature preflight now runs Cargo in the selected project directory,
+  matching compilation and honoring `.cargo/config.toml` under CLI `--path`.
+  Four focused release-guard tests passed, including a project-local patch
+  regression; actual external-path release builds passed on both guests.
+
+Temporary application probes and template edits were restored. Validation logs
+and the copied Windows release preview are retained outside the checkout under
+`/private/tmp/pax-vm-closeout`. Cleanup removed about 33 GiB inside Ubuntu and
+19 GiB inside Windows, including the task's generated caches and source copies.
+The repository cleanup script found no remaining temp directories. The temporary
+Windows transfer share was removed. Guest trim attempts could not run with the
+available privileges/tools, so these numbers describe guest free space, not
+space reclaimed from the virtual disks on the host.
+
 ## Superseded: development launch through the existing entry (2026-10-06)
 
 Zack authorized implementation after selecting the command namespace

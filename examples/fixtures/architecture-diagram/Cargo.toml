@@ -10,7 +10,6 @@ title = "Pax Architecture"
 
 [dependencies]
 pax-kit = { version = "0.39.0", path = "../../../pax-kit" }
-pax-logo = { version = "0.39.0", path = "../../pax-logo" , default-features = false }
 
 [lib]
 crate-type = ["cdylib", "rlib"]

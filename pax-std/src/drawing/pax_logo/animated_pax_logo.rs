@@ -1,11 +1,14 @@
 #![allow(unused_imports)]
 
-use pax_kit::pax_engine::api::cursor::CursorStyle;
-use pax_kit::*;
+use crate::*;
+use pax_engine::api::cursor::CursorStyle;
+use pax_engine::api::*;
+use pax_engine::*;
 
 /// The surface behind the logo, not the signboard's own color.
 #[derive(PartialEq, Eq)]
 #[pax]
+#[engine_import_path("pax_engine")]
 pub enum LogoBackgroundMode {
     /// Dark signboard with light letters, for a light surrounding surface.
     #[default]
@@ -14,9 +17,15 @@ pub enum LogoBackgroundMode {
     Dark,
 }
 
+/// The animated Pax logo, with a normalized playhead and optional click replay.
+///
+/// Bind `progress` to coordinate a slider or a parent-owned timeline. The
+/// component does not start playback on mount or paint its surrounding surface.
+/// Scale an enclosing Group from the original 920.72 × 463.95 coordinate system.
 #[pax]
+#[engine_import_path("pax_engine")]
 #[custom(Default)]
-#[file("animated_pax_logo.pax")]
+#[file("drawing/pax_logo/animated_pax_logo.pax")]
 pub struct AnimatedPaxLogo {
     /// Selects the contrasting signboard palette. Defaults to Light to preserve
     /// existing consumers; Dark exchanges `fill` and `letter_fill` throughout.
@@ -82,7 +91,7 @@ impl AnimatedPaxLogo {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pax_kit::pax_value::ToFromPaxAny;
+    use pax_engine::api::pax_value::ToFromPaxAny;
 
     #[test]
     fn light_mode_preserves_the_original_palette() {
@@ -102,7 +111,7 @@ mod tests {
 
     #[test]
     fn replay_restarts_the_shared_progress_even_mid_animation() {
-        use pax_kit::pax_engine::api::properties::{register_millis, PropertyGraph};
+        use pax_engine::api::properties::{drain_effects, register_millis, PropertyGraph};
         let graph = PropertyGraph::new(|| {});
         let _entered = graph.enter();
         let millis = LocalProperty::new(0_u64);
@@ -114,16 +123,18 @@ mod tests {
         logo.replay_if_enabled();
         assert_eq!(bound_progress.get(), 0.0);
         millis.set(720);
+        drain_effects(64);
         assert!((bound_progress.get() - 0.5).abs() < 1e-9);
         logo.replay_if_enabled();
         assert_eq!(bound_progress.get(), 0.0);
         millis.set(2160);
+        drain_effects(64);
         assert_eq!(bound_progress.get(), 1.0);
     }
 
     #[test]
     fn disabled_replay_preserves_external_playback() {
-        use pax_kit::pax_engine::api::properties::{register_millis, PropertyGraph};
+        use pax_engine::api::properties::{drain_effects, register_millis, PropertyGraph};
         let graph = PropertyGraph::new(|| {});
         let _entered = graph.enter();
         let millis = LocalProperty::new(0_u64);
@@ -136,9 +147,11 @@ mod tests {
             EasingCurve::Linear,
         );
         millis.set(250);
+        drain_effects(64);
         logo.replay_if_enabled();
         assert!((logo.progress.local().get() - 0.25).abs() < 1e-9);
         millis.set(750);
+        drain_effects(64);
         assert!((logo.progress.local().get() - 0.75).abs() < 1e-9);
     }
 }

@@ -176,7 +176,7 @@ properties established by the local mocks.
    Validate the candidate package set outside the monorepo. Source patches back
    to this checkout are not publish-channel proof.
 4. After the approved crate release, install the actual published CLI, create
-   Living Quilt outside the monorepo, and run the documented web build/run path.
+   Pax Logo outside the monorepo, and run the documented web build/run path.
    Check CLI docs and example source visibility. Record the macOS/Linux/Windows
    first-touch results and hand off to PAX-997 as specified by PAX-906.
 5. PAX-987 reruns the full no-upload docs build from that exact release state,

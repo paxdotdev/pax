@@ -45,11 +45,10 @@ Debug and release outputs live in `.pax/build/debug/web/` and
 `.pax/build/release/web/` beneath this directory. Generated `.pax/`, `target/`,
 `Cargo.lock`, AI-primer HTML, and staged blog previews stay untracked.
 
-The hero imports `AnimatedPaxLogo` directly from `examples/pax-logo/` and
-includes the original component sources for View Source. Living Quilt remains
-independently runnable in `examples/living-quilt/`, but is no longer mounted
-or a website dependency. No duplicate implementation or standard-library
-migration is needed. Cargo dependency paths
+The hero uses `AnimatedPaxLogo` from `pax-std` through the `pax_kit` re-export.
+View Source includes the canonical files in `pax-std/src/drawing/pax_logo/`.
+Living Quilt remains independently runnable in `examples/living-quilt/`; neither
+it nor the `pax-logo` harness is a website dependency. Cargo dependency paths
 and favicon paths are relative to this manifest; Rust `include_str!` paths are
 relative to their source file.
 

@@ -203,12 +203,16 @@ opt-level = 0
 [profile.dev.package.viewport-proximity]
 opt-level = 0
 
+[profile.dev.package.shader-studio]
+opt-level = 0
+
 [profile.release]
 lto = true
 opt-level = "z" 
 codegen-units = 1  
 
 [dev-dependencies]
+shader-studio = { path = "examples/fixtures/shader-studio", default-features = false }
 pax-kit = { path = "pax-kit", features = ["host", "designtime"] }
 adaptive-cards = { path = "examples/fixtures/adaptive-cards", default-features = false }
 architecture-diagram = { path = "examples/fixtures/architecture-diagram", default-features = false }
@@ -420,3 +424,7 @@ path = "examples/fixtures/timeline-playground.rs"
 [[example]]
 name = "transition-grid"
 path = "examples/fixtures/transition-grid.rs"
+
+[[example]]
+name = "shader-studio"
+path = "examples/fixtures/shader-studio.rs"

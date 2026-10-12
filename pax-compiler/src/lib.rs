@@ -1744,7 +1744,7 @@ mod tests {
             env!("CARGO_PKG_VERSION")
         )));
         let parsed = manifest.parse::<toml_edit::Document>().unwrap();
-        assert_created_debug_profile(&parsed, "generated-app", "living-quilt");
+        assert_created_debug_profile(&parsed, "generated-app", "pax-logo");
         assert!(parsed["dependencies"]
             .as_table()
             .unwrap()
@@ -1753,9 +1753,16 @@ mod tests {
                 .as_inline_table()
                 .map(|table| !table.contains_key("path"))
                 .unwrap_or(true)));
-        assert!(project.join("src/quilt_tile.pax").is_file());
-        assert!(project.join("src/animated_pax_logo.pax").is_file());
-        assert!(project.join("src/animated_pax_logo_banner.rs").is_file());
+        let template = fs::read_to_string(project.join("src/lib.pax")).unwrap();
+        assert!(template.contains("<AnimatedPaxLogo"));
+        assert!(template.contains("<Slider"));
+        let mut sources = fs::read_dir(project.join("src"))
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name())
+            .collect::<Vec<_>>();
+        sources.sort();
+        assert_eq!(sources, ["lib.pax", "lib.rs", "main.rs"]);
+        assert!(!project.join("assets").exists());
     }
 
     #[test]

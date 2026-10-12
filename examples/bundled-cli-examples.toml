@@ -1,4 +1,10 @@
-default = "living-quilt"
+default = "pax-logo"
+
+[[examples]]
+name = "pax-logo"
+description = "The animated Pax logo with a position slider, replay, and a light/dark background toggle."
+source = "examples/pax-logo"
+caveats = "The reusable logo comes from pax-std; the project owns only its scene and controls."
 
 [[examples]]
 name = "living-quilt"

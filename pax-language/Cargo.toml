@@ -11,8 +11,11 @@ description = "Pax language parser"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-pest = {version = "2.7.10", features = ["std"], optional = true}
-pest_derive = {version = "2.7.10", features = ["std"], optional = true}
+# Pest 2.9.3's std feature imports rust_psm_stack_pointer on wasm32, leaving
+# fresh web projects unable to load. Keep the parser/derive pair on the tested
+# version until the upstream Wasm stack-checking path is fixed.
+pest = {version = "=2.9.2", features = ["std"], optional = true}
+pest_derive = {version = "=2.9.2", features = ["std"], optional = true}
 serde = { version="1.0.95", features=["derive"]}
 pax-runtime-api = {path="../pax-runtime-api", version="0.39.0"}
 log = "0.4.20"

@@ -160,6 +160,10 @@ currently compiles `ring`, which expects `clang` on Windows Arm64. The baseline
 adds the LLVM tool directory to the user's PATH and the smoke script imports the
 MSVC environment before invoking Cargo.
 
+The source smoke also adds Git for Windows' `bin` directory to its process PATH:
+the source checkout's web-interface bundler invokes `bash`. Published CLI packages
+include that JavaScript bundle and do not need Bash or Node to rebuild it.
+
 Current Windows 11 25H2 Arm64 media may still show the OOBE license page in the
 Parallels console even when the unattended `HideEULAPage` setting is present.
 The provisioning script does not depend on completing that UI path: once

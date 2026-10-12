@@ -1,4 +1,6 @@
 [package]
+publish = false
+default-run = "shader-studio"
 name = "shader-studio"
 version = "0.39.0"
 edition = "2021"
@@ -12,8 +14,13 @@ pax-kit = { version = "0.39.0", path = "../../../pax-kit", features = ["shaders"
 [lib]
 crate-type = ["cdylib", "rlib"]
 
-[profile.dev]
-opt-level = 1
 
-[profile.dev.package.shader-studio]
-opt-level = 0
+[features]
+default = ["standalone", "designtime"]
+standalone = ["pax-kit/host"]
+designtime = ["pax-kit/designtime"]
+
+[[bin]]
+name = "shader-studio"
+path = "src/main.rs"
+required-features = ["standalone"]
