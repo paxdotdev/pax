@@ -64,6 +64,12 @@ export class PaxChassisWeb {
 /**
 */
   render(): void;
+  begin_render_work(epoch: number): void;
+  render_work_is_settled(): boolean;
+  service_render_work(slice_ms: number): import('../utils/cooperative-render').RenderWorkResult & {
+    blocker: string | null; units: number; ordinary_layers: number; atomic_fallbacks: number;
+    elapsed_ms: number; max_unit_ms: number; preparation: object;
+  };
   render_profiled(): [[string, number][], [{initializations: number; submitted: number; deferred: number; dirty_layers: number; cache_misses: number; blocked: boolean; blocker: string | null; elapsed_ms: number}, {initializations: number; submitted: number; deferred: number; dirty_layers: number; cache_misses: number; blocked: boolean; blocker: string | null; elapsed_ms: number}]];
 /**
 * @returns {number}

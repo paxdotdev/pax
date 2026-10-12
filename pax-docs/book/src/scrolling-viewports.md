@@ -873,7 +873,7 @@ afterward. All these opportunities share one allowance and one guaranteed first
 unit—not a fresh allowance at each boundary. Ordinary drawing itself is not
 budgeted or deferred across application ticks by this policy.
 Asynchronous completions can request one additional coalesced opportunity between
-ordinary frames. Preparation never advances the application clock. This first-draw policy is
+ordinary frames on the default synchronous path. Preparation never advances the application clock. This first-draw policy is
 currently enabled for WebGPU, not Vello CPU or native chassis; the implementation and
 opt-in are in the shared Rust runtime.
 If an addition fails, survivors remain usable; another attempt waits for a layout
@@ -1027,6 +1027,49 @@ synchronous cancellation and performs no per-wheel timing. Compare the same
 content, warmed state, and input sequence; passive handlers may still be delivered
 late while the browser scrolls independently, so handler delay alone cannot prove
 or disprove smoother presentation.
+
+### Experimental cooperative Web rendering
+
+Add `&pax_render_yield=1` to a Web URL to test cooperative rendering in either a
+debug or release build. Omit it to keep the default synchronous rendering path.
+This is an opt-in scheduling experiment, not a guarantee of smooth scrolling or
+complete frames. Use the same viewport, content, warmed state, and input sequence
+when comparing the two paths.
+
+The shared runtime selects work again between complete ordinary logical layers
+and complete tile preparation/submission units. The Web host aims for a 3ms CPU
+slice and offers a task boundary between urgent and speculative work. It uses
+`scheduler.yield()` where available, otherwise a posted `MessageChannel` task;
+neither promises an intervening paint. A complex layer or tile can exceed the
+slice. Unsupported or inseparable drawing takes the existing atomic full-tree
+fallback rather than weakening clips, masks, or group opacity.
+
+Application ticks, reactive settlement, native updates, and render setup remain
+atomic. Continuations sample current input and refresh surface demand; changes
+that require scene settlement wait for the next normal tick. They do not advance
+the application clock or resume a saved scene snapshot. Failed submissions and
+removals remain pending, and queued tasks do not retain obsolete node or tile
+selections after resize, replacement, or disposal.
+
+Lighting-only changes keep their pending submissions across task boundaries and
+subsequent ticks without turning them into canvas-content clears or full replays.
+They use the same current visibility priority as ordinary layer submissions.
+
+Ordinary drawing is spread across host tasks, not discarded by a CPU allowance.
+Preparation retains its separate 4ms soft allowance and guaranteed first unit,
+shared by all services in one display-frame epoch, including completion-driven
+wakeups and extra property-driven ticks. A continuation cannot replenish that
+allowance. Async image decoding and GPU execution remain outside CPU accounting.
+The resumable service lives in the shared runtime, but this host-task policy is
+currently wired only into Web; native chassis retain their existing scheduling.
+
+With `pax_surface_trace=1`, `render-work` reports service CPU time, complete unit
+counts, the slowest atomic unit, full-tree fallback counts, and reasons for
+blocking or exhausting preparation allowance. `hostElapsedMs` also includes the
+continuation's input sampling and layout synchronization. These measurements do
+not measure compositor movement or GPU completion. Check readiness gaps as well
+as input delay: shorter tasks are not a successful trade if visible content
+arrives later.
 
 Settled screenshots do not establish that every intermediate frame was complete.
 The preparation allowance does not cover ordinary rendering and is not a hard

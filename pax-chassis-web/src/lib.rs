@@ -249,6 +249,7 @@ pub struct PaxChassisWeb {
         RefCell<pax_runtime::engine::surface_preparation::PreparationLatency>,
     engine: Rc<RefCell<PaxEngine>>,
     surface_work_budget: pax_runtime::engine::surface_work::SurfaceWorkBudget,
+    render_work: pax_runtime::engine::surface_work::RenderWorkState,
     native_scroller_positions: HashMap<u32, (f64, f64)>,
     synthetic_scroll_gesture: Option<SyntheticScrollGesture>,
     startup_hold_input: bool,
@@ -442,6 +443,7 @@ impl PaxChassisWeb {
         Self {
             engine: engine_container,
             surface_work_budget: pax_runtime::engine::surface_work::SurfaceWorkBudget::new(4.0),
+            render_work: Default::default(),
             render_context: renderer,
             surface_policy,
             installed_surfaces,
@@ -493,6 +495,7 @@ impl PaxChassisWeb {
         Self {
             engine: engine_container,
             surface_work_budget: pax_runtime::engine::surface_work::SurfaceWorkBudget::new(4.0),
+            render_work: Default::default(),
             render_context: renderer,
             surface_policy,
             installed_surfaces,
@@ -1594,6 +1597,40 @@ impl PaxChassisWeb {
             || start.elapsed().as_secs_f64() * 1000.0,
             &mut |_| {},
         );
+    }
+
+    /// Establish a newly settled scene without replenishing the preparation
+    /// allowance if another tick already ran in this display-frame epoch.
+    pub fn begin_render_work(&mut self, epoch: u32) {
+        self.render_work.begin(epoch);
+    }
+
+    /// Read-only continuation guard after the host samples native input. Scroll
+    /// handlers can dirty properties; that work must settle in a normal tick.
+    pub fn render_work_is_settled(&self) -> bool {
+        let engine = borrow!(self.engine);
+        if matches!(
+            engine.runtime_context.application.context().phase(),
+            pax_runtime::api::AppPhase::Closing | pax_runtime::api::AppPhase::Closed
+        ) {
+            return false;
+        }
+        let _graph = engine.runtime_context.property_graph.enter();
+        engine.runtime_context.can_present_settled_surfaces()
+    }
+
+    /// Opt-in synchronous rendering slice. Returning releases engine/graph
+    /// borrows; the host owns any asynchronous continuation and lifetime checks.
+    pub fn service_render_work(&mut self, slice_ms: f64) -> JsValue {
+        let start = Instant::now();
+        let report = borrow_mut!(self.engine).service_render_work(
+            self.render_context.as_mut(),
+            &mut self.render_work,
+            &mut self.surface_work_budget,
+            slice_ms.clamp(1.0, 8.0),
+            || start.elapsed().as_secs_f64() * 1000.0,
+        );
+        js_value_serde::to_value(&report)
     }
 
     /// Ordinary rendering with opt-in CPU phase timing and the early visible

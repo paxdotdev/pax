@@ -22,6 +22,7 @@ pub mod layer_surface;
 pub mod layer_tiling;
 pub mod node_interface;
 pub mod occlusion;
+mod render_work;
 pub mod surface_metrics;
 pub mod surface_preparation;
 pub mod surface_scheduling;
@@ -756,7 +757,7 @@ impl PaxEngine {
         budget: &mut surface_work::SurfaceWorkBudget,
         now_ms: impl Fn() -> f64,
     ) -> surface_work::SurfaceWorkReport {
-        self.present_surfaces(rcs, budget, now_ms, i32::MAX, &Default::default())
+        self.present_surfaces(rcs, budget, now_ms, i32::MAX, &Default::default(), false)
     }
 
     fn present_surfaces(
@@ -766,6 +767,7 @@ impl PaxEngine {
         now_ms: impl Fn() -> f64,
         priority_before: i32,
         previous: &surface_work::SurfaceWorkReport,
+        one_unit: bool,
     ) -> surface_work::SurfaceWorkReport {
         let mut report = surface_work::SurfaceWorkReport::default();
         if matches!(
@@ -822,6 +824,9 @@ impl PaxEngine {
                 report.initializations += 1;
                 completed_units += 1;
                 budget.observe(now_ms() - init_start);
+                if one_unit {
+                    break;
+                }
                 continue;
             }
             let Some(update) = next else {
@@ -865,7 +870,9 @@ impl PaxEngine {
             if let Some(missing) = rcs.missing_surface_drawings(update.layer, &ids) {
                 report.cache_misses += usize::from(!missing.is_empty());
                 for id in missing {
-                    if !budget.admits(completed_units, previous.elapsed_ms + now_ms() - start) {
+                    if !one_unit
+                        && !budget.admits(completed_units, previous.elapsed_ms + now_ms() - start)
+                    {
                         break;
                     }
                     let capture_start = now_ms();
@@ -879,7 +886,8 @@ impl PaxEngine {
                 }
                 if !can_prepare(update.layer, &ids)
                     || self.runtime_context.settled_surface_blocker().is_some()
-                    || (!direct
+                    || (!one_unit
+                        && !direct
                         && !budget.admits(completed_units, previous.elapsed_ms + now_ms() - start))
                 {
                     deferred.push(update.layer);
@@ -909,6 +917,9 @@ impl PaxEngine {
             budget.observe(now_ms() - submit_start);
             report.submitted += 1;
             completed_units += 1;
+            if one_unit {
+                break;
+            }
         }
         deferred.sort_unstable();
         deferred.dedup();
@@ -1003,10 +1014,11 @@ impl PaxEngine {
             // Rank zero includes every visible candidate; positive ranks stay
             // behind ordinary application drawing at this opportunity.
             if early {
-                let next = engine.present_surfaces(rcs, budget, &now_ms, 1, &visible);
+                let next = engine.present_surfaces(rcs, budget, &now_ms, 1, &visible, false);
                 visible.accumulate(next);
             } else {
-                remaining = engine.present_surfaces(rcs, budget, &now_ms, i32::MAX, &visible);
+                remaining =
+                    engine.present_surfaces(rcs, budget, &now_ms, i32::MAX, &visible, false);
             }
         });
         (visible, remaining)
@@ -1029,16 +1041,89 @@ impl PaxEngine {
         let _graph = self.runtime_context.property_graph.enter();
         use crate::render_instrumentation::{Phase, Span};
         let _render_timing = Span::new(Phase::Render);
-        self.update_layer_count(rcs);
-        self.runtime_context.prepare_scene_geometry();
-        observe("geometry");
-
-        if !self.runtime_context.has_canvas_render_work() {
+        let (mut dirty_layers, failed_removal_layers, mut flush_layers) =
+            self.reconcile_render_work(rcs, observe);
+        if flush_layers.is_empty() && !self.runtime_context.has_canvas_render_work() {
             prepare(self, rcs, true);
             observe("visible_preparation");
             prepare(self, rcs, false);
             observe("remaining_preparation");
             return;
+        }
+        let retains_canvas_nodes = rcs.retains_canvas_nodes();
+        let prepare_timing = Span::new(Phase::Prepare);
+
+        // Layout installation can introduce visible surfaces after tick. Give
+        // clean, settled layers their first pixels before unrelated draw work;
+        // never clear a dirty-layer bit to bypass the preparation guard.
+        prepare(self, rcs, true);
+        observe("visible_preparation");
+        // Cold recording can consume node flags on clean layers. Re-read rather
+        // than rendering a captured node again from the earlier dirty snapshot.
+        let mut dirty_node_ids = self.runtime_context.dirty_canvas_node_ids();
+
+        if prioritize_visible && retains_canvas_nodes {
+            let partition = self.partition_visible_render_work(
+                rcs,
+                &flush_layers,
+                &dirty_node_ids,
+                &failed_removal_layers,
+            );
+            if let Err(reason) = &partition {
+                observe(reason);
+            }
+            if let Ok(Some((visible_layers, visible_nodes, remaining_nodes))) = partition {
+                self.draw_canvas_nodes(rcs, &visible_nodes);
+                observe("visible_draw");
+                // Only completed layers become clean. In particular, preserve
+                // unrelated dirty bits and pending removals across this boundary.
+                for layer in &visible_layers {
+                    self.runtime_context.dirty_canvases.borrow_mut()[*layer] = false;
+                    rcs.flush(*layer, Rc::clone(&self.runtime_context.dirty_canvases));
+                }
+                observe("visible_flush");
+                prepare(self, rcs, true);
+                observe("visible_dirty_preparation");
+                dirty_layers.retain(|layer| !visible_layers.contains(layer));
+                flush_layers.retain(|layer| !visible_layers.contains(layer));
+                dirty_node_ids = remaining_nodes;
+            }
+        }
+
+        self.draw_canvas_nodes(rcs, &dirty_node_ids);
+        observe("draw");
+
+        // A failed early flush can re-dirty a completed layer. Do not erase it
+        // while finishing the remaining layers.
+        for layer in &dirty_layers {
+            self.runtime_context.dirty_canvases.borrow_mut()[*layer] = false;
+        }
+        for layer in failed_removal_layers {
+            self.runtime_context.set_canvas_dirty(layer);
+        }
+
+        drop(prepare_timing);
+        let _flush_timing = Span::new(Phase::Flush);
+        for layer in flush_layers {
+            rcs.flush(layer, Rc::clone(&self.runtime_context.dirty_canvases));
+        }
+        observe("flush");
+        prepare(self, rcs, false);
+        observe("remaining_preparation");
+    }
+
+    fn reconcile_render_work(
+        &mut self,
+        rcs: &mut dyn RenderContext,
+        observe: &mut dyn FnMut(&'static str),
+    ) -> (Vec<usize>, Vec<usize>, Vec<usize>) {
+        use crate::render_instrumentation::{Phase, Span};
+        self.update_layer_count(rcs);
+        self.runtime_context.prepare_scene_geometry();
+        observe("geometry");
+
+        if !self.runtime_context.has_canvas_render_work() {
+            return (Vec::new(), Vec::new(), Vec::new());
         }
 
         // A pending backend can leave a drawable dirty after its layer bit was
@@ -1079,7 +1164,7 @@ impl PaxEngine {
         dirty_layers.sort_unstable();
         dirty_layers.dedup();
         observe("lighting");
-        let prepare_timing = Span::new(Phase::Prepare);
+        let _prepare_timing = Span::new(Phase::Prepare);
         let removal_layers: HashSet<_> = removals.iter().map(|(layer, _)| *layer).collect();
         let targeted_replay_node_ids = self.runtime_context.take_targeted_canvas_replay_node_ids();
         for (layer, ids) in &targeted_replay_node_ids {
@@ -1157,64 +1242,10 @@ impl PaxEngine {
             }
         }
         observe("reconcile");
-
-        // Layout installation can introduce visible surfaces after tick. Give
-        // clean, settled layers their first pixels before unrelated draw work;
-        // never clear a dirty-layer bit to bypass the preparation guard.
-        prepare(self, rcs, true);
-        observe("visible_preparation");
-        // Cold recording can consume node flags on clean layers. Re-read rather
-        // than rendering a captured node again from the earlier dirty snapshot.
-        let mut dirty_node_ids = self.runtime_context.dirty_canvas_node_ids();
-
-        if prioritize_visible && retains_canvas_nodes {
-            let partition = self.partition_visible_render_work(
-                rcs,
-                &dirty_layers,
-                &dirty_node_ids,
-                &failed_removal_layers,
-            );
-            if let Err(reason) = &partition {
-                observe(reason);
-            }
-            if let Ok(Some((visible_layers, visible_nodes, remaining_nodes))) = partition {
-                self.draw_canvas_nodes(rcs, &visible_nodes);
-                observe("visible_draw");
-                // Only completed layers become clean. In particular, preserve
-                // unrelated dirty bits and pending removals across this boundary.
-                for layer in &visible_layers {
-                    self.runtime_context.dirty_canvases.borrow_mut()[*layer] = false;
-                    rcs.flush(*layer, Rc::clone(&self.runtime_context.dirty_canvases));
-                }
-                observe("visible_flush");
-                prepare(self, rcs, true);
-                observe("visible_dirty_preparation");
-                dirty_layers.retain(|layer| !visible_layers.contains(layer));
-                lighting_layers.retain(|layer| !visible_layers.contains(layer));
-                dirty_node_ids = remaining_nodes;
-            }
-        }
-
-        self.draw_canvas_nodes(rcs, &dirty_node_ids);
-        observe("draw");
-
-        // A failed early flush can re-dirty a completed layer. Do not erase it
-        // while finishing the remaining layers.
-        for layer in &dirty_layers {
-            self.runtime_context.dirty_canvases.borrow_mut()[*layer] = false;
-        }
-        for layer in failed_removal_layers {
-            self.runtime_context.set_canvas_dirty(layer);
-        }
-
-        drop(prepare_timing);
-        let _flush_timing = Span::new(Phase::Flush);
-        for layer in lighting_layers {
-            rcs.flush(layer, Rc::clone(&self.runtime_context.dirty_canvases));
-        }
-        observe("flush");
-        prepare(self, rcs, false);
-        observe("remaining_preparation");
+        lighting_layers.extend(dirty_layers.iter().copied());
+        lighting_layers.sort_unstable();
+        lighting_layers.dedup();
+        (dirty_layers, failed_removal_layers, lighting_layers)
     }
 
     fn partition_visible_render_work(

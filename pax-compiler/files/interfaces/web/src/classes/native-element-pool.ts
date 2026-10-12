@@ -1996,6 +1996,10 @@ export class NativeElementPool {
         this.surfaceTrace?.recordPhase(phase,duration);
     }
 
+    recordRenderWork(report: object, hostElapsedMs: number) {
+        this.surfaceTrace?.record('render-work', {...report, hostElapsedMs});
+    }
+
     recordNativeMessageBatch(types: import('./native-message-profile').NativeMessageTiming[]) {
         this.surfaceTrace?.recordNativeMessageBatch(types);
     }

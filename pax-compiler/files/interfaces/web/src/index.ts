@@ -54,6 +54,7 @@ import { StartupScheduler, StartupWork } from "./utils/startup-scheduler";
 import { readStartupOptions } from "./utils/startup-options";
 import { FrameScheduler } from "./utils/frame-scheduler";
 import { SurfacePresentationScheduler } from "./utils/surface-presentation";
+import { CooperativeRenderScheduler } from "./utils/cooperative-render";
 
 declare global { interface Window { chassis?: PaxChassisWeb; } }
 
@@ -70,6 +71,9 @@ let startupWork: StartupWork | undefined;
 let startupFeedbackFrameReady = false;
 let mountYieldEnabled = false;
 let surfacePresentation: SurfacePresentationScheduler | undefined;
+let cooperativeRender: CooperativeRenderScheduler | undefined;
+let renderEpoch = 0;
+const cooperativeRenderEnabled = new URLSearchParams(window.location.search).get("pax_render_yield") === "1";
 let hiddenTabPumpHandle: number | null = null;
 let pendingAsyncInterruptFlush = false;
 const frameScheduler = new FrameScheduler(new URLSearchParams(window.location.search).get("pax_suspended") === "1");
@@ -79,6 +83,7 @@ const frameScheduler = new FrameScheduler(new URLSearchParams(window.location.se
  * elapsed-time-based animations can advance to the current time on resume.
  */
 export function setSuspended(suspended: boolean) {
+    if (suspended) cooperativeRender?.invalidate();
     frameScheduler.setSuspended(suspended);
     if (!suspended) startupScheduler?.request();
 }
@@ -306,6 +311,7 @@ function disposeCurrentChassis() {
         teardownRouteLocationSync, teardownResizeHandler, teardownEventListeners,
         () => chassis?.set_surface_ready_callback(undefined),
         () => { surfacePresentation?.dispose(); surfacePresentation = undefined; },
+        () => { cooperativeRender?.dispose(); cooperativeRender = undefined; },
         () => nativePool.dispose(), () => chassis?.free()];
     teardownHiddenTabPump = teardownRouteLocationSync = teardownResizeHandler = teardownEventListeners = null;
     renderLoopStarted = renderLoopStarting = initializedChassis = frameInProgress = pendingAsyncInterruptFlush = false;
@@ -372,15 +378,46 @@ function attachChassis(chassis: PaxChassisWeb, mount: Element) {
         });
     });
     nativePool.attach(chassis, mount, liveSession?.options.pageScroll ?? false);
-    const presentation = new SurfacePresentationScheduler(() => {
-        const report = withProfileMeasure("surfacePresentation", () => chassis.present_ready_surfaces());
-        nativePool.recordSurfacePresentation(report);
-    }, () => !frameScheduler.suspended && chassis === currentChassis && mount === currentMount);
-    surfacePresentation = presentation;
-    chassis.set_surface_ready_callback(() => {
-        const outcome = presentation.request();
-        nativePool.recordSurfaceCompletionRequest(outcome);
-    });
+    if (cooperativeRenderEnabled) {
+        const pump = new CooperativeRenderScheduler(fromFrame => {
+            const start = performance.now();
+            // Share the ordinary frame's engine-entry guard. A synchronous host
+            // callback must not start a tick while a continuation owns Rust borrows.
+            if (!fromFrame) frameInProgress = true;
+            try {
+                // Sampling can invoke application scroll handlers; this is not
+                // a silent presentation-only input lane.
+                if (!fromFrame) {
+                    nativePool.sampleFrameInputs();
+                    if (chassis.has_pending_properties() || !chassis.render_work_is_settled()) {
+                        const report = {pending:false, blocked:true, blocker:'host_input_requires_settlement'};
+                        nativePool.recordRenderWork(report, performance.now() - start);
+                        return report;
+                    }
+                    nativePool.syncRenderSurfaceLayouts();
+                }
+                const report = chassis.service_render_work(3.0);
+                nativePool.recordRenderWork(report, performance.now() - start);
+                return report;
+            } finally {
+                if (!fromFrame) finishEngineTurn(chassis, mount);
+            }
+        }, () => !frameScheduler.suspended && chassis === currentChassis && mount === currentMount);
+        cooperativeRender = pump;
+        chassis.set_surface_ready_callback(() => {
+            nativePool.recordSurfaceCompletionRequest(pump.request());
+        });
+    } else {
+        const presentation = new SurfacePresentationScheduler(() => {
+            const report = withProfileMeasure("surfacePresentation", () => chassis.present_ready_surfaces());
+            nativePool.recordSurfacePresentation(report);
+        }, () => !frameScheduler.suspended && chassis === currentChassis && mount === currentMount);
+        surfacePresentation = presentation;
+        chassis.set_surface_ready_callback(() => {
+            const outcome = presentation.request();
+            nativePool.recordSurfaceCompletionRequest(outcome);
+        });
+    }
     nativePool.setPostAsyncInterruptFlush(() => requestFrameFlush(chassis, mount));
     initializeChassis(chassis, mount);
     ensureHiddenTabPump(chassis, mount);
@@ -442,6 +479,7 @@ function initializeChassis(chassis: PaxChassisWeb, mount: Element) {
         }
         lastViewportWidth = width;
         lastViewportHeight = height;
+        cooperativeRender?.invalidate();
         chassis.interrupt({
             "ViewportResize": {
                 "width": width,
@@ -485,6 +523,7 @@ function ensureHiddenTabPump(chassis: PaxChassisWeb, mount: Element) {
         if (!document.hidden) {
             return;
         }
+        renderEpoch = (renderEpoch + 1) >>> 0;
         requestFrameFlush(chassis, mount);
     };
     const wakeHiddenFrame = () => {
@@ -643,6 +682,11 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
             });
             // draw canvas elements
             withProfileMeasure("render", () => {
+                if (cooperativeRender) {
+                    chassis.begin_render_work(renderEpoch);
+                    cooperativeRender.beginFrame();
+                    return;
+                }
                 if (!perfTraceEnabled) { chassis.render(); return; }
                 const [phases, [visible, remaining]] = chassis.render_profiled();
                 for (const [name, duration] of phases) nativePool.recordSurfaceFramePhase(`render.${name}`, duration);
@@ -658,11 +702,15 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
             // completions request the extra pass; do not add another allowance.
         });
     } finally {
-        frameInProgress = false;
-        if (pendingAsyncInterruptFlush && chassis === currentChassis && mount === currentMount) {
-            pendingAsyncInterruptFlush = false;
-            queueMicrotask(() => requestFrameFlush(chassis, mount));
-        }
+        finishEngineTurn(chassis, mount);
+    }
+}
+
+function finishEngineTurn(chassis: PaxChassisWeb, mount: Element) {
+    frameInProgress = false;
+    if (pendingAsyncInterruptFlush && chassis === currentChassis && mount === currentMount) {
+        pendingAsyncInterruptFlush = false;
+        queueMicrotask(() => requestFrameFlush(chassis, mount));
     }
 }
 
@@ -671,6 +719,7 @@ function renderLoop (chassis: PaxChassisWeb, mount: Element) {
         return;
     }
     initializeChassis(chassis, mount);
+    renderEpoch = (renderEpoch + 1) >>> 0;
     runFrame(chassis, mount);
 
     if (chassis !== currentChassis || mount !== currentMount) {
