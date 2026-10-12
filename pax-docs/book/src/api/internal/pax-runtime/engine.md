@@ -110,6 +110,15 @@ Type: `Option`<`Rc`<`ExpandedNode`>>
 Type: [`ScrollerTilingPolicy`](../../../api/internal/pax-runtime/engine/layer_tiling.md#scrollertilingpolicy)
 
 #### Implementations
+##### `service_render_work`
+<pre><code class="api-signature language-rust ignore">pub fn service_render_work(&amp;mut self, rcs: &amp;mut dyn <a href="../../../api/pax-runtime-api/rendering.md#rendercontext">RenderContext</a>, state: &amp;mut <a href="../../../api/internal/pax-runtime/engine/surface_work.md#renderworkstate">RenderWorkState</a>, budget: &amp;mut <a href="../../../api/internal/pax-runtime/engine/surface_work.md#surfaceworkbudget">SurfaceWorkBudget</a>, slice_ms: f64, now_ms: impl Fn() -&gt; f64) -&gt; <a href="../../../api/internal/pax-runtime/engine/surface_work.md#renderworkreport">RenderWorkReport</a></code></pre>
+
+Service complete rendering units from the current settled scene. No node
+list, render pass or property-graph guard survives this call. A chassis may
+drain synchronously or resume in a later host task, but must call
+`RenderWorkState::begin` after each ordinary tick before resuming drawing.
+Unsupported/unclippable paths remain one explicit atomic fallback.
+
 Central instance of the PaxEngine and runtime, intended to be created by a particular chassis.
 Contains all rendering and runtime logic.
 

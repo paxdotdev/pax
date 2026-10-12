@@ -1098,6 +1098,12 @@ impl RuntimeContext {
         !borrow!(self.removed_canvas_nodes).is_empty()
     }
 
+    pub(crate) fn has_canvas_node_removals_on_layer(&self, layer: usize) -> bool {
+        borrow!(self.removed_canvas_nodes)
+            .iter()
+            .any(|(owner, _)| *owner == layer)
+    }
+
     pub fn has_canvas_render_work(&self) -> bool {
         self.has_dirty_canvas_layers()
             || self.has_canvas_node_removals()

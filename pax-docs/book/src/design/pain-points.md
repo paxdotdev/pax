@@ -463,3 +463,10 @@ obscure the cost of unnecessary work.
   work. Prepared pixels and input/frame responsiveness remain separate concerns.
   Concurrent builds make these diagnostic samples, not a controlled benchmark;
   reproduction and trace details are recorded in PAX-1014.
+- 2026-10-12 — `cargo test -p pax-chassis-web --lib --features designtime`
+  fails to compile the existing image-loading test fixture: it calls
+  `PaxEngine::new_empty`, which is absent with `designtime` enabled
+  (`src/image_loading/tests.rs:124`). Expected both configurations to test.
+  Reproduced in the source at checkpoint `58b90765c`; use the default chassis
+  tests, designtime chassis check, and both runtime test configurations pending
+  a feature-aware fixture constructor. Encountered during PAX-1014 validation.

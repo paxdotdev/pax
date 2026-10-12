@@ -308,6 +308,187 @@ fn dirty_render_probe() -> (PaxEngine, RecordingRenderer, Vec<Rc<ExpandedNode>>)
 }
 
 #[test]
+fn cooperative_layers_yield_without_lifecycle_or_stale_selection() {
+    let (mut engine, mut renderer, nodes) = dirty_render_probe();
+    let frames = engine.runtime_context.globals().elapsed_frames.get();
+    let mut state = surface_work::RenderWorkState::default();
+    state.begin(1);
+    let mut budget = surface_work::SurfaceWorkBudget::new(4.0);
+    let first = engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+    assert!(first.pending);
+    assert_eq!(first.ordinary_layers, 1);
+    assert_eq!(renderer.events, [("draw", 1), ("submit", 1)]);
+    assert!(engine.runtime_context.is_canvas_node_dirty(&nodes[1].id));
+    assert!(engine.runtime_context.is_canvas_dirty(&0));
+    // A reversal changes the next selection, not a copied queue from first call.
+    renderer.ordinary_priorities.insert(0, -2);
+    let next = engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+    assert_eq!(next.ordinary_layers, 1);
+    assert_eq!(
+        renderer.events,
+        [("draw", 1), ("submit", 1), ("draw", 0), ("submit", 0)]
+    );
+    assert_eq!(
+        engine.runtime_context.globals().elapsed_frames.get(),
+        frames
+    );
+    assert!(!engine.runtime_context.has_dirty_canvas_layers());
+    assert!(renderer.clip_depths.values().all(|depth| *depth == 0));
+    let done = engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+    assert!(!done.pending);
+    assert_eq!(done.units, 0);
+}
+
+#[test]
+fn cooperative_failed_flush_and_removal_remain_pending_without_spinning() {
+    let (mut engine, mut renderer, _) = dirty_render_probe();
+    renderer.failed_flushes.insert(1);
+    renderer.pending = true;
+    engine.runtime_context.enqueue_canvas_node_removal(1, 999);
+    let mut state = surface_work::RenderWorkState::default();
+    state.begin(1);
+    let mut budget = surface_work::SurfaceWorkBudget::new(4.0);
+    for _ in 0..3 {
+        engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+    }
+    assert_eq!(renderer.presented.iter().filter(|&&l| l == 1).count(), 2); // probe + one attempt
+    assert!(engine.runtime_context.is_canvas_dirty(&1));
+    assert!(engine.runtime_context.has_canvas_node_removals());
+    assert!(!engine.runtime_context.is_canvas_dirty(&0));
+    renderer.failed_flushes.clear();
+    renderer.pending = false;
+    state.begin(2);
+    for _ in 0..3 {
+        engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+    }
+    assert!(!engine.runtime_context.has_canvas_node_removals());
+    assert!(!engine.runtime_context.has_dirty_canvas_layers());
+}
+
+#[test]
+fn cooperative_mutation_between_slices_requires_settlement_and_preserves_dirty_work() {
+    let (mut engine, mut renderer, nodes) = dirty_render_probe();
+    let mut state = surface_work::RenderWorkState::default();
+    state.begin(1);
+    let mut budget = surface_work::SurfaceWorkBudget::new(4.0);
+    engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+    engine.runtime_context.mark_occlusion_dirty();
+    let before = renderer.events.clone();
+    let result = engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+    assert!(result.blocked);
+    assert_eq!(result.blocker, Some("occlusion"));
+    assert!(!result.pending);
+    assert_eq!(renderer.events, before);
+    assert!(engine.runtime_context.is_canvas_dirty(&0));
+    assert!(engine.runtime_context.is_canvas_node_dirty(&nodes[1].id));
+}
+
+#[test]
+fn cooperative_preparation_overrun_does_not_restart_at_the_next_host_task() {
+    let mut engine = engine();
+    let mut renderer = RecordingRenderer::default();
+    engine.tick();
+    engine.runtime_context.layer_count.set(3);
+    engine.render(&mut renderer);
+    renderer.presented.clear();
+    renderer.cached = true;
+    renderer.jobs = vec![replay_job(1), replay_job(2)];
+    renderer.priorities = HashMap::from([(1, -2), (2, -1)]);
+    let mut state = surface_work::RenderWorkState::default();
+    state.begin(1);
+    let mut budget = surface_work::SurfaceWorkBudget::new(4.0);
+    let clock = std::cell::Cell::new(0.0);
+    let now = || {
+        let t = clock.get();
+        clock.set(t + 3.0);
+        t
+    };
+    // First call can spend its slice on setup; the next finishes one atomic tile.
+    for _ in 0..4 {
+        engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, &now);
+    }
+    assert_eq!(renderer.presented, [1]);
+    assert!(renderer.jobs.iter().any(|j| j.layer == 2));
+    state.begin(1); // A completion/property-driven extra tick is not a new frame.
+    for _ in 0..4 {
+        engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, &now);
+    }
+    assert_eq!(renderer.presented, [1]);
+    state.begin(2);
+    for _ in 0..4 {
+        engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, &now);
+    }
+    assert_eq!(renderer.presented, [1, 2]);
+}
+
+#[test]
+fn cooperative_unsupported_layers_use_atomic_fallback_and_shutdown_cancels_work() {
+    let (mut engine, mut renderer, _) = dirty_render_probe();
+    renderer.ordinary_priorities.clear();
+    let mut state = surface_work::RenderWorkState::default();
+    state.begin(1);
+    let mut budget = surface_work::SurfaceWorkBudget::new(4.0);
+    // No artificial host boundary when there was no preceding urgent work.
+    let result = engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+    assert_eq!(result.atomic_fallbacks, 1);
+    assert_eq!(
+        renderer.events,
+        [("draw", 0), ("draw", 1), ("submit", 0), ("submit", 1)]
+    );
+    engine.shutdown(pax_runtime_api::StopReason::HostClosed);
+    let before = renderer.events.clone();
+    state.begin(2);
+    let stopped = engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+    assert!(stopped.blocked);
+    assert_eq!(stopped.blocker, Some("app_closing"));
+    assert_eq!(renderer.events, before);
+}
+
+#[test]
+fn cooperative_idle_frame_does_not_schedule_an_empty_continuation() {
+    let mut engine = engine();
+    let mut renderer = RecordingRenderer::default();
+    engine.tick();
+    engine.render(&mut renderer);
+    let mut state = surface_work::RenderWorkState::default();
+    state.begin(1);
+    let report = engine.service_render_work(
+        &mut renderer,
+        &mut state,
+        &mut surface_work::SurfaceWorkBudget::new(4.0),
+        3.0,
+        || 0.0,
+    );
+    assert_eq!(report.units, 0);
+    assert!(!report.pending);
+}
+
+#[test]
+fn cooperative_drain_matches_synchronous_draw_submission() {
+    let (mut sync_engine, mut sync_renderer, _) = dirty_render_probe();
+    sync_engine.render_with_surface_preparation(
+        &mut sync_renderer,
+        &mut surface_work::SurfaceWorkBudget::new(4.0),
+        || 0.0,
+        &mut |_| {},
+    );
+    let (mut engine, mut renderer, _) = dirty_render_probe();
+    let mut state = surface_work::RenderWorkState::default();
+    state.begin(1);
+    let mut budget = surface_work::SurfaceWorkBudget::new(4.0);
+    for _ in 0..8 {
+        if !engine
+            .service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0)
+            .pending
+        {
+            break;
+        }
+    }
+    assert_eq!(renderer.events, sync_renderer.events);
+    assert!(!engine.runtime_context.has_canvas_render_work());
+}
+
+#[test]
 fn visible_dirty_drawing_and_replay_finish_before_warm_drawing() {
     let (mut engine, mut renderer, nodes) = dirty_render_probe();
     renderer.jobs = vec![replay_job(1)];
@@ -987,6 +1168,79 @@ fn lighting_only_work_resolves_and_flushes_without_clearing_canvases() {
     engine.runtime_context.set_canvas_dirty(1);
     engine.render(&mut renderer);
     assert_eq!(renderer.clears, vec![1], "independent redraw survives");
+}
+
+#[test]
+fn cooperative_lighting_flushes_survive_yield_and_next_tick_without_canvas_clears() {
+    for priorities in [HashMap::new(), HashMap::from([(0, 3), (1, 0), (2, 4)])] {
+        let mut engine = engine();
+        let mut renderer = RecordingRenderer::default();
+        engine.tick();
+        engine.runtime_context.layer_count.set(3);
+        engine.render(&mut renderer);
+        renderer.clears.clear();
+        renderer.lighting_updates.clear();
+        renderer.flushes.clear();
+        renderer.ordinary_priorities = priorities;
+        engine.runtime_context.mark_scene_lighting_dirty();
+        let mut state = surface_work::RenderWorkState::default();
+        let mut budget = surface_work::SurfaceWorkBudget::new(4.0);
+        state.begin(1);
+        // Stop after setup, then start a new frame before those uniforms submit.
+        let setup = engine.service_render_work(&mut renderer, &mut state, &mut budget, 0.0, || 0.0);
+        assert!(setup.pending);
+        assert_eq!(renderer.lighting_updates, [0, 1, 2]);
+        assert!(renderer.flushes.is_empty());
+        assert!(!engine.runtime_context.has_dirty_canvas_layers());
+        state.begin(2);
+        for _ in 0..4 {
+            if !engine
+                .service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0)
+                .pending
+            {
+                break;
+            }
+        }
+        if !renderer.ordinary_priorities.is_empty() {
+            assert_eq!(
+                renderer.flushes,
+                [1, 0, 2],
+                "visible lighting submits first"
+            );
+        }
+        renderer.flushes.sort_unstable();
+        assert_eq!(renderer.flushes, [0, 1, 2]);
+        assert!(renderer.clears.is_empty());
+        assert!(state.pending_lighting_flushes.is_empty());
+        assert!(!engine.runtime_context.has_canvas_render_work());
+    }
+}
+
+#[test]
+fn cooperative_lighting_only_layers_survive_atomic_content_fallback() {
+    let (mut engine, mut renderer, _) = dirty_render_probe();
+    engine.runtime_context.layer_count.set(3);
+    engine.render(&mut renderer);
+    renderer.clears.clear();
+    renderer.lighting_updates.clear();
+    renderer.flushes.clear();
+    renderer.ordinary_priorities.clear();
+    engine.runtime_context.mark_scene_lighting_dirty();
+    engine.runtime_context.set_canvas_dirty(1);
+    let mut state = surface_work::RenderWorkState::default();
+    state.begin(1);
+    let mut budget = surface_work::SurfaceWorkBudget::new(4.0);
+    let report = engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+    assert_eq!(report.atomic_fallbacks, 1);
+    renderer.flushes.sort_unstable();
+    assert_eq!(renderer.flushes, [0, 1, 2]);
+    assert_eq!(
+        renderer.clears,
+        [1, 1],
+        "only the content-dirty layer is cleared"
+    );
+    assert!(state.pending_lighting_flushes.is_empty());
+    assert!(!engine.runtime_context.has_canvas_render_work());
 }
 
 #[test]

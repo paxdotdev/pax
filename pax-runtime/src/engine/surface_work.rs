@@ -27,7 +27,7 @@ impl SurfaceWorkBudget {
     }
 }
 
-#[derive(Default, serde::Serialize)]
+#[derive(Clone, Default, serde::Serialize)]
 pub struct SurfaceWorkReport {
     pub initializations: usize,
     pub recorded: usize,
@@ -60,9 +60,72 @@ impl SurfaceWorkReport {
     }
 }
 
+/// Per-display-frame accounting for cooperative rendering. This is not a scene
+/// snapshot or work queue: pending nodes, layers and surfaces remain authoritative
+/// in the runtime/backend and are selected again at every service boundary.
+#[derive(Default)]
+pub struct RenderWorkState {
+    epoch: Option<u32>,
+    pub(super) setup_complete: bool,
+    pub(super) urgent_complete: bool,
+    pub(super) preparation: SurfaceWorkReport,
+    // Failed layers wait for a later tick rather than spinning between host tasks.
+    pub(super) attempted_layers: std::collections::HashSet<usize>,
+    // Lighting uniforms can need submission without any canvas-content redraw.
+    // Keep unsubmitted layer IDs across ticks; they are not captured scene data.
+    pub(super) pending_lighting_flushes: std::collections::HashSet<usize>,
+}
+
+impl RenderWorkState {
+    /// Begin drawing after a settled tick. Multiple ticks/completions in one
+    /// display epoch share preparation accounting, including its first-job grant.
+    pub fn begin(&mut self, epoch: u32) {
+        if self.epoch != Some(epoch) {
+            self.preparation = SurfaceWorkReport::default();
+            self.epoch = Some(epoch);
+        }
+        self.setup_complete = false;
+        self.urgent_complete = false;
+        self.attempted_layers.clear();
+    }
+}
+
+/// One synchronous service result. `pending` requests another host task;
+/// `blocked` waits for a normal settlement/completion opportunity, not a busy loop.
+/// CPU times include atomic overruns and do not measure GPU completion.
+#[derive(Default, serde::Serialize)]
+pub struct RenderWorkReport {
+    pub pending: bool,
+    pub blocked: bool,
+    pub blocker: Option<&'static str>,
+    pub allowance_exhausted: bool,
+    pub ordinary_layers: usize,
+    pub atomic_fallbacks: usize,
+    pub units: usize,
+    pub elapsed_ms: f64,
+    pub max_unit_ms: f64,
+    pub preparation: SurfaceWorkReport,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn continuation_and_extra_ticks_do_not_replenish_frame_allowance() {
+        let mut state = RenderWorkState::default();
+        state.begin(7);
+        state.preparation.submitted = 1;
+        state.preparation.elapsed_ms = 6.0;
+        state.setup_complete = true;
+        state.begin(7);
+        assert_eq!(state.preparation.submitted, 1);
+        assert_eq!(state.preparation.elapsed_ms, 6.0);
+        assert!(!state.setup_complete);
+        assert!(!SurfaceWorkBudget::new(4.0).admits(1, state.preparation.elapsed_ms));
+        state.begin(8);
+        assert_eq!(state.preparation.submitted, 0);
+        assert_eq!(state.preparation.elapsed_ms, 0.0);
+    }
     #[test]
     fn atomic_overrun_stops_more_work_but_never_starves_first_job() {
         let mut budget = SurfaceWorkBudget::new(4.0);
