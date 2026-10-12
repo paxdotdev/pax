@@ -30,6 +30,8 @@ wasm-bindgen-futures = "0.4.42"
 pollster = "0.4.0"
 
 [features]
+# Opt-in GPU subtree filters, including runtime WGSL validation.
+shaders = ["pax-runtime-api/shaders", "pax-gpu/shaders"]
 designtime = ["dep:pax-designtime", "dep:serde_json", "pax-language/parser", "pax-manifest/designtime"]
 
 [dev-dependencies]

@@ -1,4 +1,5 @@
 //! Runtime glue for experimental GPU-only subtree filters.
+//! Available with the opt-in `shaders` Cargo feature.
 use crate::{ExpandedNode, RuntimeContext};
 use pax_runtime_api::{borrow, Layer, LocalProperty, RenderContext};
 use std::rc::Rc;

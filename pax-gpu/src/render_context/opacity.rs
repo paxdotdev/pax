@@ -29,7 +29,11 @@ impl WgpuRenderer<'_> {
             .sorted_nodes
             .iter()
             .filter(|(_, id)| {
-                !self.source_nodes.contains_key(id) && !self.effect_nodes.contains_key(id)
+                #[cfg(feature = "shaders")]
+                if self.effect_nodes.contains_key(id) {
+                    return false;
+                }
+                !self.source_nodes.contains_key(id)
             })
             .filter_map(|(_, id)| {
                 self.scene
@@ -118,6 +122,7 @@ impl WgpuRenderer<'_> {
         let node = &self.scene[&id];
         node.z_index().hash(hash);
         match node {
+            #[cfg(feature = "shaders")]
             RetainedNode::Effect(n) => {
                 n.visible.hash(hash);
                 self.effect_captures[&n.id].signature.hash(hash);
@@ -198,6 +203,7 @@ impl RetainedNode {
         match self {
             Self::Vector(node) => node.bounds,
             Self::Image(node) => node.bounds,
+            #[cfg(feature = "shaders")]
             Self::Effect(node) => node.bounds,
         }
     }

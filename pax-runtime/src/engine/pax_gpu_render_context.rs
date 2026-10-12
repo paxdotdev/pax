@@ -570,6 +570,7 @@ pub struct PaxGpuRenderer {
     surface_replay: RefCell<SurfaceReplayCoordinator>,
     clean_skipped_canvas_nodes: RefCell<HashSet<(usize, u32)>>,
     alpha_source_scopes: Vec<(usize, usize)>,
+    #[cfg(feature = "shaders")]
     shader_effect_scopes: Vec<(usize, usize)>,
     #[cfg(debug_assertions)]
     tile_cull_stats: RefCell<Vec<TileCullStats>>,
@@ -583,6 +584,14 @@ pub enum RenderLayerState {
 }
 
 impl PaxGpuRenderer {
+    fn is_capturing_source(&self) -> bool {
+        #[cfg(feature = "shaders")]
+        if !self.shader_effect_scopes.is_empty() {
+            return true;
+        }
+        !self.alpha_source_scopes.is_empty()
+    }
+
     /// Create a renderer that lazily asks the chassis for layer backends.
     pub fn new(
         layer_factory: impl Fn(usize, LayerCreationRequest) -> Pin<Box<dyn Future<Output = Option<LayerDef>>>>
@@ -608,6 +617,7 @@ impl PaxGpuRenderer {
             surface_replay: Default::default(),
             clean_skipped_canvas_nodes: Default::default(),
             alpha_source_scopes: Vec::new(),
+            #[cfg(feature = "shaders")]
             shader_effect_scopes: Vec::new(),
             #[cfg(debug_assertions)]
             tile_cull_stats: Default::default(),
@@ -1930,6 +1940,7 @@ impl RenderContext for PaxGpuRenderer {
         screenshots
     }
 
+    #[cfg(feature = "shaders")]
     fn begin_shader_effect(
         &mut self,
         layer: usize,
@@ -1976,6 +1987,7 @@ impl RenderContext for PaxGpuRenderer {
         replay
     }
 
+    #[cfg(feature = "shaders")]
     fn end_shader_effect(&mut self, layer: usize, _id: u32) {
         self.with_layer_context(layer, |context| context.end_shader_effect());
         assert_eq!(self.shader_effect_scopes.pop().map(|s| s.0), Some(layer));
@@ -2021,19 +2033,17 @@ impl RenderContext for PaxGpuRenderer {
         node_id: u32,
         scopes: &[pax_runtime_api::OpacityScope],
     ) {
-        let scopes = &scopes[self
-            .alpha_source_scopes
-            .last()
-            .or_else(|| self.shader_effect_scopes.last())
-            .map_or(0, |s| s.1)
-            .min(scopes.len())..];
+        let inherited = self.alpha_source_scopes.last();
+        #[cfg(feature = "shaders")]
+        let inherited = inherited.or_else(|| self.shader_effect_scopes.last());
+        let scopes = &scopes[inherited.map_or(0, |s| s.1).min(scopes.len())..];
         self.with_layer_context(layer, |context| {
             context.set_node_opacity_scopes(node_id, scopes)
         });
     }
 
     fn begin_node(&mut self, layer: usize, node_id: u32, z_index: i32, light_mask: u32) -> bool {
-        if self.alpha_source_layer().is_some() || !self.shader_effect_scopes.is_empty() {
+        if self.is_capturing_source() {
             let mut began = false;
             self.with_layer_context(layer, |context| {
                 began |= context.begin_node(node_id, z_index, light_mask);
@@ -2097,7 +2107,7 @@ impl RenderContext for PaxGpuRenderer {
         coverage_bounds: Rect,
         light_mask: u32,
     ) -> bool {
-        if self.alpha_source_layer().is_some() || !self.shader_effect_scopes.is_empty() {
+        if self.is_capturing_source() {
             // Feather can read beyond a tile's visible viewport; capture culling owns that margin.
             return self.begin_node(layer, node_id, z_index, light_mask);
         }

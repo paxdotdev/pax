@@ -11,12 +11,14 @@ pub mod engine;
 pub mod form_event;
 pub mod layout;
 pub mod properties;
-pub mod rendering;
 mod render_instrumentation;
+pub mod rendering;
 pub mod repeat;
 pub mod router;
 pub mod scene_geometry;
+#[cfg(feature = "shaders")]
 pub mod shader_effect;
+#[cfg(feature = "shaders")]
 pub use shader_effect::bind_shader_effect;
 pub mod settings_motion;
 pub mod slot;

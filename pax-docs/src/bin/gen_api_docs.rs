@@ -454,11 +454,16 @@ fn generate_crate_docs(
 }
 
 fn run_rustdoc_json(workspace_root: &Path, krate: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let status = Command::new("cargo")
-        .arg("+nightly")
-        .arg("rustdoc")
-        .arg("-p")
-        .arg(krate)
+    let mut command = Command::new("cargo");
+    command.arg("+nightly").arg("rustdoc").arg("-p").arg(krate);
+    // Include the opt-in shader API without enabling unrelated platform features.
+    if matches!(
+        krate,
+        "pax-runtime-api" | "pax-runtime" | "pax-gpu" | "pax-engine" | "pax-std" | "pax-kit"
+    ) {
+        command.arg("--features").arg("shaders");
+    }
+    let status = command
         .arg("--")
         .arg("-Z")
         .arg("unstable-options")

@@ -37,3 +37,11 @@ display-link setup does not retry that startup failure automatically.
   and the browser stayed blank. Install Rust's official `llvm-tools-preview`
   component and set `AR_wasm32_unknown_unknown` to that toolchain's `llvm-ar`
   for the web build. This links the real helper and removes the `env` import.
+- 2026-10-11, shader-studio / PAX-1035: `pax-cli dev look` places the styled
+  mode-button labels at the upper left, although the live browser centers them
+  with `TextAlignHorizontal::Center` and `TextAlignVertical::Center`. Reproduce
+  with the example's `.mode_button` class and compare a dev-look PNG to a browser
+  screenshot. Use the browser to judge native-control alignment; the capture
+  remains useful for inspecting GPU brush pixels. After hot reload and scrolling,
+  dev-look captures also showed native buttons/sliders duplicated at old positions
+  while the live browser remained correct.

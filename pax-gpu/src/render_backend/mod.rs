@@ -1,6 +1,7 @@
 #[cfg(target_arch = "wasm32")]
 mod browser_canvas;
 pub(crate) mod capture;
+#[cfg(feature = "shaders")]
 mod effects;
 use anyhow::anyhow;
 use bytemuck::Pod;
@@ -450,6 +451,7 @@ pub struct RenderBackend<'w> {
     clear_color: wgpu::Color,
     active_frame: Option<ActiveFrame>,
     capture_target: Option<CaptureTarget>,
+    #[cfg(feature = "shaders")]
     effects: Option<effects::Effects>,
     retained_surfaces: Option<capture::RetainedSurfaces>,
     pending_clear: bool,
@@ -549,6 +551,7 @@ impl VectorResourceDirty {
 }
 
 pub(crate) enum RetainedDraw<'a> {
+    #[cfg(feature = "shaders")]
     Effect(u32),
     Vector(&'a RetainedVectorResource),
     Image {
@@ -1222,6 +1225,7 @@ impl<'w> RenderBackend<'w> {
             clear_color: surface_clear_color(alpha_mode),
             active_frame: None,
             capture_target: None,
+            #[cfg(feature = "shaders")]
             effects: None,
             retained_surfaces: None,
             pending_clear: false,
@@ -2140,6 +2144,7 @@ impl<'w> RenderBackend<'w> {
                 render_pass.set_bind_group(1, self.alpha_masks.bind_group(run.alpha_mask), &[]);
                 for draw in &run.draws {
                     match draw {
+                        #[cfg(feature = "shaders")]
                         RetainedDraw::Effect(id) => {
                             if let Some(effects) = &self.effects {
                                 effects.draw(*id, &mut render_pass);
@@ -2221,6 +2226,7 @@ impl<'w> RenderBackend<'w> {
                 render_pass.set_bind_group(1, self.alpha_masks.bind_group(run.alpha_mask), &[]);
                 for draw in &run.draws {
                     match draw {
+                        #[cfg(feature = "shaders")]
                         RetainedDraw::Effect(id) => {
                             if let Some(effects) = &self.effects {
                                 effects.draw(*id, &mut render_pass);

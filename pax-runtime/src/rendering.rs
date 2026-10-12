@@ -320,6 +320,8 @@ pub trait InstanceNode {
     /// and exclude shader-only properties from `property_requires_occlusion_recompute`.
     /// A shader primitive returns `Some` throughout its mounted lifetime; use an identity
     /// recipe (or an identity parameter value) to disable filtering.
+    /// Available with the opt-in `shaders` Cargo feature.
+    #[cfg(feature = "shaders")]
     fn shader_effect(&self, _node: &ExpandedNode) -> Option<pax_runtime_api::ShaderEffect> {
         None
     }
@@ -461,6 +463,7 @@ pub trait InstanceNode {
             true,
         );
         expanded_node.children.set(new_children);
+        #[cfg(feature = "shaders")]
         if self.shader_effect(expanded_node).is_some() {
             crate::bind_shader_effect(expanded_node, context);
         }

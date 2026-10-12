@@ -39,6 +39,8 @@ impl crate::Interpolatable for OpacityScope {}
 pub trait RenderContext {
     /// Begin an experimental GPU-only subtree effect. Returns whether source draws need replay.
     /// The default rejects programmable effects rather than silently changing their appearance.
+    /// Available with the opt-in `shaders` Cargo feature.
+    #[cfg(feature = "shaders")]
     fn begin_shader_effect(
         &mut self,
         _layer: usize,
@@ -53,6 +55,7 @@ pub trait RenderContext {
         panic!("shader effects require the WGPU renderer; this backend does not support them")
     }
     /// Finish the boundary begun by `begin_shader_effect`.
+    #[cfg(feature = "shaders")]
     fn end_shader_effect(&mut self, _layer: usize, _id: u32) {}
     // Drawing
     /// Fills a path at full opacity.

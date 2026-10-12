@@ -7,7 +7,7 @@ edition = "2021"
 title = "Shader Studio"
 
 [dependencies]
-pax-kit = { version = "0.39.0", path = "../../../pax-kit" }
+pax-kit = { version = "0.39.0", path = "../../../pax-kit", features = ["shaders"] }
 
 [lib]
 crate-type = ["cdylib", "rlib"]

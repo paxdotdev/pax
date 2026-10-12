@@ -28,6 +28,8 @@ wasm-bindgen-futures = {version = "0.4.42", optional=true}
 log = "0.4.20"
 
 [features]
+# Opt-in GPU subtree filters, including runtime WGSL validation.
+shaders = ["pax-runtime/shaders"]
 json = ["dep:serde_json"]
 gpu = ["pax-chassis-web?/gpu"]
 piet = ["pax-chassis-web?/piet"]

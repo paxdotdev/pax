@@ -409,6 +409,7 @@ pub struct ExpandedNode {
     pub content_measurement_rebind_listener: LocalProperty<()>,
     /// Guards one-time setup of the reactive content-measurement listener pair.
     pub content_measurement_bound: Cell<bool>,
+    #[cfg(feature = "shaders")]
     pub(crate) shader_effect_bound: Cell<bool>,
     /// Cached update traversal state. Structural effects mark ancestors dirty when child
     /// ownership changes; the update pass clears this for subtrees with no remaining
@@ -1128,6 +1129,7 @@ impl ExpandedNode {
             content_measurement_listener: LocalProperty::default(),
             content_measurement_rebind_listener: LocalProperty::default(),
             content_measurement_bound: Cell::new(false),
+            #[cfg(feature = "shaders")]
             shader_effect_bound: Cell::new(false),
             subtree_requires_non_reactive_update: Cell::new(true),
             projected_children_changed: LocalProperty::default(),
@@ -3077,6 +3079,7 @@ impl ExpandedNode {
             return;
         }
         stats.path_nodes_visited += 1;
+        #[cfg(feature = "shaders")]
         if self.render_shader_effect(ctx, rcs) {
             return;
         }
@@ -3099,6 +3102,7 @@ impl ExpandedNode {
         if self.is_render_source() {
             return;
         }
+        #[cfg(feature = "shaders")]
         if self.render_shader_effect(ctx, rcs) {
             return;
         }
@@ -3134,6 +3138,7 @@ impl ExpandedNode {
         rcs: &mut dyn RenderContext,
         deferred: &mut Vec<Rc<ExpandedNode>>,
     ) {
+        #[cfg(feature = "shaders")]
         assert!(
             borrow!(self.instance_node).shader_effect(self).is_none(),
             "shader effects inside detached mask sources are unsupported"

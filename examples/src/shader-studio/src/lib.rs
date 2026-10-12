@@ -4,6 +4,11 @@ use pax_kit::*;
 #[main]
 #[file("lib.pax")]
 pub struct Example {
+    pub mode: Property<ImpressionistMode>,
+    pub mode_description: Property<String>,
+    pub brush_size: Property<f64>,
+    pub brush_sizes: Property<Vec<f64>>,
+    pub motion_speed: Property<f64>,
     pub phase: Property<f64>,
     pub last_time: Property<f64>,
     pub playing: Property<bool>,
@@ -15,6 +20,10 @@ pub struct Example {
 }
 impl Example {
     pub fn mount(&mut self, ctx: &NodeContext) {
+        self.brush_size.set(24.);
+        self.brush_sizes.set(vec![24.; 6]);
+        self.motion_speed.set(1.);
+        self.set_mode(ImpressionistMode::Basic);
         self.playing.set(true);
         self.radius.set(8.);
         self.last_time.set(ctx.elapsed_time_millis() as f64);
@@ -24,7 +33,8 @@ impl Example {
         let dt = (now - self.last_time.get()).clamp(0., 50.) / 1000.;
         self.last_time.set(now);
         if self.playing.get() {
-            self.phase.set(self.phase.get() + dt);
+            self.phase
+                .set(self.phase.get() + dt * self.motion_speed.get());
         }
         if self.moving.get() {
             self.source_phase.set(self.source_phase.get() + dt);
@@ -43,6 +53,50 @@ impl Example {
     }
     pub fn blur_more(&mut self, _: &NodeContext, _: Event<ButtonClick>) {
         self.radius.set((self.radius.get() + 8.).rem_euclid(56.));
+    }
+    fn set_mode(&mut self, mode: ImpressionistMode) {
+        let mut sizes = self.brush_sizes.get();
+        sizes[mode_index(&self.mode.get())] = self.brush_size.get();
+        self.brush_size.set(sizes[mode_index(&mode)]);
+        self.brush_sizes.set(sizes);
+        self.mode_description.set(match mode {
+            ImpressionistMode::Basic => "Basic — soft, layered marks in three sizes. The original living surface.",
+            ImpressionistMode::Gauguin => "Gauguin — broad sweeps, flowing planes of color, and quiet bristle texture.",
+            ImpressionistMode::VanGogh => "Van Gogh — drifting, bending currents and ridges of light and shadow in thick paint.",
+            ImpressionistMode::Signac => "Signac — fine, closely packed dabs with pale and vivid pigment woven together.",
+            ImpressionistMode::Cezanne => "Cézanne — varied planes of strokes, nested arcs, and wispy outlines.",
+            ImpressionistMode::Seurat => "Seurat — dense, rounded points of color that gather into a luminous surface.",
+        }.into());
+        self.mode.set(mode);
+    }
+    pub fn basic(&mut self, _: &NodeContext, _: Event<ButtonClick>) {
+        self.set_mode(ImpressionistMode::Basic);
+    }
+    pub fn gauguin(&mut self, _: &NodeContext, _: Event<ButtonClick>) {
+        self.set_mode(ImpressionistMode::Gauguin);
+    }
+    pub fn van_gogh(&mut self, _: &NodeContext, _: Event<ButtonClick>) {
+        self.set_mode(ImpressionistMode::VanGogh);
+    }
+    pub fn signac(&mut self, _: &NodeContext, _: Event<ButtonClick>) {
+        self.set_mode(ImpressionistMode::Signac);
+    }
+    pub fn cezanne(&mut self, _: &NodeContext, _: Event<ButtonClick>) {
+        self.set_mode(ImpressionistMode::Cezanne);
+    }
+    pub fn seurat(&mut self, _: &NodeContext, _: Event<ButtonClick>) {
+        self.set_mode(ImpressionistMode::Seurat);
+    }
+}
+
+fn mode_index(mode: &ImpressionistMode) -> usize {
+    match mode {
+        ImpressionistMode::Basic => 0,
+        ImpressionistMode::Gauguin => 1,
+        ImpressionistMode::VanGogh => 2,
+        ImpressionistMode::Signac => 3,
+        ImpressionistMode::Cezanne => 4,
+        ImpressionistMode::Seurat => 5,
     }
 }
 

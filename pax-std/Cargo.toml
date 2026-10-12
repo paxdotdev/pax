@@ -23,4 +23,6 @@ piet-web = "0.7.0"
 serde = { version = "1.0.159", features=["derive"]}
 
 [features]
+# Opt-in GPU subtree filters, including runtime WGSL validation.
+shaders = ["pax-engine/shaders", "pax-runtime/shaders"]
 designtime = ["pax-language/parser", "pax-engine/designtime", "pax-runtime/designtime"]

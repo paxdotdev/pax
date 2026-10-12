@@ -2021,6 +2021,7 @@ fn retained_mask_source_clip_pages_pixels() {
     }
 }
 
+#[cfg(feature = "shaders")]
 #[test]
 #[ignore = "requires a macOS Metal device"]
 fn shader_effect_pixels_clip_cache_and_tile_halo() {
@@ -2099,6 +2100,7 @@ fn shader_effect_pixels_clip_cache_and_tile_halo() {
     }
 }
 
+#[cfg(feature = "shaders")]
 #[test]
 #[ignore = "requires a macOS Metal device"]
 fn shader_effect_nested_pixels_and_relative_opacity() {
@@ -2188,6 +2190,7 @@ fn shader_effect_nested_pixels_and_relative_opacity() {
     assert_eq!(stats.effect_passes, 6);
 }
 
+#[cfg(feature = "shaders")]
 #[test]
 #[ignore = "requires a macOS Metal device"]
 fn shader_effect_gaussian_matches_across_tiles() {
@@ -2382,6 +2385,7 @@ fn shader_effect_gaussian_matches_across_tiles() {
     }
 }
 
+#[cfg(feature = "shaders")]
 #[test]
 #[ignore = "requires a macOS Metal device"]
 fn shader_effect_output_obeys_stencil_and_alpha() {

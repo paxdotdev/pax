@@ -241,6 +241,14 @@ and the source examples above.
 
 ## Shader primitives
 
+Enable the `shaders` Cargo feature on `pax-kit` to use or define shader
+primitives. A custom primitive library depending on `pax-engine` directly can
+enable `pax-engine/shaders` without depending on `pax-std`. The lower-level
+`pax-runtime`, `pax-gpu`, and `pax-runtime-api` crates expose the same feature;
+enabling it on the engine or runtime propagates it to the required layers.
+See [enabling shader containers](compositing-effects.md#experimental-shader-containers)
+for the dependency declaration and feature-off behavior.
+
 `InstanceNode::shader_effect` is an experimental extension point for a
 GPU-only subtree filter. Return `Some(ShaderEffect)` from a primitive with
 `Layer::Canvas`. Keep returning `Some` throughout the node's mounted lifetime;

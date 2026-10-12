@@ -94,13 +94,18 @@ pub(super) fn shader_source(pass: &ShaderPass) -> Result<String, String> {
     )
     .validate(&module)
     .map_err(|e| format!("{}: {}", pass.label, e.emit_to_string(&source)))?;
-    // The recipe owns resources and entry points. User code may add ordinary functions/constants.
+    // The wrapper owns exactly five resources. Naga permits unused declarations to alias
+    // their bindings, so checking only the binding range would admit extra resources.
+    let resources: Vec<_> = module
+        .global_variables
+        .iter()
+        .filter_map(|(_, variable)| variable.binding.as_ref())
+        .collect();
     if module.entry_points.len() != 2
-        || module.global_variables.iter().any(|(_, v)| {
-            v.binding
-                .as_ref()
-                .is_some_and(|b| b.group != 0 || b.binding > 4)
-        })
+        || resources.len() != 5
+        || resources
+            .iter()
+            .any(|binding| binding.group != 0 || binding.binding > 4)
     {
         return Err(format!(
             "{}: effect code cannot declare resources or entry points",
@@ -464,6 +469,25 @@ impl RenderBackend<'_> {
 mod tests {
     use super::*;
     use pax_runtime_api::ShaderParameter;
+    #[test]
+    fn rejects_additional_resources_on_engine_bindings() {
+        for binding in 0..=4 {
+            let source = format!(
+                "@group(0) @binding({binding}) var extra: texture_2d<f32>;\n\
+                 fn effect(p: vec2<f32>) -> vec4<f32> {{ return sample_input0(p); }}"
+            );
+            let pass = ShaderPass {
+                label: "extra-resource.wgsl",
+                source: Box::leak(source.into_boxed_str()),
+                parameters: &[],
+                inputs: [ShaderInput::Subtree; 2],
+                downsample: 1,
+            };
+            let error = shader_source(&pass).expect_err("extra resources must be rejected");
+            assert!(error.contains("extra-resource.wgsl: effect code cannot declare resources"));
+        }
+    }
+
     #[test]
     fn generated_uniform_layout_and_diagnostics() {
         let pass=ShaderPass {label:"user-color.wgsl",source:"fn effect(p: vec2<f32>) -> vec4<f32> { return sample_input0(p) * parameters.color; }",parameters:&[ShaderParameter {name:"color",ty:ShaderParameterType::Vec4}],inputs:[ShaderInput::Subtree;2],downsample:1};

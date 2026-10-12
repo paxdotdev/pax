@@ -435,7 +435,8 @@ fn get_gpu_render_context(
     // Every browser canvas in this chassis can use the same WebGPU device.
     // Keep it across cold-row eviction; pixel textures still have weak cache ownership.
     // The async mutex prevents concurrent first rows from each creating a device.
-    let browser_context = std::rc::Rc::new(futures_util::lock::Mutex::new(None::<SharedGpuContext>));
+    let browser_context =
+        std::rc::Rc::new(futures_util::lock::Mutex::new(None::<SharedGpuContext>));
     PaxGpuRenderer::new(move |layer, request| {
         let window = window.clone();
         let surface_policy = surface_policy;

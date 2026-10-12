@@ -634,6 +634,28 @@ WGSL fragment passes. `pax_std::shaders` provides `GaussianBlur` and
 same public renderer extension API available to your own primitives. The
 `shader-studio` example imports these standard-library components.
 
+Shader containers are **opt-in**. Enable the `shaders` Cargo feature on
+your existing `pax-kit` dependency (keep any existing `path` and other features):
+
+```toml
+[dependencies]
+pax-kit = { version = "0.39.0", features = ["shaders"] }
+```
+
+This enables both the standard-library effects and the generic renderer support
+for custom effects. Applications using `pax-std` directly can enable its feature
+of the same name. Existing applications using shader containers must add this
+feature before rebuilding. `shader-studio` already enables it.
+
+The feature is off by default in both debug and release builds. Without it,
+shader components, runtime hooks, capture/compositing code, and their runtime
+WGSL validation path are excluded. On web, this also avoids embedding the
+Naga WGSL parser/validator in the application Wasm. Ordinary drawing, opacity,
+and masks remain available. Cargo features are additive: if any dependency
+enables `shaders`, the support is included even when no effect is mounted.
+Template usage does not automatically enable the feature. When enabled,
+effect textures and pipelines are still allocated only when needed.
+
 ```pax
 <Frame width=420px height=280px corner_radius=18>
     <GaussianBlur width=100% height=100% radius=8.0>
@@ -676,14 +698,79 @@ it trades fine detail for lower sampling cost at large radii. `reference=true`
 keeps the full-resolution result for comparison. Both operate on premultiplied
 RGBA in the renderer's capture color space, without a linear-light guarantee.
 
-`Impressionist` samples a local orientation field and paints three scales of
-procedural marks. `seed` fixes mark locations; `phase` changes their breathing
-motion. Marks stay anchored to the container, while their colors respond to
-changing source content. There is no motion tracking or previous-frame state.
-Stopping phase updates freezes the brush motion while source updates continue.
-Identical source content, seed, size, and phase give identical output.
-`size` is measured in local logical pixels and clamped to 4–32. Its default
-value of zero resolves to the minimum size; the example uses `size=24.0`.
+`Impressionist.mode` selects a procedural brush treatment. The enum is exported
+alongside the component as `ImpressionistMode`:
+
+| Mode | Treatment |
+| --- | --- |
+| `Basic` (default) | The original three scales of softly layered oval marks. |
+| `Gauguin` | Broad directional sweeps, simplified color planes, and subtle bristles. |
+| `VanGogh` | Evolving curling flows with highlight/shadow ridges suggesting thick paint. |
+| `Signac` | Fine, closely packed rectangular dabs interweaving pale and chromatic pigment. |
+| `Cezanne` | Varied patches of parallel marks and nested arcs, with broken blue-violet contours. |
+| `Seurat` | Smaller, denser rounded points with restrained pale pigment. |
+
+```pax
+<Impressionist width=100% height=100%
+    mode=ImpressionistMode::Cezanne size=24.0 seed=17>
+    <Ellipse x=50% y=38% width=110px height=110px fill=rgb(248,213,141)/>
+    <Rectangle width=100% height=100% fill=rgb(77,112,118)/>
+</Impressionist>
+```
+
+These are techniques inspired by the painters, not reproductions of their
+compositions. The simulated paint relief is color shading, not actual surface
+geometry or scene lighting. Pale pigment stays within source coverage;
+transparent content does not acquire an opaque white background.
+
+The modes share one two-pass shader program. Signac and Seurat use the same
+pointillist brush function with preset values for spacing, proportions,
+roundness, position variation, direction, pigment, relief, and drift. Other brush
+families have distinct construction functions in that program. These internal
+preset controls are not yet individual public properties; `mode`, `size`,
+`seed`, and `phase` are the supported authoring controls.
+
+`seed` fixes surface anchors and seeds the directional fields. `phase` is an
+absolute **motion position**, not elapsed time owned by the shader. It drives
+breathing and bounded mark movement around those anchors: broad slow drift
+in Gauguin, grouped shifts in Cezanne, and smaller motions in the pointillist
+modes. VanGogh also moves and deforms its swirl contours and ripples paint
+ridges along the strokes, so motion extends beyond the vortex centers.
+These motions work over a stationary source. They are procedural, not fluid
+simulation: they use no history texture or additional rendering pass. Mark
+colors and contour alignment still respond to changing source content.
+There is no motion tracking or previous-frame state.
+Stopping phase updates freezes brush motion while source updates continue.
+Identical source content, mode, seed, size, and phase give identical output.
+Changing mode switches the treatment immediately; it does not morph one brush
+family into another. Mode and phase changes share the existing pipeline and
+capture envelope, so they can reuse an unchanged source capture.
+`size` is an overall brush scale in local logical pixels, clamped to 4–32.
+Each mode applies its own proportions: a Seurat dot is smaller than a Gauguin
+sweep at the same setting. Size also scales directional patterns, including
+VanGogh's whorls. Changing it redistributes the marks rather than scaling the
+source scene. Its default value of zero resolves to the minimum size.
+
+For an interactive control, declare `pub brush_size: Property<f64>` on your
+component, initialize it to `24.0` in its mount handler, and bind both a Slider
+and the effect to it. Keep the native Slider outside the filtered subtree:
+
+```pax
+<Slider width=100% height=28px value=bind:brush_size min=4.0 max=32.0 step=1.0/>
+<Impressionist y=44px anchor_y=0% width=100% height=240px
+    mode=ImpressionistMode::VanGogh size={self.brush_size} phase={self.phase}>
+    <Rectangle width=100% height=100% fill=rgb(77,112,118)/>
+</Impressionist>
+```
+
+Here `phase` is another `Property<f64>`; advance it from a tick handler or
+bind the effect's phase to a timeline to animate the flow. Leave it constant
+to keep the brush field still. For adjustable speed, accumulate
+`phase += delta_seconds * speed`: zero holds the current pose and negative
+speed reverses it. Change the accumulated phase's rate rather than multiplying
+total elapsed time by a changing speed, which would jump the current pose.
+The same phase value always reconstructs the same motion position, so ordinary
+Pax property transitions can ease or scrub it without simulation state.
 
 See the API references for
 [`GaussianBlur`](api/pax-std/shaders/gaussian_blur.md) and
@@ -691,7 +778,11 @@ See the API references for
 
 These inputs are ordinary properties. Bind or animate them using existing
 [expressions and motion](animation-motion.md), without an effect-specific clock.
-The example keeps brush phase and source animation independently controllable.
+The example keeps brush phase and source animation independently controllable
+and includes a selector for comparing all six modes on the same scene. Its
+brush-size slider starts at 24 and remembers a separate value per mode for
+the current session; reloading resets those values. A separate motion-speed
+slider ranges from −5× to 5×, initially 1×, and affects brush phase only.
 
 Run the canonical example from the repository root:
 

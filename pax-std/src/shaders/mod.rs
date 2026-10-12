@@ -2,6 +2,7 @@
 //!
 //! These primitives use the public `InstanceNode::shader_effect` extension point,
 //! just as application-defined effects do. Requires the WGPU renderer.
+//! Enable the opt-in `shaders` Cargo feature on `pax-kit` or `pax-std`.
 
 macro_rules! effect_instance {
     ($instance:ident,$properties:ident) => {

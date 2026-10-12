@@ -47,6 +47,7 @@ pub mod pax_value;
 pub mod platform;
 pub mod properties;
 pub mod rendering;
+#[cfg(feature = "shaders")]
 pub mod shader_effect;
 pub mod store;
 pub mod transform;
@@ -65,6 +66,7 @@ pub use pax_value::functions::HelperFunctions;
 pub use platform::*;
 pub use properties::{LocalProperty, Property, PropertyBinding, PropertyGraph, Published};
 pub use rendering::*;
+#[cfg(feature = "shaders")]
 pub use shader_effect::*;
 pub use store::*;
 pub use transform::*;

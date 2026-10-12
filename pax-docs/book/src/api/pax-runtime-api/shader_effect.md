@@ -6,6 +6,8 @@ Experimental, renderer-owned subtree filters for userland primitives.
 
 Programs are Rust resources, not template values. Expose ordinary `Property<T>` inputs on
 a primitive and resolve them into an instance through `InstanceNode::shader_effect`.
+Available with the opt-in `shaders` Cargo feature, normally enabled on
+`pax-kit` or `pax-engine` to include the corresponding renderer support.
 
 ## Structs
 ### `ShaderEffect`

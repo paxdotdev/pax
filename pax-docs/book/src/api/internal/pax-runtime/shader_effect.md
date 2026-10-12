@@ -3,6 +3,7 @@
 <!-- tags: api, pax-runtime -->
 
 Runtime glue for experimental GPU-only subtree filters.
+Available with the opt-in `shaders` Cargo feature.
 
 ## Functions
 ### `bind_shader_effect`

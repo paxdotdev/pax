@@ -2,6 +2,8 @@
 //!
 //! Programs are Rust resources, not template values. Expose ordinary `Property<T>` inputs on
 //! a primitive and resolve them into an instance through `InstanceNode::shader_effect`.
+//! Available with the opt-in `shaders` Cargo feature, normally enabled on
+//! `pax-kit` or `pax-engine` to include the corresponding renderer support.
 
 /// One host/shader parameter type. Every member occupies a 16-byte uniform slot.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

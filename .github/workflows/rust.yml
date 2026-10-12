@@ -113,9 +113,13 @@ jobs:
     - name: Run tests
       run: cargo test --verbose --workspace --exclude pax-chassis-macos --exclude pax-chassis-common --exclude pax-chassis-ios
 
+    - name: Test opt-in shader effects
+      run: cargo test -p pax-runtime-api -p pax-runtime -p pax-gpu -p pax-std --features shaders --lib
+
     - name: Check bundled CLI examples
       run: |
         scripts/sync-cli-examples.py --check
+        scripts/sync-docs-examples.py --check
         cargo package --list --allow-dirty --manifest-path pax-compiler/Cargo.toml | grep -Fx "files/new-project/bundled-examples.paxbundle"
 
     - name: Build generated canonical starter for web

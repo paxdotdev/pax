@@ -89,6 +89,7 @@ Type: `bool`
 
 ### `ResourceChurnStats`
 Resource churn counters for renderer profiling.
+Effect counters are available with the opt-in `shaders` Cargo feature.
 
 #### Properties
 ##### `effect_source_renders`
@@ -323,6 +324,12 @@ retessellating or uploading vertex/index buffers.
 <pre><code class="api-signature language-rust ignore">pub fn begin_shader_effect(&amp;mut self, id: u32, z: i32, effect: &amp;<a href="../../../api/pax-runtime-api/shader_effect.md#shadereffect">ShaderEffect</a>, transform: <a href="../../../api/pax-runtime-api/transform.md#transform2d">Transform2D</a>, size: (f64, f64), scopes: &amp;[<a href="../../../api/pax-runtime-api/rendering.md#opacityscope">OpacityScope</a>], children: &amp;[u32]) -&gt; bool</code></pre>
 
 Start a GPU-only filter boundary. A true return requests an initial source replay.
+Available with the opt-in `shaders` Cargo feature.
+
+##### `end_shader_effect`
+<pre><code class="api-signature language-rust ignore">pub fn end_shader_effect(&amp;mut self)</code></pre>
+
+Finish the GPU-only filter boundary. Requires the `shaders` Cargo feature.
 
 ##### `begin_alpha_source`
 <pre><code class="api-signature language-rust ignore">pub fn begin_alpha_source(&amp;mut self, mapping: <a href="../../../api/pax-runtime-api/transform.md#transform2d">Transform2D</a>, feather: f32)</code></pre>

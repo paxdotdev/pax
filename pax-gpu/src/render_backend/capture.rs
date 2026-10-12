@@ -9,7 +9,19 @@ use wgpu::Buffer;
 pub(crate) enum CaptureKey {
     Opacity(u32, u32),
     Alpha(u32),
+    #[cfg(feature = "shaders")]
     EffectSource(u32),
+}
+
+impl CaptureKey {
+    fn uses_source_domain(&self) -> bool {
+        match self {
+            Self::Alpha(_) => true,
+            #[cfg(feature = "shaders")]
+            Self::EffectSource(_) => true,
+            Self::Opacity(..) => false,
+        }
+    }
 }
 
 struct CachedGroup {
@@ -39,6 +51,7 @@ struct Vertex {
 }
 
 impl RetainedSurfaces {
+    #[cfg(feature = "shaders")]
     pub(super) fn effect_source(
         &self,
         key: CaptureKey,
@@ -148,6 +161,7 @@ impl RenderBackend<'_> {
     }
 
     pub(crate) fn retain_captures(&mut self, active: &HashSet<CaptureKey>) {
+        #[cfg(feature = "shaders")]
         if let Some(effects) = &mut self.effects {
             effects.retain(
                 &active
@@ -160,10 +174,7 @@ impl RenderBackend<'_> {
             );
         }
 
-        if !active
-            .iter()
-            .any(|key| matches!(key, CaptureKey::Alpha(_) | CaptureKey::EffectSource(_)))
-        {
+        if !active.iter().any(CaptureKey::uses_source_domain) {
             self.source_stencil = None;
         }
         if let Some(surfaces) = &mut self.retained_surfaces {
@@ -181,7 +192,10 @@ impl RenderBackend<'_> {
 
     pub(crate) fn reset_captures(&mut self) {
         self.retained_surfaces = None;
-        self.effects = None;
+        #[cfg(feature = "shaders")]
+        {
+            self.effects = None;
+        }
         self.source_stencil = None;
     }
 
@@ -449,7 +463,7 @@ impl RenderBackend<'_> {
         self.retained_surfaces.as_ref().map_or(0, |s| {
             s.groups
                 .keys()
-                .filter(|key| matches!(key, CaptureKey::Alpha(_) | CaptureKey::EffectSource(_)))
+                .filter(|key| key.uses_source_domain())
                 .count()
         })
     }

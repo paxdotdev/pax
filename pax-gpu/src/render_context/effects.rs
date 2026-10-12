@@ -24,6 +24,7 @@ pub(super) struct EffectNode {
 
 impl WgpuRenderer<'_> {
     /// Start a GPU-only filter boundary. A true return requests an initial source replay.
+    /// Available with the opt-in `shaders` Cargo feature.
     pub fn begin_shader_effect(
         &mut self,
         id: u32,
@@ -89,6 +90,7 @@ impl WgpuRenderer<'_> {
         replay
     }
 
+    /// Finish the GPU-only filter boundary. Requires the `shaders` Cargo feature.
     pub fn end_shader_effect(&mut self) {
         assert!(
             self.current_node.is_none(),
