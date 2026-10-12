@@ -119,6 +119,7 @@ pub struct RuntimeContext {
     pub(crate) viewport_proximity: RefCell<crate::viewport_proximity::ViewportProximityState>,
     canvas_node_light_masks: RefCell<HashMap<ExpandedNodeIdentifier, u32>>,
     scene_lighting_nodes: RefCell<HashSet<ExpandedNodeIdentifier>>,
+    scene_lighting_dirty: Cell<bool>,
     // Slot order and lexical owners determine masks; light color/position do not.
     layer_light_scopes:
         RefCell<HashMap<usize, Vec<(ExpandedNodeIdentifier, Option<ExpandedNodeIdentifier>)>>>,
@@ -262,6 +263,7 @@ impl RuntimeContext {
             viewport_proximity: Default::default(),
             canvas_node_light_masks: Default::default(),
             scene_lighting_nodes: Default::default(),
+            scene_lighting_dirty: Default::default(),
             layer_light_scopes: Default::default(),
             #[cfg(test)]
             lighting_mask_node_visits: Cell::new(0),
@@ -312,6 +314,7 @@ impl RuntimeContext {
             viewport_proximity: Default::default(),
             canvas_node_light_masks: Default::default(),
             scene_lighting_nodes: Default::default(),
+            scene_lighting_dirty: Default::default(),
             layer_light_scopes: Default::default(),
             #[cfg(test)]
             lighting_mask_node_visits: Cell::new(0),
@@ -362,6 +365,7 @@ impl RuntimeContext {
             viewport_proximity: Default::default(),
             canvas_node_light_masks: Default::default(),
             scene_lighting_nodes: Default::default(),
+            scene_lighting_dirty: Default::default(),
             layer_light_scopes: Default::default(),
             #[cfg(test)]
             lighting_mask_node_visits: Cell::new(0),
@@ -1079,7 +1083,19 @@ impl RuntimeContext {
     }
 
     pub fn has_canvas_render_work(&self) -> bool {
-        self.has_dirty_canvas_layers() || self.has_canvas_node_removals()
+        self.has_dirty_canvas_layers()
+            || self.has_canvas_node_removals()
+            || self.scene_lighting_dirty.get()
+    }
+
+    /// Schedule lighting resolution without invalidating canvas geometry or contents.
+    /// The retained renderer decides which surfaces depend on the changed lights.
+    pub fn mark_scene_lighting_dirty(&self) {
+        self.scene_lighting_dirty.set(true);
+    }
+
+    pub(crate) fn take_scene_lighting_dirty(&self) -> bool {
+        self.scene_lighting_dirty.replace(false)
     }
 
     pub fn mark_occlusion_dirty(&self) {
@@ -1331,6 +1347,7 @@ impl RuntimeContext {
                     }
                     .unwrap_or(0);
                     if previous != mask {
+                        self.set_canvas_dirty(layer);
                         dirty_nodes.insert(node.id);
                         if let Some(ids) =
                             borrow_mut!(self.targeted_canvas_replay_node_ids).get_mut(&layer)

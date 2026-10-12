@@ -7,5 +7,6 @@ publish = false
 [workspace]
 
 [dependencies]
-pax-text = { path = "../../../pax-text" }
+harfrust = "=0.14.0"
+skrifa = { version = "=0.48.0", default-features = false, features = ["std"] }
 sha2 = "0.10"

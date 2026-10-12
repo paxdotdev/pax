@@ -1,3 +1,4 @@
+use crate::rotating_headline::HERO_TIMING_SCALE;
 use crate::SiteTheme;
 use pax_kit::*;
 
@@ -29,9 +30,45 @@ pub struct HeroLetter {
     pub sy: Property<f64>,
     pub angle: Property<f64>,
     pub alpha: Property<f64>,
+    pub paint: Property<Paint>,
+    pub material: Property<Material>,
 }
 
 impl HeroLetter {
+    pub fn mount(&mut self, ctx: &NodeContext) {
+        // Reused keyed clusters can change word/color at a handoff. Paint depends
+        // only on identity; motion never reconstructs their paths.
+        let kind = self.kind.local();
+        let ordinal = self.ordinal.local();
+        let deps = [kind.untyped(), ordinal.untyped()];
+        self.paint.replace_with(LocalProperty::computed(
+            move || letter_paint(kind.get(), ordinal.get()),
+            &deps,
+        ));
+        let kind = self.kind.local();
+        let deps = [kind.untyped()];
+        self.material.replace_with(LocalProperty::computed(
+            move || {
+                if kind.get() == 1 || kind.get() == 2 {
+                    // Lift this material's ambient response, without adding a
+                    // layer-wide AmbientLight that would change nearby demos.
+                    Material::custom(MaterialParams {
+                        ambient: Property::new(2.6),
+                        diffuse: Property::new(0.18),
+                        specular: Property::new(0.62),
+                        roughness: Property::new(0.18),
+                        metallic: Property::new(0.82),
+                        ..Default::default()
+                    })
+                } else {
+                    Material::unlit()
+                }
+            },
+            &deps,
+        ));
+        self.tick(ctx);
+    }
+
     pub fn tick(&mut self, _ctx: &NodeContext) {
         let pose = letter_pose(self.kind.get(), self.ordinal.get(), self.time_ms.get());
         self.dx.set_if_neq(pose.x);
@@ -41,6 +78,51 @@ impl HeroLetter {
         self.angle.set_if_neq(pose.angle);
         self.alpha.set_if_neq(pose.alpha);
     }
+}
+
+fn letter_paint(kind: usize, index: usize) -> Paint {
+    if kind != 1 && kind != 2 {
+        return Paint::Solid(SiteTheme::paper());
+    }
+    let base = if kind == 1 {
+        Color::from_rgba_0_1([0.76, 0.81, 0.88, 1.0])
+    } else {
+        // Champagne, copper, rose, violet titanium, cobalt, and oxidized teal.
+        let colors = [
+            (0.88, 0.72, 0.39),
+            (0.88, 0.49, 0.29),
+            (0.88, 0.48, 0.61),
+            (0.66, 0.53, 0.90),
+            (0.36, 0.64, 0.94),
+            (0.33, 0.80, 0.69),
+        ];
+        let (r, g, b) = colors[index % colors.len()];
+        Color::from_rgba_0_1([r, g, b, 1.0])
+    };
+    // Narrow opposing value bands suggest polished metal even without GPU lights.
+    let stops = [
+        (0.0, 0.64),
+        (0.24, 0.95),
+        (0.43, 1.0),
+        (0.49, 0.50),
+        (0.58, 0.72),
+        (0.83, 0.92),
+        (1.0, 0.68),
+    ]
+    .into_iter()
+    .map(|(p, brightness)| {
+        let [r, g, b, _] = base.to_rgba_0_1();
+        GradientStop {
+            position: Size::Percent((p * 100.0).into()),
+            color: Color::from_rgba_0_1([r * brightness, g * brightness, b * brightness, 1.0]),
+        }
+    })
+    .collect();
+    Paint::LinearGradient(LinearGradient {
+        start: (Size::Percent(0.0.into()), Size::Percent(0.0.into())),
+        end: (Size::Percent(0.0.into()), Size::Percent(100.0.into())),
+        stops,
+    })
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -67,6 +149,7 @@ fn smooth(t: f64) -> f64 {
 }
 
 fn letter_pose(kind: usize, index: usize, time: f64) -> LetterPose {
+    let time = time / HERO_TIMING_SCALE;
     let delay = index as f64
         * match kind {
             1 => 23.0,
@@ -132,9 +215,9 @@ mod tests {
                 }
             }
         }
-        assert!(letter_pose(1, 0, 400.0).x < 0.0);
-        assert!(letter_pose(2, 0, 230.0).sy < 1.0);
-        assert!(letter_pose(2, 0, 500.0).sy > 1.0);
+        assert!(letter_pose(1, 0, 400.0 * HERO_TIMING_SCALE).x < 0.0);
+        assert!(letter_pose(2, 0, 230.0 * HERO_TIMING_SCALE).sy < 1.0);
+        assert!(letter_pose(2, 0, 500.0 * HERO_TIMING_SCALE).sy > 1.0);
         assert!(letter_pose(3, 0, 180.0).angle < 0.0);
         assert!(letter_pose(3, 1, 180.0).angle > 0.0);
     }

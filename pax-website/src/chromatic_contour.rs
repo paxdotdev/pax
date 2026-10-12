@@ -350,6 +350,8 @@ mod tests {
     use super::*;
     #[test]
     fn motion_inputs_remain_live_after_mount() {
+        let graph = pax_kit::api::properties::PropertyGraph::new(|| {});
+        let _graph = graph.enter();
         let contour = ChromaticContour::default();
         let motion = ScrollMotion {
             x: Property::new(0.0),
@@ -357,13 +359,14 @@ mod tests {
             paused: Property::new(false),
         };
         contour.observe_motion(&motion);
-        assert_eq!(contour._scroll_y.get(), 0.0);
+        assert_eq!(contour._scroll_y.local().get(), 0.0);
         motion.x.set(45.0);
         motion.y.set(900.0);
         motion.paused.set(true);
-        assert_eq!(contour._scroll_x.get(), 45.0);
-        assert_eq!(contour._scroll_y.get(), 900.0);
-        assert!(contour._paused.get());
+        graph.import();
+        assert_eq!(contour._scroll_x.local().get(), 45.0);
+        assert_eq!(contour._scroll_y.local().get(), 900.0);
+        assert!(contour._paused.local().get());
     }
     #[test]
     fn response_is_directional_and_frame_rate_independent() {

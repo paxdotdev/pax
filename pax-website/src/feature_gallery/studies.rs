@@ -20,9 +20,9 @@ pub struct FeatureStudy {
 impl FeatureStudy {
     pub fn mount(&mut self, ctx: &NodeContext) {
         if self.kind.get() == "computed" {
-            let quantity = self.quantity.clone();
+            let quantity = self.quantity.local();
             let dependencies = [quantity.untyped()];
-            self.total.replace_with(Property::computed(
+            self.total.replace_with(LocalProperty::computed(
                 move || 12 * quantity.get(),
                 &dependencies,
             ));

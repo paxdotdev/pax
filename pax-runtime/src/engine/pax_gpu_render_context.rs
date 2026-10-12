@@ -1846,7 +1846,7 @@ impl RenderContext for PaxGpuRenderer {
 
     fn set_scene_lighting(&mut self, layer: usize, lighting: &SceneLighting) {
         let lighting = to_pax_gpu_scene_lighting(lighting);
-        let lighting_changed = self.update_scene_lighting_cache(layer, &lighting);
+        self.update_scene_lighting_cache(layer, &lighting);
         let mut backends = self.backends.borrow_mut();
         match backends.get_mut(layer) {
             Some(RenderLayerState::Pending) => {}
@@ -1855,17 +1855,17 @@ impl RenderContext for PaxGpuRenderer {
                 if !target.active {
                     return;
                 }
-                if lighting_changed {
-                    self.mark_render_surfaces_dirty(layer, 0..target.renderers.len());
-                }
-                for renderer in &mut target.renderers {
-                    renderer
+                for (index, renderer) in target.renderers.iter_mut().enumerate() {
+                    if renderer
                         .renderer
                         .set_scene_lighting(translate_scene_lighting_for_surface(
                             &lighting,
                             renderer.origin_x,
                             renderer.origin_y,
-                        ));
+                        ))
+                    {
+                        self.mark_render_surfaces_dirty(layer, [index]);
+                    }
                 }
             }
             None => log::warn!(

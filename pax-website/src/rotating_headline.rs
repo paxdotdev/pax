@@ -8,11 +8,14 @@ const WORDS: [&str; 4] = [
     crate::hero_outlines::WORDS[1],
     crate::hero_outlines::WORDS[2],
 ];
-const HOLD_MS: f64 = 4200.0;
-const CHANGE_MS: f64 = 900.0;
+pub(crate) const HERO_TIMING_SCALE: f64 = 0.8;
+const HOLD_MS: f64 = 4200.0 * HERO_TIMING_SCALE;
+const CHANGE_MS: f64 = 900.0 * HERO_TIMING_SCALE;
 const CYCLE_MS: f64 = HOLD_MS + CHANGE_MS;
-const WRITE_MS: f64 = 1600.0;
-const GRADIENT_PERIOD_MS: f64 = 10000.0;
+const WRITE_MS: f64 = 1600.0 * HERO_TIMING_SCALE;
+const GRADIENT_PERIOD_MS: f64 = 10000.0 * HERO_TIMING_SCALE;
+const LETTER_SETTLED_MS: f64 = 2500.0 * HERO_TIMING_SCALE;
+const LIGHT_SWEEP_MS: f64 = 2600.0 * HERO_TIMING_SCALE;
 
 /// A fixed three-line signboard. Creative masks a morphing CMY mesh with Handwriter;
 /// its native text equivalent lives outside the mask. Only the current word mounts.
@@ -37,6 +40,8 @@ pub struct RotatingHeadline {
     pub cap_height: Property<f64>,
     pub word_index: Property<usize>,
     pub letter_ms: Property<f64>,
+    pub light_x: Property<f64>,
+    pub _light_ms: Property<f64>,
     pub _gradient_ms: Property<f64>,
     pub _creative_ms: Property<f64>,
     pub _elapsed_ms: Property<f64>,
@@ -51,9 +56,9 @@ impl RotatingHeadline {
         self.baseline.set(runs[0].baseline);
         self.cap_height.set(runs[0].cap_height);
         let widths = runs.each_ref().map(|run| run.advance);
-        let index = self.word_index.clone();
+        let index = self.word_index.local();
         let deps = [index.untyped()];
-        self.run_width.replace_with(Property::computed(
+        self.run_width.replace_with(LocalProperty::computed(
             move || {
                 index
                     .get()
@@ -64,9 +69,9 @@ impl RotatingHeadline {
             },
             &deps,
         ));
-        let index = self.word_index.clone();
+        let index = self.word_index.local();
         let deps = [index.untyped()];
-        self.clusters.replace_with(Property::computed(
+        self.clusters.replace_with(LocalProperty::computed(
             move || {
                 index
                     .get()
@@ -99,10 +104,11 @@ impl RotatingHeadline {
                 .set_if_neq(rest_time(self._elapsed_ms.get()));
         }
         let pose = pose_at(self._elapsed_ms.get());
+        let changed = self.word_index.get() != pose.index;
         self.letter_ms.set_if_neq(letter_time(
             self.letter_ms.get(),
             dt,
-            self.word_index.get() != pose.index,
+            changed,
             self.playing.get(),
         ));
         // Keep the paint clock independent of the signboard's legible pose snap on pause.
@@ -126,6 +132,11 @@ impl RotatingHeadline {
         self.writing_progress
             .set_if_neq(writing_progress(self._creative_ms.get()));
         self.apply_pose(pose);
+        // A separate light clock freezes on pause instead of following the pose snap.
+        let light_ms = light_time(self._light_ms.get(), dt, changed, self.playing.get());
+        self._light_ms.set_if_neq(light_ms);
+        self.light_x
+            .set_if_neq(light_position(light_ms, self.run_width.get()));
     }
 
     fn apply_pose(&mut self, pose: WordPose) {
@@ -142,12 +153,27 @@ impl RotatingHeadline {
 
 fn letter_time(previous: f64, dt: f64, changed: bool, playing: bool) -> f64 {
     if !playing {
-        2500.0
+        LETTER_SETTLED_MS
     } else if changed {
         0.0
     } else {
-        (previous + dt).min(2500.0)
+        (previous + dt).min(LETTER_SETTLED_MS)
     }
+}
+
+fn light_time(previous: f64, dt: f64, changed: bool, playing: bool) -> f64 {
+    if changed {
+        0.0
+    } else if playing {
+        (previous + dt).min(LIGHT_SWEEP_MS)
+    } else {
+        previous
+    }
+}
+
+fn light_position(time: f64, width: f64) -> f64 {
+    let t = (time / LIGHT_SWEEP_MS).clamp(0.0, 1.0);
+    -0.8 + (width + 1.6) * (t * t * (3.0 - 2.0 * t))
 }
 
 fn creative_time(previous: f64, dt: f64, creative: bool, playing: bool) -> f64 {
@@ -332,9 +358,12 @@ mod tests {
 
     #[test]
     fn letter_clock_settles_on_pause_and_does_not_replay_on_resume() {
-        assert_eq!(letter_time(100.0, 16.0, false, false), 2500.0);
-        assert_eq!(letter_time(2500.0, 16.0, false, true), 2500.0);
-        assert_eq!(letter_time(2500.0, 16.0, true, true), 0.0);
+        assert_eq!(letter_time(100.0, 16.0, false, false), LETTER_SETTLED_MS);
+        assert_eq!(
+            letter_time(LETTER_SETTLED_MS, 16.0, false, true),
+            LETTER_SETTLED_MS
+        );
+        assert_eq!(letter_time(LETTER_SETTLED_MS, 16.0, true, true), 0.0);
         assert_eq!(letter_time(300.0, 0.0, false, true), 300.0);
     }
 
@@ -344,7 +373,7 @@ mod tests {
             writing_progress(creative_time(WRITE_MS, 16.0, false, true)),
             0.0
         );
-        assert_eq!(writing_progress(800.0), 0.5);
+        assert_eq!(writing_progress(WRITE_MS / 2.0), 0.5);
         assert_eq!(writing_progress(WRITE_MS), 1.0);
         assert_eq!(
             writing_progress(creative_time(200.0, 0.0, true, false)),
@@ -409,5 +438,21 @@ mod tests {
             gradient_time(GRADIENT_PERIOD_MS - 10.0, 16.0, true, true),
             6.0
         );
+    }
+
+    #[test]
+    fn metal_light_sweeps_the_whole_word_and_freezes_independently_of_letters() {
+        assert_eq!(light_time(500.0, 16.0, false, false), 500.0);
+        assert_eq!(light_time(500.0, 16.0, false, true), 516.0);
+        assert_eq!(light_time(500.0, 16.0, true, true), 0.0);
+        for width in [3.115, 8.962] {
+            assert!(light_position(0.0, width) < 0.0);
+            assert!((light_position(LIGHT_SWEEP_MS / 2.0, width) - width / 2.0).abs() < 1e-9);
+            assert!(light_position(LIGHT_SWEEP_MS, width) > width);
+            assert_eq!(
+                light_position(LIGHT_SWEEP_MS, width),
+                light_position(LIGHT_SWEEP_MS + 100.0, width)
+            );
+        }
     }
 }

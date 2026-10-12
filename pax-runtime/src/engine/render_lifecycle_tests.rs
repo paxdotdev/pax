@@ -7,6 +7,9 @@ struct RecordingRenderer {
     layer_count: usize,
     pending: bool,
     removals: Vec<(usize, u32)>,
+    clears: Vec<usize>,
+    lighting_updates: Vec<usize>,
+    flushes: Vec<usize>,
 }
 
 impl RenderContext for RecordingRenderer {
@@ -18,12 +21,15 @@ impl RenderContext for RecordingRenderer {
     }
     fn clear(&mut self, layer: usize) {
         assert!(layer < self.layer_count);
+        self.clears.push(layer);
     }
     fn flush(&mut self, layer: usize, _: Rc<RefCell<Vec<bool>>>) {
         assert!(layer < self.layer_count);
+        self.flushes.push(layer);
     }
     fn set_scene_lighting(&mut self, layer: usize, _: &SceneLighting) {
         assert!(layer < self.layer_count);
+        self.lighting_updates.push(layer);
     }
     fn remove_node(&mut self, layer: usize, node: u32) -> bool {
         assert!(layer < self.layer_count);
@@ -91,6 +97,31 @@ fn engine() -> PaxEngine {
         Box::new(|| 0),
         Default::default(),
     )
+}
+
+#[test]
+fn lighting_only_work_resolves_and_flushes_without_clearing_canvases() {
+    let mut engine = engine();
+    let mut renderer = RecordingRenderer::default();
+    engine.runtime_context.layer_count.set(3);
+    engine.render(&mut renderer);
+    renderer.clears.clear();
+    renderer.lighting_updates.clear();
+    renderer.flushes.clear();
+    engine.runtime_context.mark_scene_lighting_dirty();
+    assert!(engine.runtime_context.has_canvas_render_work());
+    assert!(!engine.runtime_context.has_dirty_canvas_layers());
+    assert!(!engine.runtime_context.has_dirty_canvas_nodes());
+    engine.render(&mut renderer);
+    assert_eq!(renderer.lighting_updates, vec![0, 1, 2]);
+    assert_eq!(renderer.flushes, vec![0, 1, 2]);
+    assert!(renderer.clears.is_empty());
+    assert!(!engine.runtime_context.has_canvas_render_work());
+
+    engine.runtime_context.mark_scene_lighting_dirty();
+    engine.runtime_context.set_canvas_dirty(1);
+    engine.render(&mut renderer);
+    assert_eq!(renderer.clears, vec![1], "independent redraw survives");
 }
 
 #[test]

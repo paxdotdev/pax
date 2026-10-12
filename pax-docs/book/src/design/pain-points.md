@@ -327,9 +327,49 @@ Cargo dependencies but had no reachable shaping call and shipped no font bytes.
 
 For fixed copy, use the explicit `pax-website/tools/trace-hero` extractor and
 check in its output. It retains whole-phrase shaping, cluster ranges, advances,
-and exact curves, while the runtime loads ordinary Path elements. The retained
-`pax-text` helper is only a tool/test dependency of the website. Keep the native
-font asset for selection, and compare every baked coordinate with fresh shaping
-after font or generator changes. Confirm removal with the normal target-specific
-Cargo dependency graph and the emitted Wasm, rather than searching source-drawer
-strings inside the binary.
+and exact curves, while the runtime loads ordinary Path elements. HarfRust and
+Skrifa live only in that standalone tool, outside both the library workspace and
+the website's normal/test dependencies. Its `--check` mode compares the full
+generated source against fresh extraction. Keep the native font asset for
+selection, and run the check after font or generator changes. Confirm removal
+with the normal target-specific Cargo dependency graph and the emitted Wasm,
+rather than searching source-drawer strings inside the binary.
+
+Runtime text/API work is deferred to PAX-1036 for Zack-led design. The unpublished
+`pax-text` experiment is recoverable from `79a522edbc29614cf39aae70d30fba680f3c4b86`;
+keeping the private extraction tool does not expose or commit to that library API.
+
+### Animated descendants can reflow an autosized ancestor despite fixed component dimensions
+
+The website's rotating headline had a fixed height and non-autosizing Groups,
+but its parent's autosized Stacker measured the complete descendant layout
+hull. Scaling the high-performance word out changed that hull and moved the
+paragraph below it (about 15.5 logical pixels in the checked intermediate-width
+web view). Turning off autosize on the inner Group would not remove its
+descendants from the ancestor's measurement.
+
+Set `layout_role=LayoutRole::Breakout` on the animated word's clipping Frame.
+The fixed signboard and normal headline Text nodes then establish the size;
+the animated word keeps its clipping, rendering, and native selection behavior.
+Do not disable the surrounding paragraph's intrinsic sizing. See
+[Layout Role](../layout-responsiveness.md#layout-role).
+
+Path gradients resolve coordinates relative to the path's ink bounds, including
+their origin. A baseline-relative negative cap-height offset therefore moves a
+gradient above the letters. Use percentage endpoints for a finish that spans
+each glyph's visible surface. For readable lit lettering, tune that material's
+ambient coefficient rather than adding a layer-wide AmbientLight that changes
+unrelated content.
+
+### Moving scoped lights can expose broad redraw invalidation
+
+The website's metallic hero revealed that `LightFrame` scope restricted shader
+eligibility while moving its `LightSource` still dirtied every canvas layer.
+GPU surfaces and composed-pixel caches also treated any lighting change as a
+reason to redraw, including unrelated Paxflix content. Keep lighting-value
+invalidation separate from canvas-content invalidation, and derive surface and
+capture dependencies from the retained draws' light masks and materials. Include
+detached mask-source draws, preserve current uniforms for newly added content,
+and invalidate summaries when retained membership changes. Check submission,
+capture and geometry counters in addition to frame rate: machine contention can
+obscure the cost of unnecessary work.

@@ -97,11 +97,26 @@ rebounds, and portable assembles along short arcs. Creative keeps its EMSLeague
 handwriting and CMY mesh treatment. The source drawer includes the path loader,
 generated geometry, and letter component.
 
-The one-off extraction uses the experimental `pax-text` library (HarfRust +
-Skrifa) to shape each complete phrase before splitting it into clusters. Its
-runtime shaping work remains in that independent library; the website uses it
-only for extraction and regression tests. Ordinary website builds run no tracing
-step and have no runtime shaping dependency or embedded font bytes.
+High-performance uses a cool silver gradient and a moving GPU light. Native
+uses the same polished finish with champagne, copper, rose, violet, cobalt,
+and teal assigned to its six letters. A local `LightFrame` contains the sweep;
+portable retains its unlit paper fill. The light begins during the reveal and
+finishes during the reading hold. Pausing settles the letters but freezes the
+light where it is. The Piet fallback retains the colored gradients without
+the lighting response; this treatment uses existing materials, not PAX-1035
+extensible shaders.
+
+Hero timings are 80% of the original durations: 3.36-second holds, 0.72-second
+handoffs, 1.28-second creative writing, and proportionally shorter letter
+entrances/staggers, mesh motion, and logo reveal. The word's clipping Frame has
+`layout_role=LayoutRole::Breakout`: animated descendant bounds cannot change
+the ancestor Stacker's measured height. The fixed three-line signboard and its
+normal Text nodes determine the paragraph's position.
+
+The private offline extractor in `tools/trace-hero` uses HarfRust + Skrifa to
+shape each complete phrase before splitting it into clusters. It is a standalone
+tool, outside the library workspace and the website's dependency graph (including
+tests). Ordinary website builds run no tracing step and embed no font bytes.
 
 From the monorepo root, explicitly regenerate after changing the font, weight,
 or the phrase list in `tools/trace-hero/src/main.rs`:
@@ -109,26 +124,32 @@ or the phrase list in `tools/trace-hero/src/main.rs`:
 ```sh
 cargo run --manifest-path pax-website/tools/trace-hero/Cargo.toml
 cargo run --manifest-path pax-website/tools/trace-hero/Cargo.toml -- --check
-cargo test --manifest-path pax-website/Cargo.toml --lib hero_outlines
+cargo test --manifest-path pax-website/tools/trace-hero/Cargo.toml
 ```
 
 Commit `src/hero_outlines_data.rs` with the source change. It records the font
 checksum, weight, and shaping versions, shares 17 unique cluster outlines
 across the three phrases, and retains source ranges, glyph IDs, advances and
-baseline metrics. The regression compares every baked coordinate and cluster
-placement against fresh shaping. No manual curve fitting or raster tracing is
-involved. The existing `build.rs` still only generates the AI primer.
+baseline metrics. `--check` compares the entire generated source, including every
+coordinate and cluster placement, against fresh extraction. No manual curve
+fitting or raster tracing is involved. The existing `build.rs` still only
+generates the AI primer.
 
 This is fixed, single-line Latin LTR copy, with no runtime wrapping, bidi layout,
 font fallback or arbitrary text API. `hero_outlines::hero_runs()` expands the
 baked data into the same `HeroCluster`/`PathElement` values once at mount.
 Coordinates stay in em units; resizing changes bounds, and playback changes
-scalar transforms without reshaping or replacing path elements. General runtime
-shaping limits and usage are documented in the [font article](../pax-docs/book/src/text-fonts-images.md#experimental-font-outlines).
-Neither a `TextGPU` component nor a `Text` rendering flag is implemented.
+scalar transforms without reshaping or replacing path elements.
 
-The optimized web build measured 1,758,864 bytes with gzip level 9, versus
-2,208,106 bytes for the runtime-shaped predecessor: about 439 KiB recovered.
+Reusable runtime text and `TextGpu` API design are deferred to
+[PAX-1036](https://linear.app/paxdev/issue/PAX-1036/design-textgpu-api-with-zack-and-resume-runtime-text-outlining),
+starting with Zack-led API design. The full unpublished `pax-text` experiment is
+preserved at `79a522edbc29614cf39aae70d30fba680f3c4b86`; it is not part of the launch
+library. Neither a `TextGpu` component nor a `Text` rendering flag is implemented.
+
+At that snapshot, the optimized web build measured 1,758,864 bytes with gzip
+level 9, versus 2,208,106 bytes for the runtime-shaped predecessor: about 439 KiB
+recovered.
 Brotli level 11 recovered about 329 KiB. These are whole-Wasm measurements,
 including the source drawer, and exclude the separate native font asset; they
 do not establish the production server's compression settings.

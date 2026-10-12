@@ -196,6 +196,12 @@ Store a screenshot payload delivered by the chassis.
 Invalidate native compositing after a node's paint or coverage changes.
 Detached source changes reconcile their owning mask in the visible scene.
 
+##### `mark_scene_lighting_dirty`
+<pre><code class="api-signature language-rust ignore">pub fn mark_scene_lighting_dirty(&amp;self)</code></pre>
+
+Schedule lighting resolution without invalidating canvas geometry or contents.
+The retained renderer decides which surfaces depend on the changed lights.
+
 ##### `new`
 <pre><code class="api-signature language-rust ignore">pub fn new(globals: <a href="../../../api/internal/pax-runtime/engine.md#globals">Globals</a>) -&gt; Self</code></pre>
 

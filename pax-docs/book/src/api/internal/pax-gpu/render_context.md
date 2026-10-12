@@ -401,9 +401,10 @@ Drop retained scene state for a surface that has been rebound to a new tile orig
 Updates group presentation without changing a node's paint or image resources.
 
 ##### `set_scene_lighting`
-<pre><code class="api-signature language-rust ignore">pub fn set_scene_lighting(&amp;mut self, lighting: <a href="../../../api/pax-runtime-api/drawing.md#scenelighting">SceneLighting</a>)</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn set_scene_lighting(&amp;mut self, lighting: <a href="../../../api/pax-runtime-api/drawing.md#scenelighting">SceneLighting</a>) -&gt; bool</code></pre>
 
-Upload changed surface-local lighting and invalidate retained drawing.
+Upload changed surface-local lighting, returning whether retained pixels need redraw.
+Only lights used by this surface's lit vector draws invalidate its contents.
 Repeating the same value does not upload a uniform or dirty the scene.
 Each new renderer receives its own initial upload, even for default lighting.
 

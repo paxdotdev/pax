@@ -260,7 +260,6 @@ impl WgpuRenderer<'_> {
         };
         let mut hash = DefaultHasher::new();
         bytemuck::bytes_of(&self.render_backend.globals).hash(&mut hash);
-        self.lighting_signature.hash(&mut hash);
         for v in [bounds.min_x, bounds.min_y, bounds.max_x, bounds.max_y] {
             v.to_bits().hash(&mut hash);
         }

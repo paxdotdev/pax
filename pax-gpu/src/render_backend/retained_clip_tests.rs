@@ -2457,3 +2457,233 @@ fn shader_effect_output_obeys_stencil_and_alpha() {
     assert_pixel(&frame, 8, 8, [128, 0, 0, 128]);
     assert_pixel(&frame, 48, 24, [0, 0, 0, 0]);
 }
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn lighting_changes_preserve_unrelated_captures_and_geometry() {
+    use crate::{LightShape, Material, SceneLight, SceneLighting};
+    use pax_runtime_api::OpacityScope;
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 64, 32, [1.0, 1.0]),
+        )
+    })
+    .expect("Metal backend");
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    let mut lighting = SceneLighting {
+        active: true,
+        ambient_intensity: 0.0,
+        lights: vec![SceneLight {
+            shape: LightShape::Directional,
+            position: [0.0, 0.0, 10.0],
+            direction: [0.0, 0.0, -1.0],
+            color: Color::rgba(1.0, 0.0, 0.0, 1.0),
+            intensity: 1.0,
+            radius: 100.0,
+        }],
+        ..Default::default()
+    };
+    assert!(!renderer.set_scene_lighting(lighting.clone()), "empty tile");
+    for (id, mask, material) in [
+        (
+            1,
+            1,
+            Material::custom(0.0, 1.0, 0.0, 0.5, Color::rgba(0.0, 0.0, 0.0, 1.0), 0.0),
+        ),
+        (2, 0, Material::default()),
+        (3, 1, Material::unlit()),
+    ] {
+        renderer.begin_node(id, id as i32, mask);
+        renderer.set_node_opacity_scopes(
+            id,
+            &[OpacityScope {
+                node_id: 100 + id,
+                opacity: 0.5,
+            }],
+        );
+        renderer.fill_path_with_material_and_opacity(
+            rect((id - 1) as f32 * 16.0, 0.0, 16.0, 32.0),
+            Fill::Solid(Color::rgba(1.0, 1.0, 1.0, 1.0)),
+            material,
+            1.0,
+        );
+        renderer.end_node(id);
+    }
+    // An unrelated detached mask source must keep its composed pixels, too.
+    renderer.begin_node(10, 10, 0);
+    renderer.save();
+    renderer.begin_alpha_source(Transform2D::identity(), 0.0);
+    renderer.begin_node(11, 0, 0);
+    renderer.fill_path(
+        rect(48.0, 0.0, 16.0, 32.0),
+        Fill::Solid(Color::rgba(1.0, 1.0, 1.0, 1.0)),
+    );
+    renderer.end_node(11);
+    renderer.end_alpha_source();
+    renderer.fill_path(
+        rect(48.0, 0.0, 16.0, 32.0),
+        Fill::Solid(Color::rgba(1.0, 1.0, 1.0, 1.0)),
+    );
+    renderer.restore();
+    renderer.end_node(10);
+    renderer.request_screenshot_capture(0);
+    renderer.flush();
+    device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+    let first = renderer.take_screenshot_capture(0).unwrap();
+    let stats = renderer.take_resource_churn_stats();
+    assert_eq!(stats.opacity_group_renders, 3);
+    assert_eq!(stats.alpha_source_renders, 1);
+
+    lighting.lights[0].color = Color::rgba(0.0, 0.0, 1.0, 1.0);
+    assert!(renderer.set_scene_lighting(lighting.clone()));
+    renderer.request_screenshot_capture(1);
+    renderer.flush();
+    device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+    let second = renderer.take_screenshot_capture(1).unwrap();
+    assert_ne!(
+        &first.rgba[(16 * 64 + 8) * 4..(16 * 64 + 8) * 4 + 4],
+        &second.rgba[(16 * 64 + 8) * 4..(16 * 64 + 8) * 4 + 4]
+    );
+    for x in [24, 40, 56] {
+        assert_eq!(
+            &first.rgba[(16 * 64 + x) * 4..(16 * 64 + x) * 4 + 4],
+            &second.rgba[(16 * 64 + x) * 4..(16 * 64 + x) * 4 + 4]
+        );
+    }
+    let stats = renderer.take_resource_churn_stats();
+    assert_eq!(stats.opacity_group_renders, 1);
+    assert!(stats.opacity_group_cache_hits >= 2);
+    assert_eq!(stats.alpha_source_renders, 0);
+    assert_eq!(stats.vector_geometry_rebuilds, 0);
+    assert_eq!(stats.vector_resource_updates, 0);
+
+    renderer.remove_node(1);
+    renderer.flush();
+    renderer.take_resource_churn_stats();
+    lighting.lights[0].intensity = 0.25;
+    assert!(
+        !renderer.set_scene_lighting(lighting.clone()),
+        "unlit and excluded draws remain"
+    );
+    renderer.flush_deferred();
+    assert!(renderer.take_pending_command_buffers().is_empty());
+
+    // A detached source is a dependency even when the visible consumer is unlit.
+    renderer.begin_node(11, 0, 1);
+    renderer.fill_path(
+        rect(48.0, 0.0, 16.0, 32.0),
+        Fill::Solid(Color::rgba(1.0, 1.0, 1.0, 1.0)),
+    );
+    renderer.end_node(11);
+    renderer.flush();
+    renderer.take_resource_churn_stats();
+    lighting.lights[0].intensity = 0.5;
+    assert!(renderer.set_scene_lighting(lighting));
+    renderer.flush();
+    assert_eq!(renderer.take_resource_churn_stats().alpha_source_renders, 1);
+}
+
+#[cfg(feature = "shaders")]
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn lighting_changes_invalidate_only_affected_shader_sources() {
+    use crate::{LightShape, Material, SceneLight, SceneLighting};
+    use pax_runtime_api::{ShaderEffect, ShaderInput, ShaderPass, ShaderProgram};
+    static PROGRAM: ShaderProgram = ShaderProgram {
+        label: "lighting identity",
+        passes: &[ShaderPass {
+            label: "lighting-identity.wgsl",
+            source: "fn effect(p: vec2<f32>) -> vec4<f32> { return sample_input0(p); }",
+            parameters: &[],
+            inputs: [ShaderInput::Subtree; 2],
+            downsample: 1,
+        }],
+    };
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 48, 32, [1.0, 1.0]),
+        )
+    })
+    .expect("Metal backend");
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    let mut lighting = SceneLighting {
+        active: true,
+        ambient_intensity: 0.0,
+        lights: vec![SceneLight {
+            shape: LightShape::Directional,
+            position: [0.0, 0.0, 10.0],
+            direction: [0.0, 0.0, -1.0],
+            color: Color::rgba(1.0, 0.0, 0.0, 1.0),
+            intensity: 1.0,
+            radius: 100.0,
+        }],
+        ..Default::default()
+    };
+    renderer.set_scene_lighting(lighting.clone());
+    for (id, mask, material) in [
+        (
+            1,
+            1,
+            Material::custom(0.0, 1.0, 0.0, 0.5, Color::rgba(0.0, 0.0, 0.0, 1.0), 0.0),
+        ),
+        (2, 0, Material::default()),
+        (3, 1, Material::unlit()),
+    ] {
+        renderer.begin_shader_effect(
+            100 + id,
+            id as i32,
+            &ShaderEffect {
+                program: &PROGRAM,
+                parameters: vec![vec![]],
+                outset: 0.0,
+            },
+            Transform2D::identity(),
+            (48.0, 32.0),
+            &[],
+            &[id],
+        );
+        renderer.begin_node(id, id as i32, mask);
+        renderer.fill_path_with_material_and_opacity(
+            rect((id - 1) as f32 * 16.0, 0.0, 16.0, 32.0),
+            Fill::Solid(Color::rgba(1.0, 1.0, 1.0, 1.0)),
+            material,
+            1.0,
+        );
+        renderer.end_node(id);
+        renderer.end_shader_effect();
+    }
+    renderer.request_screenshot_capture(0);
+    renderer.flush();
+    device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+    let before = renderer.take_screenshot_capture(0).unwrap();
+    assert_eq!(
+        renderer.take_resource_churn_stats().effect_source_renders,
+        3
+    );
+    lighting.lights[0].color = Color::rgba(0.0, 0.0, 1.0, 1.0);
+    assert!(renderer.set_scene_lighting(lighting));
+    renderer.request_screenshot_capture(1);
+    renderer.flush();
+    device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+    let after = renderer.take_screenshot_capture(1).unwrap();
+    assert_pixel(&before, 8, 16, [255, 0, 0, 255]);
+    assert_pixel(&after, 8, 16, [0, 0, 255, 255]);
+    for x in [24, 40] {
+        assert_pixel(&before, x, 16, [255, 255, 255, 255]);
+        assert_pixel(&after, x, 16, [255, 255, 255, 255]);
+    }
+    let stats = renderer.take_resource_churn_stats();
+    assert_eq!(stats.effect_source_renders, 1);
+    assert_eq!(stats.effect_source_cache_hits, 2);
+    assert_eq!(stats.effect_passes, 1);
+    assert_eq!(stats.effect_pipeline_compilations, 0);
+    assert_eq!(stats.effect_texture_allocations, 0);
+    assert_eq!(stats.vector_geometry_rebuilds, 0);
+    assert_eq!(stats.vector_resource_updates, 0);
+}

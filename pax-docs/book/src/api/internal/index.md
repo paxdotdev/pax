@@ -46,4 +46,3 @@ implements the GPU renderer.
 - [pax-manifest](pax-manifest/index.md)
 - [pax-message](pax-message/index.md)
 - [pax-gpu](pax-gpu/index.md)
-- [pax-text](pax-text/index.md)

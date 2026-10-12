@@ -309,7 +309,9 @@ The renderer caches source pixels separately from final output. Parameter-only
 changes reuse source pixels, shader pipelines, and same-sized output textures.
 Changes to source pixels, source-side clips, inner opacity, lighting, or nested
 output invalidate the relevant captures. Removed effects release their cached
-outputs. `ResourceChurnStats` exposes effect source renders/cache hits, pipeline
+outputs. Lighting changes invalidate a shader source only when its retained
+vector draws receive the changed lighting; excluded and unlit sources keep
+their cached pixels. `ResourceChurnStats` exposes effect source renders/cache hits, pipeline
 compilations, texture allocations/bytes, pass counts, and rendered pixel counts.
 These counters measure submitted work and allocations, not GPU execution time.
 

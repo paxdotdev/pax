@@ -1,5 +1,6 @@
 //! Explicit, website-specific extraction; ordinary website builds never run this.
-use pax_text::{OutlineCommand, OutlineFont};
+mod font;
+use font::{OutlineCommand, OutlineFont};
 use sha2::{Digest, Sha256};
 use std::{error::Error, fmt::Write, fs, path::Path};
 

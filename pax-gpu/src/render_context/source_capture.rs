@@ -223,7 +223,6 @@ impl WgpuRenderer<'_> {
         collect_opacity_group_keys(&plan, active);
         let mut hash = DefaultHasher::new();
         bytemuck::bytes_of(&self.render_backend.globals).hash(&mut hash);
-        self.lighting_signature.hash(&mut hash);
         for id in &nodes {
             self.hash_opacity_content(*id, &mut hash);
             for scope in self.opacity_scopes.get(id).into_iter().flatten() {

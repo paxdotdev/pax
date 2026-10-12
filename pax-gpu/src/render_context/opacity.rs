@@ -77,7 +77,6 @@ impl WgpuRenderer<'_> {
                 // Lighting, resolution, and clip transforms change cached pixels. The boundary's
                 // own alpha intentionally does not: it is applied only when sampling the cache.
                 bytemuck::bytes_of(&self.render_backend.globals).hash(&mut hash);
-                self.lighting_signature.hash(&mut hash);
                 for id in run {
                     self.hash_opacity_content(*id, &mut hash);
                     if let Some(scopes) = self.opacity_scopes.get(id) {
@@ -128,6 +127,9 @@ impl WgpuRenderer<'_> {
                 self.effect_captures[&n.id].signature.hash(hash);
             }
             RetainedNode::Vector(n) => {
+                n.lighting_dependencies
+                    .signature(&self.scene_lighting)
+                    .hash(hash);
                 n.resource_key.hash(hash);
                 n.transform_signature.hash(hash);
             }

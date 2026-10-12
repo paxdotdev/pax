@@ -5,10 +5,10 @@
     scale_x={(self.sx)%} scale_y={(self.sy)%} rotate={(self.angle)deg} opacity={self.alpha}>
     <Path x=0px y={(self.cap_height * self.font_px)px} width={(self.font_px)px} height={(self.font_px)px}
         elements={self.cluster.elements} smoothing=PathSmoothing::None
-        fill={paint: {SiteTheme::paper()} material: {Material::unlit()}}/>
+        fill={paint: {self.paint} material: {self.material}}/>
 </Group>
 
 @settings {
-    @mount: tick
+    @mount: mount
     @pre_render: tick
 }

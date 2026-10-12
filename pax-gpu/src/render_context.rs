@@ -2,6 +2,7 @@
 mod effects;
 #[cfg(feature = "shaders")]
 use effects::{EffectCapture, EffectNode, EffectRecording};
+mod lighting;
 mod opacity;
 mod source_capture;
 use crate::render_backend::stencil;
@@ -20,6 +21,7 @@ use crate::Image;
 use crate::Point2D;
 use crate::Transform2D;
 use crate::Vector2D;
+use lighting::LightingDependencies;
 use lyon::geom::{CubicBezierSegment, QuadraticBezierSegment, Segment};
 use lyon::lyon_tessellation::BuffersBuilder;
 use lyon::lyon_tessellation::FillOptions;
@@ -258,7 +260,8 @@ pub struct WgpuRenderer<'w> {
     sorted_nodes: Vec<(i32, u32)>,
     order_dirty: bool,
     scene_dirty: bool,
-    lighting_signature: u64,
+    scene_lighting: GpuSceneLighting,
+    lighting_dependencies: Option<LightingDependencies>,
     last_scene_lighting: Option<SceneLighting>,
     cached_images: HashMap<String, CachedImageEntry>,
     transform_stack: Vec<Transform2D>,
@@ -731,7 +734,8 @@ impl<'w> WgpuRenderer<'w> {
             sorted_nodes: Vec::new(),
             order_dirty: false,
             scene_dirty: false,
-            lighting_signature: 0,
+            scene_lighting: GpuSceneLighting::default(),
+            lighting_dependencies: None,
             last_scene_lighting: None,
             cached_images: HashMap::new(),
             transform_stack: vec![Transform2D::identity()],
@@ -805,6 +809,7 @@ impl<'w> WgpuRenderer<'w> {
         // per-node transforms/resources against the previous slot assignment, so drop that state
         // and let the engine replay dirty canvas nodes into the reassigned surface.
         self.scene.clear();
+        self.lighting_dependencies = None;
         self.opacity_scopes.clear();
         self.source_nodes.clear();
         self.source_captures.clear();
@@ -999,20 +1004,25 @@ impl<'w> WgpuRenderer<'w> {
         });
     }
 
-    /// Upload changed surface-local lighting and invalidate retained drawing.
+    /// Upload changed surface-local lighting, returning whether retained pixels need redraw.
+    /// Only lights used by this surface's lit vector draws invalidate its contents.
     /// Repeating the same value does not upload a uniform or dirty the scene.
     /// Each new renderer receives its own initial upload, even for default lighting.
-    pub fn set_scene_lighting(&mut self, lighting: SceneLighting) {
+    pub fn set_scene_lighting(&mut self, lighting: SceneLighting) -> bool {
         if self.last_scene_lighting.as_ref() == Some(&lighting) {
-            return;
+            return false;
         }
         let gpu_lighting = to_gpu_scene_lighting(&lighting);
-        let mut hash = DefaultHasher::new();
-        bytemuck::bytes_of(&gpu_lighting).hash(&mut hash);
-        self.lighting_signature = hash.finish();
+        let dependencies = self.lighting_dependencies();
+        let changed =
+            dependencies.signature(&self.scene_lighting) != dependencies.signature(&gpu_lighting);
+        // Keep uniforms current even without recipients. A later draw must see the
+        // latest light values without requiring another lighting property change.
         self.render_backend.set_scene_lighting(gpu_lighting);
+        self.scene_lighting = gpu_lighting;
         self.last_scene_lighting = Some(lighting);
-        self.scene_dirty = true;
+        self.scene_dirty |= changed;
+        changed
     }
 
     pub fn clear(&mut self) {
@@ -1570,6 +1580,7 @@ impl<'w> WgpuRenderer<'w> {
             .unwrap_or_default();
 
         let previous = self.scene.remove(&node_id);
+        self.lighting_dependencies = None;
         let prev_z = previous.as_ref().map(|node| node.z_index());
 
         let updated = match pending_node.kind {
@@ -1580,6 +1591,7 @@ impl<'w> WgpuRenderer<'w> {
                 None
             }
             PendingNodeKind::Vector(buffers) => {
+                let lighting_dependencies = LightingDependencies::from_ops(&buffers.ops);
                 let geometry_signatures = buffers
                     .ops
                     .iter()
@@ -1642,6 +1654,7 @@ impl<'w> WgpuRenderer<'w> {
                         }
 
                         existing.transform_keys = transform_keys;
+                        existing.lighting_dependencies = lighting_dependencies;
                         existing.clip_stack = buffers.clip_stack;
                         existing.z_index = pending_z_index;
                         existing.resource_dirty.geometry |= geometry_changed;
@@ -1674,6 +1687,7 @@ impl<'w> WgpuRenderer<'w> {
                         let retained_primitives =
                             build_retained_primitives(&buffers_out.primitives, &transform_ids);
                         Some(RetainedNode::Vector(RetainedVectorNode {
+                            lighting_dependencies,
                             mesh_page: None,
                             resource: None,
                             buffers: buffers_out,
@@ -1711,6 +1725,7 @@ impl<'w> WgpuRenderer<'w> {
                         let retained_primitives =
                             build_retained_primitives(&buffers_out.primitives, &transform_ids);
                         Some(RetainedNode::Vector(RetainedVectorNode {
+                            lighting_dependencies,
                             mesh_page: None,
                             resource: None,
                             buffers: buffers_out,
@@ -1794,6 +1809,7 @@ impl<'w> WgpuRenderer<'w> {
         self.opacity_scopes.remove(&node_id);
         let mut removed = false;
         if let Some(node) = self.scene.remove(&node_id) {
+            self.lighting_dependencies = None;
             if let RetainedNode::Vector(node) = &node {
                 self.transform_arena.release_keys(&node.transform_keys);
             }
@@ -2190,6 +2206,7 @@ impl RetainedNode {
 }
 
 struct RetainedVectorNode {
+    lighting_dependencies: LightingDependencies,
     mesh_page: Option<Rc<crate::render_backend::mesh_paint::PaintPage>>,
     resource: Option<RetainedVectorResource>,
     buffers: CpuBuffers,

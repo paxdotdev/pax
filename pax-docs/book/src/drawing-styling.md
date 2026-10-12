@@ -632,12 +632,29 @@ without authored lights do not scan their elements for lighting on redraw.
 Unchanged surface-local lighting also reuses its GPU uniform without marking
 retained drawing dirty.
 
+On the GPU renderer, animating light values repaints only retained surface
+tiles containing vector draws eligible for those lights. Unlit materials and
+bitmap images do not make a tile depend on a light. Cached opacity groups and
+mask-source captures likewise retain their pixels when only unrelated lights
+change. A tile that does need repainting redraws its composition using retained
+geometry; moving a light alone does not require tessellating its paths again.
+This applies on web and Apple GPU targets, in debug and release builds.
+
+Eligibility is conservative: it follows light slots, canvas-layer reachability
+and `LightFrame` scope, without testing the light radius against each shape.
+Authored ambient light can affect all lit materials in its reachable layers.
+Scene structure, light selection, scrolling, and tile reassignment can require
+broader updates. `LightFrame` does not allocate an isolated render surface.
+
 If you maintain a custom Rust lighting primitive, implement
 `InstanceNode::has_scene_lighting()` as `true` alongside
 `resolve_scene_light` or `resolve_scene_ambient_light`. This capability hook
 must stay true while the primitive is disabled or returns `None`; it describes
 its role, not its current contribution. Existing `.pax` lighting templates
 need no changes.
+For value changes, call `RuntimeContext::mark_scene_lighting_dirty()` to schedule
+lighting resolution without requesting a full canvas redraw. Structural changes
+still use the runtime's normal scene invalidation.
 
 This feature is backend-dependent. GPU/WGPU rendering supports the material
 response, with a current limit of eight active direct lights in each canvas

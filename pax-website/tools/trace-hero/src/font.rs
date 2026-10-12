@@ -1,8 +1,7 @@
-//! Experimental single-line Latin LTR shaping and unhinted font outlines.
+//! Private font extraction for the fixed website hero, never linked by the app.
 //!
-//! This renderer-independent helper preserves the website prototype for future
-//! library integration. It is not a `TextGPU` primitive or a replacement for
-//! native `Text`. The crate is not published or re-exported by `pax-kit`.
+//! Runtime text/API exploration is deferred to PAX-1036; the standalone prototype
+//! is preserved at 79a522edbc29614cf39aae70d30fba680f3c4b86.
 use harfrust::{font::Blob, Buffer, Direction, Font, Script, ShapeOptions, ShaperFont};
 use skrifa::{
     instance::{LocationRef, Size as FontSize},
@@ -33,8 +32,6 @@ pub struct OutlineCluster {
     pub byte_start: usize,
     /// Exclusive UTF-8 byte offset in the source string.
     pub byte_end: usize,
-    /// Ordinal within this run, useful for staggered effects.
-    pub ordinal: usize,
     /// Font glyph IDs, for inspection; repeated IDs are not occurrence keys.
     pub glyph_ids: Vec<u32>,
     /// Horizontal position of the cluster origin in the run, in em units.
@@ -164,7 +161,6 @@ impl OutlineFont {
                 clusters.push(OutlineCluster {
                     byte_start: info.cluster as usize,
                     byte_end: text.len(),
-                    ordinal: clusters.len(),
                     x: pen_x,
                     ..Default::default()
                 });
@@ -253,7 +249,7 @@ impl OutlinePen for Pen {
 #[cfg(test)]
 mod tests {
     use super::*;
-    const FONT: &[u8] = include_bytes!("../../pax-website/assets/fonts/Manrope.ttf");
+    const FONT: &[u8] = include_bytes!("../../../assets/fonts/Manrope.ttf");
     const WORDS: [&str; 3] = ["high-performance", "native", "portable"];
 
     #[test]

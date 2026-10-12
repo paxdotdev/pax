@@ -28,7 +28,6 @@ members = [
     "pax-tokio",
     "pax-web-async",
     "pax-std",
-    "pax-text",
     "pax-gpu",
 ]
 

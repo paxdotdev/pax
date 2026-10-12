@@ -736,7 +736,13 @@ impl PaxEngine {
         dirty_layers.extend(removals.iter().map(|(layer, _)| *layer));
         dirty_layers.sort_unstable();
         dirty_layers.dedup();
-        for layer in &dirty_layers {
+        let mut lighting_layers = dirty_layers.clone();
+        if self.runtime_context.take_scene_lighting_dirty() {
+            lighting_layers.extend(0..self.runtime_context.layer_count.get());
+            lighting_layers.sort_unstable();
+            lighting_layers.dedup();
+        }
+        for layer in &lighting_layers {
             let collect_timing = Span::new(Phase::Lighting);
             let lighting = self
                 .runtime_context
@@ -745,6 +751,11 @@ impl PaxEngine {
             let _upload_timing = Span::new(Phase::LightingUpload);
             rcs.set_scene_lighting(*layer, &lighting);
         }
+        // Slot/scope changes can invalidate node masks during lighting resolution.
+        // Value-only changes must not enter the full-canvas clear/replay path.
+        dirty_layers.extend(self.runtime_context.dirty_canvas_layers());
+        dirty_layers.sort_unstable();
+        dirty_layers.dedup();
         let prepare_timing = Span::new(Phase::Prepare);
         let removal_layers: HashSet<_> = removals.iter().map(|(layer, _)| *layer).collect();
         let targeted_replay_node_ids = self.runtime_context.take_targeted_canvas_replay_node_ids();
@@ -862,7 +873,7 @@ impl PaxEngine {
 
         drop(prepare_timing);
         let _flush_timing = Span::new(Phase::Flush);
-        for layer in dirty_layers {
+        for layer in lighting_layers {
             rcs.flush(layer, Rc::clone(&self.runtime_context.dirty_canvases));
         }
     }

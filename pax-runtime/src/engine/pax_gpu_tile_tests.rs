@@ -62,6 +62,109 @@ fn paint(renderer: &mut PaxGpuRenderer, dirty: Rc<RefCell<Vec<bool>>>) {
 
 #[test]
 #[ignore = "requires a macOS Metal device"]
+fn lighting_invalidates_only_recipient_tiles_across_layers() {
+    use pax_runtime_api::{SceneLight, SceneLighting};
+    let native = [MetalLayer::new(), MetalLayer::new(), MetalLayer::new()];
+    let mut renderer = PaxGpuRenderer::new(|_, _| unreachable!("prebuilt targets"));
+    let mut context = None;
+    for (layer, slots) in [(0, vec![0, 1]), (1, vec![2])] {
+        let mut tiles = Vec::new();
+        let mut surfaces = Vec::new();
+        for slot in slots {
+            let x = if slot == 1 { 32.0 } else { 0.0 };
+            let surface = entry(&slot.to_string(), &slot.to_string(), x);
+            let (backend, shared) = pollster::block_on(unsafe {
+                RenderBackend::to_core_animation_layer_with_context(
+                    native[slot].0.cast(),
+                    RenderConfig::new(true, 32, 32, [1.0, 1.0]),
+                    context.clone(),
+                )
+            })
+            .expect("Metal backend");
+            context = Some(shared);
+            let mut gpu = WgpuRenderer::new(backend);
+            gpu.set_surface_transform(Transform2D::translation(-x, 0.0));
+            tiles.push(LayerRenderer::new(
+                surface.key.clone(),
+                surface.host_signature.clone(),
+                gpu,
+                x,
+                0.0,
+                32.0,
+                32.0,
+                32,
+                32,
+                [1.0, 1.0],
+            ));
+            surfaces.push(surface);
+        }
+        let layout = LayerSurfaceLayout {
+            surfaces,
+            active: true,
+        };
+        renderer
+            .backends
+            .borrow_mut()
+            .push(RenderLayerState::Ready((
+                LayerTarget::new(tiles, true),
+                Box::pin(move || layout.clone()),
+            )));
+        assert_eq!(renderer.backends.borrow().len(), layer + 1);
+    }
+    let dirty = Rc::new(RefCell::new(vec![true; 2]));
+    for (layer, id, x, mask) in [(0, 1, 0.0, 1), (0, 2, 32.0, 0), (1, 3, 0.0, 0)] {
+        let bounds = Rect::new(x + 1.0, 1.0, x + 31.0, 31.0);
+        assert!(renderer.begin_node_with_bounds(layer, id, 0, bounds, mask));
+        renderer.fill_with_opacity(
+            layer,
+            bounds.to_path(0.1),
+            &pax_runtime_api::Paint::Solid(pax_runtime_api::Color::WHITE),
+            1.0,
+        );
+        renderer.end_node(layer, id);
+    }
+    let mut lighting = SceneLighting::with_default_ambient(vec![SceneLight {
+        enabled: true,
+        ..Default::default()
+    }]);
+    for layer in 0..2 {
+        renderer.set_scene_lighting(layer, &lighting);
+        renderer.flush(layer, Rc::clone(&dirty));
+    }
+    lighting.lights[0].intensity += 0.5;
+    for layer in 0..2 {
+        renderer.set_scene_lighting(layer, &lighting);
+        renderer.flush(layer, Rc::clone(&dirty));
+    }
+    let flushed = renderer.flushed_surfaces.borrow().clone();
+    assert_eq!(flushed.len(), 1);
+    assert_eq!((flushed[0].0, flushed[0].1), (0, 0));
+    assert_eq!(flushed[0].2.vector_geometry_rebuilds, 0);
+    assert_eq!(flushed[0].2.vector_resource_updates, 0);
+    assert_eq!(flushed[0].2.texture_upload_bytes, 0);
+
+    // Tile migration removes the previous recipient and updates the new tile's
+    // dependency summary. Lighting still arrives before subsequent node recording.
+    let bounds = Rect::new(33.0, 1.0, 63.0, 31.0);
+    assert!(renderer.begin_node_with_bounds(0, 1, 0, bounds, 1));
+    renderer.fill_with_opacity(
+        0,
+        bounds.to_path(0.1),
+        &pax_runtime_api::Paint::Solid(pax_runtime_api::Color::WHITE),
+        1.0,
+    );
+    renderer.end_node(0, 1);
+    renderer.flush(0, Rc::clone(&dirty));
+    lighting.lights[0].intensity += 0.5;
+    renderer.set_scene_lighting(0, &lighting);
+    renderer.flush(0, Rc::clone(&dirty));
+    let flushed = renderer.flushed_surfaces.borrow().clone();
+    assert_eq!(flushed.len(), 1);
+    assert_eq!((flushed[0].0, flushed[0].1), (0, 1));
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
 fn incremental_tiles_preserve_survivor_scene_and_uploads() {
     let a = entry("a", "a:1", 0.0);
     let b = entry("b", "b:1", 32.0);

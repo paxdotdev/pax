@@ -153,16 +153,13 @@ impl InstanceNode for LightSourceInstance {
             direction.untyped(),
             enabled.untyped(),
         ];
-        let cloned_expanded_node = expanded_node.clone();
         let cloned_context = context.clone();
 
         expanded_node
             .changed_listener
             .replace_with(LocalProperty::computed(
                 move || {
-                    cloned_context.set_all_canvases_dirty();
-                    cloned_context
-                        .set_canvas_dirty(cloned_expanded_node.occlusion.get().render_layer_id);
+                    cloned_context.mark_scene_lighting_dirty();
                 },
                 deps,
             ));
@@ -278,16 +275,13 @@ impl InstanceNode for AmbientLightInstance {
             });
 
         let deps = &[color.untyped(), intensity.untyped(), enabled.untyped()];
-        let cloned_expanded_node = expanded_node.clone();
         let cloned_context = context.clone();
 
         expanded_node
             .changed_listener
             .replace_with(LocalProperty::computed(
                 move || {
-                    cloned_context.set_all_canvases_dirty();
-                    cloned_context
-                        .set_canvas_dirty(cloned_expanded_node.occlusion.get().render_layer_id);
+                    cloned_context.mark_scene_lighting_dirty();
                 },
                 deps,
             ));

@@ -32,8 +32,11 @@ impl HeroSection {
         let visible =
             -origin.y * height < ctx.viewport.get().height && (1.0 - origin.y) * height > 0.0;
         if self.playing.get() && visible && self.logo_progress.get() < 1.0 {
-            self.logo_progress
-                .set((self.logo_progress.get() + dt / 1800.0).min(1.0));
+            self.logo_progress.set(
+                (self.logo_progress.get()
+                    + dt / (1800.0 * crate::rotating_headline::HERO_TIMING_SCALE))
+                    .min(1.0),
+            );
         }
     }
 

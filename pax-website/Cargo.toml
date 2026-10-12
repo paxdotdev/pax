@@ -29,10 +29,6 @@ paxflix = { version = "0.39.0", path = "../examples/src/paxflix" }
 pest = "=2.8.7"
 pest_derive = "=2.8.7"
 
-[dev-dependencies]
-# Verify checked-in paths against the retained experimental shaping helper.
-pax-text = { path = "../pax-text" }
-
 [target.'cfg(target_vendor = "apple")'.dependencies]
 # backtrace 0.3.76 needs dyld bindings removed from iOS in libc 0.2.190.
 libc = "=0.2.189"
