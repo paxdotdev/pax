@@ -19,7 +19,7 @@ use crate::constants::{
     WHEEL_HANDLERS,
 };
 use_RefCell!();
-use crate::cartridge::evaluate_timeline_duration;
+use crate::cartridge::{evaluate_timeline_duration, CommonPropertiesBindMode};
 use crate::{ExpandedNodeIdentifier, Globals, LayoutHull, LayoutProperties, TransformAndBounds};
 use core::fmt;
 use std::cell::Cell;
@@ -66,8 +66,8 @@ use pax_manifest::cartridge_generation::{
     TRANSITION_PLAYHEAD_SYMBOL, TRANSITION_TAKEOVER_SYMBOL,
 };
 use pax_manifest::{
-    ExpressionInfo, LocationInfo, SelectorExpr, SettingsBlockElement, TypeId,
-    UniqueTemplateNodeIdentifier, ValueDefinition,
+    ExpressionInfo, LocationInfo, SelectorExpr, TypeId, UniqueTemplateNodeIdentifier,
+    ValueDefinition,
 };
 
 use crate::{
@@ -84,7 +84,9 @@ pub struct RuntimeSettingsLayer {
     /// must resolve `self` and provider properties here, even though their
     /// resulting values are applied to a different node.
     pub provider_stack: Rc<RuntimePropertiesStackFrame>,
-    pub settings: Vec<SettingsBlockElement>,
+    /// Immutable definitions shared with the provider template. Convert manifest
+    /// settings with `PreparedRuntimeSettings::from` when constructing a layer.
+    pub settings: crate::PreparedRuntimeSettings,
     pub transition: Option<LocalProperty<Option<crate::SettingsTransitionConfig>>>,
 }
 
@@ -104,9 +106,12 @@ pub struct RuntimeSettingsSignatureEntry {
     pub transition_enabled: bool,
     pub provider_id: ExpandedNodeIdentifier,
     pub provider_type_id: TypeId,
+    /// Runtime template/sidecar revision; ordinary provider values are reactive
+    /// inputs, not changes to the imported layer's identity.
+    pub provider_revision: u64,
 }
 
-// Discovery runs every frame. Keep only handles until the ordered provider
+// Keep only handles until the ordered provider
 // signature changes; copying settings also copies their entire expression trees.
 struct DiscoveredSettingsProvider {
     node: Rc<ExpandedNode>,
@@ -122,6 +127,12 @@ impl DiscoveredSettingsProvider {
                 .and_then(|policy| policy.get())
                 .is_some(),
             provider_id: self.node.id,
+            provider_revision: self
+                .node
+                .settings_source_revision
+                .borrow()
+                .as_ref()
+                .map_or(0, LocalProperty::get),
             provider_type_id: borrow!(self.node.instance_node)
                 .base()
                 .template_node_type_id
@@ -174,18 +185,31 @@ pub struct RuntimeSettingsCondition {
     pub negative: Vec<ExpressionInfo>,
 }
 
+/// Immutable syntax and provenance shared by resolved settings entries.
+/// Replacing a template prepares new definitions; values are evaluated per node.
+#[derive(Clone, Debug)]
+pub struct RuntimePropertyDefinition {
+    pub selector: Option<SelectorExpr>,
+    pub source_location: Option<LocationInfo>,
+    pub value: ValueDefinition,
+    pub condition: Option<RuntimeSettingsCondition>,
+    pub axis_index: Option<usize>,
+}
+
 #[derive(Clone)]
 pub struct RuntimeResolvedPropertyEntry {
     pub transition: Option<LocalProperty<Option<crate::SettingsTransitionConfig>>>,
     pub source: RuntimeSettingsSource,
-    pub selector: Option<SelectorExpr>,
-    pub source_location: Option<LocationInfo>,
-    /// Overrides the receiving node's scope when this value came from an
-    /// imported settings provider.
+    /// Overrides the receiving node's scope for imported settings.
     pub source_stack: Option<Rc<RuntimePropertiesStackFrame>>,
-    pub value: ValueDefinition,
-    pub condition: Option<RuntimeSettingsCondition>,
-    pub axis_index: Option<usize>,
+    pub definition: Rc<RuntimePropertyDefinition>,
+}
+
+impl std::ops::Deref for RuntimeResolvedPropertyEntry {
+    type Target = RuntimePropertyDefinition;
+    fn deref(&self) -> &Self::Target {
+        &self.definition
+    }
 }
 
 impl fmt::Debug for RuntimeResolvedPropertyEntry {
@@ -356,6 +380,7 @@ pub struct ExpandedNode {
     /// each slot child, but only the ones that have a "connected" slot should
     /// trigger mount/dismount updates
     pub attached: Cell<u32>,
+    pub(crate) mount_epoch: Cell<u64>,
 
     /// Logical render-layer assignment plus z-order for the current render tree pass.
     ///
@@ -460,6 +485,17 @@ pub struct ExpandedNode {
     pub exit_cleanup_active: Cell<bool>,
     /// Imported provider layers currently active for this component instance.
     pub imported_settings_layers: RefCell<Vec<RuntimeSettingsLayer>>,
+    // Allocated only for nodes visited by import discovery. Ordinary nodes do
+    // not need another graph edge until an importing component observes them.
+    settings_source_revision: RefCell<Option<LocalProperty<u64>>>,
+    imported_settings_observer: RefCell<
+        Option<(
+            LocalProperty<()>,
+            Vec<pax_runtime_api::properties::UntypedProperty>,
+        )>,
+    >,
+    #[cfg(test)]
+    pub(crate) settings_discoveries: Cell<usize>,
     #[cfg(test)]
     pub(crate) settings_layer_materializations: Cell<usize>,
     pub import_settings_transition:
@@ -469,7 +505,9 @@ pub struct ExpandedNode {
     /// Ordered provider-node ids used to detect when the imported layer stack changed.
     pub imported_settings_signature: RefCell<Vec<RuntimeSettingsSignatureEntry>>,
     /// Layered property entries ordered from lowest to highest precedence.
-    pub resolved_property_columns: RefCell<RuntimeResolvedPropertyColumns>,
+    /// This node-local snapshot is shared with binding for the current resolution;
+    /// rebinds replace it without modifying snapshots retained by earlier readers.
+    pub resolved_property_columns: RefCell<Rc<RuntimeResolvedPropertyColumns>>,
     /// Winning property entry per key after layering and inline override.
     pub resolved_property_provenance: RefCell<BTreeMap<String, RuntimeResolvedPropertyEntry>>,
     /// Requests a materialization pass that resets properties removed from the prior columns.
@@ -842,7 +880,7 @@ impl ExpandedNode {
         event: &Event<T>,
         ctx: &Rc<RuntimeContext>,
     ) {
-        if self.is_render_source() {
+        if self.is_render_source() || !ctx.accepts_startup_input(self) {
             return;
         }
         // Input can retain a hover/focus target across a tree replacement. Its
@@ -857,7 +895,7 @@ impl ExpandedNode {
                 let context = self.get_node_context(ctx);
                 for handler in handlers {
                     let owner = self.handler_owner(&handler.location);
-                    if owner.attached.get() == 0 {
+                    if owner.attached.get() == 0 || !ctx.accepts_startup_input(&owner) {
                         continue;
                     }
                     // LocalProperty bindings created by a handler belong to the
@@ -1073,6 +1111,7 @@ impl ExpandedNode {
             stack: env,
             instance_node: RefCell::new(Rc::clone(&template)),
             attached: Cell::new(0),
+            mount_epoch: Cell::new(0),
             properties: RefCell::new(properties),
             common_properties: RefCell::new(common_properties),
             measured_size: LocalProperty::default(),
@@ -1151,17 +1190,31 @@ impl ExpandedNode {
             exit_cleanup_listener: LocalProperty::default(),
             exit_cleanup_active: Cell::new(false),
             imported_settings_layers: RefCell::new(Vec::new()),
+            settings_source_revision: RefCell::new(None),
+            imported_settings_observer: RefCell::new(None),
+            #[cfg(test)]
+            settings_discoveries: Cell::new(0),
             #[cfg(test)]
             settings_layer_materializations: Cell::new(0),
             import_settings_transition: RefCell::new(None),
             settings_motion: Rc::new(RefCell::new(HashMap::new())),
             settings_birth_frame: context.globals().elapsed_frames.get(),
             imported_settings_signature: RefCell::new(Vec::new()),
-            resolved_property_columns: RefCell::new(BTreeMap::new()),
+            resolved_property_columns: RefCell::new(Rc::default()),
             resolved_property_provenance: RefCell::new(BTreeMap::new()),
             reset_removed_runtime_properties: Cell::new(false),
         });
-        template.base().bind_properties(&res);
+        // Only the allocation-only path guarantees that absent common slots
+        // are untouched defaults. Full rebinds clear omitted values and their
+        // dependencies; sparse imported-settings patches carry explicit resets.
+        template.base().bind_properties_with_mode(
+            &res,
+            if legacy_initialization {
+                CommonPropertiesBindMode::Existing
+            } else {
+                CommonPropertiesBindMode::FreshDefaults
+            },
+        );
         if legacy_initialization {
             let common_properties = Rc::clone(&*borrow!(res.common_properties));
             *res.selector_metadata.borrow_mut() =
@@ -1192,7 +1245,11 @@ impl ExpandedNode {
                 .map(|(name, value)| (name.clone(), value.get_untyped_property().get_id()))
                 .collect::<HashMap<_, _>>()
         });
+        let source_changed = !Rc::ptr_eq(&borrow!(self.instance_node), &template);
         *borrow_mut!(self.instance_node) = Rc::clone(&template);
+        if source_changed {
+            self.invalidate_settings_source();
+        }
         template.base().bind_properties(self);
         self.refresh_properties_scope(&template);
         if let Some(previous) = previous {
@@ -1347,6 +1404,14 @@ impl ExpandedNode {
         borrow!(self.mounted_children).clone()
     }
 
+    /// Presentation/dirty-walk children. During incremental startup this reads
+    /// only mounted attachments, without forcing reactive structural expansion.
+    pub fn presentation_children(&self, context: &RuntimeContext) -> Vec<Rc<ExpandedNode>> {
+        if context.startup.borrow().is_active() {
+            self.current_attached_children().into_iter().filter(|c| c.attached.get() > 0).collect()
+        } else { self.children.get() }
+    }
+
     pub(crate) fn rescue_exiting_child_matching(
         self: &Rc<Self>,
         predicate: impl Fn(&Rc<ExpandedNode>) -> bool,
@@ -1384,6 +1449,17 @@ impl ExpandedNode {
         combined.extend(active_children);
         *borrow_mut!(self.mounted_children) = combined.clone();
         combined
+    }
+
+    pub(crate) fn accepts_pending_child(&self, child: &Rc<Self>) -> bool {
+        self.attached.get() > 0 && Self::has_child(&borrow!(self.active_children), child)
+    }
+
+    pub(crate) fn finish_pending_child(self: &Rc<Self>, child: &Rc<Self>, context: &Rc<RuntimeContext>) {
+        self.sync_mounted_children_from_active_and_exiting();
+        child.trigger_bound_enter_transitions_for_mounted_sources_recursive(context);
+        self.mark_non_reactive_update_subtree_dirty();
+        context.mark_occlusion_dirty();
     }
 
     fn has_child(children: &[Rc<ExpandedNode>], target: &Rc<ExpandedNode>) -> bool {
@@ -1977,12 +2053,14 @@ impl ExpandedNode {
         let mut bindings_changed = false;
         for child in new_children.iter() {
             let previous_parent = borrow!(child.render_parent).upgrade();
-            let is_reparented = child.attached.get() > 0
-                && previous_parent
-                    .as_ref()
-                    .is_some_and(|parent| parent.id != self.id);
+            let parent_changed = previous_parent.as_ref().is_some_and(|parent| parent.id != self.id);
+            let is_reparented = child.attached.get() > 0 && parent_changed;
             if is_reparented {
                 child.mark_canvas_subtree_dirty_for_reparent(context, true);
+            }
+            // Pending slot children also have one render parent. Leaving them in
+            // the previous parent's list would publish them twice after mounting.
+            if parent_changed {
                 if let Some(previous_parent) = previous_parent.as_ref() {
                     previous_parent.detach_child_for_reparent(child);
                 }
@@ -2032,8 +2110,10 @@ impl ExpandedNode {
                     if child.attached.get() > 0 {
                         child.start_enter_transition_tree(context);
                     } else {
-                        Rc::clone(child).recurse_mount(context);
-                        newly_mounted_children.push(Rc::clone(child));
+                        if !context.defer_initial_mount(self, child) {
+                            Rc::clone(child).recurse_mount(context);
+                            newly_mounted_children.push(Rc::clone(child));
+                        }
                     }
                 }
             }
@@ -2057,6 +2137,7 @@ impl ExpandedNode {
             child.ensure_parent_bindings(self, context, parent_frame, &self.liquid_glass_scope);
         }
         *borrow_mut!(self.sidecar_children) = new_children.clone();
+        self.invalidate_settings_source();
         self.mark_non_reactive_update_subtree_dirty();
         new_children
     }
@@ -2646,14 +2727,23 @@ impl ExpandedNode {
     }
 
     pub fn recurse_update(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
-        // Settle queued reactive effects before checking which subtrees still need
-        // imperative work, then flush any effects produced by that non-reactive pass.
-        context.drain_node_effects();
-        self.recurse_update_mounted(context);
-        context.drain_node_effects();
+        self.recurse_update_with_observer(context, |_| {});
     }
 
-    fn recurse_update_mounted(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
+    pub(crate) fn recurse_update_with_observer(
+        self: &Rc<Self>,
+        context: &Rc<RuntimeContext>,
+        mut completed: impl FnMut(&'static str),
+    ) {
+        // Settle queued reactive effects before checking which subtrees still need
+        // imperative work, then flush any effects produced by that non-reactive pass.
+        context.drain_node_effects_with_observer(&mut completed);
+        self.recurse_update_mounted(context);
+        completed("imperative_update");
+        context.drain_node_effects_with_observer(&mut completed);
+    }
+
+    pub(crate) fn recurse_update_mounted(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
         if self.attached.get() == 0 || !self.subtree_requires_non_reactive_update.get() {
             return;
         }
@@ -2683,15 +2773,38 @@ impl ExpandedNode {
             .set(subtree_requires_non_reactive_update);
     }
 
-    pub fn recurse_sync_import_settings(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
-        if borrow!(self.instance_node).base().flags().is_component {
-            self.sync_imported_settings(context);
+    fn rebind_imported_settings(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
+        let instance = Rc::clone(&*borrow!(self.instance_node));
+        self.reset_removed_runtime_properties.set(true);
+        if self.stores.has_providers() || !instance.base().can_rebind_settings_in_place() {
+            // A store may retain an alias that changes when the settings change.
+            // Recreation detects that case and remounts the provider/consumers;
+            // custom factories also retain their existing callback ordering.
+            self.recreate_with_new_data(instance, context);
+            return;
         }
-        for child in self.children.get().iter() {
-            child.recurse_sync_import_settings(context);
+
+        let _graph = context.property_graph.enter();
+        let _scope = self.property_binding_scope.borrow().enter();
+        let changed = instance.base().apply_imported_settings_patch(self);
+        self.reset_removed_runtime_properties.set(false);
+        if !changed {
+            return;
         }
-        for child in borrow!(self.sidecar_children).iter() {
-            child.recurse_sync_import_settings(context);
+        context.unregister_viewport_proximity(self.id.to_u32());
+        self.refresh_properties_scope(&instance);
+        self.mark_non_reactive_update_subtree_dirty();
+        context.mark_occlusion_dirty();
+        context.set_canvas_dirty(self.occlusion.get().render_layer_id);
+        // The template, parent, class binding, and common-property handles are
+        // unchanged. Their existing subscriptions observe the new bindings.
+        // Typed properties can still change aliases, so refresh their consumers.
+        self.bind_occlusion_listener(context);
+        if self.attached.get() > 0 {
+            context.refresh_scene_lighting_node(self);
+            context.viewport_structure_changed();
+            context.register_viewport_proximity(self);
+            context.invalidate_scene_geometry(self.id.to_u32());
         }
     }
 
@@ -2711,9 +2824,7 @@ impl ExpandedNode {
             .unwrap_or(false);
 
         if owned_by_component {
-            self.reset_removed_runtime_properties.set(true);
-            let instance = borrow!(self.instance_node).clone();
-            self.recreate_with_new_data(instance, context);
+            self.rebind_imported_settings(context);
         }
 
         let children = self.children.get();
@@ -2741,12 +2852,25 @@ impl ExpandedNode {
         self.property_binding_scope.borrow().resume();
         let _scope = self.property_binding_scope.borrow().enter();
         if self.attached.get() == 0 {
+            if context.startup.borrow().is_active() {
+                // A projected child can have been constructed before its owner's
+                // ImportSettings subtree was prepared. Refresh that dependency
+                // before creating mount-time subscriptions or running user code.
+                if let Some(owner) = self.containing_component.upgrade() {
+                    let discovery = owner.imported_settings_observer.borrow().as_ref()
+                        .map(|(effect, _)| effect.clone());
+                    if let Some(discovery) = discovery { discovery.get(); }
+                    else { owner.sync_imported_settings(context); }
+                    self.rebind_imported_settings(context);
+                }
+            }
             self.stores.mount(self.template_parent.upgrade().as_deref());
-            // All bindings are installed before mount. Materialize their local
-            // views now so shared snapshots seen by handlers are initialized.
+            // All bindings are installed before mount. Prepare values so shared
+            // snapshots seen by handlers are initialized; common properties do
+            // not need an expression-conversion cache for this typed read.
             let scope: Vec<_> = borrow!(self.properties_scope).values().cloned().collect();
             for property in scope {
-                property.get_as_pax_value();
+                property.prepare();
             }
             // Materialize projected children before mount so Slot can resolve them.
             borrow!(self.instance_node)
@@ -2761,6 +2885,7 @@ impl ExpandedNode {
                 // This is needed to resolve slot connections in a single tick.
                 self.compute_flattened_projected_children();
             }
+            self.mount_epoch.set(self.mount_epoch.get().wrapping_add(1));
             self.attached.set(self.attached.get() + 1);
             self.start_self_enter_transition(context);
             context.add_to_cache(&self);
@@ -2845,7 +2970,14 @@ impl ExpandedNode {
             borrow_mut!(self.import_settings_transition).take();
             borrow_mut!(self.imported_settings_layers).clear();
             borrow_mut!(self.imported_settings_signature).clear();
-            borrow_mut!(self.resolved_property_columns).clear();
+            if let Some((observer, dependencies)) =
+                self.imported_settings_observer.borrow_mut().as_mut()
+            {
+                observer.replace_with(LocalProperty::default());
+                dependencies.clear();
+            }
+            self.invalidate_settings_source();
+            *borrow_mut!(self.resolved_property_columns) = Rc::default();
             borrow_mut!(self.resolved_property_provenance).clear();
             self.reset_removed_runtime_properties.set(false);
             self.active_children_view.set(Vec::new());
@@ -2926,8 +3058,13 @@ impl ExpandedNode {
         descend_components: bool,
         providers: &mut Vec<DiscoveredSettingsProvider>,
         transition: Option<LocalProperty<Option<crate::SettingsTransitionConfig>>>,
+        dependencies: &mut Vec<pax_runtime_api::properties::UntypedProperty>,
     ) {
+        node.settings_discovery_dependencies(dependencies);
         if node.is_import_settings_node() {
+            if let Some(policy) = node.import_settings_transition.borrow().as_ref() {
+                dependencies.push(policy.untyped());
+            }
             let sidecar_children = borrow!(node.sidecar_children).clone();
             for child in sidecar_children.iter() {
                 Self::collect_imported_settings_from_node(
@@ -2938,6 +3075,7 @@ impl ExpandedNode {
                     transition
                         .clone()
                         .or_else(|| node.import_settings_transition.borrow().clone()),
+                    dependencies,
                 );
             }
             return;
@@ -2964,6 +3102,7 @@ impl ExpandedNode {
                         true,
                         providers,
                         transition.clone(),
+                        dependencies,
                     );
                 }
                 let sidecar_children = borrow!(node.sidecar_children).clone();
@@ -2974,6 +3113,7 @@ impl ExpandedNode {
                         true,
                         providers,
                         transition.clone(),
+                        dependencies,
                     );
                 }
                 return;
@@ -2991,6 +3131,7 @@ impl ExpandedNode {
                 descend_components,
                 providers,
                 transition.clone(),
+                dependencies,
             );
         }
         let sidecar_children = borrow!(node.sidecar_children).clone();
@@ -3001,20 +3142,41 @@ impl ExpandedNode {
                 descend_components,
                 providers,
                 transition.clone(),
+                dependencies,
             );
         }
     }
 
     pub fn sync_imported_settings(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
+        #[cfg(test)]
+        self.settings_discoveries
+            .set(self.settings_discoveries.get() + 1);
+        let mut dependencies = Vec::new();
+        self.settings_discovery_dependencies(&mut dependencies);
         let mut providers = Vec::new();
         let children = self.children.get();
         for child in children.iter() {
-            Self::collect_imported_settings_from_node(child, false, false, &mut providers, None);
+            Self::collect_imported_settings_from_node(
+                child,
+                false,
+                false,
+                &mut providers,
+                None,
+                &mut dependencies,
+            );
         }
         let sidecar_children = borrow!(self.sidecar_children).clone();
         for child in sidecar_children.iter() {
-            Self::collect_imported_settings_from_node(child, false, false, &mut providers, None);
+            Self::collect_imported_settings_from_node(
+                child,
+                false,
+                false,
+                &mut providers,
+                None,
+                &mut dependencies,
+            );
         }
+        self.bind_imported_settings_observer(context, dependencies);
 
         let signature = providers
             .iter()
@@ -3038,6 +3200,68 @@ impl ExpandedNode {
             child.recurse_reapply_runtime_settings_for_component_owner(self.id, context);
             child.recurse_emit_mount_updates();
         }
+    }
+
+    fn settings_discovery_dependencies(
+        &self,
+        dependencies: &mut Vec<pax_runtime_api::properties::UntypedProperty>,
+    ) {
+        dependencies.push(self.children.untyped());
+        let mut revision = self.settings_source_revision.borrow_mut();
+        dependencies.push(
+            revision
+                .get_or_insert_with(|| LocalProperty::new(0))
+                .untyped(),
+        );
+    }
+
+    fn invalidate_settings_source(&self) {
+        if let Some(revision) = self.settings_source_revision.borrow().as_ref() {
+            revision.set(revision.get().wrapping_add(1));
+        }
+    }
+
+    fn bind_imported_settings_observer(
+        self: &Rc<Self>,
+        context: &Rc<RuntimeContext>,
+        dependencies: Vec<pax_runtime_api::properties::UntypedProperty>,
+    ) {
+        let mut observer = self.imported_settings_observer.borrow_mut();
+        if observer.as_ref().is_some_and(|(_, previous)| {
+            previous.len() == dependencies.len()
+                && previous
+                    .iter()
+                    .zip(&dependencies)
+                    .all(|(a, b)| a.get_id() == b.get_id())
+        }) {
+            return;
+        }
+        let weak_self = Rc::downgrade(self);
+        let ctx = Rc::clone(context);
+        let computation = LocalProperty::computed_with_name(
+            move || {
+                if let Some(node) = weak_self.upgrade() {
+                    node.sync_imported_settings(&ctx);
+                }
+            },
+            &dependencies,
+            "imported settings discovery",
+        );
+        // Preserve identity when a structural change replaces the dependencies,
+        // even when discovery is executing inside this effect. The replacement
+        // settles once; unchanged inputs never enqueue it again.
+        let effect = if let Some((effect, _)) = observer.as_ref() {
+            effect.replace_with(computation);
+            effect.clone()
+        } else {
+            computation
+        };
+        context.register_expanded_node_effect_property_named(
+            self,
+            &effect,
+            "imported settings discovery",
+        );
+        *observer = Some((effect, dependencies));
     }
 
     pub fn recurse_render_queue(
@@ -3084,7 +3308,7 @@ impl ExpandedNode {
             return;
         }
         borrow!(self.instance_node).handle_pre_render(&self, ctx, rcs);
-        for child in self.children.get().iter().rev() {
+        for child in self.presentation_children(ctx).iter().rev() {
             if render_path_nodes.contains(&child.id) {
                 child.recurse_render_filtered(ctx, rcs, render_path_nodes, dirty_nodes, stats);
             } else {
@@ -3107,7 +3331,7 @@ impl ExpandedNode {
             return;
         }
         borrow!(self.instance_node).handle_pre_render(&self, ctx, rcs);
-        for child in self.children.get().iter().rev() {
+        for child in self.presentation_children(ctx).iter().rev() {
             child.recurse_render_queue(ctx, rcs);
         }
         borrow!(self.instance_node).render(&self, ctx, rcs);
@@ -3155,7 +3379,7 @@ impl ExpandedNode {
         if supported {
             borrow!(self.instance_node).handle_pre_render(self, ctx, rcs);
         }
-        for child in self.children.get().iter().rev() {
+        for child in self.presentation_children(ctx).iter().rev() {
             if child.is_unclippable() {
                 deferred.push(Rc::clone(child));
             } else {

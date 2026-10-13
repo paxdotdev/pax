@@ -1,3 +1,4 @@
+import {InitialTextPresentation} from "./initial-text-presentation";
 import {BUTTON_CLASS, BUTTON_TEXT_CONTAINER_CLASS,
     NATIVE_LEAF_CLASS, CHECKBOX_CLASS, RADIO_LIST_CLASS, SCROLLER_CONTAINER,
     CANVAS_CLASS, NATIVE_OVERLAY_CLASS, INNER_PANE} from "../utils/constants";
@@ -104,6 +105,9 @@ export class NativeElementPool {
     private postAsyncInterruptFlush?: () => void;
     private objectManager: ObjectManager;
     private resizeObserver: ResizeObserver;
+    private textFlushQueued = false;
+    private textStates = new Map<number, InitialTextPresentation>();
+    private pendingTextPresentation = new Map<number, InitialTextPresentation>();
     registeredFontFaces: Set<string>;
     private canvasPool?: CanvasPool;
 
@@ -119,22 +123,41 @@ export class NativeElementPool {
             this.activateScrollerMeasurement(this.activePageScrollScrollerId);
         };
         this.resizeObserver = new ResizeObserver(entries => {
-            let resize_requests = [];
+            if (!this.chassis) return;
+            const resizeRequests = [];
             for (const entry of entries) {
-                let node = entry.target as HTMLElement;
-                let id = parseInt(node.getAttribute("pax_id")!);
-                let width = entry.contentRect.width;
-                let height = entry.contentRect.height;
-                let message ={
-                    "id": id,
-                    "width": width,
-                    "height": height,
+                const node = entry.target as HTMLElement;
+                const id = Number(node.getAttribute("pax_id"));
+                const state = this.textStates.get(id);
+                // Fallback metrics still settle hidden layout while fonts load.
+                if (!state || this.nodesLookup.get(id) !== node) continue;
+                const {width, height} = entry.contentRect;
+                const generation = state.measuredSize();
+                if (generation != null) {
+                    this.chassis.interrupt({TextMeasurementResponse: {id, generation, width, height}}, undefined);
+                } else {
+                    // Browser edits and later font/size changes can arrive without
+                    // a new engine request; preserve their resize feedback.
+                    resizeRequests.push({id, width, height});
                 }
-                resize_requests.push(message);
             }
-            this.chassis!.interrupt({
-                "ChassisResizeRequestCollection": resize_requests,
-            }, undefined);
+            if (resizeRequests.length) {
+                this.chassis.interrupt({ChassisResizeRequestCollection: resizeRequests}, undefined);
+            }
+            this.requestTextFrame();
+        });
+    }
+
+    // Many labels share a font promise. Their readiness callbacks must trigger
+    // one layout pass, not one synchronous engine tick per label.
+    private requestTextFrame() {
+        if (this.textFlushQueued) return;
+        this.textFlushQueued = true;
+        const chassis = this.chassis;
+        queueMicrotask(() => {
+            if (this.chassis !== chassis) return;
+            this.textFlushQueued = false;
+            this.postAsyncInterruptFlush?.();
         });
     }
 
@@ -227,6 +250,9 @@ export class NativeElementPool {
         this.lastAdmissionSignature = undefined;
         this.layerCanvasPlanCache.clear();
         this.nodesLookup.clear();
+        this.textFlushQueued = false;
+        this.textStates.clear();
+        this.pendingTextPresentation.clear();
         this.scrollerHosts.clear();
         this.scrollerMeasurementStates.clear();
         this.presentationRecords.clear();
@@ -1180,6 +1206,18 @@ export class NativeElementPool {
         });
     }
 
+    finishTextFrame() {
+        for (const [id, state] of this.pendingTextPresentation) {
+            if (state.afterFrame()) {
+                this.nodesLookup.get(id)!.style.visibility = "";
+                // Focus needs visibility; run it after restoring the leaf's paint.
+                state.onPresent?.();
+                state.onPresent = undefined;
+                this.pendingTextPresentation.delete(id);
+            }
+        }
+    }
+
     textCreate(patch: AnyCreatePatch) {
         console.assert(patch.id != null);
         console.assert(patch.renderLayerId != null);
@@ -1188,6 +1226,10 @@ export class NativeElementPool {
         let textChild: HTMLDivElement = this.objectManager.getFromPool(DIV);
         // Text should be allowed to paint outside its measured box by default;
         // otherwise large headings get clipped by native leaf paint containment.
+        textDiv.style.visibility = "hidden";
+        const state = new InitialTextPresentation();
+        this.textStates.set(patch.id!, state);
+        this.pendingTextPresentation.set(patch.id!, state);
         textDiv.style.overflow = "visible";
         textDiv.style.contain = "layout style";
         textChild.style.overflow = "visible";
@@ -1224,6 +1266,12 @@ export class NativeElementPool {
     textUpdate(patch: TextUpdatePatch) {
         let leaf = this.nodesLookup.get(patch.id!) as HTMLElement;
         let textChild = leaf!.firstChild as HTMLElement;
+        const id = patch.id!;
+        const state = this.textStates.get(id)!;
+        state.updated = true;
+        if (patch.measure_generation != null) state.requestMeasurement(patch.measure_generation);
+        if (patch.style?.font) state.font = patch.style.font.ready;
+        if (patch.style_link?.font) state.linkFont = patch.style_link.font.ready;
         this.applyLeafPlacement(leaf, patch);
         const syncTextPointerEvents = () => {
             const editable = textChild.getAttribute("contenteditable") !== "false";
@@ -1260,8 +1308,13 @@ export class NativeElementPool {
             }
         }
 
-        if (start_listening) {
+        if (start_listening || (patch.measure_generation != null &&
+            (leaf.style.width === "auto" || leaf.style.height === "auto"))) {
+            this.resizeObserver.unobserve(leaf);
             this.resizeObserver.observe(leaf);
+        } else if (leaf.style.width !== "auto" && leaf.style.height !== "auto") {
+            state.fixedSize();
+            this.resizeObserver.unobserve(leaf);
         }
 
         // Handle transform
@@ -1281,7 +1334,8 @@ export class NativeElementPool {
                 textChild.style.outline = "none";
 
 
-                setTimeout(() => {
+                const focus = () => {
+                    if (!textChild.isConnected || textChild.getAttribute("contenteditable") === "false") return;
                     textChild.focus();
 
                     // Move the cursor to the end of the text
@@ -1290,7 +1344,9 @@ export class NativeElementPool {
                     const selection = window.getSelection();
                     selection!.removeAllRanges();
                     selection!.addRange(range)                    
-                }, 1);
+                };
+                if (state.presented) setTimeout(focus, 1);
+                else state.onPresent = focus;
                 // Focus on the editable div
             } else {
                 textChild.setAttribute("contenteditable", "false");
@@ -1361,9 +1417,26 @@ export class NativeElementPool {
                 });
             }
         }
+
+        const fonts = [state.font, textChild.querySelector("a") ? state.linkFont : undefined].filter(
+            (font): font is Promise<void> => font != null,
+        );
+        if (fonts.length) state.waitForFonts(fonts, () => {
+            if (this.textStates.get(id) !== state) return;
+            // ResizeObserver may already have reported the fallback font. Ask for
+            // a fresh observation even when the loaded font has identical metrics.
+            if (leaf.style.width === "auto" || leaf.style.height === "auto") {
+                state.waitForFontMeasurement();
+                this.resizeObserver.unobserve(leaf);
+                this.resizeObserver.observe(leaf);
+            }
+            this.requestTextFrame();
+        });
     }
 
     textDelete(id: number) {
+        this.textStates.delete(id);
+        this.pendingTextPresentation.delete(id);
         let oldNode = this.nodesLookup.get(id);
         this.resizeObserver.unobserve(oldNode!);
         if (oldNode){

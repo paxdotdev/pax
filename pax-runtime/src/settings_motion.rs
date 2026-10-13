@@ -595,12 +595,14 @@ mod tests {
                 provider_type_id: TypeId::default(),
             },
             transition: Some(LocalProperty::new(owner().get().config)),
-            selector: None,
-            source_location: None,
             source_stack: Some(stack.clone()),
-            value: ValueDefinition::Undefined,
-            condition: Some(condition_info.clone()),
-            axis_index: None,
+            definition: Rc::new(crate::RuntimePropertyDefinition {
+                selector: None,
+                source_location: None,
+                value: ValueDefinition::Undefined,
+                condition: Some(condition_info.clone()),
+                axis_index: None,
+            }),
         }];
         let target = crate::apply_runtime_settings_condition(
             "value",

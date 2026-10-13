@@ -17,7 +17,10 @@ Type: [`PropertiesInit`](../../../api/internal/pax-runtime/rendering.md#properti
 Type: [`CommonPropertiesInit`](../../../api/internal/pax-runtime/rendering.md#commonpropertiesinit)
 
 ##### `component_settings`
-Type: `Option`<`Vec`<[`SettingsBlockElement`](../../../api/internal/pax-manifest/index.md#settingsblockelement)>>
+Type: `Option`<[`PreparedRuntimeSettings`](../../../api/internal/pax-runtime/cartridge.md#preparedruntimesettings)>
+
+Prepared definitions shared by expanded instances. Instantiation inputs
+remain manifest settings; replacing a template prepares a new definition.
 
 ##### `template_node_identifier`
 Type: `Option`<[`UniqueTemplateNodeIdentifier`](../../../api/internal/pax-manifest/index.md#uniquetemplatenodeidentifier)>

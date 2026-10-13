@@ -16,11 +16,10 @@ use piet::{Color, StrokeStyle};
 use crate::api::{Layer, Scroll, Window};
 
 use crate::{
-    create_new_common_properties, create_new_common_properties_from_columns,
-    property_columns_from_defined_properties, update_existing_common_properties,
-    update_existing_common_properties_from_columns, ErasedComponentDescriptor, ExpandedNode,
-    HandlerRegistry, ReceivedChildrenSource, RuntimeContext, RuntimePropertiesStackFrame,
-    TemplatePropertyPlan,
+    bind_common_properties_from_columns, create_new_common_properties,
+    create_new_common_properties_from_columns, property_columns_from_defined_properties,
+    CommonPropertiesBindMode, ErasedComponentDescriptor, ExpandedNode, HandlerRegistry,
+    ReceivedChildrenSource, RuntimeContext, RuntimePropertiesStackFrame, TemplatePropertyPlan,
 };
 use pax_manifest::ValueDefinition;
 
@@ -83,16 +82,30 @@ impl CommonPropertiesInit {
         stack_frame: Rc<RuntimePropertiesStackFrame>,
         expanded_node: Option<Rc<ExpandedNode>>,
     ) -> Option<Rc<RefCell<CommonProperties>>> {
+        self.materialize_with_mode(
+            stack_frame,
+            expanded_node,
+            CommonPropertiesBindMode::Existing,
+        )
+    }
+
+    fn materialize_with_mode(
+        &self,
+        stack_frame: Rc<RuntimePropertiesStackFrame>,
+        expanded_node: Option<Rc<ExpandedNode>>,
+        mode: CommonPropertiesBindMode,
+    ) -> Option<Rc<RefCell<CommonProperties>>> {
         match self {
             CommonPropertiesInit::Default => expanded_node
                 .is_none()
                 .then(|| Rc::new(RefCell::new(CommonProperties::default()))),
             CommonPropertiesInit::Inline { defined_properties } => {
                 if let Some(expanded_node) = expanded_node {
-                    update_existing_common_properties(
+                    bind_common_properties_from_columns(
                         &expanded_node,
-                        defined_properties,
+                        &property_columns_from_defined_properties(defined_properties),
                         &stack_frame,
+                        mode,
                     );
                     None
                 } else {
@@ -105,7 +118,7 @@ impl CommonPropertiesInit {
             CommonPropertiesInit::Template(plan) => {
                 let columns = plan.resolve(expanded_node.as_ref());
                 if let Some(node) = expanded_node {
-                    update_existing_common_properties_from_columns(&node, &columns, &stack_frame);
+                    bind_common_properties_from_columns(&node, &columns, &stack_frame, mode);
                     None
                 } else {
                     Some(create_new_common_properties_from_columns(
@@ -635,7 +648,9 @@ pub struct BaseInstance {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
     pub instance_prototypical_properties: PropertiesInit,
     pub instance_prototypical_common_properties: CommonPropertiesInit,
-    pub component_settings: Option<Vec<SettingsBlockElement>>,
+    /// Prepared definitions shared by expanded instances. Instantiation inputs
+    /// remain manifest settings; replacing a template prepares a new definition.
+    pub component_settings: Option<crate::PreparedRuntimeSettings>,
     pub template_node_identifier: Option<UniqueTemplateNodeIdentifier>,
     pub template_node_type_id: Option<TypeId>,
     pub template_node_selector_info: Option<TemplateNodeSelectorInfo>,
@@ -680,11 +695,30 @@ impl BaseInstance {
             || matches!(self.properties_scope, PropertiesScopeInit::Factory(_))
     }
 
+    // These structured initializers retain the common-property handles used by
+    // selector and layout subscriptions. Mixed/custom initialization and local
+    // scope preparation keep the full recreation ordering.
+    pub(crate) fn can_rebind_settings_in_place(&self) -> bool {
+        matches!(
+            (&self.instance_prototypical_common_properties, &self.instance_prototypical_properties),
+            (CommonPropertiesInit::Template(common), PropertiesInit::Template { plan, .. })
+                if Rc::ptr_eq(common, plan)
+        ) && !self.requires_pre_node_binding()
+    }
+
     /// Bind after stable slots and selector identity exist, before publishing
     /// the final scope and activating listeners/lifecycle handlers.
     /// Paired template initializers share one fresh resolution per bind, including
     /// removal resets on reload. Custom factories keep their ordered callbacks.
     pub(crate) fn bind_properties(&self, node: &Rc<ExpandedNode>) {
+        self.bind_properties_with_mode(node, CommonPropertiesBindMode::Existing);
+    }
+
+    pub(crate) fn bind_properties_with_mode(
+        &self,
+        node: &Rc<ExpandedNode>,
+        mode: CommonPropertiesBindMode,
+    ) {
         if let (
             CommonPropertiesInit::Template(common_plan),
             PropertiesInit::Template { descriptor, plan },
@@ -694,7 +728,7 @@ impl BaseInstance {
         ) {
             if Rc::ptr_eq(common_plan, plan) {
                 let columns = plan.resolve(Some(node));
-                update_existing_common_properties_from_columns(node, &columns, &node.stack);
+                bind_common_properties_from_columns(node, &columns, &node.stack, mode);
                 let properties = Rc::clone(&node.properties.borrow());
                 (descriptor.apply_defined_properties)(
                     descriptor.typed_descriptor,
@@ -707,9 +741,39 @@ impl BaseInstance {
             }
         }
         self.instance_prototypical_common_properties
-            .materialize(Rc::clone(&node.stack), Some(Rc::clone(node)));
+            .materialize_with_mode(Rc::clone(&node.stack), Some(Rc::clone(node)), mode);
         self.instance_prototypical_properties
             .materialize(Rc::clone(&node.stack), Some(Rc::clone(node)));
+    }
+
+    // Restricted to ordinary in-place imported-settings updates. Reloads,
+    // custom factories, stores and local-scope timelines keep their full bind.
+    pub(crate) fn apply_imported_settings_patch(&self, node: &Rc<ExpandedNode>) -> bool {
+        let PropertiesInit::Template { descriptor, plan } = &self.instance_prototypical_properties
+        else {
+            unreachable!("patch requires paired template initializers")
+        };
+        let previous = Rc::clone(&node.resolved_property_columns.borrow());
+        let current = plan.resolve(Some(node));
+        let patch = crate::SettingsPatch::between(&previous, &current);
+        if patch.columns.is_empty() {
+            return false;
+        }
+        bind_common_properties_from_columns(
+            node,
+            &patch.columns,
+            &node.stack,
+            CommonPropertiesBindMode::Patch,
+        );
+        let properties = Rc::clone(&node.properties.borrow());
+        (descriptor.apply_defined_properties)(
+            descriptor.typed_descriptor,
+            &mut properties.borrow_mut(),
+            &patch.columns,
+            &node.stack,
+            Some(node),
+        );
+        true
     }
 
     /// Build shared instance state from compiler-generated instantiation args.
@@ -718,7 +782,7 @@ impl BaseInstance {
             handler_registry: args.handler_registry,
             instance_prototypical_common_properties: args.prototypical_common_properties,
             instance_prototypical_properties: args.prototypical_properties,
-            component_settings: args.component_settings,
+            component_settings: args.component_settings.map(crate::PreparedRuntimeSettings::from),
             instance_children: args.children.unwrap_or_default(),
             flags,
             template_node_identifier: args.template_node_identifier,

@@ -152,7 +152,7 @@ pub struct ScrollerHostInstance {
 }
 
 fn mark_canvas_descendants_dirty(expanded_node: &ExpandedNode, context: &Rc<RuntimeContext>) {
-    for child in expanded_node.children.get().iter() {
+    for child in expanded_node.presentation_children(context).iter() {
         if borrow!(child.instance_node).base().flags().layer == Layer::Canvas {
             context.mark_canvas_node_dirty(child.id);
             context.set_canvas_dirty(child.occlusion.get().render_layer_id);
@@ -161,15 +161,22 @@ fn mark_canvas_descendants_dirty(expanded_node: &ExpandedNode, context: &Rc<Runt
     }
 }
 
-fn resolve_scroller_island_layer(expanded_node: &ExpandedNode) -> Option<usize> {
+fn resolve_scroller_island_layer(
+    expanded_node: &ExpandedNode,
+    context: &RuntimeContext,
+) -> Option<usize> {
     if let Some(layer_id) = expanded_node.browser_content_layer_id.get() {
         return Some(layer_id as usize);
     }
 
     let own_layer = expanded_node.occlusion.get().render_layer_id;
-    fn find_descendant_layer(node: &ExpandedNode, own_layer: usize) -> Option<usize> {
+    fn find_descendant_layer(
+        node: &ExpandedNode,
+        own_layer: usize,
+        context: &RuntimeContext,
+    ) -> Option<usize> {
         let mut resolved: Option<usize> = None;
-        for child in node.children.get().iter() {
+        for child in node.presentation_children(context).iter() {
             let child_layer = child.occlusion.get().render_layer_id;
             if child_layer != own_layer {
                 resolved = Some(match resolved {
@@ -177,7 +184,7 @@ fn resolve_scroller_island_layer(expanded_node: &ExpandedNode) -> Option<usize> 
                     None => child_layer,
                 });
             }
-            if let Some(descendant_layer) = find_descendant_layer(child, own_layer) {
+            if let Some(descendant_layer) = find_descendant_layer(child, own_layer, context) {
                 resolved = Some(match resolved {
                     Some(current) => current.min(descendant_layer),
                     None => descendant_layer,
@@ -187,7 +194,7 @@ fn resolve_scroller_island_layer(expanded_node: &ExpandedNode) -> Option<usize> 
         resolved
     }
 
-    find_descendant_layer(expanded_node, own_layer)
+    find_descendant_layer(expanded_node, own_layer, context)
 }
 
 fn scroller_clip_path(
@@ -442,7 +449,8 @@ impl InstanceNode for ScrollerHostInstance {
                                 || (presentation_scroll.1 - previous_presentation_scroll.1).abs()
                                     > 1e-4;
                         *previous_presentation_scroll = presentation_scroll;
-                        let scroller_island_layer = resolve_scroller_island_layer(&expanded_node);
+                        let scroller_island_layer =
+                            resolve_scroller_island_layer(&expanded_node, &context);
                         let has_scroller_island = scroller_island_layer.is_some();
                         let surface_change = context.set_scroller_surface_state(
                             id,
@@ -646,7 +654,7 @@ impl InstanceNode for ScrollerHostInstance {
             return;
         }
 
-        if resolve_scroller_island_layer(expanded_node).is_some()
+        if resolve_scroller_island_layer(expanded_node, rtc).is_some()
             || root_scroller_delegates_to_page_scroll(expanded_node, rtc)
         {
             return;
@@ -713,7 +721,7 @@ impl InstanceNode for ScrollerHostInstance {
         rtc: &Rc<RuntimeContext>,
         rcs: &mut dyn pax_runtime::api::RenderContext,
     ) {
-        if resolve_scroller_island_layer(expanded_node).is_some()
+        if resolve_scroller_island_layer(expanded_node, rtc).is_some()
             || root_scroller_delegates_to_page_scroll(expanded_node, rtc)
         {
             return;

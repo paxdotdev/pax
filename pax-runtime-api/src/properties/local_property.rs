@@ -203,6 +203,13 @@ impl<T: PropertyValue> LocalProperty<T> {
         PROPERTY_TABLE.with(|t| t.invalidate(self.untyped.id));
     }
 
+    // Nested properties already changed in place. Readers need fresh snapshots,
+    // but re-running this container's evaluator could recreate those properties
+    // and discard the edit (or repeatedly reconstruct styles during a drain).
+    pub(crate) fn notify_nested_change(&self) {
+        PROPERTY_TABLE.with(|t| t.dirtify_outbound(self.untyped.id));
+    }
+
     /// Sets the value only when it differs from the current one.
     ///
     /// Returns `true` when the write changed the property and dirtied dependents.

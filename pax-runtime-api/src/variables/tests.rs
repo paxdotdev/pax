@@ -238,3 +238,270 @@ fn typed_binding_churn_releases_all_properties() {
     }
     assert_eq!(property_table_total_properties_count(), baseline);
 }
+
+#[test]
+fn unused_dynamic_adapters_allocate_nothing_and_clones_share_first_read() {
+    use crate::properties::property_table_total_properties_count as count;
+    let before = count();
+    {
+        let source = LocalProperty::new(7.0_f64);
+        let source_count = count();
+        let variable = Variable::new_from_typed_property(source.clone());
+        let copy = variable.clone();
+        assert_eq!(count(), source_count);
+        let typed = copy.try_typed_binding::<f64>("typed").unwrap();
+        assert_eq!(count(), source_count + 1);
+        assert_eq!(typed.get(), 7.0);
+        source.set(8.0);
+        assert_eq!(f64::try_coerce(variable.get_as_pax_value()).unwrap(), 8.0);
+        let converted_count = count();
+        assert_eq!(
+            converted_count,
+            source_count + 2,
+            "only the typed binding and converter are needed for a scalar"
+        );
+        assert_eq!(f64::try_coerce(copy.get_as_pax_value()).unwrap(), 8.0);
+        assert_eq!(count(), converted_count);
+        source.set(9.0);
+        assert_eq!(f64::try_coerce(copy.get_as_pax_value()).unwrap(), 9.0);
+    }
+    assert_eq!(count(), before);
+}
+
+#[test]
+fn prepare_common_scope_evaluates_values_without_allocating_conversion_adapters() {
+    use crate::properties::property_table_total_properties_count as count;
+    let before = count();
+    {
+        let common = CommonProperties::default();
+        let input = LocalProperty::new(40.0);
+        let evaluations = Rc::new(Cell::new(0));
+        let reads = evaluations.clone();
+        let source = input.clone();
+        common.width.replace_with(LocalProperty::computed(
+            move || {
+                reads.set(reads.get() + 1);
+                Some(Size::Pixels(source.get().into()))
+            },
+            &[input.untyped()],
+        ));
+        let scope = common.retrieve_property_scope();
+        let width = scope["width"].clone();
+        let slots = count();
+        for _ in 0..2 {
+            for variable in scope.values() {
+                variable.prepare();
+            }
+        }
+        assert_eq!(evaluations.get(), 1, "prepare reuses a clean typed value");
+        assert_eq!(
+            count(),
+            slots,
+            "no common-property conversion graph is needed"
+        );
+
+        input.set(60.0);
+        width.prepare();
+        assert_eq!(evaluations.get(), 2);
+        assert_eq!(count(), slots);
+        input.set(80.0);
+        assert_eq!(
+            Option::<Size>::try_coerce(width.get_as_pax_value()).unwrap(),
+            Some(Size::Pixels(80.0.into()))
+        );
+        assert_eq!(count(), slots + 1);
+        assert_eq!(evaluations.get(), 3);
+        assert_eq!(
+            scope["width"].get_as_pax_value(),
+            width.get_as_pax_value(),
+            "clones share the first converted read"
+        );
+        assert_eq!(count(), slots + 1);
+
+        let replacement = LocalProperty::new(100.0);
+        let source = replacement.clone();
+        common.width.replace_with(LocalProperty::computed(
+            move || Some(Size::Pixels(source.get().into())),
+            &[replacement.untyped()],
+        ));
+        let slots = count();
+        width.prepare();
+        assert_eq!(count(), slots, "replacing a binding preserves preparation");
+        replacement.set(120.0);
+        assert_eq!(
+            Option::<Size>::try_coerce(width.get_as_pax_value()).unwrap(),
+            Some(Size::Pixels(120.0.into()))
+        );
+    }
+    assert_eq!(count(), before);
+}
+
+#[test]
+fn prepare_preserves_custom_conversion_and_reuses_its_cache() {
+    let source = LocalProperty::new(Counted(vec![vec![1.0]]));
+    let variable = Variable::new_from_typed_property(source.clone());
+    CONVERSIONS.with(|n| n.set(0));
+    variable.prepare();
+    variable.prepare();
+    assert_eq!(CONVERSIONS.with(Cell::get), 1);
+    source.set(Counted(vec![vec![2.0]]));
+    variable.prepare();
+    assert_eq!(CONVERSIONS.with(Cell::get), 2);
+    assert_eq!(
+        Vec::<Vec<f64>>::try_coerce(variable.get_as_pax_value()).unwrap(),
+        vec![vec![2.0]]
+    );
+    assert_eq!(CONVERSIONS.with(Cell::get), 2);
+}
+
+#[test]
+fn prepare_preserves_nested_observation_for_typed_consumers() {
+    use crate::properties::{drain_effects, PropertyGraph};
+    #[derive(Clone, Default)]
+    struct Nested(Property<f64>);
+    impl Interpolatable for Nested {}
+    impl ToPaxValue for Nested {
+        fn nested_properties(&self) -> Vec<UntypedProperty> {
+            vec![self.0.local().untyped()]
+        }
+        fn to_pax_value(self) -> PaxValue {
+            self.0.local().get().to_pax_value()
+        }
+    }
+    let graph = PropertyGraph::new(|| {});
+    let _entered = graph.enter();
+    let scope = graph.binding_scope();
+    let value = Property::new(1.0_f64);
+    let (variable, reader) = {
+        let _scope = scope.enter();
+        let source = LocalProperty::new(Nested(value.clone()));
+        let variable = Variable::new_from_typed_property(source.clone());
+        let deps = [source.untyped()];
+        let reader = LocalProperty::computed(move || source.get().0.local().get(), &deps);
+        (variable, reader)
+    };
+    variable.prepare();
+    assert_eq!(reader.get(), 1.0);
+    value.set(2.0);
+    graph.import();
+    drain_effects(100);
+    assert_eq!(
+        reader.get(),
+        2.0,
+        "prepare retains nested change propagation"
+    );
+    scope.close();
+    graph.import();
+    graph.collect();
+    value.set(3.0);
+    assert!(!graph.has_pending());
+    graph.close();
+}
+
+#[test]
+fn first_dynamic_read_keeps_original_graph_and_restores_reader_context() {
+    use crate::properties::PropertyGraph;
+    let owner = PropertyGraph::new(|| {});
+    let reader = PropertyGraph::new(|| {});
+    let source = Property::new(1.0_f64);
+    let variable = {
+        let _entered = owner.enter();
+        Variable::new_from_typed_property(source.clone())
+    };
+    {
+        let _entered = reader.enter();
+        assert_eq!(f64::try_coerce(variable.get_as_pax_value()).unwrap(), 1.0);
+        // The initializer must restore the active reader after constructing its cache.
+        let independent = Property::new(3.0_f64);
+        let reader_local = independent.local();
+        independent.set(4.0);
+        reader.import();
+        assert_eq!(reader_local.get(), 4.0);
+    }
+    source.set(2.0);
+    {
+        let _entered = reader.enter();
+        reader.import();
+    }
+    assert_eq!(f64::try_coerce(variable.get_as_pax_value()).unwrap(), 1.0);
+    {
+        let _entered = owner.enter();
+        owner.import();
+    }
+    assert_eq!(f64::try_coerce(variable.get_as_pax_value()).unwrap(), 2.0);
+    owner.close();
+    reader.close();
+}
+
+#[test]
+fn lazy_nested_conversion_uses_original_scope_and_keeps_nested_reactivity() {
+    use crate::properties::{drain_effects, PropertyGraph};
+    #[derive(Clone, Default)]
+    struct Nested(Property<f64>);
+    impl Interpolatable for Nested {}
+    impl ToPaxValue for Nested {
+        fn nested_properties(&self) -> Vec<UntypedProperty> {
+            vec![self.0.local().untyped()]
+        }
+        fn to_pax_value(self) -> PaxValue {
+            self.0.local().get().to_pax_value()
+        }
+    }
+    let graph = PropertyGraph::new(|| {});
+    let _entered = graph.enter();
+    let scope = graph.binding_scope();
+    let value = Property::new(1.0_f64);
+    let variable = {
+        let _scope = scope.enter();
+        Variable::new_from_typed_property(LocalProperty::new(Nested(value.clone())))
+    };
+    assert_eq!(f64::try_coerce(variable.get_as_pax_value()).unwrap(), 1.0);
+    value.set(2.0);
+    graph.import();
+    drain_effects(100);
+    assert_eq!(f64::try_coerce(variable.get_as_pax_value()).unwrap(), 2.0);
+    scope.close();
+    graph.import();
+    graph.collect();
+    value.set(3.0);
+    assert!(
+        !graph.has_pending(),
+        "first conversion must belong to its creation scope"
+    );
+    scope.resume();
+    drain_effects(100);
+    assert_eq!(f64::try_coerce(variable.get_as_pax_value()).unwrap(), 3.0);
+    graph.close();
+}
+
+#[test]
+fn nested_edits_update_the_snapshot_without_reconstructing_the_container() {
+    use crate::properties::{drain_effects, PropertyGraph};
+    #[derive(Clone, Default)]
+    struct Nested(Property<f64>);
+    impl Interpolatable for Nested {}
+    impl ToPaxValue for Nested {
+        fn nested_properties(&self) -> Vec<UntypedProperty> {
+            vec![self.0.local().untyped()]
+        }
+        fn to_pax_value(self) -> PaxValue {
+            self.0.local().get().to_pax_value()
+        }
+    }
+    let graph = PropertyGraph::new(|| {});
+    let _entered = graph.enter();
+    let constructions = Rc::new(Cell::new(0));
+    let counted = constructions.clone();
+    let source = LocalProperty::computed(move || {
+        counted.set(counted.get() + 1);
+        Nested(Property::new(1.0))
+    }, &[]);
+    let variable = Variable::new_from_typed_property(source.clone());
+    assert_eq!(f64::try_coerce(variable.get_as_pax_value()).unwrap(), 1.0);
+    source.get().0.set(2.0);
+    graph.import();
+    drain_effects(100);
+    assert_eq!(f64::try_coerce(variable.get_as_pax_value()).unwrap(), 2.0);
+    assert_eq!(constructions.get(), 1, "nested edits must preserve container identity");
+    graph.close();
+}

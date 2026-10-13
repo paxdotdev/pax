@@ -15,7 +15,7 @@ use pax_message::{
 use pax_runtime::api::{borrow, borrow_mut, use_RefCell};
 
 use_RefCell!();
-use std::rc::Rc;
+use std::{collections::HashMap, rc::Rc};
 #[cfg(feature = "designtime")]
 use {
     kurbo::{RoundedRect, Shape},
@@ -72,7 +72,7 @@ impl Default for Text {
 // Runtime instance backing `<Text>`.
 pub struct TextInstance {
     base: BaseInstance,
-    measurement_state: RefCell<TextMeasurementState>,
+    measurement_state: RefCell<TextMeasurements>,
 }
 
 #[derive(Clone, PartialEq)]
@@ -91,22 +91,30 @@ struct TextMeasurementKey {
 
 #[derive(Default)]
 struct TextMeasurementState {
-    next_generation: u64,
     requested_key: Option<TextMeasurementKey>,
     pending_generation: Option<u64>,
 }
 
-impl TextInstance {
-    fn request_measurement_generation(
-        &self,
+// One template instance can back many expanded nodes (including repeats).
+// A response may only acknowledge the request for that particular node.
+#[derive(Default)]
+struct TextMeasurements {
+    next_generation: u64,
+    nodes: HashMap<u32, TextMeasurementState>,
+}
+
+impl TextMeasurements {
+    fn request(
+        &mut self,
+        id: u32,
         key: TextMeasurementKey,
         has_current_measurement: bool,
     ) -> Option<u64> {
-        let mut state = self.measurement_state.borrow_mut();
+        let state = self.nodes.entry(id).or_default();
         let key_changed = state.requested_key.as_ref() != Some(&key);
         if key_changed || (!has_current_measurement && state.pending_generation.is_none()) {
-            state.next_generation = state.next_generation.wrapping_add(1).max(1);
-            let generation = state.next_generation;
+            self.next_generation = self.next_generation.wrapping_add(1).max(1);
+            let generation = self.next_generation;
             state.requested_key = Some(key);
             state.pending_generation = Some(generation);
             Some(generation)
@@ -115,10 +123,24 @@ impl TextInstance {
         }
     }
 
-    fn clear_measurement_request(&self, expanded_node: &Rc<ExpandedNode>) {
-        let mut state = self.measurement_state.borrow_mut();
-        state.requested_key = None;
+    fn accept(&mut self, id: u32, generation: u64) -> bool {
+        let Some(state) = self.nodes.get_mut(&id) else {
+            return false;
+        };
+        if state.pending_generation != Some(generation) {
+            return false;
+        }
         state.pending_generation = None;
+        true
+    }
+}
+
+impl TextInstance {
+    fn clear_measurement_request(&self, expanded_node: &Rc<ExpandedNode>) {
+        self.measurement_state
+            .borrow_mut()
+            .nodes
+            .remove(&expanded_node.id.to_u32());
         if expanded_node.measured_size.get().is_some() {
             expanded_node.measured_size.set(None);
         }
@@ -131,13 +153,13 @@ impl TextInstance {
         width: f64,
         height: f64,
     ) {
-        let mut state = self.measurement_state.borrow_mut();
-        if state.pending_generation != Some(generation) {
-            return;
+        if self
+            .measurement_state
+            .borrow_mut()
+            .accept(expanded_node.id.to_u32(), generation)
+        {
+            expanded_node.set_measured_size(width, height);
         }
-        state.pending_generation = None;
-        drop(state);
-        expanded_node.set_measured_size(width, height);
     }
 }
 
@@ -157,7 +179,7 @@ impl InstanceNode for TextInstance {
                     is_slot: false,
                 },
             ),
-            measurement_state: RefCell::new(TextMeasurementState::default()),
+            measurement_state: RefCell::new(TextMeasurements::default()),
         })
     }
 
@@ -313,7 +335,8 @@ impl InstanceNode for TextInstance {
                             height,
                         );
                         if let Some(measurement_key) = measurement_key {
-                            patch.measure_generation = instance.request_measurement_generation(
+                            patch.measure_generation = instance.measurement_state.borrow_mut().request(
+                                id,
                                 measurement_key,
                                 expanded_node.measured_size.get().is_some(),
                             );
@@ -348,6 +371,7 @@ impl InstanceNode for TextInstance {
         expanded_node
             .changed_listener
             .replace_with(LocalProperty::default());
+        self.measurement_state.borrow_mut().nodes.remove(&id);
         context.enqueue_native_message(pax_message::NativeMessage::TextDelete(id));
     }
 
@@ -1197,5 +1221,43 @@ impl FontWeight {
             FontWeight::ExtraBold => FontWeight::Bold,
             FontWeight::Black => FontWeight::ExtraBold,
         }
+    }
+}
+
+#[cfg(test)]
+mod measurement_tests {
+    use super::*;
+
+    fn key(content: &str) -> TextMeasurementKey {
+        text_measurement_key(content.into(), false, true, false, false, true,
+            TextStyleMessage::default(), TextStyleMessage::default(), 100.0, -1.0).unwrap()
+    }
+
+    #[test]
+    fn expanded_siblings_do_not_supersede_each_others_measurements() {
+        let mut state = TextMeasurements::default();
+        let a = state.request(1, key("first"), false).unwrap();
+        let b = state.request(2, key("second"), false).unwrap();
+        assert_eq!(state.request(1, key("first"), false), None);
+        assert_eq!(state.request(2, key("second"), false), None);
+        assert!(!state.accept(1, b));
+        assert!(state.accept(2, b));
+        assert!(state.accept(1, a));
+        assert_eq!(state.request(1, key("first"), true), None);
+        assert_eq!(state.request(2, key("second"), true), None);
+    }
+
+    #[test]
+    fn stale_responses_are_rejected_after_changes_and_remounts() {
+        let mut state = TextMeasurements::default();
+        let original = state.request(1, key("old"), false).unwrap();
+        let updated = state.request(1, key("new"), false).unwrap();
+        assert!(!state.accept(1, original));
+        assert!(state.accept(1, updated));
+        assert!(!state.accept(1, updated));
+        state.nodes.remove(&1);
+        let remounted = state.request(1, key("new"), false).unwrap();
+        assert!(!state.accept(1, updated));
+        assert!(state.accept(1, remounted));
     }
 }

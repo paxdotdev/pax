@@ -85,6 +85,12 @@ Scroller-owned layers use the registered owner's origin; root layers use
 window coordinates. Detached mask sources retain their scene transform until
 capture projection. Physical tile offsets are applied later by the renderer.
 
+##### `capture_startup_input`
+<pre><code class="api-signature language-rust ignore">pub fn capture_startup_input(&amp;self, ray: Option&lt;Point2&lt;<a href="../../../api/pax-runtime-api/platform.md#window">Window</a>&gt;&gt;) -&gt; <a href="../../../api/internal/pax-runtime/engine/startup.md#startupinput">StartupInput</a></code></pre>
+
+Capture recipients without dispatching hover events or evaluating pending
+structural children. A missing hit stays missing when the event is replayed.
+
 ##### `capture_touch_target`
 <pre><code class="api-signature language-rust ignore">pub fn capture_touch_target(&amp;self, identifier: i64, target: <a href="../../../api/internal/pax-runtime/properties.md#expandednodeidentifier">ExpandedNodeIdentifier</a>)</code></pre>
 

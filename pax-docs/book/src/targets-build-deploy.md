@@ -416,6 +416,15 @@ On Windows, `py -3` can replace `python3`. Open
 and network requests. This server is for local review. It does not configure
 production HTTPS, caching, or application-route fallback.
 
+### Initial page background
+
+Set `background_color = "#11110f"` under `[package.metadata.pax.web]` to match
+an application's dark canvas from the first HTML paint. It accepts opaque
+`#RGB` or `#RRGGBB` colors and applies to `html`, `body`, and `#mount` in both
+debug and release builds. Without it, the host's existing styles apply.
+This colors the web host; keep the Pax scene's background in sync. Rebuild
+after changing metadata. No application mounting or lifecycle is delayed.
+
 ### Suspend an embedded web app
 
 A custom web host can call `window.Pax.setSuspended(true)` to suspend frame
@@ -768,6 +777,7 @@ icon = "assets/app-icon.png"
 [package.metadata.pax.web]
 title = "My App on the Web"
 favicon = "assets/favicon.png"
+background_color = "#11110f"
 
 [package.metadata.pax.ios]
 bundle_identifier = "com.example.myapp"
@@ -795,6 +805,7 @@ configuration portable between workstations.
 | `title` | Common, web, Apple | Browser title or Apple display name; defaults to the Cargo package name |
 | `icon` | Common, web, Apple | Image used for generated icons, including the fallback web favicon |
 | `favicon` | Web | Explicit favicon file; takes priority over icon-derived favicon generation |
+| `background_color` | Web | Opaque `#RGB` or `#RRGGBB` host background, painted from inline HTML before JavaScript/Wasm loads |
 | `site_name` | Web | Open Graph site name; defaults to the resolved web title |
 | `server_owned_prefixes` | Web | Root-relative path prefixes delegated to ordinary browser navigation; defaults to `[]`. See [Server-owned web paths](routing.md#server-owned-web-paths). |
 | `site_url` | Web | Absolute public HTTP(S) URL, without query or fragment; required for release builds with indexable concrete routes |

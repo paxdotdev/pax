@@ -128,6 +128,7 @@
       - [engine::occlusion](api/internal/pax-runtime/engine/occlusion.md)
       - [engine::pax_gpu_render_context](api/internal/pax-runtime/engine/pax_gpu_render_context.md)
       - [engine::piet_render_context](api/internal/pax-runtime/engine/piet_render_context.md)
+      - [engine::startup](api/internal/pax-runtime/engine/startup.md)
       - [engine::surface_metrics](api/internal/pax-runtime/engine/surface_metrics.md)
       - [engine::surface_preparation](api/internal/pax-runtime/engine/surface_preparation.md)
       - [engine::surface_scheduling](api/internal/pax-runtime/engine/surface_scheduling.md)

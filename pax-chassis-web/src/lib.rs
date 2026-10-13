@@ -251,6 +251,9 @@ pub struct PaxChassisWeb {
     surface_work_budget: pax_runtime::engine::surface_work::SurfaceWorkBudget,
     native_scroller_positions: HashMap<u32, (f64, f64)>,
     synthetic_scroll_gesture: Option<SyntheticScrollGesture>,
+    startup_hold_input: bool,
+    startup_input:
+        std::collections::VecDeque<(StartupEvent, pax_runtime::engine::startup::StartupInput)>,
     #[cfg(feature = "designtime")]
     userland_definition_to_instance_traverser:
         Box<dyn pax_runtime::cartridge::DefinitionToInstanceTraverser>,
@@ -409,8 +412,7 @@ impl PaxChassisWeb {
         let designtime_manager = userland_definition_to_instance_traverser
             .get_designtime_manager(query_string)
             .unwrap();
-        let engine = pax_runtime::PaxEngine::new_with_designtime(
-            userland_main_component_instance,
+        let mut engine = pax_runtime::PaxEngine::new_empty_with_designtime(
             (width, height),
             designtime_manager.clone(),
             Platform::Web,
@@ -418,6 +420,17 @@ impl PaxChassisWeb {
             get_time,
             surface_policy.browser.scroller_tiling_policy(),
         );
+
+        if query_param_value(&window_location_search(), "pax_mount_yield").as_deref() == Some("1") {
+            engine.enable_resumable_startup();
+        }
+        engine
+            .runtime_context
+            .set_userland_root_instance_node(Some(userland_main_component_instance.clone()));
+        let root = engine.mount_root_component(userland_main_component_instance);
+        engine
+            .runtime_context
+            .set_userland_root_expanded_node(Some(root));
 
         let engine_container: Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
 
@@ -433,6 +446,10 @@ impl PaxChassisWeb {
             surface_preparation_latency: RefCell::new(Default::default()),
             native_scroller_positions: HashMap::new(),
             synthetic_scroll_gesture: None,
+            startup_hold_input: query_param_value(&window_location_search(), "pax_mount_yield")
+                .as_deref()
+                == Some("1"),
+            startup_input: Default::default(),
             userland_definition_to_instance_traverser,
             designtime_manager,
             pending_dev_look_requests: HashMap::new(),
@@ -449,14 +466,18 @@ impl PaxChassisWeb {
 
         let main_component_instance = definition_to_instance_traverser
             .get_main_component_with_properties(USERLAND_COMPONENT_ROOT, root);
-        let engine = pax_runtime::PaxEngine::new(
-            main_component_instance,
+        let mut engine = pax_runtime::PaxEngine::new_empty(
             (width, height),
             Platform::Web,
             os_info,
             get_time,
             surface_policy.browser.scroller_tiling_policy(),
         );
+
+        if query_param_value(&window_location_search(), "pax_mount_yield").as_deref() == Some("1") {
+            engine.enable_resumable_startup();
+        }
+        engine.mount_root_component(main_component_instance);
 
         let engine_container: Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
 
@@ -472,6 +493,10 @@ impl PaxChassisWeb {
             surface_preparation_latency: RefCell::new(Default::default()),
             native_scroller_positions: HashMap::new(),
             synthetic_scroll_gesture: None,
+            startup_hold_input: query_param_value(&window_location_search(), "pax_mount_yield")
+                .as_deref()
+                == Some("1"),
+            startup_input: Default::default(),
         }
     }
 
@@ -702,10 +727,50 @@ impl PaxChassisWeb {
         additional_payload: &JsValue,
     ) -> InterruptResult {
         let x = native_interrupt_from_js(native_interrupt);
+        if (self.startup_hold_input || !self.startup_input.is_empty()) && !startup_feedback(&x) {
+            let snapshot = self.engine.borrow().runtime_context.capture_startup_input(
+                if self.startup_hold_input {
+                    None
+                } else {
+                    interrupt_ray(&x)
+                },
+            );
+            if matches!(x, NativeInterrupt::MouseMove(_))
+                && self.startup_input.back().is_some_and(|(event, _)| {
+                    matches!(
+                        event,
+                        StartupEvent::Interrupt(NativeInterrupt::MouseMove(_), _)
+                    )
+                })
+            {
+                self.startup_input.pop_back();
+            }
+            self.startup_input.push_back((
+                StartupEvent::Interrupt(x, additional_payload.clone()),
+                snapshot,
+            ));
+            // Browser default decisions cannot wait for replay. Application input
+            // is held during the opt-in bootstrap; native scroll feedback still flows.
+            return InterruptResult {
+                prevent_default: true,
+            };
+        }
+        self.dispatch_interrupt(x, additional_payload)
+    }
 
+    fn dispatch_interrupt(
+        &mut self,
+        x: NativeInterrupt,
+        additional_payload: &JsValue,
+    ) -> InterruptResult {
         let mut engine = borrow_mut!(self.engine);
         let ctx = &engine.runtime_context;
         let globals = ctx.globals();
+        let input_node = |id| {
+            engine
+                .get_expanded_node(id)
+                .filter(|node| ctx.accepts_startup_input(node))
+        };
         let prevent_default = match &x {
             NativeInterrupt::Focus(_args) => engine.global_dispatch_focus(Focus {}),
             NativeInterrupt::DropFile(args) => {
@@ -731,14 +796,14 @@ impl PaxChassisWeb {
                 }
             }
             NativeInterrupt::FormRadioListChange(args) => {
-                let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
+                let node = input_node(pax_runtime::ExpandedNodeIdentifier(args.id));
                 if let Some(node) = node {
                     borrow!(node.instance_node).handle_native_interrupt(&node, &x);
                 }
                 false
             }
             NativeInterrupt::FormSliderChange(args) => {
-                let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
+                let node = input_node(pax_runtime::ExpandedNodeIdentifier(args.id));
                 if let Some(node) = node {
                     borrow!(node.instance_node).handle_native_interrupt(&node, &x);
                     node.dispatch_slider_change(
@@ -754,7 +819,7 @@ impl PaxChassisWeb {
                 }
             }
             NativeInterrupt::FormDropdownChange(args) => {
-                let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
+                let node = input_node(pax_runtime::ExpandedNodeIdentifier(args.id));
                 if let Some(node) = node {
                     borrow!(node.instance_node).handle_native_interrupt(&node, &x);
                 }
@@ -762,8 +827,7 @@ impl PaxChassisWeb {
             }
             NativeInterrupt::ChassisResizeRequestCollection(collection) => {
                 for args in collection {
-                    let node =
-                        engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
+                    let node = input_node(pax_runtime::ExpandedNodeIdentifier(args.id));
                     if let Some(node) = node {
                         node.chassis_resize_request(args.width, args.height);
                     }
@@ -771,7 +835,7 @@ impl PaxChassisWeb {
                 false
             }
             NativeInterrupt::TextMeasurementResponse(args) => {
-                let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
+                let node = input_node(pax_runtime::ExpandedNodeIdentifier(args.id));
                 if let Some(node) = node {
                     borrow!(node.instance_node).handle_native_interrupt(&node, &x);
                 }
@@ -791,9 +855,7 @@ impl PaxChassisWeb {
                 }
             },
             NativeInterrupt::FormButtonClick(args) => {
-                if let Some(node) =
-                    engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
-                {
+                if let Some(node) = input_node(pax_runtime::ExpandedNodeIdentifier(args.id)) {
                     node.dispatch_button_click(
                         Event::new(ButtonClick {}),
                         &globals,
@@ -809,9 +871,7 @@ impl PaxChassisWeb {
             NativeInterrupt::PhotoPicker(args) => {
                 let mut args = args.clone();
                 fill_photo_picker_bytes_from_js(&mut args, additional_payload);
-                if let Some(node) =
-                    engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
-                {
+                if let Some(node) = input_node(pax_runtime::ExpandedNodeIdentifier(args.id)) {
                     node.dispatch_photo_picker_change(
                         Event::new(PhotoPickerChange::from(&args)),
                         &globals,
@@ -825,9 +885,7 @@ impl PaxChassisWeb {
                 }
             }
             NativeInterrupt::FormTextboxInput(args) => {
-                if let Some(node) =
-                    engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
-                {
+                if let Some(node) = input_node(pax_runtime::ExpandedNodeIdentifier(args.id)) {
                     borrow!(node.instance_node).handle_native_interrupt(&node, &x);
                     node.dispatch_textbox_input(
                         Event::new(TextboxInput {
@@ -844,9 +902,7 @@ impl PaxChassisWeb {
                 }
             }
             NativeInterrupt::TextInput(args) => {
-                if let Some(node) =
-                    engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
-                {
+                if let Some(node) = input_node(pax_runtime::ExpandedNodeIdentifier(args.id)) {
                     borrow!(node.instance_node).handle_native_interrupt(&node, &x);
                 } else {
                     log::warn!("tried to dispatch event for text input after node already removed");
@@ -854,9 +910,7 @@ impl PaxChassisWeb {
                 false
             }
             NativeInterrupt::FormTextboxChange(args) => {
-                if let Some(node) =
-                    engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
-                {
+                if let Some(node) = input_node(pax_runtime::ExpandedNodeIdentifier(args.id)) {
                     node.dispatch_textbox_change(
                         Event::new(TextboxChange {
                             text: args.text.clone(),
@@ -872,9 +926,7 @@ impl PaxChassisWeb {
                 }
             }
             NativeInterrupt::FormCheckboxToggle(args) => {
-                if let Some(node) =
-                    engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
-                {
+                if let Some(node) = input_node(pax_runtime::ExpandedNodeIdentifier(args.id)) {
                     borrow!(node.instance_node).handle_native_interrupt(&node, &x);
                     node.dispatch_checkbox_change(
                         Event::new(CheckboxChange {
@@ -928,7 +980,7 @@ impl PaxChassisWeb {
                 }
             }
             NativeInterrupt::ScrollerPosition(args) => {
-                let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
+                let node = input_node(pax_runtime::ExpandedNodeIdentifier(args.id));
                 if let Some(node) = node {
                     let presentation_scroll_x = args.presentation_scroll_x.unwrap_or(args.scroll_x);
                     let presentation_scroll_y = args.presentation_scroll_y.unwrap_or(args.scroll_y);
@@ -947,11 +999,23 @@ impl PaxChassisWeb {
                         let delta_x = presentation_scroll_x - previous_x;
                         let delta_y = presentation_scroll_y - previous_y;
                         if delta_x.abs() > f64::EPSILON || delta_y.abs() > f64::EPSILON {
-                            node.dispatch_scroll(
-                                Event::new(Scroll { delta_x, delta_y }),
-                                &globals,
-                                &engine.runtime_context,
-                            )
+                            if self.startup_hold_input || !self.startup_input.is_empty() {
+                                self.startup_input.push_back((
+                                    StartupEvent::Scroll {
+                                        id: node.id,
+                                        delta_x,
+                                        delta_y,
+                                    },
+                                    ctx.capture_startup_input(None),
+                                ));
+                                false
+                            } else {
+                                node.dispatch_scroll(
+                                    Event::new(Scroll { delta_x, delta_y }),
+                                    &globals,
+                                    &engine.runtime_context,
+                                )
+                            }
                         } else {
                             false
                         }
@@ -1487,6 +1551,67 @@ impl PaxChassisWeb {
                     let _ = callback.call0(&JsValue::NULL);
                 }) as Rc<dyn Fn()>
             }));
+    }
+
+    pub fn startup_input_pending(&self) -> bool {
+        !self.startup_input.is_empty()
+    }
+
+    /// Replay one frozen application event between ordinary frames, never a whole
+    /// unbounded input backlog. Feedback continues to bypass this queue.
+    pub fn replay_startup_input(&mut self) {
+        if self.startup_hold_input {
+            return;
+        }
+        let Some((event, snapshot)) = self.startup_input.pop_front() else {
+            return;
+        };
+        let context = self.engine.borrow().runtime_context.clone();
+        let _guard = context.replay_startup_input(snapshot);
+        match event {
+            StartupEvent::Interrupt(interrupt, payload) => {
+                self.dispatch_interrupt(interrupt, &payload);
+            }
+            StartupEvent::Scroll {
+                id,
+                delta_x,
+                delta_y,
+            } => {
+                if let Some(node) = context
+                    .get_expanded_node_by_eid(id)
+                    .filter(|n| context.accepts_startup_input(n))
+                {
+                    node.dispatch_scroll(
+                        Event::new(Scroll { delta_x, delta_y }),
+                        &context.globals(),
+                        &context,
+                    );
+                }
+            }
+        }
+    }
+
+    pub fn startup_pending(&self) -> bool {
+        self.engine.borrow().startup_pending()
+    }
+
+    pub fn finish_startup_presentation(&mut self) {
+        self.startup_hold_input = false;
+    }
+
+    pub fn prepare_startup_presentation(&mut self) -> bool {
+        self.engine.borrow_mut().prepare_startup_presentation()
+    }
+
+    /// Advance initial mount/settlement in CPU-budgeted units. Native patches
+    /// are available before presentation so the browser can measure text.
+    pub fn service_startup(&mut self, budget_ms: f64) -> JsValue {
+        self.drain_render_surface_updates();
+        let start = Instant::now();
+        let mut engine = self.engine.borrow_mut();
+        let report = engine.service_startup(budget_ms, || start.elapsed().as_secs_f64() * 1000.0);
+        let messages = engine.runtime_context.take_native_messages();
+        js_value_serde::to_value(&(messages, report))
     }
 
     /// The same tick with opt-in, CPU-side phase timings in milliseconds.
@@ -2112,6 +2237,13 @@ fn native_interrupt_from_js(value: JsValue) -> NativeInterrupt {
             });
         }
         NativeInterrupt::ChassisResizeRequestCollection(out)
+    } else if let Some(payload) = js_variant(&value, "TextMeasurementResponse") {
+        NativeInterrupt::TextMeasurementResponse(pax_message::TextMeasurementResponseArgs {
+            id: js_u32(&payload, "id"),
+            generation: js_u64(&payload, "generation"),
+            width: js_f64(&payload, "width"),
+            height: js_f64(&payload, "height"),
+        })
     } else if js_variant(&value, "SelectStart").is_some() {
         NativeInterrupt::SelectStart(SelectStartArgs {})
     } else if js_variant(&value, "Focus").is_some() {
@@ -2725,4 +2857,53 @@ fn parse_user_agent_str(user_agent: &str) -> Option<OS> {
         }
     }
     None
+}
+
+// Feedback is protocol-specific. In particular text responses carry a request
+// generation checked by Text; arbitrary addressed user input is not feedback.
+fn startup_feedback(interrupt: &NativeInterrupt) -> bool {
+    matches!(
+        interrupt,
+        NativeInterrupt::TextMeasurementResponse(_)
+            | NativeInterrupt::ChassisResizeRequestCollection(_)
+            | NativeInterrupt::Image(_)
+            | NativeInterrupt::AddedLayer(_)
+            | NativeInterrupt::RenderSurfaceUpdate(_)
+            | NativeInterrupt::BrowserConfig(_)
+            | NativeInterrupt::ViewportResize(_)
+            | NativeInterrupt::SafeAreaInsets(_)
+            | NativeInterrupt::RouteChange(_)
+            | NativeInterrupt::VisualViewportUpdate(_)
+            | NativeInterrupt::ScrollerPosition(_)
+            | NativeInterrupt::Screenshot(_)
+    )
+}
+
+fn interrupt_ray(interrupt: &NativeInterrupt) -> Option<Point2<pax_runtime::api::Window>> {
+    match interrupt {
+        NativeInterrupt::Click(a) => Some(Point2::new(a.x, a.y)),
+        NativeInterrupt::Tap(a) => Some(Point2::new(a.x, a.y)),
+        NativeInterrupt::DoubleClick(a) => Some(Point2::new(a.x, a.y)),
+        NativeInterrupt::MouseMove(a) => Some(Point2::new(a.x, a.y)),
+        NativeInterrupt::MouseDown(a) => Some(Point2::new(a.x, a.y)),
+        NativeInterrupt::MouseUp(a) => Some(Point2::new(a.x, a.y)),
+        NativeInterrupt::Wheel(a) => Some(Point2::new(a.x, a.y)),
+        NativeInterrupt::Scroll(a) => Some(Point2::new(a.x, a.y)),
+        NativeInterrupt::ContextMenu(a) => Some(Point2::new(a.x, a.y)),
+        NativeInterrupt::DropFile(a) => Some(Point2::new(a.x, a.y)),
+        NativeInterrupt::TouchStart(a) => a.touches.first().map(|t| Point2::new(t.x, t.y)),
+        NativeInterrupt::TouchMove(a) => a.touches.first().map(|t| Point2::new(t.x, t.y)),
+        NativeInterrupt::TouchEnd(a) => a.touches.first().map(|t| Point2::new(t.x, t.y)),
+        NativeInterrupt::TouchCancel(a) => a.touches.first().map(|t| Point2::new(t.x, t.y)),
+        _ => None,
+    }
+}
+
+enum StartupEvent {
+    Interrupt(NativeInterrupt, JsValue),
+    Scroll {
+        id: pax_runtime::ExpandedNodeIdentifier,
+        delta_x: f64,
+        delta_y: f64,
+    },
 }

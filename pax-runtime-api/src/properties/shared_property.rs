@@ -79,7 +79,7 @@ impl<T> Drop for SharedCell<T> {
             .get_mut()
             .unwrap_or_else(|e| e.into_inner());
         for inbox in subscribers.values().filter_map(Weak::upgrade) {
-            inbox.publish(self.id);
+            inbox.retire(self.id);
         }
     }
 }
@@ -141,7 +141,9 @@ impl<T: SharedPropertyValue> SharedCell<T> {
     pub fn subscribe(&self, id: u64, inbox: &Arc<GraphInbox>) {
         lock(&self.subscribers).insert(id, Arc::downgrade(inbox));
     }
+}
 
+impl<T> SharedCell<T> {
     pub fn unsubscribe(&self, id: u64) {
         lock(&self.subscribers).remove(&id);
     }
