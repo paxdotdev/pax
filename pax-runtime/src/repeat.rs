@@ -1127,6 +1127,125 @@ mod tests {
     }
 
     #[test]
+    fn pre_render_reconciliation_preserves_retained_lifetimes_and_unmounts_removed_items() {
+        use crate::api::NodeContext;
+        use crate::{Handler, HandlerRegistry};
+        thread_local! {
+            static CALLS: RefCell<Vec<(&'static str, u32)>> = const { RefCell::new(Vec::new()) };
+            static READS: RefCell<Vec<u32>> = const { RefCell::new(Vec::new()) };
+        }
+        struct SourceUpdate {
+            source: LocalProperty<PaxValue>,
+            next: LocalProperty<PaxValue>,
+        }
+        impl ImplToFromPaxAny for SourceUpdate {}
+        fn update(p: Rc<RefCell<PaxAny>>, _: &NodeContext, _: Option<PaxAny>) {
+            let props = p.borrow();
+            let p = SourceUpdate::ref_from_pax_any(&props).unwrap();
+            p.source.set(p.next.get());
+        }
+        fn mounted(_: Rc<RefCell<PaxAny>>, ctx: &NodeContext, _: Option<PaxAny>) {
+            CALLS.with_borrow_mut(|c| c.push(("mount", ctx.expanded_node.upgrade().unwrap().id.0)));
+        }
+        fn unmounted(_: Rc<RefCell<PaxAny>>, ctx: &NodeContext, _: Option<PaxAny>) {
+            CALLS.with_borrow_mut(|c| {
+                c.push(("unmount", ctx.expanded_node.upgrade().unwrap().id.0))
+            });
+        }
+        fn read_position(_: Rc<RefCell<PaxAny>>, ctx: &NodeContext, _: Option<PaxAny>) {
+            // The owner changes the source earlier in this same handler phase.
+            // A shrinking positional repeat can still have a scheduled reader.
+            let node = ctx.expanded_node.upgrade().unwrap();
+            node.get_common_properties().borrow().x.get();
+            READS.with_borrow_mut(|reads| reads.push(node.id.0));
+        }
+        for keyed in [false, true] {
+            CALLS.with_borrow_mut(Vec::clear);
+            let source = LocalProperty::new(source_with_x(&[("a", 0.0), ("b", 10.0), ("c", 20.0)]));
+            let next = LocalProperty::new(source.get());
+            let mut leaf = expression_positioned_leaf_args("(item.x)px");
+            let mut handlers = HandlerRegistry::default();
+            for (name, callback) in [
+                (
+                    "mount",
+                    mounted as fn(Rc<RefCell<PaxAny>>, &NodeContext, Option<PaxAny>),
+                ),
+                ("unmount", unmounted),
+                ("pre_render", read_position),
+            ] {
+                handlers
+                    .handlers
+                    .insert(name.into(), vec![Handler::new_inline_handler(callback)]);
+            }
+            leaf.handler_registry = Some(Rc::new(RefCell::new(handlers)));
+            let repeat = RepeatInstance::instantiate(repeat_args_with_key(
+                source.clone(),
+                vec![ComponentInstance::instantiate(leaf)],
+                keyed,
+            ));
+            let mut root_args = component_args(Some(vec![repeat]));
+            let next_for_props = next.clone();
+            root_args.prototypical_properties =
+                crate::PropertiesInit::Factory(Box::new(move |_, node| {
+                    node.is_none().then(|| {
+                        Rc::new(RefCell::new(
+                            SourceUpdate {
+                                source: source.clone(),
+                                next: next_for_props.clone(),
+                            }
+                            .to_pax_any(),
+                        ))
+                    })
+                }));
+            let mut handlers = HandlerRegistry::default();
+            handlers.handlers.insert(
+                "pre_render".into(),
+                vec![Handler::new_inline_handler(update)],
+            );
+            root_args.handler_registry = Some(Rc::new(RefCell::new(handlers)));
+            let mut engine = crate::test_support::empty_engine(
+                (320.0, 240.0),
+                Platform::Web,
+                OS::Mac,
+                Box::new(|| 0),
+                Default::default(),
+            );
+            let root = engine.mount_root_component(ComponentInstance::instantiate(root_args));
+            engine.tick();
+            let repeat = root.children.get()[0].clone();
+            let original = repeat.children.get();
+            next.set(source_with_x(&[("a", 100.0), ("b", 110.0), ("c", 120.0)]));
+            engine.tick();
+            assert_eq!(ids(&repeat.children.get()), ids(&original));
+            assert_eq!(
+                CALLS.with_borrow(|c| c.len()),
+                3,
+                "position updates must not remount"
+            );
+            next.set(source_with_x(&[("a", 200.0)]));
+            engine.tick();
+            let retained = repeat.children.get();
+            assert_eq!(ids(&retained), vec![original[0].id.0]);
+            assert_eq!(original[1].attached.get(), 0);
+            assert_eq!(original[2].attached.get(), 0);
+            assert_eq!(
+                CALLS.with_borrow(|c| c.iter().filter(|(kind, _)| *kind == "unmount").count()),
+                2
+            );
+            READS.with_borrow_mut(Vec::clear);
+            for _ in 0..3 {
+                engine.tick();
+            }
+            assert_eq!(READS.with_borrow(Clone::clone), vec![original[0].id.0; 3]);
+            assert_eq!(
+                CALLS.with_borrow(|c| c.len()),
+                5,
+                "removed nodes must not unmount again"
+            );
+        }
+    }
+
+    #[test]
     fn unkeyed_repeat_stale_element_binding_defaults_after_source_shrinks() {
         let source_property = LocalProperty::new(source_with_x(&[("a", 0.0), ("b", 10.0)]));
         let leaf: Rc<dyn InstanceNode> =

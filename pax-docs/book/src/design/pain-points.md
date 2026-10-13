@@ -1080,6 +1080,5 @@ carousel allocation or broadening this fix into renderer work.
   unchanged in this slice; investigate the retained reader's resume invalidation
   separately.
 
-- 2026-10-12 — PAX-839 resumable-startup comparison: repeated loads of the same experimental website build retained either 1,414 or 1,187 native leaves while ending with the same 46 scrollers and hero geometry. Duplicate-slot warnings also varied (145 versus zero). The feature carousel retains its mounted window's high-water size, so transient startup geometry is a candidate cause; causality is not yet established. Evidence: `/tmp/pax839-resumable-implementation/candidate-3.json` and `candidate-4.json`. Treat total CPU/node-count comparisons as inconclusive until this variability is isolated; do not assume fewer nodes proves equivalent work.
-
 - 2026-10-12 — Web bootstrap validation: `npx tsc --noEmit` reports existing interface errors (native patch types, native text CSS types, touch inference, and cartridge/window declarations). Expected a clean full typecheck; the before/after compiler-host comparison returns identical diagnostics with the pre-task bootstrap sources restored virtually. Evidence: `/tmp/pax839-resumable-implementation/{typescript.log,type-comparison.json}`. Focused scheduler/native-text tests and the release esbuild remain available; a passing bundle is not a passing full typecheck.
+
