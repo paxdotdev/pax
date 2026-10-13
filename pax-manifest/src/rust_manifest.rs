@@ -36,6 +36,16 @@ impl RustManifestWriter {
         }
     }
 
+    // Large scenes otherwise become one enormous aggregate-construction
+    // function. Keep LLVM's stack-copy and scalar-replacement passes bounded
+    // without changing the constructed manifest or its wire representation.
+    fn constructor(&self, result_type: &str, expression: String) -> String {
+        format!(
+            "{{ #[inline(never)] fn construct() -> {mp}::{result_type} {{ {expression} }} construct() }}",
+            mp = self.manifest_path,
+        )
+    }
+
     fn pax_manifest(&self, manifest: &PaxManifest) -> String {
         let components = manifest
             .components
@@ -44,7 +54,7 @@ impl RustManifestWriter {
                 format!(
                     "({}, {})",
                     self.type_id(type_id),
-                    self.component_definition(definition)
+                    self.constructor("ComponentDefinition", self.component_definition(definition))
                 )
             })
             .collect::<Vec<_>>();
@@ -122,7 +132,7 @@ impl RustManifestWriter {
                 format!(
                     "({}, {})",
                     self.template_node_id(id),
-                    self.template_node_definition(node)
+                    self.constructor("TemplateNodeDefinition", self.template_node_definition(node))
                 )
             })
             .collect::<Vec<_>>();

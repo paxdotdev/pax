@@ -21,6 +21,7 @@ use properties_table::PROPERTY_TABLE;
 #[doc(hidden)]
 pub use shared_graph::{BindingScope, BindingScopeGuard};
 pub use shared_graph::{PropertyGraph, PropertyGraphGuard};
+pub(crate) use shared_graph::owner_initializer;
 pub use shared_property::{Property, Published, SharedPropertyValue};
 pub use untyped_property::UntypedProperty;
 

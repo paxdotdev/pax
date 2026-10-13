@@ -96,6 +96,8 @@ impl ExpandedNodeIdentifier {
 
 /// Shared context for properties pass recursion
 pub struct RuntimeContext {
+    pub(crate) startup: RefCell<crate::engine::startup::Startup>,
+    pub(crate) replaying_startup_input: RefCell<Option<crate::engine::startup::StartupInput>>,
     pub application: pax_runtime_api::application::ApplicationInstance,
     /// Owner-thread bridge for application properties.
     pub property_graph: pax_runtime_api::PropertyGraph,
@@ -246,6 +248,8 @@ impl RuntimeContext {
             pax_runtime_api::application::ApplicationInstance::for_runtime(globals.target);
         Self {
             property_graph: application.property_graph(),
+            startup: Default::default(),
+            replaying_startup_input: Default::default(),
             application,
             next_uid: Cell::new(ExpandedNodeIdentifier(0)),
             messages: RefCell::new(Vec::new()),
@@ -295,6 +299,8 @@ impl RuntimeContext {
             pax_runtime_api::application::ApplicationInstance::for_runtime(globals.target);
         Self {
             property_graph: application.property_graph(),
+            startup: Default::default(),
+            replaying_startup_input: Default::default(),
             application,
             next_uid: Cell::new(ExpandedNodeIdentifier(0)),
             messages: RefCell::new(Vec::new()),
@@ -346,6 +352,8 @@ impl RuntimeContext {
             pax_runtime_api::application::ApplicationInstance::for_runtime(globals.target);
         Self {
             property_graph: application.property_graph(),
+            startup: Default::default(),
+            replaying_startup_input: Default::default(),
             application,
             next_uid: Cell::new(ExpandedNodeIdentifier(0)),
             messages: RefCell::new(Vec::new()),
@@ -508,8 +516,18 @@ impl RuntimeContext {
     }
 
     pub fn drain_node_effects(&self) {
+        self.drain_node_effects_with_observer(|_| {});
+    }
+
+    pub(crate) fn drain_node_effects_with_observer(&self, mut completed: impl FnMut(&'static str)) {
         let _graph = self.property_graph.enter();
-        self.property_graph.import();
+        self.property_graph
+            .import_batch_with_observer(1024, &mut completed);
+        self.drain_local_node_effects();
+        completed("property_effects");
+    }
+
+    fn drain_local_node_effects(&self) {
         const MAX_NODE_EFFECTS_PER_TICK: usize = 100_000;
         if !effect_drain_instrumentation_enabled() {
             let drained = drain_effects(MAX_NODE_EFFECTS_PER_TICK);
@@ -1107,7 +1125,9 @@ impl RuntimeContext {
     }
 
     pub(crate) fn settled_surface_blocker(&self) -> Option<&'static str> {
-        if pax_runtime_api::properties::has_pending_effects() {
+        if self.startup.borrow().is_active() {
+            Some("startup")
+        } else if pax_runtime_api::properties::has_pending_effects() {
             Some("effects")
         } else if self.occlusion_dirty.get() {
             Some("occlusion")
@@ -1760,7 +1780,9 @@ impl RuntimeContext {
                 continue;
             }
             // make sure slot sources are updated for this node
-            node.compute_flattened_projected_children();
+            if !self.startup.borrow().is_active() {
+                node.compute_flattened_projected_children();
+            }
             if !hit_invisible
                 && (retained_for_exit || node.transition_phase.get() == TRANSITION_PHASE_EXIT)
             {
@@ -1803,8 +1825,7 @@ impl RuntimeContext {
             let clipped = clipped || (!hit && clips_content);
             let retained_children = borrow!(node.exiting_children).clone();
             to_process.extend(
-                node.children
-                    .get()
+                node.presentation_children(self)
                     .iter()
                     .cloned()
                     .map(|v| {
@@ -1825,11 +1846,28 @@ impl RuntimeContext {
         }
         accum
     }
+    /// Capture recipients without dispatching hover events or evaluating pending
+    /// structural children. A missing hit stays missing when the event is replayed.
+    pub fn capture_startup_input(&self, ray: Option<Point2<Window>>) -> crate::engine::startup::StartupInput {
+        // No scene has been published during this first conservative bootstrap.
+        // Clicking its background must not later activate an unseen control.
+        let ray = ray.filter(|_| !self.startup.borrow().is_active());
+        let target = ray.and_then(|ray| self.get_elements_beneath_ray(None, ray, true, vec![], false)
+            .first().map(|node| node.id));
+        let recipients = self.node_cache.borrow().eid_to_node.values()
+            .map(|node| (node.id, node.mount_epoch.get())).collect();
+        crate::engine::startup::StartupInput { recipients, target }
+    }
+
     /// Alias for `get_elements_beneath_ray` with `limit_one = true`
     pub fn get_topmost_element_beneath_ray(
         self: &Rc<Self>,
         ray: Point2<Window>,
     ) -> Option<Rc<ExpandedNode>> {
+        if let Some(input) = self.replaying_startup_input.borrow().as_ref() {
+            return input.target.and_then(|id| self.get_expanded_node_by_eid(id))
+                .filter(|node| self.accepts_startup_input(node));
+        }
         let res = self.get_elements_beneath_ray(None, ray, true, vec![], false);
         let Some(new_topmost) = res
             .into_iter()

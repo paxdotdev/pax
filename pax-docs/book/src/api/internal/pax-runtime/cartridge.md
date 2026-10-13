@@ -26,8 +26,24 @@ Creates a descriptor for a generated component property.
 
 ---
 
+### `PreparedRuntimeSettings`
+Immutable selector definitions prepared once for a runtime template.
+Cloning shares the definitions; matching, conditions, values, and provider
+scopes are resolved separately for each expanded node. Construct a new
+definition when replacing a template, including during hot reload.
+
+#### Implementations
+##### `is_empty`
+<pre><code class="api-signature language-rust ignore">pub fn is_empty(&amp;self) -&gt; bool</code></pre>
+
+Whether the source settings block was empty, including non-selector entries.
+
+---
+
 ### `TemplatePropertyPlan`
 Immutable template inputs shared by common and component property binding.
+Selectors and conditional blocks are prepared once and shared by instances.
+Property definitions are prepared on the first selector match or inline use.
 Resolved columns and reactive properties are always node-local; this plan
 never caches evaluated values or selector matches across nodes or rebinds.
 

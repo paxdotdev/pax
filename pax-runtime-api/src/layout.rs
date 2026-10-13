@@ -322,83 +322,83 @@ impl CommonProperties {
         HashMap::from([
             (
                 "id".to_string(),
-                Variable::new_from_typed_property(id.clone()),
+                Variable::new_from_common_property(id.clone()),
             ),
             (
                 "x".to_string(),
-                Variable::new_from_typed_property(x.clone()),
+                Variable::new_from_common_property(x.clone()),
             ),
             (
                 "y".to_string(),
-                Variable::new_from_typed_property(y.clone()),
+                Variable::new_from_common_property(y.clone()),
             ),
             (
                 "padding_x".to_string(),
-                Variable::new_from_typed_property(padding_x.clone()),
+                Variable::new_from_common_property(padding_x.clone()),
             ),
             (
                 "padding_y".to_string(),
-                Variable::new_from_typed_property(padding_y.clone()),
+                Variable::new_from_common_property(padding_y.clone()),
             ),
             (
                 "scale_x".to_string(),
-                Variable::new_from_typed_property(scale_x.clone()),
+                Variable::new_from_common_property(scale_x.clone()),
             ),
             (
                 "scale_y".to_string(),
-                Variable::new_from_typed_property(scale_y.clone()),
+                Variable::new_from_common_property(scale_y.clone()),
             ),
             (
                 "skew_x".to_string(),
-                Variable::new_from_typed_property(skew_x.clone()),
+                Variable::new_from_common_property(skew_x.clone()),
             ),
             (
                 "skew_y".to_string(),
-                Variable::new_from_typed_property(skew_y.clone()),
+                Variable::new_from_common_property(skew_y.clone()),
             ),
             (
                 "rotate".to_string(),
-                Variable::new_from_typed_property(rotate.clone()),
+                Variable::new_from_common_property(rotate.clone()),
             ),
             (
                 "anchor_x".to_string(),
-                Variable::new_from_typed_property(anchor_x.clone()),
+                Variable::new_from_common_property(anchor_x.clone()),
             ),
             (
                 "anchor_y".to_string(),
-                Variable::new_from_typed_property(anchor_y.clone()),
+                Variable::new_from_common_property(anchor_y.clone()),
             ),
             (
                 "transform".to_string(),
-                Variable::new_from_typed_property(transform.clone()),
+                Variable::new_from_common_property(transform.clone()),
             ),
             (
                 "opacity".to_string(),
-                Variable::new_from_typed_property(opacity.clone()),
+                Variable::new_from_common_property(opacity.clone()),
             ),
             (
                 "layout_role".to_string(),
-                Variable::new_from_typed_property(layout_role.clone()),
+                Variable::new_from_common_property(layout_role.clone()),
             ),
             (
                 "width".to_string(),
-                Variable::new_from_typed_property(width.clone()),
+                Variable::new_from_common_property(width.clone()),
             ),
             (
                 "height".to_string(),
-                Variable::new_from_typed_property(height.clone()),
+                Variable::new_from_common_property(height.clone()),
             ),
             (
                 "unclippable".to_string(),
-                Variable::new_from_typed_property(unclippable.clone()),
+                Variable::new_from_common_property(unclippable.clone()),
             ),
             (
                 "_raycastable".to_string(),
-                Variable::new_from_typed_property(_raycastable.clone()),
+                Variable::new_from_common_property(_raycastable.clone()),
             ),
             (
                 "_suspended".to_string(),
-                Variable::new_from_typed_property(_suspended.clone()),
+                Variable::new_from_common_property(_suspended.clone()),
             ),
         ])
     }

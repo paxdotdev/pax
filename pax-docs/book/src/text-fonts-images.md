@@ -110,6 +110,22 @@ to the left.
 />
 ```
 
+### First presentation on web
+
+New web `Text` nodes stay hidden while their requested font loads and their
+initial native measurement feeds back through layout. They remain mounted and
+measurable during this interval. Fixed-size text waits for its font but needs
+no autosize response. Once shown, text stays visible during later edits and
+layout changes; this is not a barrier for the whole scene or its canvases.
+Failed font loads use the browser fallback. A slow font can delay the first
+appearance of text that uses it.
+
+Web builds discover literal web-font sources in templates/settings and start
+loading supported Google Fonts stylesheets alongside the cartridge. Each
+stylesheet is shared across weights and text nodes. This applies to debug and
+release builds. Fonts constructed by Rust or computed dynamically still load
+when first requested; the static catalog does not predict those values.
+
 ### Align content within its box
 
 Layout positions the Text node. TextStyle aligns the content inside it:

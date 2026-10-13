@@ -1,16 +1,38 @@
 //! LocalProperty adapters that expose runtime values to expression scopes.
 
 use super::*;
+use std::{cell::LazyCell, rc::Rc};
+
+type PaxValueAdapter =
+    LazyCell<LocalProperty<PaxValue>, Box<dyn FnOnce() -> LocalProperty<PaxValue>>>;
+
+// Keep fast preparation explicit if CommonProperties gains a new value type.
+// Nested reactive fields or custom conversions require the normal path.
+pub(crate) trait CommonPropertyValue: PropertyValue + ToPaxValue {}
+impl CommonPropertyValue for Option<String> {}
+impl CommonPropertyValue for Option<Size> {}
+impl CommonPropertyValue for Option<Rotation> {}
+impl CommonPropertyValue for Option<Transform2D> {}
+impl CommonPropertyValue for Option<Opacity> {}
+impl CommonPropertyValue for Option<LayoutRole> {}
+impl CommonPropertyValue for Option<bool> {}
 
 #[cfg(test)]
 mod tests;
 
 /// Runtime property adapter used by expression scopes.
+///
+/// Scope construction and typed forwarding keep the original property handle.
+/// The cached `PaxValue` conversion graph is created on its first dynamic read;
+/// cloned variables share that cache, in the original graph and node scope.
+/// Calling `prepare()` initializes the value before lifecycle work. Common-property
+/// scope variables can do this without creating their conversion graph.
 #[derive(Clone)]
 pub struct Variable {
     untyped_property: UntypedProperty,
-    converted_to_pax_value: LocalProperty<PaxValue>,
+    converted_to_pax_value: Rc<PaxValueAdapter>,
     rust_type: std::any::TypeId,
+    prepare_value: Option<fn(&UntypedProperty)>,
 }
 
 impl Variable {
@@ -27,36 +49,82 @@ impl Variable {
     ) -> Self {
         let property = property.local();
         let untyped_property = property.untyped();
-        let deps = [untyped_property.clone()];
-        let nested_watch = LocalProperty::<()>::default();
-        let pax_value_prop = LocalProperty::computed(
-            move || {
-                let value = property.get();
-                let dependencies = value.nested_properties();
-                if dependencies.is_empty() {
-                    nested_watch.replace_with(LocalProperty::default());
-                } else {
-                    let source = property.clone();
-                    let initial = std::cell::Cell::new(true);
-                    nested_watch.replace_with(LocalProperty::computed(
-                        move || {
-                            if !initial.replace(false) {
-                                source.invalidate();
-                            }
-                        },
-                        &dependencies,
-                    ));
-                    crate::properties::register_effect_property(&nested_watch);
-                    nested_watch.get();
-                }
-                value.to_pax_value_in_graph()
-            },
-            &deps,
-        );
+        let initialize = crate::properties::owner_initializer(move || {
+            let deps = [property.untyped()];
+            let nested_watch = std::cell::RefCell::<Option<LocalProperty<()>>>::new(None);
+            LocalProperty::computed(
+                move || {
+                    let value = property.get();
+                    let dependencies = value.nested_properties();
+                    let mut watch = nested_watch.borrow_mut();
+                    if dependencies.is_empty() {
+                        // Primitive snapshots need no nested subscription. Release
+                        // a previous one when a compound value loses its fields.
+                        watch.take();
+                    } else {
+                        let source = property.clone();
+                        let initial = std::cell::Cell::new(true);
+                        // Graph edges store IDs, not owning handles. Retain the
+                        // nested views so unmount/remount can restore their identity.
+                        let observed = dependencies.clone();
+                        let next = LocalProperty::computed(
+                            move || {
+                                let _ = &observed;
+                                if !initial.replace(false) {
+                                    source.notify_nested_change();
+                                }
+                            },
+                            &dependencies,
+                        );
+                        if let Some(watch) = watch.as_ref() {
+                            watch.replace_with(next);
+                        } else {
+                            *watch = Some(next);
+                        }
+                        let watch = watch.as_ref().unwrap();
+                        crate::properties::register_effect_property(watch);
+                        watch.get();
+                    }
+                    value.to_pax_value_in_graph()
+                },
+                &deps,
+            )
+        });
+        let converted_to_pax_value: Rc<PaxValueAdapter> =
+            Rc::new(LazyCell::new(Box::new(initialize)));
         Variable {
             untyped_property,
-            converted_to_pax_value: pax_value_prop,
+            converted_to_pax_value,
             rust_type: std::any::TypeId::of::<T>(),
+            prepare_value: None,
+        }
+    }
+
+    // Only CommonProperties opts in: its known plain value types need neither
+    // custom conversion nor nested-property observers to prepare for mount.
+    pub(crate) fn new_from_common_property<T: CommonPropertyValue>(
+        property: LocalProperty<T>,
+    ) -> Self {
+        fn prepare_value<T: PropertyValue>(property: &UntypedProperty) {
+            LocalProperty::<T>::new_from_untyped(property.clone()).read(|_| ());
+        }
+
+        let mut variable = Self::new_from_typed_property(property);
+        variable.prepare_value = Some(prepare_value::<T>);
+        variable
+    }
+
+    /// Initializes the current value before lifecycle work.
+    ///
+    /// Common-property scope variables evaluate their typed value without
+    /// allocating a cached `PaxValue` adapter. Other variables use the normal
+    /// conversion path, preserving custom conversions and nested observers.
+    /// Repeated calls reuse clean values; subsequent writes remain reactive.
+    pub fn prepare(&self) {
+        if let Some(prepare_value) = self.prepare_value {
+            prepare_value(&self.untyped_property);
+        } else {
+            self.get_as_pax_value();
         }
     }
 
@@ -90,11 +158,11 @@ impl Variable {
 
     /// Reads the current value as a `PaxValue`.
     pub fn get_as_pax_value(&self) -> PaxValue {
-        self.converted_to_pax_value.get()
+        LazyCell::force(&self.converted_to_pax_value).get()
     }
 
     /// Reads the current `PaxValue` by reference.
     pub fn read_pax_value_ref<V>(&self, f: impl FnOnce(&PaxValue) -> V) -> V {
-        self.converted_to_pax_value.read(f)
+        LazyCell::force(&self.converted_to_pax_value).read(f)
     }
 }

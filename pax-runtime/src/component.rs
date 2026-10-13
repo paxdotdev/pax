@@ -103,9 +103,9 @@ impl InstanceNode for ComponentInstance {
                 &format!("component (node id: {})", expanded_node.id.0),
             ));
         drop(children);
-        // A component can mount after the tick's settings pass (for example in
-        // @pre_render). Bind its initial theme before it can be presented or the
-        // frame clock advances, which would turn defaults into animation endpoints.
+        // Bind the initial theme and its structural dependencies before the
+        // component can be presented or the frame clock advances (including
+        // mounts from @pre_render). Later discovery runs as a reactive effect.
         expanded_node.sync_imported_settings(context);
     }
 

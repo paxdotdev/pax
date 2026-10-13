@@ -154,3 +154,9 @@
 .pax-mount input {
     padding: 1px 4px 1px 4px;
 }
+
+/* Keep partially initialized native controls measurable but unpublished. The
+   experimental bootstrap removes this gate after its first completed scene pass. */
+[data-pax-startup] * {
+    visibility: hidden !important;
+}

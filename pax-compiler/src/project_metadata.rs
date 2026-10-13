@@ -42,6 +42,7 @@ struct CommonMetadata {
 
 #[derive(Debug, Clone, Default)]
 struct WebMetadata {
+    background_color: Option<String>,
     title: Option<String>,
     icon: Option<String>,
     favicon: Option<String>,
@@ -403,6 +404,7 @@ fn parse_common_metadata(
 
 fn parse_web_metadata(table: &Table, path: &str) -> Result<WebMetadata, eyre::Report> {
     let metadata = WebMetadata {
+        background_color: parse_web_background_color(table, path)?,
         server_owned_prefixes: parse_server_owned_prefixes(table, path)?,
         title: string_field(table, "title", &format!("{path}.title"))?,
         icon: string_field(table, "icon", &format!("{path}.icon"))?,
@@ -427,6 +429,17 @@ fn parse_web_metadata(table: &Table, path: &str) -> Result<WebMetadata, eyre::Re
         ));
     }
     Ok(metadata)
+}
+
+fn parse_web_background_color(table: &Table, path: &str) -> Result<Option<String>, eyre::Report> {
+    let Some(color) = string_field(table, "background_color", &format!("{path}.background_color"))? else {
+        return Ok(None);
+    };
+    let hex = color.strip_prefix('#').unwrap_or("");
+    if !matches!(hex.len(), 3 | 6) || !hex.bytes().all(|c| c.is_ascii_hexdigit()) {
+        return Err(eyre!("`{path}.background_color` must be an opaque hex color (#RGB or #RRGGBB)"));
+    }
+    Ok(Some(color.to_ascii_lowercase()))
 }
 
 fn parse_server_owned_prefixes(table: &Table, path: &str) -> Result<Vec<String>, eyre::Report> {
@@ -577,6 +590,7 @@ fn apply_web_metadata(pax_dir: &Path, metadata: &PaxProjectMetadata) -> Result<(
     if let Some(favicon_href) = materialize_web_favicon(&interface_path, metadata)? {
         html = set_or_insert_favicon_link(&html, &favicon_href);
     }
+    html = set_web_background_color(&html, metadata.web.background_color.as_deref())?;
     html = set_web_navigation_config(&html, metadata.web_server_owned_prefixes())?;
     fs::write(
         interface_path.join("pax-web-config.json"),
@@ -600,6 +614,34 @@ pub(crate) fn load_web_server_owned_prefixes(output: &Path) -> std::io::Result<V
     }
     let config: NavigationConfig = serde_json::from_slice(&bytes).map_err(std::io::Error::other)?;
     Ok(config.server_owned_prefixes)
+}
+
+fn set_web_background_color(html: &str, color: Option<&str>) -> Result<String, eyre::Report> {
+    const START: &str = "<!-- pax-background:start -->";
+    const END: &str = "<!-- pax-background:end -->";
+    let mut html = html.to_owned();
+    if let Some(start) = html.find(START) {
+        let end = html[start..]
+            .find(END)
+            .ok_or_else(|| eyre!("Unclosed Pax web background block"))?
+            + start
+            + END.len();
+        html.replace_range(start..end, "");
+    }
+    let Some(color) = color else {
+        return Ok(html);
+    };
+    // Install before scripts/stylesheets so the host paints correctly even while
+    // the interface bundle or cartridge is still loading. The parser validates
+    // the color as hex before it can reach this CSS context.
+    let lower = html.to_ascii_lowercase();
+    let position = lower
+        .find("<head")
+        .and_then(|start| lower[start..].find('>').map(|end| start + end + 1))
+        .unwrap_or(0);
+    let block = format!("{START}<style>html,body,#mount{{background-color:{color}}}</style>{END}");
+    html.insert_str(position, &block);
+    Ok(html)
 }
 
 fn set_web_navigation_config(html: &str, prefixes: &[String]) -> Result<String, eyre::Report> {
@@ -1011,6 +1053,37 @@ mod tests {
         assert!(!fs::read_to_string(interface.join("index.html"))
             .unwrap()
             .contains("/blog"));
+    }
+
+    #[test]
+    fn web_background_is_early_replaceable_and_validated() {
+        let html = "<html><head><script src=\"slow.js\"></script></head><body></body></html>";
+        let dark = set_web_background_color(html, Some("#11110f")).unwrap();
+        assert!(dark.find("background-color:#11110f").unwrap() < dark.find("slow.js").unwrap());
+        assert_eq!(
+            dark,
+            set_web_background_color(&dark, Some("#11110f")).unwrap()
+        );
+        let updated = set_web_background_color(&dark, Some("#fff")).unwrap();
+        assert!(!updated.contains("#11110f"));
+        assert_eq!(html, set_web_background_color(&updated, None).unwrap());
+        assert_eq!(
+            load("[package.metadata.pax.web]\nbackground_color = \"#ABC\"")
+                .web
+                .background_color
+                .as_deref(),
+            Some("#abc")
+        );
+        for color in [
+            "red",
+            "#0000",
+            "#gggggg",
+            "#000;display:none",
+            "</style><script>",
+        ] {
+            let input = format!("[package.metadata.pax.web]\nbackground_color = {color:?}");
+            assert!(load_project_metadata_from_toml(Path::new("/tmp/example"), &input).is_err());
+        }
     }
 
     fn load(contents: &str) -> PaxProjectMetadata {

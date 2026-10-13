@@ -267,6 +267,11 @@ mount to establish a derived label. Ordinary initial values can live in
 property connections. Do not assume that all children have finished mounting
 or measuring when the parent's mount handler runs.
 
+The opt-in [resumable web startup experiment](how-pax-runs.md#experimental-resumable-startup-on-web)
+can yield to the browser between descendant mounts and initial lifecycle phases.
+It queues application input during bootstrap while allowing native measurement
+feedback to settle. Do not use browser yields as application tick boundaries.
+
 The short names `mount`, `tick`, `pre_render`, and `unmount` are also recognized.
 When both forms exist, the `on_*` name is selected. To use a different method
 name, bind it explicitly, for example `@mount: initialize` in `@settings`,

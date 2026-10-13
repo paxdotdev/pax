@@ -26,6 +26,7 @@ pub mod surface_metrics;
 pub mod surface_preparation;
 pub mod surface_scheduling;
 pub mod surface_work;
+pub mod startup;
 // TODO move these to not be in engine - make separate crates?
 pub mod pax_gpu_render_context;
 pub mod piet_render_context;
@@ -41,9 +42,9 @@ mod render_lifecycle_tests;
 /// they require coordinating with their "type-aware" [`InstanceNode`] to perform operations on those properties.
 mod expanded_node;
 pub use expanded_node::{
-    ExpandedNode, RuntimeResolvedPropertyColumns, RuntimeResolvedPropertyEntry,
-    RuntimeSettingsCondition, RuntimeSettingsLayer, RuntimeSettingsSignatureEntry,
-    RuntimeSettingsSource,
+    ExpandedNode, RuntimePropertyDefinition, RuntimeResolvedPropertyColumns,
+    RuntimeResolvedPropertyEntry, RuntimeSettingsCondition, RuntimeSettingsLayer,
+    RuntimeSettingsSignatureEntry, RuntimeSettingsSource,
 };
 
 use self::node_interface::NodeLocal;
@@ -469,6 +470,7 @@ impl PaxEngine {
 
         #[cfg(feature = "designtime")]
         let root_id = root_expanded_node.id;
+        *self.runtime_context.startup.borrow_mut() = Default::default();
         root_expanded_node.recurse_unmount(&self.runtime_context);
         self.runtime_context.clear_root_expanded_node();
         self.runtime_context.layer_count.set(0);
@@ -566,15 +568,9 @@ impl PaxEngine {
     // NOTES: this is the order of different things being computed in recurse-expand-nodes
     // - expanded_node instantiated from instance_node.
 
-    /// Workhorse methods of every tick.  Will be executed up to 240 Hz.
-    /// Three phases:
-    /// 1. Expand nodes & compute properties; recurse entire instance tree and evaluate ExpandedNodes, stitching
-    ///    together parent/child relationships between ExpandedNodes along the way.
-    /// 2. Compute layout (z-index & TransformAndBounds) by visiting ExpandedNode tree
-    ///    in rendering order, writing computed rendering-specific values to ExpandedNodes
-    /// 3. Render:
-    ///     a. find lowest node (last child of last node)
-    ///     b. start rendering, from lowest node on-up, throughout tree
+    /// Settles reactive state and imperative update branches, dispatches lifecycle
+    /// handlers, then reconciles geometry/compositing and returns native patches.
+    /// Rendering/replay is serviced separately by the chassis.
     pub fn tick(&mut self) -> Vec<NativeMessage> {
         self.tick_with_phase_observer(|_| {})
     }
@@ -586,6 +582,9 @@ impl PaxEngine {
         &mut self,
         mut completed: impl FnMut(&'static str),
     ) -> Vec<NativeMessage> {
+        if self.startup_pending() {
+            return self.runtime_context.take_native_messages();
+        }
         if matches!(
             self.runtime_context.application.context().phase(),
             pax_runtime_api::AppPhase::Closing | pax_runtime_api::AppPhase::Closed
@@ -593,39 +592,32 @@ impl PaxEngine {
             return Vec::new();
         }
         let _graph = self.runtime_context.property_graph.enter();
-        self.runtime_context.property_graph.import();
-        //
-        // 1. UPDATE NODES (properties, etc.). This part we should be able to
-        // completely remove once reactive properties dirty-dag is a thing.
-        //
+        self.runtime_context
+            .property_graph
+            .import_batch_with_observer(1024, &mut completed);
+        // Reactive settlement surrounds the remaining imperative update branches.
         if let Some(root_expanded_node) = &self.root_expanded_node {
-            root_expanded_node.recurse_update(&self.runtime_context);
-            completed("update_nodes");
-            if self.runtime_context.has_import_settings_nodes() {
-                root_expanded_node.recurse_sync_import_settings(&self.runtime_context);
-            }
+            root_expanded_node.recurse_update_with_observer(&self.runtime_context, &mut completed);
         }
 
-        completed("import_settings");
-
         let ctx = &self.runtime_context;
-        ctx.drain_node_effects();
-        let deliveries = ctx
-            .application
-            .dispatcher()
-            .drain(|| ctx.drain_node_effects());
+        ctx.drain_node_effects_with_observer(&mut completed);
+        let deliveries = ctx.application.dispatcher().drain(|| {
+            completed("async_deliveries");
+            ctx.drain_node_effects_with_observer(&mut completed);
+        });
         if let Err(error) = deliveries {
             log::error!("UI completion panicked: {error}");
             self.shutdown(pax_runtime_api::StopReason::HostClosed);
             return Vec::new();
         }
-        completed("effects_before_handlers");
+        completed("async_deliveries");
         self.run_lifecycle_handlers(TICK_HANDLERS, ctx.tick_handler_nodes());
-        ctx.drain_node_effects();
         completed("tick_handlers");
+        ctx.drain_node_effects_with_observer(&mut completed);
         self.run_lifecycle_handlers(PRE_RENDER_HANDLERS, ctx.pre_render_handler_nodes());
-        ctx.drain_node_effects();
         completed("pre_render_handlers");
+        ctx.drain_node_effects_with_observer(&mut completed);
 
         let globals = ctx.globals();
         let time = &globals.elapsed_frames;
@@ -639,8 +631,8 @@ impl PaxEngine {
         // Advancing the clock or dispatching queued events can switch branches.
         // Settle those effects before final layout and the retained render plan;
         // otherwise a replay can clear the old subtree but omit its replacement.
-        ctx.drain_node_effects();
-        completed("clock_events_effects");
+        completed("clock_events");
+        ctx.drain_node_effects_with_observer(&mut completed);
         ctx.prepare_scene_geometry();
         completed("geometry_before_proximity");
         ctx.dispatch_viewport_proximity();
@@ -650,15 +642,15 @@ impl PaxEngine {
         // Observation uses layout/scroll geometry, not compositing assignments.
         // Finalize occlusion only after handlers settle, so animation plus a
         // proximity callback does not traverse the whole scene twice in one tick.
-        ctx.drain_node_effects();
-        completed("proximity_effects");
+        ctx.drain_node_effects_with_observer(&mut completed);
         if ctx.take_occlusion_dirty() {
             if let Some(root) = &self.root_expanded_node {
                 occlusion::update_node_occlusion(root, ctx);
             }
-            ctx.drain_node_effects();
+            completed("occlusion");
+            ctx.drain_node_effects_with_observer(&mut completed);
         }
-        completed("occlusion");
+        completed("occlusion_tail");
         ctx.prepare_scene_geometry();
         completed("geometry_after_occlusion");
         occlusion::update_native_culling(ctx, self.scroller_tiling_policy);
@@ -915,6 +907,7 @@ impl PaxEngine {
     }
 
     pub fn render(&mut self, rcs: &mut dyn RenderContext) {
+        if self.startup_pending() { return; }
         if matches!(
             self.runtime_context.application.context().phase(),
             pax_runtime_api::AppPhase::Closing | pax_runtime_api::AppPhase::Closed
@@ -1484,7 +1477,17 @@ mod tests {
         let _ = engine.tick_with_phase_observer(|phase| phases.push(phase));
         assert_eq!(TICK_CALLS.load(Ordering::SeqCst), 2);
         assert_eq!(PRE_RENDER_CALLS.load(Ordering::SeqCst), 2);
-        assert_eq!(phases.first(), Some(&"update_nodes"));
+        assert_eq!(phases.first(), Some(&"property_import"));
+        assert!(phases
+            .windows(3)
+            .any(|window| window == ["property_import", "property_cleanup", "property_effects"]));
+        assert!(phases.contains(&"imperative_update"));
+        assert!(phases
+            .windows(2)
+            .any(|window| window == ["tick_handlers", "property_import"]));
+        assert!(phases
+            .windows(2)
+            .any(|window| window == ["pre_render_handlers", "property_import"]));
         assert_eq!(phases.last(), Some(&"native_culling"));
     }
 

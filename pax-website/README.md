@@ -52,6 +52,13 @@ it nor the `pax-logo` harness is a website dependency. Cargo dependency paths
 and favicon paths are relative to this manifest; Rust `include_str!` paths are
 relative to their source file.
 
+The HTML background uses `package.metadata.pax.web.background_color` to match
+the scene's dark ink before the cartridge starts. The hero logo holds its
+initial pose until frames and hero height have stayed stable for 100 ms, then
+runs the usual reveal. Long startup frames restart that settling interval;
+a five-second ceiling prevents a persistently slow frame rate from suppressing
+the logo indefinitely. There is no fixed delay added to every page load.
+
 ## Website and blog boundary
 
 The website declares `/blog`, `/ai`, and `/ai.md` as `server_owned_prefixes`.

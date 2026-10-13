@@ -630,3 +630,65 @@ fn subtree_recreation_discards_providers_without_touching_siblings() {
     assert_eq!(selection(&first.children.get()[0], &engine).get(), 7.0);
     assert_eq!(selection(second, &engine).get(), 20.0);
 }
+
+#[test]
+fn imported_settings_remount_store_providers_when_their_alias_changes() {
+    let (engine, root) = fixture();
+    let ctx = &engine.runtime_context;
+    let receiver = plan(vec![], None, None);
+    let mut receiver_args = provider_args(vec![Leaf::instantiate(args())]);
+    receiver_args.template_node_type_id =
+        Some(TypeId::build_singleton("test::Probe", Some("Probe")));
+    receiver_args.prototypical_common_properties = CommonPropertiesInit::Template(receiver.clone());
+    receiver_args.prototypical_properties = PropertiesInit::Template {
+        descriptor: &ERASED,
+        plan: receiver,
+    };
+    let node = mount(
+        &root,
+        &engine,
+        ComponentInstance::instantiate(receiver_args),
+    );
+    let import = settings_import(&root, ctx);
+    root.children.set(vec![import.clone(), node.clone()]);
+    let first = LocalProperty::new(11.0);
+    let second = LocalProperty::new(22.0);
+    for source in [&first, &second] {
+        let old_context = node.get_node_context(ctx);
+        let old_child = node.children.get()[0].clone();
+        let mut theme_args = args();
+        theme_args.component_settings = Some(vec![SettingsBlockElement::SelectorBlock(
+            pax_manifest::Token::new_without_location("Probe".into()),
+            LiteralBlockDefinition::new(vec![setting(
+                "value",
+                ValueDefinition::DoubleBinding(pax_manifest::PaxIdentifier::new("theme")),
+            )]),
+        )]);
+        let theme = child(
+            &root,
+            ctx,
+            ComponentInstance::instantiate(theme_args),
+            HashMap::from([(
+                "theme".into(),
+                Variable::new_from_typed_property(source.clone()),
+            )]),
+        );
+        import.attach_sidecar_children(vec![theme], ctx, &import.parent_frame);
+        ctx.drain_node_effects();
+        assert_eq!(
+            old_context.with_store(|_: &mut SelectionStore| ()),
+            Err(StoreError::ExpiredScope)
+        );
+        let new_child = node.children.get()[0].clone();
+        assert_ne!(new_child.id, old_child.id);
+        assert_eq!(
+            selection(&new_child, &engine).untyped().get_id(),
+            source.untyped().get_id()
+        );
+        selection(&new_child, &engine).set(source.get() + 1.0);
+    }
+    assert_eq!(first.get(), 12.0);
+    assert_eq!(second.get(), 23.0);
+    root.recurse_unmount(ctx);
+    ctx.drain_node_effects();
+}

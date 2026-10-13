@@ -1084,7 +1084,7 @@ fn update_node_occlusion_recursive(
         *z_index += 1;
     }
 
-    for child in node.children.get().iter().rev() {
+    for child in node.presentation_children(ctx).iter().rev() {
         let cp = child.get_common_properties();
         let cp = borrow!(cp);
         let unclippable = cp.unclippable.get().unwrap_or(false);

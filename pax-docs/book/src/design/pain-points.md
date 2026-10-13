@@ -1014,3 +1014,72 @@ recovered and slot counts stayed valid. This renderer warm-window diagnostic
 is separate from the projection fix; ordinary movement produced no slot
 warnings. Reproduce with the desktop feature rail before attributing it to
 carousel allocation or broadening this fix into renderer work.
+- 2026-10-07 — PAX-839 inspection at `518929f22`: tried the documented
+  `pax-cli dev --help` before startup profiling. Expected the current developer
+  commands; `/Users/zack/.cargo/bin/pax-cli` reports `pax 0.38.2` and rejects
+  `dev`, while this checkout uses 0.39.0. Use a CLI built from this checkout for
+  subsequent measurements; the inherited PATH binary is not a valid baseline
+  tool. No performance conclusion was drawn from it.
+
+- 2026-10-09 — PAX-839 release-web experiment at `518929f22`, Chrome 154,
+  1440×900/DPR 1: replacing Paxflix card reveals with final `x=16px opacity=1`
+  should preserve visible captions. After scrolling the website root to 1100
+  and the embedded catalogs to 460, captions were missing despite matching
+  visible DOM bounds, opacity, and text styles. Changing a missing title's DOM
+  opacity to 0.999 made it appear; removing container clip paths restored the
+  remaining captions. This suggests a clipping/repaint interaction, not a
+  confirmed cause. Both variants also logged an initial invalid SVG path
+  (`MNaN,inf…`); its relationship to the missing captions is unproven. Repro,
+  temporary variant patch, and screenshots: `/tmp/pax839-experiment`; findings
+  recorded on PAX-839. Experimental source changes were restored.
+
+- 2026-10-09 — PAX-839 startup profiling at `518929f22`: opening the unmodified
+  release website with `?pax_scroll_perf=1&pax_log=warn` in Chrome 154 should
+  initialize without duplicate slot-consumption warnings. Each of three warm
+  runs emitted 146 `slot index ... was already consumed by an earlier slot
+  projection; rendering no slot child` warnings. The instrumented builds emitted
+  the same warnings; they are not introduced by the profiling probes. No visual
+  consequence or cause has been established. Raw logs and profiles:
+  `/tmp/pax839-breakdown/compare-*-normal.json`; related investigation: PAX-839.
+
+- 2026-10-10 — PAX-839 warm release-web A/B profiling at `518929f22`,
+  Chrome 154: expected comparable startup loads after a 15-second compiler-free
+  interval. Other worktrees started compilers during a retained load; another
+  baseline took 4.98s versus 3.11–3.31s without observed compiler overlap while
+  renderers and simulators were active. Exclude pairs with sampled compiler
+  overlap, retain the other outlier, and qualify paired timing estimates; use
+  deterministic allocation counts and paused visual comparisons as separate
+  evidence. Captures and CPU samples: `/tmp/pax839-fresh-defaults-20261010`.
+
+- 2026-10-11 — PAX-839 temporary web profiling: added a numeric-keyed
+  `BTreeMap<usize, u64>` to `tick_profiled` diagnostics, expecting a serialized
+  histogram. The chassis `js_value_serde` accepts only string map keys and
+  silently returns `null` for the entire result on serialization failure,
+  interrupting the browser tick consumer. Stringifying histogram keys fixed
+  the diagnostic capture; all probes were subsequently removed. Evidence:
+  `/tmp/pax839-component-defaults-20261010/serializer-failed-capture`; consider
+  surfacing the serializer error when adding future developer diagnostics.
+
+- 2026-10-11 — Running all web interface Node tests also launches Rust surface-policy fixture builds from `tests/shared-surface-policy.mjs`. Expected a small JS validation pass; observed a second Cargo profile build and unrestricted Rust parallelism competing with the website release build. Repro: `node --test pax-compiler/files/interfaces/web/tests/*.test.mjs` without the Rust environment used by the main checks. Workaround: pass `CARGO_BUILD_JOBS=2 CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 CARGO_NET_OFFLINE=true` to the Node test command as well.
+
+- 2026-10-11 — PAX-839 release-constructor validation: `cargo test -p pax-manifest --features compiler` passes the manifest/binary/mesh suites, but three parser integration expectations fail in untouched parsing code. The two RouteMetadata rejection tests encounter `Router expects direct route branch children` before their expected metadata diagnostic; `test_type_qualified_object_constructor_remains_supported` receives a declarative `Block` instead of its expected value. Evidence: `/tmp/pax839-startup-ux-20261011/manifest-tests.log`. These parser expectations were left unchanged; generated website manifest equivalence is checked separately.
+
+- 2026-10-12 — PAX-839 SettingsPatch A/B captures again overlapped other worktree compilers: an enabled run took 5.92s for tick one versus 3.08s in the preceding enabled run, despite identical binding/allocation counts. Elapsed timing alone cannot establish the optimization's size. Repro and process samples: `/tmp/pax839-settings-patch-20261012/capture-probe-*.json`. Workaround: collect Chrome Performance metrics with `timeDomain=threadTicks` at `console.timeStamp` checkpoints, alongside elapsed timing and deterministic counts; report renderer CPU separately from first-paint latency.
+
+- 2026-10-12 — PAX-839 startup timing still varies after waiting for compilers: unchanged baseline renderer CPU ranged from 9.16–11.48s while a simulator, Windows VM, and other animated previews were active. Thread CPU excludes descheduling but does not normalize execution speed under shared workstation load. Evidence: `/tmp/pax839-demand-settings-20261012/capture-*.json` includes process samples and CDP thread-time checkpoints. Workaround: use contemporaneous, balanced baseline/candidate pairs, report ranges, and keep first-paint latency separate; the candidate improved all five pairs.
+
+- 2026-10-12 — PAX-839 preparation validation: a retained typed reader depending
+  on a container property returned its old nested value after closing a raw
+  `BindingScope`, editing the nested shared property, and resuming the scope.
+  Expected 3; observed 2. The new `prepare()` path and the original
+  `get_as_pax_value()` call both reproduce this; it is not a regression from
+  common-property preparation. This probe does not exercise a full node remount
+  with rebinding. Reproducer and both test logs:
+  `/tmp/pax839-prepare-common-20261012/nested-test-candidate.rs`,
+  `api-tests.log`, and `nested-legacy-check.log`. Compound preparation remains
+  unchanged in this slice; investigate the retained reader's resume invalidation
+  separately.
+
+- 2026-10-12 — PAX-839 resumable-startup comparison: repeated loads of the same experimental website build retained either 1,414 or 1,187 native leaves while ending with the same 46 scrollers and hero geometry. Duplicate-slot warnings also varied (145 versus zero). The feature carousel retains its mounted window's high-water size, so transient startup geometry is a candidate cause; causality is not yet established. Evidence: `/tmp/pax839-resumable-implementation/candidate-3.json` and `candidate-4.json`. Treat total CPU/node-count comparisons as inconclusive until this variability is isolated; do not assume fewer nodes proves equivalent work.
+
+- 2026-10-12 — Web bootstrap validation: `npx tsc --noEmit` reports existing interface errors (native patch types, native text CSS types, touch inference, and cartridge/window declarations). Expected a clean full typecheck; the before/after compiler-host comparison returns identical diagnostics with the pre-task bootstrap sources restored virtually. Evidence: `/tmp/pax839-resumable-implementation/{typescript.log,type-comparison.json}`. Focused scheduler/native-text tests and the release esbuild remain available; a passing bundle is not a passing full typecheck.

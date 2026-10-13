@@ -117,6 +117,9 @@ pub(crate) struct PropertyTable {
     queued_effect_set: RefCell<HashSet<PropertyId>>,
     queued_cutoffs: RefCell<VecDeque<PropertyId>>,
     queued_cutoff_set: RefCell<HashSet<PropertyId>>,
+    retirement_watchers: RefCell<
+        HashMap<PropertyId, HashMap<(u64, u64), std::sync::Weak<super::shared_graph::GraphInbox>>>,
+    >,
 }
 
 // Reference-counted slotmap entry for one property id.
@@ -126,6 +129,30 @@ pub struct Entry {
 }
 
 impl PropertyTable {
+    pub(super) fn watch_retirement(
+        &self,
+        local: PropertyId,
+        graph: u64,
+        shared: u64,
+        inbox: std::sync::Weak<super::shared_graph::GraphInbox>,
+    ) {
+        self.retirement_watchers
+            .borrow_mut()
+            .entry(local)
+            .or_default()
+            .insert((graph, shared), inbox);
+    }
+
+    pub(super) fn unwatch_retirement(&self, local: PropertyId, graph: u64, shared: u64) {
+        let mut watchers = self.retirement_watchers.borrow_mut();
+        if let Some(entry) = watchers.get_mut(&local) {
+            entry.remove(&(graph, shared));
+            if entry.is_empty() {
+                watchers.remove(&local);
+            }
+        }
+    }
+
     pub(super) fn set_shared<T: super::SharedPropertyValue>(
         &self,
         id: PropertyId,
@@ -621,6 +648,14 @@ impl PropertyTable {
             };
             sm.remove(id).expect("tried to remove non-existent prop")
         };
+        let watchers = self.retirement_watchers.borrow_mut().remove(&id);
+        if let Some(watchers) = watchers {
+            for ((_, shared), inbox) in watchers {
+                if let Some(inbox) = inbox.upgrade() {
+                    inbox.retire(shared);
+                }
+            }
+        }
         drop(res);
     }
 

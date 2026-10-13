@@ -21,6 +21,7 @@ import {
     SCREENSHOT_PATCH,
     NATIVE_MASK_UPDATE_PATCH,
 } from "./pools/supported-objects";
+import {preloadManifestFonts} from "./classes/text";
 import {NativeElementPool} from "./classes/native-element-pool";
 import {AnyCreatePatch} from "./classes/messages/any-create-patch";
 import {TextUpdatePatch} from "./classes/messages/text-update-patch";
@@ -48,6 +49,7 @@ import { HIDDEN_TAB_FRAME_FALLBACK_MS } from "./utils/helpers";
 import { browserRouteLocation, replaceCurrentRouteHistoryState, serializeRouteLocation } from "./utils/route-location";
 import { updateDocumentRouteMetadata } from "./utils/route-metadata";
 
+import { StartupScheduler } from "./utils/startup-scheduler";
 import { FrameScheduler } from "./utils/frame-scheduler";
 import { SurfacePresentationScheduler } from "./utils/surface-presentation";
 
@@ -59,6 +61,9 @@ let initializedChassis = false;
 let renderLoopStarting = false;
 let renderLoopStarted = false;
 let frameInProgress = false;
+let startupScheduler: StartupScheduler | undefined;
+let startupPresented = false;
+const mountYieldEnabled = new URLSearchParams(window.location.search).get("pax_mount_yield") === "1";
 let surfacePresentation: SurfacePresentationScheduler | undefined;
 let hiddenTabPumpHandle: number | null = null;
 let pendingAsyncInterruptFlush = false;
@@ -70,6 +75,7 @@ const frameScheduler = new FrameScheduler(new URLSearchParams(window.location.se
  */
 export function setSuspended(suspended: boolean) {
     frameScheduler.setSuspended(suspended);
+    if (!suspended) startupScheduler?.request();
 }
 let currentChassis: PaxChassisWeb | null = null;
 let currentMount: Element | null = null;
@@ -256,6 +262,8 @@ async function loadWasmModule(extensionlessUrl: string, session: MountSession): 
 
 function resetHostState() {
     nativePool.dispose();
+    startupScheduler?.dispose();
+    startupScheduler = undefined;
     objectManager = new ObjectManager(SUPPORTED_OBJECTS);
     nativePool = new NativeElementPool(objectManager);
     initializedChassis = false;
@@ -264,6 +272,9 @@ function resetHostState() {
 }
 
 function disposeCurrentChassis() {
+    startupScheduler?.dispose();
+    startupScheduler = undefined;
+    currentMount?.removeAttribute("data-pax-startup");
     const chassis = currentChassis;
     // Revoke routing before running disposers, which can trigger host callbacks.
     currentChassis = null;
@@ -283,6 +294,7 @@ function disposeCurrentChassis() {
 
 async function startRenderLoop(extensionlessUrl: string, mount: Element, session: MountSession) {
     renderLoopStarting = true;
+    void preloadManifestFonts(new URL(extensionlessUrl, document.baseURI).href);
     await loadWasmModule(extensionlessUrl, session);
     session.checkOpen();
     renderLoopStarted = true;
@@ -293,6 +305,24 @@ async function startRenderLoop(extensionlessUrl: string, mount: Element, session
 }
 
 function attachChassis(chassis: PaxChassisWeb, mount: Element) {
+    startupPresented = false;
+    if (chassis.startup_pending()) mount.setAttribute("data-pax-startup", "");
+    startupScheduler?.dispose();
+    startupScheduler = chassis.startup_pending() ? new StartupScheduler(() => {
+        frameInProgress = true;
+        try {
+            const [messages, report] = withProfileMeasure("startupService", () => chassis.service_startup(4));
+            withProfileMeasure("startupNativePatches", () => processMessages(messages, chassis, objectManager));
+            if (perfTraceEnabled) {
+                nativePool.recordSurfaceFramePhase(`startup.${report.longest_unit}`, report.longest_unit_ms);
+            }
+            return report.pending;
+        } finally {
+            frameInProgress = false;
+            pendingAsyncInterruptFlush = false;
+        }
+    }, () => !frameScheduler.suspended && chassis === currentChassis && mount === currentMount) : undefined;
+
     let propertyWakeQueued = false;
     chassis.set_property_waker(() => {
         if (propertyWakeQueued) return;
@@ -303,7 +333,6 @@ function attachChassis(chassis: PaxChassisWeb, mount: Element) {
             requestFrameFlush(chassis, mount);
         });
     });
-    chassis.activate_application();
     nativePool.attach(chassis, mount, liveSession?.options.pageScroll ?? false);
     const presentation = new SurfacePresentationScheduler(() => {
         const report = withProfileMeasure("surfacePresentation", () => chassis.present_ready_surfaces());
@@ -315,6 +344,7 @@ function attachChassis(chassis: PaxChassisWeb, mount: Element) {
     initializeChassis(chassis, mount);
     ensureHiddenTabPump(chassis, mount);
     chassis.activate_application();
+    startupScheduler?.request();
 }
 
 function initializeChassis(chassis: PaxChassisWeb, mount: Element) {
@@ -438,11 +468,21 @@ function requestFrameFlush(chassis: PaxChassisWeb, mount: Element) {
         pendingAsyncInterruptFlush = true;
         return;
     }
-    runFrame(chassis, mount);
+    if (chassis.startup_pending()) {
+        startupScheduler?.request();
+    } else if (mountYieldEnabled && !document.hidden) {
+        frameScheduler.schedule(() => renderLoop(chassis, mount));
+    } else {
+        runFrame(chassis, mount);
+    }
 }
 
 function runFrame(chassis: PaxChassisWeb, mount: Element) {
     if (frameScheduler.suspended || frameInProgress || chassis !== currentChassis || mount !== currentMount) {
+        return;
+    }
+    if (chassis.startup_pending() || (mountYieldEnabled && !startupPresented && !chassis.prepare_startup_presentation())) {
+        startupScheduler?.request();
         return;
     }
     frameInProgress = true;
@@ -453,8 +493,14 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
             // recent settled records before another (potentially costly) tick.
             // The Rust guard leaves all jobs untouched when content is unsettled.
             surfacePresentation?.present();
+            if ((!mountYieldEnabled || startupPresented) && chassis.startup_input_pending()) chassis.replay_startup_input();
             nativePool.sampleFrameInputs();
             const messages = withProfileMeasure("tick", () => {
+                // service_startup already completed the first logical tick.
+                if (mountYieldEnabled && !startupPresented) {
+                    startupPresented = true;
+                    return [];
+                }
                 if (!perfTraceEnabled) return chassis.tick();
                 const [messages, phases, compositing] = chassis.tick_profiled();
                 for (const [name, duration] of phases) nativePool.recordSurfaceFramePhase(`tick.${name}`, duration);
@@ -471,6 +517,9 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
             withProfileMeasure("render", () => {
                 chassis.render();
             });
+            nativePool.finishTextFrame();
+            mount.removeAttribute("data-pax-startup");
+            chassis.finish_startup_presentation();
             // At most one extra presentation pass between ordinary frames, even
             // when many async initializations finish in successive microtasks.
             surfacePresentation?.afterFrame();

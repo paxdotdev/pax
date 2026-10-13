@@ -16,7 +16,7 @@ use_RefCell!();
 use pax_runtime::api::{borrow, borrow_mut, use_RefCell};
 
 fn mark_canvas_descendants_dirty(expanded_node: &ExpandedNode, context: &Rc<RuntimeContext>) {
-    for child in expanded_node.children.get().iter() {
+    for child in expanded_node.presentation_children(context).iter() {
         if borrow!(child.instance_node).base().flags().layer == Layer::Canvas {
             context.mark_canvas_node_dirty(child.id);
             context.set_canvas_dirty(child.occlusion.get().render_layer_id);

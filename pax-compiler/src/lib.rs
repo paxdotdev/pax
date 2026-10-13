@@ -140,7 +140,7 @@ impl RunLifecycleNotifier {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, serde::Serialize)]
 struct WebFontSource {
     family: String,
     url: String,
@@ -368,6 +368,13 @@ fn prepare_cartridge_sources_with_timings(
                 ctx.is_release,
             )
         })?;
+    }
+
+    if ctx.target == RunTarget::Web {
+        let mut fonts = collect_web_font_sources(&userland_manifest);
+        fonts.sort_by(|a, b| (&a.family, &a.url).cmp(&(&b.family, &b.url)));
+        let path = pax_dir.join(INTERFACE_DIR_NAME).join("web/pax-fonts.json");
+        fs::write(path, serde_json::to_vec(&fonts)?)?;
     }
 
     let merged_manifest = userland_manifest.clone();

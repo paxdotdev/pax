@@ -82,6 +82,19 @@ See [Events and Rust](event-handling-rust.md) for lifecycle behavior and
 [Components and Composition](components-composition.md) for values supplied
 by a parent component.
 
+Expression scopes retain their original property handles. Exact typed forwarding
+can use those handles directly; dynamic reads use a cached value-conversion
+adapter. Before mount handlers run, the runtime prepares common properties such
+as `width` and `opacity` through typed reads, without creating their conversion
+adapters. A later PAXEL read creates the adapter from the then-current value.
+Component-defined properties still use their conversion path during preparation,
+including custom conversions and nested-field observers. This applies in both
+development and release builds and does not delay component mounting or change
+property ownership.
+A change to a nested `Property` refreshes readers of its container without
+reconstructing that container. Its own evaluator runs again only when its
+dependencies change or it is explicitly invalidated.
+
 ## Reading and updating state
 
 Give the panel a button that advances progress by a quarter, up to one. Add
@@ -237,6 +250,12 @@ std::thread::spawn(move || worker_count.update(|count| *count += 1));
 Starting an untracked thread does not give it automatic cancellation or a node
 lifetime. A retained shared value can outlive its view; unmount detaches the
 view's graph connections. Publishing that retained value cannot remount it.
+
+When the last shared owner disappears (even on a worker), the graph is notified
+to release its local binding at the next UI import boundary. Suspended bindings
+also retire when their retained local view disappears. Cleanup follows those
+lifetime notifications rather than scanning every live property on each import;
+it does not defer component mounting or evaluate discarded UI computations.
 
 Use `LocalProperty<T>` for `Rc`/node values and local computations. It and its
 untyped dependency handles cannot cross threads, even inside `Arc<Mutex<_>>`.

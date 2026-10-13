@@ -98,6 +98,33 @@ connect supplied content to the place where a component presents it. These
 are useful distinctions when the visible scene contains more—or fewer—nodes
 than you expect from counting tags in a file.
 
+Instances share immutable settings definitions and prepared selectors from
+their runtime template. Property definitions are prepared on the first selector
+match or inline binding, then reused for that template. Unmatched selectors and
+unused template bindings do not prepare property columns. Selector matches,
+conditional values, and reactive bindings remain specific to each node; imported
+expressions still use their provider's scope. This sharing applies to both
+development and release builds. Template replacement, including hot reload,
+starts with fresh definition caches while
+preserving the [settings precedence rules](template-language.md#imported-settings).
+
+Before mounting an ordinary template node, the runtime allocates stable property
+slots and binds its settings. For fresh common-property slots, omitted settings
+leave the unset defaults in place without a second binding operation. Conditional
+settings still receive reactive bindings, even when initially inactive. Later
+settings changes or reloads still clear removed values. This optimization applies in
+both development and release builds and does not defer lifecycle handlers.
+
+When imported settings change on an ordinary node, the runtime compares ordered
+shared definitions and their provider scopes, then applies a sparse `SettingsPatch`.
+Omitted properties keep their existing bindings; removed definitions receive an
+explicit reset. An empty Patch avoids rebuilding the node's scope and listeners
+or invalidating its layout and drawing. This compares binding definitions, not
+current values, so conditions, `$base`, and reactive provider updates remain live.
+Full template reloads, custom initialization, store-provider alias changes, and
+local-scope timelines retain their existing full binding or recreation paths.
+Dynamically assembled timeline-selector definitions are conservatively rebound.
+
 The tree and property graph answer different questions. The tree says where
 an instance belongs; the graph records which values depend on which inputs.
 A child's width can depend on its parent's bounds, while its text depends
@@ -174,6 +201,40 @@ a value derived from other properties, and use the motion APIs for the
 transitions they describe. Neither choice makes computation free, but it
 gives the runtime explicit dependencies to work with. See
 [Animation and Motion](animation-motion.md).
+
+### Experimental resumable startup on web
+
+Add `?pax_mount_yield=1` to a web application's URL to try incremental initial
+mounting. Leave it out to use the synchronous startup path. This is an opt-in
+experiment for development and release web cartridges; Apple chassis do not
+enable it. It adds no template syntax or baked manifest fields.
+
+The web host services mount continuations and reactive effects in regular browser
+tasks, targeting 4 ms of engine work per call. It uses `scheduler.yield()` when
+available and a MessageChannel task otherwise. Browser animation frames publish
+completed scene work. A service call does not itself advance the application
+frame clock or repeat `@mount`, `@tick`, or `@pre_render` handlers. Wall time still
+passes during initialization, so this does not pause elapsed-time animations.
+
+Native patches can reach the browser between calls so hidden text can load fonts
+and return measurements. Text responses retain their request-generation checks.
+Viewport and native scroll state also continue updating. Application input is
+queued with its existing recipients' mount lifetimes; removed or remounted
+recipients are skipped. Browser default actions for queued input are suppressed
+at capture time, and clicks on the unpublished background do not later target
+new controls. The queue drains in order, one event per ordinary frame after
+startup; consecutive pointer moves may be coalesced.
+
+This first checkpoint still waits for the entire initial logical tick to settle
+before revealing the scene. Native controls remain measurable behind a visibility
+gate during that work. It does **not** yet publish independently ready viewport
+regions, prioritize visible nodes, or defer offscreen lifecycle indefinitely.
+Every selected initial branch is eventually visited. Individual callbacks,
+structural dependency groups, scene reconciliation, native patch processing, and
+rendering can exceed the soft budget; subsequent ordinary ticks remain synchronous.
+Use this to investigate responsiveness, not as a guarantee of faster first paint
+or a strict per-frame time bound. In particular, timing-dependent application
+initialization can change the amount of work performed between comparison runs.
 
 ## One scene, multiple surfaces
 

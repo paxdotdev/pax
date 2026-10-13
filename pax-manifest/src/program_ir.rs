@@ -699,6 +699,8 @@ mod tests {
     #[test]
     #[cfg(feature = "parsing")]
     fn pax995_program_binary_preserves_ast_dependencies_and_results() -> BinaryResult<()> {
+        let graph = pax_runtime_api::properties::PropertyGraph::new(|| {});
+        let _entered = graph.enter();
         use pax_language::{parse_pax_expression, Computable, DependencyCollector};
         use pax_runtime_api::{Functions, ToPaxValue};
         use std::rc::Rc;

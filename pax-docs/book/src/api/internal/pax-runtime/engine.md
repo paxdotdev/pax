@@ -11,6 +11,7 @@
 - [engine::surface_preparation](engine/surface_preparation.md)
 - [engine::surface_scheduling](engine/surface_scheduling.md)
 - [engine::surface_work](engine/surface_work.md)
+- [engine::startup](engine/startup.md)
 - [engine::pax_gpu_render_context](engine/pax_gpu_render_context.md)
 - [engine::piet_render_context](engine/piet_render_context.md)
 
@@ -110,6 +111,27 @@ Type: `Option`<`Rc`<`ExpandedNode`>>
 Type: [`ScrollerTilingPolicy`](../../../api/internal/pax-runtime/engine/layer_tiling.md#scrollertilingpolicy)
 
 #### Implementations
+##### `enable_resumable_startup`
+<pre><code class="api-signature language-rust ignore">pub fn enable_resumable_startup(&amp;mut self)</code></pre>
+
+Enable the experimental initial-mount continuation before mounting a root.
+The host must service it to completion before calling ordinary `tick`.
+This changes scheduling only; every initially selected node still mounts.
+
+##### `prepare_startup_presentation`
+<pre><code class="api-signature language-rust ignore">pub fn prepare_startup_presentation(&amp;mut self) -&gt; bool</code></pre>
+
+Validate the initial publication boundary. Browser measurements can arrive
+after the final service call but before rAF; settle those without replaying
+the first tick's handlers or proximity notifications.
+
+##### `service_startup`
+<pre><code class="api-signature language-rust ignore">pub fn service_startup(&amp;mut self, budget_ms: f64, now_ms: impl FnMut() -&gt; f64) -&gt; <a href="../../../api/internal/pax-runtime/engine/startup.md#startupreport">StartupReport</a></code></pre>
+
+Service part of the first logical tick without advancing it once per host
+slice. Native patches may be drained between calls for measurement, but
+rendering and text reveal must wait for `pending == false`.
+
 Central instance of the PaxEngine and runtime, intended to be created by a particular chassis.
 Contains all rendering and runtime logic.
 
@@ -148,15 +170,9 @@ Stops new application work, unmounts, then begins retained resource cleanup.
 ##### `tick`
 <pre><code class="api-signature language-rust ignore">pub fn tick(&amp;mut self) -&gt; Vec&lt;<a href="../../../api/internal/pax-message/index.md#nativemessage">NativeMessage</a>&gt;</code></pre>
 
-Workhorse methods of every tick.  Will be executed up to 240 Hz.
-Three phases:
-1. Expand nodes & compute properties; recurse entire instance tree and evaluate ExpandedNodes, stitching
-   together parent/child relationships between ExpandedNodes along the way.
-2. Compute layout (z-index & TransformAndBounds) by visiting ExpandedNode tree
-   in rendering order, writing computed rendering-specific values to ExpandedNodes
-3. Render:
-    a. find lowest node (last child of last node)
-    b. start rendering, from lowest node on-up, throughout tree
+Settles reactive state and imperative update branches, dispatches lifecycle
+handlers, then reconciles geometry/compositing and returns native patches.
+Rendering/replay is serviced separately by the chassis.
 
 ##### `tick_with_phase_observer`
 <pre><code class="api-signature language-rust ignore">pub fn tick_with_phase_observer(&amp;mut self, completed: impl FnMut(&amp;&#39;static str)) -&gt; Vec&lt;<a href="../../../api/internal/pax-message/index.md#nativemessage">NativeMessage</a>&gt;</code></pre>
