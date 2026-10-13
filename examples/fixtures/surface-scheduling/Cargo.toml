@@ -3,6 +3,7 @@ name = "surface-scheduling"
 version = "0.39.1"
 edition = "2021"
 publish = false
+default-run = "surface-scheduling"
 
 [dependencies]
 pax-kit = { version = "0.39.1", path = "../../../pax-kit" }
@@ -10,8 +11,12 @@ pax-kit = { version = "0.39.1", path = "../../../pax-kit" }
 [lib]
 crate-type = ["cdylib", "rlib"]
 
-[profile.dev]
-opt-level = 1
+[features]
+default = ["standalone", "designtime"]
+standalone = ["pax-kit/host"]
+designtime = ["pax-kit/designtime"]
 
-[profile.dev.package.surface-scheduling]
-opt-level = 0
+[[bin]]
+name = "surface-scheduling"
+path = "src/main.rs"
+required-features = ["standalone"]

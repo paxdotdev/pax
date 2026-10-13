@@ -12,6 +12,10 @@ test('surface inspector input cannot hit-test the Pax content underneath', () =>
     };
     class Element {
         constructor(inspector = false) {this.inspector = inspector;}
+        addEventListener(...args) { window.addEventListener(...args); }
+        removeEventListener(...args) { window.removeEventListener(...args); }
+        contains(target) { return target === this; }
+        getBoundingClientRect() { return {left: 0, top: 0}; }
         closest(selector) {assert.equal(selector, '[data-pax-surface-inspector]'); return this.inspector ? this : null;}
     }
     const body = new Element();
@@ -19,7 +23,7 @@ test('surface inspector input cannot hit-test the Pax content underneath', () =>
     const source = readFileSync(new URL('../src/events/listeners.ts', import.meta.url), 'utf8');
     vm.runInNewContext(transformSync(source, {loader: 'ts', format: 'cjs'}).code,
         {module, exports: module.exports, window, Element, document: {body, activeElement: body}});
-    const dispose = module.exports.setupEventListeners({interrupt: value => {interrupts.push(value); return {prevent_default: false};}});
+    const dispose = module.exports.setupEventListeners({interrupt: value => {interrupts.push(value); return {prevent_default: false};}}, body);
     const event = {target: new Element(true), clientX: 30, clientY: 40, button: 0, preventDefault() {
         assert.fail('inspector browser interaction must keep its default behavior');
     }};

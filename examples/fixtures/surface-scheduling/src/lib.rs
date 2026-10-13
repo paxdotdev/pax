@@ -1,5 +1,7 @@
 use pax_kit::*;
 
+pax_kit::runnable! { root: crate::SurfaceScheduling }
+
 #[pax]
 #[file("catalog.pax")]
 pub struct Catalog {
@@ -8,7 +10,6 @@ pub struct Catalog {
 }
 
 #[pax]
-#[main]
 #[file("lib.pax")]
 pub struct SurfaceScheduling {
     pub mode: Property<usize>,

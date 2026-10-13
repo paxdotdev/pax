@@ -808,7 +808,9 @@ allowance: it stops starting more work based on elapsed time and recent cost,
 while allowing one eligible unit to make progress. A primitive capture or tile
 submission is atomic and can overrun the allowance. If commands cannot fit in
 the bounded cache, an atomic direct draw of the selected tile preserves
-correctness instead of retrying forever. Ordinary scene updates, browser image
+correctness instead of retrying forever. Shader-effect subtrees also use that
+atomic tile fallback: their capture boundary cannot be replayed as independent
+cached leaves. Ordinary scene updates, browser image
 decoding, and GPU initialization are not covered by this allowance. Preparation
 reselects the next eligible batch after each submission, using the remaining
 allowance rather than stopping after one batch per layer. A blocked layer waits
