@@ -142,7 +142,10 @@ impl MarqueeCarousel {
 
     pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
         let now = ctx.elapsed_time_millis() as f64;
-        self.sync_geometry(ctx, false);
+        if !self.sync_geometry(ctx, false) {
+            self._last_frame_millis.set(now);
+            return;
+        }
 
         let content_width = self._content_width_px.get();
         if content_width <= 0.0 {
@@ -189,14 +192,18 @@ impl MarqueeCarousel {
         self.sync_window_for_scroll(next_scroll_x);
     }
 
-    fn sync_geometry(&mut self, ctx: &NodeContext, force: bool) {
+    fn sync_geometry(&mut self, ctx: &NodeContext, force: bool) -> bool {
         let count = ctx.projected_children_count.get();
-        let card_width = self.card_width_px.get().max(1.0);
-        let gap = self.gap_px.get().max(0.0);
-        let stride = card_width + gap;
         let (viewport_width, viewport_height) = ctx.bounds_self.get();
-        let viewport_width = viewport_width.max(0.0);
-        let viewport_height = viewport_height.max(0.0);
+        let Some(stride) = ready_marquee_stride(
+            self.card_width_px.local().get(),
+            self.gap_px.local().get(),
+            (viewport_width, viewport_height),
+        ) else {
+            // Bound inputs can still be settling at mount. A fabricated 1px
+            // card would permanently inflate the retained projection window.
+            return false;
+        };
         let previous_stride = self._last_stride_px.get();
         let previous_content_width = self._content_width_px.get();
         let geometry_changed = count != self._last_projected_child_count.get()
@@ -205,7 +212,7 @@ impl MarqueeCarousel {
             || (stride - previous_stride).abs() > 0.01;
 
         if !force && !geometry_changed {
-            return;
+            return true;
         }
 
         let content_width = count as f64 * stride;
@@ -236,6 +243,7 @@ impl MarqueeCarousel {
         };
         self._window_base_virtual_index.set_if_neq(base);
         self.reconcile_window(count, viewport_width, stride, base);
+        true
     }
 
     fn reconcile_window(&mut self, count: usize, viewport_width: f64, stride: f64, base: i64) {
@@ -243,13 +251,14 @@ impl MarqueeCarousel {
             vec![]
         } else {
             let first = base - CULL_OVERSCAN_CARDS;
-            let required_cell_count =
-                (viewport_width / stride).ceil() as usize + (CULL_OVERSCAN_CARDS * 2 + 2) as usize;
-            // Keep the mounted window at its high-water size. Removing a
-            // repeat item during pre-render can invalidate that item's PaxEL
-            // dependencies before the frame finishes.
+            let required_cell_count = ((viewport_width / stride).ceil().min(count as f64) as usize)
+                .saturating_add((CULL_OVERSCAN_CARDS * 2 + 2) as usize);
+            // Retain the valid viewport high-water size across resizes, but
+            // never more than one position per projected child: slots move
+            // existing components; they cannot clone them across loop cycles.
             let mut cells = self._visible_cells.get();
-            let mounted_cell_count = cells.len().max(required_cell_count);
+            cells.truncate(count);
+            let mounted_cell_count = cells.len().max(required_cell_count).min(count);
             let desired_indices: Vec<_> = (0..mounted_cell_count)
                 .map(|offset| first + offset as i64)
                 .collect();
@@ -313,6 +322,21 @@ impl MarqueeCarousel {
     }
 }
 
+fn ready_marquee_stride(card_width: f64, gap: f64, viewport: (f64, f64)) -> Option<f64> {
+    if !card_width.is_finite()
+        || card_width <= 0.0
+        || !gap.is_finite()
+        || !viewport.0.is_finite()
+        || viewport.0 <= 0.0
+        || !viewport.1.is_finite()
+        || viewport.1 <= 0.0
+    {
+        return None;
+    }
+    let stride = card_width + gap.max(0.0);
+    stride.is_finite().then_some(stride)
+}
+
 fn normalize_loop_scroll(scroll_x: f64, content_width: f64) -> f64 {
     if content_width <= 0.0 || !scroll_x.is_finite() {
         return 0.0;
@@ -327,12 +351,25 @@ fn normalize_loop_scroll(scroll_x: f64, content_width: f64) -> f64 {
 /// The content-authored feature heap used on the Pax home page.
 #[pax]
 #[file("feature_gallery/gallery.pax")]
+#[custom(Default)]
 pub struct FeatureGallery {
     pub content_height: Property<f64>,
     pub compact: Property<bool>,
     pub card_width_px: Property<f64>,
     pub marquee_hovered: Property<bool>,
     pub marquee_touch_active: Property<bool>,
+}
+
+impl Default for FeatureGallery {
+    fn default() -> Self {
+        Self {
+            content_height: Property::new(0.0),
+            compact: Property::new(false),
+            card_width_px: Property::new(DESKTOP_CARD_WIDTH_PX),
+            marquee_hovered: Property::new(false),
+            marquee_touch_active: Property::new(false),
+        }
+    }
 }
 
 impl FeatureGallery {
@@ -347,8 +384,10 @@ impl FeatureGallery {
     fn sync_layout(&mut self, ctx: &NodeContext) {
         crate::section_layout::publish_height(ctx, "gallery_content", &self.content_height);
         let compact = ctx.bounds_self.get().0 < COMPACT_BREAKPOINT_PX;
-        self.compact.set_if_neq(compact);
-        self.card_width_px.set_if_neq(if compact {
+        // Descendant mount handlers must see this layout in the same graph
+        // turn, not wait for a shared-state publication to be imported.
+        self.compact.local().set_if_neq(compact);
+        self.card_width_px.local().set_if_neq(if compact {
             COMPACT_CARD_WIDTH_PX
         } else {
             DESKTOP_CARD_WIDTH_PX
@@ -358,9 +397,94 @@ impl FeatureGallery {
 
 #[cfg(test)]
 mod tests {
-    use super::normalize_loop_scroll;
+    use super::{normalize_loop_scroll, ready_marquee_stride, FeatureGallery, MarqueeCarousel};
+    use std::collections::HashSet;
 
     const PERIOD: f64 = 14_924.0;
+
+    fn assert_unique_window(rail: &MarqueeCarousel, count: usize, expected: usize) {
+        let cells = rail._visible_cells.get();
+        assert_eq!(cells.len(), expected);
+        assert!(cells.iter().all(|cell| cell.slot_index < count));
+        let slots: HashSet<_> = cells.iter().map(|cell| cell.slot_index).collect();
+        assert_eq!(slots.len(), cells.len());
+    }
+
+    #[test]
+    fn gallery_starts_with_valid_card_geometry() {
+        let gallery = FeatureGallery::default();
+        assert_eq!(gallery.card_width_px.get(), 350.0);
+        assert_eq!(
+            ready_marquee_stride(350.0, 24.0, (1280.0, 522.0)),
+            Some(374.0)
+        );
+        assert_eq!(
+            ready_marquee_stride(286.0, 24.0, (390.0, 546.0)),
+            Some(310.0)
+        );
+    }
+
+    #[test]
+    fn unready_or_nonfinite_geometry_does_not_allocate_a_window() {
+        for width in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+            assert_eq!(ready_marquee_stride(width, 24.0, (1280.0, 522.0)), None);
+            assert_eq!(ready_marquee_stride(350.0, 24.0, (width, 522.0)), None);
+            assert_eq!(ready_marquee_stride(350.0, 24.0, (1280.0, width)), None);
+        }
+        assert_eq!(ready_marquee_stride(350.0, f64::NAN, (1280.0, 522.0)), None);
+        assert_eq!(
+            ready_marquee_stride(f64::MAX, f64::MAX, (1280.0, 522.0)),
+            None
+        );
+    }
+
+    #[test]
+    fn startup_window_is_viewport_sized() {
+        let mut rail = MarqueeCarousel::default();
+        rail.reconcile_window(43, 1280.0, 374.0, 43);
+        assert_unique_window(&rail, 43, 10);
+
+        let mut mobile = MarqueeCarousel::default();
+        mobile.reconcile_window(43, 390.0, 310.0, 43);
+        assert_unique_window(&mobile, 43, 8);
+    }
+
+    #[test]
+    fn scrolling_and_loop_recentering_keep_projections_unique() {
+        let mut rail = MarqueeCarousel::default();
+        for base in [43, 44, 45, 42, 100, 110, 67, 22] {
+            rail.reconcile_window(43, 1280.0, 374.0, base);
+            assert_unique_window(&rail, 43, 10);
+            let cells = rail._visible_cells.get();
+            let positions: HashSet<_> = cells.iter().map(|cell| cell.virtual_index).collect();
+            assert_eq!(positions, ((base - 2)..(base + 8)).collect());
+            for cell in cells {
+                assert_eq!(cell.x_px, cell.virtual_index as f64 * 374.0);
+            }
+        }
+    }
+
+    #[test]
+    fn resizing_retains_only_a_valid_bounded_high_water_window() {
+        let mut rail = MarqueeCarousel::default();
+        for (width, stride, expected) in
+            [(390.0, 310.0, 8), (1280.0, 374.0, 10), (390.0, 310.0, 10)]
+        {
+            rail.reconcile_window(43, width, stride, 43);
+            assert_unique_window(&rail, 43, expected);
+        }
+        rail.reconcile_window(43, 100_000.0, 374.0, 43);
+        assert_unique_window(&rail, 43, 43);
+    }
+
+    #[test]
+    fn short_or_changing_content_never_reuses_a_projected_child() {
+        let mut rail = MarqueeCarousel::default();
+        for count in [43, 3, 1, 0, 43] {
+            rail.reconcile_window(count, 1280.0, 374.0, count as i64);
+            assert_unique_window(&rail, count, count.min(10));
+        }
+    }
 
     #[test]
     fn artboards_fit_both_card_sizes_with_stroke_bleed() {

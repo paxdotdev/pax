@@ -89,6 +89,15 @@ and CMY plus lightened RGB syntax colors. Its 160px source tabs stay single-line
 and scroll horizontally; very long labels clip within the tab, with the selected
 path also shown above the strip.
 
+The feature gallery uses its own native-scroller-backed marquee, not
+`pax-std::Carousel`. Card geometry has a valid initial value and is published
+through the local property view before descendants mount. The marquee waits
+for finite, positive card and viewport dimensions before allocating its slot
+window. It retains the largest valid viewport window across resizing, capped
+at the number of supplied cards; a projected child is never duplicated. Keep
+enough cards to fill the viewport plus overscan for a seamless looping rail.
+At 1280px the initial window is 10 cards; at 390px it is 8.
+
 Content and visual design history are archived in
 [PAX-869](https://linear.app/paxdev/issue/PAX-869).
 

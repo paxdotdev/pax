@@ -990,3 +990,27 @@ built from its own directory but failed the CLI's release feature preflight when
 selected with `--path`. Run that resolver in the selected project directory.
 The regression uses a project-local patch and verifies that the guard still
 detects transitive development features through the patched dependency.
+
+## 2026-10-13 — Website marquee startup over-allocates projected slots
+
+Investigating startup duplicate-slot warnings in `pax-website`: expected a
+viewport-sized card window with unique projections. Temporary geometry logging
+on current main plus the website branch observed mount with card width 0,
+stride 25, viewport 1280, and 43 projected cards; the next geometry pass read
+width 350 and stride 374 but retained 58 cells. The high-water window policy
+never shrinks that initial allocation. Live scene inspection confirmed 43
+populated slots and 15 empty duplicate slots, versus 10 cells needed at the
+settled size. All captured duplicate-slot warnings identified `MarqueeCarousel`.
+The parent publishes card width from its mount handler, while shared `Property`
+writes reach local template bindings at a settlement boundary. Fixed with a
+valid default width, local-view layout publication, an unready-geometry guard,
+and a window cap that prevents duplicate projected indices. Runtime warnings
+remain intact; regression tests cover startup, resize, loop movement, and
+short/changing content. Website-specific guidance lives in its README.
+
+The same smoke test produced one `pax-tile-window-escape` warning after a
+deliberate 18-page horizontal scroll jump (about 23,000px). Card rendering
+recovered and slot counts stayed valid. This renderer warm-window diagnostic
+is separate from the projection fix; ordinary movement produced no slot
+warnings. Reproduce with the desktop feature rail before attributing it to
+carousel allocation or broadening this fix into renderer work.
