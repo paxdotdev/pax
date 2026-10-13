@@ -59,6 +59,24 @@ runs the usual reveal. Long startup frames restart that settling interval;
 a five-second ceiling prevents a persistently slow frame rate from suppressing
 the logo indefinitely. There is no fixed delay added to every page load.
 
+The feature gallery uses its own native-scroller-backed marquee. Card geometry
+has a valid initial value and is published through the local property view before
+descendants mount. It mounts cards as they enter the horizontal viewport plus
+two cards of overscan on each side. Each visited card keeps one keyed slot and
+remains mounted until the gallery or that authored child is removed. Looping,
+scroll reversal, and viewport resizing reposition the same card rather than
+recycling its slot into another card. This preserves local demo state; the demo
+clocks pause while their artboards are offscreen. After a complete tour, all 43
+cards can be resident. This is a bounded gallery policy, not a general-purpose
+virtualization or memory-eviction policy.
+
+Card allocation waits for positive, finite card and viewport dimensions. The
+mounted set grows only when a new card is visited; an invalid early width cannot
+reserve an oversized window. Rails shorter than the viewport display once
+without looping or projecting the same child into multiple slots. First visits
+after startup still mount synchronously; retaining cards removes repeated
+initialization but does not yet budget that first-visit work across browser tasks.
+
 ## Website and blog boundary
 
 The website declares `/blog`, `/ai`, and `/ai.md` as `server_owned_prefixes`.
@@ -95,15 +113,6 @@ The shared `ExampleHost` drawer uses dark grayscale surfaces, white active tabs,
 and CMY plus lightened RGB syntax colors. Its 160px source tabs stay single-line
 and scroll horizontally; very long labels clip within the tab, with the selected
 path also shown above the strip.
-
-The feature gallery uses its own native-scroller-backed marquee, not
-`pax-std::Carousel`. Card geometry has a valid initial value and is published
-through the local property view before descendants mount. The marquee waits
-for finite, positive card and viewport dimensions before allocating its slot
-window. It retains the largest valid viewport window across resizing, capped
-at the number of supplied cards; a projected child is never duplicated. Keep
-enough cards to fill the viewport plus overscan for a seamless looping rail.
-At 1280px the initial window is 10 cards; at 390px it is 8.
 
 Content and visual design history are archived in
 [PAX-869](https://linear.app/paxdev/issue/PAX-869).

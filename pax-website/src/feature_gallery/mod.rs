@@ -14,7 +14,7 @@ const DESKTOP_CARD_WIDTH_PX: f64 = 350.0;
 const COMPACT_CARD_WIDTH_PX: f64 = 286.0;
 const CARD_GAP_PX: f64 = 14.0;
 const MARQUEE_SPEED_PX_PER_SECOND: f64 = 30.0;
-const CULL_OVERSCAN_CARDS: i64 = 2;
+const OVERSCAN_CARDS: i64 = 2;
 const SCROLLER_CHROME_PX: f64 = 12.0;
 const TOUCH_MOMENTUM_SETTLE_MILLIS: f64 = 600.0;
 
@@ -66,7 +66,7 @@ fn artboard_scale(card_width: f64) -> f64 {
     ((card_width - 48.0) / 288.0).clamp(0.0, 1.0)
 }
 
-/// One structurally mounted card in the marquee's viewport plus overscan.
+/// One visited card, retained at a stable slot identity as it moves around the loop.
 #[derive(PartialEq)]
 #[pax]
 #[custom(Defaults)]
@@ -76,13 +76,12 @@ pub struct MarqueeCell {
     pub x_px: f64,
 }
 
-/// A continuously scrolling, virtualized horizontal card rail.
+/// A continuously scrolling horizontal card rail with retained visited cards.
 ///
-/// Direct manipulation belongs to a snap-free native scroller surface; the Pax
-/// side advances that same scroll position for marquee motion and only changes
-/// the mounted window when the viewport crosses a card boundary. The template
-/// uses `ScrollerHost` directly so its dynamic `slot(...)` sites remain owned by
-/// this component rather than crossing a second projection boundary.
+/// The viewport plus overscan selects cards to mount for the first time. A card
+/// keeps its own keyed slot after that, including across reversal and resize.
+/// Only its offscreen position wraps; it is never recycled into another card.
+/// `ScrollerHost` keeps these slot sites in this component's projection scope.
 #[pax]
 #[file("feature_gallery/marquee.pax")]
 #[custom(Default)]
@@ -95,7 +94,7 @@ pub struct MarqueeCarousel {
     pub _scroll_width_px: Property<f64>,
     pub _content_width_px: Property<f64>,
     pub _card_height_px: Property<f64>,
-    pub _visible_cells: Property<Vec<MarqueeCell>>,
+    pub _mounted_cells: Property<Vec<MarqueeCell>>,
     pub hover_paused: Property<bool>,
     pub touch_paused: Property<bool>,
     pub _last_frame_millis: Property<f64>,
@@ -118,7 +117,7 @@ impl Default for MarqueeCarousel {
             _scroll_width_px: Property::new(0.0),
             _content_width_px: Property::new(0.0),
             _card_height_px: Property::new(0.0),
-            _visible_cells: Property::new(vec![]),
+            _mounted_cells: Property::new(vec![]),
             hover_paused: Property::new(false),
             touch_paused: Property::new(false),
             _last_frame_millis: Property::new(0.0),
@@ -148,7 +147,7 @@ impl MarqueeCarousel {
         }
 
         let content_width = self._content_width_px.get();
-        if content_width <= 0.0 {
+        if content_width <= 0.0 || content_width <= self._last_viewport_width_px.get() {
             return;
         }
 
@@ -216,7 +215,7 @@ impl MarqueeCarousel {
         }
 
         let content_width = count as f64 * stride;
-        let next_scroll_x = if content_width <= 0.0 {
+        let next_scroll_x = if content_width <= viewport_width {
             0.0
         } else if previous_content_width > 0.0 {
             let phase = self._scroll_pos_x.get().rem_euclid(previous_content_width)
@@ -231,7 +230,11 @@ impl MarqueeCarousel {
         self._last_stride_px.set_if_neq(stride);
         self._content_width_px.set_if_neq(content_width);
         self._scroll_width_px
-            .set_if_neq((content_width * 3.0 + viewport_width).max(viewport_width));
+            .set_if_neq(if content_width > viewport_width {
+                content_width * 3.0 + viewport_width
+            } else {
+                viewport_width
+            });
         self._card_height_px
             .set_if_neq((viewport_height - SCROLLER_CHROME_PX).max(0.0));
         self._scroll_pos_x.set_if_neq(next_scroll_x);
@@ -247,58 +250,14 @@ impl MarqueeCarousel {
     }
 
     fn reconcile_window(&mut self, count: usize, viewport_width: f64, stride: f64, base: i64) {
-        let cells = if count == 0 {
-            vec![]
-        } else {
-            let first = base - CULL_OVERSCAN_CARDS;
-            let required_cell_count = ((viewport_width / stride).ceil().min(count as f64) as usize)
-                .saturating_add((CULL_OVERSCAN_CARDS * 2 + 2) as usize);
-            // Retain the valid viewport high-water size across resizes, but
-            // never more than one position per projected child: slots move
-            // existing components; they cannot clone them across loop cycles.
-            let mut cells = self._visible_cells.get();
-            cells.truncate(count);
-            let mounted_cell_count = cells.len().max(required_cell_count).min(count);
-            let desired_indices: Vec<_> = (0..mounted_cell_count)
-                .map(|offset| first + offset as i64)
-                .collect();
-            let mut missing_indices: Vec<_> = desired_indices
-                .iter()
-                .copied()
-                .filter(|desired| !cells.iter().any(|cell| cell.virtual_index == *desired))
-                .collect();
-
-            // Preserve cells whose virtual position remains in the overscan
-            // window. Recycle only departed cells, preferring a replacement
-            // with the same projected slot across a complete marquee period.
-            for cell in &mut cells {
-                if desired_indices.contains(&cell.virtual_index) {
-                    continue;
-                }
-                let replacement = missing_indices
-                    .iter()
-                    .position(|candidate| {
-                        candidate.rem_euclid(count as i64) as usize == cell.slot_index
-                    })
-                    .unwrap_or(0);
-                cell.virtual_index = missing_indices.remove(replacement);
-            }
-            cells.extend(
-                missing_indices
-                    .into_iter()
-                    .map(|virtual_index| MarqueeCell {
-                        virtual_index,
-                        slot_index: virtual_index.rem_euclid(count as i64) as usize,
-                        x_px: 0.0,
-                    }),
-            );
-            for cell in &mut cells {
-                cell.slot_index = cell.virtual_index.rem_euclid(count as i64) as usize;
-                cell.x_px = cell.virtual_index as f64 * stride;
-            }
-            cells
-        };
-        self._visible_cells.set_if_neq(cells);
+        let cells = reconcile_cells(
+            self._mounted_cells.get(),
+            count,
+            viewport_width,
+            stride,
+            base,
+        );
+        self._mounted_cells.set_if_neq(cells);
     }
 
     fn sync_window_for_scroll(&mut self, scroll_x: f64) {
@@ -335,6 +294,42 @@ fn ready_marquee_stride(card_width: f64, gap: f64, viewport: (f64, f64)) -> Opti
     }
     let stride = card_width + gap.max(0.0);
     stride.is_finite().then_some(stride)
+}
+
+fn reconcile_cells(
+    mut cells: Vec<MarqueeCell>,
+    count: usize,
+    viewport_width: f64,
+    stride: f64,
+    base: i64,
+) -> Vec<MarqueeCell> {
+    // Only an actual change to the authored children can remove a retained card.
+    cells.retain(|cell| cell.slot_index < count);
+    if count == 0 {
+        return cells;
+    }
+    let looping = count as f64 * stride > viewport_width;
+    let first = if looping { base - OVERSCAN_CARDS } else { 0 };
+    let required = ((viewport_width / stride).ceil() as usize)
+        .saturating_add((OVERSCAN_CARDS * 2 + 2) as usize)
+        .min(count);
+    for offset in 0..required {
+        let slot_index = (first + offset as i64).rem_euclid(count as i64) as usize;
+        if !cells.iter().any(|cell| cell.slot_index == slot_index) {
+            cells.push(MarqueeCell {
+                slot_index,
+                virtual_index: 0,
+                x_px: 0.0,
+            });
+        }
+    }
+    for cell in &mut cells {
+        // All copies of this slot would alias the same projected node. Keep one
+        // attachment and wrap it beyond the viewport when its old position exits.
+        cell.virtual_index = first + (cell.slot_index as i64 - first).rem_euclid(count as i64);
+        cell.x_px = cell.virtual_index as f64 * stride;
+    }
+    cells
 }
 
 fn normalize_loop_scroll(scroll_x: f64, content_width: f64) -> f64 {
@@ -397,13 +392,13 @@ impl FeatureGallery {
 
 #[cfg(test)]
 mod tests {
-    use super::{normalize_loop_scroll, ready_marquee_stride, FeatureGallery, MarqueeCarousel};
+    use super::*;
     use std::collections::HashSet;
 
     const PERIOD: f64 = 14_924.0;
 
     fn assert_unique_window(rail: &MarqueeCarousel, count: usize, expected: usize) {
-        let cells = rail._visible_cells.get();
+        let cells = rail._mounted_cells.get();
         assert_eq!(cells.len(), expected);
         assert!(cells.iter().all(|cell| cell.slot_index < count));
         let slots: HashSet<_> = cells.iter().map(|cell| cell.slot_index).collect();
@@ -450,21 +445,6 @@ mod tests {
     }
 
     #[test]
-    fn scrolling_and_loop_recentering_keep_projections_unique() {
-        let mut rail = MarqueeCarousel::default();
-        for base in [43, 44, 45, 42, 100, 110, 67, 22] {
-            rail.reconcile_window(43, 1280.0, 374.0, base);
-            assert_unique_window(&rail, 43, 10);
-            let cells = rail._visible_cells.get();
-            let positions: HashSet<_> = cells.iter().map(|cell| cell.virtual_index).collect();
-            assert_eq!(positions, ((base - 2)..(base + 8)).collect());
-            for cell in cells {
-                assert_eq!(cell.x_px, cell.virtual_index as f64 * 374.0);
-            }
-        }
-    }
-
-    #[test]
     fn resizing_retains_only_a_valid_bounded_high_water_window() {
         let mut rail = MarqueeCarousel::default();
         for (width, stride, expected) in
@@ -484,6 +464,78 @@ mod tests {
             rail.reconcile_window(count, 1280.0, 374.0, count as i64);
             assert_unique_window(&rail, count, count.min(10));
         }
+    }
+
+    #[test]
+    fn unset_or_nonfinite_geometry_cannot_allocate_cards() {
+        for card_width in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+            assert_eq!(
+                ready_marquee_stride(card_width, 24.0, (1440.0, 522.0)),
+                None
+            );
+        }
+        assert_eq!(ready_marquee_stride(350.0, 24.0, (0.0, 522.0)), None);
+        assert_eq!(ready_marquee_stride(350.0, 24.0, (1440.0, 0.0)), None);
+        assert_eq!(ready_marquee_stride(350.0, f64::NAN, (1440.0, 522.0)), None);
+        for (width, card, expected) in [(720.0, 286.0, 9), (1440.0, 350.0, 10), (1920.0, 350.0, 12)]
+        {
+            let stride = ready_marquee_stride(card, 24.0, (width, 522.0)).unwrap();
+            let cells = reconcile_cells(vec![], 43, width, stride, 43);
+            assert_eq!(cells.len(), expected);
+        }
+    }
+
+    #[test]
+    fn looping_and_reversal_preserve_visited_cards_without_duplicate_slots() {
+        let mut cells = vec![];
+        let mut visited = HashSet::new();
+        for base in (21..150).chain((0..150).rev()) {
+            cells = reconcile_cells(cells, 43, 1440.0, 374.0, base);
+            let slots: HashSet<_> = cells.iter().map(|c| c.slot_index).collect();
+            assert_eq!(slots.len(), cells.len());
+            assert!(
+                visited.is_subset(&slots),
+                "scrolling cannot evict a visited card"
+            );
+            for visible in base..base + 5 {
+                assert!(cells.iter().any(|c| c.virtual_index == visible));
+            }
+            for cell in &cells {
+                assert_eq!(cell.virtual_index.rem_euclid(43) as usize, cell.slot_index);
+                assert_eq!(cell.x_px, cell.virtual_index as f64 * 374.0);
+            }
+            visited = slots;
+        }
+        assert_eq!(cells.len(), 43);
+    }
+
+    #[test]
+    fn resize_and_loop_recentering_preserve_card_identity() {
+        let cells = reconcile_cells(vec![], 43, 1920.0, 374.0, 43);
+        let slots: Vec<_> = cells.iter().map(|c| c.slot_index).collect();
+        let narrow = reconcile_cells(cells, 43, 720.0, 310.0, 43);
+        assert_eq!(
+            narrow.iter().map(|c| c.slot_index).collect::<Vec<_>>(),
+            slots
+        );
+        let recentered = reconcile_cells(narrow.clone(), 43, 720.0, 310.0, 86);
+        assert_eq!(recentered.len(), narrow.len());
+        for (a, b) in narrow.iter().zip(&recentered) {
+            assert_eq!(a.slot_index, b.slot_index);
+            assert_eq!(b.x_px - a.x_px, 43.0 * 310.0);
+        }
+    }
+
+    #[test]
+    fn short_rails_and_authored_removal_never_duplicate_slots() {
+        let cells = reconcile_cells(vec![], 43, 1440.0, 374.0, 43);
+        let short = reconcile_cells(cells, 2, 1440.0, 374.0, 43);
+        assert_eq!(short.len(), 2);
+        for cell in &short {
+            assert_eq!(cell.virtual_index, cell.slot_index as i64);
+            assert_eq!(cell.x_px, cell.slot_index as f64 * 374.0);
+        }
+        assert!(reconcile_cells(short, 0, 1440.0, 374.0, 0).is_empty());
     }
 
     #[test]
