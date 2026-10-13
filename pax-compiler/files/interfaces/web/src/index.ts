@@ -107,6 +107,9 @@ export interface WebInitOptions {
 export interface MountedApp { readonly closed: Promise<void>; close(): void; request(bytes: Uint8Array): Promise<Uint8Array>; }
 
 class MountSession implements MountedApp {
+    readonly mounted: Promise<void>;
+    private resolveMounted!: () => void;
+    private rejectMounted!: (reason: unknown) => void;
     readonly closed: Promise<void>;
     private acknowledge!: () => void;
     private closing = false;
@@ -116,6 +119,11 @@ class MountSession implements MountedApp {
     readonly region: HTMLDivElement;
     constructor(readonly options: WebInitOptions) {
         this.closed = new Promise(resolve => { this.acknowledge = resolve; });
+        this.mounted = new Promise((resolve, reject) => {
+            this.resolveMounted = resolve; this.rejectMounted = reject;
+        });
+        // Cancellation can arrive during module loading, before the caller awaits mounting.
+        void this.mounted.catch(() => {});
         this.region = document.createElement("div");
         this.region.className = "pax-mount";
         this.region.tabIndex = 0;
@@ -130,6 +138,8 @@ class MountSession implements MountedApp {
     checkOpen() {
         if (this.closing || this.options.signal?.aborted) throw new DOMException("Pax initialization cancelled", "AbortError");
     }
+    didMount() { this.resolveMounted(); }
+    failStartup(error: unknown) { this.rejectMounted(error); this.close(); }
     finishStartup() {
         this.starting = false;
         this.cleanupWake(this.pump?.() ?? 0);
@@ -144,6 +154,7 @@ class MountSession implements MountedApp {
     close() {
         if (this.closing) return;
         this.closing = true;
+        this.rejectMounted(new DOMException("Pax initialization cancelled", "AbortError"));
         this.options.signal?.removeEventListener("abort", this.abort);
         if (liveSession === this) disposeCurrentChassis();
         this.region.remove();
@@ -302,6 +313,9 @@ async function startRenderLoop(extensionlessUrl: string, mount: Element, session
     const chassis = currentChassis!;
     runFrame(chassis, mount);
     frameScheduler.schedule(() => renderLoop(chassis, mount));
+    if (!chassis.startup_pending()) session.didMount();
+    await session.mounted;
+    session.checkOpen();
 }
 
 function attachChassis(chassis: PaxChassisWeb, mount: Element) {
@@ -316,7 +330,11 @@ function attachChassis(chassis: PaxChassisWeb, mount: Element) {
             if (perfTraceEnabled) {
                 nativePool.recordSurfaceFramePhase(`startup.${report.longest_unit}`, report.longest_unit_ms);
             }
+            if (!report.pending) liveSession?.didMount();
             return report.pending;
+        } catch (error) {
+            liveSession?.failStartup(error);
+            return false;
         } finally {
             frameInProgress = false;
             pendingAsyncInterruptFlush = false;

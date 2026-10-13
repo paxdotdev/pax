@@ -215,6 +215,8 @@ available and a MessageChannel task otherwise. Browser animation frames publish
 completed scene work. A service call does not itself advance the application
 frame clock or repeat `@mount`, `@tick`, or `@pre_render` handlers. Wall time still
 passes during initialization, so this does not pause elapsed-time animations.
+The `init_web` Promise still waits for mounting to finish; aborting its signal
+cancels pending slices and rejects initialization while cleanup proceeds.
 
 Native patches can reach the browser between calls so hidden text can load fonts
 and return measurements. Text responses retain their request-generation checks.

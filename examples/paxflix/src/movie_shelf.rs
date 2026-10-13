@@ -55,18 +55,6 @@ pub struct MovieShelf {
     pub gutter: Property<f64>,
     pub scroll_x: Property<f64>,
     pub entrances: Property<Vec<CardEntrance>>,
-    pub loaded: Property<bool>,
-    pub catalog_y: Property<f64>,
-    pub catalog_scroll_y: Property<f64>,
-    pub catalog_viewport_height: Property<f64>,
-}
-
-// Use catalog-local coordinates: an embedding Frame deliberately keeps global
-// proximity strict, so it cannot provide an offscreen preparation runway.
-fn should_prepare_row(top: f64, height: f64, scroll: f64, viewport: f64) -> bool {
-    viewport > 0.0
-        && top < scroll.max(0.0) + viewport * 2.0
-        && top + height > scroll.max(0.0) - viewport
 }
 
 impl MovieShelf {

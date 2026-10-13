@@ -16,6 +16,16 @@ Last triaged: 2026-10-05 — [PAX-972](https://linear.app/paxdev/issue/PAX-972/p
 
 ## Untriaged findings
 
+- 2026-10-13, PAX-839 integration check: a full forward/reverse tour of the
+  retained feature gallery should avoid invalid native clips. Chrome at
+  1440×900 logged 66 `MNaN,inf…` SVG path errors and four reactive-drain limits
+  both before and after rebasing onto the 0.39.1 website. Card identities stayed
+  stable through the tour and 720/1920px resizes. The integrated run also logged
+  one FeatureStudy exit timeout under build load. Evidence:
+  `/tmp/pax839-gallery-20261013/{final,integrated-release}-1440.json`.
+  These remain separate from the integration fixes; see the October 9 clipping
+  report below. No workaround or causal link to missing content is established.
+
 - 2026-10-13, initialization rebase: directory renames did not migrate Shader
   Studio, which main added after the example-layout branch diverged, or rewrite
   the website’s relative Paxflix asset symlinks. Compare incoming added files
@@ -1081,4 +1091,3 @@ carousel allocation or broadening this fix into renderer work.
   separately.
 
 - 2026-10-12 — Web bootstrap validation: `npx tsc --noEmit` reports existing interface errors (native patch types, native text CSS types, touch inference, and cartridge/window declarations). Expected a clean full typecheck; the before/after compiler-host comparison returns identical diagnostics with the pre-task bootstrap sources restored virtually. Evidence: `/tmp/pax839-resumable-implementation/{typescript.log,type-comparison.json}`. Focused scheduler/native-text tests and the release esbuild remain available; a passing bundle is not a passing full typecheck.
-

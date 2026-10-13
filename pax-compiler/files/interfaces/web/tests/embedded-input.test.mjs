@@ -24,7 +24,7 @@ function harness(permission) {
     if (permission) window.DeviceOrientationEvent = {requestPermission: () => permission};
     const module = {exports: {}};
     vm.runInNewContext(code, {module, exports: module.exports, window, document, console,
-        HTMLElement: Element, HTMLInputElement: class {}, HTMLTextAreaElement: class {}, performance: {now: () => 0}});
+        Element, HTMLElement: Element, HTMLInputElement: class {}, HTMLTextAreaElement: class {}, performance: {now: () => 0}});
     const dispose = module.exports.setupEventListeners({interrupt: message => { interrupts.push(message); return {prevent_default: false}; }}, mount);
     const event = (target, clientX = 120, clientY = 80) => ({target, clientX, clientY, button: 0, preventDefault() {}, stopPropagation() {}});
     return {window, document, mount, outside, dispose, interrupts, event};

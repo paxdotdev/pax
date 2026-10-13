@@ -1780,6 +1780,8 @@ impl RenderContext for PaxGpuRenderer {
     fn end_surface_recording(&mut self, layer: usize) -> bool {
         assert_eq!(self.recording_layer.take(), Some(layer));
         assert!(self.alpha_source_scopes.is_empty());
+        #[cfg(feature = "shaders")]
+        assert!(self.shader_effect_scopes.is_empty());
         self.drawings.finish_frame(layer);
         self.drawings.evictions == self.recording_evictions
     }
@@ -2331,6 +2333,18 @@ impl RenderContext for PaxGpuRenderer {
         scopes: &[pax_runtime_api::OpacityScope],
         children: &[u32],
     ) -> bool {
+        if self.recording_layer.is_some()
+            || self
+                .direct_surface_layer
+                .is_some_and(|owner| owner != layer)
+        {
+            // Effect captures own complete subtrees, not independent leaf drawings.
+            // Leave them uncached so preparation uses its atomic tile fallback;
+            // a CPU recording pass must never mutate a live GPU capture.
+            self.push_render_scope(layer, Vec::new());
+            self.shader_effect_scopes.push((layer, scopes.len()));
+            return true;
+        }
         let inherited = self
             .shader_effect_scopes
             .last()
@@ -2345,6 +2359,11 @@ impl RenderContext for PaxGpuRenderer {
                     target.prepare_for_render();
                     selected = self.active_render_scope(layer).unwrap_or_else(|| {
                         self.targeted_or_all_indices(layer, target.renderers.len())
+                    });
+                    selected.retain(|index| {
+                        !self.prepare_surface_content
+                            || target.renderers[*index].presentation_ready
+                            || self.direct_surface_layer == Some(layer)
                     });
                     for index in &selected {
                         replay |= target.renderers[*index].renderer.begin_shader_effect(
@@ -2534,8 +2553,13 @@ impl RenderContext for PaxGpuRenderer {
             if owner != layer {
                 return false;
             }
-            self.drawings
-                .begin(layer, node_id, z_index, light_mask, Some(coverage_bounds));
+            self.drawings.begin(
+                layer,
+                node_id,
+                z_index,
+                light_mask,
+                (!self.is_capturing_source()).then_some(coverage_bounds),
+            );
             return true;
         }
         if self.is_capturing_source() {
@@ -3011,6 +3035,44 @@ fn replay_identity_priority<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "shaders")]
+    #[test]
+    fn cold_shader_capture_requires_atomic_replay_without_caching_unfiltered_leaves() {
+        use pax_runtime_api::{ShaderEffect, ShaderProgram};
+        static PROGRAM: ShaderProgram = ShaderProgram {
+            label: "record-only",
+            passes: &[],
+        };
+        let effect = ShaderEffect {
+            program: &PROGRAM,
+            parameters: vec![],
+            outset: 0.0,
+        };
+        let mut renderer =
+            PaxGpuRenderer::new(|_, _| panic!("recording cannot allocate GPU targets"))
+                .with_surface_content_preparation();
+        assert!(renderer.begin_surface_recording(0));
+        assert!(renderer.begin_shader_effect(
+            0,
+            1,
+            0,
+            &effect,
+            kurbo::Affine::IDENTITY,
+            (32.0, 32.0),
+            &[],
+            &[2]
+        ));
+        assert!(renderer.begin_node_with_bounds(0, 2, 1, Rect::new(0.0, 0.0, 32.0, 32.0), 0));
+        renderer.end_node(0, 2);
+        renderer.end_shader_effect(0, 1);
+        assert!(renderer.end_surface_recording(0));
+        assert_eq!(
+            renderer.missing_surface_drawings(0, &[1, 2]),
+            Some(vec![1, 2])
+        );
+        assert!(renderer.backends.borrow().is_empty());
+    }
 
     #[test]
     fn partial_surface_priority_uses_current_identity_not_host_array_position() {
