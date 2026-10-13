@@ -1,6 +1,6 @@
 [package]
 name = "pax-compiler"
-version = "0.39.0"
+version = "0.39.1"
 authors = ["Zack Brown <zack@pax.dev>", "Warfa Jibril <warfa@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -23,8 +23,8 @@ designtime = []
 [lib]
 
 [dependencies]
-pax-host = { version = "0.39.0", path = "../pax-host" }
-pax-codegen = { version = "0.39.0", path = "../pax-codegen" }
+pax-host = { version = "0.39.1", path = "../pax-host" }
+pax-codegen = { version = "0.39.1", path = "../pax-codegen" }
 actix = "0.13.1"
 actix-files = "0.6"
 actix-web = "4"
@@ -45,11 +45,11 @@ libc = "0.2"
 log = "0.4"
 miniz_oxide = "0.8"
 notify = "6.1.1"
-pax-manifest = {version= "0.39.0", path="../pax-manifest", features=["compiler"]}
-pax-message = {version = "0.39.0", path="../pax-message"}
-pax-runtime-api = {path = "../pax-runtime-api", version="0.39.0" }
-pax-designtime = { path = "../pax-designtime", version = "0.39.0" }
-pax-language = {version = "0.39.0", path="../pax-language"}
+pax-manifest = {version= "0.39.1", path="../pax-manifest", features=["compiler"]}
+pax-message = {version = "0.39.1", path="../pax-message"}
+pax-runtime-api = {path = "../pax-runtime-api", version="0.39.1" }
+pax-designtime = { path = "../pax-designtime", version = "0.39.1" }
+pax-language = {version = "0.39.1", path="../pax-language"}
 plist = "1.8"
 rand = "0.8.4"
 regex = "1"

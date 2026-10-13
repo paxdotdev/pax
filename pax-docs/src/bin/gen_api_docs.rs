@@ -519,6 +519,13 @@ impl ModulePath {
         let rel_path = format!("{}.md", self.segments.join("/"));
         (display_name, rel_path)
     }
+
+    fn link_from_parent_module(&self) -> String {
+        // The parent page is `a/b.md`, not the crate index. Its immediate
+        // child `a/b/c.md` is therefore linked as `b/c.md` at any depth.
+        let start = self.segments.len().saturating_sub(2);
+        format!("{}.md", self.segments[start..].join("/"))
+    }
 }
 
 #[derive(Clone)]
@@ -1808,7 +1815,8 @@ fn write_module_doc(
     if !submodules.is_empty() {
         out.push_str("## Submodules\n");
         for module in submodules {
-            let (display_name, rel_path) = module.path.display_name_and_path();
+            let (display_name, _) = module.path.display_name_and_path();
+            let rel_path = module.path.link_from_parent_module();
             out.push_str(&format!("- [{display_name}]({rel_path})\n"));
         }
         out.push('\n');
@@ -2200,6 +2208,52 @@ fn collect_md_files(dir: &Path, out: &mut Vec<PathBuf>) -> Result<(), Box<dyn st
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn submodule_links_are_relative_to_the_parent_page_at_every_depth() {
+        let dir = TestDirectory::new();
+        for (page, segments, expected) in [
+            ("api/pax-std/index.md", vec!["drawing"], "drawing.md"),
+            (
+                "api/pax-std/drawing.md",
+                vec!["drawing", "pax_logo"],
+                "drawing/pax_logo.md",
+            ),
+            (
+                "api/pax-std/drawing/pax_logo.md",
+                vec!["drawing", "pax_logo", "animated_pax_logo"],
+                "pax_logo/animated_pax_logo.md",
+            ),
+            (
+                "api/internal/pax-runtime/a/b/c.md",
+                vec!["a", "b", "c", "d"],
+                "c/d.md",
+            ),
+        ] {
+            let module = ModuleRendered {
+                path: ModulePath {
+                    segments: segments.into_iter().map(str::to_string).collect(),
+                },
+                docs: String::new(),
+                items: Vec::new(),
+                submodules: Vec::new(),
+            };
+            let output = dir.0.join("module.md");
+            write_module_doc(
+                &output,
+                page,
+                "Parent",
+                "",
+                "Summary",
+                "fixture",
+                &[module],
+                &[],
+                &LinkResolver::default(),
+            )
+            .unwrap();
+            assert!(fs::read_to_string(output).unwrap().contains(&format!("]({expected})")));
+        }
+    }
 
     #[test]
     fn api_links_remain_inside_the_current_publication_prefix() {

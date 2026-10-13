@@ -1,6 +1,6 @@
 [package]
 name = "cfg-leaf"
-version = "0.0.0"
+version = "0.39.1"
 edition = "2021"
 publish = false
 [lib]
@@ -8,4 +8,4 @@ path = "components/entry.rs"
 [features]
 selected = []
 [dependencies]
-pax-kit = { path = "../../../../../pax-kit" }
+pax-kit = { path = "../../../../../pax-kit", version = "0.39.1"}

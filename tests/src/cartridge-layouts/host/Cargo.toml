@@ -1,6 +1,6 @@
 [package]
 name = "layout-host"
-version = "0.1.0"
+version = "0.39.1"
 edition = "2021"
 default-run = "layout-host"
 
@@ -21,5 +21,5 @@ path = "src/main.rs"
 required-features = ["standalone"]
 
 [dependencies]
-my-ui = { package = "layout-ui", path = "../ui" }
-pax-kit = { path = "../../../../pax-kit" }
+my-ui = { package = "layout-ui", path = "../ui", version = "0.39.1"}
+pax-kit = { path = "../../../../pax-kit", version = "0.39.1"}

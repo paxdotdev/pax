@@ -1,6 +1,6 @@
 [package]
 name = "pax-codegen"
-version = "0.39.0"
+version = "0.39.1"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 homepage = "https://pax.dev/"
@@ -11,9 +11,9 @@ description = "Shared Pax source analysis and cartridge code generation"
 cargo_metadata = "0.18.1"
 color-eyre = "0.6.2"
 include_dir = "0.7.3"
-pax-language = { version = "0.39.0", path = "../pax-language" }
-pax-manifest = { version = "0.39.0", path = "../pax-manifest", features = ["compiler"] }
-pax-runtime-api = { version = "0.39.0", path = "../pax-runtime-api" }
+pax-language = { version = "0.39.1", path = "../pax-language" }
+pax-manifest = { version = "0.39.1", path = "../pax-manifest", features = ["compiler"] }
+pax-runtime-api = { version = "0.39.1", path = "../pax-runtime-api" }
 proc-macro2 = { version = "1.0", features = ["span-locations"] }
 quote = "1.0"
 roxmltree = "0.21.1"

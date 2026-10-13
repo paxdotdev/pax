@@ -1,6 +1,6 @@
 [package]
 name = "pax-cli"
-version = "0.39.0"
+version = "0.39.1"
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -22,12 +22,12 @@ color-eyre = "0.6.2"
 colored = "2.0.0"
 ctrlc = { version = "3.4.4", features = ["termination"] }
 nix = "0.20.2"
-pax-compiler = {path = "../pax-compiler", version = "0.39.0"}
-pax-docs = {path = "../pax-docs", version = "0.39.0"}
-pax-language = {path = "../pax-language", version = "0.39.0"}
-pax-language-server = {path = "../pax-language-server", version = "0.39.0"}
-pax-manifest = {path = "../pax-manifest", version = "0.39.0", features=["json"]}
-pax-message = {path = "../pax-message", version = "0.39.0"}
+pax-compiler = {path = "../pax-compiler", version = "0.39.1"}
+pax-docs = {path = "../pax-docs", version = "0.39.1"}
+pax-language = {path = "../pax-language", version = "0.39.1"}
+pax-language-server = {path = "../pax-language-server", version = "0.39.1"}
+pax-manifest = {path = "../pax-manifest", version = "0.39.1", features=["json"]}
+pax-message = {path = "../pax-message", version = "0.39.1"}
 reqwest = { version = "0.11.18", features = ["blocking", "json"] }
 rustc_version = "0.4.0"
 semver = "1.0"

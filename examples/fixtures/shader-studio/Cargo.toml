@@ -2,14 +2,14 @@
 publish = false
 default-run = "shader-studio"
 name = "shader-studio"
-version = "0.39.0"
+version = "0.39.1"
 edition = "2021"
 
 [package.metadata.pax]
 title = "Shader Studio"
 
 [dependencies]
-pax-kit = { version = "0.39.0", path = "../../../pax-kit", features = ["shaders"] }
+pax-kit = { version = "0.39.1", path = "../../../pax-kit", features = ["shaders"] }
 
 [lib]
 crate-type = ["cdylib", "rlib"]

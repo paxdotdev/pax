@@ -1,11 +1,11 @@
 [package]
 name = "layout-consumer"
-version = "0.1.0"
+version = "0.39.1"
 edition = "2021"
 
 [lib]
 crate-type = ["rlib", "cdylib"]
 
 [dependencies]
-pax-kit = { path = "../../../../pax-kit" }
-layout-ui = { path = "../ui" }
+pax-kit = { path = "../../../../pax-kit", version = "0.39.1"}
+layout-ui = { path = "../ui", version = "0.39.1"}

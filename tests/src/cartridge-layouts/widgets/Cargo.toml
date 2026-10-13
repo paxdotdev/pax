@@ -1,10 +1,10 @@
 [package]
 name = "layout-widgets"
-version = "0.1.0"
+version = "0.39.1"
 edition = "2021"
 
 [lib]
 name = "layout_controls"
 
 [dependencies]
-pax-kit = { path = "../../../../pax-kit" }
+pax-kit = { path = "../../../../pax-kit", version = "0.39.1"}

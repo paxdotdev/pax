@@ -2,8 +2,11 @@
 
 PAX-906 owns 0.39.0 preparation and publication; PAX-987 is its docs completion
 gate. 0.39.x can repair pre-launch findings. Public launch is 0.40.0.
-Zack owns commits, merges, tags, pushes, and final publication approval.
-`scripts/release.py` never performs git writes.
+Zack owns commits, merges, branch pushes, and final publication approval.
+After successful crate/docs publication, `scripts/release.py publish` creates an
+annotated `vVERSION` tag at the exact approved commit. With `--tag-remote origin`,
+it also pushes and verifies only that tag; no command stages, commits, merges,
+or pushes branches. Other phases never write Git state.
 
 ## Prepare a candidate
 
@@ -135,6 +138,7 @@ Only after explicit publication approval:
 ```sh
 AWS_PROFILE=pax python3.12 scripts/release.py publish 0.39.0 \
   --approved-commit FULL_APPROVED_COMMIT_SHA \
+  --tag-remote origin \
   --docs-bucket docs.pax.dev \
   --docs-distribution-id E2EYK7TMGOPCYY
 ```
@@ -171,9 +175,25 @@ part of published-channel acceptance. See the
 [docs publisher runbook](../pax-docs/scripts/README.md) for ghost-patch/cache policy.
 
 Docs failure returns exit code **3**, independently of successful crate uploads;
-other failures return nonzero. Never report the release complete on a partial
+tag creation/push failure after successful publication returns **4**. Other
+failures return nonzero. Never report the release complete on a partial
 success. The docs receipt under `target/docs-publication/` records the invalidation
 ID, digest, completion state, timestamp, and verified URLs.
+
+### Release tags
+
+Before uploading, publication checks the local tag and (when supplied) the
+remote tag. Existing tags must be annotated and point at the approved commit;
+if both exist they must be the same tag object. Conflicts stop the release;
+the script never force-updates or deletes a tag. The selected remote must have
+one identical fetch/push URL, so verification checks the actual destination.
+
+After crate checksums and live docs verification succeed, publication rechecks
+the clean candidate and creates `vVERSION` with annotation `Pax VERSION`.
+`--tag-remote` pushes exactly that ref, not the current branch or other tags.
+Omit the option for a local-only tag. Retries reuse a matching tag; if only the
+remote tag exists, they fetch that exact object. Tag results are journaled in
+`publication.json`. Publication does not create a GitHub Release or release notes.
 
 ## Partial failure and recovery
 
@@ -191,6 +211,11 @@ ID, digest, completion state, timestamp, and verified URLs.
   safely rechecks/skips matching crates and recopies the full prepared docs tree.
   The catalog is promoted only after content upload. A copied S3 tree is not an
   atomic deployment; a partial copy can leave mixed files until the retry finishes.
+- If tagging fails, crates and docs are already published. Preserve the clean
+  approved checkout and candidate, resolve the Git identity/access problem, and
+  rerun the same publish command including `--tag-remote` if originally used.
+  Do not move an existing conflicting tag to make the retry pass. A retry
+  rechecks crates and republishes/verifies the exact docs before finishing the tag.
 - If invalidation times out, inspect the recorded ID with
   `aws cloudfront get-invalidation --distribution-id ID --id INVALIDATION_ID`.
   Retry waits/uploads from the same approved artifact; a second invalidation is

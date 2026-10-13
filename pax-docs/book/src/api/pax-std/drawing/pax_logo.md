@@ -10,7 +10,7 @@ pose without animation masks. Both use a 920.72 × 463.95 coordinate system;
 scale an enclosing `Group` to fit another layout.
 
 ## Submodules
-- [drawing::pax_logo::animated_pax_logo](drawing/pax_logo/animated_pax_logo.md)
-- [drawing::pax_logo::animated_pax_logo_banner](drawing/pax_logo/animated_pax_logo_banner.md)
-- [drawing::pax_logo::animated_pax_logo_post](drawing/pax_logo/animated_pax_logo_post.md)
-- [drawing::pax_logo::static_pax_logo](drawing/pax_logo/static_pax_logo.md)
+- [drawing::pax_logo::animated_pax_logo](pax_logo/animated_pax_logo.md)
+- [drawing::pax_logo::animated_pax_logo_banner](pax_logo/animated_pax_logo_banner.md)
+- [drawing::pax_logo::animated_pax_logo_post](pax_logo/animated_pax_logo_post.md)
+- [drawing::pax_logo::static_pax_logo](pax_logo/static_pax_logo.md)

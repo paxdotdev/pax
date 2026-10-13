@@ -29,6 +29,16 @@ def dependency(name, kind=None, req="^0.39.0", **extra):
 
 
 class ReleaseTests(unittest.TestCase):
+    def setUp(self):
+        # Existing pipeline tests isolate Git publication; real local/remote
+        # tag behavior is exercised in ReleaseTagTests below.
+        state = patch.object(release, "release_tag_state", return_value=(None, None))
+        tag = patch.object(release, "publish_release_tag", return_value={"status": "test tag"})
+        self.tag_state = state.start()
+        self.publish_tag = tag.start()
+        self.addCleanup(state.stop)
+        self.addCleanup(tag.stop)
+
     def test_discovers_independent_docs_new_crates_and_optional_target_build_edges(self):
         crates = [package("cli", [dependency("docs"), dependency("gpu", target="cfg(wasm32)", optional=True),
                                    dependency("build", kind="build")]),
@@ -136,6 +146,42 @@ pax-message = { version = "0.38.3" }
                 self.assertIn("--verify-live", commands[0])
             journal = json.loads((Path(tmp) / "publication.json").read_text())
             self.assertEqual(journal["crates"]["pax-example"], "verified in registry")
+            self.publish_tag.assert_called_once_with(args)
+
+    def test_tag_conflict_and_docs_failure_do_not_tag(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            args = release.parse_args(["publish", "0.39.1", "--approved-commit", "abc", "--output", tmp])
+            record = {"packages": []}
+            with patch.object(release, "validate_candidate", return_value=record), patch.object(release, "preflight"), patch.object(
+                release, "verify_archive_parity"
+            ), patch.object(release, "run") as run:
+                self.tag_state.side_effect = release.ReleaseError("tag conflict")
+                with self.assertRaisesRegex(release.ReleaseError, "tag conflict"):
+                    release.publish(args)
+                run.assert_not_called()
+                self.publish_tag.assert_not_called()
+                self.tag_state.side_effect = None
+                run.side_effect = subprocess.CalledProcessError(1, "docs publisher")
+                with self.assertRaises(release.DocsPublicationError):
+                    release.publish(args)
+                self.publish_tag.assert_not_called()
+
+    def test_tag_failure_records_partial_success_and_can_resume(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            args = release.parse_args(["publish", "0.39.1", "--approved-commit", "abc", "--output", tmp])
+            with patch.object(release, "validate_candidate", return_value={"packages": []}), patch.object(
+                release, "preflight"
+            ), patch.object(release, "verify_archive_parity"), patch.object(release, "run"):
+                self.publish_tag.side_effect = release.ReleaseError("push denied")
+                with self.assertRaises(release.TagPublicationError):
+                    release.publish(args)
+                journal = json.loads((Path(tmp) / "publication.json").read_text())
+                self.assertIn("HTTPS content verified", journal["docs"])
+                self.assertIn("failed", journal["git_tag"]["status"])
+                self.publish_tag.side_effect = None
+                release.publish(args)
+                journal = json.loads((Path(tmp) / "publication.json").read_text())
+                self.assertEqual(journal["git_tag"]["status"], "test tag")
 
     def test_archive_mismatch_stops_before_publication(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -440,6 +486,90 @@ pax-message = { version = "0.38.3" }
                         release.publish(args)
                     run.assert_not_called()
                 self.assertEqual(stale.read_bytes(), b"leave untouched on pre-upload failure")
+
+
+@unittest.skipUnless(shutil.which("git"), "Git is required")
+class ReleaseTagTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.repo = self.root / "repo"
+        self.repo.mkdir()
+        env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+        env.update(GIT_CONFIG_GLOBAL=os.devnull, GIT_CONFIG_NOSYSTEM="1",
+                   GIT_AUTHOR_NAME="Release Test", GIT_AUTHOR_EMAIL="release@example.invalid",
+                   GIT_COMMITTER_NAME="Release Test", GIT_COMMITTER_EMAIL="release@example.invalid")
+        environment = patch.dict(os.environ, env, clear=True)
+        environment.start()
+        self.addCleanup(environment.stop)
+        self.git("init", "--quiet")
+        self.git("config", "core.hooksPath", str(self.root / "no-hooks"))
+        self.git("-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "release fixture")
+        self.commit = self.git("rev-parse", "HEAD")
+        self.args = release.parse_args(["publish", "0.39.1", "--approved-commit", self.commit])
+        self.args.workspace = self.repo
+        self.remote = self.root / "remote.git"
+        self.git("init", "--bare", "--quiet", str(self.remote))
+        self.git("remote", "add", "origin", str(self.remote))
+
+    def git(self, *args):
+        return subprocess.run(["git", *args], cwd=self.repo, check=True, text=True,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.strip()
+
+    def test_creates_annotated_local_tag_without_pushing_and_reuses_it(self):
+        self.assertEqual(release.release_tag_state(self.args), (None, None))
+        self.assertEqual(self.git("tag"), "")  # preflight is read-only
+        result = release.publish_release_tag(self.args)
+        self.assertEqual(result["status"], "created locally")
+        self.assertEqual(self.git("cat-file", "-t", "v0.39.1"), "tag")
+        self.assertEqual(self.git("rev-parse", "v0.39.1^{commit}"), self.commit)
+        oid = self.git("rev-parse", "v0.39.1")
+        release.publish_release_tag(self.args)
+        self.assertEqual(self.git("rev-parse", "v0.39.1"), oid)
+        self.assertEqual(self.git("ls-remote", "--tags", "origin"), "")
+
+    def test_pushes_only_release_tag_and_recovers_same_remote_object(self):
+        self.args.tag_remote = "origin"
+        self.git("tag", "unrelated")
+        result = release.publish_release_tag(self.args)
+        self.assertEqual(result["status"], "pushed and verified")
+        oid = self.git("rev-parse", "v0.39.1")
+        self.assertEqual(self.git("ls-remote", "--heads", "origin"), "")
+        self.assertNotIn("unrelated", self.git("ls-remote", "--tags", "origin"))
+        self.git("tag", "-d", "v0.39.1")
+        release.publish_release_tag(self.args)
+        self.assertEqual(self.git("rev-parse", "v0.39.1"), oid)
+        release.publish_release_tag(self.args)
+        self.assertEqual(release.release_tag_state(self.args), (oid, oid))
+
+    def test_rejects_lightweight_and_wrong_commit_tags_without_changing_them(self):
+        self.git("tag", "v0.39.1")
+        with self.assertRaisesRegex(release.ReleaseError, "annotated tag"):
+            release.release_tag_state(self.args)
+        self.assertEqual(self.git("cat-file", "-t", "v0.39.1"), "commit")
+        self.git("tag", "-d", "v0.39.1")
+        self.git("-c", "commit.gpgsign=false", "commit", "--allow-empty", "-m", "other commit")
+        self.git("-c", "tag.gpgSign=false", "tag", "-a", "v0.39.1", "-m", "wrong release")
+        with self.assertRaisesRegex(release.ReleaseError, "approved commit"):
+            release.release_tag_state(self.args)
+        self.git("push", "origin", "refs/tags/v0.39.1")
+        self.git("tag", "-d", "v0.39.1")
+        self.args.tag_remote = "origin"
+        with self.assertRaisesRegex(release.ReleaseError, "Remote.*approved commit"):
+            release.release_tag_state(self.args)
+        self.assertEqual(self.git("tag"), "")
+
+    def test_rejects_different_local_remote_annotations_and_push_destinations(self):
+        self.args.tag_remote = "origin"
+        release.publish_release_tag(self.args)
+        self.git("tag", "-d", "v0.39.1")
+        self.git("-c", "tag.gpgSign=false", "tag", "-a", "v0.39.1", self.commit, "-m", "different annotation")
+        with self.assertRaisesRegex(release.ReleaseError, "different tag objects"):
+            release.release_tag_state(self.args)
+        self.git("remote", "set-url", "--push", "origin", str(self.root / "other.git"))
+        with self.assertRaisesRegex(release.ReleaseError, "identical fetch/push"):
+            release.release_tag_state(self.args)
 
 
 if __name__ == "__main__":

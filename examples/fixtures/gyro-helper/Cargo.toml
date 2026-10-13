@@ -1,7 +1,7 @@
 [package]
 publish = false
 name = "gyro-helper"
-version = "0.39.0"
+version = "0.39.1"
 edition = "2021"
 default-run = "gyro-helper"
 
@@ -10,7 +10,7 @@ title = "Gyro Helper"
 icon = "assets/app-icon.png"
 
 [dependencies]
-pax-kit = { version = "0.39.0", path = "../../../pax-kit" }
+pax-kit = { version = "0.39.1", path = "../../../pax-kit" }
 wasm-bindgen = "0.2.93"
 
 [lib]

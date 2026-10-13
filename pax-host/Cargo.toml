@@ -1,6 +1,6 @@
 [package]
 name = "pax-host"
-version = "0.39.0"
+version = "0.39.1"
 edition = "2021"
 license = "MIT OR Apache-2.0"
 description = "Native process entry and view mounting for Pax cartridges"

@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Prepare and publish Pax releases. No command stages, commits, tags, or pushes.
+"""Prepare and publish Pax releases, then tag the exact approved release commit.
+
+Never stages, commits, or pushes branches. Only publish writes a release tag;
+--tag-remote additionally pushes that one tag after crates and docs succeed.
 
 Requires Python 3.11+, tomlkit, and Cargo 1.93+ (workspace packaging).
 See scripts/RELEASING.md for the approval boundary and recovery procedure.
@@ -54,6 +57,10 @@ class ReleaseError(RuntimeError):
 
 
 class DocsPublicationError(ReleaseError):
+    pass
+
+
+class TagPublicationError(ReleaseError):
     pass
 
 
@@ -469,9 +476,69 @@ def preflight(args):
     print("crates.io token configured (authorization is checked by Cargo during publication).")
 
 
+def release_tag_state(args):
+    """Read-only conflict checks; never move or overwrite an existing tag."""
+    ref = f"refs/tags/v{args.version}"
+    local = run(["git", "for-each-ref", "--format=%(refname) %(objectname) %(objecttype) %(*objectname)", ref],
+                cwd=args.workspace, capture=True)
+    local_oid = None
+    for line in local.splitlines():
+        fields = line.split()
+        if fields[0] != ref:
+            continue
+        if len(fields) != 4 or fields[2] != "tag" or fields[3] != args.approved_commit:
+            raise ReleaseError(f"Existing {ref} is not an annotated tag of the approved commit; refusing to replace it.")
+        local_oid = fields[1]
+    remote_oid = None
+    if args.tag_remote:
+        # Inspect the same destination that push will use. Multiple/different
+        # push URLs make publication verification ambiguous, so fail closed.
+        fetch_urls = run(["git", "remote", "get-url", "--all", args.tag_remote],
+                         cwd=args.workspace, capture=True).splitlines()
+        push_urls = run(["git", "remote", "get-url", "--push", "--all", args.tag_remote],
+                        cwd=args.workspace, capture=True).splitlines()
+        if len(fetch_urls) != 1 or fetch_urls != push_urls:
+            raise ReleaseError("Release tag remote must have one identical fetch/push URL.")
+        listing = run(["git", "ls-remote", "--tags", args.tag_remote, ref, ref + "^{}"],
+                      cwd=args.workspace, capture=True)
+        refs = {name: oid for oid, name in (line.split() for line in listing.splitlines())}
+        remote_oid = refs.get(ref)
+        if remote_oid and refs.get(ref + "^{}") != args.approved_commit:
+            raise ReleaseError(f"Remote {ref} is not an annotated tag of the approved commit; refusing to replace it.")
+        if local_oid and remote_oid and local_oid != remote_oid:
+            raise ReleaseError(f"Local and remote {ref} are different tag objects; resolve manually without force-pushing.")
+    if not local_oid and not remote_oid:
+        run(["git", "var", "GIT_COMMITTER_IDENT"], cwd=args.workspace, capture=True)
+    return local_oid, remote_oid
+
+
+def publish_release_tag(args):
+    ref = f"refs/tags/v{args.version}"
+    local_oid, remote_oid = release_tag_state(args)
+    if not local_oid:
+        if remote_oid:
+            # Recover the exact existing annotated tag, rather than creating a
+            # different tag object for the same commit on a retry/other machine.
+            run(["git", "fetch", "--no-tags", args.tag_remote, f"{ref}:{ref}"], cwd=args.workspace)
+        else:
+            run(["git", "tag", "-a", f"v{args.version}",
+                 args.approved_commit, "-m", f"Pax {args.version}"], cwd=args.workspace)
+    local_oid, _ = release_tag_state(args)
+    if not local_oid:
+        raise ReleaseError(f"Local release tag verification failed for {ref}.")
+    if args.tag_remote:
+        run(["git", "push", "--no-follow-tags", args.tag_remote, f"{ref}:{ref}"], cwd=args.workspace)
+        local_oid, remote_oid = release_tag_state(args)
+        if not local_oid or local_oid != remote_oid:
+            raise ReleaseError(f"Remote release tag verification failed for {ref}.")
+    return {"name": f"v{args.version}", "commit": args.approved_commit,
+            "remote": args.tag_remote, "status": "pushed and verified" if args.tag_remote else "created locally"}
+
+
 def publish(args):
     record = validate_candidate(args, publishing=True)
     preflight(args)  # All read-only checks precede the first irreversible operation.
+    release_tag_state(args)
     # Detect a conflicting partial release anywhere in the set before uploading
     # its first missing dependency. Recheck each entry at its own upload boundary.
     for package in record["packages"]:
@@ -524,7 +591,17 @@ def publish(args):
         raise DocsPublicationError("Docs publication/verification failed; rerun the same approved publish command. " + str(error)) from error
     journal["docs"] = "uploaded, invalidation completed, HTTPS content verified"
     write_json(journal_path, journal)
-    print("Crates and docs published. Complete the public-channel workstation/iOS/AI smoke handoffs before closing the release.")
+    try:
+        # Bind the tag to the same clean candidate after the long publication,
+        # even if another process has modified the checkout in the meantime.
+        validate_candidate(args, publishing=True)
+        journal["git_tag"] = publish_release_tag(args)
+    except (ReleaseError, subprocess.CalledProcessError, OSError) as error:
+        journal["git_tag"] = {"status": "failed; crates and docs are published"}
+        write_json(journal_path, journal)
+        raise TagPublicationError("Release tag failed; rerun the same approved publish command. " + str(error)) from error
+    write_json(journal_path, journal)
+    print("Crates and docs published; annotated release tag verified. Complete the public-channel workstation/iOS/AI smoke handoffs before closing the release.")
 
 
 def parse_args(argv=None):
@@ -540,6 +617,7 @@ def parse_args(argv=None):
     parser.add_argument("--docs-public-read", action="store_true",
                         help="Set public-read ACLs on uploaded docs files (auto-preserved for an existing ACL-based S3 website)")
     parser.add_argument("--approved-commit", help="Exact full commit approved by Zack; required for publish")
+    parser.add_argument("--tag-remote", help="Also push and verify only vVERSION on this Git remote after successful publication (default: local tag only)")
     parser.add_argument("--publish-interval", type=int, default=60, help="Seconds between uploads (default: 60)")
     args = parser.parse_args(argv)
     args.workspace = args.workspace.resolve()
@@ -549,6 +627,8 @@ def parse_args(argv=None):
         parser.error("publish requires --approved-commit after Zack's explicit approval")
     if args.publish_interval < 0:
         parser.error("--publish-interval must be nonnegative")
+    if args.tag_remote is not None and (not args.tag_remote or args.tag_remote.startswith("-")):
+        parser.error("--tag-remote must be a nonempty Git remote name, not an option")
     return args
 
 
@@ -577,4 +657,4 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except (ReleaseError, subprocess.CalledProcessError, OSError, ValueError) as error:
         print(f"Release stopped: {error}", file=sys.stderr)
-        raise SystemExit(3 if isinstance(error, DocsPublicationError) else 1)
+        raise SystemExit(3 if isinstance(error, DocsPublicationError) else 4 if isinstance(error, TagPublicationError) else 1)

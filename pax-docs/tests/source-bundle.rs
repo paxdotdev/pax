@@ -35,13 +35,14 @@ fn packaged_snapshot_preserves_example_catalog_and_inline_sources() {
     let paths = examples::discover_example_paths(&unpacked).unwrap();
     assert!(paths.iter().any(|path| path == "living-quilt"));
     assert!(paths.iter().any(|path| path == "fixtures/space-game"));
-    assert_eq!(paths.len(), 49);
+    assert!(paths.iter().any(|path| path == "fixtures/shader-studio"));
+    assert_eq!(paths.len(), 50);
     assert_eq!(
         paths
             .iter()
             .filter(|path| path.starts_with("fixtures/"))
             .count(),
-        40
+        41
     );
     assert!(!paths.iter().any(|path| path == "pax-website"));
     let entries = pax_docs::entries().unwrap();

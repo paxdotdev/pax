@@ -1,6 +1,6 @@
 [package]
 name = "layout-ui"
-version = "0.1.0"
+version = "0.39.1"
 edition = "2021"
 
 [lib]
@@ -8,5 +8,5 @@ name = "workspace_ui"
 crate-type = ["rlib", "cdylib"]
 
 [dependencies]
-pax-kit = { path = "../../../../pax-kit" }
-layout-widgets = { path = "../widgets" }
+pax-kit = { path = "../../../../pax-kit", version = "0.39.1"}
+layout-widgets = { path = "../widgets", version = "0.39.1"}

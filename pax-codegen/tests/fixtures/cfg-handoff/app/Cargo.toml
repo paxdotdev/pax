@@ -1,14 +1,14 @@
 [package]
 name = "cfg-app"
-version = "0.0.0"
+version = "0.39.1"
 edition = "2021"
 publish = false
 [features]
 fancy = []
 widget-fancy = ["renamed-widgets/fancy"]
 [dependencies]
-pax-kit = { path = "../../../../../pax-kit" }
-renamed-widgets = { package = "cfg-widgets", path = "../widgets" }
+pax-kit = { path = "../../../../../pax-kit", version = "0.39.1"}
+renamed-widgets = { package = "cfg-widgets", path = "../widgets", version = "0.39.1"}
 [lints.rust]
 unexpected_cfgs = { level = "deny", check-cfg = ["cfg(widget_config)", "cfg(proof_flag)"] }
 

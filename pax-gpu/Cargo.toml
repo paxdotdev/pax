@@ -1,6 +1,6 @@
 [package]
 name = "pax-gpu"
-version = "0.39.0"
+version = "0.39.1"
 edition = "2021"
 authors = ["Samuel Selleck <sellecksamuel@gmail.com>"]
 license = "MIT OR Apache-2.0"
@@ -10,7 +10,7 @@ description = "WGPU rendering library for the pax framework"
 
 [dependencies]
 naga = { version = "28.0.0", features = ["wgsl-in"], optional = true }
-pax-runtime-api = {path = "../pax-runtime-api", version="0.39.0"}
+pax-runtime-api = {path = "../pax-runtime-api", version="0.39.1"}
 log = "0.4.20"
 bytemuck = { version = "1.14", features = ["derive"] }
 anyhow = "1.0"

@@ -2,14 +2,14 @@
 publish = false
 default-run = "mask-strokes"
 name = "mask-strokes"
-version = "0.39.0"
+version = "0.39.1"
 edition = "2021"
 
 [package.metadata.pax]
 title = "Component Mask Sources"
 
 [dependencies]
-pax-kit = { version = "0.39.0", path = "../../../pax-kit" }
+pax-kit = { version = "0.39.1", path = "../../../pax-kit" }
 
 [lib]
 crate-type = ["cdylib", "rlib"]

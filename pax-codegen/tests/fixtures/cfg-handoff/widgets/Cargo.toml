@@ -1,10 +1,10 @@
 [package]
 name = "cfg-widgets"
-version = "0.0.0"
+version = "0.39.1"
 edition = "2021"
 publish = false
 [features]
 fancy = []
 [dependencies]
-pax-kit = { path = "../../../../../pax-kit" }
-cfg-leaf = { path = "../leaf", features = ["selected"] }
+pax-kit = { path = "../../../../../pax-kit", version = "0.39.1"}
+cfg-leaf = { path = "../leaf", features = ["selected"], version = "0.39.1"}

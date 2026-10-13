@@ -2,14 +2,14 @@
 publish = false
 default-run = "group-compositing"
 name = "group-compositing"
-version = "0.39.0"
+version = "0.39.1"
 edition = "2021"
 
 [package.metadata.pax]
 title = "Group Compositing"
 
 [dependencies]
-pax-kit = { version = "0.39.0", path = "../../../pax-kit" }
+pax-kit = { version = "0.39.1", path = "../../../pax-kit" }
 
 [lib]
 crate-type = ["cdylib", "rlib"]

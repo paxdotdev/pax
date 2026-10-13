@@ -1,11 +1,11 @@
 [package]
 name = "pax-1013-probe"
-version = "0.0.0"
+version = "0.39.1"
 edition = "2021"
 publish = false
 
 [dependencies]
-pax-runtime-api = { path = "../../../pax-runtime-api" }
+pax-runtime-api = { path = "../../../pax-runtime-api", version = "0.39.1"}
 tokio = { version = "=1.53.1", features = ["rt-multi-thread", "time", "sync"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]

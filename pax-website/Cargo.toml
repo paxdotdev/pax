@@ -1,6 +1,6 @@
 [package]
 name = "pax-website"
-version = "0.39.0"
+version = "0.39.1"
 edition = "2021"
 default-run = "run"
 description = "The Pax declarative UI language and Rust GUI framework website"
@@ -20,9 +20,9 @@ social_image = "pax-favicon.png"
 social_image_alt = "Pax logo"
 
 [dependencies]
-pax-kit = { version = "0.39.0", path = "../pax-kit", features = ["shaders"] }
-calculator = { version = "0.39.0", path = "../examples/calculator", default-features = false }
-paxflix = { version = "0.39.0", path = "../examples/paxflix", default-features = false }
+pax-kit = { version = "0.39.1", path = "../pax-kit", features = ["shaders"] }
+calculator = { version = "0.39.1", path = "../examples/calculator", default-features = false }
+paxflix = { version = "0.39.1", path = "../examples/paxflix", default-features = false }
 
 [target.'cfg(target_vendor = "apple")'.dependencies]
 # backtrace 0.3.76 needs dyld bindings removed from iOS in libc 0.2.190.

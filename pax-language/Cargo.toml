@@ -1,6 +1,6 @@
 [package]
 name = "pax-language"
-version = "0.39.0"
+version = "0.39.1"
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -17,7 +17,7 @@ description = "Pax language parser"
 pest = {version = "=2.9.2", features = ["std"], optional = true}
 pest_derive = {version = "=2.9.2", features = ["std"], optional = true}
 serde = { version="1.0.95", features=["derive"]}
-pax-runtime-api = {path="../pax-runtime-api", version="0.39.0"}
+pax-runtime-api = {path="../pax-runtime-api", version="0.39.1"}
 log = "0.4.20"
 syn = { version = "1.0", features = ["full", "parsing", "visit"], optional = true }
 # Parsers also run on mobile; terminal reporting hooks belong to the CLI.

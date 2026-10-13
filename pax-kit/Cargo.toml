@@ -1,6 +1,6 @@
 [package]
 name = "pax-kit"
-version = "0.39.0"
+version = "0.39.1"
 edition = "2021"
 authors = ["Zack Brown <zack@pax.dev>","Warfa Jibril <warfa@pax.dev>", "Samuel Selleck <samuel@pax.dev>"]
 license = "MIT OR Apache-2.0"
@@ -9,9 +9,9 @@ repository = "https://www.github.com/paxproject/pax"
 description = "Main entrypoint for building with Pax"
 
 [dependencies]
-pax-engine = { path = "../pax-engine", version = "0.39.0"}
-pax-std = { path = "../pax-std", version = "0.39.0" }
-pax-host = { path = "../pax-host", version = "0.39.0", optional = true }
+pax-engine = { path = "../pax-engine", version = "0.39.1"}
+pax-std = { path = "../pax-std", version = "0.39.1" }
+pax-host = { path = "../pax-host", version = "0.39.1", optional = true }
 
 [features]
 # Opt-in GPU subtree filters, including runtime WGSL validation.
@@ -31,10 +31,10 @@ opt-level = "z"
 # The compilation target chooses its chassis; Cargo features remain available
 # for explicit capability requests and compatibility with existing manifests.
 [target.'cfg(target_os = "macos")'.dependencies]
-pax-engine = { path = "../pax-engine", version = "0.39.0", features = ["macos"] }
+pax-engine = { path = "../pax-engine", version = "0.39.1", features = ["macos"] }
 
 [target.'cfg(target_os = "ios")'.dependencies]
-pax-engine = { path = "../pax-engine", version = "0.39.0", features = ["ios"] }
+pax-engine = { path = "../pax-engine", version = "0.39.1", features = ["ios"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-pax-engine = { path = "../pax-engine", version = "0.39.0", features = ["web"] }
+pax-engine = { path = "../pax-engine", version = "0.39.1", features = ["web"] }

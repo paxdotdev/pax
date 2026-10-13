@@ -1,7 +1,13 @@
 {
   "schema": 1,
-  "latest": "0.39.0",
+  "latest": "0.39.1",
   "versions": [
+    {
+      "version": "0.39.1",
+      "label": "0.39.1",
+      "path": "/0.39.1/",
+      "released": "2026-10-13"
+    },
     {
       "version": "0.39.0",
       "label": "0.39.0",
