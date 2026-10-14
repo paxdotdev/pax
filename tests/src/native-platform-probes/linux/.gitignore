@@ -1,0 +1,2 @@
+# Keep the exact dependency resolution used to qualify this isolated probe.
+!/wgpu-export/Cargo.lock

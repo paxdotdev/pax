@@ -27,5 +27,10 @@ mut_static = "5.0.0"
 pollster = "0.4.0"
 flexbuffers = "2.0.0"
 
+[target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
+piet-coregraphics = "0.7.0"
+# Keep this aligned with piet-coregraphics.
+core-graphics = "0.24.0"
+
 [features]
 designtime = ["dep:pax-designtime", "dep:pax-manifest", "pax-runtime/designtime"]

@@ -14,6 +14,12 @@ pub struct Widget {
     pub web: Property<bool>,
     #[cfg(not(target_arch = "wasm32"))]
     pub native: Property<bool>,
+    #[cfg(target_os = "macos")]
+    pub macos: Property<bool>,
+    #[cfg(target_os = "windows")]
+    pub windows: Property<bool>,
+    #[cfg(target_os = "linux")]
+    pub linux: Property<bool>,
     #[cfg(debug_assertions)]
     pub debug: Property<bool>,
 }

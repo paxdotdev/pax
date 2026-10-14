@@ -44,6 +44,8 @@ pub struct TemplateBuildConfig {
     pub macos: bool,
     pub ios: bool,
     pub ipados: bool,
+    pub windows: bool,
+    pub linux: bool,
     pub designtime: bool,
 }
 
@@ -87,6 +89,8 @@ mod tests {
                         macos: target == "macos",
                         ios: target == "ios",
                         ipados: target == "ipados",
+                        windows: target == "windows",
+                        linux: target == "linux",
                         designtime,
                     },
                 }
@@ -109,7 +113,7 @@ mod tests {
 
     #[test]
     fn dependency_main_remains_a_component_without_platform_entrypoints() {
-        for target in ["web", "macos", "ios", "ipados"] {
+        for target in ["web", "macos", "ios", "ipados", "windows", "linux"] {
             for designtime in [true, false] {
                 let generated = render_main(false, target, designtime);
                 syn::parse_file(&generated).unwrap();
@@ -120,6 +124,22 @@ mod tests {
                 assert!(!generated.contains("init_manifest"));
                 assert!(!generated.contains("example_init"));
                 assert!(!generated.contains("pub use pax_engine::pax_chassis"));
+            }
+        }
+    }
+
+    #[test]
+    fn desktop_target_facts_do_not_select_an_apple_adapter() {
+        for target in ["windows", "linux"] {
+            for designtime in [true, false] {
+                let generated = render_main(true, target, designtime);
+                syn::parse_file(&generated).unwrap();
+                assert!(generated.contains("CARTRIDGE_OWNER"));
+                assert!(!generated.contains("core_graphics_c_bridge"));
+                assert!(!generated.contains("OS::Mac"));
+                assert!(!generated.contains("OS::IPhone"));
+                assert!(!generated.contains("OS::IPad"));
+                assert!(!generated.contains("fn init_web"));
             }
         }
     }

@@ -61,6 +61,9 @@ mod tests {
             assert_eq!(widget.contains(&"plain"), !cfg!(feature = "widget-fancy"));
             assert_eq!(widget.contains(&"web"), cfg!(target_arch = "wasm32"));
             assert_eq!(widget.contains(&"native"), !cfg!(target_arch = "wasm32"));
+            assert_eq!(widget.contains(&"macos"), cfg!(target_os = "macos"));
+            assert_eq!(widget.contains(&"windows"), cfg!(target_os = "windows"));
+            assert_eq!(widget.contains(&"linux"), cfg!(target_os = "linux"));
             assert_eq!(widget.contains(&"debug"), cfg!(debug_assertions));
             assert!(!widget.contains(&"impossible"));
             assert!(!widget.contains(&"dependency_test_only"));

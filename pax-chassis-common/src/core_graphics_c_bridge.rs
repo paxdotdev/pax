@@ -3,7 +3,6 @@
 extern crate core;
 
 use std::cell::RefCell;
-use std::collections::HashMap;
 #[cfg(feature = "designtime")]
 use std::ffi::c_char;
 use std::ffi::{c_void, CStr};
@@ -11,18 +10,13 @@ use std::mem::{transmute, ManuallyDrop};
 use std::pin::Pin;
 use std::rc::Rc;
 
+use crate::native_interrupt::NativeInterruptDispatcher;
 use flexbuffers::DeserializationError;
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 use pax_gpu::render_backend::{RenderBackend, RenderConfig, SharedGpuContext};
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 use pax_gpu::{Transform2D, WgpuRenderer, NATIVE_VECTOR_RESOURCE_CACHE_BYTES};
-use pax_runtime::api::math::Point2;
-use pax_runtime::api::{
-    Accel, ButtonClick, CheckboxChange, Click, Event, Focus, Gyro, KeyDown, KeyPress, KeyUp,
-    KeyboardEventArgs, ModifierKey, MouseButton, MouseCancel, MouseDown, MouseEventArgs, MouseMove, MouseUp,
-    PhotoPickerChange, RenderContext, Scroll, SelectStart, SliderChange, SubmitTrigger, TextboxChange,
-    TextboxInput, Touch, TouchCancel, TouchEnd, TouchMove, TouchStart, Wheel,
-};
+use pax_runtime::api::RenderContext;
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 use pax_runtime::engine::layer_surface::{LayerSurfaceEntry, LayerSurfaceLayout, LayerSurfaceSize};
 use pax_runtime::engine::layer_tiling::{scroller_canvas_plan_with_policy, ScrollerTilingPolicy};
@@ -45,28 +39,6 @@ use pax_runtime::designtime_support::{
 //Note that any types exposed by pax_message must ALSO be added to `PaxCartridge.h`
 //in order to be visible to Swift
 pub use pax_message::*;
-
-#[derive(Clone, Copy)]
-struct SyntheticScrollGesture {
-    touch_identifier: i64,
-    target_id: pax_runtime::ExpandedNodeIdentifier,
-}
-
-thread_local! {
-    static SYNTHETIC_SCROLL_GESTURE: RefCell<Option<SyntheticScrollGesture>> = RefCell::new(None);
-    static NATIVE_SCROLLER_POSITIONS: RefCell<HashMap<u32, (f64, f64)>> = RefCell::new(HashMap::new());
-}
-
-fn node_is_in_scroller_subtree(node: &Rc<pax_runtime::ExpandedNode>) -> bool {
-    let mut current = Some(Rc::clone(node));
-    while let Some(candidate) = current {
-        if borrow!(candidate.instance_node).scrolls_content(&candidate) {
-            return true;
-        }
-        current = candidate.template_parent.upgrade();
-    }
-    false
-}
 
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 #[derive(Clone)]
@@ -378,6 +350,7 @@ fn serialize_payload<T: Serialize>(payload: &T) -> *mut NativeMessageQueue {
 #[repr(C)] //Exposed to Swift via PaxCartridge.h
 pub struct PaxEngineContainer {
     pub _engine: *mut PaxEngine,
+    pub interrupt_dispatcher: NativeInterruptDispatcher,
     #[cfg(any(target_os = "ios", target_os = "macos"))]
     pub _render_context: *mut AppleRenderContext,
     #[cfg(any(target_os = "ios", target_os = "macos"))]
@@ -706,558 +679,8 @@ pub extern "C" fn pax_interrupt(
     let interrupt_wrapped: Result<NativeInterrupt, DeserializationError> =
         flexbuffers::from_slice(slice);
     let interrupt = interrupt_wrapped.unwrap();
-    let globals = engine.runtime_context.globals();
     let mut prevent_default = false;
-
     match &interrupt {
-        NativeInterrupt::KeyDown(args) => {
-            prevent_default = engine.global_dispatch_key_down(KeyDown {
-                keyboard: KeyboardEventArgs {
-                    key: args.key.clone(),
-                    modifiers: args.modifiers.iter().map(ModifierKey::from).collect(),
-                    is_repeat: args.is_repeat,
-                },
-            });
-        }
-        NativeInterrupt::KeyUp(args) => {
-            prevent_default = engine.global_dispatch_key_up(KeyUp {
-                keyboard: KeyboardEventArgs {
-                    key: args.key.clone(),
-                    modifiers: args.modifiers.iter().map(ModifierKey::from).collect(),
-                    is_repeat: args.is_repeat,
-                },
-            });
-        }
-        NativeInterrupt::KeyPress(args) => {
-            prevent_default = engine.global_dispatch_key_press(KeyPress {
-                keyboard: KeyboardEventArgs {
-                    key: args.key.clone(),
-                    modifiers: args.modifiers.iter().map(ModifierKey::from).collect(),
-                    is_repeat: args.is_repeat,
-                },
-            });
-        }
-        NativeInterrupt::Focus(_args) => {
-            engine.global_dispatch_focus(Focus {});
-        }
-        NativeInterrupt::SelectStart(_args) => {
-            engine.global_dispatch_select_start(SelectStart {});
-        }
-        NativeInterrupt::ChassisResizeRequestCollection(collection) => {
-            for args in collection {
-                let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
-                if let Some(node) = node {
-                    node.chassis_resize_request(args.width, args.height);
-                }
-            }
-        }
-        NativeInterrupt::TextMeasurementResponse(args) => {
-            if let Some(node) =
-                engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
-            {
-                borrow!(node.instance_node).handle_native_interrupt(&node, &interrupt);
-            }
-        }
-        NativeInterrupt::Click(args) => {
-            let modifiers = args.modifiers.iter().map(ModifierKey::from).collect();
-            let args_click = Click {
-                mouse: MouseEventArgs {
-                    x: args.x,
-                    y: args.y,
-                    button: MouseButton::from(args.button.clone()),
-                    modifiers,
-                },
-            };
-            if let Some(topmost_node) = engine
-                .runtime_context
-                .mouse_click_target(
-                    MouseButton::from(args.button.clone()),
-                    Point2::new(args.x, args.y),
-                )
-            {
-                topmost_node.dispatch_click(
-                    Event::new(args_click),
-                    &globals,
-                    &engine.runtime_context,
-                );
-            }
-        }
-        NativeInterrupt::MouseMove(args) => {
-            if let Some(topmost_node) = engine
-                .runtime_context
-                .mouse_move_target(
-                    MouseButton::from(args.button.clone()),
-                    Point2::new(args.x, args.y),
-                )
-            {
-                let args_mouse_move = MouseMove {
-                    mouse: MouseEventArgs {
-                        x: args.x,
-                        y: args.y,
-                        button: MouseButton::from(args.button.clone()),
-                        modifiers: args.modifiers.iter().map(ModifierKey::from).collect(),
-                    },
-                };
-                topmost_node.dispatch_mouse_move(
-                    Event::new(args_mouse_move),
-                    &globals,
-                    &engine.runtime_context,
-                );
-            }
-        }
-        NativeInterrupt::MouseDown(args) => {
-            if let Some(topmost_node) = engine
-                .runtime_context
-                .mouse_down_target(
-                    MouseButton::from(args.button.clone()),
-                    Point2::new(args.x, args.y),
-                )
-            {
-                let args_mouse_down = MouseDown {
-                    mouse: MouseEventArgs {
-                        x: args.x,
-                        y: args.y,
-                        button: MouseButton::from(args.button.clone()),
-                        modifiers: args.modifiers.iter().map(ModifierKey::from).collect(),
-                    },
-                };
-                topmost_node.dispatch_mouse_down(
-                    Event::new(args_mouse_down),
-                    &globals,
-                    &engine.runtime_context,
-                );
-            }
-        }
-        NativeInterrupt::MouseUp(args) => {
-            if let Some(topmost_node) = engine
-                .runtime_context
-                .mouse_up_target(
-                    MouseButton::from(args.button.clone()),
-                    Point2::new(args.x, args.y),
-                    false,
-                )
-            {
-                let args_mouse_up = MouseUp {
-                    mouse: MouseEventArgs {
-                        x: args.x,
-                        y: args.y,
-                        button: MouseButton::from(args.button.clone()),
-                        modifiers: args.modifiers.iter().map(ModifierKey::from).collect(),
-                    },
-                };
-                topmost_node.dispatch_mouse_up(
-                    Event::new(args_mouse_up),
-                    &globals,
-                    &engine.runtime_context,
-                );
-            }
-        }
-        NativeInterrupt::MouseCancel(args) => {
-            if let Some(topmost_node) = engine
-                .runtime_context
-                .mouse_up_target(
-                    MouseButton::from(args.button.clone()),
-                    Point2::new(args.x, args.y),
-                    true,
-                )
-            {
-                let args_mouse_cancel = MouseCancel {
-                    mouse: MouseEventArgs {
-                        x: args.x,
-                        y: args.y,
-                        button: MouseButton::from(args.button.clone()),
-                        modifiers: args.modifiers.iter().map(ModifierKey::from).collect(),
-                    },
-                };
-                topmost_node.dispatch_mouse_cancel(
-                    Event::new(args_mouse_cancel),
-                    &globals,
-                    &engine.runtime_context,
-                );
-            }
-        }
-        NativeInterrupt::Tap(args) => {
-            if let Some(topmost_node) = engine
-                .runtime_context
-                .get_topmost_element_beneath_ray(Point2::new(args.x, args.y))
-            {
-                topmost_node.dispatch_tap(
-                    Event::new(Click {
-                        mouse: MouseEventArgs {
-                            x: args.x,
-                            y: args.y,
-                            button: MouseButton::Left,
-                            modifiers: vec![],
-                        },
-                    }),
-                    &globals,
-                    &engine.runtime_context,
-                );
-            }
-        }
-        NativeInterrupt::TouchStart(args) => {
-            SYNTHETIC_SCROLL_GESTURE.with(|gesture| *gesture.borrow_mut() = None);
-            if let Some(first_touch) = args.touches.first() {
-                let touches = args.touches.iter().map(Touch::from).collect();
-                if let Some(topmost_node) = engine
-                    .runtime_context
-                    .get_topmost_element_beneath_ray(Point2::new(first_touch.x, first_touch.y))
-                {
-                    engine
-                        .runtime_context
-                        .capture_touch_target(first_touch.identifier, topmost_node.id);
-                    if args.touches.len() == 1 && !node_is_in_scroller_subtree(&topmost_node) {
-                        SYNTHETIC_SCROLL_GESTURE.with(|gesture| {
-                            *gesture.borrow_mut() = Some(SyntheticScrollGesture {
-                                touch_identifier: first_touch.identifier,
-                                target_id: topmost_node.id,
-                            });
-                        });
-                    }
-                    topmost_node.dispatch_touch_start(
-                        Event::new(TouchStart { touches }),
-                        &globals,
-                        &engine.runtime_context,
-                    );
-                }
-            }
-        }
-        NativeInterrupt::TouchMove(args) => {
-            if let Some(first_touch) = args.touches.first() {
-                let touches = args.touches.iter().map(Touch::from).collect();
-                let target_node = engine
-                    .runtime_context
-                    .captured_touch_target(first_touch.identifier)
-                    .or_else(|| {
-                        engine
-                            .runtime_context
-                            .get_topmost_element_beneath_ray(Point2::new(
-                                first_touch.x,
-                                first_touch.y,
-                            ))
-                    });
-                if let Some(target_node) = target_node {
-                    target_node.dispatch_touch_move(
-                        Event::new(TouchMove { touches }),
-                        &globals,
-                        &engine.runtime_context,
-                    );
-                }
-                if args.touches.len() == 1 {
-                    let gesture = SYNTHETIC_SCROLL_GESTURE.with(|gesture| *gesture.borrow());
-                    if let Some(gesture) = gesture {
-                        if let Some(active_touch) = args
-                            .touches
-                            .iter()
-                            .find(|touch| touch.identifier == gesture.touch_identifier)
-                        {
-                            if let Some(target_node) = engine.get_expanded_node(gesture.target_id) {
-                                target_node.dispatch_scroll(
-                                    Event::new(Scroll {
-                                        delta_x: active_touch.delta_x,
-                                        delta_y: active_touch.delta_y,
-                                    }),
-                                    &globals,
-                                    &engine.runtime_context,
-                                );
-                            } else {
-                                SYNTHETIC_SCROLL_GESTURE
-                                    .with(|gesture| *gesture.borrow_mut() = None);
-                            }
-                        } else {
-                            SYNTHETIC_SCROLL_GESTURE.with(|gesture| *gesture.borrow_mut() = None);
-                        }
-                    }
-                } else {
-                    SYNTHETIC_SCROLL_GESTURE.with(|gesture| *gesture.borrow_mut() = None);
-                }
-            } else {
-                SYNTHETIC_SCROLL_GESTURE.with(|gesture| *gesture.borrow_mut() = None);
-            }
-        }
-        NativeInterrupt::TouchEnd(args) => {
-            let gesture = SYNTHETIC_SCROLL_GESTURE.with(|gesture| *gesture.borrow());
-            if let Some(gesture) = gesture {
-                if args
-                    .touches
-                    .iter()
-                    .any(|touch| touch.identifier == gesture.touch_identifier)
-                {
-                    SYNTHETIC_SCROLL_GESTURE.with(|gesture| *gesture.borrow_mut() = None);
-                }
-            }
-            if let Some(first_touch) = args.touches.first() {
-                let touches = args.touches.iter().map(Touch::from).collect();
-                let target_node = engine
-                    .runtime_context
-                    .release_touch_target(first_touch.identifier)
-                    .or_else(|| {
-                        engine
-                            .runtime_context
-                            .get_topmost_element_beneath_ray(Point2::new(
-                                first_touch.x,
-                                first_touch.y,
-                            ))
-                    });
-                if let Some(target_node) = target_node {
-                    target_node.dispatch_touch_end(
-                        Event::new(TouchEnd { touches }),
-                        &globals,
-                        &engine.runtime_context,
-                    );
-                }
-            }
-        }
-        NativeInterrupt::TouchCancel(args) => {
-            let gesture = SYNTHETIC_SCROLL_GESTURE.with(|gesture| *gesture.borrow());
-            if let Some(gesture) = gesture {
-                if args
-                    .touches
-                    .iter()
-                    .any(|touch| touch.identifier == gesture.touch_identifier)
-                {
-                    SYNTHETIC_SCROLL_GESTURE.with(|gesture| *gesture.borrow_mut() = None);
-                }
-            }
-            if let Some(first_touch) = args.touches.first() {
-                let touches = args.touches.iter().map(Touch::from).collect();
-                let target_node = engine
-                    .runtime_context
-                    .release_touch_target(first_touch.identifier)
-                    .or_else(|| {
-                        engine
-                            .runtime_context
-                            .get_topmost_element_beneath_ray(Point2::new(
-                                first_touch.x,
-                                first_touch.y,
-                            ))
-                    });
-                if let Some(target_node) = target_node {
-                    target_node.dispatch_touch_cancel(
-                        Event::new(TouchCancel { touches }),
-                        &globals,
-                        &engine.runtime_context,
-                    );
-                }
-            }
-        }
-        NativeInterrupt::FormRadioListChange(args) => {
-            let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
-            if let Some(node) = node {
-                borrow!(node.instance_node).handle_native_interrupt(&node, &interrupt);
-            }
-        }
-        NativeInterrupt::FormSliderChange(args) => {
-            let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
-            if let Some(node) = node {
-                borrow!(node.instance_node).handle_native_interrupt(&node, &interrupt);
-                node.dispatch_slider_change(
-                    Event::new(SliderChange { value: args.value }),
-                    &globals,
-                    &engine.runtime_context,
-                );
-            }
-        }
-        NativeInterrupt::FormDropdownChange(args) => {
-            let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
-            if let Some(node) = node {
-                borrow!(node.instance_node).handle_native_interrupt(&node, &interrupt);
-            }
-        }
-        NativeInterrupt::FormButtonClick(args) => {
-            if let Some(node) =
-                engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
-            {
-                node.dispatch_button_click(
-                    Event::new(ButtonClick {}),
-                    &globals,
-                    &engine.runtime_context,
-                );
-            }
-        }
-        NativeInterrupt::PhotoPicker(args) => {
-            if let Some(node) =
-                engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
-            {
-                node.dispatch_photo_picker_change(
-                    Event::new(PhotoPickerChange::from(args)),
-                    &globals,
-                    &engine.runtime_context,
-                );
-            }
-        }
-        NativeInterrupt::FormTextboxInput(args) => {
-            if let Some(node) =
-                engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
-            {
-                borrow!(node.instance_node).handle_native_interrupt(&node, &interrupt);
-                node.dispatch_textbox_input(
-                    Event::new(TextboxInput {
-                        text: args.text.clone(),
-                    }),
-                    &globals,
-                    &engine.runtime_context,
-                );
-            }
-        }
-        NativeInterrupt::TextInput(args) => {
-            if let Some(node) =
-                engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
-            {
-                borrow!(node.instance_node).handle_native_interrupt(&node, &interrupt);
-            }
-        }
-        NativeInterrupt::FormTextboxSubmit(args) => {
-            if let Some(node) =
-                engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
-            {
-                borrow!(node.instance_node).handle_native_interrupt(&node, &interrupt);
-                node.emit_submit(SubmitTrigger::Return, &engine.runtime_context);
-            }
-        }
-        NativeInterrupt::FormTextboxChange(args) => {
-            if let Some(node) =
-                engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
-            {
-                node.dispatch_textbox_change(
-                    Event::new(TextboxChange {
-                        text: args.text.clone(),
-                    }),
-                    &globals,
-                    &engine.runtime_context,
-                );
-            }
-        }
-        NativeInterrupt::FormCheckboxToggle(args) => {
-            if let Some(node) =
-                engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id))
-            {
-                borrow!(node.instance_node).handle_native_interrupt(&node, &interrupt);
-                node.dispatch_checkbox_change(
-                    Event::new(CheckboxChange {
-                        checked: args.state,
-                    }),
-                    &globals,
-                    &engine.runtime_context,
-                );
-            }
-        }
-        NativeInterrupt::ScrollerPosition(args) => {
-            let node = engine.get_expanded_node(pax_runtime::ExpandedNodeIdentifier(args.id));
-            if let Some(node) = node {
-                let presentation_scroll_x = args.presentation_scroll_x.unwrap_or(args.scroll_x);
-                let presentation_scroll_y = args.presentation_scroll_y.unwrap_or(args.scroll_y);
-                engine.runtime_context.update_scroller_surface_scroll(
-                    args.id,
-                    args.scroll_x,
-                    args.scroll_y,
-                    presentation_scroll_x,
-                    presentation_scroll_y,
-                );
-                let previous = NATIVE_SCROLLER_POSITIONS.with(|positions| {
-                    positions
-                        .borrow_mut()
-                        .insert(args.id, (presentation_scroll_x, presentation_scroll_y))
-                });
-                borrow!(node.instance_node).handle_native_interrupt(&node, &interrupt);
-                if let Some((previous_x, previous_y)) = previous {
-                    let delta_x = presentation_scroll_x - previous_x;
-                    let delta_y = presentation_scroll_y - previous_y;
-                    if delta_x.abs() > f64::EPSILON || delta_y.abs() > f64::EPSILON {
-                        node.dispatch_scroll(
-                            Event::new(Scroll { delta_x, delta_y }),
-                            &globals,
-                            &engine.runtime_context,
-                        );
-                    }
-                }
-            } else {
-                NATIVE_SCROLLER_POSITIONS.with(|positions| {
-                    positions.borrow_mut().remove(&args.id);
-                });
-            }
-        }
-        NativeInterrupt::Wheel(args) => {
-            if let Some(node) = engine
-                .runtime_context
-                .get_topmost_element_beneath_ray(Point2::new(args.x, args.y))
-            {
-                prevent_default = node.dispatch_wheel(
-                    Event::new(Wheel {
-                        x: args.x,
-                        y: args.y,
-                        delta_x: args.delta_x,
-                        delta_y: args.delta_y,
-                        modifiers: args.modifiers.iter().map(ModifierKey::from).collect(),
-                    }),
-                    &globals,
-                    &engine.runtime_context,
-                );
-                // Native scrollers report their actual movement separately. Match web's
-                // synthetic Scroll stream only for content outside those scrollers.
-                if !node_is_in_scroller_subtree(&node) {
-                    prevent_default |= node.dispatch_scroll(
-                        Event::new(Scroll {
-                            delta_x: args.delta_x,
-                            delta_y: args.delta_y,
-                        }),
-                        &globals,
-                        &engine.runtime_context,
-                    );
-                }
-            }
-        }
-        NativeInterrupt::Scroll(args) => {
-            if let Some(topmost_node) = engine
-                .runtime_context
-                .get_topmost_element_beneath_ray(Point2::new(args.x, args.y))
-            {
-                topmost_node.dispatch_scroll(
-                    Event::new(Scroll {
-                        delta_x: args.delta_x,
-                        delta_y: args.delta_y,
-                    }),
-                    &globals,
-                    &engine.runtime_context,
-                );
-            }
-        }
-        NativeInterrupt::SafeAreaInsets(insets) => {
-            engine.runtime_context.set_safe_area_insets(*insets);
-        }
-        NativeInterrupt::VisualViewportUpdate(_args) => {}
-        NativeInterrupt::RouteChange(args) => {
-            globals.route_location.set(args.into());
-        }
-        NativeInterrupt::Gyro(args) => {
-            let gyro = Gyro {
-                x: args.x,
-                y: args.y,
-                z: args.z,
-            };
-            globals.gyro.set_if_neq(gyro);
-            engine.global_dispatch_gyro(gyro);
-        }
-        NativeInterrupt::Accel(args) => {
-            let accel = Accel {
-                x: args.x,
-                y: args.y,
-                z: args.z,
-            };
-            globals.accel.set_if_neq(accel);
-            engine.global_dispatch_accel(accel);
-        }
-        NativeInterrupt::AddedLayer(args) => {
-            if let Some(layer_id) = args.layer_id.map(|layer| layer as usize) {
-                engine.runtime_context.set_canvas_dirty(layer_id);
-                engine
-                    .runtime_context
-                    .mark_canvas_nodes_on_layer_dirty(layer_id);
-            } else {
-                engine.runtime_context.set_all_canvases_dirty();
-                engine.runtime_context.mark_all_canvas_nodes_dirty();
-            }
-        }
         NativeInterrupt::Image(args) => match args {
             ImageLoadInterruptArgs::Reference(_ref_args) => {
                 #[cfg(any(target_os = "ios", target_os = "macos"))]
@@ -1304,7 +727,12 @@ pub extern "C" fn pax_interrupt(
             }
             ImageLoadInterruptArgs::Data(_data_args) => {}
         },
-        _ => {}
+        _ => {
+            prevent_default = engine_container
+                .interrupt_dispatcher
+                .dispatch(&engine, &interrupt)
+                .unwrap_or(false);
+        }
     }
 
     engine_container._engine = Box::into_raw(engine);
@@ -1345,6 +773,11 @@ pub extern "C" fn pax_tick(
     engine.set_viewport_size((width as f64, height as f64));
     let messages = engine.tick();
 
+    for message in &messages {
+        if let NativeMessage::ScrollerDelete(id) = message {
+            engine_container.interrupt_dispatcher.forget_scroller(*id);
+        }
+    }
     let queue_container = serialize_message_queue(messages);
     engine_container._engine = Box::into_raw(engine);
     let _ = Box::into_raw(engine_container);

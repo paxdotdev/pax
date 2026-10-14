@@ -37,6 +37,24 @@ Empty turns consume no allowance. Completion never waits on the host thread.
 Whether another rendering turn can start without building a GPU backlog.
 Native devices need a nonblocking poll to deliver completion callbacks;
 WebGPU delivers them through the browser's event loop.
+##### `from_wgpu`
+<pre><code class="api-signature language-rust ignore">pub fn from_wgpu(instance: Instance, adapter: Adapter, device: Device, queue: Queue) -&gt; Result&lt;SharedGpuContext, <a href="../../../api/pax-host/index.md#error">Error</a>&gt;</code></pre>
+
+Shares an existing WGPU device with a native compositor integration.
+
+All four handles must originate from the same instance and adapter, and
+the queue must belong to the device. Negotiate platform export extensions
+before calling this constructor and request at least `required_limits()`.
+Insufficient device limits return an error before creating GPU resources.
+External-memory sharing and synchronization remain the bridge's job.
+
+##### `required_limits`
+<pre><code class="api-signature language-rust ignore">pub fn required_limits() -&gt; Limits</code></pre>
+
+Established renderer baseline to request when creating a shared device.
+
+This includes storage-buffer support for gradients and mesh paints. A
+platform may request higher limits, including the adapter's full limits.
 
 ---
 
@@ -69,6 +87,15 @@ Current stencil clip depth.
 
 Maximum texture dimension supported by the active adapter.
 
+##### `output_texture`
+<pre><code class="api-signature language-rust ignore">pub fn output_texture(&amp;self) -&gt; Option&lt;Texture&gt;</code></pre>
+
+Clones the current offscreen output handle, or returns `None` for a window surface.
+
+Flush rendering before submitting a copy on this context's queue. The
+texture is reused on subsequent frames and replaced on resize; a clone
+retains allocation lifetime, not an immutable snapshot of its pixels.
+
 ##### `resize`
 <pre><code class="api-signature language-rust ignore">pub fn resize(&amp;mut self, width: u32, height: u32)</code></pre>
 
@@ -83,6 +110,21 @@ Resize the backing surface, clamping to device limits.
 <pre><code class="api-signature language-rust ignore">pub fn set_viewport(&amp;mut self, width: f32, height: f32, dpr: [f32; 2])</code></pre>
 
 Update logical viewport uniforms without reallocating the surface.
+
+##### `to_texture`
+<pre><code class="api-signature language-rust ignore">pub fn to_texture(context: SharedGpuContext, format: TextureFormat, config: <a href="../../../api/internal/pax-gpu/render_backend.md#renderconfig">RenderConfig</a>) -&gt; Result&lt;Self, <a href="../../../api/pax-host/index.md#error">Error</a>&gt;</code></pre>
+
+Renders into a persistent, single-sample texture for native composition.
+
+Supports RGBA8/BGRA8 unorm formats with premultiplied alpha. sRGB
+attachments are excluded because encoding after blending would not leave
+byte-premultiplied output for a direct compositor copy. The host remains
+responsible for matching the renderer's color space to its compositor.
+After flushing, copy the output on the same queue into a platform-owned
+export allocation. No CPU pixel transfer or window surface is required.
+Resizing creates a new backing texture; previously cloned handles remain
+valid for already queued copies. The host owns export synchronization and
+must not hand this mutable rendering target directly to a compositor.
 
 ---
 

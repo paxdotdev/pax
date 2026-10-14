@@ -1,0 +1,20 @@
+[package]
+name = "pax-windows-wgpu-export-probe"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+anyhow = "1"
+pollster = "0.4"
+pax-gpu = { path = "../../../../../pax-gpu" }
+wgpu = { version = "28.0.0", default-features = false, features = ["std", "parking_lot", "dx12", "wgsl"] }
+windows-core = "0.62"
+
+[profile.dev]
+debug = 0

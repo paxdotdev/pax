@@ -210,6 +210,7 @@
                 let container =
                     std::mem::ManuallyDrop::new(Box::new(<%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::PaxEngineContainer {
                         _engine: Box::into_raw(std::mem::ManuallyDrop::into_inner(engine)),
+                        interrupt_dispatcher: Default::default(),
                         _render_context: std::ptr::null_mut(),
                         _render_target: std::ptr::null_mut(),
                         userland_definition_to_instance_traverser,
@@ -243,6 +244,7 @@
 
                 let container = std::mem::ManuallyDrop::new(Box::new(<%= engine_import_path %>::pax_chassis_common::core_graphics_c_bridge::PaxEngineContainer {
                     _engine: Box::into_raw(std::mem::ManuallyDrop::into_inner(engine)),
+                    interrupt_dispatcher: Default::default(),
                     _render_context: std::ptr::null_mut(),
                     _render_target: std::ptr::null_mut(),
                 }));

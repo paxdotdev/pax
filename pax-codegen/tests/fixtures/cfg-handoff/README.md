@@ -12,6 +12,7 @@ python3 pax-codegen/tests/fixtures/cfg-handoff/verify.py \
 ```
 
 The verifier uses offline Cargo resolution; dependencies must already be cached.
+Cargo builds use two concurrent jobs by default; pass `--jobs N` to change this.
 It also checks that the macro and packager dependency graphs exclude the runtime
 renderer, so cross compilation does not build a host GPU stack for these tools.
 It checks native app/dependency feature differences, wasm cross compilation,
@@ -19,6 +20,11 @@ library versus test units, a dependency build-script cfg, explicit rustc cfg,
 release configuration, repeated runnable declarations, overlapping roots, and
 dependency source changes. Each invocation inspects the generated manifest;
 native tests also reconstruct the generated runtime manifest in debug and release.
+An explicit `pax-kit/designtime` case compiles the development cartridge path;
+the default cases compile the baked path even when using Cargo's debug profile.
+The widget's macOS, Windows, and Linux fields must follow the compilation target;
+none may leak from the build workstation into a wasm manifest. This qualifies
+source configuration and generated descriptors, not native Windows/Linux hosting.
 On macOS, a C ABI probe loads the generated dylib, rejects missing/unknown root
 names, creates two separate engines, and checks that each selected initializer
 runs once even though their component definitions overlap.

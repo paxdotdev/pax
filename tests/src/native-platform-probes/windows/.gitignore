@@ -1,0 +1,10 @@
+/out/
+/packages/
+/native-packages/
+/tools/
+/obj/
+*.log
+/interactive-result.json
+
+/wgpu-export/target/
+!/wgpu-export/Cargo.lock

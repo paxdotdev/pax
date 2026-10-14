@@ -349,6 +349,8 @@ fn drive(mut request: Request, session: &mut Session) -> Result<String> {
             "target_arch = \"wasm32\"",
             "target_os = \"macos\"",
             "target_os = \"ios\"",
+            "target_os = \"windows\"",
+            "target_os = \"linux\"",
             "debug_assertions",
             "test",
         ]
@@ -694,6 +696,8 @@ fn drive(mut request: Request, session: &mut Session) -> Result<String> {
         macos: request.snapshot.facts["target_os = \"macos\""],
         ios: request.snapshot.facts["target_os = \"ios\""],
         ipados: std::env::var("PAX_BUILD_TARGET").as_deref() == Ok("ipados"),
+        windows: request.snapshot.facts["target_os = \"windows\""],
+        linux: request.snapshot.facts["target_os = \"linux\""],
         designtime,
     };
     let package = package(session)?;

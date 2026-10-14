@@ -877,6 +877,16 @@ impl<'w> WgpuRenderer<'w> {
         self.render_backend.shared_context_id()
     }
 
+    /// Returns the current offscreen output, when using `RenderBackend::to_texture`.
+    ///
+    /// Call after `flush`, then submit a copy on the shared device's queue before
+    /// drawing the next frame. This is a mutable retained target, not an immutable
+    /// compositor lease. A resize replaces the texture without invalidating old
+    /// handles retained by queued copies.
+    pub fn output_texture(&self) -> Option<wgpu::Texture> {
+        self.render_backend.output_texture()
+    }
+
     /// Reuse this logical layer's GPU context when creating another physical tile.
     /// The returned handle keeps the device and pipelines alive, not this tile's surface or scene.
     pub fn shared_gpu_context(&self) -> crate::render_backend::SharedGpuContext {

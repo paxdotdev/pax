@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <ProbePackagesRoot>$(MSBuildThisFileDirectory)native-packages\</ProbePackagesRoot>
+    <MSBuildProjectExtensionsPath>$(MSBuildThisFileDirectory)out\restore\</MSBuildProjectExtensionsPath>
+  </PropertyGroup>
+  <ImportGroup Label="ExtensionSettings">
+    <Import Project="$(ProbePackagesRoot)Microsoft.Windows.SDK.BuildTools.MSIX.1.7.20250829.1\buildTransitive\Microsoft.Windows.SDK.BuildTools.MSIX.props" />
+    <Import Project="$(ProbePackagesRoot)Microsoft.Windows.SDK.BuildTools.10.0.26100.4654\buildTransitive\Microsoft.Windows.SDK.BuildTools.props" />
+    <Import Project="$(ProbePackagesRoot)Microsoft.WindowsAppSDK.Base.1.8.251216001\buildTransitive\native\Microsoft.WindowsAppSDK.Base.props" />
+    <Import Project="$(ProbePackagesRoot)Microsoft.WindowsAppSDK.InteractiveExperiences.1.8.260708001\buildTransitive\native\Microsoft.WindowsAppSDK.InteractiveExperiences.props" />
+    <Import Project="$(ProbePackagesRoot)Microsoft.WindowsAppSDK.Foundation.1.8.260803002\buildTransitive\native\Microsoft.WindowsAppSDK.Foundation.props" />
+    <Import Project="$(ProbePackagesRoot)Microsoft.WindowsAppSDK.WinUI.1.8.260803003\buildTransitive\native\Microsoft.WindowsAppSDK.WinUI.props" />
+    <Import Project="$(ProbePackagesRoot)Microsoft.WindowsAppSDK.Runtime.1.8.260804001\buildTransitive\native\Microsoft.WindowsAppSDK.Runtime.props" />
+    <Import Project="$(ProbePackagesRoot)Microsoft.Windows.CppWinRT.2.0.240405.15\build\native\Microsoft.Windows.CppWinRT.props" />
+  </ImportGroup>
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|ARM64"><Configuration>Debug</Configuration><Platform>ARM64</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Release|ARM64"><Configuration>Release</Configuration><Platform>ARM64</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Debug|x64"><Configuration>Debug</Configuration><Platform>x64</Platform></ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64"><Configuration>Release</Configuration><Platform>x64</Platform></ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{6D58B80E-BA73-41EF-8ECF-A3AF4704EDFA}</ProjectGuid>
+    <RootNamespace>PaxCompositionProbe</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformMinVersion>10.0.17763.0</WindowsTargetPlatformMinVersion>
+    <UseWinUI>true</UseWinUI>
+    <WindowsPackageType>None</WindowsPackageType>
+    <AppxPackage>false</AppxPackage>
+    <WindowsAppSDKSelfContained>false</WindowsAppSDKSelfContained>
+    <WindowsAppSDKBootstrapInitialize>true</WindowsAppSDKBootstrapInitialize>
+    <WindowsAppSDKDeploymentManagerInitialize>false</WindowsAppSDKDeploymentManagerInitialize>
+    <CppWinRTOptimized>true</CppWinRTOptimized>
+    <CppWinRTRootNamespaceAutoMerge>true</CppWinRTRootNamespaceAutoMerge>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Application</ConfigurationType>
+    <PlatformToolset>v143</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+    <UseDebugLibraries>false</UseDebugLibraries>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup>
+    <OutDir>$(ProjectDir)out\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(ProjectDir)out\obj\$(Platform)\$(Configuration)\</IntDir>
+    <TargetName>PaxCompositionProbe</TargetName>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <LanguageStandard>stdcpp20</LanguageStandard>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <WarningLevel>Level4</WarningLevel>
+      <PreprocessorDefinitions>WIN32_LEAN_AND_MEAN;NOMINMAX;UNICODE;_UNICODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalOptions>/bigobj /utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <MultiProcessorCompilation>false</MultiProcessorCompilation>
+      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <AdditionalDependencies>d3d11.lib;d3d12.lib;dxgi.lib;d2d1.lib;windowsapp.lib;user32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+    <Manifest><AdditionalManifestFiles>app.manifest;%(AdditionalManifestFiles)</AdditionalManifestFiles></Manifest>
+  </ItemDefinitionGroup>
+  <ItemGroup><ClCompile Include="main.cpp" /><ClInclude Include="dx12_producer.h" /><ClInclude Include="pax_wgpu_producer.h" /></ItemGroup>
+  <ItemGroup><None Include="packages.config" /></ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets">
+    <Import Project="$(ProbePackagesRoot)Microsoft.Windows.SDK.BuildTools.MSIX.1.7.20250829.1\buildTransitive\Microsoft.Windows.SDK.BuildTools.MSIX.targets" />
+    <Import Project="$(ProbePackagesRoot)Microsoft.Windows.SDK.BuildTools.10.0.26100.4654\buildTransitive\Microsoft.Windows.SDK.BuildTools.targets" />
+    <Import Project="$(ProbePackagesRoot)Microsoft.WindowsAppSDK.Base.1.8.251216001\buildTransitive\native\Microsoft.WindowsAppSDK.Base.targets" />
+    <Import Project="$(ProbePackagesRoot)Microsoft.WindowsAppSDK.InteractiveExperiences.1.8.260708001\buildTransitive\native\Microsoft.WindowsAppSDK.InteractiveExperiences.targets" />
+    <Import Project="$(ProbePackagesRoot)Microsoft.WindowsAppSDK.Foundation.1.8.260803002\buildTransitive\native\Microsoft.WindowsAppSDK.Foundation.targets" />
+    <Import Project="$(ProbePackagesRoot)Microsoft.Web.WebView2.1.0.3179.45\buildTransitive\Microsoft.Web.WebView2.targets" />
+    <Import Project="$(ProbePackagesRoot)Microsoft.WindowsAppSDK.WinUI.1.8.260803003\buildTransitive\native\Microsoft.WindowsAppSDK.WinUI.targets" />
+    <Import Project="$(ProbePackagesRoot)Microsoft.WindowsAppSDK.Runtime.1.8.260804001\buildTransitive\native\Microsoft.WindowsAppSDK.Runtime.targets" />
+    <Import Project="$(ProbePackagesRoot)Microsoft.Windows.CppWinRT.2.0.240405.15\build\native\Microsoft.Windows.CppWinRT.targets" />
+  </ImportGroup>
+</Project>

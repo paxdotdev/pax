@@ -436,6 +436,48 @@ mod tests {
     }
 
     #[test]
+    fn desktop_target_selection_uses_owner_facts_with_a_shared_source_cache() {
+        let directory = tempfile::tempdir().unwrap();
+        let entry = directory.path().join("lib.rs");
+        std::fs::write(
+            &entry,
+            r#"
+            #[cfg_attr(target_os = "windows", path = "windows.rs")]
+            #[cfg_attr(target_os = "linux", path = "linux.rs")]
+            mod platform;
+            #[cfg(target_os = "macos")]
+            mod missing_apple_adapter;
+            "#,
+        )
+        .unwrap();
+        std::fs::write(directory.path().join("windows.rs"), "pub struct Windows;").unwrap();
+        std::fs::write(directory.path().join("linux.rs"), "pub struct Linux;").unwrap();
+        let mut cache = SourceCache::default();
+        for (windows, selected, excluded) in [
+            (true, "windows.rs", "linux.rs"),
+            (false, "linux.rs", "windows.rs"),
+            (true, "windows.rs", "linux.rs"),
+        ] {
+            let sources = discover(
+                &entry,
+                &facts(&[
+                    ("target_os = \"windows\"", windows),
+                    ("target_os = \"linux\"", !windows),
+                    ("target_os = \"macos\"", false),
+                ]),
+                &mut cache,
+            )
+            .unwrap();
+            assert_eq!(sources.len(), 2);
+            assert!(sources.keys().any(|path| path.ends_with(selected)));
+            assert!(!sources.keys().any(|path| path.ends_with(excluded)));
+        }
+        // Reusing parsed files must not retain a configured module path from
+        // another target or open the unavailable Apple source on this host.
+        assert_eq!(cache.parsed_files(), 3);
+    }
+
+    #[test]
     fn nested_cfg_attr_preserves_inline_template_and_filters_data_and_handlers() {
         let mut file = syn::parse_file(
             r#"

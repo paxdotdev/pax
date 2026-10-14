@@ -221,6 +221,8 @@ fn template_build_config() -> TemplateBuildConfig {
         macos: pax_build_target == "macos" || cargo_feature_enabled("macos"),
         ios: pax_build_target == "ios" || cargo_feature_enabled("ios"),
         ipados: pax_build_target == "ipados",
+        windows: pax_build_target == "windows" || cargo_feature_enabled("windows"),
+        linux: pax_build_target == "linux" || cargo_feature_enabled("linux"),
         designtime,
     }
 }

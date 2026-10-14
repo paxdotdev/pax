@@ -10,9 +10,19 @@ from pathlib import Path
 import subprocess
 import tempfile
 
+
+def positive_jobs(value):
+    jobs = int(value)
+    if jobs < 1:
+        raise argparse.ArgumentTypeError("jobs must be at least 1")
+    return jobs
+
+
 parser = argparse.ArgumentParser()
 parser.add_argument("--target-dir", required=True, type=Path)
 parser.add_argument("--logs", type=Path)
+parser.add_argument("--jobs", type=positive_jobs, default=2,
+                    help="maximum concurrent Cargo jobs (default: 2)")
 args = parser.parse_args()
 root = Path(__file__).resolve().parent
 logs = args.logs or Path(tempfile.mkdtemp(prefix="pax-cfg-handoff-"))
@@ -50,7 +60,8 @@ print("PASS application-without-packager", flush=True)
 def run(name, command, app_fancy, widget_fancy, web=False, debug=True,
         test_units=(False,), marker=False, explicit_flag=False):
     invocation = ["cargo", command[0], "--manifest-path", str(root / "Cargo.toml"),
-                  "-p", "cfg-app", "--offline", "--target-dir", str(args.target_dir), "-j4", *command[1:]]
+                  "-p", "cfg-app", "--offline", "--target-dir", str(args.target_dir),
+                  "--jobs", str(args.jobs), *command[1:]]
     sidecar = logs / f"{name}.json"
     case_environment = dict(environment, PAX_MANIFEST_OUTPUT=str(sidecar),
                             PAX_CARTRIDGE_MANIFEST_DIR=str(root / "app"),
@@ -74,6 +85,9 @@ def run(name, command, app_fancy, widget_fancy, web=False, debug=True,
     widget = properties("renamed_widgets::selected::Widget")
     for field, expected in [("fancy", widget_fancy), ("plain", not widget_fancy),
                             ("web", web), ("native", not web), ("debug", debug),
+                            ("macos", not web and sys.platform == "darwin"),
+                            ("windows", not web and sys.platform == "win32"),
+                            ("linux", not web and sys.platform.startswith("linux")),
                             ("rebuild_marker", marker)]:
         assert (field in widget) == expected, (name, field, widget)
     assert not ({"impossible", "dependency_test_only"} & widget), (name, widget)
@@ -85,6 +99,7 @@ def run(name, command, app_fancy, widget_fancy, web=False, debug=True,
 
 run("native-app-feature", ["check", "--features", "fancy", "--all-targets"], True, False, test_units=(False, True))
 run("native-rich-baked", ["test", "--features", "fancy", "--lib"], True, False, test_units=(True,))
+run("native-designtime", ["test", "--features", "fancy,pax-kit/designtime", "--lib"], True, False, test_units=(True,))
 run("native-dependency-feature", ["test", "--features", "widget-fancy", "--lib"], False, True, test_units=(True,))
 run("wasm-dependency-feature", ["check", "--features", "widget-fancy", "--target", "wasm32-unknown-unknown", "--lib"], False, True, web=True)
 run("release-dependency-feature", ["test", "--release", "--features", "widget-fancy", "--lib"], False, True, debug=False, test_units=(True,))
@@ -165,7 +180,8 @@ with tempfile.TemporaryDirectory(prefix="pax-source-workspace-") as temporary:
     def test_external(name):
         result = subprocess.run(
             ["cargo", "test", "--offline", "--manifest-path", str(consumer / "Cargo.toml"),
-             "--target-dir", str(args.target_dir), "--lib", "--features", "widget-fancy", "-j4"],
+             "--target-dir", str(args.target_dir), "--lib", "--features", "widget-fancy",
+             "--jobs", str(args.jobs)],
             env=plain_environment, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         (logs / f"{name}.log").write_text(result.stdout)
         assert result.returncode == 0, result.stdout[-6000:]
@@ -209,7 +225,8 @@ with tempfile.TemporaryDirectory(prefix="pax-source-workspace-") as temporary:
     def check_host():
         return subprocess.run(
             ["cargo", "check", "--offline", "--manifest-path", str(fixture / "Cargo.toml"),
-             "--target-dir", str(args.target_dir), "--workspace", "--all-targets", "-j4"],
+             "--target-dir", str(args.target_dir), "--workspace", "--all-targets",
+             "--jobs", str(args.jobs)],
             env=plain_environment, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     result = check_host()
     (logs / "external-native-host.log").write_text(result.stdout)

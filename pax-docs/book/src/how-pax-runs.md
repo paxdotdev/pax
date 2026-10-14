@@ -573,6 +573,12 @@ element its required updates; user input returns through the chassis to the
 runtime and application handlers. The platform still handles native concerns
 such as editing interactions and input-method behavior.
 
+Native adapters share typed event routing through
+`pax_chassis_common::native_interrupt::NativeInterruptDispatcher`. The adapter
+owns the platform transport and graphics resources; the dispatcher delivers
+decoded input to the engine. Each engine session has its own gesture and scroll
+history, so remounting does not inherit a previous session's input state.
+
 On macOS, native scene updates are applied during the chassis frame cycle,
 before that frame's GPU submission. Animated native controls therefore receive
 the current geometry without waiting for a later SwiftUI view update.
@@ -638,6 +644,36 @@ The Apple-native chassis use Pax's GPU rendering integration alongside native
 views. Running a web build in Safari on an iPhone is a different target path
 from running a native iOS build on the same phone. Test the destination your
 users will actually use.
+
+Native chassis integrations can also render drawn content into a persistent
+WGPU texture with `RenderBackend::to_texture`. The integration supplies a
+`GpuContext::from_wgpu` context from its existing instance, adapter, device and
+queue, so platform export extensions can be negotiated before device creation:
+
+```rust,ignore
+let context = GpuContext::from_wgpu(instance, adapter, device, queue.clone())?;
+let backend = RenderBackend::to_texture(
+    context, wgpu::TextureFormat::Rgba8Unorm,
+    RenderConfig::new(false, width, height, [1.0, 1.0]),
+)?;
+let mut renderer = WgpuRenderer::new(backend);
+// Record the scene, then submit its drawing before a copy on the same queue.
+renderer.flush();
+let output = renderer.output_texture().expect("offscreen output");
+```
+
+This output contains premultiplied drawn pixels; native widgets remain owned by
+their platform toolkit. The host copies the resolved texture into its own export
+allocation and owns synchronization and compositor lifetime. The output is
+mutable across frames, so retaining its handle does not freeze its pixels.
+Device creation must request at least `GpuContext::required_limits()`; importing
+a device with lower limits returns an error before allocating renderer resources.
+Resize replaces the backing texture and replays the retained scene; old handles
+stay alive for queued copies. RGBA8 and BGRA8 unorm formats are supported; sRGB
+attachments are rejected because their encoding after blending would not leave
+byte-premultiplied pixels for a direct compositor copy. The host must also match
+the renderer's color space to the compositor; the copy performs no conversion.
+This low-level rendering API does not itself add a supported platform target.
 
 Graphics effects, surface limits, and rendering costs can differ between
 backends. There is no universal frame-rate guarantee for a Pax application.

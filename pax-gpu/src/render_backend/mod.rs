@@ -75,7 +75,7 @@ pub fn record_browser_surface_event(canvas: &web_sys::HtmlCanvasElement, event: 
 pub(crate) mod capture;
 #[cfg(feature = "shaders")]
 mod effects;
-use anyhow::anyhow;
+use anyhow::{anyhow, Context};
 use bytemuck::Pod;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
@@ -159,6 +159,11 @@ struct VectorPipelineKey {
 
 /// GPU device, pipelines, and a weak index of resident image textures shared by sibling surfaces.
 pub struct GpuContext {
+    // Keep the instance alive even for integrations that only create offscreen targets.
+    #[cfg_attr(
+        not(any(target_os = "macos", target_os = "ios", target_arch = "wasm32")),
+        allow(dead_code)
+    )]
     instance: wgpu::Instance,
     adapter: wgpu::Adapter,
     device: wgpu::Device,
@@ -205,12 +210,7 @@ impl GpuContext {
         // Keep wgpu's conservative downlevel browser preset as the common WebGPU baseline. The
         // preset name reflects its upstream compatibility tier; it does not enable a GL backend.
         #[cfg(target_arch = "wasm32")]
-        let required_limits = wgpu::Limits {
-            // Interrupted paint mixtures have a variable number of endpoints.
-            max_storage_buffers_per_shader_stage: 1,
-            max_storage_buffer_binding_size: 128 * 1024 * 1024,
-            ..wgpu::Limits::downlevel_webgl2_defaults()
-        };
+        let required_limits = Self::required_limits();
         #[cfg(not(target_arch = "wasm32"))]
         let required_limits = adapter.limits();
         #[cfg(test)]
@@ -226,7 +226,49 @@ impl GpuContext {
                 trace: wgpu::Trace::Off,
             })
             .await
-            .map_err(|error| anyhow!("couldn't create GPU device: {error}"))?;
+            .context("could not create the selected GPU device")?;
+        Self::from_wgpu(instance, adapter, device, queue)
+    }
+
+    /// Established renderer baseline to request when creating a shared device.
+    ///
+    /// This includes storage-buffer support for gradients and mesh paints. A
+    /// platform may request higher limits, including the adapter's full limits.
+    pub fn required_limits() -> wgpu::Limits {
+        wgpu::Limits {
+            max_storage_buffers_per_shader_stage: 1,
+            max_storage_buffer_binding_size: 128 * 1024 * 1024,
+            ..wgpu::Limits::downlevel_webgl2_defaults()
+        }
+    }
+
+    /// Shares an existing WGPU device with a native compositor integration.
+    ///
+    /// All four handles must originate from the same instance and adapter, and
+    /// the queue must belong to the device. Negotiate platform export extensions
+    /// before calling this constructor and request at least `required_limits()`.
+    /// Insufficient device limits return an error before creating GPU resources.
+    /// External-memory sharing and synchronization remain the bridge's job.
+    pub fn from_wgpu(
+        instance: wgpu::Instance,
+        adapter: wgpu::Adapter,
+        device: wgpu::Device,
+        queue: wgpu::Queue,
+    ) -> Result<SharedGpuContext, anyhow::Error> {
+        let mut failures = Vec::new();
+        Self::required_limits().check_limits_with_fail_fn(
+            &device.limits(),
+            false,
+            |name, required, actual| {
+                failures.push(format!("{name}: need {required}, device has {actual}"))
+            },
+        );
+        if !failures.is_empty() {
+            return Err(anyhow!(
+                "GPU device does not meet the Pax renderer baseline: {}",
+                failures.join(", ")
+            ));
+        }
         let max_surface_dimension = device.limits().max_texture_dimension_2d.max(1);
         log::info!(
             "render backend: max surface dimension {}",
@@ -623,16 +665,46 @@ pub struct RenderBackend<'w> {
     pending_capture_ids: Vec<u32>,
     completed_captures: Arc<Mutex<HashMap<u32, CapturedFrame>>>,
     // Drop the surface after its commands/frames, and the canvas lease last.
-    surface: wgpu::Surface<'w>,
+    target: RenderTarget<'w>,
     #[cfg(target_arch = "wasm32")]
     browser_canvas: Option<browser_canvas::BrowserCanvasLease>,
     #[cfg(target_arch = "wasm32")]
     image_trace_pending: bool,
 }
 
+enum RenderTarget<'w> {
+    Surface(wgpu::Surface<'w>),
+    Texture(Option<Texture>),
+}
+
+impl RenderTarget<'_> {
+    fn configure(&mut self, device: &Device, config: &SurfaceConfiguration) {
+        match self {
+            Self::Surface(surface) => surface.configure(device, config),
+            Self::Texture(texture) => {
+                *texture = Some(device.create_texture(&wgpu::TextureDescriptor {
+                    label: Some("Pax compositor output"),
+                    size: wgpu::Extent3d {
+                        width: config.width,
+                        height: config.height,
+                        depth_or_array_layers: 1,
+                    },
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format: config.format,
+                    usage: config.usage,
+                    view_formats: &[],
+                }));
+            }
+        }
+    }
+}
+
 struct ActiveFrame {
     view: TextureView,
-    surface: SurfaceTexture,
+    texture: Texture,
+    surface: Option<SurfaceTexture>,
     color_resolve: ColorResolve,
 }
 
@@ -1146,14 +1218,77 @@ impl<'w> RenderBackend<'w> {
         context: SharedGpuContext,
         config: RenderConfig,
     ) -> Result<Self, anyhow::Error> {
+        let capabilities = surface.get_capabilities(&context.adapter);
+        Self::new_for_target(
+            RenderTarget::Surface(surface),
+            capabilities,
+            context,
+            config,
+        )
+    }
+
+    /// Renders into a persistent, single-sample texture for native composition.
+    ///
+    /// Supports RGBA8/BGRA8 unorm formats with premultiplied alpha. sRGB
+    /// attachments are excluded because encoding after blending would not leave
+    /// byte-premultiplied output for a direct compositor copy. The host remains
+    /// responsible for matching the renderer's color space to its compositor.
+    /// After flushing, copy the output on the same queue into a platform-owned
+    /// export allocation. No CPU pixel transfer or window surface is required.
+    /// Resizing creates a new backing texture; previously cloned handles remain
+    /// valid for already queued copies. The host owns export synchronization and
+    /// must not hand this mutable rendering target directly to a compositor.
+    pub fn to_texture(
+        context: SharedGpuContext,
+        format: TextureFormat,
+        config: RenderConfig,
+    ) -> Result<Self, anyhow::Error> {
+        if !matches!(
+            format,
+            TextureFormat::Rgba8Unorm | TextureFormat::Bgra8Unorm
+        ) {
+            return Err(anyhow!(
+                "compositor output requires non-sRGB RGBA8 or BGRA8"
+            ));
+        }
+        let usages = TextureUsages::RENDER_ATTACHMENT
+            | TextureUsages::COPY_SRC
+            | TextureUsages::TEXTURE_BINDING;
+        if !context
+            .adapter
+            .get_texture_format_features(format)
+            .allowed_usages
+            .contains(usages)
+        {
+            return Err(anyhow!(
+                "adapter does not support compositor output format {format:?}"
+            ));
+        }
+        Self::new_for_target(
+            RenderTarget::Texture(None),
+            wgpu::SurfaceCapabilities {
+                formats: vec![format],
+                present_modes: vec![],
+                alpha_modes: vec![CompositeAlphaMode::PreMultiplied],
+                usages,
+            },
+            context,
+            config,
+        )
+    }
+
+    fn new_for_target(
+        target: RenderTarget<'w>,
+        surface_caps: wgpu::SurfaceCapabilities,
+        context: SharedGpuContext,
+        config: RenderConfig,
+    ) -> Result<Self, anyhow::Error> {
         let adapter = &context.adapter;
         let device = context.device.clone();
         let queue = context.queue.clone();
         let staging_belt =
             OrderedUploads::new(device.clone(), queue.clone(), STAGING_BELT_CHUNK_SIZE);
         let max_surface_dimension = context.max_surface_dimension;
-
-        let surface_caps = surface.get_capabilities(&adapter);
         let surface_format = surface_caps
             .formats
             .iter()
@@ -1221,6 +1356,9 @@ impl<'w> RenderBackend<'w> {
             .flags;
         let sample_count = select_sample_count(surface_format_features, stencil_format_features);
         let mut surface_usage = TextureUsages::RENDER_ATTACHMENT;
+        if matches!(target, RenderTarget::Texture(_)) {
+            surface_usage |= TextureUsages::TEXTURE_BINDING;
+        }
         if surface_caps.usages.contains(TextureUsages::COPY_SRC) {
             surface_usage |= TextureUsages::COPY_SRC;
         } else {
@@ -1415,7 +1553,7 @@ impl<'w> RenderBackend<'w> {
             source_domain: None,
             #[cfg(test)]
             source_domain_entries: 0,
-            surface,
+            target,
             #[cfg(target_arch = "wasm32")]
             browser_canvas: None,
             #[cfg(target_arch = "wasm32")]
@@ -1630,7 +1768,7 @@ impl<'w> RenderBackend<'w> {
             sync_browser_canvas_backing_size(&canvas.canvas, width, height);
         }
         self.stencil_renderer.resize(&self.device, width, height);
-        self.surface.configure(&self.device, &self.surface_config);
+        self.target.configure(&self.device, &self.surface_config);
         self.multisampled_target = if self.sample_count > 1 {
             let (texture, view) = create_multisampled_framebuffer(
                 &self.device,
@@ -1723,6 +1861,18 @@ impl<'w> RenderBackend<'w> {
     /// Maximum texture dimension supported by the active adapter.
     pub fn max_surface_dimension(&self) -> u32 {
         self.max_surface_dimension
+    }
+
+    /// Clones the current offscreen output handle, or returns `None` for a window surface.
+    ///
+    /// Flush rendering before submitting a copy on this context's queue. The
+    /// texture is reused on subsequent frames and replaced on resize; a clone
+    /// retains allocation lifetime, not an immutable snapshot of its pixels.
+    pub fn output_texture(&self) -> Option<Texture> {
+        match &self.target {
+            RenderTarget::Texture(texture) => texture.clone(),
+            RenderTarget::Surface(_) => None,
+        }
     }
 
     pub fn shared_context_id(&self) -> usize {
@@ -3229,12 +3379,23 @@ impl<'w> RenderBackend<'w> {
 
     fn ensure_active_frame(&mut self) {
         if self.active_frame.is_none() {
-            let surface = self.surface.get_current_texture().unwrap();
-            let view = surface
-                .texture
-                .create_view(&wgpu::TextureViewDescriptor::default());
+            let (texture, surface) = match &self.target {
+                RenderTarget::Surface(target) => {
+                    let surface = target.get_current_texture().unwrap();
+                    (surface.texture.clone(), Some(surface))
+                }
+                RenderTarget::Texture(texture) => (
+                    texture
+                        .as_ref()
+                        .expect("configured compositor output")
+                        .clone(),
+                    None,
+                ),
+            };
+            let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
             self.active_frame = Some(ActiveFrame {
                 view,
+                texture,
                 surface,
                 color_resolve: ColorResolve::default(),
             });
@@ -3416,13 +3577,15 @@ impl<'w> RenderBackend<'w> {
                 self.multisampled_target.is_none() || !screen_surface.color_resolve.needs_resolve(),
                 "presentation must follow the frame's color resolve"
             );
-            screen_surface.surface.present();
-            #[cfg(target_arch = "wasm32")]
-            if let Some(lease) = &mut self.browser_canvas {
-                lease.present();
-                record_browser_surface_event(&lease.canvas, "first-submit");
-                if std::mem::take(&mut self.image_trace_pending) {
-                    record_browser_surface_event(&lease.canvas, "image-content-submit");
+            if let Some(surface) = screen_surface.surface {
+                surface.present();
+                #[cfg(target_arch = "wasm32")]
+                if let Some(lease) = &mut self.browser_canvas {
+                    lease.present();
+                    record_browser_surface_event(&lease.canvas, "first-submit");
+                    if std::mem::take(&mut self.image_trace_pending) {
+                        record_browser_surface_event(&lease.canvas, "image-content-submit");
+                    }
                 }
             }
         }
@@ -3579,7 +3742,7 @@ impl<'w> RenderBackend<'w> {
             let Some(active_frame) = self.active_frame.as_ref() else {
                 return;
             };
-            &active_frame.surface.texture
+            &active_frame.texture
         } else {
             let Some(capture_target) = self.capture_target.as_ref() else {
                 return;

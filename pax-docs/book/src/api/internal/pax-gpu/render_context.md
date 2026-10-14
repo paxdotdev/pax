@@ -499,6 +499,15 @@ Applies homogeneous geometry after the current affine tile/capture mapping.
 
 Return to the surface's base transform between independent logical drawing programs.
 Retained nodes, resources, and the tile's pixels remain intact.
+##### `output_texture`
+<pre><code class="api-signature language-rust ignore">pub fn output_texture(&amp;self) -&gt; Option&lt;Texture&gt;</code></pre>
+
+Returns the current offscreen output, when using `RenderBackend::to_texture`.
+
+Call after `flush`, then submit a copy on the shared device's queue before
+drawing the next frame. This is a mutable retained target, not an immutable
+compositor lease. A resize replaces the texture without invalidating old
+handles retained by queued copies.
 
 ##### `reset_retained_scene`
 <pre><code class="api-signature language-rust ignore">pub fn reset_retained_scene(&amp;mut self)</code></pre>
