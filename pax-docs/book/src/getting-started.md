@@ -36,9 +36,6 @@ Web development does not build the Apple SDK. Once the browser app is running,
 you can [run it natively on macOS](#run-it-natively-on-macos) or try an
 [iOS simulator](targets-build-deploy.md#ios-and-ipados-development).
 
-The CLI's telemetry policy is described in [CLI Telemetry](cli-telemetry.md).
-Ordinary Cargo compilation and direct native execution do not invoke it.
-
 Need the prerequisites? Start with [Prepare your workstation](#prepare-your-workstation).
 Already running? Continue to [Project anatomy](#project-anatomy).
 
@@ -359,12 +356,6 @@ To choose another target or ship a release, see
 
 The links below preserve earlier reference locations. Detailed workflow and
 packaging guidance lives in the linked chapters.
-
-### CLI telemetry
-
-The first public CLI command prints the telemetry privacy notice and sends no
-telemetry. Later public commands enable minimal telemetry by default. See
-[CLI Telemetry](cli-telemetry.md) for the fields and opt-out controls.
 
 ### Formatting Pax source
 

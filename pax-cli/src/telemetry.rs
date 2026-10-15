@@ -34,7 +34,7 @@ pub(crate) const CONFIG_ENV_KEYS: &[&str] = &[
     "CI",
 ];
 
-const NOTICE: &str = "Pax collects minimal CLI telemetry after this command to guide aggregate product, content, outreach, and marketing investment: the command, target, success or failure, CLI version, OS, architecture, and approximate city, region, and country derived from the connection IP. A random installation ID connects events over time and is not tied to an account, hardware, or project. This command sends no telemetry. The CLI sends no location or IP field; the telemetry service passes the connection IP to Mixpanel only to derive coarse location, and the raw IP is not retained. Pax never collects source, filenames, project paths, project content, command arguments, or error text. Run `pax-cli telemetry off` at any time. Learn more: https://docs.pax.dev/cli-telemetry";
+const NOTICE: &str = "Pax collects minimal CLI telemetry after this command to guide aggregate product, content, outreach, and marketing investment: the command, target, success or failure, CLI version, OS, architecture, and approximate city, region, and country derived from the connection IP. A random installation ID connects events over time and is not tied to an account, hardware, or project. This command sends no telemetry. The CLI sends no location or IP field; the telemetry service passes the connection IP to Mixpanel only to derive coarse location, and the raw IP is not retained. Pax never collects source, filenames, project paths, project content, command arguments, or error text. Run `pax-cli telemetry off` at any time.";
 
 const STATE_DIR_NAME: &str = "telemetry";
 const LOCK_FILE_NAME: &str = "state.lock";

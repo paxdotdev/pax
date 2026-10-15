@@ -240,7 +240,7 @@ pax-cli run --target=web
 
 Use a fresh directory outside the monorepo, no source patches, and no Node/npm
 requirement for the generated app. Inspect Pax Logo, CLI docs/example sources,
-and telemetry according to [CLI Telemetry](../pax-docs/book/src/cli-telemetry.md).
+and the telemetry controls listed by `pax-cli telemetry --help`.
 Record installation/build/run results and exact package versions. The
 [first-touch harness](first-touch/README.md) supplies baseline details; its
 `*-source` scripts deliberately patch local sources and are not this acceptance.

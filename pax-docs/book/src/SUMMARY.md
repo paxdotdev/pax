@@ -2,7 +2,6 @@
 
 - [What is Pax?](what-is-pax.md)
 - [Getting Started](getting-started.md)
-- [CLI Telemetry](cli-telemetry.md)
 - [Templates & UI Structure](template-language.md)
 - [Data Binding & Expressions](data-binding-expressions.md)
 - [State & Properties](state-properties.md)
