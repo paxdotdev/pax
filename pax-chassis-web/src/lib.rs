@@ -398,6 +398,7 @@ impl PaxChassisWeb {
     pub fn new_designtime(
         userland_definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
         root: Rc<RefCell<pax_runtime::api::pax_value::PaxAny>>,
+        yield_mount: bool,
     ) -> Self {
         let (width, height, os_info, surface_policy, installed_surfaces, get_time, renderer) =
             Self::init_common();
@@ -421,7 +422,7 @@ impl PaxChassisWeb {
             surface_policy.browser.scroller_tiling_policy(),
         );
 
-        if query_param_value(&window_location_search(), "pax_mount_yield").as_deref() == Some("1") {
+        if yield_mount {
             engine.enable_resumable_startup();
         }
         engine
@@ -446,9 +447,7 @@ impl PaxChassisWeb {
             surface_preparation_latency: RefCell::new(Default::default()),
             native_scroller_positions: HashMap::new(),
             synthetic_scroll_gesture: None,
-            startup_hold_input: query_param_value(&window_location_search(), "pax_mount_yield")
-                .as_deref()
-                == Some("1"),
+            startup_hold_input: yield_mount,
             startup_input: Default::default(),
             userland_definition_to_instance_traverser,
             designtime_manager,
@@ -461,6 +460,7 @@ impl PaxChassisWeb {
     pub fn new(
         definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
         root: Rc<RefCell<pax_runtime::api::pax_value::PaxAny>>,
+        yield_mount: bool,
     ) -> Self {
         let (width, height, os_info, surface_policy, installed_surfaces, get_time, renderer) = Self::init_common();
 
@@ -474,7 +474,7 @@ impl PaxChassisWeb {
             surface_policy.browser.scroller_tiling_policy(),
         );
 
-        if query_param_value(&window_location_search(), "pax_mount_yield").as_deref() == Some("1") {
+        if yield_mount {
             engine.enable_resumable_startup();
         }
         engine.mount_root_component(main_component_instance);
@@ -493,9 +493,7 @@ impl PaxChassisWeb {
             surface_preparation_latency: RefCell::new(Default::default()),
             native_scroller_positions: HashMap::new(),
             synthetic_scroll_gesture: None,
-            startup_hold_input: query_param_value(&window_location_search(), "pax_mount_yield")
-                .as_deref()
-                == Some("1"),
+            startup_hold_input: yield_mount,
             startup_input: Default::default(),
         }
     }
@@ -570,6 +568,19 @@ pub fn web_mount_callback(host: &JsValue) -> Result<js_sys::Function, JsValue> {
     js_sys::Reflect::get(host, &JsValue::from_str("mount"))?
         .dyn_into()
         .map_err(|_| JsValue::from_str("init_web requires a prepared web host"))
+}
+
+/// Read the host-resolved scheduling choice before either cartridge mounts.
+#[doc(hidden)]
+pub fn web_yield_mount(host: &JsValue) -> Result<bool, JsValue> {
+    let value = js_sys::Reflect::get(host, &JsValue::from_str("yieldMount"))?;
+    if value.is_undefined() {
+        Ok(false)
+    } else {
+        value
+            .as_bool()
+            .ok_or_else(|| JsValue::from_str("yieldMount must be a boolean"))
+    }
 }
 
 /// Select a declared runnable root; omission uses the sole declared root.
@@ -1601,6 +1612,14 @@ impl PaxChassisWeb {
 
     pub fn prepare_startup_presentation(&mut self) -> bool {
         self.engine.borrow_mut().prepare_startup_presentation()
+    }
+
+    pub fn accept_startup_measurements(&mut self) -> bool {
+        self.engine.borrow_mut().accept_startup_measurements()
+    }
+
+    pub fn resume_startup_after_presentation(&mut self) {
+        self.engine.borrow_mut().resume_startup_after_presentation();
     }
 
     /// Advance initial mount/settlement in CPU-budgeted units. Native patches

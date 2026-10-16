@@ -16,6 +16,32 @@ Last triaged: 2026-10-05 — [PAX-972](https://linear.app/paxdev/issue/PAX-972/p
 
 ## Untriaged findings
 
+- 2026-10-15, PAX-839 initial-viewport publication: holding the first settled
+  checkpoint at 1280×720 with a local host probe showed stable native text,
+  but the rotating headline's vector alpha mask exposed its full gradient
+  rectangle and the logo remained in its opening pose. Normal rendering after
+  startup displayed the masked handwriting. Expected an internally correct
+  first presentation; text/measurement readiness alone did not establish it.
+  Evidence: `/tmp/pax-viewport-startup-20261015/first-viewport.jpg` and
+  `completed-viewport.jpg`. Relationship to prior clipping warnings is unknown.
+
+- 2026-10-15, PAX-839 web host validation: building `pax-website` without
+  `--libdev` rebuilt the cartridge but reused an existing browser interface
+  bundle after `interfaces/web/src/index.ts` changed. The older host treated
+  the new partial startup checkpoint as full readiness. Monorepo website
+  development requires `pax-cli build --path pax-website --target web --libdev`
+  (plus `--release` for release); automatic libdev detection covers examples
+  and tests, not this website. Confirm the rebuilt host and cartridge together.
+
+- 2026-10-15, PAX-839 startup preview: revealing locally ready native text during
+  yielded mounting does not imply stable ancestor layout or matching canvas
+  content. At 1280×720, `?pax_startup_preview=1` exposed the homepage CLI text
+  at y=442.75, then 605.29, then 649.29 in both comparison runs; button fills
+  and artwork arrived later. Evidence:
+  `/tmp/pax-startup-preview-20261015/preview-{1,2}.json` and `preview-first.jpg`.
+  Omit the preview flag to retain coordinated presentation. Region-level
+  settlement remains a follow-up in [PAX-839](https://linear.app/paxdev/issue/PAX-839).
+
 - 2026-10-13, PAX-839 integration check: a full forward/reverse tour of the
   retained feature gallery should avoid invalid native clips. Chrome at
   1440×900 logged 66 `MNaN,inf…` SVG path errors and four reactive-drain limits
@@ -1091,3 +1117,82 @@ carousel allocation or broadening this fix into renderer work.
   separately.
 
 - 2026-10-12 — Web bootstrap validation: `npx tsc --noEmit` reports existing interface errors (native patch types, native text CSS types, touch inference, and cartridge/window declarations). Expected a clean full typecheck; the before/after compiler-host comparison returns identical diagnostics with the pre-task bootstrap sources restored virtually. Evidence: `/tmp/pax839-resumable-implementation/{typescript.log,type-comparison.json}`. Focused scheduler/native-text tests and the release esbuild remain available; a passing bundle is not a passing full typecheck.
+
+- 2026-10-14 — PAX-839 browser validation: the active worktree's `target`,
+  `pax-website/target`, and `pax-website/.pax` directories disappeared between
+  completed release captures and the next capture, while its preview server was
+  still running. Expected the active preview/build caches to remain available;
+  observed 404s for the page and a full rebuild required. Tracked sources were
+  intact. No cleanup command was run in this task. Evidence:
+  `/tmp/pax839-checkpoint-20261014/checkpoint-wide-4-stuck.json` and the 50561
+  server log around 12:31 as displayed; cause not established.
+
+- 2026-10-14 — PAX-839 screenshot previews: the web canvas `Image` path renders
+  native sRGB JPEG captures substantially darker/posterized than a browser
+  `<img>` showing the identical file. Expected matching colors; side-by-side
+  evidence: `/tmp/paxflix-showcase-20261014/image-comparison.png`. Both JPEGs
+  report sRGB, RGB, 8-bit samples. Using the existing `NativeImage` component
+  for the website's static previews; the underlying canvas color discrepancy
+  remains to investigate.
+
+- 2026-10-14 — Native screenshot capture: `pax-cli run --path examples/paxflix
+  --target ios --ios-device simulator:AD4A9212-1BF5-4B6C-AA46-5809580D6947
+  --libdev` launched a rendered, interactive app, but `dev list` remained empty
+  and `dev look --path examples/paxflix` reported no live session. Expected
+  the same discoverable capture session as macOS. Log: `/tmp/paxflix-native-ios.log`;
+  used `xcrun simctl io <uuid> screenshot --type=jpeg <absolute-path>` instead.
+
+- 2026-10-15 — PAX-839 typography review in the in-app browser at 1280×720:
+  after scrolling the homepage to the calculator, its native text was visible
+  but its canvas shell/keys/graph were absent. Expected the complete device.
+  Reproduced in both the unchanged pre-font release on port 50563 and the
+  candidate on 50561 (both `?pax_mount_yield=1`), and in debug on 50562. The
+  baseline/candidate browser screenshots are in this chat; build and baseline
+  copies are under `/tmp/pax-fonts-20261015/`. This is not introduced by the
+  font changes; relationship to the deferred clipping/rendering issues remains
+  unestablished.
+
+- 2026-10-15 — PAX-839 preview handoff omitted `?pax_mount_yield=1`, sending
+  the reviewer through synchronous startup. Under current workstation load,
+  instrumented 1440×900 runs reached visible hero text at 19.12 s without
+  the flag versus 4.40 s with it; the pre-font baseline took 19.54 s without
+  it. The current synchronous run contained a 14.53 s browser long task and
+  53,239 TextUpdates versus 2,323 with yielding. At 668×932 the same candidate
+  measured 8.60 s versus 1.54 s. These are representative runs, not medians;
+  instrumentation and machine load affect absolute times. Preserve URL mode
+  and actual viewport in future comparisons. Evidence:
+  `/tmp/pax-init-path-20261015/summary.json`; the optimized path remains opt-in.
+
+- 2026-10-15 — PAX-839 overlapping native hit regions: scrolling over the
+  tablet showcase's upper area moved the outer page. `elementsFromPoint`
+  identified the rear macOS `NativeImage` even where its SVG occlusion mask
+  hid it. CSS masks affect painting, not browser hit-testing. NativeImage now
+  leaves DOM input to the underlying scroller while Pax routes its events;
+  upper/middle/lower tablet wheel checks pass. Other native widgets that need
+  browser input (selectable text, controls, iframes) have not been audited for
+  this same occlusion/hit-region mismatch.
+
+- 2026-10-16 — PAX-839 startup Mask verification exposed a pending-render retry
+  with a dirty canvas node but a cleared layer flag. Expected the first gradient
+  drawing to include its ancestor alpha source; its recorded commands contained
+  only the leaf, producing an unmasked rectangle. Reproduced at the paused first
+  website checkpoint and in `pending_drawable_retry_restores_ancestor_mask_after_layer_bit_was_cleared`
+  (fails without the fix). Render retries now restore participating layer flags.
+  Mask dirty propagation also visited deferred, unmounted descendants, leaving
+  geometry settlement blocked; it now walks mounted attachments. Evidence:
+  `/tmp/pax-startup-dependencies-20261016/`; tracked in PAX-839.
+
+- 2026-10-16 — Running `cargo test -p pax-std --test typed_bindings --no-run`
+  fails while expanding `Piece`/`Panel` with seven unresolved generated-type
+  diagnostics. Expected the integration target to compile; the CI-style `--lib`
+  runtime/standard-component suites pass. Startup work does not edit this test
+  or its macros; baseline attribution has not been independently established.
+  Evidence: `/tmp/pax-startup-dependencies-20261016/typed-bindings-check.log`.
+
+- 2026-10-16 — PAX-839 recursive startup at 1440×900 exposed a website
+  section-height feedback loop. Expected an unmeasured content stack to wait;
+  the binding instead read inherited parent bounds, added 160px, and repeated
+  indefinitely before the first presentation. Subscribing to actual optional
+  autosize measurements fixes the loop; the debug check reaches first presentation
+  with 22 native elements and full completion with 675. Regression coverage:
+  `startup_height_feedback_waits_for_a_real_content_measurement`.

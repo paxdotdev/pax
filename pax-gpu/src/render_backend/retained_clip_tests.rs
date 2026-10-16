@@ -2764,3 +2764,82 @@ fn lighting_changes_invalidate_only_affected_shader_sources() {
     assert_eq!(stats.vector_geometry_rebuilds, 0);
     assert_eq!(stats.vector_resource_updates, 0);
 }
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn startup_alpha_source_empty_and_first_capture_pixels() {
+    use crate::{DrawRange, Material, Stroke, StrokeCap, StrokeJoin};
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 32, 32, [1.0, 1.0]),
+        )
+    })
+    .expect("Metal backend");
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    renderer.set_viewport(32.0, 32.0, [1.0, 1.0]);
+    for (frame_id, mode) in [0, 1, 2, 0].into_iter().enumerate() {
+        renderer.begin_node(10, 0, 0);
+        renderer.save();
+        renderer.begin_alpha_source(Transform2D::identity(), 0.0);
+        if mode != 0 {
+            renderer.begin_node(11, 0, 0);
+            let mut path = Path::builder();
+            path.begin(point(4.0, 16.0));
+            path.line_to(point(28.0, 16.0));
+            path.end(false);
+            renderer.stroke_path_with_draw_range_and_material_and_opacity(
+                path.build(),
+                Stroke {
+                    fill: Fill::Solid(Color::rgba(1.0, 1.0, 1.0, 1.0)),
+                    weight: 8.0,
+                    cap: StrokeCap::Butt,
+                    join: StrokeJoin::Round,
+                },
+                Material::default(),
+                1.0,
+                DrawRange::enabled(0.0, if mode == 1 { 0.0 } else { 1.0 }),
+            );
+            renderer.end_node(11);
+        }
+        renderer.end_alpha_source();
+        renderer.end_node(10);
+        renderer.begin_node(20, 1, 0);
+        renderer.fill_path(
+            rect(0.0, 0.0, 32.0, 32.0),
+            Fill::Mesh {
+                rows: (0..2)
+                    .map(|y| {
+                        (0..2)
+                            .map(|x| ([x as f32, y as f32], Color::rgba(1.0, 0.0, 0.0, 1.0)))
+                            .collect()
+                    })
+                    .collect(),
+                pos: point(0.0, 0.0),
+                main_axis: Vector2D::new(32.0, 0.0),
+                off_axis: Vector2D::new(0.0, 32.0),
+            },
+        );
+        renderer.end_node(20);
+        renderer.begin_node(10, 0, 0);
+        renderer.restore();
+        renderer.end_node(10);
+        renderer.request_screenshot_capture(frame_id as u32);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let frame = renderer.take_screenshot_capture(frame_id as u32).unwrap();
+        assert_pixel(
+            &frame,
+            16,
+            16,
+            if mode == 2 {
+                [255, 0, 0, 255]
+            } else {
+                [0, 0, 0, 0]
+            },
+        );
+        assert_pixel(&frame, 16, 2, [0, 0, 0, 0]);
+    }
+}

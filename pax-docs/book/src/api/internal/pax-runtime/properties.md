@@ -48,6 +48,13 @@ Type: `Cell`<`usize`>
 Type: `Rc`<`RefCell`<`Vec`<`bool`>>>
 
 #### Implementations
+##### `register_startup_measurement`
+<pre><code class="api-signature language-rust ignore">pub fn register_startup_measurement(&amp;self, node: &amp;ExpandedNode, axes: <a href="../../../api/internal/pax-runtime/engine/startup/plan.md#startupaxes">StartupAxes</a>)</code></pre>
+
+Register axes whose extent is measured from this container's children.
+The default planner preserves exact measurement dependencies while allowing
+a top-aligned, fixed-width visible prefix to remain partially mounted.
+
 ##### `add_to_cache`
 <pre><code class="api-signature language-rust ignore">pub fn add_to_cache(&amp;self, node: &amp;Rc&lt;ExpandedNode&gt;)</code></pre>
 

@@ -887,11 +887,15 @@ fn sync_scroller_autosize(
     resolved_scroll_width: &impl PropertyBinding<Size>,
     resolved_scroll_height: &impl PropertyBinding<Size>,
 ) {
-    let (content_width, content_height) = measure_content_children_forward_extents(ctx);
     let manage_width =
         resolve_axis_autosize(autosize.local().get(), autosize_x.local().get(), false);
     let manage_height =
         resolve_axis_autosize(autosize.local().get(), autosize_y.local().get(), true);
+
+    // Scroll extent does not size the viewport or the child layout frame.
+    // It can grow as deferred content mounts; requiring it to be final here
+    // would turn an outer autosized Scroller into a whole-page startup gate.
+    let (content_width, content_height) = measure_content_children_forward_extents(ctx);
 
     let resolved_width = if manage_width {
         content_width

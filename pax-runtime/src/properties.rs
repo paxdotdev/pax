@@ -1125,7 +1125,7 @@ impl RuntimeContext {
     }
 
     pub(crate) fn settled_surface_blocker(&self) -> Option<&'static str> {
-        if self.startup.borrow().is_active() {
+        if self.startup.borrow().blocks_presentation() {
             Some("startup")
         } else if pax_runtime_api::properties::has_pending_effects() {
             Some("effects")

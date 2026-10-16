@@ -52,6 +52,6 @@
 </Group>
 
 @settings {
-    @mount: on_pre_render
-    @pre_render: on_pre_render
+    @mount: handle_mount
+    @pre_render: handle_pre_render
 }

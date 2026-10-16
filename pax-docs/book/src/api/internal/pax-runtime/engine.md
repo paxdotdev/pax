@@ -111,6 +111,13 @@ Type: `Option`<`Rc`<`ExpandedNode`>>
 Type: [`ScrollerTilingPolicy`](../../../api/internal/pax-runtime/engine/layer_tiling.md#scrollertilingpolicy)
 
 #### Implementations
+##### `accept_startup_measurements`
+<pre><code class="api-signature language-rust ignore">pub fn accept_startup_measurements(&amp;mut self) -&gt; bool</code></pre>
+
+Accept the host's quiet font/native-measurement checkpoint before the
+first reveal. A flow can now admit its next visible child using resolved
+preceding geometry. Returns false when that adds work to service first.
+
 ##### `enable_resumable_startup`
 <pre><code class="api-signature language-rust ignore">pub fn enable_resumable_startup(&amp;mut self)</code></pre>
 
@@ -121,16 +128,24 @@ This changes scheduling only; every initially selected node still mounts.
 ##### `prepare_startup_presentation`
 <pre><code class="api-signature language-rust ignore">pub fn prepare_startup_presentation(&amp;mut self) -&gt; bool</code></pre>
 
-Validate the initial publication boundary. Browser measurements can arrive
+Validate the next publication boundary. Browser measurements can arrive
 after the final service call but before rAF; settle those without replaying
 the first tick's handlers or proximity notifications.
+
+##### `resume_startup_after_presentation`
+<pre><code class="api-signature language-rust ignore">pub fn resume_startup_after_presentation(&amp;mut self)</code></pre>
+
+Acknowledge a rendered startup checkpoint and eagerly start the next
+deferred subtrees. Input and ordinary ticks remain held until all work ends.
+The first acknowledgement must follow the host's font/measurement gate.
 
 ##### `service_startup`
 <pre><code class="api-signature language-rust ignore">pub fn service_startup(&amp;mut self, budget_ms: f64, now_ms: impl FnMut() -&gt; f64) -&gt; <a href="../../../api/internal/pax-runtime/engine/startup.md#startupreport">StartupReport</a></code></pre>
 
 Service part of the first logical tick without advancing it once per host
 slice. Native patches may be drained between calls for measurement, but
-rendering and text reveal must wait for `pending == false`.
+rendering waits for `prepare_startup_presentation`. A ready checkpoint can
+still have deferred work; the host resumes it after presenting the scene.
 
 Central instance of the PaxEngine and runtime, intended to be created by a particular chassis.
 Contains all rendering and runtime logic.

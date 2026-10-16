@@ -374,8 +374,8 @@ mod tests {
     .example_host_tab_label {
         style: TextStyle {
             font: Font::Web(
-                "Space Grotesk",
-                "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap",
+                "Manrope",
+                "/assets/fonts/Manrope.ttf",
                 FontStyle::Normal,
                 FontWeight::Medium)
             font_size: 11px

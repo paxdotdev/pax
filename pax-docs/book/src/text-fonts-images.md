@@ -210,9 +210,32 @@ Provide the actual font asset before trying the snippet. A direct remote
 font-file URL uses the same web loading path, subject to the server's access
 rules and the application's network policy.
 
-Google Fonts stylesheet URLs containing `fonts.googleapis.com/css` receive
-special handling. Other nonempty URLs are treated as font files, so an
-arbitrary CSS stylesheet URL is not interchangeable with a font-file URL.
+On web, URLs whose path ends in `.css` and Google Fonts `/css` endpoints are
+loaded as font stylesheets. Their relative font-asset URLs resolve against the
+stylesheet's URL. Other nonempty URLs are treated as font files. Declare the
+stylesheet in the font's `url`; the generated HTML does not load a global font
+stylesheet for every application. For example:
+
+```pax
+<Text width=280px text="A stylesheet font"
+    style={font: {family: "Example Sans", url: "/assets/fonts/example.css"}, font_size: 24px}/>
+```
+
+This requires an actual stylesheet declaring the matching family and its font
+assets. Generic `.css` source handling is web-only; check the Apple guidance below
+when sharing a template across targets.
+
+On web, statically discovered font stylesheets are registered early, without
+preloading every weight or language subset they declare. Text requests its face
+using the actual content, so the browser can honor `unicode-range`. The initial
+Text presentation waits for those fonts and updated autosize measurements. A
+link font is requested only when the Text contains a link; runtime-created fonts
+and changes in text content use the same loading path. Failed loads permit the
+browser's fallback font. Later changes do not hide an already-presented Text.
+
+Screenshot capture embeds registered font assets on demand so the serialized
+native overlay can render them. This work is separate from ordinary page startup;
+the first capture can take longer than subsequent captures.
 
 ### Bundle fonts for Apple targets
 
@@ -432,6 +455,12 @@ current native widget loads local filesystem paths or file URLs. Do not
 assume the web-relative asset snippet resolves in the native app bundle.
 PhotoPicker provides platform image handles for this use; see
 [Photo selection](accessibility-native-controls.md).
+
+On web, the image's DOM element does not intercept pointer input. Pax still
+routes image events and enclosing `Link` clicks through scene hit-testing;
+wheel input reaches the scroller underneath. This prevents a visually occluded
+image from stealing scrolling from a foreground scroller. Browser-native image
+dragging and image-specific context menus are not provided by this path.
 
 The fit values are shared with Image. Web and iOS/iPadOS implement contain,
 cover, and stretch behavior. The current macOS NativeImage maps Fill to

@@ -132,6 +132,18 @@ pub fn resolve_content_autosize_measurement_with_axes(
         return None;
     }
 
+    if (!width_explicit && autosize_width) || (!height_explicit && autosize_height) {
+        if let Some(node) = ctx.expanded_node.upgrade() {
+            ctx.runtime_context.register_startup_measurement(
+                &node,
+                crate::engine::startup::StartupAxes {
+                    x: !width_explicit && autosize_width,
+                    y: !height_explicit && autosize_height,
+                },
+            );
+        }
+    }
+
     let bounds = ctx.bounds_self.get();
     let (content_width, content_height) = measure_content_children_forward_extents(ctx);
     let (padding_x, padding_y) = node_padding(ctx);

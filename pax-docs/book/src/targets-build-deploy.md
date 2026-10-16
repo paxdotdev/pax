@@ -425,6 +425,17 @@ debug and release builds. Without it, the host's existing styles apply.
 This colors the web host; keep the Pax scene's background in sync. Rebuild
 after changing metadata. No application mounting or lifecycle is delayed.
 
+### Yield initial web mounting
+
+Set `yield_mount = true` under `[package.metadata.pax.web]` to spread initial
+engine work and native patches over browser tasks. The default is false. This
+works with debug and release cartridges and does not change Apple targets.
+Custom hosts can pass `yieldMount: true` or `false` to `Pax.init_web` to override
+the generated metadata. Diagnostic URL overrides take precedence. See
+[resumable startup](how-pax-runs.md#experimental-resumable-startup-on-web) for
+presentation guarantees, input handling, and the optional early-visibility
+experiment. Rebuild after changing metadata.
+
 ### Suspend an embedded web app
 
 A custom web host can call `window.Pax.setSuspended(true)` to suspend frame
@@ -806,6 +817,7 @@ configuration portable between workstations.
 | `icon` | Common, web, Apple | Image used for generated icons, including the fallback web favicon |
 | `favicon` | Web | Explicit favicon file; takes priority over icon-derived favicon generation |
 | `background_color` | Web | Opaque `#RGB` or `#RRGGBB` host background, painted from inline HTML before JavaScript/Wasm loads |
+| `yield_mount` | Web | Experimental cooperative initial mounting; boolean, defaults to `false`. See [Yield initial web mounting](#yield-initial-web-mounting). |
 | `site_name` | Web | Open Graph site name; defaults to the resolved web title |
 | `server_owned_prefixes` | Web | Root-relative path prefixes delegated to ordinary browser navigation; defaults to `[]`. See [Server-owned web paths](routing.md#server-owned-web-paths). |
 | `site_url` | Web | Absolute public HTTP(S) URL, without query or fragment; required for release builds with indexable concrete routes |

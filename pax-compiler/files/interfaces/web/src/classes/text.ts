@@ -7,11 +7,15 @@ type RegisteredFontDescriptor = {
     weight: string;
 };
 
-const fontLoads = new Map<string, Promise<void>>();
+export type TextFontLoader = (text: string) => Promise<void>;
+
+type FontRegistration = {load: TextFontLoader; prepare: () => Promise<void>};
+const fontLoads = new Map<string, FontRegistration>();
 const stylesheetLoads = new Map<string, Promise<void>>();
 const pendingFontLoads = new Map<string, Promise<void>>();
 const registeredFontCss = new Map<string, string>();
 const registeredFontDescriptors = new Map<string, RegisteredFontDescriptor>();
+const embeddedFontCss = new Map<string, Promise<string>>();
 const embeddedFontAssetUrls = new Map<string, Promise<string>>();
 const FONT_STYLE_DATA_ATTRIBUTE = "data-pax-font-key";
 
@@ -49,13 +53,13 @@ async function waitForDocumentFonts(targetDocument: Document): Promise<void> {
     await fonts.ready;
 }
 
-async function loadFontDescriptor(targetDocument: Document, descriptor: RegisteredFontDescriptor): Promise<void> {
+async function loadFontDescriptor(targetDocument: Document, descriptor: RegisteredFontDescriptor, text = " "): Promise<void> {
     const fonts = getDocumentFonts(targetDocument);
     if (!fonts) {
         return;
     }
 
-    await fonts.load(buildFontShorthand(descriptor));
+    await fonts.load(buildFontShorthand(descriptor), text);
 }
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
@@ -125,14 +129,25 @@ async function inlineExternalFontUrls(css: string, baseUrl: string): Promise<str
     return embeddedCss;
 }
 
-// A stylesheet commonly declares several weights. Fetch, embed and register it
-// once even when many Text styles request different weights in the same frame.
+// Keep stylesheet URLs absolute when moving CSS into the document or a capture.
+// Do not fetch the referenced binaries: the browser selects faces and unicode ranges.
+function resolveFontUrls(css: string, baseUrl: string): string {
+    return css.replace(/url\((['"]?)([^'")]+)\1\)/g, (_match, _quote, url) =>
+        `url("${new URL(url, baseUrl).href}")`);
+}
+
+function isFontStylesheet(url: string): boolean {
+    const source = new URL(url, document.baseURI);
+    return source.pathname.endsWith(".css") ||
+        (source.hostname === "fonts.googleapis.com" && source.pathname.startsWith("/css"));
+}
+
 function loadFontStylesheet(url: string): Promise<void> {
     let pending = stylesheetLoads.get(url);
     if (!pending) {
         pending = fetch(url).then(async response => {
             if (!response.ok) throw new Error(`Failed to fetch font CSS: ${response.status}`);
-            const css = await inlineExternalFontUrls(await response.text(), url);
+            const css = resolveFontUrls(await response.text(), response.url || new URL(url, document.baseURI).href);
             registeredFontCss.set(url, css);
             appendFontCss(document, url, css);
         }).catch(error => {
@@ -144,7 +159,8 @@ function loadFontStylesheet(url: string): Promise<void> {
     return pending;
 }
 
-/** Overlap statically known stylesheet/font loading with the cartridge download.
+/** Fetch statically known font stylesheets alongside the cartridge download.
+ * Font binaries remain demand-loaded for the text that uses them.
  * Runtime-created fonts still follow the ordinary registration path below.
  */
 export async function preloadManifestFonts(baseUrl: string): Promise<void> {
@@ -152,14 +168,8 @@ export async function preloadManifestFonts(baseUrl: string): Promise<void> {
         const response = await fetch(new URL("pax-fonts.json", baseUrl));
         if (!response.ok) return; // Older/custom hosts need not supply the catalog.
         const sources: {family: string; url: string}[] = await response.json();
-        await Promise.allSettled(sources.map(async ({family, url}) => {
-            if (!url.includes("fonts.googleapis.com/css")) return;
-            await loadFontStylesheet(url);
-            const loads: Promise<FontFace>[] = [];
-            document.fonts.forEach(face => {
-                if (face.family.replace(/^['"]|['"]$/g, "") === family) loads.push(face.load());
-            });
-            await Promise.allSettled(loads);
+        await Promise.allSettled(sources.map(async ({url}) => {
+            if (isFontStylesheet(url)) await loadFontStylesheet(url);
         }));
     } catch (error) {
         console.warn("Failed to preload manifest fonts", error);
@@ -195,7 +205,7 @@ export async function waitForRegisteredFonts(): Promise<void> {
 
 export async function syncRegisteredFontsToDocument(targetDocument: Document): Promise<void> {
     for (const [fontKey, css] of registeredFontCss.entries()) {
-        appendFontCss(targetDocument, fontKey, css);
+        appendFontCss(targetDocument, fontKey, await embedFontCss(fontKey, css));
     }
 
     const descriptors = Array.from(registeredFontDescriptors.values());
@@ -212,8 +222,21 @@ export async function syncRegisteredFontsToDocument(targetDocument: Document): P
     await waitForDocumentFonts(targetDocument);
 }
 
-export function getRegisteredFontCssText(): string {
-    return Array.from(registeredFontCss.values()).join("\n");
+function embedFontCss(key: string, css: string): Promise<string> {
+    let pending = embeddedFontCss.get(key);
+    if (!pending) {
+        pending = inlineExternalFontUrls(css, document.baseURI).catch(error => {
+            embeddedFontCss.delete(key);
+            throw error;
+        });
+        embeddedFontCss.set(key, pending);
+    }
+    return pending;
+}
+
+// Embedding is a capture concern; ordinary display never waits for unused faces.
+export async function getRegisteredFontCssText(): Promise<string> {
+    return (await Promise.all(Array.from(registeredFontCss, ([key, css]) => embedFontCss(key, css)))).join("\n");
 }
 
 enum FontStyle {
@@ -237,7 +260,11 @@ enum FontWeight {
 
 
 export class Font {
-    public ready: Promise<void> = Promise.resolve();
+    private textLoader: TextFontLoader = async () => {};
+    private prepare: () => Promise<void> = async () => {};
+
+    // The returned function captures immutable values, not this pooled Font.
+    getTextLoader(): TextFontLoader { return this.textLoader; }
     public type?: string;
     public family?: string;
     public style?: FontStyle;
@@ -305,7 +332,8 @@ export class Font {
     }
 
     cleanUp(){
-        this.ready = Promise.resolve();
+        this.textLoader = async () => {};
+        this.prepare = async () => {};
         this.type = undefined;
         this.family = undefined;
         this.style = undefined;
@@ -323,33 +351,47 @@ export class Font {
         const fontKey = this.fontKey();
         registeredFontFaces.add(fontKey);
         const existing = fontLoads.get(fontKey);
-        if (existing) { this.ready = existing; return; }
-        // Font instances are pooled: async work must capture values, not `this`.
+        if (existing) { this.textLoader = existing.load; this.prepare = existing.prepare; return; }
         const {family, type} = this;
         const url = this.url ?? this.path;
         const style = this.style != undefined ? this.mapFontStyle(this.style) : 'normal';
         const weight = this.weight != undefined ? String(this.mapFontWeight(this.weight)) : '400';
         const descriptor = family ? {family, style, weight} : undefined;
-        if (descriptor) registeredFontDescriptors.set(fontKey, descriptor);
-        const load = async () => {
+        let registration: Promise<void> | undefined;
+        let failed = false;
+        const register = async () => {
+            if (descriptor) registeredFontDescriptors.set(fontKey, descriptor);
             if (!family || !url || (type !== "Web" && type !== "Local")) return;
-            if (type === "Web" && url.includes("fonts.googleapis.com/css")) {
+            if (type === "Web" && isFontStylesheet(url)) {
                 await loadFontStylesheet(url);
             } else {
-                const face = await new FontFace(family, `url(${url})`, {style, weight}).load();
-                (document.fonts as any).add(face);
+                const absoluteUrl = new URL(url, document.baseURI).href;
+                const css = `@font-face {font-family:${quoteFontFamily(family)};font-style:${style};font-weight:${weight};src:url("${absoluteUrl}");}`;
+                registeredFontCss.set(fontKey, css);
+                const face = await new FontFace(family, `url("${absoluteUrl}")`, {style, weight}).load();
+                document.fonts.add(face);
             }
-            if (descriptor) await loadFontDescriptor(document, descriptor);
         };
-        this.ready = load().catch(error => {
-            // Cache fallback readiness too: retrying on every animated style
-            // patch could keep resetting a new Text node's first-paint gate.
-            console.warn(`Failed to load font ${family}`, error);
-        });
-        fontLoads.set(fontKey, this.ready);
-        trackFontLoad(fontKey, this.ready);
+        const fallback = (error: unknown) => {
+            if (!failed) console.warn(`Failed to load font ${family}`, error);
+            failed = true;
+        };
+        const prepare = () => registration ??= register().catch(fallback);
+        this.prepare = prepare;
+        this.textLoader = (text) => {
+            // Unused link styles and empty text must not start font downloads.
+            if (!text || !descriptor || failed) return Promise.resolve();
+            const pending = prepare().then(() => {
+                if (!failed) return loadFontDescriptor(document, descriptor, text);
+            }).catch(fallback);
+            trackFontLoad(fontKey, pending);
+            return pending;
+        };
+        fontLoads.set(fontKey, {load: this.textLoader, prepare});
     }
+
     applyFontToDiv(div: HTMLElement) {
+        void this.prepare();
         if (this.family != undefined) {
             div.style.fontFamily = this.family;
         }

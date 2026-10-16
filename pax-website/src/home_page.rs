@@ -2,12 +2,10 @@
 
 use crate::SiteTheme;
 use pax_kit::*;
-use paxflix::Paxflix;
 
 #[pax]
 #[file("home_page.pax")]
 pub struct HomePage {
-    pub demo_open: Property<bool>,
     pub hero_height: Property<f64>,
     pub framework_height: Property<f64>,
     pub authoring_height: Property<f64>,
@@ -23,17 +21,6 @@ pub struct HomePage {
 }
 
 impl HomePage {
-    pub fn close_demo(&mut self, _: &NodeContext, _: Event<ButtonClick>) {
-        self.demo_open.set(false);
-    }
-
-    pub fn demo_key_down(&mut self, _: &NodeContext, event: Event<KeyDown>) {
-        if self.demo_open.get() && event.keyboard.key == "Escape" {
-            self.demo_open.set(false);
-            event.prevent_default();
-        }
-    }
-
     pub fn handle_mount(&mut self, _ctx: &NodeContext) {
         let mut hero_sources = section_sources(
             "src/hero_section.pax",

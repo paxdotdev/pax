@@ -271,7 +271,7 @@
                 proof="NAMED FONT + URL" docs_label="FONT VALUES" docs_url="https://docs.pax.dev/text-fonts-images.html#font-values">
                 <Group class="poster">
                     <Text class="poster_type_large" x=26px y=24px width=236px height=54px text="Aa"/>
-                    <Text class="poster_code" x=28px y=92px width=232px height=24px text="Manrope / IBM Plex Mono"/>
+                    <Text class="poster_code" x=28px y=92px width=232px height=24px text="Manrope / system mono"/>
                 </Group>
             </FeatureCard>
             <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
@@ -374,8 +374,8 @@
     .gallery_eyebrow {
         style: TextStyle {
             font: Font::Web(
-                "IBM Plex Mono",
-                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                "Manrope",
+                "/assets/fonts/Manrope.ttf",
                 FontStyle::Normal,
                 FontWeight::Medium)
             font_size: {self.compact ? 9px : 11px}
@@ -510,11 +510,7 @@
     }
     .poster_code {
         style: TextStyle {
-            font: Font::Web(
-                "IBM Plex Mono",
-                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
-                FontStyle::Normal,
-                FontWeight::Medium)
+            font: "monospace"
             font_size: 11px
             fill: rgba(252, 249, 242, 180)
             align_vertical: TextAlignVertical::Center
@@ -525,8 +521,8 @@
     .poster_code_light {
         style: TextStyle {
             font: Font::Web(
-                "IBM Plex Mono",
-                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                "Manrope",
+                "/assets/fonts/Manrope.ttf",
                 FontStyle::Normal,
                 FontWeight::Medium)
             font_size: 11px
@@ -539,8 +535,8 @@
     .poster_arrow {
         style: TextStyle {
             font: Font::Web(
-                "IBM Plex Mono",
-                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                "Manrope",
+                "/assets/fonts/Manrope.ttf",
                 FontStyle::Normal,
                 FontWeight::Medium)
             font_size: 20px
@@ -567,8 +563,8 @@
     .poster_cursor {
         style: TextStyle {
             font: Font::Web(
-                "IBM Plex Mono",
-                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                "Manrope",
+                "/assets/fonts/Manrope.ttf",
                 FontStyle::Normal,
                 FontWeight::Normal)
             font_size: 68px

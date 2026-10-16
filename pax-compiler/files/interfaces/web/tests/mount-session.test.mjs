@@ -23,7 +23,7 @@ function session() {
     return {app, cancellation, disposals: () => disposals, removals: () => removals};
 }
 
-test('mount readiness waits for the final startup slice', async () => {
+test('mount readiness waits for initial presentation', async () => {
     const {app} = session();
     let mounted = false;
     app.mounted.then(() => { mounted = true; });

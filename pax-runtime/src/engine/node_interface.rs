@@ -75,9 +75,16 @@ impl NodeInterface {
         self.inner.layout_properties().get()
     }
 
-    /// Measured bounds reported by a native or text-backed node.
+    /// Measured bounds reported by native content or a container's autosize pass.
     pub fn measured_size(&self) -> Option<(f64, f64)> {
         self.inner.measured_size.get()
+    }
+
+    /// Reactive measured bounds, distinct from provisional parent-derived layout.
+    /// `None` means that no measurement is available. Subscribe to this property
+    /// when feeding a child's measured extent back into an ancestor's layout.
+    pub fn measured_size_property(&self) -> LocalProperty<Option<(f64, f64)>> {
+        self.inner.measured_size.clone()
     }
 
     /// Node-local subtree hull published by the engine for container measurement.

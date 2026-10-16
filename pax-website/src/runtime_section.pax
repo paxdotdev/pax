@@ -7,7 +7,7 @@
         <Text class="editorial_title" width=100% text="One project. Native and web."/>
         <Text class="editorial_lead" width={self.compact ? 100% : 82%}
             text="Take the same Pax templates and Rust logic to macOS, iOS, iPadOS, and the browser. Share the interface model, while each platform supplies the integration it needs."/>
-        <PaxflixShowcase width=100% height={(self.showcase_height)px} content_height=bind:self.showcase_height demo_open=bind:self.demo_open/>
+        <PaxflixShowcase width=100% height={(self.showcase_height)px} content_height=bind:self.showcase_height/>
         <Stacker width=100% autosize=true autosize_x=false autosize_y=true gutter=32px
             direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal}>
             <Stacker width=100% autosize=true gutter=14px>

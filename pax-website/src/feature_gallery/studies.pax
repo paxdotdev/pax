@@ -36,12 +36,12 @@
     if self.kind == "theme" || self.kind == "classes" {
         <Group x=46px y=14px width=196px height=104px>
             <Text x=15px y=10px width=110px height=42px text="Aa" style={
-                font: "Manrope"
+                font: {family: "Manrope", url: "/assets/fonts/Manrope.ttf"}
                 font_size: 32px
                 fill: {self.alternate ? rgb(24, 24, 24) : WHITE}
             }/>
             <Text class="note" x=16px y=72px width=164px height=16px text={self.alternate ? "paper / round" : "ink / square"} style={
-                font: "IBM Plex Mono"
+                font: {family: "Manrope", url: "/assets/fonts/Manrope.ttf"}
                 font_size: 10px
                 fill: {self.alternate ? rgb(45, 45, 45) : rgb(185, 185, 185)}
             }/>
@@ -504,7 +504,7 @@
     }
     .code {
         style: {
-            font: "IBM Plex Mono"
+            font: "monospace"
             font_size: 12px
             fill: rgb(240, 240, 235)
             align_vertical: TextAlignVertical::Center
@@ -512,7 +512,7 @@
     }
     .note {
         style: {
-            font: "IBM Plex Mono"
+            font: {family: "Manrope", url: "/assets/fonts/Manrope.ttf"}
             font_size: 10px
             fill: rgb(165, 165, 165)
             align_vertical: TextAlignVertical::Center
@@ -520,7 +520,7 @@
     }
     .large {
         style: {
-            font: "Manrope"
+            font: {family: "Manrope", url: "/assets/fonts/Manrope.ttf"}
             font_size: 25px
             fill: rgb(240, 240, 235)
             align_vertical: TextAlignVertical::Center

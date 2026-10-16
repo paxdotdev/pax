@@ -15,3 +15,7 @@ described in the [website README](../../README.md#hero-lettering). All website M
 name, `Manrope`. Web loads `/assets/fonts/Manrope.ttf`; Apple chassis register
 the bundled file at startup and select its ExtraBold named instance (weight 800).
 Keep all consumers on the same file when updating the font.
+
+The same font and license are bundled under `pax-std/assets/fonts/` for the
+shared ExampleHost UI and standalone demos. Keep both copies byte-identical;
+the compiler merges identical dependency assets into one output file.

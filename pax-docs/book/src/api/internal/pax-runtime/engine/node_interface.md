@@ -60,7 +60,14 @@ Current layout properties after common-property collection.
 ##### `measured_size`
 <pre><code class="api-signature language-rust ignore">pub fn measured_size(&amp;self) -&gt; Option&lt;(f64, f64)&gt;</code></pre>
 
-Measured bounds reported by a native or text-backed node.
+Measured bounds reported by native content or a container's autosize pass.
+
+##### `measured_size_property`
+<pre><code class="api-signature language-rust ignore">pub fn measured_size_property(&amp;self) -&gt; LocalProperty&lt;Option&lt;(f64, f64)&gt;&gt;</code></pre>
+
+Reactive measured bounds, distinct from provisional parent-derived layout.
+`None` means that no measurement is available. Subscribe to this property
+when feeding a child's measured extent back into an ancestor's layout.
 
 ##### `render_parent`
 <pre><code class="api-signature language-rust ignore">pub fn render_parent(&amp;self) -&gt; Option&lt;<a href="../../../../api/internal/pax-runtime/engine/node_interface.md#nodeinterface">NodeInterface</a>&gt;</code></pre>

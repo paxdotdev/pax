@@ -1,3 +1,5 @@
+import type {TextFontLoader} from "./text";
+
 /** Gate only a Text node's first paint. Hidden text still participates in browser
  * layout/ResizeObserver; lifecycle and subsequent updates continue normally.
  */
@@ -7,13 +9,28 @@ export class InitialTextPresentation {
     fontsReady = true;
     generation?: number;
     onPresent?: () => void;
-    font?: Promise<void>;
-    linkFont?: Promise<void>;
+    font?: TextFontLoader;
+    linkFont?: TextFontLoader;
     private measured = true;
     private hasMeasurement = false;
     private frames = 0;
     private fontRevision = 0;
     private fonts: Promise<void>[] = [];
+
+    private fontRequest?: {loader?: TextFontLoader; text: string; ready?: Promise<void>};
+    private linkRequest?: {loader?: TextFontLoader; text: string; ready?: Promise<void>};
+
+    waitForTextFonts(text: string, linkText: string, ready: () => void) {
+        if (this.fontRequest?.loader !== this.font || this.fontRequest?.text !== text) {
+            this.fontRequest = {loader: this.font, text, ready: text ? this.font?.(text) : undefined};
+        }
+        if (this.linkRequest?.loader !== this.linkFont || this.linkRequest?.text !== linkText) {
+            this.linkRequest = {loader: this.linkFont, text: linkText, ready: linkText ? this.linkFont?.(linkText) : undefined};
+        }
+        this.waitForFonts([this.fontRequest?.ready, this.linkRequest?.ready].filter(
+            (font): font is Promise<void> => font != null,
+        ), ready);
+    }
 
     waitForFonts(fonts: Promise<void>[], ready: () => void) {
         if (fonts.length === this.fonts.length && fonts.every((font, i) => font === this.fonts[i])) return;
@@ -62,11 +79,15 @@ export class InitialTextPresentation {
         return generation;
     }
 
-    afterFrame(): boolean {
+    get startupReady(): boolean {
+        return this.updated && this.fontsReady && this.measured && this.generation == null;
+    }
+
+    afterFrame(startupSettled = false): boolean {
         if (this.presented || !this.updated || !this.fontsReady || !this.measured) return false;
         // Feed the browser's measurement back through layout before the first
         // paint, including the following parent/Stacker update.
-        if (++this.frames < 2) return false;
+        if (!startupSettled && ++this.frames < 2) return false;
         this.presented = true;
         return true;
     }

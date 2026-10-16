@@ -398,15 +398,9 @@ impl RenderContext for RecordingRenderer {
     fn image_loaded(&self, _: &str) -> bool {
         unreachable!()
     }
-    fn resize_layers_to(&mut self, _: usize, _: Rc<RefCell<Vec<bool>>>) {
-        unreachable!()
-    }
-    fn clear(&mut self, _: usize) {
-        unreachable!()
-    }
-    fn flush(&mut self, _: usize, _: Rc<RefCell<Vec<bool>>>) {
-        unreachable!()
-    }
+    fn resize_layers_to(&mut self, _: usize, _: Rc<RefCell<Vec<bool>>>) {}
+    fn clear(&mut self, _: usize) {}
+    fn flush(&mut self, _: usize, _: Rc<RefCell<Vec<bool>>>) {}
     fn resize(&mut self, _: usize, _: usize) {
         unreachable!()
     }
@@ -820,4 +814,134 @@ fn nested_source_changes_invalidate_the_visible_mask_consumer() {
     context.drain_node_effects();
     assert!(context.is_canvas_node_dirty(&consumer.id));
     root.recurse_unmount(&context);
+}
+
+#[test]
+fn startup_mask_requires_source_but_keeps_offscreen_content_deferred() {
+    use pax_runtime::api::{LocalProperty, Size};
+    let boxed = |mut args: InstantiationArgs, x: f64| {
+        args.prototypical_common_properties =
+            CommonPropertiesInit::Factory(Box::new(move |_, _| {
+                Some(Rc::new(RefCell::new(CommonProperties {
+                    x: LocalProperty::new(Some(Size::Pixels(x.into()))),
+                    width: LocalProperty::new(Some(Size::Pixels(100.into()))),
+                    height: LocalProperty::new(Some(Size::Pixels(100.into()))),
+                    ..Default::default()
+                })))
+            }));
+        args
+    };
+    let visible = CountingSource::instantiate(boxed(args(), 0.0));
+    let cold = CountingSource::instantiate(boxed(args(), 1000.0));
+    let source_leaf = CountingSource::instantiate(boxed(args(), 1000.0));
+    let mut content = args();
+    content.component_template = Some(RefCell::new(vec![visible.clone(), cold.clone()]));
+    let mut source = args();
+    source.component_template = Some(RefCell::new(vec![source_leaf.clone()]));
+    let mut mask_args = boxed(args(), 0.0);
+    mask_args.prototypical_properties = PropertiesInit::Factory(Box::new(|_, _| {
+        Some(Rc::new(RefCell::new(
+            Mask {
+                alpha: Property::new(true),
+                ..Default::default()
+            }
+            .to_pax_any(),
+        )))
+    }));
+    mask_args.children = Some(RefCell::new(vec![
+        ComponentInstance::instantiate(content),
+        ComponentInstance::instantiate(source),
+    ]));
+    let mask = MaskInstance::instantiate(mask_args);
+    let mut root_args = args();
+    root_args.component_template = Some(RefCell::new(vec![mask.clone()]));
+    let mut engine = pax_runtime::PaxEngine {
+        runtime_context: context(),
+        root_expanded_node: None,
+        scroller_tiling_policy: Default::default(),
+    };
+    engine.enable_resumable_startup();
+    let root = engine.mount_root_component(ComponentInstance::instantiate(root_args));
+    let mut ready = false;
+    for _ in 0..2000 {
+        engine.service_startup(0.0, || 0.0);
+        if engine.accept_startup_measurements() {
+            ready = true;
+            break;
+        }
+    }
+    assert!(ready);
+    assert_eq!(visible.mount_calls.get(), 1);
+    assert_eq!(
+        cold.mount_calls.get(),
+        0,
+        "Mask content still uses viewport selection"
+    );
+    assert_eq!(
+        source_leaf.mount_calls.get(),
+        1,
+        "source descendants are rendering dependencies regardless of their own bounds"
+    );
+    let node = root.children.get()[0].clone();
+    let mut renderer = RecordingRenderer::default();
+    mask.handle_pre_render(&node, &engine.runtime_context, &mut renderer);
+    mask.handle_post_render(&node, &engine.runtime_context, &mut renderer);
+    assert_eq!(
+        renderer.alpha_clips.len(),
+        1,
+        "even an empty source installs an alpha clip on the first presentation"
+    );
+    assert!(renderer.alpha_clips[0].is_empty());
+    assert_eq!((renderer.saves, renderer.restores), (1, 1));
+    engine.resume_startup_after_presentation();
+    for _ in 0..2000 {
+        engine.service_startup(0.0, || 0.0);
+        if engine.accept_startup_measurements() {
+            engine.resume_startup_after_presentation();
+        }
+        if !engine.startup_pending() {
+            break;
+        }
+    }
+    assert!(!engine.startup_pending());
+    assert_eq!(cold.mount_calls.get(), 1);
+    engine.unmount();
+}
+
+#[test]
+fn pending_drawable_retry_restores_ancestor_mask_after_layer_bit_was_cleared() {
+    let mut mask_args = args();
+    mask_args.prototypical_properties = PropertiesInit::Factory(Box::new(|_, _| {
+        Some(Rc::new(RefCell::new(
+            Mask {
+                alpha: Property::new(true),
+                ..Default::default()
+            }
+            .to_pax_any(),
+        )))
+    }));
+    mask_args.children = Some(RefCell::new(vec![
+        CountingSource::instantiate(args()),
+        CountingSource::instantiate(args()),
+    ]));
+    let mut root_args = args();
+    root_args.component_template = Some(RefCell::new(vec![MaskInstance::instantiate(mask_args)]));
+    let mut engine = pax_runtime::PaxEngine {
+        runtime_context: context(),
+        root_expanded_node: None,
+        scroller_tiling_policy: Default::default(),
+    };
+    let root = engine.mount_root_component(ComponentInstance::instantiate(root_args));
+    engine.tick();
+    let mut renderer = RecordingRenderer::default();
+    engine.render(&mut renderer);
+    renderer.alpha_clips.clear();
+    let content = root.children.get()[0].children.get()[0].clone();
+    engine.runtime_context.mark_canvas_node_dirty(content.id);
+    engine.runtime_context.clear_all_dirty_canvases();
+    engine.runtime_context.mark_scene_lighting_dirty();
+    engine.render(&mut renderer);
+    assert_eq!(renderer.alpha_clips.len(), 1, "a retry must record the ancestor Mask even after the previous presentation cleared its layer bit");
+    assert!(renderer.alpha_clips[0].is_empty());
+    engine.unmount();
 }

@@ -422,13 +422,17 @@ export class NativeElementPool {
         console.assert(patch.id != null);
         console.assert(patch.renderLayerId != null);
         
-        const nativeImage = this.objectManager.getFromPool(IMAGE) as HTMLInputElement;
+        const nativeImage = this.objectManager.getFromPool(IMAGE) as HTMLImageElement;
         nativeImage.style.margin = "0";
 
         let nativeImage_div: HTMLDivElement = this.objectManager.getFromPool(DIV);
         nativeImage_div.appendChild(nativeImage);
         nativeImage_div.setAttribute("class", NATIVE_LEAF_CLASS)
         nativeImage_div.setAttribute("pax_id", String(patch.id));
+        // Occlusion masks hide pixels without removing browser hit regions. Images
+        // need no native input: Pax raycasts their events, while wheels must reach
+        // the visible scroller rather than a masked image's ancestor scroller.
+        nativeImage_div.style.pointerEvents = "none";
         if(patch.id != undefined && patch.renderLayerId != undefined){
             this.layers.addElement(nativeImage_div, patch.parentFrame, patch.renderLayerId);
         }
@@ -438,7 +442,7 @@ export class NativeElementPool {
     
     nativeImageUpdate(patch: NativeImageUpdatePatch) {
         let leaf = this.nodesLookup.get(patch.id!);
-        let nativeImage = leaf!.firstChild as HTMLInputElement;
+        let nativeImage = leaf!.firstChild as HTMLImageElement;
         this.applyLeafPlacement(leaf!, patch);
         updateCommonProps(leaf!, patch);
         if (patch.url != null) {
@@ -1206,9 +1210,18 @@ export class NativeElementPool {
         });
     }
 
-    finishTextFrame() {
+    startupTextReady(): boolean {
+        // Previewed text may be visible already, but its latest measurement
+        // must still settle before startup releases queued input.
+        for (const state of this.textStates.values()) {
+            if (!state.startupReady) return false;
+        }
+        return true;
+    }
+
+    finishTextFrame(startupSettled = false) {
         for (const [id, state] of this.pendingTextPresentation) {
-            if (state.afterFrame()) {
+            if (state.afterFrame(startupSettled)) {
                 this.nodesLookup.get(id)!.style.visibility = "";
                 // Focus needs visibility; run it after restoring the leaf's paint.
                 state.onPresent?.();
@@ -1270,8 +1283,8 @@ export class NativeElementPool {
         const state = this.textStates.get(id)!;
         state.updated = true;
         if (patch.measure_generation != null) state.requestMeasurement(patch.measure_generation);
-        if (patch.style?.font) state.font = patch.style.font.ready;
-        if (patch.style_link?.font) state.linkFont = patch.style_link.font.ready;
+        if (patch.style?.font) state.font = patch.style.font.getTextLoader();
+        if (patch.style_link?.font) state.linkFont = patch.style_link.font.getTextLoader();
         this.applyLeafPlacement(leaf, patch);
         const syncTextPointerEvents = () => {
             const editable = textChild.getAttribute("contenteditable") !== "false";
@@ -1418,10 +1431,8 @@ export class NativeElementPool {
             }
         }
 
-        const fonts = [state.font, textChild.querySelector("a") ? state.linkFont : undefined].filter(
-            (font): font is Promise<void> => font != null,
-        );
-        if (fonts.length) state.waitForFonts(fonts, () => {
+        const linkText = Array.from(textChild.querySelectorAll("a"), link => link.textContent ?? "").join("");
+        state.waitForTextFonts(textChild.textContent ?? "", linkText, () => {
             if (this.textStates.get(id) !== state) return;
             // ResizeObserver may already have reported the fallback font. Ask for
             // a fresh observation even when the loaded font has identical metrics.
@@ -3799,7 +3810,7 @@ function captureNativeOverlayAgainstBackground(
         windowHeight: mount.clientHeight,
         onclone: (async (clonedDocument: Document, clonedMount: HTMLElement) => {
             await syncRegisteredFontsToDocument(clonedDocument);
-            injectRegisteredFontCssIntoElement(clonedDocument, clonedMount);
+            await injectRegisteredFontCssIntoElement(clonedDocument, clonedMount);
 
             clonedDocument.documentElement.style.width = `${mount.clientWidth}px`;
             clonedDocument.documentElement.style.height = `${mount.clientHeight}px`;
@@ -4299,12 +4310,12 @@ function nonTransparentColor(value: string | null | undefined, fallback: string)
     return value;
 }
 
-function injectRegisteredFontCssIntoElement(targetDocument: Document, targetElement: HTMLElement) {
+async function injectRegisteredFontCssIntoElement(targetDocument: Document, targetElement: HTMLElement) {
     if (targetElement.querySelector(`style[${SCREENSHOT_FONT_STYLE_ATTRIBUTE}]`)) {
         return;
     }
 
-    const fontCss = getRegisteredFontCssText().trim();
+    const fontCss = (await getRegisteredFontCssText()).trim();
     if (fontCss.length === 0) {
         return;
     }

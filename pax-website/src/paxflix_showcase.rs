@@ -1,104 +1,71 @@
-use crate::DeviceFrame;
-use crate::SiteTheme;
+use crate::{DeviceFrame, SiteTheme};
 use pax_kit::*;
 use paxflix::Paxflix;
 
-/// Two independent live apps, sharing canonical source and artwork.
+/// One live tablet on wide layouts; the other devices are native-app captures.
 #[pax]
 #[file("paxflix_showcase.pax")]
 pub struct PaxflixShowcase {
     pub content_height: Property<f64>,
-    pub tablet_scale: Property<f64>,
-    pub phone_scale: Property<f64>,
-    pub tablet_x: Property<f64>,
-    pub tablet_y: Property<f64>,
-    pub phone_x: Property<f64>,
-    pub phone_y: Property<f64>,
-    pub loaded: Property<bool>,
-    pub demo_open: Property<bool>,
+    pub compact: Property<bool>,
+    pub layout_ready: Property<bool>,
+    pub stage_scale: Property<f64>,
+    pub stage_x: Property<f64>,
     pub devices_height: Property<f64>,
 }
 
 impl PaxflixShowcase {
-    pub fn layout(&mut self, ctx: &NodeContext) {
-        let layout = DeviceLayout::for_width(ctx.bounds_self.get().0);
-        self.devices_height.set_if_neq(layout.height);
-        self.content_height.set_if_neq(layout.height + 64.0);
-        self.tablet_scale.set_if_neq(layout.tablet_scale * 100.0);
-        self.phone_scale.set_if_neq(layout.phone_scale * 100.0);
-        self.tablet_x.set_if_neq(layout.tablet_x);
-        self.tablet_y.set_if_neq(layout.tablet_y);
-        self.phone_x.set_if_neq(layout.phone_x);
-        self.phone_y.set_if_neq(layout.phone_y);
-    }
-
-    pub fn prepare(&mut self, _: &NodeContext, _: Event<ViewportProximityEnter>) {
-        // Retain the two sessions after their first visit. Each mounts all its
-        // cards up front; text reveals remain independent viewport animations.
-        self.loaded.set(true);
-    }
-
-    pub fn expand(&mut self, _: &NodeContext, _: Event<ButtonClick>) {
-        self.demo_open.set(true);
+    pub fn mount(&mut self, ctx: &NodeContext) {
+        let bounds = ctx.bounds_self.clone();
+        let deps = [bounds.untyped()];
+        let compact = self.compact.local();
+        let ready = self.layout_ready.local();
+        let scale = self.stage_scale.local();
+        let x = self.stage_x.local();
+        let height = self.devices_height.local();
+        let content_height = self.content_height.local();
+        let update = move || {
+            let layout = DeviceLayout::for_width(bounds.get().0);
+            compact.set_if_neq(layout.compact);
+            scale.set_if_neq(layout.scale * 100.0);
+            x.set_if_neq(layout.x);
+            height.set_if_neq(layout.height);
+            content_height.set_if_neq(layout.height + 76.0);
+            // A zero-width provisional layout must never mount the desktop demo.
+            ready.set_if_neq(layout.scale > 0.0);
+        };
+        update();
+        ctx.subscribe(&deps, update);
     }
 }
 
 struct DeviceLayout {
-    tablet_scale: f64,
-    phone_scale: f64,
-    tablet_x: f64,
-    tablet_y: f64,
-    phone_x: f64,
-    phone_y: f64,
+    compact: bool,
+    scale: f64,
+    x: f64,
     height: f64,
 }
 
 impl DeviceLayout {
     fn for_width(width: f64) -> Self {
-        let width = width.max(0.0);
-        let side_by_side = width >= 820.0;
-        let phone_width = if side_by_side {
-            (width * 0.29).clamp(280.0, 356.0)
+        let width = if width.is_finite() {
+            width.max(0.0)
         } else {
-            width.min(356.0)
+            0.0
         };
-        let tablet_width = if side_by_side {
-            (width - phone_width - 32.0).min(1048.0)
+        let compact = width < 760.0;
+        let (design_width, design_height, max_width) = if compact {
+            (390.0, 844.0, 312.0)
         } else {
-            width.min(1048.0)
+            (1280.0, 780.0, 1280.0)
         };
-        let tablet_height = tablet_width * 812.0 / 1048.0;
-        let phone_height = phone_width * 844.0 / 390.0;
-        let height = if side_by_side {
-            tablet_height.max(phone_height)
-        } else {
-            tablet_height + 32.0 + phone_height
-        };
-        let left = (width - tablet_width - 32.0 - phone_width) / 2.0;
+        let displayed_width = width.min(max_width);
+        let scale = displayed_width / design_width;
         Self {
-            tablet_scale: tablet_width / 1048.0,
-            phone_scale: phone_width / 390.0,
-            tablet_x: if side_by_side {
-                left
-            } else {
-                (width - tablet_width) / 2.0
-            },
-            tablet_y: if side_by_side {
-                (height - tablet_height) / 2.0
-            } else {
-                0.0
-            },
-            phone_x: if side_by_side {
-                left + tablet_width + 32.0
-            } else {
-                (width - phone_width) / 2.0
-            },
-            phone_y: if side_by_side {
-                (height - phone_height) / 2.0
-            } else {
-                tablet_height + 32.0
-            },
-            height,
+            compact,
+            scale,
+            x: (width - displayed_width) / 2.0,
+            height: design_height * scale,
         }
     }
 }
@@ -108,20 +75,26 @@ mod tests {
     use super::*;
 
     #[test]
-    fn devices_fit_without_overlap_at_mobile_and_desktop_widths() {
-        for width in [272.0, 342.0, 528.0, 819.0, 820.0, 1126.0, 1800.0] {
-            let l = DeviceLayout::for_width(width);
-            let tw = 1048.0 * l.tablet_scale;
-            let th = 812.0 * l.tablet_scale;
-            let pw = 390.0 * l.phone_scale;
-            let ph = 844.0 * l.phone_scale;
-            assert!(l.tablet_x >= 0.0 && l.phone_x >= 0.0);
-            assert!(l.tablet_x + tw <= width + 0.001);
-            assert!(l.phone_x + pw <= width + 0.001);
-            assert!(l.tablet_y + th <= l.height + 0.001);
-            assert!(l.phone_y + ph <= l.height + 0.001);
-            assert!(l.phone_x >= l.tablet_x + tw + 31.99 || l.phone_y >= th + 31.99);
-            assert!(pw >= width.min(280.0));
+    fn provisional_and_mobile_layouts_never_select_the_live_demo() {
+        for width in [f64::NAN, f64::INFINITY, -1.0, 0.0, 272.0, 342.0, 759.0] {
+            let layout = DeviceLayout::for_width(width);
+            assert!(layout.compact);
+            assert!(layout.height.is_finite());
+        }
+    }
+
+    #[test]
+    fn device_stage_fits_and_has_a_stable_aspect_ratio() {
+        for width in [272.0, 342.0, 759.0, 760.0, 1126.0, 1800.0] {
+            let layout = DeviceLayout::for_width(width);
+            let (w, h) = if layout.compact {
+                (390.0, 844.0)
+            } else {
+                (1280.0, 780.0)
+            };
+            assert!(layout.x >= 0.0);
+            assert!(layout.x + w * layout.scale <= width + 0.001);
+            assert_eq!(layout.height, h * layout.scale);
         }
     }
 }

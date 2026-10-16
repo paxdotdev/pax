@@ -17,17 +17,15 @@ pub struct SiteShell {
 
 impl SiteShell {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
-        self.sync_layout(ctx);
-    }
-
-    pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
-        self.sync_layout(ctx);
-    }
-
-    fn sync_layout(&mut self, ctx: &NodeContext) {
-        self.compact.set_if_neq(
-            ctx.bounds_self.get().0 - self.safe_left.get() - self.safe_right.get()
-                < COMPACT_BREAKPOINT_PX,
-        );
+        let bounds = ctx.bounds_self.clone();
+        let left = self.safe_left.local();
+        let right = self.safe_right.local();
+        let deps = [bounds.untyped(), left.untyped(), right.untyped()];
+        let compact = self.compact.local();
+        let update = move || {
+            compact.set_if_neq(bounds.get().0 - left.get() - right.get() < COMPACT_BREAKPOINT_PX);
+        };
+        update();
+        ctx.subscribe(&deps, update);
     }
 }

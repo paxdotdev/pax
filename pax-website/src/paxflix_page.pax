@@ -1,0 +1,29 @@
+<ImportSettings>
+    <SiteTheme />
+</ImportSettings>
+<DynamicIslandSpacer inset=bind:self.safe_top/>
+<DynamicIslandSpacer edge=SafeAreaEdge::Bottom inset=bind:self.safe_bottom/>
+<DynamicIslandSpacer edge=SafeAreaEdge::Left inset=bind:self.safe_left/>
+<DynamicIslandSpacer edge=SafeAreaEdge::Right inset=bind:self.safe_right/>
+<Group x={(self.safe_left)px} y={(self.safe_top)px}
+    width={100% - (self.safe_left + self.safe_right)px} height={100% - (self.safe_top + self.safe_bottom)px}>
+    <Link x=16px y=8px width=140px height=36px url="/" target=Target::Current>
+        <Text width=100% height=100% text="← BACK TO PAX" selectable=false style={
+            font: {family: "Manrope", url: "/assets/fonts/Manrope.ttf"}
+            font_size: 12px
+            fill: {SiteTheme::paper()}
+            align_vertical: TextAlignVertical::Center
+        }/>
+    </Link>
+    <Text x={100% - 16px} anchor_x=100% y=8px width=140px height=36px text="PAXFLIX / LIVE" style={
+        font: {family: "Manrope", url: "/assets/fonts/Manrope.ttf"}
+        font_size: 12px
+        fill: {SiteTheme::muted()}
+        align_horizontal: TextAlignHorizontal::Right
+        align_vertical: TextAlignVertical::Center
+    }/>
+    <Frame y=52px width=100% height={100% - 52px}>
+        <Paxflix width=100% height=100% embedded=true/>
+    </Frame>
+</Group>
+<Rectangle width=100% height=100% fill={SiteTheme::ink()}/>

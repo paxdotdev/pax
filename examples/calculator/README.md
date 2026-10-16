@@ -219,7 +219,7 @@ or an expression whose bounds could not establish continuous segments.
 
 This is a calculator-owned editor: native selection, paste, IME, and automatic
 screen-reader button semantics are not implemented. Web hardware-key input
-requires page/body focus. Text uses local Courier-family fonts; rasterization
+requires page/body focus. Controls use bundled Manrope; the LCD uses local Courier-family fonts; rasterization
 can vary between platforms. WGPU provides a broad pointer-following highlight on the chassis; Piet keeps
 the authored colors and bevels without lighting. The LCD stays unlit.
 

@@ -170,6 +170,107 @@ impl InstanceNode for StackerInstance {
         });
     }
 
+    fn plan_startup(
+        &self,
+        node: &ExpandedNode,
+        plan: &mut pax_runtime::engine::startup::StartupPlan<'_>,
+    ) {
+        use pax_runtime::engine::startup::{StartupAxes, StartupDemand};
+        let demand = plan.demand();
+        let (direction, autosize, autosize_x, autosize_y, gutter) =
+            node.with_properties_unwrapped(|p: &mut Stacker| {
+                (
+                    p.direction.get(),
+                    p.autosize.get(),
+                    p.autosize_x.get(),
+                    p.autosize_y.get(),
+                    p.gutter.get(),
+                )
+            });
+        let common = node.get_common_properties();
+        let common = borrow!(common);
+        let (manage_x, manage_y) =
+            resolve_stacker_autosize_axes(&direction, autosize, autosize_x, autosize_y);
+        let measure_x = manage_x && common.width.get().is_none();
+        let measure_y = manage_y && common.height.get().is_none();
+        let vertical = matches!(direction, StackerDirection::Vertical);
+        let (main, cross, anchor) = if vertical {
+            (
+                measure_y,
+                measure_x,
+                common.anchor_y.get().or(common.y.get()),
+            )
+        } else {
+            (
+                measure_x,
+                measure_y,
+                common.anchor_x.get().or(common.x.get()),
+            )
+        };
+        let stable_origin = !anchor.is_some_and(size_depends_on_parent);
+        drop(common);
+        if demand.complete || demand.measure.any() || cross || (main && !stable_origin) {
+            plan.require_children(StartupDemand::complete());
+            return;
+        }
+        if !main {
+            plan.forward_children();
+            return;
+        }
+        let transform = node.transform_and_bounds.get().transform.m;
+        // A prefix can only bound the remaining content in a forward, axis-aligned flow.
+        if transform[1] != 0.0
+            || transform[2] != 0.0
+            || transform[0] <= 0.0
+            || transform[3] <= 0.0
+            || size_depends_on_parent(gutter)
+            || gutter.evaluate(
+                node.transform_and_bounds.get().bounds,
+                if vertical { Axis::Y } else { Axis::X },
+            ) < 0.0
+        {
+            plan.require_children(StartupDemand::complete());
+            return;
+        }
+        let Some(region) = demand.region else {
+            return;
+        };
+        let end = if vertical { region.y1 } else { region.x1 };
+        let children = node.active_children_view.get();
+        let flow: Vec<_> = children
+            .iter()
+            .filter(|child| !child.is_layout_breakout())
+            .collect();
+        for child in children.iter().filter(|child| child.is_layout_breakout()) {
+            plan.require(child, demand);
+        }
+        for (index, child) in flow.iter().enumerate() {
+            let bounds = plan.bounds(child);
+            if bounds.is_some_and(|b| if vertical { b.y0 > end } else { b.x0 > end }) {
+                break;
+            }
+            plan.require(child, demand);
+            if !plan.measured(child, demand) {
+                break;
+            }
+            // A resolved visible prefix can cover the viewport without finalizing
+            // the child's trailing extent. Only following placement needs it exact.
+            if bounds.is_some_and(|b| if vertical { b.y1 >= end } else { b.x1 >= end })
+                || index + 1 == flow.len()
+            {
+                break;
+            }
+            let exact = demand.merge(StartupDemand::measure(StartupAxes {
+                x: !vertical,
+                y: vertical,
+            }));
+            plan.require(child, exact);
+            if !plan.measured(child, exact) {
+                break;
+            }
+        }
+    }
+
     fn requires_non_reactive_update(&self, _expanded_node: &ExpandedNode) -> bool {
         true
     }
@@ -2171,6 +2272,232 @@ mod tests {
         assert!((x_positions[0] - 0.0).abs() < 1e-9);
         assert!((x_positions[1] - 36.666666666666664).abs() < 1e-9);
         assert!((x_positions[2] - 73.33333333333333).abs() < 1e-9);
+    }
+
+    #[test]
+    fn startup_height_feedback_waits_for_a_real_content_measurement() {
+        let children = (0..2)
+            .map(|_| {
+                let mut args = component_args(Vec::new());
+                args.prototypical_common_properties =
+                    CommonPropertiesInit::Factory(Box::new(|_, _| {
+                        Some(Rc::new(RefCell::new(CommonProperties {
+                            width: LocalProperty::new(Some(Size::Pixels(100.into()))),
+                            ..Default::default()
+                        })))
+                    }));
+                ComponentInstance::instantiate(args) as Rc<dyn InstanceNode>
+            })
+            .collect();
+        let mut stack_args = stacker_args_with(
+            children,
+            Stacker {
+                autosize: Property::new(true),
+                ..Default::default()
+            },
+        );
+        stack_args.prototypical_common_properties =
+            CommonPropertiesInit::Factory(Box::new(|_, _| {
+                Some(Rc::new(RefCell::new(CommonProperties {
+                    width: LocalProperty::new(Some(Size::Pixels(100.into()))),
+                    ..Default::default()
+                })))
+            }));
+        let height = LocalProperty::new(Some(Size::Pixels(300.into())));
+        let height_for_factory = height.clone();
+        let mut args = component_args(vec![StackerInstance::instantiate(stack_args)]);
+        args.prototypical_common_properties =
+            CommonPropertiesInit::Factory(Box::new(move |_, _| {
+                Some(Rc::new(RefCell::new(CommonProperties {
+                    width: LocalProperty::new(Some(Size::Pixels(100.into()))),
+                    height: height_for_factory.clone(),
+                    ..Default::default()
+                })))
+            }));
+        let mut engine = pax_runtime::PaxEngine {
+            runtime_context: Rc::new(crate::test_support::runtime_context()),
+            root_expanded_node: None,
+            scroller_tiling_policy: Default::default(),
+        };
+        engine.enable_resumable_startup();
+        let root = engine.mount_root_component(ComponentInstance::instantiate(args));
+        let stack = root.children.get()[0].clone();
+        let interface = pax_runtime::node_interface::NodeInterface::from(stack.clone());
+        let measured = interface.measured_size_property();
+        let output = height.clone();
+        root.get_node_context(&engine.runtime_context).subscribe(
+            &[measured.untyped()],
+            move || {
+                if let Some((_, extent)) = measured.get() {
+                    output.set_if_neq(Some(Size::Pixels((extent + 160.0).into())));
+                }
+            },
+        );
+
+        let mut ready = false;
+        for _ in 0..2000 {
+            engine.service_startup(0.0, || 0.0);
+            if engine.accept_startup_measurements() {
+                ready = true;
+                break;
+            }
+        }
+        assert!(
+            ready,
+            "provisional parent bounds must not create an autosize feedback loop"
+        );
+        assert_eq!(interface.measured_size(), None);
+        assert_eq!(height.get(), Some(Size::Pixels(300.into())));
+        engine.resume_startup_after_presentation();
+        for child in stack.children.get() {
+            child.set_measured_size(100.0, 120.0);
+        }
+        for _ in 0..2000 {
+            engine.service_startup(0.0, || 0.0);
+            if engine.accept_startup_measurements() {
+                engine.resume_startup_after_presentation();
+            }
+            if !engine.startup_pending() {
+                break;
+            }
+        }
+        engine.runtime_context.drain_node_effects();
+        assert_eq!(interface.measured_size(), Some((100.0, 240.0)));
+        assert_eq!(height.get(), Some(Size::Pixels(400.into())));
+        engine.unmount();
+    }
+
+    #[test]
+    fn startup_recurses_into_a_visible_flow_child_without_mounting_its_tail() {
+        fn leaf() -> Rc<dyn InstanceNode> {
+            let mut args = component_args(Vec::new());
+            args.prototypical_common_properties =
+                CommonPropertiesInit::Factory(Box::new(|_, _| {
+                    Some(Rc::new(RefCell::new(CommonProperties {
+                        width: LocalProperty::new(Some(Size::Pixels(100.into()))),
+                        height: LocalProperty::new(Some(Size::Pixels(120.into()))),
+                        ..Default::default()
+                    })))
+                }));
+            ComponentInstance::instantiate(args)
+        }
+        fn stack(children: Vec<Rc<dyn InstanceNode>>) -> Rc<dyn InstanceNode> {
+            let mut args = stacker_args_with(
+                children,
+                Stacker {
+                    autosize: Property::new(true),
+                    autosize_x: Property::new(Some(false)),
+                    ..Default::default()
+                },
+            );
+            args.prototypical_common_properties =
+                CommonPropertiesInit::Factory(Box::new(|_, _| {
+                    Some(Rc::new(RefCell::new(CommonProperties {
+                        width: LocalProperty::new(Some(Size::Pixels(100.into()))),
+                        ..Default::default()
+                    })))
+                }));
+            StackerInstance::instantiate(args)
+        }
+        let mut engine = pax_runtime::PaxEngine {
+            runtime_context: Rc::new(crate::test_support::runtime_context()),
+            root_expanded_node: None,
+            scroller_tiling_policy: Default::default(),
+        };
+        engine.enable_resumable_startup();
+        let root =
+            engine.mount_root_component(ComponentInstance::instantiate(component_args(vec![
+                stack(vec![stack(vec![leaf(), leaf()]), leaf()]),
+            ])));
+        let mut ready = false;
+        for _ in 0..2000 {
+            engine.service_startup(0.0, || 0.0);
+            if engine.accept_startup_measurements() {
+                ready = true;
+                break;
+            }
+        }
+        assert!(ready);
+        let outer = root.children.get()[0].clone();
+        let inner = outer.children.get()[0].clone();
+        assert_eq!(inner.attached.get(), 1);
+        assert_eq!(inner.children.get()[0].attached.get(), 1);
+        assert_eq!(inner.children.get()[1].attached.get(), 0);
+        assert_eq!(outer.children.get()[1].attached.get(), 0);
+        assert!(engine.startup_pending());
+        engine.unmount();
+    }
+
+    #[test]
+    fn startup_measures_visible_flow_prefix_but_keeps_centered_and_cross_axis_layouts_complete() {
+        for (centered, cross_axis, expected_deferred) in
+            [(false, false, 2), (true, false, 0), (false, true, 0)]
+        {
+            let children = (0..3)
+                .map(|_| {
+                    let mut args = component_args(Vec::new());
+                    args.prototypical_common_properties =
+                        CommonPropertiesInit::Factory(Box::new(|_, _| {
+                            Some(Rc::new(RefCell::new(CommonProperties {
+                                width: LocalProperty::new(Some(Size::Pixels(100.into()))),
+                                height: LocalProperty::new(Some(Size::Pixels(120.into()))),
+                                ..Default::default()
+                            })))
+                        }));
+                    ComponentInstance::instantiate(args) as Rc<dyn InstanceNode>
+                })
+                .collect();
+            let mut args = stacker_args_with(
+                children,
+                Stacker {
+                    autosize: Property::new(true),
+                    autosize_x: Property::new(Some(cross_axis)),
+                    ..Default::default()
+                },
+            );
+            args.prototypical_common_properties =
+                CommonPropertiesInit::Factory(Box::new(move |_, _| {
+                    Some(Rc::new(RefCell::new(CommonProperties {
+                        width: LocalProperty::new(
+                            (!cross_axis).then_some(Size::Pixels(100.into())),
+                        ),
+                        y: LocalProperty::new(centered.then_some(Size::Percent(50.into()))),
+                        ..Default::default()
+                    })))
+                }));
+            let mut engine = pax_runtime::PaxEngine {
+                runtime_context: Rc::new(crate::test_support::runtime_context()),
+                root_expanded_node: None,
+                scroller_tiling_policy: Default::default(),
+            };
+            engine.enable_resumable_startup();
+            let root =
+                engine.mount_root_component(ComponentInstance::instantiate(component_args(vec![
+                    StackerInstance::instantiate(args),
+                ])));
+            let mut deferred = None;
+            for _ in 0..2000 {
+                let report = engine.service_startup(0.0, || 0.0);
+                if engine.prepare_startup_presentation() {
+                    deferred = Some(report.deferred_roots);
+                    break;
+                }
+            }
+            assert_eq!(
+                deferred,
+                Some(expected_deferred),
+                "centered={centered}, cross_axis={cross_axis}"
+            );
+            let stacker = root.children.get()[0].clone();
+            let mounted = stacker
+                .children
+                .get()
+                .iter()
+                .filter(|child| child.attached.get() > 0)
+                .count();
+            assert_eq!(mounted, 3 - expected_deferred);
+            engine.unmount();
+        }
     }
 
     #[test]

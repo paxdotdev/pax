@@ -907,7 +907,7 @@ impl PaxEngine {
     }
 
     pub fn render(&mut self, rcs: &mut dyn RenderContext) {
-        if self.startup_pending() { return; }
+        if self.runtime_context.startup.borrow().blocks_presentation() { return; }
         if matches!(
             self.runtime_context.application.context().phase(),
             pax_runtime_api::AppPhase::Closing | pax_runtime_api::AppPhase::Closed
@@ -922,6 +922,15 @@ impl PaxEngine {
 
         if !self.runtime_context.has_canvas_render_work() {
             return;
+        }
+
+        // A pending backend can leave a drawable dirty after its layer bit was
+        // cleared by a presentation attempt. This pass still visits that drawable;
+        // its ancestor clip hooks and final flush must participate on the same layer.
+        for id in self.runtime_context.dirty_canvas_node_ids() {
+            if let Some(node) = self.runtime_context.get_expanded_node_by_eid(id) {
+                self.runtime_context.set_canvas_dirty(node.occlusion.get().render_layer_id);
+            }
         }
 
         let mut removals = self.runtime_context.take_canvas_node_removals();
