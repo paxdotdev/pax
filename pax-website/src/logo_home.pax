@@ -1,0 +1,7 @@
+// Measurement and the live hero logo share the native scrolling context.
+slot()
+
+@settings {
+    @pre_render: measure
+    @unmount: unmount
+}

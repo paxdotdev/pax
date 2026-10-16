@@ -1213,3 +1213,34 @@ carousel allocation or broadening this fix into renderer work.
 - 2026-10-26 — PAX-1039 website validation: after scrolling the release homepage down roughly 4800–5600 px, resizing from 1280×800 to 390×844 reports `reactive drain hit 100000 evaluations in one tick; deferring remaining work`. Expected a bounded responsive-layout update. Reproduces on both forced WebGPU and Vello CPU; no browser exception was observed. Evidence: `/private/tmp/pax-1039-migration/scroll-check.json` and `final-extended.json`; release Wasm SHA-256 `385371f94f9b03aa4941b405048cd257bb1ab00111e40fc0b1ec8dbd10edb223`. The warning is associated with resize, not the earlier scroll steps. Cause and relation to website layout work remain unestablished.
 
 - 2026-10-26 — PAX-1039 debug smoke of `examples/fixtures/responsive-helpers`: renderer-global text resolves correctly for CPU and GPU, but the fixture's external Inter font remains `document.fonts.status === "loading"`; native text stays hidden and Playwright's font-ready screenshot wait times out after 30 s. Expected a visible helper panel. Both backends reproduce on the static debug server at port 18745. Value checks used attached DOM text instead; the main website uses bundled fonts and its screenshots pass. External font/network behavior is not yet diagnosed.
+## 2026-10-16 — Pax formatter emits trailing spaces on wrapped attributes
+
+While adding the website's shared-definition section, expected `pax-cli fmt`
+output to pass `git diff --check`. Formatting `pax-website/src/authoring_section.pax`
+and `shared_definition_demo.pax` leaves a space before newlines when attributes
+wrap (for example after `width=100%` before a following `text=`). The same happens
+in the existing `home_page.pax`. Reproduce with `target/debug/pax-cli fmt <file>`
+then `git diff --check`; trim trailing spaces after formatting as a workaround.
+No formatter behavior was changed in this content-only task.
+
+## 2026-10-16 — Component data named `anchor` collides with layout shorthand
+
+While prototyping the website's docking logo, a `Property<LogoAnchor>` named
+`anchor` compiled and propagated, but also produced runtime warnings trying to
+coerce the object into `anchor_x` and `anchor_y` Sizes. Expected the custom
+component property to either be unambiguous or receive a compile-time diagnostic.
+Reproduction: pass `anchor={self.logo_anchor}` to a component with that property;
+`pax-cli dev logs --path pax-website` reports `Failed to resolve multi-axis
+property`. Renamed the website property to `home_bounds`; no compiler/runtime
+change was made.
+
+## 2026-10-16 — Fixed-overlay logo cannot track native scrolling smoothly
+
+The website prototype kept the hero logo in a fixed overlay, using measured
+bounds and sampled `Scroller.scroll_pos_y` to translate/scale it into the nav.
+Endpoint and interaction checks passed, but Zack observed discrete frame drops
+and position leaps during the transition in the web preview. This approach
+does not guarantee compositor-synchronized motion. Removed the moving-overlay
+prototype: the hero logo now stays in the native scroller, and a separate,
+finished nav logo only fades at visibility thresholds. No claim of a general
+scroll-linked-transform fix or measured root-cause profile is made.

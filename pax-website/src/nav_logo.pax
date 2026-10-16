@@ -1,0 +1,4 @@
+<Group width=100% height=100%>
+    <AnimatedPaxLogo width=920.72px height=463.95px background_mode=LogoBackgroundMode::Dark fill={SiteTheme::ink()}
+        letter_fill={SiteTheme::paper()} progress=1.0 click_to_replay=false/>
+</Group>

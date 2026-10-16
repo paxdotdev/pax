@@ -1,4 +1,4 @@
-use crate::{RotatingHeadline, SiteTheme};
+use crate::{LogoAnchor, LogoHome, RotatingHeadline, SiteTheme};
 use pax_kit::*;
 
 #[pax]
@@ -8,13 +8,16 @@ pub struct HeroSection {
     pub _height_bound: Property<bool>,
     pub compact: Property<bool>,
     pub font_px: Property<f64>,
-    pub logo_scale: Property<f64>,
+    pub logo_width: Property<f64>,
     pub logo_progress: Property<f64>,
+    pub _vertical_padding: Property<f64>,
     pub _last_ms: Property<f64>,
     pub _last_content_height: Property<f64>,
     pub _startup_quiet_ms: Property<f64>,
     pub _startup_deadline_ms: Property<f64>,
     pub _logo_started: Property<bool>,
+    pub logo_anchor: Property<LogoAnchor>,
+    pub scroll_y: Property<f64>,
 }
 
 impl HeroSection {
@@ -30,11 +33,13 @@ impl HeroSection {
     pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
         let previous_height = self._last_content_height.get();
         if !self._height_bound.get() {
-            self._height_bound.set(crate::section_layout::bind_height(
-                ctx,
-                "hero_content",
-                &self.content_height,
-            ));
+            self._height_bound
+                .set(crate::section_layout::bind_height_with_padding(
+                    ctx,
+                    "hero_content",
+                    &self.content_height,
+                    &self._vertical_padding,
+                ));
         }
         let height = self.content_height.get();
         self._last_content_height.set(height);
@@ -69,21 +74,25 @@ impl HeroSection {
         let width = ctx.bounds_self.clone();
         let deps = [width.untyped()];
         let font_px = self.font_px.local();
-        let logo_scale = self.logo_scale.local();
+        let logo_width = self.logo_width.local();
+        let vertical_padding = self._vertical_padding.local();
         let update = move || {
             let width = width.get().0;
+            // Top inset plus bottom breathing room; desktop copy starts 56px lower.
+            vertical_padding.set_if_neq(if width < 900.0 { 104.0 } else { 160.0 });
             let text_width = if width < 900.0 {
                 width - 48.0
             } else {
                 width * 0.88 * 0.66
             };
             font_px.set_if_neq((text_width / 11.4).clamp(23.0, 90.0));
-            let logo_width = if width < 900.0 {
-                (width - 48.0).min(300.0) * 0.8
+            let target_logo_width = if width < 900.0 {
+                // Reserve View Source's 112px width and a 24px gap on the shared top row.
+                ((width - 48.0).min(300.0) * 0.8).min((width - 184.0).max(1.0))
             } else {
                 width * 0.88 * 0.28
             };
-            logo_scale.set_if_neq(logo_width / 920.72 * 100.0);
+            logo_width.set_if_neq(target_logo_width);
         };
         update();
         ctx.subscribe(&deps, update);

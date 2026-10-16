@@ -1,4 +1,4 @@
-use crate::{DeviceFrame, PathStudy, SiteTheme};
+use crate::{SharedDefinitionDemo, SiteTheme};
 use pax_kit::*;
 
 #[pax]

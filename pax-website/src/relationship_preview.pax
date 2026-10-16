@@ -1,0 +1,6 @@
+<Text width=100% height=36px text={"Progress: " + self.progress + "%"} style={
+    font_size: 24px
+    fill: WHITE
+}/>
+<Rectangle y=56px width={(self.progress)%} height=12px fill=WHITE corner_radius=6/>
+<Rectangle y=56px width=100% height=12px fill=rgb(64, 64, 64) corner_radius=6/>

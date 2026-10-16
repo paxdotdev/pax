@@ -47,6 +47,28 @@ Debug and release outputs live in `.pax/build/debug/web/` and
 
 The hero uses `AnimatedPaxLogo` from `pax-std` through the `pax_kit` re-export.
 View Source includes the canonical files in `pax-std/src/drawing/pax_logo/`.
+The animated hero logo remains inside the native page scroller, with its own
+playhead and click replay. `LogoHome` measures its bounds; explicit bindings
+carry its bottom edge and the observed page scroll offset into `SiteShell`.
+The entire nav—static logo, links, CTA, and background—shares one fade playhead.
+Its separate logo instance holds `progress=1` with replay disabled. The nav fades
+in over 500ms once the hero logo is 128px past the nav's bottom edge, and fades out
+over 450ms when that clearance returns to 96px. Both fades ease gently
+at their start and finish; the earlier exit leaves time for the longer fade.
+Hysteresis prevents
+small scroll reversals from repeatedly restarting the fade. Neither instance
+is translated or scaled in response to scrolling. The homepage scroller fills
+the safe area from the start, with no reserved nav gap or scroll-driven reflow.
+The hero logo aligns with View Source at a 24px top inset; on narrow screens its
+width leaves room for that button. Fully hidden nav contents are unmounted, so
+invisible links cannot intercept input. Hero source inspection hides the nav;
+the standalone Paxflix route has no site shell. Other routes without a hero
+retain a nav-sized content inset and show it directly.
+This replaces the frame-sampled moving-overlay prototype, which
+showed visible jumps while following native scrolling.
+The nav is borderless and has no gradient overlay. Foreground surface ordering
+for a future soft edge is tracked in
+[PAX-1041](https://linear.app/paxdev/issue/PAX-1041/support-independently-ordered-foreground-compositor-surfaces).
 Living Quilt remains independently runnable in `examples/living-quilt/`; neither
 it nor the `pax-logo` harness is a website dependency. Cargo dependency paths
 and favicon paths are relative to this manifest; Rust `include_str!` paths are
@@ -187,6 +209,20 @@ path also shown above the strip.
 
 Content and visual design history are archived in
 [PAX-869](https://linear.app/paxdev/issue/PAX-869).
+
+## Shared-definition section
+
+`AuthoringSection` sits between creative freedom and the feature gallery. It
+introduces the declarative UI definition as a shared, inspectable contract for
+people and coding agents, while keeping the visual-scratchpad vision explicitly
+aspirational. Its copy and layout are a working placeholder for editorial review.
+
+`SharedDefinitionDemo` pairs the actual `relationship_preview.pax` source
+(embedded with `include_str!`) with a live instance of that component. The 25%
+and 75% buttons change one state value, updating both the label and bar; they do
+not simulate source editing or an agent interaction. The panels stack below
+900px. No animation clock or additional dependency is introduced. View Source
+includes the section, the demo wrapper, and the preview template.
 
 ## Hero lettering
 

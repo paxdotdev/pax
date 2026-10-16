@@ -4,6 +4,15 @@ use pax_kit::*;
 // soon as it exists, so later mounting/resize can settle without a lifecycle tick.
 // The outer ExampleHost needs this concrete extent for its percentage-sized preview.
 pub fn bind_height(ctx: &NodeContext, id: &str, output: &Property<f64>) -> bool {
+    bind_height_with_padding(ctx, id, output, &Property::new(160.0))
+}
+
+pub fn bind_height_with_padding(
+    ctx: &NodeContext,
+    id: &str,
+    output: &Property<f64>,
+    vertical_padding: &Property<f64>,
+) -> bool {
     let Some(node) = ctx.expanded_node.upgrade() else {
         return false;
     };
@@ -13,7 +22,8 @@ pub fn bind_height(ctx: &NodeContext, id: &str, output: &Property<f64>) -> bool 
         return false;
     };
     let measured = content.measured_size_property();
-    let deps = [measured.untyped()];
+    let padding = vertical_padding.local();
+    let deps = [measured.untyped(), padding.untyped()];
     let output = output.local();
     // A deferred stack still inherits provisional bounds from this section.
     // Feeding those bounds back with padding grows the parent forever. Only
@@ -21,7 +31,7 @@ pub fn bind_height(ctx: &NodeContext, id: &str, output: &Property<f64>) -> bool 
     let update = move || {
         if let Some((_, height)) = measured.get() {
             if height.is_finite() && height > 0.0 {
-                output.set_if_neq(height.ceil() + 160.0);
+                output.set_if_neq(height.ceil() + padding.get());
             }
         }
     };

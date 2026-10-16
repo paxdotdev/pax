@@ -1,12 +1,14 @@
 #![allow(unused_imports)]
 
-use crate::SiteTheme;
+use crate::{LogoAnchor, SiteTheme};
 use pax_kit::*;
 
 #[pax]
 #[file("home_page.pax")]
 pub struct HomePage {
+    pub logo_anchor: Property<LogoAnchor>,
     pub scroll_y: Property<f64>,
+    pub hero_source_open: Property<bool>,
     pub hero_height: Property<f64>,
     pub framework_height: Property<f64>,
     pub authoring_height: Property<f64>,
@@ -30,6 +32,23 @@ impl HomePage {
             include_str!("hero_section.rs"),
         );
         // include_str! is relative to this source file, not the build's cwd.
+        hero_sources.extend(section_sources(
+            "src/nav_logo.pax",
+            include_str!("nav_logo.pax"),
+            "src/nav_logo.rs",
+            include_str!("nav_logo.rs"),
+        ));
+        hero_sources.extend(section_sources(
+            "src/site_shell.pax",
+            include_str!("site_shell.pax"),
+            "src/site_shell.rs",
+            include_str!("site_shell.rs"),
+        ));
+        hero_sources.push(ExampleSource {
+            label: "src/logo_home.pax".into(),
+            language: "pax".into(),
+            code: include_str!("logo_home.pax").into(),
+        });
         hero_sources.extend(section_sources(
             "src/rotating_headline.pax",
             include_str!("rotating_headline.pax"),
@@ -126,12 +145,24 @@ impl HomePage {
             });
         }
         self.resource_sources.set(resource_sources);
-        self.authoring_sources.set(section_sources(
+        let mut authoring_sources = section_sources(
             "src/authoring_section.pax",
             include_str!("authoring_section.pax"),
             "src/authoring_section.rs",
             include_str!("authoring_section.rs"),
+        );
+        authoring_sources.extend(section_sources(
+            "src/shared_definition_demo.pax",
+            include_str!("shared_definition_demo.pax"),
+            "src/shared_definition_demo.rs",
+            include_str!("shared_definition_demo.rs"),
         ));
+        authoring_sources.push(ExampleSource {
+            label: "src/relationship_preview.pax".into(),
+            language: "pax".into(),
+            code: include_str!("relationship_preview.pax").into(),
+        });
+        self.authoring_sources.set(authoring_sources);
         self.framework_sources.set(section_sources(
             "framework_section.pax",
             include_str!("framework_section.pax"),

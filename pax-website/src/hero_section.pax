@@ -2,32 +2,33 @@
     <ImportSettings>
         <SiteTheme />
     </ImportSettings>
-    <Stacker id=hero_content x=50% y=80px width={self.compact ? (100% - 48px) : 88%} autosize=true autosize_x=false autosize_y=true
+    <Stacker id=hero_content x=50% y=24px width={self.compact ? (100% - 48px) : 88%} autosize=true autosize_x=false autosize_y=true
         direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal} gutter={self.compact ? 32px : 6%}
         sizes={self.compact ? [] : [Some(28%), None]}>
-        <Group width=100% height={self.compact ? 142px : 300px}>
-            <Group x=0px y=50% width=920.72px height=463.95px anchor_x=0px anchor_y=50% scale={(self.logo_scale)%}
-                layout_role=LayoutRole::Breakout>
-                <AnimatedPaxLogo width=920.72px height=463.95px background_mode=LogoBackgroundMode::Dark fill={SiteTheme::ink()}
-                    letter_fill={SiteTheme::paper()} progress=bind:logo_progress click_to_replay=true/>
-            </Group>
+        <Group width=100% height={self.compact ? (self.logo_width * 463.95 / 920.72)px : 300px}>
+            <LogoHome x=0px y=0px width={(self.logo_width)px} height={(self.logo_width * 463.95 / 920.72)px} anchor_x=0px anchor_y=0px
+                home_bounds=bind:self.logo_anchor scroll_y={self.scroll_y} layout_role=LayoutRole::Breakout>
+                <Group width=920.72px height=463.95px anchor_x=0px anchor_y=0px scale={(self.logo_width / 920.72 * 100)%}>
+                    <AnimatedPaxLogo width=920.72px height=463.95px background_mode=LogoBackgroundMode::Dark fill={SiteTheme::ink()}
+                        letter_fill={SiteTheme::paper()} progress=bind:self.logo_progress click_to_replay=true/>
+                </Group>
+            </LogoHome>
         </Group>
-        <Stacker width=100% autosize=true gutter=26px>
+        <Stacker y={self.compact ? 0px : 56px} width=100% autosize=true gutter=26px>
             <RotatingHeadline width=100% height={(self.font_px * 3.7)px} font_px={self.font_px} playing=true/>
             <Stacker width=100% autosize=true gutter=12px>
                 <Text class="hero_copy" width=100%
                     text="Write application logic in Rust, alongside Pax: a declarative language for making UIs powerful, expressive, and fun."/>
-                <Text class="hero_copy" width=100%
-                    text="Ship to native macOS, iOS, iPadOS, and the web."/>
+                <Text class="hero_copy" width=100% text="Ship to native macOS, iOS, iPadOS, and the web."/>
                 <Text class="hero_copy" width=100% text="This website is built in Pax."/>
             </Stacker>
             <Stacker width=100% height=48px direction=StackerDirection::Horizontal gutter=10px>
                 <Link width=100% height=100% url="https://docs.pax.dev/getting-started/" target=Target::New>
-                    <Text class="site_button_label" width=100% height=100% text="Start with the CLI →" selectable=false/>
+                    <Text class="site_button_label" width=100% height=100% text="Get Started" selectable=false/>
                     <Rectangle class="site_button_signal" width=100% height=100%/>
                 </Link>
                 <Link width=100% height=100% url="https://github.com/paxdotdev/pax" target=Target::New>
-                    <Text class="site_button_outline_label" width=100% height=100% text="View GitHub ↗" selectable=false/>
+                    <Text class="site_button_outline_label" width=100% height=100% text="View GitHub" selectable=false/>
                     <Rectangle class="site_button_outline" width=100% height=100%/>
                 </Link>
             </Stacker>
@@ -47,11 +48,7 @@
     @pre_render: handle_pre_render
     .hero_copy {
         style: TextStyle {
-            font: Font::Web(
-                "Manrope",
-                "/assets/fonts/Manrope.ttf",
-                FontStyle::Normal,
-                FontWeight::Normal)
+            font: Font::Web("Manrope", "/assets/fonts/Manrope.ttf", FontStyle::Normal, FontWeight::Normal)
             font_size: {self.compact ? 16px : 18px}
             fill: {SiteTheme::muted()}
             align_horizontal: TextAlignHorizontal::Left

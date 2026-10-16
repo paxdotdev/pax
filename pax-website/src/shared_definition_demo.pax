@@ -1,0 +1,67 @@
+<Group width=100% height=100%>
+    <ImportSettings>
+        <SiteTheme />
+    </ImportSettings>
+    <Stacker width=100% height=100% gutter=16px direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal}
+        sizes={self.compact ? [Some(340px), None] : [Some(56%), None]}>
+        <Group width=100% height=100%>
+            <Text class="editorial_kicker" x=24px y=24px width={100% - 48px} text="THE DEFINITION / .PAX"/>
+            <Frame x=24px y=60px width={100% - 48px} height={100% - 84px}>
+                <Text class="definition_code" width=100% text={self.source} markdown=false/>
+            </Frame>
+            <Rectangle class="definition_panel" width=100% height=100%/>
+        </Group>
+        <Group width=100% height=100%>
+            <Text class="editorial_kicker" x=24px y=24px width={100% - 48px} text="THE INTERFACE / LIVE"/>
+            <Text class="definition_code" x=24px y=64px width={100% - 48px} text={"progress = " + self.progress}/>
+            <RelationshipPreview x=24px y=110px width={100% - 48px} height=80px progress={self.progress}/>
+            <Stacker x=24px y=210px width={100% - 48px} height=44px gutter=12px direction=StackerDirection::Horizontal>
+                <Button class="definition_button" label="25%" @button_click=self.quarter
+                    color={self.progress == 25 ? SiteTheme::paper() : SiteTheme::raised()} style={
+                        font: "monospace"
+                        font_size: 14px
+                        fill: {self.progress == 25 ? SiteTheme::ink() : SiteTheme::paper()}
+                        align_vertical: TextAlignVertical::Center
+                        align_horizontal: TextAlignHorizontal::Center
+                    }/>
+                <Button class="definition_button" label="75%" @button_click=self.three_quarters
+                    color={self.progress == 75 ? SiteTheme::paper() : SiteTheme::raised()} style={
+                        font: "monospace"
+                        font_size: 14px
+                        fill: {self.progress == 75 ? SiteTheme::ink() : SiteTheme::paper()}
+                        align_vertical: TextAlignVertical::Center
+                        align_horizontal: TextAlignHorizontal::Center
+                    }/>
+            </Stacker>
+            <Text class="editorial_note" x=24px y=270px width={100% - 48px} text="One input. Two visible relationships."/>
+            <Rectangle class="definition_panel" width=100% height=100%/>
+        </Group>
+    </Stacker>
+</Group>
+
+@settings {
+    @mount: mount
+    .definition_panel {
+        fill: {SiteTheme::surface()}
+        stroke: {
+            paint: {SiteTheme::rule()}
+            width: 1px
+        }
+    }
+    .definition_code {
+        style: {
+            font: "monospace"
+            font_size: 13px
+            fill: {SiteTheme::paper()}
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .definition_button {
+        width: 100%
+        height: 44px
+        corner_radius: 0
+        hover_color: rgb(128, 128, 128)
+    }
+}
