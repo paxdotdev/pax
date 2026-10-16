@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {transformSync} from 'esbuild';
 
-function harness(diagnosticMode, prevent = true) {
+function harness(diagnosticMode, prevent = true, trace = true) {
     const listeners = new Map(), samples = [], interrupts = [];
     let now = 100, clockReads = 0;
     class Element { closest() { return null; } }
@@ -27,7 +27,7 @@ function harness(diagnosticMode, prevent = true) {
     });
     const dispose = module.exports.setupEventListeners({interrupt: value => {
         interrupts.push(value); now += 2; return {prevent_default: prevent};
-    }}, diagnosticMode == null ? undefined : {passive: diagnosticMode, record: s => samples.push(s)});
+    }}, diagnosticMode == null ? undefined : {passive: diagnosticMode, record: trace ? s => samples.push(s) : undefined});
     const event = {target: body, clientX: 10, clientY: 20, deltaX: 0, deltaY: 40,
         timeStamp: 70, isTrusted: true, cancelable: true, defaultPrevented: false,
         preventDefault() {if (this.cancelable) this.defaultPrevented = true;},
@@ -86,16 +86,27 @@ test('wheel timestamps support epoch hosts and reject incompatible clocks', () =
     h.dispose();
 });
 
-test('passive comparison requires both diagnostic flags and an explicit value of 1', () => {
+test('passive comparison is independent of diagnostic collection and explicitly opt-in', () => {
     const h = harness();
     const mode = query => h.api.wheelDiagnosticMode(new URLSearchParams(query));
-    assert.equal(mode('pax_wheel_passive=1'), undefined);
-    assert.equal(mode('pax_scroll_perf=1&pax_wheel_passive=1'), undefined);
-    assert.equal(mode('pax_surface_trace=1&pax_wheel_passive=1'), undefined);
+    assert.equal(mode(''), undefined);
+    assert.equal(mode('pax_wheel_passive=1'), true);
+    assert.equal(mode('pax_scroll_perf=1&pax_wheel_passive=1'), true);
+    assert.equal(mode('pax_surface_trace=1&pax_wheel_passive=1'), true);
     assert.equal(mode('pax_surface_trace=1&pax_scroll_perf=1'), false);
     assert.equal(mode('pax_surface_trace=1&pax_scroll_perf=1&pax_wheel_passive=0'), false);
     assert.equal(mode('pax_surface_trace=1&pax_scroll_perf=1&pax_wheel_passive=1'), true);
     h.dispose();
+});
+
+test('passive mode with tracing disabled does no diagnostic timing or allocation', () => {
+    const h = harness(true, true, false);
+    assert.equal(h.listeners.get('wheel').options.passive, true);
+    h.listeners.get('wheel').fn(h.event);
+    assert.equal(h.clockReads(), 0);
+    assert.equal(h.samples.length, 0);
+    assert.equal(h.event.defaultPrevented, false);
+    assert.equal(h.interrupts.length, 1);
 });
 
 test('noncancelable/synthetic wheel diagnostics do not claim cancelled trusted input', () => {

@@ -1,6 +1,7 @@
 import type {SurfaceCandidate, SurfaceDenial} from './surface-scheduler';
 import type {NativeMessageTiming} from './native-message-profile';
 import type {WheelInputSample} from '../events/listeners';
+import {TraceRing} from './trace-ring';
 
 export type SurfaceTraceEvent = {at: number; event: string; id?: string; generation?: string;
     contentRevision?: string; [key: string]: unknown};
@@ -8,7 +9,13 @@ export type SurfaceTraceEvent = {at: number; event: string; id?: string; generat
 // Opt-in, bounded, and attached to the app mount so multiple chassis never
 // mingle their traces. No network reporting or per-frame console output.
 export class SurfaceTrace {
-    private events: SurfaceTraceEvent[] = [];
+    private events: TraceRing<SurfaceTraceEvent>;
+    private samples: TraceRing<SurfaceTraceEvent>;
+    private frame?: number;
+    private phases = new Map<string, {count: number; totalMs: number; maxMs: number}>();
+    private renderWork: Record<string, number> = {};
+    private renderBlockers = new Set<string>();
+    private admission = '';
     private demand = new Map<string, {signature: string; firstVisibleAt?: number; coverage: number; owner: number; denial?: string}>();
     private scrollDirections = new Map<number, {offset: number[]; direction: number[]}>();
     private inspector?: HTMLDetailsElement;
@@ -16,7 +23,7 @@ export class SurfaceTrace {
     private probeFrame?: number;
     private probeUntil = -Infinity;
     private scrollUntil = -Infinity;
-    private wheelInputs: WheelInputSample[] = [];
+    private wheelInputs = new TraceRing<WheelInputSample>(128);
     private imageCounts: Record<string, number> = {};
     private completionRequests = {queued: 0, coalesced: 0, used: 0, disposed: 0};
     private completionDeferredAt?: number;
@@ -78,9 +85,11 @@ export class SurfaceTrace {
 
     constructor(private mount: HTMLElement, private capacity = 2048) {
         this.capacity = Math.max(1, Math.floor(capacity));
+        this.events = new TraceRing(this.capacity);
+        this.samples = new TraceRing(Math.min(this.capacity, 512));
         mount.addEventListener('pax-surface-trace', this.listener);
         // Readable through developer tools without retaining DOM nodes in the log.
-        (mount as any).paxSurfaceTrace = this.events;
+        Object.defineProperty(mount, 'paxSurfaceTrace', {configurable: true, get: () => this.snapshot()});
         // An explicit snapshot avoids per-frame DOM serialization while making
         // transient gaps inspectable after native scrolling has settled.
         if (mount.ownerDocument) {
@@ -130,8 +139,9 @@ export class SurfaceTrace {
                         recordedNotSubmitted: [...this.recordedImages.entries()].map(([id, nodes]) => ({id, count:nodes.size}))});
                     this.record('presentation-completion-summary', {requests: {...this.completionRequests},
                         wait: {...this.completionWait}, pending: this.completionDeferredAt != null});
-                    this.record('wheel-input-summary', {samples: [...this.wheelInputs]});
-                    output.textContent = JSON.stringify(this.events);
+                    this.record('wheel-input-summary', {samples: this.wheelInputs.snapshot()});
+                    this.record('trace-overflow', {events: this.events.overwritten, samples: this.samples.overwritten});
+                    output.textContent = JSON.stringify(this.snapshot());
                 }
             });
             doc.body.append(details);
@@ -187,14 +197,59 @@ export class SurfaceTrace {
             this.imageCounts[event] = (this.imageCounts[event] ?? 0) + 1;
             if (event === 'image-upload') this.imageCounts.uploadBytes = (this.imageCounts.uploadBytes ?? 0) + Number(details.bytes ?? 0);
         }
-        if (this.events.length >= this.capacity) this.events.splice(0, this.events.length - this.capacity + 1);
-        this.events.push({at: performance.now(), event, ...details});
+        const ring = ['scroll-sample', 'probe-frame', 'wheel-input', 'frame-summary', 'native-message-batch'].includes(event)
+            || (event === 'occlusion-work' && !(details.delta as any)?.rebuilds && !(details.delta as any)?.structural_reconciliations)
+            ? this.samples : this.events;
+        ring.push({at: performance.now(), event, ...details});
     }
 
     recordPhase(phase: string, duration: number) {
-        if (performance.now() <= this.probeUntil) this.record('probe-phase',{phase,duration});
-        if (performance.now() <= this.scrollUntil) this.record('scroll-phase',{phase,duration});
-        if (duration > 20) this.record('slow-frame-phase',{phase,duration});
+        const value = this.phases.get(phase) ?? {count: 0, totalMs: 0, maxMs: 0};
+        value.count++; value.totalMs += duration; value.maxMs = Math.max(value.maxMs, duration);
+        this.phases.set(phase, value);
+    }
+
+    beginFrame(epoch: number) {
+        if (epoch === this.frame) return;
+        this.flushFrame();
+        this.frame = epoch;
+    }
+
+    private flushFrame() {
+        if (!this.phases.size && !Object.keys(this.renderWork).length) return;
+        this.record('frame-summary', {epoch: this.frame, phases: Object.fromEntries(this.phases),
+            renderWork: this.renderWork, blockers: [...this.renderBlockers]});
+        this.phases.clear(); this.renderWork = {}; this.renderBlockers.clear();
+    }
+
+    snapshot() {
+        this.flushFrame();
+        return this.events.snapshot().concat(this.samples.snapshot()).sort((a,b) => a.at-b.at);
+    }
+
+    recordRenderWork(report: Record<string, any>, hostElapsedMs: number) {
+        const add = (key: string, value: number) => this.renderWork[key] = (this.renderWork[key] ?? 0) + value;
+        add('services', 1); add('hostMs', hostElapsedMs);
+        for (const key of ['elapsed_ms', 'setup_ms', 'ordinary_ms', 'units', 'ordinary_layers', 'atomic_fallbacks']) {
+            add(key, report[key] ?? 0);
+        }
+        for (const key of ['initializations', 'recorded', 'submitted', 'urgent_units', 'elapsed_ms']) {
+            add('preparation_' + key, report.preparation?.[key] ?? 0);
+        }
+        add('exhausted', Number(!!report.allowance_exhausted));
+        this.renderWork.max_unit_ms = Math.max(this.renderWork.max_unit_ms ?? 0, report.max_unit_ms ?? 0);
+        if (report.blocker) this.renderBlockers.add(report.blocker);
+    }
+
+    recordAdmission(admitted: SurfaceCandidate[], denied: SurfaceDenial[], detail: Record<string, unknown>) {
+        // Distance changes continuously. Record membership/readiness/class changes,
+        // not full JSON on every continuation merely to compare it to old JSON.
+        const signature = admitted.map(c => `${c.surface.id}:${c.rank.coverage}:${Number(c.rank.ready)}`)
+            .concat(denied.map(d => `${d.id}:${d.reason}`)).join('|');
+        if (signature === this.admission) return;
+        this.admission = signature;
+        this.record('admission', {...detail, admitted: admitted.map(c => ({id: c.surface.id,
+            rank: {...c.rank}, owner: c.branch, rect: [c.surface.left, c.surface.top, c.surface.width, c.surface.height]})), denied});
     }
 
     recordNativeMessageBatch(types: NativeMessageTiming[]) {
@@ -208,7 +263,6 @@ export class SurfaceTrace {
     recordWheelInput(sample: WheelInputSample) {
         // Keep a small independent tail so noisy tile traces cannot erase the
         // input evidence before the inspector is opened. No event/DOM retention.
-        if (this.wheelInputs.length >= 128) this.wheelInputs.shift();
         this.wheelInputs.push(sample);
         this.scrollUntil = performance.now() + 250;
         this.record('wheel-input', sample);
@@ -270,8 +324,9 @@ export class SurfaceTrace {
         this.mount.removeEventListener('pax-surface-trace', this.listener);
         this.inspector?.remove();
         delete (this.mount as any).paxSurfaceTrace;
-        this.events.length = 0;
-        this.wheelInputs.length = 0;
+        this.events.clear(); this.samples.clear(); this.phases.clear();
+        this.renderWork = {}; this.renderBlockers.clear(); this.admission = '';
+        this.wheelInputs.clear();
         this.demand.clear();
         this.scrollDirections.clear();
         this.imageStates.clear(); this.pendingImages.clear(); this.recordedImages.clear(); this.imageCounts = {};

@@ -10,10 +10,14 @@ use pax_gpu::{
     WgpuRenderer,
 };
 use pax_runtime_api::{AlphaMaskPaint, OpacityScope, Paint, PathSmoothing};
-use std::{collections::HashMap, rc::Rc};
+use std::{
+    cell::Cell,
+    collections::HashMap,
+    rc::{Rc, Weak},
+};
 
 pub(super) enum Command {
-    Begin(u32, i32, u32),
+    Begin(u32, Rc<Cell<i32>>, u32),
     End(u32),
     Save,
     Restore,
@@ -55,7 +59,7 @@ impl Command {
     ) {
         match self {
             Self::Begin(id, z, lights) => {
-                gpu.begin_node(*id, *z, *lights);
+                gpu.begin_node(*id, z.get(), *lights);
             }
             Self::End(id) => {
                 gpu.end_node(*id);
@@ -204,6 +208,9 @@ struct Recording {
 pub(super) struct DrawingCache {
     recordings: HashMap<usize, Recording>,
     drawings: HashMap<(usize, u32), (Rc<Drawing>, u64)>,
+    // Commands, including shared ancestor prefixes and in-flight replay records,
+    // own the order cells. Weak lookup entries do not extend drawing lifetimes.
+    orders: HashMap<(usize, u32), Weak<Cell<i32>>>,
     clock: u64,
     units: usize,
     pub hits: u64,
@@ -216,6 +223,13 @@ impl DrawingCache {
     const MAX_RECORDS: usize = 4096;
 
     pub fn begin(&mut self, layer: usize, id: u32, z: i32, lights: u32, bounds: Option<Rect>) {
+        let order = self
+            .orders
+            .get(&(layer, id))
+            .and_then(Weak::upgrade)
+            .unwrap_or_else(|| Rc::new(Cell::new(z)));
+        order.set(z);
+        self.orders.insert((layer, id), Rc::downgrade(&order));
         self.remove(layer, id);
         let r = self.recordings.entry(layer).or_default();
         r.pending.push(Pending {
@@ -225,7 +239,15 @@ impl DrawingCache {
             save_depth: r.saves.len(),
             commands: r.state.clone(),
         });
-        self.push(layer, Rc::new(Command::Begin(id, z, lights)));
+        self.push(layer, Rc::new(Command::Begin(id, order, lights)));
+    }
+
+    pub fn update_orders(&mut self, layer: usize, orders: &[(u32, i32)]) {
+        for &(id, z) in orders {
+            if let Some(order) = self.orders.get(&(layer, id)).and_then(Weak::upgrade) {
+                order.set(z);
+            }
+        }
     }
 
     pub fn push(&mut self, layer: usize, command: Rc<Command>) {
@@ -322,18 +344,44 @@ impl DrawingCache {
 
     pub fn finish_frame(&mut self, layer: usize) {
         self.recordings.remove(&layer);
+        self.orders.retain(|_, order| order.strong_count() > 0);
     }
 
     pub fn truncate_layers(&mut self, count: usize) {
         self.drawings.retain(|(layer, _), _| *layer < count);
         self.units = self.drawings.values().map(|(d, _)| d.units).sum();
         self.recordings.retain(|layer, _| *layer < count);
+        self.orders.retain(|(layer, _), _| *layer < count);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn order_updates_reach_shared_prefixes_and_evicted_in_flight_drawings() {
+        let mut cache = DrawingCache::default();
+        cache.begin(0, 1, 1, 0, None);
+        cache.push(0, Rc::new(Command::Save));
+        leaf(&mut cache, 2);
+        let in_flight = cache.get(0, 2).unwrap();
+        cache.remove(0, 2);
+        cache.finish_frame(0);
+        cache.update_orders(0, &[(1, 10), (2, 20)]);
+        let orders: Vec<_> = in_flight
+            .commands
+            .iter()
+            .filter_map(|c| match c.as_ref() {
+                Command::Begin(id, z, _) => Some((*id, z.get())),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(orders, vec![(1, 10), (2, 20)]);
+        drop(in_flight);
+        cache.finish_frame(0);
+        assert!(cache.orders.is_empty());
+    }
 
     fn leaf(cache: &mut DrawingCache, id: u32) {
         cache.begin(0, id, 0, 0, Some(Rect::new(0.0, 0.0, 10.0, 10.0)));

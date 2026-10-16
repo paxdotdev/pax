@@ -118,7 +118,7 @@ Type: `u64`
 Type: `Option`<(`usize`, `u64`)>
 
 Optional second-pass ceiling (total surfaces, total backing pixels).
-Bounded reverse coverage borrows before forward coverage, after ordinary
+All eligible preparation borrows in residency order after ordinary
 admission finishes. This ceiling preserves headroom for visible demand.
 
 #### Implementations
@@ -149,6 +149,11 @@ Indices into the immutable input snapshot, in preparation order.
 Type: `u64`
 
 Reverse coverage admitted above the ordinary optional allowance.
+
+##### `borrowed_other_pixels`
+Type: `u64`
+
+Near/safety and retained preparation admitted using spare capacity.
 
 ## Enums
 ### `Coverage`

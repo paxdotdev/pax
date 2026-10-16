@@ -14,6 +14,43 @@ const candidate = (id, visible, transformSignature = '0,0') => ({
     rank: {coverage: visible ? 0 : 3, ready: true},
 });
 
+test('high volume samples cannot erase causal events; rings report overwritten entries', () => {
+    const h = harness(3);
+    h.trace.record('probe-start');
+    for (let i = 0; i < 10000; i++) h.trace.record('scroll-sample', {i});
+    assert.equal(h.trace.samples.overwritten, 9997);
+    assert.equal(h.trace.events.overwritten, 0);
+    assert.deepEqual(Array.from(h.mount.paxSurfaceTrace, e => e.event),
+        ['probe-start', 'scroll-sample', 'scroll-sample', 'scroll-sample']);
+    assert.deepEqual(Array.from(h.trace.samples.snapshot(), e => e.i), [9997,9998,9999]);
+});
+
+test('admission records membership and readiness changes, not continuous distance churn', () => {
+    const h = harness(10);
+    const tile = candidate('tile', true);
+    h.trace.recordAdmission([tile], [], {backingPixels:100});
+    tile.rank.distance = 10;
+    h.trace.recordAdmission([tile], [], {backingPixels:100});
+    assert.equal(h.mount.paxSurfaceTrace.length, 1);
+    tile.rank.ready = false;
+    h.trace.recordAdmission([tile], [], {backingPixels:100});
+    assert.equal(h.mount.paxSurfaceTrace.length, 2);
+    assert.equal(h.mount.paxSurfaceTrace[0].admitted[0].rank.ready, true);
+});
+
+test('render continuations aggregate actual service time without double-counting subphases', () => {
+    const h = harness();
+    h.trace.beginFrame(7);
+    for (let i = 0; i < 3; i++) h.trace.recordRenderWork({elapsed_ms:2, setup_ms:0.5,
+        ordinary_ms:0.5, units:1, max_unit_ms:1, preparation:{elapsed_ms:1, submitted:1}}, 3);
+    const report = h.mount.paxSurfaceTrace[0].renderWork;
+    assert.equal(report.services, 3);
+    assert.equal(report.hostMs, 9);
+    assert.equal(report.elapsed_ms, 6);
+    assert.equal(report.preparation_elapsed_ms, 3);
+    assert.equal(report.max_unit_ms, 1);
+});
+
 test('completion deferrals survive trace rollover and measure only the next opportunity', () => {
     const h = harness(2);
     h.trace.recordCompletionRequest('queued');
@@ -39,12 +76,12 @@ test('completion deferrals survive trace rollover and measure only the next oppo
 test('wheel input retains a bounded independent tail and opens phase timing before scroll moves', () => {
     const h = harness(3);
     for (let i = 0; i < 140; i++) h.trace.recordWheelInput({enteredAt: i});
-    assert.equal(h.trace.wheelInputs.length, 128);
-    assert.equal(h.trace.wheelInputs[0].enteredAt, 12);
+    assert.equal(h.trace.wheelInputs.snapshot().length, 128);
+    assert.equal(h.trace.wheelInputs.snapshot()[0].enteredAt, 12);
     h.trace.recordPhase('tick', 2);
-    assert.equal(h.mount.paxSurfaceTrace.at(-1).event, 'scroll-phase');
+    assert.equal(h.mount.paxSurfaceTrace.at(-1).event, 'frame-summary');
     h.trace.dispose();
-    assert.equal(h.trace.wheelInputs.length, 0);
+    assert.equal(h.trace.wheelInputs.snapshot().length, 0);
 });
 
 test('message batches retain type timings only during probes, scrolls, or slow work', () => {
@@ -62,16 +99,18 @@ test('message batches retain type timings only during probes, scrolls, or slow w
     h.trace.dispose();
 });
 
-test('observed scroll opens bounded phase timing without synthesizing input', () => {
+test('phase timings aggregate once per display epoch without duplicate probe/scroll events', () => {
     const h = harness(32);
-    h.trace.recordPhase('tick', 1);
-    assert.equal(h.mount.paxSurfaceTrace.length, 0);
+    h.trace.beginFrame(1);
+    h.trace.probeUntil = Infinity;
     h.trace.observeScroll(7, 0, 360);
     h.trace.recordPhase('tick', 2);
-    assert.deepEqual(Array.from(h.mount.paxSurfaceTrace, e => e.event), ['scroll-sample', 'scroll-phase']);
+    h.trace.beginFrame(1);
+    h.trace.recordPhase('tick', 3);
+    h.trace.beginFrame(2);
+    assert.deepEqual(Array.from(h.mount.paxSurfaceTrace, e => e.event), ['scroll-sample', 'frame-summary']);
     assert.equal(h.mount.paxSurfaceTrace[0].y, 360);
-    h.trace.scrollUntil = -Infinity;
-    h.trace.recordPhase('tick', 2);
+    assert.deepEqual({...h.mount.paxSurfaceTrace[1].phases.tick}, {count:2, totalMs:5, maxMs:3});
     assert.equal(h.mount.paxSurfaceTrace.length, 2);
     h.trace.dispose();
 });
@@ -106,14 +145,15 @@ test('reversals are per-axis observations and surface events carry current deman
 
 test('trace is bounded and teardown removes the listener, events and demand state', () => {
     const h = harness(3);
-    const events = h.mount.paxSurfaceTrace;
     for (let i = 0; i < 10; i++) h.trace.record('sample', {i});
+    const events = h.mount.paxSurfaceTrace;
     assert.deepEqual(Array.from(events, e => e.i), [7, 8, 9]);
     h.trace.observeDemand([candidate('tile', true)]);
     h.trace.dispose();
     assert.equal(h.listeners.size, 0);
     assert.equal(h.mount.paxSurfaceTrace, undefined);
-    assert.equal(events.length, 0);
+    assert.equal(h.trace.events.snapshot().length, 0);
+    assert.equal(events.length, 3, 'inspection snapshots are detached from the live ring');
     assert.equal(h.trace.firstVisibleAt('tile'), undefined);
 });
 

@@ -36,11 +36,19 @@ Type: `usize`
 ##### `elapsed_ms`
 Type: `f64`
 
+##### `setup_ms`
+Type: `f64`
+
+Setup and ordinary drawing are measured, not charged to preparation.
+
+##### `ordinary_ms`
+Type: `f64`
+
 ##### `max_unit_ms`
 Type: `f64`
 
 ##### `preparation`
-Type: `SurfaceWorkReport`
+Type: [`SurfaceWorkReport`](../../../../api/internal/pax-runtime/engine/surface_work.md#surfaceworkreport)
 
 ---
 
@@ -60,4 +68,15 @@ display epoch share preparation accounting, including its first-job grant.
 
 ### `SurfaceWorkBudget`
 CPU-time allowance for preparing settled drawings between application ticks.
-The cost estimate adapts across passes; at least one eligible job can make progress.
+Actual elapsed CPU time limits further work; at least one eligible job can
+make progress. Unrelated expensive jobs do not predict the next job's cost.
+
+---
+
+### `SurfaceWorkReport`
+#### Properties
+##### `urgent_units`
+Type: `usize`
+
+Visible initialization/submission units completed in this display epoch.
+Speculation cannot consume the first urgent progress opportunity.

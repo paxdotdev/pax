@@ -2,28 +2,21 @@
 //! capture or GPU submission is atomic; the allowance limits starting more work.
 
 /// CPU-time allowance for preparing settled drawings between application ticks.
-/// The cost estimate adapts across passes; at least one eligible job can make progress.
+/// Actual elapsed CPU time limits further work; at least one eligible job can
+/// make progress. Unrelated expensive jobs do not predict the next job's cost.
 pub struct SurfaceWorkBudget {
     allowance_ms: f64,
-    estimate_ms: f64,
 }
 
 impl SurfaceWorkBudget {
     pub fn new(allowance_ms: f64) -> Self {
         Self {
             allowance_ms: allowance_ms.max(0.0),
-            estimate_ms: 0.0,
         }
     }
 
     pub fn admits(&self, completed: usize, elapsed_ms: f64) -> bool {
-        completed == 0 || elapsed_ms + self.estimate_ms <= self.allowance_ms
-    }
-
-    pub fn observe(&mut self, elapsed_ms: f64) {
-        // Rise immediately after an expensive job; decay gradually so one cheap
-        // tile does not cause a following burst of expensive image uploads.
-        self.estimate_ms = elapsed_ms.max(self.estimate_ms * 0.8);
+        completed == 0 || elapsed_ms < self.allowance_ms
     }
 }
 
@@ -33,6 +26,9 @@ pub struct SurfaceWorkReport {
     pub recorded: usize,
     pub fallbacks: usize,
     pub submitted: usize,
+    /// Visible initialization/submission units completed in this display epoch.
+    /// Speculation cannot consume the first urgent progress opportunity.
+    pub urgent_units: usize,
     pub deferred: usize,
     pub cache_misses: usize,
     pub dirty_layers: usize,
@@ -48,6 +44,7 @@ impl SurfaceWorkReport {
         self.recorded += next.recorded;
         self.fallbacks += next.fallbacks;
         self.submitted += next.submitted;
+        self.urgent_units += next.urgent_units;
         // Deferred is the queue snapshot from the latest opportunity, not work
         // completed; the other counts describe attempts across opportunities.
         self.deferred = next.deferred;
@@ -103,6 +100,9 @@ pub struct RenderWorkReport {
     pub atomic_fallbacks: usize,
     pub units: usize,
     pub elapsed_ms: f64,
+    /// Setup and ordinary drawing are measured, not charged to preparation.
+    pub setup_ms: f64,
+    pub ordinary_ms: f64,
     pub max_unit_ms: f64,
     pub preparation: SurfaceWorkReport,
 }
@@ -128,16 +128,11 @@ mod tests {
     }
     #[test]
     fn atomic_overrun_stops_more_work_but_never_starves_first_job() {
-        let mut budget = SurfaceWorkBudget::new(4.0);
+        let budget = SurfaceWorkBudget::new(4.0);
         assert!(budget.admits(0, 0.0));
-        budget.observe(8.0);
         assert!(!budget.admits(1, 8.0));
         assert!(budget.admits(0, 0.0));
-        budget.observe(0.5);
-        assert!(!budget.admits(1, 0.5));
-        for _ in 0..20 {
-            budget.observe(0.5);
-        }
+        // A later epoch with cheap work is not poisoned by the overrun.
         assert!(budget.admits(1, 0.5));
         assert!(!budget.admits(2, 4.0));
     }

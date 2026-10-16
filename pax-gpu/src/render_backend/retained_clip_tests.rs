@@ -13,6 +13,123 @@ extern "C" {}
 
 struct MetalLayer(*mut AnyObject);
 
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn order_metadata_preserves_geometry_and_opacity_captures_but_reorders_pixels() {
+    use pax_runtime_api::OpacityScope;
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 32, 32, [1., 1.]),
+        )
+    })
+    .unwrap();
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    for (id, color) in [
+        (1, Color::rgba(1., 0., 0., 1.)),
+        (2, Color::rgba(0., 0., 1., 1.)),
+    ] {
+        renderer.begin_node(id, id as i32, 0);
+        renderer.set_node_opacity_scopes(
+            id,
+            &[OpacityScope {
+                node_id: 10,
+                opacity: 0.5,
+            }],
+        );
+        renderer.fill_path(rect(0., 0., 32., 32.), Fill::Solid(color));
+        renderer.end_node(id);
+    }
+    renderer.request_screenshot_capture(0);
+    renderer.flush();
+    device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+    assert_pixel(
+        &renderer.take_screenshot_capture(0).unwrap(),
+        8,
+        8,
+        [0, 0, 128, 128],
+    );
+    renderer.take_resource_churn_stats();
+    assert!(!renderer.update_node_orders(&[(1, 101), (2, 102)]));
+    renderer.request_screenshot_capture(1);
+    renderer.flush();
+    device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+    assert_pixel(
+        &renderer.take_screenshot_capture(1).unwrap(),
+        8,
+        8,
+        [0, 0, 128, 128],
+    );
+    let stats = renderer.take_resource_churn_stats();
+    assert_eq!(stats.opacity_group_renders, 0);
+    assert_eq!(stats.vector_geometry_rebuilds, 0);
+    assert_eq!(stats.vector_resource_creates, 0);
+    assert!(stats.opacity_group_cache_hits > 0);
+    assert!(renderer.update_node_orders(&[(1, 103)]));
+    renderer.request_screenshot_capture(2);
+    renderer.flush();
+    device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+    assert_pixel(
+        &renderer.take_screenshot_capture(2).unwrap(),
+        8,
+        8,
+        [128, 0, 0, 128],
+    );
+    assert_eq!(
+        renderer.take_resource_churn_stats().opacity_group_renders,
+        1
+    );
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn order_metadata_keeps_mask_sources_private_and_cached() {
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 32, 32, [1., 1.]),
+        )
+    })
+    .unwrap();
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    renderer.begin_node(10, 10, 0);
+    renderer.save();
+    renderer.begin_alpha_source(Transform2D::identity(), 0.0);
+    for id in [11, 12] {
+        renderer.begin_node(id, 0, 0);
+        renderer.fill_path(
+            rect(0., 0., 16., 32.),
+            Fill::Solid(Color::rgba(1., 1., 1., 1.)),
+        );
+        renderer.end_node(id);
+    }
+    renderer.end_alpha_source();
+    renderer.fill_path(
+        rect(0., 0., 32., 32.),
+        Fill::Solid(Color::rgba(0., 1., 0., 1.)),
+    );
+    renderer.restore();
+    renderer.end_node(10);
+    renderer.flush();
+    device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+    renderer.take_resource_churn_stats();
+    assert!(!renderer.update_node_orders(&[(10, 20), (11, 500)]));
+    renderer.request_screenshot_capture(1);
+    renderer.flush();
+    device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+    let pixels = renderer.take_screenshot_capture(1).unwrap();
+    assert_pixel(&pixels, 8, 8, [0, 255, 0, 255]);
+    assert_pixel(&pixels, 24, 8, [0; 4]);
+    let stats = renderer.take_resource_churn_stats();
+    assert_eq!(stats.alpha_source_renders, 0);
+    assert!(stats.alpha_source_cache_hits > 0);
+    assert_eq!(stats.vector_geometry_rebuilds, 0);
+}
+
 impl MetalLayer {
     fn new() -> Self {
         // The owned layer outlives its wgpu surface; no AppKit window is needed.

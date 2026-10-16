@@ -3,11 +3,6 @@ import { ObjectManager } from "../pools/object-manager";
 
 const DEFAULT_POOL_HOST_ROLE = "canvas-pool-host";
 
-function tileDebugEnabled() {
-    return typeof window !== "undefined"
-        && new URLSearchParams(window.location.search).has("pax_tile_debug");
-}
-
 export class CanvasPool {
     private free: HTMLCanvasElement[] = [];
     private allocated = 0;
@@ -52,12 +47,6 @@ export class CanvasPool {
         this.host = host;
     }
 
-    private debugLog(event: string, data: Record<string, unknown>) {
-        if (tileDebugEnabled()) {
-            console.debug(`[pax-canvas-pool] ${event}`, data);
-        }
-    }
-
     setBackingLimit(pixels: number) { this.backingLimit = Math.max(0, pixels); }
 
     private backingPixels(canvas: HTMLCanvasElement) {
@@ -81,18 +70,10 @@ export class CanvasPool {
             return this.free.splice(eligibleIndex, 1)[0];
         }
         if (this.allocated >= this.maxCanvases) {
-            this.debugLog("checkout-miss", {
-                allocated: this.allocated, maxCanvases: this.maxCanvases, free: this.free.length,
-            });
             return null;
         }
         if (pixels > this.backingLimit - this.capacitySnapshot().backingPixels) return null;
         this.allocated += 1;
-        this.debugLog("checkout-new", {
-            allocated: this.allocated,
-            maxCanvases: this.maxCanvases,
-            free: this.free.length,
-        });
         const canvas = this.objectManager.getFromPool<HTMLCanvasElement>(CANVAS);
         if (pixels > 0) { canvas.width = 1; canvas.height = 1; }
         this.backings.set(canvas, pixels);
@@ -112,11 +93,6 @@ export class CanvasPool {
         // Keep the actual backing charged until the final lease releases it.
         if (!canvasSurfaceIsOwned(canvas)) this.backings.set(canvas, 0);
         this.free.push(canvas);
-        this.debugLog("release", {
-            allocated: this.allocated,
-            maxCanvases: this.maxCanvases,
-            free: this.free.length,
-        });
     }
 
     capacitySnapshot() {

@@ -270,6 +270,8 @@ pub struct PaxEngine {
     pub runtime_context: Rc<RuntimeContext>,
     pub root_expanded_node: Option<Rc<ExpandedNode>>,
     pub scroller_tiling_policy: layer_tiling::ScrollerTilingPolicy,
+    #[cfg(test)]
+    filtered_render_plan_inputs: RefCell<Vec<Vec<ExpandedNodeIdentifier>>>,
 }
 
 /// Selects the Rust state owner independently of the handler's target `NodeContext`.
@@ -438,6 +440,8 @@ impl PaxEngine {
             runtime_context,
             root_expanded_node: None,
             scroller_tiling_policy,
+            #[cfg(test)]
+            filtered_render_plan_inputs: RefCell::default(),
         }
     }
 
@@ -455,6 +459,8 @@ impl PaxEngine {
             runtime_context,
             root_expanded_node: None,
             scroller_tiling_policy,
+            #[cfg(test)]
+            filtered_render_plan_inputs: RefCell::default(),
         }
     }
 
@@ -658,7 +664,7 @@ impl PaxEngine {
         ctx.drain_node_effects_with_observer(&mut completed);
         if ctx.take_occlusion_dirty() {
             if let Some(root) = &self.root_expanded_node {
-                occlusion::update_node_occlusion(root, ctx);
+                occlusion::update_node_occlusion_observed(root, ctx, &mut completed);
             }
             completed("occlusion");
             ctx.drain_node_effects_with_observer(&mut completed);
@@ -685,6 +691,10 @@ impl PaxEngine {
         root: &Rc<ExpandedNode>,
         dirty_node_ids: &[ExpandedNodeIdentifier],
     ) -> Result<FilteredRenderPlan, &'static str> {
+        #[cfg(test)]
+        self.filtered_render_plan_inputs
+            .borrow_mut()
+            .push(dirty_node_ids.to_vec());
         let dirty_nodes: HashSet<_> = dirty_node_ids.iter().copied().collect();
         let mut render_path_nodes = HashSet::new();
 
@@ -801,7 +811,12 @@ impl PaxEngine {
                 .into_iter()
                 .filter(|job| !deferred.contains(&job.layer));
             let next = updates.next();
-            if !budget.admits(completed_units, previous.elapsed_ms + now_ms() - start) {
+            // Speculation may spend the allowance before input exposes visible
+            // work. Initialization OR submission consumes its one urgent grant.
+            let urgent_grant = one_unit && priority_before == 1 && previous.urgent_units == 0;
+            if !urgent_grant
+                && !budget.admits(completed_units, previous.elapsed_ms + now_ms() - start)
+            {
                 let pending: Vec<_> = next
                     .into_iter()
                     .chain(updates)
@@ -816,14 +831,13 @@ impl PaxEngine {
                     rcs.surface_replay_priority(job.layer).max(0)
                 })
                 .min(priority_before);
-            let init_start = now_ms();
             if rcs.start_surface_initialization(before) {
                 for job in next.into_iter().chain(updates) {
                     rcs.defer_surface_replay(job.layer);
                 }
                 report.initializations += 1;
                 completed_units += 1;
-                budget.observe(now_ms() - init_start);
+                report.urgent_units += usize::from(before <= 1);
                 if one_unit {
                     break;
                 }
@@ -875,14 +889,12 @@ impl PaxEngine {
                     {
                         break;
                     }
-                    let capture_start = now_ms();
                     if !self.record_surface_node(rcs, update.layer, id) {
                         direct = true;
                         break;
                     }
                     completed_units += 1;
                     report.recorded += 1;
-                    budget.observe(now_ms() - capture_start);
                 }
                 if !can_prepare(update.layer, &ids)
                     || self.runtime_context.settled_surface_blocker().is_some()
@@ -894,7 +906,6 @@ impl PaxEngine {
                     continue;
                 }
             }
-            let submit_start = now_ms();
             if direct {
                 // A single overlarge record or cache churn must not deadlock a
                 // cold tile. This rare fallback is one non-preemptible unit,
@@ -910,12 +921,13 @@ impl PaxEngine {
                 report.cache_misses += 1;
                 continue;
             }
+            let urgent = rcs.surface_replay_priority(update.layer) <= 0;
             rcs.flush(
                 update.layer,
                 Rc::clone(&self.runtime_context.dirty_canvases),
             );
-            budget.observe(now_ms() - submit_start);
             report.submitted += 1;
+            report.urgent_units += usize::from(urgent);
             completed_units += 1;
             if one_unit {
                 break;
@@ -1135,6 +1147,24 @@ impl PaxEngine {
             }
         }
 
+        let mut order_layers = Vec::new();
+        for (layer, orders) in self.runtime_context.take_canvas_node_orders() {
+            if layer >= self.runtime_context.layer_count.get() {
+                continue;
+            }
+            let orders: Vec<_> = orders.into_iter().collect();
+            if rcs.update_node_orders(layer, &orders) {
+                order_layers.push(layer);
+            } else {
+                self.runtime_context.mark_canvas_nodes_on_layer_dirty_by_id(
+                    layer,
+                    &orders.iter().map(|(id, _)| *id).collect::<Vec<_>>(),
+                );
+                self.runtime_context.set_canvas_dirty(layer);
+            }
+        }
+        observe("order");
+
         let mut removals = self.runtime_context.take_canvas_node_removals();
         // Resizing drops truncated layers and their retained nodes together.
         // Retrying their old removals would keep nonexistent layers dirty forever.
@@ -1243,6 +1273,7 @@ impl PaxEngine {
         }
         observe("reconcile");
         lighting_layers.extend(dirty_layers.iter().copied());
+        lighting_layers.extend(order_layers);
         lighting_layers.sort_unstable();
         lighting_layers.dedup();
         (dirty_layers, failed_removal_layers, lighting_layers)
@@ -1321,25 +1352,7 @@ impl PaxEngine {
         if !dirty_node_ids.is_empty() {
             if let Some(root_expanded_node) = &self.root_expanded_node {
                 match self.build_filtered_render_plan(root_expanded_node, dirty_node_ids) {
-                    Ok(plan) => {
-                        let mut stats = expanded_node::FilteredRenderStats::default();
-                        root_expanded_node.recurse_render_filtered(
-                            &self.runtime_context,
-                            rcs,
-                            &plan.render_path_nodes,
-                            &plan.dirty_nodes,
-                            &mut stats,
-                        );
-                        #[cfg(debug_assertions)]
-                        log::trace!(
-                            "[pax-render-filter] dirty_nodes={} path_nodes={} visited_path_nodes={} dirty_nodes_rendered={} skipped_subtrees={}",
-                            plan.dirty_nodes.len(),
-                            plan.render_path_nodes.len(),
-                            stats.path_nodes_visited,
-                            stats.dirty_nodes_rendered,
-                            stats.skipped_subtrees,
-                        );
-                    }
+                    Ok(plan) => self.draw_filtered_render_plan(rcs, root_expanded_node, &plan),
                     Err(_reason) => {
                         #[cfg(debug_assertions)]
                         log::trace!(
@@ -1353,6 +1366,33 @@ impl PaxEngine {
             }
         }
         self.runtime_context.recurse_flush_queued_renders(rcs);
+    }
+
+    // The caller must build and consume this plan within one settled rendering
+    // unit. It is not a scene snapshot that can survive a tick or host yield.
+    fn draw_filtered_render_plan(
+        &self,
+        rcs: &mut dyn RenderContext,
+        root: &Rc<ExpandedNode>,
+        plan: &FilteredRenderPlan,
+    ) {
+        let mut stats = expanded_node::FilteredRenderStats::default();
+        root.recurse_render_filtered(
+            &self.runtime_context,
+            rcs,
+            &plan.render_path_nodes,
+            &plan.dirty_nodes,
+            &mut stats,
+        );
+        #[cfg(debug_assertions)]
+        log::trace!(
+            "[pax-render-filter] dirty_nodes={} path_nodes={} visited_path_nodes={} dirty_nodes_rendered={} skipped_subtrees={}",
+            plan.dirty_nodes.len(),
+            plan.render_path_nodes.len(),
+            stats.path_nodes_visited,
+            stats.dirty_nodes_rendered,
+            stats.skipped_subtrees,
+        );
     }
 
     pub fn get_expanded_node(&self, id: ExpandedNodeIdentifier) -> Option<Rc<ExpandedNode>> {

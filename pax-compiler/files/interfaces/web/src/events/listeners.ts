@@ -13,10 +13,11 @@ export type WheelInputSample = {
     deltaY: number;
 };
 
-type WheelDiagnostics = {passive: boolean; record: (sample: WheelInputSample) => void};
+type WheelDiagnostics = {passive: boolean; record?: (sample: WheelInputSample) => void};
 
 export function wheelDiagnosticMode(params: URLSearchParams): boolean | undefined {
-    if (!params.has('pax_scroll_perf') || !params.has('pax_surface_trace')) return undefined;
+    if (!params.has('pax_wheel_passive') &&
+        (!params.has('pax_scroll_perf') || !params.has('pax_surface_trace'))) return undefined;
     return params.get('pax_wheel_passive') === '1';
 }
 
@@ -179,7 +180,7 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
         }
     }, true);
     addWindowListener('wheel', (evt) => {
-        const enteredAt = wheelDiagnostics ? performance.now() : 0;
+        const enteredAt = wheelDiagnostics?.record ? performance.now() : 0;
         let event = {
             "Wheel": {
                 "x": evt.clientX - mount.getBoundingClientRect().left,
@@ -193,7 +194,7 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
         if (res.prevent_default && !wheelDiagnostics?.passive) {
             evt.preventDefault();
         }
-        if (wheelDiagnostics) {
+        if (wheelDiagnostics?.record) {
             const handlerMs = performance.now() - enteredAt;
             wheelDiagnostics.record({
                 enteredAt,

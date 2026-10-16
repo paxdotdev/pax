@@ -2761,6 +2761,23 @@ impl RenderContext for PaxGpuRenderer {
         ended || captured_only
     }
 
+    fn update_node_orders(&mut self, layer: usize, orders: &[(u32, i32)]) -> bool {
+        self.drawings.update_orders(layer, orders);
+        let mut backends = self.backends.borrow_mut();
+        if let Some(RenderLayerState::Ready((target, _))) = backends.get_mut(layer) {
+            // Include inactive retained tiles: reactivation must not resurrect
+            // their old order. No allocation or surface preparation is needed.
+            let mut changed = Vec::new();
+            for (index, tile) in target.renderers.iter_mut().enumerate() {
+                if tile.renderer.update_node_orders(orders) {
+                    changed.push(index);
+                }
+            }
+            self.mark_render_surfaces_dirty(layer, changed);
+        }
+        true
+    }
+
     fn remove_node(&mut self, layer: usize, node_id: u32) -> bool {
         self.invalidate_drawing(layer, node_id);
         let mut backends = self.backends.borrow_mut();

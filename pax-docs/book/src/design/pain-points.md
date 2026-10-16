@@ -87,6 +87,27 @@ Last triaged: 2026-10-05 — [PAX-972](https://linear.app/paxdev/issue/PAX-972/p
   markers. Move the new fixture into the Cargo/example discovery layout and
   repair asset links before regenerating bundled sources and building the site.
 
+- 2026-10-15, root-level website web build: CLI auto-libdev covers only
+  `examples/src` and `tests/src`, so rebuilding `pax-website` can reuse the old
+  browser interface bundle after TypeScript edits. Reproduced by the inspector
+  still emitting removed `render-work` events. Use explicit `--libdev` when
+  validating monorepo website + library changes (PAX-1014).
+
+- 2026-10-15, nested web scrolling: a prepared near tile was evicted on intent
+  expiry (`MovingAhead` → `StationaryNear`) while farther reserve borrowed spare
+  capacity. A 0.25-page resume then required reinitialization despite decoded
+  images being ready. The shared scheduler regression now covers pause/resume,
+  reversal and constrained capacity (PAX-1014). Profiling also retained unbounded
+  browser performance measures and duplicate phase events; bounded aggregates
+  and separate causal/sample rings replace those diagnostic paths.
+
+- 2026-10-14, macOS nested Scrollers: disabling vertical elasticity on a
+  horizontal shelf did not make AppKit forward vertical wheel input to its
+  parent. After horizontal scrolling, the parent stayed at y=0 in the native
+  regression fixture. Axis-aware forwarding in the shared Swift host fixes
+  this without changing native momentum; `NativeScrollerTests` covers the
+  failure, diagonal intent, phase events, and live axis changes (PAX-1014).
+
 - 2026-10-12, pre-merge validation: a website build did not compile a new
   `pax-std` autosize test, which still constructed runtime `CommonProperties`
   and `ConditionalProperties` with shared `Property` values after the property

@@ -579,6 +579,14 @@ gesture ownership harder to anticipate; test what happens at each edge with
 the target's trackpad, mouse, and touch input. Pax relies on the platform
 scroll container for native scrolling, momentum, and gesture arbitration.
 
+On macOS, wheel/trackpad input dominated by an axis disabled on the inner
+Scroller is forwarded to its next responder. A horizontal shelf therefore
+does not trap a subsequent vertical gesture: the enclosing document can scroll
+without moving the pointer to another shelf. The original native events,
+including their phase and momentum, are preserved. Supported-axis scrolling
+and same-axis edge behavior remain AppKit-owned; Pax does not synthesize
+scroll physics or convert vertical input into horizontal movement.
+
 Text, form controls, vectors, and images can share the scrolling content tree.
 The native host moves the content, while Pax maintains the rendering,
 clipping, and input-coordinate relationships. A web root Scroller that fits
@@ -696,12 +704,17 @@ Rust policy; it does not maintain a separate JavaScript ranking algorithm.
 This shared policy is currently enabled on Web; native chassis activation is
 a separate rollout. Web admission limits both surface count and physical backing
 pixels. Speculative coverage has a base allowance of two screenfuls of pixels.
-After ordinary admission, bounded reverse coverage and then forward coverage
-may borrow unused capacity while
+After ordinary admission, all eligible preparation uses the same residency order
+to borrow unused capacity (bounded reverse coverage first, then incoming/near
+coverage before farther reserves), while
 leaving four canvas slots and one screenful of backing pixels as headroom for
 new visible demand. Borrowing does not increase the overall caps or displace
 already-admitted near/safety coverage. New visible demand always takes priority;
-the headroom limits borrowing, not mandatory rendering. Assigned, initializing, and
+the headroom limits borrowing, not mandatory rendering.
+Pausing a scroll does not remove nearby prepared tiles' borrowing eligibility.
+Retention remains bounded by the existing preparation region and hard limits;
+retaining pixels does not give trailing drawing priority over incoming work.
+Assigned, initializing, and
 retiring backings remain charged until their allocation or last lease releases.
 These are color-backing estimates, not a bound on total GPU or application memory.
 Visible coverage, including stationary siblings and the root page, precedes
@@ -803,7 +816,9 @@ application content preparation.
 If visible demand itself exceeds the pool budget, the host preserves valid
 visible survivors and admits remaining visible work deterministically, without
 speculative work, a larger cap, or lower density. The mount's
-`data-surface-budget-state` reports `visible-demand-exceeds-budget`.
+With surface tracing enabled, `data-surface-budget-state` reports
+`visible-demand-exceeds-budget`. Mount-level capacity counters are diagnostic-only;
+surface identity and submitted-readiness attributes remain active without tracing.
 `data-surface-backing-bytes-estimate` estimates color backing bytes, **not total
 GPU memory**: textures, attachments, and caches cost more.
 
@@ -842,7 +857,7 @@ application changes still update their drawings, including animations while a
 tile is cold. This does not defer component mounting or lifecycle handlers.
 
 The shared runtime gives these preparation passes a cooperative 4ms CPU
-allowance: it stops starting more work based on elapsed time and recent cost,
+allowance: it stops starting more work based on actual elapsed time,
 while allowing one eligible unit to make progress. The synchronous portion of
 one surface initialization, a primitive capture, or a tile submission is atomic
 and can overrun the allowance. Async initialization retains its existing slot
@@ -899,7 +914,8 @@ This branch isolation is shared scheduler policy, currently exercised by Web.
 It does not make malformed application layout valid. In particular, pausing an
 embedded example's animation must not skip its initial layout or resize handling.
 
-The app mount exposes a local `paxSurfaceTrace` array (at most 2048 events) for
+The app mount exposes a local `paxSurfaceTrace` snapshot getter, backed by a
+2048-event causal ring and a separate 512-entry high-volume sample ring, for
 visible demand (including denied tiles), admission, installed plans, refreshes,
 initialization queue/start/completion or rejection, retirement, lease release,
 and first submission. Installed-plan events include assigned, retiring, and
@@ -920,12 +936,17 @@ was already used. `presentation-completion-wait` measures the delay from the
 first such deferral to the next service opportunity and reports whether scene
 state blocked that opportunity. It does not measure a particular tile's latency
 or establish that additional passes would improve throughput.
+Ring writes are constant-time; chronological arrays/JSON are produced only on
+inspection. `trace-overflow` reports overwritten counts. High-volume timing and
+scroll samples cannot evict initialization/retirement evidence from the causal
+ring. The former `pax_tile_debug` console stream has been removed; use this
+bounded inspector for admission, installation, capacity and retirement evidence.
 Tracing is opt-in and sends no data anywhere. Profile component mounting and
 image decoding separately; graphics admission cannot remove those costs. The isolated
 `examples/fixtures/surface-scheduling` fixture has no external images.
 
 Admission events include each tile's owner, local `[left, top, width, height]`,
-rank, and submitted-readiness flag, plus separate borrowed reverse/forward pixels and the
+rank, and submitted-readiness flag, plus borrowed reverse/forward/other pixels and the
 borrowing ceiling. These distinguish allocated depth from submitted coverage;
 the farthest ready tile alone does not establish a gap-free forward buffer.
 Retirement events distinguish a tile omitted from current candidates
@@ -936,8 +957,13 @@ without treating surface submission as proof that all image content is ready.
 
 Open **Surface trace snapshot** in the corner to inspect the bounded event log;
 close and reopen it to refresh. `visible-unready` transitions preserve transient
-gaps even after the view settles. Add `&pax_scroll_perf=1` to include frame phases
-taking over 20ms, including individual `tick.*` phases. `settled-presentation`
+gaps even after the view settles. Add `&pax_scroll_perf=1` to include `frame-summary`
+phase aggregates (count, total and maximum CPU milliseconds), including individual
+`tick.*` phases. Repeated continuations share one display epoch. Parent timings
+include subphases: do not add `tick` to its `tick.*` children, or host time to
+runtime time, as if they were disjoint. No persistent browser performance-measure
+entries are created. Admission snapshots record membership/class/readiness changes,
+not continuously changing distances. `settled-presentation`
 events report started initializations, recorded drawings, submitted/deferred jobs,
 cache misses, atomic fallbacks, and CPU elapsed time for preparation. The `source`
 field distinguishes `ordinary-visible`, `ordinary-remaining`, and `completion`
@@ -961,11 +987,21 @@ task still blocks the host.
 `occlusion-work` includes cumulative native-compositing counters and a `delta`
 since the preceding report. Rebuild reason/node and up to eight aggregated
 structural-invalidation call sites are reported only when that interval contains
-a rebuild. The call-site records include a representative node and count; they
+a rebuild or a retained structural reconciliation. The call-site records include a representative node and count; they
 are bounded diagnostics, not an exhaustive call log. Do not interpret cumulative
 record counts or a historical rebuild as work performed in the current frame.
-`records_updated`, `masks_evaluated`, and `mask_candidates` count incremental
-work only; a structural rebuild can be expensive even when those deltas are zero.
+`structural_reconciliations` counts edits handled without replacing stable
+coverage records; `records_retained` counts reused records and `orders_updated`
+counts order-only assignments. `records_updated`, `masks_evaluated`, and
+`mask_candidates` count localized work, including that following a retained
+structural reconciliation; a full rebuild can still be expensive when those
+deltas are zero. Timings split native compositing into `tick.occlusion.topology`,
+`tick.occlusion.coverage`, `tick.occlusion.masks`, and (on full rebuild)
+`tick.occlusion.index`. Sum these with the final `tick.occlusion` remainder
+to compare total occlusion time. `render.order` measures retained order updates
+separately from geometry, lighting, and drawing.
+Structural `occlusion-work` entries also include these occlusion phase durations
+under `phases`, even when each is below the 20ms slow-phase threshold.
 Runtime timings distinguish `tick.property_import`, `tick.property_cleanup`,
 and `tick.property_effects` from `tick.imperative_update`, `tick.tick_handlers`,
 and `tick.pre_render_handlers`. Import/cleanup/effect phases can occur several
@@ -992,8 +1028,8 @@ programmatic scroll input, not a physical touch/momentum test or a capture of
 every compositor-presented frame. Continuous input can still expose preparation
 delays that this probe misses, because its input stops while the main thread is
 busy. Native scrolling does not. With both diagnostic flags enabled,
-`scroll-sample` records observed offsets and `scroll-phase` records phase timings
-through a 250ms tail after observed movement. These measurements start when the
+`scroll-sample` records observed offsets and `frame-summary` aggregates phase timings
+without duplicate probe/scroll timing events. These measurements start when the
 main thread samples movement, not when the compositor first displays it.
 `scroll-reversal` identifies per-axis direction changes between observed offsets;
 subpixel changes of at most 0.1 local units are ignored. Surface lifecycle events
@@ -1018,12 +1054,13 @@ the compositor first moved pixels or identifies a physical gesture boundary.
 Use actual wheel/trackpad input for this test: the programmatic probe does not
 exercise a cancellable wheel listener.
 
-For an explicit diagnostic comparison only, add `&pax_wheel_passive=1` alongside
-both flags. This makes the global wheel listener passive while still dispatching
+For an explicit diagnostic comparison only, add `&pax_wheel_passive=1`.
+This makes the global wheel listener passive while still dispatching
 Pax handlers. **Wheel cancellation is disabled in this mode**: do not use it to
 validate custom wheel controls or scroll-blocking behavior, or as a deployment
-setting. Without both tracing flags, it has no effect. The normal path retains
-synchronous cancellation and performs no per-wheel timing. Compare the same
+setting. The switch is independent of tracing, so an overhead comparison can
+disable tracing without also changing input behavior. Without both tracing flags,
+no per-wheel timing is performed. The normal path retains synchronous cancellation. Compare the same
 content, warmed state, and input sequence; passive handlers may still be delivered
 late while the browser scrolls independently, so handler delay alone cannot prove
 or disprove smoother presentation.
@@ -1044,6 +1081,13 @@ neither promises an intervening paint. A complex layer or tile can exceed the
 slice. Unsupported or inseparable drawing takes the existing atomic full-tree
 fallback rather than weakening clips, masks, or group opacity.
 
+Each ordinary layer validates and draws from one current, ancestor-complete
+traversal plan. Dirty paths on unrelated layers are not repeatedly validated
+while that layer is serviced. The plan is consumed before yielding, so a later
+unit observes current ancestry and still falls back if its own path is
+inseparable. Submissions with no dirty nodes, such as lighting-only updates or
+completed retained removals, need no traversal plan.
+
 Application ticks, reactive settlement, native updates, and render setup remain
 atomic. Continuations sample current input and refresh surface demand; changes
 that require scene settlement wait for the next normal tick. They do not advance
@@ -1060,12 +1104,19 @@ Preparation retains its separate 4ms soft allowance and guaranteed first unit,
 shared by all services in one display-frame epoch, including completion-driven
 wakeups and extra property-driven ticks. A continuation cannot replenish that
 allowance. Async image decoding and GPU execution remain outside CPU accounting.
+Speculative work cannot consume the first urgent visible progress opportunity:
+if the allowance has already been spent before visible work arrives, one urgent
+initialization or complete tile submission can still progress in that display
+epoch. Extra callbacks/ticks do not replenish this opportunity. An expensive unit
+can overrun and yield, but does not inflate a shared historical estimate that
+blocks cheap operations in subsequent frames. This does not synchronously drain
+all urgent work or impose the preparation limit on ordinary rendering.
 The resumable service lives in the shared runtime, but this host-task policy is
 currently wired only into Web; native chassis retain their existing scheduling.
 
-With `pax_surface_trace=1`, `render-work` reports service CPU time, complete unit
-counts, the slowest atomic unit, full-tree fallback counts, and reasons for
-blocking or exhausting preparation allowance. `hostElapsedMs` also includes the
+With `pax_surface_trace=1`, `frame-summary.renderWork` aggregates service CPU time,
+complete unit counts, the slowest atomic unit, full-tree fallback counts, and
+reasons for blocking or exhausting preparation allowance. `hostMs` also includes the
 continuation's input sampling and layout synchronization. These measurements do
 not measure compositor movement or GPU completion. Check readiness gaps as well
 as input delay: shorter tasks are not a successful trade if visible content

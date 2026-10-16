@@ -21,7 +21,7 @@ test('compositing diagnostics report work deltas without attributing old rebuild
     const pool = Object.create(NativeElementPool.prototype);
     const events = [];
     pool.surfaceTrace = {record: (kind, data) => events.push({kind, data})};
-    const first = {passes:4, rebuilds:2, records_updated:3000, masks_evaluated:500,
+    const first = {passes:4, rebuilds:2, structural_reconciliations:1, records_retained:2000, orders_updated:1000, records_updated:3000, masks_evaluated:500,
         mask_candidates:900, rebuild_reason:'structure', rebuild_node:null,
         rebuild_origins:[{file:'scene.rs',line:12,node:10,count:2}]};
     pool.recordSurfaceCompositing(first);
@@ -29,10 +29,20 @@ test('compositing diagnostics report work deltas without attributing old rebuild
     assert.equal(events.length, 2);
     const second = events[1].data;
     assert.deepEqual(JSON.parse(JSON.stringify(second.delta)), {
-        passes:1,rebuilds:0,records_updated:4,masks_evaluated:2,mask_candidates:6,
+        passes:1,rebuilds:0,structural_reconciliations:0,records_retained:0,orders_updated:0,records_updated:4,masks_evaluated:2,mask_candidates:6,
     });
     assert.equal(second.rebuild_reason, null);
     assert.equal(second.rebuild_origins.length, 0);
+    pool.recordSurfaceCompositing({...first,passes:6,structural_reconciliations:2,
+        records_retained:4000,orders_updated:1900,rebuild_reason:'structure-reconciled'},
+        [['property_effects', 12], ['occlusion.topology', 2], ['occlusion.coverage', 0.5], ['occlusion.masks', 1], ['occlusion', 0]]);
+    assert.equal(events[2].data.delta.structural_reconciliations, 1);
+    assert.equal(events[2].data.delta.records_retained, 2000);
+    assert.equal(events[2].data.delta.orders_updated, 900);
+    assert.equal(events[2].data.rebuild_reason, 'structure-reconciled');
+    assert.equal(events[2].data.rebuild_origins.length, 1);
+    assert.deepEqual(JSON.parse(JSON.stringify(events[2].data.phases)),
+        [['occlusion.topology', 2], ['occlusion.coverage', 0.5], ['occlusion.masks', 1], ['occlusion', 0]]);
 });
 
 test('planning measures a shared clip once per pass, never reuses it across passes', () => {

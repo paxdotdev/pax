@@ -80,7 +80,6 @@ export class NativeElementPool {
     private surfaceCoordinator?: SurfaceCoordinator;
     private surfaceTrace?: SurfaceTrace;
     private imageLoader?: ImageLoader;
-    private lastTraceDecision?: string;
     private admittedPlans = new Map<number, LayerCanvasPlan>();
     private lastAdmissionSignature?: string;
     private layerCanvasPlanCache = new Map<number, LayerCanvasPlan | null>();
@@ -245,7 +244,6 @@ export class NativeElementPool {
         this.surfaceCoordinator = undefined;
         this.surfaceTrace?.dispose();
         this.surfaceTrace = undefined;
-        this.lastTraceDecision = undefined;
         this.admittedPlans.clear();
         this.lastAdmissionSignature = undefined;
         this.layerCanvasPlanCache.clear();
@@ -1937,16 +1935,12 @@ export class NativeElementPool {
         this.canvasPool?.setBackingLimit(shared.backingLimit);
         if (this.surfaceTrace) {
             this.surfaceTrace.observeDemand(candidates, decision.denied);
-            const detail = JSON.stringify({admitted: decision.admitted.map(c => ({id: c.surface.id, rank: c.rank,
-                    owner: c.branch, rect: [c.surface.left, c.surface.top, c.surface.width, c.surface.height]})),
-                denied: decision.denied, pendingCount, pendingLayers: [...pendingLayers], resources,
+            this.surfaceTrace.recordAdmission(decision.admitted, decision.denied, {
+                pendingCount, pendingLayers: [...pendingLayers], resources,
                 borrowedForwardPixels: shared.borrowedForwardPixels,
                 borrowedReversePixels: shared.borrowedReversePixels, borrowingLimit: shared.borrowingLimit,
+                borrowedOtherPixels: shared.borrowedOtherPixels,
                 backingPixels: shared.backingPixels, optionalPixels: shared.optionalPixels});
-            if (detail !== this.lastTraceDecision) {
-                this.surfaceTrace.record('admission', JSON.parse(detail));
-                this.lastTraceDecision = detail;
-            }
         }
         this.admittedPlans = decision.plans;
         const selectedHosts = new Set<number>();
@@ -1978,7 +1972,7 @@ export class NativeElementPool {
             this.lastAdmissionSignature = signature;
             this.surfaceRefreshPending = true;
         }
-        if (this.mount) {
+        if (this.mount && this.surfaceTrace) {
             this.mount.dataset.surfaceDemand = String(candidates.length);
             this.mount.dataset.surfaceAdmitted = String(decision.admitted.length);
             this.mount.dataset.surfaceBudgetState = decision.overloaded ? "visible-demand-exceeds-budget" : "within-budget";
@@ -1988,16 +1982,19 @@ export class NativeElementPool {
             this.mount.dataset.surfaceBackingLimit = String(shared.backingLimit);
             this.mount.dataset.surfaceBorrowedForwardPixels = String(shared.borrowedForwardPixels);
             this.mount.dataset.surfaceBorrowedReversePixels = String(shared.borrowedReversePixels);
+            this.mount.dataset.surfaceBorrowedOtherPixels = String(shared.borrowedOtherPixels);
         }
         return true;
     }
+
+    beginTraceFrame(epoch: number) { this.surfaceTrace?.beginFrame(epoch); }
 
     recordSurfaceFramePhase(phase: string, duration: number) {
         this.surfaceTrace?.recordPhase(phase,duration);
     }
 
     recordRenderWork(report: object, hostElapsedMs: number) {
-        this.surfaceTrace?.record('render-work', {...report, hostElapsedMs});
+        this.surfaceTrace?.recordRenderWork(report, hostElapsedMs);
     }
 
     recordNativeMessageBatch(types: import('./native-message-profile').NativeMessageTiming[]) {
@@ -2008,23 +2005,29 @@ export class NativeElementPool {
         this.surfaceTrace?.recordWheelInput(sample);
     }
 
-    private lastCompositingWork?: {passes: number; rebuilds: number; records_updated: number; masks_evaluated: number; mask_candidates: number};
-    recordSurfaceCompositing(report: {passes: number; rebuilds: number; records_updated: number; masks_evaluated: number; mask_candidates: number; rebuild_reason: string | null; rebuild_node: number | null; rebuild_origins?: unknown}) {
+    private lastCompositingWork?: {passes: number; rebuilds: number; structural_reconciliations: number; records_retained: number; orders_updated: number; records_updated: number; masks_evaluated: number; mask_candidates: number};
+    recordSurfaceCompositing(report: {passes: number; rebuilds: number; structural_reconciliations: number; records_retained: number; orders_updated: number; records_updated: number; masks_evaluated: number; mask_candidates: number; rebuild_reason: string | null; rebuild_node: number | null; rebuild_origins?: unknown}, phases: [string, number][] = []) {
         if (!this.surfaceTrace) return;
         const previous = this.lastCompositingWork;
         if (previous?.passes === report.passes) return;
         const delta = {
             passes: report.passes - (previous?.passes ?? 0),
             rebuilds: report.rebuilds - (previous?.rebuilds ?? 0),
+            structural_reconciliations: report.structural_reconciliations - (previous?.structural_reconciliations ?? 0),
+            records_retained: report.records_retained - (previous?.records_retained ?? 0),
+            orders_updated: report.orders_updated - (previous?.orders_updated ?? 0),
             records_updated: report.records_updated - (previous?.records_updated ?? 0),
             masks_evaluated: report.masks_evaluated - (previous?.masks_evaluated ?? 0),
             mask_candidates: report.mask_candidates - (previous?.mask_candidates ?? 0),
         };
         this.surfaceTrace.record('occlusion-work', {...report, delta,
             // Historical rebuild metadata is not a cause for this pass.
-            rebuild_reason: delta.rebuilds ? report.rebuild_reason : null,
+            rebuild_reason: delta.rebuilds || delta.structural_reconciliations ? report.rebuild_reason : null,
             rebuild_node: delta.rebuilds ? report.rebuild_node : null,
-            rebuild_origins: delta.rebuilds ? report.rebuild_origins : [],
+            rebuild_origins: delta.rebuilds || delta.structural_reconciliations ? report.rebuild_origins : [],
+            phases: delta.rebuilds || delta.structural_reconciliations
+                ? phases.filter(([phase]) => phase === 'occlusion' || phase.startsWith('occlusion.'))
+                : undefined,
         });
         this.lastCompositingWork = {...report};
     }
