@@ -42,6 +42,7 @@ struct CommonMetadata {
 
 #[derive(Debug, Clone, Default)]
 struct WebMetadata {
+    yield_mount: bool,
     background_color: Option<String>,
     title: Option<String>,
     icon: Option<String>,
@@ -404,6 +405,15 @@ fn parse_common_metadata(
 
 fn parse_web_metadata(table: &Table, path: &str) -> Result<WebMetadata, eyre::Report> {
     let metadata = WebMetadata {
+        yield_mount: table
+            .get("yield_mount")
+            .map(|value| {
+                value
+                    .as_bool()
+                    .ok_or_else(|| eyre!("`{path}.yield_mount` must be a boolean"))
+            })
+            .transpose()?
+            .unwrap_or(false),
         background_color: parse_web_background_color(table, path)?,
         server_owned_prefixes: parse_server_owned_prefixes(table, path)?,
         title: string_field(table, "title", &format!("{path}.title"))?,
@@ -591,11 +601,12 @@ fn apply_web_metadata(pax_dir: &Path, metadata: &PaxProjectMetadata) -> Result<(
         html = set_or_insert_favicon_link(&html, &favicon_href);
     }
     html = set_web_background_color(&html, metadata.web.background_color.as_deref())?;
-    html = set_web_navigation_config(&html, metadata.web_server_owned_prefixes())?;
+    html = set_web_config(&html, metadata.web_server_owned_prefixes(), metadata.web.yield_mount)?;
     fs::write(
         interface_path.join("pax-web-config.json"),
         serde_json::to_vec(&json!({
-            "server_owned_prefixes": metadata.web_server_owned_prefixes()
+            "server_owned_prefixes": metadata.web_server_owned_prefixes(),
+            "yield_mount": metadata.web.yield_mount
         }))?,
     )?;
     fs::write(index_path, html)?;
@@ -644,13 +655,16 @@ fn set_web_background_color(html: &str, color: Option<&str>) -> Result<String, e
     Ok(html)
 }
 
-fn set_web_navigation_config(html: &str, prefixes: &[String]) -> Result<String, eyre::Report> {
+fn set_web_config(html: &str, prefixes: &[String], yield_mount: bool) -> Result<String, eyre::Report> {
     const START: &str = "<!-- pax-web-config:start -->";
     const END: &str = "<!-- pax-web-config:end -->";
     // JSON is data, not executable bootstrap code. Escape '<' so a configured
     // path cannot terminate the script element, including in custom interfaces.
-    let json =
-        serde_json::to_string(&json!({"server_owned_prefixes": prefixes}))?.replace('<', "\\u003c");
+    let json = serde_json::to_string(&json!({
+        "server_owned_prefixes": prefixes,
+        "yield_mount": yield_mount
+    }))?
+    .replace('<', "\\u003c");
     let block = format!(
         "{START}\n<script type=\"application/json\" id=\"pax-web-config\">{json}</script>\n{END}\n"
     );
@@ -1008,18 +1022,45 @@ mod tests {
     fn navigation_config_is_safe_json_and_replaced_on_rebuild() {
         let html = "<html><head></head><body>app</body></html>";
         let updated =
-            set_web_navigation_config(html, &["/</script><script>alert(1)</script>".into()])
-                .unwrap();
+            set_web_config(html, &["/</script><script>alert(1)</script>".into()], false).unwrap();
         assert_eq!(updated.matches("</script>").count(), 1);
         assert!(updated.contains("\\u003c/script>"));
-        let updated = set_web_navigation_config(&updated, &["/blog".into()]).unwrap();
+        let updated = set_web_config(&updated, &["/blog".into()], false).unwrap();
         assert_eq!(updated.matches("id=\"pax-web-config\"").count(), 1);
-        assert!(updated.contains(r#"{"server_owned_prefixes":["/blog"]}"#));
+        assert!(updated.contains(r#"{"server_owned_prefixes":["/blog"],"yield_mount":false}"#));
         assert!(!updated.contains("alert"));
         assert_eq!(
             updated,
-            set_web_navigation_config(&updated, &["/blog".into()]).unwrap()
+            set_web_config(&updated, &["/blog".into()], false).unwrap()
         );
+    }
+
+    #[test]
+    fn yielded_startup_is_validated_and_removed_on_rebuild() {
+        let dir = tempfile::tempdir().unwrap();
+        let interface = dir.path().join(INTERFACE_DIR_NAME).join("web");
+        fs::create_dir_all(&interface).unwrap();
+        fs::write(
+            interface.join("index.html"),
+            "<html><head></head><body></body></html>",
+        )
+        .unwrap();
+        let metadata = load("[package.metadata.pax.web]\nyield_mount = true");
+        apply_web_metadata(dir.path(), &metadata).unwrap();
+        let config: serde_json::Value =
+            serde_json::from_slice(&fs::read(interface.join("pax-web-config.json")).unwrap()).unwrap();
+        assert_eq!(config["yield_mount"], true);
+        assert!(fs::read_to_string(interface.join("index.html"))
+            .unwrap()
+            .contains("\"yield_mount\":true"));
+        apply_web_metadata(dir.path(), &load("[package]\nname = \"app\"")).unwrap();
+        assert!(fs::read_to_string(interface.join("index.html"))
+            .unwrap()
+            .contains("\"yield_mount\":false"));
+        for invalid in ["\"true\"", "1", "[]"] {
+            let source = format!("[package.metadata.pax.web]\nyield_mount = {invalid}");
+            assert!(load_project_metadata_from_toml(dir.path(), &source).is_err());
+        }
     }
 
     #[test]
@@ -1045,7 +1086,7 @@ mod tests {
             vec!["/blog"]
         );
         let html = fs::read_to_string(interface.join("index.html")).unwrap();
-        assert!(html.contains(r#"{"server_owned_prefixes":["/blog"]}"#));
+        assert!(html.contains(r#"{"server_owned_prefixes":["/blog"],"yield_mount":false}"#));
         apply_web_metadata(dir.path(), &load("[package]\nname = \"app\"")).unwrap();
         assert!(load_web_server_owned_prefixes(&interface)
             .unwrap()

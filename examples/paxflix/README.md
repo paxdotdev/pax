@@ -42,6 +42,10 @@ with a local HTTP server; opening its HTML as a file does not load Wasm correctl
 
 ## Design and structure
 
+Titles use Georgia and UI text uses Arial. These system font families preserve
+the demo's typography without web-font downloads; platforms without them use
+their system fallback.
+
 ### Embedding the live app
 
 `Paxflix` can also be imported as a component through a Cargo path dependency.

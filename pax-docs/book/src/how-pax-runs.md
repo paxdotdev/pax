@@ -204,39 +204,123 @@ gives the runtime explicit dependencies to work with. See
 
 ### Experimental resumable startup on web
 
-Add `?pax_mount_yield=1` to a web application's URL to try incremental initial
-mounting. Leave it out to use the synchronous startup path. This is an opt-in
-experiment for development and release web cartridges; Apple chassis do not
-enable it. It adds no template syntax or baked manifest fields.
+Set `yield_mount = true` under `[package.metadata.pax.web]` to use incremental
+initial mounting on ordinary URLs. It defaults to false; custom JavaScript hosts
+can override the generated setting with `init_web({..., yieldMount: true})`.
+For diagnostics, `?pax_mount_yield=1` forces it on and `?pax_mount_yield=0` forces
+it off, taking precedence over both settings. Other query values are ignored.
+This remains experimental for development and release web cartridges; Apple
+chassis do not enable it. The host resolves the option once and passes it into
+either cartridge's initializer. It adds no template syntax or baked manifest
+fields; rebuild the host after changing Cargo metadata.
 
-The web host services mount continuations and reactive effects in regular browser
-tasks, targeting 4 ms of engine work per call. It uses `scheduler.yield()` when
-available and a MessageChannel task otherwise. Browser animation frames publish
+The web host services mount continuations, reactive effects, and native patches
+in regular MessageChannel tasks, sharing a 4 ms soft budget per call. Native
+patches retain their order, and each batch drains before the engine produces
+another. Ordinary tasks leave opportunities for font downloads and resize events
+to deliver feedback during mounting. Browser animation frames publish
 completed scene work. A service call does not itself advance the application
 frame clock or repeat `@mount`, `@tick`, or `@pre_render` handlers. Wall time still
 passes during initialization, so this does not pause elapsed-time animations.
-The `init_web` Promise still waits for mounting to finish; aborting its signal
-cancels pending slices and rejects initialization while cleanup proceeds.
+The `init_web` Promise waits for mounting and the initial presentation gate;
+aborting its signal cancels pending slices and rejects initialization while
+cleanup proceeds.
 
 Native patches can reach the browser between calls so hidden text can load fonts
 and return measurements. Text responses retain their request-generation checks.
-Viewport and native scroll state also continue updating. Application input is
+Viewport and native scroll state also continue updating. Responsive layout should
+derive from reactive bounds rather than copy them in `@pre_render`: startup
+feedback does not rerun application lifecycle handlers. Application input is
 queued with its existing recipients' mount lifetimes; removed or remounted
 recipients are skipped. Browser default actions for queued input are suppressed
 at capture time, and clicks on the unpublished background do not later target
 new controls. The queue drains in order, one event per ordinary frame after
 startup; consecutive pointer moves may be coalesced.
 
-This first checkpoint still waits for the entire initial logical tick to settle
-before revealing the scene. Native controls remain measurable behind a visibility
-gate during that work. It does **not** yet publish independently ready viewport
-regions, prioritize visible nodes, or defer offscreen lifecycle indefinitely.
-Every selected initial branch is eventually visited. Individual callbacks,
-structural dependency groups, scene reconciliation, native patch processing, and
-rendering can exceed the soft budget; subsequent ordinary ticks remain synchronous.
-Use this to investigate responsiveness, not as a guarantee of faster first paint
-or a strict per-frame time bound. In particular, timing-dependent application
-initialization can change the amount of work performed between comparison runs.
+The first presentation prioritizes the initial viewport. A node with a known
+outer box entirely outside that viewport can defer its whole subtree; this
+coarse heuristic does not search descendants for transformed visual overflow.
+Unknown dimensions remain candidates for traversal. Selection continues recursively
+through visible containers: an autosized outer container does not by itself
+require mounting its entire content. A start-aligned Stacker with a fixed cross
+axis resolves a visible prefix, accepting native measurements before deciding
+whether another child is needed. A child that already covers the viewport can
+keep its trailing content deferred. If a following child is needed, the preceding
+child's exact main-axis extent becomes a dependency and is resolved first.
+Centered, rotated, reversed, or cross-axis-measured flows conservatively require
+complete content. Scroller's total scroll extent can grow as deferred content
+mounts; it is separate from its viewport and child layout frame.
+
+When a custom container feeds a child's size back into an ancestor, subscribe to
+`NodeInterface::measured_size_property()` and wait for `Some(size)`. Layout bounds
+can still be provisional and inherited from the parent while the child is
+unmeasured. Treating those bounds as content measurements can create a feedback
+loop, especially when adding padding. An autosize measurement can grow as more
+content mounts; it does not by itself certify that the whole subtree is complete.
+
+Components describe these dependencies through the experimental
+`InstanceNode::plan_startup` hook. A `StartupPlan` combines a visible region,
+exact measurement axes, and complete-subtree requirements. The scheduler owns
+continuations, native measurement checkpoints, and mount-lifetime checks; it does
+not identify component types. Mask forwards visibility into its content subtree
+and requires its complete detached source subtree before first presentation.
+A resolved empty alpha source hides the content rather than exposing it unmasked.
+
+Rust components can register a planner in their mount handler with
+`NodeContext::set_startup_planner`. For example, a component whose children must
+all be available together can conservatively request them with:
+
+```rust,ignore
+use pax_runtime::engine::startup::StartupDemand;
+
+ctx.set_startup_planner(|_node, plan| {
+    plan.require_children(StartupDemand::complete());
+});
+```
+
+More selective planners can forward the inherited request with
+`plan.forward_children()` and add requirements for individual children with
+`plan.require(child, demand)`. Requirements accumulate, and a complete-subtree
+request cannot be weakened by a descendant. Planners describe work; they must
+not mount nodes or invoke application handlers. Callbacks are scoped to the
+current mount and discarded after first presentation; use weak node references
+in captures. This is an experimental runtime API, not a new template property.
+
+Before this first reveal, native Text fonts and their latest measurements must
+settle, followed by a browser layout opportunity and another readiness check.
+Feedback can promote deferred work if layout or viewport size changes. Font
+failures permit fallback; slow fonts can delay the first reveal. Native controls
+remain measurable behind the visibility gate.
+
+After the first reveal, all remaining branches mount eagerly in bounded slices.
+Native leaves appear as their own readiness permits; canvas drawing is published
+once the remaining scene reaches a settled checkpoint. The whole-scene visibility
+gate stays open.
+The final readiness check holds application input and the `init_web` Promise,
+without hiding already presented content. These checkpoints do not advance an
+application tick for each slice or repeat the initial handlers on existing nodes.
+Animations driven by those handlers can remain in their initial pose until
+ordinary ticks resume; early presentation does not imply that their entrance
+animation has completed.
+This is startup prioritization, not ongoing viewport virtualization: every
+selected branch eventually mounts and remains subject to ordinary lifecycle.
+
+Individual callbacks, structural dependency groups, scene reconciliation, a
+single native patch, and rendering can exceed the soft budget; subsequent
+ordinary ticks remain synchronous. Use this to investigate responsiveness, not
+as a strict per-frame time bound or a promise of unchanged visible layout under
+arbitrary mount-handler side effects. A large required measurement subtree can
+still delay the first presentation. Timing-dependent application initialization
+can change the amount of work performed between comparison runs.
+
+For a diagnostic preview with yielded mounting enabled, add
+`?pax_startup_preview=1`. This removes the blanket visibility gate: native text
+appears after its own font/measurement readiness, and other native elements can
+appear as their patches arrive. Canvas drawing still requires the engine to
+settle, but can appear before all text is ready. Layout shifts, incomplete
+clipping, and native/canvas mismatches may be visible. This bypasses the normal
+first-viewport presentation gate. Application input and the `init_web` Promise still wait for full startup readiness. Omit the
+preview flag for the coordinated first reveal followed by progressive startup.
 
 ## One scene, multiple surfaces
 

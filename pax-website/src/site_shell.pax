@@ -45,7 +45,6 @@
 
 @settings {
     @mount: handle_mount
-    @pre_render: handle_pre_render
     .shell_nav_bg {
         fill: {SiteTheme::ink()}
         stroke: Stroke {

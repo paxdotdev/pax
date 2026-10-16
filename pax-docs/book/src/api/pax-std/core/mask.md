@@ -36,6 +36,9 @@ Source components have a normal logical lifetime: their templates expand,
 mount handlers initialize state, reactive changes and animation remain live,
 and unmount releases their descendants and subscriptions. This allows a
 `Handwriter` (including its animated draw range) to supply the mask directly.
+During yielded web startup, Mask requires its complete source before first
+presentation while selecting visible content recursively. Offscreen content
+can mount afterward without exposing an unresolved source as an unmasked fill.
 Source nodes are not presented or hit-tested. Native leaves, including
 Handwriter's selectable text equivalent, do not create native surfaces; keep
 meaningful accessible text outside the mask. User mount side effects still run.

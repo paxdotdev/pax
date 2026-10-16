@@ -9,6 +9,7 @@ function load(name, context) {
     return module.exports;
 }
 const {InitialTextPresentation} = load('initial-text-presentation', {});
+const font = ready => {const load = () => ready; return {getTextLoader: () => load, applyFontToDiv() {}};};
 const drain = async () => { for (let i = 0; i < 6; ++i) await Promise.resolve(); };
 function harness() {
     let callback;
@@ -17,6 +18,8 @@ function harness() {
     const makeDiv = () => ({style: {}, dataset: {}, attrs: {}, isConnected: true,
         setAttribute(k,v) {this.attrs[k]=v;}, getAttribute(k) {return this.attrs[k];},
         addEventListener() {}, appendChild(n) {this.firstChild=n;}, focus() {focused.push(this);},
+        textContent: "Example",
+        querySelectorAll() {return this.hasLinks ? [{textContent: "Link"}] : [];},
         querySelector() {return this.hasLinks ? {} : null;},
         parentElement: {removeChild(n) {n.isConnected=false;}},
     });
@@ -41,7 +44,7 @@ function harness() {
 test('fallback metrics settle hidden layout; loaded metrics govern first presentation', async () => {
     const h=harness(); let resolve;
     const ready = new Promise(r=>resolve=r);
-    const patch={id:1, size_x:100, size_y:-1, measure_generation:7, style:{font:{ready,applyFontToDiv(){}}}};
+    const patch={id:1, size_x:100, size_y:-1, measure_generation:7, style:{font:font(ready)}};
     h.pool.textUpdate(patch);
     patch.id=999; // Production patch instances are returned to their object pool.
     h.measure(); h.pool.finishTextFrame();
@@ -71,7 +74,7 @@ test('editable initial text focuses only after becoming visible', () => {
 test('deleted text ignores late font completion and measurement delivery', async () => {
     const h=harness(); let resolve;
     const ready = new Promise(r=>resolve=r);
-    h.pool.textUpdate({id:1, size_x:100, size_y:-1, measure_generation:1, style:{font:{ready,applyFontToDiv(){}}}});
+    h.pool.textUpdate({id:1, size_x:100, size_y:-1, measure_generation:1, style:{font:font(ready)}});
     h.pool.textDelete(1);
     resolve(); await drain(); h.measure(); h.pool.finishTextFrame();
     assert.equal(h.observed.size,0);
@@ -91,8 +94,8 @@ test('a burst of font readiness notifications requests one engine frame', async 
 test('a partial main-style update still waits for the existing link font', async () => {
     const h=harness(); let resolve;
     h.leaf.firstChild.hasLinks=true;
-    const main = {ready: Promise.resolve(), applyFontToDiv() {}};
-    const link = {ready: new Promise(r=>resolve=r), applyFontToDiv() {}};
+    const main = font(Promise.resolve());
+    const link = font(new Promise(r=>resolve=r));
     h.pool.textUpdate({id:1,size_x:100,size_y:20,style:{font:main},style_link:{font:link}});
     h.pool.textUpdate({id:1,style:{font:main,font_size:22}});
     await drain(); h.pool.finishTextFrame(); h.pool.finishTextFrame();
@@ -104,9 +107,58 @@ test('a partial main-style update still waits for the existing link font', async
 
 test('plain text does not wait for an unused link font', async () => {
     const h=harness();
-    const main = {ready: Promise.resolve(), applyFontToDiv() {}};
-    const link = {ready: new Promise(() => {}), applyFontToDiv() {}};
+    const main = font(Promise.resolve());
+    const link = font(new Promise(() => {}));
     h.pool.textUpdate({id:1,size_x:100,size_y:20,style:{font:main},style_link:{font:link}});
     await drain(); h.pool.finishTextFrame(); h.pool.finishTextFrame();
     assert.equal(h.leaf.style.visibility,'');
+});
+
+test('startup waits for the latest measurement, then reveals without extra application ticks', async () => {
+    const h = harness(); let resolve;
+    const ready = new Promise(r => resolve = r);
+    h.pool.textUpdate({id:1,size_x:100,size_y:-1,measure_generation:1,style:{font:font(ready)}});
+    h.measure();
+    assert.equal(h.pool.startupTextReady(), false);
+    resolve(); await drain();
+    assert.equal(h.pool.startupTextReady(), false, 'loaded font needs a fresh measurement');
+    h.measure();
+    assert.equal(h.pool.startupTextReady(), true);
+    h.pool.textUpdate({id:1,size_x:120,measure_generation:2});
+    assert.equal(h.pool.startupTextReady(), false, 'resize invalidates previously ready text');
+    h.measure(120,20);
+    assert.equal(h.pool.startupTextReady(), true);
+    h.pool.finishTextFrame(true);
+    assert.equal(h.leaf.style.visibility, '');
+    assert.equal(h.pool.pendingTextPresentation.size, 0);
+});
+
+test('previewed text still holds startup open for a new measurement generation', async () => {
+    const h = harness();
+    h.pool.textUpdate({id:1,size_x:100,size_y:-1,measure_generation:1});
+    h.measure(); await drain();
+    h.pool.finishTextFrame(); h.pool.finishTextFrame();
+    assert.equal(h.leaf.style.visibility, '');
+    assert.equal(h.pool.pendingTextPresentation.size, 0);
+    h.pool.textUpdate({id:1,size_x:120,measure_generation:2});
+    assert.equal(h.pool.startupTextReady(), false);
+    h.measure(120,20);
+    assert.equal(h.pool.startupTextReady(), true);
+});
+
+
+test('content changes load the new unicode subset and ignore stale readiness', async () => {
+    const h = harness(), requests = [], completions = [];
+    const load = text => { requests.push(text); return new Promise(resolve => completions.push(resolve)); };
+    const style = {font: {getTextLoader: () => load, applyFontToDiv() {}}};
+    h.leaf.firstChild.textContent = 'Latin';
+    h.pool.textUpdate({id: 1, size_x: 100, size_y: 20, style});
+    h.leaf.firstChild.textContent = 'Ж';
+    h.pool.textUpdate({id: 1});
+    completions[0](); await drain();
+    assert.equal(h.pool.startupTextReady(), false);
+    completions[1](); await drain();
+    assert.equal(h.pool.startupTextReady(), true);
+    h.pool.textUpdate({id: 1, style});
+    assert.deepEqual(requests, ['Latin', 'Ж'], 'unchanged content/style does not reset readiness');
 });

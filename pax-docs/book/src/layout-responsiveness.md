@@ -375,6 +375,26 @@ A width supplied by the caller is a clear input for choosing the component's
 internal arrangement. [Properties](state-properties.md#computed-properties)
 explains the dependency model.
 
+`bounds_self` carries both dimensions. When a component also feeds an autosized
+height back to its parent, even a formula that reads only the width can form a
+cycle through those shared bounds. For a layout policy that converges through
+measurement feedback, use a mount-owned subscription instead:
+
+```rust
+let bounds = ctx.bounds_self.clone();
+let compact = self.compact.local();
+let deps = [bounds.untyped()];
+let update = move || { compact.set_if_neq(bounds.get().0 < 720.0); };
+update();
+ctx.subscribe(&deps, update);
+```
+
+The initial call supplies the policy before descendants mount. Subsequent
+changes settle through the reactive queue, including during
+[yielded web startup](how-pax-runs.md#experimental-resumable-startup-on-web),
+without requiring another `@pre_render`. Only write when the result changes;
+an oscillating size policy still needs its layout dependencies redesigned.
+
 ### Shared visual settings
 
 Classes keep repeated visual choices together, and conditional settings can

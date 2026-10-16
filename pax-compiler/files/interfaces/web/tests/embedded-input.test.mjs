@@ -58,3 +58,15 @@ test('late sensor permission cannot reattach callbacks after disposal', async ()
     assert.equal(h.window.paxRequestDeviceSensorPermissions, undefined);
     assert.equal(h.interrupts.length, 0);
 });
+
+test('click and wheel still reach Pax when a transparent native leaf is not the DOM target', () => {
+    const h = harness();
+    // NativeImage and non-selectable Text leave browser hit-testing to the
+    // underlying host; engine dispatch must rely on position, not a leaf ID.
+    h.mount.send('click', h.event(h.mount));
+    h.mount.send('wheel', {...h.event(h.mount), deltaX: 0, deltaY: 80});
+    assert.equal(h.interrupts[0].Click.x, 20);
+    assert.equal(h.interrupts[0].Click.y, 30);
+    assert.equal(h.interrupts[1].Wheel.delta_y, 80);
+    h.dispose();
+});

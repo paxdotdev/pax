@@ -59,6 +59,17 @@ runs the usual reveal. Long startup frames restart that settling interval;
 a five-second ceiling prevents a persistently slow frame rate from suppressing
 the logo indefinitely. There is no fixed delay added to every page load.
 
+The website enables `package.metadata.pax.web.yield_mount`, so ordinary homepage
+and `/paxflix/` URLs use yielded startup without query flags. Use
+`?pax_mount_yield=0` only to compare the synchronous path. For the early-visibility
+experiment, use `?pax_startup_preview=1`: ready native content appears during
+mounting, while canvas drawing still waits for engine settlement. The normal
+plain URL coordinates the first viewport, then eagerly mounts and progressively
+presents the remainder. Keep the startup mode and viewport
+dimensions the same when comparing measurements; desktop layouts mount the full
+21-shelf Paxflix catalogue. See
+[resumable startup](../pax-docs/book/src/how-pax-runs.md#experimental-resumable-startup-on-web).
+
 The feature gallery uses its own native-scroller-backed marquee. Card geometry
 has a valid initial value and is published through the local property view before
 descendants mount. It mounts cards as they enter the horizontal viewport plus
@@ -79,7 +90,7 @@ initialization but does not yet budget that first-visit work across browser task
 
 ## Website and blog boundary
 
-The website declares `/blog`, `/ai`, and `/ai.md` as `server_owned_prefixes`.
+The website declares `/blog`, `/ai`, `/ai.md`, and `/paxflix` as `server_owned_prefixes`.
 Navigating to these paths loads a server document instead of a Pax client route.
 The `/blog/*` Router placeholder must not be restored. `build.rs` generates
 `public/ai/index.html` from `public/ai.md` only when its contents change.
@@ -108,6 +119,36 @@ acceptance are still pending; see the [hosting handoff](../pax-blog/infra/README
 The website's source is inspected in the running site, not through the CLI's
 bundled `examples/` catalog. After moving or changing reusable examples, refresh
 that separate snapshot with `python3 scripts/sync-docs-examples.py`.
+
+## Paxflix showcase
+
+At a showcase width of 760px or more, the homepage mounts one live tablet demo
+with macOS and iPhone captures behind it. Below that width it shows only the
+tappable iPhone capture; a fresh mobile homepage mounts no Paxflix app. The
+fixed device footprint scales with the section width, and sizing subscribes to
+reactive bounds so it settles during initial mounting. Crossing this breakpoint
+removes or creates the tablet session; ordinary scrolling keeps it mounted.
+
+Both the phone preview and the full-screen action open `/paxflix/`.
+The generated `/paxflix/index.html` is a standalone document entry into the
+website's demo route. Its server-owned navigation policy deliberately reloads
+the document so the demo participates in the configured yielded startup and
+initial presentation gate. It uses the same website bundle, with one Paxflix
+instance and no homepage tree. This reduces mounting work, not Wasm download
+size. The old homepage modal, which created another app instance, is removed.
+Browser Back can restore or reload the homepage; the demo's Back to Pax link
+uses ordinary in-app navigation. Each new demo session starts with fresh state.
+
+The captures use `NativeImage` and live in `assets/paxflix/`; their README records their native origin
+and regeneration commands. Device switching is not implemented in this version.
+
+The website, calculator controls, and `ExampleHost` UI use bundled
+Manrope. Source code and terminal commands use a system monospace; the calculator
+LCD retains its Courier-family lettering. Paxflix keeps its system Arial UI
+and Georgia titles, which require no downloads. The website makes no Google Fonts
+requests for these families. Manrope is also bundled in `pax-std/assets/fonts/`
+for standalone ExampleHost and demo use; the identical website asset merges into
+one output file. Keep these copies and their license aligned.
 
 The shared `ExampleHost` drawer uses dark grayscale surfaces, white active tabs,
 and CMY plus lightened RGB syntax colors. Its 160px source tabs stay single-line

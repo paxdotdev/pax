@@ -49,7 +49,8 @@ import { HIDDEN_TAB_FRAME_FALLBACK_MS } from "./utils/helpers";
 import { browserRouteLocation, replaceCurrentRouteHistoryState, serializeRouteLocation } from "./utils/route-location";
 import { updateDocumentRouteMetadata } from "./utils/route-metadata";
 
-import { StartupScheduler } from "./utils/startup-scheduler";
+import { StartupScheduler, StartupWork } from "./utils/startup-scheduler";
+import { readStartupOptions } from "./utils/startup-options";
 import { FrameScheduler } from "./utils/frame-scheduler";
 import { SurfacePresentationScheduler } from "./utils/surface-presentation";
 
@@ -63,7 +64,11 @@ let renderLoopStarted = false;
 let frameInProgress = false;
 let startupScheduler: StartupScheduler | undefined;
 let startupPresented = false;
-const mountYieldEnabled = new URLSearchParams(window.location.search).get("pax_mount_yield") === "1";
+let startupViewportPresented = false;
+let startupWork: StartupWork | undefined;
+let startupFeedbackFrameReady = false;
+let mountYieldEnabled = false;
+let startupPreviewEnabled = false;
 let surfacePresentation: SurfacePresentationScheduler | undefined;
 let hiddenTabPumpHandle: number | null = null;
 let pendingAsyncInterruptFlush = false;
@@ -99,6 +104,8 @@ export interface WebInitOptions {
     pageScroll?: boolean;
     /** Opt into page history/title ownership. Embedded regions default to false. */
     documentRouting?: boolean;
+    /** Yield initial engine/native work; defaults to generated web metadata, then false. */
+    yieldMount?: boolean;
     /** Cancels startup or closes the mounted region; cleanup remains retained. */
     signal?: AbortSignal;
 }
@@ -177,6 +184,9 @@ export async function init_web(options: WebInitOptions): Promise<MountedApp> {
     if (options.entry !== undefined && typeof options.entry !== "string") {
         throw new Error("entry must name a declared runnable root");
     }
+    const startup = readStartupOptions(options.yieldMount);
+    mountYieldEnabled = startup.yieldMount;
+    startupPreviewEnabled = startup.preview;
     // Snapshot caller-owned bytes before module/network awaits can interleave
     // with application mutations to the original buffer.
     const session = new MountSession({...options, startupData: options.startupData?.slice()});
@@ -259,7 +269,7 @@ async function loadWasmModule(extensionlessUrl: string, session: MountSession): 
     // The explicit Wasm entry invokes this host capability only after its typed
     // initializer succeeds. JS owns the chassis from that call onward, including
     // partial attachment failures; no GC finalizer is relied on for close.
-    await glue.init_web({entry: session.options.entry, startupData: session.options.startupData, mount: (chassis: PaxChassisWeb) => {
+    await glue.init_web({entry: session.options.entry, startupData: session.options.startupData, yieldMount: mountYieldEnabled, mount: (chassis: PaxChassisWeb) => {
         try { session.checkOpen(); } catch (error) { chassis.free(); throw error; }
         resetHostState();
         currentChassis = chassis;
@@ -275,6 +285,7 @@ function resetHostState() {
     nativePool.dispose();
     startupScheduler?.dispose();
     startupScheduler = undefined;
+    startupWork = undefined;
     objectManager = new ObjectManager(SUPPORTED_OBJECTS);
     nativePool = new NativeElementPool(objectManager);
     initializedChassis = false;
@@ -285,6 +296,7 @@ function resetHostState() {
 function disposeCurrentChassis() {
     startupScheduler?.dispose();
     startupScheduler = undefined;
+    startupWork = undefined;
     currentMount?.removeAttribute("data-pax-startup");
     const chassis = currentChassis;
     // Revoke routing before running disposers, which can trigger host callbacks.
@@ -313,25 +325,34 @@ async function startRenderLoop(extensionlessUrl: string, mount: Element, session
     const chassis = currentChassis!;
     runFrame(chassis, mount);
     frameScheduler.schedule(() => renderLoop(chassis, mount));
-    if (!chassis.startup_pending()) session.didMount();
+    if (!mountYieldEnabled) session.didMount();
     await session.mounted;
     session.checkOpen();
 }
 
 function attachChassis(chassis: PaxChassisWeb, mount: Element) {
     startupPresented = false;
+    startupViewportPresented = false;
+    startupFeedbackFrameReady = false;
     if (chassis.startup_pending()) mount.setAttribute("data-pax-startup", "");
     startupScheduler?.dispose();
-    startupScheduler = chassis.startup_pending() ? new StartupScheduler(() => {
-        frameInProgress = true;
-        try {
-            const [messages, report] = withProfileMeasure("startupService", () => chassis.service_startup(4));
-            withProfileMeasure("startupNativePatches", () => processMessages(messages, chassis, objectManager));
+    const work = new StartupWork(
+        () => chassis.prepare_startup_presentation(),
+        budget => {
+            const [messages, report] = withProfileMeasure("startupService", () => chassis.service_startup(budget));
             if (perfTraceEnabled) {
                 nativePool.recordSurfaceFramePhase(`startup.${report.longest_unit}`, report.longest_unit_ms);
             }
-            if (!report.pending) liveSession?.didMount();
-            return report.pending;
+            return messages;
+        },
+        message => processMessage(message, chassis, objectManager),
+    );
+    startupWork = chassis.startup_pending() ? work : undefined;
+    startupScheduler = startupWork ? new StartupScheduler(() => {
+        frameInProgress = true;
+        startupFeedbackFrameReady = false;
+        try {
+            return withProfileMeasure("startupSlice", () => work.service(4));
         } catch (error) {
             liveSession?.failStartup(error);
             return false;
@@ -486,7 +507,7 @@ function requestFrameFlush(chassis: PaxChassisWeb, mount: Element) {
         pendingAsyncInterruptFlush = true;
         return;
     }
-    if (chassis.startup_pending()) {
+    if (startupWork && !startupPresented) {
         startupScheduler?.request();
     } else if (mountYieldEnabled && !document.hidden) {
         frameScheduler.schedule(() => renderLoop(chassis, mount));
@@ -495,30 +516,112 @@ function requestFrameFlush(chassis: PaxChassisWeb, mount: Element) {
     }
 }
 
-function runFrame(chassis: PaxChassisWeb, mount: Element) {
-    if (frameScheduler.suspended || frameInProgress || chassis !== currentChassis || mount !== currentMount) {
+// After the coordinated first reveal, native leaves can appear progressively.
+// Canvas capture still needs a settled mounted frontier, never unfinished effects.
+function previewStartupFrame(chassis: PaxChassisWeb, mount: Element, sceneReady: boolean) {
+    if (!startupPreviewEnabled && !startupViewportPresented) return;
+    frameInProgress = true;
+    try {
+        if (sceneReady) {
+            nativePool.syncRenderSurfaceLayouts();
+            chassis.render();
+            surfacePresentation?.present();
+        }
+        nativePool.finishTextFrame();
+        mount.removeAttribute("data-pax-startup");
+    } catch (error) {
+        liveSession?.failStartup(error);
+    } finally {
+        frameInProgress = false;
+        if (pendingAsyncInterruptFlush) {
+            pendingAsyncInterruptFlush = false;
+            requestFrameFlush(chassis, mount);
+        }
+    }
+}
+
+function runStartupFrame(chassis: PaxChassisWeb, mount: Element) {
+    nativePool.sampleFrameInputs();
+    if (startupWork?.patchesPending || !chassis.prepare_startup_presentation()) {
+        startupFeedbackFrameReady = false;
+        startupScheduler?.request();
+        previewStartupFrame(chassis, mount, false);
         return;
     }
-    if (chassis.startup_pending() || (mountYieldEnabled && !startupPresented && !chassis.prepare_startup_presentation())) {
+    const complete = !chassis.startup_pending();
+    const first = !startupViewportPresented;
+    // The first viewport is coordinated. Later native leaves use their own
+    // readiness; the final gate only delays input and the init Promise.
+    if (first || complete) {
+        if (!nativePool.startupTextReady()) {
+            startupFeedbackFrameReady = false;
+            previewStartupFrame(chassis, mount, true);
+            return;
+        }
+        // ResizeObserver follows rAF. Allow another layout opportunity and
+        // revalidate engine readiness after the latest native measurement.
+        if (!startupFeedbackFrameReady) {
+            startupFeedbackFrameReady = true;
+            previewStartupFrame(chassis, mount, true);
+            return;
+        }
+    }
+    if (first && !chassis.accept_startup_measurements()) {
+        startupFeedbackFrameReady = false;
         startupScheduler?.request();
         return;
     }
     frameInProgress = true;
     try {
         initializeChassis(chassis, mount);
+        withProfileMeasure("startupPresentation", () => {
+            nativePool.syncRenderSurfaceLayouts();
+            chassis.render();
+            mount.removeAttribute("data-pax-startup");
+            nativePool.finishTextFrame(first || complete);
+            startupViewportPresented = true;
+            chassis.resume_startup_after_presentation();
+            if (complete) {
+                startupPresented = true;
+                chassis.finish_startup_presentation();
+                startupScheduler?.dispose();
+                startupScheduler = undefined;
+                startupWork = undefined;
+                liveSession?.didMount();
+            } else {
+                startupFeedbackFrameReady = false;
+                startupScheduler?.request();
+            }
+            surfacePresentation?.afterFrame();
+            surfacePresentation?.request();
+        });
+    } catch (error) {
+        liveSession?.failStartup(error);
+    } finally {
+        frameInProgress = false;
+        if (pendingAsyncInterruptFlush) {
+            pendingAsyncInterruptFlush = false;
+            requestFrameFlush(chassis, mount);
+        }
+    }
+}
+
+function runFrame(chassis: PaxChassisWeb, mount: Element) {
+    if (frameScheduler.suspended || frameInProgress || chassis !== currentChassis || mount !== currentMount) {
+        return;
+    }
+    if (mountYieldEnabled && !startupPresented) {
+        runStartupFrame(chassis, mount);
+        return;
+    }
+    frameInProgress = true;
+    try {
+        initializeChassis(chassis, mount);
         withProfileMeasure("renderLoopFrame", () => {
-            // Surface completion is not an application update. Reuse the most
-            // recent settled records before another (potentially costly) tick.
-            // The Rust guard leaves all jobs untouched when content is unsettled.
             surfacePresentation?.present();
-            if ((!mountYieldEnabled || startupPresented) && chassis.startup_input_pending()) chassis.replay_startup_input();
+            if (chassis.startup_input_pending()) chassis.replay_startup_input();
             nativePool.sampleFrameInputs();
             const messages = withProfileMeasure("tick", () => {
-                // service_startup already completed the first logical tick.
-                if (mountYieldEnabled && !startupPresented) {
-                    startupPresented = true;
-                    return [];
-                }
                 if (!perfTraceEnabled) return chassis.tick();
                 const [messages, phases, compositing] = chassis.tick_profiled();
                 for (const [name, duration] of phases) nativePool.recordSurfaceFramePhase(`tick.${name}`, duration);
@@ -531,21 +634,11 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
             withProfileMeasure("syncRenderSurfaceLayoutsPhase", () => {
                 nativePool.syncRenderSurfaceLayouts();
             });
-            // draw canvas elements
-            withProfileMeasure("render", () => {
-                chassis.render();
-            });
+            withProfileMeasure("render", () => chassis.render());
             nativePool.finishTextFrame();
-            mount.removeAttribute("data-pax-startup");
-            chassis.finish_startup_presentation();
-            // At most one extra presentation pass between ordinary frames, even
-            // when many async initializations finish in successive microtasks.
             surfacePresentation?.afterFrame();
-            // Cold drawing capture needs settled scene state. Coalesce it with
-            // asynchronous surface completions, without advancing another tick.
             surfacePresentation?.request();
         });
-
     } finally {
         frameInProgress = false;
         if (pendingAsyncInterruptFlush && chassis === currentChassis && mount === currentMount) {
@@ -570,213 +663,212 @@ function renderLoop (chassis: PaxChassisWeb, mount: Element) {
 
 
 export function processMessages(messages: any[], chassis: PaxChassisWeb, objectManager: ObjectManager) {
-    if (messages.length === 0) {
-        return;
-    }
-    messages?.forEach((unwrapped_msg) => {
-        if(unwrapped_msg["ShrinkLayersTo"] !== undefined) {
-            let layers_needed = unwrapped_msg["ShrinkLayersTo"];
-            nativePool.layers.shrinkTo(layers_needed);
-        } else if(unwrapped_msg["NativeMaskUpdate"]) {
-            let msg = unwrapped_msg["NativeMaskUpdate"];
-            let patch: NativeMaskUpdatePatch = objectManager.getFromPool(NATIVE_MASK_UPDATE_PATCH);
-            patch.fromPatch(msg);
-            nativePool.nativeMaskUpdate(patch);
-        } else if(unwrapped_msg["ButtonCreate"]) {
-            let msg = unwrapped_msg["ButtonCreate"]
-            let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
-            patch.fromPatch(msg);
-            nativePool.buttonCreate(patch);
-        } else if (unwrapped_msg["ButtonUpdate"]){
-            let msg = unwrapped_msg["ButtonUpdate"]
-            let patch: ButtonUpdatePatch = objectManager.getFromPool(BUTTON_UPDATE_PATCH, objectManager);
-            patch.fromPatch(msg, nativePool.registeredFontFaces);
-            nativePool.buttonUpdate(patch);
-        }else if (unwrapped_msg["ButtonDelete"]) {
-            let msg = unwrapped_msg["ButtonDelete"];
-            nativePool.buttonDelete(msg)
-        } else if(unwrapped_msg["PhotoPickerCreate"]) {
-            let msg = unwrapped_msg["PhotoPickerCreate"]
-            let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
-            patch.fromPatch(msg);
-            nativePool.photoPickerCreate(patch);
-        } else if (unwrapped_msg["PhotoPickerUpdate"]){
-            let msg = unwrapped_msg["PhotoPickerUpdate"]
-            let patch: PhotoPickerUpdatePatch = objectManager.getFromPool(PHOTO_PICKER_UPDATE_PATCH);
-            patch.fromPatch(msg);
-            nativePool.photoPickerUpdate(patch);
-        }else if (unwrapped_msg["PhotoPickerDelete"]) {
-            let msg = unwrapped_msg["PhotoPickerDelete"];
-            nativePool.photoPickerDelete(msg)
-        } else if(unwrapped_msg["SliderCreate"]) {
-            let msg = unwrapped_msg["SliderCreate"]
-            let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
-            patch.fromPatch(msg);
-            nativePool.sliderCreate(patch);
-        } else if (unwrapped_msg["SliderUpdate"]){
-            let msg = unwrapped_msg["SliderUpdate"]
-            let patch: SliderUpdatePatch = objectManager.getFromPool(SLIDER_UPDATE_PATCH, objectManager);
-            patch.fromPatch(msg);
-            nativePool.sliderUpdate(patch);
-        }else if (unwrapped_msg["SliderDelete"]) {
-            let msg = unwrapped_msg["SliderDelete"];
-            nativePool.sliderDelete(msg)
-        }else if(unwrapped_msg["CheckboxCreate"]) {
-            let msg = unwrapped_msg["CheckboxCreate"]
-            let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
-            patch.fromPatch(msg);
-            nativePool.checkboxCreate(patch);
-        } else if (unwrapped_msg["CheckboxUpdate"]){
-            let msg = unwrapped_msg["CheckboxUpdate"]
-            let patch: CheckboxUpdatePatch = objectManager.getFromPool(CHECKBOX_UPDATE_PATCH, objectManager);
-            patch.fromPatch(msg);
-            nativePool.checkboxUpdate(patch);
-        }else if (unwrapped_msg["CheckboxDelete"]) {
-            let msg = unwrapped_msg["CheckboxDelete"];
-            nativePool.checkboxDelete(msg)
-        } else if(unwrapped_msg["TextboxCreate"]) {
-            let msg = unwrapped_msg["TextboxCreate"]
-            let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
-            patch.fromPatch(msg);
-            nativePool.textboxCreate(patch);
-        } else if (unwrapped_msg["TextboxUpdate"]){
-            let msg = unwrapped_msg["TextboxUpdate"]
-            let patch: TextboxUpdatePatch = objectManager.getFromPool(TEXTBOX_UPDATE_PATCH, objectManager);
-            patch.fromPatch(msg, nativePool.registeredFontFaces);
-            nativePool.textboxUpdate(patch);
-        }else if (unwrapped_msg["TextboxDelete"]) {
-            let msg = unwrapped_msg["TextboxDelete"];
-            nativePool.textboxDelete(msg)
-        }else if(unwrapped_msg["RadioListCreate"]) {
-            let msg = unwrapped_msg["RadioListCreate"]
-            let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
-            patch.fromPatch(msg);
-            nativePool.radioListCreate(patch);
-        } else if (unwrapped_msg["RadioListUpdate"]){
-            let msg = unwrapped_msg["RadioListUpdate"]
-            let patch: RadioListUpdatePatch = objectManager.getFromPool(RADIO_LIST_UPDATE_PATCH, objectManager);
-            patch.fromPatch(msg, nativePool.registeredFontFaces);
-            nativePool.radioListUpdate(patch);
-        }else if (unwrapped_msg["RadioListDelete"]) {
-            let msg = unwrapped_msg["RadioListDelete"];
-            nativePool.radioListDelete(msg)
-        } else if(unwrapped_msg["DropdownCreate"]) {
-            let msg = unwrapped_msg["DropdownCreate"]
-            let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
-            patch.fromPatch(msg);
-            nativePool.dropdownCreate(patch);
-        } else if (unwrapped_msg["DropdownUpdate"]){
-            let msg = unwrapped_msg["DropdownUpdate"]
-            let patch: DropdownUpdatePatch = objectManager.getFromPool(DROPDOWN_UPDATE_PATCH, objectManager);
-            patch.fromPatch(msg, nativePool.registeredFontFaces);
-            nativePool.dropdownUpdate(patch);
-        } else if (unwrapped_msg["DropdownDelete"]) {
-            let msg = unwrapped_msg["DropdownDelete"];
-            nativePool.dropdownDelete(msg)
-        } else if(unwrapped_msg["TextCreate"]) {
-            let msg = unwrapped_msg["TextCreate"]
-            let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
-            patch.fromPatch(msg);
-            nativePool.textCreate(patch);
-        } else if (unwrapped_msg["TextUpdate"]){
-            let msg = unwrapped_msg["TextUpdate"]
-            let patch: TextUpdatePatch = objectManager.getFromPool(TEXT_UPDATE_PATCH, objectManager);
-            patch.fromPatch(msg, nativePool.registeredFontFaces);
-            nativePool.textUpdate(patch);
-        }else if (unwrapped_msg["TextDelete"]) {
-            let msg = unwrapped_msg["TextDelete"];
-            nativePool.textDelete(msg)
-        }  else if(unwrapped_msg["NativeImageCreate"]) {
-            let msg = unwrapped_msg["NativeImageCreate"]
-            let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
-            patch.fromPatch(msg);
-            nativePool.nativeImageCreate(patch);
-        } else if (unwrapped_msg["NativeImageUpdate"]){
-            let msg = unwrapped_msg["NativeImageUpdate"]
-            let patch: NativeImageUpdatePatch = objectManager.getFromPool(NATIVE_IMAGE_UPDATE_PATCH, objectManager);
-            patch.fromPatch(msg);
-            nativePool.nativeImageUpdate(patch);
-        }else if (unwrapped_msg["NativeImageDelete"]) {
-            let msg = unwrapped_msg["NativeImageDelete"];
-            nativePool.nativeImageDelete(msg)
-        }else if(unwrapped_msg["YoutubeVideoCreate"]) {
-            let msg = unwrapped_msg["YoutubeVideoCreate"]
-            let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
-            patch.fromPatch(msg);
-            nativePool.youtubeVideoCreate(patch);
-        } else if (unwrapped_msg["YoutubeVideoUpdate"]){
-            let msg = unwrapped_msg["YoutubeVideoUpdate"]
-            let patch: YoutubeVideoUpdatePatch = objectManager.getFromPool(NATIVE_IMAGE_UPDATE_PATCH, objectManager);
-            patch.fromPatch(msg);
-            nativePool.youtubeVideoUpdate(patch);
-        }else if (unwrapped_msg["YoutubeVideoDelete"]) {
-            let msg = unwrapped_msg["YoutubeVideoDelete"];
-            nativePool.youtubeVideoDelete(msg)
-        } else if(unwrapped_msg["FrameCreate"]) {
-            let msg = unwrapped_msg["FrameCreate"]
-            let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
-            patch.fromPatch(msg);
-            nativePool.frameCreate(patch);
-        }else if (unwrapped_msg["FrameUpdate"]){
-            let msg = unwrapped_msg["FrameUpdate"]
-            let patch: FrameUpdatePatch = objectManager.getFromPool(FRAME_UPDATE_PATCH);
-            patch.fromPatch(msg);
-            nativePool.frameUpdate(patch);
-        }else if (unwrapped_msg["FrameDelete"]) {
-            let msg = unwrapped_msg["FrameDelete"];
-            nativePool.frameDelete(msg)
-        } else if(unwrapped_msg["EventBlockerCreate"]) {
-            let msg = unwrapped_msg["EventBlockerCreate"]
-            let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
-            patch.fromPatch(msg);
-            nativePool.eventBlockerCreate(patch);
-        } else if (unwrapped_msg["EventBlockerUpdate"]){
-            let msg = unwrapped_msg["EventBlockerUpdate"]
-            let patch: EventBlockerUpdatePatch = objectManager.getFromPool(EVENT_BLOCKER_UPDATE_PATCH);
-            patch.fromPatch(msg);
-            nativePool.eventBlockerUpdate(patch);
-        } else if (unwrapped_msg["EventBlockerDelete"]) {
-            let msg = unwrapped_msg["EventBlockerDelete"];
-            nativePool.eventBlockerDelete(msg)
-        } else if (unwrapped_msg["ImageLoad"]){
-            let msg = unwrapped_msg["ImageLoad"];
-            let patch: ImageLoadPatch = objectManager.getFromPool(IMAGE_LOAD_PATCH);
-            patch.fromPatch(msg);
-            let imagePool = nativePool;
-            queueMicrotask(() => {
-                void imagePool.imageLoad(patch, chassis).catch((error) => {
-                    console.warn(`Failed to load Pax image "${patch.path ?? ""}"`, error);
-                });
+    for (const message of messages) processMessage(message, chassis, objectManager);
+}
+
+function processMessage(unwrapped_msg: any, chassis: PaxChassisWeb, objectManager: ObjectManager) {
+    if(unwrapped_msg["ShrinkLayersTo"] !== undefined) {
+        let layers_needed = unwrapped_msg["ShrinkLayersTo"];
+        nativePool.layers.shrinkTo(layers_needed);
+    } else if(unwrapped_msg["NativeMaskUpdate"]) {
+        let msg = unwrapped_msg["NativeMaskUpdate"];
+        let patch: NativeMaskUpdatePatch = objectManager.getFromPool(NATIVE_MASK_UPDATE_PATCH);
+        patch.fromPatch(msg);
+        nativePool.nativeMaskUpdate(patch);
+    } else if(unwrapped_msg["ButtonCreate"]) {
+        let msg = unwrapped_msg["ButtonCreate"]
+        let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
+        patch.fromPatch(msg);
+        nativePool.buttonCreate(patch);
+    } else if (unwrapped_msg["ButtonUpdate"]){
+        let msg = unwrapped_msg["ButtonUpdate"]
+        let patch: ButtonUpdatePatch = objectManager.getFromPool(BUTTON_UPDATE_PATCH, objectManager);
+        patch.fromPatch(msg, nativePool.registeredFontFaces);
+        nativePool.buttonUpdate(patch);
+    }else if (unwrapped_msg["ButtonDelete"]) {
+        let msg = unwrapped_msg["ButtonDelete"];
+        nativePool.buttonDelete(msg)
+    } else if(unwrapped_msg["PhotoPickerCreate"]) {
+        let msg = unwrapped_msg["PhotoPickerCreate"]
+        let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
+        patch.fromPatch(msg);
+        nativePool.photoPickerCreate(patch);
+    } else if (unwrapped_msg["PhotoPickerUpdate"]){
+        let msg = unwrapped_msg["PhotoPickerUpdate"]
+        let patch: PhotoPickerUpdatePatch = objectManager.getFromPool(PHOTO_PICKER_UPDATE_PATCH);
+        patch.fromPatch(msg);
+        nativePool.photoPickerUpdate(patch);
+    }else if (unwrapped_msg["PhotoPickerDelete"]) {
+        let msg = unwrapped_msg["PhotoPickerDelete"];
+        nativePool.photoPickerDelete(msg)
+    } else if(unwrapped_msg["SliderCreate"]) {
+        let msg = unwrapped_msg["SliderCreate"]
+        let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
+        patch.fromPatch(msg);
+        nativePool.sliderCreate(patch);
+    } else if (unwrapped_msg["SliderUpdate"]){
+        let msg = unwrapped_msg["SliderUpdate"]
+        let patch: SliderUpdatePatch = objectManager.getFromPool(SLIDER_UPDATE_PATCH, objectManager);
+        patch.fromPatch(msg);
+        nativePool.sliderUpdate(patch);
+    }else if (unwrapped_msg["SliderDelete"]) {
+        let msg = unwrapped_msg["SliderDelete"];
+        nativePool.sliderDelete(msg)
+    }else if(unwrapped_msg["CheckboxCreate"]) {
+        let msg = unwrapped_msg["CheckboxCreate"]
+        let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
+        patch.fromPatch(msg);
+        nativePool.checkboxCreate(patch);
+    } else if (unwrapped_msg["CheckboxUpdate"]){
+        let msg = unwrapped_msg["CheckboxUpdate"]
+        let patch: CheckboxUpdatePatch = objectManager.getFromPool(CHECKBOX_UPDATE_PATCH, objectManager);
+        patch.fromPatch(msg);
+        nativePool.checkboxUpdate(patch);
+    }else if (unwrapped_msg["CheckboxDelete"]) {
+        let msg = unwrapped_msg["CheckboxDelete"];
+        nativePool.checkboxDelete(msg)
+    } else if(unwrapped_msg["TextboxCreate"]) {
+        let msg = unwrapped_msg["TextboxCreate"]
+        let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
+        patch.fromPatch(msg);
+        nativePool.textboxCreate(patch);
+    } else if (unwrapped_msg["TextboxUpdate"]){
+        let msg = unwrapped_msg["TextboxUpdate"]
+        let patch: TextboxUpdatePatch = objectManager.getFromPool(TEXTBOX_UPDATE_PATCH, objectManager);
+        patch.fromPatch(msg, nativePool.registeredFontFaces);
+        nativePool.textboxUpdate(patch);
+    }else if (unwrapped_msg["TextboxDelete"]) {
+        let msg = unwrapped_msg["TextboxDelete"];
+        nativePool.textboxDelete(msg)
+    }else if(unwrapped_msg["RadioListCreate"]) {
+        let msg = unwrapped_msg["RadioListCreate"]
+        let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
+        patch.fromPatch(msg);
+        nativePool.radioListCreate(patch);
+    } else if (unwrapped_msg["RadioListUpdate"]){
+        let msg = unwrapped_msg["RadioListUpdate"]
+        let patch: RadioListUpdatePatch = objectManager.getFromPool(RADIO_LIST_UPDATE_PATCH, objectManager);
+        patch.fromPatch(msg, nativePool.registeredFontFaces);
+        nativePool.radioListUpdate(patch);
+    }else if (unwrapped_msg["RadioListDelete"]) {
+        let msg = unwrapped_msg["RadioListDelete"];
+        nativePool.radioListDelete(msg)
+    } else if(unwrapped_msg["DropdownCreate"]) {
+        let msg = unwrapped_msg["DropdownCreate"]
+        let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
+        patch.fromPatch(msg);
+        nativePool.dropdownCreate(patch);
+    } else if (unwrapped_msg["DropdownUpdate"]){
+        let msg = unwrapped_msg["DropdownUpdate"]
+        let patch: DropdownUpdatePatch = objectManager.getFromPool(DROPDOWN_UPDATE_PATCH, objectManager);
+        patch.fromPatch(msg, nativePool.registeredFontFaces);
+        nativePool.dropdownUpdate(patch);
+    } else if (unwrapped_msg["DropdownDelete"]) {
+        let msg = unwrapped_msg["DropdownDelete"];
+        nativePool.dropdownDelete(msg)
+    } else if(unwrapped_msg["TextCreate"]) {
+        let msg = unwrapped_msg["TextCreate"]
+        let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
+        patch.fromPatch(msg);
+        nativePool.textCreate(patch);
+    } else if (unwrapped_msg["TextUpdate"]){
+        let msg = unwrapped_msg["TextUpdate"]
+        let patch: TextUpdatePatch = objectManager.getFromPool(TEXT_UPDATE_PATCH, objectManager);
+        patch.fromPatch(msg, nativePool.registeredFontFaces);
+        nativePool.textUpdate(patch);
+    }else if (unwrapped_msg["TextDelete"]) {
+        let msg = unwrapped_msg["TextDelete"];
+        nativePool.textDelete(msg)
+    }  else if(unwrapped_msg["NativeImageCreate"]) {
+        let msg = unwrapped_msg["NativeImageCreate"]
+        let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
+        patch.fromPatch(msg);
+        nativePool.nativeImageCreate(patch);
+    } else if (unwrapped_msg["NativeImageUpdate"]){
+        let msg = unwrapped_msg["NativeImageUpdate"]
+        let patch: NativeImageUpdatePatch = objectManager.getFromPool(NATIVE_IMAGE_UPDATE_PATCH, objectManager);
+        patch.fromPatch(msg);
+        nativePool.nativeImageUpdate(patch);
+    }else if (unwrapped_msg["NativeImageDelete"]) {
+        let msg = unwrapped_msg["NativeImageDelete"];
+        nativePool.nativeImageDelete(msg)
+    }else if(unwrapped_msg["YoutubeVideoCreate"]) {
+        let msg = unwrapped_msg["YoutubeVideoCreate"]
+        let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
+        patch.fromPatch(msg);
+        nativePool.youtubeVideoCreate(patch);
+    } else if (unwrapped_msg["YoutubeVideoUpdate"]){
+        let msg = unwrapped_msg["YoutubeVideoUpdate"]
+        let patch: YoutubeVideoUpdatePatch = objectManager.getFromPool(NATIVE_IMAGE_UPDATE_PATCH, objectManager);
+        patch.fromPatch(msg);
+        nativePool.youtubeVideoUpdate(patch);
+    }else if (unwrapped_msg["YoutubeVideoDelete"]) {
+        let msg = unwrapped_msg["YoutubeVideoDelete"];
+        nativePool.youtubeVideoDelete(msg)
+    } else if(unwrapped_msg["FrameCreate"]) {
+        let msg = unwrapped_msg["FrameCreate"]
+        let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
+        patch.fromPatch(msg);
+        nativePool.frameCreate(patch);
+    }else if (unwrapped_msg["FrameUpdate"]){
+        let msg = unwrapped_msg["FrameUpdate"]
+        let patch: FrameUpdatePatch = objectManager.getFromPool(FRAME_UPDATE_PATCH);
+        patch.fromPatch(msg);
+        nativePool.frameUpdate(patch);
+    }else if (unwrapped_msg["FrameDelete"]) {
+        let msg = unwrapped_msg["FrameDelete"];
+        nativePool.frameDelete(msg)
+    } else if(unwrapped_msg["EventBlockerCreate"]) {
+        let msg = unwrapped_msg["EventBlockerCreate"]
+        let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
+        patch.fromPatch(msg);
+        nativePool.eventBlockerCreate(patch);
+    } else if (unwrapped_msg["EventBlockerUpdate"]){
+        let msg = unwrapped_msg["EventBlockerUpdate"]
+        let patch: EventBlockerUpdatePatch = objectManager.getFromPool(EVENT_BLOCKER_UPDATE_PATCH);
+        patch.fromPatch(msg);
+        nativePool.eventBlockerUpdate(patch);
+    } else if (unwrapped_msg["EventBlockerDelete"]) {
+        let msg = unwrapped_msg["EventBlockerDelete"];
+        nativePool.eventBlockerDelete(msg)
+    } else if (unwrapped_msg["ImageLoad"]){
+        let msg = unwrapped_msg["ImageLoad"];
+        let patch: ImageLoadPatch = objectManager.getFromPool(IMAGE_LOAD_PATCH);
+        patch.fromPatch(msg);
+        let imagePool = nativePool;
+        queueMicrotask(() => {
+            void imagePool.imageLoad(patch, chassis).catch((error) => {
+                console.warn(`Failed to load Pax image "${patch.path ?? ""}"`, error);
             });
-        }else if(unwrapped_msg["ScrollerCreate"]) {
-            let msg = unwrapped_msg["ScrollerCreate"]
-            let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
-            patch.fromPatch(msg);
-            nativePool.scrollerCreate(patch);
-        } else if (unwrapped_msg["ScrollerUpdate"]){
-            let msg = unwrapped_msg["ScrollerUpdate"]
-            let patch : ScrollerUpdatePatch = objectManager.getFromPool(SCROLLER_UPDATE_PATCH);
-            patch.fromPatch(msg);
-            nativePool.scrollerUpdate(patch);
-        } else if (unwrapped_msg["ScrollerDelete"]) {
-            let msg = unwrapped_msg["ScrollerDelete"];
-            nativePool.scrollerDelete(msg)
-        } else if (unwrapped_msg["Navigate"]) {
-            let msg = unwrapped_msg["Navigate"];
-            let patch : NavigationPatch = objectManager.getFromPool(NAVIGATION_PATCH);
-            patch.fromPatch(msg);
-            if (liveSession?.options.documentRouting) nativePool.navigate(patch);
-            else currentMount?.dispatchEvent(new CustomEvent("pax-navigate", {detail: {url: patch.url, target: patch.target}, bubbles: true}));
-        } else if (unwrapped_msg["SetCursor"]) {
-            let msg = unwrapped_msg["SetCursor"];
-            let patch : SetCursorPatch = objectManager.getFromPool(SET_CURSOR_PATCH);
-            patch.fromPatch(msg);
-            nativePool.setCursor(patch)
-        } else if (unwrapped_msg["Screenshot"]) {
-            let msg = unwrapped_msg["Screenshot"];
-            let patch: ScreenshotPatch = objectManager.getFromPool(SCREENSHOT_PATCH);
-            patch.fromPatch(msg);
-            nativePool.screenshot(patch, chassis);
-        }
-    });
+        });
+    }else if(unwrapped_msg["ScrollerCreate"]) {
+        let msg = unwrapped_msg["ScrollerCreate"]
+        let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
+        patch.fromPatch(msg);
+        nativePool.scrollerCreate(patch);
+    } else if (unwrapped_msg["ScrollerUpdate"]){
+        let msg = unwrapped_msg["ScrollerUpdate"]
+        let patch : ScrollerUpdatePatch = objectManager.getFromPool(SCROLLER_UPDATE_PATCH);
+        patch.fromPatch(msg);
+        nativePool.scrollerUpdate(patch);
+    } else if (unwrapped_msg["ScrollerDelete"]) {
+        let msg = unwrapped_msg["ScrollerDelete"];
+        nativePool.scrollerDelete(msg)
+    } else if (unwrapped_msg["Navigate"]) {
+        let msg = unwrapped_msg["Navigate"];
+        let patch : NavigationPatch = objectManager.getFromPool(NAVIGATION_PATCH);
+        patch.fromPatch(msg);
+        if (liveSession?.options.documentRouting) nativePool.navigate(patch);
+        else currentMount?.dispatchEvent(new CustomEvent("pax-navigate", {detail: {url: patch.url, target: patch.target}, bubbles: true}));
+    } else if (unwrapped_msg["SetCursor"]) {
+        let msg = unwrapped_msg["SetCursor"];
+        let patch : SetCursorPatch = objectManager.getFromPool(SET_CURSOR_PATCH);
+        patch.fromPatch(msg);
+        nativePool.setCursor(patch)
+    } else if (unwrapped_msg["Screenshot"]) {
+        let msg = unwrapped_msg["Screenshot"];
+        let patch: ScreenshotPatch = objectManager.getFromPool(SCREENSHOT_PATCH);
+        patch.fromPatch(msg);
+        nativePool.screenshot(patch, chassis);
+    }
 }

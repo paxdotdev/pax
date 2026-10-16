@@ -60,11 +60,7 @@
     }
     .hero_command {
         style: TextStyle {
-            font: Font::Web(
-                "IBM Plex Mono",
-                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
-                FontStyle::Normal,
-                FontWeight::Normal)
+            font: "monospace"
             font_size: 12px
             fill: {SiteTheme::muted()}
             align_horizontal: TextAlignHorizontal::Left

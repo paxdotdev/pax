@@ -3,7 +3,7 @@
 @settings {
     .demo_label {
         style: TextStyle {
-            font: "monospace"
+            font: {family: "Manrope", url: "/assets/fonts/Manrope.ttf"}
             font_size: 11px
             fill: {SiteTheme::paper()}
             align_vertical: TextAlignVertical::Center
@@ -11,7 +11,7 @@
     }
     .demo_note {
         style: TextStyle {
-            font: "monospace"
+            font: {family: "Manrope", url: "/assets/fonts/Manrope.ttf"}
             font_size: 9px
             fill: {SiteTheme::muted()}
             align_vertical: TextAlignVertical::Center
@@ -90,8 +90,8 @@
     .editorial_kicker {
         style: TextStyle {
             font: Font::Web(
-                "IBM Plex Mono",
-                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                "Manrope",
+                "/assets/fonts/Manrope.ttf",
                 FontStyle::Normal,
                 FontWeight::Medium)
             font_size: 11px
@@ -104,8 +104,8 @@
     .editorial_link {
         style: TextStyle {
             font: Font::Web(
-                "IBM Plex Mono",
-                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                "Manrope",
+                "/assets/fonts/Manrope.ttf",
                 FontStyle::Normal,
                 FontWeight::Medium)
             font_size: 12px
@@ -117,11 +117,7 @@
     }
     .editorial_code {
         style: TextStyle {
-            font: Font::Web(
-                "IBM Plex Mono",
-                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
-                FontStyle::Normal,
-                FontWeight::Normal)
+            font: "monospace"
             font_size: {$viewport.width < 760 ? 15px : 18px}
             fill: {SiteTheme::signal()}
             align_vertical: TextAlignVertical::Top
@@ -170,8 +166,8 @@
     .site_mono {
         style: TextStyle {
             font: Font::Web(
-                "IBM Plex Mono",
-                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                "Manrope",
+                "/assets/fonts/Manrope.ttf",
                 FontStyle::Normal,
                 FontWeight::Medium)
             fill: {SiteTheme::paper()}

@@ -243,6 +243,14 @@ Ask the chassis to display the requested cursor over the app surface.
 
 Attach a dependency subscription whose callback runs when any dependency dirties.
 
+##### `set_startup_planner`
+<pre><code class="api-signature language-rust ignore">pub fn set_startup_planner(&amp;self, resolver: impl Fn(&amp;ExpandedNode, &amp;mut <a href="../../../api/internal/pax-runtime/engine/startup/plan.md#startupplan">StartupPlan</a>&lt;&#39;_&gt;) + &#39;static)</code></pre>
+
+Register an experimental component-owned startup planner for this mount.
+The callback only describes requirements; it must not mount or run handlers.
+It is discarded when initial presentation completes and ignored outside
+yielded startup. Capture weak references rather than retaining the node.
+
 ##### `provide_store`
 <pre><code class="api-signature language-rust ignore">pub fn provide_store&lt;T: <a href="../../../api/pax-runtime-api/store.md#store">Store</a>&gt;(&amp;self, store: T) -&gt; Result&lt;(), <a href="../../../api/pax-runtime-api/store.md#storeerror">StoreError</a>&gt;</code></pre>
 

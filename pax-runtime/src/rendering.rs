@@ -340,6 +340,19 @@ impl std::fmt::Debug for dyn InstanceNode {
 ///
 /// (See `RepeatInstance::expand_node` where we visit a singular `InstanceNode` several times, producing multiple [`ExpandedNode`]s.)
 pub trait InstanceNode {
+    /// Describe dependencies required for initial presentation. The default
+    /// traverses visible children and conservatively resolves exact extents.
+    /// Override in the component, not in the scheduler; the hook must not mount
+    /// nodes or run lifecycle callbacks. Detached sources can require complete
+    /// resolution while content keeps the incoming visible-region requirement.
+    fn plan_startup(
+        &self,
+        _node: &ExpandedNode,
+        plan: &mut crate::engine::startup::StartupPlan<'_>,
+    ) {
+        plan.forward_children();
+    }
+
     /// Resolve a userland subtree filter from ordinary reactive properties. Returning `Some`
     /// replaces the subtree's GPU presentation, preserving original native coverage/hit testing.
     /// Effect primitives must be `Layer::Canvas`, subscribe their inputs to canvas dirtification,
@@ -782,7 +795,9 @@ impl BaseInstance {
             handler_registry: args.handler_registry,
             instance_prototypical_common_properties: args.prototypical_common_properties,
             instance_prototypical_properties: args.prototypical_properties,
-            component_settings: args.component_settings.map(crate::PreparedRuntimeSettings::from),
+            component_settings: args
+                .component_settings
+                .map(crate::PreparedRuntimeSettings::from),
             instance_children: args.children.unwrap_or_default(),
             flags,
             template_node_identifier: args.template_node_identifier,

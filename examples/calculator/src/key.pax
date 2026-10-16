@@ -2,7 +2,8 @@
     if !self.compact && self.secondary_label != "" {
         <Text x=50% y=0px anchor_x=50% width=100% height=11.5px text={self.secondary_label} selectable=false wrap=false style={
             font: {
-                family: "Arial"
+                family: "Manrope"
+                url: "/assets/fonts/Manrope.ttf"
                 weight: 600
             }
             font_size: 9.2px
@@ -15,7 +16,8 @@
         <Group y={(self.pressed)px} width=100% height=100%>
             <Text x=50% y=50% anchor=50% width=100% height=100% text={self.label} selectable=false wrap=false style={
                 font: {
-                    family: "Arial"
+                    family: "Manrope"
+                url: "/assets/fonts/Manrope.ttf"
                     weight: 500
                 }
                 font_size: {self.compact ? 12px : (self.action == "backspace" ? 22px : (self.tone == 0 ? 21px : 15px))}

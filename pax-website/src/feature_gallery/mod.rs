@@ -349,6 +349,7 @@ fn normalize_loop_scroll(scroll_x: f64, content_width: f64) -> f64 {
 #[custom(Default)]
 pub struct FeatureGallery {
     pub content_height: Property<f64>,
+    pub _height_bound: Property<bool>,
     pub compact: Property<bool>,
     pub card_width_px: Property<f64>,
     pub marquee_hovered: Property<bool>,
@@ -359,6 +360,7 @@ impl Default for FeatureGallery {
     fn default() -> Self {
         Self {
             content_height: Property::new(0.0),
+            _height_bound: Property::new(false),
             compact: Property::new(false),
             card_width_px: Property::new(DESKTOP_CARD_WIDTH_PX),
             marquee_hovered: Property::new(false),
@@ -369,24 +371,30 @@ impl Default for FeatureGallery {
 
 impl FeatureGallery {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
-        self.sync_layout(ctx);
+        self._height_bound.set(false);
+        crate::section_layout::bind_compact(ctx, &self.compact, COMPACT_BREAKPOINT_PX);
+        let compact = self.compact.local();
+        let deps = [compact.untyped()];
+        self.card_width_px.replace_with(LocalProperty::computed(
+            move || {
+                if compact.get() {
+                    COMPACT_CARD_WIDTH_PX
+                } else {
+                    DESKTOP_CARD_WIDTH_PX
+                }
+            },
+            &deps,
+        ));
     }
 
     pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
-        self.sync_layout(ctx);
-    }
-
-    fn sync_layout(&mut self, ctx: &NodeContext) {
-        crate::section_layout::publish_height(ctx, "gallery_content", &self.content_height);
-        let compact = ctx.bounds_self.get().0 < COMPACT_BREAKPOINT_PX;
-        // Descendant mount handlers must see this layout in the same graph
-        // turn, not wait for a shared-state publication to be imported.
-        self.compact.local().set_if_neq(compact);
-        self.card_width_px.local().set_if_neq(if compact {
-            COMPACT_CARD_WIDTH_PX
-        } else {
-            DESKTOP_CARD_WIDTH_PX
-        });
+        if !self._height_bound.get() {
+            self._height_bound.set(crate::section_layout::bind_height(
+                ctx,
+                "gallery_content",
+                &self.content_height,
+            ));
+        }
     }
 }
 

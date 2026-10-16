@@ -11,8 +11,8 @@
     .route_label {
         style: TextStyle {
             font: Font::Web(
-                "IBM Plex Mono",
-                "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&display=swap",
+                "Manrope",
+                "/assets/fonts/Manrope.ttf",
                 FontStyle::Normal,
                 FontWeight::SemiBold)
             font_size: 13px

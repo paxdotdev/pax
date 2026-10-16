@@ -8,6 +8,13 @@
             <HomePage />
         </SiteShell>
     </Route>
+    <Route path="/paxflix" metadata=RouteMetadata {
+        title: "Paxflix — A live Pax example"
+        description: "Explore Paxflix, an interactive cinema app built with Pax."
+        index: false
+    }>
+        <PaxflixPage />
+    </Route>
     <Route default=true metadata=RouteMetadata {
         title: "Page not found — Pax"
         description: "This page could not be found."

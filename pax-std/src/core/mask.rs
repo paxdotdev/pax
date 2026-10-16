@@ -47,6 +47,9 @@ use_RefCell!();
 /// mount handlers initialize state, reactive changes and animation remain live,
 /// and unmount releases their descendants and subscriptions. This allows a
 /// `Handwriter` (including its animated draw range) to supply the mask directly.
+/// During yielded web startup, Mask requires its complete source before first
+/// presentation while selecting visible content recursively. Offscreen content
+/// can mount afterward without exposing an unresolved source as an unmasked fill.
 /// Source nodes are not presented or hit-tested. Native leaves, including
 /// Handwriter's selectable text equivalent, do not create native surfaces; keep
 /// meaningful accessible text outside the mask. User mount side effects still run.
@@ -146,7 +149,10 @@ impl MaskInstance {
     }
 
     fn mark_canvas_descendants_dirty(expanded_node: &ExpandedNode, context: &Rc<RuntimeContext>) {
-        for child in expanded_node.children.get().iter() {
+        // Deferred content has no render record yet. Its mount path will dirty
+        // it; invalidating it here creates geometry work with no live recipient.
+        let children = borrow!(expanded_node.mounted_children).clone();
+        for child in children.iter().filter(|child| child.attached.get() > 0) {
             if borrow!(child.instance_node).base().flags().layer == Layer::Canvas {
                 context.mark_canvas_node_dirty(child.id);
                 context.set_canvas_dirty(child.occlusion.get().render_layer_id);
@@ -323,6 +329,20 @@ impl MaskInstance {
 }
 
 impl InstanceNode for MaskInstance {
+    fn plan_startup(
+        &self,
+        node: &ExpandedNode,
+        plan: &mut pax_runtime::engine::startup::StartupPlan<'_>,
+    ) {
+        plan.forward_children();
+        for source in borrow!(node.sidecar_children).iter() {
+            plan.require(
+                source,
+                pax_runtime::engine::startup::StartupDemand::complete(),
+            );
+        }
+    }
+
     fn supports_alpha_source_render(&self) -> bool {
         true
     }

@@ -86,8 +86,8 @@
     .example_host_button_label {
         style: {
             font: {
-                family: "Space Grotesk"
-                url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap"
+                family: "Manrope"
+                url: "/assets/fonts/Manrope.ttf"
                 weight: 600
             }
             font_size: 12px
@@ -101,8 +101,8 @@
     .example_host_drawer_title {
         style: {
             font: {
-                family: "Space Grotesk"
-                url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap"
+                family: "Manrope"
+                url: "/assets/fonts/Manrope.ttf"
                 weight: 600
             }
             font_size: 21px
@@ -116,8 +116,8 @@
     .example_host_drawer_meta {
         style: {
             font: {
-                family: "Space Grotesk"
-                url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&display=swap"
+                family: "Manrope"
+                url: "/assets/fonts/Manrope.ttf"
                 weight: 500
             }
             font_size: 11px
@@ -130,10 +130,7 @@
     }
     .example_host_code_text {
         style: {
-            font: {
-                family: "JetBrains Mono"
-                url: "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap"
-            }
+            font: "monospace"
             font_size: 13px
             fill: rgb(245, 245, 245)
             align_vertical: TextAlignVertical::Top

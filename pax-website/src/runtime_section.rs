@@ -9,23 +9,24 @@ const COMPACT_BREAKPOINT_PX: f64 = 760.0;
 #[file("runtime_section.pax")]
 pub struct RuntimeSection {
     pub content_height: Property<f64>,
+    pub _height_bound: Property<bool>,
     pub compact: Property<bool>,
     pub showcase_height: Property<f64>,
-    pub demo_open: Property<bool>,
 }
 
 impl RuntimeSection {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
-        self.sync_layout(ctx);
+        self._height_bound.set(false);
+        crate::section_layout::bind_compact(ctx, &self.compact, COMPACT_BREAKPOINT_PX);
     }
 
     pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
-        self.sync_layout(ctx);
-    }
-
-    fn sync_layout(&mut self, ctx: &NodeContext) {
-        crate::section_layout::publish_height(ctx, "runtime_content", &self.content_height);
-        self.compact
-            .set_if_neq(ctx.bounds_self.get().0 < COMPACT_BREAKPOINT_PX);
+        if !self._height_bound.get() {
+            self._height_bound.set(crate::section_layout::bind_height(
+                ctx,
+                "runtime_content",
+                &self.content_height,
+            ));
+        }
     }
 }

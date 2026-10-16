@@ -11,7 +11,8 @@ if !self.embedded {
             <Group x=50% y={(self.body_top)px} anchor_x=50% width={(self.body_width)px} height={(self.body_height)px}>
                 <Text x=28px y=24px width=112px height=22px text="PAX-83+" selectable=false style={
                     font: {
-                        family: "Arial"
+                        family: "Manrope"
+                url: "/assets/fonts/Manrope.ttf"
                         weight: 700
                     }
                     font_size: 22px
@@ -19,7 +20,8 @@ if !self.embedded {
                 }/>
                 <Text x={100% - 28px} y=30px anchor_x=100% width=142px height=14px text="SILVER EDITION" selectable=false style={
                     font: {
-                        family: "Arial"
+                        family: "Manrope"
+                url: "/assets/fonts/Manrope.ttf"
                         weight: 500
                     }
                     font_size: 10px
@@ -51,7 +53,8 @@ if !self.embedded {
                         text={self.graph_mode ? (self.polar ? "POLAR  /  RAD  /  0…2π" : "FUNCTION  /  RAD") : "CALCULATE  /  RAD"}
                         selectable=false style={
                             font: {
-                                family: "Arial"
+                                family: "Manrope"
+                url: "/assets/fonts/Manrope.ttf"
                                 weight: 600
                             }
                             font_size: 10px
@@ -214,7 +217,8 @@ if !self.embedded {
                     }
                     <Text x={(self.key_width + 8)px} y=0px width={(2 * self.key_width + 8)px} height=11.5px text="ZOOM" selectable=false style={
                         font: {
-                            family: "Arial"
+                            family: "Manrope"
+                url: "/assets/fonts/Manrope.ttf"
                             weight: 600
                         }
                         font_size: 9.2px

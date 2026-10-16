@@ -39,7 +39,7 @@ pub use home_page::HomePage;
 pub use paxflix_showcase::PaxflixShowcase;
 pub use resource_section::ResourceSection;
 pub use rotating_headline::RotatingHeadline;
-pub use route_pages::NotFoundPage;
+pub use route_pages::{NotFoundPage, PaxflixPage};
 pub use runtime_section::RuntimeSection;
 pub use site_shell::SiteShell;
 pub use site_theme::SiteTheme;

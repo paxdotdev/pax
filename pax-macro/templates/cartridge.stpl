@@ -8,6 +8,7 @@
     #[wasm_bindgen(js_name = <%= web_entrypoint %>)]
     pub async fn init_web(host: JsValue) -> Result<JsValue, JsValue> {
         let mount = <%= engine_import_path %>::pax_chassis_web::web_mount_callback(&host)?;
+        let yield_mount = <%= engine_import_path %>::pax_chassis_web::web_yield_mount(&host)?;
         <% if catalog { %>
         let requested_entry = <%= engine_import_path %>::pax_chassis_web::web_runnable_entry(&host)?;
         let entry = __pax_select_entry(&requested_entry).map_err(|error| JsValue::from_str(&error))?;
@@ -29,13 +30,13 @@
         let chassis = {
             let userland_manifest = <% if catalog { %>init_manifest_for(entry)<% } else { %>init_manifest()<% } %>;
             let userland_definition_to_instance_traverser = init_definition_to_instance_traverser(userland_manifest);
-            <%= engine_import_path %>::pax_chassis_web::PaxChassisWeb::new_designtime(userland_definition_to_instance_traverser, root)
+            <%= engine_import_path %>::pax_chassis_web::PaxChassisWeb::new_designtime(userland_definition_to_instance_traverser, root, yield_mount)
         };
         <% } else { %>
         let chassis = {
             let manifest = <% if catalog { %>init_manifest_for(entry)<% } else { %>init_manifest()<% } %>;
             let definition_to_instance_traverser = init_definition_to_instance_traverser(manifest);
-            <%= engine_import_path %>::pax_chassis_web::PaxChassisWeb::new(definition_to_instance_traverser, root)
+            <%= engine_import_path %>::pax_chassis_web::PaxChassisWeb::new(definition_to_instance_traverser, root, yield_mount)
         };
         <% } %>
         // Ambient graph selection must never survive a JavaScript await.
