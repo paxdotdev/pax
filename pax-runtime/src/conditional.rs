@@ -306,12 +306,16 @@ mod tests {
     }
 
     fn transition_leaf() -> Rc<dyn InstanceNode> {
+        transition_leaf_with_exit_duration(10)
+    }
+
+    fn transition_leaf_with_exit_duration(exit_frame_count: u64) -> Rc<dyn InstanceNode> {
         let mut args = component_args(Some(Vec::new()));
         args.transition_config = ComponentTransitionConfig {
             has_enter: true,
             enter_frame_count: 10,
             has_exit: true,
-            exit_frame_count: 10,
+            exit_frame_count,
             timeout_ms: 5_000,
             ..Default::default()
         };
@@ -506,5 +510,93 @@ mod tests {
         assert!(borrow!(conditional_node.active_children).is_empty());
         assert!(borrow!(conditional_node.exiting_children).is_empty());
         assert!(conditional_node.children.get().is_empty());
+    }
+
+    #[test]
+    fn exit_cleanup_removes_only_completed_children_and_keeps_its_clock() {
+        let condition = LocalProperty::new(true);
+        let conditional = ConditionalInstance::instantiate(conditional_args(
+            condition.clone(),
+            vec![
+                transition_leaf_with_exit_duration(3),
+                transition_leaf_with_exit_duration(6),
+            ],
+        ));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
+        let root = ExpandedNode::initialize_root(
+            ComponentInstance::instantiate(component_args(Some(vec![conditional]))),
+            &context,
+        );
+        root.recurse_update(&context);
+        let conditional_node = root.children.get()[0].clone();
+        let children = conditional_node.children.get();
+        condition.set(false);
+        root.recurse_update(&context);
+
+        for frame in 1..=6 {
+            context.occlusion_state.borrow_mut().structural = false;
+            context.globals().elapsed_frames.set(frame);
+            context.drain_node_effects();
+            let expected_count = if frame < 3 {
+                2
+            } else if frame < 6 {
+                1
+            } else {
+                0
+            };
+            assert_eq!(conditional_node.children.get().len(), expected_count);
+            assert_eq!(
+                borrow!(conditional_node.mounted_children).len(),
+                expected_count
+            );
+            assert_eq!(
+                conditional_node.exiting_children_view.get().len(),
+                expected_count
+            );
+            assert_eq!(conditional_node.exit_cleanup_active.get(), frame < 6);
+            assert_eq!(children[0].attached.get() > 0, frame < 3);
+            assert_eq!(children[1].attached.get() > 0, frame < 6);
+            assert_eq!(
+                context.occlusion_state.borrow().structural,
+                frame == 3 || frame == 6
+            );
+        }
+        context.occlusion_state.borrow_mut().structural = false;
+        context.globals().elapsed_frames.set(7);
+        context.drain_node_effects();
+        assert!(!context.occlusion_state.borrow().structural);
+    }
+
+    #[test]
+    fn exit_cleanup_preserves_pending_branch_selection_before_and_at_completion() {
+        for frame in [5, 10] {
+            let condition = LocalProperty::new(true);
+            let (root, conditional_node, context) = mounted_conditional(condition.clone());
+            let initial_id = conditional_node.children.get()[0].id;
+            condition.set(false);
+            root.recurse_update(&context);
+
+            context.globals().elapsed_frames.set(frame);
+            condition.set(true);
+            // Exercise cleanup before the pending control-flow evaluation.
+            conditional_node.exit_cleanup_listener.get();
+            let selected = conditional_node.children.get();
+            assert_eq!(selected.len(), 1);
+            assert_eq!(selected[0].id == initial_id, frame < 10);
+            assert!(borrow!(conditional_node.exiting_children).is_empty());
+            assert_eq!(
+                borrow!(conditional_node.active_children)[0].id,
+                selected[0].id
+            );
+            assert_eq!(borrow!(conditional_node.mounted_children).len(), 1);
+
+            context.globals().elapsed_frames.set(20);
+            context.drain_node_effects();
+            assert!(
+                selected[0].attached.get() > 0,
+                "old exit cleanup must not unmount the selection"
+            );
+            assert!(!conditional_node.exit_cleanup_active.get());
+        }
     }
 }

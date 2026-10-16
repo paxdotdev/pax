@@ -2165,7 +2165,35 @@ public struct NativeRenderingLayer: View {
         }
         private final class PointerForwardingScrollView: NSScrollView {
             var pointerInterruptHandler: ((String, NSEvent) -> Void)?
+            var scrollEnabledX = true
+            var scrollEnabledY = true
+            private var forwardsWheelSequence = false
             override var preservesContentDuringLiveResize: Bool { false }
+
+            override func scrollWheel(with event: NSEvent) {
+                let dx = abs(event.scrollingDeltaX)
+                let dy = abs(event.scrollingDeltaY)
+                if dx > 0 || dy > 0 {
+                    // Elasticity alone does not make NSScrollView hand an
+                    // orthogonal gesture to its parent. Decide before AppKit
+                    // takes ownership of the native tracking/momentum loop.
+                    forwardsWheelSequence = (!scrollEnabledX && !scrollEnabledY)
+                        || (dy > dx && !scrollEnabledY)
+                        || (dx > dy && !scrollEnabledX)
+                }
+                // Keep zero-delta phase/end events with the same recipient.
+                // Forward the original event, preserving precise deltas and
+                // native phase/momentum semantics rather than synthesizing input.
+                if forwardsWheelSequence {
+                    nextResponder?.scrollWheel(with: event)
+                } else {
+                    super.scrollWheel(with: event)
+                }
+                if event.phase.contains(.ended) || event.phase.contains(.cancelled)
+                    || event.momentumPhase.contains(.ended) {
+                    forwardsWheelSequence = false
+                }
+            }
 
             override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
                 true
@@ -2646,6 +2674,8 @@ public struct NativeRenderingLayer: View {
             scrollView.alwaysBounceHorizontal = enableX
             scrollView.alwaysBounceVertical = enableY
 #elseif os(macOS)
+            scrollView.scrollEnabledX = enableX
+            scrollView.scrollEnabledY = enableY
             updateMacScrollElasticity()
             clampMacScrollPositionToContent()
 #endif

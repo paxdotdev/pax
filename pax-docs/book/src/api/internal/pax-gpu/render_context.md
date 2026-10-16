@@ -470,6 +470,12 @@ Return and reset accumulated resource churn counters.
 
 Report a missing CPU image dependency to opt-in backend diagnostics.
 
+##### `update_node_orders`
+<pre><code class="api-signature language-rust ignore">pub fn update_node_orders(&amp;mut self, orders: &amp;[(u32, i32)]) -&gt; bool</code></pre>
+
+Apply a complete order batch without replacing retained geometry or images.
+Returns whether the relative order of retained draws actually changed.
+
 ## Enums
 ### `Fill`
 Fill style for a tessellated vector path.

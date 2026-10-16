@@ -1949,7 +1949,8 @@ impl ExpandedNode {
             return;
         }
 
-        let mut retained = Vec::new();
+        let previous_count = exiting.len();
+        let mut retained = Vec::with_capacity(previous_count);
         let active = borrow!(self.active_children).clone();
         for child in exiting {
             let expected_generation = borrow_mut!(self.exiting_child_generations).remove(&child.id);
@@ -1966,13 +1967,18 @@ impl ExpandedNode {
                 retained.push(child);
             }
         }
+        // This pass only filters the existing list, preserving identity and order.
+        // Advancing an exit clock alone must not invalidate scene topology.
+        let membership_changed = retained.len() != previous_count;
         *borrow_mut!(self.exiting_children) = retained;
-        self.sync_mounted_children_from_active_and_exiting();
-        // `children` is computed for control-flow nodes. A direct write here can
-        // mark a pending branch update clean if cleanup and selection change in
-        // the same frame, so invalidate it and let its evaluator reconcile.
-        self.children.invalidate();
-        context.mark_occlusion_dirty_for_node(self.id.to_u32());
+        if membership_changed {
+            self.sync_mounted_children_from_active_and_exiting();
+            // `children` is computed for control-flow nodes. A direct write here can
+            // mark a pending branch update clean if cleanup and selection change in
+            // the same frame, so invalidate it and let its evaluator reconcile.
+            self.children.invalidate();
+            context.mark_occlusion_dirty_for_node(self.id.to_u32());
+        }
 
         if borrow!(self.exiting_children).is_empty() {
             self.exit_cleanup_active.set(false);

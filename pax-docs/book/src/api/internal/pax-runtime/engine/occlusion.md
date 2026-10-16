@@ -22,15 +22,30 @@ Type: `u64`
 
 Full structural/presentation reconciliations.
 
+##### `structural_reconciliations`
+Type: `u64`
+
+Structural edits reconciled without replacing stable coverage records.
+
+##### `records_retained`
+Type: `u64`
+
+Records reused by those structural reconciliations.
+
+##### `orders_updated`
+Type: `u64`
+
+Numeric paint-order changes sent without invalidating geometry.
+
 ##### `records_updated`
 Type: `u64`
 
-Dirty records refreshed outside structural reconciliation.
+Dirty/new records refreshed by localized coverage reconciliation.
 
 ##### `masks_evaluated`
 Type: `u64`
 
-Native masks evaluated by the incremental path.
+Native masks evaluated by localized reconciliation, including simple structural edits.
 
 ##### `mask_candidates`
 Type: `u64`

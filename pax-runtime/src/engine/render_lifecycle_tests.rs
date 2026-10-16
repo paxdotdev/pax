@@ -3,6 +3,7 @@ use kurbo::{Affine, BezPath, Rect, Shape};
 use pax_runtime_api::{
     LocalProperty as Property, Paint, ResolvedMaterial, ResolvedStroke, SceneLighting,
 };
+use std::rc::Weak;
 
 #[derive(Default)]
 struct RecordingRenderer {
@@ -24,9 +25,15 @@ struct RecordingRenderer {
     ordinary_priorities: HashMap<usize, i32>,
     clip_depths: HashMap<usize, usize>,
     failed_flushes: HashSet<usize>,
+    accepts_order_updates: bool,
+    order_updates: Vec<(usize, Vec<(u32, i32)>)>,
 }
 
 impl RenderContext for RecordingRenderer {
+    fn update_node_orders(&mut self, layer: usize, orders: &[(u32, i32)]) -> bool {
+        self.order_updates.push((layer, orders.to_vec()));
+        self.accepts_order_updates
+    }
     fn layers(&self) -> usize {
         self.layer_count
     }
@@ -337,6 +344,166 @@ fn cooperative_layers_yield_without_lifecycle_or_stale_selection() {
     let done = engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
     assert!(!done.pending);
     assert_eq!(done.units, 0);
+}
+
+#[test]
+fn order_only_updates_flush_without_recording_and_fallback_redraws() {
+    for accepted in [true, false] {
+        let (mut engine, mut renderer, nodes) = dirty_render_probe();
+        engine.render(&mut renderer);
+        renderer.events.clear();
+        renderer.order_updates.clear();
+        renderer.accepts_order_updates = accepted;
+        let node = &nodes[0];
+        let layer = node.occlusion.get().render_layer_id;
+        engine
+            .runtime_context
+            .queue_canvas_node_order(layer, node.id.to_u32(), 100);
+        assert!(!engine.runtime_context.can_prepare_settled_layer(layer));
+        engine.render(&mut renderer);
+        assert_eq!(
+            renderer.order_updates,
+            vec![(layer, vec![(node.id.to_u32(), 100)])]
+        );
+        assert!(renderer.events.contains(&("submit", layer)));
+        assert_eq!(renderer.events.contains(&("draw", layer)), !accepted);
+        assert!(!engine.runtime_context.has_canvas_render_work());
+    }
+}
+
+#[test]
+fn cooperative_order_only_work_submits_without_a_scene_traversal() {
+    let (mut engine, mut renderer, nodes) = dirty_render_probe();
+    engine.render(&mut renderer);
+    renderer.events.clear();
+    renderer.order_updates.clear();
+    renderer.accepts_order_updates = true;
+    engine.filtered_render_plan_inputs.borrow_mut().clear();
+    engine
+        .runtime_context
+        .queue_canvas_node_order(1, nodes[0].id.to_u32(), 100);
+    let mut state = surface_work::RenderWorkState::default();
+    state.begin(1);
+    let mut budget = surface_work::SurfaceWorkBudget::new(4.0);
+    let report = engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+    assert_eq!(report.ordinary_layers, 1);
+    assert_eq!(renderer.events, [("submit", 1)]);
+    assert!(engine.filtered_render_plan_inputs.borrow().is_empty());
+    assert!(
+        report.pending,
+        "urgent submission yields before optional work"
+    );
+    let drained = engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+    assert!(!drained.pending);
+    assert_eq!(renderer.events, [("submit", 1)]);
+    assert!(!engine.runtime_context.has_canvas_render_work());
+}
+
+#[test]
+fn cooperative_layer_builds_and_consumes_only_one_current_plan() {
+    let (mut engine, mut renderer, nodes) = dirty_render_probe();
+    engine.filtered_render_plan_inputs.borrow_mut().clear();
+    let mut state = surface_work::RenderWorkState::default();
+    state.begin(1);
+    let mut budget = surface_work::SurfaceWorkBudget::new(4.0);
+    let first = engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+    assert_eq!(first.ordinary_layers, 1);
+    assert_eq!(first.atomic_fallbacks, 0);
+    assert_eq!(
+        *engine.filtered_render_plan_inputs.borrow(),
+        [vec![nodes[0].id]]
+    );
+    assert_eq!(renderer.events, [("draw", 1), ("submit", 1)]);
+    assert!(engine.runtime_context.is_canvas_node_dirty(&nodes[1].id));
+
+    // The next host task must resolve today's ancestry, not a saved traversal.
+    let parent = nodes[1].render_parent.replace(Weak::new());
+    let next = engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+    assert_eq!(next.atomic_fallbacks, 1);
+    assert_eq!(next.ordinary_layers, 0);
+    assert!(!engine.runtime_context.is_canvas_node_dirty(&nodes[1].id));
+    nodes[1].render_parent.replace(parent);
+    assert!(renderer.clip_depths.values().all(|depth| *depth == 0));
+}
+
+#[test]
+fn cooperative_unrelated_invalid_path_does_not_delay_visible_layer() {
+    let (mut engine, mut renderer, nodes) = dirty_render_probe();
+    // An invalid warm path cannot force visible, separable content into a
+    // full-tree render. Its own later turn still uses the conservative fallback.
+    let parent = nodes[1].render_parent.replace(Weak::new());
+    engine.filtered_render_plan_inputs.borrow_mut().clear();
+    let mut state = surface_work::RenderWorkState::default();
+    state.begin(1);
+    let mut budget = surface_work::SurfaceWorkBudget::new(4.0);
+    let first = engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+    assert_eq!(first.atomic_fallbacks, 0);
+    assert_eq!(first.ordinary_layers, 1);
+    assert_eq!(
+        *engine.filtered_render_plan_inputs.borrow(),
+        [vec![nodes[0].id]]
+    );
+    assert_eq!(renderer.events, [("draw", 1), ("submit", 1)]);
+    assert!(engine.runtime_context.is_canvas_node_dirty(&nodes[1].id));
+    let next = engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+    assert_eq!(next.atomic_fallbacks, 1);
+    assert_eq!(
+        renderer.events,
+        [("draw", 1), ("submit", 1), ("draw", 0), ("submit", 0)]
+    );
+    nodes[1].render_parent.replace(parent);
+}
+
+#[test]
+fn cooperative_layer_plan_keeps_ancestor_scopes_and_rejects_unclippable_paths() {
+    let (engine, _, nodes) = dirty_render_probe();
+    let root = engine.root_expanded_node.as_ref().unwrap();
+    let clip = root.children.get()[0].clone();
+    let plan = engine.build_layer_render_plan(1).unwrap().unwrap();
+    assert_eq!(plan.dirty_nodes, HashSet::from([nodes[0].id]));
+    assert_eq!(
+        plan.render_path_nodes,
+        HashSet::from([root.id, clip.id, nodes[0].id])
+    );
+    clip.get_common_properties()
+        .borrow()
+        .unclippable
+        .set(Some(true));
+    assert!(matches!(
+        engine.build_layer_render_plan(1),
+        Err("unclippable_path")
+    ));
+    clip.get_common_properties()
+        .borrow()
+        .unclippable
+        .set(Some(false));
+    assert!(engine.build_layer_render_plan(1).is_ok());
+}
+
+#[test]
+fn cooperative_removal_only_layer_submits_without_building_a_plan() {
+    let mut engine = engine();
+    engine.tick();
+    engine.runtime_context.layer_count.set(2);
+    let mut renderer = RecordingRenderer::default();
+    renderer.ordinary_priorities.insert(1, 0);
+    engine.render(&mut renderer);
+    engine.filtered_render_plan_inputs.borrow_mut().clear();
+    renderer.events.clear();
+    engine.runtime_context.enqueue_canvas_node_removal(1, 999);
+    let mut state = surface_work::RenderWorkState::default();
+    state.begin(1);
+    let report = engine.service_render_work(
+        &mut renderer,
+        &mut state,
+        &mut surface_work::SurfaceWorkBudget::new(4.0),
+        3.0,
+        || 0.0,
+    );
+    assert_eq!(report.ordinary_layers, 1);
+    assert!(engine.filtered_render_plan_inputs.borrow().is_empty());
+    assert_eq!(renderer.events, [("submit", 1)]);
+    assert!(!engine.runtime_context.has_canvas_node_removals());
 }
 
 #[test]
@@ -930,6 +1097,36 @@ fn settled_replay_preserves_clock_and_defers_atomic_overruns_and_misses() {
 }
 
 #[test]
+fn speculation_cannot_spend_urgent_progress_and_callbacks_cannot_replenish_it() {
+    let mut engine = engine();
+    let mut renderer = RecordingRenderer::default();
+    engine.tick();
+    engine.runtime_context.layer_count.set(3);
+    engine.render(&mut renderer);
+    renderer.cached = true;
+    renderer.presented.clear();
+    renderer.priorities = HashMap::from([(0, 5), (1, 0), (2, 0)]);
+    renderer.jobs = vec![replay_job(0)];
+    let mut state = surface_work::RenderWorkState::default();
+    state.begin(1);
+    let mut budget = surface_work::SurfaceWorkBudget::new(0.0);
+    engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+    assert_eq!(renderer.presented, [0]);
+    assert_eq!(state.preparation.urgent_units, 0);
+    // New urgent work after speculation gets one complete unit, not a drain.
+    renderer.jobs = vec![replay_job(1), replay_job(2)];
+    for _ in 0..3 {
+        state.begin(1);
+        engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+    }
+    assert_eq!(renderer.presented, [0, 1]);
+    assert_eq!(state.preparation.urgent_units, 1);
+    state.begin(2);
+    engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+    assert_eq!(renderer.presented, [0, 1, 2]);
+}
+
+#[test]
 fn settled_replay_drains_successive_batches_and_reselects_priority() {
     let mut engine = engine();
     let mut renderer = RecordingRenderer::default();
@@ -1178,6 +1375,7 @@ fn cooperative_lighting_flushes_survive_yield_and_next_tick_without_canvas_clear
         engine.tick();
         engine.runtime_context.layer_count.set(3);
         engine.render(&mut renderer);
+        engine.filtered_render_plan_inputs.borrow_mut().clear();
         renderer.clears.clear();
         renderer.lighting_updates.clear();
         renderer.flushes.clear();
@@ -1213,6 +1411,7 @@ fn cooperative_lighting_flushes_survive_yield_and_next_tick_without_canvas_clear
         assert!(renderer.clears.is_empty());
         assert!(state.pending_lighting_flushes.is_empty());
         assert!(!engine.runtime_context.has_canvas_render_work());
+        assert!(engine.filtered_render_plan_inputs.borrow().is_empty());
     }
 }
 

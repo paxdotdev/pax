@@ -1834,6 +1834,48 @@ impl<'w> WgpuRenderer<'w> {
         true
     }
 
+    /// Apply a complete order batch without replacing retained geometry or images.
+    /// Returns whether the relative order of retained draws actually changed.
+    pub fn update_node_orders(&mut self, orders: &[(u32, i32)]) -> bool {
+        let mut before: Vec<_> = self
+            .scene
+            .iter()
+            .map(|(&id, node)| (node.z_index(), id))
+            .collect();
+        before.sort_unstable();
+        let mut changed = false;
+        for &(id, z) in orders {
+            // Mask sources have a private recording order, independent of the
+            // owner's position in the main scene.
+            if self.source_nodes.contains_key(&id) {
+                continue;
+            }
+            if let Some(node) = self.scene.get_mut(&id) {
+                if node.z_index() != z {
+                    node.set_z_index(z);
+                    changed = true;
+                }
+            }
+        }
+        if !changed {
+            return false;
+        }
+        let mut after: Vec<_> = self
+            .scene
+            .iter()
+            .map(|(&id, node)| (node.z_index(), id))
+            .collect();
+        after.sort_unstable();
+        let reordered = before
+            .iter()
+            .map(|(_, id)| id)
+            .ne(after.iter().map(|(_, id)| id));
+        self.sorted_nodes = after;
+        self.order_dirty = false;
+        self.scene_dirty |= reordered;
+        reordered
+    }
+
     pub fn remove_node(&mut self, node_id: u32) -> bool {
         #[cfg(feature = "shaders")]
         {
@@ -2213,6 +2255,15 @@ enum RetainedNode {
 }
 
 impl RetainedNode {
+    fn set_z_index(&mut self, z: i32) {
+        match self {
+            Self::Vector(node) => node.z_index = z,
+            Self::Image(node) => node.z_index = z,
+            #[cfg(feature = "shaders")]
+            Self::Effect(node) => node.z_index = z,
+        }
+    }
+
     fn z_index(&self) -> i32 {
         match self {
             RetainedNode::Vector(node) => node.z_index,

@@ -119,7 +119,8 @@ impl WgpuRenderer<'_> {
     pub(super) fn hash_opacity_content(&self, id: u32, hash: &mut DefaultHasher) {
         id.hash(hash);
         let node = &self.scene[&id];
-        node.z_index().hash(hash);
+        // Callers hash draws in paint order. Absolute z values can change when
+        // unrelated nodes are inserted without changing this capture's pixels.
         match node {
             #[cfg(feature = "shaders")]
             RetainedNode::Effect(n) => {

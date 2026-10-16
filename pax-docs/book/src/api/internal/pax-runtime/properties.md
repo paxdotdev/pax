@@ -120,9 +120,10 @@ Clear cached visual viewport state.
 
 Resolve registered direct/ambient contributors in the target layer's coordinates.
 
-Light values remain live on every render; retained node masks are rebuilt only
-when selected light slots, lexical scope, or scene structure changes. Contributors
-are independent of viewport visibility, and an unlit scene needs no node scan.
+Light values remain live on every render. Structural changes reconcile recipient
+layer and LightFrame ancestry once; stable light slots only revisit changed
+recipients. Slot/scope changes rebuild masks within the affected layer.
+Contributors are independent of visibility; unlit scenes need no recipient scan.
 
 ##### `get_elements_beneath_ray`
 <pre><code class="api-signature language-rust ignore">pub fn get_elements_beneath_ray(&amp;self, root: Option&lt;Rc&lt;ExpandedNode&gt;&gt;, ray: Point2&lt;<a href="../../../api/pax-runtime-api/platform.md#window">Window</a>&gt;, limit_one: bool, accum: Vec&lt;Rc&lt;ExpandedNode&gt;&gt;, hit_invisible: bool) -&gt; Vec&lt;Rc&lt;ExpandedNode&gt;&gt;</code></pre>
@@ -208,7 +209,9 @@ registering a new or remounted canvas node schedules its initial drawing.
 <pre><code class="api-signature language-rust ignore">pub fn mark_node_occlusion_dirty(&amp;self, id: u32)</code></pre>
 
 Invalidate native compositing after a node's paint or coverage changes.
-Detached source changes reconcile their owning mask in the visible scene.
+Unmounted nodes (including settings sidecars) do not participate. Mounted
+render sources invalidate their capture geometry and owning visible mask.
+Mount/unmount notifications separately reconcile scene membership.
 
 ##### `mark_scene_lighting_dirty`
 <pre><code class="api-signature language-rust ignore">pub fn mark_scene_lighting_dirty(&amp;self)</code></pre>

@@ -429,6 +429,13 @@ covers its visible content when accurate masking of all overflow is required.
 
 ### Updating native content
 
+Only mounted scene nodes participate in native occlusion invalidation. Settings
+providers can remain reactive as detached sidecars without requesting visible
+coverage records. Mounted mask-source subtrees still invalidate their captured
+geometry and owning mask, including nested sources. This is a lifecycle boundary,
+not viewport culling: mounted offscreen content still participates, and mounting
+or removing content separately reconciles its scene membership.
+
 Ordinary leaf animation updates shared scene geometry and queries nearby native
 surfaces to refresh punch-through masks. Both the old and new coverage matter:
 a moving or disappearing shape must uncover the surface it leaves behind.
@@ -467,7 +474,22 @@ is currently macOS-only; web, iOS, and iPadOS retain their existing behavior.
 Nested presentation containers and unclipped/escaping content keep the
 conservative view-detachment path (their native views stay attached).
 
-Structural changes, scroller-container geometry changes,
+Adding or removing ordinary vector/native leaves retains unchanged coverage
+and recomputes nearby native masks from the old and new overlaps. Pax still
+walks the tree to establish paint order: a numeric z-order shift caused by an
+insertion is not treated as a change to every later drawing. The GPU renderer
+updates retained order, including cached tile replay, without rebuilding those
+drawings. Real reordering still updates composition and native punch-through;
+unchanged relative order preserves cached opacity and mask-source captures.
+Custom render backends that do not support retained order updates use redraw.
+
+During an [exit transition](animation-motion.md#retention-and-interrupted-motion),
+children remain mounted until their exits finish. Checking for completion does
+not itself invalidate scene topology while the retained children are unchanged.
+Animated paint, opacity, and geometry still update normally; actual removals or
+interrupted transitions continue to reconcile the mounted scene.
+
+Clip-boundary or scroller-ownership changes, scroller-container geometry changes,
 escaping unclippable branches, and scroll domains with
 disabled clipping or disabled scroll islands currently use full
 reconciliation. These optimizations do not guarantee a particular frame

@@ -94,6 +94,13 @@ impl ExpandedNodeIdentifier {
     }
 }
 
+#[derive(Default)]
+struct LayerLightRecipients {
+    // Shared by siblings; these are render-tree scopes, not template ancestry.
+    ancestry: HashMap<ExpandedNodeIdentifier, Rc<Vec<ExpandedNodeIdentifier>>>,
+    pending: HashSet<ExpandedNodeIdentifier>,
+}
+
 /// Shared context for properties pass recursion
 pub struct RuntimeContext {
     pub application: pax_runtime_api::application::ApplicationInstance,
@@ -115,6 +122,7 @@ pub struct RuntimeContext {
     pub layer_count: Cell<usize>,
     pub dirty_canvases: Rc<RefCell<Vec<bool>>>,
     dirty_canvas_nodes: RefCell<HashSet<ExpandedNodeIdentifier>>,
+    canvas_node_orders: RefCell<HashMap<usize, HashMap<u32, i32>>>,
     scene_geometry: RefCell<crate::scene_geometry::SceneGeometry>,
     pub(crate) viewport_proximity: RefCell<crate::viewport_proximity::ViewportProximityState>,
     canvas_node_light_masks: RefCell<HashMap<ExpandedNodeIdentifier, u32>>,
@@ -123,6 +131,8 @@ pub struct RuntimeContext {
     // Slot order and lexical owners determine masks; light color/position do not.
     layer_light_scopes:
         RefCell<HashMap<usize, Vec<(ExpandedNodeIdentifier, Option<ExpandedNodeIdentifier>)>>>,
+    lighting_topology_dirty: Cell<bool>,
+    layer_light_recipients: RefCell<HashMap<usize, LayerLightRecipients>>,
     #[cfg(test)]
     lighting_mask_node_visits: Cell<usize>,
     lighting_overflow_counts: RefCell<HashMap<usize, usize>>,
@@ -259,12 +269,15 @@ impl RuntimeContext {
             last_topmost_element: Default::default(),
             dirty_canvases: Default::default(),
             dirty_canvas_nodes: Default::default(),
+            canvas_node_orders: Default::default(),
             scene_geometry: Default::default(),
             viewport_proximity: Default::default(),
             canvas_node_light_masks: Default::default(),
             scene_lighting_nodes: Default::default(),
             scene_lighting_dirty: Default::default(),
             layer_light_scopes: Default::default(),
+            lighting_topology_dirty: Cell::new(true),
+            layer_light_recipients: Default::default(),
             #[cfg(test)]
             lighting_mask_node_visits: Cell::new(0),
             lighting_overflow_counts: Default::default(),
@@ -310,12 +323,15 @@ impl RuntimeContext {
             last_topmost_element: Default::default(),
             dirty_canvases: Default::default(),
             dirty_canvas_nodes: Default::default(),
+            canvas_node_orders: Default::default(),
             scene_geometry: Default::default(),
             viewport_proximity: Default::default(),
             canvas_node_light_masks: Default::default(),
             scene_lighting_nodes: Default::default(),
             scene_lighting_dirty: Default::default(),
             layer_light_scopes: Default::default(),
+            lighting_topology_dirty: Cell::new(true),
+            layer_light_recipients: Default::default(),
             #[cfg(test)]
             lighting_mask_node_visits: Cell::new(0),
             lighting_overflow_counts: Default::default(),
@@ -361,12 +377,15 @@ impl RuntimeContext {
             last_topmost_element: Default::default(),
             dirty_canvases: Default::default(),
             dirty_canvas_nodes: Default::default(),
+            canvas_node_orders: Default::default(),
             scene_geometry: Default::default(),
             viewport_proximity: Default::default(),
             canvas_node_light_masks: Default::default(),
             scene_lighting_nodes: Default::default(),
             scene_lighting_dirty: Default::default(),
             layer_light_scopes: Default::default(),
+            lighting_topology_dirty: Cell::new(true),
+            layer_light_recipients: Default::default(),
             #[cfg(test)]
             lighting_mask_node_visits: Cell::new(0),
             lighting_overflow_counts: Default::default(),
@@ -430,12 +449,15 @@ impl RuntimeContext {
         // Render work belongs to a mounted instance. A stale ID otherwise makes
         // every filtered traversal fall back to the whole tree indefinitely.
         borrow_mut!(self.dirty_canvas_nodes).remove(&node.id);
+        for orders in self.canvas_node_orders.borrow_mut().values_mut() {
+            orders.remove(&node.id.to_u32());
+        }
         for ids in borrow_mut!(self.targeted_canvas_replay_node_ids).values_mut() {
             ids.remove(&node.id.to_u32());
         }
         if borrow_mut!(self.scene_lighting_nodes).remove(&node.id) {
             // Ancestor lights can affect canvases other than their own layer.
-            self.set_all_canvases_dirty();
+            self.mark_scene_lighting_dirty();
         }
         self.unregister_viewport_proximity(node.id.to_u32());
         borrow_mut!(self.scene_geometry).remove(node.id.to_u32());
@@ -462,7 +484,7 @@ impl RuntimeContext {
             contributors.remove(&node.id)
         };
         if changed {
-            self.set_all_canvases_dirty();
+            self.mark_scene_lighting_dirty();
         }
     }
 
@@ -1108,6 +1130,19 @@ impl RuntimeContext {
         self.has_dirty_canvas_layers()
             || self.has_canvas_node_removals()
             || self.scene_lighting_dirty.get()
+            || !self.canvas_node_orders.borrow().is_empty()
+    }
+
+    pub(crate) fn queue_canvas_node_order(&self, layer: usize, id: u32, z: i32) {
+        self.canvas_node_orders
+            .borrow_mut()
+            .entry(layer)
+            .or_default()
+            .insert(id, z);
+    }
+
+    pub(crate) fn take_canvas_node_orders(&self) -> HashMap<usize, HashMap<u32, i32>> {
+        std::mem::take(&mut *self.canvas_node_orders.borrow_mut())
     }
 
     /// Schedule lighting resolution without invalidating canvas geometry or contents.
@@ -1153,6 +1188,7 @@ impl RuntimeContext {
         // another application tick. Application invalidation dirties the layer
         // and/or the scene/effect guards checked by the caller.
         !self.is_canvas_dirty(&layer)
+            && !self.canvas_node_orders.borrow().contains_key(&layer)
             && !borrow!(self.removed_canvas_nodes)
                 .iter()
                 .any(|(owner, _)| *owner == layer)
@@ -1208,28 +1244,34 @@ impl RuntimeContext {
             }
         }
         drop(state);
-        // Reuse structural invalidation for layer ownership and LightFrame ancestry.
-        // Geometry/scroll-only invalidation deliberately leaves these masks valid.
-        borrow_mut!(self.layer_light_scopes).clear();
+        self.mark_lighting_topology_dirty();
+    }
+
+    pub(crate) fn mark_lighting_topology_dirty(&self) {
+        // Reconcile ownership after occlusion settles. A structural edit is not
+        // evidence that light slots, recipient masks, or GPU contents changed.
+        self.lighting_topology_dirty.set(true);
         if !borrow!(self.scene_lighting_nodes).is_empty()
             || !borrow!(self.canvas_node_light_masks).is_empty()
         {
-            self.set_all_canvases_dirty();
+            self.mark_scene_lighting_dirty();
         }
     }
 
     /// Invalidate native compositing after a node's paint or coverage changes.
-    /// Detached source changes reconcile their owning mask in the visible scene.
+    /// Unmounted nodes (including settings sidecars) do not participate. Mounted
+    /// render sources invalidate their capture geometry and owning visible mask.
+    /// Mount/unmount notifications separately reconcile scene membership.
     pub fn mark_node_occlusion_dirty(&self, mut id: u32) {
         loop {
+            let Some(node) = self.get_expanded_node_by_eid(ExpandedNodeIdentifier(id)) else {
+                return;
+            };
             // Source records are cached for capture but absent from visible
             // compositing. Reconcile their owning mask, including nested sources,
             // so source animation does not look like a missing scene node.
             borrow_mut!(self.scene_geometry).invalidate_existing(id);
-            let owner = self
-                .get_expanded_node_by_eid(ExpandedNodeIdentifier(id))
-                .and_then(|node| node.render_source_owner());
-            let Some(owner) = owner else {
+            let Some(owner) = node.render_source_owner() else {
                 break;
             };
             id = owner.to_u32();
@@ -1337,18 +1379,83 @@ impl RuntimeContext {
             .unwrap_or(0)
     }
 
+    fn reconcile_light_recipients(&self) {
+        if !self.lighting_topology_dirty.replace(false) {
+            return;
+        }
+        let cache = borrow!(self.node_cache);
+        let mut previous = borrow_mut!(self.layer_light_recipients);
+        let mut next = HashMap::<usize, LayerLightRecipients>::new();
+        let mut inherited =
+            HashMap::<ExpandedNodeIdentifier, Rc<Vec<ExpandedNodeIdentifier>>>::new();
+        for node in cache.eid_to_node.values() {
+            if borrow!(node.instance_node).base().flags().layer != crate::api::Layer::Canvas {
+                continue;
+            }
+            // Memoize each parent once across the whole reconciliation, rather
+            // than walking every recipient's ancestry again for every layer.
+            let mut current = node.render_parent_node();
+            let mut missing = Vec::new();
+            let mut ancestry = Rc::new(Vec::new());
+            while let Some(parent) = current {
+                if let Some(known) = inherited.get(&parent.id) {
+                    ancestry = Rc::clone(known);
+                    break;
+                }
+                current = parent.render_parent_node();
+                missing.push(parent);
+            }
+            for parent in missing.into_iter().rev() {
+                if borrow!(parent.instance_node).establishes_light_frame() {
+                    let mut frames = ancestry.as_ref().clone();
+                    frames.push(parent.id);
+                    ancestry = Rc::new(frames);
+                }
+                inherited.insert(parent.id, Rc::clone(&ancestry));
+            }
+            let layer = node.occlusion.get().render_layer_id;
+            let recipients = next.entry(layer).or_default();
+            let old = previous.get(&layer);
+            if old.is_none_or(|old| {
+                old.ancestry.get(&node.id) != Some(&ancestry) || old.pending.contains(&node.id)
+            }) {
+                recipients.pending.insert(node.id);
+            }
+            recipients.ancestry.insert(node.id, ancestry);
+        }
+        // Includes replacement of a Canvas primitive by a non-Canvas primitive.
+        // Layer moves stay pending in the destination even if the source layer
+        // resolves first, and uncollected changes survive another reconciliation.
+        borrow_mut!(self.canvas_node_light_masks).retain(|id, _| {
+            cache.eid_to_node.get(id).is_some_and(|node| {
+                next.get(&node.occlusion.get().render_layer_id)
+                    .is_some_and(|recipients| recipients.ancestry.contains_key(id))
+            })
+        });
+        borrow_mut!(self.layer_light_scopes).retain(|layer, _| next.contains_key(layer));
+        borrow_mut!(self.lighting_overflow_counts).retain(|layer, _| next.contains_key(layer));
+        *previous = next;
+    }
+
     /// Resolve registered direct/ambient contributors in the target layer's coordinates.
     ///
-    /// Light values remain live on every render; retained node masks are rebuilt only
-    /// when selected light slots, lexical scope, or scene structure changes. Contributors
-    /// are independent of viewport visibility, and an unlit scene needs no node scan.
+    /// Light values remain live on every render. Structural changes reconcile recipient
+    /// layer and LightFrame ancestry once; stable light slots only revisit changed
+    /// recipients. Slot/scope changes rebuild masks within the affected layer.
+    /// Contributors are independent of visibility; unlit scenes need no recipient scan.
     pub fn collect_scene_lighting_for_layer(&self, layer: usize) -> SceneLighting {
         if borrow!(self.scene_lighting_nodes).is_empty()
             && borrow!(self.canvas_node_light_masks).is_empty()
         {
+            if self.lighting_topology_dirty.replace(false) {
+                borrow_mut!(self.layer_light_recipients).clear();
+                borrow_mut!(self.layer_light_scopes).clear();
+                borrow_mut!(self.lighting_overflow_counts).clear();
+            }
             borrow_mut!(self.lighting_overflow_counts).remove(&layer);
             return SceneLighting::with_default_ambient(Vec::new());
         }
+        self.reconcile_light_recipients();
         let layer_to_root_transforms = self.layer_to_root_transforms(layer);
         let root_to_target = layer_to_root_transforms[&layer].inverse();
         let node_cache = borrow!(self.node_cache);
@@ -1420,31 +1527,34 @@ impl RuntimeContext {
             .map(|(_, id, frame, _)| (*id, *frame))
             .collect::<Vec<_>>();
         let scopes_changed = borrow!(self.layer_light_scopes).get(&layer) != Some(&scopes);
-        if scopes_changed {
+        if let Some(recipients) = borrow_mut!(self.layer_light_recipients).get_mut(&layer) {
+            let candidates = if scopes_changed {
+                recipients.pending.clear();
+                recipients.ancestry.keys().copied().collect::<Vec<_>>()
+            } else {
+                recipients.pending.drain().collect::<Vec<_>>()
+            };
             let mut masks = borrow_mut!(self.canvas_node_light_masks);
             // Empty masks are implicit. An unlit/ambient-only scene never needs a
             // recipient scan, unless retained masks from earlier lights need clearing.
             if !scopes.is_empty() || !masks.is_empty() {
                 let mut dirty_nodes = borrow_mut!(self.dirty_canvas_nodes);
-                for node in node_cache.eid_to_node.values() {
+                for id in candidates {
+                    if scopes.is_empty() && !masks.contains_key(&id) {
+                        continue;
+                    }
                     #[cfg(test)]
                     self.lighting_mask_node_visits
                         .set(self.lighting_mask_node_visits.get() + 1);
-                    if node.occlusion.get().render_layer_id != layer
-                        || borrow!(node.instance_node).base().flags().layer
-                            != crate::api::Layer::Canvas
-                    {
-                        continue;
-                    }
                     let mask = if scopes.is_empty() {
                         0
                     } else {
-                        let ancestry = Self::light_frame_ancestry(node);
+                        let ancestry = &recipients.ancestry[&id];
                         scopes
                             .iter()
                             .enumerate()
                             .fold(0u32, |mask, (slot, (_, owner))| {
-                                if light_reaches_frame_ancestry(owner.as_ref(), &ancestry) {
+                                if owner.is_none_or(|owner| ancestry.contains(&owner)) {
                                     mask | (1u32 << slot)
                                 } else {
                                     mask
@@ -1452,24 +1562,24 @@ impl RuntimeContext {
                             })
                     };
                     let previous = if mask == 0 {
-                        masks.remove(&node.id)
+                        masks.remove(&id)
                     } else {
-                        masks.insert(node.id, mask)
+                        masks.insert(id, mask)
                     }
                     .unwrap_or(0);
                     if previous != mask {
                         self.set_canvas_dirty(layer);
-                        dirty_nodes.insert(node.id);
+                        dirty_nodes.insert(id);
                         if let Some(ids) =
                             borrow_mut!(self.targeted_canvas_replay_node_ids).get_mut(&layer)
                         {
-                            ids.remove(&node.id.to_u32());
+                            ids.remove(&id.to_u32());
                         }
                     }
                 }
             }
-            borrow_mut!(self.layer_light_scopes).insert(layer, scopes);
         }
+        borrow_mut!(self.layer_light_scopes).insert(layer, scopes);
         drop(node_cache);
 
         let lights = scoped_lights
@@ -1500,6 +1610,7 @@ impl RuntimeContext {
         None
     }
 
+    #[cfg(test)]
     fn light_frame_ancestry(node: &ExpandedNode) -> HashSet<ExpandedNodeIdentifier> {
         let mut frames = HashSet::new();
         let mut current = node.render_parent_node();
@@ -2100,6 +2211,7 @@ impl IdentifierResolver for RuntimePropertiesStackFrame {
     }
 }
 
+#[cfg(test)]
 fn light_reaches_frame_ancestry(
     owner_frame: Option<&ExpandedNodeIdentifier>,
     frame_ancestry: &HashSet<ExpandedNodeIdentifier>,
@@ -2343,12 +2455,42 @@ mod light_scope_tests {
         let root = ExpandedNode::initialize_root(root_component, &context);
         root.recurse_update(&context);
         crate::engine::occlusion::update_node_occlusion(&root, &context);
+        borrow_mut!(context.dirty_canvases).resize(context.layer_count.get(), true);
         (context, root)
     }
 
     fn clear_dirty_canvas_nodes(context: &RuntimeContext) {
         for id in context.dirty_canvas_node_ids() {
             context.clear_canvas_node_dirty(&id);
+        }
+    }
+
+    fn assert_light_masks_match_full_recompute(context: &RuntimeContext) {
+        let cache = borrow!(context.node_cache);
+        for node in cache.eid_to_node.values() {
+            if borrow!(node.instance_node).base().flags().layer != Layer::Canvas {
+                continue;
+            }
+            let scopes = borrow!(context.layer_light_scopes);
+            let ancestry = RuntimeContext::light_frame_ancestry(node);
+            let expected = scopes
+                .get(&node.occlusion.get().render_layer_id)
+                .into_iter()
+                .flatten()
+                .enumerate()
+                .fold(0, |mask, (slot, (_, owner))| {
+                    if light_reaches_frame_ancestry(owner.as_ref(), &ancestry) {
+                        mask | (1 << slot)
+                    } else {
+                        mask
+                    }
+                });
+            assert_eq!(
+                context.canvas_node_light_mask(node.id),
+                expected,
+                "{:?}",
+                node.id
+            );
         }
     }
 
@@ -2791,6 +2933,162 @@ mod light_scope_tests {
     }
 
     #[test]
+    fn unrelated_structure_retains_light_slots_masks_and_clean_canvases() {
+        let fixture = scoped_lighting_fixture();
+        let ctx = &fixture.context;
+        ctx.collect_scene_lighting_for_layer(0);
+        clear_dirty_canvas_nodes(ctx);
+        ctx.clear_all_dirty_canvases();
+        let visits = ctx.lighting_mask_node_visits.get();
+
+        // Generic child-list invalidation is not a lighting dependency change.
+        ctx.mark_occlusion_dirty();
+        assert!(ctx.take_scene_lighting_dirty());
+        assert!(!ctx.has_dirty_canvas_layers());
+        ctx.collect_scene_lighting_for_layer(0);
+        assert_eq!(ctx.lighting_mask_node_visits.get(), visits);
+        assert!(ctx.dirty_canvas_node_ids().is_empty());
+        assert!(!ctx.has_dirty_canvas_layers());
+        assert_light_masks_match_full_recompute(ctx);
+    }
+
+    #[test]
+    fn recipient_removal_and_remount_only_recompute_that_recipient() {
+        let fixture = scoped_lighting_fixture();
+        let ctx = &fixture.context;
+        ctx.collect_scene_lighting_for_layer(0);
+        let visits = ctx.lighting_mask_node_visits.get();
+
+        fixture.nested_surface.clone().recurse_unmount(ctx);
+        clear_dirty_canvas_nodes(ctx);
+        ctx.collect_scene_lighting_for_layer(0);
+        assert_eq!(ctx.lighting_mask_node_visits.get(), visits);
+        assert_eq!(ctx.canvas_node_light_mask(fixture.nested_surface.id), 0);
+        assert!(ctx.dirty_canvas_node_ids().is_empty());
+
+        fixture.nested_surface.clone().recurse_mount(ctx);
+        clear_dirty_canvas_nodes(ctx);
+        ctx.collect_scene_lighting_for_layer(0);
+        assert_eq!(ctx.lighting_mask_node_visits.get(), visits + 1);
+        assert_eq!(ctx.canvas_node_light_mask(fixture.nested_surface.id), 0b111);
+        assert_eq!(ctx.dirty_canvas_node_ids(), vec![fixture.nested_surface.id]);
+        assert_light_masks_match_full_recompute(ctx);
+    }
+
+    #[test]
+    fn recipient_reparenting_only_recomputes_changed_ancestry() {
+        let fixture = scoped_lighting_fixture();
+        let ctx = &fixture.context;
+        ctx.collect_scene_lighting_for_layer(0);
+        clear_dirty_canvas_nodes(ctx);
+        let visits = ctx.lighting_mask_node_visits.get();
+        let old_parent = fixture.nested_surface.render_parent_node().unwrap();
+        let mut children = fixture.sibling_frame.children.get();
+        children.push(fixture.nested_surface.clone());
+        let children = fixture.sibling_frame.attach_children(
+            children,
+            ctx,
+            &fixture.sibling_frame.parent_frame,
+        );
+        fixture.sibling_frame.children.set(children);
+        ctx.collect_scene_lighting_for_layer(0);
+        assert_eq!(ctx.lighting_mask_node_visits.get(), visits + 1);
+        assert_eq!(ctx.canvas_node_light_mask(fixture.nested_surface.id), 0b011);
+        assert_eq!(ctx.dirty_canvas_node_ids(), vec![fixture.nested_surface.id]);
+        assert_light_masks_match_full_recompute(ctx);
+
+        let mut children = old_parent.children.get();
+        children.push(fixture.nested_surface.clone());
+        let children = old_parent.attach_children(children, ctx, &old_parent.parent_frame);
+        old_parent.children.set(children);
+        ctx.collect_scene_lighting_for_layer(0);
+        assert_eq!(ctx.lighting_mask_node_visits.get(), visits + 2);
+        assert_eq!(ctx.canvas_node_light_mask(fixture.nested_surface.id), 0b111);
+        assert_light_masks_match_full_recompute(ctx);
+    }
+
+    #[test]
+    fn uncollected_recipient_change_survives_another_topology_reconciliation() {
+        let fixture = scoped_lighting_fixture();
+        let ctx = &fixture.context;
+        ctx.collect_scene_lighting_for_layer(0);
+        let visits = ctx.lighting_mask_node_visits.get();
+        *borrow_mut!(fixture.nested_surface.render_parent) = Rc::downgrade(&fixture.sibling_frame);
+        ctx.mark_occlusion_dirty();
+        ctx.collect_scene_lighting_for_layer(1);
+        ctx.mark_occlusion_dirty();
+        ctx.collect_scene_lighting_for_layer(1);
+        ctx.collect_scene_lighting_for_layer(0);
+        assert_eq!(ctx.lighting_mask_node_visits.get(), visits + 1);
+        assert_eq!(ctx.canvas_node_light_mask(fixture.nested_surface.id), 0b011);
+        assert_light_masks_match_full_recompute(ctx);
+    }
+
+    #[test]
+    fn frame_replacement_and_slot_reordering_match_full_recompute() {
+        let fixture = scoped_lighting_fixture();
+        let ctx = &fixture.context;
+        ctx.collect_scene_lighting_for_layer(0);
+        let parent = fixture.nested_surface.render_parent_node().unwrap();
+        // Replace the non-rendering scope while retaining its mounted children.
+        parent.recreate_with_new_data(
+            TestLightingNode::new(TestLightingRole::Surface, Vec::new()).as_instance(),
+            ctx,
+        );
+        ctx.collect_scene_lighting_for_layer(0);
+        assert_eq!(
+            ctx.canvas_node_light_mask(fixture.sibling_surface.id),
+            0b111
+        );
+        assert_light_masks_match_full_recompute(ctx);
+
+        let provider = fixture._root.children.get()[0].clone();
+        let mut occlusion = provider.occlusion.get();
+        occlusion.z_index = -100;
+        provider.occlusion.set(occlusion);
+        ctx.mark_occlusion_dirty();
+        ctx.collect_scene_lighting_for_layer(0);
+        assert_eq!(ctx.canvas_node_light_mask(fixture.root_surface.id), 0b100);
+        assert_light_masks_match_full_recompute(ctx);
+    }
+
+    #[test]
+    fn changed_light_slots_only_recompute_recipients_in_their_layer() {
+        let first = TestLightingNode::new(TestLightingRole::Light(1.0), Vec::new());
+        let second = TestLightingNode::new(TestLightingRole::Light(2.0), Vec::new());
+        let (ctx, root) = mount_test_tree(vec![
+            first.as_instance(),
+            TestLightingNode::new(TestLightingRole::Surface, Vec::new()).as_instance(),
+            second.as_instance(),
+            TestLightingNode::new(TestLightingRole::Surface, Vec::new()).as_instance(),
+        ]);
+        let nodes = root.children.get();
+        for node in &nodes[2..] {
+            let mut occlusion = node.occlusion.get();
+            occlusion.render_layer_id = 1;
+            node.occlusion.set(occlusion);
+        }
+        borrow_mut!(ctx.dirty_canvases).resize(2, true);
+        ctx.collect_scene_lighting_for_layer(0);
+        ctx.collect_scene_lighting_for_layer(1);
+        let visits = ctx.lighting_mask_node_visits.get();
+        clear_dirty_canvas_nodes(&ctx);
+        ctx.clear_all_dirty_canvases();
+
+        second.set_enabled(false);
+        ctx.mark_scene_lighting_dirty();
+        ctx.collect_scene_lighting_for_layer(0);
+        assert_eq!(ctx.lighting_mask_node_visits.get(), visits);
+        assert!(!ctx.is_canvas_dirty(&0));
+        ctx.collect_scene_lighting_for_layer(1);
+        assert_eq!(ctx.lighting_mask_node_visits.get(), visits + 2);
+        assert!(ctx.is_canvas_dirty(&1));
+        assert!(!ctx.is_canvas_node_dirty(&nodes[1].id));
+        assert!(ctx.is_canvas_node_dirty(&nodes[3].id));
+        assert_light_masks_match_full_recompute(&ctx);
+    }
+
+    #[test]
     fn disabled_light_stays_registered_and_last_light_removal_clears_masks() {
         let light = TestLightingNode::new(TestLightingRole::Light(2.0), Vec::new());
         light.set_enabled(false);
@@ -2934,9 +3232,11 @@ mod light_scope_tests {
             .lights
             .is_empty());
         assert_eq!(context.canvas_node_light_mask(surface.id), 0);
+        borrow_mut!(context.dirty_canvases).resize(3, false);
         context.clear_all_dirty_canvases();
         nodes[0].clone().recurse_unmount(&context);
-        assert!(context.is_canvas_dirty(&1));
+        assert!(!context.is_canvas_dirty(&1));
+        assert!(context.take_scene_lighting_dirty());
     }
 
     #[test]
@@ -2959,19 +3259,49 @@ mod light_scope_tests {
             .attach_sidecar_children(sources, &context, &owner.parent_frame)
             .remove(0);
         source.mount_as_render_source(&owner, &context);
+        let nested = source.create_children_detached(
+            vec![(
+                TestLightingNode::new(TestLightingRole::Surface, Vec::new()).as_instance(),
+                source.stack.clone(),
+            )],
+            &context,
+            &Rc::downgrade(&source),
+        );
+        let nested = source
+            .attach_sidecar_children(nested, &context, &source.parent_frame)
+            .remove(0);
+        nested.mount_as_render_source(&source, &context);
         root.recurse_update(&context);
         crate::engine::occlusion::update_node_occlusion(&root, &context);
         let before = context.occlusion_stats();
-        source
+        nested
             .get_common_properties()
             .borrow()
             .x
             .set(Some(pax_runtime_api::Size::Pixels(15.0.into())));
+        context.mark_node_occlusion_dirty(nested.id.to_u32());
+        assert!(context
+            .occlusion_state
+            .borrow()
+            .dirty
+            .contains(&owner.id.to_u32()));
+        assert!(!context
+            .occlusion_state
+            .borrow()
+            .dirty
+            .contains(&source.id.to_u32()));
+        assert!(!context
+            .occlusion_state
+            .borrow()
+            .dirty
+            .contains(&nested.id.to_u32()));
         root.recurse_update(&context);
         crate::engine::occlusion::update_node_occlusion(&root, &context);
         let after = context.occlusion_stats();
         assert_eq!(after.rebuilds, before.rebuilds);
         assert!(after.records_updated > before.records_updated);
+        nested.recurse_unmount(&context);
+        source.recurse_unmount(&context);
         root.recurse_unmount(&context);
     }
 

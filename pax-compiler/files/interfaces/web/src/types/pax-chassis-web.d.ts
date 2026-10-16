@@ -51,7 +51,7 @@ export class PaxChassisWeb {
 * @returns {any}
 */
   tick(): any;
-  tick_profiled(): [any, [string, number][], {passes: number; rebuilds: number; records_updated: number; masks_evaluated: number; mask_candidates: number; rebuild_reason: string | null; rebuild_node: number | null; rebuild_origins: ({file: string; line: number; node: number | null; count: number} | null)[]}];
+  tick_profiled(): [any, [string, number][], {passes: number; rebuilds: number; structural_reconciliations: number; records_retained: number; orders_updated: number; records_updated: number; masks_evaluated: number; mask_candidates: number; rebuild_reason: string | null; rebuild_node: number | null; rebuild_origins: ({file: string; line: number; node: number | null; count: number} | null)[]}];
   set_surface_ready_callback(callback: (() => void) | undefined): void;
   present_ready_surfaces(): {submitted: number; deferred: number; cache_misses: number; blocked: boolean; blocker: string | null; elapsed_ms: number};
 /**

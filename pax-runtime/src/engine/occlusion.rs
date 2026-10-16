@@ -12,6 +12,10 @@ use crate::{node_interface::NodeLocal, ExpandedNode, RuntimeContext, TransformAn
 
 use super::expanded_node::Occlusion;
 
+#[cfg(test)]
+#[path = "occlusion_reconcile_tests.rs"]
+mod reconcile_tests;
+
 // This pass still carries the historical "occlusion" name, but it no longer builds an
 // alternating stack of vector/native compositing layers. It assigns z-order, computes native
 // punch-through masks, and partitions canvas work into logical render layers. Layer 0 is the root
@@ -175,9 +179,15 @@ pub struct OcclusionStats {
     pub passes: u64,
     /// Full structural/presentation reconciliations.
     pub rebuilds: u64,
-    /// Dirty records refreshed outside structural reconciliation.
+    /// Structural edits reconciled without replacing stable coverage records.
+    pub structural_reconciliations: u64,
+    /// Records reused by those structural reconciliations.
+    pub records_retained: u64,
+    /// Numeric paint-order changes sent without invalidating geometry.
+    pub orders_updated: u64,
+    /// Dirty/new records refreshed by localized coverage reconciliation.
     pub records_updated: u64,
-    /// Native masks evaluated by the incremental path.
+    /// Native masks evaluated by localized reconciliation, including simple structural edits.
     pub masks_evaluated: u64,
     /// Canvas candidates examined for those masks.
     pub mask_candidates: u64,
@@ -200,6 +210,7 @@ pub struct OcclusionInvalidation {
 }
 
 struct OcclusionRecord {
+    instance: std::rc::Weak<dyn crate::rendering::InstanceNode>,
     layer: Layer,
     render_layer_id: usize,
     scrolls: bool,
@@ -223,6 +234,8 @@ pub(crate) struct OcclusionState {
     pub(crate) dirty: HashSet<u32>,
     pub(crate) scrolled: HashSet<u32>,
     records: HashMap<u32, OcclusionRecord>,
+    // Preserve removed coverage until its former native overlaps are repaired.
+    removed: Vec<OcclusionRecord>,
     // Exact inherited clip membership, rebuilt only when topology changes.
     // Animated clip geometry must not reconcile unrelated scroll islands.
     clip_dependents: HashMap<u32, Vec<u32>>,
@@ -243,7 +256,9 @@ pub(crate) struct OcclusionState {
 
 impl OcclusionState {
     pub(crate) fn remove(&mut self, id: u32) {
-        self.records.remove(&id);
+        if let Some(record) = self.records.remove(&id) {
+            self.removed.push(record);
+        }
         self.clip_dependents.remove(&id);
         self.dirty.remove(&id);
         self.scrolled.remove(&id);
@@ -256,13 +271,27 @@ impl OcclusionState {
 
 /// Reconcile structural changes, otherwise update only dirty geometry and overlapping masks.
 pub fn update_node_occlusion(root_node: &Rc<ExpandedNode>, ctx: &RuntimeContext) {
+    update_node_occlusion_observed(root_node, ctx, &mut |_| {});
+}
+
+pub(crate) fn update_node_occlusion_observed(
+    root_node: &Rc<ExpandedNode>,
+    ctx: &RuntimeContext,
+    completed: &mut dyn FnMut(&'static str),
+) {
     let mut state_guard = ctx.occlusion_state.borrow_mut();
     let state = &mut *state_guard;
     state.stats.passes += 1;
     state.culling_dirty = true;
     let mut dirty = std::mem::take(&mut state.dirty);
     let scrolled = std::mem::take(&mut state.scrolled);
-    let rebuild = if std::mem::take(&mut state.structural) || state.records.is_empty() {
+    let structural = std::mem::take(&mut state.structural);
+    let mut affected = HashSet::new();
+    let reconciled = structural
+        && !state.records.is_empty()
+        && try_reconcile_structure(root_node, ctx, state, &mut dirty, &mut affected);
+    completed("occlusion.topology");
+    let rebuild = if (structural && !reconciled) || state.records.is_empty() {
         Some(("structure", None))
     } else {
         dirty
@@ -324,6 +353,7 @@ pub fn update_node_occlusion(root_node: &Rc<ExpandedNode>, ctx: &RuntimeContext)
         state.stats.rebuild_node = node;
         state.culling_rebuild = true;
         state.records.clear();
+        state.removed.clear();
         state.clip_dependents.clear();
         state.canvas_counts.clear();
         state.scroll_regions.clear();
@@ -331,7 +361,7 @@ pub fn update_node_occlusion(root_node: &Rc<ExpandedNode>, ctx: &RuntimeContext)
         state.leaf_scroll_regions.clear();
         state.owned_layers.clear();
         state.unsafe_layers.clear();
-        rebuild_node_occlusion(root_node, ctx, state);
+        rebuild_node_occlusion(root_node, ctx, state, completed);
         for (&id, record) in &state.records {
             for &clip in &record.clips {
                 state.clip_dependents.entry(clip).or_default().push(id);
@@ -409,6 +439,7 @@ pub fn update_node_occlusion(root_node: &Rc<ExpandedNode>, ctx: &RuntimeContext)
             }
         }
         state.stats.rebuilds += 1;
+        completed("occlusion.index");
         return;
     }
 
@@ -444,7 +475,6 @@ pub fn update_node_occlusion(root_node: &Rc<ExpandedNode>, ctx: &RuntimeContext)
         }
     }
     ctx.prepare_scene_geometry();
-    let mut affected = HashSet::new();
     for id in dirty {
         let Some(node) = ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(id)) else {
             continue;
@@ -510,9 +540,341 @@ pub fn update_node_occlusion(root_node: &Rc<ExpandedNode>, ctx: &RuntimeContext)
             .filter_map(|(layer, count)| (*count > 0).then_some(*layer))
             .collect(),
     );
+    completed("occlusion.coverage");
     for id in affected {
         update_indexed_mask(id, ctx, state);
     }
+    completed("occlusion.masks");
+}
+
+// Keep a full topology walk, but avoid resolving paint/clip geometry while proving
+// that the existing presentation domains are unchanged. No retained state is
+// mutated until the entire tree passes this conservative preflight.
+fn try_reconcile_structure(
+    root: &Rc<ExpandedNode>,
+    ctx: &RuntimeContext,
+    state: &mut OcclusionState,
+    dirty: &mut HashSet<u32>,
+    affected: &mut HashSet<u32>,
+) -> bool {
+    struct Walk {
+        seen: HashSet<u32>,
+        added: HashMap<u32, OcclusionRecord>,
+        order: Vec<(Rc<ExpandedNode>, Occlusion)>,
+        next_layer: usize,
+    }
+    fn complex(record: &OcclusionRecord) -> bool {
+        record.scrolls || record.clip.is_some() || record.before_children || record.unclippable
+    }
+    fn visit(
+        node: &Rc<ExpandedNode>,
+        ctx: &RuntimeContext,
+        state: &OcclusionState,
+        dirty: &HashSet<u32>,
+        layer_id: usize,
+        container: Option<u32>,
+        clips: &[u32],
+        walk: &mut Walk,
+    ) -> bool {
+        let id = node.id.to_u32();
+        if !walk.seen.insert(id) {
+            return false;
+        }
+        let instance = borrow!(node.instance_node);
+        let native = instance.materializes_native_surface(node);
+        let layer = if native {
+            Layer::Native
+        } else {
+            instance.base().flags().layer
+        };
+        let scrolls = instance.scrolls_content(node);
+        let owns_layer = scrolls
+            && ctx.globals().browser_allows_scroller_vector_layers.get()
+            && (ctx
+                .globals()
+                .browser_allows_nested_scroller_vector_layers
+                .get()
+                || container.is_none());
+        if owns_layer != state.owned_layers.contains_key(&id) {
+            return false;
+        }
+        let before = native && instance.materializes_native_surface_before_children(node);
+        let unclippable = node
+            .get_common_properties()
+            .borrow()
+            .unclippable
+            .get()
+            .unwrap_or(false);
+        let old = state.records.get(&id);
+        let has_clip = if let Some(old) = old {
+            if old.render_layer_id != layer_id
+                || old.clips != clips
+                || old.layer != layer
+                || old.scrolls != scrolls
+                || old.before_children != before
+                || old.unclippable != unclippable
+                || old.clips_content != instance.clips_content(node)
+                || !old
+                    .instance
+                    .upgrade()
+                    .is_some_and(|i| Rc::ptr_eq(&i, &instance))
+                || (dirty.contains(&id)
+                    && (complex(old) || state.unsafe_layers.contains(&layer_id)))
+            {
+                return false;
+            }
+            if dirty.contains(&id)
+                && instance.resolve_effect_clip_path(node).is_some() != old.clip.is_some()
+            {
+                return false;
+            }
+            old.clip.is_some()
+        } else {
+            if scrolls
+                || before
+                || unclippable
+                || state.unsafe_layers.contains(&layer_id)
+                || instance.resolve_effect_clip_path(node).is_some()
+            {
+                return false;
+            }
+            walk.added.insert(
+                id,
+                OcclusionRecord {
+                    instance: Rc::downgrade(&instance),
+                    layer,
+                    render_layer_id: layer_id,
+                    scrolls: false,
+                    clips_content: instance.clips_content(node),
+                    before_children: false,
+                    unclippable: false,
+                    clip: None,
+                    clips: clips.to_vec(),
+                    path: None,
+                    opacity: 0.0,
+                    geometry: None,
+                },
+            );
+            false
+        };
+        drop(instance);
+        let child_layer = if let Some(&owned) = state.owned_layers.get(&id) {
+            if owned != walk.next_layer {
+                return false;
+            }
+            walk.next_layer += 1;
+            owned
+        } else {
+            layer_id
+        };
+        let child_container = if scrolls || has_clip {
+            Some(id)
+        } else {
+            container
+        };
+        let mut child_clips = clips.to_vec();
+        if has_clip {
+            child_clips.push(id);
+        }
+        if before {
+            walk.order.push((
+                Rc::clone(node),
+                Occlusion {
+                    render_layer_id: layer_id,
+                    parent_frame: container,
+                    z_index: walk.order.len() as i32,
+                },
+            ));
+        }
+        for child in node.children.get().iter().rev() {
+            // Escaping branches use the existing full traversal, even when only
+            // their siblings changed. Their mixed presentation domains are not
+            // represented by this bounded reconciliation's clip lineage.
+            if child
+                .get_common_properties()
+                .borrow()
+                .unclippable
+                .get()
+                .unwrap_or(false)
+                || !visit(
+                    child,
+                    ctx,
+                    state,
+                    dirty,
+                    child_layer,
+                    child_container,
+                    &child_clips,
+                    walk,
+                )
+            {
+                return false;
+            }
+        }
+        if !before && (layer != Layer::DontCare || has_clip) {
+            walk.order.push((
+                Rc::clone(node),
+                Occlusion {
+                    render_layer_id: layer_id,
+                    parent_frame: container,
+                    z_index: walk.order.len() as i32,
+                },
+            ));
+        }
+        true
+    }
+    if state
+        .removed
+        .iter()
+        .any(|r| complex(r) || state.unsafe_layers.contains(&r.render_layer_id))
+    {
+        return false;
+    }
+    let mut walk = Walk {
+        seen: HashSet::new(),
+        added: HashMap::new(),
+        order: Vec::new(),
+        next_layer: 1,
+    };
+    if !visit(root, ctx, state, dirty, 0, None, &[], &mut walk)
+        || walk.next_layer != ctx.layer_count.get()
+        || state
+            .records
+            .iter()
+            .any(|(id, r)| !walk.seen.contains(id) && complex(r))
+    {
+        return false;
+    }
+
+    // Renumbering after insertion/removal is not a relative-order change. For
+    // real moves, repair overlaps only in the changed surviving order interval.
+    let surviving: Vec<_> = walk
+        .order
+        .iter()
+        .filter(|(n, _)| state.records.contains_key(&n.id.to_u32()))
+        .map(|(n, _)| (n.occlusion.get().z_index, n.id.to_u32()))
+        .collect();
+    let mut previous = surviving.clone();
+    previous.sort_unstable();
+    let first = previous
+        .iter()
+        .zip(&surviving)
+        .position(|(a, b)| a.1 != b.1);
+    if let Some(first) = first {
+        let last = previous
+            .iter()
+            .zip(&surviving)
+            .rposition(|(a, b)| a.1 != b.1)
+            .unwrap();
+        for &(_, id) in &surviving[first..=last] {
+            let record = &state.records[&id];
+            if state.unsafe_layers.contains(&record.render_layer_id) {
+                return false;
+            }
+        }
+    }
+    ctx.prepare_scene_geometry();
+    if let Some(first) = first {
+        let last = previous
+            .iter()
+            .zip(&surviving)
+            .rposition(|(a, b)| a.1 != b.1)
+            .unwrap();
+        for &(_, id) in &surviving[first..=last] {
+            let record = &state.records[&id];
+            if record.layer == Layer::Canvas {
+                include_old_overlaps(record, ctx, affected);
+            } else if record.layer != Layer::DontCare {
+                affected.insert(id);
+            }
+        }
+    }
+    let missing: Vec<_> = state
+        .records
+        .keys()
+        .filter(|id| !walk.seen.contains(id))
+        .copied()
+        .collect();
+    for id in missing {
+        state.removed.push(state.records.remove(&id).unwrap());
+    }
+    for record in std::mem::take(&mut state.removed) {
+        include_old_overlaps(&record, ctx, affected);
+        if record.path.is_some() && record.opacity > f64::EPSILON {
+            if let Some(geometry) = &record.geometry {
+                *state.canvas_counts.entry(geometry.layer).or_default() -= 1;
+            }
+        }
+    }
+    for dependents in state.clip_dependents.values_mut() {
+        dependents.retain(|id| walk.seen.contains(id));
+    }
+    state.stats.records_retained += state.records.len() as u64;
+    for (id, record) in walk.added {
+        for &clip in &record.clips {
+            state.clip_dependents.entry(clip).or_default().push(id);
+        }
+        dirty.insert(id);
+        state.records.insert(id, record);
+    }
+    dirty.retain(|id| walk.seen.contains(id));
+    for (node, order) in walk.order {
+        if assign_occlusion(&node, order, state.records[&node.id.to_u32()].layer, ctx) {
+            state.stats.orders_updated += 1;
+        }
+    }
+    state.stats.structural_reconciliations += 1;
+    state.stats.rebuild_reason = Some("structure-reconciled");
+    state.stats.rebuild_node = None;
+    state.stats.rebuild_origins = std::mem::take(&mut state.invalidations);
+    state.culling_rebuild = true;
+    true
+}
+
+fn include_old_overlaps(
+    record: &OcclusionRecord,
+    ctx: &RuntimeContext,
+    affected: &mut HashSet<u32>,
+) {
+    if let (Some(path), Some(geometry)) = (&record.path, &record.geometry) {
+        affected.extend(ctx.compositing_nodes_intersecting(
+            geometry.layer,
+            &[path_in_surface_bounds(path, geometry)],
+            true,
+        ));
+    }
+}
+
+// Returns true for order-only changes. Native property subscribers still receive
+// the new z value; only canvas content/geometry invalidation is avoided.
+fn assign_occlusion(
+    node: &Rc<ExpandedNode>,
+    new: Occlusion,
+    layer: Layer,
+    ctx: &RuntimeContext,
+) -> bool {
+    let old = node.occlusion.get();
+    if new == old {
+        return false;
+    }
+    let order_only =
+        new.render_layer_id == old.render_layer_id && new.parent_frame == old.parent_frame;
+    if order_only {
+        if layer == Layer::Canvas {
+            ctx.queue_canvas_node_order(new.render_layer_id, node.id.to_u32(), new.z_index);
+        }
+    } else {
+        ctx.invalidate_scene_geometry(node.id.to_u32());
+        if layer == Layer::Canvas {
+            if old.render_layer_id != new.render_layer_id {
+                ctx.enqueue_canvas_node_removal(old.render_layer_id, node.id.to_u32());
+            }
+            ctx.mark_canvas_node_dirty(node.id);
+        }
+        ctx.set_canvas_dirty(old.render_layer_id);
+        ctx.set_canvas_dirty(new.render_layer_id);
+    }
+    node.occlusion.set(new);
+    order_only
 }
 
 // Native view detachment is currently a macOS optimization. Only the already
@@ -819,6 +1181,7 @@ fn rebuild_node_occlusion(
     root_node: &Rc<ExpandedNode>,
     ctx: &RuntimeContext,
     state: &mut OcclusionState,
+    completed: &mut dyn FnMut(&'static str),
 ) {
     #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
     let pass_start = std::time::Instant::now();
@@ -844,6 +1207,10 @@ fn rebuild_node_occlusion(
         &[],
         state,
     );
+    // A rebuild can change layer ownership even without a lifecycle edit (for
+    // example, switching native/scroller topology). Keep lighting's recipient
+    // dependency snapshot aligned without invalidating stable light slots.
+    ctx.mark_lighting_topology_dirty();
     let canvas_drawable_layers = drawables
         .iter()
         .filter_map(|drawable| match drawable {
@@ -852,7 +1219,9 @@ fn rebuild_node_occlusion(
         })
         .collect::<HashSet<_>>();
     ctx.set_canvas_drawable_layers(canvas_drawable_layers);
+    completed("occlusion.coverage");
     let _native_mask_stats = update_native_masks(&drawables, ctx);
+    completed("occlusion.masks");
 
     let new_layer_count = next_layer_id;
     if ctx.layer_count.get() != new_layer_count {
@@ -1004,6 +1373,7 @@ fn update_node_occlusion_recursive(
     state.records.insert(
         node.id.to_u32(),
         OcclusionRecord {
+            instance: Rc::downgrade(&instance_node),
             layer,
             render_layer_id: current_layer_id,
             scrolls: scrolls_content,
@@ -1083,13 +1453,8 @@ fn update_node_occlusion_recursive(
             parent_frame: active_container,
         };
 
-        if new_occlusion != node.occlusion.get() {
-            ctx.invalidate_scene_geometry(node.id.to_u32());
-            let previous_occlusion = node.occlusion.get();
-            let prev_layer = previous_occlusion.render_layer_id;
-            ctx.set_canvas_dirty(prev_layer);
-            ctx.set_canvas_dirty(new_occlusion.render_layer_id);
-            node.occlusion.set(new_occlusion);
+        if assign_occlusion(node, new_occlusion, layer, ctx) {
+            state.stats.orders_updated += 1;
         }
 
         drawables.push(DrawableInfo::Native {
@@ -1185,19 +1550,8 @@ fn update_node_occlusion_recursive(
         }
     }
 
-    if new_occlusion != node.occlusion.get() {
-        ctx.invalidate_scene_geometry(node.id.to_u32());
-        let previous_occlusion = node.occlusion.get();
-        let prev_layer = previous_occlusion.render_layer_id;
-        if layer == Layer::Canvas && prev_layer != new_occlusion.render_layer_id {
-            ctx.enqueue_canvas_node_removal(prev_layer, node.id.to_u32());
-        }
-        if layer == Layer::Canvas {
-            ctx.mark_canvas_node_dirty(node.id);
-        }
-        ctx.set_canvas_dirty(prev_layer);
-        ctx.set_canvas_dirty(new_occlusion.render_layer_id);
-        node.occlusion.set(new_occlusion);
+    if assign_occlusion(node, new_occlusion, layer, ctx) {
+        state.stats.orders_updated += 1;
     }
 
     match layer {

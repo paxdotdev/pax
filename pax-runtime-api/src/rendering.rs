@@ -420,6 +420,14 @@ pub trait RenderContext {
         true
     }
 
+    /// Updates retained paint order without recording drawing commands again.
+    /// Returning true accepts the entire batch, including future replay of cached
+    /// drawings. Numeric renumbering that preserves relative order need not repaint.
+    /// Returning false requests the runtime's conservative redraw fallback.
+    fn update_node_orders(&mut self, _layer: usize, _orders: &[(u32, i32)]) -> bool {
+        false
+    }
+
     /// Removes a node from backend retained state, if any.
     fn remove_node(&mut self, _layer: usize, _node_id: u32) -> bool {
         true

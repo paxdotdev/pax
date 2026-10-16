@@ -92,8 +92,10 @@ let reloadRetryHandle: number | null = null;
 const RELOAD_RETRY_MAX_DELAY_MS = 5_000;
 const ACTIVATION_PREFLIGHT_TIMEOUT_MS = 15_000;
 const ACTIVATION_POLL_INTERVAL_MS = 25;
-const perfTraceEnabled = typeof window !== "undefined" && new URLSearchParams(window.location.search).has("pax_scroll_perf");
-let perfTraceSequence = 0;
+const surfaceTraceEnabled = typeof window !== "undefined"
+    && new URLSearchParams(window.location.search).has("pax_surface_trace");
+const perfTraceEnabled = surfaceTraceEnabled
+    && new URLSearchParams(window.location.search).has("pax_scroll_perf");
 
 type PrepareAppRevision = {
     logic_revision_id: string;
@@ -131,18 +133,11 @@ function withProfileMeasure<T>(name: string, fn: () => T): T {
     if (!perfTraceEnabled || typeof performance === "undefined") {
         return fn();
     }
-    let sequence = perfTraceSequence += 1;
-    let startMark = `pax:${name}:${sequence}:start`;
-    let endMark = `pax:${name}:${sequence}:end`;
-    performance.mark(startMark);
+    const start = performance.now();
     try {
         return fn();
     } finally {
-        performance.mark(endMark);
-        const measure = performance.measure(`pax:${name}`, startMark, endMark);
-        nativePool.recordSurfaceFramePhase(name, measure.duration);
-        performance.clearMarks(startMark);
-        performance.clearMarks(endMark);
+        nativePool.recordSurfaceFramePhase(name, performance.now() - start);
     }
 }
 
@@ -291,7 +286,7 @@ function attachChassis(chassis: PaxChassisWeb, mount: Element) {
     nativePool.attach(chassis, mount);
     if (cooperativeRenderEnabled) {
         const pump = new CooperativeRenderScheduler(fromFrame => {
-            const start = performance.now();
+            const start = surfaceTraceEnabled ? performance.now() : 0;
             // Share the ordinary frame's engine-entry guard. A synchronous host
             // callback must not start a tick while a continuation owns Rust borrows.
             if (!fromFrame) frameInProgress = true;
@@ -302,13 +297,13 @@ function attachChassis(chassis: PaxChassisWeb, mount: Element) {
                     nativePool.sampleFrameInputs();
                     if (chassis.has_pending_properties() || !chassis.render_work_is_settled()) {
                         const report = {pending:false, blocked:true, blocker:'host_input_requires_settlement'};
-                        nativePool.recordRenderWork(report, performance.now() - start);
+                        if (surfaceTraceEnabled) nativePool.recordRenderWork(report, performance.now() - start);
                         return report;
                     }
                     nativePool.syncRenderSurfaceLayouts();
                 }
                 const report = chassis.service_render_work(3.0);
-                nativePool.recordRenderWork(report, performance.now() - start);
+                if (surfaceTraceEnabled) nativePool.recordRenderWork(report, performance.now() - start);
                 return report;
             } finally {
                 if (!fromFrame) finishEngineTurn(chassis, mount);
@@ -416,7 +411,7 @@ function initializeChassis(chassis: PaxChassisWeb, mount: Element) {
     const wheelMode = wheelDiagnosticMode(new URLSearchParams(window.location.search));
     teardownEventListeners = setupEventListeners(chassis, wheelMode !== undefined ? {
         passive: wheelMode,
-        record: sample => nativePool.recordWheelInput(sample),
+        record: perfTraceEnabled ? sample => nativePool.recordWheelInput(sample) : undefined,
     } : undefined);
     initializedChassis = true;
 }
@@ -473,6 +468,7 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
     }
     frameInProgress = true;
     try {
+        nativePool.beginTraceFrame(renderEpoch);
         initializeChassis(chassis, mount);
         withProfileMeasure("renderLoopFrame", () => {
             nativePool.sampleFrameInputs();
@@ -480,7 +476,7 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
                 if (!perfTraceEnabled) return chassis.tick();
                 const [messages, phases, compositing] = chassis.tick_profiled();
                 for (const [name, duration] of phases) nativePool.recordSurfaceFramePhase(`tick.${name}`, duration);
-                nativePool.recordSurfaceCompositing(compositing);
+                nativePool.recordSurfaceCompositing(compositing, phases);
                 return messages;
             });
             withProfileMeasure("processMessages", () => {
@@ -502,8 +498,8 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
                 nativePool.recordSurfacePresentation(visible, 'ordinary-visible');
                 nativePool.recordSurfacePresentation(remaining, 'ordinary-remaining');
             });
-            // At most one extra presentation pass between ordinary frames, even
-            // when many async initializations finish in successive microtasks.
+            // The synchronous path permits one extra completion pass per frame;
+            // cooperative rendering uses its separate yielding host-task pump.
             surfacePresentation?.afterFrame();
             // The automatic service now runs inside render, after fresh surface
             // assignments and before ordinary draw work. Only actual asynchronous

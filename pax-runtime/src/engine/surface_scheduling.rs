@@ -295,7 +295,7 @@ pub struct SurfaceBudget {
     pub backing_pixels: u64,
     pub optional_pixels: u64,
     /// Optional second-pass ceiling (total surfaces, total backing pixels).
-    /// Bounded reverse coverage borrows before forward coverage, after ordinary
+    /// All eligible preparation borrows in residency order after ordinary
     /// admission finishes. This ceiling preserves headroom for visible demand.
     pub borrowing_limit: Option<(usize, u64)>,
 }
@@ -373,6 +373,8 @@ pub struct SurfaceSchedule {
     pub borrowed_forward_pixels: u64,
     /// Reverse coverage admitted above the ordinary optional allowance.
     pub borrowed_reverse_pixels: u64,
+    /// Near/safety and retained preparation admitted using spare capacity.
+    pub borrowed_other_pixels: u64,
 }
 
 fn distance(value: f64) -> f64 {
@@ -489,17 +491,16 @@ pub fn schedule_surfaces(
             }
         }
     }
-    // Preserve ordinary near/safety admission before borrowing. Denials retain
-    // admission order: bounded reverse coverage gets spare capacity before
-    // forward speculation, even when the base optional allowance was too small.
-    // This avoids evicting useful reverse tiles while farther cold work borrows.
+    // The soft allowance is not a second eligibility test. Reuse the same
+    // residency order for every otherwise eligible denial, so expiring scroll
+    // intent cannot evict prepared near pixels while farther work borrows.
+    // Unaffordable candidates may still be skipped for smaller safety tiles.
     if let Some((surfaces, pixels)) = budget.borrowing_limit.filter(|_| !overloaded) {
         out.denied.retain(|&(index, reason)| {
             let c = &candidates[index];
             let forward = matches!(c.coverage, Coverage::MovingAhead | Coverage::ForwardReserve);
             let reverse = c.coverage == Coverage::ReversalNear;
             if reason != DenialReason::OptionalPixels
-                || !(forward || reverse)
                 || out.admitted.len() >= surfaces.min(budget.surfaces)
                 || c.backing_pixels
                     > pixels
@@ -513,8 +514,10 @@ pub fn schedule_surfaces(
             out.optional_pixels += c.backing_pixels;
             if reverse {
                 out.borrowed_reverse_pixels += c.backing_pixels;
-            } else {
+            } else if forward {
                 out.borrowed_forward_pixels += c.backing_pixels;
+            } else {
+                out.borrowed_other_pixels += c.backing_pixels;
             }
             false
         });
@@ -676,6 +679,55 @@ mod tests {
     }
 
     #[test]
+    fn prepared_near_residency_survives_pause_resume_and_reversal() {
+        let mut input = vec![
+            candidate("visible", 0, Coverage::Visible),
+            candidate("ready-near", 1, Coverage::MovingAhead),
+            candidate("cold-far", 2, Coverage::ForwardReserve),
+        ];
+        for c in &mut input {
+            c.backing_pixels = 6;
+        }
+        input[1].retained = true;
+        input[1].ready = true;
+        let budget = SurfaceBudget {
+            surfaces: 64,
+            backing_pixels: 100,
+            optional_pixels: 5,
+            borrowing_limit: Some((60, 90)),
+        };
+        for coverage in [
+            Coverage::MovingAhead,
+            Coverage::StationaryNear,
+            Coverage::ReadyTrailing,
+            Coverage::ReversalNear,
+            Coverage::Visible,
+        ] {
+            input[1].coverage = coverage;
+            let out = schedule_surfaces(&input, budget);
+            assert!(
+                out.admitted.contains(&1),
+                "lost prepared tile on {coverage:?}"
+            );
+            assert_eq!(out.admitted.len(), 3);
+            // With room for only one optional tile, near wins over far.
+            let constrained = schedule_surfaces(
+                &input,
+                SurfaceBudget {
+                    borrowing_limit: Some((2, 12)),
+                    ..budget
+                },
+            );
+            assert!(constrained.admitted.contains(&1));
+            assert!(!constrained.admitted.contains(&2));
+        }
+        input[1].coverage = Coverage::OutsidePreparation;
+        assert!(!schedule_surfaces(&input, budget).admitted.contains(&1));
+        input[1].coverage = Coverage::StationaryNear;
+        assert!(schedule_surfaces(&input, budget).admitted.contains(&1));
+    }
+
+    #[test]
     fn globally_visible_siblings_beat_all_speculation() {
         let mut input = vec![candidate("a", 1, Coverage::Visible)];
         input.extend((0..64).map(|i| candidate(&format!("warm-{i}"), 1, Coverage::MovingAhead)));
@@ -818,7 +870,7 @@ mod tests {
                 borrowing_limit: Some((4, 180_000)),
             },
         );
-        assert_eq!(result.admitted, [0, 1, 3]);
+        assert_eq!(result.admitted, [0, 1, 2, 3]);
     }
 
     #[test]

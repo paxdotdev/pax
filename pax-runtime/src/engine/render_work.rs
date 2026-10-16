@@ -1,6 +1,28 @@
 use super::{surface_work::*, *};
 
 impl PaxEngine {
+    pub(super) fn build_layer_render_plan(
+        &self,
+        layer: usize,
+    ) -> Result<Option<FilteredRenderPlan>, &'static str> {
+        let mut selected = Vec::new();
+        for id in self.runtime_context.dirty_canvas_node_ids() {
+            let node = self
+                .runtime_context
+                .get_expanded_node_by_eid(id)
+                .ok_or("missing_dirty_node")?;
+            if node.occlusion.get().render_layer_id == layer {
+                selected.push(id);
+            }
+        }
+        if selected.is_empty() {
+            // A removal-only layer still needs submission, but no traversal.
+            return Ok(None);
+        }
+        let root = self.root_expanded_node.as_ref().ok_or("missing_root")?;
+        self.build_filtered_render_plan(root, &selected).map(Some)
+    }
+
     /// Service complete rendering units from the current settled scene. No node
     /// list, render pass or property-graph guard survives this call. A chassis may
     /// drain synchronously or resume in a later host task, but must call
@@ -53,6 +75,7 @@ impl PaxEngine {
             }
             state.setup_complete = true;
             report.max_unit_ms = now_ms() - setup;
+            report.setup_ms = report.max_unit_ms;
             if now_ms() - start >= slice_ms {
                 report.pending = true;
                 report.elapsed_ms = now_ms() - start;
@@ -103,44 +126,32 @@ impl PaxEngine {
                     }
                 }
                 if let Some(&layer) = layers.first() {
+                    let ordinary_start = now_ms();
                     if visible {
                         state.urgent_complete = false;
                     }
                     let lighting_only = !self.runtime_context.is_canvas_dirty(&layer);
-                    let nodes = if lighting_only {
-                        Vec::new()
+                    // Validate only this unit, then consume that exact plan.
+                    // Unrelated warm layers need no ancestor walks here; their
+                    // current paths are checked when they are actually selected.
+                    let plan = if lighting_only {
+                        Ok(None)
+                    } else if rcs.retains_canvas_nodes()
+                        && rcs.ordinary_layer_priority(layer).is_some()
+                    {
+                        self.build_layer_render_plan(layer)
                     } else {
-                        self.runtime_context.dirty_canvas_node_ids()
+                        Err("inseparable_layer")
                     };
-                    let separable = lighting_only
-                        || (rcs.retains_canvas_nodes()
-                            && rcs.ordinary_layer_priority(layer).is_some()
-                            && (nodes.is_empty()
-                                || self.root_expanded_node.as_ref().is_some_and(|root| {
-                                    self.build_filtered_render_plan(root, &nodes).is_ok()
-                                })));
-                    if !separable {
-                        // Do not weaken inherited masks/groups/unclippable
-                        // semantics to obtain a smaller scheduling unit.
-                        // The synchronous fallback flushes dirty content layers;
-                        // clean lighting-only layers still need their own turn.
-                        let dirty = self.runtime_context.dirty_canvas_layers();
-                        state.attempted_layers.extend(dirty.iter().copied());
-                        for layer in dirty {
-                            state.pending_lighting_flushes.remove(&layer);
+                    if let Ok(plan) = plan {
+                        if let Some(plan) = plan {
+                            self.draw_filtered_render_plan(
+                                rcs,
+                                self.root_expanded_node.as_ref().unwrap(),
+                                &plan,
+                            );
                         }
-                        self.render_with_callbacks(rcs, false, &mut |_| {}, &mut |_, _, _| {});
-                        report.atomic_fallbacks += 1;
-                    } else {
-                        let selected: Vec<_> = nodes
-                            .into_iter()
-                            .filter(|id| {
-                                self.runtime_context
-                                    .get_expanded_node_by_eid(*id)
-                                    .is_some_and(|n| n.occlusion.get().render_layer_id == layer)
-                            })
-                            .collect();
-                        self.draw_canvas_nodes(rcs, &selected);
+                        self.runtime_context.recurse_flush_queued_renders(rcs);
                         self.runtime_context.dirty_canvases.borrow_mut()[layer] = false;
                         if self
                             .runtime_context
@@ -152,8 +163,21 @@ impl PaxEngine {
                         state.pending_lighting_flushes.remove(&layer);
                         state.attempted_layers.insert(layer);
                         report.ordinary_layers += 1;
+                    } else {
+                        // Do not weaken inherited masks/groups/unclippable
+                        // semantics to obtain a smaller scheduling unit.
+                        // The synchronous fallback flushes dirty content layers;
+                        // clean lighting-only layers still need their own turn.
+                        let dirty = self.runtime_context.dirty_canvas_layers();
+                        state.attempted_layers.extend(dirty.iter().copied());
+                        for layer in dirty {
+                            state.pending_lighting_flushes.remove(&layer);
+                        }
+                        self.render_with_callbacks(rcs, false, &mut |_| {}, &mut |_, _, _| {});
+                        report.atomic_fallbacks += 1;
                     }
                     report.units += 1;
+                    report.ordinary_ms += now_ms() - ordinary_start;
                 } else {
                     let next = self.present_surfaces(
                         rcs,

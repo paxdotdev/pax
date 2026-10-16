@@ -215,6 +215,7 @@ pub(crate) struct Decision {
     optional_limit: u64,
     borrowed_forward_pixels: u64,
     borrowed_reverse_pixels: u64,
+    borrowed_other_pixels: u64,
     borrowing_limit: Option<(usize, u64)>,
 }
 
@@ -357,6 +358,7 @@ pub(crate) fn schedule(
         optional_limit: budget.optional_pixels,
         borrowed_forward_pixels: result.borrowed_forward_pixels,
         borrowed_reverse_pixels: result.borrowed_reverse_pixels,
+        borrowed_other_pixels: result.borrowed_other_pixels,
         borrowing_limit: budget.borrowing_limit,
     })
 }

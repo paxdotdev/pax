@@ -6,7 +6,7 @@ import {transformSync} from 'esbuild';
 // native controls remain stubbed; surface policy/reconciliation does not.
 export function surfaceRequire(name) {
     const modules = new Set(['./surface-coordinator', './surface-host-policy',
-        './surface-scheduler', './surface-trace', './image-loader', './native-message-profile']);
+        './surface-scheduler', './surface-trace', './trace-ring', './image-loader', './native-message-profile']);
     if (!modules.has(name)) return {};
     const module = {exports: {}};
     const source = readFileSync(new URL(`../src/classes/${name.slice(2)}.ts`, import.meta.url), 'utf8');

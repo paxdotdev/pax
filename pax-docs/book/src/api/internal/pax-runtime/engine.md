@@ -134,7 +134,7 @@ until their revision is committed.
 Mount a root component tree into an existing runtime kernel.
 
 ##### `present_settled_surfaces`
-<pre><code class="api-signature language-rust ignore">pub fn present_settled_surfaces(&amp;self, rcs: &amp;mut dyn <a href="../../../api/pax-runtime-api/rendering.md#rendercontext">RenderContext</a>, budget: &amp;mut <a href="../../../api/internal/pax-runtime/engine/surface_work.md#surfaceworkbudget">SurfaceWorkBudget</a>, now_ms: impl Fn() -&gt; f64) -&gt; SurfaceWorkReport</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn present_settled_surfaces(&amp;self, rcs: &amp;mut dyn <a href="../../../api/pax-runtime-api/rendering.md#rendercontext">RenderContext</a>, budget: &amp;mut <a href="../../../api/internal/pax-runtime/engine/surface_work.md#surfaceworkbudget">SurfaceWorkBudget</a>, now_ms: impl Fn() -&gt; f64) -&gt; <a href="../../../api/internal/pax-runtime/engine/surface_work.md#surfaceworkreport">SurfaceWorkReport</a></code></pre>
 
 Prepare surfaces from settled scene state without advancing a tick or
 invoking lifecycle handlers. Supporting backends capture missing primitive
@@ -145,7 +145,7 @@ the allowance permits. Blocked layers wait until the next pass without
 preventing eligible siblings from using the remaining allowance.
 
 ##### `render_with_surface_preparation`
-<pre><code class="api-signature language-rust ignore">pub fn render_with_surface_preparation(&amp;mut self, rcs: &amp;mut dyn <a href="../../../api/pax-runtime-api/rendering.md#rendercontext">RenderContext</a>, budget: &amp;mut <a href="../../../api/internal/pax-runtime/engine/surface_work.md#surfaceworkbudget">SurfaceWorkBudget</a>, now_ms: impl Fn() -&gt; f64, observe: &amp;mut dyn FnMut(&amp;&#39;static str)) -&gt; (SurfaceWorkReport, SurfaceWorkReport)</code></pre>
+<pre><code class="api-signature language-rust ignore">pub fn render_with_surface_preparation(&amp;mut self, rcs: &amp;mut dyn <a href="../../../api/pax-runtime-api/rendering.md#rendercontext">RenderContext</a>, budget: &amp;mut <a href="../../../api/internal/pax-runtime/engine/surface_work.md#surfaceworkbudget">SurfaceWorkBudget</a>, now_ms: impl Fn() -&gt; f64, observe: &amp;mut dyn FnMut(&amp;&#39;static str)) -&gt; (<a href="../../../api/internal/pax-runtime/engine/surface_work.md#surfaceworkreport">SurfaceWorkReport</a>, <a href="../../../api/internal/pax-runtime/engine/surface_work.md#surfaceworkreport">SurfaceWorkReport</a>)</code></pre>
 
 Service newly visible surfaces after current scene setup, before ordinary
 drawing. Supporting backends also finish visible dirty layers before

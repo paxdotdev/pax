@@ -625,9 +625,12 @@ keeps its unlit appearance.
 
 Light contributions stay live as their properties animate or their containers
 scroll. Offscreen lights can still affect visible surfaces; viewport culling
-does not disable them. The runtime tracks light contributors and reuses direct
-light membership until light selection or scene structure changes. Scenes
-without authored lights do not scan their elements for lighting on redraw.
+does not disable them. The runtime tracks light contributors and retains direct
+light membership across unrelated scene edits. After a structural change, it
+compares each recipient's canvas layer and `LightFrame` ancestry once. Stable
+light slots only require new or moved recipients to update their masks; changed
+slot selection or light scope recomputes membership within the affected layer.
+Scenes without authored lights do not scan their elements for lighting on redraw.
 
 Unchanged surface-local lighting also reuses its GPU uniform without marking
 retained drawing dirty.
@@ -643,8 +646,11 @@ This applies on web and Apple GPU targets, in debug and release builds.
 Eligibility is conservative: it follows light slots, canvas-layer reachability
 and `LightFrame` scope, without testing the light radius against each shape.
 Authored ambient light can affect all lit materials in its reachable layers.
-Scene structure, light selection, scrolling, and tile reassignment can require
-broader updates. `LightFrame` does not allocate an isolated render surface.
+Adding or removing unrelated UI does not by itself invalidate every canvas's
+lighting. Reparenting, layer changes, light selection, scrolling, and tile
+reassignment can still require broader updates, as can non-lighting work such
+as changed drawing order or native compositing. `LightFrame` does not allocate
+an isolated render surface.
 
 If you maintain a custom Rust lighting primitive, implement
 `InstanceNode::has_scene_lighting()` as `true` alongside

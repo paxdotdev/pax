@@ -7,11 +7,6 @@ import type { LayerCanvasPlan, SurfaceCanvasDescriptor } from "./surface-host-po
 let nextSurfaceGeneration = 0;
 let nextSurfaceContentRevision = 0;
 
-function tileDebugEnabled() {
-    return typeof window !== "undefined"
-        && new URLSearchParams(window.location.search).has("pax_tile_debug");
-}
-
 export class Layer {
     canvasMap?: Map<string, HTMLCanvasElement>;
     native?: HTMLDivElement;
@@ -136,30 +131,6 @@ export class Layer {
         return retired;
     }
 
-    private debugPlan(event: string, plan: LayerCanvasPlan, extra: Record<string, unknown> = {}) {
-        if (!tileDebugEnabled()) {
-            return;
-        }
-        let first = plan.surfaces[0];
-        let last = plan.surfaces[plan.surfaces.length - 1];
-        console.debug(`[pax-layer-plan] ${event}`, {
-            layer: this.renderLayerId,
-            active: plan.active,
-            planned: plan.surfaces.length,
-            materialized: this.canvases.size,
-            hostRole: this.visibleCanvasParent instanceof HTMLElement
-                ? this.visibleCanvasParent.dataset.role
-                : undefined,
-            first: first == null
-                ? undefined
-                : `${first.key}@${first.left},${first.top}:${first.width}x${first.height}`,
-            last: last == null
-                ? undefined
-                : `${last.key}@${last.left},${last.top}:${last.width}x${last.height}`,
-            ...extra,
-        });
-    }
-
     syncCanvasLayout(enqueue?: (priority: number, install: () => void) => void) {
         if (this.renderLayerId == null || this.canvasMap == null) {
             return;
@@ -179,7 +150,6 @@ export class Layer {
         }
         let plan = this.canvasPlan;
         if (plan.surfaces.length === 0) {
-            this.debugPlan("empty-plan", plan);
             this.detachCanvases(true);
             return;
         }
@@ -194,7 +164,6 @@ export class Layer {
             if (--remaining > 0) return;
             this.lastPlanSignature = missingSurface ? undefined : planSignature;
             this.lastVisibleHost = missingSurface ? undefined : visibleHost;
-            this.debugPlan(missingSurface ? "missing-surface" : "synced", plan);
         };
         const schedule = enqueue ?? ((_priority, install) => install());
 
