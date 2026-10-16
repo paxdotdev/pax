@@ -40,6 +40,8 @@ pub const ALL_PKGS: &[&str] = &[
     "pax-chassis-common",
     "pax-chassis-ios",
     "pax-chassis-macos",
+    "pax-chassis-windows",
+    "pax-chassis-linux",
     "pax-chassis-web",
     "pax-cli",
     "pax-compiler",
@@ -86,6 +88,11 @@ impl ProjectFeatureConfig {
     }
 }
 
+pub(crate) fn project_has_feature(project: &Path, feature: &str) -> bool {
+    ProjectFeatureConfig::from_project_path(project)
+        .is_some_and(|config| config.has_local_feature(feature))
+}
+
 fn table_keys(document: &Document, table_name: &str) -> HashSet<String> {
     document
         .get(table_name)
@@ -114,7 +121,7 @@ fn pax_dependency_feature_selectors(config: &ProjectFeatureConfig, feature: &str
         "designtime" if config.has_dependency("pax-engine") => {
             vec!["pax-engine/designtime".to_string()]
         }
-        "web" | "macos" | "ios" if config.has_dependency("pax-engine") => {
+        "web" | "macos" | "ios" | "windows" | "linux" if config.has_dependency("pax-engine") => {
             vec![format!("pax-engine/{feature}")]
         }
         _ => vec![],

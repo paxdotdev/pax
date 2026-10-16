@@ -1,0 +1,13 @@
+{
+  "account_id": "REVIEW_REQUIRED",
+  "approval_reference": "APPROVAL_REQUIRED",
+  "lab_name": "pax1038-gpu",
+  "guest_os": "windows",
+  "source_ami": "REVIEW_REQUIRED",
+  "vpc_id": "REVIEW_REQUIRED",
+  "subnet_id": "REVIEW_REQUIRED",
+  "security_group_id": "REVIEW_REQUIRED",
+  "iam_instance_profile": "REVIEW_REQUIRED",
+  "expires_at": "REVIEW_REQUIRED",
+  "inputs_file": "/absolute/path/to/windows.inputs.local.json"
+}

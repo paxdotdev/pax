@@ -13,6 +13,10 @@ designtime = []
 [dependencies]
 include_dir = "0.7.3"
 serde_json = "1"
+sha2 = "0.10.8"
 
 [build-dependencies]
 include_dir = "0.7.3"
+
+[dev-dependencies]
+tempfile = "3.9.0"

@@ -16,6 +16,8 @@ use std::{
 };
 use windows_core::Interface;
 
+pub mod preflight;
+
 type Dx12 = wgpu::hal::api::Dx12;
 
 thread_local! {
@@ -47,6 +49,7 @@ struct ProbeContext {
 }
 
 fn report(message: &str) {
+    preflight::record_event(serde_json::json!({ "event": "progress", "message": message }));
     if let Ok(mut stream) = OpenOptions::new()
         .create(true)
         .append(true)
@@ -54,6 +57,67 @@ fn report(message: &str) {
     {
         let _ = writeln!(stream, "pax_wgpu {message}");
     }
+}
+
+fn dx12_instance() -> Result<wgpu::Instance> {
+    report("creating_instance backend=DX12");
+    // HAL telemetry includes adapters rejected before public WGPU enumeration.
+    let hal = unsafe {
+        <wgpu::hal::dx12::Instance as wgpu::hal::Instance>::init(&wgpu::hal::InstanceDescriptor {
+            name: "Pax Windows native composition probe",
+            flags: wgpu::InstanceFlags::default(),
+            memory_budget_thresholds: Default::default(),
+            backend_options: Default::default(),
+            telemetry: Some(wgpu::hal::Telemetry {
+                d3d12_expose_adapter: |desc, version, result| {
+                    use wgpu::hal::D3D12ExposeAdapterResult as Outcome;
+                    let name = String::from_utf16_lossy(&desc.Description);
+                    let (accepted, reason) = match result {
+                        Outcome::Success(_, _) => (true, "exposed".to_string()),
+                        Outcome::ResourceBindingTier2Requirement => {
+                            (false, "rejected: ResourceBindingTier < 2".to_string())
+                        }
+                        Outcome::ShaderModel6Requirement => (
+                            false,
+                            "rejected: shader model 6 required by compiler".to_string(),
+                        ),
+                        Outcome::CreateDeviceError(error) => (
+                            false,
+                            match error {
+                                wgpu::hal::dx12::CreateDeviceError::D3D12CreateDevice(hr) => {
+                                    format!("rejected: D3D12CreateDevice {hr:?}")
+                                }
+                                wgpu::hal::dx12::CreateDeviceError::GetProcAddress => {
+                                    "rejected: missing D3D12CreateDevice".to_string()
+                                }
+                                wgpu::hal::dx12::CreateDeviceError::RetDeviceIsNull => {
+                                    "rejected: null device".to_string()
+                                }
+                            },
+                        ),
+                    };
+                    preflight::record_event(serde_json::json!({
+                        "event": "halAdapter",
+                        "name": name.trim_end_matches('\0'),
+                        "vendorId": desc.VendorId,
+                        "deviceId": desc.DeviceId,
+                        "subSystemId": desc.SubSysId,
+                        "revision": desc.Revision,
+                        "flags": desc.Flags,
+                        "luid": { "high": desc.AdapterLuid.HighPart, "low": desc.AdapterLuid.LowPart },
+                        "driverVersion": version,
+                        "exposedByWgpu": accepted,
+                        "reason": reason,
+                    }));
+                    report(&format!(
+                        "DX12 telemetry adapter={} driver={version:?} {reason}",
+                        name.trim_end_matches('\0')
+                    ));
+                },
+            }),
+        })
+    }?;
+    Ok(unsafe { wgpu::Instance::from_hal::<Dx12>(hal) })
 }
 
 fn rect(x: f32, y: f32, width: f32, height: f32) -> Path {
@@ -119,49 +183,7 @@ impl ProbeContext {
         {
             bail!("invalid export dimensions");
         }
-        report("creating_instance backend=DX12");
-        // HAL telemetry reports rejected adapters, which public enumeration omits.
-        let hal = unsafe {
-            <wgpu::hal::dx12::Instance as wgpu::hal::Instance>::init(
-                &wgpu::hal::InstanceDescriptor {
-                    name: "Pax Windows native composition probe",
-                    flags: wgpu::InstanceFlags::default(),
-                    memory_budget_thresholds: Default::default(),
-                    backend_options: Default::default(),
-                    telemetry: Some(wgpu::hal::Telemetry {
-                        d3d12_expose_adapter: |desc, version, result| {
-                            use wgpu::hal::D3D12ExposeAdapterResult as Outcome;
-                            let name = String::from_utf16_lossy(&desc.Description);
-                            let reason = match result {
-                                Outcome::Success(_, _) => "exposed".to_string(),
-                                Outcome::ResourceBindingTier2Requirement => {
-                                    "rejected: ResourceBindingTier < 2".to_string()
-                                }
-                                Outcome::ShaderModel6Requirement => {
-                                    "rejected: shader model 6 required by compiler".to_string()
-                                }
-                                Outcome::CreateDeviceError(error) => match error {
-                                    wgpu::hal::dx12::CreateDeviceError::D3D12CreateDevice(hr) => {
-                                        format!("rejected: D3D12CreateDevice {hr:?}")
-                                    }
-                                    wgpu::hal::dx12::CreateDeviceError::GetProcAddress => {
-                                        "rejected: missing D3D12CreateDevice".to_string()
-                                    }
-                                    wgpu::hal::dx12::CreateDeviceError::RetDeviceIsNull => {
-                                        "rejected: null device".to_string()
-                                    }
-                                },
-                            };
-                            report(&format!(
-                                "DX12 telemetry adapter={} driver={version:?} {reason}",
-                                name.trim_end_matches('\0')
-                            ));
-                        },
-                    }),
-                },
-            )
-        }?;
-        let instance = unsafe { wgpu::Instance::from_hal::<Dx12>(hal) };
+        let instance = dx12_instance()?;
         report("enumerating_adapters");
         let mut adapters = pollster::block_on(instance.enumerate_adapters(wgpu::Backends::DX12));
         for adapter in &adapters {
@@ -181,6 +203,26 @@ impl ProbeContext {
         if info.device_type == wgpu::DeviceType::Cpu && !allow_software {
             bail!("WGPU selected software adapter without --allow-warp");
         }
+        Self::with_adapter(
+            instance,
+            adapter,
+            scene_width,
+            scene_height,
+            editor_width,
+            editor_height,
+            clear_width,
+        )
+    }
+
+    fn with_adapter(
+        instance: wgpu::Instance,
+        adapter: wgpu::Adapter,
+        scene_width: u32,
+        scene_height: u32,
+        editor_width: u32,
+        editor_height: u32,
+        clear_width: u32,
+    ) -> Result<Self> {
         report("requesting_device");
         let (device, queue) =
             pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor {

@@ -471,6 +471,17 @@ pax-cli run --path examples/fixtures/photo-picker --target web
 
 ## Current support
 
+The experimental Windows and Linux hosts initially provide plain Text,
+Textbox, Button, Checkbox, Frame, Scroller, and EventBlocker. They use real
+WinUI or GTK controls; styling and rich-text capabilities remain narrower than
+the web/Apple paths described in this chapter. Other native control families
+report unsupported errors. Do not infer full input-method, touch, screen-reader,
+or keyboard-navigation qualification from basic editing and click tests. Use
+explicit local or bundled [fonts](text-fonts-images.md#fonts-on-experimental-desktop-hosts)
+and follow the [desktop prerequisites](targets-build-deploy.md#experimental-windows-and-linux-desktop).
+Translucent vectors overlapping native controls also have unresolved
+[desktop blending limits](targets-build-deploy.md#current-desktop-limits).
+
 Button, Textbox (single-line and multiline), Checkbox, Slider, Dropdown, and
 RadioList have implementations for web, macOS, iOS, and iPadOS. Their shared
 Pax API does not make every platform detail identical:

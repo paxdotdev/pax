@@ -55,6 +55,7 @@ rand = "0.8.4"
 regex = "1"
 reqwest = { version = "0.11.18", features = ["blocking"] }
 rmp-serde = "1.1.2"
+roxmltree = "0.21"
 schemars = "0.8.16"
 serde = { version = "1.0.159", features=["derive"] }
 serde_derive = "1.0.159"

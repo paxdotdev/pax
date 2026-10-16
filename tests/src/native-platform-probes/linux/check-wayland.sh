@@ -28,7 +28,7 @@ if [[ ! -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]]; then
 fi
 PAX_PROBE_SELF_TEST=1 PAX_PROBE_SCREENSHOT="$output/gtk-wayland.png" \
     GDK_BACKEND=wayland GSK_RENDERER=${GSK_RENDERER:-gl} \
-    timeout 30s "$output/gtk-composition" >"$output/gtk-wayland.log" 2>&1 || {
+    timeout --kill-after=5s 30s "$output/gtk-composition" >"$output/gtk-wayland.log" 2>&1 || {
         status=$?; cat "$output/gtk-wayland.log"; exit "$status";
     }
 cat "$output/gtk-wayland.log"

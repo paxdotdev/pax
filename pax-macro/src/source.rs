@@ -95,12 +95,15 @@ fn package_metadata(session: &mut Session) -> Result<&cargo_metadata::Metadata> 
 }
 
 fn package(session: &mut Session) -> Result<cargo_metadata::Package> {
-    let manifest =
-        PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap()).join("Cargo.toml");
+    let manifest = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap())
+        .join("Cargo.toml")
+        .canonicalize()?;
     package_metadata(session)?
         .packages
         .iter()
-        .find(|p| p.manifest_path.as_std_path() == manifest)
+        .find(|p| {
+            p.manifest_path.as_std_path().canonicalize().ok().as_deref() == Some(manifest.as_path())
+        })
         .cloned()
         .ok_or_else(|| eyre!("Current Cargo package is missing from metadata"))
 }
@@ -113,12 +116,16 @@ fn begin(
 ) -> proc_macro::TokenStream {
     let site = compiler_site(anchor);
     with_source(anchor, |session| {
-        let manifest =
-            PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap()).join("Cargo.toml");
+        let manifest = PathBuf::from(std::env::var_os("CARGO_MANIFEST_DIR").unwrap())
+            .join("Cargo.toml")
+            .canonicalize()?;
         let package = package_metadata(session)?
             .packages
             .iter()
-            .find(|p| p.manifest_path.as_std_path() == manifest)
+            .find(|p| {
+                p.manifest_path.as_std_path().canonicalize().ok().as_deref()
+                    == Some(manifest.as_path())
+            })
             .unwrap();
         let target_name = std::env::var("CARGO_CRATE_NAME")?;
         let target = package
@@ -683,7 +690,7 @@ fn drive(mut request: Request, session: &mut Session) -> Result<String> {
             manifest.components.get_mut(&wrapper).unwrap().template = Some(template);
             manifest
         }}
-        #[cfg(any(target_os = "macos", target_os = "ios"))]
+        #[cfg(any(target_os = "macos", target_os = "ios", target_os = "windows", target_os = "linux"))]
         #[no_mangle]
         pub unsafe extern "C" fn pax_cartridge_program_id(buffer: *mut u8, capacity: usize) -> usize {{
             let bytes = {id:?}.as_bytes();
@@ -730,8 +737,13 @@ fn drive(mut request: Request, session: &mut Session) -> Result<String> {
     if library.name.replace('-', "_") != package.name.replace('-', "_") {
         helpers.push(handoff_helper_name(&library.name, "program"));
     }
+    let fonts = if request.snapshot.facts["target_os = \"windows\""] {
+        crate::font_assets::inventory(&manifest.assets_dirs)?
+    } else {
+        "&[]".to_owned()
+    };
     let callback = if library.crate_types.iter().any(|kind| kind == "cdylib") {
-        format!("$($callback)::+!(({recipe:?}, $options))")
+        format!("$($callback)::+!(({recipe:?}, $options, {fonts}))")
     } else {
         r#"compile_error!("The selected UI library needs crate-type = [\"rlib\", \"cdylib\"]")"#
             .into()
@@ -763,6 +775,8 @@ fn drive(mut request: Request, session: &mut Session) -> Result<String> {
             {adapter}
         }}
         pub use __pax_cartridge::*;
+        #[cfg(target_os = "windows")]
+        const _: &[(usize, &str, &str, &[u8])] = {fonts};
         {program_helpers}
     "#
     );

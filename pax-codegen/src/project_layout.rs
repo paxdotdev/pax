@@ -75,7 +75,15 @@ impl ProjectLayout {
         let host = metadata
             .packages
             .iter()
-            .find(|package| package.manifest_path.as_std_path() == manifest)
+            .find(|package| {
+                package
+                    .manifest_path
+                    .as_std_path()
+                    .canonicalize()
+                    .ok()
+                    .as_deref()
+                    == Some(manifest.as_path())
+            })
             .ok_or_else(|| {
                 eyre!(
                     "Select an application package, rather than a virtual workspace: {}",
@@ -125,7 +133,7 @@ impl ProjectLayout {
                 .parent()
                 .unwrap()
                 .as_std_path()
-                .to_path_buf(),
+                .canonicalize()?,
             target_dir: metadata.target_directory.into_std_path_buf(),
             library_name: library.name.clone(),
             web_entrypoint: web_entrypoint(&cartridge.id.repr, &library.name),

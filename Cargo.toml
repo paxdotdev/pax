@@ -22,6 +22,8 @@ members = [
     "pax-chassis-common",
     "pax-chassis-ios",
     "pax-chassis-macos",
+    "pax-chassis-windows",
+    "pax-chassis-linux",
     "pax-chassis-web",
     "pax-cli",
     "pax-compiler",

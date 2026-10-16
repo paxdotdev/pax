@@ -1,12 +1,16 @@
-//! Generic Apple SDK assembly for build.rs; never executed by initialization.
+//! Native SDK assembly for build.rs; never executed by initialization.
 use std::{
     fs,
     path::{Path, PathBuf},
     process::Command,
 };
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
-static NATIVE: include_dir::Dir<'_> = include_dir::include_dir!("$CARGO_MANIFEST_DIR/native");
-const CARTRIDGE_PACKAGE: &str = "common/pax-swift-cartridge/Package.swift";
+static MACOS: include_dir::Dir<'_> = include_dir::include_dir!("$CARGO_MANIFEST_DIR/native/macos");
+static COMMON: include_dir::Dir<'_> =
+    include_dir::include_dir!("$CARGO_MANIFEST_DIR/native/common");
+#[path = "desktop_sources.rs"]
+mod desktop_sources;
+const CARTRIDGE_PACKAGE: &str = "pax-swift-cartridge/Package.swift";
 fn write_if_changed(path: &Path, bytes: &[u8]) -> Result<()> {
     if fs::read(path).ok().as_deref() != Some(bytes) {
         fs::write(path, bytes)?;
@@ -30,12 +34,13 @@ pub fn build(out: &Path, architecture: &str, debug: bool) -> Result<PathBuf> {
     fs::create_dir_all(&native)?;
     // CLI packaging and ordinary Cargo may alternate the framework override.
     // Preserve unchanged source mtimes so Xcode can reuse its generic SDK build.
-    extract_sources(&NATIVE, &native)?;
+    extract_sources(&MACOS, &native.join("macos"))?;
+    extract_sources(&COMMON, &native.join("common"))?;
     // The generic host imports ABI types but does not link an application. The
     // CLI's copy retains its binary target for signed application packaging.
     let cartridge = native.join("common/pax-swift-cartridge");
     let package = cartridge.join("Package.swift");
-    let source = NATIVE
+    let source = COMMON
         .get_file(CARTRIDGE_PACKAGE)
         .unwrap()
         .contents_utf8()
@@ -88,4 +93,57 @@ pub fn build(out: &Path, architecture: &str, debug: bool) -> Result<PathBuf> {
         return Err(format!("Pax native SDK build failed; see {}", log.display()).into());
     }
     Ok(products.join("PaxHost.framework/PaxHost"))
+}
+
+/// Builds the native desktop host without linking any application cartridge.
+pub fn build_desktop(out: &Path, target: &str, architecture: &str, debug: bool) -> Result<PathBuf> {
+    let native = out.join("interface");
+    desktop_sources::extract(target, &native.join(target))?;
+    let products = out.join("products");
+    let configuration = if debug { "Debug" } else { "Release" };
+    let mut command = if target == "windows" {
+        let mut command = Command::new("powershell.exe");
+        command
+            .args([
+                "-NoProfile",
+                "-NonInteractive",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-File",
+            ])
+            .arg(native.join("windows/build.ps1"))
+            .arg("-Architecture")
+            .arg(match architecture {
+                "aarch64" => "ARM64",
+                "x86_64" => "x64",
+                other => return Err(format!("unsupported Windows architecture {other}").into()),
+            })
+            .args(["-Configuration", configuration, "-OutputDirectory"])
+            .arg(&products);
+        command
+    } else if target == "linux" {
+        let mut command = Command::new("bash");
+        command
+            .arg(native.join("linux/build.sh"))
+            .args(["--configuration", configuration, "--output-directory"])
+            .arg(&products);
+        command
+    } else {
+        return Err(format!("unsupported desktop target {target}").into());
+    };
+    let log = out.join("native-host-build.log");
+    let file = fs::File::create(&log)?;
+    let status = command.stdout(file.try_clone()?).stderr(file).status()?;
+    if !status.success() {
+        return Err(format!("Pax {target} host build failed; see {}", log.display()).into());
+    }
+    let library = products.join(if target == "windows" {
+        "PaxHost.dll"
+    } else {
+        "libpax_host.so"
+    });
+    if !library.is_file() {
+        return Err(format!("Native host build did not produce {}", library.display()).into());
+    }
+    Ok(library)
 }

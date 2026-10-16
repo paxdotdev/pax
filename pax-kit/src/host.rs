@@ -13,7 +13,12 @@ pub use pax_host::*;
 pub struct Application(Entry);
 
 enum Entry {
-    #[cfg(any(target_os = "macos", target_os = "ios"))]
+    #[cfg(any(
+        target_os = "macos",
+        target_os = "ios",
+        target_os = "windows",
+        target_os = "linux"
+    ))]
     Native(pax_host::PreparedApp),
 }
 
@@ -21,7 +26,12 @@ impl Application {
     /// Enter the native application loop in the calling process.
     pub fn run(self) -> Result<(), Error> {
         match self.0 {
-            #[cfg(any(target_os = "macos", target_os = "ios"))]
+            #[cfg(any(
+                target_os = "macos",
+                target_os = "ios",
+                target_os = "windows",
+                target_os = "linux"
+            ))]
             Entry::Native(app) => app.run(),
         }
     }
@@ -34,8 +44,8 @@ impl Application {
         }
     }
 
-    /// Run a native macOS application with explicit window options.
-    #[cfg(target_os = "macos")]
+    /// Run a native desktop application with explicit window options.
+    #[cfg(any(target_os = "macos", target_os = "windows", target_os = "linux"))]
     pub fn run_with(self, options: WindowOptions) -> Result<(), Error> {
         match self.0 {
             Entry::Native(app) => app.run_with(options),
@@ -45,13 +55,51 @@ impl Application {
 
 #[doc(hidden)]
 pub fn __init_cartridge(recipe: &str, options: InitOptions) -> Result<Application, Error> {
-    #[cfg(any(target_os = "macos", target_os = "ios"))]
+    #[cfg(any(
+        target_os = "macos",
+        target_os = "ios",
+        target_os = "windows",
+        target_os = "linux"
+    ))]
     {
         pax_host::__init_cartridge(recipe, options).map(|app| Application(Entry::Native(app)))
     }
-    #[cfg(not(any(target_os = "macos", target_os = "ios")))]
+    #[cfg(not(any(
+        target_os = "macos",
+        target_os = "ios",
+        target_os = "windows",
+        target_os = "linux"
+    )))]
     {
         let _ = (recipe, options);
         Err(Error::message("Native hosting is unavailable on this platform. Use pax-cli run --target web to build and serve the browser application."))
+    }
+}
+
+#[doc(hidden)]
+pub fn __init_cartridge_with_fonts(
+    recipe: &str,
+    options: InitOptions,
+    fonts: &[(usize, &str, &str, &[u8])],
+) -> Result<Application, Error> {
+    #[cfg(any(
+        target_os = "macos",
+        target_os = "ios",
+        target_os = "windows",
+        target_os = "linux"
+    ))]
+    {
+        pax_host::__init_cartridge_with_fonts(recipe, options, fonts)
+            .map(|app| Application(Entry::Native(app)))
+    }
+    #[cfg(not(any(
+        target_os = "macos",
+        target_os = "ios",
+        target_os = "windows",
+        target_os = "linux"
+    )))]
+    {
+        let _ = fonts;
+        __init_cartridge(recipe, options)
     }
 }

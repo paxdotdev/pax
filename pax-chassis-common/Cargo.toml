@@ -26,6 +26,7 @@ lazy_static = "1.4.0"
 mut_static = "5.0.0"
 pollster = "0.4.0"
 flexbuffers = "2.0.0"
+wgpu = { version = "28.0.0", default-features = false, features = ["std", "parking_lot"] }
 
 [target.'cfg(any(target_os = "macos", target_os = "ios"))'.dependencies]
 piet-coregraphics = "0.7.0"

@@ -17,8 +17,13 @@ use crate::{BuildTimings, RunContext, RunTarget};
 use self::{apple::build_apple_project_with_cartridge, web::build_web_project_with_cartridge};
 
 pub mod apple;
+pub mod desktop;
 pub mod web;
 pub(crate) mod web_public;
+#[cfg(target_os = "windows")]
+mod windows_manifest;
+#[cfg(any(target_os = "windows", test))]
+mod windows_manifest_identity;
 
 /// Runs `cargo build` (or `wasm-pack build`) with appropriate env in the directory
 /// of the generated chassis project inside the specified .pax dir
@@ -37,6 +42,9 @@ pub fn build_project_with_cartridge(
 
     //string together a shell call to build the userland project, with cartridge injected via macro
     match target {
+        RunTarget::Windows | RunTarget::Linux => {
+            desktop::build(ctx, &pax_dir, assets_dirs, manifest, timings).map(Some)
+        }
         RunTarget::macOS | RunTarget::iOS | RunTarget::iPadOS => {
             build_apple_project_with_cartridge(
                 ctx,

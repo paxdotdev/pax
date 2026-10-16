@@ -9,7 +9,7 @@ Set-StrictMode -Version Latest
 # permits SYSTEM-driven builds with the interactive user's installed toolchain.
 $target = if ($Architecture -eq 'ARM64') { 'aarch64-pc-windows-msvc' } else { 'x86_64-pc-windows-msvc' }
 $manifest = Join-Path $PSScriptRoot 'wgpu-export\Cargo.toml'
-$cargoArguments = @('build', '--locked', '--manifest-path', $manifest, '--target', $target, '-j', '2')
+$cargoArguments = @('build', '--locked', '--manifest-path', $manifest, '--target', $target, '--lib', '--bin', 'pax-wgpu-preflight', '-j', '2')
 $profile = 'debug'
 if ($Configuration -eq 'Release') { $cargoArguments += '--release'; $profile = 'release' }
 & $Cargo @cargoArguments
@@ -19,4 +19,7 @@ $library = Join-Path $targetDirectory "$target\$profile\pax_windows_wgpu_export_
 $destination = Join-Path $PSScriptRoot "out\$Architecture\$Configuration"
 New-Item -ItemType Directory -Force $destination | Out-Null
 Copy-Item $library (Join-Path $destination 'pax_windows_wgpu_export_probe.dll') -Force
+$preflight = Join-Path $targetDirectory "$target\$profile\pax-wgpu-preflight.exe"
+Copy-Item $preflight (Join-Path $destination 'pax-wgpu-preflight.exe') -Force
 Write-Output (Join-Path $destination 'pax_windows_wgpu_export_probe.dll')
+Write-Output (Join-Path $destination 'pax-wgpu-preflight.exe')

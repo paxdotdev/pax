@@ -1,7 +1,7 @@
 //! Isolated zero-readback export probe, not the production renderer.
-//! Images are immutable after publication. Synchronous waits support this
-//! diagnostic; portable external coherence and streaming synchronization remain
-//! unqualified. Test scripts bound the process, not every underlying GPU wait.
+//! Images are immutable after publication. The opt-in synchronization diagnostics
+//! exercise explicit producer fences; they do not implement a streaming pool.
+//! Test scripts bound the process, not every underlying GPU wait.
 
 use anyhow::{anyhow, bail, Context, Result};
 use ash::vk::{self, Handle};
@@ -12,7 +12,7 @@ use std::{
     os::fd::{AsRawFd, FromRawFd, IntoRawFd, OwnedFd},
     ptr,
     sync::{
-        atomic::{AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
         Arc,
     },
     time::Duration,
@@ -26,6 +26,8 @@ pub struct ContextState {
     device: wgpu::Device,
     queue: wgpu::Queue,
     handle_type: vk::ExternalMemoryHandleTypeFlags,
+    async_dmabuf: bool,
+    delayed_test_available: AtomicBool,
 }
 
 struct ProbeContext {
@@ -61,10 +63,56 @@ impl Drop for Allocation {
 pub struct Tile {
     allocation: Arc<Allocation>,
     texture: Option<wgpu::Texture>,
+    pending: Option<PendingTransfer>,
+}
+
+struct PendingTransfer {
+    allocation: Arc<Allocation>,
+    pool: vk::CommandPool,
+    fence: vk::Fence,
+    semaphore: vk::Semaphore,
+    submitted: bool,
+    test_event: vk::Event,
+    test_worker: Option<std::thread::JoinHandle<()>>,
+}
+
+impl Drop for PendingTransfer {
+    fn drop(&mut self) {
+        if let Some(worker) = self.test_worker.take() {
+            let _ = worker.join();
+        }
+        let raw = &self.allocation.raw;
+        unsafe {
+            if self.submitted
+                && raw
+                    .wait_for_fences(&[self.fence], true, 10_000_000_000)
+                    .is_err()
+            {
+                // A hung producer must not turn a diagnostic timeout into use-after-free.
+                // Retain the device and allocation; the allocation-baseline test fails.
+                eprintln!(
+                    "PAX_WGPU_EXPORT_ERROR: producer retirement failed; retaining GPU resources"
+                );
+                std::mem::forget(Arc::clone(&self.allocation));
+                return;
+            }
+            if self.semaphore != vk::Semaphore::null() {
+                raw.destroy_semaphore(self.semaphore, None);
+            }
+            if self.test_event != vk::Event::null() {
+                raw.destroy_event(self.test_event, None);
+            }
+            if self.fence != vk::Fence::null() {
+                raw.destroy_fence(self.fence, None);
+            }
+            raw.destroy_command_pool(self.pool, None);
+        }
+    }
 }
 
 impl Drop for Tile {
     fn drop(&mut self) {
+        self.pending.take();
         self.texture.take();
         let _ = self.allocation.context.device.poll(wgpu::PollType::Wait {
             submission_index: None,
@@ -76,6 +124,7 @@ impl Drop for Tile {
 #[repr(C)]
 pub struct ExportInfo {
     fd: i32,
+    sync_fd: i32,
     width: u32,
     height: u32,
     stride: u32,
@@ -87,19 +136,90 @@ pub struct ExportInfo {
     driver_uuid: [u8; vk::UUID_SIZE],
 }
 
+fn parse_device_uuid(value: &str) -> Result<[u8; vk::UUID_SIZE]> {
+    if value.len() != vk::UUID_SIZE * 2 || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        bail!("PAX_PROBE_GPU_DEVICE_UUID must contain exactly 32 hexadecimal digits");
+    }
+    let mut uuid = [0; vk::UUID_SIZE];
+    for (index, byte) in uuid.iter_mut().enumerate() {
+        *byte = u8::from_str_radix(&value[index * 2..index * 2 + 2], 16)?;
+    }
+    Ok(uuid)
+}
+
+fn physical_gpu(device_type: wgpu::DeviceType) -> bool {
+    matches!(
+        device_type,
+        wgpu::DeviceType::DiscreteGpu | wgpu::DeviceType::IntegratedGpu
+    )
+}
+
 fn context_new(dma_buf: bool) -> Result<ProbeContext> {
+    // Capability inventory and composition must exercise the same adapter on
+    // hybrid systems. Never silently fall back after an explicit UUID request.
+    let requested_uuid = match std::env::var("PAX_PROBE_GPU_DEVICE_UUID") {
+        Ok(value) => Some(parse_device_uuid(&value)?),
+        Err(std::env::VarError::NotPresent) => None,
+        Err(error) => return Err(error).context("Invalid PAX_PROBE_GPU_DEVICE_UUID"),
+    };
+    let allow_software = std::env::var("PAX_PROBE_ALLOW_SOFTWARE").as_deref() == Ok("1");
+    let async_dmabuf = dma_buf && std::env::var("PAX_PROBE_DMABUF_SYNC").as_deref() == Ok("1");
     let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
         backends: wgpu::Backends::VULKAN,
         ..Default::default()
     });
-    let adapter =
-        pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default()))?;
+    let mut adapters = pollster::block_on(instance.enumerate_adapters(wgpu::Backends::VULKAN));
+    adapters.sort_by_key(|adapter| match adapter.get_info().device_type {
+        wgpu::DeviceType::DiscreteGpu => 0,
+        wgpu::DeviceType::IntegratedGpu => 1,
+        wgpu::DeviceType::VirtualGpu => 2,
+        wgpu::DeviceType::Other => 3,
+        wgpu::DeviceType::Cpu => 4,
+    });
+    let adapter = adapters.into_iter().find(|adapter| {
+        let info = adapter.get_info();
+        let Some(hal) = (unsafe { adapter.as_hal::<Vulkan>() }) else { return false; };
+        let mut ids = vk::PhysicalDeviceIDProperties::default();
+        let mut properties = vk::PhysicalDeviceProperties2::default().push_next(&mut ids);
+        unsafe {
+            hal.shared_instance().raw_instance().get_physical_device_properties2(
+                hal.raw_physical_device(), &mut properties,
+            );
+        }
+        let uuid = ids.device_uuid.iter().map(|byte| format!("{byte:02x}")).collect::<String>();
+        let identity_matches = requested_uuid.is_none_or(|expected| expected == ids.device_uuid);
+        let policy_matches = physical_gpu(info.device_type) || allow_software;
+        eprintln!("wgpu_candidate={info:?} device_uuid={uuid} identity_matches={identity_matches} policy_matches={policy_matches}");
+        identity_matches && policy_matches
+    }).context("No eligible physical Vulkan adapter. PAX_PROBE_ALLOW_SOFTWARE=1 permits diagnostic CPU/virtual/unknown adapters only; an explicit PAX_PROBE_GPU_DEVICE_UUID is never substituted.")?;
     eprintln!("wgpu_adapter={:?}", adapter.get_info());
     let hal = unsafe { adapter.as_hal::<Vulkan>() }.context("adapter is not Vulkan")?;
     let caps = hal.physical_device_capabilities();
     let mut extensions = vec![ash::khr::external_memory_fd::NAME];
     if dma_buf {
         extensions.push(ash::ext::external_memory_dma_buf::NAME);
+    }
+    if async_dmabuf {
+        extensions.push(ash::khr::external_semaphore_fd::NAME);
+        extensions.push(ash::ext::queue_family_foreign::NAME);
+        let info = vk::PhysicalDeviceExternalSemaphoreInfo::default()
+            .handle_type(vk::ExternalSemaphoreHandleTypeFlags::SYNC_FD);
+        let mut properties = vk::ExternalSemaphoreProperties::default();
+        unsafe {
+            hal.shared_instance()
+                .raw_instance()
+                .get_physical_device_external_semaphore_properties(
+                    hal.raw_physical_device(),
+                    &info,
+                    &mut properties,
+                );
+        }
+        if !properties
+            .external_semaphore_features
+            .contains(vk::ExternalSemaphoreFeatureFlags::EXPORTABLE)
+        {
+            bail!("SYNC_FD semaphore export is unavailable");
+        }
     }
     for extension in &extensions {
         if !caps.supports_extension(extension) {
@@ -132,6 +252,10 @@ fn context_new(dma_buf: bool) -> Result<ProbeContext> {
         gpu: Arc::new(ContextState {
             device,
             queue,
+            async_dmabuf,
+            delayed_test_available: AtomicBool::new(
+                async_dmabuf && std::env::var("PAX_PROBE_SYNC_DELAY_TEST").as_deref() == Ok("1"),
+            ),
             handle_type: if dma_buf {
                 vk::ExternalMemoryHandleTypeFlags::DMA_BUF_EXT
             } else {
@@ -339,13 +463,15 @@ fn export_tile(
     let mut encoder = context.device.create_command_encoder(&Default::default());
     encoder.copy_texture_to_texture(source.as_image_copy(), texture.as_image_copy(), size);
     let submission = context.queue.submit([encoder.finish()]);
-    context.device.poll(wgpu::PollType::Wait {
-        submission_index: Some(submission),
-        timeout: Some(Duration::from_secs(10)),
-    })?;
+    if !context.async_dmabuf {
+        context.device.poll(wgpu::PollType::Wait {
+            submission_index: Some(submission),
+            timeout: Some(Duration::from_secs(10)),
+        })?;
+    }
 
-    // After the WGPU write completes, transfer this immutable image to the
-    // external consumer in GENERAL layout. WGPU never accesses it again.
+    // This single-threaded probe submits both operations to the same queue.
+    // The barrier follows the WGPU copy; WGPU never accesses this image again.
     let hal = unsafe { context.device.as_hal::<Vulkan>() }.context("device disappeared")?;
     let raw = hal.raw_device();
     let pool = unsafe {
@@ -354,6 +480,36 @@ fn export_tile(
             None,
         )
     }?;
+    let mut pending = PendingTransfer {
+        allocation: Arc::clone(&allocation),
+        pool,
+        fence: vk::Fence::null(),
+        semaphore: vk::Semaphore::null(),
+        submitted: false,
+        test_event: vk::Event::null(),
+        test_worker: None,
+    };
+    pending.fence = unsafe { raw.create_fence(&vk::FenceCreateInfo::default(), None) }?;
+    if context.async_dmabuf {
+        let mut export = vk::ExportSemaphoreCreateInfo::default()
+            .handle_types(vk::ExternalSemaphoreHandleTypeFlags::SYNC_FD);
+        pending.semaphore = unsafe {
+            raw.create_semaphore(
+                &vk::SemaphoreCreateInfo::default().push_next(&mut export),
+                None,
+            )
+        }?;
+    }
+    // One dedicated test image holds the producer in flight so a fast GPU
+    // cannot turn the synchronization test into an already-completed handoff.
+    if width == 81
+        && height == 49
+        && context
+            .delayed_test_available
+            .swap(false, Ordering::Relaxed)
+    {
+        pending.test_event = unsafe { raw.create_event(&vk::EventCreateInfo::default(), None) }?;
+    }
     let transfer_result = (|| -> Result<()> {
         let command = unsafe {
             raw.allocate_command_buffers(
@@ -365,6 +521,17 @@ fn export_tile(
         }?[0];
         unsafe {
             raw.begin_command_buffer(command, &vk::CommandBufferBeginInfo::default())?;
+            if pending.test_event != vk::Event::null() {
+                raw.cmd_wait_events(
+                    command,
+                    &[pending.test_event],
+                    vk::PipelineStageFlags::HOST,
+                    vk::PipelineStageFlags::TRANSFER,
+                    &[],
+                    &[],
+                    &[],
+                );
+            }
             let barrier = vk::ImageMemoryBarrier::default()
                 .image(image)
                 .old_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
@@ -372,7 +539,11 @@ fn export_tile(
                 .src_access_mask(vk::AccessFlags::TRANSFER_WRITE)
                 .dst_access_mask(vk::AccessFlags::empty())
                 .src_queue_family_index(hal.queue_family_index())
-                .dst_queue_family_index(vk::QUEUE_FAMILY_EXTERNAL)
+                .dst_queue_family_index(if context.async_dmabuf {
+                    vk::QUEUE_FAMILY_FOREIGN_EXT
+                } else {
+                    vk::QUEUE_FAMILY_EXTERNAL
+                })
                 .subresource_range(vk::ImageSubresourceRange {
                     aspect_mask: vk::ImageAspectFlags::COLOR,
                     base_mip_level: 0,
@@ -391,18 +562,43 @@ fn export_tile(
             );
             raw.end_command_buffer(command)?;
             let commands = [command];
+            let signals = if context.async_dmabuf {
+                vec![pending.semaphore]
+            } else {
+                vec![]
+            };
             raw.queue_submit(
                 hal.raw_queue(),
-                &[vk::SubmitInfo::default().command_buffers(&commands)],
-                vk::Fence::null(),
+                &[vk::SubmitInfo::default()
+                    .command_buffers(&commands)
+                    .signal_semaphores(&signals)],
+                pending.fence,
             )?;
-            raw.queue_wait_idle(hal.raw_queue())?;
+            pending.submitted = true;
+            if pending.test_event != vk::Event::null() {
+                let event = pending.test_event;
+                let owner = Arc::clone(&allocation);
+                match std::thread::Builder::new()
+                    .name("pax-sync-test-gate".into())
+                    .spawn(move || {
+                        std::thread::sleep(Duration::from_secs(2));
+                        if let Err(error) = owner.raw.set_event(event) {
+                            eprintln!("PAX_WGPU_EXPORT_ERROR: test gate signal: {error:?}");
+                        }
+                    }) {
+                    Ok(worker) => pending.test_worker = Some(worker),
+                    Err(error) => {
+                        raw.set_event(event)?;
+                        return Err(error.into());
+                    }
+                }
+            }
+            if !context.async_dmabuf {
+                raw.queue_wait_idle(hal.raw_queue())?;
+            }
         }
         Ok(())
     })();
-    unsafe {
-        raw.destroy_command_pool(pool, None);
-    }
     transfer_result?;
     let memory_fd =
         ash::khr::external_memory_fd::Device::new(hal.shared_instance().raw_instance(), raw);
@@ -417,6 +613,29 @@ fn export_tile(
             )?,
         )
     };
+    let sync_fd = if context.async_dmabuf {
+        let api =
+            ash::khr::external_semaphore_fd::Device::new(hal.shared_instance().raw_instance(), raw);
+        let fd = unsafe {
+            api.get_semaphore_fd(
+                &vk::SemaphoreGetFdInfoKHR::default()
+                    .semaphore(pending.semaphore)
+                    .handle_type(vk::ExternalSemaphoreHandleTypeFlags::SYNC_FD),
+            )
+        }?;
+        // -1 is Vulkan's already-signaled sync_file sentinel, not an owned FD.
+        if fd >= 0 {
+            Some(unsafe { OwnedFd::from_raw_fd(fd) })
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+    let producer_pending = unsafe { !raw.get_fence_status(pending.fence)? };
+    eprintln!("producer_handoff async={} ownership={} sync_fd={} cpu_wait_before_publish={} producer_pending={}",
+        context.async_dmabuf, if context.async_dmabuf { "FOREIGN_EXT" } else { "EXTERNAL" },
+        sync_fd.as_ref().map_or(-1, AsRawFd::as_raw_fd), !context.async_dmabuf, producer_pending);
     eprintln!(
         "wgpu_tile_export image={} fd={} {}x{} bytes={} dma_buf={} source=pax-gpu copies=1 no_readback=true",
         image.as_raw(),
@@ -430,9 +649,11 @@ fn export_tile(
         Tile {
             allocation,
             texture: Some(texture),
+            pending: Some(pending),
         },
         ExportInfo {
             fd: fd.into_raw_fd(),
+            sync_fd: sync_fd.map_or(-1, IntoRawFd::into_raw_fd),
             width,
             height,
             stride,
@@ -458,6 +679,11 @@ fn ffi_result<T>(operation: impl FnOnce() -> Result<T>) -> Option<T> {
             None
         }
     }
+}
+
+#[no_mangle]
+pub extern "C" fn pax_probe_gpu_abi_version() -> u32 {
+    2
 }
 
 #[no_mangle]
@@ -521,4 +747,42 @@ pub unsafe extern "C" fn pax_probe_gpu_tile_drop(tile: *mut c_void) {
 #[no_mangle]
 pub extern "C" fn pax_probe_gpu_live_allocations() -> usize {
     LIVE_ALLOCATIONS.load(Ordering::Relaxed)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn uuid_pin_is_exact_and_rejects_malformed_input() {
+        let expected = [
+            0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef, 0x01, 0x23, 0x45, 0x67, 0x89, 0xab,
+            0xcd, 0xef,
+        ];
+        assert_eq!(
+            parse_device_uuid("0123456789abcdef0123456789ABCDEF").unwrap(),
+            expected
+        );
+        for invalid in [
+            "",
+            "0123456789abcdef",
+            "g123456789abcdef0123456789abcdef",
+            "é23456789abcdef0123456789abcdef0",
+        ] {
+            assert!(parse_device_uuid(invalid).is_err(), "{invalid}");
+        }
+    }
+
+    #[test]
+    fn diagnostic_adapter_types_cannot_qualify_physical_hardware() {
+        for device_type in [
+            wgpu::DeviceType::Cpu,
+            wgpu::DeviceType::VirtualGpu,
+            wgpu::DeviceType::Other,
+        ] {
+            assert!(!physical_gpu(device_type));
+        }
+        assert!(physical_gpu(wgpu::DeviceType::IntegratedGpu));
+        assert!(physical_gpu(wgpu::DeviceType::DiscreteGpu));
+    }
 }

@@ -140,13 +140,20 @@ mod tests {
                 assert!(!generated.contains("OS::IPhone"));
                 assert!(!generated.contains("OS::IPad"));
                 assert!(!generated.contains("fn init_web"));
+                assert!(generated.contains("fn pax_cartridge_abi_version() -> u32 { 4 }"));
+                assert!(generated.contains("DesktopEngineContainer"));
+                assert!(generated.contains(&format!("pax_chassis_{target}::create_backend")));
+                assert_eq!(
+                    generated.contains("DesktopEngineContainer::new_designtime"),
+                    designtime
+                );
             }
         }
     }
 
     #[test]
     fn application_main_keeps_debug_and_release_entrypoints() {
-        for target in ["web", "macos", "ios", "ipados"] {
+        for target in ["web", "macos", "ios", "ipados", "windows", "linux"] {
             for designtime in [true, false] {
                 let generated = render_main(true, target, designtime);
                 syn::parse_file(&generated).unwrap();

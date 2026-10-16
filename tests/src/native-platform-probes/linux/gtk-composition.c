@@ -52,19 +52,19 @@ static void pax_scene_input_class_init(PaxSceneInputClass *klass) {
 }
 static void pax_scene_input_init(PaxSceneInput *self) { (void)self; }
 
-static gboolean verify_import_pixels(GdkTexture *texture, double red, double green, double blue) {
-    /* Diagnostic readback occurs once per test texture, never in the frame loop. */
+static gboolean verify_pattern_region(GdkTexture *texture, int left, int top, int width, int height,
+                                     double red, double green, double blue) {
+    /* Diagnostic readback is confined to test checkpoints, never the frame loop. */
     GdkTextureDownloader *downloader = gdk_texture_downloader_new(texture);
     gdk_texture_downloader_set_format(downloader, GDK_MEMORY_R8G8B8A8);
     gsize stride, length;
     GBytes *bytes = gdk_texture_downloader_download_bytes(downloader, &stride);
     const guint8 *pixels = g_bytes_get_data(bytes, &length);
     int expected[] = { (int)lround(red * 255), (int)lround(green * 255), (int)lround(blue * 255), 255 };
-    int width = gdk_texture_get_width(texture), height = gdk_texture_get_height(texture);
-    gboolean valid = length >= stride * (height - 1) + (gsize)width * 4;
+    gboolean valid = length >= stride * (top + height - 1) + (gsize)(left + width) * 4;
     for (int y = 0; valid && y < height; y++) for (int x = 0; valid && x < width; x++)
         for (int channel = 0; channel < 4; channel++) {
-            int actual = pixels[y * stride + x * 4 + channel];
+            int actual = pixels[(top + y) * stride + (left + x) * 4 + channel];
             gboolean white = x >= width / 4 && x < width * 3 / 4 && y >= height / 4 && y < height * 3 / 4;
             int wanted = white ? 255 : expected[channel];
             if (abs(actual - wanted) > 2) {
@@ -75,6 +75,37 @@ static gboolean verify_import_pixels(GdkTexture *texture, double red, double gre
     g_bytes_unref(bytes);
     gdk_texture_downloader_free(downloader);
     return valid;
+}
+
+static gboolean verify_import_pixels(GdkTexture *texture, double red, double green, double blue) {
+    return verify_pattern_region(texture, 0, 0, gdk_texture_get_width(texture),
+        gdk_texture_get_height(texture), red, green, blue);
+}
+
+static void verify_retained_composition(void) {
+    GtkSnapshot *snapshot = gtk_snapshot_new();
+    gboolean imports_valid = TRUE;
+    for (int i = 0; i < 3; i++) {
+        if (!animated->tiles[i]) { imports_valid = FALSE; continue; }
+        imports_valid &= verify_import_pixels(animated->tiles[i],
+            i == 0 ? 0.8 : 0.05, i == 1 ? 0.8 : 0.1, i == 2 ? 0.9 : 0.15);
+        graphene_rect_t rect = GRAPHENE_RECT_INIT(i * 160, 0, 160, 90);
+        gtk_snapshot_append_texture(snapshot, animated->tiles[i], &rect);
+    }
+    check(imports_valid, "all retained imports preserve distinct pixels after animation");
+    GskRenderNode *node = gtk_snapshot_free_to_node(snapshot);
+    graphene_rect_t bounds = GRAPHENE_RECT_INIT(0, 0, 480, 90);
+    GdkTexture *composite = node ? gsk_renderer_render_texture(
+        gtk_native_get_renderer(GTK_NATIVE(window)), node, &bounds) : NULL;
+    gboolean composite_valid = composite != NULL;
+    for (int i = 0; composite && i < 3; i++) {
+        printf("COMPOSITION_TILE index=%d\n", i);
+        composite_valid &= verify_pattern_region(composite, i * 160, 0, 160, 90,
+            i == 0 ? 0.8 : 0.05, i == 1 ? 0.8 : 0.1, i == 2 ? 0.9 : 0.15);
+    }
+    check(composite_valid, "GSK composition preserves every pixel of three distinct retained tiles");
+    g_clear_object(&composite);
+    if (node) gsk_render_node_unref(node);
 }
 
 static void verify_import_lifetimes(void) {
@@ -95,6 +126,71 @@ static void verify_import_lifetimes(void) {
     printf("IMPORT_LIFETIMES created=%u released=%u allocations_before=%zu allocations_after=%zu\n", created, released, alive_before, alive);
     check(created == 12 && released == created, "GDK destroy callbacks release every transient imported tile");
     check(alive == alive_before, "Vulkan image and memory allocations return to baseline");
+}
+
+static void verify_gpu_consumer_retirement(void) {
+    guint created_before = pax_probe_import_created(), released_before = pax_probe_import_released();
+    gsize alive_before = pax_probe_import_live_allocations();
+    gboolean pixels_valid = TRUE;
+    for (int batch = 0; batch < 4; batch++) {
+        GskRenderer *renderer = gsk_renderer_new_for_surface(gtk_native_get_surface(GTK_NATIVE(window)));
+        GtkSnapshot *snapshot = gtk_snapshot_new();
+        for (int i = 0; i < 3; i++) {
+            double red = (batch * 3 + i + 1) / 16.0;
+            GdkTexture *texture = pax_probe_import_gpu_tile(gdk_display_get_default(), 80, 48, red, 0.25, 0.625);
+            if (!texture) { pixels_valid = FALSE; continue; }
+            graphene_rect_t tile = GRAPHENE_RECT_INIT(i * 80, 0, 80, 48);
+            gtk_snapshot_append_texture(snapshot, texture, &tile);
+            g_object_unref(texture);
+        }
+        GskRenderNode *node = gtk_snapshot_free_to_node(snapshot);
+        graphene_rect_t bounds = GRAPHENE_RECT_INIT(0, 0, 240, 48);
+        GdkTexture *composite = node ? gsk_renderer_render_texture(renderer, node, &bounds) : NULL;
+        if (node) gsk_render_node_unref(node);
+        /* Drop the consumer's cache and all input references before waiting on
+         * the output. The import callback must protect any outstanding reads. */
+        gsk_renderer_unrealize(renderer);
+        g_object_unref(renderer);
+        if (!composite) { pixels_valid = FALSE; continue; }
+        for (int i = 0; i < 3; i++)
+            pixels_valid &= verify_pattern_region(composite, i * 80, 0, 80, 48,
+                (batch * 3 + i + 1) / 16.0, 0.25, 0.625);
+        g_object_unref(composite);
+    }
+    guint created = pax_probe_import_created() - created_before;
+    guint released = pax_probe_import_released() - released_before;
+    gsize alive = pax_probe_import_live_allocations();
+    printf("GPU_IMPORT_LIFETIMES created=%u released=%u allocations_before=%zu allocations_after=%zu\n",
+        created, released, alive_before, alive);
+    check(pixels_valid, "twelve same-sized GPU imports remain distinct through consumer retirement");
+    check(created == 12 && released == created && alive == alive_before,
+        "GPU-consumed imports release their allocations after renderer retirement");
+}
+
+static void verify_pending_producer_wait(void) {
+    guint pending_before = pax_probe_pending_producer_imports();
+    GskRenderer *renderer = gsk_renderer_new_for_surface(gtk_native_get_surface(GTK_NATIVE(window)));
+    GdkTexture *input = pax_probe_import_gpu_tile(gdk_display_get_default(), 81, 49, 0.75, 0.25, 0.625);
+    if (!input) { check(FALSE, "delayed producer imported"); gsk_renderer_unrealize(renderer); g_object_unref(renderer); return; }
+    gboolean pending = pax_probe_pending_producer_imports() > pending_before;
+    gint64 start = g_get_monotonic_time();
+    graphene_rect_t bounds = GRAPHENE_RECT_INIT(0, 0, 81, 49);
+    GskRenderNode *node = gsk_texture_node_new(input, &bounds);
+    GdkTexture *output = gsk_renderer_render_texture(renderer, node, &bounds);
+    gboolean pixels = output && verify_import_pixels(output, 0.75, 0.25, 0.625);
+    gint64 elapsed = g_get_monotonic_time() - start;
+    int producer_ready = pax_probe_delayed_producer_ready();
+    printf("PENDING_PRODUCER_WAIT pending_at_import=%d ready_after_gpu_result=%d gpu_result_wait_us=%" G_GINT64_FORMAT "\n",
+        pending, producer_ready, elapsed);
+    check(pending && pixels && producer_ready == 1 && elapsed >= 250000,
+        "GPU consumer waits for deliberately pending producer before correct pixels become available");
+    /* Keep inputs alive until after the assertion: producer retirement must not
+     * accidentally supply the wait that this test is measuring. */
+    g_clear_object(&output);
+    gsk_render_node_unref(node);
+    g_object_unref(input);
+    gsk_renderer_unrealize(renderer);
+    g_object_unref(renderer);
 }
 
 static void entry_changed(GtkEditable *editable, gpointer ignored) {
@@ -378,7 +474,14 @@ static gboolean finish_test(gpointer ignored) {
     check(outer_scroll > initial_outer_scroll && fabs(outer_scroll - 24) < 1,
         "outer native vertical scroller changes independently");
     verify_mask_picking();
-    if (g_getenv("PAX_PROBE_GPU_LIBRARY") && pax_probe_import_created() > 0) verify_import_lifetimes();
+    if (g_getenv("PAX_PROBE_GPU_LIBRARY") && pax_probe_import_created() > 0) {
+        verify_retained_composition();
+        verify_import_lifetimes();
+        if (g_strcmp0(g_getenv("PAX_PROBE_DMABUF_SYNC"), "1") == 0)
+            verify_gpu_consumer_retirement();
+        if (g_strcmp0(g_getenv("PAX_PROBE_SYNC_DELAY_TEST"), "1") == 0)
+            verify_pending_producer_wait();
+    }
     save_capture();
     printf("RESULT failures=%u frames=%u backend=%s renderer=%s\n", failures, frames,
         G_OBJECT_TYPE_NAME(gdk_display_get_default()), G_OBJECT_TYPE_NAME(gtk_native_get_renderer(GTK_NATIVE(window))));
@@ -487,8 +590,10 @@ static void activate(GtkApplication *app, gpointer ignored) {
                 i == 0 ? 0.8 : 0.05, i == 1 ? 0.8 : 0.1, i == 2 ? 0.9 : 0.15);
             check(texture != NULL, "WGPU28 native texture import");
             if (texture) {
-                check(verify_import_pixels(texture, i == 0 ? 0.8 : 0.05, i == 1 ? 0.8 : 0.1, i == 2 ? 0.9 : 0.15),
-                    "imported tile pixels equal clipped Pax vector scene");
+                if (g_strcmp0(g_getenv("PAX_PROBE_SKIP_INITIAL_DOWNLOAD"), "1") != 0)
+                    check(verify_import_pixels(texture, i == 0 ? 0.8 : 0.05, i == 1 ? 0.8 : 0.1, i == 2 ? 0.9 : 0.15),
+                        "imported tile pixels equal clipped Pax vector scene");
+                else printf("INITIAL_IMPORT_DOWNLOAD skipped_for_renderer_diagnostic\n");
                 animated->tiles[i] = g_object_ref(texture);
                 GtkWidget *picture = gtk_picture_new_for_paintable(GDK_PAINTABLE(texture));
                 gtk_widget_set_size_request(picture, 160, 90);

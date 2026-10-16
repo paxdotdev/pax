@@ -100,8 +100,8 @@ fn cli() -> App<'static, 'static> {
         .short("t")
         .long("target")
         .default_value(DEFAULT_TARGET)
-        .possible_values(&["web", "macos", "ios", "ipados", "ipad"])
-        .help("Specify the target platform on which to run. Supported targets include web, macos, ios, and ipados (`ipad` is accepted as an alias).")
+        .possible_values(&["web", "macos", "ios", "ipados", "ipad", "windows", "linux"])
+        .help("Specify the target platform on which to run. Supported targets include web, macos, ios, ipados, windows, and linux (`ipad` is accepted as an alias).")
         .takes_value(true);
 
     #[allow(non_snake_case)]
@@ -300,9 +300,14 @@ fn run_context(
     let target = parse_run_target(args.value_of("target").unwrap())?;
     let path = PathBuf::from(args.value_of("path").unwrap());
     let is_release = args.is_present("release");
-    if is_release && !matches!(target, RunTarget::iOS | RunTarget::iPadOS) {
+    if is_release
+        && !matches!(
+            target,
+            RunTarget::iOS | RunTarget::iPadOS | RunTarget::Windows | RunTarget::Linux
+        )
+    {
         return Err(eyre!(
-            "run --release currently supports ios and ipados; use build --release for other targets"
+            "run --release currently supports ios, ipados, windows, and linux; use build --release for other targets"
         ));
     }
     let port = args
@@ -786,6 +791,7 @@ fn kill_process(pid: u32) -> Result<(), std::io::Error> {
 
     let output = Command::new("taskkill")
         .arg("/F") // forcefully kill the process
+        .arg("/T") // include native SDK build and host descendants
         .arg("/PID")
         .arg(pid.to_string())
         .output()?;

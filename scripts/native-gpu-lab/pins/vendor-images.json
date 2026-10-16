@@ -1,0 +1,26 @@
+{
+  "windows": {
+    "ami_id": "ami-0421bb7b41b9c7828",
+    "owner_id": "679593333241",
+    "name": "vgpu20.2-nv-windows-server-2022-vWS-596.86-v202608051212-prod-77u2eeb33lmrm",
+    "product_code": "94q3a4v8r6v0ump6a2anaes19",
+    "region": "us-west-2",
+    "publisher": "NVIDIA",
+    "version": "vGPU 20.2",
+    "listing": "https://aws.amazon.com/marketplace/pp/prodview-f4reygwmtxipu",
+    "verified_at": "2026-10-15",
+    "architecture": "x86_64"
+  },
+  "linux": {
+    "ami_id": "ami-09c24fc4cd6915a69",
+    "owner_id": "679593333241",
+    "name": "vgpu-20.2-new2-nv-ubuntu-24-lts-vWS-595.91.07-v202608051314-prod-3755r2gl3dkew",
+    "product_code": "b28sbaklxxxc41u3ewjwa7df6",
+    "region": "us-west-2",
+    "publisher": "NVIDIA",
+    "version": "vGPU 20.2",
+    "listing": "https://aws.amazon.com/marketplace/pp/prodview-fkv4hqrlaflww",
+    "verified_at": "2026-10-15",
+    "architecture": "x86_64"
+  }
+}

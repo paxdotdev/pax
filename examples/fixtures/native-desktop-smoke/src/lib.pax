@@ -1,0 +1,34 @@
+<Text class="system_text" x=24px y=20px width={100% - 112px} height=36px text={title} selectable=true/>
+<Text class="system_text" x=24px y=62px width=180px height=30px text={"Count: " + clicks}/>
+<Text class="bundled_font" x=220px y=62px width=360px height=30px text="Bundled Manrope: WWW iii 012345" selectable=true/>
+<Image x={100% - 76px} anchor_x=0% y=20px width=48px height=48px source="assets/smoke.png"/>
+<Button class="system_text" x=24px y=104px width=160px height=42px label="Increment" @button_click=self.increment/>
+<Checkbox x=202px y=112px width=26px height=26px checked=bind:checked/>
+<Text class="system_text" x=244px y=110px width=280px height=30px text={checked ? "Checked: yes" : "Checked: no"}/>
+<Frame x=24px y=164px width={100% - 48px} height=120px rotate={(panel_rotation)deg}>
+    <Rectangle x={100% - 106px} y=8px width=46px height=52px rotate=12deg fill={rgb(32, 119, 205)}/>
+    <Rectangle x={100% - 62px} y=8px width=38px height=52px fill={rgba(239, 175, 41, 50%)}/>
+    <Textbox class="system_text" x=12px y=12px width={100% - 24px} height=44px text=bind:input @textbox_input=self.edit/>
+    <Text class="system_text" x=12px y=66px width={100% - 24px} height=36px text={echoed}/>
+</Frame>
+<Scroller x=24px y=304px width={100% - 48px} height={100% - 328px} scroll_height=820px>
+    <Text class="system_text" x=16px y=16px width=350px height=30px text="Outer native scroller"/>
+    <Scroller x=16px y=62px width=340px height=150px scroll_height=440px>
+        <Textbox class="system_text" x=12px y=12px width=300px height=42px text=bind:input/>
+        <Text class="system_text" x=12px y=330px width=300px height=30px text="Inner scroll destination"/>
+        <Rectangle width=100% height=440px fill={rgb(222, 239, 246)}/>
+    </Scroller>
+    <Rectangle x=78% y=120px width=90px height=90px rotate={(rotation)deg} fill={rgb(32, 119, 205)}/>
+    <Button class="system_text" x=16px y=720px width=220px height=42px label="Increment at bottom" @button_click=self.increment/>
+    <Rectangle width=100% height=820px fill={rgb(240, 244, 248)}/>
+</Scroller>
+<Rectangle width=100% height=100% fill=WHITE/>
+
+@settings {
+    .system_text {
+        style: { font: { family: "Arial" url: "" } font_size: 18px fill: BLACK }
+    }
+    .bundled_font {
+        style: { font: { family: "Manrope" url: "assets/fonts/Manrope.ttf" } font_size: 18px fill: BLACK }
+    }
+}

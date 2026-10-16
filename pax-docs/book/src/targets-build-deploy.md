@@ -64,10 +64,12 @@ The target is where the application runs. The workstation is where you compile i
 | macOS application | `macos` | macOS | Rust, full Xcode, and the selected Apple Rust targets |
 | iPhone application | `ios` | macOS | Rust, full Xcode, iOS SDK/simulator, and the selected Apple Rust target |
 | iPad application | `ipados` | macOS | The same Apple toolchain, with an iPad simulator or device |
+| Experimental Windows desktop | `windows` | Windows | Rust MSVC target, Visual Studio C++ tools, Windows SDK, Windows App Runtime 1.8, compatible DX12 GPU |
+| Experimental Linux desktop | `linux` | Linux | Rust GNU target, GTK 4.14+, EGL/Vulkan development/runtime dependencies, compatible GPU/driver |
 
-`ipad` is also accepted as an alias for `ipados`. Linux and Windows support
-the web development workflow; they are not native application targets in the
-current CLI. See [workstation setup](getting-started.md#prepare-your-workstation)
+`ipad` is also accepted as an alias for `ipados`. The experimental desktop
+targets require building on the corresponding operating system; their native
+packager does not cross-compile from macOS. See [workstation setup](getting-started.md#prepare-your-workstation)
 for installation commands and [Apple preparation](#prepare-the-apple-toolchain)
 for additional native requirements.
 
@@ -117,9 +119,9 @@ It creates no async runtime. UI state and executor setup belong in the
 initializer selected by `runnable!`. Browser applications use the library's `init_web` entrypoint instead. Shared Cargo features do not mount the UI or
 link the native host into a cartridge.
 
-Standalone Apple applications have two Rust targets: a library cartridge containing the root
-component and its initializer, and an Apple executable with an ordinary Rust
-`fn main`. The executable uses `pax_kit::host` to enter the SwiftUI host framework; the
+Standalone native applications have two Rust targets: a library cartridge containing the root
+component and its initializer, and an executable with an ordinary Rust
+`fn main`. The executable uses `pax_kit::host` to enter the platform host; the
 cartridge remains separately linked. Use the launch macro to select the application library. Do not pass a `Root`,
 `Property`, Tokio runtime, or Rust closure across its C boundary. Construct cartridge-owned resources in the
 [typed root initializer](event-handling-rust.md#application-setup).
@@ -147,7 +149,7 @@ path = "src/main.rs"
 required-features = ["standalone"]
 ```
 
-The compilation target automatically selects the macOS, iOS, or web chassis.
+The compilation target automatically selects the corresponding chassis.
 `standalone` enables the native executable and host API. Turn it off with
 `--no-default-features --lib` when building only the UI library. Dependencies
 can use `default-features = false`; feature unification is safe because loading
@@ -189,8 +191,8 @@ async runtime; each application retains its own executor policy.
 The actual application `main` runs on all three Apple targets, including iOS and
 iPadOS. `run` hands control to SwiftUI and normally never returns on mobile. Web
 builds compile the UI library and JavaScript explicitly invokes its `init_web`;
-importing the module does not mount it. Android and native Linux/Windows remain
-unsupported. Those desktop workstations can run the web development tools.
+importing the module does not mount it. Android remains unsupported. Windows and
+Linux use experimental desktop hosts with the limits below.
 
 On macOS, `init_with!(InitOptions::default())?.run_with(WindowOptions { ... })`
 accepts window geometry and title. The function forms `pax_kit::init()` and
@@ -337,8 +339,9 @@ cargo build                # compile only; no packaging or server
 In the repository, use `cargo run -p increment` or `cargo run --example increment`.
 The package form compiles fewer unrelated example dependencies. Application
 arguments follow Cargo's `--`; Pax initialization does not intercept them.
-Native Linux and Windows hosting is not yet supported. Use the CLI's web target
-on those workstations.
+Native Linux and Windows use the separate
+[experimental desktop workflow](#experimental-windows-and-linux-desktop),
+including its target-specific prerequisites and direct Cargo build steps.
 
 For a development session with template reload, serving, or simulator deployment:
 
@@ -719,6 +722,123 @@ complete release for rollback, and test an upgrade with an already-open app
 as well as a fresh load. A versioned asset layout can keep old and new clients
 from fetching incompatible files; it requires an explicit URL/hosting plan,
 since Pax does not automatically hash all of these filenames.
+
+## Experimental Windows and Linux desktop
+
+These hosts connect the same Pax engine and cartridge to real WinUI 3 controls
+on Windows and GTK 4 controls on Linux. Vector layers use GPU exports and native
+composition; native editors remain operating-system controls. Neither host has
+a CPU presentation fallback. Treat them as experimental: the initial acceptance
+environment is Windows Server 2022 and Ubuntu 24.04/NVIDIA Xorg, not a claim of
+Windows 10/11, every Linux driver, Wayland, or ARM64 qualification.
+
+Use an ordinary Rust launcher and library as shown in
+[Entry and mounting](#entry-and-mounting). The repository's
+`examples/fixtures/native-desktop-smoke` provides a small application with
+startup data, native editing, Rust event handlers, nested scrolling, vector
+animation, and bundled image/font assets.
+
+### Desktop prerequisites
+
+On Windows, install the Rust MSVC toolchain, Visual Studio 2022's v143 C++ tools,
+a Windows SDK including `mt.exe`, Git, and Windows App Runtime **1.8**. The runtime
+must be registered for the account running the application. The native SDK's
+first build downloads its pinned NuGet tool and packages. A compatible DX12
+hardware adapter and D3D11On12/composition support are required; WARP is not
+selected as a fallback. Installing a newer, separate Windows App Runtime major
+version alone does not supply the required 1.8 framework.
+
+On Ubuntu 24.04, install the development dependencies:
+
+```sh
+sudo apt install build-essential pkg-config libssl-dev libgtk-4-dev \
+  libepoxy-dev libjson-glib-dev libfontconfig1-dev libvulkan1
+pkg-config --atleast-version=4.14 gtk4
+pkg-config --modversion gtk4 epoxy json-glib-1.0 fontconfig
+```
+
+GTK older than 4.14 is insufficient. The GPU/driver must support Vulkan DMA-BUF
+exports, foreign queue ownership, and SYNC_FD synchronization, together with EGL
+native fences, DMA-BUF modifiers, and GLES external images. Installing the
+packages alone does not establish those capabilities. Use `GSK_RENDERER=ngl`;
+GTK 4.14's legacy `gl` renderer has a known import failure in this path.
+`PAX_GPU_DEVICE_UUID` can select an exact Vulkan device with 32 hexadecimal
+digits. Unsupported hardware fails explicitly.
+
+### Build and run a desktop package
+
+Build on the target operating system, selecting `windows` or `linux`:
+
+```sh
+pax-cli run --path examples/fixtures/native-desktop-smoke --target windows
+pax-cli build --path examples/fixtures/native-desktop-smoke --target windows --release
+```
+
+For Linux, substitute `--target linux`. Debug CLI runs start the template reload
+server; Rust edits require rebuilding and restarting. Release uses the baked
+cartridge and excludes `designtime`. The launcher, separate cartridge, host SDK,
+ordered asset directories, and `pax-app.json` are placed in
+`.pax/build/<debug-or-release>/<windows-or-linux>/`. Keep the complete directory
+together when moving it. Packages do not include an installer, signing, the
+Windows App Runtime, or Linux system libraries.
+
+`PAX_HOST_SDK_DIR` selects an explicitly prebuilt native SDK directory for Cargo
+and CLI packaging. Match its platform, architecture, and Debug/Release profile.
+Without this override, the build compiles the bundled native host sources.
+
+For a direct Cargo build, compile both application targets from the application
+package directory before launching the executable, for example:
+
+```sh
+cargo build --lib --bin native-desktop-smoke
+```
+
+Run the resulting executable from Cargo's output directory. `cargo run` alone
+may leave an older cartridge beside a rebuilt launcher; identity validation
+rejects this mismatch. Direct Cargo does not start the template reload server.
+On Windows, the executable also needs an application manifest declaring Windows
+10/11 compatibility, PerMonitorV2 DPI awareness, and a top-level
+`assemblyIdentity`. CLI packages merge the compatibility and DPI declarations
+using `mt.exe`, preserving an authored identity and UAC settings. If the
+identity is absent, the CLI supplies a stable launcher identity and a four-part
+version derived from the Cargo package version, then validates the complete
+manifest. Incompatible DPI settings or conflicting identity/UAC declarations
+fail packaging.
+
+Direct Cargo applications must embed a complete manifest in their own
+executable; see the fixture's `build.rs` and `app.manifest`. The host's early DPI
+setup does not replace these declarations. The repository's
+`pax-compiler/files/windows-launcher.manifest` is only a compatibility/DPI
+fragment for merging, not a complete application manifest.
+
+### Current desktop limits
+
+Start with plain Text, Textbox, Button, Checkbox, Frame, and Scroller. Additional
+control families and rich text behavior do not have full parity; see
+[native-control support](accessibility-native-controls.md#current-support).
+Use explicit system font families or bundled font files, including on buttons
+and editors. The default remote Roboto source is not supported by these hosts;
+see [desktop fonts](text-fonts-images.md#fonts-on-experimental-desktop-hosts).
+
+Translucent vectors overlapping native controls do not yet have qualified color
+fidelity. On Linux, foreground colors are attenuated twice over native controls,
+making them appear too faint. Windows uses the same GPU-underlay/native-mask
+arrangement and remains unqualified for this case. Opaque occlusion and native
+input checks do not establish correct fractional blending.
+
+Both hosts bound export storage and apply backpressure while retained frames
+are in use. Device loss is not recovered automatically. If the Linux driver
+cannot prove that a GPU operation completed, cleanup can remain pending while
+its resources stay retained. Linux's
+logical texture quotas do not establish a strict physical-driver-memory bound
+for outstanding GTK compositor reads. Validate sustained animation, resize,
+shutdown, input methods, and accessibility with the drivers and operating
+systems intended for distribution. Windows currently supports a standalone
+window, not embedding through `mount`; GTK embedding requires its main thread
+and a compatible caller-owned container. Under prolonged Windows publication
+backpressure, generic scene-pointer hit testing can observe newer runtime
+geometry than the displayed frame; native controls retain their stable event
+IDs. This input/presentation gap remains a qualification limit.
 
 ## Build for Apple platforms
 

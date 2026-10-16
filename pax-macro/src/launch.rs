@@ -122,5 +122,9 @@ pub fn expand(input: TokenStream) -> TokenStream {
     let mut arguments = input.elems.iter();
     let recipe = arguments.next().expect("generated launch recipe");
     let options = arguments.next().expect("generated launch options");
-    quote!(pax_kit::host::__init_cartridge(#recipe, #options)).into()
+    if let Some(fonts) = arguments.next() {
+        quote!(pax_kit::host::__init_cartridge_with_fonts(#recipe, #options, #fonts)).into()
+    } else {
+        quote!(pax_kit::host::__init_cartridge(#recipe, #options)).into()
+    }
 }

@@ -1,0 +1,15 @@
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+*.tfvars
+*.tfvars.json
+*.pkrvars.hcl
+*.pkrvars.json
+backend.hcl
+*.local.json
+.generated/
+packer-manifest.json
+crash.log
+crash.*.log
+__pycache__/

@@ -51,7 +51,7 @@ const IOS_LOCAL_NETWORK_USAGE_DESCRIPTION: &str =
 const MOBILE_APP_READY_TIMEOUT: Duration = Duration::from_secs(30);
 const MOBILE_APP_READY_POLL_INTERVAL: Duration = Duration::from_millis(25);
 
-struct AppReadyMarkerWatcher {
+pub(super) struct AppReadyMarkerWatcher {
     cancel: Option<mpsc::Sender<()>>,
     handle: Option<thread::JoinHandle<()>>,
 }
@@ -67,7 +67,7 @@ impl Drop for AppReadyMarkerWatcher {
     }
 }
 
-fn watch_app_ready_marker(
+pub(super) fn watch_app_ready_marker(
     marker: &Path,
     timeout: Duration,
     on_ready: impl FnOnce() + Send + 'static,
@@ -190,7 +190,7 @@ fn select_apple_target_mappings(
                 },
             }
         }
-        RunTarget::Web => vec![],
+        RunTarget::Web | RunTarget::Windows | RunTarget::Linux => vec![],
     }
 }
 
@@ -2746,7 +2746,7 @@ fn wait_for_registered_session_app_pid(
     Ok(None)
 }
 
-fn spawn_designtime_server_process(
+pub(super) fn spawn_designtime_server_process(
     pax_dir: &PathBuf,
     project_root: &PathBuf,
     manifest: &PaxManifest,
@@ -2812,7 +2812,10 @@ fn designtime_server_command(
     cmd
 }
 
-fn stop_designtime_server_process(server: &mut Child, process_child_ids: &Arc<Mutex<Vec<u64>>>) {
+pub(super) fn stop_designtime_server_process(
+    server: &mut Child,
+    process_child_ids: &Arc<Mutex<Vec<u64>>>,
+) {
     let server_pid = server.id() as u64;
     let _ = server.kill();
     let _ = server.wait();
@@ -2822,7 +2825,7 @@ fn stop_designtime_server_process(server: &mut Child, process_child_ids: &Arc<Mu
         .retain(|&id| id != server_pid);
 }
 
-fn wait_for_designtime_ready(
+pub(super) fn wait_for_designtime_ready(
     ready_file: &PathBuf,
     timeout: Duration,
 ) -> Result<String, eyre::Report> {

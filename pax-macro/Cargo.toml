@@ -31,3 +31,6 @@ litrs = "0.4.0"
 [features]
 # Controls generated code; the consuming engine owns runtime dependencies.
 designtime = []
+
+[dev-dependencies]
+tempfile = "3.9.0"

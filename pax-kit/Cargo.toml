@@ -24,6 +24,8 @@ designtime = ["pax-engine/designtime", "pax-std/designtime", "pax-host?/designti
 web = ["pax-engine/web"]
 ios = ["pax-engine/ios"]
 macos = ["pax-engine/macos"]
+windows = ["pax-engine/windows"]
+linux = ["pax-engine/linux"]
 
 [profile.release]
 lto = true
@@ -39,3 +41,9 @@ pax-engine = { path = "../pax-engine", version = "0.39.1", features = ["ios"] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 pax-engine = { path = "../pax-engine", version = "0.39.1", features = ["web"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+pax-engine = { path = "../pax-engine", version = "0.39.1", features = ["windows"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+pax-engine = { path = "../pax-engine", version = "0.39.1", features = ["linux"] }

@@ -1,5 +1,6 @@
 extern crate proc_macro;
 extern crate proc_macro2;
+mod font_assets;
 mod launch;
 mod root_crate;
 mod source;
@@ -129,7 +130,13 @@ fn render_generated_cartridge(
     if generated.is_empty() && !is_root_crate() {
         return output;
     }
-    if !(build_config.web || build_config.macos || build_config.ios || build_config.ipados) {
+    if !(build_config.web
+        || build_config.macos
+        || build_config.ios
+        || build_config.ipados
+        || build_config.windows
+        || build_config.linux)
+    {
         return output;
     }
     let snippet = if cfg!(feature = "designtime")

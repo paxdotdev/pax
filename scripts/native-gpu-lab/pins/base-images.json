@@ -1,0 +1,22 @@
+{
+  "region": "us-west-2",
+  "selected_at": "2026-10-15",
+  "images": {
+    "windows": {
+      "ImageId": "ami-049496c723d143c76",
+      "OwnerId": "801119661308",
+      "Name": "Windows_Server-2022-English-Full-Base-2026.09.17",
+      "Architecture": "x86_64",
+      "CreationDate": "2026-09-18T05:48:37.000Z",
+      "RootDeviceName": "/dev/sda1"
+    },
+    "linux": {
+      "ImageId": "ami-03d70b8354a16a8bc",
+      "OwnerId": "099720109477",
+      "Name": "ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-20261004",
+      "Architecture": "x86_64",
+      "CreationDate": "2026-10-04T10:46:42.000Z",
+      "RootDeviceName": "/dev/sda1"
+    }
+  }
+}

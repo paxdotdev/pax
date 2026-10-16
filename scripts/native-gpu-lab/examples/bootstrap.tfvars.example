@@ -1,0 +1,3 @@
+account_id         = "REVIEW_REQUIRED"
+state_bucket_name  = "REVIEW_REQUIRED"
+approval_reference = "APPROVAL_REQUIRED"

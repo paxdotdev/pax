@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "guest_os": "windows",
+  "rust_version": "1.96.0",
+  "artifacts": {
+    "rustup": {"version": "REVIEW_REQUIRED", "uri": "REVIEW_REQUIRED", "sha256": "REVIEW_REQUIRED"},
+    "grid": {"version": "REVIEW_REQUIRED", "uri": "REVIEW_REQUIRED", "sha256": "REVIEW_REQUIRED"},
+    "dcv": {"version": "REVIEW_REQUIRED", "uri": "REVIEW_REQUIRED", "sha256": "REVIEW_REQUIRED"},
+    "vs_layout": {"version": "REVIEW_REQUIRED", "uri": "REVIEW_REQUIRED", "sha256": "REVIEW_REQUIRED"},
+    "git": {"version": "REVIEW_REQUIRED", "uri": "REVIEW_REQUIRED", "sha256": "REVIEW_REQUIRED"},
+    "vc_redist": {"version": "REVIEW_REQUIRED", "uri": "REVIEW_REQUIRED", "sha256": "REVIEW_REQUIRED"},
+    "winappsdk": {"version": "REVIEW_REQUIRED", "uri": "REVIEW_REQUIRED", "sha256": "REVIEW_REQUIRED"}
+  }
+}

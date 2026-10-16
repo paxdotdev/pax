@@ -152,6 +152,8 @@ pub enum RunTarget {
     #[allow(non_camel_case_types)]
     macOS,
     Web,
+    Windows,
+    Linux,
     #[allow(non_camel_case_types)]
     iOS,
     #[allow(non_camel_case_types)]
@@ -234,6 +236,7 @@ pub(crate) struct PreparedCartridgeSources {
 /// then run it with a patched build of the `chassis` appropriate for the specified platform
 /// See: pax-compiler-sequence-diagram.png
 pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<PathBuf>), Report> {
+    building::desktop::validate_host_target(&ctx.target)?;
     let mut timings = BuildTimings::start();
     let prepared = prepare_cartridge_sources_with_timings(ctx, &mut timings)?;
     let hot_reload = if ctx.should_also_run && ctx.should_run_designtime {
@@ -441,6 +444,8 @@ fn compile_selected_manifest(
         RunTarget::macOS => ("macos", building::apple::manifest_target(ctx)?),
         RunTarget::iOS => ("ios", building::apple::manifest_target(ctx)?),
         RunTarget::iPadOS => ("ipados", building::apple::manifest_target(ctx)?),
+        RunTarget::Windows => ("windows", building::desktop::target_triple(&ctx.target)?),
+        RunTarget::Linux => ("linux", building::desktop::target_triple(&ctx.target)?),
     };
     let mut features = vec![if platform == "ipados" {
         "ios"
@@ -450,6 +455,21 @@ fn compile_selected_manifest(
     if ctx.should_run_designtime {
         features.push("designtime");
     }
+    let mut cargo_features = helpers::pax_project_feature_args(&layout.cartridge_dir, &features);
+    if matches!(ctx.target, RunTarget::Windows | RunTarget::Linux)
+        && layout.cartridge_dir == ctx.project_path.canonicalize()?
+        && helpers::project_has_feature(&ctx.project_path, "standalone")
+        && !cargo_features.iter().any(|feature| feature == "standalone")
+    {
+        // The launcher and its selected UI library must see the same cfg facts.
+        cargo_features.push("standalone".into());
+    }
+    let desktop_sdk = if matches!(ctx.target, RunTarget::Windows | RunTarget::Linux) {
+        validate_release_cargo_features(ctx, &layout.cartridge_dir, &cargo_features, &[target])?;
+        Some(building::desktop::build_sdk(ctx, pax_dir, timings)?)
+    } else {
+        None
+    };
     let output = pax_dir.join(format!("manifest-{target}.json"));
     let mut command = Command::new("cargo");
     // Generate the sidecar while producing the actual target artifact. A check
@@ -458,13 +478,16 @@ fn compile_selected_manifest(
     command
         .current_dir(&layout.cartridge_dir)
         .args(["build", "--lib", "--target", target, "--features"])
-        .arg(helpers::pax_project_feature_args(&layout.cartridge_dir, &features).join(","))
+        .arg(cargo_features.join(","))
         .env("PAX_DIR", pax_dir)
         .env("PAX_MANIFEST_OUTPUT", &output)
         .stdout(std::process::Stdio::inherit())
         .stderr(std::process::Stdio::inherit());
     if ctx.is_release {
         command.arg("--release");
+    }
+    if let Some(sdk) = desktop_sdk {
+        command.env("PAX_HOST_SDK_DIR", sdk);
     }
     layout.configure_cartridge(&mut command);
     helpers::configure_pax_build_env(&mut command, platform, ctx.should_run_designtime);
@@ -518,14 +541,32 @@ pub(crate) fn validate_release_cargo_feature_boundary(
         RunTarget::Web => "web",
         RunTarget::macOS => "macos",
         RunTarget::iOS | RunTarget::iPadOS => "ios",
+        RunTarget::Windows => "windows",
+        RunTarget::Linux => "linux",
     }];
-    let cargo_features = helpers::pax_project_feature_args(&ctx.project_path, &requested_features);
-    let activators = helpers::pax_project_release_devtime_activators(
-        &ctx.project_path,
-        &cargo_features,
-        target_triples,
-    )
-    .map_err(|err| eyre!("Could not verify the release Cargo feature boundary: {err}"))?;
+    let mut cargo_features =
+        helpers::pax_project_feature_args(&ctx.project_path, &requested_features);
+    if matches!(ctx.target, RunTarget::Windows | RunTarget::Linux)
+        && helpers::project_has_feature(&ctx.project_path, "standalone")
+        && !cargo_features.iter().any(|feature| feature == "standalone")
+    {
+        cargo_features.push("standalone".into());
+    }
+    validate_release_cargo_features(ctx, &ctx.project_path, &cargo_features, target_triples)
+}
+
+pub(crate) fn validate_release_cargo_features(
+    ctx: &RunContext,
+    project: &Path,
+    features: &[String],
+    target_triples: &[&str],
+) -> Result<(), Report> {
+    if !ctx.is_release {
+        return Ok(());
+    }
+    let activators =
+        helpers::pax_project_release_devtime_activators(project, features, target_triples)
+            .map_err(|err| eyre!("Could not verify the release Cargo feature boundary: {err}"))?;
     if !activators.is_empty() {
         return Err(eyre!(
             "Release builds do not support designtime code, but this project's Cargo configuration activates it through: {}. Remove these entries from Cargo defaults/dependencies for release builds. Pax enables development features explicitly for debug designtime sessions.",
@@ -725,6 +766,8 @@ fn build_interface_dir_name(target: &RunTarget) -> &'static str {
         RunTarget::Web => "web",
         RunTarget::macOS => "macos",
         RunTarget::iOS | RunTarget::iPadOS => "ios",
+        RunTarget::Windows => "windows",
+        RunTarget::Linux => "linux",
     }
 }
 
@@ -734,6 +777,8 @@ fn custom_interface_dir_candidates(target: &RunTarget) -> &'static [&'static str
         RunTarget::macOS => &["macos"],
         RunTarget::iOS => &["ios"],
         RunTarget::iPadOS => &["ipados", "ios"],
+        RunTarget::Windows => &["windows"],
+        RunTarget::Linux => &["linux"],
     }
 }
 
@@ -742,7 +787,26 @@ fn copy_interface_files_for_target(ctx: &RunContext, pax_dir: &PathBuf) {
         .join(INTERFACE_DIR_NAME)
         .join(build_interface_dir_name(&ctx.target));
 
-    let _ = fs::remove_dir_all(&interface_path);
+    if matches!(ctx.target, RunTarget::Windows | RunTarget::Linux) && interface_path.is_dir() {
+        // Native dependency restores and object files are independent of authored
+        // interface files. Keep those bounded SDK caches across CLI builds.
+        for entry in fs::read_dir(&interface_path).expect("read native SDK interface") {
+            let entry = entry.expect("read native SDK source");
+            if matches!(
+                entry.file_name().to_str(),
+                Some("native-packages" | "tools" | "out")
+            ) {
+                continue;
+            }
+            if entry.path().is_dir() {
+                fs::remove_dir_all(entry.path()).expect("replace native SDK source");
+            } else {
+                fs::remove_file(entry.path()).expect("replace native SDK source");
+            }
+        }
+    } else {
+        let _ = fs::remove_dir_all(&interface_path);
+    }
     let _ = fs::create_dir_all(&interface_path);
 
     let custom_interface = custom_interface_dir_candidates(&ctx.target)
@@ -757,9 +821,19 @@ fn copy_interface_files_for_target(ctx: &RunContext, pax_dir: &PathBuf) {
         .find(|path| path.exists());
 
     if let Some(custom_interface) = custom_interface {
-        copy_interface_files(&custom_interface, &interface_path);
+        copy_interface_files(&custom_interface, &interface_path, &ctx.target);
     } else {
         copy_default_interface_files(&interface_path, ctx);
+    }
+
+    if matches!(ctx.target, RunTarget::Windows | RunTarget::Linux) {
+        let common = pax_dir.join(INTERFACE_DIR_NAME).join("common");
+        fs::create_dir_all(&common).expect("create native common directory");
+        fs::write(
+            common.join("pax-desktop.h"),
+            pax_host::sources::DESKTOP_HEADER,
+        )
+        .expect("copy desktop ABI header");
     }
 
     // Copy common files for macOS and iOS builds
@@ -772,8 +846,13 @@ fn copy_interface_files_for_target(ctx: &RunContext, pax_dir: &PathBuf) {
     }
 }
 
-fn copy_interface_files(src: &Path, dest: &Path) {
-    copy_dir_recursively(src, dest, &[]).expect("Failed to copy interface files");
+fn copy_interface_files(src: &Path, dest: &Path, target: &RunTarget) {
+    let ignored: &[&str] = if matches!(target, RunTarget::Windows | RunTarget::Linux) {
+        &["native-packages", "tools", "out"]
+    } else {
+        &[]
+    };
+    copy_dir_recursively(src, dest, ignored).expect("Failed to copy interface files");
 }
 
 fn copy_default_interface_files(interface_path: &Path, ctx: &RunContext) {
@@ -786,14 +865,20 @@ fn copy_default_interface_files(interface_path: &Path, ctx: &RunContext) {
             .join("public"),
         RunTarget::macOS => Path::new(pax_host::sources::SOURCE_DIR).join("macos"),
         RunTarget::iOS | RunTarget::iPadOS => Path::new(pax_host::sources::SOURCE_DIR).join("ios"),
+        RunTarget::Windows => Path::new(pax_host::sources::SOURCE_DIR).join("windows"),
+        RunTarget::Linux => Path::new(pax_host::sources::SOURCE_DIR).join("linux"),
     };
 
     if ctx.is_libdev_mode || interface_src.exists() {
-        copy_dir_recursively(&interface_src, interface_path, &[])
-            .expect("Failed to copy interface files");
+        copy_interface_files(&interface_src, interface_path, &ctx.target);
     } else {
         // File src is include_dir — recursively extract files from include_dir into full_path
         match ctx.target {
+            RunTarget::Windows | RunTarget::Linux => pax_host::sources::extract_desktop(
+                &build_interface_dir_name(&ctx.target),
+                interface_path,
+            )
+            .expect("extract desktop host"),
             RunTarget::Web => PAX_WEB_INTERFACE_TEMPLATE
                 .extract(interface_path)
                 .expect("Failed to extract web interface files"),
@@ -2040,6 +2125,8 @@ codegen-units = 32
             RunTarget::macOS,
             RunTarget::iOS,
             RunTarget::iPadOS,
+            RunTarget::Windows,
+            RunTarget::Linux,
         ] {
             let error = validate_hot_reload_target(&target, HotReloadMode::Logic).unwrap_err();
             assert!(error
@@ -2164,17 +2251,51 @@ web = ["pax-engine/web"]
         ));
         assert!(error.contains("Pax enables development features explicitly"));
     }
+
+    #[test]
+    fn desktop_release_guard_includes_required_standalone_feature() {
+        let dir = tempfile::tempdir().unwrap();
+        fs::create_dir_all(dir.path().join("src")).unwrap();
+        fs::write(dir.path().join("src/lib.rs"), "pub fn app() {}\n").unwrap();
+        fs::create_dir_all(dir.path().join("pax-engine/src")).unwrap();
+        fs::write(dir.path().join("pax-engine/src/lib.rs"), "").unwrap();
+        fs::write(
+            dir.path().join("pax-engine/Cargo.toml"),
+            "[package]\nname = \"pax-engine\"\nversion = \"0.1.0\"\n\
+             [features]\ndesigntime = []\nwindows = []\nlinux = []\n",
+        )
+        .unwrap();
+        fs::write(
+            dir.path().join("Cargo.toml"),
+            "[package]\nname = \"desktop-release-boundary\"\nversion = \"0.1.0\"\n\
+             [dependencies]\npax-engine = { path = \"pax-engine\" }\n\
+             [features]\ndefault = []\nstandalone = [\"pax-engine/designtime\"]\n",
+        )
+        .unwrap();
+        for (target, triple) in [
+            (RunTarget::Windows, "x86_64-pc-windows-msvc"),
+            (RunTarget::Linux, "x86_64-unknown-linux-gnu"),
+        ] {
+            let mut ctx = release_context(false);
+            ctx.target = target;
+            ctx.project_path = dir.path().to_path_buf();
+            let error = validate_release_cargo_feature_boundary(&ctx, &[triple]).unwrap_err();
+            assert!(error.to_string().contains(
+                "runtime dependency path `desktop-release-boundary -> pax-engine` enables `designtime`"
+            ));
+        }
+    }
 }
 
 /// Ejects the interface files for the specified target platform
 /// Interface files will then be used to build the project
 pub fn perform_eject(ctx: &RunContext) -> eyre::Result<(), Report> {
     let pax_dir = get_or_create_pax_directory(&ctx.project_path);
-    eject_interface_files(ctx, &pax_dir);
+    eject_interface_files(ctx, &pax_dir)?;
     Ok(())
 }
 
-fn eject_interface_files(ctx: &RunContext, pax_dir: &PathBuf) {
+fn eject_interface_files(ctx: &RunContext, pax_dir: &PathBuf) -> io::Result<()> {
     let target_str: &str = (&ctx.target).into();
     let target_str_lower = &target_str.to_lowercase();
     let custom_interfaces_dir = pax_dir.parent().unwrap().join("interfaces");
@@ -2183,19 +2304,28 @@ fn eject_interface_files(ctx: &RunContext, pax_dir: &PathBuf) {
         target_custom_interface_dir = target_custom_interface_dir.join("public");
     }
 
-    let _ = fs::create_dir_all(&target_custom_interface_dir);
+    fs::create_dir_all(&target_custom_interface_dir)?;
 
     let src_path = get_libdev_interface_path(ctx);
     if ctx.is_libdev_mode || src_path.exists() {
-        let _ = copy_dir_recursively(&src_path, &target_custom_interface_dir, &[]);
+        copy_interface_files(&src_path, &target_custom_interface_dir, &ctx.target);
     } else {
-        let _ = extract_interface_template(ctx, &target_custom_interface_dir);
+        extract_interface_template(ctx, &target_custom_interface_dir)?;
+    }
+    if matches!(ctx.target, RunTarget::Windows | RunTarget::Linux) {
+        let common = custom_interfaces_dir.join("common");
+        fs::create_dir_all(&common)?;
+        fs::write(
+            common.join("pax-desktop.h"),
+            pax_host::sources::DESKTOP_HEADER,
+        )?;
     }
 
     println!(
         "Interface files ejected to: {}",
         target_custom_interface_dir.display()
     );
+    Ok(())
 }
 
 fn get_libdev_interface_path(ctx: &RunContext) -> PathBuf {
@@ -2216,11 +2346,17 @@ fn get_libdev_interface_path(ctx: &RunContext) -> PathBuf {
             .join("interfaces")
             .join("ios")
             .join("pax-app-ios"),
+        RunTarget::Windows | RunTarget::Linux => {
+            Path::new(pax_host::sources::SOURCE_DIR).join(build_interface_dir_name(&ctx.target))
+        }
     }
 }
 
 fn extract_interface_template(ctx: &RunContext, dest: &Path) -> Result<(), std::io::Error> {
     match ctx.target {
+        RunTarget::Windows | RunTarget::Linux => {
+            pax_host::sources::extract_desktop(build_interface_dir_name(&ctx.target), dest)?
+        }
         RunTarget::Web => PAX_WEB_INTERFACE_TEMPLATE.extract(dest)?,
         RunTarget::macOS => PAX_MACOS_INTERFACE_TEMPLATE.extract(dest)?,
         RunTarget::iOS | RunTarget::iPadOS => PAX_IOS_INTERFACE_TEMPLATE.extract(dest)?,
@@ -2475,12 +2611,14 @@ fn ensure_claude_md_link(project_root: &Path) -> Result<(), String> {
 impl RunTarget {
     pub fn parse(input: &str) -> Result<Self, String> {
         match input.to_lowercase().as_str() {
+            "windows" => Ok(RunTarget::Windows),
+            "linux" => Ok(RunTarget::Linux),
             "macos" => Ok(RunTarget::macOS),
             "web" => Ok(RunTarget::Web),
             "ios" => Ok(RunTarget::iOS),
             "ipados" | "ipad" => Ok(RunTarget::iPadOS),
             _ => Err(format!(
-                "unsupported target `{input}`; expected one of: web, macos, ios, ipados"
+                "unsupported target `{input}`; expected one of: web, macos, ios, ipados, windows, linux"
             )),
         }
     }
@@ -2495,6 +2633,8 @@ impl From<&str> for RunTarget {
 impl<'a> Into<&'a str> for &'a RunTarget {
     fn into(self) -> &'a str {
         match self {
+            RunTarget::Windows => "Windows",
+            RunTarget::Linux => "Linux",
             RunTarget::Web => "Web",
             RunTarget::macOS => "macOS",
             RunTarget::iOS => "iOS",

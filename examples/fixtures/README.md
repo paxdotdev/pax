@@ -65,6 +65,7 @@ accepts `fixtures/<name>` and `examples/fixtures/<name>`.
 | [group-compositing](group-compositing) | Mixed native/canvas group opacity acceptance fixture |
 | [gyro-helper](gyro-helper) | Device sensor integration probe |
 | [mask-strokes](mask-strokes) | Paint layers and live component masks regression fixture |
+| [native-desktop-smoke](native-desktop-smoke) | Windows/Linux application, cartridge, native input and packaged resource acceptance |
 | [native-text-compatibility](native-text-compatibility) | macOS text/control/accessibility regression fixture |
 | [neon-opacity](neon-opacity) | Opacity, masks and compositing study |
 | [overlay-transfer](overlay-transfer) | Additive fixed Overlays, scroll-driven live transfer, native state, and borrower teardown/recovery |

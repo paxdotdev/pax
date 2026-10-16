@@ -71,6 +71,8 @@ pub enum CommandOutcome {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Target {
+    Windows,
+    Linux,
     Web,
     Macos,
     Ios,

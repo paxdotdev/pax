@@ -1,0 +1,72 @@
+{
+  "rustup-linux": {
+    "version": "1.29.1",
+    "uri": "https://static.rust-lang.org/rustup/archive/1.29.1/x86_64-unknown-linux-gnu/rustup-init",
+    "sha256": "dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71",
+    "bytes": 21113232,
+    "provenance": "matches official published SHA256"
+  },
+  "rustup-windows": {
+    "version": "1.29.1",
+    "uri": "https://static.rust-lang.org/rustup/archive/1.29.1/x86_64-pc-windows-msvc/rustup-init.exe",
+    "sha256": "6f4bef66261261fcb43131be8720bab817d403a09edec7455c371974b90bdb7e",
+    "bytes": 12721664,
+    "provenance": "matches official published SHA256"
+  },
+  "dcv-linux": {
+    "version": "2026.0-24952",
+    "uri": "https://d1uj6qtbmh3dt5.cloudfront.net/2026.0/Servers/nice-dcv-2026.0-24952-ubuntu2404-x86_64.tgz",
+    "sha256": "a27c2b5f45630791abda12ecf27568e55d174d2456d4886220127a3759a645f0",
+    "bytes": 39883727,
+    "provenance": "matches official published SHA256"
+  },
+  "vs-bootstrapper": {
+    "version": "17.14.42",
+    "uri": "https://download.visualstudio.microsoft.com/download/pr/c95450be-0a45-4779-b142-33f567ccfd6e/68978bb28916156802e60e04c5ee50b94348d802fe151a3ca24433f27984187b/vs_BuildTools.exe",
+    "sha256": "68978bb28916156802e60e04c5ee50b94348d802fe151a3ca24433f27984187b",
+    "bytes": 4474848,
+    "provenance": "matches SHA256 in official fixed-version URL"
+  },
+  "git": {
+    "version": "2.56.0.2",
+    "uri": "https://github.com/git-for-windows/git/releases/download/v2.56.0.windows.2/Git-2.56.0.2-64-bit.exe",
+    "sha256": "52188f917b378f00c70ec136bcf090005f30d44fbc4eba0bce759cc6592d60f6",
+    "bytes": 66763664,
+    "provenance": "matches GitHub release asset digest"
+  },
+  "winappsdk": {
+    "version": "1.8.260804001",
+    "uri": "https://download.microsoft.com/download/11c5f368-18ed-4bc7-9421-a876b9923460/WindowsAppRuntimeInstall-x64.exe",
+    "sha256": "d20630d3078ea1514fb2d1fbe827254f04af49d86502ace8ecfda626a8631192",
+    "bytes": 106925880,
+    "provenance": "official HTTPS download; locally calculated SHA256"
+  },
+  "dcv-windows": {
+    "version": "2026.0-24952",
+    "uri": "https://d1uj6qtbmh3dt5.cloudfront.net/2026.0/Servers/nice-dcv-server-x64-Release-2026.0-24952.msi",
+    "sha256": "28e83279372f6dd313812be5a0ae0c8a82beee4ae1976da5f1effb0fd7e5b47f",
+    "bytes": 80306176,
+    "provenance": "matches official published SHA256"
+  },
+  "vc_redist": {
+    "version": "14.44.35211.0",
+    "uri": "https://download.visualstudio.microsoft.com/download/pr/990c720a-46ce-4dc7-87b9-c2eb615d34b9/CC0FF0EB1DC3F5188AE6300FAEF32BF5BEEBA4BDD6E8E445A9184072096B713B/VC_redist.x64.exe",
+    "sha256": "cc0ff0eb1dc3f5188ae6300faef32bf5beeba4bdd6e8e445a9184072096b713b",
+    "bytes": 25635768,
+    "provenance": "Microsoft Authenticode signature verified in Windows; locally calculated SHA256"
+  },
+  "grid-linux": {
+    "version": "595.91.07",
+    "uri": "s3://ec2-linux-nvidia-drivers/grid-20.2/NVIDIA-Linux-x86_64-595.91.07-grid-aws.run",
+    "sha256": "cae8d82b8407c6371805485b148aa667550abf1775ea7999be69da81cf593156",
+    "bytes": 429294370,
+    "provenance": "authenticated official AWS S3 download; locally calculated SHA256"
+  },
+  "grid-windows": {
+    "version": "596.86",
+    "uri": "s3://ec2-windows-nvidia-drivers/grid-20.2/596.86__grid_win10_win11_server2022_server2025_dch_64bit_international_aws_swl.exe",
+    "sha256": "e847099942f9e17e859fc151e725aeab9d23639c54d976a651732691b5fca6a1",
+    "bytes": 748151912,
+    "provenance": "authenticated official AWS S3 download; locally calculated SHA256"
+  }
+}

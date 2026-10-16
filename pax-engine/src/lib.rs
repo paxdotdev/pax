@@ -27,7 +27,12 @@ pub use pax_designtime;
 #[cfg(feature = "web")]
 pub use {pax_chassis_web, wasm_bindgen, wasm_bindgen_futures};
 
-#[cfg(any(feature = "macos", feature = "ios"))]
+#[cfg(any(
+    feature = "macos",
+    feature = "ios",
+    feature = "windows",
+    feature = "linux"
+))]
 pub use pax_chassis_common;
 
 #[cfg(feature = "json")]
@@ -46,6 +51,10 @@ mod declarative_macros {
     }
 }
 
+#[cfg(feature = "linux")]
+pub use pax_chassis_linux;
+#[cfg(feature = "windows")]
+pub use pax_chassis_windows;
 #[cfg(feature = "web")]
 #[doc(hidden)]
 pub use wasm_split_helpers;

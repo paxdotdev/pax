@@ -1,0 +1,26 @@
+account_id           = "REVIEW_REQUIRED"
+approval_reference   = "APPROVAL_REQUIRED"
+artifact_bucket_name = "REVIEW_REQUIRED"
+availability_zone    = "REVIEW_REQUIRED"
+lab_name             = "pax1038-gpu"
+builder_ipv4_cidr    = null
+dcv_ipv4_cidr        = null
+
+# Infrastructure first. Never run an image build and a test VM simultaneously.
+machine = null
+
+# First pilot: launch a reviewed NVIDIA AMI directly; no Packer build needed.
+# machine = {
+#   os           = "windows"
+#   image_source = "vendor"
+#   ami_id       = "ami-0421bb7b41b9c7828" # exact Oregon pin in pins/vendor-images.json
+#   expires_at   = "REVIEW_REQUIRED" # fresh UTC deadline within four hours
+# }
+
+# After an approved image build, use its manifest's AMI and recipe SHA256:
+# machine = {
+#   os            = "windows" # or linux
+#   ami_id        = "REVIEW_REQUIRED"
+#   recipe_sha256 = "REVIEW_REQUIRED"
+#   expires_at    = "REVIEW_REQUIRED" # YYYY-MM-DDTHH:MM:SSZ, within four hours
+# }

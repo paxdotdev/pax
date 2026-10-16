@@ -1,0 +1,16 @@
+{
+  "aws_cli": "2.38.1",
+  "terraform": "1.16.2",
+  "packer": {
+    "version": "1.16.1",
+    "darwin_arm64_zip_sha256": "c45cb1f851971e8a340c4a36434273cf2c8ef0cc7f5b3ac65588a3539b1df424"
+  },
+  "terraform_providers": {
+    "hashicorp/aws": "6.66.0",
+    "hashicorp/archive": "2.7.1"
+  },
+  "packer_plugins": {
+    "github.com/hashicorp/amazon": "1.8.3"
+  },
+  "session_manager_plugin": "1.2.896.0"
+}

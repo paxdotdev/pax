@@ -194,6 +194,30 @@ source explicitly when offline behavior and repeatable typography matter.
 `Font::Web(family, url, style, weight)` remains the explicit longhand; the
 string and named-object forms describe the same public font type.
 
+### Fonts on experimental desktop hosts
+
+The Windows and Linux hosts accept an empty font URL for a system family, or an
+app-relative URL for a bundled font file. Select the file's actual family:
+
+```pax
+<Text width=280px height=48px text="A native desktop note"
+    style={font: {family: "Manrope", url: "assets/fonts/Manrope.ttf"}, font_size: 22px}
+/>
+```
+
+Supply that licensed font file in the application's assets. Remote font files
+and stylesheet URLs are currently unsupported. This includes Pax's default
+Roboto/Google Fonts source: set a font explicitly on text and controls when
+using these experimental hosts.
+
+Windows direct Cargo builds embed a bounded font inventory and materialize a
+verified cache beside the executable before initializing WinUI. That path needs
+a writable executable directory with hard-link support; the limits are 256
+fonts, 16 MiB per file, and 64 MiB total. Existing files with mismatched content
+produce an error. CLI packages already contain the font resources and perform
+no startup extraction. Linux registers bundled fonts through Fontconfig.
+See [desktop setup and packaging](targets-build-deploy.md#experimental-windows-and-linux-desktop).
+
 ### Load a font file on web
 
 For a project-owned web font, put the licensed font file in `assets/fonts/`
@@ -351,8 +375,9 @@ template.
 dimensions determine its proportions, but do not automatically size the
 node. Set width and height for the area the image should occupy.
 
-Image assets load asynchronously. Once decoding finishes, Pax schedules a
-redraw of the mounted image. On web, concurrent `Image` requests with the same
+Image assets normally load asynchronously. The experimental Linux host currently
+decodes a local image once on its GTK thread; large files can stall that thread.
+Once decoding finishes, Pax schedules a redraw of the mounted image. On web, concurrent `Image` requests with the same
 source string in one app share one fetch/decode operation and one transfer of
 the decoded pixels into the renderer. Every still-mounted waiting image is
 scheduled to redraw. Requesting a different URL detaches that node from its
@@ -375,6 +400,8 @@ Despite the `Url` name, arbitrary remote URLs are not currently a portable
 Image source. The web canvas loader prefixes the app's document directory,
 and the Apple canvas loaders resolve bundled assets. Use app-relative assets
 for this path. Web NativeImage has a separate browser URL path, described below.
+The experimental Windows and Linux hosts also resolve local assets; remote
+image URLs currently report an unsupported error.
 
 For portable Apple bundles, use distinct resource basenames even across
 subdirectories. For example, name a large still `stills/film.jpg` and its small

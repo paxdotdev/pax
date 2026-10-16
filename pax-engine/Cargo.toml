@@ -18,6 +18,8 @@ pax-language = {path="../pax-language", version="0.39.1", default-features = fal
 pax-chassis-web = {version = "0.39.1", path="../pax-chassis-web", optional=true }
 pax-chassis-macos = {version = "0.39.1", path="../pax-chassis-macos", optional=true }
 pax-chassis-ios = {version = "0.39.1", path="../pax-chassis-ios", optional=true }
+pax-chassis-windows = {version = "0.39.1", path="../pax-chassis-windows", optional=true }
+pax-chassis-linux = {version = "0.39.1", path="../pax-chassis-linux", optional=true }
 pax-chassis-common = {version = "0.39.1", path="../pax-chassis-common", optional=true }
 pax-designtime = {version = "0.39.1", path = "../pax-designtime", optional=true}
 console_log = {version = "1.0.0", optional = true }
@@ -41,7 +43,10 @@ shaders = ["pax-runtime/shaders"]
 json = ["dep:serde_json"]
 gpu = ["pax-chassis-web?/gpu"]
 cpu = ["pax-chassis-web?/cpu"]
-designtime = ["json", "dep:pax-designtime", "pax-language/parser", "pax-manifest/designtime", "pax-runtime/designtime", "pax-chassis-web?/designtime", "pax-chassis-macos?/designtime", "pax-chassis-ios?/designtime", "pax-macro/designtime"]
+designtime = ["json", "dep:pax-designtime", "pax-language/parser", "pax-manifest/designtime", "pax-runtime/designtime", "pax-chassis-web?/designtime", "pax-chassis-macos?/designtime", "pax-chassis-ios?/designtime", "pax-macro/designtime", "pax-chassis-common?/designtime", "pax-chassis-windows?/designtime", "pax-chassis-linux?/designtime"]
 web = ["dep:wasm_split_helpers", "dep:pax-chassis-web", "dep:wasm-bindgen", "dep:wasm-bindgen-futures"]
 macos = ["dep:pax-chassis-macos", "dep:pax-chassis-common"]
 ios = ["dep:pax-chassis-ios", "dep:pax-chassis-common"]
+
+windows = ["dep:pax-chassis-windows", "dep:pax-chassis-common"]
+linux = ["dep:pax-chassis-linux", "dep:pax-chassis-common"]

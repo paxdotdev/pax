@@ -46,6 +46,7 @@ pub struct LayerRenderer {
     // Resizing a browser backing clears its pixels. Wait for an admitted,
     // atomic replay/submission rather than clearing during layout planning.
     pending_backing_resize: bool,
+    publication_revision: u64,
 }
 
 /// Current renderer set for one logical layer.
@@ -222,12 +223,19 @@ impl LayerRenderer {
             needs_initial_replay: true,
             presentation_ready: false,
             pending_backing_resize: false,
+            publication_revision: 0,
         }
     }
 
     /// Access the underlying retained `pax-gpu` renderer.
     pub fn renderer_mut(&mut self) -> &mut WgpuRenderer<'static> {
         &mut self.renderer
+    }
+
+    /// Submission revision for native offscreen publication. Zero means no
+    /// retained scene has been flushed into this backing yet.
+    pub fn publication_revision(&self) -> u64 {
+        self.publication_revision
     }
 
     /// Whether this renderer belongs to the entry's current physical surface generation.
@@ -730,6 +738,34 @@ impl PaxGpuRenderer {
             observer(sample);
         }))
     }
+
+    /// Visits initialized physical surfaces for native export after rendering.
+    ///
+    /// Call on the UI owner between render operations. The callback must not
+    /// reenter this renderer. Mutable output textures must be copied on the
+    /// same device queue before the next render; a handle is not a snapshot.
+    pub fn visit_ready_surfaces(
+        &self,
+        mut visit: impl FnMut(usize, &str, &str, u64, &WgpuRenderer<'static>),
+    ) {
+        let backends = self.backends.borrow();
+        for (layer, state) in backends.iter().enumerate() {
+            if let RenderLayerState::Ready((target, _)) = state {
+                if target.active {
+                    for surface in &target.renderers {
+                        visit(
+                            layer,
+                            &surface.key,
+                            &surface.host_signature,
+                            surface.publication_revision,
+                            &surface.renderer,
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     fn gpu_contexts(&self) -> Vec<SharedGpuContext> {
         let mut contexts = HashMap::new();
         for state in self.backends.borrow().iter() {
@@ -1154,6 +1190,12 @@ impl PaxGpuRenderer {
                         .map(|_| web_time::Instant::now());
                     renderer.renderer.flush_deferred();
                     drop(preparation_timing);
+                    // The chassis can suppress copies of unchanged retained
+                    // outputs without inspecting or downloading their pixels.
+                    renderer.publication_revision = renderer
+                        .publication_revision
+                        .checked_add(1)
+                        .expect("surface publication revision exhausted");
                     drop(encode_timing);
                     #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
                     {

@@ -9,6 +9,10 @@ publish = false
 [lib]
 crate-type = ["cdylib"]
 
+[[test]]
+name = "offscreen"
+path = "../../../../../pax-gpu/tests/offscreen.rs"
+
 [dependencies]
 anyhow = "1"
 ash = "0.38"

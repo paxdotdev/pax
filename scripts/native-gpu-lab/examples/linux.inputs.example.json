@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "guest_os": "linux",
+  "rust_version": "1.96.0",
+  "ubuntu_snapshot": "REVIEW_REQUIRED",
+  "kernel_release": "REVIEW_REQUIRED",
+  "artifacts": {
+    "rustup": {"version": "REVIEW_REQUIRED", "uri": "REVIEW_REQUIRED", "sha256": "REVIEW_REQUIRED"},
+    "grid": {"version": "REVIEW_REQUIRED", "uri": "REVIEW_REQUIRED", "sha256": "REVIEW_REQUIRED"},
+    "dcv": {"version": "REVIEW_REQUIRED", "uri": "REVIEW_REQUIRED", "sha256": "REVIEW_REQUIRED"}
+  }
+}

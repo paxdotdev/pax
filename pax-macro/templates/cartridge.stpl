@@ -273,3 +273,134 @@
     //cdylib exports
     pub use <%= engine_import_path %>::pax_chassis_common::*;
     <% } %>
+
+    <% if build_config.windows || build_config.linux { %>
+    #[no_mangle]
+    pub extern "C" fn pax_cartridge_abi_version() -> u32 { 4 }
+
+    #[no_mangle]
+    pub extern "C" fn pax_init(initial_width: f32, initial_height: f32) -> *mut <%= engine_import_path %>::pax_chassis_common::desktop::DesktopEngineContainer {
+        unsafe { pax_init_with_data(initial_width, initial_height, std::ptr::null(), 0) }
+    }
+
+    #[no_mangle]
+    pub unsafe extern "C" fn pax_init_with_data(initial_width: f32, initial_height: f32, data: *const u8, len: usize) -> *mut <%= engine_import_path %>::pax_chassis_common::desktop::DesktopEngineContainer {
+        pax_init_entry(initial_width, initial_height, std::ptr::null(), 0, data, len)
+    }
+
+    #[no_mangle]
+    pub unsafe extern "C" fn pax_init_entry(initial_width: f32, initial_height: f32, entry: *const u8, entry_len: usize, data: *const u8, len: usize) -> *mut <%= engine_import_path %>::pax_chassis_common::desktop::DesktopEngineContainer {
+        if entry_len > 4096 || (entry_len > 0 && entry.is_null()) { return std::ptr::null_mut(); }
+        let entry = if entry_len == 0 { "" } else {
+            match std::str::from_utf8(std::slice::from_raw_parts(entry, entry_len)) {
+                Ok(entry) => entry, Err(_) => return std::ptr::null_mut(),
+            }
+        };
+        <% if catalog { %>
+        let entry = match __pax_select_entry(entry) {
+            Ok(entry) => entry, Err(error) => { eprintln!("{error}"); return std::ptr::null_mut(); }
+        };
+        <% } else { %>
+        if !entry.is_empty() { return std::ptr::null_mut(); }
+        <% } %>
+        if len > <%= engine_import_path %>::api::HOST_MESSAGE_LIMIT || (len > 0 && data.is_null()) { return std::ptr::null_mut(); }
+        let init_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let application = match <%= engine_import_path %>::api::application::ApplicationInstance::prepare(
+                <%= engine_import_path %>::api::TargetInfo::new(Platform::Native,
+                    <% if build_config.windows { %>OS::Windows<% } else { %>OS::Linux<% } %>),
+                <%= engine_import_path %>::api::AppOptions {
+                    startup_data: if len == 0 { Vec::new() } else { unsafe { std::slice::from_raw_parts(data, len) }.to_vec() },
+                    ..Default::default()
+                },
+            ) {
+                Ok(application) => application,
+                Err(error) => { eprintln!("application initialization failed: {error}"); return std::ptr::null_mut(); }
+            };
+            let _application = application.enter();
+            let root: <%= root_path %> = match application.initialize(<%= initializer %>) {
+                Ok(root) => root,
+                Err(error) => { eprintln!("root initialization failed: {error}"); return std::ptr::null_mut(); }
+            };
+            let root = std::rc::Rc::new(std::cell::RefCell::new(<%= engine_import_path %>::api::pax_value::ToFromPaxAny::to_pax_any(root)));
+            application.retain_root(root.clone());
+            let _ = <%= engine_import_path %>::pax_chassis_common::env_logger::try_init();
+            <% if build_config.designtime { %>
+            {
+                let userland_manifest = <% if catalog { %>init_manifest_for(entry)<% } else { %>init_manifest()<% } %>;
+                let userland_definition_to_instance_traverser =
+                    init_definition_to_instance_traverser(userland_manifest);
+
+                let userland_main_component_instance = userland_definition_to_instance_traverser
+                    .get_main_component_with_properties("USERLAND_COMPONENT_ROOT", root);
+                let designtime_manager = userland_definition_to_instance_traverser
+                    .get_designtime_manager(String::new())
+                    .expect("designtime manager should exist for native designtime builds");
+                let start = std::time::Instant::now();
+
+                let engine = <%= engine_import_path %>::pax_runtime::engine::PaxEngine::new_with_designtime(
+                        userland_main_component_instance,
+                        (
+                            initial_width.max(1.0) as f64,
+                            initial_height.max(1.0) as f64,
+                        ),
+                        designtime_manager.clone(),
+                        Platform::Native,
+                        <% if build_config.windows { %>OS::Windows,<% } else { %>OS::Linux,<% } %>
+                        Box::new(move || start.elapsed().as_millis()),
+                        <%= engine_import_path %>::pax_chassis_common::desktop::native_scroller_tiling_policy()
+                    );
+
+                let container = <%= engine_import_path %>::pax_chassis_common::desktop::DesktopEngineContainer::new_designtime(
+                    engine, userland_definition_to_instance_traverser, designtime_manager,
+                    <%= engine_import_path %>::<% if build_config.windows { %>pax_chassis_windows<% } else { %>pax_chassis_linux<% } %>::create_backend,
+                );
+                Box::into_raw(Box::new(container))
+            }
+            <% } else { %>
+            {
+                let manifest = <% if catalog { %>init_manifest_for(entry)<% } else { %>init_manifest()<% } %>;
+                let definition_to_instance_traverser = init_definition_to_instance_traverser(manifest.clone());
+
+                let main_component_instance = definition_to_instance_traverser.get_main_component_with_properties(&manifest.main_component_type_id.to_string(), root);
+                let start = std::time::Instant::now();
+
+                let engine = <%= engine_import_path %>::pax_runtime::engine::PaxEngine::new(
+                    main_component_instance,
+                    (
+                        initial_width.max(1.0) as f64,
+                        initial_height.max(1.0) as f64,
+                    ),
+                    Platform::Native,
+                    <% if build_config.windows { %>OS::Windows,<% } else { %>OS::Linux,<% } %>
+                    Box::new(move || start.elapsed().as_millis()),
+                    <%= engine_import_path %>::pax_chassis_common::desktop::native_scroller_tiling_policy()
+                );
+
+                let container = <%= engine_import_path %>::pax_chassis_common::desktop::DesktopEngineContainer::new(
+                    engine,
+                    <%= engine_import_path %>::<% if build_config.windows { %>pax_chassis_windows<% } else { %>pax_chassis_linux<% } %>::create_backend,
+                );
+                Box::into_raw(Box::new(container))
+            }
+            <% } %>
+        }));
+
+        match init_result {
+            Ok(container) => container,
+            Err(payload) => {
+                let message = if let Some(message) = payload.downcast_ref::<String>() {
+                    message.clone()
+                } else if let Some(message) = payload.downcast_ref::<&'static str>() {
+                    (*message).to_string()
+                } else {
+                    "unknown panic".to_string()
+                };
+                eprintln!("pax_init panicked: {message}");
+                std::ptr::null_mut()
+            }
+        }
+    }
+
+    //cdylib exports
+    pub use <%= engine_import_path %>::pax_chassis_common::desktop::*;
+    <% } %>
