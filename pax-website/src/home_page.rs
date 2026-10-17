@@ -6,6 +6,7 @@ use pax_kit::*;
 #[pax]
 #[file("home_page.pax")]
 pub struct HomePage {
+    pub scroll_y: Property<f64>,
     pub hero_height: Property<f64>,
     pub framework_height: Property<f64>,
     pub authoring_height: Property<f64>,

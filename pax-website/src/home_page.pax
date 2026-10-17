@@ -1,4 +1,4 @@
-<Scroller width=100% height=100% autosize=true>
+<Scroller width=100% height=100% autosize=true scroll_pos_y=bind:self.scroll_y>
     <Stacker width=100% autosize=true direction=StackerDirection::Vertical gutter=0px>
         <ExampleHost width=100% height={(Math::max(580, self.hero_height))px} title="A declarative language" sources={self.hero_sources}
             drawer_open=false>
@@ -18,7 +18,7 @@
         </ExampleHost>
         <ExampleHost width=100% height={(Math::max(760, self.gallery_height))px} title="Meet your creative toolkit"
             sources={self.feature_gallery_sources} drawer_open=false>
-            <FeatureGallery content_height=bind:self.gallery_height/>
+            <FeatureGallery content_height=bind:self.gallery_height outer_scroll_y={self.scroll_y}/>
         </ExampleHost>
         <ExampleHost width=100% height={(Math::max(1004, self.resource_height))px} title="Start building" sources={self.resource_sources}
             drawer_open=false>

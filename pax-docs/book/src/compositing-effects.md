@@ -99,6 +99,16 @@ has no drawable area, so Pax clears its native occlusion mask instead of trying
 to invert that transform. The mask is recomputed when the element expands;
 small nonzero scales keep their normal masking behavior.
 
+Native controls also have geometric cutouts where drawn content overlaps them.
+Within a clipped, independently composited Scroller, those cutouts stay in
+content coordinates: scrolling the controls and drawings together does not
+rebuild their masks. Shared ancestor clips remain on the native containers;
+clips that apply only to an overlapping drawing remain part of its cutout.
+Moving or changing the drawing itself still updates the overlap. Backends or
+scenes that share a rendering layer across scrollers, or use escaped content,
+retain conservative reconciliation. Tile preparation and visibility tracking
+still follow scrolling independently of these masks.
+
 Image fitting and clipping are separate choices. An Image handles its own
 rectangular fit; a surrounding Frame can add rounded corners. See
 [image fitting](text-fonts-images.md#fit-an-image-into-its-bounds).

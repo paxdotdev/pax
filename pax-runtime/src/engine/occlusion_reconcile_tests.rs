@@ -90,7 +90,7 @@ impl InstanceNode for Probe {
         })
     }
     fn resolve_effect_clip_path(&self, node: &ExpandedNode) -> Option<BezPath> {
-        matches!(self.kind, Kind::Clip).then(|| {
+        matches!(self.kind, Kind::Clip | Kind::Scroller).then(|| {
             Affine::from(node.transform_and_bounds.get().transform)
                 * kurbo::RoundedRect::new(0., 0., 60., 60., 8.).to_path(0.1)
         })
@@ -184,6 +184,224 @@ fn assert_full_rebuild_matches(root: &Rc<ExpandedNode>, ctx: &RuntimeContext) {
         assert_eq!(n.occlusion.get(), order, "order for {id}");
         assert_eq!(n.native_mask_hash.get(), mask, "mask for {id}");
     }
+}
+
+fn scroll_surface(ctx: &RuntimeContext, node: &ExpandedNode, y: f64) {
+    ctx.set_scroller_surface_state(
+        node.id.to_u32(),
+        crate::properties::ScrollerSurfaceState {
+            viewport_width: 60.,
+            viewport_height: 60.,
+            content_width: 60.,
+            content_height: 1200.,
+            scroll_y: y,
+            presentation_scroll_y: y,
+            clip_content: true,
+            ..Default::default()
+        },
+    );
+}
+
+#[test]
+fn shared_scroll_motion_preserves_masks_without_evaluating_them() {
+    let (ctx, root) = mount(vec![probe(
+        Kind::Clip,
+        vec![probe(
+            Kind::Scroller,
+            vec![probe(
+                Kind::Scroller,
+                vec![probe(Kind::Canvas, vec![]), probe(Kind::Native, vec![])],
+            )],
+        )],
+    )]);
+    let outer = root.children.get()[0].children.get()[0].children.get()[0].clone();
+    let inner = outer.children.get()[0].clone();
+    let native = inner.children.get()[1].clone();
+    outer
+        .get_common_properties()
+        .borrow()
+        .scale_x
+        .set(Some(Size::Percent(55.0.into())));
+    outer
+        .get_common_properties()
+        .borrow()
+        .scale_y
+        .set(Some(Size::Percent(55.0.into())));
+    outer
+        .get_common_properties()
+        .borrow()
+        .rotate
+        .set(Some(pax_runtime_api::Rotation::Degrees(17.0.into())));
+    scroll_surface(&ctx, &outer, 0.);
+    scroll_surface(&ctx, &inner, 0.);
+    settle(&root, &ctx);
+    let initial = native.native_mask_hash.get();
+    assert_ne!(initial, 0);
+    clear(&ctx);
+    for (outer_y, inner_y) in [(23.25, 0.), (300.125, 17.5), (0., 0.)] {
+        let before = ctx.occlusion_stats();
+        scroll_surface(&ctx, &outer, outer_y);
+        scroll_surface(&ctx, &inner, inner_y);
+        settle(&root, &ctx);
+        assert_eq!(ctx.occlusion_stats().rebuilds, before.rebuilds);
+        assert_eq!(
+            ctx.occlusion_stats().masks_evaluated,
+            before.masks_evaluated
+        );
+        assert_eq!(native.native_mask_hash.get(), initial);
+        assert!(!ctx
+            .take_native_messages()
+            .iter()
+            .any(|m| matches!(m, pax_message::NativeMessage::NativeMaskUpdate(_))));
+        assert_full_rebuild_matches(&root, &ctx);
+        clear(&ctx);
+    }
+}
+
+#[test]
+fn shared_clips_are_not_baked_into_native_cutouts() {
+    let (ctx, root) = mount(vec![probe(
+        Kind::Clip,
+        vec![probe(Kind::Canvas, vec![]), probe(Kind::Native, vec![])],
+    )]);
+    let clip = root.children.get()[0].children.get()[0].clone();
+    let native = clip.children.get()[1].clone();
+    native.native_mask_hash.set(0);
+    ctx.mark_node_occlusion_dirty(native.id.to_u32());
+    settle(&root, &ctx);
+    let messages = ctx.take_native_messages();
+    let mask = messages
+        .iter()
+        .find_map(|m| match m {
+            pax_message::NativeMessage::NativeMaskUpdate(p) if p.id == native.id.to_u32() => {
+                Some(p)
+            }
+            _ => None,
+        })
+        .expect("native overlaps the vector");
+    assert_eq!(mask.entries.len(), 1);
+    assert!(
+        mask.entries[0].clips.is_empty(),
+        "the shared native container already enforces this clip"
+    );
+    assert_full_rebuild_matches(&root, &ctx);
+}
+
+#[test]
+fn occluder_only_clips_and_relative_geometry_still_update_cutouts() {
+    let (ctx, root) = mount(vec![probe(
+        Kind::Scroller,
+        vec![
+            probe(Kind::Clip, vec![probe(Kind::Canvas, vec![])]),
+            probe(Kind::Native, vec![]),
+        ],
+    )]);
+    let scroller = root.children.get()[0].children.get()[0].clone();
+    let clip = scroller.children.get()[0].clone();
+    let native = scroller.children.get()[1].clone();
+    native
+        .get_common_properties()
+        .borrow()
+        .width
+        .set(Some(Size::Pixels(40.0.into())));
+    native
+        .get_common_properties()
+        .borrow()
+        .height
+        .set(Some(Size::Pixels(40.0.into())));
+    scroll_surface(&ctx, &scroller, 13.25);
+    settle(&root, &ctx);
+    native.native_mask_hash.set(0);
+    ctx.mark_node_occlusion_dirty(native.id.to_u32());
+    settle(&root, &ctx);
+    let mask = ctx
+        .take_native_messages()
+        .into_iter()
+        .find_map(|m| match m {
+            pax_message::NativeMessage::NativeMaskUpdate(p) if p.id == native.id.to_u32() => {
+                Some(p)
+            }
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(mask.entries.len(), 1);
+    assert_eq!(
+        mask.entries[0].clips.len(),
+        1,
+        "keep the vector's private rounded clip, not the shared scroller clip"
+    );
+    let inverse = Affine::from(native.transform_and_bounds.get().transform.inverse());
+    let exact = inverse
+        * ctx.occlusion_state.borrow().records[&clip.id.to_u32()]
+            .clip
+            .clone()
+            .unwrap();
+    assert_eq!(mask.entries[0].clips[0], bez_path_to_svg_path_data(&exact));
+    let initial = native.native_mask_hash.get();
+    clip.get_common_properties()
+        .borrow()
+        .x
+        .set(Some(Size::Pixels(100.0.into())));
+    settle(&root, &ctx);
+    assert_eq!(native.native_mask_hash.get(), 0);
+    assert_full_rebuild_matches(&root, &ctx);
+    clip.get_common_properties()
+        .borrow()
+        .x
+        .set(Some(Size::Pixels(0.0.into())));
+    settle(&root, &ctx);
+    assert_eq!(native.native_mask_hash.get(), initial);
+    assert_full_rebuild_matches(&root, &ctx);
+}
+
+#[test]
+fn shared_layer_scrolling_still_reconciles_relative_overlap() {
+    let (ctx, root) = mount(vec![
+        probe(Kind::Scroller, vec![probe(Kind::Canvas, vec![])]),
+        probe(Kind::Native, vec![]),
+    ]);
+    let group = root.children.get()[0].clone();
+    let scroller = group.children.get()[0].clone();
+    let native = group.children.get()[1].clone();
+    ctx.globals()
+        .browser_allows_scroller_vector_layers
+        .set(false);
+    scroll_surface(&ctx, &scroller, 0.);
+    ctx.mark_occlusion_dirty();
+    settle(&root, &ctx);
+    let initial = native.native_mask_hash.get();
+    assert_ne!(initial, 0);
+    let before = ctx.occlusion_stats();
+    scroll_surface(&ctx, &scroller, 30.);
+    settle(&root, &ctx);
+    assert!(ctx.occlusion_stats().rebuilds > before.rebuilds);
+    assert_ne!(native.native_mask_hash.get(), initial);
+    assert_full_rebuild_matches(&root, &ctx);
+}
+
+#[test]
+fn escaped_content_keeps_conservative_scroll_reconciliation() {
+    let (ctx, root) = mount(vec![probe(
+        Kind::Scroller,
+        vec![probe(Kind::Canvas, vec![]), probe(Kind::Native, vec![])],
+    )]);
+    let scroller = root.children.get()[0].children.get()[0].clone();
+    scroller.children.get()[1]
+        .get_common_properties()
+        .borrow()
+        .unclippable
+        .set(Some(true));
+    scroll_surface(&ctx, &scroller, 0.);
+    settle(&root, &ctx);
+    let before = ctx.occlusion_stats();
+    scroll_surface(&ctx, &scroller, 30.25);
+    settle(&root, &ctx);
+    assert!(ctx.occlusion_stats().rebuilds > before.rebuilds);
+    assert_eq!(
+        ctx.occlusion_stats().rebuild_reason,
+        Some("unisolated-scroll")
+    );
+    assert_full_rebuild_matches(&root, &ctx);
 }
 
 #[test]

@@ -95,6 +95,12 @@ without looping or projecting the same child into multiple slots. First visits
 after startup still mount synchronously; retaining cards removes repeated
 initialization but does not yet budget that first-visit work across browser tasks.
 
+The gallery's automatic march pauses while the outer page's bound scroll
+position changes, including momentum, and resumes after 150 ms without a new
+position. Hover, touch, and manual-scroll pauses still apply independently.
+Manual horizontal scrolling stays available while the page moves, and resuming
+the march does not catch up for time spent paused.
+
 ## Website and blog boundary
 
 The website declares `/blog`, `/ai`, `/ai.md`, and `/paxflix` as `server_owned_prefixes`.

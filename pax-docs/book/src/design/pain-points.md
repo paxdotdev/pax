@@ -87,6 +87,13 @@ Last triaged: 2026-10-05 — [PAX-972](https://linear.app/paxdev/issue/PAX-972/p
   markers. Move the new fixture into the Cargo/example discovery layout and
   repair asset links before regenerating bundled sources and building the site.
 
+- 2026-10-17, release website outer scrolling: expected shared native/vector
+  motion to retain cutouts; measured scroll invalidation instead reevaluated
+  361 masks / 4,157 candidates to emit one mask update (~8–10ms mask work).
+  Regression tests reproduce needless work on scaled/rotated nested Scrollers.
+  PAX-1014 now separates isolated scroll exposure from mask geometry, removes
+  shared container clips from cutouts, and retains mixed/escaped-domain handling.
+
 - 2026-10-15, root-level website web build: CLI auto-libdev covers only
   `examples/src` and `tests/src`, so rebuilding `pax-website` can reuse the old
   browser interface bundle after TypeScript edits. Reproduced by the inspector

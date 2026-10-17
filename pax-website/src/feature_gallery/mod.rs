@@ -17,6 +17,7 @@ const MARQUEE_SPEED_PX_PER_SECOND: f64 = 30.0;
 const OVERSCAN_CARDS: i64 = 2;
 const SCROLLER_CHROME_PX: f64 = 12.0;
 const TOUCH_MOMENTUM_SETTLE_MILLIS: f64 = 600.0;
+const OUTER_SCROLL_SETTLE_MILLIS: f64 = 150.0;
 
 /// A single gallery card. Its media area is projected content so a card
 /// can contain Pax-native artwork today and richer image/video/example content
@@ -89,6 +90,8 @@ pub struct MarqueeCarousel {
     pub card_width_px: Property<f64>,
     pub gap_px: Property<f64>,
     pub speed_px_per_second: Property<f64>,
+    /// Sampled outer-page position; only automatic motion pauses while it changes.
+    pub outer_scroll_y: Property<f64>,
 
     pub _scroll_pos_x: Property<f64>,
     pub _scroll_width_px: Property<f64>,
@@ -105,6 +108,8 @@ pub struct MarqueeCarousel {
     pub _last_stride_px: Property<f64>,
     pub _expected_scroll_x: Property<f64>,
     pub _resume_after_millis: Property<f64>,
+    pub _last_outer_scroll_y: Property<f64>,
+    pub _outer_resume_after_millis: Property<f64>,
 }
 
 impl Default for MarqueeCarousel {
@@ -113,6 +118,7 @@ impl Default for MarqueeCarousel {
             card_width_px: Property::new(DESKTOP_CARD_WIDTH_PX),
             gap_px: Property::new(CARD_GAP_PX),
             speed_px_per_second: Property::new(MARQUEE_SPEED_PX_PER_SECOND),
+            outer_scroll_y: Property::new(0.0),
             _scroll_pos_x: Property::new(0.0),
             _scroll_width_px: Property::new(0.0),
             _content_width_px: Property::new(0.0),
@@ -128,12 +134,15 @@ impl Default for MarqueeCarousel {
             _last_stride_px: Property::new(-1.0),
             _expected_scroll_x: Property::new(0.0),
             _resume_after_millis: Property::new(0.0),
+            _last_outer_scroll_y: Property::new(0.0),
+            _outer_resume_after_millis: Property::new(0.0),
         }
     }
 }
 
 impl MarqueeCarousel {
     pub fn handle_mount(&mut self, ctx: &NodeContext) {
+        self._last_outer_scroll_y.set(self.outer_scroll_y.get());
         self._last_frame_millis
             .set(ctx.elapsed_time_millis() as f64);
         self.sync_geometry(ctx, true);
@@ -141,6 +150,7 @@ impl MarqueeCarousel {
 
     pub fn handle_pre_render(&mut self, ctx: &NodeContext) {
         let now = ctx.elapsed_time_millis() as f64;
+        let outer_scroll_paused = self.outer_scroll_paused(now);
         if !self.sync_geometry(ctx, false) {
             self._last_frame_millis.set(now);
             return;
@@ -174,6 +184,7 @@ impl MarqueeCarousel {
         let offscreen =
             -origin.y * height >= ctx.viewport.get().height || (1.0 - origin.y) * height <= 0.0;
         let paused = offscreen
+            || outer_scroll_paused
             || self.hover_paused.get()
             || self.touch_paused.get()
             || now < self._resume_after_millis.get();
@@ -189,6 +200,18 @@ impl MarqueeCarousel {
         self._scroll_pos_x.set_if_neq(next_scroll_x);
         self._expected_scroll_x.set_if_neq(next_scroll_x);
         self.sync_window_for_scroll(next_scroll_x);
+    }
+
+    fn outer_scroll_paused(&mut self, now: f64) -> bool {
+        let position = self.outer_scroll_y.get();
+        if position != self._last_outer_scroll_y.get() {
+            self._last_outer_scroll_y.set(position);
+            // Position sampling covers native momentum and programmatic scrolling,
+            // without intercepting input. A short quiet window bridges sparse samples.
+            self._outer_resume_after_millis
+                .set(now + OUTER_SCROLL_SETTLE_MILLIS);
+        }
+        now < self._outer_resume_after_millis.get()
     }
 
     fn sync_geometry(&mut self, ctx: &NodeContext, force: bool) -> bool {
@@ -350,6 +373,7 @@ fn normalize_loop_scroll(scroll_x: f64, content_width: f64) -> f64 {
 pub struct FeatureGallery {
     pub content_height: Property<f64>,
     pub _height_bound: Property<bool>,
+    pub outer_scroll_y: Property<f64>,
     pub compact: Property<bool>,
     pub card_width_px: Property<f64>,
     pub marquee_hovered: Property<bool>,
@@ -361,6 +385,7 @@ impl Default for FeatureGallery {
         Self {
             content_height: Property::new(0.0),
             _height_bound: Property::new(false),
+            outer_scroll_y: Property::new(0.0),
             compact: Property::new(false),
             card_width_px: Property::new(DESKTOP_CARD_WIDTH_PX),
             marquee_hovered: Property::new(false),
@@ -404,6 +429,38 @@ mod tests {
     use std::collections::HashSet;
 
     const PERIOD: f64 = 14_924.0;
+
+    #[test]
+    fn outer_scroll_pauses_until_position_has_settled_in_either_direction() {
+        let mut rail = super::MarqueeCarousel::default();
+        assert!(!rail.outer_scroll_paused(0.0));
+        for (time, position) in [(10.0, 20.0), (50.0, 40.0), (90.0, 30.0), (120.0, 30.01)] {
+            rail.outer_scroll_y.set(position);
+            assert!(rail.outer_scroll_paused(time));
+        }
+        assert!(rail.outer_scroll_paused(269.0));
+        assert!(!rail.outer_scroll_paused(270.0));
+        // Resuming or jumping after rest starts a fresh quiet window.
+        rail.outer_scroll_y.set(900.0);
+        assert!(rail.outer_scroll_paused(1000.0));
+        assert!(!rail.outer_scroll_paused(1150.0));
+    }
+
+    #[test]
+    fn outer_scroll_pause_does_not_write_horizontal_position_or_interaction_state() {
+        let mut rail = super::MarqueeCarousel::default();
+        rail._scroll_pos_x.set(PERIOD + 123.0);
+        rail.hover_paused.set(true);
+        rail.touch_paused.set(true);
+        rail.outer_scroll_y.set(20.0);
+        assert!(rail.outer_scroll_paused(10.0));
+        assert_eq!(rail._scroll_pos_x.get(), PERIOD + 123.0);
+        assert!(rail.hover_paused.get());
+        assert!(rail.touch_paused.get());
+        assert!(!rail.outer_scroll_paused(160.0));
+        assert!(rail.hover_paused.get());
+        assert!(rail.touch_paused.get());
+    }
 
     fn assert_unique_window(rail: &MarqueeCarousel, count: usize, expected: usize) {
         let cells = rail._mounted_cells.get();

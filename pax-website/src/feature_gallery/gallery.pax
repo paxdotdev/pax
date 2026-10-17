@@ -7,7 +7,7 @@
                 text="From the language to the renderer to the tools: explore what you can build with Pax. Hover or touch to pause; scroll horizontally or swipe to explore."/>
         </Stacker>
         <MarqueeCarousel width=100% height={self.compact ? 546px : 522px} card_width_px={self.card_width_px} gap_px=24
-            hover_paused=bind:marquee_hovered touch_paused=bind:marquee_touch_active>
+            hover_paused=bind:marquee_hovered touch_paused=bind:marquee_touch_active outer_scroll_y={self.outer_scroll_y}>
             <FeatureCard width=100% height=100% marquee_hovered=bind:marquee_hovered marquee_touch_active=bind:marquee_touch_active
                 category="DEV TOOLING" title="Template Hot Reload"
                 summary="Reload Pax templates in debug CLI sessions on supported targets while keeping the app running. Rust logic changes require a rebuild and restart."
