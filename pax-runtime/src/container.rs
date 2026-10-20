@@ -19,7 +19,7 @@ use crate::api::math::Transform2;
 use crate::api::{borrow, LocalProperty, NodeContext, Size};
 use crate::node_interface::NodeLocal;
 use crate::{
-    apply_padding_frame, layout_hulls_equivalent, project_child_layout_hull_to_parent_space,
+    apply_padding_frame, layout_hulls_equivalent, project_child_layout_hull_with_nodes,
     resolve_padded_autosize_axis, ExpandedNode, LayoutHull,
 };
 use pax_runtime_api::{properties::UntypedProperty, Interpolatable};
@@ -75,10 +75,12 @@ pub fn measure_content_children_layout_hull(ctx: &NodeContext) -> LayoutHull {
             // from the parent's measured hull.
             continue;
         }
-        let projected_hull = project_child_layout_hull_to_parent_space(
+        let projected_hull = project_child_layout_hull_with_nodes(
             content_transform_and_bounds,
             child.transform_and_bounds.get(),
             child.subtree_layout_hull.get(),
+            &ctx.expanded_node,
+            &Rc::downgrade(child),
         );
         hull = Some(match hull {
             Some(existing) => existing.union(projected_hull),
@@ -282,6 +284,7 @@ fn rebind_content_measurement_effect<F>(
                 child.transform_and_bounds.clone(),
                 child.subtree_layout_hull.clone(),
                 child_layout_role,
+                (Rc::downgrade(expanded_node), Rc::downgrade(child)),
                 &projection_name,
             ));
         }
@@ -736,6 +739,87 @@ mod tests {
         child_common.borrow().x.set(Some(Size::Pixels(12.into())));
         context.drain_node_effects();
         assert_eq!(effect_runs.get(), baseline + 1);
+    }
+
+    #[test]
+    fn collapsed_ancestor_preserves_measurement_and_accepts_new_child_sizes() {
+        let leaf: Rc<dyn InstanceNode> = TestDirectNode::instantiate(direct_node_args(Vec::new()));
+        let direct = TestDirectNode::instantiate(direct_node_args(vec![leaf]));
+        let root_component =
+            ComponentInstance::instantiate(component_args(Some(vec![direct]), None));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
+        let root = ExpandedNode::initialize_root(root_component, &context);
+        root.recurse_update(&context);
+        let parent = root.children.get()[0].clone();
+        let child = parent.children.get()[0].clone();
+        let parent_common = parent.get_common_properties();
+        parent_common
+            .borrow()
+            .padding_x
+            .set(Some(Size::Pixels(5.into())));
+        parent_common
+            .borrow()
+            .padding_y
+            .set(Some(Size::Pixels(10.into())));
+        let child_common = child.get_common_properties();
+        child_common
+            .borrow()
+            .width
+            .set(Some(Size::Pixels(20.into())));
+        child_common
+            .borrow()
+            .height
+            .set(Some(Size::Pixels(30.into())));
+        child_common.borrow().x.set(Some(Size::Pixels(7.into())));
+        child_common.borrow().y.set(Some(Size::Pixels(11.into())));
+        child.container_frame.set(Some(ContainerFrame {
+            transform: Transform2::translate(Vector2::new(3.0, 4.0)),
+            bounds: (100.0, 100.0),
+        }));
+        context.drain_node_effects();
+        let baseline = parent.subtree_layout_hull.get();
+        let measured =
+            super::measure_content_children_layout_hull(&parent.get_node_context(&context));
+        assert_eq!(measured.x_range(), Some((10.0, 30.0)));
+        assert_eq!(measured.y_range(), Some((15.0, 45.0)));
+
+        for scale in [0.0, 0.5, 1.0] {
+            root.get_common_properties()
+                .borrow()
+                .scale_x
+                .set(Some(Size::Percent((scale * 100.0).into())));
+            root.get_common_properties()
+                .borrow()
+                .scale_y
+                .set(Some(Size::Percent((scale * 100.0).into())));
+            context.drain_node_effects();
+            assert_eq!(parent.subtree_layout_hull.get(), baseline);
+            assert_eq!(
+                super::measure_content_children_layout_hull(&parent.get_node_context(&context)),
+                measured
+            );
+        }
+
+        root.get_common_properties()
+            .borrow()
+            .scale_x
+            .set(Some(Size::Percent(0.into())));
+        root.get_common_properties()
+            .borrow()
+            .scale_y
+            .set(Some(Size::Percent(0.into())));
+        child_common
+            .borrow()
+            .height
+            .set(Some(Size::Pixels(60.into())));
+        context.drain_node_effects();
+        let changed =
+            super::measure_content_children_layout_hull(&parent.get_node_context(&context));
+        assert_eq!(changed.y_range(), Some((15.0, 75.0)));
+        assert_eq!(
+            parent.subtree_layout_hull.get().forward_extent_y(),
+            Some(95.0)
+        );
     }
 
     #[test]

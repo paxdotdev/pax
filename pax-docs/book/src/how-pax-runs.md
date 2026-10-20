@@ -313,15 +313,6 @@ arbitrary mount-handler side effects. A large required measurement subtree can
 still delay the first presentation. Timing-dependent application initialization
 can change the amount of work performed between comparison runs.
 
-For a diagnostic preview with yielded mounting enabled, add
-`?pax_startup_preview=1`. This removes the blanket visibility gate: native text
-appears after its own font/measurement readiness, and other native elements can
-appear as their patches arrive. Canvas drawing still requires the engine to
-settle, but can appear before all text is ready. Layout shifts, incomplete
-clipping, and native/canvas mismatches may be visible. This bypasses the normal
-first-viewport presentation gate. Application input and the `init_web` Promise still wait for full startup readiness. Omit the
-preview flag for the coordinated first reveal followed by progressive startup.
-
 ## One scene, multiple surfaces
 
 Drawn geometry and native elements share Pax layout, transforms, and ordering.

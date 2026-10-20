@@ -61,11 +61,10 @@ the logo indefinitely. There is no fixed delay added to every page load.
 
 The website enables `package.metadata.pax.web.yield_mount`, so ordinary homepage
 and `/paxflix/` URLs use yielded startup without query flags. Use
-`?pax_mount_yield=0` only to compare the synchronous path. For the early-visibility
-experiment, use `?pax_startup_preview=1`: ready native content appears during
-mounting, while canvas drawing still waits for engine settlement. The normal
-plain URL coordinates the first viewport, then eagerly mounts and progressively
-presents the remainder. Keep the startup mode and viewport
+`?pax_mount_yield=0` only to compare the synchronous path. The plain URL waits for
+the initial viewport's native font and layout measurements, then eagerly mounts
+and progressively presents the remainder. Text can appear before artwork;
+canvas drawing still waits for engine settlement. Keep the startup mode and viewport
 dimensions the same when comparing measurements; desktop layouts mount the full
 21-shelf Paxflix catalogue. See
 [resumable startup](../pax-docs/book/src/how-pax-runs.md#experimental-resumable-startup-on-web).

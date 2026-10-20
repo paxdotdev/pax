@@ -43,6 +43,9 @@ that the running application lacks; follow the reload diagnostic and restart.
 Template reload preserves the initialized root and its dependencies. Affected
 nodes can still unmount and remount, revoking their scopes and recreating local
 stores. Focus, scroll position and arbitrary node-local state need not survive.
+Connecting to the development server with an unchanged manifest does not reload
+the scene. If the server has newer template content than the built cartridge,
+the initial synchronization applies that content through template reload.
 See [provider lifetime rules](components-composition.md#lifetime-and-lookup-errors).
 Disabling reload leaves source edits intact for the next build and preserves dev
 inspection. Release builds always disable reload and dev replacement.

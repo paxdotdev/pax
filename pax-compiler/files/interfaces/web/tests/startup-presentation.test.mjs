@@ -6,8 +6,8 @@ import {transformSync} from 'esbuild';
 
 // Exercise the real host boundary, including rAF's last feedback check.
 const source = readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8');
-const runFrame = source.slice(source.indexOf('function previewStartupFrame('), source.indexOf('function renderLoop ('));
-function harness(preview = false) {
+const runFrame = source.slice(source.indexOf('function progressStartupFrame('), source.indexOf('function renderLoop ('));
+function harness() {
     const state = {patchesPending: true, enginePending: false, textReady: false, remainderPending: false, needsNextFlowChild: false, measurementChecks: 0, wakes: 0, ticks: 0, events: []};
     const chassis = {
         prepare_startup_presentation: () => !state.enginePending,
@@ -28,7 +28,7 @@ function harness(preview = false) {
         let currentChassis = chassis, currentMount = mount;
         let frameInProgress = false, startupPresented = false, startupViewportPresented = false, startupFeedbackFrameReady = false;
         let pendingAsyncInterruptFlush = false;
-        const mountYieldEnabled = true, perfTraceEnabled = false, startupPreviewEnabled = preview;
+        const mountYieldEnabled = true, perfTraceEnabled = false;
         const frameScheduler = {suspended: false};
         let startupWork = state;
         let startupScheduler = {request() { state.wakes++; }, dispose() { state.events.push('disposed'); }};
@@ -45,7 +45,7 @@ function harness(preview = false) {
         ${runFrame}
         export function frame() { runFrame(chassis, mount); }
         export function detach() { currentChassis = null; }
-    `, {loader: 'ts', format: 'cjs'}).code, {module, exports: module.exports, state, chassis, mount, preview});
+    `, {loader: 'ts', format: 'cjs'}).code, {module, exports: module.exports, state, chassis, mount});
     return {state, ...module.exports};
 }
 
@@ -75,26 +75,7 @@ test('a detached mount cannot publish from a stale animation-frame callback', ()
     assert.equal(h.state.ticks, 0);
 });
 
-test('preview reveals native readiness without rendering unfinished canvas work or completing startup', () => {
-    const h = harness(true);
-    h.state.enginePending = true;
-    h.frame();
-    assert.deepEqual(h.state.events, ['ordinary-text', 'reveal']);
-    assert.equal(h.state.ticks, 0);
-    h.state.events.length = 0;
-    h.state.patchesPending = false; h.state.enginePending = false;
-    h.frame();
-    assert.deepEqual(h.state.events, ['render', 'ordinary-text', 'reveal']);
-    assert.equal(h.state.ticks, 0);
-    h.state.events.length = 0;
-    h.state.textReady = true;
-    h.frame(); h.state.events.length = 0; h.frame();
-    assert.deepEqual(h.state.events, ['render', 'reveal', 'settled-text', 'resume', 'input-ready', 'disposed', 'mounted']);
-    h.frame(); assert.equal(h.state.ticks, 1);
-});
-
-
-test('first viewport reveals together, then native work progresses without releasing input or init', () => {
+test('first viewport waits for measurement, then native work progresses without releasing input or init', () => {
     const h = harness();
     h.state.patchesPending = false;
     h.state.textReady = true;

@@ -10,9 +10,6 @@ export function resolveStartupOptions(config: unknown, search: string, yieldMoun
     const yielded = override === "0" ? false : override === "1" ? true : yieldMount ?? configured;
     return {
         yieldMount: yielded,
-        // Diagnostic only: retain engine settlement and per-text readiness, but
-        // expose ready native elements before the complete scene is published.
-        preview: yielded && query.get("pax_startup_preview") === "1",
     };
 }
 

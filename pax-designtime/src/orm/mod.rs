@@ -678,48 +678,14 @@ impl PaxManifestORM {
 }
 
 fn manifests_match(left: &PaxManifest, right: &PaxManifest) -> bool {
-    if !type_tables_match(left, right) {
-        return false;
-    }
-
-    let left_identity = (
-        &left.components,
-        &left.main_component_type_id,
-        &left.assets_dirs,
-        &left.engine_import_path,
-    );
-    let right_identity = (
-        &right.components,
-        &right.main_component_type_id,
-        &right.assets_dirs,
-        &right.engine_import_path,
-    );
-    match (
-        rmp_serde::to_vec(&left_identity),
-        rmp_serde::to_vec(&right_identity),
-    ) {
+    // Template node/child maps acquire a new iteration order on the server
+    // roundtrip. Compare structured values so map order cannot remount an
+    // unchanged scene; arrays (including sibling and setting order) stay ordered.
+    // Serialize the manifest itself to retain its structured-map key adapters.
+    match (serde_json::to_value(left), serde_json::to_value(right)) {
         (Ok(left), Ok(right)) => left == right,
         _ => false,
     }
-}
-
-fn type_tables_match(left: &PaxManifest, right: &PaxManifest) -> bool {
-    if left.type_table.len() != right.type_table.len() {
-        return false;
-    }
-
-    left.type_table.iter().all(|(type_id, left_definition)| {
-        let Some(right_definition) = right.type_table.get(type_id) else {
-            return false;
-        };
-        match (
-            rmp_serde::to_vec(left_definition),
-            rmp_serde::to_vec(right_definition),
-        ) {
-            (Ok(left), Ok(right)) => left == right,
-            _ => false,
-        }
-    })
 }
 
 /// Identity of the static runtime descriptors generated for a cartridge.

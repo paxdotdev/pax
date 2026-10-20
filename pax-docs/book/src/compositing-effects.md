@@ -94,6 +94,11 @@ visible area; a child's transform does not free it from an ancestor's clip.
 Leave room inside that boundary for strokes and animated overshoot, or
 place the decoration outside the clipped subtree.
 
+An entrance animation may scale a native element to zero. While collapsed, it
+has no drawable area, so Pax clears its native occlusion mask instead of trying
+to invert that transform. The mask is recomputed when the element expands;
+small nonzero scales keep their normal masking behavior.
+
 Image fitting and clipping are separate choices. An Image handles its own
 rectangular fit; a surrounding Frame can add rounded corners. See
 [image fitting](text-fonts-images.md#fit-an-image-into-its-bounds).

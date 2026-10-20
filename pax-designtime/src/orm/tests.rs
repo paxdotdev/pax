@@ -186,6 +186,72 @@ mod tests {
         assert!(orm.take_reload_queue().is_empty());
     }
 
+    fn manifest_with_template() -> PaxManifest {
+        let mut manifest = create_basic_manifest();
+        let type_id = manifest.main_component_type_id.clone();
+        let mut template = ComponentTemplate::new(type_id.clone(), None);
+        for index in 0..64 {
+            let node = TemplateNodeDefinition {
+                type_id: type_id.clone(),
+                raw_comment_string: Some(format!("node {index}")),
+                ..Default::default()
+            };
+            let parent = template.add_root_node_back(node.clone());
+            template.add_child_back(parent.get_template_node_id(), node);
+        }
+        manifest.components.get_mut(&type_id).unwrap().template = Some(template);
+        manifest
+    }
+
+    #[test]
+    fn initial_server_manifest_wire_roundtrip_does_not_reload_template() {
+        let manifest = manifest_with_template();
+        // A clone retains the HashMap seed and misses the server roundtrip:
+        // decoding reconstructs node/child maps with independent iteration order.
+        let wire = rmp_serde::to_vec(&manifest).unwrap();
+        let incoming = rmp_serde::from_slice(&wire).unwrap();
+        let mut orm = PaxManifestORM::new(manifest);
+
+        orm.set_initial_server_manifest(incoming).unwrap();
+
+        assert!(orm.manifest_loaded_from_server.get());
+        assert_eq!(orm.get_manifest_version().get(), 0);
+        assert!(orm.take_reload_queue().is_empty());
+    }
+
+    #[test]
+    fn initial_server_manifest_changed_template_still_reloads() {
+        for change_order in [false, true] {
+            let manifest = manifest_with_template();
+            let wire = rmp_serde::to_vec(&manifest).unwrap();
+            let mut incoming: PaxManifest = rmp_serde::from_slice(&wire).unwrap();
+            let template = incoming
+                .components
+                .get_mut(&manifest.main_component_type_id)
+                .unwrap()
+                .template
+                .as_mut()
+                .unwrap();
+            if change_order {
+                let root = template.get_root();
+                template.move_node(
+                    &root[0],
+                    pax_manifest::NodeLocation::new(
+                        manifest.main_component_type_id.clone(),
+                        pax_manifest::TreeLocation::Root,
+                        pax_manifest::TreeIndexPosition::Bottom,
+                    ),
+                );
+            } else {
+                template.get_nodes_mut()[0].raw_comment_string = Some("changed".into());
+            }
+            let mut orm = PaxManifestORM::new(manifest);
+            orm.set_initial_server_manifest(incoming).unwrap();
+            assert_eq!(orm.get_manifest_version().get(), 1);
+            assert!(orm.take_reload_queue().contains(&ReloadType::Tree));
+        }
+    }
+
     #[test]
     fn initial_server_manifest_with_newer_state_queues_tree_reload() {
         let mut server_manifest = create_basic_manifest();

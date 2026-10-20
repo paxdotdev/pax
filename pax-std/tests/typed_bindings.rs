@@ -71,6 +71,7 @@ pub struct Recursive {
 #[engine_import_path("pax_engine")]
 pub struct PartiallyRepresented {
     pub name: String,
+    #[pax(rust)]
     pub omitted: [u8; 4],
 }
 

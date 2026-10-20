@@ -434,6 +434,9 @@ An assigned Stacker cell does not automatically rearrange its siblings to
 avoid visual overlap caused by a transform. Flow-space measurement excludes
 the full rotated, scaled, or skewed silhouette, so do not expect autosize to
 reserve all the space a transformed drawing can cover.
+This remains true when an ancestor is scaled to zero: its descendants keep
+their local layout measurements, and content or native text measurements can
+still update autosized containers before the ancestor becomes visible again.
 [Motion](animation-motion.md) covers changes over time;
 [Events](event-handling-rust.md#events-and-coordinates) explains converting
 input positions through transformed geometry.

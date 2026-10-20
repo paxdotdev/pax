@@ -68,7 +68,6 @@ let startupViewportPresented = false;
 let startupWork: StartupWork | undefined;
 let startupFeedbackFrameReady = false;
 let mountYieldEnabled = false;
-let startupPreviewEnabled = false;
 let surfacePresentation: SurfacePresentationScheduler | undefined;
 let hiddenTabPumpHandle: number | null = null;
 let pendingAsyncInterruptFlush = false;
@@ -186,7 +185,6 @@ export async function init_web(options: WebInitOptions): Promise<MountedApp> {
     }
     const startup = readStartupOptions(options.yieldMount);
     mountYieldEnabled = startup.yieldMount;
-    startupPreviewEnabled = startup.preview;
     // Snapshot caller-owned bytes before module/network awaits can interleave
     // with application mutations to the original buffer.
     const session = new MountSession({...options, startupData: options.startupData?.slice()});
@@ -518,8 +516,8 @@ function requestFrameFlush(chassis: PaxChassisWeb, mount: Element) {
 
 // After the coordinated first reveal, native leaves can appear progressively.
 // Canvas capture still needs a settled mounted frontier, never unfinished effects.
-function previewStartupFrame(chassis: PaxChassisWeb, mount: Element, sceneReady: boolean) {
-    if (!startupPreviewEnabled && !startupViewportPresented) return;
+function progressStartupFrame(chassis: PaxChassisWeb, mount: Element, sceneReady: boolean) {
+    if (!startupViewportPresented) return;
     frameInProgress = true;
     try {
         if (sceneReady) {
@@ -545,7 +543,7 @@ function runStartupFrame(chassis: PaxChassisWeb, mount: Element) {
     if (startupWork?.patchesPending || !chassis.prepare_startup_presentation()) {
         startupFeedbackFrameReady = false;
         startupScheduler?.request();
-        previewStartupFrame(chassis, mount, false);
+        progressStartupFrame(chassis, mount, false);
         return;
     }
     const complete = !chassis.startup_pending();
@@ -555,14 +553,14 @@ function runStartupFrame(chassis: PaxChassisWeb, mount: Element) {
     if (first || complete) {
         if (!nativePool.startupTextReady()) {
             startupFeedbackFrameReady = false;
-            previewStartupFrame(chassis, mount, true);
+            progressStartupFrame(chassis, mount, true);
             return;
         }
         // ResizeObserver follows rAF. Allow another layout opportunity and
         // revalidate engine readiness after the latest native measurement.
         if (!startupFeedbackFrameReady) {
             startupFeedbackFrameReady = true;
-            previewStartupFrame(chassis, mount, true);
+            progressStartupFrame(chassis, mount, true);
             return;
         }
     }

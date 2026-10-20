@@ -2623,6 +2623,7 @@ impl ExpandedNode {
                 child.transform_and_bounds.clone(),
                 child.subtree_layout_hull.clone(),
                 child_layout_role,
+                (Rc::downgrade(self), Rc::downgrade(child)),
                 &projection_name,
             ));
         }
@@ -2651,6 +2652,47 @@ impl ExpandedNode {
                 crate::layout_hulls_equivalent,
                 &property_name,
             ));
+    }
+
+    pub(crate) fn transform_to_ancestor_content_space(
+        self: &Rc<Self>,
+        ancestor: &Rc<Self>,
+    ) -> Option<crate::api::math::Transform2<NodeLocal, NodeLocal>> {
+        use crate::api::math::Transform2;
+        use crate::ComputableTransform;
+        let mut node = Rc::clone(self);
+        let mut relative = Transform2::identity();
+        while node.id != ancestor.id {
+            let parent = node.render_parent_node()?;
+            let parent_common = parent.get_common_properties();
+            let (padding_x, padding_y) = {
+                let common = borrow!(parent_common);
+                (common.padding_x.get(), common.padding_y.get())
+            };
+            // Re-evaluate each local step with an identity parent transform,
+            // keeping bounds, padding, assigned frames, anchors and transforms.
+            // No inverse of the collapsed ancestor is needed.
+            let parent_local = TransformAndBounds {
+                transform: Transform2::identity(),
+                bounds: parent.transform_and_bounds.get().bounds,
+            };
+            let padded = apply_padding_frame(parent_local, padding_x, padding_y);
+            let effective_parent = apply_container_frame(padded, node.container_frame.get());
+            let mut local = crate::calculate_transform_and_bounds(
+                &node.layout_properties().get(),
+                effective_parent,
+            );
+            let extra = borrow!(node.get_common_properties()).transform.get();
+            if let Some(extra) = extra {
+                local = extra.apply(local);
+            }
+            relative = local.transform.cast_spaces() * relative;
+            if parent.id == ancestor.id {
+                return Some(padded.transform.inverse().cast_spaces() * relative);
+            }
+            node = parent;
+        }
+        Some(relative)
     }
 
     pub fn inherit_suspend(self: &Rc<Self>, node: &Rc<Self>) {

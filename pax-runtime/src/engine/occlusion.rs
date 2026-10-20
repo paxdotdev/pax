@@ -687,6 +687,17 @@ fn path_in_surface_bounds(path: &BezPath, geometry: &PreparedCanvasGeometry) -> 
     (geometry.surface_transform * geometry.world_transform.inverse() * path.clone()).bounding_box()
 }
 
+fn native_mask_inverse(world: Affine, presentation: Affine) -> Option<Affine> {
+    // A collapsed native surface paints no area and has no local inverse.
+    // Clear its previous mask until it expands instead of serializing NaN/inf
+    // SVG coordinates. Do not reject small, still-invertible entrance scales.
+    let transform = presentation * world;
+    let inverse = transform.inverse();
+    (transform.as_coeffs().iter().all(|v| v.is_finite())
+        && inverse.as_coeffs().iter().all(|v| v.is_finite()))
+    .then_some(inverse)
+}
+
 fn update_indexed_mask(id: u32, ctx: &RuntimeContext, state: &mut OcclusionState) {
     let Some(record) = state.records.get(&id) else {
         return;
@@ -698,7 +709,10 @@ fn update_indexed_mask(id: u32, ctx: &RuntimeContext, state: &mut OcclusionState
     let tab = node.transform_and_bounds.get();
     let presentation = ctx.presentation_scroll_transform_for_node(&node);
     let native_bounds = OcclusionBox::new_from_transform_and_bounds_with_affine(tab, presentation);
-    let inverse = Affine::from(tab.transform.inverse()) * presentation.inverse();
+    let Some(inverse) = native_mask_inverse(Affine::from(tab.transform), presentation) else {
+        emit_mask(&node, tab.bounds, Vec::new(), ctx);
+        return;
+    };
     let query_bounds = geometry.surface_transform.transform_rect_bbox(Rect::new(
         0.0,
         0.0,
@@ -1254,9 +1268,15 @@ fn update_native_masks(drawables: &[DrawableInfo], ctx: &RuntimeContext) -> Nati
                     let has_overlap = layer_coverage
                         .and_then(|coverage| coverage.bounds)
                         .is_some_and(|coverage_bounds| coverage_bounds.intersects(bounds));
-                    if has_overlap {
-                        let inverse = Affine::from(t_and_b.transform.inverse())
-                            * presentation_transform.inverse();
+                    if let Some(inverse) = has_overlap
+                        .then(|| {
+                            native_mask_inverse(
+                                Affine::from(t_and_b.transform),
+                                *presentation_transform,
+                            )
+                        })
+                        .flatten()
+                    {
                         layer_coverage
                             .into_iter()
                             .flat_map(|coverage| coverage.entries.iter())
@@ -1345,6 +1365,107 @@ fn hash_presentation_bounds(
 mod tests {
     use super::*;
     use kurbo::{Rect, RoundedRect};
+
+    #[test]
+    fn collapsed_native_surfaces_have_no_local_mask_until_they_expand() {
+        let presentation = Affine::translate((0.0, -400.0));
+        for scale in [(0.0, 0.0), (0.0, 1.0), (1.0, 0.0)] {
+            let world = Affine::translate((200.0, 500.0))
+                * Affine::rotate(0.3)
+                * Affine::scale_non_uniform(scale.0, scale.1);
+            assert!(native_mask_inverse(world, presentation).is_none());
+        }
+        // Small but invertible transforms must not lose their masks to an
+        // arbitrary determinant threshold during an entrance animation.
+        for scale in [1e-8, 0.5, 1.0, -1.0] {
+            let world = Affine::translate((200.0, 500.0)) * Affine::scale(scale);
+            let inverse = native_mask_inverse(world, presentation).unwrap();
+            let point = kurbo::Point::new(20.0, 30.0);
+            let restored = inverse * (presentation * world * point);
+            assert!((restored - point).hypot() < 1e-4);
+        }
+    }
+
+    #[test]
+    fn collapsing_native_surface_clears_old_mask_and_expansion_restores_it() {
+        use crate::{ComponentInstance, InstanceNode, InstantiationArgs};
+        use pax_runtime_api::{LocalProperty, Platform, OS};
+
+        let mut engine = crate::test_support::empty_engine(
+            (400.0, 400.0),
+            Platform::Web,
+            OS::Mac,
+            Box::new(|| 0),
+            Default::default(),
+        );
+        let root = engine.mount_root_component(ComponentInstance::instantiate(InstantiationArgs {
+            prototypical_common_properties: crate::CommonPropertiesInit::Default,
+            prototypical_properties: crate::PropertiesInit::Factory(Box::new(|_, _| {
+                Some(Rc::new(std::cell::RefCell::new(
+                    pax_runtime_api::pax_value::PaxAny::Builtin(
+                        pax_runtime_api::PaxValue::default(),
+                    ),
+                )))
+            })),
+            handler_registry: None,
+            children: None,
+            component_template: None,
+            component_settings: None,
+            template_node_identifier: None,
+            template_node_type_id: None,
+            template_node_selector_info: None,
+            transition_config: Default::default(),
+            properties_scope: crate::PropertiesScopeInit::None,
+        }));
+        let ctx = &engine.runtime_context;
+        let _graph = ctx.property_graph.enter();
+        ctx.take_native_messages();
+        for (scale, expected_entries) in [(1.0, 1), (0.0, 0), (1.0, 1)] {
+            let tab = TransformAndBounds {
+                transform: pax_runtime_api::math::Transform2::new(
+                    (Affine::translate((50.0, 50.0)) * Affine::scale(scale)).as_coeffs(),
+                ),
+                bounds: (100.0, 100.0),
+            };
+            root.transform_and_bounds
+                .replace_with(LocalProperty::new(tab));
+            let drawables = [
+                DrawableInfo::Native {
+                    node: root.clone(),
+                    layer: Layer::Native,
+                    layer_id: 0,
+                    bounds: OcclusionBox::new_from_transform_and_bounds_with_affine(
+                        tab,
+                        Affine::IDENTITY,
+                    ),
+                    presentation_transform: Affine::IDENTITY,
+                },
+                DrawableInfo::Canvas {
+                    layer_id: 0,
+                    entry: entry(rect(0.0, 0.0, 200.0, 200.0), vec![]),
+                },
+            ];
+            update_native_masks(&drawables, ctx);
+            let masks: Vec<_> = ctx
+                .take_native_messages()
+                .into_iter()
+                .filter_map(|message| match message {
+                    pax_message::NativeMessage::NativeMaskUpdate(patch) => Some(patch),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(
+                masks.len(),
+                1,
+                "each scale transition updates the existing mask"
+            );
+            assert_eq!(masks[0].entries.len(), expected_entries);
+            assert!(masks[0]
+                .entries
+                .iter()
+                .all(|entry| { !entry.path.contains("NaN") && !entry.path.contains("inf") }));
+        }
+    }
 
     fn rect(x0: f64, y0: f64, x1: f64, y1: f64) -> BezPath {
         Rect::new(x0, y0, x1, y1).to_path(0.1)

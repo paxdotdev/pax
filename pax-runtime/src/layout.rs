@@ -246,12 +246,26 @@ pub fn project_layout_hull<F: Space, T: Space>(
 }
 
 /// Project a child's local hull into its parent's local layout space.
+///
+/// Returns an unknown hull when the world transforms cannot determine a finite
+/// relative transform. Engine measurement reconstructs local placement from the
+/// nodes' layout inputs in that case, including beneath zero-scaled ancestors.
 pub fn project_child_layout_hull_to_parent_space(
     parent: TransformAndBounds<NodeLocal, Window>,
     child: TransformAndBounds<NodeLocal, Window>,
     child_hull: LayoutHull,
 ) -> LayoutHull {
     let relative_transform = parent.transform.inverse() * child.transform;
+    project_relative_layout_hull(relative_transform, child_hull)
+}
+
+fn project_relative_layout_hull(
+    relative_transform: Transform2<NodeLocal, NodeLocal>,
+    child_hull: LayoutHull,
+) -> LayoutHull {
+    if !relative_transform.m.iter().all(|value| value.is_finite()) {
+        return LayoutHull::default();
+    }
     // Layout hulls describe flow-space measurement. Presentation transforms such
     // as rotation, scale, and skew should not make autosize parents expand or
     // lose partial-axis measurements while an element animates.
@@ -260,6 +274,29 @@ pub fn project_child_layout_hull_to_parent_space(
         relative_transform.m[5],
     ));
     project_layout_hull(layout_transform, child_hull)
+}
+
+pub(crate) fn project_child_layout_hull_with_nodes(
+    parent: TransformAndBounds<NodeLocal, Window>,
+    child: TransformAndBounds<NodeLocal, Window>,
+    child_hull: LayoutHull,
+    parent_node: &std::rc::Weak<crate::ExpandedNode>,
+    child_node: &std::rc::Weak<crate::ExpandedNode>,
+) -> LayoutHull {
+    let relative = parent.transform.inverse() * child.transform;
+    if relative.m.iter().all(|value| value.is_finite()) {
+        return project_relative_layout_hull(relative, child_hull);
+    }
+    // World-space cancellation loses all local placement beneath a zero scale.
+    // Reconstruct that placement only on this exceptional path; ordinary
+    // measurement keeps its existing cached geometry and dependency graph.
+    let Some((parent_node, child_node)) = parent_node.upgrade().zip(child_node.upgrade()) else {
+        return LayoutHull::default();
+    };
+    child_node
+        .transform_to_ancestor_content_space(&parent_node)
+        .map(|relative| project_relative_layout_hull(relative, child_hull))
+        .unwrap_or_default()
 }
 
 /// Publish a child's layout hull in a parent's padded local space.
@@ -273,6 +310,10 @@ pub(crate) fn projected_child_layout_hull_property(
     child: LocalProperty<TransformAndBounds<NodeLocal, Window>>,
     child_hull: LocalProperty<LayoutHull>,
     child_layout_role: LocalProperty<Option<LayoutRole>>,
+    nodes: (
+        std::rc::Weak<crate::ExpandedNode>,
+        std::rc::Weak<crate::ExpandedNode>,
+    ),
     name: &str,
 ) -> LocalProperty<LayoutHull> {
     let deps = [
@@ -289,7 +330,13 @@ pub(crate) fn projected_child_layout_hull_property(
                 return LayoutHull::default();
             }
             let parent = apply_padding_frame(parent.get(), padding_x.get(), padding_y.get());
-            project_child_layout_hull_to_parent_space(parent, child.get(), child_hull.get())
+            project_child_layout_hull_with_nodes(
+                parent,
+                child.get(),
+                child_hull.get(),
+                &nodes.0,
+                &nodes.1,
+            )
         },
         &deps,
         layout_hulls_equivalent,
