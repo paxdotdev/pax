@@ -966,6 +966,16 @@ They include its generation, submitted revision, and whether that revision match
 the retiring content. This separates footprint exits from budget-driven eviction
 without treating surface submission as proof that all image content is ready.
 
+For a bounded retention comparison, tracing also accepts
+`&pax_retain_tiles=layer-4-cell-12-0,layer-4-cell-13-0` (use IDs from the current
+capture). This diagnostic control keeps at most four explicitly named,
+already-submitted tiles when they leave candidate coverage. It never allocates
+cold tiles, overrides admission denials, displaces normal work, or raises the
+existing surface/backing-pixel borrowing ceilings. Retention ends when capacity
+is needed or the host/cell geometry no longer matches. `retention-probe` events
+report the added residency. Omit the parameter to restore normal policy; this
+is an experimental comparison tool, not an application residency guarantee.
+
 Open **Surface trace snapshot** in the corner to inspect the bounded event log;
 close and reopen it to refresh. `visible-unready` transitions preserve transient
 readiness gaps even after the view settles. These are sampled observations: the

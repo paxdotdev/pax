@@ -1301,3 +1301,11 @@ carousel allocation or broadening this fix into renderer work.
   before and after the PAX-1014 completion fix. Node regression tests and the
   actual website build remain separate checks; do not report this typecheck as
   passing or hide the existing errors with new suppressions.
+- 2026-10-20 — Release website validation on port 50540: expected initial GPU
+  setup to finish before scroll measurement; one load spent about 81 seconds
+  between the first surface's initialization-start/completion events. The next
+  reload took about 1.8 seconds for that stage. No browser warning/error was
+  reported; cause and reproducibility are unknown. Excluded the unsettled run
+  from the PAX-1014 retention comparison and waited for submitted tiles before
+  measuring. This is not evidence of a repeat-binding regression or a startup
+  benchmark; preserve it for a focused cold-start investigation if it recurs.

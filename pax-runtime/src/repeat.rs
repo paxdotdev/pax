@@ -1247,6 +1247,65 @@ mod tests {
     }
 
     #[test]
+    fn unkeyed_repeat_only_invalidates_changed_item_geometry() {
+        let source_property = LocalProperty::new(source_with_x(&[("a", 0.0), ("b", 10.0)]));
+        let leaf: Rc<dyn InstanceNode> =
+            ComponentInstance::instantiate(expression_positioned_leaf_args("(item.x)px"));
+        let repeat =
+            RepeatInstance::instantiate(unkeyed_repeat_args(source_property.clone(), vec![leaf]));
+        let root_component = ComponentInstance::instantiate(component_args(Some(vec![repeat])));
+        let context = Rc::new(crate::test_support::runtime_context(test_globals()));
+        let root = ExpandedNode::initialize_root(root_component, &context);
+        root.recurse_update(&context);
+        context.drain_node_effects();
+        let repeat = root.children.get().remove(0);
+        let children = repeat.children.get();
+        let before_ids = ids(&children);
+        let runs = Rc::new(std::cell::Cell::new([0; 2]));
+        let effects: Vec<_> = children
+            .iter()
+            .enumerate()
+            .map(|(i, child)| {
+                let geometry = child.transform_and_bounds.clone();
+                let deps = [geometry.untyped()];
+                let runs = runs.clone();
+                let effect = LocalProperty::computed(
+                    move || {
+                        geometry.get();
+                        let mut counts = runs.get();
+                        counts[i] += 1;
+                        runs.set(counts);
+                    },
+                    &deps,
+                );
+                pax_runtime_api::properties::register_effect_property(&effect);
+                effect
+            })
+            .collect();
+        context.drain_node_effects();
+        runs.set([0; 2]);
+
+        // Like a looping gallery, replace the positions vector but move only one item.
+        source_property.set(source_with_x(&[("a", 1000.0), ("b", 10.0)]));
+        context.drain_node_effects();
+        assert_eq!(
+            runs.get(),
+            [1, 0],
+            "unchanged siblings must not invalidate geometry/masks"
+        );
+        assert_eq!(ids(&repeat.children.get()), before_ids);
+
+        // Exact changes, including ones smaller than PAXEL equality's epsilon, propagate.
+        source_property.set(source_with_x(&[("a", 1000.0), ("b", 10.0 + 1e-10)]));
+        context.drain_node_effects();
+        assert_eq!(runs.get(), [1, 1]);
+        source_property.set(source_with_x(&[("a", 1000.0), ("b", 10.0 + 1e-10)]));
+        context.drain_node_effects();
+        assert_eq!(runs.get(), [1, 1]);
+        drop(effects);
+    }
+
+    #[test]
     fn unkeyed_repeat_stale_element_binding_defaults_after_source_shrinks() {
         let source_property = LocalProperty::new(source_with_x(&[("a", 0.0), ("b", 10.0)]));
         let leaf: Rc<dyn InstanceNode> =
@@ -1459,9 +1518,13 @@ impl RepeatInstance {
                 for i in 0..source_len {
                     let property_i = LocalProperty::new(i);
                     let cp_source_expression = source_expression.clone();
-                    let property_elem = LocalProperty::computed_with_name(
+                    // Replacing the source vector must not invalidate geometry,
+                    // paint and masks for siblings whose payload did not change.
+                    // Use the same exact representation check as keyed repeats.
+                    let property_elem = LocalProperty::computed_with_cutoff_and_name(
                         move || cp_source_expression.read(|source| Self::source_elem(source, i)),
                         &[source_expression.untyped()],
+                        value_eq::same_value,
                         "repeat elem",
                     );
                     let scope = Self::repeat_scope(

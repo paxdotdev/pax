@@ -44,6 +44,7 @@ function harness(ios) {
         buildWarmScrollerCandidates: () => candidates,
         estimateWarmLayerCanvasCount: () => 1,
         surfaceRefreshPending: false,
+        retentionProbeIds: [],
         canvases: new Map(), layerCanvasPlanCache: new Map(),
         layers: {layerIds: () => [0, ...candidates.keys()], estimateScrollerIslandOwnedLayers: id => [id]},
         // This admission-only harness uses the legacy observation bridge; the

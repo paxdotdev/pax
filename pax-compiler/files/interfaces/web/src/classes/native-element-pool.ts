@@ -65,7 +65,7 @@ import type { LayerCanvasPlan } from "./surface-host-policy";
 import { CanvasPool } from "./canvas-pool";
 import { SurfaceCoordinator } from "./surface-coordinator";
 import { SurfaceTrace } from "./surface-trace";
-import { materializeSurfaceSchedule } from "./surface-scheduler";
+import { materializeSurfaceSchedule, retainSubmittedProbeTiles } from "./surface-scheduler";
 import type { SurfaceCandidate } from "./surface-scheduler";
 import { serializeRouteLocation } from "../utils/route-location";
 
@@ -79,6 +79,8 @@ export class NativeElementPool {
     private canvases: Map<string, HTMLCanvasElement>;
     private surfaceCoordinator?: SurfaceCoordinator;
     private surfaceTrace?: SurfaceTrace;
+    private retentionProbeIds: string[] = [];
+    private retentionProbeSignature = '';
     private imageLoader?: ImageLoader;
     private admittedPlans = new Map<number, LayerCanvasPlan>();
     private lastAdmissionSignature?: string;
@@ -177,6 +179,8 @@ export class NativeElementPool {
         this.mount = mount instanceof HTMLElement ? mount : undefined;
         if (this.mount && new URLSearchParams(window.location.search).has('pax_surface_trace')) {
             this.surfaceTrace = new SurfaceTrace(this.mount);
+            this.retentionProbeIds = (new URLSearchParams(window.location.search).get('pax_retain_tiles') ?? '')
+                .split(',').filter(id => /^layer-\d+-cell-\d+-\d+$/.test(id)).slice(0, 4);
         }
         this.imageLoader = new ImageLoader({
             loaded: path => chassis.image_loaded(path),
@@ -261,6 +265,8 @@ export class NativeElementPool {
         this.surfaceCoordinator = undefined;
         this.surfaceTrace?.dispose();
         this.surfaceTrace = undefined;
+        this.retentionProbeIds = [];
+        this.retentionProbeSignature = '';
         this.admittedPlans.clear();
         this.lastAdmissionSignature = undefined;
         this.layerCanvasPlanCache.clear();
@@ -1992,8 +1998,21 @@ export class NativeElementPool {
                 retained: !!c.rank.retained, ready: !!c.rank.ready,
                 pixels: (c.surface.backingWidth ?? 0) * (c.surface.backingHeight ?? 0)}))});
         const decision = materializeSurfaceSchedule(candidates, shared);
+        if (this.retentionProbeIds.length) {
+            const retained = shared.borrowingLimit && !decision.overloaded
+                ? retainSubmittedProbeTiles(this.retentionProbeIds, this.admittedPlans,
+                    candidates, decision, this.canvases, shared.borrowingLimit) : [];
+            const signature = retained.join(',');
+            if (signature !== this.retentionProbeSignature) {
+                this.surfaceTrace?.record('retention-probe', {requested: this.retentionProbeIds, retained,
+                    addedPixels: decision.backingPixels - shared.backingPixels,
+                    limit: shared.borrowingLimit});
+                this.retentionProbeSignature = signature;
+            }
+        }
         if (this.surfaceTrace) this.recordSurfaceFramePhase("surface.admission",
             performance.now() - admissionStart);
+        const retentionProbePixels = decision.backingPixels - shared.backingPixels;
         this.canvasPool?.setBackingLimit(shared.backingLimit);
         if (this.surfaceTrace) {
             this.surfaceTrace.observeDemand(candidates, decision.denied);
@@ -2001,8 +2020,9 @@ export class NativeElementPool {
                 pendingCount, pendingLayers: [...pendingLayers], resources,
                 borrowedForwardPixels: shared.borrowedForwardPixels,
                 borrowedReversePixels: shared.borrowedReversePixels, borrowingLimit: shared.borrowingLimit,
-                borrowedOtherPixels: shared.borrowedOtherPixels,
-                backingPixels: shared.backingPixels, optionalPixels: shared.optionalPixels});
+                borrowedOtherPixels: shared.borrowedOtherPixels + retentionProbePixels,
+                backingPixels: decision.backingPixels,
+                optionalPixels: shared.optionalPixels + retentionProbePixels});
         }
         this.admittedPlans = decision.plans;
         const selectedHosts = new Set<number>();
@@ -2039,12 +2059,12 @@ export class NativeElementPool {
             this.mount.dataset.surfaceAdmitted = String(decision.admitted.length);
             this.mount.dataset.surfaceBudgetState = decision.overloaded ? "visible-demand-exceeds-budget" : "within-budget";
             this.mount.dataset.surfaceBackingBytesEstimate = String(decision.backingPixels * 4);
-            this.mount.dataset.surfaceOptionalPixels = String(shared.optionalPixels);
+            this.mount.dataset.surfaceOptionalPixels = String(shared.optionalPixels + retentionProbePixels);
             this.mount.dataset.surfaceOptionalLimit = String(shared.optionalLimit);
             this.mount.dataset.surfaceBackingLimit = String(shared.backingLimit);
             this.mount.dataset.surfaceBorrowedForwardPixels = String(shared.borrowedForwardPixels);
             this.mount.dataset.surfaceBorrowedReversePixels = String(shared.borrowedReversePixels);
-            this.mount.dataset.surfaceBorrowedOtherPixels = String(shared.borrowedOtherPixels);
+            this.mount.dataset.surfaceBorrowedOtherPixels = String(shared.borrowedOtherPixels + retentionProbePixels);
         }
         return true;
     }

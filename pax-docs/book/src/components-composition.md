@@ -401,6 +401,12 @@ entries: Property::new(vec![
 The record's plain fields describe one value in the collection. The outer
 property publishes changes to the collection; use `set` or `update` as
 described in [Properties](state-properties.md#collections-and-value-snapshots).
+Replacing a collection updates the item bindings whose values changed. An
+unchanged item does not invalidate its body's geometry or paint merely because
+a sibling changed. This applies to keyed and unkeyed loops in debug and release;
+it does not defer mounting, and changes to other dependencies still propagate.
+Item comparison preserves exact value representations, including small numeric
+changes, rather than using PAXEL's approximate numeric equality.
 
 ### Keyed lists
 
