@@ -26,8 +26,8 @@ pub struct SurfaceWorkReport {
     pub recorded: usize,
     pub fallbacks: usize,
     pub submitted: usize,
-    /// Visible initialization/submission units completed in this display epoch.
-    /// Speculation cannot consume the first urgent progress opportunity.
+    /// Visible initialization/submission units serviced in this display epoch.
+    /// Diagnostic only: starting initialization is not presented content.
     pub urgent_units: usize,
     pub deferred: usize,
     pub cache_misses: usize,
@@ -97,12 +97,16 @@ pub struct RenderWorkReport {
     pub blocker: Option<&'static str>,
     pub allowance_exhausted: bool,
     pub ordinary_layers: usize,
+    pub ordinary_drawn_layers: usize,
+    pub ordinary_flush_only_layers: usize,
     pub atomic_fallbacks: usize,
     pub units: usize,
     pub elapsed_ms: f64,
     /// Setup and ordinary drawing are measured, not charged to preparation.
     pub setup_ms: f64,
     pub ordinary_ms: f64,
+    pub ordinary_drawn_ms: f64,
+    pub ordinary_flush_only_ms: f64,
     pub max_unit_ms: f64,
     pub preparation: SurfaceWorkReport,
 }

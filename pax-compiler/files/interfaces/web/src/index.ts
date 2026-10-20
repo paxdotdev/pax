@@ -384,12 +384,14 @@ function attachChassis(chassis: PaxChassisWeb, mount: Element) {
                 // a silent presentation-only input lane.
                 if (!fromFrame) {
                     nativePool.sampleFrameInputs();
+                    if (surfaceTraceEnabled) nativePool.recordSurfaceFramePhase(
+                        "continuation.input", performance.now() - start);
                     if (chassis.has_pending_properties() || !chassis.render_work_is_settled()) {
                         const report = {pending:false, blocked:true, blocker:'host_input_requires_settlement'};
                         if (surfaceTraceEnabled) nativePool.recordRenderWork(report, performance.now() - start);
                         return report;
                     }
-                    nativePool.syncRenderSurfaceLayouts();
+                    nativePool.syncRenderSurfaceLayouts(true);
                 }
                 const report = chassis.service_render_work(3.0);
                 if (surfaceTraceEnabled) nativePool.recordRenderWork(report, performance.now() - start);
@@ -399,19 +401,32 @@ function attachChassis(chassis: PaxChassisWeb, mount: Element) {
             }
         }, () => !frameScheduler.suspended && chassis === currentChassis && mount === currentMount);
         cooperativeRender = pump;
-        chassis.set_surface_ready_callback(() => {
+        const wake = () => {
             nativePool.recordSurfaceCompletionRequest(pump.request());
-        });
+        };
+        chassis.set_surface_ready_callback(wake);
+        nativePool.setSurfaceWorkWake(wake);
     } else {
         const presentation = new SurfacePresentationScheduler(() => {
-            const report = withProfileMeasure("surfacePresentation", () => chassis.present_ready_surfaces());
-            nativePool.recordSurfacePresentation(report);
+            frameInProgress = true;
+            try {
+                // Capacity completion can unblock allocation. Leave genuine
+                // application changes to normal settlement, not a per-tile tick.
+                if (chassis.has_pending_properties()) return;
+                nativePool.syncRenderSurfaceLayouts();
+                const report = withProfileMeasure("surfacePresentation", () => chassis.present_ready_surfaces());
+                nativePool.recordSurfacePresentation(report);
+            } finally {
+                finishEngineTurn(chassis, mount);
+            }
         }, () => !frameScheduler.suspended && chassis === currentChassis && mount === currentMount);
         surfacePresentation = presentation;
-        chassis.set_surface_ready_callback(() => {
+        const wake = () => {
             const outcome = presentation.request();
             nativePool.recordSurfaceCompletionRequest(outcome);
-        });
+        };
+        chassis.set_surface_ready_callback(wake);
+        nativePool.setSurfaceWorkWake(wake);
     }
     nativePool.setPostAsyncInterruptFlush(() => requestFrameFlush(chassis, mount));
     initializeChassis(chassis, mount);
@@ -726,6 +741,12 @@ function renderLoop (chassis: PaxChassisWeb, mount: Element) {
 
 
 export function processMessages(messages: any[], chassis: PaxChassisWeb, objectManager: ObjectManager) {
+    // Native patches can change ancestor clipping/placement without changing a
+    // Rust tile-plan generation. No DOM observation survives application patches.
+    nativePool.invalidateSurfaceHostObservation();
+    if (messages.length === 0) {
+        return;
+    }
     const profile = perfTraceEnabled ? new NativeMessageProfile() : undefined;
     for (const message of messages) {
         const started = profile ? performance.now() : 0;
@@ -736,6 +757,8 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
 }
 
 function processMessage(unwrapped_msg: any, chassis: PaxChassisWeb, objectManager: ObjectManager) {
+    // Startup drains individual messages instead of the ordinary frame batch.
+    nativePool.invalidateSurfaceHostObservation();
     if(unwrapped_msg["ShrinkLayersTo"] !== undefined) {
         let layers_needed = unwrapped_msg["ShrinkLayersTo"];
         nativePool.layers.shrinkTo(layers_needed);

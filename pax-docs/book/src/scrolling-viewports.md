@@ -669,15 +669,16 @@ The Vello CPU fallback retains its existing component-replay path.
 
 On WebGPU, ready surfaces can also replay those records **before** the next
 application tick, including a coalesced wake-up after async surface completion.
-At most one extra pass runs between ordinary frames. This presentation-only pass does not advance clocks, dispatch
+On the default synchronous path, at most one extra pass runs between ordinary
+frames. This presentation-only pass does not advance clocks, dispatch
 lifecycle handlers, evaluate layout, or mount components. Pending effects,
 geometry, or native-compositing changes block the pass. Removals and canvas/lighting
 dirtiness block their layer; dirty content blocks the affected replay region,
 not unrelated cold layers;
 missing drawing records fall back to the ordinary frame. Masks and opacity use
 the same captured drawing programs as normal replay. The normal tick still runs.
-An adaptive CPU-cost estimate limits starting additional replay jobs, with an
-initial 4ms allowance and at least one eligible job allowed to progress. An
+Actual elapsed CPU time limits starting additional replay jobs, with a
+4ms allowance and at least one eligible job allowed to progress. An
 individual upload/encode is not preemptible and can overrun the allowance. This
 is a bounded pre-tick opportunity, **not** a frame-time limit on ordinary content
 rendering, surface initialization, or all visible repair work. Native chassis do
@@ -838,6 +839,16 @@ installed plan and yields to more urgent uninitialized surfaces. Queued replay
 is also reranked on plan changes; work for removed assignments is discarded.
 A tile does not retain priority merely because it was previously visible or
 missed a predicted exposure time.
+
+Releasing browser canvas ownership wakes surface work, not application lifecycle
+ticks. Release bursts are coalesced; newly available capacity retries allocation
+without invalidating unchanged surviving tiles. A pending canvas configuration
+is distinct from a broken configured backing: the renderer acknowledges the
+current assignment before backing-size mismatch checks apply. Recycled canvases
+cannot reuse an old acknowledgement. Resize and density changes still reconcile
+configured surfaces, and failed initialization retains the retry behavior below.
+These host lifecycle rules apply to debug and release Web builds; they do not
+increase preparation allowances or warm-region sizes.
 Visible replay precedes speculative replay across layers. Priority changes do
 not change surface identity. For WebGPU cold-content preparation, the same
 ordering spans initialization and drawing: collecting completed surfaces does
@@ -856,7 +867,7 @@ remaining work is reconsidered against the current installed plan. Ordinary
 application changes still update their drawings, including animations while a
 tile is cold. This does not defer component mounting or lifecycle handlers.
 
-The shared runtime gives these preparation passes a cooperative 4ms CPU
+On the default synchronous Web path, the shared runtime gives these preparation passes a 4ms CPU
 allowance: it stops starting more work based on actual elapsed time,
 while allowing one eligible unit to make progress. The synchronous portion of
 one surface initialization, a primitive capture, or a tile submission is atomic
@@ -957,7 +968,20 @@ without treating surface submission as proof that all image content is ready.
 
 Open **Surface trace snapshot** in the corner to inspect the bounded event log;
 close and reopen it to refresh. `visible-unready` transitions preserve transient
-gaps even after the view settles. Add `&pax_scroll_perf=1` to include `frame-summary`
+readiness gaps even after the view settles. These are sampled observations: the
+interval ends when admission next observes submitted content, which can be later
+than submission itself. For a particular tile, correlate its ID, generation, and
+content revision with `first-submit` and `image-content-submit`; do not interpret
+the sampled interval as exact blank-pixel duration. Neither event measures the
+browser compositor's displayed frame.
+
+The inspector's timed scroll probes advance DOM scroll position through
+`requestAnimationFrame`. They are useful repeatable controls, but pause when the
+main thread is busy; unlike compositor-driven trackpad momentum, they cannot
+expose content while that thread is blocked. Include native-input checks when
+investigating transient missing content.
+
+Add `&pax_scroll_perf=1` to include `frame-summary`
 phase aggregates (count, total and maximum CPU milliseconds), including individual
 `tick.*` phases. Repeated continuations share one display epoch. Parent timings
 include subphases: do not add `tick` to its `tick.*` children, or host time to
@@ -992,7 +1016,13 @@ are bounded diagnostics, not an exhaustive call log. Do not interpret cumulative
 record counts or a historical rebuild as work performed in the current frame.
 `structural_reconciliations` counts edits handled without replacing stable
 coverage records; `records_retained` counts reused records and `orders_updated`
-counts order-only assignments. `records_updated`, `masks_evaluated`, and
+counts order-only assignments. `topology_nodes_visited` counts component inspections
+in structural preflight; `topology_nodes_reused` counts nodes copied from unchanged
+retained subtrees. Local edits preserve unaffected subtree boundaries and coverage
+in the shared runtime. Dense global paint order can still require renumbering
+unchanged nodes. Changes to layer ownership, clipping domains, or uncertain
+topology retain conservative reconciliation; this is not deferred mounting.
+`records_updated`, `masks_evaluated`, and
 `mask_candidates` count localized work, including that following a retained
 structural reconciliation; a full rebuild can still be expensive when those
 deltas are zero. Timings split native compositing into `tick.occlusion.topology`,
@@ -1000,6 +1030,12 @@ deltas are zero. Timings split native compositing into `tick.occlusion.topology`
 `tick.occlusion.index`. Sum these with the final `tick.occlusion` remainder
 to compare total occlusion time. `render.order` measures retained order updates
 separately from geometry, lighting, and drawing.
+An order-only native `Frame` patch does not invalidate its descendant drawing
+content. Retained renderers update draw order without re-recording unchanged
+geometry or images; backends without retained-order support use the runtime's
+redraw fallback. Changes to the Frame's clip, size, transform, opacity, or parent
+still invalidate affected descendant content. This distinction applies in both
+debug and release builds and does not defer mounting or animation.
 Structural `occlusion-work` entries also include these occlusion phase durations
 under `phases`, even when each is below the 20ms slow-phase threshold.
 Runtime timings distinguish `tick.property_import`, `tick.property_cleanup`,
@@ -1008,6 +1044,18 @@ and `tick.pre_render_handlers`. Import/cleanup/effect phases can occur several
 times within one tick; sum their samples for a per-frame total. Handler timings
 exclude the following settlement pass. These are CPU phase boundaries, not GPU
 completion or compositor-presentation timestamps.
+
+Web cooperative continuations may reuse the preceding application frame's DOM
+geometry observations after sampling native scroll input. Movement (including
+reversals), resize, viewport changes, native patches, or changed canvas-plan/backend
+policy invalidates those observations. Every ordinary application frame measures
+again. Reuse does not freeze scheduling: preparation observes current time and new
+submissions, admission observes current capacity, and backing configuration is still
+checked. Trace phases `continuation.input`, `surface.geometry` (or
+`surface.geometry_reused`), `surface.prepare`, `surface.admission`, and
+`surface.configuration` distinguish this host work from Rust rendering. They are
+subphases of host time, not additional durations to add to it. Yielding and warm
+region policies are independent of this measurement reuse.
 
 To isolate browser Frame clipping during nested-scroll testing, add
 `&pax_frame_clip=box`. This experimental web path uses sized CSS boxes with
@@ -1099,18 +1147,25 @@ Lighting-only changes keep their pending submissions across task boundaries and
 subsequent ticks without turning them into canvas-content clears or full replays.
 They use the same current visibility priority as ordinary layer submissions.
 
+Visible initialization, capture, and submission use the same host-slice policy
+as visible ordinary drawing. Starting an initialization does not consume the
+subsequent submission's opportunity. A completed visible tile is reconsidered
+before unrelated ordinary drawing, even if earlier preparation spent its 4ms
+allowance. Dirty content and pending application state must still settle before
+replay; genuinely asynchronous waits do not busy-loop or block eligible siblings.
+Current demand is rechecked after each unit, so a reversal can demote a completed
+tile that is no longer visible.
+
 Ordinary drawing is spread across host tasks, not discarded by a CPU allowance.
-Preparation retains its separate 4ms soft allowance and guaranteed first unit,
+Speculative preparation retains the 4ms soft allowance and guaranteed first unit,
 shared by all services in one display-frame epoch, including completion-driven
-wakeups and extra property-driven ticks. A continuation cannot replenish that
-allowance. Async image decoding and GPU execution remain outside CPU accounting.
-Speculative work cannot consume the first urgent visible progress opportunity:
-if the allowance has already been spent before visible work arrives, one urgent
-initialization or complete tile submission can still progress in that display
-epoch. Extra callbacks/ticks do not replenish this opportunity. An expensive unit
-can overrun and yield, but does not inflate a shared historical estimate that
-blocks cheap operations in subsequent frames. This does not synchronously drain
-all urgent work or impose the preparation limit on ordinary rendering.
+wakeups and extra property-driven ticks. Time spent preparing visible content is
+also charged, so it can exhaust that epoch's optional work. A continuation cannot
+replenish the allowance. This avoids stopping runnable visible content while
+spending more CPU time on unrelated ordinary work. It does not synchronously drain
+all visible tiles: each complete unit still respects the host-task yield boundary.
+An expensive unit can overrun the slice. Async image decoding and GPU execution
+remain outside CPU accounting; this is not a total display-frame time limit.
 The resumable service lives in the shared runtime, but this host-task policy is
 currently wired only into Web; native chassis retain their existing scheduling.
 
@@ -1121,6 +1176,11 @@ continuation's input sampling and layout synchronization. These measurements do
 not measure compositor movement or GPU completion. Check readiness gaps as well
 as input delay: shorter tasks are not a successful trade if visible content
 arrives later.
+`ordinary_drawn_layers` / `ordinary_drawn_ms` count units with a component drawing
+traversal; `ordinary_flush_only_layers` / `ordinary_flush_only_ms` count retained
+submissions without one (including lighting and order updates). A flush-only unit
+can still perform GPU work; a large ordinary-layer count alone does not imply
+that every layer's component tree was redrawn.
 
 Settled screenshots do not establish that every intermediate frame was complete.
 The preparation allowance does not cover ordinary rendering and is not a hard

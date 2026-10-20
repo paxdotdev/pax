@@ -42,13 +42,20 @@ test('render continuations aggregate actual service time without double-counting
     const h = harness();
     h.trace.beginFrame(7);
     for (let i = 0; i < 3; i++) h.trace.recordRenderWork({elapsed_ms:2, setup_ms:0.5,
-        ordinary_ms:0.5, units:1, max_unit_ms:1, preparation:{elapsed_ms:1, submitted:1}}, 3);
+        ordinary_ms:0.5, ordinary_drawn_ms:0.4, ordinary_flush_only_ms:0.1,
+        ordinary_layers:2, ordinary_drawn_layers:1, ordinary_flush_only_layers:1,
+        units:1, max_unit_ms:1, preparation:{elapsed_ms:1, submitted:1}}, 3);
     const report = h.mount.paxSurfaceTrace[0].renderWork;
     assert.equal(report.services, 3);
     assert.equal(report.hostMs, 9);
     assert.equal(report.elapsed_ms, 6);
     assert.equal(report.preparation_elapsed_ms, 3);
     assert.equal(report.max_unit_ms, 1);
+    assert.equal(report.ordinary_layers, 6);
+    assert.equal(report.ordinary_drawn_layers, 3);
+    assert.equal(report.ordinary_flush_only_layers, 3);
+    assert.ok(Math.abs(report.ordinary_drawn_ms - 1.2) < 1e-9);
+    assert.ok(Math.abs(report.ordinary_flush_only_ms - 0.3) < 1e-9);
 });
 
 test('completion deferrals survive trace rollover and measure only the next opportunity', () => {

@@ -16,6 +16,7 @@ enum Kind {
     Group,
     Clip,
     Scroller,
+    BeforeNative,
 }
 
 struct Probe {
@@ -55,7 +56,7 @@ fn probe(kind: Kind, children: Vec<Rc<dyn InstanceNode>>) -> Rc<dyn InstanceNode
                 is_slot: false,
                 layer: match kind {
                     Kind::Canvas => Layer::Canvas,
-                    Kind::Native | Kind::Scroller => Layer::Native,
+                    Kind::Native | Kind::Scroller | Kind::BeforeNative => Layer::Native,
                     _ => Layer::DontCare,
                 },
             },
@@ -79,6 +80,12 @@ impl InstanceNode for Probe {
     }
     fn scrolls_content(&self, _: &ExpandedNode) -> bool {
         matches!(self.kind, Kind::Scroller)
+    }
+    fn materializes_native_surface(&self, _: &ExpandedNode) -> bool {
+        matches!(self.kind, Kind::BeforeNative)
+    }
+    fn materializes_native_surface_before_children(&self, _: &ExpandedNode) -> bool {
+        matches!(self.kind, Kind::BeforeNative)
     }
     fn clips_content(&self, _: &ExpandedNode) -> bool {
         matches!(self.kind, Kind::Scroller | Kind::Clip)
@@ -168,21 +175,37 @@ fn assert_full_rebuild_matches(root: &Rc<ExpandedNode>, ctx: &RuntimeContext) {
         .occlusion_state
         .borrow()
         .records
-        .keys()
-        .filter_map(|&id| {
+        .iter()
+        .filter_map(|(&id, record)| {
             let n = ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(id))?;
-            Some((id, (n.occlusion.get(), n.native_mask_hash.get())))
+            Some((
+                id,
+                (
+                    n.occlusion.get(),
+                    n.native_mask_hash.get(),
+                    record.clips.clone(),
+                    record.render_layer_id,
+                ),
+            ))
         })
         .collect();
     ctx.occlusion_state.borrow_mut().records.clear();
     ctx.mark_occlusion_dirty();
     update_node_occlusion(root, ctx);
-    for (id, (order, mask)) in expected {
+    assert_eq!(
+        ctx.occlusion_state.borrow().records.len(),
+        expected.len(),
+        "local reconciliation must neither drop nor retain extra nodes"
+    );
+    for (id, (order, mask, clips, layer)) in expected {
         let n = ctx
             .get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(id))
             .unwrap();
         assert_eq!(n.occlusion.get(), order, "order for {id}");
         assert_eq!(n.native_mask_hash.get(), mask, "mask for {id}");
+        let state = ctx.occlusion_state.borrow();
+        assert_eq!(state.records[&id].clips, clips, "clip lineage for {id}");
+        assert_eq!(state.records[&id].render_layer_id, layer, "layer for {id}");
     }
 }
 
@@ -766,5 +789,147 @@ fn backend_scroller_policy_changes_and_reload_keep_the_full_fallback() {
         .recreate_with_new_data(probe(Kind::Clip, vec![probe(Kind::Native, vec![])]), &ctx);
     settle(&root, &ctx);
     assert!(ctx.occlusion_stats().rebuilds > before.rebuilds);
+    assert_full_rebuild_matches(&root, &ctx);
+}
+
+#[test]
+fn localized_edits_reuse_unaffected_nested_islands_and_match_full_reconciliation() {
+    let (ctx, root) = mount(
+        (0..12)
+            .map(|_| {
+                probe(
+                    Kind::Scroller,
+                    vec![probe(
+                        Kind::Clip,
+                        (0..20)
+                            .map(|i| {
+                                probe(
+                                    if i % 2 == 0 {
+                                        Kind::Canvas
+                                    } else {
+                                        Kind::Native
+                                    },
+                                    vec![],
+                                )
+                            })
+                            .collect(),
+                    )],
+                )
+            })
+            .collect(),
+    );
+    let groups = root.children.get()[0].children.get();
+    for step in 0..12 {
+        let group = groups[step % groups.len()].children.get()[0].clone();
+        let before = ctx.occlusion_stats();
+        let original = group.children.get();
+        add(&group, Kind::Canvas, &ctx);
+        settle(&root, &ctx);
+        let after = ctx.occlusion_stats();
+        assert_eq!(after.rebuilds, before.rebuilds);
+        assert!(after.topology_nodes_visited - before.topology_nodes_visited < 10);
+        assert!(after.topology_nodes_reused - before.topology_nodes_reused > 250);
+        assert_full_rebuild_matches(&root, &ctx);
+
+        let mut reversed = group.children.get();
+        reversed.reverse();
+        attach(&group, reversed, &ctx);
+        settle(&root, &ctx);
+        assert_full_rebuild_matches(&root, &ctx);
+
+        attach(&group, original, &ctx);
+        settle(&root, &ctx);
+        assert_full_rebuild_matches(&root, &ctx);
+    }
+}
+
+#[test]
+fn local_edits_cannot_hide_dirty_siblings_or_unknown_structure() {
+    let (ctx, root) = mount(vec![
+        probe(Kind::Group, vec![probe(Kind::Native, vec![])]),
+        probe(
+            Kind::Clip,
+            vec![probe(Kind::Canvas, vec![]), probe(Kind::Native, vec![])],
+        ),
+    ]);
+    let groups = root.children.get()[0].children.get();
+    groups[0]
+        .get_common_properties()
+        .borrow()
+        .x
+        .set(Some(Size::Pixels(400.0.into())));
+    settle(&root, &ctx);
+    add(&groups[0], Kind::Canvas, &ctx);
+    groups[1].children.get()[0]
+        .get_common_properties()
+        .borrow()
+        .x
+        .set(Some(Size::Pixels(100.0.into())));
+    settle(&root, &ctx);
+    assert_full_rebuild_matches(&root, &ctx);
+
+    let before = ctx.occlusion_stats();
+    ctx.mark_occlusion_dirty();
+    update_node_occlusion(&root, &ctx);
+    let after = ctx.occlusion_stats();
+    assert_eq!(after.topology_nodes_reused, before.topology_nodes_reused);
+    assert!(after.topology_nodes_visited > before.topology_nodes_visited);
+    assert_full_rebuild_matches(&root, &ctx);
+}
+
+#[test]
+fn successive_local_edits_keep_retained_ranges_and_native_before_children_order_valid() {
+    let (ctx, root) = mount(
+        (0..6)
+            .map(|_| {
+                probe(
+                    Kind::BeforeNative,
+                    vec![probe(Kind::Canvas, vec![]), probe(Kind::Native, vec![])],
+                )
+            })
+            .collect(),
+    );
+    let groups = root.children.get()[0].children.get();
+    let before = ctx.occlusion_stats();
+    for step in 0..30 {
+        let group = &groups[(step * 7) % groups.len()];
+        add(group, Kind::Canvas, &ctx);
+        settle(&root, &ctx);
+        let mut children = group.children.get();
+        children.reverse();
+        attach(group, children.clone(), &ctx);
+        settle(&root, &ctx);
+        if step % 3 == 0 {
+            children.pop();
+            attach(group, children, &ctx);
+            settle(&root, &ctx);
+        }
+    }
+    let after = ctx.occlusion_stats();
+    assert_eq!(after.rebuilds, before.rebuilds);
+    assert!(after.topology_nodes_reused > before.topology_nodes_reused);
+    assert_full_rebuild_matches(&root, &ctx);
+}
+
+#[test]
+fn same_pass_remount_restores_order_even_when_the_retained_position_is_unchanged() {
+    let (ctx, root) = mount(vec![probe(
+        Kind::Scroller,
+        vec![probe(Kind::Canvas, vec![]), probe(Kind::Native, vec![])],
+    )]);
+    let scroller = root.children.get()[0].children.get()[0].clone();
+    let original = scroller.children.get();
+    let canvas = &original[0];
+    let order = canvas.occlusion.get();
+    assert_ne!(order, Default::default());
+    attach(&scroller, vec![original[1].clone()], &ctx);
+    attach(&scroller, original.clone(), &ctx);
+    assert_eq!(
+        canvas.occlusion.get(),
+        Default::default(),
+        "remount resets presentation"
+    );
+    settle(&root, &ctx);
+    assert_eq!(canvas.occlusion.get(), order);
     assert_full_rebuild_matches(&root, &ctx);
 }

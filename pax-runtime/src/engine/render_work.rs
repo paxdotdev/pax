@@ -144,6 +144,7 @@ impl PaxEngine {
                         Err("inseparable_layer")
                     };
                     if let Ok(plan) = plan {
+                        let draws_content = plan.is_some();
                         if let Some(plan) = plan {
                             self.draw_filtered_render_plan(
                                 rcs,
@@ -163,6 +164,13 @@ impl PaxEngine {
                         state.pending_lighting_flushes.remove(&layer);
                         state.attempted_layers.insert(layer);
                         report.ordinary_layers += 1;
+                        if draws_content {
+                            report.ordinary_drawn_layers += 1;
+                            report.ordinary_drawn_ms += now_ms() - ordinary_start;
+                        } else {
+                            report.ordinary_flush_only_layers += 1;
+                            report.ordinary_flush_only_ms += now_ms() - ordinary_start;
+                        }
                     } else {
                         // Do not weaken inherited masks/groups/unclippable
                         // semantics to obtain a smaller scheduling unit.

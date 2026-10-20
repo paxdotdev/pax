@@ -173,6 +173,7 @@ impl pax_runtime::vello_render_context::CpuSurface for WebCpuSurface {
         if self.canvas.height() != size.1 {
             self.canvas.set_height(size.1);
         }
+        mark_canvas_configured(&self.canvas);
     }
 
     fn present(&mut self, rgba: &[u8], width: u32, height: u32, origin: (u32, u32)) {
@@ -344,6 +345,7 @@ fn get_gpu_render_context(
                     continue;
                 }
 
+                mark_canvas_configured(&target.canvas);
                 let mut renderer = WgpuRenderer::new(backend);
                 renderer.set_surface_transform(Transform2D::from_array([
                     1.0,
@@ -550,6 +552,15 @@ fn layer_surface_entry_from_target(target: &LayerCanvasTarget) -> LayerSurfaceEn
             surface_height: target.surface.surface_height,
             dpr: target.surface.dpr,
         },
+    }
+}
+
+// Configuration and submission are separate states. The host must not repeatedly
+// repair a placeholder while initialization is queued. GPU callers acknowledge
+// only after revalidating the assignment following asynchronous creation.
+fn mark_canvas_configured(canvas: &HtmlCanvasElement) {
+    if let Some(generation) = canvas.get_attribute("data-surface-generation") {
+        let _ = canvas.set_attribute("data-surface-configured-generation", &generation);
     }
 }
 

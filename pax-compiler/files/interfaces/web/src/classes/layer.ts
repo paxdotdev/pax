@@ -308,6 +308,7 @@ export class Layer {
         canvas.removeAttribute("data-surface-prepared-at");
         canvas.removeAttribute("data-surface-preparation-latency");
         canvas.removeAttribute("data-surface-submitted-revision");
+        canvas.removeAttribute("data-surface-configured-generation");
         canvas.removeAttribute("data-surface-first-visible-at");
         canvas.removeAttribute("data-surface-submitted-at");
         canvas.removeAttribute("data-surface-init-started-at");

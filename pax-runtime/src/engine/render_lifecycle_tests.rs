@@ -21,6 +21,8 @@ struct RecordingRenderer {
     followups: HashMap<usize, usize>,
     priorities: HashMap<usize, i32>,
     initializations: Vec<usize>,
+    async_initialization: bool,
+    in_flight: Vec<usize>,
     events: Vec<(&'static str, usize)>,
     ordinary_priorities: HashMap<usize, i32>,
     clip_depths: HashMap<usize, usize>,
@@ -93,7 +95,11 @@ impl RenderContext for RecordingRenderer {
         };
         let layer = self.initializations.remove(index);
         self.events.push(("initialize", layer));
-        self.jobs.push(replay_job(layer));
+        if self.async_initialization {
+            self.in_flight.push(layer);
+        } else {
+            self.jobs.push(replay_job(layer));
+        }
         true
     }
     fn defer_surface_replay(&mut self, layer: usize) {
@@ -324,6 +330,8 @@ fn cooperative_layers_yield_without_lifecycle_or_stale_selection() {
     let first = engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
     assert!(first.pending);
     assert_eq!(first.ordinary_layers, 1);
+    assert_eq!(first.ordinary_drawn_layers, 1);
+    assert_eq!(first.ordinary_flush_only_layers, 0);
     assert_eq!(renderer.events, [("draw", 1), ("submit", 1)]);
     assert!(engine.runtime_context.is_canvas_node_dirty(&nodes[1].id));
     assert!(engine.runtime_context.is_canvas_dirty(&0));
@@ -560,7 +568,7 @@ fn cooperative_preparation_overrun_does_not_restart_at_the_next_host_task() {
     renderer.presented.clear();
     renderer.cached = true;
     renderer.jobs = vec![replay_job(1), replay_job(2)];
-    renderer.priorities = HashMap::from([(1, -2), (2, -1)]);
+    renderer.priorities = HashMap::from([(1, 2), (2, 3)]);
     let mut state = surface_work::RenderWorkState::default();
     state.begin(1);
     let mut budget = surface_work::SurfaceWorkBudget::new(4.0);
@@ -1097,7 +1105,7 @@ fn settled_replay_preserves_clock_and_defers_atomic_overruns_and_misses() {
 }
 
 #[test]
-fn speculation_cannot_spend_urgent_progress_and_callbacks_cannot_replenish_it() {
+fn speculation_cannot_block_visible_submissions_or_replenish_optional_allowance() {
     let mut engine = engine();
     let mut renderer = RecordingRenderer::default();
     engine.tick();
@@ -1113,17 +1121,163 @@ fn speculation_cannot_spend_urgent_progress_and_callbacks_cannot_replenish_it() 
     engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
     assert_eq!(renderer.presented, [0]);
     assert_eq!(state.preparation.urgent_units, 0);
-    // New urgent work after speculation gets one complete unit, not a drain.
+    // Visible work uses host slices, not the spent speculative allowance.
     renderer.jobs = vec![replay_job(1), replay_job(2)];
     for _ in 0..3 {
         state.begin(1);
         engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
     }
-    assert_eq!(renderer.presented, [0, 1]);
-    assert_eq!(state.preparation.urgent_units, 1);
-    state.begin(2);
+    assert_eq!(renderer.presented, [0, 1, 2]);
+    assert_eq!(state.preparation.urgent_units, 2);
+    renderer.jobs = vec![replay_job(0)];
+    state.begin(1);
     engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
     assert_eq!(renderer.presented, [0, 1, 2]);
+    state.begin(2);
+    engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+    assert_eq!(renderer.presented, [0, 1, 2, 0]);
+}
+
+fn exhausted_cooperative_probe() -> (PaxEngine, RecordingRenderer, surface_work::RenderWorkState) {
+    let mut engine = engine();
+    engine.tick();
+    engine.runtime_context.layer_count.set(3);
+    let mut renderer = RecordingRenderer::default();
+    engine.render(&mut renderer);
+    renderer.events.clear();
+    renderer.cached = true;
+    renderer.priorities = HashMap::from([(0, 5), (1, -2), (2, -1)]);
+    renderer.ordinary_priorities = renderer.priorities.clone();
+    engine.runtime_context.set_canvas_dirty(0);
+    let mut state = surface_work::RenderWorkState::default();
+    state.begin(1);
+    state.preparation.elapsed_ms = 4.0;
+    state.preparation.submitted = 1;
+    (engine, renderer, state)
+}
+
+#[test]
+fn cooperative_visible_initialization_keeps_priority_through_submission() {
+    let (mut engine, mut renderer, mut state) = exhausted_cooperative_probe();
+    renderer.initializations = vec![1, 2];
+    let mut budget = surface_work::SurfaceWorkBudget::new(4.0);
+    // Zero slices separate setup and every atomic unit, including immediate init.
+    for _ in 0..5 {
+        let report =
+            engine.service_render_work(&mut renderer, &mut state, &mut budget, 0.0, || 0.0);
+        assert!(report.units <= 1);
+    }
+    assert_eq!(
+        renderer.events,
+        [
+            ("initialize", 1),
+            ("submit", 1),
+            ("initialize", 2),
+            ("submit", 2)
+        ]
+    );
+    assert!(engine.runtime_context.is_canvas_dirty(&0));
+}
+
+#[test]
+fn cooperative_visible_overrun_yields_without_losing_submission_priority() {
+    let (mut engine, mut renderer, mut state) = exhausted_cooperative_probe();
+    renderer.jobs = vec![replay_job(1), replay_job(2)];
+    let frames = engine.runtime_context.globals().elapsed_frames.get();
+    let mut budget = surface_work::SurfaceWorkBudget::new(4.0);
+    let clock = std::cell::Cell::new(0.0);
+    let now = || {
+        let t = clock.get();
+        clock.set(t + 3.0);
+        t
+    };
+    let setup = engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, &now);
+    assert_eq!(setup.units, 0);
+    for layer in [1, 2] {
+        let report = engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, &now);
+        assert_eq!(report.units, 1);
+        assert!(report.pending);
+        assert_eq!(renderer.events.last(), Some(&("submit", layer)));
+        assert!(engine.runtime_context.is_canvas_dirty(&0));
+    }
+    assert_eq!(
+        engine.runtime_context.globals().elapsed_frames.get(),
+        frames
+    );
+}
+
+#[test]
+fn cooperative_async_completion_preempts_remaining_ordinary_work() {
+    let (mut engine, mut renderer, mut state) = exhausted_cooperative_probe();
+    renderer.async_initialization = true;
+    renderer.initializations = vec![1];
+    let mut budget = surface_work::SurfaceWorkBudget::new(4.0);
+    for _ in 0..2 {
+        engine.service_render_work(&mut renderer, &mut state, &mut budget, 0.0, || 0.0);
+    }
+    assert_eq!(renderer.in_flight, [1]);
+    renderer
+        .jobs
+        .push(replay_job(renderer.in_flight.pop().unwrap()));
+    engine.service_render_work(&mut renderer, &mut state, &mut budget, 0.0, || 0.0);
+    assert_eq!(renderer.events, [("initialize", 1), ("submit", 1)]);
+    assert!(engine.runtime_context.is_canvas_dirty(&0));
+}
+
+#[test]
+fn cooperative_visible_replay_waits_for_its_dirty_content_not_unrelated_layers() {
+    let (mut engine, mut renderer, _) = dirty_render_probe();
+    let mut state = surface_work::RenderWorkState::default();
+    state.begin(1);
+    state.preparation.elapsed_ms = 4.0;
+    state.preparation.submitted = 1;
+    renderer.jobs.push(replay_job(1));
+    let mut budget = surface_work::SurfaceWorkBudget::new(4.0);
+    for _ in 0..3 {
+        engine.service_render_work(&mut renderer, &mut state, &mut budget, 0.0, || 0.0);
+    }
+    // Current application content is drawn before the ready replay consumes it.
+    assert_eq!(renderer.events, [("draw", 1), ("submit", 1), ("submit", 1)]);
+    assert!(!engine.runtime_context.is_canvas_dirty(&1));
+    assert!(engine.runtime_context.is_canvas_dirty(&0));
+}
+
+#[test]
+fn cooperative_reversal_reclassifies_completion_and_queued_initialization() {
+    let (mut engine, mut renderer, mut state) = exhausted_cooperative_probe();
+    renderer.async_initialization = true;
+    renderer.initializations = vec![1, 2];
+    let mut budget = surface_work::SurfaceWorkBudget::new(4.0);
+    for _ in 0..2 {
+        engine.service_render_work(&mut renderer, &mut state, &mut budget, 0.0, || 0.0);
+    }
+    renderer.priorities.insert(1, 10); // Old direction completes after reversal.
+    renderer
+        .jobs
+        .push(replay_job(renderer.in_flight.pop().unwrap()));
+    renderer.async_initialization = false;
+    for _ in 0..2 {
+        engine.service_render_work(&mut renderer, &mut state, &mut budget, 0.0, || 0.0);
+    }
+    assert_eq!(
+        renderer.events,
+        [("initialize", 1), ("initialize", 2), ("submit", 2)]
+    );
+    assert!(renderer.jobs.iter().any(|job| job.layer == 1));
+}
+
+#[test]
+fn cooperative_pending_initialization_does_not_spin_or_block_ordinary_work() {
+    let (mut engine, mut renderer, mut state) = exhausted_cooperative_probe();
+    renderer.async_initialization = true;
+    renderer.initializations = vec![1];
+    let mut budget = surface_work::SurfaceWorkBudget::new(4.0);
+    let first = engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+    assert!(first.pending);
+    let next = engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+    assert!(!next.pending);
+    assert_eq!(renderer.events, [("initialize", 1), ("submit", 0)]);
+    assert_eq!(renderer.in_flight, [1]);
 }
 
 #[test]
@@ -1391,14 +1545,17 @@ fn cooperative_lighting_flushes_survive_yield_and_next_tick_without_canvas_clear
         assert!(renderer.flushes.is_empty());
         assert!(!engine.runtime_context.has_dirty_canvas_layers());
         state.begin(2);
+        let mut flush_only_layers = 0;
         for _ in 0..4 {
-            if !engine
-                .service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0)
-                .pending
-            {
+            let report =
+                engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+            assert_eq!(report.ordinary_drawn_layers, 0);
+            flush_only_layers += report.ordinary_flush_only_layers;
+            if !report.pending {
                 break;
             }
         }
+        assert_eq!(flush_only_layers, 3);
         if !renderer.ordinary_priorities.is_empty() {
             assert_eq!(
                 renderer.flushes,

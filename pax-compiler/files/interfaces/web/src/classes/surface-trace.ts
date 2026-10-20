@@ -230,7 +230,9 @@ export class SurfaceTrace {
     recordRenderWork(report: Record<string, any>, hostElapsedMs: number) {
         const add = (key: string, value: number) => this.renderWork[key] = (this.renderWork[key] ?? 0) + value;
         add('services', 1); add('hostMs', hostElapsedMs);
-        for (const key of ['elapsed_ms', 'setup_ms', 'ordinary_ms', 'units', 'ordinary_layers', 'atomic_fallbacks']) {
+        for (const key of ['elapsed_ms', 'setup_ms', 'ordinary_ms', 'units', 'ordinary_layers',
+            'ordinary_drawn_layers', 'ordinary_flush_only_layers', 'ordinary_drawn_ms',
+            'ordinary_flush_only_ms', 'atomic_fallbacks']) {
             add(key, report[key] ?? 0);
         }
         for (const key of ['initializations', 'recorded', 'submitted', 'urgent_units', 'elapsed_ms']) {

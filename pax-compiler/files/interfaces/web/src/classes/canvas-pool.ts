@@ -13,6 +13,7 @@ export class CanvasPool {
     private maxCanvases: number;
     private objectManager: ObjectManager;
     private host?: HTMLDivElement;
+    private availabilityQueued = false;
 
     constructor(objectManager: ObjectManager, maxCanvases: number, private onAvailable: () => void = () => {}) {
         this.objectManager = objectManager;
@@ -40,7 +41,13 @@ export class CanvasPool {
                 this.backings.set(canvas, 0);
                 // The event can originate inside a Rust destructor. Re-enter the
                 // chassis only after its borrow/initialization stack has unwound.
-                queueMicrotask(() => this.onAvailable());
+                if (!this.availabilityQueued) {
+                    this.availabilityQueued = true;
+                    queueMicrotask(() => {
+                        this.availabilityQueued = false;
+                        this.onAvailable();
+                    });
+                }
             }
         });
         mount.appendChild(host);

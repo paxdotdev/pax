@@ -46,6 +46,11 @@ Append `?pax_surface_trace=1&pax_scroll_perf=1` to expose the **Surface trace
 snapshot** inspector. Select a visible vertical Scroller and use **Probe down**
 or **Probe up** for a reproducible one-viewport motion at 200, 400, or 1000 ms.
 The input is programmatic native DOM scrolling, not physical touch or a capture
-of every compositor-displayed frame. Inspect both cold visits and return visits:
+of every compositor-displayed frame. The probe advances on the main thread via
+`requestAnimationFrame`: if rendering blocks that thread, input also pauses.
+A passing probe does not rule out gaps during independently advancing trackpad
+momentum. Compare native-input runs, and record the actual viewport dimensions
+and `devicePixelRatio` rather than assuming the requested test override applied.
+Inspect both cold visits and return visits:
 the WGPU drawing cache can reuse recorded content after tile eviction, but cannot
 avoid the first recording of previously unrendered content.

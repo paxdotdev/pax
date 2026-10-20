@@ -1237,6 +1237,11 @@ impl RuntimeContext {
         self.occlusion_dirty.set(true);
         let mut state = self.occlusion_state.borrow_mut();
         state.structural = true;
+        if let Some(id) = node {
+            state.structural_nodes.insert(id);
+        } else {
+            state.structural_unknown = true;
+        }
         if state.diagnostics {
             let caller = std::panic::Location::caller();
             // Aggregate repeated call sites; keep one representative node. Fixed

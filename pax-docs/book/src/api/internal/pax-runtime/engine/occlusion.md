@@ -32,6 +32,16 @@ Type: `u64`
 
 Records reused by those structural reconciliations.
 
+##### `topology_nodes_visited`
+Type: `u64`
+
+Expanded nodes inspected while reconciling structural edits.
+
+##### `topology_nodes_reused`
+Type: `u64`
+
+Nodes copied from unchanged retained subtrees without inspecting components.
+
 ##### `orders_updated`
 Type: `u64`
 

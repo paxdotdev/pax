@@ -811,10 +811,14 @@ impl PaxEngine {
                 .into_iter()
                 .filter(|job| !deferred.contains(&job.layer));
             let next = updates.next();
-            // Speculation may spend the allowance before input exposes visible
-            // work. Initialization OR submission consumes its one urgent grant.
-            let urgent_grant = one_unit && priority_before == 1 && previous.urgent_units == 0;
-            if !urgent_grant
+            // Cooperative visible work obeys the caller's host slice, just like
+            // visible ordinary drawing. A separate preparation cap must not stop
+            // it while the caller goes on to draw unrelated warm layers. This
+            // call returns after one unit; initialization does not spend the
+            // subsequent submission's opportunity. Synchronous passes and warm
+            // preparation still share their elapsed-time allowance.
+            let host_sliced_visible = one_unit && priority_before == 1;
+            if !host_sliced_visible
                 && !budget.admits(completed_units, previous.elapsed_ms + now_ms() - start)
             {
                 let pending: Vec<_> = next

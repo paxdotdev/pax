@@ -179,3 +179,35 @@ test('retirement keeps an initializer reservation before its backing is configur
     pending.releaseOwner(0);
     assert.ok(pool.checkout(10000));
 });
+
+test('a batch of final lease releases issues one deferred availability notification', async () => {
+    const h = harness(9);
+    const retired = Array.from({length: 9}, () => h.pool.checkout());
+    for (const canvas of retired) {
+        canvas.setAttribute('data-pax-surface-owners', '1');
+        h.pool.release(canvas);
+    }
+    for (const canvas of retired) canvas.releaseOwner(0);
+    assert.equal(h.wakes(), 0, 'cleanup is synchronous; chassis re-entry is not');
+    assert.equal(h.pool.capacitySnapshot().available, 9);
+    await Promise.resolve();
+    assert.equal(h.wakes(), 1);
+});
+
+test('a release occurring inside an availability callback is not lost', async () => {
+    let wakes = 0, second;
+    const pool = new CanvasPool({getFromPool: () => new Element()}, 2, () => {
+        if (++wakes === 1) second.releaseOwner(0);
+    });
+    pool.attach(new Element());
+    const first = pool.checkout(); second = pool.checkout();
+    for (const canvas of [first, second]) {
+        canvas.setAttribute('data-pax-surface-owners', '1'); pool.release(canvas);
+    }
+    first.releaseOwner(0);
+    await Promise.resolve();
+    assert.equal(wakes, 1);
+    await Promise.resolve();
+    assert.equal(wakes, 2);
+    assert.equal(pool.capacitySnapshot().available, 2);
+});

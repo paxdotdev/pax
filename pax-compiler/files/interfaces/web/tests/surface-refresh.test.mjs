@@ -9,9 +9,10 @@ import {surfaceRequire} from './surface-test-loader.mjs';
 // warm-host planning are inputs here; the interrupt stream is the renderer contract.
 const source = readFileSync(new URL('../src/classes/native-element-pool.ts', import.meta.url), 'utf8');
 const module = {exports: {}};
+const viewport = {devicePixelRatio: 1, innerWidth: 900, innerHeight: 700, scrollX: 0, scrollY: 0};
 vm.runInNewContext(transformSync(source, {loader: 'ts', format: 'cjs'}).code, {
     module, exports: module.exports, require: surfaceRequire,
-    window: {devicePixelRatio: 1},
+    window: viewport, performance,
 });
 const {NativeElementPool} = module.exports;
 
@@ -62,6 +63,67 @@ test('removing a row does not swallow another layer retarget', () => {
 test('unchanged surfaces do not request replay', () => {
     const h = harness([['root', canvas(1)]]);
     assert.deepEqual(h.sync(), []);
+});
+
+test('pending configuration is not repeatedly repaired; configured backings still are', () => {
+    const tile = canvas(7);
+    Object.assign(tile, {width: 1, height: 1});
+    Object.assign(tile.dataset, {surfaceGeneration: '1', expectedBackingWidth: '200', expectedBackingHeight: '100'});
+    const h = harness([['tile', tile]]);
+    for (let i = 0; i < 4; i++) h.pool.syncRenderSurfaceLayouts();
+    assert.deepEqual(h.refreshes, [], 'queued/failed initialization waits for renderer progress or changed layout');
+    tile.dataset.surfaceSignature = 'replacement-after-failure';
+    h.pool.lastLayerCanvasPlanGeneration = 0;
+    h.pool.syncRenderSurfaceLayouts();
+    assert.deepEqual(h.refreshes, [7], 'a changed layout still retries a failed/unconfigured assignment');
+    h.refreshes.length = 0;
+    tile.width = 200; tile.height = 100;
+    tile.dataset.surfaceConfiguredGeneration = '1';
+    h.pool.syncRenderSurfaceLayouts();
+    assert.deepEqual(h.refreshes, [], 'configuration completion alone does not invalidate content');
+    tile.width = 1;
+    h.pool.syncRenderSurfaceLayouts();
+    assert.deepEqual(h.refreshes, [7], 'a configured backing reset is a real mismatch');
+    tile.width = 200;
+    h.refreshes.length = 0;
+    tile.dataset.expectedBackingWidth = '300';
+    h.pool.syncRenderSurfaceLayouts();
+    assert.deepEqual(h.refreshes, [7], 'resize/DPR/backend-size changes still need reconciliation');
+});
+
+test('configuration acknowledgement belongs to one assignment, not a recycled canvas', () => {
+    const tile = canvas(7);
+    Object.assign(tile, {width: 200, height: 100});
+    Object.assign(tile.dataset, {surfaceGeneration: '1', surfaceConfiguredGeneration: '1',
+        expectedBackingWidth: '200', expectedBackingHeight: '100'});
+    const h = harness([['tile', tile]]);
+    tile.dataset.surfaceGeneration = '2'; tile.width = tile.height = 1;
+    h.sync();
+    assert.deepEqual(h.refreshes, [7], 'new assignment is published once');
+    h.refreshes.length = 0;
+    for (let i = 0; i < 4; i++) h.pool.syncRenderSurfaceLayouts();
+    assert.deepEqual(h.refreshes, [], 'old acknowledgement cannot repair the pending new assignment');
+    tile.dataset.surfaceConfiguredGeneration = '2'; tile.width = 200; tile.height = 100;
+    h.pool.syncRenderSurfaceLayouts();
+    assert.deepEqual(h.refreshes, []);
+});
+
+test('capacity availability wakes surface work, without lifecycle ticks or forced survivor refresh', () => {
+    const h = harness([['tile', canvas(7)]]);
+    let wakes = 0, layouts = 0;
+    h.pool.setPostAsyncInterruptFlush(() => assert.fail('capacity is not an application interrupt'));
+    h.pool.setSurfaceWorkWake(() => wakes++);
+    h.pool.layers.syncLayerCanvasLayouts = () => layouts++;
+    h.pool.surfaceCapacityAvailable();
+    assert.equal(wakes, 1);
+    h.pool.syncRenderSurfaceLayouts();
+    assert.equal(layouts, 1, 'available capacity retries allocation');
+    assert.deepEqual(h.refreshes, [], 'survivors do not need replay just because capacity changed');
+    h.pool.syncRenderSurfaceLayouts();
+    assert.equal(layouts, 1, 'notification was consumed');
+    h.pool.chassis = undefined;
+    h.pool.surfaceCapacityAvailable();
+    assert.equal(wakes, 1, 'late old-chassis notification is ignored');
 });
 
 test('installed snapshot follows retirement and placement and precedes replay refresh', () => {
@@ -139,6 +201,97 @@ test('a warm tile becoming visible refreshes replay priority without changing it
     assert.deepEqual(h.sync(), [2]);
 });
 
+function geometryHarness() {
+    const h = harness([]);
+    let reads = 0, now = 10;
+    const preparations = [];
+    const leaf = {clientWidth: 100, clientHeight: 100};
+    const state = {active: true, stableFrames: 0,
+        lastMeasuredScrollX: 0, lastMeasuredScrollY: 0,
+        lastMeasuredPresentationScrollX: 0, lastMeasuredPresentationScrollY: 0};
+    Object.assign(h.pool, {
+        scrollerHosts: new Map([[1, {leaf, canvasHost: {dataset: {}}}]]),
+        scrollerMeasurementStates: new Map([[1, state]]),
+        nodesLookup: new Map([[1, leaf]]),
+        getWarmthPresentationRecord() {
+            reads++;
+            return {presentedBounds: {left: 0, top: 0, right: 100, bottom: 100},
+                presentedClipBounds: {left: 0, top: 0, right: 900, bottom: 700}};
+        },
+        getIntermediateScrollerClip: () => undefined,
+        getParentScrollerId: () => undefined,
+        syncDelegatedPageScrollViewport() {},
+        emitScrollerPosition() {},
+        syncWarmScrollerHosts(continuation) {
+            this.buildWarmScrollerCandidates(now++, continuation);
+            return true;
+        },
+    });
+    h.pool.chassis.prepare_surface_hosts = input => {
+        preparations.push(input);
+        return [{id: 1, visible: [0,0,100,100], prepared: [0,0,100,200]}];
+    };
+    return {...h, state, preparations, reads: () => reads};
+}
+
+test('continuations reuse geometry but still observe time and new submissions', () => {
+    const h = geometryHarness();
+    h.pool.syncRenderSurfaceLayouts();
+    h.pool.syncRenderSurfaceLayouts(true);
+    const tile = canvas(1);
+    Object.assign(tile.dataset, {surfaceContentRevision: '2', surfaceSubmittedRevision: '2',
+        surfacePreparedAt: '1', surfaceGeneration: '3'});
+    h.pool.canvases.set('ready', tile);
+    h.pool.syncRenderSurfaceLayouts(true);
+    assert.equal(h.reads(), 1);
+    assert.deepEqual(h.preparations.map(p => p.now), [10,11,12]);
+    assert.equal(h.preparations[2].readiness[0][0], 'ready:3:2');
+    h.pool.surfaceCapacityAvailable();
+    h.pool.syncRenderSurfaceLayouts(true);
+    assert.equal(h.reads(), 1, 'capacity release does not invalidate geometric observations');
+    h.pool.syncRenderSurfaceLayouts();
+    assert.equal(h.reads(), 2, 'ordinary application frames refresh observations');
+});
+
+test('native reversal sampling invalidates geometry even before a new plan generation', () => {
+    const h = geometryHarness();
+    h.pool.syncRenderSurfaceLayouts();
+    for (const y of [80, 20, 20.05]) {
+        h.state.active = true;
+        h.pool.measureScrollerPosition = () => ({
+            scrollX: 0, scrollY: y, presentationScrollX: 0, presentationScrollY: y});
+        h.pool.sampleFrameInputs();
+        h.pool.syncRenderSurfaceLayouts(true);
+        assert.equal(h.preparations.at(-1).hosts[0].offset[1], y);
+    }
+    assert.equal(h.reads(), 4, 'even movement below event tolerance invalidates observations');
+});
+
+test('geometry observations expire on resize, plan/policy changes, and native patches', () => {
+    const h = geometryHarness();
+    h.pool.syncRenderSurfaceLayouts();
+    const invalidations = [
+        () => { viewport.innerWidth++; },
+        () => { viewport.visualViewport = {width: 600, height: 500, offsetTop: 20, offsetLeft: 0, scale: 1.5}; },
+        () => { h.pool.chassis.layer_canvas_plan_generation = () => 2; },
+        () => { h.pool.chassis.surface_policy_revision = () => 1; },
+        () => { viewport.devicePixelRatio = 2; },
+        () => h.pool.invalidateSurfaceHostObservation(),
+    ];
+    for (const invalidate of invalidations) {
+        const before = h.reads();
+        invalidate();
+        h.pool.syncRenderSurfaceLayouts(true);
+        assert.equal(h.reads(), before + 1);
+        h.pool.syncRenderSurfaceLayouts(true);
+        assert.equal(h.reads(), before + 1);
+    }
+    viewport.innerWidth = 900; viewport.devicePixelRatio = 1;
+    delete viewport.visualViewport;
+    const index = readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8');
+    assert.match(index, /export function processMessages[\s\S]*?nativePool\.invalidateSurfaceHostObservation\(\)/);
+});
+
 test('a recycled canvas at the same tile address receives a fresh renderer', () => {
     const tile = canvas(2);
     tile.dataset.surfaceGeneration = '7';
@@ -194,6 +347,7 @@ test('surface generation survives steady layout and changes on each canvas assig
     }]});
     layer.syncCanvasLayout();
     const firstGeneration = backing.dataset.surfaceGeneration;
+    backing.dataset.surfaceConfiguredGeneration = firstGeneration;
     const preparedAt = backing.dataset.surfacePreparedAt;
     assert.ok(preparedAt);
     assert.ok(firstGeneration);
@@ -211,6 +365,7 @@ test('surface generation survives steady layout and changes on each canvas assig
     }]});
     layer.detachCanvases(true);
     assert.equal(backing.width, 1, 'release cleared the old backing store');
+    assert.equal(backing.dataset.surfaceConfiguredGeneration, undefined, 'retirement clears configuration acknowledgement');
     assert.equal(backing.dataset.expectedBackingWidth, undefined);
     layer.syncCanvasLayout();
     assert.notEqual(backing.dataset.surfaceGeneration, firstGeneration);

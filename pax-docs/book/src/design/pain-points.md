@@ -1294,3 +1294,10 @@ carousel allocation or broadening this fix into renderer work.
   Reproduced in the source at checkpoint `58b90765c`; use the default chassis
   tests, designtime chassis check, and both runtime test configurations pending
   a feature-aware fixture constructor. Encountered during PAX-1014 validation.
+- 2026-10-18 — Web interface validation: `npx tsc --noEmit` reports 15 existing
+  errors (scroller patch/argument types, DOM/style types, touch typing, ES library
+  target, and cartridge/window declarations). Expected a clean standalone type
+  check; an in-memory comparison against HEAD confirmed the same 15 diagnostics
+  before and after the PAX-1014 completion fix. Node regression tests and the
+  actual website build remain separate checks; do not report this typecheck as
+  passing or hide the existing errors with new suppressions.

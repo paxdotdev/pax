@@ -90,7 +90,14 @@ export class NativeElementPool {
     private scrollerMeasurementStates = new Map<number, ScrollerMeasurementState>();
     private presentationRecords = new Map<number, PresentationRecord>();
     private pendingScrollerUpdates = new Map<number, PendingScrollerUpdate>();
+    private surfaceHostObservation?: {
+        candidates: Map<number, ScrollerWarmCandidate>;
+        observations: any[];
+        viewport: number[];
+        viewportKey: string;
+    };
     private surfaceRefreshPending = false;
+    private surfaceCapacityPending = false;
     private lastLayerCanvasPlanGeneration?: number;
     private lastLayerCanvasPlanDevicePixelRatio?: number;
     private lastSurfacePolicyRevision?: number;
@@ -102,6 +109,7 @@ export class NativeElementPool {
     private pageScrollActivityListenersInstalled = false;
     private readonly pageScrollActivityListener: () => void;
     private postAsyncInterruptFlush?: () => void;
+    private surfaceWorkWake?: () => void;
     private objectManager: ObjectManager;
     private resizeObserver: ResizeObserver;
     private textFlushQueued = false;
@@ -124,6 +132,7 @@ export class NativeElementPool {
         this.resizeObserver = new ResizeObserver(entries => {
             if (!this.chassis) return;
             const resizeRequests = [];
+            this.invalidateSurfaceHostObservation();
             for (const entry of entries) {
                 const node = entry.target as HTMLElement;
                 const id = Number(node.getAttribute("pax_id"));
@@ -188,11 +197,7 @@ export class NativeElementPool {
         this.canvasPool = new CanvasPool(
             this.objectManager,
             browserCanvasPoolBudget(),
-            () => {
-                if (this.chassis == null) return;
-                this.surfaceRefreshPending = true;
-                this.postAsyncInterruptFlush?.();
-            },
+            () => this.surfaceCapacityAvailable(),
         );
         this.canvasPool.attach(mount);
         this.layers.attach(mount, this.canvases, this.canvasPool);
@@ -200,6 +205,18 @@ export class NativeElementPool {
 
     setPostAsyncInterruptFlush(callback: (() => void) | undefined) {
         this.postAsyncInterruptFlush = callback;
+    }
+
+    setSurfaceWorkWake(callback: (() => void) | undefined) {
+        this.surfaceWorkWake = callback;
+    }
+
+    private surfaceCapacityAvailable() {
+        if (this.chassis == null) return;
+        // A released lease changes allocation capacity, not application state.
+        // The surface pump reconciles current demand without advancing a tick.
+        this.surfaceCapacityPending = true;
+        this.surfaceWorkWake?.();
     }
 
     dispose() {
@@ -255,13 +272,16 @@ export class NativeElementPool {
         this.scrollerMeasurementStates.clear();
         this.presentationRecords.clear();
         this.pendingScrollerUpdates.clear();
+        this.invalidateSurfaceHostObservation();
         this.surfaceRefreshPending = false;
+        this.surfaceCapacityPending = false;
         this.lastLayerCanvasPlanGeneration = undefined;
         this.lastLayerCanvasPlanDevicePixelRatio = undefined;
         this.activePageScrollScrollerId = undefined;
         this.pageSnapHost = undefined;
         this.pageSnapOwnerScrollerId = undefined;
         this.postAsyncInterruptFlush = undefined;
+        this.surfaceWorkWake = undefined;
         this.chassis = undefined;
         this.mount = undefined;
         this.canvasPool = undefined;
@@ -284,6 +304,12 @@ export class NativeElementPool {
             }
 
             let measurement = this.measureScrollerPosition(leaf, state);
+            if (measurement.scrollX !== state.lastMeasuredScrollX
+                || measurement.scrollY !== state.lastMeasuredScrollY
+                || measurement.presentationScrollX !== state.lastMeasuredPresentationScrollX
+                || measurement.presentationScrollY !== state.lastMeasuredPresentationScrollY) {
+                this.invalidateSurfaceHostObservation();
+            }
             let moved =
                 Math.abs(measurement.scrollX - state.lastMeasuredScrollX) > 0.1
                 || Math.abs(measurement.scrollY - state.lastMeasuredScrollY) > 0.1
@@ -1592,10 +1618,21 @@ export class NativeElementPool {
         return clip;
     }
 
-    private buildWarmScrollerCandidates(now: number) {
+    invalidateSurfaceHostObservation() {
+        this.surfaceHostObservation = undefined;
+    }
+
+    private surfaceHostViewportKey() {
+        const v = window.visualViewport;
+        return [window.innerWidth, window.innerHeight, window.scrollX, window.scrollY,
+            v?.width, v?.height, v?.offsetLeft, v?.offsetTop, v?.scale].join(":");
+    }
+
+    private observeSurfaceHosts(viewportKey: string) {
         // Read each shared ancestor once within this read-only geometry pass.
-        // Never reuse across frames: browser scroll, clips, and transforms can
-        // change without incrementing the runtime's canvas-plan generation.
+        // Reuse only between application frames, after native input sampling.
+        // Scroll/resize/native patches invalidate this observation explicitly;
+        // the Rust canvas-plan generation alone cannot prove DOM geometry stable.
         const bounds = new Map<HTMLElement, DOMRect>();
         const measure = (element: HTMLElement) => {
             let rect = bounds.get(element);
@@ -1637,6 +1674,25 @@ export class NativeElementPool {
                 visibleBounds:{left:0,top:0,right:0,bottom:0},distance:0,
                 mandatory:state.isRootScroller || state.delegatesToPageScroll});
         }
+        return {candidates, observations, viewport, viewportKey};
+    }
+
+    private buildWarmScrollerCandidates(now: number, continuation = false) {
+        const start = this.surfaceTrace ? performance.now() : 0;
+        const viewportKey = this.surfaceHostViewportKey();
+        const reused = continuation && this.surfaceHostObservation?.viewportKey === viewportKey;
+        const observation = reused ? this.surfaceHostObservation!
+            : this.observeSurfaceHosts(viewportKey);
+        this.surfaceHostObservation = observation;
+        const {candidates, observations, viewport} = observation;
+        if (this.surfaceTrace) {
+            this.recordSurfaceFramePhase(reused ? "surface.geometry_reused" : "surface.geometry",
+                performance.now() - start);
+        }
+        const prepareStart = this.surfaceTrace ? performance.now() : 0;
+        // Geometry reuse does not freeze policy. Every opportunity observes new
+        // submissions and current time (intent decay, reversal protection, and
+        // preparation horizon), then admission sees current physical capacity.
         const readiness: [string, number][] = [];
         this.canvases.forEach((canvas, id) => {
             const d = canvas.dataset;
@@ -1668,6 +1724,8 @@ export class NativeElementPool {
                 : p.prepared[2] > p.prepared[0] && p.prepared[3] > p.prepared[1] ? 'prewarm' : 'cold';
             c.coverageKey = `${p.unavailableReason ?? ''}|${p.prepared.join(',')}`;
         }
+        if (this.surfaceTrace) this.recordSurfaceFramePhase("surface.prepare",
+            performance.now() - prepareStart);
         return candidates;
     }
 
@@ -1865,16 +1923,18 @@ export class NativeElementPool {
         return this.layerCanvasPlanCache.get(layerId);
     }
 
-    private syncWarmScrollerHosts() {
+    private syncWarmScrollerHosts(continuation = false) {
         const now = performance.now();
         let hosts: Map<number, ScrollerWarmCandidate>;
-        try { hosts = this.buildWarmScrollerCandidates(now); }
+        try { hosts = this.buildWarmScrollerCandidates(now, continuation); }
         catch (error) {
             // Incomplete measurements must not retire compatible survivors.
             this.surfaceRefreshPending = true;
+            this.invalidateSurfaceHostObservation();
             this.surfaceTrace?.record('preparation-rejected', {reason:String(error)});
             return false;
         }
+        const admissionStart = this.surfaceTrace ? performance.now() : 0;
         const candidates: SurfaceCandidate[] = [];
         const owners = new Map<number, ScrollerWarmCandidate>();
         for (const host of hosts.values()) {
@@ -1932,6 +1992,8 @@ export class NativeElementPool {
                 retained: !!c.rank.retained, ready: !!c.rank.ready,
                 pixels: (c.surface.backingWidth ?? 0) * (c.surface.backingHeight ?? 0)}))});
         const decision = materializeSurfaceSchedule(candidates, shared);
+        if (this.surfaceTrace) this.recordSurfaceFramePhase("surface.admission",
+            performance.now() - admissionStart);
         this.canvasPool?.setBackingLimit(shared.backingLimit);
         if (this.surfaceTrace) {
             this.surfaceTrace.observeDemand(candidates, decision.denied);
@@ -2005,8 +2067,8 @@ export class NativeElementPool {
         this.surfaceTrace?.recordWheelInput(sample);
     }
 
-    private lastCompositingWork?: {passes: number; rebuilds: number; structural_reconciliations: number; records_retained: number; orders_updated: number; records_updated: number; masks_evaluated: number; mask_candidates: number};
-    recordSurfaceCompositing(report: {passes: number; rebuilds: number; structural_reconciliations: number; records_retained: number; orders_updated: number; records_updated: number; masks_evaluated: number; mask_candidates: number; rebuild_reason: string | null; rebuild_node: number | null; rebuild_origins?: unknown}, phases: [string, number][] = []) {
+    private lastCompositingWork?: {passes: number; rebuilds: number; structural_reconciliations: number; records_retained: number; topology_nodes_visited?: number; topology_nodes_reused?: number; orders_updated: number; records_updated: number; masks_evaluated: number; mask_candidates: number};
+    recordSurfaceCompositing(report: {passes: number; rebuilds: number; structural_reconciliations: number; records_retained: number; topology_nodes_visited?: number; topology_nodes_reused?: number; orders_updated: number; records_updated: number; masks_evaluated: number; mask_candidates: number; rebuild_reason: string | null; rebuild_node: number | null; rebuild_origins?: unknown}, phases: [string, number][] = []) {
         if (!this.surfaceTrace) return;
         const previous = this.lastCompositingWork;
         if (previous?.passes === report.passes) return;
@@ -2015,6 +2077,8 @@ export class NativeElementPool {
             rebuilds: report.rebuilds - (previous?.rebuilds ?? 0),
             structural_reconciliations: report.structural_reconciliations - (previous?.structural_reconciliations ?? 0),
             records_retained: report.records_retained - (previous?.records_retained ?? 0),
+            topology_nodes_visited: (report.topology_nodes_visited ?? 0) - (previous?.topology_nodes_visited ?? 0),
+            topology_nodes_reused: (report.topology_nodes_reused ?? 0) - (previous?.topology_nodes_reused ?? 0),
             orders_updated: report.orders_updated - (previous?.orders_updated ?? 0),
             records_updated: report.records_updated - (previous?.records_updated ?? 0),
             masks_evaluated: report.masks_evaluated - (previous?.masks_evaluated ?? 0),
@@ -2045,7 +2109,7 @@ export class NativeElementPool {
         }
     }
 
-    syncRenderSurfaceLayouts() {
+    syncRenderSurfaceLayouts(continuation = false) {
         this.surfaceCoordinator ??= new SurfaceCoordinator(this.canvases, this.layers,
             layers => this.requestLayerSurfaceRefresh(layers),
             snapshot => this.chassis?.install_surface_plan?.(snapshot),
@@ -2062,15 +2126,20 @@ export class NativeElementPool {
         if (planInputsChanged) {
             this.layerCanvasPlanCache.clear();
         }
-        if (!this.syncWarmScrollerHosts()) return;
+        if (!continuation || planInputsChanged) this.invalidateSurfaceHostObservation();
+        if (!this.syncWarmScrollerHosts(continuation)) return;
+        const configurationStart = this.surfaceTrace ? performance.now() : 0;
         let backingMismatchLayers = this.surfaceCoordinator.collectBackingMismatchLayers();
         if (backingMismatchLayers.size > 0) {
             this.surfaceRefreshPending = true;
         }
         if (
             !this.surfaceRefreshPending
+            && !this.surfaceCapacityPending
             && !planInputsChanged
         ) {
+            if (this.surfaceTrace) this.recordSurfaceFramePhase("surface.configuration",
+                performance.now() - configurationStart);
             return;
         }
         this.lastLayerCanvasPlanGeneration = layerCanvasPlanGeneration;
@@ -2083,6 +2152,9 @@ export class NativeElementPool {
             return this.admittedPlans.get(layerId) ?? {layerId, active: false, surfaces: []};
         }, this.surfaceRefreshPending);
         this.surfaceRefreshPending = false;
+        this.surfaceCapacityPending = false;
+        if (this.surfaceTrace) this.recordSurfaceFramePhase("surface.configuration",
+            performance.now() - configurationStart);
     }
 
     private requestLayerSurfaceRefresh(layers: number[]) {

@@ -162,6 +162,10 @@ pub struct OcclusionStats {
     pub structural_reconciliations: u64,
     /// Records reused by those structural reconciliations.
     pub records_retained: u64,
+    /// Expanded nodes inspected while reconciling structural edits.
+    pub topology_nodes_visited: u64,
+    /// Nodes copied from unchanged retained subtrees without inspecting components.
+    pub topology_nodes_reused: u64,
     /// Numeric paint-order changes sent without invalidating geometry.
     pub orders_updated: u64,
     /// Dirty/new records refreshed by localized coverage reconciliation.
@@ -205,14 +209,74 @@ struct OcclusionRecord {
     geometry: Option<Rc<PreparedCanvasGeometry>>,
 }
 
+#[derive(Clone)]
+struct TopologyBranch {
+    id: u32,
+    parent: Option<u32>,
+    end: usize,
+    order_start: usize,
+    order_end: usize,
+    layer_start: usize,
+    layer_end: usize,
+    layer: usize,
+    container: Option<u32>,
+}
+
+// Traversal boundaries belong to the retained compositing records, not a second
+// scene graph. They let a localized edit reuse siblings without evaluating their
+// component properties. Dense global paint order is still renumbered.
+#[derive(Default)]
+struct OcclusionTopology {
+    branches: Vec<TopologyBranch>,
+    positions: HashMap<u32, usize>,
+    order: Vec<(u32, Occlusion)>,
+}
+
+impl OcclusionTopology {
+    fn begin(
+        &mut self,
+        id: u32,
+        parent: Option<u32>,
+        layer: usize,
+        container: Option<u32>,
+        next_layer: usize,
+    ) -> usize {
+        let index = self.branches.len();
+        self.positions.insert(id, index);
+        self.branches.push(TopologyBranch {
+            id,
+            parent,
+            end: index + 1,
+            order_start: self.order.len(),
+            order_end: self.order.len(),
+            layer_start: next_layer,
+            layer_end: next_layer,
+            layer,
+            container,
+        });
+        index
+    }
+
+    fn end(&mut self, index: usize, next_layer: usize) {
+        let end = self.branches.len();
+        let branch = &mut self.branches[index];
+        branch.end = end;
+        branch.order_end = self.order.len();
+        branch.layer_end = next_layer;
+    }
+}
+
 #[derive(Default)]
 pub(crate) struct OcclusionState {
     pub(crate) diagnostics: bool,
     pub(crate) invalidations: [Option<OcclusionInvalidation>; 8],
     pub(crate) structural: bool,
+    pub(crate) structural_nodes: HashSet<u32>,
+    pub(crate) structural_unknown: bool,
     pub(crate) dirty: HashSet<u32>,
     pub(crate) scrolled: HashSet<u32>,
     records: HashMap<u32, OcclusionRecord>,
+    topology: OcclusionTopology,
     // Preserve removed coverage until its former native overlaps are repaired.
     removed: Vec<OcclusionRecord>,
     // Exact inherited clip membership, rebuilt only when topology changes.
@@ -236,6 +300,13 @@ pub(crate) struct OcclusionState {
 
 impl OcclusionState {
     pub(crate) fn remove(&mut self, id: u32) {
+        // The live parent link disappears during unmount. Retain the old branch
+        // origin until reconciliation has repaired its former overlaps/order.
+        if let Some(&index) = self.topology.positions.get(&id) {
+            if let Some(parent) = self.topology.branches[index].parent {
+                self.structural_nodes.insert(parent);
+            }
+        }
         if let Some(record) = self.records.remove(&id) {
             self.removed.push(record);
         }
@@ -270,6 +341,8 @@ pub(crate) fn update_node_occlusion_observed(
     let reconciled = structural
         && !state.records.is_empty()
         && try_reconcile_structure(root_node, ctx, state, &mut dirty, &mut affected);
+    state.structural_nodes.clear();
+    state.structural_unknown = false;
     completed("occlusion.topology");
     let rebuild = if (structural && !reconciled) || state.records.is_empty() {
         Some(("structure", None))
@@ -333,6 +406,7 @@ pub(crate) fn update_node_occlusion_observed(
         state.stats.rebuild_node = node;
         state.culling_rebuild = true;
         state.records.clear();
+        state.topology = Default::default();
         state.removed.clear();
         state.clip_dependents.clear();
         state.canvas_counts.clear();
@@ -518,9 +592,8 @@ pub(crate) fn update_node_occlusion_observed(
     completed("occlusion.masks");
 }
 
-// Keep a full topology walk, but avoid resolving paint/clip geometry while proving
-// that the existing presentation domains are unchanged. No retained state is
-// mutated until the entire tree passes this conservative preflight.
+// Reuse unchanged subtree boundaries; inspect edited branches without resolving
+// paint geometry. No retained state is mutated until the preflight succeeds.
 fn try_reconcile_structure(
     root: &Rc<ExpandedNode>,
     ctx: &RuntimeContext,
@@ -531,8 +604,44 @@ fn try_reconcile_structure(
     struct Walk {
         seen: HashSet<u32>,
         added: HashMap<u32, OcclusionRecord>,
-        order: Vec<(Rc<ExpandedNode>, Occlusion)>,
+        topology: OcclusionTopology,
         next_layer: usize,
+        inspected: u64,
+        reused: u64,
+    }
+    // Follow both old and current ancestry: reparenting must open the source and
+    // destination branches. Projection's render parents, not lexical parents,
+    // define this topology. Unknown notifications retain the full preflight.
+    let mut changed = HashSet::new();
+    let mut local = !state.structural_unknown
+        && !state.topology.branches.is_empty()
+        && state.unsafe_layers.is_empty();
+    if local {
+        for &id in state.structural_nodes.iter().chain(dirty.iter()) {
+            let mut reaches_root = false;
+            let mut old = Some(id);
+            while let Some(id) = old {
+                reaches_root |= id == root.id.to_u32();
+                changed.insert(id);
+                old = state
+                    .topology
+                    .positions
+                    .get(&id)
+                    .and_then(|&i| state.topology.branches[i].parent);
+            }
+            let mut node = ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(id));
+            while let Some(current) = node {
+                reaches_root |= current.id == root.id;
+                changed.insert(current.id.to_u32());
+                node = current.render_parent_node();
+            }
+            if !reaches_root {
+                // A detached/replaced origin is not proof that every retained
+                // branch is unchanged. Keep the conservative preflight.
+                local = false;
+                break;
+            }
+        }
     }
     fn complex(record: &OcclusionRecord) -> bool {
         record.scrolls || record.clip.is_some() || record.before_children || record.unclippable
@@ -545,12 +654,53 @@ fn try_reconcile_structure(
         layer_id: usize,
         container: Option<u32>,
         clips: &[u32],
+        parent: Option<u32>,
+        changed: Option<&HashSet<u32>>,
         walk: &mut Walk,
     ) -> bool {
         let id = node.id.to_u32();
+        if changed.is_some_and(|changed| !changed.contains(&id)) {
+            if let Some(&index) = state.topology.positions.get(&id) {
+                let branch = &state.topology.branches[index];
+                if branch.layer != layer_id
+                    || branch.container != container
+                    || branch.parent != parent
+                    || branch.layer_start != walk.next_layer
+                {
+                    return false;
+                }
+                let new_start = walk.topology.branches.len();
+                let new_order_start = walk.topology.order.len();
+                for old in &state.topology.branches[index..branch.end] {
+                    if !walk.seen.insert(old.id) || !state.records.contains_key(&old.id) {
+                        return false;
+                    }
+                    let mut retained = old.clone();
+                    retained.end = new_start + old.end - index;
+                    retained.order_start = new_order_start + old.order_start - branch.order_start;
+                    retained.order_end = new_order_start + old.order_end - branch.order_start;
+                    walk.topology
+                        .positions
+                        .insert(old.id, walk.topology.branches.len());
+                    walk.topology.branches.push(retained);
+                }
+                for &(id, mut order) in &state.topology.order[branch.order_start..branch.order_end]
+                {
+                    order.z_index = walk.topology.order.len() as i32;
+                    walk.topology.order.push((id, order));
+                }
+                walk.next_layer = branch.layer_end;
+                walk.reused += (branch.end - index) as u64;
+                return true;
+            }
+        }
         if !walk.seen.insert(id) {
             return false;
         }
+        walk.inspected += 1;
+        let index = walk
+            .topology
+            .begin(id, parent, layer_id, container, walk.next_layer);
         let instance = borrow!(node.instance_node);
         let native = instance.materializes_native_surface(node);
         let layer = if native {
@@ -648,12 +798,12 @@ fn try_reconcile_structure(
             child_clips.push(id);
         }
         if before {
-            walk.order.push((
-                Rc::clone(node),
+            walk.topology.order.push((
+                id,
                 Occlusion {
                     render_layer_id: layer_id,
                     parent_frame: container,
-                    z_index: walk.order.len() as i32,
+                    z_index: walk.topology.order.len() as i32,
                 },
             ));
         }
@@ -675,6 +825,8 @@ fn try_reconcile_structure(
                     child_layer,
                     child_container,
                     &child_clips,
+                    Some(id),
+                    changed,
                     walk,
                 )
             {
@@ -682,15 +834,16 @@ fn try_reconcile_structure(
             }
         }
         if !before && (layer != Layer::DontCare || has_clip) {
-            walk.order.push((
-                Rc::clone(node),
+            walk.topology.order.push((
+                id,
                 Occlusion {
                     render_layer_id: layer_id,
                     parent_frame: container,
-                    z_index: walk.order.len() as i32,
+                    z_index: walk.topology.order.len() as i32,
                 },
             ));
         }
+        walk.topology.end(index, walk.next_layer);
         true
     }
     if state
@@ -703,11 +856,23 @@ fn try_reconcile_structure(
     let mut walk = Walk {
         seen: HashSet::new(),
         added: HashMap::new(),
-        order: Vec::new(),
+        topology: Default::default(),
         next_layer: 1,
+        inspected: 0,
+        reused: 0,
     };
-    if !visit(root, ctx, state, dirty, 0, None, &[], &mut walk)
-        || walk.next_layer != ctx.layer_count.get()
+    if !visit(
+        root,
+        ctx,
+        state,
+        dirty,
+        0,
+        None,
+        &[],
+        None,
+        local.then_some(&changed),
+        &mut walk,
+    ) || walk.next_layer != ctx.layer_count.get()
         || state
             .records
             .iter()
@@ -719,24 +884,30 @@ fn try_reconcile_structure(
     // Renumbering after insertion/removal is not a relative-order change. For
     // real moves, repair overlaps only in the changed surviving order interval.
     let surviving: Vec<_> = walk
+        .topology
         .order
         .iter()
-        .filter(|(n, _)| state.records.contains_key(&n.id.to_u32()))
-        .map(|(n, _)| (n.occlusion.get().z_index, n.id.to_u32()))
+        .filter(|(id, _)| state.records.contains_key(id))
+        .map(|(id, _)| *id)
         .collect();
-    let mut previous = surviving.clone();
-    previous.sort_unstable();
-    let first = previous
+    let previous: Vec<_> = state
+        .topology
+        .order
         .iter()
-        .zip(&surviving)
-        .position(|(a, b)| a.1 != b.1);
+        .filter(|(id, _)| walk.seen.contains(id) && state.records.contains_key(id))
+        .map(|(id, _)| *id)
+        .collect();
+    if previous.len() != surviving.len() {
+        return false;
+    }
+    let first = previous.iter().zip(&surviving).position(|(a, b)| a != b);
     if let Some(first) = first {
         let last = previous
             .iter()
             .zip(&surviving)
-            .rposition(|(a, b)| a.1 != b.1)
+            .rposition(|(a, b)| a != b)
             .unwrap();
-        for &(_, id) in &surviving[first..=last] {
+        for &id in &surviving[first..=last] {
             let record = &state.records[&id];
             if state.unsafe_layers.contains(&record.render_layer_id) {
                 return false;
@@ -748,9 +919,9 @@ fn try_reconcile_structure(
         let last = previous
             .iter()
             .zip(&surviving)
-            .rposition(|(a, b)| a.1 != b.1)
+            .rposition(|(a, b)| a != b)
             .unwrap();
-        for &(_, id) in &surviving[first..=last] {
+        for &id in &surviving[first..=last] {
             let record = &state.records[&id];
             if record.layer == Layer::Canvas {
                 include_old_overlaps(record, ctx, affected);
@@ -780,6 +951,7 @@ fn try_reconcile_structure(
         dependents.retain(|id| walk.seen.contains(id));
     }
     state.stats.records_retained += state.records.len() as u64;
+    let added_ids: HashSet<_> = walk.added.keys().copied().collect();
     for (id, record) in walk.added {
         for &clip in &record.clips {
             state.clip_dependents.entry(clip).or_default().push(id);
@@ -788,11 +960,35 @@ fn try_reconcile_structure(
         state.records.insert(id, record);
     }
     dirty.retain(|id| walk.seen.contains(id));
-    for (node, order) in walk.order {
-        if assign_occlusion(&node, order, state.records[&node.id.to_u32()].layer, ctx) {
+    for &(id, order) in &walk.topology.order {
+        // Avoid property reads/writes and scene lookup for an unchanged order.
+        let unchanged = !added_ids.contains(&id)
+            && state.topology.positions.get(&id).is_some_and(|&index| {
+                let branch = &state.topology.branches[index];
+                let old_index = if state.records[&id].before_children {
+                    branch.order_start
+                } else {
+                    branch.order_end - 1
+                };
+                state
+                    .topology
+                    .order
+                    .get(old_index)
+                    .is_some_and(|old| old == &(id, order))
+            });
+        if unchanged {
+            continue;
+        }
+        let Some(node) = ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(id)) else {
+            continue;
+        };
+        if assign_occlusion(&node, order, state.records[&id].layer, ctx) {
             state.stats.orders_updated += 1;
         }
     }
+    state.stats.topology_nodes_visited += walk.inspected;
+    state.stats.topology_nodes_reused += walk.reused;
+    state.topology = walk.topology;
     state.stats.structural_reconciliations += 1;
     state.stats.rebuild_reason = Some("structure-reconciled");
     state.stats.rebuild_node = None;
@@ -1235,6 +1431,7 @@ fn rebuild_node_occlusion(
         &mut next_layer_id,
         &mut drawables,
         &[],
+        None,
         state,
     );
     // A rebuild can change layer ownership even without a lifecycle edit (for
@@ -1317,6 +1514,7 @@ fn update_node_occlusion_recursive(
     next_layer_id: &mut usize,
     drawables: &mut Vec<DrawableInfo>,
     active_clip_ids: &[u32],
+    parent: Option<u32>,
     state: &mut OcclusionState,
 ) {
     fn clamp_offset(value: f64, content: f64, viewport: f64) -> f64 {
@@ -1329,6 +1527,13 @@ fn update_node_occlusion_recursive(
         value.max(0.0).min((content - viewport).max(0.0))
     }
 
+    let topology_index = state.topology.begin(
+        node.id.to_u32(),
+        parent,
+        current_layer_id,
+        active_container,
+        *next_layer_id,
+    );
     let instance_node = borrow!(node.instance_node);
     let world_clip = instance_node.resolve_effect_clip_path(node);
     let effect_clip_path = world_clip
@@ -1490,6 +1695,7 @@ fn update_node_occlusion_recursive(
         if assign_occlusion(node, new_occlusion, layer, ctx) {
             state.stats.orders_updated += 1;
         }
+        state.topology.order.push((node.id.to_u32(), new_occlusion));
 
         drawables.push(DrawableInfo::Native {
             node: Rc::clone(node),
@@ -1525,15 +1731,18 @@ fn update_node_occlusion_recursive(
             } else {
                 &descendant_clip_ids
             },
+            Some(node.id.to_u32()),
             state,
         );
     }
 
     if materializes_native_surface_before_children {
+        state.topology.end(topology_index, *next_layer_id);
         return;
     }
 
     if layer == Layer::DontCare && !has_effect_clip {
+        state.topology.end(topology_index, *next_layer_id);
         return;
     }
 
@@ -1580,6 +1789,8 @@ fn update_node_occlusion_recursive(
     if assign_occlusion(node, new_occlusion, layer, ctx) {
         state.stats.orders_updated += 1;
     }
+    state.topology.order.push((node.id.to_u32(), new_occlusion));
+    state.topology.end(topology_index, *next_layer_id);
 
     match layer {
         Layer::Canvas => {

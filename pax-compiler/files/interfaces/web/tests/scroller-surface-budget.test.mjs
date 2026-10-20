@@ -184,7 +184,7 @@ test('shared preparation measures presentation clips without independently paddi
     h.prototype.buildWarmScrollerCandidates.call(h.pool, 12000);
     assert.equal(canvas.dataset.surfacePreparationLatency,'100','idle time is not another latency sample');
     const events = [];
-    h.pool.surfaceTrace = {record: (event, fields) => events.push({event, ...fields})};
+    h.pool.surfaceTrace = {record: (event, fields) => events.push({event, ...fields}), recordPhase() {}};
     states.get(2).viewportWidth = -28;
     const rejected = h.prototype.buildWarmScrollerCandidates.call(h.pool, 12010);
     assert.equal(rejected.get(1).intent, 'active', 'invalid child does not stop its parent');

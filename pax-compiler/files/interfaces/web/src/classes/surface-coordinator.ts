@@ -156,6 +156,11 @@ export class SurfaceCoordinator {
     collectBackingMismatchLayers() {
         let layers = new Set<number>();
         this.canvases.forEach((canvas) => {
+            // An assignment is published before its renderer exists. Until that
+            // renderer acknowledges configuration, a 1x1 backing is expected.
+            // Acknowledgements from a prior lease cannot validate this assignment.
+            const generation = canvas.dataset.surfaceGeneration;
+            if (generation && canvas.dataset.surfaceConfiguredGeneration !== generation) return;
             let layerId = Number.parseInt(canvas.dataset.layerId ?? "", 10);
             if (!Number.isFinite(layerId)) {
                 return;

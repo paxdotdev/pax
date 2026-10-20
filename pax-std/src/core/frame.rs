@@ -268,6 +268,7 @@ impl InstanceNode for FrameInstance {
             .chain([
                 expanded_node.transform_and_bounds.untyped(),
                 expanded_node.computed_opacity.untyped(),
+                expanded_node.parent_frame.untyped(),
                 expanded_node.occlusion.untyped(),
             ])
             .collect();
@@ -340,17 +341,23 @@ impl InstanceNode for FrameInstance {
                                 &mut patch.parent_frame,
                                 expanded_node.parent_frame.get().map(|v| v.to_u32()),
                             ),
-                            patch_if_needed(
-                                &mut old_state.z_index,
-                                &mut patch.z_index,
-                                expanded_node.occlusion.get().z_index,
-                            ),
                         ];
 
-                        if updates.into_iter().any(|v| v == true) {
+                        let content_changed = updates.into_iter().any(|v| v);
+                        let order_changed = patch_if_needed(
+                            &mut old_state.z_index,
+                            &mut patch.z_index,
+                            expanded_node.occlusion.get().z_index,
+                        );
+                        if content_changed || order_changed {
                             cloned_context.enqueue_native_message(
                                 pax_message::NativeMessage::FrameUpdate(patch),
                             );
+                        }
+                        // Occlusion reconciliation updates retained canvas order
+                        // separately. A native z-index patch must not turn that
+                        // order-only change into re-recording the whole subtree.
+                        if content_changed {
                             mark_canvas_descendants_dirty(&expanded_node, &cloned_context);
                         }
                     });
@@ -391,6 +398,9 @@ impl InstanceNode for FrameInstance {
             .with_properties_unwrapped(|props: &mut Frame| props._clip_content.local().get())
     }
 }
+
+#[cfg(test)]
+mod invalidation_tests;
 
 #[cfg(test)]
 mod tests {

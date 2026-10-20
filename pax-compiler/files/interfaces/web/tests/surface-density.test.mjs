@@ -37,7 +37,7 @@ for (const f of fixtures) {
                 layerId: '7', logicalWidth: String(f.width), logicalHeight: String(f.height),
                 expectedBackingWidth: String(f.backingWidth), expectedBackingHeight: String(f.backingHeight),
                 tileKey: '0:0', surfaceSignature: 'size', transformSignature: '0,0',
-                hostSignature: 'scroller:42', surfaceGeneration: '3',
+                hostSignature: 'scroller:42', surfaceGeneration: '3', surfaceConfiguredGeneration: '3',
             }};
         const pool = Object.create(module.exports.NativeElementPool.prototype);
         Object.assign(pool, {

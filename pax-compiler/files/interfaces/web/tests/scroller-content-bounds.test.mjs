@@ -29,7 +29,9 @@ test('compositing diagnostics report work deltas without attributing old rebuild
     assert.equal(events.length, 2);
     const second = events[1].data;
     assert.deepEqual(JSON.parse(JSON.stringify(second.delta)), {
-        passes:1,rebuilds:0,structural_reconciliations:0,records_retained:0,orders_updated:0,records_updated:4,masks_evaluated:2,mask_candidates:6,
+        passes:1,rebuilds:0,structural_reconciliations:0,records_retained:0,
+        topology_nodes_visited:0,topology_nodes_reused:0,
+        orders_updated:0,records_updated:4,masks_evaluated:2,mask_candidates:6,
     });
     assert.equal(second.rebuild_reason, null);
     assert.equal(second.rebuild_origins.length, 0);
