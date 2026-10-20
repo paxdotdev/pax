@@ -140,6 +140,19 @@ position. Hover, touch, and manual-scroll pauses still apply independently.
 Manual horizontal scrolling stays available while the page moves, and resuming
 the march does not catch up for time spent paused.
 
+The favicon and social-preview logo use the current signboard artwork from
+`pax-std/src/drawing/pax_logo/pax-logo.svg`, in the site's paper-on-ink palette.
+Their checked-in exports live in `assets/branding/`; the ICO contains 16, 32,
+48, and 64px sizes. Regenerate both exports with ImageMagick after changing the
+canonical SVG or site palette:
+
+```sh
+bash pax-website/tools/render-brand-icons.sh
+```
+
+Ordinary website builds need no image conversion tools. The favicon is emitted
+as `/pax-favicon.ico`, independently of the legacy macOS app icon.
+
 ## Website and blog boundary
 
 The website declares `/blog`, `/ai`, `/ai.md`, and `/paxflix` as `server_owned_prefixes`.
