@@ -128,6 +128,9 @@ pub struct GpuContext {
     texture_pipelines: RefCell<HashMap<VectorPipelineKey, TexturePipelineResources>>,
     image_textures: RefCell<ImageTextureCache>,
     stencil_pipelines: RefCell<HashMap<VectorPipelineKey, StencilPipelineResources>>,
+    alpha_mask_resources: Rc<alpha_mask::AlphaMaskResources>,
+    mesh_pipeline_resources: Rc<mesh_paint::MeshPipelineResources>,
+    empty_mesh_page: Rc<mesh_paint::PaintPage>,
 }
 
 pub type SharedGpuContext = Rc<GpuContext>;
@@ -185,6 +188,18 @@ impl GpuContext {
         let alpha_mask_layout = alpha_mask::sampling_layout(&device);
         let mesh_paint_layout = mesh_paint::sampling_layout(&device);
         let transform_layout = transform_pages::layout(&device);
+        let alpha_mask_resources = Rc::new(alpha_mask::AlphaMaskResources::new(
+            &device,
+            &queue,
+            alpha_mask_layout.clone(),
+            &mesh_paint_layout,
+        ));
+        let mesh_pipeline_resources = Rc::new(mesh_paint::MeshPipelineResources::new(&device));
+        let empty_mesh_page = Rc::new(mesh_paint::PaintPage::new(
+            &device,
+            &mesh_paint_layout,
+            [1, 1, 1],
+        ));
 
         Ok(Rc::new(Self {
             instance,
@@ -200,6 +215,9 @@ impl GpuContext {
             texture_pipelines: RefCell::new(HashMap::new()),
             image_textures: RefCell::new(ImageTextureCache::default()),
             stencil_pipelines: RefCell::new(HashMap::new()),
+            alpha_mask_resources,
+            mesh_pipeline_resources,
+            empty_mesh_page,
         }))
     }
 
@@ -463,7 +481,7 @@ pub struct RenderBackend<'w> {
 
     //buffers
     mesh_rasterizer: mesh_paint::MeshRasterizer,
-    empty_mesh_page: mesh_paint::PaintPage,
+    empty_mesh_page: Rc<mesh_paint::PaintPage>,
     pub(crate) alpha_mesh_pages: HashMap<u32, Rc<mesh_paint::PaintPage>>,
     globals_buffer: wgpu::Buffer,
     vertex_buffer: wgpu::Buffer,
@@ -1077,8 +1095,6 @@ impl<'w> RenderBackend<'w> {
             view_formats: vec![],
             desired_maximum_frame_latency: 2, //TODO 1 for lower latency?
         };
-        surface.configure(&device, &surface_config);
-
         fn create_buffer<T: Default + Clone + Pod>(
             device: &Device,
             name: &str,
@@ -1218,15 +1234,11 @@ impl<'w> RenderBackend<'w> {
         let initial_width = initial_width;
         let initial_height = initial_height;
         let initial_dpr = config.initial_dpr;
-        let alpha_masks = alpha_mask::AlphaMasks::new(
-            &device,
-            &queue,
-            context.alpha_mask_layout.clone(),
-            &context.mesh_paint_layout,
-        );
-        let mesh_rasterizer = mesh_paint::MeshRasterizer::new(&device);
-        let empty_mesh_page =
-            mesh_paint::PaintPage::new(&device, &context.mesh_paint_layout, [1, 1, 1]);
+        let alpha_masks =
+            alpha_mask::AlphaMasks::with_resources(Rc::clone(&context.alpha_mask_resources));
+        let mesh_rasterizer =
+            mesh_paint::MeshRasterizer::with_resources(Rc::clone(&context.mesh_pipeline_resources));
+        let empty_mesh_page = Rc::clone(&context.empty_mesh_page);
         let mut backend = Self {
             alpha_mesh_pages: HashMap::new(),
             mesh_rasterizer,
@@ -1397,6 +1409,10 @@ impl<'w> RenderBackend<'w> {
     pub fn resize(&mut self, width: u32, height: u32) {
         self.resize_surface(width, height);
         self.set_viewport(width as f32, height as f32, self.globals.dpr);
+    }
+
+    pub(crate) fn surface_size(&self) -> (u32, u32) {
+        (self.surface_config.width, self.surface_config.height)
     }
 
     /// Resize the backing surface, clamping to device limits.

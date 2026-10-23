@@ -377,6 +377,11 @@ hierarchical store of node-relevant data that can be bound to symbols in express
 Last-known scroll state for a native or browser-owned scroller surface.
 
 #### Properties
+##### `content_origin`
+Type: [`f64`; 2]
+
+Origin of the finite native pane in stable content coordinates.
+
 ##### `viewport_width`
 Type: `f64`
 

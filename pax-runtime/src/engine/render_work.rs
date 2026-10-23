@@ -47,6 +47,7 @@ impl PaxEngine {
             return report;
         }
         let _graph = self.runtime_context.property_graph.enter();
+        let diagnostics = self.runtime_context.occlusion_state.borrow().diagnostics;
         // Geometry may need the ordinary frame's setup, but reactive/occlusion
         // settlement is never smuggled into a continuation. After setup, even a
         // geometry-only change requires the next normal settlement opportunity.
@@ -59,7 +60,29 @@ impl PaxEngine {
         }
         if !state.setup_complete {
             let setup = now_ms();
-            let (layers, _, flush_layers) = self.reconcile_render_work(rcs, &mut |_| {});
+            let dirty_before = diagnostics.then(|| self.runtime_context.dirty_canvas_layers());
+            let (layers, _, flush_layers) = self.reconcile_render_work(rcs, &mut |_| {}, false);
+            if let Some(dirty_before) = dirty_before {
+                let mut counts = HashMap::<usize, usize>::new();
+                for id in self.runtime_context.dirty_canvas_node_ids() {
+                    if let Some(node) = self.runtime_context.get_expanded_node_by_eid(id) {
+                        *counts
+                            .entry(node.occlusion.get().render_layer_id)
+                            .or_default() += 1;
+                    }
+                }
+                report.layer_reconciliation = layers
+                    .iter()
+                    .take(32)
+                    .map(|layer| {
+                        (
+                            *layer,
+                            dirty_before.contains(layer),
+                            counts.get(layer).copied().unwrap_or(0),
+                        )
+                    })
+                    .collect();
+            }
             state.pending_lighting_flushes.extend(
                 flush_layers
                     .into_iter()
@@ -145,6 +168,11 @@ impl PaxEngine {
                     };
                     if let Ok(plan) = plan {
                         let draws_content = plan.is_some();
+                        let traced_nodes = diagnostics.then(|| {
+                            plan.as_ref()
+                                .map(|plan| plan.dirty_nodes.iter().copied().collect::<Vec<_>>())
+                                .unwrap_or_default()
+                        });
                         if let Some(plan) = plan {
                             self.draw_filtered_render_plan(
                                 rcs,
@@ -163,6 +191,19 @@ impl PaxEngine {
                         rcs.flush(layer, Rc::clone(&self.runtime_context.dirty_canvases));
                         state.pending_lighting_flushes.remove(&layer);
                         state.attempted_layers.insert(layer);
+                        if let Some(nodes) = traced_nodes {
+                            if report.layer_draws.len() < 32 {
+                                report.layer_draws.push((
+                                    layer,
+                                    rcs.ordinary_layer_priority(layer),
+                                    nodes.len(),
+                                    nodes
+                                        .iter()
+                                        .filter(|id| self.runtime_context.is_canvas_node_dirty(id))
+                                        .count(),
+                                ));
+                            }
+                        }
                         report.ordinary_layers += 1;
                         if draws_content {
                             report.ordinary_drawn_layers += 1;

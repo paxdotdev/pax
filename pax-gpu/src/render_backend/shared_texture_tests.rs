@@ -89,6 +89,66 @@ fn pixel(frame: &CapturedFrame, x: usize) -> &[u8] {
 
 #[test]
 #[ignore = "requires a macOS Metal device"]
+fn shared_context_resources_survive_surface_resize_and_remain_device_local() {
+    let layer_a = MetalLayer::new();
+    let layer_b = MetalLayer::new();
+    let layer_c = MetalLayer::new();
+    let (mut a, context) = backend(&layer_a, None);
+    let (b, _) = backend(&layer_b, Some(context.clone()));
+    let (c, separate) = backend(&layer_c, None);
+    assert!(Rc::ptr_eq(&a.empty_mesh_page, &b.empty_mesh_page));
+    assert!(!Rc::ptr_eq(&a.empty_mesh_page, &c.empty_mesh_page));
+    assert_eq!(
+        a.alpha_masks.bind_group(None),
+        b.alpha_masks.bind_group(None)
+    );
+    // Native handle IDs can coincide across independent wgpu instances.
+    assert!(!Rc::ptr_eq(
+        &context.alpha_mask_resources,
+        &separate.alpha_mask_resources
+    ));
+    assert!(!Rc::ptr_eq(
+        &context.mesh_pipeline_resources,
+        &separate.mesh_pipeline_resources
+    ));
+    let neutral = a.alpha_masks.bind_group(None).clone();
+    let empty = Rc::clone(&a.empty_mesh_page);
+    // Surface-format/MSAA-specific pipelines still use distinct context entries.
+    let rgba = context.vector_pipeline(TextureFormat::Rgba8Unorm, 1);
+    let bgra = context.vector_pipeline(TextureFormat::Bgra8Unorm, 1);
+    assert!(!Rc::ptr_eq(&rgba, &bgra));
+    assert!(Rc::ptr_eq(
+        &rgba,
+        &context.vector_pipeline(TextureFormat::Rgba8Unorm, 1)
+    ));
+    assert_eq!(a.surface_size(), (32, 32));
+    a.set_viewport(16.0, 20.0, [2.0, 1.6]);
+    assert_eq!(
+        a.surface_size(),
+        (32, 32),
+        "logical sizing is not backing sizing"
+    );
+    let attachment = a
+        .multisampled_target
+        .as_ref()
+        .map(|target| target._texture.clone());
+    a.resize_surface(64, 48);
+    assert_eq!(a.surface_size(), (64, 48));
+    assert_eq!(b.surface_size(), (32, 32));
+    if let Some(attachment) = attachment {
+        assert_ne!(attachment, a.multisampled_target.as_ref().unwrap()._texture);
+    }
+    assert_eq!(&neutral, a.alpha_masks.bind_group(None));
+    assert!(Rc::ptr_eq(&empty, &a.empty_mesh_page));
+    let mut renderer = WgpuRenderer::new(a);
+    assert_eq!(renderer.surface_size(), (64, 48));
+    renderer.set_viewport(128.0, 96.0, [0.5, 0.5]);
+    assert_eq!(renderer.size(), (128.0, 96.0));
+    assert_eq!(renderer.surface_size(), (64, 48));
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
 fn shared_image_textures_preserve_tile_bindings_versions_and_lifetime() {
     let layer_a = MetalLayer::new();
     let layer_b = MetalLayer::new();

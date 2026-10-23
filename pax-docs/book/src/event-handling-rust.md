@@ -497,8 +497,15 @@ template parents still receive the event. The current `Event` API has no
 `stop_propagation` method.
 
 Whether the request can suppress an action depends on the chassis and event.
-On web, it also depends on the browser listener's cancellation rules; the
-current touch-start, touch-end, and touch-cancel listeners are passive. Do not
+On web, it also depends on the browser listener's cancellation rules. Wheel
+delivery is passive by default: handlers still run, but cannot cancel native
+scrolling or wheel-driven zoom. Applications that need wheel cancellation must
+set `wheel_events = "cancellable"` under `[package.metadata.pax.web]`, or pass
+`wheelEvents: "cancellable"` to `Pax.init_web` in an embedded host. This setting
+applies to the whole mount and makes the browser wait for synchronous handlers;
+only browser events marked cancelable can be prevented. See
+[wheel input policy](scrolling-viewports.md#wheel-input-policy).
+The touch-start, touch-end, and touch-cancel listeners are also passive. Do not
 rely on default prevention as a portable way to take ownership of a gesture
 or prevent a native control from changing its value.
 

@@ -2776,7 +2776,6 @@ impl ExpandedNode {
 
     pub fn recurse_update(self: &Rc<Self>, context: &Rc<RuntimeContext>) {
         self.recurse_update_with_observer(context, |_| {});
-
     }
 
     pub(crate) fn recurse_update_with_observer(

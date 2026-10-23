@@ -59,13 +59,14 @@ import { NativeMaskUpdatePatch } from "./messages/native-mask-update-patch";
 
 import html2canvas from 'html2canvas';
 import {
+    canvasPlanSignature,
     isIOSWebKitBrowser,
 } from "./surface-host-policy";
 import type { LayerCanvasPlan } from "./surface-host-policy";
 import { CanvasPool } from "./canvas-pool";
 import { SurfaceCoordinator } from "./surface-coordinator";
 import { SurfaceTrace } from "./surface-trace";
-import { materializeSurfaceSchedule, retainSubmittedProbeTiles } from "./surface-scheduler";
+import { materializeSurfaceSchedule } from "./surface-scheduler";
 import type { SurfaceCandidate } from "./surface-scheduler";
 import { serializeRouteLocation } from "../utils/route-location";
 
@@ -79,8 +80,6 @@ export class NativeElementPool {
     private canvases: Map<string, HTMLCanvasElement>;
     private surfaceCoordinator?: SurfaceCoordinator;
     private surfaceTrace?: SurfaceTrace;
-    private retentionProbeIds: string[] = [];
-    private retentionProbeSignature = '';
     private imageLoader?: ImageLoader;
     private admittedPlans = new Map<number, LayerCanvasPlan>();
     private lastAdmissionSignature?: string;
@@ -98,7 +97,9 @@ export class NativeElementPool {
         viewport: number[];
         viewportKey: string;
     };
-    private surfaceRefreshPending = false;
+    // Requests plan reconciliation, not blanket renderer invalidation. The
+    // coordinator compares installed assignments to notify only changed layers.
+    private surfacePlanPending = false;
     private surfaceCapacityPending = false;
     private lastLayerCanvasPlanGeneration?: number;
     private lastLayerCanvasPlanDevicePixelRatio?: number;
@@ -179,8 +180,6 @@ export class NativeElementPool {
         this.mount = mount instanceof HTMLElement ? mount : undefined;
         if (this.mount && new URLSearchParams(window.location.search).has('pax_surface_trace')) {
             this.surfaceTrace = new SurfaceTrace(this.mount);
-            this.retentionProbeIds = (new URLSearchParams(window.location.search).get('pax_retain_tiles') ?? '')
-                .split(',').filter(id => /^layer-\d+-cell-\d+-\d+$/.test(id)).slice(0, 4);
         }
         this.imageLoader = new ImageLoader({
             loaded: path => chassis.image_loaded(path),
@@ -265,8 +264,6 @@ export class NativeElementPool {
         this.surfaceCoordinator = undefined;
         this.surfaceTrace?.dispose();
         this.surfaceTrace = undefined;
-        this.retentionProbeIds = [];
-        this.retentionProbeSignature = '';
         this.admittedPlans.clear();
         this.lastAdmissionSignature = undefined;
         this.layerCanvasPlanCache.clear();
@@ -279,7 +276,7 @@ export class NativeElementPool {
         this.presentationRecords.clear();
         this.pendingScrollerUpdates.clear();
         this.invalidateSurfaceHostObservation();
-        this.surfaceRefreshPending = false;
+        this.surfacePlanPending = false;
         this.surfaceCapacityPending = false;
         this.lastLayerCanvasPlanGeneration = undefined;
         this.lastLayerCanvasPlanDevicePixelRatio = undefined;
@@ -347,7 +344,7 @@ export class NativeElementPool {
     ) {
         if (patch.parentFrame !== undefined) {
             if (this.layers.addElement(leaf, patch.parentFrame ?? undefined, 0)) {
-                this.surfaceRefreshPending = true;
+                this.surfacePlanPending = true;
             }
         }
         if (patch.zIndex != null) {
@@ -1671,8 +1668,10 @@ export class NativeElementPool {
             observations.push({id,parent:parentId ?? null,bounds:edges(record.presentedBounds),
                 visible:edges(record.presentedClipBounds),viewport:[width,height],
                 content:[state.contentWidth ?? width,state.contentHeight ?? height],
+                contentOrigin:[state.contentOriginX ?? 0,state.contentOriginY ?? 0],
                 offset:[state.lastMeasuredPresentationScrollX,state.lastMeasuredPresentationScrollY],
-                observed:[state.lastMeasuredScrollX,state.lastMeasuredScrollY],
+                // Input intent is motion in content space, not a finite-pane recenter.
+                observed:[state.lastMeasuredPresentationScrollX,state.lastMeasuredPresentationScrollY],
                 basis:state.transform?.slice(0,4) ?? [rectWidth(record.presentedBounds)/Math.max(1,width),0,0,rectHeight(record.presentedBounds)/Math.max(1,height)],
                 intermediateClip:clip ? edges(clip) : null, active:true,
                 geometry:[parentId,width,height,state.contentWidth,state.contentHeight].join(':')});
@@ -1877,7 +1876,7 @@ export class NativeElementPool {
         hosts.contentHost.dataset.renderState = "parked";
         hosts.canvasHost.style.visibility = "hidden";
         hosts.contentHost.style.visibility = "hidden";
-        this.surfaceRefreshPending = true;
+        this.surfacePlanPending = true;
     }
 
     private unparkScrollerHosts(hosts: ScrollerDomHosts) {
@@ -1889,7 +1888,7 @@ export class NativeElementPool {
         hosts.contentHost.dataset.renderState = "active";
         hosts.canvasHost.style.visibility = "";
         hosts.contentHost.style.visibility = "";
-        this.surfaceRefreshPending = true;
+        this.surfacePlanPending = true;
     }
 
     private promoteScrollerHosts(hosts: ScrollerDomHosts) {
@@ -1898,7 +1897,7 @@ export class NativeElementPool {
         }
         hosts.warmed = true;
         hosts.canvasHost.dataset.warmState = "warm";
-        this.surfaceRefreshPending = true;
+        this.surfacePlanPending = true;
         return true;
     }
 
@@ -1909,7 +1908,7 @@ export class NativeElementPool {
         }
         hosts.warmed = false;
         hosts.canvasHost.dataset.warmState = "cold";
-        this.surfaceRefreshPending = true;
+        this.surfacePlanPending = true;
         return true;
     }
 
@@ -1935,7 +1934,7 @@ export class NativeElementPool {
         try { hosts = this.buildWarmScrollerCandidates(now, continuation); }
         catch (error) {
             // Incomplete measurements must not retire compatible survivors.
-            this.surfaceRefreshPending = true;
+            this.surfacePlanPending = true;
             this.invalidateSurfaceHostObservation();
             this.surfaceTrace?.record('preparation-rejected', {reason:String(error)});
             return false;
@@ -1998,21 +1997,8 @@ export class NativeElementPool {
                 retained: !!c.rank.retained, ready: !!c.rank.ready,
                 pixels: (c.surface.backingWidth ?? 0) * (c.surface.backingHeight ?? 0)}))});
         const decision = materializeSurfaceSchedule(candidates, shared);
-        if (this.retentionProbeIds.length) {
-            const retained = shared.borrowingLimit && !decision.overloaded
-                ? retainSubmittedProbeTiles(this.retentionProbeIds, this.admittedPlans,
-                    candidates, decision, this.canvases, shared.borrowingLimit) : [];
-            const signature = retained.join(',');
-            if (signature !== this.retentionProbeSignature) {
-                this.surfaceTrace?.record('retention-probe', {requested: this.retentionProbeIds, retained,
-                    addedPixels: decision.backingPixels - shared.backingPixels,
-                    limit: shared.borrowingLimit});
-                this.retentionProbeSignature = signature;
-            }
-        }
         if (this.surfaceTrace) this.recordSurfaceFramePhase("surface.admission",
             performance.now() - admissionStart);
-        const retentionProbePixels = decision.backingPixels - shared.backingPixels;
         this.canvasPool?.setBackingLimit(shared.backingLimit);
         if (this.surfaceTrace) {
             this.surfaceTrace.observeDemand(candidates, decision.denied);
@@ -2020,9 +2006,9 @@ export class NativeElementPool {
                 pendingCount, pendingLayers: [...pendingLayers], resources,
                 borrowedForwardPixels: shared.borrowedForwardPixels,
                 borrowedReversePixels: shared.borrowedReversePixels, borrowingLimit: shared.borrowingLimit,
-                borrowedOtherPixels: shared.borrowedOtherPixels + retentionProbePixels,
+                borrowedOtherPixels: shared.borrowedOtherPixels,
                 backingPixels: decision.backingPixels,
-                optionalPixels: shared.optionalPixels + retentionProbePixels});
+                optionalPixels: shared.optionalPixels});
         }
         this.admittedPlans = decision.plans;
         const selectedHosts = new Set<number>();
@@ -2048,23 +2034,24 @@ export class NativeElementPool {
                 this.unparkScrollerHosts(host.hosts);
             } else this.demoteScrollerHosts(host.hosts);
         }
-        const signature = [...decision.plans.values()].flatMap(plan =>
-            plan.surfaces.map(s => `${s.id}:${s.replayPriority}`)).join("|");
+        // Timed density settlement can change geometry without a new plan
+        // generation or admission rank. Compare the actual installation contract.
+        const signature = [...decision.plans.values()].map(canvasPlanSignature).join("|");
         if (signature !== this.lastAdmissionSignature) {
             this.lastAdmissionSignature = signature;
-            this.surfaceRefreshPending = true;
+            this.surfacePlanPending = true;
         }
         if (this.mount && this.surfaceTrace) {
             this.mount.dataset.surfaceDemand = String(candidates.length);
             this.mount.dataset.surfaceAdmitted = String(decision.admitted.length);
             this.mount.dataset.surfaceBudgetState = decision.overloaded ? "visible-demand-exceeds-budget" : "within-budget";
             this.mount.dataset.surfaceBackingBytesEstimate = String(decision.backingPixels * 4);
-            this.mount.dataset.surfaceOptionalPixels = String(shared.optionalPixels + retentionProbePixels);
+            this.mount.dataset.surfaceOptionalPixels = String(shared.optionalPixels);
             this.mount.dataset.surfaceOptionalLimit = String(shared.optionalLimit);
             this.mount.dataset.surfaceBackingLimit = String(shared.backingLimit);
             this.mount.dataset.surfaceBorrowedForwardPixels = String(shared.borrowedForwardPixels);
             this.mount.dataset.surfaceBorrowedReversePixels = String(shared.borrowedReversePixels);
-            this.mount.dataset.surfaceBorrowedOtherPixels = String(shared.borrowedOtherPixels + retentionProbePixels);
+            this.mount.dataset.surfaceBorrowedOtherPixels = String(shared.borrowedOtherPixels);
         }
         return true;
     }
@@ -2116,17 +2103,8 @@ export class NativeElementPool {
         this.lastCompositingWork = {...report};
     }
 
-    private lastPresentationBlocker: string | null | undefined;
     recordSurfaceCompletionRequest(outcome: 'disposed' | 'coalesced' | 'used' | 'queued') {
         this.surfaceTrace?.recordCompletionRequest(outcome);
-    }
-
-    recordSurfacePresentation(report: {initializations?: number; submitted: number; deferred: number; cache_misses: number; blocked: boolean; blocker: string | null; elapsed_ms: number}, source = 'completion') {
-        this.surfaceTrace?.recordPresentationOpportunity(report.blocked);
-        if (report.initializations || report.submitted || report.deferred || report.cache_misses || report.blocker !== this.lastPresentationBlocker) {
-            this.surfaceTrace?.record('settled-presentation', {...report, source});
-            this.lastPresentationBlocker = report.blocker;
-        }
     }
 
     syncRenderSurfaceLayouts(continuation = false) {
@@ -2151,10 +2129,10 @@ export class NativeElementPool {
         const configurationStart = this.surfaceTrace ? performance.now() : 0;
         let backingMismatchLayers = this.surfaceCoordinator.collectBackingMismatchLayers();
         if (backingMismatchLayers.size > 0) {
-            this.surfaceRefreshPending = true;
+            this.surfacePlanPending = true;
         }
         if (
-            !this.surfaceRefreshPending
+            !this.surfacePlanPending
             && !this.surfaceCapacityPending
             && !planInputsChanged
         ) {
@@ -2170,8 +2148,8 @@ export class NativeElementPool {
             const plan = this.candidatePlan(layerId);
             if (!plan) return undefined;
             return this.admittedPlans.get(layerId) ?? {layerId, active: false, surfaces: []};
-        }, this.surfaceRefreshPending);
-        this.surfaceRefreshPending = false;
+        });
+        this.surfacePlanPending = false;
         this.surfaceCapacityPending = false;
         if (this.surfaceTrace) this.recordSurfaceFramePhase("surface.configuration",
             performance.now() - configurationStart);
@@ -2720,6 +2698,8 @@ export class NativeElementPool {
         if (patch.scrollY != null) {
             queued.scrollY = patch.scrollY;
         }
+        if (patch.contentOriginX != null) queued.contentOriginX = patch.contentOriginX;
+        if (patch.contentOriginY != null) queued.contentOriginY = patch.contentOriginY;
         if (patch.presentationScrollX != null) {
             queued.presentationScrollX = patch.presentationScrollX;
         }
@@ -2762,8 +2742,8 @@ export class NativeElementPool {
         }
         let scrollX = leaf.scrollLeft;
         let scrollY = leaf.scrollTop;
-        let presentationScrollX = scrollX;
-        let presentationScrollY = scrollY;
+        let presentationScrollX = scrollX + (state.contentOriginX ?? 0);
+        let presentationScrollY = scrollY + (state.contentOriginY ?? 0);
         return {
             scrollX,
             scrollY,
@@ -2858,7 +2838,7 @@ export class NativeElementPool {
                 vectorIslandEnabled
                 && this.layers.registerScrollerIslandHosts(patch.id, canvasHost, contentHost)
             ) {
-                this.surfaceRefreshPending = true;
+                this.surfacePlanPending = true;
             }
             this.nodesLookup.set(patch.id!, scrollerDiv);
             this.scrollerHosts.set(patch.id, {
@@ -2935,17 +2915,38 @@ export class NativeElementPool {
             scrollerInner.style.width = patch.sizeInnerPaneX + "px";
             canvasHost.style.width = patch.sizeInnerPaneX + "px";
             contentHost.style.width = patch.sizeInnerPaneX + "px";
-            this.surfaceRefreshPending = true;
+            this.surfacePlanPending = true;
         }
         if (patch.sizeInnerPaneY != null) {
             scrollerInner.style.height = patch.sizeInnerPaneY + "px";
             canvasHost.style.height = patch.sizeInnerPaneY + "px";
             contentHost.style.height = patch.sizeInnerPaneY + "px";
-            this.surfaceRefreshPending = true;
+            this.surfacePlanPending = true;
         }
 
         let state = this.scrollerMeasurementStates.get(patch.id!);
         const shouldClip = patch.clipContent ?? state?.clipContent ?? true;
+        if (state && (patch.contentOriginX != null || patch.contentOriginY != null)) {
+            const previousX = state.contentOriginX ?? 0;
+            const previousY = state.contentOriginY ?? 0;
+            state.contentOriginX = patch.contentOriginX ?? state.contentOriginX ?? 0;
+            state.contentOriginY = patch.contentOriginY ?? state.contentOriginY ?? 0;
+            // This and the scroll command below execute in one synchronous patch.
+            // Keep canvas tile geometry/leases untouched and translate native content
+            // in the same local coordinate system, before its inverse world transform.
+            canvasHost.dataset.contentOriginX = String(state.contentOriginX);
+            canvasHost.dataset.contentOriginY = String(state.contentOriginY);
+            if (previousX !== state.contentOriginX || previousY !== state.contentOriginY) {
+                // `translate: 0px` still creates a stacking context. Leave ordinary
+                // hosts unchanged, and remove this translation when returning to zero.
+                const translation = state.contentOriginX === 0 && state.contentOriginY === 0
+                    ? '' : `${-state.contentOriginX}px ${-state.contentOriginY}px`;
+                canvasHost.style.translate = translation;
+                contentHost.style.translate = translation;
+                this.surfacePlanPending = true;
+                this.activateScrollerMeasurement(patch.id!);
+            }
+        }
         // Only the authored pane defines scrollable overflow. The native overlay
         // below it cancels the leaf's world transform; under a downscale its box
         // becomes larger than the pane and must not extend the browser's range.
@@ -2985,15 +2986,15 @@ export class NativeElementPool {
         if (hosts?.vectorIslandEnabled && patch.contentLayerId != null) {
             let claimed = this.layers.claimLayerForScrollerIsland(patch.contentLayerId, patch.id!);
             if (claimed) {
-                this.surfaceRefreshPending = true;
+                this.surfacePlanPending = true;
             }
         }
         let delegateToPageScroll = state != null && this.shouldDelegateToPageScroll(leaf, patch, state);
         let approvedScrollX = patch.presentationScrollX
-            ?? patch.scrollX
+            ?? (patch.scrollX != null ? patch.scrollX + (state?.contentOriginX ?? 0) : undefined)
             ?? (state?.lastMeasuredPresentationScrollX ?? leaf.scrollLeft);
         let approvedScrollY = patch.presentationScrollY
-            ?? patch.scrollY
+            ?? (patch.scrollY != null ? patch.scrollY + (state?.contentOriginY ?? 0) : undefined)
             ?? (state?.lastMeasuredPresentationScrollY ?? leaf.scrollTop);
         if (state != null) {
             this.setPageScrollDelegation(
@@ -3117,7 +3118,7 @@ export class NativeElementPool {
             hosts?.canvasHost ?? this.getScrollerCanvasHost(oldNode) ?? undefined,
             hosts?.contentHost ?? this.getScrollerContentHost(oldNode) ?? undefined,
         )) {
-            this.surfaceRefreshPending = true;
+            this.surfacePlanPending = true;
         }
         this.layers.unregisterParentFrameHost(id, hosts?.contentHost ?? this.getScrollerContentHost(oldNode) ?? undefined);
         hosts?.canvasHost.parentElement?.removeChild(hosts.canvasHost);
@@ -4672,6 +4673,8 @@ type ScrollerMeasurement = {
 };
 
 type ScrollerMeasurementState = {
+    contentOriginX?: number;
+    contentOriginY?: number;
     active: boolean;
     stableFrames: number;
     isRootScroller: boolean;
@@ -4700,6 +4703,8 @@ type ScrollerMeasurementState = {
 };
 
 type PendingScrollerUpdate = {
+    contentOriginX?: number;
+    contentOriginY?: number;
     id: number;
     sizeX?: number;
     sizeY?: number;

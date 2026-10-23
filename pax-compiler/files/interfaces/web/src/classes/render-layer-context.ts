@@ -854,10 +854,7 @@ export function nativeFrameBoxInverse(styles: ContainerStyle): number[] | undefi
 }
 
 function nativeFrameBoxEnabled(): boolean {
-    // Keep this A/B opt-in until physical nested-scroll and WebKit validation.
-    return typeof window !== 'undefined'
-        && new URLSearchParams(window.location.search).get('pax_frame_clip') === 'box'
-        && typeof CSS !== 'undefined' && CSS.supports('overflow', 'clip');
+    return typeof CSS !== 'undefined' && CSS.supports('overflow', 'clip');
 }
 
 export function setLeafLocalOpacity(element: HTMLElement, opacity: number) {

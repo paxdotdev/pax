@@ -1169,6 +1169,14 @@ Type: `f64`
 Create/update patch for a native/browser-owned scroller.
 
 #### Properties
+##### `content_origin_x`
+Type: `Option`<`f64`>
+
+Internal web-host pane origin. Apply together with authored scroll commands.
+
+##### `content_origin_y`
+Type: `Option`<`f64`>
+
 ##### `id`
 Type: `u32`
 

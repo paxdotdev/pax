@@ -1543,6 +1543,12 @@ impl<'w> WgpuRenderer<'w> {
             .resize_surface(width.round() as u32, height.round() as u32);
     }
 
+    /// Current physical backing dimensions after device-limit clamping.
+    /// Unlike [`Self::size`], this does not change with the logical viewport or DPR uniforms.
+    pub fn surface_size(&self) -> (u32, u32) {
+        self.render_backend.surface_size()
+    }
+
     pub fn set_viewport(&mut self, width: f32, height: f32, dpr: [f32; 2]) {
         self.scene_dirty = true;
         self.render_backend.set_viewport(width, height, dpr);

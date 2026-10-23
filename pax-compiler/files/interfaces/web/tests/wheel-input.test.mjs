@@ -7,7 +7,18 @@ import {transformSync} from 'esbuild';
 function harness(diagnosticMode, prevent = true, trace = true) {
     const listeners = new Map(), samples = [], interrupts = [];
     let now = 100, clockReads = 0;
-    class Element { closest() { return null; } }
+    class Element {
+        closest() { return null; }
+        contains(target) { return target === this; }
+        getBoundingClientRect() { return {left: 0, top: 0}; }
+        addEventListener(name, fn, options) { listeners.set(name, {fn, options}); }
+        removeEventListener(name, fn, options) {
+            assert.equal(listeners.get(name).fn, fn);
+            const capture = o => typeof o === 'boolean' ? o : !!o?.capture;
+            assert.equal(capture(listeners.get(name).options), capture(options));
+            listeners.delete(name);
+        }
+    }
     const body = new Element();
     const module = {exports: {}};
     const source = readFileSync(new URL('../src/events/listeners.ts', import.meta.url), 'utf8');
@@ -27,7 +38,7 @@ function harness(diagnosticMode, prevent = true, trace = true) {
     });
     const dispose = module.exports.setupEventListeners({interrupt: value => {
         interrupts.push(value); now += 2; return {prevent_default: prevent};
-    }}, diagnosticMode == null ? undefined : {passive: diagnosticMode, record: trace ? s => samples.push(s) : undefined});
+    }}, body, diagnosticMode == null ? undefined : {passive: diagnosticMode, record: trace ? s => samples.push(s) : undefined});
     const event = {target: body, clientX: 10, clientY: 20, deltaX: 0, deltaY: 40,
         timeStamp: 70, isTrusted: true, cancelable: true, defaultPrevented: false,
         preventDefault() {if (this.cancelable) this.defaultPrevented = true;},
@@ -36,13 +47,13 @@ function harness(diagnosticMode, prevent = true, trace = true) {
         clockReads: () => clockReads};
 }
 
-test('normal wheel path retains synchronous cancellation without timing overhead', () => {
+test('default wheel path is passive with no diagnostic timing overhead', () => {
     const h = harness();
     const listener = h.listeners.get('wheel');
-    assert.equal(listener.options.passive, false);
+    assert.equal(listener.options.passive, true);
     assert.equal(listener.options.capture, true);
     listener.fn(h.event);
-    assert.equal(h.event.defaultPrevented, true);
+    assert.equal(h.event.defaultPrevented, false);
     assert.equal(h.interrupts[0].Wheel.delta_y, 40);
     assert.equal(h.clockReads(), 0);
     h.dispose();
@@ -62,7 +73,16 @@ test('blocking diagnostics separate delivery delay from synchronous dispatch tim
     h.dispose();
 });
 
-test('passive A/B still dispatches handlers but explicitly cannot cancel browser scrolling', () => {
+test('explicit cancellable wheel mode works without diagnostic collection', () => {
+    const h = harness(false, true, false);
+    assert.equal(h.listeners.get('wheel').options.passive, false);
+    h.listeners.get('wheel').fn(h.event);
+    assert.equal(h.event.defaultPrevented, true);
+    assert.equal(h.clockReads(), 0);
+    h.dispose();
+});
+
+test('passive delivery still dispatches handlers but explicitly cannot cancel browser scrolling', () => {
     const h = harness(true);
     const listener = h.listeners.get('wheel');
     assert.equal(listener.options.passive, true);
@@ -83,19 +103,6 @@ test('wheel timestamps support epoch hosts and reject incompatible clocks', () =
     for (const timestamp of [0, -1, NaN, undefined, Infinity, 101, origin - 1]) {
         assert.equal(wheelDeliveryDelay(timestamp, 100, origin), null);
     }
-    h.dispose();
-});
-
-test('passive comparison is independent of diagnostic collection and explicitly opt-in', () => {
-    const h = harness();
-    const mode = query => h.api.wheelDiagnosticMode(new URLSearchParams(query));
-    assert.equal(mode(''), undefined);
-    assert.equal(mode('pax_wheel_passive=1'), true);
-    assert.equal(mode('pax_scroll_perf=1&pax_wheel_passive=1'), true);
-    assert.equal(mode('pax_surface_trace=1&pax_wheel_passive=1'), true);
-    assert.equal(mode('pax_surface_trace=1&pax_scroll_perf=1'), false);
-    assert.equal(mode('pax_surface_trace=1&pax_scroll_perf=1&pax_wheel_passive=0'), false);
-    assert.equal(mode('pax_surface_trace=1&pax_scroll_perf=1&pax_wheel_passive=1'), true);
     h.dispose();
 });
 

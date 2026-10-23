@@ -823,6 +823,9 @@ impl PaxGpuRenderer {
     }
 
     fn replay_drawings(&mut self, layer: usize) {
+        let _replay = super::preparation_diagnostics::Span::new(
+            super::preparation_diagnostics::Stage::Replay,
+        );
         let Some(drawings) = self.pending_drawings.remove(&layer) else {
             return;
         };
@@ -1035,6 +1038,7 @@ impl PaxGpuRenderer {
         };
         let dirty_indices = self.dirty_render_surface_scope(layer);
         let used_targeted_replay = targeted_indices.is_some();
+        let selected_target_count = targeted_indices.as_ref().map_or(0, Vec::len);
         #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
         let targeted_surface_count = targeted_indices.as_ref().map(Vec::len).unwrap_or(0);
         #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
@@ -1074,7 +1078,11 @@ impl PaxGpuRenderer {
                     #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
                     let encode_start = std::time::Instant::now();
                     let encode_timing = Span::new(Phase::Encode);
+                    let preparation_timing = super::preparation_diagnostics::Span::new(
+                        super::preparation_diagnostics::Stage::Encode,
+                    );
                     renderer.renderer.flush_deferred();
+                    drop(preparation_timing);
                     drop(encode_timing);
                     #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
                     {
@@ -1113,13 +1121,23 @@ impl PaxGpuRenderer {
                 }
             }
             let command_buffer_count = command_buffers.len();
+            super::preparation_diagnostics::surfaces(
+                selected_target_count,
+                indices.len().saturating_sub(selected_target_count),
+                resource_stats.texture_creates as usize,
+                resource_stats.texture_upload_bytes as usize,
+            );
             if command_buffer_count != 0 {
                 if let Some(index) = submitter_index {
                     if let Some(renderer) = target.renderers.get(index) {
                         #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
                         let submit_start = std::time::Instant::now();
                         let submit_timing = Span::new(Phase::Submit);
+                        let preparation_timing = super::preparation_diagnostics::Span::new(
+                            super::preparation_diagnostics::Stage::Submit,
+                        );
                         renderer.renderer.submit_command_buffers(command_buffers);
+                        drop(preparation_timing);
                         drop(submit_timing);
                         #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
                         {
@@ -1139,7 +1157,11 @@ impl PaxGpuRenderer {
                     #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
                     let cleanup_start = std::time::Instant::now();
                     let cleanup_timing = Span::new(Phase::Cleanup);
+                    let preparation_timing = super::preparation_diagnostics::Span::new(
+                        super::preparation_diagnostics::Stage::Cleanup,
+                    );
                     renderer.renderer.complete_submitted_work();
+                    drop(preparation_timing);
                     drop(cleanup_timing);
                     #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
                     {
@@ -1152,7 +1174,11 @@ impl PaxGpuRenderer {
                     #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
                     let present_start = std::time::Instant::now();
                     let present_timing = Span::new(Phase::Present);
+                    let preparation_timing = super::preparation_diagnostics::Span::new(
+                        super::preparation_diagnostics::Stage::Present,
+                    );
                     renderer.renderer.present_deferred_frame();
+                    drop(preparation_timing);
                     renderer.presentation_ready = true;
                     drop(present_timing);
                     #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]

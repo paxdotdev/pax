@@ -3,6 +3,7 @@
 use super::{data::GpuGlobals, write_staged_buffer};
 use bytemuck::{Pod, Zeroable};
 use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
 use wgpu::util::{DeviceExt, StagingBelt};
 
 pub(crate) const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::R8Unorm;
@@ -287,6 +288,13 @@ pub(crate) struct MaskResource {
 }
 
 pub(crate) struct AlphaMasks {
+    resources: Rc<AlphaMaskResources>,
+    masks: HashMap<u32, MaskResource>,
+}
+
+// All pipelines target single-sampled R8Unorm, independent of the output surface.
+// Mutable mask textures, signatures, and upload buffers remain in AlphaMasks.
+pub(crate) struct AlphaMaskResources {
     pub layout: wgpu::BindGroupLayout,
     pub white_bind_group: wgpu::BindGroup,
     white: wgpu::TextureView,
@@ -297,7 +305,6 @@ pub(crate) struct AlphaMasks {
     filter_pipeline: wgpu::RenderPipeline,
     compose_pipeline: wgpu::RenderPipeline,
     capture_pipeline: wgpu::RenderPipeline,
-    masks: HashMap<u32, MaskResource>,
 }
 
 pub(crate) fn sampling_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
@@ -452,7 +459,7 @@ fn pipeline(
     })
 }
 
-impl AlphaMasks {
+impl AlphaMaskResources {
     pub fn new(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
@@ -556,6 +563,29 @@ impl AlphaMasks {
             paint_pipeline,
             filter_pipeline,
             compose_pipeline,
+        }
+    }
+}
+
+impl AlphaMasks {
+    #[cfg(test)]
+    pub fn new(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        layout: wgpu::BindGroupLayout,
+        mesh_layout: &wgpu::BindGroupLayout,
+    ) -> Self {
+        Self::with_resources(Rc::new(AlphaMaskResources::new(
+            device,
+            queue,
+            layout,
+            mesh_layout,
+        )))
+    }
+
+    pub(crate) fn with_resources(resources: Rc<AlphaMaskResources>) -> Self {
+        Self {
+            resources,
             masks: HashMap::new(),
         }
     }
@@ -563,7 +593,7 @@ impl AlphaMasks {
     pub fn bind_group(&self, id: Option<u32>) -> &wgpu::BindGroup {
         id.and_then(|id| self.masks.get(&id))
             .map(|m| &m.bind_group)
-            .unwrap_or(&self.white_bind_group)
+            .unwrap_or(&self.resources.white_bind_group)
     }
 
     pub fn signature(&self, id: Option<u32>) -> u64 {
@@ -631,7 +661,13 @@ impl AlphaMasks {
             let temporary = texture(device, size).create_view(&Default::default());
             let result_texture = texture(device, size);
             let result = result_texture.create_view(&Default::default());
-            let bind_group = sample_group(device, &self.layout, &result, &self.sampler, domain);
+            let bind_group = sample_group(
+                device,
+                &self.resources.layout,
+                &result,
+                &self.resources.sampler,
+                domain,
+            );
             self.masks.insert(
                 id,
                 MaskResource {
@@ -643,21 +679,26 @@ impl AlphaMasks {
                     result,
                     _result_texture: result_texture,
                     bind_group,
-                    buffers: MaskBuffers::new(device, &self.paint_layout, &sizes),
+                    buffers: MaskBuffers::new(device, &self.resources.paint_layout, &sizes),
                 },
             );
         }
         let target = self.masks.get_mut(&id).unwrap();
         if target.domain != domain {
             target.domain = domain;
-            target.bind_group =
-                sample_group(device, &self.layout, &target.result, &self.sampler, domain);
+            target.bind_group = sample_group(
+                device,
+                &self.resources.layout,
+                &target.result,
+                &self.resources.sampler,
+                domain,
+            );
         }
-        self.masks
-            .get_mut(&id)
-            .unwrap()
-            .buffers
-            .resize(device, &self.paint_layout, &sizes);
+        self.masks.get_mut(&id).unwrap().buffers.resize(
+            device,
+            &self.resources.paint_layout,
+            &sizes,
+        );
         let target = &self.masks[&id];
         let mut vertices = Vec::<[f32; 2]>::with_capacity(sizes.vertex_bytes as usize / 8);
         let mut indices = Vec::<u32>::with_capacity(sizes.index_bytes as usize / 4);
@@ -706,7 +747,7 @@ impl AlphaMasks {
             );
             let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("Captured source alpha"),
-                layout: &self.filter_layout,
+                layout: &self.resources.filter_layout,
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
@@ -714,11 +755,11 @@ impl AlphaMasks {
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,
-                        resource: wgpu::BindingResource::Sampler(&self.sampler),
+                        resource: wgpu::BindingResource::Sampler(&self.resources.sampler),
                     },
                     wgpu::BindGroupEntry {
                         binding: 2,
-                        resource: wgpu::BindingResource::TextureView(&self.white),
+                        resource: wgpu::BindingResource::TextureView(&self.resources.white),
                     },
                     wgpu::BindGroupEntry {
                         binding: 3,
@@ -727,7 +768,7 @@ impl AlphaMasks {
                 ],
             });
             let mut pass = render_pass(encoder, &target.source);
-            pass.set_pipeline(&self.capture_pipeline);
+            pass.set_pipeline(&self.resources.capture_pipeline);
             pass.set_bind_group(0, &group, &[]);
             pass.draw(0..3, 0..1);
         }
@@ -761,7 +802,7 @@ impl AlphaMasks {
                             wgpu::LoadOp::Load
                         },
                     );
-                    pass.set_pipeline(&self.paint_pipeline);
+                    pass.set_pipeline(&self.resources.paint_pipeline);
                     pass.set_bind_group(1, mesh_paints, &[]);
                     pass.set_vertex_buffer(0, buffers.vertices.buffer.slice(..sizes.vertex_bytes));
                     pass.set_index_buffer(
@@ -784,7 +825,7 @@ impl AlphaMasks {
                     );
                     let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
                         label: Some("Alpha primitive composition"),
-                        layout: &self.filter_layout,
+                        layout: &self.resources.filter_layout,
                         entries: &[
                             wgpu::BindGroupEntry {
                                 binding: 0,
@@ -792,11 +833,11 @@ impl AlphaMasks {
                             },
                             wgpu::BindGroupEntry {
                                 binding: 1,
-                                resource: wgpu::BindingResource::Sampler(&self.sampler),
+                                resource: wgpu::BindingResource::Sampler(&self.resources.sampler),
                             },
                             wgpu::BindGroupEntry {
                                 binding: 2,
-                                resource: wgpu::BindingResource::TextureView(&self.white),
+                                resource: wgpu::BindingResource::TextureView(&self.resources.white),
                             },
                             wgpu::BindGroupEntry {
                                 binding: 3,
@@ -806,7 +847,7 @@ impl AlphaMasks {
                     });
                     let mut pass =
                         render_pass_with_load(encoder, &target.source, wgpu::LoadOp::Load);
-                    pass.set_pipeline(&self.compose_pipeline);
+                    pass.set_pipeline(&self.resources.compose_pipeline);
                     pass.set_bind_group(0, &group, &[]);
                     pass.draw(0..3, 0..1);
                 }
@@ -814,7 +855,7 @@ impl AlphaMasks {
             start = end;
         }
         let parent_resource = parent.and_then(|id| self.masks.get(&id));
-        let parent = parent_resource.map_or(&self.white, |m| &m.result);
+        let parent = parent_resource.map_or(&self.resources.white, |m| &m.result);
         let parent_domain = parent_resource.map_or(domain, |m| m.domain);
         let parent_mapping = [
             domain[2] / parent_domain[2],
@@ -853,7 +894,7 @@ impl AlphaMasks {
             // can be replaced independently by resize/removal/recreation.
             let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("Alpha mask filter"),
-                layout: &self.filter_layout,
+                layout: &self.resources.filter_layout,
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
@@ -861,7 +902,7 @@ impl AlphaMasks {
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,
-                        resource: wgpu::BindingResource::Sampler(&self.sampler),
+                        resource: wgpu::BindingResource::Sampler(&self.resources.sampler),
                     },
                     wgpu::BindGroupEntry {
                         binding: 2,
@@ -874,7 +915,7 @@ impl AlphaMasks {
                 ],
             });
             let mut pass = render_pass(encoder, destination);
-            pass.set_pipeline(&self.filter_pipeline);
+            pass.set_pipeline(&self.resources.filter_pipeline);
             pass.set_bind_group(0, &group, &[]);
             pass.draw(0..3, 0..1);
         }
@@ -1106,6 +1147,46 @@ mod tests {
             buffer.unmap();
             bytes
         }
+    }
+
+    #[test]
+    #[ignore = "requires a native GPU adapter"]
+    fn shared_mask_pipelines_keep_tile_pixels_and_invalidation_private() {
+        let mut a = GpuRig::new();
+        let mut b = GpuRig {
+            device: a.device.clone(),
+            queue: a.queue.clone(),
+            masks: AlphaMasks::with_resources(Rc::clone(&a.masks.resources)),
+            empty_mesh_page: crate::render_backend::mesh_paint::PaintPage::new(
+                &a.device,
+                &crate::render_backend::mesh_paint::sampling_layout(&a.device),
+                [1, 1, 1],
+            ),
+            belt: StagingBelt::new(a.device.clone(), 4096),
+            commands: Vec::new(),
+        };
+        assert!(Rc::ptr_eq(&a.masks.resources, &b.masks.resources));
+        assert_eq!(a.masks.bind_group(None), b.masks.bind_group(None));
+        // Equal owner IDs and signatures must not alias mutable surface-local results.
+        assert!(a.draw(1, 7, &[square(0.0, 32.0, 1.0)], [64, 64], 0.0, None));
+        assert!(b.draw(1, 7, &[square(32.0, 64.0, 0.5)], [64, 64], 0.0, None));
+        let first = a.capture(1);
+        let second = b.capture(1);
+        a.submit();
+        b.submit();
+        let first = a.read(&first);
+        let second = b.read(&second);
+        assert_eq!(first[32 * 256 + 16], 255);
+        assert_eq!(first[32 * 256 + 48], 0);
+        assert_eq!(second[32 * 256 + 16], 0);
+        assert!(second[32 * 256 + 48].abs_diff(128) <= 1);
+        a.masks.invalidate();
+        assert_eq!(a.masks.signature(Some(1)), 0);
+        assert_eq!(b.masks.signature(Some(1)), 7);
+        a.masks.retain(&HashSet::new());
+        assert!(a.masks.masks.is_empty());
+        assert_eq!(b.masks.masks.len(), 1);
+        assert!(!b.draw(1, 7, &[square(32.0, 64.0, 0.5)], [64, 64], 0.0, None));
     }
 
     #[test]

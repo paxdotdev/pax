@@ -28,12 +28,12 @@ class Element {
         return this.children.flatMap(c => [...(id != null && c.dataset.containerId === id ? [c] : []), ...c.querySelectorAll(selector)]);
     }
 }
-function fixture(search = '?pax_frame_clip=box') {
+function fixture(supportsClip = true) {
     const root = new Element();
     const {RenderLayerManager, ContainerStyle, nativeFrameBoxInverse} = load('../src/classes/render-layer-context.ts', {
         require: path => path === '../utils/helpers' ? helpers : {},
         document: {createElement: () => new Element(), querySelectorAll: selector => root.querySelectorAll(selector)},
-        window: {location:{search}}, CSS: {supports: () => true}, URLSearchParams,
+        CSS: {supports: () => supportsClip},
     });
     const manager = new RenderLayerManager({getFromPool: () => new Element(), returnToPool() {}});
     manager.layers = [{native:root}];
@@ -94,9 +94,9 @@ test('arbitrary masks, degenerate transforms and unsupported geometry never beco
         const restored = helpers.affineMultiply(helpers.affineMultiply(local, inverse), matrix);
         assert.ok(restored.every((v, i) => Math.abs(v-local[i]) < 1e-10));
     }
-    const {root, manager} = fixture('?pax_frame_clip=svg');
+    const {root, manager} = fixture(false);
     manager.addContainer(1); manager.updateContainer(1, geometry); manager.getOrCreateContainer(1, 0);
     assert.equal(root.children[0].dataset.paxClipMode, 'svg');
-    assert.equal(manager.getOrCreateContainer(1, 0), root.children[0], 'default SVG path adds no compensation wrapper');
+    assert.equal(manager.getOrCreateContainer(1, 0), root.children[0], 'unsupported CSS retains the SVG fallback without compensation');
     assert.equal(root.children[0].children.length, 0);
 });

@@ -30,6 +30,10 @@ struct LayerCanvasTarget {
     surface: SurfaceMetrics,
 }
 
+fn initial_backing_needs_resize(actual: (u32, u32), requested: &LayerSurfaceSize) -> bool {
+    actual != (requested.surface_width, requested.surface_height)
+}
+
 fn report_density_fallback(
     canvas: &HtmlCanvasElement,
     surface: &SurfaceMetrics,
@@ -411,10 +415,15 @@ fn get_gpu_render_context(
                         -surface.origin_x,
                         -surface.origin_y,
                     ]));
-                renderer.renderer_mut().resize_surface(
-                    surface.surface.surface_width as f32,
-                    surface.surface.surface_height as f32,
-                );
+                // Async creation may overlap a real geometry change. Reconcile that
+                // change, but do not discard the constructor's correctly sized backing.
+                let gpu = renderer.renderer_mut();
+                if initial_backing_needs_resize(gpu.surface_size(), &surface.surface) {
+                    gpu.resize_surface(
+                        surface.surface.surface_width as f32,
+                        surface.surface.surface_height as f32,
+                    );
+                }
                 renderer.renderer_mut().set_viewport(
                     surface.surface.logical_width,
                     surface.surface.logical_height,
@@ -624,6 +633,28 @@ fn canvas_host_owner_signature(canvas: &HtmlCanvasElement) -> String {
 #[cfg(test)]
 mod density_tests {
     use super::*;
+
+    #[test]
+    fn initial_backing_reconciliation_uses_physical_not_logical_geometry() {
+        let mut requested = LayerSurfaceSize {
+            logical_width: 128.0,
+            logical_height: 64.0,
+            surface_width: 256,
+            surface_height: 128,
+            dpr: [2.0, 2.0],
+        };
+        assert!(!initial_backing_needs_resize((256, 128), &requested));
+        requested.logical_width = 256.0;
+        requested.dpr[0] = 1.0;
+        assert!(!initial_backing_needs_resize((256, 128), &requested));
+        // A changed installed plan after the async boundary still resizes either axis.
+        requested.surface_width = 512;
+        assert!(initial_backing_needs_resize((256, 128), &requested));
+        requested.surface_width = 256;
+        requested.surface_height = 256;
+        assert!(initial_backing_needs_resize((256, 128), &requested));
+        assert!(!initial_backing_needs_resize((256, 256), &requested));
+    }
 
     #[test]
     fn carousel_tiles_match_screen_density() {

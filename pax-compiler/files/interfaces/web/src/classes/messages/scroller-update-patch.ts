@@ -14,6 +14,8 @@ export class ScrollerUpdatePatch {
     public opacity? : number;
     public scrollX? : number;
     public scrollY? : number;
+    public contentOriginX?: number;
+    public contentOriginY?: number;
     public presentationScrollX?: number;
     public presentationScrollY?: number;
     public contentLayerId? : number;
@@ -36,6 +38,8 @@ export class ScrollerUpdatePatch {
         this.opacity = jsonMessage["opacity"];
         this.scrollX = jsonMessage["scroll_x"];
         this.scrollY = jsonMessage["scroll_y"];
+        this.contentOriginX = jsonMessage["content_origin_x"];
+        this.contentOriginY = jsonMessage["content_origin_y"];
         this.presentationScrollX = jsonMessage["presentation_scroll_x"];
         this.presentationScrollY = jsonMessage["presentation_scroll_y"];
         this.contentLayerId = jsonMessage["content_layer_id"];
@@ -59,6 +63,8 @@ export class ScrollerUpdatePatch {
         this.opacity = undefined;
         this.scrollX = 0;
         this.scrollY = 0;
+        this.contentOriginX = undefined;
+        this.contentOriginY = undefined;
         this.presentationScrollX = 0;
         this.presentationScrollY = 0;
         this.contentLayerId = undefined;

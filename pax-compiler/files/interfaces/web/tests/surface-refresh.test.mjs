@@ -29,7 +29,7 @@ function harness(entries) {
     Object.assign(pool, {
         canvases: new Map(entries),
         layerCanvasPlanCache: new Map(),
-        surfaceRefreshPending: false,
+        surfacePlanPending: false,
         chassis: {layer_canvas_plan_generation: () => 1,
             interrupt: event => refreshes.push(event.RenderSurfaceUpdate.layer_id)},
         layers: {syncLayerCanvasLayouts() {}},
@@ -63,6 +63,80 @@ test('removing a row does not swallow another layer retarget', () => {
 test('unchanged surfaces do not request replay', () => {
     const h = harness([['root', canvas(1)]]);
     assert.deepEqual(h.sync(), []);
+});
+
+test('a plan wake does not refresh unchanged survivors or issue a global refresh', () => {
+    const h = harness([['root', canvas(1)], ['row', canvas(2)]]);
+    h.pool.surfacePlanPending = true;
+    h.pool.syncRenderSurfaceLayouts();
+    assert.deepEqual(h.refreshes, []);
+    assert.equal(h.pool.surfacePlanPending, false);
+});
+
+test('priority-only plan changes refresh their layer, not every installed layer', () => {
+    const row = canvas(2);
+    Object.assign(row, {width: 200, height: 100, parentElement: {dataset: {}}});
+    Object.assign(row.dataset, {logicalWidth: '100', logicalHeight: '50',
+        expectedBackingWidth: '200', expectedBackingHeight: '100',
+        surfaceGeneration: '5', surfaceConfiguredGeneration: '5',
+        surfaceContentRevision: '7', surfaceSubmittedRevision: '7', replayPriority: '3'});
+    const h = harness([['root', canvas(1)], ['row', row], ['other', canvas(3)]]);
+    const before = {...row.dataset};
+    const snapshots = [], trace = [];
+    h.pool.chassis.install_surface_plan = plan => snapshots.push(plan);
+    h.pool.surfaceCoordinator.trace = {record: (type, data) => trace.push({type, ...data}),
+        firstVisibleAt: () => 1};
+    for (const priority of ['0', '-1', '4']) {
+        h.refreshes.length = 0;
+        row.dataset.replayPriority = priority;
+        h.pool.surfacePlanPending = true;
+        h.pool.syncRenderSurfaceLayouts();
+        assert.deepEqual(h.refreshes, [2], 'promotion, readiness and demotion are targeted');
+        assert.equal(snapshots.at(-1).surfaces[0].replayPriority, Number(priority));
+        const refresh = trace.filter(e => e.type === 'refresh').at(-1);
+        assert.deepEqual(Array.from(refresh.surfaceChanged), []);
+        assert.deepEqual(Array.from(refresh.transformChanged), []);
+        assert.deepEqual(Array.from(refresh.priorityChanged), [2]);
+        assert.equal(row.dataset.surfaceGeneration, before.surfaceGeneration);
+        assert.equal(row.dataset.surfaceContentRevision, before.surfaceContentRevision);
+        assert.equal(row.dataset.surfaceSubmittedRevision, before.surfaceSubmittedRevision);
+        assert.deepEqual([row.width, row.height], [200, 100]);
+    }
+});
+
+test('simultaneous priority and geometry changes refresh both affected layers', () => {
+    const root = canvas(1), row = canvas(2);
+    const h = harness([['root', root], ['row', row], ['other', canvas(3)]]);
+    root.dataset.transformSignature = '0,1024';
+    row.dataset.replayPriority = '-1';
+    h.pool.surfacePlanPending = true;
+    assert.deepEqual(h.sync(), [1, 2]);
+});
+
+test('parking and unparking reconcile only the affected host layers', () => {
+    const row = canvas(2), host = {dataset: {}, style: {}};
+    row.parentElement = host;
+    const h = harness([['root', canvas(1)], ['row', row], ['other', canvas(3)]]);
+    const hosts = {canvasHost: host, contentHost: {dataset: {}, style: {}}, parked: false};
+    h.pool.parkScrollerHosts(hosts);
+    h.pool.syncRenderSurfaceLayouts();
+    assert.deepEqual(h.refreshes, [2]);
+    h.refreshes.length = 0;
+    h.pool.unparkScrollerHosts(hosts);
+    h.pool.syncRenderSurfaceLayouts();
+    assert.deepEqual(h.refreshes, [2]);
+    h.refreshes.length = 0;
+    h.pool.surfacePlanPending = true;
+    h.pool.syncRenderSurfaceLayouts();
+    assert.deepEqual(h.refreshes, [], 'unchanged activation is not an invalidation');
+});
+
+test('ownership changes with unchanged layer counts still reconcile both owners', () => {
+    const a = canvas(1), b = canvas(2);
+    const h = harness([['a', a], ['b', b], ['other', canvas(3)]]);
+    a.dataset.layerId = '2'; b.dataset.layerId = '1';
+    h.pool.surfacePlanPending = true;
+    assert.deepEqual(h.sync(), [1, 2]);
 });
 
 test('pending configuration is not repeatedly repaired; configured backings still are', () => {
@@ -191,6 +265,109 @@ test('a pending density shrink is reobserved until Rust reports a stable backing
     assert.equal(calls, 3, 'stable geometry does not keep crossing the bridge');
     h.pool.candidatePlan(3);
     assert.equal(calls, 3, 'coordinator consumes the cached transformed plan');
+});
+
+// Keep the actual candidate/admission/coordinator path. Only Rust's plan and
+// scheduler outputs and the DOM installer are inputs; time is deterministic.
+function settlingPlanHarness(change) {
+    let now = 0, installs = 0;
+    const isolated = {exports: {}};
+    vm.runInNewContext(transformSync(source, {loader: 'ts', format: 'cjs'}).code, {
+        module: isolated, exports: isolated.exports, require: surfaceRequire,
+        window: viewport, performance: {now: () => now},
+    });
+    const tile = {parentElement: {dataset: {}}, dataset: {}};
+    const snapshots = [], refreshes = [];
+    const pool = Object.create(isolated.exports.NativeElementPool.prototype);
+    Object.assign(pool, {
+        canvases: new Map([['tile', tile]]), layerCanvasPlanCache: new Map(),
+        surfacePlanPending: false,
+        buildWarmScrollerCandidates: () => new Map(),
+        layers: {layerIds: () => [0], syncLayerCanvasLayouts(provider) {
+            const s = provider(0).surfaces[0];
+            installs++;
+            tile.width = s.backingWidth; tile.height = s.backingHeight;
+            Object.assign(tile.dataset, {
+                layerId: '0', tileKey: s.key, tileOriginX: String(s.left), tileOriginY: String(s.top),
+                logicalWidth: String(s.width), logicalHeight: String(s.height),
+                surfaceGeneration: '1', surfaceConfiguredGeneration: '1',
+                expectedBackingWidth: String(s.backingWidth), expectedBackingHeight: String(s.backingHeight),
+                densityClamped: String(!!s.densityClamped), hostSignature: s.hostSignature,
+                surfaceSignature: s.surfaceSignature, transformSignature: s.transformSignature,
+                replayPriority: String(s.replayPriority),
+            });
+        }},
+        chassis: {
+            // Neither generation, policy nor DPR changes when the timer settles.
+            layer_canvas_plan_generation: () => 1, surface_policy_revision: () => 1,
+            install_surface_plan: plan => snapshots.push(plan),
+            interrupt: event => refreshes.push(event.RenderSurfaceUpdate.layer_id),
+            get_layer_canvas_plan_for_transform() {
+                return {layerId: 0, active: true, densityPending: now < 500, surfaces: [{
+                    id: 'tile', key: 'single', left: 0, top: 0, width: 100, height: 100,
+                    backingWidth: 200, backingHeight: 200, hostSignature: 'root',
+                    surfaceSignature: '100x100:backing=200x200', transformSignature: '0,0',
+                    replayPriority: -1, ...(now < 500 ? {} : change),
+                }]};
+            },
+            schedule_surfaces(input) {
+                return {admitted: [0], denied: [], overloaded: false,
+                    backingPixels: input.candidates[0].pixels,
+                    ranks: [{coverage: 0, distance: 0, retained: input.candidates[0].retained, ready: false}]};
+            },
+        },
+    });
+    return {tile, snapshots, refreshes, get installs() { return installs; },
+        sync(time) { now = time; pool.syncRenderSurfaceLayouts(); }};
+}
+
+test('settled density is installed without a new interrupt, generation or priority', () => {
+    const h = settlingPlanHarness({backingWidth: 100, backingHeight: 100,
+        surfaceSignature: '100x100:backing=100x100'});
+    h.sync(0);
+    h.sync(200);
+    assert.equal(h.tile.width, 200, 'retain the valid backing during hysteresis');
+    assert.equal(h.installs, 1);
+    h.sync(500);
+    assert.equal(h.tile.width, 100, 'settlement reaches the installer before any further input');
+    assert.equal(h.snapshots.at(-1).surfaces[0].backingWidth, 100);
+    assert.equal(h.installs, 2);
+    h.refreshes.length = 0;
+    h.sync(600);
+    h.sync(1000);
+    assert.equal(h.installs, 2, 'stable frames do not reinstall');
+    assert.deepEqual(h.refreshes, [], 'stable frames do not replay');
+});
+
+test('same-ID admitted descriptor changes reach installation', async t => {
+    for (const [field, value] of Object.entries({key: 'other', left: 10, top: 20,
+        width: 120, height: 130, backingWidth: 240, backingHeight: 260,
+        surfaceSignature: 'changed', transformSignature: '10,20',
+        hostSignature: 'replacement', densityClamped: true})) {
+        await t.test(field, () => {
+            const h = settlingPlanHarness({[field]: value});
+            h.sync(0);
+            h.refreshes.length = 0;
+            h.sync(500);
+            assert.equal(h.installs, 2);
+            assert.deepEqual(h.refreshes, [0], 'changed installed geometry reaches the renderer');
+            if (!field.endsWith('Signature') || field === 'hostSignature') {
+                assert.equal(h.snapshots.at(-1).surfaces[0][field], value);
+            }
+            h.sync(600);
+            assert.equal(h.installs, 2);
+        });
+    }
+});
+
+test('densityPending alone is not an installation change', () => {
+    const h = settlingPlanHarness({});
+    h.sync(0);
+    h.refreshes.length = 0;
+    h.sync(500);
+    h.sync(600);
+    assert.equal(h.installs, 1);
+    assert.deepEqual(h.refreshes, []);
 });
 
 test('a warm tile becoming visible refreshes replay priority without changing its backing', () => {
@@ -323,7 +500,7 @@ test('surface generation survives steady layout and changes on each canvas assig
     const layerSource = readFileSync(new URL('../src/classes/layer.ts', import.meta.url), 'utf8');
     vm.runInNewContext(transformSync(layerSource, {loader: 'ts', format: 'cjs'}).code, {
         module: layerModule, exports: layerModule.exports, performance,
-        require: () => ({releaseCanvasBacking(canvas) {
+        require: name => name === './surface-host-policy' ? surfaceRequire(name) : ({releaseCanvasBacking(canvas) {
             if (!Number(canvas.getAttribute('data-pax-surface-owners'))) {
                 canvas.width = 1;
                 canvas.height = 1;

@@ -77,23 +77,40 @@ dimensions the same when comparing measurements; desktop layouts mount the full
 21-shelf Paxflix catalogue. See
 [resumable startup](../pax-docs/book/src/how-pax-runs.md#experimental-resumable-startup-on-web).
 
+Ordinary URLs use cooperative rendering, passive wheel input, and feature-detected
+CSS box clipping for rectangular Frames. No scrolling query switches are required.
+`pax_surface_trace` / `pax_scroll_perf` remain opt-in diagnostics, not rendering
+policy. Native chassis retain their own scheduling; cross-platform integration
+qualification is separate from this website's web smoke tests.
+
 The feature gallery uses its own native-scroller-backed marquee. Card geometry
 has a valid initial value and is published through the local property view before
-descendants mount. It mounts cards as they enter the horizontal viewport plus
-two cards of overscan on each side. Each visited card keeps one keyed slot and
+descendants mount. All 43 authored cards are projected at startup, with one keyed
+slot each, rather than mounting on first encounter during horizontal scrolling.
+The shared yielded-startup scheduler handles their initialization. Each card
 remains mounted until the gallery or that authored child is removed. Looping,
 scroll reversal, and viewport resizing reposition the same card rather than
-recycling its slot into another card. This preserves local demo state; the demo
-clocks pause while their artboards are offscreen. After a complete tour, all 43
-cards can be resident. This is a bounded gallery policy, not a general-purpose
+recycling its slot into another card. Cards keep their positions outside
+the requested window; they wrap only when another occurrence is needed near
+the viewport. Leaving overscan does not immediately move a trailing card to the
+far end of the loop, avoiding needless geometry churn on quick reversals.
+On web, a loop recenter changes the finite native pane's origin and scroll
+position together; the content-space viewport, cards, and painted tile coordinates
+stay put. This avoids replacing the whole visible band at a loop boundary.
+The internal `ScrollerHost` origin integration is web-only, not a public
+cross-platform infinite-scroller API. Resize and authored content changes remain
+real layout changes and may require repainting.
+This preserves local demo state; the demo clocks pause while their artboards
+are offscreen. This is a bounded gallery policy, not a general-purpose
 virtualization or memory-eviction policy.
 
 Card allocation waits for positive, finite card and viewport dimensions. The
-mounted set grows only when a new card is visited; an invalid early width cannot
-reserve an oversized window. Rails shorter than the viewport display once
-without looping or projecting the same child into multiple slots. First visits
-after startup still mount synchronously; retaining cards removes repeated
-initialization but does not yet budget that first-visit work across browser tasks.
+mounted set changes only when authored children change, not when scrolling.
+The viewport plus two cards of overscan on each side determines which loop
+occurrences must be positioned nearby, not which components exist. Rails shorter
+than the viewport display once without looping or projecting the same child into
+multiple slots. Eager mounting does not eagerly rasterize the entire rail:
+offscreen drawing and surface preparation remain the renderer's responsibility.
 
 The gallery's automatic march pauses while the outer page's bound scroll
 position changes, including momentum, and resumes after 150 ms without a new

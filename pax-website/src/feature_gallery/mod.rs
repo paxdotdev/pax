@@ -67,7 +67,7 @@ fn artboard_scale(card_width: f64) -> f64 {
     ((card_width - 48.0) / 288.0).clamp(0.0, 1.0)
 }
 
-/// One visited card, retained at a stable slot identity as it moves around the loop.
+/// One authored card, retained at a stable slot identity as it moves around the loop.
 #[derive(PartialEq)]
 #[pax]
 #[custom(Defaults)]
@@ -77,11 +77,13 @@ pub struct MarqueeCell {
     pub x_px: f64,
 }
 
-/// A continuously scrolling horizontal card rail with retained visited cards.
+/// A continuously scrolling horizontal card rail with eagerly projected cards.
 ///
-/// The viewport plus overscan selects cards to mount for the first time. A card
-/// keeps its own keyed slot after that, including across reversal and resize.
-/// Only its offscreen position wraps; it is never recycled into another card.
+/// Every authored card gets one keyed slot at startup, so first encounters do
+/// not synchronously mount a subtree during a native scroll. A card keeps that
+/// slot across reversal and resize.
+/// Its position stays put until another loop occurrence is needed near the
+/// viewport; it is never recycled into another card.
 /// `ScrollerHost` keeps these slot sites in this component's projection scope.
 #[pax]
 #[file("feature_gallery/marquee.pax")]
@@ -94,6 +96,7 @@ pub struct MarqueeCarousel {
     pub outer_scroll_y: Property<f64>,
 
     pub _scroll_pos_x: Property<f64>,
+    pub _content_origin_x: Property<f64>,
     pub _scroll_width_px: Property<f64>,
     pub _content_width_px: Property<f64>,
     pub _card_height_px: Property<f64>,
@@ -120,6 +123,7 @@ impl Default for MarqueeCarousel {
             speed_px_per_second: Property::new(MARQUEE_SPEED_PX_PER_SECOND),
             outer_scroll_y: Property::new(0.0),
             _scroll_pos_x: Property::new(0.0),
+            _content_origin_x: Property::new(0.0),
             _scroll_width_px: Property::new(0.0),
             _content_width_px: Property::new(0.0),
             _card_height_px: Property::new(0.0),
@@ -169,12 +173,20 @@ impl MarqueeCarousel {
             self._expected_scroll_x.set(scroll_x);
         }
 
-        let normalized_scroll_x = normalize_loop_scroll(scroll_x, content_width);
+        let (normalized_scroll_x, origin) =
+            rebase_loop_scroll(scroll_x, self._content_origin_x.get(), content_width);
         if (normalized_scroll_x - self._scroll_pos_x.get()).abs() > 0.01 {
+            // Native chassis retain the previous finite-loop behavior until the
+            // web-origin integration is explicitly ported to their scroll hosts.
+            self._content_origin_x.set(if cfg!(target_arch = "wasm32") {
+                origin
+            } else {
+                0.0
+            });
             self._scroll_pos_x.set(normalized_scroll_x);
             self._expected_scroll_x.set(normalized_scroll_x);
         }
-        self.sync_window_for_scroll(normalized_scroll_x);
+        self.sync_window_for_scroll(normalized_scroll_x + self._content_origin_x.get());
 
         let previous = self._last_frame_millis.get();
         self._last_frame_millis.set(now);
@@ -193,13 +205,19 @@ impl MarqueeCarousel {
         }
 
         let delta_seconds = ((now - previous).max(0.0).min(50.0)) / 1000.0;
-        let next_scroll_x = normalize_loop_scroll(
-            normalized_scroll_x + self.speed_px_per_second.get().max(0.0) * delta_seconds,
-            content_width,
-        );
+        let requested =
+            normalized_scroll_x + self.speed_px_per_second.get().max(0.0) * delta_seconds;
+        let (next_scroll_x, origin) =
+            rebase_loop_scroll(requested, self._content_origin_x.get(), content_width);
+        self._content_origin_x
+            .set_if_neq(if cfg!(target_arch = "wasm32") {
+                origin
+            } else {
+                0.0
+            });
         self._scroll_pos_x.set_if_neq(next_scroll_x);
         self._expected_scroll_x.set_if_neq(next_scroll_x);
-        self.sync_window_for_scroll(next_scroll_x);
+        self.sync_window_for_scroll(next_scroll_x + self._content_origin_x.get());
     }
 
     fn outer_scroll_paused(&mut self, now: f64) -> bool {
@@ -222,8 +240,8 @@ impl MarqueeCarousel {
             self.gap_px.local().get(),
             (viewport_width, viewport_height),
         ) else {
-            // Bound inputs can still be settling at mount. A fabricated 1px
-            // card would permanently inflate the retained projection window.
+            // Bound inputs can still be settling at mount. Wait for real
+            // dimensions before positioning the eagerly projected cards.
             return false;
         };
         let previous_stride = self._last_stride_px.get();
@@ -252,6 +270,8 @@ impl MarqueeCarousel {
         self._last_viewport_height_px.set_if_neq(viewport_height);
         self._last_stride_px.set_if_neq(stride);
         self._content_width_px.set_if_neq(content_width);
+        // Resize/content edits are real geometry changes, not equivalent resets.
+        self._content_origin_x.set_if_neq(0.0);
         self._scroll_width_px
             .set_if_neq(if content_width > viewport_width {
                 content_width * 3.0 + viewport_width
@@ -333,26 +353,51 @@ fn reconcile_cells(
     }
     let looping = count as f64 * stride > viewport_width;
     let first = if looping { base - OVERSCAN_CARDS } else { 0 };
-    let required = ((viewport_width / stride).ceil() as usize)
-        .saturating_add((OVERSCAN_CARDS * 2 + 2) as usize)
-        .min(count);
-    for offset in 0..required {
-        let slot_index = (first + offset as i64).rem_euclid(count as i64) as usize;
+    // Project every authored child once. The shared startup scheduler owns
+    // mounting; scrolling only chooses which loop occurrence occupies its slot.
+    for slot_index in 0..count {
         if !cells.iter().any(|cell| cell.slot_index == slot_index) {
             cells.push(MarqueeCell {
                 slot_index,
-                virtual_index: 0,
+                virtual_index: first + (slot_index as i64 - first).rem_euclid(count as i64),
                 x_px: 0.0,
             });
         }
     }
+    let required = ((viewport_width / stride).ceil() as usize)
+        .saturating_add((OVERSCAN_CARDS * 2 + 2) as usize)
+        .min(count);
+    for offset in 0..required {
+        let virtual_index = first + offset as i64;
+        let slot_index = virtual_index.rem_euclid(count as i64) as usize;
+        if let Some(cell) = cells.iter_mut().find(|cell| cell.slot_index == slot_index) {
+            cell.virtual_index = virtual_index;
+        }
+    }
     for cell in &mut cells {
-        // All copies of this slot would alias the same projected node. Keep one
-        // attachment and wrap it beyond the viewport when its old position exits.
-        cell.virtual_index = first + (cell.slot_index as i64 - first).rem_euclid(count as i64);
+        // Keep trailing cards in place for reversals. Only the requested window
+        // above needs to wrap; moving every offscreen card invalidates useful
+        // rendered regions. A changed authored count can invalidate an old index.
+        if cell.virtual_index.rem_euclid(count as i64) as usize != cell.slot_index {
+            cell.virtual_index = first + (cell.slot_index as i64 - first).rem_euclid(count as i64);
+        }
         cell.x_px = cell.virtual_index as f64 * stride;
     }
     cells
+}
+
+fn rebase_loop_scroll(scroll_x: f64, origin: f64, content_width: f64) -> (f64, f64) {
+    let normalized = normalize_loop_scroll(scroll_x, content_width);
+    // Preserve content-space position, including subpixel phase. Do not rewrite
+    // the origin on ordinary motion (or accumulate roundoff on every idle tick).
+    (
+        normalized,
+        if normalized == scroll_x {
+            origin
+        } else {
+            origin + (scroll_x - normalized)
+        },
+    )
 }
 
 fn normalize_loop_scroll(scroll_x: f64, content_width: f64) -> f64 {
@@ -499,24 +544,22 @@ mod tests {
     }
 
     #[test]
-    fn startup_window_is_viewport_sized() {
+    fn startup_projects_every_card_once_at_desktop_and_mobile_sizes() {
         let mut rail = MarqueeCarousel::default();
         rail.reconcile_window(43, 1280.0, 374.0, 43);
-        assert_unique_window(&rail, 43, 10);
+        assert_unique_window(&rail, 43, 43);
 
         let mut mobile = MarqueeCarousel::default();
         mobile.reconcile_window(43, 390.0, 310.0, 43);
-        assert_unique_window(&mobile, 43, 8);
+        assert_unique_window(&mobile, 43, 43);
     }
 
     #[test]
-    fn resizing_retains_only_a_valid_bounded_high_water_window() {
+    fn resizing_preserves_the_full_authored_set() {
         let mut rail = MarqueeCarousel::default();
-        for (width, stride, expected) in
-            [(390.0, 310.0, 8), (1280.0, 374.0, 10), (390.0, 310.0, 10)]
-        {
+        for (width, stride) in [(390.0, 310.0), (1280.0, 374.0), (390.0, 310.0)] {
             rail.reconcile_window(43, width, stride, 43);
-            assert_unique_window(&rail, 43, expected);
+            assert_unique_window(&rail, 43, 43);
         }
         rail.reconcile_window(43, 100_000.0, 374.0, 43);
         assert_unique_window(&rail, 43, 43);
@@ -527,7 +570,7 @@ mod tests {
         let mut rail = MarqueeCarousel::default();
         for count in [43, 3, 1, 0, 43] {
             rail.reconcile_window(count, 1280.0, 374.0, count as i64);
-            assert_unique_window(&rail, count, count.min(10));
+            assert_unique_window(&rail, count, count);
         }
     }
 
@@ -542,11 +585,10 @@ mod tests {
         assert_eq!(ready_marquee_stride(350.0, 24.0, (0.0, 522.0)), None);
         assert_eq!(ready_marquee_stride(350.0, 24.0, (1440.0, 0.0)), None);
         assert_eq!(ready_marquee_stride(350.0, f64::NAN, (1440.0, 522.0)), None);
-        for (width, card, expected) in [(720.0, 286.0, 9), (1440.0, 350.0, 10), (1920.0, 350.0, 12)]
-        {
+        for (width, card) in [(720.0, 286.0), (1440.0, 350.0), (1920.0, 350.0)] {
             let stride = ready_marquee_stride(card, 24.0, (width, 522.0)).unwrap();
             let cells = reconcile_cells(vec![], 43, width, stride, 43);
-            assert_eq!(cells.len(), expected);
+            assert_eq!(cells.len(), 43);
         }
     }
 
@@ -575,6 +617,58 @@ mod tests {
     }
 
     #[test]
+    fn leaving_overscan_and_reversing_preserve_visited_card_positions() {
+        let mut cells = reconcile_cells(vec![], 43, 1280.0, 374.0, 43);
+        let original: Vec<_> = cells.iter().map(|c| (c.slot_index, c.x_px)).collect();
+        for base in [44, 45, 48, 45, 43, 48, 43] {
+            let before = cells.clone();
+            cells = reconcile_cells(cells, 43, 1280.0, 374.0, base);
+            for &(slot, x) in &original {
+                assert_eq!(
+                    cells.iter().find(|c| c.slot_index == slot).unwrap().x_px,
+                    x,
+                    "visited card {slot} moved during a local reversal at {base}"
+                );
+            }
+            if cells.len() == before.len() {
+                assert!(
+                    cells == before,
+                    "a local revisit must not invalidate the repeat"
+                );
+            }
+        }
+        assert_eq!(cells.len(), 43, "scrolling never adds cards");
+    }
+
+    #[test]
+    fn large_jumps_only_reposition_cards_needed_at_another_loop_occurrence() {
+        let mut cells = reconcile_cells(vec![], 43, 1280.0, 374.0, 43);
+        for base in [85, 41, 107, 25, 100, 42, 86, 43] {
+            let before = cells.clone();
+            cells = reconcile_cells(cells, 43, 1280.0, 374.0, base);
+            let required = base - OVERSCAN_CARDS..base - OVERSCAN_CARDS + 10;
+            for index in required.clone() {
+                assert!(cells.iter().any(|c| c.virtual_index == index));
+            }
+            for old in before {
+                let current = cells
+                    .iter()
+                    .find(|c| c.slot_index == old.slot_index)
+                    .unwrap();
+                if current.virtual_index != old.virtual_index {
+                    assert!(
+                        required.contains(&current.virtual_index),
+                        "a card outside the requested window was needlessly relocated"
+                    );
+                }
+            }
+            let slots: HashSet<_> = cells.iter().map(|c| c.slot_index).collect();
+            assert_eq!(slots.len(), cells.len());
+            assert!(cells.len() <= 43);
+        }
+    }
+
+    #[test]
     fn resize_and_loop_recentering_preserve_card_identity() {
         let cells = reconcile_cells(vec![], 43, 1920.0, 374.0, 43);
         let slots: Vec<_> = cells.iter().map(|c| c.slot_index).collect();
@@ -587,8 +681,30 @@ mod tests {
         assert_eq!(recentered.len(), narrow.len());
         for (a, b) in narrow.iter().zip(&recentered) {
             assert_eq!(a.slot_index, b.slot_index);
-            assert_eq!(b.x_px - a.x_px, 43.0 * 310.0);
+            // Only the nine cards required by the narrow viewport need the
+            // new loop occurrence; previously visited offscreen cards stay put.
+            let needed = (84..93).any(|index| index % 43 == a.slot_index);
+            assert_eq!(b.x_px - a.x_px, if needed { 43.0 * 310.0 } else { 0.0 });
         }
+    }
+
+    #[test]
+    fn authored_count_changes_keep_retained_indices_consistent() {
+        let mut cells = vec![];
+        for (count, base) in [(43, 43), (43, 65), (41, 41), (47, 47), (0, 0)] {
+            cells = reconcile_cells(cells, count, 1280.0, 374.0, base);
+            let slots: HashSet<_> = cells.iter().map(|c| c.slot_index).collect();
+            assert_eq!(slots.len(), cells.len());
+            for cell in &cells {
+                assert!(cell.slot_index < count);
+                assert_eq!(
+                    cell.virtual_index.rem_euclid(count as i64) as usize,
+                    cell.slot_index
+                );
+                assert_eq!(cell.x_px, cell.virtual_index as f64 * 374.0);
+            }
+        }
+        assert!(cells.is_empty());
     }
 
     #[test]
@@ -623,5 +739,37 @@ mod tests {
     fn loop_scroll_recenters_without_changing_its_visual_phase() {
         assert_eq!(normalize_loop_scroll(PERIOD * 2.75, PERIOD), PERIOD * 1.75);
         assert_eq!(normalize_loop_scroll(PERIOD * 0.25, PERIOD), PERIOD * 1.25);
+    }
+
+    #[test]
+    fn pane_recentering_does_not_reposition_or_remount_cards() {
+        let stride: f64 = 374.0;
+        let cycle = 43.0 * stride;
+        let mut origin = 0.0;
+        for browser_x in [
+            cycle * 2.75 + 0.25,
+            cycle * 0.25 + 0.5,
+            cycle * 0.25,
+            cycle * 2.75,
+        ] {
+            let content_x = browser_x + origin;
+            let base = (content_x / stride).floor() as i64;
+            let before = reconcile_cells(vec![], 43, 1800.0, stride, base);
+            let (next_x, next_origin) = super::rebase_loop_scroll(browser_x, origin, cycle);
+            assert_eq!(next_x + next_origin, content_x);
+            let after = reconcile_cells(
+                before.clone(),
+                43,
+                1800.0,
+                stride,
+                ((next_x + next_origin) / stride).floor() as i64,
+            );
+            assert!(before == after);
+            origin = next_origin;
+        }
+        assert_eq!(
+            super::rebase_loop_scroll(cycle + 0.1, origin, cycle).1,
+            origin
+        );
     }
 }

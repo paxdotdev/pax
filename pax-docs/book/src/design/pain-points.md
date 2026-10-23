@@ -1273,6 +1273,8 @@ carousel allocation or broadening this fix into renderer work.
   `pax-cli fmt`: the wrapped `ScrollerHost` opening line gains a trailing space.
   Removed that space after formatting; `fmt --check` and whitespace-clean output
   cannot both pass until the formatter is corrected.
+  Reproduced again Oct 22 while formatting the coverage-preserving marquee reset;
+  removed the generated trailing space after formatting.
 - 2026-10-11 — Profiling a 720px vertical wheel scroll in the website's embedded
   Paxflix phone: expected timely presentation after image submission; the tile's
   images submitted 6.5ms after visible demand, but `visible-unready` lasted 34.6ms.
@@ -1309,3 +1311,59 @@ carousel allocation or broadening this fix into renderer work.
   from the PAX-1014 retention comparison and waited for submitted tiles before
   measuring. This is not evidence of a repeat-binding regression or a startup
   benchmark; preserve it for a focused cold-start investigation if it recurs.
+- 2026-10-20 — Post-rebase release website smoke test on port 50541: after
+  resizing from 1280px to 390px and scrolling from the hero into the Paxflix
+  section, the first screenshot showed its section label and phone frame but
+  no heading, paragraph, or phone capture. A follow-up observation showed all
+  content without reload or interaction; no console warning/error appeared.
+  Expected content ready on exposure. Duration was not measured; this establishes
+  a transient readiness gap, not a persistent blank-canvas failure. PAX-1014.
+  Four follow-up resize/exposure sequences on October 21 did not reproduce it;
+  the native heading was visible/unmasked and the browser image loaded before
+  exposure. Investigation details are recorded in PAX-1014.
+  Standalone web TypeScript checking also still fails with 10 diagnostics;
+  checking a source-only archive of main `a2e2189f7` produced the same errors.
+  The release bundle and Node regression tests pass independently.
+
+- 2026-10-22: Scrolling the website gallery with cooperative WebGPU rendering
+  repeatedly attempted 21 inactive layers (30 pending nodes each), with all 630
+  nodes still pending afterward. Expected offscreen first drawing to be owned by
+  surface preparation; observed render reconciliation promoting clean layers
+  solely because their nodes had not yet drawn. Bounded layer attribution and
+  failing-before regression tests isolate the retry source; PAX-1014 tracks the
+  correction and remaining fast-scroll readiness gaps.
+- 2026-10-22 — Release website, 1280×720/DPR 2: a two-page embedded Paxflix
+  scroll still exposed three unready surfaces after batched cold capture. The
+  first initialization completed 24.7ms after the scroll sample, but the next
+  urgent initialization started at 105.4ms; an accepted continuation spent
+  74.6ms queued. Expected ready urgent work to resume promptly. Capture itself
+  took 3ms for 28 primitives, while image replay took 12ms and uploaded 7.4MB.
+  This is one local trace, not proof of a host-scheduler defect; investigate the
+  intervening host work before changing scheduling policy. PAX-1014.
+- 2026-10-23 — Release website at 1280×720/DPR 2, with passive wheel,
+  box clips, and cooperative rendering enabled but tracing disabled: one run
+  left embedded Paxflix rows blank after vertical jumps of +1440, -1080,
+  +1800px. Five visible surfaces remained unsubmitted, including two without
+  renderer ownership; another small scroll did not recover them. Expected
+  pending visible work to finish without additional input. A fresh-load repeat
+  on the same build and a previous-build control both completed successfully,
+  with no console errors. Cause and regression status remain unconfirmed;
+  PAX-1014 records the comparison and the separate verified allocation reduction.
+  Follow-up: reproduced on 50554 with surface tracing enabled. Ordinary ticks
+  continued, but no further initialization/submission occurred; a diagnostic
+  host bundle reported repeated replay cache misses with no pending/blocked
+  result. A synchronous-render control recovered. Adding backend-level probes
+  then stopped reproducing the stall across fresh-load/reversal checks, so no
+  causal fix is established and the temporary probes were removed. Normal
+  reversal captures also show painted tiles retiring outside the directional
+  candidate window despite spare capacity; that churn is distinct from the
+  unresolved stalled-work case. Budgets and preparation regions are unchanged.
+- 2026-10-23 — Safari website smoke test: expected the same complete graphics as
+  Chrome; both Debug and Release stop rendering after `RangeError: Length out
+  of range of buffer`. Debug symbols locate `WebBuffer::get_mapped_range` via
+  `create_buffer_init` and `create_shared_vector_resource`; subsequent property
+  wake-ups report Wasm recursive-use errors. An isolated pre-cleanup browser
+  interface with synchronous rendering also fails against the same cartridge,
+  so the new cooperative default is not necessary to reproduce it. Chrome's
+  plain-URL scroll checks pass. No workaround applied; qualification blocker
+  recorded in PAX-1014, regression against main not yet established.

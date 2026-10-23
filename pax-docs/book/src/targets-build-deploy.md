@@ -220,6 +220,12 @@ Startup failures reject the Promise and initiate retained cleanup. Failed native
 preparation similarly returns an error; it can leave cleanup pending even though
 no mount handle was returned. A retry is rejected while that cleanup is pending.
 
+Wheel handlers are passive by default. An embedded host can pass
+`wheelEvents: "cancellable"` to `Pax.init_web` when its application needs to
+prevent native wheel scrolling; this overrides generated `wheel_events` metadata.
+Cancellation can delay scrolling because the browser waits for JavaScript.
+See [wheel input policy](scrolling-viewports.md#wheel-input-policy).
+
 Only one live mount is supported per host runtime. A second prepare/mount is an
 error, including while cleanup is pending. Await `closed` before replacing it.
 Hidden/zero-size regions retain application state and cleanup scheduling.
@@ -824,6 +830,7 @@ configuration portable between workstations.
 | `favicon` | Web | Explicit favicon file; takes priority over icon-derived favicon generation |
 | `background_color` | Web | Opaque `#RGB` or `#RRGGBB` host background, painted from inline HTML before JavaScript/Wasm loads |
 | `yield_mount` | Web | Experimental cooperative initial mounting; boolean, defaults to `false`. See [Yield initial web mounting](#yield-initial-web-mounting). |
+| `wheel_events` | Web | `"passive"` (default) or `"cancellable"`; controls whether wheel handlers can prevent native scrolling. Applies to the whole mount. See [Wheel input policy](scrolling-viewports.md#wheel-input-policy). |
 | `site_name` | Web | Open Graph site name; defaults to the resolved web title |
 | `server_owned_prefixes` | Web | Root-relative path prefixes delegated to ordinary browser navigation; defaults to `[]`. See [Server-owned web paths](routing.md#server-owned-web-paths). |
 | `site_url` | Web | Absolute public HTTP(S) URL, without query or fragment; required for release builds with indexable concrete routes |

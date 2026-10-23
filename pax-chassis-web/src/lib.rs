@@ -1915,16 +1915,22 @@ impl PaxChassisWeb {
                         });
                     }
                     let coverage = prepared_plan.prepared;
-                    pax_runtime::engine::layer_tiling::scroller_canvas_plan_for_coverage(
+                    pax_runtime::engine::layer_tiling::scroller_canvas_plan_for_coverage_at_origin(
                         layer,
                         host_signature,
                         host.content,
+                        host.content_origin,
                         host.geometry.viewport,
                         coverage,
                         dpr,
                         engine.scroller_tiling_policy,
                     )
                 } else {
+                    // A translated pane needs the matching preparation transaction;
+                    // the legacy modulo-slot fallback uses a different tile identity.
+                    if state.content_origin != [0.0; 2] {
+                        return JsValue::NULL;
+                    }
                     scroller_canvas_plan_with_policy(
                         layer,
                         host_signature,

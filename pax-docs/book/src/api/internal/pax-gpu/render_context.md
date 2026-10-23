@@ -460,6 +460,12 @@ Queue a stroked vector path with material response, opacity, and optional smooth
 
 Queue a stroked vector path with an extra opacity multiplier.
 
+##### `surface_size`
+<pre><code class="api-signature language-rust ignore">pub fn surface_size(&amp;self) -&gt; (u32, u32)</code></pre>
+
+Current physical backing dimensions after device-limit clamping.
+Unlike [`Self::size`], this does not change with the logical viewport or DPR uniforms.
+
 ##### `take_resource_churn_stats`
 <pre><code class="api-signature language-rust ignore">pub fn take_resource_churn_stats(&amp;mut self) -&gt; <a href="../../../api/internal/pax-gpu/render_context.md#resourcechurnstats">ResourceChurnStats</a></code></pre>
 

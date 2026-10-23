@@ -224,11 +224,16 @@ impl PaintPage {
 }
 
 pub(crate) struct MeshRasterizer {
-    layout: wgpu::BindGroupLayout,
-    pipeline: wgpu::RenderPipeline,
+    resources: Rc<MeshPipelineResources>,
     indices: RefCell<HashMap<u32, wgpu::Buffer>>,
     // Weak entries share only live fields; animation never retains historical textures.
     pages: RefCell<HashMap<PageKey, Weak<PaintPage>>>,
+}
+
+// Mesh paint always targets single-sampled Rgba8Unorm, not the display format.
+pub(crate) struct MeshPipelineResources {
+    layout: wgpu::BindGroupLayout,
+    pipeline: wgpu::RenderPipeline,
 }
 
 /// Owned by a retained paint slot, with content used only for invalidation, never cache identity.
@@ -338,6 +343,21 @@ impl MeshRasterizer {
         Ok(())
     }
 
+    #[cfg(test)]
+    pub(crate) fn new(device: &wgpu::Device) -> Self {
+        Self::with_resources(Rc::new(MeshPipelineResources::new(device)))
+    }
+
+    pub(crate) fn with_resources(resources: Rc<MeshPipelineResources>) -> Self {
+        Self {
+            resources,
+            indices: RefCell::new(HashMap::new()),
+            pages: RefCell::new(HashMap::new()),
+        }
+    }
+}
+
+impl MeshPipelineResources {
     pub(crate) fn new(device: &wgpu::Device) -> Self {
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Mesh patch coefficients"),
@@ -402,14 +422,11 @@ impl MeshRasterizer {
             multiview_mask: None,
             cache: None,
         });
-        Self {
-            layout,
-            pipeline,
-            indices: RefCell::new(HashMap::new()),
-            pages: RefCell::new(HashMap::new()),
-        }
+        Self { layout, pipeline }
     }
+}
 
+impl MeshRasterizer {
     /// Encode only changed content, reusing coefficient buffers and texture for a stable slot.
     /// An invalid update returns an error; consumers must not draw a previous valid texture.
     #[cfg(test)]
@@ -490,7 +507,7 @@ impl MeshRasterizer {
             });
             let bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("Retained mesh raster bindings"),
-                layout: &self.layout,
+                layout: &self.resources.layout,
                 entries: &[
                     wgpu::BindGroupEntry {
                         binding: 0,
@@ -577,7 +594,7 @@ impl MeshRasterizer {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
-            pass.set_pipeline(&self.pipeline);
+            pass.set_pipeline(&self.resources.pipeline);
             pass.set_bind_group(0, &slot.bind_group, &[]);
             pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint16);
             pass.draw_indexed(

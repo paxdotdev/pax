@@ -13,13 +13,7 @@ export type WheelInputSample = {
     deltaY: number;
 };
 
-type WheelDiagnostics = {passive: boolean; record?: (sample: WheelInputSample) => void};
-
-export function wheelDiagnosticMode(params: URLSearchParams): boolean | undefined {
-    if (!params.has('pax_wheel_passive') &&
-        (!params.has('pax_scroll_perf') || !params.has('pax_surface_trace'))) return undefined;
-    return params.get('pax_wheel_passive') === '1';
-}
+type WheelOptions = {passive?: boolean; record?: (sample: WheelInputSample) => void};
 
 // Older hosts can report epoch timestamps. Reject missing/incompatible clocks
 // rather than presenting a fabricated queue delay as a measurement.
@@ -49,7 +43,8 @@ function getMouseButton(event: MouseEvent) {
 }
 
 
-export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, wheelDiagnostics?: WheelDiagnostics): () => void {
+export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, wheelOptions: WheelOptions = {}): () => void {
+    const wheelPassive = wheelOptions.passive ?? true;
     let disposed = false;
     const pressedButtons = new Set<string>();
     let currentButton = "Left";
@@ -180,7 +175,7 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
         }
     }, true);
     addWindowListener('wheel', (evt) => {
-        const enteredAt = wheelDiagnostics?.record ? performance.now() : 0;
+        const enteredAt = wheelOptions.record ? performance.now() : 0;
         let event = {
             "Wheel": {
                 "x": evt.clientX - mount.getBoundingClientRect().left,
@@ -191,16 +186,16 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
             }
         };
         let res = chassis.interrupt(event, []);
-        if (res.prevent_default && !wheelDiagnostics?.passive) {
+        if (res.prevent_default && !wheelPassive && evt.cancelable) {
             evt.preventDefault();
         }
-        if (wheelDiagnostics?.record) {
+        if (wheelOptions.record) {
             const handlerMs = performance.now() - enteredAt;
-            wheelDiagnostics.record({
+            wheelOptions.record({
                 enteredAt,
                 deliveryDelayMs: wheelDeliveryDelay(evt.timeStamp, enteredAt, performance.timeOrigin),
                 handlerMs,
-                passive: wheelDiagnostics.passive,
+                passive: wheelPassive,
                 trusted: evt.isTrusted,
                 cancelable: evt.cancelable,
                 cancellationRequested: res.prevent_default,
@@ -209,7 +204,7 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement, 
                 deltaY: evt.deltaY,
             });
         }
-    }, {"passive": wheelDiagnostics?.passive ?? false, "capture": true});
+    }, {"passive": wheelPassive, "capture": true});
     addWindowListener('mousedown', (evt) => {
         if (!(evt.target as Element)?.closest('input, textarea, select, button, [contenteditable]')) mount.focus({preventScroll: true});
         let button = getMouseButton(evt);

@@ -33,7 +33,8 @@ export class CooperativeRenderScheduler {
     private wanted = false;
 
     constructor(private service: (fromFrame: boolean) => RenderWorkResult, private allowed: () => boolean,
-                private enqueue: (job: () => void) => void = enqueueRenderTask) {}
+                private enqueue: (job: () => void) => void = enqueueRenderTask,
+                private observeHostWait?: (milliseconds: number) => void) {}
 
     beginFrame() {
         this.invalidate();
@@ -54,14 +55,16 @@ export class CooperativeRenderScheduler {
     private queue() {
         if (this.queued || this.disposed || !this.wanted) return;
         this.queued = true;
+        const queuedAt = this.observeHostWait ? performance.now() : undefined;
         this.enqueue(() => {
             this.queued = false;
-            this.run();
+            this.run(false, queuedAt);
         });
     }
 
-    private run(fromFrame = false) {
+    private run(fromFrame = false, queuedAt?: number) {
         if (this.disposed || this.running || !this.wanted || !this.allowed()) return;
+        if (queuedAt !== undefined) this.observeHostWait?.(performance.now() - queuedAt);
         this.running = true;
         this.wanted = false;
         let result: RenderWorkResult;

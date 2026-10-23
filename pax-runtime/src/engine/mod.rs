@@ -22,12 +22,13 @@ pub mod layer_surface;
 pub mod layer_tiling;
 pub mod node_interface;
 pub mod occlusion;
+mod preparation_diagnostics;
 mod render_work;
+pub mod startup;
 pub mod surface_metrics;
 pub mod surface_preparation;
 pub mod surface_scheduling;
 pub mod surface_work;
-pub mod startup;
 // TODO move these to not be in engine - make separate crates?
 pub mod pax_gpu_render_context;
 pub mod vello_render_context;
@@ -795,6 +796,9 @@ impl PaxEngine {
             return report;
         }
         let start = now_ms();
+        let diagnostics = preparation_diagnostics::Capture::new(
+            self.runtime_context.occlusion_state.borrow().diagnostics,
+        );
         let mut completed_units = previous.initializations + previous.recorded + previous.submitted;
         let captures_cold = rcs.prepares_surface_content();
         let can_prepare = |layer, ids: &[u32]| {
@@ -806,6 +810,8 @@ impl PaxEngine {
         };
         let mut deferred = Vec::new();
         loop {
+            let selection =
+                preparation_diagnostics::Span::new(preparation_diagnostics::Stage::Selection);
             let mut updates = rcs
                 .take_settled_surface_replays()
                 .into_iter()
@@ -885,20 +891,25 @@ impl PaxEngine {
                 continue;
             }
             let mut direct = false;
+            drop(selection);
             if let Some(missing) = rcs.missing_surface_drawings(update.layer, &ids) {
                 report.cache_misses += usize::from(!missing.is_empty());
-                for id in missing {
+                // Cooperative work already owns one complete tile. Share its
+                // ancestor traversal/recording session, not one per primitive.
+                // Synchronous preparation retains per-primitive budget checks.
+                let batch_size = if one_unit { missing.len().max(1) } else { 1 };
+                for batch in missing.chunks(batch_size) {
                     if !one_unit
                         && !budget.admits(completed_units, previous.elapsed_ms + now_ms() - start)
                     {
                         break;
                     }
-                    if !self.record_surface_node(rcs, update.layer, id) {
+                    if !self.record_surface_nodes(rcs, update.layer, batch) {
                         direct = true;
                         break;
                     }
-                    completed_units += 1;
-                    report.recorded += 1;
+                    completed_units += batch.len();
+                    report.recorded += batch.len();
                 }
                 if !can_prepare(update.layer, &ids)
                     || self.runtime_context.settled_surface_blocker().is_some()
@@ -944,18 +955,20 @@ impl PaxEngine {
             rcs.defer_surface_replay(layer);
         }
         report.elapsed_ms = now_ms() - start;
+        report.diagnostics = diagnostics.finish();
         report
     }
 
-    fn record_surface_node(&self, rcs: &mut dyn RenderContext, layer: usize, id: u32) -> bool {
+    fn record_surface_nodes(&self, rcs: &mut dyn RenderContext, layer: usize, ids: &[u32]) -> bool {
+        let _capture = preparation_diagnostics::Span::new(preparation_diagnostics::Stage::Capture);
         if !rcs.begin_surface_recording(layer) {
             return false;
         }
-        self.render_surface_nodes(rcs, layer, &[id]);
+        self.render_surface_nodes(rcs, layer, ids);
         let retained = rcs.end_surface_recording(layer);
         retained
             && rcs
-                .missing_surface_drawings(layer, &[id])
+                .missing_surface_drawings(layer, ids)
                 .is_some_and(|missing| missing.is_empty())
     }
 
@@ -1047,7 +1060,9 @@ impl PaxEngine {
         observe: &mut dyn FnMut(&'static str),
         prepare: &mut dyn FnMut(&Self, &mut dyn RenderContext, bool),
     ) {
-        if self.runtime_context.startup.borrow().blocks_presentation() { return; }
+        if self.runtime_context.startup.borrow().blocks_presentation() {
+            return;
+        }
         if matches!(
             self.runtime_context.application.context().phase(),
             pax_runtime_api::AppPhase::Closing | pax_runtime_api::AppPhase::Closed
@@ -1058,7 +1073,7 @@ impl PaxEngine {
         use crate::render_instrumentation::{Phase, Span};
         let _render_timing = Span::new(Phase::Render);
         let (mut dirty_layers, failed_removal_layers, mut flush_layers) =
-            self.reconcile_render_work(rcs, observe);
+            self.reconcile_render_work(rcs, observe, true);
         if flush_layers.is_empty() && !self.runtime_context.has_canvas_render_work() {
             prepare(self, rcs, true);
             observe("visible_preparation");
@@ -1132,6 +1147,7 @@ impl PaxEngine {
         &mut self,
         rcs: &mut dyn RenderContext,
         observe: &mut dyn FnMut(&'static str),
+        retry_pending_nodes: bool,
     ) -> (Vec<usize>, Vec<usize>, Vec<usize>) {
         use crate::render_instrumentation::{Phase, Span};
         self.update_layer_count(rcs);
@@ -1142,12 +1158,19 @@ impl PaxEngine {
             return (Vec::new(), Vec::new(), Vec::new());
         }
 
-        // A pending backend can leave a drawable dirty after its layer bit was
-        // cleared by a presentation attempt. This pass still visits that drawable;
-        // its ancestor clip hooks and final flush must participate on the same layer.
-        for id in self.runtime_context.dirty_canvas_node_ids() {
-            if let Some(node) = self.runtime_context.get_expanded_node_by_eid(id) {
-                self.runtime_context.set_canvas_dirty(node.occlusion.get().render_layer_id);
+        // Legacy/unsplit rendering retries pending drawings through its traversal;
+        // every visited layer must participate in ancestor clips and final flush.
+        // Cooperative cold preparation instead owns first drawing when a surface
+        // is available. Promoting still-pending offscreen nodes here turns an
+        // unrelated animation into whole-app retry work and blocks settled replay.
+        // Real content changes and resource completions dirty their layers at
+        // the source; preserve those bits and all pending node flags.
+        if retry_pending_nodes || !rcs.prepares_surface_content() {
+            for id in self.runtime_context.dirty_canvas_node_ids() {
+                if let Some(node) = self.runtime_context.get_expanded_node_by_eid(id) {
+                    self.runtime_context
+                        .set_canvas_dirty(node.occlusion.get().render_layer_id);
+                }
             }
         }
 

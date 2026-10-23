@@ -48,6 +48,8 @@ pub(crate) struct Host {
     #[serde(default)]
     content: Option<[f64; 2]>,
     #[serde(default)]
+    content_origin: [f64; 2],
+    #[serde(default)]
     intermediate_clip: Option<[f64; 4]>,
 }
 
@@ -115,6 +117,7 @@ pub(crate) fn prepare(
     for h in snapshot.hosts {
         activity.observe(h.id, h.observed, snapshot.now, &h.geometry);
         let content = h.content.ok_or("missing preparation content extent")?;
+        let content_origin = h.content_origin;
         let clip = h.intermediate_clip.map(rect);
         let id = h.id;
         if hosts
@@ -123,6 +126,7 @@ pub(crate) fn prepare(
                 PreparationHost {
                     geometry: observation(h),
                     content,
+                    content_origin,
                     intermediate_clip: clip,
                 },
             )

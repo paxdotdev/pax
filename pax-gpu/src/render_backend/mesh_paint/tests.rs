@@ -123,6 +123,71 @@ mod hardware {
 
     #[test]
     #[ignore = "requires a macOS Metal device"]
+    fn shared_mesh_pipeline_keeps_tile_pages_and_animation_private() {
+        let (device, queue) = device();
+        let resources = Rc::new(MeshPipelineResources::new(&device));
+        let a = MeshRasterizer::with_resources(Rc::clone(&resources));
+        let b = MeshRasterizer::with_resources(Rc::clone(&resources));
+        assert!(Rc::ptr_eq(&a.resources, &b.resources));
+        let layout = sampling_layout(&device);
+        let input = MeshInput {
+            rows: fixture(),
+            projected_axes: [[64.0, 0.0], [0.0, 64.0]],
+            domain: [10.0, 20.0, 1.0, 1.0],
+        };
+        let prepare =
+            |rasterizer: &MeshRasterizer, page: &mut Option<Rc<PaintPage>>, input: &MeshInput| {
+                let mut encoder = device.create_command_encoder(&Default::default());
+                let mut stats = RasterStats::default();
+                rasterizer
+                    .prepare_page(
+                        &device,
+                        &queue,
+                        &mut encoder,
+                        &layout,
+                        page,
+                        &[input.clone()],
+                        [1.0, 1.0],
+                        &mut stats,
+                    )
+                    .unwrap();
+                queue.submit([encoder.finish()]);
+                stats
+            };
+        let (mut page_a, mut page_b) = (None, None);
+        assert_eq!(prepare(&a, &mut page_a, &input).texture_allocations, 1);
+        assert_eq!(prepare(&b, &mut page_b, &input).texture_allocations, 1);
+        assert!(!Rc::ptr_eq(
+            page_a.as_ref().unwrap(),
+            page_b.as_ref().unwrap()
+        ));
+        let original = read(&device, &queue, &page_b.as_ref().unwrap().texture);
+        let mut changed = input.clone();
+        for row in &mut changed.rows {
+            for control in row {
+                control.0[2] = 0.0;
+            }
+        }
+        assert_eq!(prepare(&a, &mut page_a, &changed).texture_allocations, 0);
+        assert_ne!(
+            read(&device, &queue, &page_a.as_ref().unwrap().texture),
+            original
+        );
+        assert_eq!(
+            read(&device, &queue, &page_b.as_ref().unwrap().texture),
+            original
+        );
+        assert_eq!(prepare(&b, &mut page_b, &input).raster_passes, 0);
+        drop(a);
+        drop(page_a);
+        assert_eq!(
+            read(&device, &queue, &page_b.as_ref().unwrap().texture),
+            original
+        );
+    }
+
+    #[test]
+    #[ignore = "requires a macOS Metal device"]
     fn mesh_pages_share_live_fields_and_copy_on_write() {
         let (device, queue) = device();
         let rasterizer = MeshRasterizer::new(&device);

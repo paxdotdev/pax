@@ -107,6 +107,11 @@ impl Default for Scroller {
 #[custom(Default)]
 // Internal native-host component used by `Scroller`.
 pub struct ScrollerHost {
+    // Internal web-host origin for cyclic rails. Children keep stable content
+    // coordinates while the finite browser scroll pane recenters. Not a public
+    // cross-platform Scroller API; ordinary Scroller leaves these at zero.
+    pub _content_origin_x: Property<f64>,
+    pub _content_origin_y: Property<f64>,
     // Bound horizontal scroll offset mirrored to/from the platform-native host.
     pub scroll_pos_x: Property<f64>,
     // Bound vertical scroll offset mirrored to/from the platform-native host.
@@ -132,6 +137,8 @@ pub struct ScrollerHost {
 impl Default for ScrollerHost {
     fn default() -> Self {
         Self {
+            _content_origin_x: Default::default(),
+            _content_origin_y: Default::default(),
             scroll_pos_x: Default::default(),
             scroll_pos_y: Default::default(),
             scroll_width: Default::default(),
@@ -414,6 +421,11 @@ impl InstanceNode for ScrollerHostInstance {
                             properties.scroll_pos_x.local().get(),
                             properties.scroll_pos_y.local().get(),
                         );
+                        let content_origin = [
+                            properties._content_origin_x.local().get(),
+                            properties._content_origin_y.local().get(),
+                        ]
+                        .map(|v| if v.is_finite() { v } else { 0.0 });
                         // A property write is a new scroll request, not a replay of the last
                         // native observation. Move presentation by the same delta, preserving
                         // any host-relative offset. Before the first observation, start at the
@@ -432,16 +444,21 @@ impl InstanceNode for ScrollerHostInstance {
                                     advance(
                                         logical_scroll.0,
                                         previous.scroll_x,
-                                        previous.presentation_scroll_x,
+                                        previous.presentation_scroll_x + content_origin[0]
+                                            - previous.content_origin[0],
                                     ),
                                     advance(
                                         logical_scroll.1,
                                         previous.scroll_y,
-                                        previous.presentation_scroll_y,
+                                        previous.presentation_scroll_y + content_origin[1]
+                                            - previous.content_origin[1],
                                     ),
                                 )
                             })
-                            .unwrap_or(logical_scroll);
+                            .unwrap_or((
+                                logical_scroll.0 + content_origin[0],
+                                logical_scroll.1 + content_origin[1],
+                            ));
                         properties
                             ._presentation_scroll_x
                             .local()
@@ -465,6 +482,7 @@ impl InstanceNode for ScrollerHostInstance {
                                 viewport_height: height,
                                 content_width: scroll_width,
                                 content_height: scroll_height,
+                                content_origin,
                                 scroll_x: properties.scroll_pos_x.local().get(),
                                 scroll_y: properties.scroll_pos_y.local().get(),
                                 presentation_scroll_x: presentation_scroll.0,
@@ -478,6 +496,16 @@ impl InstanceNode for ScrollerHostInstance {
                             context.mark_occlusion_dirty();
                         }
                         let updates = [
+                            patch_if_needed(
+                                &mut old_state.content_origin_x,
+                                &mut patch.content_origin_x,
+                                content_origin[0],
+                            ),
+                            patch_if_needed(
+                                &mut old_state.content_origin_y,
+                                &mut patch.content_origin_y,
+                                content_origin[1],
+                            ),
                             patch_if_needed(&mut old_state.size_x, &mut patch.size_x, width),
                             patch_if_needed(&mut old_state.size_y, &mut patch.size_y, height),
                             patch_if_needed(
@@ -812,7 +840,12 @@ impl InstanceNode for ScrollerHostInstance {
         // or native mask structure; structural scroller properties still recompute occlusion.
         !matches!(
             property_name,
-            "scroll_pos_x" | "scroll_pos_y" | "_presentation_scroll_x" | "_presentation_scroll_y"
+            "scroll_pos_x"
+                | "scroll_pos_y"
+                | "_presentation_scroll_x"
+                | "_presentation_scroll_y"
+                | "_content_origin_x"
+                | "_content_origin_y"
         )
     }
 

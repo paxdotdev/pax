@@ -14,6 +14,8 @@ export class SurfaceTrace {
     private frame?: number;
     private phases = new Map<string, {count: number; totalMs: number; maxMs: number}>();
     private renderWork: Record<string, number> = {};
+    private layerReconciliation: unknown[] = [];
+    private layerDraws: unknown[] = [];
     private renderBlockers = new Set<string>();
     private admission = '';
     private demand = new Map<string, {signature: string; firstVisibleAt?: number; coverage: number; owner: number; denial?: string}>();
@@ -26,8 +28,6 @@ export class SurfaceTrace {
     private wheelInputs = new TraceRing<WheelInputSample>(128);
     private imageCounts: Record<string, number> = {};
     private completionRequests = {queued: 0, coalesced: 0, used: 0, disposed: 0};
-    private completionDeferredAt?: number;
-    private completionWait = {opportunities: 0, totalMs: 0, maxMs: 0};
     private imageStates = new Map<string, string>();
     private pendingImages = new Map<string, {node: number; path: string; id: string}>();
     private recordedImages = new Map<string, Set<string>>();
@@ -137,8 +137,7 @@ export class SurfaceTrace {
                     this.record('image-readiness-summary', {counts: {...this.imageCounts},
                         waitingDecoded: [...this.pendingImages.values()],
                         recordedNotSubmitted: [...this.recordedImages.entries()].map(([id, nodes]) => ({id, count:nodes.size}))});
-                    this.record('presentation-completion-summary', {requests: {...this.completionRequests},
-                        wait: {...this.completionWait}, pending: this.completionDeferredAt != null});
+                    this.record('presentation-completion-summary', {requests: {...this.completionRequests}});
                     this.record('wheel-input-summary', {samples: this.wheelInputs.snapshot()});
                     this.record('trace-overflow', {events: this.events.overwritten, samples: this.samples.overwritten});
                     output.textContent = JSON.stringify(this.snapshot());
@@ -175,21 +174,6 @@ export class SurfaceTrace {
 
     recordCompletionRequest(outcome: keyof SurfaceTrace['completionRequests']) {
         this.completionRequests[outcome]++;
-        if (outcome === 'used' && this.completionDeferredAt == null) {
-            this.completionDeferredAt = performance.now();
-        }
-    }
-
-    recordPresentationOpportunity(blocked: boolean) {
-        if (this.completionDeferredAt == null) return;
-        const waitMs = Math.max(0, performance.now() - this.completionDeferredAt);
-        this.completionDeferredAt = undefined;
-        this.completionWait.opportunities++;
-        this.completionWait.totalMs += waitMs;
-        this.completionWait.maxMs = Math.max(this.completionWait.maxMs, waitMs);
-        // This measures the next service opportunity, not completion of any
-        // particular tile. The runtime may still reject unsettled scene state.
-        this.record('presentation-completion-wait', {waitMs, blocked});
     }
 
     record(event: string, details: Record<string, unknown> = {}) {
@@ -203,9 +187,9 @@ export class SurfaceTrace {
         ring.push({at: performance.now(), event, ...details});
     }
 
-    recordPhase(phase: string, duration: number) {
+    recordPhase(phase: string, duration: number, count = 1, maximum = duration) {
         const value = this.phases.get(phase) ?? {count: 0, totalMs: 0, maxMs: 0};
-        value.count++; value.totalMs += duration; value.maxMs = Math.max(value.maxMs, duration);
+        value.count += count; value.totalMs += duration; value.maxMs = Math.max(value.maxMs, maximum);
         this.phases.set(phase, value);
     }
 
@@ -218,8 +202,10 @@ export class SurfaceTrace {
     private flushFrame() {
         if (!this.phases.size && !Object.keys(this.renderWork).length) return;
         this.record('frame-summary', {epoch: this.frame, phases: Object.fromEntries(this.phases),
-            renderWork: this.renderWork, blockers: [...this.renderBlockers]});
+            renderWork: this.renderWork, blockers: [...this.renderBlockers],
+            layerReconciliation: this.layerReconciliation, layerDraws: this.layerDraws});
         this.phases.clear(); this.renderWork = {}; this.renderBlockers.clear();
+        this.layerReconciliation = []; this.layerDraws = [];
     }
 
     snapshot() {
@@ -228,6 +214,8 @@ export class SurfaceTrace {
     }
 
     recordRenderWork(report: Record<string, any>, hostElapsedMs: number) {
+        this.layerReconciliation.push(...(report.layer_reconciliation ?? []).slice(0, 64 - this.layerReconciliation.length));
+        this.layerDraws.push(...(report.layer_draws ?? []).slice(0, 64 - this.layerDraws.length));
         const add = (key: string, value: number) => this.renderWork[key] = (this.renderWork[key] ?? 0) + value;
         add('services', 1); add('hostMs', hostElapsedMs);
         for (const key of ['elapsed_ms', 'setup_ms', 'ordinary_ms', 'units', 'ordinary_layers',
@@ -237,6 +225,15 @@ export class SurfaceTrace {
         }
         for (const key of ['initializations', 'recorded', 'submitted', 'urgent_units', 'elapsed_ms']) {
             add('preparation_' + key, report.preparation?.[key] ?? 0);
+        }
+        const diagnostics = report.preparation?.diagnostics;
+        for (const [name, sample] of Object.entries(diagnostics?.stages ?? {}) as [string, any][]) {
+            // Fixed stage names from the runtime; aggregate rather than retaining
+            // per-primitive records or creating browser performance entries.
+            this.recordPhase('preparation.' + name, sample.total_ms, sample.count, sample.max_ms);
+        }
+        for (const key of ['targeted_surfaces', 'additional_surfaces', 'image_uploads', 'image_upload_bytes']) {
+            if (diagnostics) add('preparation_' + key, diagnostics[key] ?? 0);
         }
         add('exhausted', Number(!!report.allowance_exhausted));
         this.renderWork.max_unit_ms = Math.max(this.renderWork.max_unit_ms ?? 0, report.max_unit_ms ?? 0);
@@ -328,12 +325,11 @@ export class SurfaceTrace {
         delete (this.mount as any).paxSurfaceTrace;
         this.events.clear(); this.samples.clear(); this.phases.clear();
         this.renderWork = {}; this.renderBlockers.clear(); this.admission = '';
+        this.layerReconciliation = []; this.layerDraws = [];
         this.wheelInputs.clear();
         this.demand.clear();
         this.scrollDirections.clear();
         this.imageStates.clear(); this.pendingImages.clear(); this.recordedImages.clear(); this.imageCounts = {};
         this.completionRequests = {queued: 0, coalesced: 0, used: 0, disposed: 0};
-        this.completionDeferredAt = undefined;
-        this.completionWait = {opportunities: 0, totalMs: 0, maxMs: 0};
     }
 }

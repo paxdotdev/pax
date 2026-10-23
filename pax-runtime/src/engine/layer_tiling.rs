@@ -338,12 +338,40 @@ pub fn scroller_canvas_plan_for_coverage(
     device_pixel_ratio: f64,
     policy: ScrollerTilingPolicy,
 ) -> LayerCanvasPlan {
+    scroller_canvas_plan_for_coverage_at_origin(
+        layer_id,
+        host_signature,
+        content,
+        [0.0; 2],
+        viewport,
+        coverage,
+        device_pixel_ratio,
+        policy,
+    )
+}
+
+/// Content-anchored tiles for a finite pane whose origin can move independently
+/// of its contents. A recenter keeps tile IDs, geometry, and painted pixels stable;
+/// only tiles at the finite pane boundaries may be clipped differently.
+pub fn scroller_canvas_plan_for_coverage_at_origin(
+    layer_id: usize,
+    host_signature: String,
+    content: [f64; 2],
+    origin: [f64; 2],
+    viewport: [f64; 2],
+    coverage: super::surface_scheduling::CoverageRect,
+    device_pixel_ratio: f64,
+    policy: ScrollerTilingPolicy,
+) -> LayerCanvasPlan {
     let mut plan = LayerCanvasPlan {
         layer_id,
         active: true,
         surfaces: Vec::new(),
     };
-    if !coverage.has_area() || content.iter().any(|v| !v.is_finite() || *v <= 0.0) {
+    if !coverage.has_area()
+        || content.iter().any(|v| !v.is_finite() || *v <= 0.0)
+        || origin.iter().any(|v| !v.is_finite())
+    {
         return plan;
     }
     let dims = compute_logical_tile_dimensions(
@@ -355,16 +383,19 @@ pub fn scroller_canvas_plan_for_coverage(
         valid_density(device_pixel_ratio),
         policy,
     );
-    let start_column = (coverage.left.max(0.0) / dims.width).floor() as i64;
-    let start_row = (coverage.top.max(0.0) / dims.height).floor() as i64;
-    let end_column = (coverage.right.min(content[0]) / dims.width).ceil() as i64;
-    let end_row = (coverage.bottom.min(content[1]) / dims.height).ceil() as i64;
+    let end = [origin[0] + content[0], origin[1] + content[1]];
+    let start_column = (coverage.left.max(origin[0]) / dims.width).floor() as i64;
+    let start_row = (coverage.top.max(origin[1]) / dims.height).floor() as i64;
+    let end_column = (coverage.right.min(end[0]) / dims.width).ceil() as i64;
+    let end_row = (coverage.bottom.min(end[1]) / dims.height).ceil() as i64;
     for row in start_row..end_row {
         for column in start_column..end_column {
-            let left = column as f64 * dims.width;
-            let top = row as f64 * dims.height;
-            let width = (content[0] - left).min(dims.width);
-            let height = (content[1] - top).min(dims.height);
+            let cell_left = column as f64 * dims.width;
+            let cell_top = row as f64 * dims.height;
+            let left = cell_left.max(origin[0]);
+            let top = cell_top.max(origin[1]);
+            let width = (cell_left + dims.width).min(end[0]) - left;
+            let height = (cell_top + dims.height).min(end[1]) - top;
             let key = format!("{column}:{row}");
             plan.surfaces.push(SurfaceCanvasDescriptor {
                 id: format!("layer-{layer_id}-cell-{column}-{row}"),
@@ -678,6 +709,89 @@ fn clamp_index(value: i32, max: i32) -> i32 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn non_grid_aligned_pane_rebase_preserves_tile_identity_and_paint_coordinates() {
+        use super::super::surface_scheduling::CoverageRect;
+        for dpr in [1.0, 1.25, 2.0, 2.5] {
+            for direction in [-1.0, 1.0] {
+                let origin = direction * 16082.0;
+                let x = if direction > 0.0 { 42000.25 } else { 6000.25 };
+                let coverage = CoverageRect {
+                    left: x - 2000.0,
+                    top: 0.0,
+                    right: x + 3800.0,
+                    bottom: 534.0,
+                };
+                let plan = |origin| {
+                    scroller_canvas_plan_for_coverage_at_origin(
+                        4,
+                        "scroller:511".into(),
+                        [50046.0, 534.0],
+                        [origin, 0.0],
+                        [1800.0, 534.0],
+                        coverage,
+                        dpr,
+                        ScrollerTilingPolicy::default(),
+                    )
+                };
+                let before = plan(0.0);
+                let after = plan(origin);
+                assert!(!before.surfaces.is_empty());
+                assert_eq!(before.surfaces.len(), after.surfaces.len());
+                for (a, b) in before.surfaces.iter().zip(&after.surfaces) {
+                    assert_eq!(
+                        (
+                            &a.id,
+                            &a.key,
+                            a.left,
+                            a.top,
+                            a.width,
+                            a.height,
+                            &a.surface_signature,
+                            &a.transform_signature,
+                            &a.host_signature
+                        ),
+                        (
+                            &b.id,
+                            &b.key,
+                            b.left,
+                            b.top,
+                            b.width,
+                            b.height,
+                            &b.surface_signature,
+                            &b.transform_signature,
+                            &b.host_signature
+                        )
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn translated_panes_support_negative_cells_and_clip_their_real_boundaries() {
+        use super::super::surface_scheduling::CoverageRect;
+        let plan = scroller_canvas_plan_for_coverage_at_origin(
+            4,
+            "host".into(),
+            [4000.0, 500.0],
+            [-3000.25, 0.0],
+            [1800.0, 500.0],
+            CoverageRect {
+                left: -4000.0,
+                top: 0.0,
+                right: 2000.0,
+                bottom: 500.0,
+            },
+            2.0,
+            ScrollerTilingPolicy::default(),
+        );
+        assert_eq!(plan.surfaces.first().unwrap().left, -3000.25);
+        let last = plan.surfaces.last().unwrap();
+        assert_eq!(last.left + last.width, 999.75);
+        assert!(plan.surfaces.iter().all(|s| s.width > 0.0));
+    }
 
     #[test]
     fn viewport_sized_cells_are_stable_across_clipping_and_equivalent_scales() {

@@ -17,6 +17,11 @@ Type: [`HostObservation`](../../../../api/internal/pax-runtime/engine/surface_sc
 ##### `content`
 Type: [`f64`; 2]
 
+##### `content_origin`
+Type: [`f64`; 2]
+
+Start of the finite pane in content coordinates; rebasing does not move content.
+
 ##### `intermediate_clip`
 Type: `Option`<[`CoverageRect`](../../../../api/internal/pax-runtime/engine/surface_scheduling.md#coveragerect)>
 

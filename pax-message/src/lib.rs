@@ -1046,6 +1046,9 @@ pub struct LinkStyleMessage {
 #[repr(C)]
 /// Create/update patch for a native/browser-owned scroller.
 pub struct ScrollerPatch {
+    /// Internal web-host pane origin. Apply together with authored scroll commands.
+    pub content_origin_x: Option<f64>,
+    pub content_origin_y: Option<f64>,
     pub id: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub parent_frame: Option<Option<u32>>,

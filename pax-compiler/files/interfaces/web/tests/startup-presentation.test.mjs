@@ -20,6 +20,7 @@ function harness() {
         resume_startup_after_presentation: () => state.events.push('resume'),
         tick: () => { state.ticks++; return []; },
         render: () => state.events.push('render'),
+        begin_render_work: () => state.events.push('begin-render-work'),
         finish_startup_presentation: () => state.events.push('input-ready'),
     };
     const mount = {removeAttribute: () => state.events.push('reveal')};
@@ -33,8 +34,11 @@ function harness() {
         let startupWork = state;
         let startupScheduler = {request() { state.wakes++; }, dispose() { state.events.push('disposed'); }};
         const liveSession = {didMount() { state.events.push('mounted'); }};
-        const surfacePresentation = undefined, objectManager = {};
+        const objectManager = {};
+        const renderEpoch = 0;
+        const cooperativeRender = {beginFrame() { state.events.push('render-slice'); }};
         const nativePool = {
+            beginTraceFrame() {},
             sampleFrameInputs() {}, startupTextReady: () => state.textReady,
             syncRenderSurfaceLayouts() {},
             finishTextFrame(settled) { state.events.push(settled ? 'settled-text' : 'ordinary-text'); },
@@ -73,6 +77,22 @@ test('a detached mount cannot publish from a stale animation-frame callback', ()
     h.frame(); h.detach(); h.frame();
     assert.deepEqual(h.state.events, []);
     assert.equal(h.state.ticks, 0);
+});
+
+test('cooperative rendering begins only after the startup publication checkpoint', () => {
+    const h = harness();
+    h.state.patchesPending = false;
+    h.state.textReady = true;
+    h.frame();
+    assert.deepEqual(h.state.events, []);
+    h.frame();
+    assert.ok(h.state.events.includes('mounted'));
+    assert.ok(!h.state.events.includes('render-slice'));
+    assert.equal(h.state.ticks, 0);
+    h.frame();
+    assert.equal(h.state.ticks, 1);
+    assert.ok(h.state.events.includes('begin-render-work'));
+    assert.ok(h.state.events.includes('render-slice'));
 });
 
 test('first viewport waits for measurement, then native work progresses without releasing input or init', () => {

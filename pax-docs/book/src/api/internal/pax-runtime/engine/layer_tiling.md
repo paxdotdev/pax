@@ -81,6 +81,15 @@ so adding/removing optional coverage cannot rename surviving visible tiles.
 
 ---
 
+### `scroller_canvas_plan_for_coverage_at_origin`
+<pre><code class="api-signature language-rust ignore">pub fn scroller_canvas_plan_for_coverage_at_origin(layer_id: usize, host_signature: String, content: [f64; 2], origin: [f64; 2], viewport: [f64; 2], coverage: <a href="../../../../api/internal/pax-runtime/engine/surface_scheduling.md#coveragerect">CoverageRect</a>, device_pixel_ratio: f64, policy: <a href="../../../../api/internal/pax-runtime/engine/layer_tiling.md#scrollertilingpolicy">ScrollerTilingPolicy</a>) -&gt; <a href="../../../../api/internal/pax-runtime/engine/layer_tiling.md#layercanvasplan">LayerCanvasPlan</a></code></pre>
+
+Content-anchored tiles for a finite pane whose origin can move independently
+of its contents. A recenter keeps tile IDs, geometry, and painted pixels stable;
+only tiles at the finite pane boundaries may be clipped differently.
+
+---
+
 ### `single_surface_plan`
 <pre><code class="api-signature language-rust ignore">pub fn single_surface_plan(layer_id: usize, host_signature: String, width: f64, height: f64) -&gt; <a href="../../../../api/internal/pax-runtime/engine/layer_tiling.md#layercanvasplan">LayerCanvasPlan</a></code></pre>
 

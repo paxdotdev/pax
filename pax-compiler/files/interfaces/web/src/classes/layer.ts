@@ -2,6 +2,7 @@ import { NATIVE_OVERLAY_CLASS } from "../utils/constants";
 import { ObjectManager } from "../pools/object-manager";
 import { CANVAS, DIV } from "../pools/supported-objects";
 import { CanvasPool, releaseCanvasBacking } from "./canvas-pool";
+import { canvasPlanSignature } from "./surface-host-policy";
 import type { LayerCanvasPlan, SurfaceCanvasDescriptor } from "./surface-host-policy";
 
 let nextSurfaceGeneration = 0;
@@ -153,7 +154,7 @@ export class Layer {
             this.detachCanvases(true);
             return;
         }
-        let planSignature = this.computePlanSignature(plan);
+        let planSignature = canvasPlanSignature(plan);
         if (planSignature === this.lastPlanSignature && visibleHost === this.lastVisibleHost) {
             return;
         }
@@ -314,22 +315,5 @@ export class Layer {
         canvas.removeAttribute("data-surface-init-started-at");
         canvas.removeAttribute("data-surface-init-completed-at");
         canvas.removeAttribute("data-surface-queued-revision");
-    }
-
-    private computePlanSignature(plan: LayerCanvasPlan): string {
-        let parts = [
-            plan.layerId.toString(),
-            plan.active ? "1" : "0",
-            plan.surfaces.length.toString(),
-        ];
-        plan.surfaces.forEach((descriptor) => {
-            parts.push(
-                `${descriptor.id}|${descriptor.left},${descriptor.top},${descriptor.width},${descriptor.height}`
-                + `|${descriptor.surfaceSignature}|${descriptor.transformSignature}|${descriptor.hostSignature ?? ""}`
-                + `|priority=${descriptor.replayPriority}`,
-                `backing=${descriptor.backingWidth}x${descriptor.backingHeight}`,
-            );
-        });
-        return parts.join(";");
     }
 }

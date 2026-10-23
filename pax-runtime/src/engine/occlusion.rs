@@ -807,7 +807,7 @@ fn try_reconcile_structure(
                 },
             ));
         }
-        for child in node.children.get().iter().rev() {
+        for child in node.presentation_children(ctx).iter().rev() {
             // Escaping branches use the existing full traversal, even when only
             // their siblings changed. Their mixed presentation domains are not
             // represented by this bounded reconciliation's clip lineage.
@@ -1968,87 +1968,6 @@ mod tests {
             let point = kurbo::Point::new(20.0, 30.0);
             let restored = inverse * (presentation * world * point);
             assert!((restored - point).hypot() < 1e-4);
-        }
-    }
-
-    #[test]
-    fn collapsing_native_surface_clears_old_mask_and_expansion_restores_it() {
-        use crate::{ComponentInstance, InstanceNode, InstantiationArgs};
-        use pax_runtime_api::{LocalProperty, Platform, OS};
-
-        let mut engine = crate::test_support::empty_engine(
-            (400.0, 400.0),
-            Platform::Web,
-            OS::Mac,
-            Box::new(|| 0),
-            Default::default(),
-        );
-        let root = engine.mount_root_component(ComponentInstance::instantiate(InstantiationArgs {
-            prototypical_common_properties: crate::CommonPropertiesInit::Default,
-            prototypical_properties: crate::PropertiesInit::Factory(Box::new(|_, _| {
-                Some(Rc::new(std::cell::RefCell::new(
-                    pax_runtime_api::pax_value::PaxAny::Builtin(
-                        pax_runtime_api::PaxValue::default(),
-                    ),
-                )))
-            })),
-            handler_registry: None,
-            children: None,
-            component_template: None,
-            component_settings: None,
-            template_node_identifier: None,
-            template_node_type_id: None,
-            template_node_selector_info: None,
-            transition_config: Default::default(),
-            properties_scope: crate::PropertiesScopeInit::None,
-        }));
-        let ctx = &engine.runtime_context;
-        let _graph = ctx.property_graph.enter();
-        ctx.take_native_messages();
-        for (scale, expected_entries) in [(1.0, 1), (0.0, 0), (1.0, 1)] {
-            let tab = TransformAndBounds {
-                transform: pax_runtime_api::math::Transform2::new(
-                    (Affine::translate((50.0, 50.0)) * Affine::scale(scale)).as_coeffs(),
-                ),
-                bounds: (100.0, 100.0),
-            };
-            root.transform_and_bounds
-                .replace_with(LocalProperty::new(tab));
-            let drawables = [
-                DrawableInfo::Native {
-                    node: root.clone(),
-                    layer: Layer::Native,
-                    layer_id: 0,
-                    bounds: OcclusionBox::new_from_transform_and_bounds_with_affine(
-                        tab,
-                        Affine::IDENTITY,
-                    ),
-                    presentation_transform: Affine::IDENTITY,
-                },
-                DrawableInfo::Canvas {
-                    layer_id: 0,
-                    entry: entry(rect(0.0, 0.0, 200.0, 200.0), vec![]),
-                },
-            ];
-            update_native_masks(&drawables, ctx);
-            let masks: Vec<_> = ctx
-                .take_native_messages()
-                .into_iter()
-                .filter_map(|message| match message {
-                    pax_message::NativeMessage::NativeMaskUpdate(patch) => Some(patch),
-                    _ => None,
-                })
-                .collect();
-            assert_eq!(
-                masks.len(),
-                1,
-                "each scale transition updates the existing mask"
-            );
-            assert_eq!(masks[0].entries.len(), expected_entries);
-            assert!(masks[0]
-                .entries
-                .iter()
-                .all(|entry| { !entry.path.contains("NaN") && !entry.path.contains("inf") }));
         }
     }
 

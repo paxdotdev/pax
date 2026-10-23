@@ -26,7 +26,7 @@
                 layout_role=LayoutRole::Breakout>
                 <Group x=640px y=406px anchor=50% width=1048px height=812px scale=76%>
                     <DeviceFrame width=100% height=100% kind="tablet">
-                        <Paxflix width=100% height=100% embedded=true disable_keyboard=true/>
+                        <Paxflix width=100% height=100% embedded=true disable_keyboard=true disable_card_entrances=true/>
                     </DeviceFrame>
                 </Group>
                 <Group x=1108px y=346px anchor=50% width=390px height=844px scale=62% rotate=8deg>

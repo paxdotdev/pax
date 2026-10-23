@@ -88,8 +88,41 @@ function harness(delegated = false, Pool = NativeElementPool) {
             if (y != null) leaf.scrollTop = y;
         },
     });
-    return {leaf, pane, canvas, content, state, update: patch => pool.scrollerUpdate({id: 1, ...patch})};
+    return {pool, leaf, pane, canvas, content, state, update: patch => pool.scrollerUpdate({id: 1, ...patch})};
 }
+
+test('pane recenter preserves content-space scroll and canvas/native alignment', () => {
+    const h = harness();
+    const transform = [0.5, 0, 0, 0.75, 20, 90];
+    h.update({sizeX:1800, sizeY:534, sizeInnerPaneX:50046, sizeInnerPaneY:534,
+        transform, scrollX:42000.25, contentOriginX:0});
+    const inverse = h.content.style.transform;
+    const measure = () => h.pool.measureScrollerPosition(h.leaf, h.state);
+    const before = measure();
+    for (const origin of [16082, 0, -16082, 32164]) {
+        h.update({scrollX:42000.25 - origin, contentOriginX:origin});
+        assert.equal(measure().presentationScrollX, before.presentationScrollX);
+        assert.equal(h.canvas.style.translate, origin === 0 ? '' : `${-origin}px 0px`);
+        assert.equal(h.content.style.translate, h.canvas.style.translate);
+        assert.equal(h.content.style.transform, inverse, 'origin does not replace inverse world transform');
+        assert.equal(h.canvas.dataset.approvedScrollX, '42000.25');
+        assert.equal(h.pane.style.width, '50046px', 'finite native scroll extent stays fixed');
+    }
+    h.leaf.scrollLeft += 137.5;
+    assert.equal(measure().presentationScrollX, 42137.75, 'subsequent input uses the new origin');
+    h.update({presentationScrollX:42100});
+    assert.equal(measure().presentationScrollX, 42137.75, 'observation does not rewind native input');
+});
+
+test('queued origin and scroll deltas are replayed as one patch', () => {
+    const h = harness();
+    h.pool.pendingScrollerUpdates = new Map();
+    h.pool.queueScrollerUpdate({id:1, contentOriginX:16082, scrollX:25918.25});
+    h.pool.queueScrollerUpdate({id:1, opacity:0.8});
+    const queued = h.pool.pendingScrollerUpdates.get(1);
+    assert.equal(queued.contentOriginX, 16082);
+    assert.equal(queued.scrollX, 25918.25);
+});
 
 for (const [platform, Pool] of [['desktop', NativeElementPool], ['iOS', IOSNativeElementPool]]) {
   for (const delegated of [false, true]) {

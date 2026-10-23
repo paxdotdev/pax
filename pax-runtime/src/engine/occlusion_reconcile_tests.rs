@@ -151,6 +151,46 @@ fn clear(ctx: &RuntimeContext) {
     ctx.take_native_messages();
 }
 
+#[test]
+fn collapsing_native_surface_clears_old_mask_and_expansion_restores_it() {
+    let (ctx, root) = mount(vec![probe(Kind::Canvas, vec![]), probe(Kind::Native, vec![])]);
+    let native = root.children.get()[0].children.get()[1].clone();
+    assert_ne!(native.native_mask_hash.get(), 0);
+    for (scale, expected_entries) in [(0.0, 0), (1.0, 1), (0.0, 0), (1.0, 1)] {
+        native
+            .get_common_properties()
+            .borrow()
+            .scale_x
+            .set(Some(Size::Percent((scale * 100.0).into())));
+        native
+            .get_common_properties()
+            .borrow()
+            .scale_y
+            .set(Some(Size::Percent((scale * 100.0).into())));
+        settle(&root, &ctx);
+        let masks: Vec<_> = ctx
+            .take_native_messages()
+            .into_iter()
+            .filter_map(|message| match message {
+                pax_message::NativeMessage::NativeMaskUpdate(patch)
+                    if patch.id == native.id.to_u32() => Some(patch),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            masks.len(),
+            1,
+            "each scale transition updates the existing mask"
+        );
+        assert_eq!(masks[0].entries.len(), expected_entries);
+        assert!(masks[0].entries.iter().all(|entry| {
+            !entry.path.contains("NaN") && !entry.path.contains("inf")
+        }));
+        assert_full_rebuild_matches(&root, &ctx);
+        clear(&ctx);
+    }
+}
+
 fn attach(parent: &Rc<ExpandedNode>, children: Vec<Rc<ExpandedNode>>, ctx: &Rc<RuntimeContext>) {
     let children = parent.attach_children(children, ctx, &parent.parent_frame);
     parent.children.set(children);

@@ -173,6 +173,13 @@ not unmount nodes or release their retained identities. Removing nodes makes
 their slots available for reuse. This behavior is shared by debug and release
 GPU builds; it does not change the Vello CPU renderer.
 
+Surfaces using the same GPU context share immutable mask and mesh-gradient
+pipelines and neutral fallback textures. Each surface still owns its mask
+results, gradient pages, and mutable drawing state, so resizing or animating
+one surface does not overwrite another's pixels. Creating a new scroll tile
+therefore reuses that setup, but still requires its own backing storage and
+rendering work before its content is ready.
+
 The amount of work is therefore related to the dependencies and surfaces
 affected by a change. A single property write can still have a broad effect:
 resizing a container, removing an overlapping element, or changing a clip

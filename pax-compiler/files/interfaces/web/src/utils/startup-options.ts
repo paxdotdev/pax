@@ -13,9 +13,13 @@ export function resolveStartupOptions(config: unknown, search: string, yieldMoun
     };
 }
 
-export function readStartupOptions(yieldMount?: boolean) {
+export function readWebConfig(): unknown {
     const element = document.getElementById("pax-web-config");
     let config: unknown = {};
     try { config = JSON.parse(element?.textContent || "{}"); } catch { /* Custom hosts may omit metadata. */ }
-    return resolveStartupOptions(config, window.location.search, yieldMount);
+    return config;
+}
+
+export function readStartupOptions(yieldMount?: boolean) {
+    return resolveStartupOptions(readWebConfig(), window.location.search, yieldMount);
 }

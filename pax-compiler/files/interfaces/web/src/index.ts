@@ -32,7 +32,7 @@ import {RadioListUpdatePatch} from "./classes/messages/radio-list-update-patch";
 import {EventBlockerUpdatePatch} from "./classes/messages/event-blocker-update-patch";
 import {ImageLoadPatch} from "./classes/messages/image-load-patch";
 import {ScrollerUpdatePatch} from "./classes/messages/scroller-update-patch";
-import {setupEventListeners, wheelDiagnosticMode} from "./events/listeners";
+import {setupEventListeners} from "./events/listeners";
 import "./styles/pax-web.css";
 import { ButtonUpdatePatch } from "./classes/messages/button-update-patch";
 import { PhotoPickerUpdatePatch } from "./classes/messages/photo-picker-update-patch";
@@ -52,8 +52,8 @@ import { updateDocumentRouteMetadata } from "./utils/route-metadata";
 
 import { StartupScheduler, StartupWork } from "./utils/startup-scheduler";
 import { readStartupOptions } from "./utils/startup-options";
+import { readWheelEvents, type WheelEvents } from "./utils/input-options";
 import { FrameScheduler } from "./utils/frame-scheduler";
-import { SurfacePresentationScheduler } from "./utils/surface-presentation";
 import { CooperativeRenderScheduler } from "./utils/cooperative-render";
 
 declare global { interface Window { chassis?: PaxChassisWeb; } }
@@ -70,10 +70,8 @@ let startupViewportPresented = false;
 let startupWork: StartupWork | undefined;
 let startupFeedbackFrameReady = false;
 let mountYieldEnabled = false;
-let surfacePresentation: SurfacePresentationScheduler | undefined;
 let cooperativeRender: CooperativeRenderScheduler | undefined;
 let renderEpoch = 0;
-const cooperativeRenderEnabled = new URLSearchParams(window.location.search).get("pax_render_yield") === "1";
 let hiddenTabPumpHandle: number | null = null;
 let pendingAsyncInterruptFlush = false;
 const frameScheduler = new FrameScheduler(new URLSearchParams(window.location.search).get("pax_suspended") === "1");
@@ -113,6 +111,8 @@ export interface WebInitOptions {
     documentRouting?: boolean;
     /** Yield initial engine/native work; defaults to generated web metadata, then false. */
     yieldMount?: boolean;
+    /** Wheel delivery defaults to passive. Cancellable delivery can delay native scrolling. */
+    wheelEvents?: WheelEvents;
     /** Cancels startup or closes the mounted region; cleanup remains retained. */
     signal?: AbortSignal;
 }
@@ -192,10 +192,11 @@ export async function init_web(options: WebInitOptions): Promise<MountedApp> {
         throw new Error("entry must name a declared runnable root");
     }
     const startup = readStartupOptions(options.yieldMount);
+    const wheelEvents = readWheelEvents(options.wheelEvents);
     mountYieldEnabled = startup.yieldMount;
     // Snapshot caller-owned bytes before module/network awaits can interleave
     // with application mutations to the original buffer.
-    const session = new MountSession({...options, startupData: options.startupData?.slice()});
+    const session = new MountSession({...options, wheelEvents, startupData: options.startupData?.slice()});
     liveSession = session;
     try {
         session.checkOpen();
@@ -305,7 +306,6 @@ function disposeCurrentChassis() {
     const disposers = [() => frameScheduler.clear(), teardownHiddenTabPump,
         teardownRouteLocationSync, teardownResizeHandler, teardownEventListeners,
         () => chassis?.set_surface_ready_callback(undefined),
-        () => { surfacePresentation?.dispose(); surfacePresentation = undefined; },
         () => { cooperativeRender?.dispose(); cooperativeRender = undefined; },
         () => nativePool.dispose(), () => chassis?.free()];
     teardownHiddenTabPump = teardownRouteLocationSync = teardownResizeHandler = teardownEventListeners = null;
@@ -373,7 +373,7 @@ function attachChassis(chassis: PaxChassisWeb, mount: Element) {
         });
     });
     nativePool.attach(chassis, mount, liveSession?.options.pageScroll ?? false);
-    if (cooperativeRenderEnabled) {
+    {
         const pump = new CooperativeRenderScheduler(fromFrame => {
             const start = surfaceTraceEnabled ? performance.now() : 0;
             // Share the ordinary frame's engine-entry guard. A synchronous host
@@ -399,31 +399,11 @@ function attachChassis(chassis: PaxChassisWeb, mount: Element) {
             } finally {
                 if (!fromFrame) finishEngineTurn(chassis, mount);
             }
-        }, () => !frameScheduler.suspended && chassis === currentChassis && mount === currentMount);
+        }, () => !frameScheduler.suspended && chassis === currentChassis && mount === currentMount,
+        undefined, surfaceTraceEnabled ? ms => nativePool.recordSurfaceFramePhase("continuation.host_wait", ms) : undefined);
         cooperativeRender = pump;
         const wake = () => {
             nativePool.recordSurfaceCompletionRequest(pump.request());
-        };
-        chassis.set_surface_ready_callback(wake);
-        nativePool.setSurfaceWorkWake(wake);
-    } else {
-        const presentation = new SurfacePresentationScheduler(() => {
-            frameInProgress = true;
-            try {
-                // Capacity completion can unblock allocation. Leave genuine
-                // application changes to normal settlement, not a per-tile tick.
-                if (chassis.has_pending_properties()) return;
-                nativePool.syncRenderSurfaceLayouts();
-                const report = withProfileMeasure("surfacePresentation", () => chassis.present_ready_surfaces());
-                nativePool.recordSurfacePresentation(report);
-            } finally {
-                finishEngineTurn(chassis, mount);
-            }
-        }, () => !frameScheduler.suspended && chassis === currentChassis && mount === currentMount);
-        surfacePresentation = presentation;
-        const wake = () => {
-            const outcome = presentation.request();
-            nativePool.recordSurfaceCompletionRequest(outcome);
         };
         chassis.set_surface_ready_callback(wake);
         nativePool.setSurfaceWorkWake(wake);
@@ -511,13 +491,10 @@ function initializeChassis(chassis: PaxChassisWeb, mount: Element) {
     // Initialize viewport-dependent layout before the first engine tick so native/scroller hosts do
     // not bootstrap against a transient 0x0 viewport.
     resizeHandler();
-    // Cancellation is unchanged normally. The passive mode is an explicit
-    // diagnostic A/B, never an automatic scrolling policy or production fix.
-    const wheelMode = wheelDiagnosticMode(new URLSearchParams(window.location.search));
-    teardownEventListeners = setupEventListeners(chassis, mount as HTMLElement, wheelMode !== undefined ? {
-        passive: wheelMode,
+    teardownEventListeners = setupEventListeners(chassis, mount as HTMLElement, {
+        passive: liveSession?.options.wheelEvents !== 'cancellable',
         record: perfTraceEnabled ? sample => nativePool.recordWheelInput(sample) : undefined,
-    } : undefined);
+    });
     initializedChassis = true;
 }
 
@@ -582,7 +559,6 @@ function progressStartupFrame(chassis: PaxChassisWeb, mount: Element, sceneReady
         if (sceneReady) {
             nativePool.syncRenderSurfaceLayouts();
             chassis.render();
-            surfacePresentation?.present();
         }
         nativePool.finishTextFrame();
         mount.removeAttribute("data-pax-startup");
@@ -649,8 +625,6 @@ function runStartupFrame(chassis: PaxChassisWeb, mount: Element) {
                 startupFeedbackFrameReady = false;
                 startupScheduler?.request();
             }
-            surfacePresentation?.afterFrame();
-            surfacePresentation?.request();
         });
     } catch (error) {
         liveSession?.failStartup(error);
@@ -693,24 +667,10 @@ function runFrame(chassis: PaxChassisWeb, mount: Element) {
             });
             // draw canvas elements
             withProfileMeasure("render", () => {
-                if (cooperativeRender) {
-                    chassis.begin_render_work(renderEpoch);
-                    cooperativeRender.beginFrame();
-                    return;
-                }
-                if (!perfTraceEnabled) { chassis.render(); return; }
-                const [phases, [visible, remaining]] = chassis.render_profiled();
-                for (const [name, duration] of phases) nativePool.recordSurfaceFramePhase(`render.${name}`, duration);
-                nativePool.recordSurfacePresentation(visible, 'ordinary-visible');
-                nativePool.recordSurfacePresentation(remaining, 'ordinary-remaining');
+                chassis.begin_render_work(renderEpoch);
+                cooperativeRender!.beginFrame();
             });
             nativePool.finishTextFrame();
-            // The synchronous path permits one extra completion pass per frame;
-            // cooperative rendering uses its separate yielding host-task pump.
-            surfacePresentation?.afterFrame();
-            // The automatic service now runs inside render, after fresh surface
-            // assignments and before ordinary draw work. Only actual asynchronous
-            // completions request the extra pass; do not add another allowance.
         });
     } finally {
         finishEngineTurn(chassis, mount);

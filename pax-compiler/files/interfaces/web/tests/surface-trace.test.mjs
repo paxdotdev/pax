@@ -58,26 +58,53 @@ test('render continuations aggregate actual service time without double-counting
     assert.ok(Math.abs(report.ordinary_flush_only_ms - 0.3) < 1e-9);
 });
 
-test('completion deferrals survive trace rollover and measure only the next opportunity', () => {
+test('completion request counts survive trace rollover and reset on disposal', () => {
     const h = harness(2);
     h.trace.recordCompletionRequest('queued');
     h.trace.recordCompletionRequest('coalesced');
     h.trace.recordCompletionRequest('used');
-    const first = h.trace.completionDeferredAt;
-    h.trace.recordCompletionRequest('used');
-    assert.equal(h.trace.completionDeferredAt, first);
     for (let i = 0; i < 10; i++) h.trace.record('unrelated');
-    assert.equal(h.trace.completionRequests.used, 2);
-    h.trace.recordPresentationOpportunity(true);
-    const event = h.mount.paxSurfaceTrace.at(-1);
-    assert.equal(event.event, 'presentation-completion-wait');
-    assert.equal(event.blocked, true);
-    assert.ok(event.waitMs >= 0);
-    h.trace.recordPresentationOpportunity(false);
-    assert.equal(h.trace.completionWait.opportunities, 1);
+    assert.equal(h.trace.completionRequests.queued, 1);
+    assert.equal(h.trace.completionRequests.coalesced, 1);
+    assert.equal(h.trace.completionRequests.used, 1);
     h.trace.dispose();
+    assert.equal(h.trace.completionRequests.queued, 0);
     assert.equal(h.trace.completionRequests.used, 0);
-    assert.equal(h.trace.completionWait.opportunities, 0);
+});
+
+test('preparation stages aggregate counts and maxima without inflating parent CPU time', () => {
+    const h = harness();
+    for (let i = 0; i < 2; i++) h.trace.recordRenderWork({preparation: {
+        elapsed_ms: 8, diagnostics: {stages: {
+            replay: {count: 3, total_ms: 4, max_ms: 2},
+            image_replay: {count: 9, total_ms: 1, max_ms: 0.5},
+        }, targeted_surfaces: 1, additional_surfaces: 2, image_upload_bytes: 4096},
+    }}, 9);
+    const frame = h.mount.paxSurfaceTrace.at(-1);
+    assert.equal(frame.phases['preparation.replay'].count, 6);
+    assert.equal(frame.phases['preparation.replay'].totalMs, 8);
+    assert.equal(frame.phases['preparation.replay'].maxMs, 2);
+    assert.equal(frame.renderWork.preparation_elapsed_ms, 16);
+    assert.equal(frame.renderWork.preparation_additional_surfaces, 4);
+    assert.equal(frame.renderWork.preparation_image_upload_bytes, 8192);
+});
+
+test('per-layer render attribution is bounded, frame-local and cleared on disposal', () => {
+    const h = harness();
+    h.trace.beginFrame(1);
+    for (let i = 0; i < 100; i++) h.trace.recordRenderWork({
+        layer_reconciliation: [[i, false, 10]], layer_draws: [[i, 4, 10, 10]],
+    }, 0);
+    const first = h.mount.paxSurfaceTrace.at(-1);
+    assert.equal(first.layerReconciliation.length, 64);
+    assert.equal(first.layerDraws.length, 64);
+    assert.deepEqual(Array.from(first.layerDraws[0]), [0, 4, 10, 10]);
+    h.trace.beginFrame(2);
+    h.trace.recordRenderWork({layer_draws: [[7, 0, 2, 0]]}, 0);
+    assert.equal(h.mount.paxSurfaceTrace.at(-1).layerDraws.length, 1);
+    h.trace.dispose();
+    assert.equal(h.trace.layerDraws.length, 0);
+    assert.equal(h.trace.layerReconciliation.length, 0);
 });
 
 test('wheel input retains a bounded independent tail and opens phase timing before scroll moves', () => {

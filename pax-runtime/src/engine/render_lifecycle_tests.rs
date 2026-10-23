@@ -29,9 +29,21 @@ struct RecordingRenderer {
     failed_flushes: HashSet<usize>,
     accepts_order_updates: bool,
     order_updates: Vec<(usize, Vec<(u32, i32)>)>,
+    cold_preparation: bool,
+    cold_records: Option<HashSet<u32>>,
+    recording: bool,
+    fail_recording: bool,
+    recording_sessions: usize,
+    capture_ids: Vec<u32>,
 }
 
 impl RenderContext for RecordingRenderer {
+    fn prepares_surface_content(&self) -> bool {
+        self.cold_preparation
+    }
+    fn separates_surface_replay(&self) -> bool {
+        self.cold_preparation
+    }
     fn update_node_orders(&mut self, layer: usize, orders: &[(u32, i32)]) -> bool {
         self.order_updates.push((layer, orders.to_vec()));
         self.accepts_order_updates
@@ -77,9 +89,35 @@ impl RenderContext for RecordingRenderer {
     fn ordinary_layer_priority(&self, layer: usize) -> Option<i32> {
         self.ordinary_priorities.get(&layer).copied()
     }
-    fn begin_node(&mut self, layer: usize, _: u32, _: i32, _: u32) -> bool {
+    fn begin_node(&mut self, layer: usize, id: u32, _: i32, _: u32) -> bool {
         assert_eq!(self.clip_depths[&layer], 1, "ancestor clip missing");
         self.events.push(("draw", layer));
+        if self.recording {
+            self.capture_ids.push(id);
+            self.cold_records.as_mut().unwrap().insert(id);
+        }
+        true
+    }
+    fn missing_surface_drawings(&mut self, _: usize, ids: &[u32]) -> Option<Vec<u32>> {
+        self.cold_records.as_ref().map(|records| {
+            ids.iter()
+                .copied()
+                .filter(|id| !records.contains(id))
+                .collect()
+        })
+    }
+    fn begin_surface_recording(&mut self, _: usize) -> bool {
+        assert!(!self.recording);
+        self.recording = true;
+        self.recording_sessions += 1;
+        true
+    }
+    fn end_surface_recording(&mut self, _: usize) -> bool {
+        self.recording = false;
+        !self.fail_recording
+    }
+    fn begin_surface_fallback(&mut self, layer: usize) -> bool {
+        self.events.push(("fallback", layer));
         true
     }
     fn start_surface_initialization(&mut self, before: i32) -> bool {
@@ -321,6 +359,81 @@ fn dirty_render_probe() -> (PaxEngine, RecordingRenderer, Vec<Rc<ExpandedNode>>)
 }
 
 #[test]
+fn batched_cold_capture_shares_ancestor_traversal_and_preserves_pending_nodes() {
+    let (engine, mut renderer, nodes) = dirty_render_probe();
+    let _graph = engine.runtime_context.property_graph.enter();
+    for node in &nodes {
+        let mut occlusion = node.occlusion.get();
+        occlusion.render_layer_id = 0;
+        node.occlusion.set(occlusion);
+    }
+    renderer.cold_records = Some(HashSet::new());
+    let ids: Vec<_> = nodes.iter().map(|node| node.id.to_u32()).collect();
+    engine.filtered_render_plan_inputs.borrow_mut().clear();
+    let frames = engine.runtime_context.globals().elapsed_frames.get();
+    assert!(engine.record_surface_nodes(&mut renderer, 0, &ids));
+    assert_eq!(renderer.recording_sessions, 1);
+    assert_eq!(renderer.capture_ids.len(), 2);
+    assert_eq!(engine.filtered_render_plan_inputs.borrow().len(), 1);
+    assert_eq!(engine.filtered_render_plan_inputs.borrow()[0].len(), 2);
+    assert!(renderer
+        .missing_surface_drawings(0, &ids)
+        .unwrap()
+        .is_empty());
+    assert_eq!(renderer.clip_depths[&0], 0);
+    assert_eq!(
+        engine.runtime_context.globals().elapsed_frames.get(),
+        frames
+    );
+    renderer.fail_recording = true; // Cache pressure must select direct fallback.
+    assert!(!engine.record_surface_nodes(&mut renderer, 0, &ids));
+    assert!(!renderer.recording);
+    assert_eq!(renderer.clip_depths[&0], 0);
+}
+
+#[test]
+fn cooperative_cold_tile_batches_but_synchronous_capture_keeps_primitive_units() {
+    for (one_unit, fail_recording) in [(true, false), (false, false), (true, true)] {
+        let (engine, mut renderer, nodes) = dirty_render_probe();
+        let _graph = engine.runtime_context.property_graph.enter();
+        for node in &nodes {
+            let mut occlusion = node.occlusion.get();
+            occlusion.render_layer_id = 0;
+            node.occlusion.set(occlusion);
+            engine
+                .runtime_context
+                .invalidate_scene_geometry(node.id.to_u32());
+        }
+        engine.runtime_context.drain_node_effects();
+        engine.runtime_context.take_occlusion_dirty();
+        engine.runtime_context.prepare_scene_geometry();
+        engine
+            .runtime_context
+            .dirty_canvases
+            .borrow_mut()
+            .fill(false);
+        engine.runtime_context.take_canvas_node_orders();
+        renderer.cold_preparation = true;
+        renderer.cold_records = Some(HashSet::new());
+        renderer.fail_recording = fail_recording;
+        renderer.jobs = vec![replay_job(0)];
+        let report = engine.present_surfaces(
+            &mut renderer,
+            &mut surface_work::SurfaceWorkBudget::new(4.0),
+            || 0.0,
+            i32::MAX,
+            &Default::default(),
+            one_unit,
+        );
+        assert_eq!(report.submitted, 1, "blocker: {:?}", report.blocker);
+        assert_eq!(renderer.recording_sessions, if one_unit { 1 } else { 2 });
+        assert_eq!(report.fallbacks, usize::from(fail_recording));
+        assert_eq!(renderer.capture_ids.len(), 2);
+        assert_eq!(renderer.clip_depths[&0], 0);
+    }
+}
+
+#[test]
 fn cooperative_layers_yield_without_lifecycle_or_stale_selection() {
     let (mut engine, mut renderer, nodes) = dirty_render_probe();
     let frames = engine.runtime_context.globals().elapsed_frames.get();
@@ -352,6 +465,35 @@ fn cooperative_layers_yield_without_lifecycle_or_stale_selection() {
     let done = engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
     assert!(!done.pending);
     assert_eq!(done.units, 0);
+}
+
+#[test]
+fn cooperative_layer_attribution_is_opt_in_and_counts_unconsumed_nodes() {
+    for diagnostics in [false, true] {
+        let (mut engine, mut renderer, _) = dirty_render_probe();
+        engine
+            .runtime_context
+            .set_occlusion_diagnostics(diagnostics);
+        let mut state = surface_work::RenderWorkState::default();
+        state.begin(1);
+        let report = engine.service_render_work(
+            &mut renderer,
+            &mut state,
+            &mut surface_work::SurfaceWorkBudget::new(4.0),
+            3.0,
+            || 0.0,
+        );
+        if diagnostics {
+            assert_eq!(
+                report.layer_reconciliation,
+                vec![(0, true, 1), (1, true, 1)]
+            );
+            assert_eq!(report.layer_draws, vec![(1, Some(0), 1, 0)]);
+        } else {
+            assert!(report.layer_reconciliation.is_empty());
+            assert!(report.layer_draws.is_empty());
+        }
+    }
 }
 
 #[test]
@@ -517,6 +659,7 @@ fn cooperative_removal_only_layer_submits_without_building_a_plan() {
 #[test]
 fn cooperative_failed_flush_and_removal_remain_pending_without_spinning() {
     let (mut engine, mut renderer, _) = dirty_render_probe();
+    renderer.cold_preparation = true;
     renderer.failed_flushes.insert(1);
     renderer.pending = true;
     engine.runtime_context.enqueue_canvas_node_removal(1, 999);
@@ -780,6 +923,59 @@ fn pending_nodes_on_clean_cold_layers_do_not_disable_visible_partition() {
     assert_eq!(visible, vec![nodes[0].id]);
     assert_eq!(remaining, vec![nodes[1].id]);
     assert!(engine.runtime_context.is_canvas_node_dirty(&nodes[1].id));
+}
+
+#[test]
+fn cold_pending_nodes_are_not_promoted_back_to_ordinary_layer_work() {
+    for cold_preparation in [false, true] {
+        let (mut engine, mut renderer, nodes) = dirty_render_probe();
+        renderer.cold_preparation = cold_preparation;
+        // Layer zero's node still needs its first drawing, but there is no new
+        // application invalidation on that layer. Layer one is an animation.
+        engine.runtime_context.dirty_canvases.borrow_mut()[0] = false;
+        engine.reconcile_render_work(&mut renderer, &mut |_| {}, false);
+        assert_eq!(
+            engine.runtime_context.is_canvas_dirty(&0),
+            !cold_preparation
+        );
+        assert!(engine.runtime_context.is_canvas_node_dirty(&nodes[1].id));
+        assert!(engine.runtime_context.is_canvas_dirty(&1));
+    }
+}
+
+#[test]
+fn cold_pending_layer_stays_idle_until_explicit_invalidation() {
+    let (mut engine, mut renderer, nodes) = dirty_render_probe();
+    renderer.cold_preparation = true;
+    engine.runtime_context.dirty_canvases.borrow_mut()[0] = false;
+    let mut state = surface_work::RenderWorkState::default();
+    let mut budget = surface_work::SurfaceWorkBudget::new(4.0);
+    state.begin(1);
+    engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+    engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+    assert!(!renderer.events.contains(&("draw", 0)));
+    assert!(engine.runtime_context.is_canvas_node_dirty(&nodes[1].id));
+    // A real update (including decoded-image completion) still schedules its
+    // ordinary drawing, even while the node was already pending.
+    engine.runtime_context.set_canvas_dirty(0);
+    state.begin(2);
+    engine.service_render_work(&mut renderer, &mut state, &mut budget, 3.0, || 0.0);
+    assert!(renderer.events.contains(&("draw", 0)));
+    assert!(!engine.runtime_context.is_canvas_node_dirty(&nodes[1].id));
+}
+
+#[test]
+fn unsplit_fallback_preserves_pending_layer_clips_and_submission() {
+    let (mut engine, mut renderer, nodes) = dirty_render_probe();
+    renderer.cold_preparation = true;
+    engine.runtime_context.dirty_canvases.borrow_mut()[0] = false;
+    engine.render(&mut renderer);
+    assert_eq!(
+        renderer.events,
+        vec![("draw", 0), ("draw", 1), ("submit", 0), ("submit", 1)]
+    );
+    assert!(!engine.runtime_context.is_canvas_node_dirty(&nodes[1].id));
+    assert!(!engine.runtime_context.is_canvas_dirty(&0));
 }
 
 #[test]

@@ -163,6 +163,8 @@ pub struct RuntimeContext {
 #[derive(Clone, Copy, Debug, Default)]
 /// Last-known scroll state for a native or browser-owned scroller surface.
 pub struct ScrollerSurfaceState {
+    /// Origin of the finite native pane in stable content coordinates.
+    pub content_origin: [f64; 2],
     pub viewport_width: f64,
     pub viewport_height: f64,
     pub content_width: f64,
@@ -196,7 +198,8 @@ impl ScrollerSurfaceState {
     }
 
     fn scroll_eq(&self, other: &Self) -> bool {
-        Self::close_enough(self.scroll_x, other.scroll_x)
+        self.content_origin == other.content_origin
+            && Self::close_enough(self.scroll_x, other.scroll_x)
             && Self::close_enough(self.scroll_y, other.scroll_y)
             && Self::close_enough(self.presentation_scroll_x, other.presentation_scroll_x)
             && Self::close_enough(self.presentation_scroll_y, other.presentation_scroll_y)

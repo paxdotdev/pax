@@ -12,6 +12,8 @@ use super::surface_scheduling::{
 pub struct PreparationHost {
     pub geometry: HostObservation,
     pub content: [f64; 2],
+    /// Start of the finite pane in content coordinates; rebasing does not move content.
+    pub content_origin: [f64; 2],
     pub intermediate_clip: Option<CoverageRect>,
 }
 
@@ -375,9 +377,10 @@ fn trajectory(
 }
 
 fn clamped_travel(host: &PreparationHost, axis: usize, travel: f64) -> f64 {
-    let max = (host.content[axis] - host.geometry.viewport[axis]).max(0.0);
-    let offset = host.geometry.offset[axis].clamp(0.0, max);
-    (offset + travel).clamp(0.0, max) - offset
+    let min = host.content_origin[axis];
+    let max = min + (host.content[axis] - host.geometry.viewport[axis]).max(0.0);
+    let offset = host.geometry.offset[axis].clamp(min, max);
+    (offset + travel).clamp(min, max) - offset
 }
 
 fn validate_host(host: &PreparationHost) -> Result<(), &'static str> {
@@ -389,6 +392,7 @@ fn validate_host(host: &PreparationHost) -> Result<(), &'static str> {
         .chain(g.offset.iter())
         .chain(g.basis.iter())
         .chain(host.content.iter())
+        .chain(host.content_origin.iter())
         .copied()
         .chain(rect_values(g.bounds))
         .chain(rect_values(g.visible))
@@ -526,10 +530,10 @@ pub fn prepare_hosts(
             }
             let visible = clips.iter().map(|c| c.rect).reduce(intersect).unwrap();
             let content = CoverageRect {
-                left: 0.0,
-                top: 0.0,
-                right: host.content[0],
-                bottom: host.content[1],
+                left: host.content_origin[0],
+                top: host.content_origin[1],
+                right: host.content_origin[0] + host.content[0],
+                bottom: host.content_origin[1] + host.content[1],
             };
             let required =
                 unproject(visible, &host.geometry).ok_or("singular surface transform")?;
@@ -594,8 +598,44 @@ mod tests {
             },
             content,
             intermediate_clip: None,
+            content_origin: [0.0; 2],
         }
     }
+    #[test]
+    fn translated_panes_preserve_preparation_and_bound_travel_in_content_space() {
+        let viewport = r(0.0, 0.0, 1800.0, 534.0);
+        let mut h = host(1, None, viewport, [50046.0, 534.0]);
+        h.geometry.offset = [42000.25, 0.0];
+        let activity = ScrollActivityTracker::default();
+        let prepare = |h| {
+            prepare_hosts(
+                &BTreeMap::from([(1, h)]),
+                viewport,
+                &activity,
+                0.0,
+                PreparationPolicy::default(),
+            )
+            .unwrap()
+            .remove(&1)
+            .unwrap()
+        };
+        let before = prepare(host_with_offset(0.0));
+        let after = prepare(host_with_offset(16082.0));
+        assert_eq!(before.prepared, after.prepared);
+        assert_eq!(before.required, after.required);
+        h.content_origin = [-16082.0, 0.0];
+        h.geometry.offset = [-16000.0, 0.0];
+        assert_eq!(clamped_travel(&h, 0, -1000.0), -82.0);
+        assert_eq!(clamped_travel(&h, 0, 1000.0), 1000.0);
+
+        fn host_with_offset(origin: f64) -> PreparationHost {
+            let mut h = host(1, None, r(0.0, 0.0, 1800.0, 534.0), [50046.0, 534.0]);
+            h.geometry.offset = [42000.25, 0.0];
+            h.content_origin = [origin, 0.0];
+            h
+        }
+    }
+
     #[test]
     fn malformed_branches_do_not_freeze_valid_hosts_and_recover_on_next_observation() {
         let viewport = r(0.0, 0.0, 400.0, 300.0);

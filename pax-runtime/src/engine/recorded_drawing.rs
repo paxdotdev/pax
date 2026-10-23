@@ -137,6 +137,9 @@ impl Command {
                 );
             }
             Self::Image(key, rect, opacity) => {
+                let _image = super::preparation_diagnostics::Span::new(
+                    super::preparation_diagnostics::Stage::ImageReplay,
+                );
                 if let Some(image) = images.get(key) {
                     gpu.draw_image_with_opacity(
                         key,
@@ -436,7 +439,10 @@ mod tests {
         cache.push(0, Rc::new(Command::EndSource));
         cache.end(0, 10);
         leaf(&mut cache, 11);
-        let drawing = cache.get(0, 11).unwrap();
+        leaf(&mut cache, 12);
+        cache.push(0, Rc::new(Command::Restore));
+        cache.finish_frame(0);
+        let drawing = cache.get(0, 12).unwrap();
         let ids: Vec<_> = drawing
             .commands
             .iter()
@@ -445,7 +451,11 @@ mod tests {
                 _ => None,
             })
             .collect();
-        assert_eq!(ids, [10, 20, 11]);
+        assert_eq!(ids, [10, 20, 12]);
+        assert!(
+            cache.get(0, 11).is_some(),
+            "both batched leaves retain independent drawings"
+        );
         assert!(
             cache.get(0, 20).is_none(),
             "source cannot replay without its owner"

@@ -383,6 +383,7 @@ fn scroll(ctx: &RuntimeContext, node: &ExpandedNode, x: f64, y: f64) {
             presentation_scroll_x: x,
             presentation_scroll_y: y,
             clip_content: true,
+            ..Default::default()
         },
     );
 }

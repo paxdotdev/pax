@@ -1286,6 +1286,9 @@ fn imported_settings_refresh_typed_alias_scope_and_occlusion_dependencies() {
     let node = child(&root, ctx, template(&receiver), HashMap::new());
     let import = settings_import(&root, ctx);
     root.children.set(vec![import.clone(), node.clone()]);
+    // Occlusion dirtiness applies only to mounted, registered scene nodes.
+    // Exercise rebinding in that lifetime, not on a detached template instance.
+    node.recurse_mount(ctx);
     let make_provider = |source: &LocalProperty<f64>| {
         let mut provider = args();
         provider.component_settings = Some(vec![SettingsBlockElement::SelectorBlock(

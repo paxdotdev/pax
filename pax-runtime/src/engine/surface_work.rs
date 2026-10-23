@@ -21,6 +21,40 @@ impl SurfaceWorkBudget {
 }
 
 #[derive(Clone, Default, serde::Serialize)]
+pub struct PreparationStageTiming {
+    pub count: usize,
+    pub total_ms: f64,
+    pub max_ms: f64,
+}
+
+/// Fixed-stage, opt-in CPU attribution for cold preparation. Image replay is a
+/// subphase of replay; neither submission nor presentation measures GPU completion.
+#[derive(Clone, Default, serde::Serialize)]
+pub struct PreparationDiagnostics {
+    pub stages: std::collections::BTreeMap<&'static str, PreparationStageTiming>,
+    pub targeted_surfaces: usize,
+    /// Already-presented dirty surfaces included alongside the selected targets.
+    pub additional_surfaces: usize,
+    pub image_uploads: usize,
+    pub image_upload_bytes: usize,
+}
+
+impl PreparationDiagnostics {
+    fn accumulate(&mut self, next: Self) {
+        for (name, sample) in next.stages {
+            let current = self.stages.entry(name).or_default();
+            current.count += sample.count;
+            current.total_ms += sample.total_ms;
+            current.max_ms = current.max_ms.max(sample.max_ms);
+        }
+        self.targeted_surfaces += next.targeted_surfaces;
+        self.additional_surfaces += next.additional_surfaces;
+        self.image_uploads += next.image_uploads;
+        self.image_upload_bytes += next.image_upload_bytes;
+    }
+}
+
+#[derive(Clone, Default, serde::Serialize)]
 pub struct SurfaceWorkReport {
     pub initializations: usize,
     pub recorded: usize,
@@ -36,6 +70,10 @@ pub struct SurfaceWorkReport {
     pub blocked: bool,
     pub blocker: Option<&'static str>,
     pub elapsed_ms: f64,
+    /// Absent unless runtime diagnostics are enabled. Fixed-size stage aggregates,
+    /// never per-node or per-command logs; no effect on admission or readiness.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub diagnostics: Option<PreparationDiagnostics>,
 }
 
 impl SurfaceWorkReport {
@@ -54,6 +92,11 @@ impl SurfaceWorkReport {
         self.blocked |= next.blocked;
         self.blocker = next.blocker.or(self.blocker);
         self.elapsed_ms += next.elapsed_ms;
+        if let Some(diagnostics) = next.diagnostics {
+            self.diagnostics
+                .get_or_insert_with(Default::default)
+                .accumulate(diagnostics);
+        }
     }
 }
 
@@ -109,6 +152,14 @@ pub struct RenderWorkReport {
     pub ordinary_flush_only_ms: f64,
     pub max_unit_ms: f64,
     pub preparation: SurfaceWorkReport,
+    /// Opt-in setup attribution: (layer, dirty before reconciliation, pending nodes).
+    /// At most 32 layers per service; empty when runtime diagnostics are disabled.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub layer_reconciliation: Vec<(usize, bool, usize)>,
+    /// Opt-in draw attribution: (layer, current priority, selected nodes, still dirty).
+    /// At most 32 units per service, without retaining scene nodes between calls.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub layer_draws: Vec<(usize, Option<i32>, usize, usize)>,
 }
 
 #[cfg(test)]

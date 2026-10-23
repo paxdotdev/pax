@@ -3,41 +3,6 @@ import assert from 'node:assert/strict';
 import {surfaceRequire} from './surface-test-loader.mjs';
 import {sharedSurfaceDecision, sharedSurfaceDecisions} from './shared-surface-policy.mjs';
 const {materializeSurfaceSchedule} = surfaceRequire('./surface-scheduler');
-const {retainSubmittedProbeTiles} = surfaceRequire('./surface-scheduler');
-
-test('retention control preserves only submitted named tiles inside unchanged limits', () => {
-    const surface = id => ({id, key:id, width:100, height:100, backingWidth:200,
-        backingHeight:200, hostSignature:'scroller:1', surfaceSignature:'same',
-        transformSignature:id, replayPriority:2});
-    const a = surface('a'), b = surface('b'), live = surface('live');
-    const previous = new Map([[1,{layerId:1,active:true,surfaces:[a,b]}]]);
-    const canvases = new Map([a,b].map(s=>[s.id,{dataset:{...s,
-        surfaceContentRevision:'3',surfaceSubmittedRevision:'3'}}]));
-    const candidates = [{layerId:1,branch:1,surface:live,rank:{coverage:0,distance:0,retained:true}}];
-    const make = () => ({plans:new Map([[1,{layerId:1,active:true,surfaces:[live]}]]),
-        admitted:[...candidates],denied:[],overloaded:false,backingPixels:40000});
-    const result = make();
-    assert.equal(retainSubmittedProbeTiles(['a','b'],previous,candidates,result,canvases,[64,80000]).join(','),'a');
-    assert.equal(result.backingPixels,80000);
-    assert.equal(result.admitted.length,2);
-    assert.equal(retainSubmittedProbeTiles(['a'],previous,candidates,make(),canvases,[1,120000]).length,0);
-    canvases.get('a').dataset.surfaceSubmittedRevision='2';
-    assert.equal(retainSubmittedProbeTiles(['a'],previous,candidates,make(),canvases,[64,120000]).length,0);
-});
-
-test('retention control does not override denied demand or incompatible host geometry', () => {
-    const s={id:'a',width:100,height:100,backingWidth:200,backingHeight:200,
-        hostSignature:'scroller:1',surfaceSignature:'same',transformSignature:'a'};
-    const previous=new Map([[1,{layerId:1,active:true,surfaces:[s]}]]);
-    const canvases=new Map([['a',{dataset:{...s,surfaceContentRevision:'3',surfaceSubmittedRevision:'3'}}]]);
-    const make=()=>({plans:new Map(),admitted:[],denied:[{id:'a',reason:'budget'}],overloaded:false,backingPixels:0});
-    const c={layerId:1,branch:1,surface:s,rank:{coverage:1,distance:0,retained:true}};
-    assert.equal(retainSubmittedProbeTiles(['a'],previous,[c],make(),canvases,[64,120000]).length,0);
-    const changed={...c,surface:{...s,id:'live',backingWidth:300}};
-    assert.equal(retainSubmittedProbeTiles(['a'],previous,[changed],make(),canvases,[64,120000]).length,0);
-    assert.equal(retainSubmittedProbeTiles(['a'],previous,[],make(),canvases,[64,120000]).length,0);
-});
-
 const candidate = (id, branch, coverage, distance = 0, retained = false) => ({
     layerId: branch, branch, surface: {id, backingWidth: 100, backingHeight: 200},
     rank: {coverage, distance, retained},

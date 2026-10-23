@@ -22,6 +22,21 @@ type LayerCanvasPlan = {
     surfaces: SurfaceCanvasDescriptor[];
 };
 
+// Admission and DOM installation must agree on what makes a plan different.
+// Exclude densityPending: it controls reobservation, not installed geometry.
+export function canvasPlanSignature(plan: LayerCanvasPlan): string {
+    const parts = [String(plan.layerId), plan.active ? "1" : "0", String(plan.surfaces.length)];
+    for (const descriptor of plan.surfaces) {
+        parts.push(
+            `${descriptor.id}|${descriptor.key}|${descriptor.left},${descriptor.top},${descriptor.width},${descriptor.height}`
+            + `|${descriptor.surfaceSignature}|${descriptor.transformSignature}|${descriptor.hostSignature ?? ""}`
+            + `|priority=${descriptor.replayPriority}`,
+            `backing=${descriptor.backingWidth}x${descriptor.backingHeight}|clamped=${!!descriptor.densityClamped}`,
+        );
+    }
+    return parts.join(";");
+}
+
 export function describeSurfaceHost(host?: Element | null) {
     // This tags a physical DOM host for retained-surface reuse. It is not a semantic node id.
     if (host == null) {

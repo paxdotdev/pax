@@ -17,6 +17,8 @@ export type InstalledSurfacePlan = {
 export class SurfaceCoordinator {
     private lastCanvasSurfaceSignatures = new Map<string, string>();
     private lastCanvasTransformSignatures = new Map<string, string>();
+    private lastCanvasPriorities = new Map<string, number>();
+    private lastCanvasActiveStates = new Map<string, boolean>();
     private lastCanvasLayerCounts = new Map<number, number>();
     private revision = 0;
 
@@ -26,7 +28,7 @@ export class SurfaceCoordinator {
         private begin: () => void = () => {}, private trace?: SurfaceTrace,
         private capacity?: () => ReturnType<CanvasPool['capacitySnapshot']> | undefined) {}
 
-    sync(planProvider: (layer: number) => LayerCanvasPlan | null | undefined, force = false) {
+    sync(planProvider: (layer: number) => LayerCanvasPlan | null | undefined) {
         this.begin();
         const desired: string[] = [];
         this.layers.syncLayerCanvasLayouts(layer => {
@@ -71,13 +73,15 @@ export class SurfaceCoordinator {
             capacity, pendingReason: installed.pending.length
                 ? capacity?.retiring ? 'awaiting-lease-release' : 'awaiting-capacity' : undefined});
         const backingMismatchLayers = this.collectBackingMismatchLayers();
-        let surfaceChanged = force || backingMismatchLayers.size > 0;
         let nextSurfaceSignatures = new Map<string, string>();
         let nextTransformSignatures = new Map<string, string>();
+        let nextPriorities = new Map<string, number>();
+        let nextActiveStates = new Map<string, boolean>();
         let nextLayerCounts = new Map<number, number>();
         let surfaceChangedLayers = new Set<number>(backingMismatchLayers);
         let transformChangedLayers = new Set<number>();
-        let transformChanged = false;
+        let priorityChangedLayers = new Set<number>();
+        let activeChangedLayers = new Set<number>();
         this.canvases.forEach((canvas, id) => {
             let parent = canvas.parentElement;
             if (parent == null) {
@@ -88,68 +92,65 @@ export class SurfaceCoordinator {
             let surfaceSignature =
                 `${canvas.dataset.surfaceSignature
                     ?? `${canvas.clientWidth}x${canvas.clientHeight}@${hostSignature}`}#host=${hostSignature}`
-                + `#generation=${canvas.dataset.surfaceGeneration ?? ""}`;
+                + `#generation=${canvas.dataset.surfaceGeneration ?? ""}#layer=${layerId}`
+                + `#key=${canvas.dataset.tileKey ?? id}`
+                + `#size=${canvas.dataset.logicalWidth},${canvas.dataset.logicalHeight}`
+                + `#backing=${canvas.dataset.expectedBackingWidth},${canvas.dataset.expectedBackingHeight}`
+                + `#clamped=${canvas.dataset.densityClamped ?? 'false'}`;
             let transformSignature =
-                (canvas.dataset.transformSignature
-                    ?? `${canvas.dataset.tileOriginX ?? "0"},${canvas.dataset.tileOriginY ?? "0"}`)
-                + `|priority=${canvas.dataset.replayPriority ?? "0"}`;
+                `${canvas.dataset.transformSignature ?? ''}`
+                + `#origin=${canvas.dataset.tileOriginX ?? "0"},${canvas.dataset.tileOriginY ?? "0"}`;
+            const priority = Number(canvas.dataset.replayPriority ?? 0);
+            const active = parent.dataset?.renderState !== 'parked';
             nextSurfaceSignatures.set(id, surfaceSignature);
             nextTransformSignatures.set(id, transformSignature);
+            nextPriorities.set(id, priority);
+            nextActiveStates.set(id, active);
             if (Number.isFinite(layerId)) {
                 nextLayerCounts.set(layerId, (nextLayerCounts.get(layerId) ?? 0) + 1);
             }
             if (this.lastCanvasSurfaceSignatures.get(id) !== surfaceSignature) {
-                surfaceChanged = true;
                 if (Number.isFinite(layerId)) {
                     surfaceChangedLayers.add(layerId);
                 }
             }
             if (this.lastCanvasTransformSignatures.get(id) !== transformSignature) {
-                transformChanged = true;
                 if (Number.isFinite(layerId)) {
                     transformChangedLayers.add(layerId);
                 }
             }
+            if (Number.isFinite(layerId)) {
+                if (this.lastCanvasPriorities.get(id) !== priority) priorityChangedLayers.add(layerId);
+                if (this.lastCanvasActiveStates.get(id) !== active) activeChangedLayers.add(layerId);
+            }
         });
-        if (nextSurfaceSignatures.size !== this.lastCanvasSurfaceSignatures.size) {
-            surfaceChanged = true;
-        }
-        if (nextTransformSignatures.size !== this.lastCanvasTransformSignatures.size) {
-            transformChanged = true;
-        }
-        let layerCountsChanged = false;
         this.lastCanvasLayerCounts.forEach((count, layerId) => {
             if ((nextLayerCounts.get(layerId) ?? 0) !== count) {
                 surfaceChangedLayers.add(layerId);
-                layerCountsChanged = true;
             }
         });
         nextLayerCounts.forEach((count, layerId) => {
             if ((this.lastCanvasLayerCounts.get(layerId) ?? 0) !== count) {
                 surfaceChangedLayers.add(layerId);
-                layerCountsChanged = true;
             }
         });
-        if (layerCountsChanged) {
-            surfaceChanged = true;
-        }
-        if (force && surfaceChangedLayers.size === 0) {
-            nextLayerCounts.forEach((_count, layerId) => {
-                surfaceChangedLayers.add(layerId);
-            });
-        }
         this.lastCanvasSurfaceSignatures = nextSurfaceSignatures;
         this.lastCanvasTransformSignatures = nextTransformSignatures;
+        this.lastCanvasPriorities = nextPriorities;
+        this.lastCanvasActiveStates = nextActiveStates;
         this.lastCanvasLayerCounts = nextLayerCounts;
-        if (surfaceChanged || transformChanged) {
-            // A warm row can gain/lose canvases in the same frame another layer
-            // retargets a tile. Both need replay before either is presented.
-            let layers = Array.from(new Set([
-                ...surfaceChangedLayers, ...transformChangedLayers,
-            ])).sort((left, right) => left - right);
+        // Recomputing admission does not invalidate every installed surface.
+        // Priority-only changes still notify their layer so queued warm replay
+        // is reclassified, without refreshing unrelated geometry or ownership.
+        let layers = Array.from(new Set([
+            ...surfaceChangedLayers, ...transformChangedLayers,
+            ...priorityChangedLayers, ...activeChangedLayers,
+        ])).sort((left, right) => left - right);
+        if (layers.length > 0) {
             this.refresh(layers);
             this.trace?.record('refresh', {layers, backingMismatch: [...backingMismatchLayers],
-                surfaceChanged: [...surfaceChangedLayers], transformChanged: [...transformChangedLayers]});
+                surfaceChanged: [...surfaceChangedLayers], transformChanged: [...transformChangedLayers],
+                priorityChanged: [...priorityChangedLayers], activeChanged: [...activeChangedLayers]});
         }
     }
 

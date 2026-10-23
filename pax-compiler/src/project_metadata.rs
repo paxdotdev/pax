@@ -43,6 +43,7 @@ struct CommonMetadata {
 #[derive(Debug, Clone, Default)]
 struct WebMetadata {
     yield_mount: bool,
+    wheel_events: Option<String>,
     background_color: Option<String>,
     title: Option<String>,
     icon: Option<String>,
@@ -404,7 +405,16 @@ fn parse_common_metadata(
 }
 
 fn parse_web_metadata(table: &Table, path: &str) -> Result<WebMetadata, eyre::Report> {
+    let wheel_events = string_field(table, "wheel_events", &format!("{path}.wheel_events"))?;
+    if let Some(mode) = wheel_events.as_deref() {
+        if !matches!(mode, "passive" | "cancellable") {
+            return Err(eyre!(
+                "`{path}.wheel_events` must be `passive` or `cancellable`"
+            ));
+        }
+    }
     let metadata = WebMetadata {
+        wheel_events,
         yield_mount: table
             .get("yield_mount")
             .map(|value| {
@@ -442,12 +452,19 @@ fn parse_web_metadata(table: &Table, path: &str) -> Result<WebMetadata, eyre::Re
 }
 
 fn parse_web_background_color(table: &Table, path: &str) -> Result<Option<String>, eyre::Report> {
-    let Some(color) = string_field(table, "background_color", &format!("{path}.background_color"))? else {
+    let Some(color) = string_field(
+        table,
+        "background_color",
+        &format!("{path}.background_color"),
+    )?
+    else {
         return Ok(None);
     };
     let hex = color.strip_prefix('#').unwrap_or("");
     if !matches!(hex.len(), 3 | 6) || !hex.bytes().all(|c| c.is_ascii_hexdigit()) {
-        return Err(eyre!("`{path}.background_color` must be an opaque hex color (#RGB or #RRGGBB)"));
+        return Err(eyre!(
+            "`{path}.background_color` must be an opaque hex color (#RGB or #RRGGBB)"
+        ));
     }
     Ok(Some(color.to_ascii_lowercase()))
 }
@@ -601,12 +618,19 @@ fn apply_web_metadata(pax_dir: &Path, metadata: &PaxProjectMetadata) -> Result<(
         html = set_or_insert_favicon_link(&html, &favicon_href);
     }
     html = set_web_background_color(&html, metadata.web.background_color.as_deref())?;
-    html = set_web_config(&html, metadata.web_server_owned_prefixes(), metadata.web.yield_mount)?;
+    let wheel_events = metadata.web.wheel_events.as_deref().unwrap_or("passive");
+    html = set_web_config(
+        &html,
+        metadata.web_server_owned_prefixes(),
+        metadata.web.yield_mount,
+        wheel_events,
+    )?;
     fs::write(
         interface_path.join("pax-web-config.json"),
         serde_json::to_vec(&json!({
             "server_owned_prefixes": metadata.web_server_owned_prefixes(),
-            "yield_mount": metadata.web.yield_mount
+            "yield_mount": metadata.web.yield_mount,
+            "wheel_events": wheel_events
         }))?,
     )?;
     fs::write(index_path, html)?;
@@ -655,14 +679,20 @@ fn set_web_background_color(html: &str, color: Option<&str>) -> Result<String, e
     Ok(html)
 }
 
-fn set_web_config(html: &str, prefixes: &[String], yield_mount: bool) -> Result<String, eyre::Report> {
+fn set_web_config(
+    html: &str,
+    prefixes: &[String],
+    yield_mount: bool,
+    wheel_events: &str,
+) -> Result<String, eyre::Report> {
     const START: &str = "<!-- pax-web-config:start -->";
     const END: &str = "<!-- pax-web-config:end -->";
     // JSON is data, not executable bootstrap code. Escape '<' so a configured
     // path cannot terminate the script element, including in custom interfaces.
     let json = serde_json::to_string(&json!({
         "server_owned_prefixes": prefixes,
-        "yield_mount": yield_mount
+        "yield_mount": yield_mount,
+        "wheel_events": wheel_events
     }))?
     .replace('<', "\\u003c");
     let block = format!(
@@ -1021,17 +1051,24 @@ mod tests {
     #[test]
     fn navigation_config_is_safe_json_and_replaced_on_rebuild() {
         let html = "<html><head></head><body>app</body></html>";
-        let updated =
-            set_web_config(html, &["/</script><script>alert(1)</script>".into()], false).unwrap();
+        let updated = set_web_config(
+            html,
+            &["/</script><script>alert(1)</script>".into()],
+            false,
+            "passive",
+        )
+        .unwrap();
         assert_eq!(updated.matches("</script>").count(), 1);
         assert!(updated.contains("\\u003c/script>"));
-        let updated = set_web_config(&updated, &["/blog".into()], false).unwrap();
+        let updated = set_web_config(&updated, &["/blog".into()], false, "passive").unwrap();
         assert_eq!(updated.matches("id=\"pax-web-config\"").count(), 1);
-        assert!(updated.contains(r#"{"server_owned_prefixes":["/blog"],"yield_mount":false}"#));
+        assert!(updated.contains(
+            r#"{"server_owned_prefixes":["/blog"],"wheel_events":"passive","yield_mount":false}"#
+        ));
         assert!(!updated.contains("alert"));
         assert_eq!(
             updated,
-            set_web_config(&updated, &["/blog".into()], false).unwrap()
+            set_web_config(&updated, &["/blog".into()], false, "passive").unwrap()
         );
     }
 
@@ -1048,7 +1085,8 @@ mod tests {
         let metadata = load("[package.metadata.pax.web]\nyield_mount = true");
         apply_web_metadata(dir.path(), &metadata).unwrap();
         let config: serde_json::Value =
-            serde_json::from_slice(&fs::read(interface.join("pax-web-config.json")).unwrap()).unwrap();
+            serde_json::from_slice(&fs::read(interface.join("pax-web-config.json")).unwrap())
+                .unwrap();
         assert_eq!(config["yield_mount"], true);
         assert!(fs::read_to_string(interface.join("index.html"))
             .unwrap()
@@ -1059,6 +1097,35 @@ mod tests {
             .contains("\"yield_mount\":false"));
         for invalid in ["\"true\"", "1", "[]"] {
             let source = format!("[package.metadata.pax.web]\nyield_mount = {invalid}");
+            assert!(load_project_metadata_from_toml(dir.path(), &source).is_err());
+        }
+    }
+
+    #[test]
+    fn wheel_policy_is_validated_exported_and_reset_on_rebuild() {
+        let dir = tempfile::tempdir().unwrap();
+        let interface = dir.path().join(INTERFACE_DIR_NAME).join("web");
+        fs::create_dir_all(&interface).unwrap();
+        fs::write(interface.join("index.html"), "<html><head></head></html>").unwrap();
+        for mode in ["cancellable", "passive"] {
+            let metadata = load(&format!(
+                "[package.metadata.pax.web]\nwheel_events = \"{mode}\""
+            ));
+            apply_web_metadata(dir.path(), &metadata).unwrap();
+            let config: serde_json::Value =
+                serde_json::from_slice(&fs::read(interface.join("pax-web-config.json")).unwrap())
+                    .unwrap();
+            assert_eq!(config["wheel_events"], mode);
+            assert!(fs::read_to_string(interface.join("index.html"))
+                .unwrap()
+                .contains(&format!("\"wheel_events\":\"{mode}\"")));
+        }
+        apply_web_metadata(dir.path(), &load("[package]\nname = \"app\"")).unwrap();
+        assert!(fs::read_to_string(interface.join("index.html"))
+            .unwrap()
+            .contains("\"wheel_events\":\"passive\""));
+        for invalid in ["true", "1", "[]", "\"cancelable\"", "\"\""] {
+            let source = format!("[package.metadata.pax.web]\nwheel_events = {invalid}");
             assert!(load_project_metadata_from_toml(dir.path(), &source).is_err());
         }
     }
@@ -1086,7 +1153,9 @@ mod tests {
             vec!["/blog"]
         );
         let html = fs::read_to_string(interface.join("index.html")).unwrap();
-        assert!(html.contains(r#"{"server_owned_prefixes":["/blog"],"yield_mount":false}"#));
+        assert!(html.contains(
+            r#"{"server_owned_prefixes":["/blog"],"wheel_events":"passive","yield_mount":false}"#
+        ));
         apply_web_metadata(dir.path(), &load("[package]\nname = \"app\"")).unwrap();
         assert!(load_web_server_owned_prefixes(&interface)
             .unwrap()

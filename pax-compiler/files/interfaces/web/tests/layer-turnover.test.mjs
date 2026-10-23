@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import vm from 'node:vm';
 import {transformSync} from 'esbuild';
+import {surfaceRequire} from './surface-test-loader.mjs';
 
 class Element {
     dataset = {}; style = {}; children = []; parentElement;
@@ -19,7 +20,7 @@ function load(file) {
     const source = readFileSync(new URL(`../src/classes/${file}.ts`, import.meta.url), 'utf8');
     vm.runInNewContext(transformSync(source, {loader: 'ts', format: 'cjs'}).code, {
         module, exports: module.exports, HTMLElement: Element, performance,
-        require: () => ({releaseCanvasBacking() {}}),
+        require: name => name === './surface-host-policy' ? surfaceRequire(name) : ({releaseCanvasBacking() {}}),
     });
     return module.exports;
 }
@@ -153,4 +154,63 @@ test('priority-only plan changes update the canvas without replacing its lease',
     layer.syncCanvasLayout();
     assert.equal(canvas.dataset.replayPriority, '0');
     assert.equal(canvas.dataset.surfaceGeneration, generation);
+});
+
+test('content-origin recenter preserves painted coverage without a new lease or content revision', () => {
+    const h = harness(2);
+    const layer = h.layers[1];
+    const descriptor = {...surface('layer-4-cell-33-0'), left:41184, width:1248,
+        surfaceSignature:'cell:33,0:1248x100:scroller:511',
+        transformSignature:'41184,0', hostSignature:'scroller:511'};
+    layer.setCanvasPlan(plan(descriptor));
+    layer.syncCanvasLayout();
+    const canvas = h.map.get(descriptor.id);
+    canvas.dataset.surfaceSubmittedRevision = canvas.dataset.surfaceContentRevision;
+    const revision = canvas.dataset.surfaceContentRevision, generation = canvas.dataset.surfaceGeneration;
+    // The native host moves coordinates, not the content-anchored descriptor.
+    canvas.parentElement.style.translate = '-16082px 0px';
+    layer.setCanvasPlan(plan({...descriptor}));
+    layer.syncCanvasLayout();
+    assert.equal(h.map.get(descriptor.id), canvas);
+    assert.equal(canvas.dataset.surfaceGeneration, generation);
+    assert.equal(canvas.dataset.surfaceContentRevision, revision);
+    assert.equal(canvas.dataset.surfaceSubmittedRevision, revision);
+    assert.equal(canvas.dataset.tileOriginX, '41184');
+    assert.equal(h.free.length, 0);
+    // An actual content geometry change must still invalidate the submitted revision.
+    layer.setCanvasPlan(plan({...descriptor, width:1000, surfaceSignature:'resized'}));
+    layer.syncCanvasLayout();
+    assert.notEqual(canvas.dataset.surfaceContentRevision, revision);
+});
+
+test('same-ID geometry and allocation metadata update in place; settled no-ops stay idle', () => {
+    const h = harness(1);
+    const layer = h.layers[1];
+    let configurations = 0;
+    const configure = layer.configureCanvas.bind(layer);
+    layer.configureCanvas = (...args) => { configurations++; configure(...args); };
+    const descriptor = {...surface('tile'), backingWidth: 200, backingHeight: 200};
+    layer.setCanvasPlan({...plan(descriptor), densityPending: true});
+    layer.syncCanvasLayout();
+    const canvas = h.map.get('tile');
+    const generation = canvas.dataset.surfaceGeneration;
+    layer.setCanvasPlan({...plan({...descriptor}), densityPending: false});
+    layer.syncCanvasLayout();
+    assert.equal(configurations, 1, 'observation state alone does not touch the DOM');
+
+    for (const [field, value, dataset] of [
+        ['backingWidth', 100, 'expectedBackingWidth'],
+        ['left', 20, 'tileOriginX'], ['width', 80, 'logicalWidth'],
+        ['key', 'replacement', 'tileKey'], ['densityClamped', true, 'densityClamped'],
+    ]) {
+        descriptor[field] = value;
+        layer.setCanvasPlan(plan({...descriptor}));
+        const previous = configurations;
+        layer.syncCanvasLayout();
+        assert.equal(configurations, previous + 1);
+        assert.equal(canvas.dataset[dataset], String(value));
+        assert.equal(canvas.dataset.surfaceGeneration, generation, 'same tile retains its lease');
+        layer.syncCanvasLayout();
+        assert.equal(configurations, previous + 1);
+    }
 });

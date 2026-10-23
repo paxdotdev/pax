@@ -69,6 +69,13 @@ background sibling behind it, depending on which should move. Earlier Pax
 siblings appear in front; that is why each note's Text precedes its Rectangle.
 `corner_radius` is a numeric pixel radius for the viewport clip.
 
+The website's cyclic feature rail uses an internal web-host coordinate rebase:
+its finite browser scroll range recenters without moving the content-space
+viewport or discarding its painted tiles. This is not a public infinite-scroll
+mode on `Scroller` or `Carousel`. Arbitrary jumps to different content, resizing,
+and content edits still need normal layout and rendering; a jump does not imply
+that old pixels are valid for the new location.
+
 ### Rendering density
 
 Web vector surfaces, including tiled Scroller content, target the browser's
@@ -85,6 +92,10 @@ their individual scales; shear uses a conservative bound. Density is rounded
 up in small steps, grows immediately, and shrinks after 500ms at a stable scale
 to avoid reallocating for tiny variations. Translation and pure rotation do not
 change density. Singular transforms do not request drawable surfaces.
+Once the shrink settles, the web host installs the updated surface dimensions
+without waiting for another scroll or resize. An unchanged plan retains its
+existing canvases; settling alone does not force a refresh if the dimensions
+stay the same.
 
 The web host checks each backing against the dimensions produced by the same
 Rust sizing calculation used for allocation, including fractional-DPR rounding
@@ -850,7 +861,10 @@ configured surfaces, and failed initialization retains the retry behavior below.
 These host lifecycle rules apply to debug and release Web builds; they do not
 increase preparation allowances or warm-region sizes.
 Visible replay precedes speculative replay across layers. Priority changes do
-not change surface identity. For WebGPU cold-content preparation, the same
+not change surface identity or invalidate unrelated layers: the web host
+publishes the current order and only refreshes affected layers to reclassify
+queued replay. Parking and reactivating a host likewise reconcile its layers
+without a whole-app surface refresh. For WebGPU cold-content preparation, the same
 ordering spans initialization and drawing: collecting completed surfaces does
 not start more creation. A runnable visible tile continues through capture and
 submission before speculative initialization, and already-ready visible work
@@ -866,6 +880,22 @@ Completed commands are replayed and submitted one physical tile at a time;
 remaining work is reconsidered against the current installed plan. Ordinary
 application changes still update their drawings, including animations while a
 tile is cold. This does not defer component mounting or lifecycle handlers.
+
+With cooperative WebGPU rendering (the web default), a node still awaiting
+its first drawing does not by itself request another ordinary layer redraw.
+Cold preparation records it when a drawing surface becomes eligible. Content
+changes, decoded-image completion, removals, and failed submissions retain their
+normal invalidation/retry paths. This prevents animation elsewhere in the app
+from repeatedly attempting every offscreen pending drawing. Synchronous rendering
+and the atomic full-tree fallback retain their existing retry behavior, including
+ancestor clipping and submission for all visited layers.
+
+Cooperative preparation records a tile's missing primitive drawings together in
+one filtered traversal, sharing ancestor setup and recording-session cleanup.
+The resulting drawings remain independently retained per node. This does not
+combine tile submissions, enlarge the warm region, or present partial content;
+cache pressure and unsupported capture boundaries retain the direct-tile
+fallback. Synchronous preparation still checks its allowance between primitives.
 
 On the default synchronous Web path, the shared runtime gives these preparation passes a 4ms CPU
 allowance: it stops starting more work based on actual elapsed time,
@@ -898,8 +928,9 @@ Any unused preparation allowance services remaining visible and warm work
 afterward. All these opportunities share one allowance and one guaranteed first
 unit—not a fresh allowance at each boundary. Ordinary drawing itself is not
 budgeted or deferred across application ticks by this policy.
-Asynchronous completions can request one additional coalesced opportunity between
-ordinary frames on the default synchronous path. Preparation never advances the application clock. This first-draw policy is
+Asynchronous completions wake the cooperative browser work pump between ordinary
+frames; they are not limited to one extra pass. Preparation never advances the
+application clock. This first-draw policy is
 currently enabled for WebGPU, not Vello CPU or native chassis; the implementation and
 opt-in are in the shared Rust runtime.
 If an addition fails, survivors remain usable; another attempt waits for a layout
@@ -942,11 +973,11 @@ presentation event, not proof of GPU completion or a capture of every displayed
 pixel; these diagnostics do not establish completeness of arbitrary application
 content. Image GPU events apply to WGPU, not the Vello CPU fallback.
 The snapshot also includes cumulative surface-completion wake-up outcomes:
-queued, coalesced with an existing request, or deferred because the extra pass
-was already used. `presentation-completion-wait` measures the delay from the
-first such deferral to the next service opportunity and reports whether scene
-state blocked that opportunity. It does not measure a particular tile's latency
-or establish that additional passes would improve throughput.
+queued, coalesced with an existing request, ignored while no settled frame is
+armed (`used`), or rejected after disposal.
+`continuation.host_wait` measures queued host-task delay; it does not measure a
+particular tile's latency or browser presentation. The former extra-pass deferral
+counters belonged to the removed synchronous browser scheduling path.
 Ring writes are constant-time; chronological arrays/JSON are produced only on
 inspection. `trace-overflow` reports overwritten counts. High-volume timing and
 scroll samples cannot evict initialization/retirement evidence from the causal
@@ -965,16 +996,6 @@ Retirement events distinguish a tile omitted from current candidates
 They include its generation, submitted revision, and whether that revision matches
 the retiring content. This separates footprint exits from budget-driven eviction
 without treating surface submission as proof that all image content is ready.
-
-For a bounded retention comparison, tracing also accepts
-`&pax_retain_tiles=layer-4-cell-12-0,layer-4-cell-13-0` (use IDs from the current
-capture). This diagnostic control keeps at most four explicitly named,
-already-submitted tiles when they leave candidate coverage. It never allocates
-cold tiles, overrides admission denials, displaces normal work, or raises the
-existing surface/backing-pixel borrowing ceilings. Retention ends when capacity
-is needed or the host/cell geometry no longer matches. `retention-probe` events
-report the added residency. Omit the parameter to restore normal policy; this
-is an experimental comparison tool, not an application residency guarantee.
 
 Open **Surface trace snapshot** in the corner to inspect the bounded event log;
 close and reopen it to refresh. `visible-unready` transitions preserve transient
@@ -1002,6 +1023,26 @@ events report started initializations, recorded drawings, submitted/deferred job
 cache misses, atomic fallbacks, and CPU elapsed time for preparation. The `source`
 field distinguishes `ordinary-visible`, `ordinary-remaining`, and `completion`
 opportunities; `dirty_layers` counts jobs deferred by layer safety checks.
+Cooperative `frame-summary` records also contain bounded `layerReconciliation`
+tuples (layer, dirty before setup, pending-node count) and `layerDraws` tuples
+(layer, current priority, selected-node count, nodes still pending afterward).
+These distinguish fresh layer invalidation from pending-node promotion and draw
+attempts from useful completion. Each list retains at most 64 entries per display
+epoch; it is not an exhaustive log. Runtime collection is enabled by profiled
+ticks, and the details remain local to the opt-in trace.
+`preparation.*` phase aggregates break cold work down into selection (including
+synchronous initialization requests), capture, cached replay, image replay,
+encoding, queue submission, cleanup, and presentation calls. Image replay is
+nested inside replay; it includes image lookup/draw preparation and is not an
+isolated GPU-upload timer. `preparation_image_uploads` and
+`preparation_image_upload_bytes` count actual texture creation/upload work.
+`preparation_targeted_surfaces` and `preparation_additional_surfaces` distinguish
+selected targets from already-presented dirty surfaces included in their flush.
+These fixed-stage aggregates exist only during opted-in preparation services.
+`continuation.host_wait` measures physical host-task enqueue-to-service latency
+for continuations that actually run (not cancelled tasks). It is waiting time,
+not CPU work, and can span a newer frame superseding the original request.
+None of these CPU timings measures GPU completion or the browser's displayed frame.
 `unfiltered_layers` counts early captures deferred because an unclippable or
 otherwise unsupported render path needs full-tree traversal while other work is dirty.
 `render.geometry`, `render.lighting`, `render.reconcile`, `render.draw`, and
@@ -1067,15 +1108,13 @@ checked. Trace phases `continuation.input`, `surface.geometry` (or
 subphases of host time, not additional durations to add to it. Yielding and warm
 region policies are independent of this measurement reuse.
 
-To isolate browser Frame clipping during nested-scroll testing, add
-`&pax_frame_clip=box`. This experimental web path uses sized CSS boxes with
+Rectangular browser Frames use sized CSS boxes with
 `overflow: clip` and rounded corners for explicitly identified rectangular
 Frames, preserving descendant world coordinates with an inverse inner transform.
 It does not create another scroll container. Arbitrary Mask paths, singular or
-invalid transforms, and unsupported browsers retain the SVG path. Omit the flag
-or use `pax_frame_clip=svg` for the existing default. Compare on the same build,
-viewport, and input mode; physical trackpad and cross-browser behavior still
-need validation before making box clipping the default.
+invalid transforms, and browsers without `overflow: clip` retain the SVG path.
+The former `pax_frame_clip` query switch is no longer read. Browser capability
+and explicit shape metadata choose the implementation, not an application flag.
 `scroll-command` records engine-originated browser position writes, including
 their axis and whether the host was active; ordinary native observations should
 not produce these writes.
@@ -1112,24 +1151,45 @@ the compositor first moved pixels or identifies a physical gesture boundary.
 Use actual wheel/trackpad input for this test: the programmatic probe does not
 exercise a cancellable wheel listener.
 
-For an explicit diagnostic comparison only, add `&pax_wheel_passive=1`.
-This makes the global wheel listener passive while still dispatching
-Pax handlers. **Wheel cancellation is disabled in this mode**: do not use it to
-validate custom wheel controls or scroll-blocking behavior, or as a deployment
-setting. The switch is independent of tracing, so an overhead comparison can
-disable tracing without also changing input behavior. Without both tracing flags,
-no per-wheel timing is performed. The normal path retains synchronous cancellation. Compare the same
-content, warmed state, and input sequence; passive handlers may still be delivered
-late while the browser scrolls independently, so handler delay alone cannot prove
-or disprove smoother presentation.
+### Wheel input policy
 
-### Experimental cooperative Web rendering
+Wheel delivery is passive by default in debug and release web builds. Pax
+handlers still receive `@wheel`, but `event.prevent_default()` cannot stop
+browser scrolling or wheel-driven zoom in this mode. The browser can start
+scrolling without waiting for the JavaScript/Wasm handler. This is distinct from
+native/canvas alignment: both remain children of the same native scroll owner.
 
-Add `&pax_render_yield=1` to a Web URL to test cooperative rendering in either a
-debug or release build. Omit it to keep the default synchronous rendering path.
-This is an opt-in scheduling experiment, not a guarantee of smooth scrolling or
-complete frames. Use the same viewport, content, warmed state, and input sequence
-when comparing the two paths.
+For a custom wheel interaction that must cancel browser behavior, opt in before
+the mount starts:
+
+```toml
+[package.metadata.pax.web]
+wheel_events = "cancellable"
+```
+
+An embedded host can instead pass `wheelEvents: "cancellable"` to `Pax.init_web`;
+the host option takes precedence over package metadata. `"passive"` explicitly
+restores the default. This is mount-wide, not per handler, and the browser must
+wait for synchronous dispatch before scrolling. Even then, a browser may mark
+some wheel events noncancelable. Cancellation does not cancel Pax handler delivery
+and is not a portable way to lock every kind of scrolling: keyboard, touch, and
+scrollbar gestures have separate platform rules. Prefer the Scroller's declared
+axis settings when the intent is to disable an axis rather than intercept input.
+
+Migration: apps relying on wheel default prevention must select cancellable
+delivery explicitly. The former `pax_wheel_passive` query switch is no longer read.
+Tracing never changes input semantics; without both diagnostic flags there is no
+per-wheel diagnostic timing. Passive handlers may still arrive late while the
+browser scrolls independently, so handler delay is not presentation latency.
+
+<a id="experimental-cooperative-web-rendering"></a>
+### Cooperative Web rendering
+
+Cooperative rendering is the web default in debug and release builds. The former
+`pax_render_yield` query switch is no longer read. Initial mounting has its own
+`yield_mount` setting; it is not changed by this rendering policy. Cooperative
+rendering is not a guarantee of smooth scrolling or complete frames: the browser
+can expose new content before its drawing finishes.
 
 The shared runtime selects work again between complete ordinary logical layers
 and complete tile preparation/submission units. The Web host aims for a 3ms CPU

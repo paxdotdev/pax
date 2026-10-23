@@ -11,6 +11,16 @@ function load(globals={}) {
 }
 const {CooperativeRenderScheduler}=load();
 
+test('optional host-wait timing measures queued serviced tasks, not cancelled tasks',()=>{
+    let now=10; const tasks=[], samples=[];
+    const {CooperativeRenderScheduler: Timed}=load({performance:{now:()=>now}});
+    const pump=new Timed(()=>({pending:true}),()=>true,job=>tasks.push(job),ms=>samples.push(ms));
+    pump.beginFrame(); now=25; tasks.shift()();
+    assert.deepEqual(samples,[15]);
+    pump.dispose(); now=50; tasks.shift()();
+    assert.deepEqual(samples,[15]);
+});
+
 test('ordinary drawing and completion storms share one non-reentrant task pump',()=>{
     const tasks=[]; let calls=0; const origins=[];
     const pump=new CooperativeRenderScheduler(frame=>{
