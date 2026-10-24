@@ -49,6 +49,7 @@ pub struct LayerRenderer {
     // atomic replay/submission rather than clearing during layout planning.
     pending_backing_resize: bool,
     publication_revision: u64,
+    publication_ready: bool,
 }
 
 /// Current renderer set for one logical layer.
@@ -306,6 +307,7 @@ impl LayerRenderer {
             presentation_ready: false,
             pending_backing_resize: false,
             publication_revision: 0,
+            publication_ready: false,
         }
     }
 
@@ -314,10 +316,15 @@ impl LayerRenderer {
         &mut self.renderer
     }
 
-    /// Submission revision for native offscreen publication. Zero means no
-    /// retained scene has been flushed into this backing yet.
+    /// Submission revision for native offscreen publication. Zero means the
+    /// backing has not completed replay for its current origin and dimensions.
+    /// Nonzero revisions increase across retargets; they are never reused.
     pub fn publication_revision(&self) -> u64 {
-        self.publication_revision
+        if self.publication_ready {
+            self.publication_revision
+        } else {
+            0
+        }
     }
 
     /// Whether this renderer belongs to the entry's current physical surface generation.
@@ -367,6 +374,12 @@ impl LayerRenderer {
         self.surface_width = surface.surface.surface_width;
         self.surface_height = surface.surface.surface_height;
         self.dpr = surface.surface.dpr;
+
+        // A retained output still contains pixels for the previous geometry
+        // until its replay batch is flushed, including deferred warm tiles.
+        if origin_changed || size_changed {
+            self.publication_ready = false;
+        }
 
         if size_changed {
             LayoutChangeKind::Resized
@@ -828,6 +841,8 @@ impl PaxGpuRenderer {
     /// Call on the UI owner between render operations. The callback must not
     /// reenter this renderer. Mutable output textures must be copied on the
     /// same device queue before the next render; a handle is not a snapshot.
+    /// A zero revision means replay for the current tile geometry is pending;
+    /// the host must not commit that geometry using the previous output.
     pub fn visit_ready_surfaces(
         &self,
         mut visit: impl FnMut(usize, &str, &str, u64, &WgpuRenderer<'static>),
@@ -841,7 +856,7 @@ impl PaxGpuRenderer {
                             layer,
                             &surface.key,
                             &surface.host_signature,
-                            surface.publication_revision,
+                            surface.publication_revision(),
                             &surface.renderer,
                         );
                     }
@@ -1227,7 +1242,7 @@ impl PaxGpuRenderer {
         let targeted_surface_count = targeted_indices.as_ref().map(Vec::len).unwrap_or(0);
         #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
         let dirty_surface_count = dirty_indices.as_ref().map(Vec::len).unwrap_or(0);
-        let mut indices = targeted_indices.unwrap_or_default();
+        let mut indices = targeted_indices.clone().unwrap_or_default();
         if let Some(dirty_indices) = dirty_indices {
             // Ordinary updates to already-presented tiles may join this submit;
             // other cold tiles must wait for their own complete preparation.
@@ -1280,6 +1295,14 @@ impl PaxGpuRenderer {
                         .publication_revision
                         .checked_add(1)
                         .expect("surface publication revision exhausted");
+                    // Dirty content can flush a warm tile before its queued
+                    // geometry replay. That partial scene is not publishable.
+                    if targeted_indices
+                        .as_ref()
+                        .map_or(true, |batch| batch.contains(index))
+                    {
+                        renderer.publication_ready = true;
+                    }
                     drop(encode_timing);
                     #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
                     {

@@ -99,6 +99,7 @@ fn target_from_str(value: &str) -> Option<Target> {
     match value.to_ascii_lowercase().as_str() {
         "windows" => Some(Target::Windows),
         "linux" => Some(Target::Linux),
+        "android" => Some(Target::Android),
         "web" => Some(Target::Web),
         "macos" => Some(Target::Macos),
         "ios" => Some(Target::Ios),
@@ -111,6 +112,7 @@ fn target_from_run_target(value: RunTarget) -> Target {
     match value {
         RunTarget::Windows => Target::Windows,
         RunTarget::Linux => Target::Linux,
+        RunTarget::Android => Target::Android,
         RunTarget::Web => Target::Web,
         RunTarget::macOS => Target::Macos,
         RunTarget::iOS => Target::Ios,

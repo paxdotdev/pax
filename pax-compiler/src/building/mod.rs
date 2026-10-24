@@ -16,6 +16,7 @@ use crate::{BuildTimings, RunContext, RunTarget};
 
 use self::{apple::build_apple_project_with_cartridge, web::build_web_project_with_cartridge};
 
+pub mod android;
 pub mod apple;
 pub mod desktop;
 pub mod web;
@@ -42,6 +43,9 @@ pub fn build_project_with_cartridge(
 
     //string together a shell call to build the userland project, with cartridge injected via macro
     match target {
+        RunTarget::Android => {
+            android::build(ctx, &pax_dir, assets_dirs, manifest, timings).map(Some)
+        }
         RunTarget::Windows | RunTarget::Linux => {
             desktop::build(ctx, &pax_dir, assets_dirs, manifest, timings).map(Some)
         }

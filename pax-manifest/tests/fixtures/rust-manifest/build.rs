@@ -63,6 +63,8 @@ fn manifest() -> PaxManifest {
         Some("src/quoted \"main\".pax".into()),
     );
     let mut main = ComponentDefinition {
+        document: None,
+        camera: None,
         type_id: root.clone(),
         is_main_component: true,
         is_primitive: false,

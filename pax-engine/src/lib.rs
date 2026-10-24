@@ -31,7 +31,8 @@ pub use {pax_chassis_web, wasm_bindgen, wasm_bindgen_futures};
     feature = "macos",
     feature = "ios",
     feature = "windows",
-    feature = "linux"
+    feature = "linux",
+    feature = "android"
 ))]
 pub use pax_chassis_common;
 
@@ -58,3 +59,6 @@ pub use pax_chassis_windows;
 #[cfg(feature = "web")]
 #[doc(hidden)]
 pub use wasm_split_helpers;
+
+#[cfg(feature = "android")]
+pub use pax_chassis_android;

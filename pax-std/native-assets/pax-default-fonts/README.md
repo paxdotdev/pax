@@ -1,7 +1,7 @@
-# Desktop default font
+# Native default font
 
 These unmodified Roboto variable fonts provide Pax's default family offline on
-Windows and Linux. The desktop standard-library asset inventory carries them
+Windows, Linux, and Android. The native standard-library asset inventory carries them
 into both debug and baked release packages. Normal and italic faces include the
 100–900 weight range; the width axis uses its default value.
 
@@ -15,8 +15,8 @@ Redistribution terms are in `OFL-Roboto.txt`.
 | `Roboto-Italic.ttf` | `Roboto-Italic[wdth,wght].ttf` | `9725a847af6b460ffca162ae66d20dad48b01876137947180b42d7dcd7887182` |
 
 Only the standard default's exact family/source pair is resolved to these files
-at the Windows/Linux message boundary. Custom font URLs retain their meaning.
+at the Windows/Linux/Android message boundary. Custom font URLs retain their meaning.
 The macro frontend adds this asset root only when the owning Rust compilation
-targets Windows or Linux, before manifest hashing and binary baking. Web and
+targets Windows, Linux, or Android, before manifest hashing and binary baking. Web and
 Apple neither bundle nor register these files, preserving their existing font
 loading and package sizes.

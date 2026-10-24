@@ -1016,7 +1016,7 @@ measurement.
 
 ## Opt into native safe-area spacing
 
-The iOS and iPadOS chassis draw edge to edge. Add a standard-library
+The iOS, iPadOS, and Android API 30+ chassis draw edge to edge. Add a standard-library
 `DynamicIslandSpacer` where content should avoid the status bar or top cutout:
 
 ```pax
@@ -1027,7 +1027,7 @@ The iOS and iPadOS chassis draw edge to edge. Add a standard-library
 ```
 
 With no explicit dimensions, the spacer fills its container's width and
-measures its height from UIKit's current top safe-area inset, in logical
+measures its height from the platform's current top safe-area inset, in logical
 pixels. It renders nothing and does not intercept input. A content-sized
 Stacker gives that measured space its own cell. In a plain Group, siblings
 are positioned independently, so adding a spacer alone does not move them.
@@ -1060,7 +1060,16 @@ use the corresponding edge when that side contains content. The spacer does
 not inset the root or detect padding already applied by an ancestor. Add it
 once at the relevant window edge to avoid reserving the same space twice.
 
-Currently this component reserves space on **native iOS and iPadOS only**.
+An overlay inside an already inset container must also account for these edges
+when using global viewport dimensions. For example, the website's full-screen
+Paxflix overlay uses `($viewport.height - self.safe_top - self.safe_bottom)px`
+for its height and aligns its bottom with the safe content container. Using the
+full viewport height there would push its close toolbar into the system bar.
+
+This component reserves space on native iOS, iPadOS, and Android API 30+.
+Android uses system-bar and display-cutout insets; the viewport shrinks for the
+keyboard, so a bottom spacer does not add the keyboard height again. Android
+API 29 uses a system-fitted viewport and reports zero extra inset.
 Web (including Safari), macOS, and other platforms contribute zero on the
 inset axis. A Stacker's separately authored gutter still applies around a
 zero-sized child.

@@ -408,6 +408,8 @@ fn assert_compiled_exit_lifetime(
         components: std::collections::BTreeMap::from([(
             id.clone(),
             ComponentDefinition {
+                document: None,
+                camera: None,
                 type_id: id.clone(),
                 is_main_component: true,
                 is_primitive: false,

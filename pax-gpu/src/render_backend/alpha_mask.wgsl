@@ -27,43 +27,48 @@ struct VertexOutput {
     if in.camera_clip.y <= 0.0 || in.camera_clip.x < 0.0 || in.camera_clip.x > in.camera_clip.y { discard; }
     var alpha = 0.0;
     for (var i = 0u; i < paint_range.y; i++) {
-        alpha += sample_alpha(paints[paint_range.x + i], in.world);
+        alpha += sample_alpha(paint_range.x + i, in.world);
     }
     return vec4<f32>(clamp(alpha, 0.0, 1.0));
 }
-fn sample_alpha(paint: Paint, world: vec2<f32>) -> f32 {
-    if paint.params.w > 1.5 {
-        let delta = world - paint.axis.xy;
-        let a = paint.axis.zw;
-        let b = paint.off_axis.xy;
+// Keep stop-array reads in storage rather than copying an array-valued function
+// argument. This also avoids invalid array-copy lowering in Vulkan-to-Metal drivers.
+fn sample_alpha(paint_id: u32, world: vec2<f32>) -> f32 {
+    let params = paints[paint_id].params;
+    let axis_data = paints[paint_id].axis;
+    let off_axis = paints[paint_id].off_axis;
+    if params.w > 1.5 {
+        let delta = world - axis_data.xy;
+        let a = axis_data.zw;
+        let b = off_axis.xy;
         let determinant = a.x*b.y - a.y*b.x;
         if abs(determinant) < 0.000001 { return 0.0; }
         let local = vec2<f32>(delta.x*b.y - delta.y*b.x, a.x*delta.y - a.y*delta.x) / determinant;
-        let domain = paint.stops[0];
+        let domain = paints[paint_id].stops[0];
         let uv = (local - domain.xy) / domain.zw;
         if any(uv < vec2<f32>(0.0)) || any(uv > vec2<f32>(1.0)) { return 0.0; }
-        return textureSampleLevel(mesh_paints, mesh_sampler, uv, i32(paint.params.x), 0.0).a * paint.params.y;
+        return textureSampleLevel(mesh_paints, mesh_sampler, uv, i32(params.x), 0.0).a * params.y;
     }
-    var alpha = paint.params.x;
-    let count = u32(paint.params.z);
+    var alpha = params.x;
+    let count = u32(params.z);
     if count > 0u {
-        let delta = world - paint.axis.xy;
-        let axis = paint.axis.zw;
+        let delta = world - axis_data.xy;
+        let axis = axis_data.zw;
         var coordinate = dot(delta, axis) / max(length(axis), 0.0001);
-        let off = paint.off_axis.xy;
+        let off = off_axis.xy;
         let determinant = axis.x * off.y - axis.y * off.x;
-        if paint.params.w < 0.5 && abs(determinant) > 0.0001 {
+        if params.w < 0.5 && abs(determinant) > 0.0001 {
             coordinate = (delta.x * off.y - delta.y * off.x) / determinant * length(axis);
         }
-        if paint.params.w > 0.5 {
-            coordinate = radial_coordinate(delta, axis, off, paint.off_axis.zw);
+        if params.w > 0.5 {
+            coordinate = radial_coordinate(delta, axis, off, off_axis.zw);
             if coordinate < 0.0 { return 0.0; }
         }
-        alpha = paint.stops[0].y;
+        alpha = paints[paint_id].stops[0].y;
         for (var i = 1u; i < 8u; i++) {
             if i >= count { break; }
-            let a = paint.stops[i - 1u];
-            let b = paint.stops[i];
+            let a = paints[paint_id].stops[i - 1u];
+            let b = paints[paint_id].stops[i];
             if coordinate >= b.x { alpha = b.y; }
             else if coordinate > a.x {
                 alpha = mix(a.y, b.y, clamp((coordinate - a.x) / max(b.x - a.x, 0.0001), 0.0, 1.0));
@@ -71,5 +76,5 @@ fn sample_alpha(paint: Paint, world: vec2<f32>) -> f32 {
             } else { break; }
         }
     }
-    return alpha * paint.params.y;
+    return alpha * params.y;
 }

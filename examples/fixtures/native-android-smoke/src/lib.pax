@@ -1,0 +1,149 @@
+if mode != "composition" && mode != "scroll" && mode != "scroll-alignment" && mode != "scroll-alignment-nested" && mode != "cross-axis" && mode != "native-only" && mode != "choices" && mode != "assets" && mode != "rich-text" && mode != "native-images" {
+    <Text class="text" x=20px y=20px width={100% - 90px} height=36px text={title}/>
+    <Image x={100% - 64px} y=18px width=44px height=44px source="assets/smoke.png"/>
+    <Text class="text" x=20px y=65px width={100% - 40px} height=32px text={"Initializations: " + initialized}/>
+    <Button class="text" x=20px y=112px width=180px height=48px label={"Count: " + clicks} @button_click=self.increment/>
+    <Checkbox x=226px y=118px width=36px height=36px checked=bind:checked/>
+    <Text class="text" x=20px y=174px width={100% - 40px} height=30px text={checked ? "Checked: yes" : "Checked: no"}/>
+    <Textbox class="text" x=20px y=218px width={100% - 40px} height=48px text=bind:input @textbox_input=self.edit/>
+    <Text class="text" x=20px y=282px width={100% - 40px} height=70px text={echoed}/>
+    <Rectangle x=20px y=378px width={100% - 40px} height=64px fill={rgb(32, 119, 205)}/>
+    <Text class="bundled" x=20px y=462px width={100% - 40px} height=40px text="Bundled Manrope"/>
+    <Text x=20px y=514px width={100% - 40px} height=36px text="Default Roboto" style={font_size: 18px, fill: BLACK}/>
+}
+if mode == "rich-text" {
+    <Text class="text" x=20px y=20px width={100% - 40px} markdown=true text={markdown}/>
+    <Text x=20px y=260px width={100% - 40px} markdown=true wrap=false text={code}
+        style={font: {family: "monospace" url: ""} font_size: 18px fill: BLACK}/>
+    <Text class="text" x=20px y=350px width={100% - 40px} text="**plain** &lt;Text&gt;"/>
+    <Text class="text" x=20px y=390px width=170px height=40px markdown=true selectable=false text="[Go to route](/rich-destination)"/>
+    <Group x=200px y=390px width=170px height=40px>
+        <Router>
+            <Route path="/rich-destination">
+                <Frame width=100% height=100%>
+                    <Scroller width=100% height=100% scroll_height=80px>
+                        <Text class="text" width=100% height=40px text="At destination"/>
+                        <Rectangle width=100% height=80px fill={rgb(222, 239, 246)}/>
+                    </Scroller>
+                </Frame>
+            </Route>
+            <Route default=true>
+                <Scroller width=100% height=100% scroll_height=80px>
+                    <Text class="text" width=100% height=40px text="At home"/>
+                    <Rectangle width=100% height=80px fill={rgb(240, 244, 248)}/>
+                </Scroller>
+            </Route>
+        </Router>
+    </Group>
+    <Text class="text" x=20px y=450px width={100% - 40px} height=42px editable=true text=bind:input/>
+    <Text class="text" x=20px y=510px width={100% - 40px} height=60px text={"Text edit: " + input}/>
+    <Button class="text" x=20px y=590px width=220px height=48px label="Toggle emphasis" @button_click=self.toggle_emphasis/>
+}
+if mode == "native-images" {
+    <Button x=20px y=40px width=160px height=48px label="Swap images" @button_click=self.swap_images/>
+    <Button x=200px y=40px width=170px height=48px label="Toggle images" @button_click=self.toggle_images/>
+    if !self.images_hidden {
+        <NativeImage x=20px y=120px width=100px height=100px fit=ImageFit::Fit
+            url={self.image_alt ? "assets/native-image-tall.png" : "assets/native-image-wide.png"}/>
+        <NativeImage x=140px y=120px width=100px height=100px fit=ImageFit::Paint
+            url={self.image_alt ? "assets/native-image-tall.png" : "assets/native-image-wide.png"}/>
+        <NativeImage x=260px y=120px width=100px height=100px fit=ImageFit::Stretch
+            url={self.image_alt ? "assets/native-image-tall.png" : "assets/native-image-wide.png"}/>
+        <Frame x=40px y=280px width=180px height=100px rotate=8deg corner_radius=16>
+            <NativeImage width=100% height=100% fit=ImageFit::Paint
+                url={self.image_alt ? "assets/native-image-tall.png" : "assets/native-image-wide.png"}/>
+        </Frame>
+    }
+}
+if mode == "assets" {
+    <Text x=20px y=40px width={100% - 40px} text="Remote Space Grotesk" style={
+        font: {family: "Space Grotesk", url: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500&display=swap", weight: 500}
+        font_size: 24px
+        fill: BLACK
+    }/>
+    <Image x=20px y=140px width=160px height=160px source="https://www.rust-lang.org/logos/rust-logo-512x512.png"/>
+    <Image x=210px y=140px width=160px height=160px source="https://www.rust-lang.org/logos/rust-logo-512x512.png?pax-acceptance=2"/>
+    <Text class="text" x=20px y=340px width={100% - 40px} text="HTTPS images and CSS font"/>
+}
+if mode == "choices" {
+    <Dropdown class="text" x=20px y=60px width={100% - 40px} height=48px options={["First", "Second", "Third"]} selected_id=bind:choice/>
+    <RadioList class="text" x=20px y=140px width={100% - 40px} height=180px options={["Red", "Green", "Blue"]} selected_id=bind:radio/>
+    <Text class="text" x=20px y=350px width={100% - 40px} height=40px text={"Choice: " + choice + ", radio: " + radio}/>
+}
+if mode == "composition" {
+    <Rectangle x=100px y=80px width=100px height=60px fill={rgb(32, 119, 205)}/>
+    <Button class="text" x=20px y=60px width=280px height=100px label={"Masked count: " + clicks} @button_click=self.increment/>
+    <Frame x=20px y=230px width={100% - 40px} height=150px rotate=8deg corner_radius=24>
+        <Textbox class="text" x=12px y=12px width={100% - 24px} height=44px text=bind:input @textbox_input=self.edit/>
+        <Text class="text" x=12px y=72px width={100% - 24px} height=50px text={echoed}/>
+        <Rectangle width=100% height=100% fill={rgb(222, 239, 246)}/>
+    </Frame>
+    <Slider x=20px y=440px width={100% - 40px} height=48px min=0 max=10 step=1 value=bind:level/>
+    <Text class="text" x=20px y=506px width={100% - 40px} height=38px text={"Level: " + level}/>
+}
+if mode == "scroll" {
+    <Text class="text" x=20px y=20px width={100% - 40px} height=40px text={"Count: " + clicks}/>
+    <Text class="text" x=20px y=65px width={100% - 40px} height=30px text={"Scroll: " + scroll_y}/>
+    <Scroller x=20px y=112px width={100% - 40px} height={100% - 144px} scroll_height=1800px scroll_pos_y=bind:scroll_y corner_radius=24>
+        <Text class="text" x=16px y=20px width={100% - 32px} height=40px text="Scroll starts here"/>
+        <Scroller x=16px y=84px width={100% - 32px} height=160px scroll_height=480px corner_radius=16>
+            <Text class="text" x=12px y=16px width={100% - 24px} height=40px text="Inner start"/>
+            <Text class="text" x=12px y=390px width={100% - 24px} height=40px text="Inner destination"/>
+            <Rectangle width=100% height=480px fill={rgb(222, 239, 246)}/>
+        </Scroller>
+        <Button class="text" x=16px y=1680px width={100% - 32px} height=50px label="Bottom increment" @button_click=self.increment/>
+        <Rectangle x=0px y=900px width=100% height=90px fill={rgb(32, 119, 205)}/>
+        <Rectangle width=100% height=1800px fill={rgb(240, 244, 248)}/>
+    </Scroller>
+}
+if mode == "scroll-alignment" {
+    <Text class="text" x=20px y=24px width={100% - 40px} height=40px text="Native green / GPU magenta"/>
+    <Scroller x=20px y=80px width={100% - 40px} height={100% - 112px} scroll_height=7200px>
+        for i in 0..90 {
+            <Group y={(i * 80)px} width=100% height=80px>
+                <Button x=24px y=16px width=100px height=32px label="" color={rgb(0, 220, 80)} corner_radius=0/>
+                <Rectangle x=156px y=16px width=100px height=32px fill={rgb(230, 0, 180)}/>
+            </Group>
+        }
+        <Rectangle width=100% height=7200px fill={rgb(240, 244, 248)}/>
+    </Scroller>
+}
+if mode == "scroll-alignment-nested" {
+    <Text class="text" x=20px y=24px width={100% - 40px} height=40px text="Nested native / GPU alignment"/>
+    <Scroller x=12px y=80px width={100% - 24px} height={100% - 112px} scroll_height=1600px>
+        <Frame x=20px y=120px width={100% - 28px} height={100% - 140px} scale=90% anchor=0%>
+            <Scroller x=8px y=12px width={100% - 16px} height={100% - 24px} scroll_height=7200px>
+                for i in 0..90 {
+                    <Group y={(i * 80)px} width=100% height=80px>
+                        <Button x=12px y=16px width=100px height=32px label="" color={rgb(0, 220, 80)} corner_radius=0/>
+                        <Rectangle x=144px y=16px width=100px height=32px fill={rgb(230, 0, 180)}/>
+                    </Group>
+                }
+                <Rectangle width=100% height=7200px fill={rgb(240, 244, 248)}/>
+            </Scroller>
+        </Frame>
+    </Scroller>
+}
+if mode == "cross-axis" {
+    <Text class="text" x=20px y=20px width={100% - 40px} height=32px text={"Scroll: " + scroll_y}/>
+    <Text class="text" x=20px y=58px width={100% - 40px} height=32px text={"Count: " + clicks}/>
+    <Scroller x=20px y=110px width={100% - 40px} height={100% - 140px} scroll_height=1600px scroll_pos_y=bind:scroll_y>
+        <Scroller x=0px y=20px width=100% height=320px scroll_width=1200px scroll_height=320px>
+            <Text class="text" x=20px y=20px width=260px height=40px text="Horizontal row"/>
+            <Button class="text" x=980px y=220px width=180px height=60px label="Row destination" @button_click=self.increment/>
+            <Rectangle width=1200px height=320px fill={rgb(222, 239, 246)}/>
+        </Scroller>
+        <Text class="text" x=20px y=1100px width=260px height=40px text="Outer destination"/>
+        <Rectangle width=100% height=1600px fill={rgb(240, 244, 248)}/>
+    </Scroller>
+}
+if mode == "native-only" {
+    <Button class="text" x=20px y=20px width=280px height=60px label={"Native count: " + clicks} @button_click=self.increment/>
+} else {
+    <Rectangle width=100% height=100% fill={rgb(247, 249, 252)}/>
+}
+
+@settings {
+    .text { style: { font: { family: "sans-serif" url: "" } font_size: 18px fill: BLACK } }
+    .bundled { style: { font: { family: "Manrope" url: "assets/fonts/Manrope.ttf" } font_size: 20px fill: BLACK } }
+}

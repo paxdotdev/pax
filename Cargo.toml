@@ -20,6 +20,7 @@ members = [
     "examples/viewport-proximity",
     "examples/fixtures/*",
     "pax-chassis-common",
+    "pax-chassis-android",
     "pax-chassis-ios",
     "pax-chassis-macos",
     "pax-chassis-windows",

@@ -983,7 +983,7 @@ mod retirement_tests {
     }
 
     #[test]
-    fn retirement_is_independent_of_publication_batch_limit() {
+    fn bulk_retirement_is_bounded_unless_explicitly_collected() {
         let graph = PropertyGraph::new(|| {});
         let _graph = graph.enter();
         let retained = Property::new(1_u32);
@@ -999,6 +999,13 @@ mod retirement_tests {
         retained.set(2);
         assert!(graph.has_pending());
         assert_eq!(graph.import_batch(0), 0);
+        assert_eq!(graph.inner.attachments.borrow().len(), 1501);
+        assert_eq!(graph.import_batch(64), 0);
+        assert_eq!(graph.inner.attachments.borrow().len(), 1437);
+        assert_eq!(retained_local.get(), 1);
+        // Explicit cleanup can drain retirement notifications without importing
+        // the live property's queued publication or scanning live attachments.
+        graph.collect();
         assert_eq!(graph.inner.attachments.borrow().len(), 1);
         assert_eq!(retained_local.get(), 1);
         assert_eq!(graph.import(), 1);

@@ -93,7 +93,7 @@ fn dynamic_island_spacer_reserves_space_in_autosized_stacker() {
 
 #[test]
 fn dynamic_island_spacer_tracks_rotation_edges_and_window_resize() {
-    for os in [OS::IPhone, OS::IPad] {
+    for os in [OS::IPhone, OS::IPad, OS::Android] {
         let (context, root, spacer) = mount(Platform::Native, os);
         let node = root.children.get()[0].clone();
         assert_eq!(node.transform_and_bounds.get().bounds, (440.0, 0.0));
@@ -139,7 +139,9 @@ fn dynamic_island_spacer_is_zero_on_unsupported_chassis() {
     for (platform, os) in [
         (Platform::Web, OS::IPhone),
         (Platform::Native, OS::Mac),
-        (Platform::Native, OS::Android),
+        (Platform::Web, OS::Android),
+        (Platform::Native, OS::Windows),
+        (Platform::Native, OS::Linux),
     ] {
         let (context, root, spacer) = mount(platform, os);
         context.set_safe_area_insets(SafeAreaInsets {

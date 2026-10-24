@@ -453,15 +453,17 @@ fades inside its parent, and a parent at 50% fades the assembled result again.
 Setting a child to `opacity=1` cannot cancel an ancestor's fade. A Group does
 not add clipping; use a Frame or Mask to restrict overflow.
 
-The WGPU renderer retains cropped opacity textures between frames. When their
-bounds animate, it can reuse a texture with spare capacity instead of replacing
+The WGPU renderer retains cropped opacity textures between frames. For ordinary
+2D opacity groups, when their bounds animate, it can reuse a texture with spare capacity instead of replacing
 it for each pixel-sized change. A new allocation adds up to one eighth on each
 axis, limited by the capture surface; a retained allocation never exceeds twice
 the current cropped pixel area. Substantial shrinkage or a changed aspect ratio
 reclaims excess capacity. Removing the capture releases its retained resources.
 This trades a bounded amount of texture memory for fewer allocations; animated
-content still needs drawing and copying. Alpha-mask and shader-source textures
-keep their exact source dimensions.
+content still needs drawing and copying. Spatial composition uses a separate
+surface-bounded allocation policy. Alpha-mask textures keep their exact source
+dimensions; [shader captures](#experimental-shader-containers) retain their own
+spare capacity while preserving exact visible bounds.
 
 Paint alpha remains useful for a different purpose. Lower a background's fill
 alpha to let content behind it show through while its label stays crisp. Set

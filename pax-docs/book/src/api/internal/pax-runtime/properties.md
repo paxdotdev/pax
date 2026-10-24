@@ -54,12 +54,30 @@ Type: `Cell`<`usize`>
 Type: `Rc`<`RefCell`<`Vec`<`bool`>>>
 
 #### Implementations
+##### `layer_allows_scroller_surface_culling`
+<pre><code class="api-signature language-rust ignore">pub fn layer_allows_scroller_surface_culling(&amp;self, layer: usize) -&gt; bool</code></pre>
+
+Whether a layer's content shares its scroller owner's clip domain.
+
+Surface admission must retain the ordinary plan for layers containing
+escaped descendants or mixed presentation domains. Pending structural or
+node changes are likewise insufficient evidence for removing surfaces.
+Call after property effects have settled, as in the engine tick path.
+
 ##### `register_startup_measurement`
 <pre><code class="api-signature language-rust ignore">pub fn register_startup_measurement(&amp;self, node: &amp;ExpandedNode, axes: <a href="../../../api/internal/pax-runtime/engine/startup/plan.md#startupaxes">StartupAxes</a>)</code></pre>
 
 Register axes whose extent is measured from this container's children.
 The default planner preserves exact measurement dependencies while allowing
 a top-aligned, fixed-width visible prefix to remain partially mounted.
+
+##### `scroller_surface_visibility`
+<pre><code class="api-signature language-rust ignore">pub fn scroller_surface_visibility(&amp;self, owner: <a href="../../../api/internal/pax-runtime/properties.md#expandednodeidentifier">ExpandedNodeIdentifier</a>, padding: f64) -&gt; Option&lt;<a href="../../../api/internal/pax-runtime/engine/surface_visibility.md#scrollersurfacevisibility">ScrollerSurfaceVisibility</a>&gt;</code></pre>
+
+Resolve conservative scroller surface admission through all ancestor clips.
+
+Padding is in window pixels. Invalid or collapsed geometry has no resident
+surface until the next valid plan; it does not unmount application state.
 
 ##### `mouse_click_target`
 <pre><code class="api-signature language-rust ignore">pub fn mouse_click_target(self: &amp;Rc&lt;Self&gt;, button: <a href="../../../api/pax-runtime-api/events.md#mousebutton">MouseButton</a>, ray: Point2&lt;<a href="../../../api/pax-runtime-api/platform.md#window">Window</a>&gt;) -&gt; Option&lt;Rc&lt;ExpandedNode&gt;&gt;</code></pre>
@@ -180,6 +198,16 @@ camera clipping before the canvas owner's projective mapping is inverted.
 Projects into the owning canvas's scroll-content chart. The browser
 applies the owner's projection and local scroll after this rendering.
 Camera clipping remains in the source plane's original coordinates.
+
+##### `canvas_surface_transform_for_node`
+<pre><code class="api-signature language-rust ignore">pub fn canvas_surface_transform_for_node(&amp;self, node: &amp;ExpandedNode) -&gt; Affine</code></pre>
+
+Resolve a node's local coordinates into its owning canvas's content space.
+Scroller-owned layers use the registered owner's origin; root layers use
+window coordinates. Detached mask sources retain their scene transform until
+capture projection. Physical tile offsets are applied later by the renderer.
+A collapsed surface owner has no drawable area; its descendants receive a
+collapsed transform until the owner becomes invertible again.
 
 ##### `capture_startup_input`
 <pre><code class="api-signature language-rust ignore">pub fn capture_startup_input(&amp;self, ray: Option&lt;Point2&lt;<a href="../../../api/pax-runtime-api/platform.md#window">Window</a>&gt;&gt;) -&gt; <a href="../../../api/internal/pax-runtime/engine/startup.md#startupinput">StartupInput</a></code></pre>
@@ -459,6 +487,14 @@ This also applies to detached sources whose logical layer differs from the consu
 Invalidate clip geometry stored outside the primitive's property graph,
 for example when a detached Mask source changes. Ordinary reactive clip
 properties are tracked automatically.
+
+##### `native_layer_may_be_visible`
+<pre><code class="api-signature language-rust ignore">pub fn native_layer_may_be_visible(&amp;self, layer: usize) -&gt; bool</code></pre>
+
+Whether a native canvas layer may contribute pixels to the window.
+Clipped scroll islands outside the viewport need no backing surfaces.
+Unclipped or escaped content remains resident conservatively. This query
+uses presentation scroll and ancestor clips without installing observers.
 
 ##### `viewport_proximity_stats`
 <pre><code class="api-signature language-rust ignore">pub fn viewport_proximity_stats(&amp;self) -&gt; <a href="../../../api/internal/pax-runtime/viewport_proximity.md#viewportproximitystats">ViewportProximityStats</a></code></pre>

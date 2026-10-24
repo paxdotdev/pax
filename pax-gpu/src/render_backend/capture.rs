@@ -53,7 +53,7 @@ fn capture_texture_size(
     domain: (u32, u32),
 ) -> (u32, u32) {
     if !matches!(key, CaptureKey::Opacity(..)) {
-        // Alpha/effect consumers sample the entire texture as their logical source.
+        // Other capture kinds apply their own sizing policy after this base calculation.
         return required;
     }
     if let Some((width, height)) = current {
@@ -144,7 +144,7 @@ impl RetainedSurfaces {
         for target in self.scratch.iter().chain(&self.stack) {
             scratch.add(&target.texture);
             if let Some(msaa) = &target.multisampled_target {
-                scratch.add(&msaa._texture);
+                scratch.add(msaa.texture());
             }
         }
         (groups, scratch, self.stack.len())
@@ -850,7 +850,7 @@ mod capacity_tests {
     }
 
     #[test]
-    fn source_capture_capacity_remains_exact() {
+    fn non_opacity_capture_base_size_is_exact() {
         let mut keys = vec![CaptureKey::Alpha(7)];
         #[cfg(feature = "shaders")]
         keys.push(CaptureKey::EffectSource(9));

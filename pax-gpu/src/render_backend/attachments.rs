@@ -62,7 +62,6 @@ impl Attachment {
         &self.view
     }
 
-    #[cfg(test)]
     pub(super) fn texture(&self) -> &wgpu::Texture {
         &self.texture.0
     }

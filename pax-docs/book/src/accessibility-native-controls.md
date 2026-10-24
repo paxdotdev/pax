@@ -480,6 +480,39 @@ pax-cli run --path examples/fixtures/photo-picker --target web
 
 ## Current support
 
+The experimental Android host provides real TextView, EditText, Button,
+CheckBox, SeekBar, Spinner, RadioGroup/RadioButton, ImageView, and native scrolling containers
+for Text, Textbox, Button, Checkbox, Slider, Dropdown, RadioList, Frame,
+Scroller, EventBlocker, and NativeImage. Text editing uses
+Android's IME buffer. Native edits supersede older queued control values; later
+Rust updates can still transform or replace the text. Textbox updates edit the
+existing Android buffer so an application transformation preserves the active
+input connection and selection.
+Editable Text declares an editable native buffer and editor role before focus,
+so Android's accessibility services can identify it as an editor.
+The emulator acceptance suite checks composing replacements and commits through
+Android's input connection, including combining accents, Arabic text, and emoji.
+A separate Gboard probe exercises visible keys, suggestions, emoji, and Rust
+bindings. These checks cover the installed keyboard configuration; other
+keyboards and language layouts still need qualification.
+TalkBack can navigate and activate native controls, but reading order, accessible
+names and roles for custom interactions, and focus containment and return for
+overlays remain incomplete. Test these tasks in the actual application; emulator
+coverage does not replace physical-device qualification.
+Hardware key events retain
+native defaults unless a Pax handler prevents them. Nested scrollers choose the
+drag axis, allowing a vertical drag over a horizontal row to reach its parent.
+Transforms use Android View
+properties so drawing, touch input, and accessibility bounds share the same map.
+Radio indicators retain Android's native shape and thickness; checked fill and
+unchecked outline colors tint those indicators. Button hover styling is not
+implemented. Text supports native selection, editing, and
+[Markdown/source highlighting](text-fonts-images.md#markdown-content).
+Scroll snapping and complete accessibility qualification remain outside this
+support. Follow the
+[Android setup and limits](targets-build-deploy.md#experimental-android) and
+use [Android fonts](text-fonts-images.md#fonts-on-android).
+
 The alpha Windows and Linux hosts provide plain Text,
 Textbox, Button, Checkbox, Slider, Dropdown, RadioList, Frame, Scroller, and
 EventBlocker. They use real

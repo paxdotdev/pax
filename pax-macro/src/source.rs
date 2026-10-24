@@ -358,6 +358,7 @@ fn drive(mut request: Request, session: &mut Session) -> Result<String> {
             "target_os = \"ios\"",
             "target_os = \"windows\"",
             "target_os = \"linux\"",
+            "target_os = \"android\"",
             "debug_assertions",
             "test",
         ]
@@ -597,11 +598,12 @@ fn drive(mut request: Request, session: &mut Session) -> Result<String> {
         }
     };
     let mut manifest = catalog.manifest_for(Some(&catalog.entries()[0].root))?;
-    crate::font_assets::append_desktop_defaults(
+    crate::font_assets::append_native_defaults(
         &mut manifest.assets_dirs,
         &packages,
         request.snapshot.facts["target_os = \"windows\""]
-            || request.snapshot.facts["target_os = \"linux\""],
+            || request.snapshot.facts["target_os = \"linux\""]
+            || request.snapshot.facts["target_os = \"android\""],
     )?;
     for name in [
         "PAX_DIR",
@@ -705,7 +707,7 @@ fn drive(mut request: Request, session: &mut Session) -> Result<String> {
             manifest.components.get_mut(&wrapper).unwrap().template = Some(template);
             manifest
         }}
-        #[cfg(any(target_os = "macos", target_os = "ios", target_os = "windows", target_os = "linux"))]
+        #[cfg(any(target_os = "macos", target_os = "ios", target_os = "windows", target_os = "linux", target_os = "android"))]
         #[unsafe(export_name = {program_id_export:?})]
         pub unsafe extern "C" fn pax_cartridge_program_id(buffer: *mut u8, capacity: usize) -> usize {{
             let bytes = {id:?}.as_bytes();
@@ -720,6 +722,7 @@ fn drive(mut request: Request, session: &mut Session) -> Result<String> {
         ipados: std::env::var("PAX_BUILD_TARGET").as_deref() == Ok("ipados"),
         windows: request.snapshot.facts["target_os = \"windows\""],
         linux: request.snapshot.facts["target_os = \"linux\""],
+        android: request.snapshot.facts["target_os = \"android\""],
         designtime,
     };
     let adapter = crate::TemplateArgsCartridge {

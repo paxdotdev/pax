@@ -135,7 +135,8 @@ fn render_generated_cartridge(
         || build_config.ios
         || build_config.ipados
         || build_config.windows
-        || build_config.linux)
+        || build_config.linux
+        || build_config.android)
     {
         return output;
     }
@@ -235,6 +236,7 @@ fn template_build_config() -> TemplateBuildConfig {
         ipados: pax_build_target == "ipados",
         windows: pax_build_target == "windows" || cargo_feature_enabled("windows"),
         linux: pax_build_target == "linux" || cargo_feature_enabled("linux"),
+        android: pax_build_target == "android" || cargo_feature_enabled("android"),
         designtime,
     }
 }

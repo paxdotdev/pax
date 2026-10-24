@@ -47,6 +47,7 @@ pub struct TemplateBuildConfig {
     pub ipados: bool,
     pub windows: bool,
     pub linux: bool,
+    pub android: bool,
     pub designtime: bool,
 }
 
@@ -100,6 +101,7 @@ mod tests {
                         ipados: target == "ipados",
                         windows: target == "windows",
                         linux: target == "linux",
+                        android: target == "android",
                         designtime,
                     },
                 }
@@ -122,7 +124,9 @@ mod tests {
 
     #[test]
     fn dependency_main_remains_a_component_without_platform_entrypoints() {
-        for target in ["web", "macos", "ios", "ipados", "windows", "linux"] {
+        for target in [
+            "web", "macos", "ios", "ipados", "windows", "linux", "android",
+        ] {
             for designtime in [true, false] {
                 let generated = render_main(false, target, designtime);
                 syn2::parse_file(&generated).unwrap();
@@ -140,7 +144,7 @@ mod tests {
     #[test]
     fn native_adapters_export_only_the_selected_library_names() {
         let exports = pax_codegen::project_layout::NativeExports::new("fixture@1", "ui");
-        for target in ["macos", "ios", "ipados", "windows", "linux"] {
+        for target in ["macos", "ios", "ipados", "windows", "linux", "android"] {
             for designtime in [true, false] {
                 let generated = render_main(true, target, designtime);
                 syn2::parse_file(&generated).unwrap();
@@ -159,6 +163,10 @@ mod tests {
                     );
                 }
                 assert!(!generated.contains(&exports.program_id)); // Emitted with program contents.
+                assert_eq!(
+                    generated.contains("NativeInterruptDispatcher::with_synthetic_wheel_scroll()"),
+                    matches!(target, "macos" | "ios" | "ipados"),
+                );
             }
         }
         assert!(!render_main(true, "web", false).contains("export_name"));
@@ -188,8 +196,35 @@ mod tests {
     }
 
     #[test]
+    fn android_keeps_explicit_typed_initialization_in_debug_and_release() {
+        for designtime in [true, false] {
+            let generated = render_main(true, "android", designtime);
+            syn2::parse_file(&generated).unwrap();
+            assert!(generated.contains("fn pax_cartridge_abi_version() -> u32 { 5 }"));
+            assert!(generated.contains("OS::Android"));
+            assert!(!generated.contains("OS::Linux"));
+            assert!(!generated.contains("OS::Mac"));
+            assert!(generated.contains("application.initialize(example_init)"));
+            assert_eq!(
+                generated
+                    .matches("application.initialize(example_init)")
+                    .count(),
+                1
+            );
+            assert_eq!(
+                generated.contains("AndroidEngineContainer::new_designtime"),
+                designtime
+            );
+            assert!(!generated.contains("fn main"));
+            assert!(!generated.contains("JNI_OnLoad"));
+        }
+    }
+
+    #[test]
     fn application_main_keeps_debug_and_release_entrypoints() {
-        for target in ["web", "macos", "ios", "ipados", "windows", "linux"] {
+        for target in [
+            "web", "macos", "ios", "ipados", "windows", "linux", "android",
+        ] {
             for designtime in [true, false] {
                 let generated = render_main(true, target, designtime);
                 syn2::parse_file(&generated).unwrap();
@@ -222,7 +257,7 @@ mod tests {
         // manifest clone. Parsing alone cannot catch use-after-move or a lost
         // catalog selection, and substring checks cannot establish ownership.
         let mut cases = String::new();
-        for target in ["macos", "ios", "ipados", "windows", "linux"] {
+        for target in ["macos", "ios", "ipados", "windows", "linux", "android"] {
             for designtime in [true, false] {
                 for catalog in [false, true] {
                     let generated = render_main_catalog(true, target, designtime, catalog);

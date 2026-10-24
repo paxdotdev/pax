@@ -415,6 +415,9 @@ pub(crate) struct OcclusionState {
 }
 
 impl OcclusionState {
+    pub(crate) fn layer_has_escaped_content(&self, layer: usize) -> bool {
+        self.unsafe_layers.contains(&layer)
+    }
     pub(crate) fn remove(&mut self, id: u32) {
         // The live parent link disappears during unmount. Retain the old branch
         // origin until reconciliation has repaired its former overlaps/order.
@@ -1644,6 +1647,45 @@ fn update_indexed_mask(id: u32, ctx: &RuntimeContext, state: &mut OcclusionState
     let geometry = ctx.canvas_geometry_for_node(&node);
     let tab = node.presentation_transform_and_bounds.get();
     let mixed = state.unsafe_layers.contains(&record.render_layer_id);
+    let unclipped_owner = ctx
+        .get_layer_scroller_owner(record.render_layer_id)
+        .and_then(|owner| state.records.get(&owner.to_u32()))
+        .is_some_and(|owner| !owner.clips_content);
+    if mixed || unclipped_owner {
+        // These layers have no shared clipped scroll domain. Reject native
+        // surfaces hidden by ancestor clips in presentation space; isolated
+        // islands keep their reusable masks in scroll-content coordinates.
+        let mut visible = OcclusionBox::for_node(&node, ctx);
+        for clip in &record.clips {
+            let Some(owner) = ctx.get_expanded_node_by_eid(crate::ExpandedNodeIdentifier(*clip))
+            else {
+                continue;
+            };
+            let bounds = if owner.has_perspective_camera() {
+                let Some(path) = ctx.presented_clip_path(&owner) else {
+                    continue;
+                };
+                path.bounding_box()
+            } else {
+                let Some(path) = owner.world_clip_geometry.get().0 else {
+                    continue;
+                };
+                ctx.presentation_scroll_transform_for_node(&owner)
+                    .transform_rect_bbox(path.bounding_box())
+            };
+            let clip = OcclusionBox {
+                x1: bounds.x0,
+                y1: bounds.y0,
+                x2: bounds.x1,
+                y2: bounds.y1,
+            };
+            let Some(intersection) = visible.intersect(&clip) else {
+                emit_empty_mask(&node, tab.bounds, ctx);
+                return;
+            };
+            visible = intersection;
+        }
+    }
     let presentation_for = |node: &ExpandedNode| {
         if mixed {
             ctx.presentation_scroll_transform_for_node(node)

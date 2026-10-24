@@ -103,7 +103,7 @@ pub fn apply_copied_interface_metadata(
 ) -> Result<(), eyre::Report> {
     match ctx.target {
         RunTarget::Web => apply_web_metadata(pax_dir, metadata),
-        RunTarget::Windows | RunTarget::Linux => Ok(()),
+        RunTarget::Windows | RunTarget::Linux | RunTarget::Android => Ok(()),
         RunTarget::macOS | RunTarget::iOS | RunTarget::iPadOS => {
             apply_apple_plists(&ctx.target, pax_dir, metadata)?;
             apply_apple_icon_metadata(&ctx.target, pax_dir, metadata)
@@ -291,7 +291,7 @@ impl PaxProjectMetadata {
             RunTarget::macOS => Some(&self.macos),
             RunTarget::iOS => Some(&self.ios),
             RunTarget::iPadOS => Some(&self.ipados),
-            RunTarget::Web | RunTarget::Windows | RunTarget::Linux => None,
+            RunTarget::Web | RunTarget::Windows | RunTarget::Linux | RunTarget::Android => None,
         }
     }
 
@@ -886,7 +886,7 @@ fn apply_apple_icon_metadata(
                 .join("AppIcon.appiconset");
             write_ios_app_icon_set(&source, &app_iconset_path)
         }
-        RunTarget::Web | RunTarget::Windows | RunTarget::Linux => Ok(()),
+        RunTarget::Web | RunTarget::Windows | RunTarget::Linux | RunTarget::Android => Ok(()),
     }
 }
 

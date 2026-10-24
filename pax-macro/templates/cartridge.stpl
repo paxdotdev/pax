@@ -1,4 +1,4 @@
-    // Each runnable library retains its own cartridge and platform adapter.
+    // Runnable catalogs retain typed initialization; the host selects its adapter.
     <%= cartridge_snippet %>
 
     <% if build_config.web { %>
@@ -275,22 +275,22 @@
     pub use <%= engine_import_path %>::pax_chassis_common::*;
     <% } %>
 
-    <% if build_config.windows || build_config.linux { %>
+    <% if build_config.windows || build_config.linux || build_config.android { %>
     #[unsafe(export_name = "<%= native_exports.abi_version %>")]
-    pub extern "C" fn pax_cartridge_abi_version() -> u32 { 4 }
+    pub extern "C" fn pax_cartridge_abi_version() -> u32 { <% if build_config.android { %>5<% } else { %>4<% } %> }
 
     #[unsafe(export_name = "<%= native_exports.init %>")]
-    pub extern "C" fn pax_init(initial_width: f32, initial_height: f32) -> *mut <%= engine_import_path %>::pax_chassis_common::desktop::DesktopEngineContainer {
+    pub extern "C" fn pax_init(initial_width: f32, initial_height: f32) -> *mut <%= engine_import_path %>::<% if build_config.android { %>pax_chassis_android::AndroidEngineContainer<% } else { %>pax_chassis_common::desktop::DesktopEngineContainer<% } %> {
         unsafe { pax_init_with_data(initial_width, initial_height, std::ptr::null(), 0) }
     }
 
     #[unsafe(export_name = "<%= native_exports.init_with_data %>")]
-    pub unsafe extern "C" fn pax_init_with_data(initial_width: f32, initial_height: f32, data: *const u8, len: usize) -> *mut <%= engine_import_path %>::pax_chassis_common::desktop::DesktopEngineContainer {
+    pub unsafe extern "C" fn pax_init_with_data(initial_width: f32, initial_height: f32, data: *const u8, len: usize) -> *mut <%= engine_import_path %>::<% if build_config.android { %>pax_chassis_android::AndroidEngineContainer<% } else { %>pax_chassis_common::desktop::DesktopEngineContainer<% } %> {
         pax_init_entry(initial_width, initial_height, std::ptr::null(), 0, data, len)
     }
 
     #[unsafe(export_name = "<%= native_exports.init_entry %>")]
-    pub unsafe extern "C" fn pax_init_entry(initial_width: f32, initial_height: f32, entry: *const u8, entry_len: usize, data: *const u8, len: usize) -> *mut <%= engine_import_path %>::pax_chassis_common::desktop::DesktopEngineContainer {
+    pub unsafe extern "C" fn pax_init_entry(initial_width: f32, initial_height: f32, entry: *const u8, entry_len: usize, data: *const u8, len: usize) -> *mut <%= engine_import_path %>::<% if build_config.android { %>pax_chassis_android::AndroidEngineContainer<% } else { %>pax_chassis_common::desktop::DesktopEngineContainer<% } %> {
         if entry_len > 4096 || (entry_len > 0 && entry.is_null()) { return std::ptr::null_mut(); }
         let entry = if entry_len == 0 { "" } else {
             match std::str::from_utf8(std::slice::from_raw_parts(entry, entry_len)) {
@@ -308,7 +308,7 @@
         let init_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             let application = match <%= engine_import_path %>::api::application::ApplicationInstance::prepare(
                 <%= engine_import_path %>::api::TargetInfo::new(Platform::Native,
-                    <% if build_config.windows { %>OS::Windows<% } else { %>OS::Linux<% } %>),
+                    <% if build_config.android { %>OS::Android<% } else if build_config.windows { %>OS::Windows<% } else { %>OS::Linux<% } %>),
                 <%= engine_import_path %>::api::AppOptions {
                     startup_data: if len == 0 { Vec::new() } else { unsafe { std::slice::from_raw_parts(data, len) }.to_vec() },
                     ..Default::default()
@@ -346,14 +346,14 @@
                         ),
                         designtime_manager.clone(),
                         Platform::Native,
-                        <% if build_config.windows { %>OS::Windows,<% } else { %>OS::Linux,<% } %>
+                        <% if build_config.android { %>OS::Android,<% } else if build_config.windows { %>OS::Windows,<% } else { %>OS::Linux,<% } %>
                         Box::new(move || start.elapsed().as_millis()),
                         <%= engine_import_path %>::pax_chassis_common::desktop::native_scroller_tiling_policy()
                     );
 
-                let container = <%= engine_import_path %>::pax_chassis_common::desktop::DesktopEngineContainer::new_designtime(
+                let container = <%= engine_import_path %>::<% if build_config.android { %>pax_chassis_android::AndroidEngineContainer<% } else { %>pax_chassis_common::desktop::DesktopEngineContainer<% } %>::new_designtime(
                     engine, userland_definition_to_instance_traverser, designtime_manager,
-                    <%= engine_import_path %>::<% if build_config.windows { %>pax_chassis_windows<% } else { %>pax_chassis_linux<% } %>::create_backend,
+                    <% if !build_config.android { %><%= engine_import_path %>::<% if build_config.windows { %>pax_chassis_windows<% } else { %>pax_chassis_linux<% } %>::create_backend,<% } %>
                 );
                 Box::into_raw(Box::new(container))
             }
@@ -373,14 +373,14 @@
                         initial_height.max(1.0) as f64,
                     ),
                     Platform::Native,
-                    <% if build_config.windows { %>OS::Windows,<% } else { %>OS::Linux,<% } %>
+                    <% if build_config.android { %>OS::Android,<% } else if build_config.windows { %>OS::Windows,<% } else { %>OS::Linux,<% } %>
                     Box::new(move || start.elapsed().as_millis()),
                     <%= engine_import_path %>::pax_chassis_common::desktop::native_scroller_tiling_policy()
                 );
 
-                let container = <%= engine_import_path %>::pax_chassis_common::desktop::DesktopEngineContainer::new(
+                let container = <%= engine_import_path %>::<% if build_config.android { %>pax_chassis_android::AndroidEngineContainer<% } else { %>pax_chassis_common::desktop::DesktopEngineContainer<% } %>::new(
                     engine,
-                    <%= engine_import_path %>::<% if build_config.windows { %>pax_chassis_windows<% } else { %>pax_chassis_linux<% } %>::create_backend,
+                    <% if !build_config.android { %><%= engine_import_path %>::<% if build_config.windows { %>pax_chassis_windows<% } else { %>pax_chassis_linux<% } %>::create_backend,<% } %>
                 );
                 Box::into_raw(Box::new(container))
             }
@@ -405,4 +405,5 @@
 
     //cdylib exports
     pub use <%= engine_import_path %>::pax_chassis_common::desktop::*;
+    <% if build_config.android { %>pub use <%= engine_import_path %>::pax_chassis_android::*;<% } %>
     <% } %>

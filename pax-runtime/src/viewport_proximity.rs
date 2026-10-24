@@ -73,6 +73,35 @@ fn has_handlers(node: &ExpandedNode, key: &str) -> bool {
 }
 
 impl RuntimeContext {
+    /// Whether a native canvas layer may contribute pixels to the window.
+    /// Clipped scroll islands outside the viewport need no backing surfaces.
+    /// Unclipped or escaped content remains resident conservatively. This query
+    /// uses presentation scroll and ancestor clips without installing observers.
+    pub fn native_layer_may_be_visible(&self, layer: usize) -> bool {
+        if self
+            .occlusion_state
+            .borrow()
+            .layer_has_escaped_content(layer)
+        {
+            return true;
+        }
+        let Some(owner) = self.get_layer_scroller_owner(layer) else {
+            return true;
+        };
+        let Some(node) = self.get_expanded_node_by_eid(owner) else {
+            return true;
+        };
+        if !node.instance_node.borrow().clips_content(&node) {
+            return true;
+        }
+        self.viewport_frame(
+            owner.to_u32(),
+            self.viewport_observation_rect(),
+            &mut HashMap::new(),
+        )
+        .is_none_or(|frame| frame.child_visible.is_some())
+    }
+
     /// Observation counters. With no proximity bindings, no observation records are installed.
     pub fn viewport_proximity_stats(&self) -> ViewportProximityStats {
         self.viewport_proximity.borrow().stats
@@ -626,10 +655,22 @@ impl RuntimeContext {
         if let Some(frame) = frames.get(&id) {
             return Some(*frame);
         }
+        let node = self.get_expanded_node_by_eid(ExpandedNodeIdentifier(id))?;
         let (parent, scrolls, escapes) = {
             let state = self.viewport_proximity.borrow();
-            let dependency = state.dependencies.get(&id)?;
-            (dependency.parent, dependency.scrolls, dependency.escapes)
+            if let Some(dependency) = state.dependencies.get(&id) {
+                (dependency.parent, dependency.scrolls, dependency.escapes)
+            } else {
+                (
+                    node.render_parent_node().map(|parent| parent.id.to_u32()),
+                    node.instance_node.borrow().scrolls_content(&node),
+                    node.get_common_properties()
+                        .borrow()
+                        .unclippable
+                        .get()
+                        .unwrap_or(false),
+                )
+            }
         };
         let parent = parent.and_then(|parent| self.viewport_frame(parent, viewport, frames));
         let inherited_scroll = parent.map_or(Affine::IDENTITY, |p| p.child_scroll);
@@ -644,7 +685,6 @@ impl RuntimeContext {
         } else {
             parent.map_or(root_near, |p| p.child_near)
         };
-        let node = self.get_expanded_node_by_eid(ExpandedNodeIdentifier(id))?;
         let geometry = self.canvas_geometry_for_node(&node);
         let mut child_visible = visible;
         let mut child_near = near;

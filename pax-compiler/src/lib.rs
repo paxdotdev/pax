@@ -154,6 +154,7 @@ pub enum RunTarget {
     Web,
     Windows,
     Linux,
+    Android,
     #[allow(non_camel_case_types)]
     iOS,
     #[allow(non_camel_case_types)]
@@ -240,12 +241,11 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(PaxManifest, Option<Path
     let mut timings = BuildTimings::start();
     let prepared = prepare_cartridge_sources_with_timings(ctx, &mut timings)?;
     let hot_reload = if ctx.should_also_run && ctx.should_run_designtime {
-        let mode = resolve_hot_reload_mode(
-            ctx.is_release,
-            ctx.hot_reload,
-            std::env::var("PAX_HOT_RELOAD").ok().as_deref(),
-            prepared.project_metadata.configured_hot_reload(),
-        )?;
+        let environment = std::env::var("PAX_HOT_RELOAD").ok();
+        let configured = prepared.project_metadata.configured_hot_reload();
+        let explicit = ctx.hot_reload;
+        let mode =
+            resolve_hot_reload_mode(ctx.is_release, explicit, environment.as_deref(), configured)?;
         validate_hot_reload_target(&ctx.target, mode)?;
         if mode == HotReloadMode::All {
             eprintln!("Pax: --hot-reload=all now enables template reload only; Rust changes require rebuilding and restarting (or reloading the web page).");
@@ -446,6 +446,7 @@ fn compile_selected_manifest(
         RunTarget::iPadOS => ("ipados", building::apple::manifest_target(ctx)?),
         RunTarget::Windows => ("windows", building::desktop::target_triple(&ctx.target)?),
         RunTarget::Linux => ("linux", building::desktop::target_triple(&ctx.target)?),
+        RunTarget::Android => ("android", building::android::TRIPLE),
     };
     let mut features = vec![if platform == "ipados" {
         "ios"
@@ -488,6 +489,11 @@ fn compile_selected_manifest(
     }
     if let Some(sdk) = desktop_sdk {
         command.env("PAX_HOST_SDK_DIR", sdk);
+    }
+    if ctx.target == RunTarget::Android {
+        building::android::preflight(&ctx.project_path, ctx.is_release)?;
+        building::android::configure_cargo(&mut command)?;
+        validate_release_cargo_features(ctx, &layout.cartridge_dir, &cargo_features, &[target])?;
     }
     layout.configure_cartridge(&mut command);
     helpers::configure_pax_build_env(&mut command, platform, ctx.should_run_designtime);
@@ -543,6 +549,7 @@ pub(crate) fn validate_release_cargo_feature_boundary(
         RunTarget::iOS | RunTarget::iPadOS => "ios",
         RunTarget::Windows => "windows",
         RunTarget::Linux => "linux",
+        RunTarget::Android => "android",
     }];
     let mut cargo_features =
         helpers::pax_project_feature_args(&ctx.project_path, &requested_features);
@@ -768,6 +775,7 @@ fn build_interface_dir_name(target: &RunTarget) -> &'static str {
         RunTarget::iOS | RunTarget::iPadOS => "ios",
         RunTarget::Windows => "windows",
         RunTarget::Linux => "linux",
+        RunTarget::Android => "android",
     }
 }
 
@@ -779,6 +787,7 @@ fn custom_interface_dir_candidates(target: &RunTarget) -> &'static [&'static str
         RunTarget::iPadOS => &["ipados", "ios"],
         RunTarget::Windows => &["windows"],
         RunTarget::Linux => &["linux"],
+        RunTarget::Android => &["android"],
     }
 }
 
@@ -826,7 +835,10 @@ fn copy_interface_files_for_target(ctx: &RunContext, pax_dir: &PathBuf) {
         copy_default_interface_files(&interface_path, ctx);
     }
 
-    if matches!(ctx.target, RunTarget::Windows | RunTarget::Linux) {
+    if matches!(
+        ctx.target,
+        RunTarget::Windows | RunTarget::Linux | RunTarget::Android
+    ) {
         let common = pax_dir.join(INTERFACE_DIR_NAME).join("common");
         fs::create_dir_all(&common).expect("create native common directory");
         fs::write(
@@ -867,6 +879,7 @@ fn copy_default_interface_files(interface_path: &Path, ctx: &RunContext) {
         RunTarget::iOS | RunTarget::iPadOS => Path::new(pax_host::sources::SOURCE_DIR).join("ios"),
         RunTarget::Windows => Path::new(pax_host::sources::SOURCE_DIR).join("windows"),
         RunTarget::Linux => Path::new(pax_host::sources::SOURCE_DIR).join("linux"),
+        RunTarget::Android => Path::new(pax_host::sources::SOURCE_DIR).join("android"),
     };
 
     if ctx.is_libdev_mode || interface_src.exists() {
@@ -879,6 +892,9 @@ fn copy_default_interface_files(interface_path: &Path, ctx: &RunContext) {
                 interface_path,
             )
             .expect("extract desktop host"),
+            RunTarget::Android => {
+                pax_host::sources::extract_android(interface_path).expect("extract Android host")
+            }
             RunTarget::Web => PAX_WEB_INTERFACE_TEMPLATE
                 .extract(interface_path)
                 .expect("Failed to extract web interface files"),
@@ -2119,6 +2135,13 @@ codegen-units = 32
     }
 
     #[test]
+    fn android_supports_template_reload_but_not_rust_logic_replacement() {
+        assert!(validate_hot_reload_target(&RunTarget::Android, HotReloadMode::Off).is_ok());
+        assert!(validate_hot_reload_target(&RunTarget::Android, HotReloadMode::Pax).is_ok());
+        assert!(validate_hot_reload_target(&RunTarget::Android, HotReloadMode::Logic).is_err());
+    }
+
+    #[test]
     fn all_chassis_reject_logic_replacement_but_accept_template_reload() {
         for target in [
             RunTarget::Web,
@@ -2312,7 +2335,10 @@ fn eject_interface_files(ctx: &RunContext, pax_dir: &PathBuf) -> io::Result<()> 
     } else {
         extract_interface_template(ctx, &target_custom_interface_dir)?;
     }
-    if matches!(ctx.target, RunTarget::Windows | RunTarget::Linux) {
+    if matches!(
+        ctx.target,
+        RunTarget::Windows | RunTarget::Linux | RunTarget::Android
+    ) {
         let common = custom_interfaces_dir.join("common");
         fs::create_dir_all(&common)?;
         fs::write(
@@ -2346,7 +2372,7 @@ fn get_libdev_interface_path(ctx: &RunContext) -> PathBuf {
             .join("interfaces")
             .join("ios")
             .join("pax-app-ios"),
-        RunTarget::Windows | RunTarget::Linux => {
+        RunTarget::Windows | RunTarget::Linux | RunTarget::Android => {
             Path::new(pax_host::sources::SOURCE_DIR).join(build_interface_dir_name(&ctx.target))
         }
     }
@@ -2357,6 +2383,7 @@ fn extract_interface_template(ctx: &RunContext, dest: &Path) -> Result<(), std::
         RunTarget::Windows | RunTarget::Linux => {
             pax_host::sources::extract_desktop(build_interface_dir_name(&ctx.target), dest)?
         }
+        RunTarget::Android => pax_host::sources::extract_android(dest)?,
         RunTarget::Web => PAX_WEB_INTERFACE_TEMPLATE.extract(dest)?,
         RunTarget::macOS => PAX_MACOS_INTERFACE_TEMPLATE.extract(dest)?,
         RunTarget::iOS | RunTarget::iPadOS => PAX_IOS_INTERFACE_TEMPLATE.extract(dest)?,
@@ -2613,12 +2640,13 @@ impl RunTarget {
         match input.to_lowercase().as_str() {
             "windows" => Ok(RunTarget::Windows),
             "linux" => Ok(RunTarget::Linux),
+            "android" => Ok(RunTarget::Android),
             "macos" => Ok(RunTarget::macOS),
             "web" => Ok(RunTarget::Web),
             "ios" => Ok(RunTarget::iOS),
             "ipados" | "ipad" => Ok(RunTarget::iPadOS),
             _ => Err(format!(
-                "unsupported target `{input}`; expected one of: web, macos, ios, ipados, windows, linux"
+                "unsupported target `{input}`; expected one of: web, macos, ios, ipados, windows, linux, android"
             )),
         }
     }
@@ -2635,6 +2663,7 @@ impl<'a> Into<&'a str> for &'a RunTarget {
         match self {
             RunTarget::Windows => "Windows",
             RunTarget::Linux => "Linux",
+            RunTarget::Android => "Android",
             RunTarget::Web => "Web",
             RunTarget::macOS => "macOS",
             RunTarget::iOS => "iOS",

@@ -41,3 +41,7 @@ pax-language = {version="0.39.1", path = "../pax-language", default-features = f
 
 [target.'cfg(target_os = "macos")'.dev-dependencies]
 objc2 = "0.6.4"
+
+# Android renders through WGPU; piet-common has no Android platform backend.
+[target.'cfg(not(target_os = "android"))'.dependencies]
+piet-common = "0.7.0"

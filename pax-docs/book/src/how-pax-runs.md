@@ -8,8 +8,10 @@ platform integration brings together drawn content and native controls.
 Understanding those pieces helps you explain an update, investigate a slow
 interaction, and choose what to measure before shipping.
 
-The same core model runs on web, macOS, iOS, and iPadOS. This chapter follows
-it from source to the screen. It builds on [Properties](state-properties.md),
+The same core model runs on web, macOS, iOS, and iPadOS, and underlies the
+[Windows/Linux alpha](targets-build-deploy.md#windows-and-linux-desktop-alpha)
+and [experimental Android](targets-build-deploy.md#experimental-android) hosts.
+This chapter follows it from source to the screen. It builds on [Properties](state-properties.md),
 [Events](event-handling-rust.md), and [Layout](layout-responsiveness.md);
 [What is Pax?](what-is-pax.md) introduces the authoring model.
 

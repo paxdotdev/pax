@@ -43,8 +43,9 @@ Create a renderer wrapper with its current tile geometry.
 ##### `publication_revision`
 <pre><code class="api-signature language-rust ignore">pub fn publication_revision(&amp;self) -&gt; u64</code></pre>
 
-Submission revision for native offscreen publication. Zero means no
-retained scene has been flushed into this backing yet.
+Submission revision for native offscreen publication. Zero means the
+backing has not completed replay for its current origin and dimensions.
+Nonzero revisions increase across retargets; they are never reused.
 
 ##### `renderer_mut`
 <pre><code class="api-signature language-rust ignore">pub fn renderer_mut(&amp;mut self) -&gt; &amp;mut <a href="../../../../api/internal/pax-gpu/render_context.md#wgpurenderer">WgpuRenderer</a>&lt;&#39;static&gt;</code></pre>
@@ -99,6 +100,8 @@ Visits initialized physical surfaces for native export after rendering.
 Call on the UI owner between render operations. The callback must not
 reenter this renderer. Mutable output textures must be copied on the
 same device queue before the next render; a handle is not a snapshot.
+A zero revision means replay for the current tile geometry is pending;
+the host must not commit that geometry using the previous output.
 
 ##### `with_layer_initialization_priority`
 <pre><code class="api-signature language-rust ignore">pub fn with_layer_initialization_priority(self, priority: impl Fn(usize) -&gt; i32 + &#39;static) -&gt; Self</code></pre>

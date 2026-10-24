@@ -190,7 +190,7 @@ Supplying `family` without `url` keeps the URL empty. On Apple native targets,
 this resolves the installed family and its requested style and weight without
 starting a font download, in both debug and release builds. Omitting the entire font
 uses Pax's current default: Roboto. Web and Apple obtain that default through
-Google Fonts; Windows and Linux use the standard library's packaged Roboto
+Google Fonts; Windows, Linux, and Android use the standard library's packaged Roboto
 normal and italic faces, including their weight variants. Set a family or
 source explicitly when you need a particular font version across every target.
 `Font::Web(family, url, style, weight)` remains the explicit longhand; the
@@ -215,6 +215,48 @@ text-size policy. Browser page zoom uses the browser's viewport and pixel
 scale; it is distinct from changing the native font's metrics. Test enlarged
 text and zoom on each shipping target rather than assuming native font
 rendering provides automatic accessibility scaling.
+
+### Fonts on Android
+
+The experimental Android host accepts installed families with an empty URL and
+bundled `.ttf` or `.otf` files using the same asset paths as images. Pax includes
+licensed Roboto normal and italic files for its exact default family/source
+pair in both Debug and baked Release packages. HTTPS TrueType/OpenType sources
+and simple `@font-face` stylesheets load asynchronously. Stylesheets select the
+closest weight/style face; WOFF and combining CSS Unicode-range subsets are
+unsupported. Bundle a complete font for predictable offline and multilingual
+coverage. Font weight and italic style use Android's typeface API; text
+measurement waits for the requested font or its fallback after a load failure.
+
+For system families, Pax first tries the exact name, then a lowercase Android
+alias if that lookup returns the default font. This lets names such as `Georgia`
+and `Arial` use the device's aliases while preserving installed families with
+mixed-case names. An alias does not install the named font: on the Android
+emulator, `Georgia` selects Noto Serif and `Arial` selects Roboto. Available
+families and substitutions can vary by device. Bundle a licensed font file
+with `url` when the design requires the actual face across platforms.
+
+```pax
+<Text width=280px height=48px text="A native Android note"
+    style={font: {family: "Manrope", url: "assets/fonts/Manrope.ttf"}, font_size: 22px}
+/>
+```
+
+Put the licensed font at `assets/fonts/Manrope.ttf` and rebuild the APK after
+changing assets. See [Android packaging](targets-build-deploy.md#experimental-android).
+
+HTTPS images also load off the UI thread. Downloads have a 16 MiB limit, a
+10-second connection/read timeout, and at most five HTTPS redirects. Decoded
+bitmaps have an 8192-pixel axis and 16-megapixel limit. A session deduplicates
+requests and uploads at most one decoded image per frame. The on-disk cache is
+bounded to 64 MiB; use versioned URLs when replacing remote content. Failed
+requests are logged and retried in a new session. Cleartext HTTP assets are
+unsupported. Include `android.permission.INTERNET` in Android permissions
+(the default) when using remote assets.
+
+The disk-cache limit is not a total image-memory budget. Uploaded source images
+remain in the runtime's image map for the session lifetime, so loading an
+unbounded sequence of distinct image URLs can continue growing process memory.
 
 <a id="fonts-on-experimental-desktop-hosts"></a>
 
@@ -425,6 +467,12 @@ selection view for clipped text, while ordinary unclipped, non-editable text
 uses its static rendering path. Test selection on the device rather than
 assuming the property guarantees identical interaction everywhere.
 On macOS, both clipped and unclipped selectable Text use the native text view.
+Android uses native TextView selection for plain and formatted text, and its
+native editable buffer for `editable=true`. Editing Markdown exposes its
+authored source so typing does not erase the formatting markers.
+Application updates to Android `Textbox` and editable `Text` preserve the
+existing native editing buffer and clamp its selection to the updated text,
+so a keyboard can continue typing through the same input connection.
 
 `editable=true` makes Text a native editing surface. Edits update that Text
 node's `text` property. Use an explicit two-way binding when the edited value
@@ -461,7 +509,7 @@ inline emphasis and other Markdown formatting:
 ```
 
 Web uses snarkdown; Apple uses its native inline Markdown path with whitespace
-preservation and a separate HTML compatibility path. Full block Markdown
+preservation and a separate HTML compatibility path. Android uses its native Markdown renderer. Full block Markdown
 parity is not guaranteed. Start with simple formatting and verify richer content
 on each target. Body whitespace normalization happens before rendering; use a
 raw string expression for exact indentation or boundary newlines. Treat this as a
@@ -495,6 +543,23 @@ absolute URLs go to the operating system. Other schemes are rejected. Editing
 rich text is not implemented; use `Textbox` or plain editable `Text` where the
 target supports it. Web and Apple retain their existing parsers, so richer
 formatting still needs target-specific checks.
+
+Android supports CommonMark emphasis, headings, paragraphs, lists, block quotes,
+links, and inline/fenced code, plus strikethrough. It measures the same native
+styled text that it displays. `wrap=false` preserves authored newlines while
+allowing long lines to overflow horizontally. Markdown links use the host's
+[navigation behavior](routing.md), including internal routes and Android Back.
+ExampleHost's source drawers preserve indentation, escaped characters,
+monospace text, and token colors.
+
+Markdown images display their alternative text on Android; use `Image` for
+images. Arbitrary HTML is displayed literally, apart from Pax's generated
+ExampleHost code markup. Tables, footnotes, and math extensions are not enabled.
+A rich-text node accepts up to 1 MiB of source, 1 MiB of expanded link targets,
+65,536 formatting spans, and 256 levels of nesting; exceeding these limits
+reports a host error. Repeated reference links each count toward the link-target
+limit. Verify selection,
+link interaction, and language/font coverage on the devices you intend to ship.
 
 ## Image sources
 
@@ -654,7 +719,14 @@ wheel input reaches the scroller underneath. This prevents a visually occluded
 image from stealing scrolling from a foreground scroller. Browser-native image
 dragging and image-specific context menus are not provided by this path.
 
-The fit values are shared with Image. Web and iOS/iPadOS implement contain,
+On Android, `NativeImage` creates an `ImageView`. It loads bundled `assets/`
+paths and HTTPS URLs asynchronously using the same path rules and decode limits
+as canvas images. Mounted native images with the same URL share a decoded bitmap;
+changing the URL or unmounting releases that view's reference. These images remain
+inside the native scrolling and clipping hierarchy. Animated playback is not
+supported by this bitmap-loading path.
+
+The fit values are shared with Image. Web, Android, and iOS/iPadOS implement contain,
 cover, and stretch behavior. The current macOS NativeImage maps Fill to
 stretching; use the canvas Image path when proportional fill cropping is
 required there.

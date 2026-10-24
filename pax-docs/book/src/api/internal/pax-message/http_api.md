@@ -86,6 +86,7 @@ Coarse host operating-system family.
 Supported Pax build or run targets.
 
 #### Variants
+##### `Android`
 ##### `Windows`
 ##### `Linux`
 ##### `Web`

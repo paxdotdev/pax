@@ -32,12 +32,16 @@ PaxDesktopBuffer pax_desktop_plan(PaxDesktopEngine *engine, uint32_t layer, floa
 PaxDesktopBuffer pax_desktop_set_surfaces(PaxDesktopEngine *engine, const uint8_t *data, size_t len);
 /* {ok:true,blocked:bool,frame:platform_descriptors|null}. No canvas pixel readback.
  * blocked:true preserves the previously committed native/GPU scene, including
- * while any active surface awaits its first rendered generation. Only a
- * nonblocked result permits committing the corresponding native patches. */
+ * while any active surface awaits replay for its current geometry. A nonblocked
+ * result permits committing native patches once the platform descriptors'
+ * presentation requirements are met (Android also waits for buffer receipt). */
 PaxDesktopBuffer pax_desktop_render(PaxDesktopEngine *engine);
 /* NativeInterrupt serde JSON; {ok:true,preventDefault:bool}. Image bytes use load_image. */
 PaxDesktopBuffer pax_desktop_interrupt(PaxDesktopEngine *engine, const uint8_t *data, size_t len);
 PaxDesktopBuffer pax_desktop_load_image(PaxDesktopEngine *engine, const uint8_t *path, size_t path_len,
+    const uint8_t *rgba, size_t rgba_len, uint32_t width, uint32_t height);
+/* Optional composed-window capture extension. Empty bytes/zero dimensions report failure. */
+PaxDesktopBuffer pax_desktop_screenshot(PaxDesktopEngine *engine, uint32_t id,
     const uint8_t *rgba, size_t rgba_len, uint32_t width, uint32_t height);
 /* Release one backend token with platform JSON completion evidence. */
 PaxDesktopBuffer pax_desktop_release(PaxDesktopEngine *engine, uint64_t token, const uint8_t *data, size_t len);

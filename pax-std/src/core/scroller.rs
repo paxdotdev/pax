@@ -715,17 +715,17 @@ impl InstanceNode for ScrollerHostInstance {
         }
     }
 
-    fn prepare_hit_shape(&self, node: &ExpandedNode) -> pax_runtime_api::HitShape {
+    fn prepare_hit_shape(&self, node: &ExpandedNode) -> pax_engine::api::HitShape {
         let bounds = node.presentation_transform_and_bounds.get().bounds;
         node.with_properties_unwrapped(|scroller: &mut ScrollerHost| {
             if scroller._clip_content.local().get() {
                 if let Some(clip) =
                     scroller_rounded_clip(bounds, scroller.corner_radius.local().get())
                 {
-                    return pax_runtime_api::HitShape::RoundedRect(clip);
+                    return pax_engine::api::HitShape::RoundedRect(clip);
                 }
             }
-            pax_runtime_api::HitShape::Rect(kurbo::Rect::new(0.0, 0.0, bounds.0, bounds.1))
+            pax_engine::api::HitShape::Rect(kurbo::Rect::new(0.0, 0.0, bounds.0, bounds.1))
         })
     }
 

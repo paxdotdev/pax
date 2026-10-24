@@ -128,7 +128,9 @@ pub(super) fn apply_apple_plists(
     let platform = match target {
         RunTarget::macOS => "macos",
         RunTarget::iOS | RunTarget::iPadOS => "ios",
-        RunTarget::Web | RunTarget::Windows | RunTarget::Linux => return Ok(()),
+        RunTarget::Web | RunTarget::Windows | RunTarget::Linux | RunTarget::Android => {
+            return Ok(())
+        }
     };
     let host = pax_dir
         .join(INTERFACE_DIR_NAME)

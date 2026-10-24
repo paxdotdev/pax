@@ -217,14 +217,24 @@ fn authored_write_after_observation_is_a_command_only_on_its_axis() {
 mod hit_testing {
     use super::*;
     use pax_runtime::api::math::{Point2, Transform2};
-    use pax_runtime::{InstanceNodePtr, TransformAndBounds};
+    use pax_runtime::{ContainerFrame, InstanceNodePtr};
 
     fn geometry(node: &ExpandedNode, bounds: (f64, f64), transform: Affine) {
-        node.transform_and_bounds
-            .replace_with(LocalProperty::new(TransformAndBounds {
-                transform: Transform2::new(transform.as_coeffs()),
-                bounds,
-            }));
+        let parent = node
+            .render_parent
+            .borrow()
+            .upgrade()
+            .map_or(Affine::IDENTITY, |parent| {
+                Affine::from(parent.transform_and_bounds.get().transform)
+            });
+        // Exercise the layout inputs so affine and 3D presentation stay in sync.
+        node.container_frame.set(Some(ContainerFrame {
+            transform: Transform2::new((parent.inverse() * transform).as_coeffs()),
+            bounds,
+        }));
+        let common = node.get_common_properties().borrow().clone();
+        common.width.set(Some(Size::Pixels(bounds.0.into())));
+        common.height.set(Some(Size::Pixels(bounds.1.into())));
     }
 
     fn hit(

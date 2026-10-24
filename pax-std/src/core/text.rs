@@ -39,6 +39,7 @@ use crate::common::{native_surface_opacity, patch_if_needed};
 #[pax_document(text)]
 pub struct Text {
     /// Whether the text can be edited by the user.
+    /// Android edits the authored source when `markdown` is also enabled.
     pub editable: Property<bool>,
     /// Requests selectable text. On the current iOS/iPadOS path, non-editable
     /// text uses the interactive selection view only when `clip` is enabled.
@@ -54,6 +55,8 @@ pub struct Text {
     // Secondary style link used by native text patch plumbing.
     pub _style_link: Property<TextStyle>,
     /// Whether `text` should be interpreted as Markdown.
+    /// Android renders CommonMark and Pax-generated source highlighting through
+    /// native text spans; other HTML remains literal and images show alt text.
     pub markdown: Property<bool>,
     /// Whether long text lines should wrap inside the node bounds.
     pub wrap: Property<bool>,
@@ -924,14 +927,14 @@ const DEFAULT_FONT_URL: &str = "https://fonts.googleapis.com/css2?family=Roboto:
 // Resolve at the native-message boundary, not while compiling the manifest:
 // a cartridge baked on another OS must retain the same default-font meaning.
 fn platform_font_url<'a>(family: &str, url: &'a str, style: &FontStyle) -> &'a str {
-    if cfg!(any(target_os = "windows", target_os = "linux")) {
-        desktop_font_url(family, url, style)
+    if cfg!(any(target_os = "windows", target_os = "linux", target_os = "android")) {
+        native_default_font_url(family, url, style)
     } else {
         url
     }
 }
 
-fn desktop_font_url<'a>(family: &str, url: &'a str, style: &FontStyle) -> &'a str {
+fn native_default_font_url<'a>(family: &str, url: &'a str, style: &FontStyle) -> &'a str {
     if family == "Roboto" && url == DEFAULT_FONT_URL {
         match style {
             FontStyle::Normal => "pax-default-fonts/Roboto.ttf",
@@ -1182,25 +1185,25 @@ mod font_coercion_tests {
     }
 
     #[test]
-    fn desktop_default_font_resolves_both_faces_without_rewriting_custom_sources() {
+    fn native_default_font_resolves_both_faces_without_rewriting_custom_sources() {
         for (style, expected) in [
             (FontStyle::Normal, "pax-default-fonts/Roboto.ttf"),
             (FontStyle::Italic, "pax-default-fonts/Roboto-Italic.ttf"),
             (FontStyle::Oblique, "pax-default-fonts/Roboto-Italic.ttf"),
         ] {
             assert_eq!(
-                desktop_font_url("Roboto", DEFAULT_FONT_URL, &style),
+                native_default_font_url("Roboto", DEFAULT_FONT_URL, &style),
                 expected
             );
             assert_eq!(
-                desktop_font_url("Other", DEFAULT_FONT_URL, &style),
+                native_default_font_url("Other", DEFAULT_FONT_URL, &style),
                 DEFAULT_FONT_URL
             );
             assert_eq!(
-                desktop_font_url("Roboto", "fonts/custom.ttf", &style),
+                native_default_font_url("Roboto", "fonts/custom.ttf", &style),
                 "fonts/custom.ttf"
             );
-            assert_eq!(desktop_font_url("Roboto", "", &style), "");
+            assert_eq!(native_default_font_url("Roboto", "", &style), "");
         }
         for style in [FontStyle::Normal, FontStyle::Italic, FontStyle::Oblique] {
             let font = Font::Web(
@@ -1547,7 +1550,7 @@ impl FontWeight {
 mod isolation_tests;
 
 #[cfg(test)]
-mod measurement_tests {
+mod sibling_measurement_tests {
     use super::*;
 
     fn key(content: &str) -> TextMeasurementKey {

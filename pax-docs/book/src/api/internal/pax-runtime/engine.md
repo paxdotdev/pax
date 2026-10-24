@@ -5,13 +5,13 @@
 ## Submodules
 - [engine::layer_surface](engine/layer_surface.md)
 - [engine::layer_tiling](engine/layer_tiling.md)
-- [engine::surface_visibility](engine/surface_visibility.md)
 - [engine::node_interface](engine/node_interface.md)
 - [engine::occlusion](engine/occlusion.md)
 - [engine::startup](engine/startup.md)
 - [engine::surface_metrics](engine/surface_metrics.md)
 - [engine::surface_preparation](engine/surface_preparation.md)
 - [engine::surface_scheduling](engine/surface_scheduling.md)
+- [engine::surface_visibility](engine/surface_visibility.md)
 - [engine::surface_work](engine/surface_work.md)
 - [engine::pax_gpu_render_context](engine/pax_gpu_render_context.md)
 - [engine::vello_render_context](engine/vello_render_context.md)
@@ -261,9 +261,20 @@ Stops new application work, unmounts, then begins retained resource cleanup.
 ##### `tick`
 <pre><code class="api-signature language-rust ignore">pub fn tick(&amp;mut self) -&gt; Vec&lt;<a href="../../../api/internal/pax-message/index.md#nativemessage">NativeMessage</a>&gt;</code></pre>
 
-Settles reactive state and imperative update branches, dispatches lifecycle
-handlers, then reconciles geometry/compositing and returns native patches.
-Rendering/replay is serviced separately by the chassis.
+Advances the scene once and returns its pending native updates.
+
+Runs lifecycle handlers, advances the clock, and dispatches viewport
+observations once. Before publishing updates, settles reactive effects,
+geometry, and compositing assignments, including nodes mounted by effects
+of those assignments. Reconciliation repeats only while compositing is
+dirty; it does not repeat handlers, time, or viewport observations.
+Drawing is performed separately by the render path.
+
+# Panics
+
+Panics if compositing remains dirty after 16 reconciliation passes. This
+can indicate a reactive cycle or a deeper chain of mounts triggered by
+compositing; no partially settled update batch is returned in that case.
 
 ##### `tick_with_phase_observer`
 <pre><code class="api-signature language-rust ignore">pub fn tick_with_phase_observer(&amp;mut self, completed: impl FnMut(&amp;&#39;static str)) -&gt; Vec&lt;<a href="../../../api/internal/pax-message/index.md#nativemessage">NativeMessage</a>&gt;</code></pre>

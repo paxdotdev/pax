@@ -1,15 +1,15 @@
-//! Desktop default fonts and resources needed by a direct Windows Cargo launcher.
-//! Generated include_bytes! expressions track Windows font content through Cargo.
+//! Native font asset registration and direct Windows launcher resources. The
+//! generated include_bytes! expressions track embedded font content in Cargo.
 use color_eyre::eyre::{eyre, Result};
 use sha2::{Digest, Sha256};
 use std::path::Path;
 
-pub(crate) fn append_desktop_defaults(
+pub(crate) fn append_native_defaults(
     roots: &mut Vec<String>,
     packages: &[pax_codegen::configured_source::SourcePackage],
-    desktop: bool,
+    native: bool,
 ) -> Result<()> {
-    if !desktop {
+    if !native {
         return Ok(());
     }
     let Some(standard) = packages.iter().find(|package| package.name == "pax-std") else {
@@ -106,7 +106,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn desktop_defaults_are_target_scoped_and_survive_baking() {
+    fn native_defaults_are_target_scoped_and_survive_baking() {
         let standard = tempfile::tempdir().unwrap();
         let package = pax_codegen::configured_source::SourcePackage {
             entry: standard.path().join("src/lib.rs"),
@@ -119,13 +119,13 @@ mod tests {
         let packages = [package];
         let mut roots = Vec::new();
         // Other targets do not even inspect the native resource directory.
-        append_desktop_defaults(&mut roots, &packages, false).unwrap();
+        append_native_defaults(&mut roots, &packages, false).unwrap();
         assert!(roots.is_empty());
         let assets = standard.path().join("native-assets");
         std::fs::create_dir(&assets).unwrap();
         std::fs::write(assets.join("font.ttf"), b"font").unwrap();
-        append_desktop_defaults(&mut roots, &packages, true).unwrap();
-        append_desktop_defaults(&mut roots, &packages, true).unwrap();
+        append_native_defaults(&mut roots, &packages, true).unwrap();
+        append_native_defaults(&mut roots, &packages, true).unwrap();
         assert_eq!(roots.len(), 1);
         let manifest = pax_manifest::PaxManifest {
             components: Default::default(),
@@ -152,7 +152,7 @@ mod tests {
         let application = tempfile::tempdir().unwrap();
         std::fs::write(application.path().join("font.ttf"), b"conflict").unwrap();
         let mut conflicting = vec![application.path().display().to_string()];
-        assert!(append_desktop_defaults(&mut conflicting, &packages, true).is_err());
+        assert!(append_native_defaults(&mut conflicting, &packages, true).is_err());
     }
     #[test]
     fn inventory_embeds_only_fonts_and_preserves_asset_root_indices() {

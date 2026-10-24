@@ -534,6 +534,16 @@ Queue a filled vector path with an extra opacity multiplier.
 
 Create a retained renderer around a low-level `RenderBackend`.
 
+##### `output_texture`
+<pre><code class="api-signature language-rust ignore">pub fn output_texture(&amp;self) -&gt; Option&lt;Texture&gt;</code></pre>
+
+Returns the current offscreen output, when using `RenderBackend::to_texture`.
+
+Call after `flush`, then submit a copy on the shared device's queue before
+drawing the next frame. This is a mutable retained target, not an immutable
+compositor lease. A resize replaces the texture without invalidating old
+handles retained by queued copies.
+
 ##### `paint_transform`
 <pre><code class="api-signature language-rust ignore">pub fn paint_transform(&amp;self) -&gt; <a href="../../../api/pax-runtime-api/transform.md#transform2d">Transform2D</a></code></pre>
 
@@ -550,15 +560,6 @@ Applies homogeneous geometry after the current affine tile/capture mapping.
 
 Return to the surface's base transform between independent logical drawing programs.
 Retained nodes, resources, and the tile's pixels remain intact.
-##### `output_texture`
-<pre><code class="api-signature language-rust ignore">pub fn output_texture(&amp;self) -&gt; Option&lt;Texture&gt;</code></pre>
-
-Returns the current offscreen output, when using `RenderBackend::to_texture`.
-
-Call after `flush`, then submit a copy on the shared device's queue before
-drawing the next frame. This is a mutable retained target, not an immutable
-compositor lease. A resize replaces the texture without invalidating old
-handles retained by queued copies.
 
 ##### `reset_retained_scene`
 <pre><code class="api-signature language-rust ignore">pub fn reset_retained_scene(&amp;mut self)</code></pre>
@@ -666,6 +667,15 @@ Report a missing CPU image dependency to opt-in backend diagnostics.
 
 Apply a complete order batch without replacing retained geometry or images.
 Returns whether the relative order of retained draws actually changed.
+
+##### `vector_cache_memory_snapshot`
+<pre><code class="api-signature language-rust ignore">pub fn vector_cache_memory_snapshot(&amp;self) -&gt; <a href="../../../api/internal/pax-gpu/render_context.md#vectorcachememorysnapshot">VectorCacheMemorySnapshot</a></code></pre>
+
+Inspect current cache charges and Rust ownership without changing LRU order.
+
+This explicitly requested snapshot scans resource entries without allocating or
+cloning their owners. Normal rendering does not call it; opt-in native memory
+diagnostics call it only at their reporting cadence. It is not GPU residency.
 
 ## Enums
 ### `Fill`

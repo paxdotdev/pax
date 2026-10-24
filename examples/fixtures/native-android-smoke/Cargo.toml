@@ -1,0 +1,24 @@
+[package]
+name = "native-android-smoke"
+version = "0.39.1"
+edition = "2021"
+publish = false
+
+[package.metadata.pax]
+title = "Pax Android acceptance"
+
+[package.metadata.pax.android]
+system_bar_icons = "dark"
+
+[package.metadata.pax.web]
+# The native route probe must ignore this web-only document handoff policy.
+server_owned_prefixes = ["/rich-destination"]
+
+[dependencies]
+pax-kit = { path = "../../../pax-kit", version = "0.39.1" }
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[features]
+designtime = ["pax-kit/designtime"]

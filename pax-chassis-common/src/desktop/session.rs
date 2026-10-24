@@ -40,9 +40,11 @@ pub struct DesktopEngineContainer {
 }
 
 struct Session {
+    #[cfg(feature = "designtime")]
+    dev: super::dev::NativeDev,
     engine: PaxEngine,
     interrupts: NativeInterruptDispatcher,
-    factory: DesktopGpuFactory,
+    factory: Option<Box<dyn FnOnce() -> Result<Box<dyn DesktopGpuBackend>, String>>>,
     gpu: Option<Box<dyn DesktopGpuBackend>>,
     renderer: Option<PaxGpuRenderer>,
     surfaces: Rc<RefCell<Vec<DesktopSurfaceInfo>>>,
@@ -60,11 +62,22 @@ impl DesktopEngineContainer {
     /// Retains a prepared engine and creates its negotiated GPU lazily, on the
     /// same UI thread. Application activation remains an explicit host step.
     pub fn new(engine: PaxEngine, factory: DesktopGpuFactory) -> Self {
+        Self::with_gpu_factory(engine, factory)
+    }
+
+    /// Retains a session-local platform factory, allowing window registries to
+    /// stay owned by their host session instead of process-global state.
+    pub fn with_gpu_factory(
+        engine: PaxEngine,
+        factory: impl FnOnce() -> Result<Box<dyn DesktopGpuBackend>, String> + 'static,
+    ) -> Self {
         Self {
             owner: thread::current().id(),
             session: RefCell::new(Session {
+                #[cfg(feature = "designtime")]
+                dev: Default::default(),
                 engine,
-                factory,
+                factory: Some(Box::new(factory)),
                 interrupts: Default::default(),
                 gpu: None,
                 renderer: None,
@@ -96,6 +109,18 @@ impl DesktopEngineContainer {
             session.manager = Some(manager);
         }
         container
+    }
+
+    /// Adds Debug reload ownership to a session created with a platform factory.
+    #[cfg(feature = "designtime")]
+    pub fn retain_designtime(
+        &self,
+        traverser: Box<dyn pax_runtime::cartridge::DefinitionToInstanceTraverser>,
+        manager: Rc<RefCell<pax_designtime::DesigntimeManager>>,
+    ) {
+        let mut session = self.session.borrow_mut();
+        session.traverser = Some(traverser);
+        session.manager = Some(manager);
     }
 }
 
@@ -198,7 +223,11 @@ impl Session {
         if self.gpu.is_some() {
             return Ok(());
         }
-        let gpu = (self.factory)().map_err(|error| self.fail(error))?;
+        let factory = self
+            .factory
+            .take()
+            .ok_or("GPU initialization already attempted")?;
+        let gpu = factory().map_err(|error| self.fail(error))?;
         let context = gpu.context();
         let format = gpu.format();
         if !matches!(
@@ -290,6 +319,7 @@ impl Session {
                 traverser.as_ref(),
                 manager,
             );
+            self.dev.poll(&self.engine, traverser.as_ref(), manager);
         }
         self.engine.set_viewport_size((width as f64, height as f64));
         let messages = self.engine.tick();
@@ -300,7 +330,7 @@ impl Session {
         }
         #[allow(unused_mut)] // Only Windows/Linux extend the shared message JSON.
         let mut result =
-            json!({"ok":true,"messages":messages,"layerCount":self.engine.runtime_context.layer_count.get()});
+            json!({"ok":true,"messages":messages,"layerCount":self.engine.runtime_context.layer_count.get(),"planGeneration":self.engine.runtime_context.layer_canvas_plan_generation()});
         #[cfg(any(target_os = "windows", target_os = "linux"))]
         super::rich_text::enrich_native_messages(&mut result["messages"])
             .map_err(|error| self.fail(error))?;
@@ -314,6 +344,11 @@ impl Session {
         }
         let ctx = &self.engine.runtime_context;
         let owner = ctx.get_layer_scroller_owner(layer).map(|id| id.to_u32());
+        // Native peers split the z-order into logical layers, including layers
+        // with no vector content. Those layers need no GPU backing at all.
+        if !ctx.layer_has_canvas_drawables(layer) || !ctx.native_layer_may_be_visible(layer) {
+            return Ok(json!({"ok":true,"plan":null,"owner":owner}));
+        }
         let mut policy = self.engine.scroller_tiling_policy;
         policy.min_untiled_render_dpr = policy.min_untiled_render_dpr.max(dpr as f64);
         let mut plan = if let Some(id) = owner {
@@ -376,7 +411,7 @@ impl Session {
                 );
                 plan.surfaces.retain(|tile| {
                     visibility.as_ref().is_some_and(|visibility| {
-                        visibility.contains_tile(piet::kurbo::Rect::new(
+                        visibility.contains_tile(kurbo::Rect::new(
                             tile.left,
                             tile.top,
                             tile.left + tile.width,
@@ -452,6 +487,9 @@ impl Session {
             .retain(|identity, _| ready.contains(identity));
         if frames.is_empty() {
             return Ok(json!({"ok":true,"blocked":false,"frame":null}));
+        }
+        if !gpu.prepare_publish(&frames)? {
+            return Ok(json!({"ok":true,"blocked":true,"frame":null}));
         }
         let frame = gpu.publish(frames)?;
         self.published.extend(revisions);
@@ -540,9 +578,18 @@ fn call(
             .map_err(|_| "reentrant desktop session call")?;
         match catch_unwind(AssertUnwindSafe(|| f(&mut session))) {
             Ok(result) => result,
-            Err(_) => {
-                session.fatal_error =
-                    Some("desktop runtime operation panicked; close the session".into());
+            Err(payload) => {
+                let detail = payload
+                    .downcast_ref::<String>()
+                    .map(String::as_str)
+                    .or_else(|| payload.downcast_ref::<&str>().copied())
+                    .unwrap_or("non-string panic payload");
+                // Native hosts may have no stderr. Preserve the cause across the
+                // ABI so a GPU validation failure remains diagnosable there.
+                let detail: String = detail.chars().take(4096).collect();
+                session.fatal_error = Some(format!(
+                    "desktop runtime operation panicked; close the session: {detail}"
+                ));
                 Err(session.fatal_error.clone().unwrap())
             }
         }
@@ -677,6 +724,47 @@ pub unsafe extern "C" fn pax_desktop_load_image(
         );
         s.engine.runtime_context.set_all_canvases_dirty();
         s.engine.runtime_context.mark_all_canvas_nodes_dirty();
+        Ok(json!({"ok":true}))
+    })
+}
+/// Returns a composed native-window screenshot, including native controls.
+/// Zero dimensions and an empty buffer report a failed asynchronous capture.
+/// # Safety
+/// Use a live session on its owner thread; `rgba` must cover `len` readable bytes.
+#[no_mangle]
+pub unsafe extern "C" fn pax_desktop_screenshot(
+    c: *mut DesktopEngineContainer,
+    id: u32,
+    rgba: *const u8,
+    len: usize,
+    width: u32,
+    height: u32,
+) -> DesktopBuffer {
+    call(c, |s| {
+        s.live()?;
+        #[cfg(feature = "designtime")]
+        if s.dev.discard_abandoned_capture(id) {
+            // PixelCopy may finish after the requesting dev client timed out.
+            // Do not leave an unclaimed image in the application's capture map.
+            return Ok(json!({"ok":true}));
+        }
+        let expected = (width as usize)
+            .checked_mul(height as usize)
+            .and_then(|n| n.checked_mul(4))
+            .ok_or("screenshot dimensions overflow")?;
+        if expected != len || width > 8192 || height > 8192 || (width == 0) != (height == 0) {
+            return Err("invalid screenshot dimensions".into());
+        }
+        let data = unsafe { bytes(rgba, len, 64 * 1024 * 1024)? }.to_vec();
+        s.engine.runtime_context.load_screenshot(
+            id,
+            pax_message::ScreenshotData {
+                id,
+                data,
+                width: width as usize,
+                height: height as usize,
+            },
+        );
         Ok(json!({"ok":true}))
     })
 }
@@ -815,6 +903,27 @@ pub unsafe extern "C" fn pax_desktop_request(
 mod tests {
     use super::*;
     use std::cell::Cell;
+
+    #[test]
+    fn native_only_layers_do_not_allocate_gpu_surfaces() {
+        let owner = container();
+        let session = unsafe { &*owner }.session.borrow();
+        assert!(session.plan(0, 2.0).unwrap()["plan"].is_null());
+        session
+            .engine
+            .runtime_context
+            .set_canvas_drawable_layers([0].into_iter().collect());
+        assert_eq!(session.plan(0, 2.0).unwrap()["plan"]["active"], true);
+        session
+            .engine
+            .runtime_context
+            .set_canvas_drawable_layers(HashSet::new());
+        assert!(session.plan(0, 2.0).unwrap()["plan"].is_null());
+        drop(session);
+        unsafe {
+            drop(Box::from_raw(owner));
+        }
+    }
 
     fn container() -> *mut DesktopEngineContainer {
         use pax_runtime::api::{Platform, OS};
@@ -994,10 +1103,12 @@ mod tests {
     #[test]
     fn runtime_panic_latches_failure_and_still_allows_close() {
         let c = container();
-        assert_eq!(
-            response(call(c, |_| panic!("application hook panicked")))["ok"],
-            false
-        );
+        let failed = response(call(c, |_| panic!("application hook panicked")));
+        assert_eq!(failed["ok"], false);
+        assert!(failed["error"]
+            .as_str()
+            .unwrap()
+            .contains("application hook panicked"));
         assert_eq!(response(pax_desktop_tick(c, 100.0, 50.0, 1.0))["ok"], false);
         pax_desktop_begin_close(c);
         assert!(unsafe { pax_desktop_finish_close(c) });

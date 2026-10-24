@@ -918,6 +918,7 @@ fn test_projected_child_layout_hull_recovers_after_singular_parent() {
         child,
         LocalProperty::new(LayoutHull::from_bounds((30.0, 40.0))),
         LocalProperty::new(None),
+        (std::rc::Weak::new(), std::rc::Weak::new()),
         "singular-parent regression",
     );
 

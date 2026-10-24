@@ -95,6 +95,7 @@ fn arguments<T: ToFromPaxAny + Default>() -> InstantiationArgs {
         children: None,
         component_template: None,
         component_settings: None,
+        component_camera: None,
         template_node_identifier: None,
         template_node_type_id: None,
         template_node_selector_info: None,
@@ -573,6 +574,34 @@ fn wheel_input_outside_geometry_preserves_the_engine_root_fallback() {
             (120.0, 0.0),
             vec!["control"],
         )]
+    );
+}
+
+#[test]
+fn apple_wheel_compatibility_keeps_synthetic_scroll_outside_native_scrollers() {
+    let mut fixture = Fixture::new();
+    fixture.dispatcher = NativeInterruptDispatcher::with_synthetic_wheel_scroll();
+    fixture
+        .control
+        .transform_and_bounds
+        .replace_with(LocalProperty::new(TransformAndBounds::default()));
+    assert_eq!(
+        fixture.dispatch(NativeInterrupt::Wheel(WheelInterruptArgs {
+            x: 12.0,
+            y: 14.0,
+            delta_x: -0.25,
+            delta_y: 1.75,
+            modifiers: vec![],
+        })),
+        Some(false)
+    );
+    assert_eq!(
+        fixture.calls(),
+        vec![
+            Observation::Wheel("target", (12.0, 14.0), (-0.25, 1.75), vec![]),
+            Observation::Wheel("ancestor", (12.0, 14.0), (-0.25, 1.75), vec![]),
+            Observation::Scroll((-0.25, 1.75), ControlState::default()),
+        ]
     );
 }
 

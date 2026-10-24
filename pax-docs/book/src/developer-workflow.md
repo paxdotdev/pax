@@ -34,7 +34,27 @@ pax-cli run --target web --hot-reload=off
 
 ### Target support and restart boundaries
 
-macOS, iOS, iPadOS and web use the same policy. `all` is accepted as a migration
+The experimental Android host defaults to template reload (`pax`) in Debug.
+`pax-cli run --target android` starts a design server and forwards its loopback
+port through `adb reverse`; keep the CLI running. Rust logic and bundled asset
+changes require rebuilding and relaunching. Release disables the development
+connection. Debug supports `pax-cli dev` session discovery, tree inspection,
+selectors, ray casting, and window captures. Captures include native controls
+and GPU content and are bounded to 64 MiB / 120 frames per sequence. Native log
+capture is not implemented by `dev logs`; use `adb logcat -s Pax`.
+For presentation diagnostics,
+launch its Activity with the command below, then inspect `adb logcat -s Pax`.
+
+```sh
+adb shell am start -n your.package/dev.pax.PaxActivity --ez pax.diagnostics true
+```
+
+Counters are logged every 120 display ticks and include pending native updates,
+GPU surfaces, asset uploads/failures, and recent frame durations. Timing arrays
+contain p50, p95, p99, maximum milliseconds, and total sample count. Emulator
+timings help find regressions but do not establish physical-device performance.
+
+On Android, macOS, iOS, iPadOS and web, the debug default is `pax`. `all` is accepted as a migration
 alias for `pax`; it no longer replaces Rust code in the running process. No
 automatic restart is implied. Inline templates in `.rs` files also require a
 rebuild. A new component type or event handler may need compiled information
@@ -253,7 +273,7 @@ are filtered from the live list.
 ### Which targets expose the tools?
 
 The session-backed inspection, selector, ray-cast, and screenshot workflows
-below are implemented for web and macOS debug apps. The `dev logs` command
+below are implemented for web, macOS, and experimental Android debug apps. The `dev logs` command
 currently supports web sessions only.
 
 iOS and iPadOS template hot reload is a separate capability; it does not imply

@@ -16,6 +16,7 @@ test the intended interaction on each shipping target.
 Type: `Property`<`bool`>
 
 Whether the text can be edited by the user.
+Android edits the authored source when `markdown` is also enabled.
 
 ##### `selectable`
 Type: `Property`<`bool`>
@@ -43,6 +44,8 @@ Text styling.
 Type: `Property`<`bool`>
 
 Whether `text` should be interpreted as Markdown.
+Android renders CommonMark and Pax-generated source highlighting through
+native text spans; other HTML remains literal and images show alt text.
 
 ##### `wrap`
 Type: `Property`<`bool`>

@@ -7,6 +7,8 @@
 use pax_gpu::render_backend::SharedGpuContext;
 use serde::{Deserialize, Serialize};
 
+#[cfg(feature = "designtime")]
+mod dev;
 mod session;
 #[cfg(any(target_os = "windows", target_os = "linux"))]
 mod rich_text;
@@ -68,6 +70,13 @@ pub trait DesktopGpuBackend {
     /// changed subset, or be omitted when every surface is unchanged.
     /// False leaves current presentation intact and does not consume a slot.
     fn can_publish(&mut self, surfaces: &[DesktopSurfaceInfo]) -> Result<bool, String>;
+    /// Reserve presentation resources for the changed subset after rendering.
+    /// Window-backed hosts acquire swapchain images here so idle frames never
+    /// acquire and discard them. False preserves revisions for the next retry;
+    /// a backend must release any partial reservation before returning false.
+    fn prepare_publish(&mut self, _surfaces: &[DesktopSurfaceFrame]) -> Result<bool, String> {
+        Ok(true)
+    }
     /// Queue copies and return platform descriptors, including a unique `token`
     /// per exported image. Native handles stay valid until release and GPU
     /// retirement. Publication is transactional: errors retain submitted work.

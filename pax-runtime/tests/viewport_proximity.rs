@@ -1,6 +1,6 @@
 #![cfg(not(feature = "designtime"))]
 
-use kurbo::{Affine, Rect, Shape};
+use kurbo::{Rect, Shape};
 use pax_runtime::api::*;
 use pax_runtime::*;
 use pax_runtime_api::pax_value::{PaxAny, ToFromPaxAny};
@@ -196,17 +196,16 @@ impl InstanceNode for Probe {
     fn clips_content(&self, _: &ExpandedNode) -> bool {
         matches!(self.kind, Kind::Scroll | Kind::Clip)
     }
-    fn resolve_effect_clip_path(&self, node: &ExpandedNode) -> Option<kurbo::BezPath> {
+    fn resolve_local_clip_path(&self, node: &ExpandedNode) -> Option<kurbo::BezPath> {
         self.clips_content(node).then(|| {
             let tab = node.transform_and_bounds.get();
-            Affine::from(tab.transform)
-                * Rect::new(0.0, 0.0, tab.bounds.0, tab.bounds.1).to_path(0.1)
+            Rect::new(0.0, 0.0, tab.bounds.0, tab.bounds.1).to_path(0.1)
         })
     }
     fn prepare_canvas_geometry(&self, node: &ExpandedNode) -> scene_geometry::CanvasGeometry {
         scene_geometry::CanvasGeometry::for_layout(node.transform_and_bounds.get().bounds)
     }
-    fn resolve_coverage_path(&self, node: &ExpandedNode) -> Option<kurbo::BezPath> {
+    fn resolve_local_coverage_path(&self, node: &ExpandedNode) -> Option<kurbo::BezPath> {
         if !TRACK_OCCLUSION.with(Cell::get) {
             return None;
         }
@@ -216,10 +215,7 @@ impl InstanceNode for Probe {
                 .borrow_mut()
                 .push((node.id.to_u32(), tab.transform.coeffs()[5]));
         });
-        Some(
-            Affine::from(tab.transform)
-                * Rect::new(0.0, 0.0, tab.bounds.0, tab.bounds.1).to_path(0.1),
-        )
+        Some(Rect::new(0.0, 0.0, tab.bounds.0, tab.bounds.1).to_path(0.1))
     }
     fn handle_mount(self: Rc<Self>, node: &Rc<ExpandedNode>, ctx: &Rc<RuntimeContext>) {
         let children: Vec<_> = self
@@ -1239,6 +1235,7 @@ fn indexed_native_masks_match_full_for_movement_opacity_clipping_and_structure()
     TRACK_OCCLUSION.with(|flag| flag.set(false));
 }
 
+#[cfg(feature = "3d")]
 #[test]
 #[cfg(feature = "3d")]
 fn spatial_native_masks_keep_scroll_local_cutouts_and_follow_depth_reversal() {
@@ -1253,7 +1250,9 @@ fn spatial_native_masks_keep_scroll_local_cutouts_and_follow_depth_reversal() {
         vec![native, paint],
     );
     let (mut engine, root) = mount(vec![scroller]);
-    engine.runtime_context.edit_globals(|globals| globals.renderer_is_gpu = true);
+    engine
+        .runtime_context
+        .edit_globals(|globals| globals.renderer_is_gpu = true);
     let scroller = root.children.get()[0].clone();
     let native = scroller.children.get()[0].clone();
     let paint = scroller.children.get()[1].clone();
@@ -1597,6 +1596,9 @@ fn unclipped_scroll_overflow_updates_masks_outside_its_viewport() {
     scroll(&engine.runtime_context, &scroller, 0.0, 450.0);
     engine.tick();
     assert_eq!(native.native_mask_hash.get(), 0);
+    scroll(&engine.runtime_context, &scroller, 0.0, 0.0);
+    engine.tick();
+    assert_ne!(native.native_mask_hash.get(), 0);
     assert_masks_match_full(&mut engine, &[native]);
     TRACK_OCCLUSION.with(|flag| flag.set(false));
 }
@@ -1636,4 +1638,66 @@ fn detached_mask_source_does_not_register_viewport_events() {
     assert!(events().is_empty());
     assert_eq!(context.viewport_proximity_stats(), Default::default());
     source.recurse_unmount(&context);
+}
+
+#[test]
+fn native_surface_residency_follows_nested_scroll_clips_without_observers() {
+    let (mut engine, root) = mount_on(
+        vec![Probe::new(
+            Kind::Scroll,
+            Rect::new(0.0, 0.0, 320.0, 240.0),
+            &[],
+            vec![Probe::new(
+                Kind::Scroll,
+                Rect::new(0.0, 800.0, 320.0, 900.0),
+                &[],
+                vec![Probe::new(Kind::Paint, rect(0.0), &[], vec![])],
+            )],
+        )],
+        Platform::Native,
+    );
+    engine
+        .runtime_context
+        .globals()
+        .browser_allows_nested_scroller_vector_layers
+        .set(true);
+    engine.tick();
+    let outer = root.children.get()[0].clone();
+    let inner = outer.children.get()[0].clone();
+    let layer = inner.browser_content_layer_id.get().unwrap() as usize;
+    assert!(!engine.runtime_context.native_layer_may_be_visible(layer));
+    scroll(&engine.runtime_context, &outer, 0.0, 700.0);
+    engine.tick();
+    assert!(engine.runtime_context.native_layer_may_be_visible(layer));
+    scroll(&engine.runtime_context, &outer, 0.0, 0.0);
+    engine.tick();
+    assert!(!engine.runtime_context.native_layer_may_be_visible(layer));
+    assert_eq!(engine.runtime_context.viewport_proximity_stats().events, 0);
+    let generation = engine.runtime_context.layer_canvas_plan_generation();
+    inner
+        .get_common_properties()
+        .borrow()
+        .y
+        .set(Some(Size::Pixels(20.0.into())));
+    engine.tick();
+    assert!(engine.runtime_context.native_layer_may_be_visible(layer));
+    assert_ne!(
+        engine.runtime_context.layer_canvas_plan_generation(),
+        generation,
+        "moving a scroll owner must invalidate the host's cached residency plan"
+    );
+    inner
+        .get_common_properties()
+        .borrow()
+        .y
+        .set(Some(Size::Pixels(800.0.into())));
+    engine.tick();
+    // An escaped descendant prevents whole-layer residency culling.
+    inner.children.get()[0]
+        .get_common_properties()
+        .borrow()
+        .unclippable
+        .set(Some(true));
+    engine.tick();
+    assert!(engine.runtime_context.native_layer_may_be_visible(layer));
 }

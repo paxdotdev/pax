@@ -133,22 +133,24 @@ test('one pending acknowledgement uses one native snapshot and retires before in
     assert.deepEqual(h.reads, {x: 2, y: 2}, 'one read per axis in each of the two samples');
 });
 
-test('active iOS and delegated page scrolling acknowledge ignored requests without cancelling inertia', () => {
+test('active iOS and delegated scrolling apply authored commands and preserve observation-only momentum', () => {
     for (const options of [{ios: true}, {delegated: true}]) {
         const h = harness(options);
         h.userMove(0, 125);
+        // The runtime now distinguishes authored commands from native observations.
+        // A command is honored even during momentum; presentation echoes never write.
         h.update({scrollY: 173});
         h.sample();
         assert.equal(h.messages.length, 1);
-        assert.equal(h.messages[0].scroll_y, 125);
-        assert.equal(h.writes.length, 0, 'existing browser-owned active-scroll guards remain in effect');
+        assert.equal(h.messages[0].scroll_y, 173);
+        assert.deepEqual(h.writes, [['y', 173]]);
         h.userMove(0, 141);
         h.sample();
-        h.update({scrollY: 141});
+        h.update({presentationScrollY: 141});
         h.userMove(0, 156);
         h.sample();
-        assert.deepEqual(h.messages.map(message => message.scroll_y), [125, 141, 156]);
-        assert.equal(h.writes.length, 0);
+        assert.deepEqual(h.messages.map(message => message.scroll_y), [173, 141, 156]);
+        assert.deepEqual(h.writes, [['y', 173]]);
     }
 });
 

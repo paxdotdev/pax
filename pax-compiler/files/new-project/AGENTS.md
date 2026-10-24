@@ -62,6 +62,11 @@ pax-cli run --target ipados
 
 Use `pax-cli run --help` for development options, including `--port` on web.
 See Targets, Build & Deployment for mobile setup, devices, and distribution limits.
+The experimental ARM64 Android target uses `pax-cli run --target android` with
+an already connected adb device. Debug defaults to template hot reload `pax`;
+keep the CLI running for its design server and `adb reverse` connection. Rust
+logic and bundled assets require a rebuild/relaunch. `pax-cli dev` supports tree,
+selector, ray-cast and window capture checks; use `adb logcat -s Pax` for logs.
 The debug default is `--hot-reload=pax`: `.pax` edits update the mounted app,
 while Rust edits require rebuilding and restarting. `--hot-reload=all` now enables only template reload
 with a migration notice; `--hot-reload=logic` is rejected. Rebuild and restart

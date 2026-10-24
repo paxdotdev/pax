@@ -26,6 +26,7 @@ ios = ["pax-engine/ios"]
 macos = ["pax-engine/macos"]
 windows = ["pax-engine/windows"]
 linux = ["pax-engine/linux"]
+android = ["pax-engine/android"]
 
 [profile.release]
 lto = true
@@ -47,3 +48,6 @@ pax-engine = { path = "../pax-engine", version = "0.39.1", features = ["windows"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 pax-engine = { path = "../pax-engine", version = "0.39.1", features = ["linux"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+pax-engine = { path = "../pax-engine", version = "0.39.1", features = ["android"] }

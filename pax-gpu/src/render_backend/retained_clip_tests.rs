@@ -1317,7 +1317,14 @@ fn opacity_capture_capacity_reuses_storage_and_reclaims_large_shapes() {
     {
         backend.begin_capture();
         backend.end_capture_rect(key, frame as u64, (0, 0, width, height));
-        assert_eq!(backend.memory_diagnostics.as_ref().unwrap().capture_allocations, 1);
+        assert_eq!(
+            backend
+                .memory_diagnostics
+                .as_ref()
+                .unwrap()
+                .capture_allocations,
+            1
+        );
     }
     // These copies remain queued while old capacity is replaced. WGPU must keep
     // their resources alive until submission, without us retaining a historical pool.
@@ -1332,12 +1339,22 @@ fn opacity_capture_capacity_reuses_storage_and_reclaims_large_shapes() {
         assert_eq!(stack, 0);
         assert!(groups.bytes <= u64::from(width) * u64::from(height) * 4 * 2);
     }
-    assert_eq!(backend.memory_diagnostics.as_ref().unwrap().capture_allocations, 6);
+    assert_eq!(
+        backend
+            .memory_diagnostics
+            .as_ref()
+            .unwrap()
+            .capture_allocations,
+        6
+    );
     backend.retain_captures(&HashSet::new());
     let (groups, scratch, _) = backend.retained_surfaces.as_ref().unwrap().memory_totals();
     assert_eq!((groups.count, scratch.count), (0, 0));
     backend.submit_pending_commands();
-    backend.device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+    backend
+        .device
+        .poll(wgpu::PollType::wait_indefinitely())
+        .unwrap();
 }
 
 #[test]
@@ -1349,16 +1366,28 @@ fn opacity_capture_capacity_preserves_patterned_nested_siblings() {
     let record = |renderer: &mut WgpuRenderer, frame: u32, sibling: usize, w: f32, h: f32| {
         for node in 1..=2 {
             renderer.begin_node(node, node as i32, 0);
-            renderer.set_node_opacity_scopes(node, &[
-                OpacityScope { node_id: 100, opacity: 0.75 },
-                OpacityScope { node_id: 200 + node, opacity: 0.5 },
-            ]);
+            renderer.set_node_opacity_scopes(
+                node,
+                &[
+                    OpacityScope {
+                        node_id: 100,
+                        opacity: 0.75,
+                    },
+                    OpacityScope {
+                        node_id: 200 + node,
+                        opacity: 0.5,
+                    },
+                ],
+            );
             renderer.save();
             // Different fractional transforms and colors make each sibling's history distinct.
             let angle = (frame as f32 % 4.0 - 1.5) * 0.035 * node as f32;
             let (sin, cos) = angle.sin_cos();
             renderer.transform(Transform2D::from_array([
-                cos, sin, -sin, cos,
+                cos,
+                sin,
+                -sin,
+                cos,
                 3.25 + sibling as f32 * 1.5 + node as f32 * 3.0,
                 4.75 + node as f32 * 3.0,
             ]));
@@ -1370,16 +1399,25 @@ fn opacity_capture_capacity_preserves_patterned_nested_siblings() {
                 Color::rgba(0.0, 1.0, 0.2, 1.0),
                 Color::rgba(0.1, 0.0, 1.0, 1.0),
             ];
-            renderer.fill_path(rect(0.0, 0.0, width, height), Fill::Gradient {
-                gradient_type: GradientType::Linear,
-                pos: point(0.0, 0.0),
-                main_axis: Vector2D::new(width, 0.0),
-                off_axis: Vector2D::zero(),
-                stops: vec![
-                    GradientStop { color: colors[phase].clone(), stop: 0.0 },
-                    GradientStop { color: colors[(phase + 1) % 3].clone(), stop: width },
-                ],
-            });
+            renderer.fill_path(
+                rect(0.0, 0.0, width, height),
+                Fill::Gradient {
+                    gradient_type: GradientType::Linear,
+                    pos: point(0.0, 0.0),
+                    main_axis: Vector2D::new(width, 0.0),
+                    off_axis: Vector2D::zero(),
+                    stops: vec![
+                        GradientStop {
+                            color: colors[phase].clone(),
+                            stop: 0.0,
+                        },
+                        GradientStop {
+                            color: colors[(phase + 1) % 3].clone(),
+                            stop: width,
+                        },
+                    ],
+                },
+            );
             // One-pixel stripes reaching the logical edge catch shifted UVs and stale padding,
             // unlike an interior sample from a solid rectangle.
             for stripe in 0..(width / 3.0) as u32 {
@@ -1400,7 +1438,12 @@ fn opacity_capture_capacity_preserves_patterned_nested_siblings() {
     };
 
     for dpr in [1.0, 1.5, 2.0] {
-        let layers = [MetalLayer::new(), MetalLayer::new(), MetalLayer::new(), MetalLayer::new()];
+        let layers = [
+            MetalLayer::new(),
+            MetalLayer::new(),
+            MetalLayer::new(),
+            MetalLayer::new(),
+        ];
         let new_renderer = |layer: &MetalLayer, context: Option<SharedGpuContext>| {
             let (backend, context) = pollster::block_on(unsafe {
                 RenderBackend::to_core_animation_layer_with_context(
@@ -1408,7 +1451,8 @@ fn opacity_capture_capacity_preserves_patterned_nested_siblings() {
                     RenderConfig::new(true, (96.0 * dpr) as u32, (96.0 * dpr) as u32, [dpr, dpr]),
                     context,
                 )
-            }).expect("Metal backend");
+            })
+            .expect("Metal backend");
             let mut renderer = WgpuRenderer::new(backend);
             renderer.set_viewport(96.0, 96.0, [dpr, dpr]);
             (renderer, context)
@@ -1417,10 +1461,20 @@ fn opacity_capture_capacity_preserves_patterned_nested_siblings() {
         let (second, _) = new_renderer(&layers[1], Some(context.clone()));
         let mut reused = [first, second];
         for (frame, (width, height)) in [
-            (72.0, 40.0), (70.0, 38.0), (71.0, 39.0), (68.0, 36.0),
-            (84.0, 8.0), (8.0, 84.0), (64.0, 32.0), (32.0, 16.0),
-            (16.0, 8.0), (72.0, 40.0),
-        ].into_iter().enumerate() {
+            (72.0, 40.0),
+            (70.0, 38.0),
+            (71.0, 39.0),
+            (68.0, 36.0),
+            (84.0, 8.0),
+            (8.0, 84.0),
+            (64.0, 32.0),
+            (32.0, 16.0),
+            (16.0, 8.0),
+            (72.0, 40.0),
+        ]
+        .into_iter()
+        .enumerate()
+        {
             let frame = frame as u32;
             // Fresh renderers have no old pixels in spare capacity. Compare complete frames,
             // including antialiased edges, against the history-bearing captures.
@@ -1428,16 +1482,22 @@ fn opacity_capture_capacity_preserves_patterned_nested_siblings() {
                 new_renderer(&layers[2], Some(context.clone())).0,
                 new_renderer(&layers[3], Some(context.clone())).0,
             ];
-            let mut commands = Vec::new();
+            let mut commands = super::attachments::CommandBatch::default();
             for sibling in 0..2 {
                 for renderer in [&mut reused[sibling], &mut fresh[sibling]] {
                     record(renderer, frame, sibling, width, height);
-                    assert_eq!(renderer.take_resource_churn_stats().opacity_group_renders, 3);
-                    commands.extend(renderer.take_pending_command_buffers());
+                    assert_eq!(
+                        renderer.take_resource_churn_stats().opacity_group_renders,
+                        3
+                    );
+                    commands.append(&mut renderer.take_pending_command_buffers());
                 }
             }
             context.submit_command_buffers(commands);
-            context.device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+            context
+                .device
+                .poll(wgpu::PollType::wait_indefinitely())
+                .unwrap();
             for sibling in 0..2 {
                 let mut pixels = Vec::new();
                 for renderer in [&mut reused[sibling], &mut fresh[sibling]] {
@@ -1446,7 +1506,9 @@ fn opacity_capture_capacity_preserves_patterned_nested_siblings() {
                     pixels.push(renderer.take_screenshot_capture(frame).unwrap());
                 }
                 assert_eq!(pixels[0].rgba.len(), pixels[1].rgba.len());
-                for (byte, (actual, expected)) in pixels[0].rgba.iter().zip(&pixels[1].rgba).enumerate() {
+                for (byte, (actual, expected)) in
+                    pixels[0].rgba.iter().zip(&pixels[1].rgba).enumerate()
+                {
                     assert!(actual.abs_diff(*expected) <= 1,
                         "DPR {dpr}, frame {frame}, sibling {sibling}, byte {byte}: {actual} != {expected}");
                 }
@@ -1536,7 +1598,7 @@ fn retained_resource_changing_fill_preserves_shared_sibling() {
         renderers.push(renderer);
     }
     for frame_id in 0..4 {
-        let mut commands = Vec::new();
+        let mut commands = super::attachments::CommandBatch::default();
         for (surface, renderer) in renderers.iter_mut().enumerate() {
             let channel = match (frame_id, surface) {
                 (0, _) | (1 | 2, 1) => 0,
@@ -1565,7 +1627,7 @@ fn retained_resource_changing_fill_preserves_shared_sibling() {
             renderer.end_node(1);
             renderer.request_screenshot_capture(frame_id);
             renderer.flush_deferred();
-            commands.extend(renderer.take_pending_command_buffers());
+            commands.append(&mut renderer.take_pending_command_buffers());
             let stats = renderer.take_resource_churn_stats();
             assert_eq!(
                 stats.opacity_group_renders, 1,
@@ -5560,7 +5622,7 @@ fn spatial_group_opacity_and_backface_reuse_paint_without_stale_captures() {
 
 #[test]
 #[ignore = "requires a macOS Metal device"]
-fn opacity_texture_capacity_survives_silhouette_resizing() {
+fn opacity_texture_capacity_reuses_jitter_and_reclaims_large_changes() {
     use super::capture::CaptureKey;
     let layer = MetalLayer::new();
     let mut backend = pollster::block_on(unsafe {
@@ -5587,13 +5649,21 @@ fn opacity_texture_capacity_survives_silhouette_resizing() {
         backend.end_capture(key, frame as u64, bounds);
         let texture = backend.capture_texture_for_test(key);
         if let Some(previous) = previous {
-            if frame == 3 {
-                assert_ne!(texture, previous);
+            if frame == 1 {
+                assert_eq!(texture, previous, "pixel-sized jitter reuses capacity");
             } else {
-                assert_eq!(texture, previous);
+                assert_ne!(
+                    texture, previous,
+                    "growth and substantial shrink resize storage"
+                );
             }
         }
+        assert!(texture.width() >= width && texture.height() >= height);
         assert!(texture.width() <= 160 && texture.height() <= 96);
+        assert!(
+            u64::from(texture.width()) * u64::from(texture.height())
+                <= 2 * u64::from(width) * u64::from(height)
+        );
         previous = Some(texture);
         backend.submit_pending_commands();
     }
@@ -8369,4 +8439,116 @@ fn lighting_material_banks_preserve_both_uniform_tiers_at_browser_limits() {
         }
     }
     assert_eq!(context.vector_pipelines.borrow().len(), 2);
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn retained_unique_vector_fill_updates_reuse_gpu_buffers() {
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 64, 32, [1.0, 1.0]),
+        )
+    })
+    .unwrap();
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    for frame in 0..7 {
+        let (color, pixel) = match frame % 3 {
+            0 => (Color::rgba(1.0, 0.0, 0.0, 1.0), [255, 0, 0, 255]),
+            1 => (Color::rgba(0.0, 1.0, 0.0, 1.0), [0, 255, 0, 255]),
+            _ => (Color::rgba(0.0, 0.0, 1.0, 1.0), [0, 0, 255, 255]),
+        };
+        renderer.begin_node(1, 0, 0);
+        renderer.fill_path(rect(8.0, 8.0, 16.0, 16.0), Fill::Solid(color));
+        if frame == 6 {
+            // Growing the resource must still use the allocation fallback.
+            renderer.fill_path(rect(32.0, 8.0, 16.0, 16.0), Fill::Solid(color));
+        }
+        renderer.end_node(1);
+        renderer.request_screenshot_capture(frame);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let capture = renderer.take_screenshot_capture(frame).unwrap();
+        assert_pixel(&capture, 16, 16, pixel);
+        let stats = renderer.take_resource_churn_stats();
+        if frame == 0 || frame == 6 {
+            assert_eq!(stats.vector_resource_creates, 1);
+        } else {
+            assert_eq!(stats.vector_resource_updates, 1);
+            assert_eq!(stats.vector_resource_creates, 0);
+            assert_eq!(stats.vector_resource_recreates, 0);
+            assert!(stats.vector_resource_update_bytes > 0);
+        }
+        if frame == 6 {
+            assert_pixel(&capture, 40, 16, pixel);
+        }
+    }
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn retained_shared_vector_fill_updates_preserve_other_surfaces() {
+    let layers = [MetalLayer::new(), MetalLayer::new()];
+    let mut context = None;
+    let mut renderers: Vec<WgpuRenderer<'static>> = Vec::new();
+    for layer in &layers {
+        let (backend, shared) = pollster::block_on(unsafe {
+            RenderBackend::to_core_animation_layer_with_context(
+                layer.0.cast(),
+                RenderConfig::new(true, 32, 32, [1.0, 1.0]),
+                context.clone(),
+            )
+        })
+        .unwrap();
+        context = Some(shared);
+        let mut renderer = WgpuRenderer::new(backend);
+        if let Some(first) = renderers.first() {
+            renderer.share_vector_caches_from(first);
+        }
+        renderers.push(renderer);
+    }
+    for frame in 0..3 {
+        let mut commands = super::attachments::CommandBatch::default();
+        for (surface, renderer) in renderers.iter_mut().enumerate() {
+            let color = match (surface, frame) {
+                (0, 1) => Color::rgba(0.0, 1.0, 0.0, 1.0),
+                (0, 2) => Color::rgba(0.0, 0.0, 1.0, 1.0),
+                _ => Color::rgba(1.0, 0.0, 0.0, 1.0),
+            };
+            renderer.begin_node(1, 0, 0);
+            renderer.fill_path(rect(8.0, 8.0, 16.0, 16.0), Fill::Solid(color));
+            renderer.end_node(1);
+            renderer.request_screenshot_capture(frame);
+            renderer.flush_deferred();
+            commands.append(&mut renderer.take_pending_command_buffers());
+            let stats = renderer.take_resource_churn_stats();
+            if surface == 0 && frame == 1 {
+                assert_eq!(stats.vector_resource_creates, 1, "shared data needs a copy");
+            } else if surface == 0 && frame == 2 {
+                assert_eq!(stats.vector_resource_creates, 0);
+                assert_eq!(stats.vector_resource_updates, 1);
+            } else if surface == 1 {
+                assert_eq!(stats.vector_resource_creates, 0);
+            }
+        }
+        let context = context.as_ref().unwrap();
+        context.submit_command_buffers(commands);
+        context
+            .device
+            .poll(wgpu::PollType::wait_indefinitely())
+            .unwrap();
+        for (surface, renderer) in renderers.iter_mut().enumerate() {
+            renderer.complete_submitted_work();
+            renderer.present_deferred_frame();
+            let capture = renderer.take_screenshot_capture(frame).unwrap();
+            let pixel = match (surface, frame) {
+                (0, 1) => [0, 255, 0, 255],
+                (0, 2) => [0, 0, 255, 255],
+                _ => [255, 0, 0, 255],
+            };
+            assert_pixel(&capture, 16, 16, pixel);
+        }
+    }
 }

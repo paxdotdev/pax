@@ -330,6 +330,12 @@ under translucent overlaps, also check the
 [native-mask coverage limits](compositing-effects.md#coverage-has-limits).
 See [Event Handling](event-handling-rust.md) for event binding and propagation.
 
+Native punch-through masks follow the first reported scroll position as well as
+later movement, including when surface geometry changes at the same time.
+Shared-layer scrolling and unclipped overflow respect ancestor clips: a fully
+hidden native control can release its mask and receives it again on reentry.
+Ordinary clipped scroll islands retain reusable masks in content coordinates.
+
 ### A resizable two-dimensional graph
 
 The canonical `calculator` example uses both scroll axes for a function plot.
@@ -837,6 +843,16 @@ individual upload/encode is not preemptible and can overrun the allowance. This
 is a bounded pre-tick opportunity, **not** a frame-time limit on ordinary content
 rendering, surface initialization, or all visible repair work. Native chassis do
 not yet invoke this shared Rust path; Vello CPU remains on normal rendering.
+
+Native hosts that copy offscreen GPU outputs must wait for replay at a tile's
+current origin and size before publishing that placement. Pixels retained from
+the previous position are not ready for reuse, even if an unrelated animation
+has partially updated the tile. Android keeps the previous committed placement
+while this repaint is pending. The native scroll container continues to move
+both its canvas tiles and native controls without waiting for a Pax frame.
+Replacing a routed screen can also replace that native container. Android
+preserves reused tile consumers while removing the old native ancestry, then
+places them in the new container as part of the same presentation transaction.
 
 Tile replay does not replace a simultaneous content change. When a card animates
 across a tile boundary, its opacity, transform, and artwork updates must reach

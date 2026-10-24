@@ -7,7 +7,8 @@ Start with `pax-cli` and the web target on macOS, Linux, or Windows. This gives
 every workstation the same first project, development server, and template
 reload workflow. Native Apple targets are an optional next step and require a
 macOS workstation with full Xcode.
-Alpha [Windows and Linux desktop hosts](targets-build-deploy.md#experimental-windows-and-linux-desktop)
+Experimental [Android](targets-build-deploy.md#experimental-android) and
+alpha [Windows and Linux desktop hosts](targets-build-deploy.md#experimental-windows-and-linux-desktop)
 are also available, with narrower control support and specific GPU requirements.
 
 ## Quick start

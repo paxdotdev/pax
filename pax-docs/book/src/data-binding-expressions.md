@@ -326,8 +326,10 @@ Each `@target` field likewise has an alias: `@web` means `@target.web`, for
 example. Platform and operating-system facts can overlap: an app in a browser
 on macOS can have both `@web` and `@macos` set. The remaining fields are
 `android`, `windows`, `linux`, `mobile`, and `desktop`. These describe runtime
-facts, including browser hosts; they do not extend the supported build targets
-beyond web, macOS, iOS, and iPadOS.
+facts, including browser hosts; they do not select a build target. See the
+[Windows/Linux alpha](targets-build-deploy.md#windows-and-linux-desktop-alpha)
+and [experimental Android](targets-build-deploy.md#experimental-android) guides
+for those native targets and their current limits.
 
 Use `@gpu` and `@cpu` to customize an appearance for the selected renderer:
 

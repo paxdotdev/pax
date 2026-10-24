@@ -212,11 +212,11 @@ Pax targets high performance across several axes:
 
 | Area | Current support                                                                                                                                                                                                                                                                 |
 | --- |---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| Application targets | Web browsers via WebAssembly, native macOS, iOS, and iPadOS, plus [alpha Windows and Linux desktop hosts](pax-docs/book/src/targets-build-deploy.md#experimental-windows-and-linux-desktop) with specific GPU/runtime requirements and qualification limits. |
-| Development workstations | macOS, Debian/Ubuntu Linux, and Windows for the web install/create/run workflow; Apple targets require macOS and Xcode. Alpha Windows/Linux native builds require the corresponding operating system and [desktop prerequisites](pax-docs/book/src/targets-build-deploy.md#desktop-prerequisites). |
-| Template hot reload | `.pax` changes reload in debug CLI sessions on web, macOS, iOS, iPadOS, and alpha Windows/Linux desktop. Direct native Cargo runs do not start the reload server; release build program definitions are immutable. |
+| Application targets | Web browsers via WebAssembly, native macOS, iOS, and iPadOS, plus [alpha Windows and Linux desktop hosts](pax-docs/book/src/targets-build-deploy.md#experimental-windows-and-linux-desktop) with specific GPU/runtime requirements and qualification limits, and [experimental ARM64 Android](pax-docs/book/src/targets-build-deploy.md#experimental-android). |
+| Development workstations | macOS, Debian/Ubuntu Linux, and Windows for the web install/create/run workflow; Apple targets require macOS and Xcode. Android builds require macOS or Linux and the Android SDK/NDK. Alpha Windows/Linux native builds require the corresponding operating system and [desktop prerequisites](pax-docs/book/src/targets-build-deploy.md#desktop-prerequisites). |
+| Template hot reload | `.pax` changes reload in debug CLI sessions on web, macOS, iOS, iPadOS, alpha Windows/Linux desktop, and experimental Android. Direct native Cargo runs do not start the reload server; release build program definitions are immutable. |
 | Rust logic hot reload | Requires rebuilding and restarting on every target (refresh the web page after rebuilding). `--hot-reload=pax` remains the debug default; `all` migrates to template-only reload and `logic` is rejected. |
-| Future plans | Android remains unsupported. Other platforms, such as tvOS, watchOS, and embedded systems, are future possibilities through the platform-specific bindings. Contributions to additional targets are welcome. |
+| Future plans | Other platforms, such as tvOS, watchOS, and embedded systems, are future possibilities through the platform-specific bindings. Contributions to additional targets are welcome. |
 
 ## Development loop
 

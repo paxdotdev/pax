@@ -3822,7 +3822,7 @@ impl<'w> RenderBackend<'w> {
             output.add(texture);
         }
         if let Some(target) = &self.multisampled_target {
-            output.add(&target._texture);
+            output.add(target.texture());
         }
         let buffers: u64 = [
             &self.globals_buffer,

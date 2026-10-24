@@ -949,6 +949,9 @@ impl RuntimeContext {
                 self.mark_scroller_content_layers_dirty(id);
             }
             ScrollerSurfaceStateChange::Structural => {
+                // Topology can reconcile unchanged while the new surface state
+                // introduces a scroll offset. Retain that presentation invalidation.
+                self.mark_occlusion_presentation_dirty(id);
                 self.invalidate_viewport_presentation();
                 self.mark_layer_canvas_plans_dirty();
                 self.mark_occlusion_dirty_for_node(id);
@@ -2309,6 +2312,12 @@ impl RuntimeContext {
         )
     }
 
+    /// Resolve a node's local coordinates into its owning canvas's content space.
+    /// Scroller-owned layers use the registered owner's origin; root layers use
+    /// window coordinates. Detached mask sources retain their scene transform until
+    /// capture projection. Physical tile offsets are applied later by the renderer.
+    /// A collapsed surface owner has no drawable area; its descendants receive a
+    /// collapsed transform until the owner becomes invertible again.
     pub fn canvas_surface_transform_for_node(&self, node: &ExpandedNode) -> Affine {
         if node.canvas_owner.get().is_some()
             && node.canvas_owner.get()
@@ -2334,13 +2343,20 @@ impl RuntimeContext {
         self.get_layer_scroller_owner(own_layer)
             .and_then(|owner| self.get_expanded_node_by_eid(owner))
             .map_or(Affine::IDENTITY, |owner| {
-                Affine::from(
+                let inverse = Affine::from(
                     owner
                         .presentation_transform_and_bounds
                         .get()
                         .transform
                         .inverse(),
-                )
+                );
+                // Responsive previews can start at scale zero before layout. An
+                // inverse of that owner would poison descendant paths with NaN.
+                if inverse.as_coeffs().iter().all(|v| v.is_finite()) {
+                    inverse
+                } else {
+                    Affine::scale(0.0)
+                }
             })
     }
 
@@ -4438,6 +4454,29 @@ mod light_scope_tests {
             Affine::translate((60.0, 90.0)) * leaf_local,
         );
         assert_transform(context.layer_to_root_transform(2), inner_transform);
+
+        // A preview may collapse its scroller before its first layout. Clip
+        // paths on the owned surface must stay finite and regain their geometry.
+        inner
+            .presentation_transform_and_bounds
+            .set(TransformAndBounds {
+                transform: Transform2::new(Affine::scale(0.0).as_coeffs()),
+                bounds: (100.0, 100.0),
+            });
+        assert_transform(
+            context.canvas_surface_transform_for_node(&leaf),
+            Affine::scale(0.0),
+        );
+        inner
+            .presentation_transform_and_bounds
+            .set(TransformAndBounds {
+                transform: Transform2::new(inner_transform.as_coeffs()),
+                bounds: (100.0, 100.0),
+            });
+        assert_transform(
+            context.canvas_surface_transform_for_node(&leaf),
+            Affine::translate((60.0, 90.0)) * leaf_local,
+        );
 
         // A root canvas may also contain structural frames from another layer.
         // Without a surface owner its coordinates must remain in window space.

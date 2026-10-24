@@ -190,7 +190,7 @@ fn select_apple_target_mappings(
                 },
             }
         }
-        RunTarget::Web | RunTarget::Windows | RunTarget::Linux => vec![],
+        RunTarget::Web | RunTarget::Windows | RunTarget::Linux | RunTarget::Android => vec![],
     }
 }
 
@@ -2803,7 +2803,7 @@ pub(super) fn spawn_designtime_server_process(
     Ok(child)
 }
 
-fn designtime_server_command(
+pub(super) fn designtime_server_command(
     executable: &Path,
     pax_dir: &Path,
     project_root: &Path,

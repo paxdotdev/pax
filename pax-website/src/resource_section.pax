@@ -49,7 +49,7 @@
                 <Link width=100% height=28px url="https://discord.com/invite/Eq8KWAUc6b" target=Target::New>
                     <Text class="editorial_link" width=100%>SHOW US WHAT YOU'RE MAKING →</Text>
                 </Link>
-                <Link width=100% height=28px url="/blog" target=Target::Current>
+                <Link width=100% height=28px url={@target.web ? "/blog" : "https://pax.dev/blog"} target=Target::Current>
                     <Text class="editorial_link" width=100%>PAX NOTES →</Text>
                 </Link>
             </Stacker>

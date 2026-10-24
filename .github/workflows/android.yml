@@ -1,0 +1,163 @@
+name: Android packages and acceptance
+
+on:
+  pull_request:
+    paths:
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - 'pax-cli/**'
+      - 'pax-codegen/**'
+      - 'pax-engine/**'
+      - 'pax-gpu/**'
+      - 'pax-kit/**'
+      - 'pax-manifest/**'
+      - 'pax-message/**'
+      - 'pax-runtime-api/**'
+      - 'pax-chassis-android/**'
+      - 'pax-chassis-common/**'
+      - 'pax-host/**'
+      - 'pax-compiler/**'
+      - 'pax-macro/**'
+      - 'pax-runtime/**'
+      - 'pax-std/**'
+      - 'pax-website/**'
+      - 'examples/paxflix/**'
+      - 'examples/calculator/**'
+      - 'examples/fixtures/native-android-smoke/**'
+      - 'tests/src/native-platform-probes/android/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+    inputs:
+      device:
+        description: Run UI acceptance on a configured, dedicated ARM64 Android device runner
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  CARGO_BUILD_JOBS: '2'
+  CARGO_INCREMENTAL: '0'
+  CARGO_PROFILE_DEV_DEBUG: '0'
+  PAX_TELEMETRY: 'off'
+
+jobs:
+  packages:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [debug, release]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install host and Android prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-4-dev libpango1.0-dev libcairo2-dev libharfbuzz-dev
+          sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'ndk;28.2.13676358'
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+          echo "CARGO_TARGET_DIR=$GITHUB_WORKSPACE/target" >> "$GITHUB_ENV"
+          rustup target add aarch64-linux-android
+      - name: Check host algorithms and Android metadata
+        run: |
+          javac -d /tmp/pax-host-tests pax-host/native/android/java/dev/pax/{Affine,AssetPaths,FrameStats,NativeRoutes}.java pax-host/native/android/tests/*.java
+          for test in AffineTest AssetPathsTest FrameStatsTest NativeRoutesTest; do java -cp /tmp/pax-host-tests "dev.pax.$test"; done
+          cargo test -p pax-compiler building::android::tests --lib
+          cargo test -p pax-runtime-api --lib
+          cargo test -p pax-chassis-android --lib
+      - name: Build fixture and website
+        env:
+          PROFILE: ${{ matrix.profile }}
+        run: |
+          cargo build -p pax-cli
+          args=()
+          if [ "$PROFILE" = release ]; then args+=(--release); fi
+          target/debug/pax-cli build --target android --path examples/fixtures/native-android-smoke --libdev "${args[@]}"
+          target/debug/pax-cli build --target android --path pax-website --libdev "${args[@]}"
+          apk=app-debug.apk
+          if [ "$PROFILE" = release ]; then apk=app-unsigned.apk; fi
+          for project in examples/fixtures/native-android-smoke pax-website; do
+            python3 tests/src/native-platform-probes/android/check-package.py "$project/.pax/build/android/$PROFILE/$apk" --profile "$PROFILE"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-${{ matrix.profile }}
+          path: |
+            examples/fixtures/native-android-smoke/.pax/build/android/${{ matrix.profile }}/*.apk
+            pax-website/.pax/build/android/${{ matrix.profile }}/*.apk
+          if-no-files-found: error
+          retention-days: 7
+
+  device:
+    if: github.event_name == 'workflow_dispatch' && inputs.device
+    runs-on: [self-hosted, pax-android]
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Preserve the development signing keys used by the installed apps.
+          # Package CI above still builds with checkout's default clean policy.
+          clean: false
+      - name: Build and exercise both profiles on the selected device
+        shell: bash
+        run: |
+          export CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target"
+          cargo build -p pax-cli
+          python3 tests/src/native-platform-probes/android/build-ui-probe.py --output target/android-ui-probe --install
+          emulator=$("$ANDROID_HOME/platform-tools/adb" shell getprop ro.kernel.qemu | tr -d '\r')
+          if [ "$emulator" = 1 ]; then
+            python3 tests/src/native-platform-probes/android/build-ui-probe.py --output target/android-ime-probe --ime --install
+          fi
+          website_pid=''
+          trap 'if [ -n "$website_pid" ]; then kill -INT "$website_pid" 2>/dev/null || true; fi' EXIT
+          for profile in debug release; do
+            args=()
+            if [ "$profile" = release ]; then args+=(--release); fi
+            target/debug/pax-cli run --target android --hot-reload=off --path examples/fixtures/native-android-smoke --libdev "${args[@]}"
+            python3 tests/src/native-platform-probes/android/check-native-app.py --output "acceptance/$profile/controls"
+            python3 tests/src/native-platform-probes/android/check-rich-text.py --output "acceptance/$profile/rich-text"
+            python3 tests/src/native-platform-probes/android/check-native-images.py --profile "$profile" --output "acceptance/$profile/native-images"
+            python3 tests/src/native-platform-probes/android/check-native-input.py --profile "$profile" --output "acceptance/$profile/native-input"
+            python3 tests/src/native-platform-probes/android/check-scroll-alignment.py --profile "$profile" --output "acceptance/$profile/scroll-alignment"
+            python3 tests/src/native-platform-probes/android/check-scroll-alignment.py --profile "$profile" --nested --output "acceptance/$profile/scroll-alignment-nested"
+            if [ "$emulator" = 1 ]; then
+              python3 tests/src/native-platform-probes/android/check-ime.py --output "acceptance/$profile/ime"
+            fi
+            if [ "$profile" = debug ]; then
+              mkdir -p acceptance/debug/development
+              target/debug/pax-cli run --target android --path pax-website --libdev > acceptance/debug/development/server.log 2>&1 &
+              website_pid=$!
+              ready=false
+              for attempt in $(seq 1 1200); do
+                kill -0 "$website_pid"
+                if [ -f pax-website/.pax/android-design-server-url.app-ready ] &&
+                  target/debug/pax-cli dev status --path pax-website > acceptance/debug/development/session.json 2>/dev/null &&
+                  python3 -c 'import json,sys; assert json.load(sys.stdin)["session_id"].endswith("-"+sys.argv[1])' "$website_pid" < acceptance/debug/development/session.json; then
+                  ready=true
+                  break
+                fi
+                sleep 1
+              done
+              [ "$ready" = true ]
+              python3 tests/src/native-platform-probes/android/check-development.py --output acceptance/debug/development
+              "$ANDROID_HOME/platform-tools/adb" shell am force-stop dev.pax.pax_website
+              wait "$website_pid"
+              website_pid=''
+            else
+              target/debug/pax-cli run --target android --hot-reload=off --path pax-website --libdev "${args[@]}"
+            fi
+            python3 tests/src/native-platform-probes/android/check-website.py --lifecycle-cycles 3 --output "acceptance/$profile/website"
+            python3 tests/src/native-platform-probes/android/check-scroll-alignment.py --website --profile "$profile" --output "acceptance/$profile/website-scroll"
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-device-acceptance
+          path: acceptance/
+          retention-days: 14

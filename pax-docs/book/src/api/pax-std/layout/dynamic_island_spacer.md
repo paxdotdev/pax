@@ -4,13 +4,15 @@
 
 ## Structs
 ### `DynamicIslandSpacer`
-Opt-in space for UIKit's current safe area; does not draw or intercept input.
+Opt-in space for the native window's safe area; does not draw or intercept input.
 
 `<DynamicIslandSpacer />` fills its container's width and measures its height
 from the top safe-area inset. Use it in content-sized layout, or bind `inset`
 when positioning other content explicitly. `edge` also supports the home
 indicator and landscape side insets. Insets update on rotation and window
-changes, in debug and release. Other chassis measure zero on the inset axis.
+changes, in debug and release, on iOS/iPadOS and Android. Other chassis measure
+zero on the inset axis. Android's keyboard reduces the content viewport;
+these insets reserve system bars and display cutouts within that viewport.
 
 This reserves the platform's entire safe inset, including status bars on
 devices without a Dynamic Island. It does not automatically move siblings,

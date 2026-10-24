@@ -100,8 +100,8 @@ fn cli() -> App<'static, 'static> {
         .short("t")
         .long("target")
         .default_value(DEFAULT_TARGET)
-        .possible_values(&["web", "macos", "ios", "ipados", "ipad", "windows", "linux"])
-        .help("Specify the target platform on which to run. Supported targets include web, macos, ios, ipados, windows, and linux (`ipad` is accepted as an alias).")
+        .possible_values(&["web", "macos", "ios", "ipados", "ipad", "windows", "linux", "android"])
+        .help("Specify the target platform on which to run. Supported targets include web, macos, ios, ipados, windows, linux, and android (`ipad` is accepted as an alias).")
         .takes_value(true);
 
     #[allow(non_snake_case)]
@@ -171,7 +171,7 @@ fn cli() -> App<'static, 'static> {
                 .arg( ARG_LIBDEV.clone() )
                 .arg( ARG_LIBDEV_MODE.clone() )
                 .arg( ARG_HOT_RELOAD.clone() )
-                .arg( ARG_RELEASE.clone().help("Run an optimized local iOS/iPadOS build. Disables designtime and hot reload; does not publish the app.") )
+                .arg( ARG_RELEASE.clone().help("Run an optimized local iOS/iPadOS, Windows, Linux, or Android build. Disables designtime and hot reload; does not publish the app.") )
         )
         .subcommand(
             App::new("build")
@@ -262,6 +262,7 @@ fn cli() -> App<'static, 'static> {
                         .takes_value(true)
                         .required(true),
                 )
+                .arg(Arg::with_name("dev-session-file").long("dev-session-file").takes_value(true).hidden(true))
                 .arg(
                     Arg::with_name("macos-session-dir")
                         .long("macos-session-dir")
@@ -303,11 +304,15 @@ fn run_context(
     if is_release
         && !matches!(
             target,
-            RunTarget::iOS | RunTarget::iPadOS | RunTarget::Windows | RunTarget::Linux
+            RunTarget::iOS
+                | RunTarget::iPadOS
+                | RunTarget::Windows
+                | RunTarget::Linux
+                | RunTarget::Android
         )
     {
         return Err(eyre!(
-            "run --release currently supports ios, ipados, windows, and linux; use build --release for other targets"
+            "run --release currently supports ios, ipados, windows, linux, and android; use build --release for other targets"
         ));
     }
     let port = args
@@ -509,6 +514,12 @@ fn perform_nominal_action(
                     },
                 )
             });
+            let dev_session = args
+                .value_of("dev-session-file")
+                .map(|path| -> Result<pax_compiler::dev_session::DevSession> {
+                    Ok(serde_json::from_slice(&std::fs::read(path)?)?)
+                })
+                .transpose()?;
             pax_compiler::design_server::start_server(
                 serve_dir,
                 watch_dir,
@@ -516,7 +527,7 @@ fn perform_nominal_action(
                 Some(port),
                 ready_file,
                 show_address_log,
-                None,
+                dev_session,
                 logic_reload,
                 hot_reload,
                 restart_snapshot,
@@ -830,7 +841,7 @@ mod tests {
 
     #[test]
     fn mobile_release_run_disables_designtime_and_hot_reload() {
-        for target in ["ios", "ipados", "ipad"] {
+        for target in ["ios", "ipados", "ipad", "android"] {
             let matches = cli()
                 .get_matches_from_safe(vec![
                     "pax-cli",

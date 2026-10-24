@@ -671,6 +671,44 @@ fn exercise_tile_lifecycle(incremental: bool, prepared: bool) {
     assert_eq!(renderer.take_ready_canvas_layers(), vec![0]);
     renderer.take_replay_canvas_layer_updates();
     paint(&mut renderer, Rc::clone(&dirty));
+    let publications = |renderer: &PaxGpuRenderer| {
+        let mut revisions = HashMap::new();
+        renderer.visit_ready_surfaces(|_, key, _, revision, _| {
+            revisions.insert(key.to_string(), revision);
+        });
+        revisions
+    };
+    let before = publications(&renderer);
+    assert!(before["a"] > 0 && before["b"] > 0);
+
+    // A fast scroll can retarget both the visible tile and a warm neighbor.
+    // The latter's previous output must not authorize a host geometry commit
+    // while its new content is still queued behind the visible replay.
+    layout.borrow_mut().surfaces[0].origin_x = 64.0;
+    layout.borrow_mut().surfaces[1].origin_x = 0.0;
+    layout.borrow_mut().surfaces[1].replay_priority = 1;
+    renderer.refresh_layers(&[0]);
+    let pending = publications(&renderer);
+    assert_eq!(pending["a"], 0, "retarget published old visible pixels");
+    assert_eq!(pending["b"], 0, "retarget published old warm pixels");
+    assert_eq!(renderer.targeted_replay_scope(0), Some(vec![0]));
+    renderer.take_replay_canvas_layer_updates();
+    // An unrelated animation may encode the warm tile in this same flush;
+    // it still does not supply the full content for its new origin.
+    renderer.mark_render_surfaces_dirty(0, [1]);
+    paint(&mut renderer, Rc::clone(&dirty));
+    let visible = publications(&renderer);
+    assert!(visible["a"] > before["a"]);
+    assert_eq!(visible["b"], 0, "warm replay has not run yet");
+    renderer.take_replay_canvas_layer_updates();
+    paint(&mut renderer, Rc::clone(&dirty));
+    assert!(publications(&renderer)["b"] > before["b"]);
+
+    // Restore the original layout for the survivor/eviction checks below.
+    layout.borrow_mut().surfaces = vec![a.clone(), b.clone()];
+    renderer.refresh_layers(&[0]);
+    renderer.take_replay_canvas_layer_updates();
+    paint(&mut renderer, Rc::clone(&dirty));
     let context = with_target(&mut renderer, |target| {
         for tile in &mut target.renderers {
             tile.renderer.take_resource_churn_stats();
@@ -738,14 +776,18 @@ fn exercise_tile_lifecycle(incremental: bool, prepared: bool) {
     assert_eq!(&*creations.borrow(), &["a", "b", "c"]);
 
     // Resize/DPR changes invalidate only the affected tile.
+    let before_resize = publications(&renderer);
     layout.borrow_mut().surfaces[0].surface.dpr = [2.0, 2.0];
     layout.borrow_mut().surfaces[0].surface.surface_width = 64;
     layout.borrow_mut().surfaces[0].surface.surface_height = 64;
     renderer.refresh_layers(&[0]);
+    assert_eq!(publications(&renderer)["c"], 0);
+    assert_eq!(publications(&renderer)["b"], before_resize["b"]);
     assert_eq!(renderer.targeted_replay_scope(0), Some(vec![0]));
     renderer.take_replay_canvas_layer_updates();
     let hits_before = renderer.drawings.hits;
     paint(&mut renderer, Rc::clone(&dirty));
+    assert!(publications(&renderer)["c"] > before_resize["c"]);
     assert!(
         renderer.drawings.hits > hits_before,
         "resized tile must reuse logical drawing"

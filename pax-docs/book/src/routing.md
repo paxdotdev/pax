@@ -5,8 +5,9 @@
 A useful URL names a place in your application: a project, a member's profile,
 or the settings panel someone wants to share. Pax connects that location to a
 component tree. On the web, the location follows the browser URL and its
-history. On native targets, the same route tree can select screens
-using an in-app location.
+history. On native targets, the same route tree selects screens using an in-app
+location. This location represents application state; it does not require a
+visible address bar or a user-navigable URL.
 
 This chapter builds on [Templates](template-language.md),
 [Events and Rust](event-handling-rust.md), and
@@ -254,7 +255,7 @@ initializing Pax first.
 
 ### Native locations
 
-On macOS, iOS, iPadOS, Windows, and Linux, current-target relative paths update
+On Android, macOS, iOS, iPadOS, Windows, and Linux, current-target relative paths update
 Pax's virtual in-app location. Both `Link` and `NodeContext::navigate_to` use
 this path. Query parameters and fragments travel with the location, and Router
 updates its selected subtree without restarting the application.
@@ -279,6 +280,25 @@ with `Target::New` cannot create a second native Pax window. The private
 `pax:` location scheme is not an OS deep-link registration. See the
 [desktop limits](targets-build-deploy.md#current-desktop-limits) for the
 qualification boundary.
+
+On Android, a query-only destination such as `?page=2` keeps the current path;
+`#details` keeps its path and query. An empty destination keeps the path and
+query while clearing the fragment. These transitions use the same in-app
+history as path changes.
+
+Android keeps up to 128 in-session locations. System Back first sends an
+`Escape` key-down event, allowing an application to dismiss a modal with
+`prevent_default`; otherwise it pops the in-app location or finishes the
+Activity at the root. A recreated Activity retains that history. After process
+death, Android can restore the latest saved location, while application state
+requires application-owned persistence. Web `server_owned_prefixes` never
+change these native route transitions: a current-target link to `/paxflix`
+selects the bundled Router branch even when a web build delegates that path
+to its HTTP server. Use an explicit external URL, such as
+`https://pax.dev/blog`, for a document outside the native application.
+External schemes supported by Android are HTTP, HTTPS, `mailto`, and `tel`.
+Relative links with a non-current target resolve against the configured web
+`site_url` before opening externally.
 
 A native router does not provide browser chrome, a native back-stack control,
 or automatic universal-link registration. Supply the application's navigation

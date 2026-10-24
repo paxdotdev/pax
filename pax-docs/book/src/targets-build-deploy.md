@@ -66,6 +66,7 @@ The target is where the application runs. The workstation is where you compile i
 | iPad application | `ipados` | macOS | The same Apple toolchain, with an iPad simulator or device |
 | Windows desktop (alpha) | `windows` | Windows | Rust MSVC target, Visual Studio C++ tools, Windows SDK, Windows App Runtime 1.8, compatible DX12 GPU |
 | Linux desktop (alpha) | `linux` | Linux | Rust GNU target, GTK 4.14+, EGL/Vulkan development/runtime dependencies, compatible GPU/driver |
+| Experimental Android | `android` | macOS or Linux | ARM64 Rust target, Android SDK 36 / build-tools 36.0.0, NDK r28+, JDK 17+, Python 3, Vulkan-capable Android 10+ device or ARM64 emulator |
 
 `ipad` is also accepted as an alias for `ipados`. The alpha desktop
 targets require building on the corresponding operating system; their native
@@ -193,8 +194,10 @@ async runtime; each application retains its own executor policy.
 The actual application `main` runs on all three Apple targets, including iOS and
 iPadOS. `run` hands control to SwiftUI and normally never returns on mobile. Web
 builds compile the UI library and JavaScript explicitly invokes its `init_web`;
-importing the module does not mount it. Android remains unsupported. Windows and
-Linux use alpha desktop hosts with the limits below.
+importing the module does not mount it. Android uses an explicit Activity entry
+that initializes the UI library on the Android main thread; see
+[experimental Android](#experimental-android). Windows and Linux use
+alpha desktop hosts with the limits below.
 
 On macOS, `init_with!(InitOptions::default())?.run_with(WindowOptions { ... })`
 accepts window geometry and title. The function forms `pax_kit::init()` and
@@ -240,6 +243,136 @@ do not make incompatible runtime versions interoperable or remove the current
 single-active-native-mount limit. Multiple runnable libraries can also retain
 additional code and program data; measure the resulting application size and
 startup cost for substantial embedded examples.
+
+### Experimental Android
+
+The `android` target packages an ARM64 APK with real Android controls and WGPU
+Vulkan vector layers. The package minimum is Android 10 (API 29), and the device
+must expose a Vulkan adapter accepted by WGPU. The Android version alone does
+not establish GPU compatibility.
+Android's Activity owns the application loop. Its `onCreate` calls the selected
+`runnable!` initializer explicitly; loading either native library does not run
+application setup. The desktop Rust `main` and `host::run` entry are not used.
+
+Install the Android SDK platform 36, build-tools 36.0.0, platform-tools, an NDK
+release r28 or newer, JDK 17 or newer, and Python 3. Then configure the installed
+toolchains, using their actual local paths:
+
+```sh
+rustup target add aarch64-linux-android
+export ANDROID_HOME=/path/to/Android/sdk
+export ANDROID_NDK_HOME=/path/to/android-ndk
+export JAVA_HOME=/path/to/jdk
+pax-cli build --target android
+pax-cli run --target android
+```
+
+`run` installs and launches on an already connected `adb` device. Start an ARM64
+emulator or connect a device first; use `ANDROID_SERIAL` when several are
+connected. The CLI does not install SDK components or start an emulator. The
+packager invokes the SDK tools directly and does not need Gradle.
+
+Current rendering qualification is on an API 36 ARM64 emulator with 16 KiB
+memory pages. Older Android versions and physical-device GPUs remain
+unqualified. In particular, the Google APIs API 29 ARM64 revision 13 image with
+emulator 37.2.12 reports incomplete Vulkan driver information and is rejected
+before rendering; use a qualified emulator image for development. Package
+installation or declared Vulkan support alone does not prove rendering support.
+
+Debug output is `.pax/build/android/debug/app-debug.apk`, signed with a generated
+local development key. `build --release --target android` produces
+`.pax/build/android/release/app-unsigned.apk` with a baked program and no
+designtime. `run --release --target android` creates a separate development-signed
+`app-development.apk` for local testing. Packages target API 36 by default.
+Store submission and device qualification remain separate from packaging.
+
+Set the package identity with `[package.metadata.pax.android]` and
+`application_id = "com.example.myapp"`. Without it, the CLI uses `dev.pax.` plus
+the Cargo package name, replacing hyphens and dots with underscores. The common
+Pax `title` metadata supplies the Android application label.
+
+Configure distribution in the application's `Cargo.toml`:
+
+```toml
+[package.metadata.pax.android]
+application_id = "com.example.myapp"
+version_code = 1
+min_sdk = 29
+target_sdk = 36
+compile_sdk = 36
+build_tools = "36.0.0"
+permissions = ["android.permission.INTERNET"]
+icon = "assets/icon.png"
+system_bar_icons = "dark"
+format = "both"
+```
+
+`version_code` is an integer from 1 through 2100000000; the Cargo package version
+supplies `versionName`. Omit `icon` to use Android's default icon. SDK versions
+must satisfy `29 <= min_sdk <= target_sdk <= compile_sdk`. Permissions default
+to Internet access; set an empty list for an offline application.
+
+Set `system_bar_icons` to `dark` for light backgrounds behind the status and
+navigation bars, or `light` for dark backgrounds. Omitting it keeps Android's
+theme defaults. This is a package-wide appearance choice; it does not change
+the bar backgrounds or switch automatically when an application changes pages.
+
+`format` accepts `apk` (default), `aab`, or `both`. App Bundles require
+`PAX_ANDROID_BUNDLETOOL` to point to an installed `bundletool-all.jar`. The
+packager validates the resulting `app-unsigned.aab`. Debug and local `run`
+commands also produce a development-signed APK for installation.
+`run` transfers the entire APK before launching; it does not depend on an
+incremental-install server continuing to stream APK blocks from the workstation.
+
+For signed Release output, supply `PAX_ANDROID_KEYSTORE`,
+`PAX_ANDROID_KEY_ALIAS`, `PAX_ANDROID_STORE_PASSWORD`, and
+`PAX_ANDROID_KEY_PASSWORD` in the build environment. Signing produces
+`app-release.apk` and/or `app-release.aab`; passwords are passed to signing
+tools through environment variables, never saved in generated build metadata.
+Keep the key and passwords outside source control. Local `run` continues to
+use its separate development key.
+
+Configuration recreation retains the Rust session and rebuilds the Activity's
+views, without rerunning the initializer. Backgrounding suspends display frames;
+finishing the Activity starts asynchronous teardown. Process death starts a new
+session and requires application-owned persistence. The host keeps detached
+surface generations alive until their GPU work has retired. Native control and
+mask updates wait for an accepted vector frame. Idle frames do not acquire
+swapchain images; only changed tiles need presentation resources.
+Recycled scroll tiles must complete replay for their new position before the
+host accepts that placement. The host also waits for Android's buffer-available
+notifications before releasing texture updates, tile placement, and native
+patches together, and waits for that View frame's submission before publishing
+another GPU frame. Canvas tiles and native controls share the native
+scrolling content container, so scrolling itself does not require a Pax repaint.
+
+Debug retains WGPU validation. Shader source debug metadata is omitted because
+some Android emulator Vulkan drivers reject the newer WGSL SPIR-V source tag.
+
+This target is still experimental. Debug sessions provide template reload and
+[development inspection](developer-workflow.md#target-support-and-restart-boundaries).
+Rust changes require rebuilding and relaunching. Native embedding, video, photo
+picking, and Apple glass controls remain unsupported. Native
+[Markdown and source highlighting](text-fonts-images.md#markdown-content) use
+Android text spans. Physical-device
+performance, multilingual IME, and assistive-technology qualification remain
+required before an alpha release. Exact translucent vector/native blending has
+the same approximate punch-through limitation as the desktop hosts.
+
+GPU backing tiles are bounded to 4096 pixels per axis and 64 live or retiring
+generations. Empty layers and clipped, offscreen scroller owners do not allocate
+GPU surfaces; they become resident when visible. Bundled and HTTPS bitmap images
+are limited to 8192 pixels per axis and 16 megapixels, with one decoded image
+waiting for GPU upload or delivery to a native ImageView. Native images share
+bitmaps while mounted; their decoded memory is additional to the GPU tile budget.
+See [Android fonts and assets](text-fonts-images.md#fonts-on-android).
+Support is limited to `arm64-v8a`; other Android ABIs are not built.
+
+Android keeps a smaller scroll prewarm region than desktop: one quarter of the
+viewport per scrollable axis, with a 128-logical-pixel minimum, rounded to full
+tiles. This reduces offscreen backing memory while preserving device-pixel
+rendering resolution. Fast scrolling and GPU memory still need device-specific
+qualification.
 
 ### Mount in an existing application
 

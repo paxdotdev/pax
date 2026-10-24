@@ -19,6 +19,9 @@ No input area (distinct from an unknown conservative bound).
 ##### `Rect`(`Rect`)
 A rectangle in local layout coordinates, with exclusive edges.
 
+##### `RoundedRect`(`RoundedRect`)
+A rounded rectangle in local coordinates, with exclusive outer bounds.
+
 ##### `Path` { `path`: `Rc`<`BezPath`>, `tolerance`: `f64` }
 Nonzero-winding local coverage. `tolerance` also tests offsets along the
 two local axes, preserving Line's historical stroke-edge convention.
