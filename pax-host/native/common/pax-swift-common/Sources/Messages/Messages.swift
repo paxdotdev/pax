@@ -59,6 +59,8 @@ public final class NativeInterruptDispatcher {
     public static let shared = NativeInterruptDispatcher()
 
     public var sendData: ((Data) -> Void)?
+    /// Synchronous wheel delivery; true suppresses AppKit's native scrolling default.
+    public var wheelInterrupt: ((Data) -> Bool)?
     // Only canvas-owned pointer/touch paths request focus; native controls keep theirs.
     public var requestKeyboardFocus: (() -> Void)?
 #if os(iOS) || os(tvOS) || os(watchOS)
@@ -405,8 +407,10 @@ public func dispatchTap(x: Double, y: Double) {
     }
 }
 
-public func dispatchPointerMouseInterrupt(type: String, x: Double, y: Double, button: String = "Left") {
-    if type == "MouseDown" { NativeInterruptDispatcher.shared.requestKeyboardFocus?() }
+/// Forwards mouse input, requesting canvas focus on press unless a native control owns focus.
+public func dispatchPointerMouseInterrupt(type: String, x: Double, y: Double, button: String = "Left",
+                                          focusCanvas: Bool = true) {
+    if type == "MouseDown" && focusCanvas { NativeInterruptDispatcher.shared.requestKeyboardFocus?() }
     dispatchNativeInterrupt { builder in
         builder.addMapWithStringKey(type) { messageBuilder in
             messageBuilder.addWithStringKey("x", x)

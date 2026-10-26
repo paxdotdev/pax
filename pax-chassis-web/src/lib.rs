@@ -53,7 +53,7 @@ pub use {console_error_panic_hook, console_log};
 
 use pax_runtime::api::{
     Click, ContextMenu, DoubleClick, Drop, KeyDown, KeyPress, KeyUp, KeyboardEventArgs,
-    ModifierKey, MouseButton, MouseDown, MouseEventArgs, MouseMove, MouseUp, Scroll, Touch,
+    ModifierKey, MouseButton, MouseCancel, MouseDown, MouseEventArgs, MouseMove, MouseUp, Scroll, Touch,
     TouchCancel, TouchEnd, TouchMove, TouchStart, Wheel,
 };
 
@@ -967,7 +967,10 @@ impl PaxChassisWeb {
             NativeInterrupt::Click(args) => {
                 if let Some(topmost_node) = engine
                     .runtime_context
-                    .get_topmost_element_beneath_ray(Point2::new(args.x, args.y))
+                    .mouse_click_target(
+                        MouseButton::from(args.button.clone()),
+                        Point2::new(args.x, args.y),
+                    )
                 {
                     let args_click = Click {
                         mouse: MouseEventArgs {
@@ -1369,7 +1372,10 @@ impl PaxChassisWeb {
             NativeInterrupt::MouseMove(args) => {
                 if let Some(topmost_node) = engine
                     .runtime_context
-                    .get_topmost_element_beneath_ray(Point2::new(args.x, args.y))
+                    .mouse_move_target(
+                        MouseButton::from(args.button.clone()),
+                        Point2::new(args.x, args.y),
+                    )
                 {
                     let args_mouse_move = MouseMove {
                         mouse: MouseEventArgs {
@@ -1432,7 +1438,10 @@ impl PaxChassisWeb {
             NativeInterrupt::MouseDown(args) => {
                 if let Some(topmost_node) = engine
                     .runtime_context
-                    .get_topmost_element_beneath_ray(Point2::new(args.x, args.y))
+                    .mouse_down_target(
+                        MouseButton::from(args.button.clone()),
+                        Point2::new(args.x, args.y),
+                    )
                 {
                     let args_mouse_down = MouseDown {
                         mouse: MouseEventArgs {
@@ -1458,7 +1467,11 @@ impl PaxChassisWeb {
             NativeInterrupt::MouseUp(args) => {
                 if let Some(topmost_node) = engine
                     .runtime_context
-                    .get_topmost_element_beneath_ray(Point2::new(args.x, args.y))
+                    .mouse_up_target(
+                        MouseButton::from(args.button.clone()),
+                        Point2::new(args.x, args.y),
+                        false,
+                    )
                 {
                     let args_mouse_up = MouseUp {
                         mouse: MouseEventArgs {
@@ -1474,6 +1487,36 @@ impl PaxChassisWeb {
                     };
                     topmost_node.dispatch_mouse_up(
                         Event::new(args_mouse_up),
+                        &globals,
+                        &engine.runtime_context,
+                    )
+                } else {
+                    false
+                }
+            }
+            NativeInterrupt::MouseCancel(args) => {
+                if let Some(topmost_node) = engine
+                    .runtime_context
+                    .mouse_up_target(
+                        MouseButton::from(args.button.clone()),
+                        Point2::new(args.x, args.y),
+                        true,
+                    )
+                {
+                    let args_mouse_cancel = MouseCancel {
+                        mouse: MouseEventArgs {
+                            x: args.x,
+                            y: args.y,
+                            button: MouseButton::from(args.button.clone()),
+                            modifiers: args
+                                .modifiers
+                                .iter()
+                                .map(|x| ModifierKey::from(x))
+                                .collect(),
+                        },
+                    };
+                    topmost_node.dispatch_mouse_cancel(
+                        Event::new(args_mouse_cancel),
                         &globals,
                         &engine.runtime_context,
                     )
@@ -2356,6 +2399,14 @@ fn native_interrupt_from_js(value: JsValue) -> NativeInterrupt {
     } else if let Some(payload) = js_variant(&value, "MouseUp") {
         let (x, y, button, modifiers) = parse_mouse_event(&payload);
         NativeInterrupt::MouseUp(MouseUpInterruptArgs {
+            x,
+            y,
+            button,
+            modifiers,
+        })
+    } else if let Some(payload) = js_variant(&value, "MouseCancel") {
+        let (x, y, button, modifiers) = parse_mouse_event(&payload);
+        NativeInterrupt::MouseCancel(MouseUpInterruptArgs {
             x,
             y,
             button,

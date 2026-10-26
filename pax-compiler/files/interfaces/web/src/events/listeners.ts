@@ -21,8 +21,9 @@ function getMouseButton(event: MouseEvent) {
 
 export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement): () => void {
     let disposed = false;
-    let dragging = false;
+    const pressedButtons = new Set<string>();
     let currentButton = "Left";
+    let lastMouse = {x: 0, y: 0};
     let disposers: Array<() => void> = [];
     let addDisposer = (disposer: () => void) => {
         disposers.push(disposer);
@@ -35,10 +36,10 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement):
         // A sensor permission Promise may settle after the region was disposed.
         if (disposed) return;
         const continuation = type === "mousemove" || type === "mouseup";
-        const target = continuation || type === "deviceorientation" || type === "devicemotion" ? window : mount;
+        const target = continuation || type === "blur" || type === "deviceorientation" || type === "devicemotion" ? window : mount;
         const scoped = (event: Event) => {
-            if (disposed || (continuation && !dragging && !mount.contains(event.target as Node))) return;
-            if (event.target instanceof Element && event.target.closest('[data-pax-surface-inspector]')) return;
+            if (disposed || (continuation && pressedButtons.size === 0 && !mount.contains(event.target as Node))) return;
+            if (!(continuation && pressedButtons.size > 0) && event.target instanceof Element && event.target.closest('[data-pax-surface-inspector]')) return;
             listener(event);
         };
         target.addEventListener(type, scoped, options);
@@ -131,7 +132,10 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement):
         }
     }, true);
     addWindowListener('mousemove', (evt) => {
+        // A release outside the browser may arrive only as a later move with no button held.
+        if (evt.buttons === 0 && pressedButtons.size > 0) cancelMouse();
         let button = currentButton;
+        lastMouse = {x: evt.clientX - mount.getBoundingClientRect().left, y: evt.clientY - mount.getBoundingClientRect().top};
         let event = {
             "MouseMove": {
                 "x": evt.clientX - mount.getBoundingClientRect().left,
@@ -164,7 +168,8 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement):
         if (!(evt.target as Element)?.closest('input, textarea, select, button, [contenteditable]')) mount.focus({preventScroll: true});
         let button = getMouseButton(evt);
         currentButton = button;
-        dragging = true;
+        pressedButtons.add(button);
+        lastMouse = {x: evt.clientX - mount.getBoundingClientRect().left, y: evt.clientY - mount.getBoundingClientRect().top};
         let event = {
             "MouseDown": {
                 "x": evt.clientX - mount.getBoundingClientRect().left,
@@ -179,7 +184,7 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement):
         }
     }, true);
     addWindowListener('mouseup', (evt) => {
-        dragging = false;
+        pressedButtons.delete(getMouseButton(evt));
         let event = {
             "MouseUp": {
                 "x": evt.clientX - mount.getBoundingClientRect().left,
@@ -192,7 +197,16 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement):
         if (res.prevent_default) {
             evt.preventDefault();
         }
+        currentButton = [...pressedButtons].pop() ?? "Left";
     }, true);
+    function cancelMouse() {
+        const buttons = [...pressedButtons];
+        pressedButtons.clear();
+        for (const button of buttons) {
+            chassis.interrupt({MouseCancel: {...lastMouse, button, modifiers: []}}, []);
+        }
+    }
+    addWindowListener('blur', cancelMouse);
     addWindowListener('contextmenu', (evt) => {
         let event = {
             "ContextMenu": {
@@ -307,9 +321,9 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement):
         });
     }, {"passive": true, "capture": true});
     addWindowListener('keydown', (evt) => {
-        let dom_node_selected = document.activeElement != mount;
-        // TODO figure out how to handle this more robustly
-        if (dom_node_selected) {
+        // Escape remains an application dismissal shortcut while a native editor has focus.
+        // IME composition must keep its own Escape handling.
+        if (evt.isComposing || (document.activeElement != mount && evt.key !== "Escape")) {
             return;
         }
         
@@ -321,12 +335,12 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement):
             }
         };
         let res = chassis.interrupt(event, []);
-        if (res.prevent_default && !dom_node_selected) {
+        if (res.prevent_default) {
             evt.preventDefault();
         }
     }, true);
     addWindowListener('keyup', (evt) => {
-        if (document.activeElement != mount) {
+        if (evt.isComposing || (document.activeElement != mount && evt.key !== "Escape")) {
             return;
         }
         let event = {
@@ -400,6 +414,7 @@ export function setupEventListeners(chassis: PaxChassisWeb, mount: HTMLElement):
     setupDeviceSensorListeners(chassis, addWindowListener, addDisposer);
 
     return () => {
+        cancelMouse();
         disposed = true;
         while (disposers.length > 0) {
             let dispose = disposers.pop();

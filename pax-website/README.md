@@ -52,6 +52,14 @@ it nor the `pax-logo` harness is a website dependency. Cargo dependency paths
 and favicon paths are relative to this manifest; Rust `include_str!` paths are
 relative to their source file.
 
+The creative-freedom headline embeds `LedOscilloscope` from
+[`examples/led-oscilloscope`](../examples/led-oscilloscope/README.md), with the
+message “DREAM IT. BUILD IT.” The standalone example and website share the cell
+buffer, bitmap font, cabinet, and reusable knobs. The section publishes the
+component's suggested responsive height; the cabinet fills that panel without
+adding outer spacing. Its source is included in View Source. Motion
+stops offscreen; system reduced-motion integration is tracked in PAX-1048.
+
 The HTML background uses `package.metadata.pax.web.background_color` to match
 the scene's dark ink before the cartridge starts. The hero logo holds its
 initial pose until frames and hero height have stayed stable for 100 ms, then

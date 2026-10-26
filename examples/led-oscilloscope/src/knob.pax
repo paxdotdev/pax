@@ -1,0 +1,35 @@
+<Group width=100% height=100%>
+    <Rectangle width=100% height=100% fill=TRANSPARENT/>
+    <Group y=50% width=100% height={(self.diameter + 70)px}>
+        <Text x=50% y=0px width=100% height=18px text={self.label} selectable=false wrap=false
+            style={font:"Helvetica", font_size:11px, fill:rgb(49,48,43), align_horizontal:TextAlignHorizontal::Center}/>
+        <Group x=50% y=34px width={(self.diameter)px} height={(self.diameter)px} anchor_x=50%>
+            <Group x=50% y=50% width=100% height=100% anchor=50% rotate={(-135 + self.value*270)deg}>
+                <Rectangle x=50% y=9% width=3px height=12% corner_radius=1 fill=rgb(249,241,218)/>
+            </Group>
+            <Ellipse x=50% y=50% anchor=50% width=58% height=58% fill={self.color}
+                stroke={paint:rgb(51,51,43),width:2px}/>
+            <Ellipse x=43% y=36% anchor=50% width=36% height=22% fill=rgba(255,255,255,15)/>
+            <Path elements={self.ridges} fill=TRANSPARENT stroke={paint:rgb(93,88,73),width:1.2px}/>
+            <Ellipse width=100% height=100% fill=@gradient {0%:rgb(238,229,205),45%:rgb(195,185,158),100%:rgb(132,123,102)}
+                stroke={paint:rgb(95,90,76),width:1px}/>
+            <Path elements={self.marks} fill=TRANSPARENT stroke={paint:rgb(77,73,61),width:1px}/>
+            <Ellipse x=-2px y=3px width={100% + 4px} height={100% + 4px} fill=rgba(39,36,29,110)/>
+        </Group>
+        <Text x=50% y={(self.diameter + 43)px} width=100% height=17px text={self.value_label} selectable=false wrap=false
+            style={font:"Courier New",font_size:10px,fill:rgb(88,82,67),align_horizontal:TextAlignHorizontal::Center}/>
+    </Group>
+</Group>
+@settings {
+    @mount: mount
+    @pre_render: pre_render
+    @mouse_down: down
+    @mouse_move: move_mouse
+    @mouse_up: up
+    @mouse_cancel: cancel_mouse
+    @touch_start: touch
+    @touch_move: move_touch
+    @touch_end: release_touch
+    @touch_cancel: cancel_touch
+    @wheel: wheel
+}

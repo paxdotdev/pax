@@ -55,6 +55,27 @@ Register axes whose extent is measured from this container's children.
 The default planner preserves exact measurement dependencies while allowing
 a top-aligned, fixed-width visible prefix to remain partially mounted.
 
+##### `mouse_click_target`
+<pre><code class="api-signature language-rust ignore">pub fn mouse_click_target(self: &amp;Rc&lt;Self&gt;, button: <a href="../../../api/pax-runtime-api/events.md#mousebutton">MouseButton</a>, ray: Point2&lt;<a href="../../../api/pax-runtime-api/platform.md#window">Window</a>&gt;) -&gt; Option&lt;Rc&lt;ExpandedNode&gt;&gt;</code></pre>
+
+Consume a host click only after a matching press and release on the same live node.
+
+##### `mouse_down_target`
+<pre><code class="api-signature language-rust ignore">pub fn mouse_down_target(self: &amp;Rc&lt;Self&gt;, button: <a href="../../../api/pax-runtime-api/events.md#mousebutton">MouseButton</a>, ray: Point2&lt;<a href="../../../api/pax-runtime-api/platform.md#window">Window</a>&gt;) -&gt; Option&lt;Rc&lt;ExpandedNode&gt;&gt;</code></pre>
+
+Start implicit mouse capture at the hit node, independently for each button.
+
+##### `mouse_move_target`
+<pre><code class="api-signature language-rust ignore">pub fn mouse_move_target(self: &amp;Rc&lt;Self&gt;, button: <a href="../../../api/pax-runtime-api/events.md#mousebutton">MouseButton</a>, ray: Point2&lt;<a href="../../../api/pax-runtime-api/platform.md#window">Window</a>&gt;) -&gt; Option&lt;Rc&lt;ExpandedNode&gt;&gt;</code></pre>
+
+Route moves to the press target until release; ordinary hover still hit-tests.
+
+##### `mouse_up_target`
+<pre><code class="api-signature language-rust ignore">pub fn mouse_up_target(self: &amp;Rc&lt;Self&gt;, button: <a href="../../../api/pax-runtime-api/events.md#mousebutton">MouseButton</a>, ray: Point2&lt;<a href="../../../api/pax-runtime-api/platform.md#window">Window</a>&gt;, cancelled: bool) -&gt; Option&lt;Rc&lt;ExpandedNode&gt;&gt;</code></pre>
+
+Release capture and qualify activation only when the physical release hits the press target.
+Cancellation releases capture without qualifying a click.
+
 ##### `add_to_cache`
 <pre><code class="api-signature language-rust ignore">pub fn add_to_cache(&amp;self, node: &amp;Rc&lt;ExpandedNode&gt;)</code></pre>
 

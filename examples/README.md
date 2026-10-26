@@ -1,12 +1,13 @@
 # Pax examples
 
-Start with these nine examples. Each directory is a complete Rust package with
+Start with these ten examples. Each directory is a complete Rust package with
 its own templates and assets; the adjacent `.rs` file also exposes it as a Cargo
 example target.
 
 | Example | Explore |
 | --- | --- |
 | [Calculator](calculator) | Graphing, native input, and two-axis scrolling |
+| [LED Oscilloscope](led-oscilloscope) | A discrete RGB marquee, batched drawing, and tactile knobs |
 | [Paxflix](paxflix) | App composition, nested scrolling, and runtime themes |
 | [Living Quilt](living-quilt) | Expressive composition and interaction |
 | [Ink & Light](ink-and-light) | A responsive postcard with local assets and Rust interaction |

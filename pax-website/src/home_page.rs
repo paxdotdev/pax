@@ -137,6 +137,77 @@ impl HomePage {
             "framework_section.rs",
             include_str!("framework_section.rs"),
         ));
+        self.framework_sources.update(|files| {
+            for (label, code) in [
+                (
+                    "led-oscilloscope/lib.pax",
+                    include_str!("../../examples/led-oscilloscope/src/lib.pax"),
+                ),
+                (
+                    "led-oscilloscope/lib.rs",
+                    include_str!("../../examples/led-oscilloscope/src/lib.rs"),
+                ),
+                (
+                    "led-oscilloscope/knob.pax",
+                    include_str!("../../examples/led-oscilloscope/src/knob.pax"),
+                ),
+                (
+                    "led-oscilloscope/knob.rs",
+                    include_str!("../../examples/led-oscilloscope/src/knob.rs"),
+                ),
+                (
+                    "led-oscilloscope/display.rs",
+                    include_str!("../../examples/led-oscilloscope/src/display.rs"),
+                ),
+                (
+                    "led-oscilloscope/message_editor.pax",
+                    include_str!("../../examples/led-oscilloscope/src/message_editor.pax"),
+                ),
+                (
+                    "led-oscilloscope/message_editor.rs",
+                    include_str!("../../examples/led-oscilloscope/src/message_editor.rs"),
+                ),
+                (
+                    "led-oscilloscope/signature_pad.pax",
+                    include_str!("../../examples/led-oscilloscope/src/signature_pad.pax"),
+                ),
+                (
+                    "led-oscilloscope/signature_pad.rs",
+                    include_str!("../../examples/led-oscilloscope/src/signature_pad.rs"),
+                ),
+                (
+                    "led-oscilloscope/ink.rs",
+                    include_str!("../../examples/led-oscilloscope/src/ink.rs"),
+                ),
+                (
+                    "led-oscilloscope/font.rs",
+                    include_str!("../../examples/led-oscilloscope/src/font.rs"),
+                ),
+                (
+                    "led-oscilloscope/geometry.rs",
+                    include_str!("../../examples/led-oscilloscope/src/geometry.rs"),
+                ),
+                (
+                    "led-oscilloscope/led_glow.rs",
+                    include_str!("../../examples/led-oscilloscope/src/led_glow.rs"),
+                ),
+                (
+                    "led-oscilloscope/foreground.rs",
+                    include_str!("../../examples/led-oscilloscope/src/foreground.rs"),
+                ),
+            ] {
+                files.push(ExampleSource {
+                    label: label.into(),
+                    code: code.into(),
+                    language: if label.ends_with(".rs") {
+                        "rust"
+                    } else {
+                        "pax"
+                    }
+                    .into(),
+                });
+            }
+        });
         let mut runtime_sources = section_sources(
             "runtime_section.pax",
             include_str!("runtime_section.pax"),
@@ -267,36 +338,34 @@ impl HomePage {
                 code: include_str!("feature_gallery/mod.rs").to_string(),
             },
         ]);
-        for sources in [&self.framework_sources, &self.authoring_sources] {
-            sources.update(|files| {
-                files.extend(section_sources(
-                    "device_frame.pax",
-                    include_str!("device_frame.pax"),
-                    "device_frame.rs",
-                    include_str!("device_frame.rs"),
-                ));
-                for (label, code) in [
-                    ("path_study.pax", include_str!("path_study.pax")),
-                    ("material_study.pax", include_str!("material_study.pax")),
-                    (
-                        "native_scroll_study.pax",
-                        include_str!("native_scroll_study.pax"),
-                    ),
-                    ("demo_studies.rs", include_str!("demo_studies.rs")),
-                ] {
-                    files.push(ExampleSource {
-                        label: label.into(),
-                        language: if label.ends_with(".rs") {
-                            "rust"
-                        } else {
-                            "pax"
-                        }
-                        .into(),
-                        code: code.into(),
-                    });
-                }
-            });
-        }
+        self.authoring_sources.update(|files| {
+            files.extend(section_sources(
+                "device_frame.pax",
+                include_str!("device_frame.pax"),
+                "device_frame.rs",
+                include_str!("device_frame.rs"),
+            ));
+            for (label, code) in [
+                ("path_study.pax", include_str!("path_study.pax")),
+                ("material_study.pax", include_str!("material_study.pax")),
+                (
+                    "native_scroll_study.pax",
+                    include_str!("native_scroll_study.pax"),
+                ),
+                ("demo_studies.rs", include_str!("demo_studies.rs")),
+            ] {
+                files.push(ExampleSource {
+                    label: label.into(),
+                    language: if label.ends_with(".rs") {
+                        "rust"
+                    } else {
+                        "pax"
+                    }
+                    .into(),
+                    code: code.into(),
+                });
+            }
+        });
     }
 }
 

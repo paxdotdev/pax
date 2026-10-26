@@ -10,6 +10,7 @@ pub mod designtime_support;
 pub mod engine;
 pub mod form_event;
 pub mod layout;
+mod mouse_input;
 pub mod properties;
 mod render_instrumentation;
 pub mod rendering;

@@ -131,5 +131,34 @@ final class NativeScrollerTests: XCTestCase {
             XCTAssertEqual(scroll.contentView.bounds.origin.y, 3800, accuracy: 0.5)
         }
     }
+
+    @MainActor
+    func testWheelHandlersCanPreventNativeScrollingWithoutDuplicateDelivery() throws {
+        let dispatcher = NativeInterruptDispatcher.shared
+        let previousSend = dispatcher.wheelInterrupt
+        let previousConversion = dispatcher.convertWindowPointToPax
+        defer {
+            dispatcher.wheelInterrupt = previousSend
+            dispatcher.convertWindowPointToPax = previousConversion
+        }
+        var deliveries = 0
+        var prevented = true
+        dispatcher.wheelInterrupt = { _ in deliveries += 1; return prevented }
+        dispatcher.convertWindowPointToPax = { point, _ in point }
+        try fixture { host, _, scroll, positions in
+            let before = scroll.contentView.bounds.origin
+            scroll.scrollWheel(with: makePaxTestWheel(x: 0, y: -80))
+            flush(host)
+            XCTAssertEqual(deliveries, 1)
+            XCTAssertEqual(scroll.contentView.bounds.origin, before)
+            XCTAssertTrue(positions().isEmpty)
+            prevented = false
+            scroll.scrollWheel(with: makePaxTestWheel(x: 0, y: -80))
+            flush(host)
+            XCTAssertEqual(deliveries, 2)
+            XCTAssertGreaterThan(scroll.contentView.bounds.origin.y, before.y)
+            XCTAssertFalse(positions().isEmpty, "Unconsumed input still uses AppKit scrolling and position feedback")
+        }
+    }
 }
 #endif

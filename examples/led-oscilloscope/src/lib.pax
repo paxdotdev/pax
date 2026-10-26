@@ -1,0 +1,55 @@
+<Group width=100% height=100% @viewport_proximity_enter=self.enter @viewport_proximity_exit=self.exit>
+    if self.editing_message {
+        <MessageEditor width=100% height=100% message=bind:self.message open=bind:self.editing_message
+            drawing_mode=bind:self.drawing_mode drawing=bind:self.drawing drawing_columns=bind:self.drawing_columns/>
+    }
+    <Group x={(self.control_x)px} y={(self.control_y)px} width={(self.control_width)px} height={(self.control_height)px}>
+        <InstrumentKnob id=cyan_knob x=0% anchor_x=0% y=0% anchor_y=0% width=25% height=50%
+            label="CYAN" color=rgb(0,150,170) diameter={self.knob_diameter} value=bind:self.cyan_amplitude/>
+        <InstrumentKnob id=magenta_knob x=25% anchor_x=0% y=0% anchor_y=0% width=25% height=50%
+            label="MAGENTA" color=rgb(171,38,111) diameter={self.knob_diameter} value=bind:self.magenta_amplitude/>
+        <InstrumentKnob id=yellow_knob x=50% anchor_x=0% y=0% anchor_y=0% width=25% height=50%
+            label="YELLOW" color=rgb(213,163,22) diameter={self.knob_diameter} value=bind:self.yellow_amplitude/>
+        <InstrumentKnob id=rate_knob x=75% anchor_x=0% y=0% anchor_y=0% width=25% height=50%
+            label="RATE" color=rgb(84,86,81) diameter={self.knob_diameter} value=bind:self.rate/>
+        <InstrumentKnob id=cyan_frequency_knob x=0% anchor_x=0% y=50% anchor_y=0% width=25% height=50%
+            label="FREQUENCY" color=rgb(0,150,170) diameter={self.knob_diameter} value=bind:self.cyan_frequency
+            readout={LedOscilloscope::frequency_label(self.cyan_frequency)}/>
+        <InstrumentKnob id=magenta_frequency_knob x=25% anchor_x=0% y=50% anchor_y=0% width=25% height=50%
+            label="FREQUENCY" color=rgb(171,38,111) diameter={self.knob_diameter} value=bind:self.magenta_frequency
+            readout={LedOscilloscope::frequency_label(self.magenta_frequency)}/>
+        <InstrumentKnob id=yellow_frequency_knob x=50% anchor_x=0% y=50% anchor_y=0% width=25% height=50%
+            label="FREQUENCY" color=rgb(213,163,22) diameter={self.knob_diameter} value=bind:self.yellow_frequency
+            readout={LedOscilloscope::frequency_label(self.yellow_frequency)}/>
+        <InstrumentKnob id=saturation_knob x=75% anchor_x=0% y=50% anchor_y=0% width=25% height=50%
+            label="SATURATION" color=rgb(84,86,81) diameter={self.knob_diameter} value=bind:self.saturation/>
+        <Rectangle x=25% anchor_x=0% width=1px height=100% fill=rgba(95,87,68,80)/>
+        <Rectangle x=50% anchor_x=0% width=1px height=100% fill=rgba(95,87,68,80)/>
+        <Rectangle x=75% anchor_x=0% width=1px height=100% fill=rgba(95,87,68,80)/>
+    </Group>
+    <Group x={(self.margin)px} y={(self.margin)px} width={(self.display_width)px} height={(self.display_height)px}>
+        <Rectangle width=100% height=100% fill=TRANSPARENT @click=self.edit_message/>
+        <Group x={(self.matrix_x)px} y={(self.matrix_y)px} width={(self.matrix_width)px} height={(self.matrix_height)px}>
+            <LedGlow id=led_glow width=100% height=100% pitch={self.lamp_pitch} strength=0.85>
+                <Path elements={self.lit_highlights} fill={paint: rgba(255,255,255,65), material: {Material::unlit()}}/>
+                <ForegroundInk width=100% height=100% pitch={self.lamp_pitch} scroll={self.foreground_scroll}
+                    period={self.foreground_period} saturation={self.saturation}>
+                    <Path elements={self.lettering} fill={paint: WHITE, material: {Material::unlit()}}/>
+                </ForegroundInk>
+                <Path elements={self.cyan} fill={paint: rgb(0,221,239), material: {Material::unlit()}}/>
+                <Path elements={self.magenta} fill={paint: rgb(255,38,158), material: {Material::unlit()}}/>
+                <Path elements={self.yellow} fill={paint: rgb(255,208,0), material: {Material::unlit()}}/>
+            </LedGlow>
+            <Path elements={self.lens_highlights} fill={paint: rgb(58,64,65), material: {Material::unlit()}}/>
+            <Path elements={self.off_lamps} fill={paint: rgb(29,34,36), material: {Material::unlit()}}/>
+        </Group>
+        <Rectangle x=9px y=9px width={100% - 18px} height={100% - 18px} corner_radius=11 fill=rgb(6,10,12)
+            stroke={paint:rgb(5,6,6),width:2px}/>
+        <Rectangle width=100% height=100% corner_radius=14 fill=@gradient {0%:rgb(16,18,18),40%:rgb(36,39,39),100%:rgb(74,75,68)}
+            stroke={paint:rgb(95,92,80),width:1px}/>
+    </Group>
+    <Rectangle x=3px y=3px width={100% - 6px} height={100% - 6px} corner_radius=13
+        fill=@gradient {0%:rgb(233,224,200),38%:rgb(222,213,187),100%:rgb(193,182,155)}
+        stroke={paint:rgb(247,240,220),width:1px}/>
+    <Rectangle width=100% height=100% corner_radius=16 fill=rgb(134,127,108)/>
+</Group>

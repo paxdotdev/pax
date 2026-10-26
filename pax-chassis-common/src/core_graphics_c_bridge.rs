@@ -21,9 +21,9 @@ use pax_gpu::{Transform2D, WgpuRenderer, NATIVE_VECTOR_RESOURCE_CACHE_BYTES};
 use pax_runtime::api::math::Point2;
 use pax_runtime::api::{
     Accel, ButtonClick, CheckboxChange, Click, Event, Focus, Gyro, KeyDown, KeyPress, KeyUp,
-    KeyboardEventArgs, ModifierKey, MouseButton, MouseDown, MouseEventArgs, MouseMove, MouseUp,
+    KeyboardEventArgs, ModifierKey, MouseButton, MouseCancel, MouseDown, MouseEventArgs, MouseMove, MouseUp,
     PhotoPickerChange, RenderContext, Scroll, SelectStart, SliderChange, TextboxChange,
-    TextboxInput, Touch, TouchCancel, TouchEnd, TouchMove, TouchStart,
+    TextboxInput, Touch, TouchCancel, TouchEnd, TouchMove, TouchStart, Wheel,
 };
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 use pax_runtime::engine::layer_surface::{LayerSurfaceEntry, LayerSurfaceLayout, LayerSurfaceSize};
@@ -852,7 +852,7 @@ pub extern "C" fn pax_designtime_prime_app_revision(
 /// Note that in any single-threaded environment, these interrupts will happen
 /// synchronously between engine ticks, allowing for safe unwrapping / borrowing
 /// of engine and runtime here.
-/// Returns whether a keyboard handler prevented the native default action.
+/// Returns whether a keyboard or wheel handler prevented the native default action.
 /// Other interrupt kinds currently return false.
 #[no_mangle]
 pub extern "C" fn pax_interrupt(
@@ -939,7 +939,10 @@ pub extern "C" fn pax_interrupt(
             };
             if let Some(topmost_node) = engine
                 .runtime_context
-                .get_topmost_element_beneath_ray(Point2::new(args.x, args.y))
+                .mouse_click_target(
+                    MouseButton::from(args.button.clone()),
+                    Point2::new(args.x, args.y),
+                )
             {
                 topmost_node.dispatch_click(
                     Event::new(args_click),
@@ -951,7 +954,10 @@ pub extern "C" fn pax_interrupt(
         NativeInterrupt::MouseMove(args) => {
             if let Some(topmost_node) = engine
                 .runtime_context
-                .get_topmost_element_beneath_ray(Point2::new(args.x, args.y))
+                .mouse_move_target(
+                    MouseButton::from(args.button.clone()),
+                    Point2::new(args.x, args.y),
+                )
             {
                 let args_mouse_move = MouseMove {
                     mouse: MouseEventArgs {
@@ -971,7 +977,10 @@ pub extern "C" fn pax_interrupt(
         NativeInterrupt::MouseDown(args) => {
             if let Some(topmost_node) = engine
                 .runtime_context
-                .get_topmost_element_beneath_ray(Point2::new(args.x, args.y))
+                .mouse_down_target(
+                    MouseButton::from(args.button.clone()),
+                    Point2::new(args.x, args.y),
+                )
             {
                 let args_mouse_down = MouseDown {
                     mouse: MouseEventArgs {
@@ -991,7 +1000,11 @@ pub extern "C" fn pax_interrupt(
         NativeInterrupt::MouseUp(args) => {
             if let Some(topmost_node) = engine
                 .runtime_context
-                .get_topmost_element_beneath_ray(Point2::new(args.x, args.y))
+                .mouse_up_target(
+                    MouseButton::from(args.button.clone()),
+                    Point2::new(args.x, args.y),
+                    false,
+                )
             {
                 let args_mouse_up = MouseUp {
                     mouse: MouseEventArgs {
@@ -1003,6 +1016,30 @@ pub extern "C" fn pax_interrupt(
                 };
                 topmost_node.dispatch_mouse_up(
                     Event::new(args_mouse_up),
+                    &globals,
+                    &engine.runtime_context,
+                );
+            }
+        }
+        NativeInterrupt::MouseCancel(args) => {
+            if let Some(topmost_node) = engine
+                .runtime_context
+                .mouse_up_target(
+                    MouseButton::from(args.button.clone()),
+                    Point2::new(args.x, args.y),
+                    true,
+                )
+            {
+                let args_mouse_cancel = MouseCancel {
+                    mouse: MouseEventArgs {
+                        x: args.x,
+                        y: args.y,
+                        button: MouseButton::from(args.button.clone()),
+                        modifiers: args.modifiers.iter().map(ModifierKey::from).collect(),
+                    },
+                };
+                topmost_node.dispatch_mouse_cancel(
+                    Event::new(args_mouse_cancel),
                     &globals,
                     &engine.runtime_context,
                 );
@@ -1299,6 +1336,36 @@ pub extern "C" fn pax_interrupt(
                 NATIVE_SCROLLER_POSITIONS.with(|positions| {
                     positions.borrow_mut().remove(&args.id);
                 });
+            }
+        }
+        NativeInterrupt::Wheel(args) => {
+            if let Some(node) = engine
+                .runtime_context
+                .get_topmost_element_beneath_ray(Point2::new(args.x, args.y))
+            {
+                prevent_default = node.dispatch_wheel(
+                    Event::new(Wheel {
+                        x: args.x,
+                        y: args.y,
+                        delta_x: args.delta_x,
+                        delta_y: args.delta_y,
+                        modifiers: args.modifiers.iter().map(ModifierKey::from).collect(),
+                    }),
+                    &globals,
+                    &engine.runtime_context,
+                );
+                // Native scrollers report their actual movement separately. Match web's
+                // synthetic Scroll stream only for content outside those scrollers.
+                if !node_is_in_scroller_subtree(&node) {
+                    prevent_default |= node.dispatch_scroll(
+                        Event::new(Scroll {
+                            delta_x: args.delta_x,
+                            delta_y: args.delta_y,
+                        }),
+                        &globals,
+                        &engine.runtime_context,
+                    );
+                }
             }
         }
         NativeInterrupt::Scroll(args) => {

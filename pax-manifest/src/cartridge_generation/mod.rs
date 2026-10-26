@@ -181,6 +181,7 @@ impl PaxManifest {
         add("tap", "Click");
         add("mouse_down", "MouseDown");
         add("mouse_up", "MouseUp");
+        add("mouse_cancel", "MouseCancel");
         add("mouse_move", "MouseMove");
         add("mouse_over", "MouseOver");
         add("mouse_out", "MouseOut");

@@ -1,0 +1,25 @@
+[package]
+name = "led-oscilloscope"
+version = "0.39.1"
+edition = "2021"
+publish = false
+default-run = "led-oscilloscope"
+
+[package.metadata.pax]
+title = "LED Oscilloscope"
+
+[dependencies]
+pax-kit = { version = "0.39.1", path = "../../pax-kit", features = ["shaders"] }
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["standalone", "designtime"]
+standalone = ["pax-kit/host"]
+designtime = ["pax-kit/designtime"]
+
+[[bin]]
+name = "led-oscilloscope"
+path = "src/main.rs"
+required-features = ["standalone"]

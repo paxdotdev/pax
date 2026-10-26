@@ -25,9 +25,10 @@ function harness(permission) {
     const module = {exports: {}};
     vm.runInNewContext(code, {module, exports: module.exports, window, document, console,
         Element, HTMLElement: Element, HTMLInputElement: class {}, HTMLTextAreaElement: class {}, performance: {now: () => 0}});
-    const dispose = module.exports.setupEventListeners({interrupt: message => { interrupts.push(message); return {prevent_default: false}; }}, mount);
+    const response = {prevent_default: false};
+    const dispose = module.exports.setupEventListeners({interrupt: message => { interrupts.push(message); return response; }}, mount);
     const event = (target, clientX = 120, clientY = 80) => ({target, clientX, clientY, button: 0, preventDefault() {}, stopPropagation() {}});
-    return {window, document, mount, outside, dispose, interrupts, event};
+    return {window, document, mount, outside, dispose, interrupts, event, response};
 }
 test('embedded pointer input is local and only an initiated drag continues outside', () => {
     const h = harness();
@@ -57,6 +58,48 @@ test('late sensor permission cannot reattach callbacks after disposal', async ()
     assert.equal(h.window.listenerCount() + h.mount.listenerCount(), 0);
     assert.equal(h.window.paxRequestDeviceSensorPermissions, undefined);
     assert.equal(h.interrupts.length, 0);
+});
+
+test('focus loss cancels a drag once and later outside moves cannot continue it', () => {
+    const h = harness();
+    h.mount.send('mousedown', h.event(h.mount));
+    h.window.send('mousemove', {...h.event(h.outside, 80, 40), buttons: 1});
+    h.window.send('blur', {});
+    assert.equal(h.interrupts[2].MouseCancel.button, 'Left');
+    assert.equal(h.interrupts[2].MouseCancel.x, -20);
+    h.window.send('mousemove', h.event(h.outside));
+    h.window.send('blur', {});
+    assert.equal(h.interrupts.length, 3);
+    h.dispose();
+});
+
+test('a lost release cancels capture before hover resumes; disposal also cancels', () => {
+    const h = harness();
+    h.mount.send('mousedown', h.event(h.mount));
+    h.window.send('mousemove', {...h.event(h.mount), buttons: 0});
+    assert.ok(h.interrupts[1].MouseCancel);
+    assert.ok(h.interrupts[2].MouseMove);
+    h.mount.send('mousedown', h.event(h.mount));
+    h.dispose();
+    assert.ok(h.interrupts.at(-1).MouseCancel);
+});
+
+test('Escape reaches dismissal handlers from native focus without stealing text or IME input', () => {
+    const h = harness();
+    h.document.activeElement = h.outside;
+    let prevented = 0;
+    const key = (value, isComposing = false) => ({...h.event(h.mount), key: value, isComposing,
+        preventDefault() { prevented++; }});
+    h.mount.send('keydown', key('a'));
+    h.mount.send('keydown', key('Escape', true));
+    assert.equal(h.interrupts.length, 0);
+    h.response.prevent_default = true;
+    h.mount.send('keydown', key('Escape'));
+    h.mount.send('keyup', key('Escape'));
+    assert.equal(h.interrupts[0].KeyDown.key, 'Escape');
+    assert.equal(h.interrupts[1].KeyUp.key, 'Escape');
+    assert.equal(prevented, 2);
+    h.dispose();
 });
 
 test('click and wheel still reach Pax when a transparent native leaf is not the DOM target', () => {

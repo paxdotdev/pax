@@ -1,0 +1,53 @@
+<Group x=50% y=50% anchor=50% width={(self.card_width)px} height={(self.card_height)px}>
+    <Button x=24px y=92px width=100px height=36px label="Text" @button_click=self.show_text corner_radius=6
+        color={self.draw_tab ? rgb(215,206,181) : rgb(31,64,66)} hover_color=rgb(102,121,112)
+        style={font:"Helvetica",font_size:15px,fill:{self.draw_tab ? rgb(49,48,43) : rgb(255,244,213)},align_horizontal:TextAlignHorizontal::Center,align_vertical:TextAlignVertical::Center}/>
+    <Button x=134px y=92px width=100px height=36px label="Draw" @button_click=self.show_drawing corner_radius=6
+        color={self.draw_tab ? rgb(31,64,66) : rgb(215,206,181)} hover_color=rgb(102,121,112)
+        style={font:"Helvetica",font_size:15px,fill:{self.draw_tab ? rgb(255,244,213) : rgb(49,48,43)},align_horizontal:TextAlignHorizontal::Center,align_vertical:TextAlignVertical::Center}/>
+    if self.draw_tab {
+        <SignaturePad x=24px y=146px width={100% - 48px} height={(self.surface_height)px}
+            scroll_x=bind:self.scroll_x scroll_max=bind:self.scroll_max/>
+        <Slider x=24px y={(154 + self.surface_height)px} width={100% - 48px} height=30px
+            min=0.0 max={self.scroll_max} step=1.0 value=bind:self.scroll_x
+            accent=rgb(31,64,66) background=rgb(193,182,155)/>
+        <Button x=24px y={(self.footer_y)px} width=88px height=42px label="Clear" @button_click=self.clear_drawing
+            color=rgb(215,206,181) hover_color=rgb(193,182,155) corner_radius=6
+            style={font:"Helvetica",font_size:15px,fill:rgb(49,48,43),align_horizontal:TextAlignHorizontal::Center,align_vertical:TextAlignVertical::Center}/>
+    } else {
+        <Textbox x=24px y=146px width={100% - 48px} height=46px text=bind:self.draft
+            placeholder="YOUR MESSAGE" focus_on_mount=true @textbox_input=self.edit
+            background=rgb(250,245,230) corner_radius=6
+            stroke={paint:rgb(134,127,108),width:1px} outline={paint:rgb(0,150,170),width:2px}
+            style={font:"Courier New",font_size:16px,fill:rgb(36,39,39)}/>
+    }
+    <Button x={100% - 24px} anchor_x=100% y={(self.footer_y)px} width=88px height=42px label="OK" @button_click=self.confirm
+        color=rgb(31,64,66) hover_color=rgb(0,106,120) corner_radius=6
+        style={font:"Helvetica",font_size:16px,fill:rgb(255,244,213),align_horizontal:TextAlignHorizontal::Center,align_vertical:TextAlignVertical::Center}/>
+    <Text x=24px y=22px width={100% - 48px} height=16px text="MARQUEE MESSAGE" selectable=false
+        style={font:"Courier New",font_size:11px,fill:rgb(94,87,69)}/>
+    <Text x=24px y=44px width={100% - 48px} height=32px text={self.draw_tab ? "Make your mark." : "Make it say something."} selectable=false
+        style={font:"Helvetica",font_size:22px,fill:rgb(36,39,39)}/>
+    <Text x=24px y={(self.footer_y - 30)px} width={100% - 48px} height=18px
+        text={self.draw_tab ? "Draw above. Slide below for more room." : "A–Z, 0–9 and simple punctuation · 256 max"} selectable=false
+        style={font:"Helvetica",font_size:11px,fill:rgb(94,87,69)}/>
+    <Rectangle width=100% height=100% corner_radius=12 fill=rgb(230,221,196)
+        stroke={paint:rgb(249,241,218),width:1px}/>
+</Group>
+<EventBlocker y=50% anchor_y=50% width=100% height={(self.cover_height)px} background=rgba(6,10,12,210)/>
+
+@settings {
+    @mount: mount
+    @pre_render: pre_render
+    @key_down: key_down
+    @in: appear
+    @out: disappear
+}
+@timeline appear {
+    duration: 180ms,
+    self { opacity: { 0%: 0, OutQuad, 100%: {$base}, }, },
+}
+@timeline disappear {
+    duration: 160ms,
+    self { opacity: { 0%: {$base}, InQuad, 100%: 0, }, },
+}

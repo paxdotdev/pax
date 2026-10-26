@@ -20,6 +20,7 @@ pub const TAP_HANDLERS: &str = "tap";
 pub const DROP_HANDLERS: &str = "drop";
 pub const MOUSE_DOWN_HANDLERS: &str = "mouse_down";
 pub const MOUSE_UP_HANDLERS: &str = "mouse_up";
+pub const MOUSE_CANCEL_HANDLERS: &str = "mouse_cancel";
 pub const MOUSE_MOVE_HANDLERS: &str = "mouse_move";
 pub const MOUSE_OVER_HANDLERS: &str = "mouse_over";
 pub const MOUSE_OUT_HANDLERS: &str = "mouse_out";

@@ -231,6 +231,9 @@ a second position by accumulating event deltas.
 Native position notifications report movement that has already happened.
 They are not a cancellable, cross-platform “before scrolling” hook. Likewise,
 `@wheel` describes wheel input and does not cover every way someone can scroll.
+On web and macOS, a descendant's `@wheel` handler can prevent the native wheel
+default with `event.prevent_default()`, for example when adjusting a dial.
+Unconsumed wheel input continues to use native scrolling.
 See [Event Handling](event-handling-rust.md) for event binding and propagation.
 
 ### A resizable two-dimensional graph

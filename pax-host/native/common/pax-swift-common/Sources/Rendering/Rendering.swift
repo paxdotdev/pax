@@ -2167,6 +2167,12 @@ public struct NativeRenderingLayer: View {
             var pointerInterruptHandler: ((String, NSEvent) -> Void)?
             override var preservesContentDuringLiveResize: Bool { false }
 
+            override func scrollWheel(with event: NSEvent) {
+                if !PaxWheelInput.forward(event, from: self) {
+                    super.scrollWheel(with: event)
+                }
+            }
+
             override func acceptsFirstMouse(for event: NSEvent?) -> Bool {
                 true
             }

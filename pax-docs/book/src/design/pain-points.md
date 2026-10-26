@@ -16,6 +16,37 @@ Last triaged: 2026-10-05 — [PAX-972](https://linear.app/paxdev/issue/PAX-972/p
 
 ## Untriaged findings
 
+- 2026-10-25, PAX-1047 modal capture: `pax-cli dev look` of the oscilloscope's
+  open message editor omits the dark native `EventBlocker` backdrop and puts
+  the native OK label at the button's left edge. Expected the same image as
+  the browser, where the backdrop is visible and OK is centered. Compare the
+  browser observation in the PAX-1047 chat with
+  `/Users/zack/.codex/visualizations/2026/10/25/01a1729c-65d2-76e3-a526-2ce0d0d226df/message-editor-mobile/0000.png`.
+  Used the browser directly to verify dialog appearance; the composite capture
+  is not reliable evidence of native opacity/alignment here.
+
+- 2026-10-25, PAX-1047 shared build cache: after building the standalone
+  oscilloscope and shader-enabled website into the same `CARGO_TARGET_DIR`,
+  the website failed in `pax-macro/src/source.rs:232` with “conflicting
+  configuration for a dependency source”: `feature = "shaders"` was true
+  through one dependency and false through `led_oscilloscope`'s source helper.
+  Expected Cargo's feature-specific artifacts to remain coherent. Touching
+  `examples/led-oscilloscope/src/lib.rs` and rebuilding the website serially
+  succeeded without source changes. Exact cache-invalidation cause is not
+  established; the compiler diagnostic is in the PAX-1047 chat, and the successful
+  rebuild is `/private/tmp/pax1047-website-resume.log`.
+
+- 2026-10-25, PAX-1047 web preview: after replacing a borrowed CLI with this
+  checkout's CLI and rebuilding with `--libdev`, an existing browser origin
+  still showed native knob labels but a blank canvas. Fresh Chrome and a fresh
+  localhost origin rendered the identical standalone build. The first website
+  load also omitted scroller artwork (including the existing Path Study); a
+  rebuild and fresh navigation restored it. Do not diagnose app geometry from
+  a mixed/cached host and cartridge. The standalone stale-origin comparison is
+  confirmed; the website symptom's cause is not established. Evidence:
+  `/private/tmp/pax1047-web.log`, `/private/tmp/pax1047-website-rebuild.log`;
+  clean desktop and mobile captures are recorded with PAX-1047.
+
 - 2026-10-20, PAX-839 web checkpoint: after a fresh debug load at 1440×900,
   native content appeared but canvas artwork stayed blank through a gallery
   tour and return to the hero. Resizing to 720×900 restored the artwork;
@@ -1156,3 +1187,25 @@ carousel allocation or broadening this fix into renderer work.
   upper/middle/lower tablet wheel checks pass. Other native widgets that need
   browser input (selectable text, controls, iframes) have not been audited for
   this same occlusion/hit-region mismatch.
+
+- 2026-10-25 — PAX-1047 drawing-pad resize: a horizontal Scroller bound to a
+  pixel offset can drift when its viewport and content width change together.
+  At 390px browser width, offset 858px represented logical column 168; after
+  restoring the desktop viewport (512px pad width), the position settled at
+  1204px instead of the requested 1536px. Ink coordinates remained correct and
+  moving the position bar to 1536px revealed the intact mark. Repro: draw in the
+  fourth pad viewport, then resize with the editor open. The example attempts
+  to preserve the logical column on resize; native scroll feedback during
+  layout needs investigation. No engine workaround added.
+
+- 2026-10-25 — PAX-1047 LED glow resource tracing: shader pipelines and pass
+  textures reuse correctly (zero allocations across 667 steady animation
+  frames), but the changing batched LED paths recreate up to five vector GPU
+  resources per redraw. A 300-frame comparison with the shader removed still
+  reported 1336 vector resource creates/updates/recreates, so this is present
+  in the original path animation as well. Evidence: local `pax_log=trace`
+  captures `/private/tmp/pax1047-glow-trace-steady.json` and
+  `/private/tmp/pax1047-no-glow-trace.json`. Consider capacity reuse for changing
+  path geometry separately; no capacity-reuse change made.
+
+- 2026-10-26, PAX-1047 web interface refresh: after rebuilding the local web interface, ordinary reloads in IAB and Chrome at `localhost:8147` retained the earlier JavaScript while loading the new Wasm. Expected keyboard-bridge changes to become active on refresh; observed Escape still ignored and temporary key logging absent. The served file contained the new handler (verified with curl); loading `127.0.0.1:8147` immediately delivered Escape and closed the editor. Workaround for verification: use a fresh local origin; investigate development bundle cache headers/invalidation. Diagnostic logging removed.

@@ -703,6 +703,10 @@ content still needs rendering. Resizing the capture can allocate new textures.
 The capture envelope includes descendant drawing bounds and sampling support,
 so a moving child that extends beyond the container can change that envelope
 although the container's layout size is fixed.
+On first display or when a scrolled-away surface is recreated, the renderer
+replays the complete filtered subtree from settled scene state. This does not
+advance the application clock or require an animation or geometry change to
+produce the first frame; stationary filters work too.
 
 For an inexpensive exit, stop both source animation and shader `phase`, then
 fade a stationary ancestor Group. WGPU can reuse the assembled pixels across

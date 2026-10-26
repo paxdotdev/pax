@@ -112,6 +112,7 @@ pub struct RuntimeContext {
     node_cache: RefCell<NodeCache>,
     last_topmost_element: RefCell<Weak<ExpandedNode>>,
     active_touch_targets: RefCell<HashMap<i64, ExpandedNodeIdentifier>>,
+    pub(crate) mouse_input: RefCell<crate::mouse_input::MouseInput>,
     queued_custom_events: RefCell<Vec<(Rc<ExpandedNode>, &'static str)>>,
     queued_renders: RefCell<Vec<Rc<ExpandedNode>>>,
     pub layer_count: Cell<usize>,
@@ -257,6 +258,7 @@ impl RuntimeContext {
             root_expanded_node: RefCell::new(Weak::new()),
             node_cache: RefCell::new(NodeCache::new()),
             active_touch_targets: Default::default(),
+            mouse_input: Default::default(),
             queued_custom_events: Default::default(),
             queued_renders: Default::default(),
             layer_count: Cell::default(),
@@ -310,6 +312,7 @@ impl RuntimeContext {
             userland_root_expanded_node: Default::default(),
             node_cache: RefCell::new(NodeCache::new()),
             active_touch_targets: Default::default(),
+            mouse_input: Default::default(),
             queued_custom_events: Default::default(),
             queued_renders: Default::default(),
             layer_count: Cell::default(),
@@ -363,6 +366,7 @@ impl RuntimeContext {
             userland_root_expanded_node: Default::default(),
             node_cache: RefCell::new(NodeCache::new()),
             active_touch_targets: Default::default(),
+            mouse_input: Default::default(),
             queued_custom_events: Default::default(),
             queued_renders: Default::default(),
             layer_count: Cell::default(),
@@ -444,6 +448,7 @@ impl RuntimeContext {
         self.occlusion_state.borrow_mut().remove(node.id.to_u32());
         borrow_mut!(self.canvas_node_light_masks).remove(&node.id);
         borrow_mut!(self.active_touch_targets).retain(|_, target| *target != node.id);
+        borrow_mut!(self.mouse_input).forget(node.id);
         self.unregister_node_lifecycle_handlers(node.id);
         if node.is_import_settings_node() {
             self.import_settings_node_count
@@ -2972,6 +2977,88 @@ mod light_scope_tests {
             context.canvas_surface_transform_for_node(&leaf),
             leaf_transform,
         );
+    }
+
+    #[test]
+    fn mouse_capture_routes_across_siblings_and_outside_until_release() {
+        let mut knob = TestLightingNode::new(TestLightingRole::Surface, Vec::new());
+        let mut display = TestLightingNode::new(TestLightingRole::Surface, Vec::new());
+        for node in [&mut knob, &mut display] {
+            Rc::get_mut(node).unwrap().base = BaseInstance::new(
+                node_args(vec![]),
+                InstanceFlags {
+                    invisible_to_slot: false,
+                    invisible_to_raycasting: false,
+                    layer: Layer::Canvas,
+                    is_component: false,
+                    is_slot: false,
+                },
+            );
+        }
+        let (context, root) = mount_test_tree(vec![knob.as_instance(), display.as_instance()]);
+        context.register_root_expanded_node(&root);
+        let knob = root.children.get()[0].clone();
+        let display = root.children.get()[1].clone();
+        for (node, x) in [(&knob, 0.), (&display, 120.)] {
+            node.transform_and_bounds
+                .replace_with(LocalProperty::new(TransformAndBounds {
+                    transform: Transform2::new(Affine::translate((x, 0.)).as_coeffs()),
+                    bounds: (100., 100.),
+                }));
+        }
+        use pax_runtime_api::MouseButton::Left;
+        assert_eq!(
+            context
+                .mouse_down_target(Left, Point2::new(20., 20.))
+                .unwrap()
+                .id,
+            knob.id
+        );
+        assert_eq!(
+            context
+                .mouse_move_target(Left, Point2::new(140., 20.))
+                .unwrap()
+                .id,
+            knob.id
+        );
+        assert_eq!(
+            context
+                .mouse_move_target(Left, Point2::new(-100., -100.))
+                .unwrap()
+                .id,
+            knob.id
+        );
+        assert_eq!(
+            context
+                .mouse_up_target(Left, Point2::new(140., 20.), false)
+                .unwrap()
+                .id,
+            knob.id
+        );
+        assert!(context
+            .mouse_click_target(Left, Point2::new(140., 20.))
+            .is_none());
+        assert_eq!(
+            context
+                .mouse_move_target(Left, Point2::new(140., 20.))
+                .unwrap()
+                .id,
+            display.id
+        );
+        context.mouse_down_target(Left, Point2::new(140., 20.));
+        context.mouse_up_target(Left, Point2::new(140., 20.), false);
+        assert_eq!(
+            context
+                .mouse_click_target(Left, Point2::new(140., 20.))
+                .unwrap()
+                .id,
+            display.id
+        );
+        context.mouse_down_target(Left, Point2::new(20., 20.));
+        context.remove_from_cache(&knob);
+        assert!(context
+            .mouse_move_target(Left, Point2::new(140., 20.))
+            .is_none());
     }
 
     #[test]

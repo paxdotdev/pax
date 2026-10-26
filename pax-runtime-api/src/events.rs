@@ -305,6 +305,7 @@ impl From<&ModifierKeyMessage> for ModifierKey {
 /// `@click` and `@tap` handlers both receive `Event<Click>`. A touch tap is
 /// emitted after touch end and normalized with `button` set to
 /// `MouseButton::Left` and no modifiers.
+/// Mouse activation requires a matching press and release on the same live hit node.
 #[derive(Clone)]
 pub struct Click {
     /// Common mouse event data.
@@ -333,23 +334,24 @@ pub struct DoubleClick {
     pub mouse: MouseEventArgs,
 }
 
-/// User moves the mouse while it is over an element.
+/// User moves the mouse. During a press, moves stay routed to that button's captured target.
 #[derive(Clone)]
 pub struct MouseMove {
     /// Common mouse event data.
     pub mouse: MouseEventArgs,
 }
 
-/// User scrolls the mouse wheel over an element.
+/// Wheel or trackpad scroll input over an element, before the platform scrolls.
+/// Web and macOS deliver this to the hit node with template-parent bubbling.
 #[derive(Clone)]
 pub struct Wheel {
-    /// The x-coordinate of the wheel event in the receiving node's local coordinate space.
+    /// Window-space x-coordinate; use `NodeContext::local_point` for node-local coordinates.
     pub x: f64,
-    /// The y-coordinate of the wheel event in the receiving node's local coordinate space.
+    /// Window-space y-coordinate; use `NodeContext::local_point` for node-local coordinates.
     pub y: f64,
-    /// Horizontal wheel delta.
+    /// Horizontal wheel delta, positive in the direction that scrolls content to the right.
     pub delta_x: f64,
-    /// Vertical wheel delta.
+    /// Vertical wheel delta, positive in the direction that scrolls down a document.
     pub delta_y: f64,
     /// Modifier keys active during the event.
     pub modifiers: Vec<ModifierKey>,
@@ -521,17 +523,25 @@ impl From<&PhotoPickerInterruptArgs> for PhotoPickerChange {
     }
 }
 
-/// User presses a mouse button over an element.
+/// User presses a mouse button over an element, capturing that target until release or cancel.
 #[derive(Clone)]
 pub struct MouseDown {
     /// Common mouse event data.
     pub mouse: MouseEventArgs,
 }
 
-/// User releases a mouse button over an element.
+/// User releases a mouse button. Delivered to the press target even outside its bounds.
 #[derive(Clone)]
 pub struct MouseUp {
     /// Common mouse event data.
+    pub mouse: MouseEventArgs,
+}
+
+/// An active mouse sequence was interrupted, for example by window focus loss on web.
+/// Clear dragging state here as well as in `MouseUp`; cancellation never activates a click.
+#[derive(Clone)]
+pub struct MouseCancel {
+    /// Last known mouse coordinates and the cancelled button.
     pub mouse: MouseEventArgs,
 }
 

@@ -1,0 +1,26 @@
+<Scroller width=100% height=100% corner_radius=6 scroll_width={(self.content_width)px}
+    scroll_height=100% scroll_pos_x=bind:self.scroll_x>
+  <Group width={(self.content_width)px} height=100%>
+    <Rectangle width=100% height=100% fill=TRANSPARENT/>
+    <Path elements={self.ink_path} fill=TRANSPARENT
+        stroke={paint:rgb(31,64,66),width:{(self.brush_width)px},cap:StrokeCap::Round,join:StrokeJoin::Round}/>
+    <Path elements={self.dots} fill=rgb(31,64,66)/>
+    <Rectangle x=12px y=78% width={100% - 24px} height=1px fill=rgba(134,127,108,65)/>
+    <Rectangle width=100% height=100% fill=rgb(250,245,230)
+        stroke={paint:rgb(134,127,108),width:1px}/>
+  </Group>
+</Scroller>
+@settings {
+    @mount: mount
+    @pre_render: pre_render
+    @mouse_down: down
+    @mouse_move: move_mouse
+    @mouse_up: up
+    @mouse_cancel: cancel_mouse
+    @mouse_out: out
+    @scroll: scroll
+    @touch_start: touch
+    @touch_move: move_touch
+    @touch_end: release_touch
+    @touch_cancel: cancel_touch
+}

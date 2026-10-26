@@ -8,6 +8,7 @@ publish = false
 [workspace]
 resolver = "2"
 members = [
+    "examples/led-oscilloscope",
     "examples/calculator",
     "examples/increment",
     "examples/ink-and-light",
@@ -206,12 +207,16 @@ opt-level = 0
 [profile.dev.package.shader-studio]
 opt-level = 0
 
+[profile.dev.package.led-oscilloscope]
+opt-level = 0
+
 [profile.release]
 lto = true
 opt-level = "z" 
 codegen-units = 1  
 
 [dev-dependencies]
+led-oscilloscope = { path = "examples/led-oscilloscope", default-features = false }
 shader-studio = { path = "examples/fixtures/shader-studio", default-features = false }
 pax-kit = { path = "pax-kit", features = ["host", "designtime"] }
 adaptive-cards = { path = "examples/fixtures/adaptive-cards", default-features = false }

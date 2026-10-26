@@ -22,6 +22,7 @@ social_image = "pax-favicon.png"
 social_image_alt = "Pax logo"
 
 [dependencies]
+led-oscilloscope = { version = "0.39.1", path = "../examples/led-oscilloscope", default-features = false }
 pax-kit = { version = "0.39.1", path = "../pax-kit", features = ["shaders"] }
 calculator = { version = "0.39.1", path = "../examples/calculator", default-features = false }
 paxflix = { version = "0.39.1", path = "../examples/paxflix", default-features = false }

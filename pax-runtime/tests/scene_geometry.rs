@@ -45,6 +45,23 @@ struct Recorder {
     fallbacks: usize,
 }
 impl RenderContext for Recorder {
+    #[cfg(feature = "shaders")]
+    fn begin_shader_effect(
+        &mut self,
+        _: usize,
+        _: u32,
+        _: i32,
+        _: &ShaderEffect,
+        _: kurbo::Affine,
+        _: (f64, f64),
+        _: &[OpacityScope],
+        _: &[u32],
+    ) -> bool {
+        // Like the GPU backend, a cold effect requires its complete subtree.
+        true
+    }
+    #[cfg(feature = "shaders")]
+    fn end_shader_effect(&mut self, _: usize, _: u32) {}
     fn prepares_surface_content(&self) -> bool {
         true
     }
@@ -284,6 +301,96 @@ fn rejected_cold_record_has_atomic_direct_fallback_instead_of_starvation() {
     assert_eq!(report.fallbacks, 1);
     assert_eq!(report.submitted, 1);
     assert_eq!(renderer.fallbacks, 1);
+}
+
+#[cfg(feature = "shaders")]
+#[test]
+fn cold_nested_shader_replay_preserves_settled_geometry_and_submits_without_a_tick() {
+    struct ShaderContainer(BaseInstance);
+    impl InstanceNode for ShaderContainer {
+        fn instantiate(args: InstantiationArgs) -> Rc<Self> {
+            Rc::new(Self(BaseInstance::new(
+                args,
+                InstanceFlags {
+                    layer: Layer::Canvas,
+                    invisible_to_slot: false,
+                    invisible_to_raycasting: true,
+                    is_component: false,
+                    is_slot: false,
+                },
+            )))
+        }
+        fn base(&self) -> &BaseInstance {
+            &self.0
+        }
+        fn resolve_debug(
+            &self,
+            f: &mut std::fmt::Formatter,
+            _: Option<&ExpandedNode>,
+        ) -> std::fmt::Result {
+            f.debug_struct("ShaderContainer").finish()
+        }
+        fn shader_effect(&self, _: &ExpandedNode) -> Option<ShaderEffect> {
+            static PROGRAM: ShaderProgram = ShaderProgram {
+                label: "record-only",
+                passes: &[],
+            };
+            Some(ShaderEffect {
+                program: &PROGRAM,
+                parameters: vec![],
+                outset: 0.0,
+            })
+        }
+    }
+    let mut engine = PaxEngine::new_empty(
+        (320.0, 240.0),
+        Platform::Web,
+        OS::Mac,
+        Box::new(|| 0),
+        Default::default(),
+    );
+    let leaf = GeometryLeaf::instantiate(args());
+    let mut inner = args();
+    inner.children = Some(RefCell::new(vec![leaf.clone()]));
+    let mut outer = args();
+    outer.children = Some(RefCell::new(vec![ShaderContainer::instantiate(inner)]));
+    let mut root = args();
+    root.component_template = Some(RefCell::new(vec![ShaderContainer::instantiate(outer)]));
+    let root = engine.mount_root_component(ComponentInstance::instantiate(root));
+    engine.runtime_context.resize_canvas_layers_to(1);
+    engine.tick();
+    let mut renderer = Recorder::default();
+    engine.render(&mut renderer);
+    let ctx = &engine.runtime_context;
+    ctx.prepare_scene_geometry();
+    assert!(ctx.can_present_settled_surfaces());
+    let geometry = ctx.canvas_geometry_for_node(&root.children.get()[0]);
+    renderer.jobs = vec![ReplayCanvasLayerUpdate {
+        layer: geometry.layer,
+        regions: Some(vec![kurbo::Rect::new(0.0, 0.0, 320.0, 240.0)]),
+    }];
+    let preparations = ctx.scene_geometry_stats().preparations;
+    let frames = ctx
+        .globals()
+        .stack_frame()
+        .resolve_symbol("$frames")
+        .unwrap()
+        .get_as_pax_value();
+    let mut budget = pax_runtime::engine::surface_work::SurfaceWorkBudget::new(4.0);
+    let report = engine.present_settled_surfaces(&mut renderer, &mut budget, || 0.0);
+    assert_eq!(report.fallbacks, 1);
+    assert_eq!(report.submitted, 1);
+    assert_eq!(report.deferred, 0);
+    assert!(ctx.can_present_settled_surfaces());
+    assert_eq!(ctx.scene_geometry_stats().preparations, preparations);
+    assert_eq!(
+        ctx.globals()
+            .stack_frame()
+            .resolve_symbol("$frames")
+            .unwrap()
+            .get_as_pax_value(),
+        frames
+    );
 }
 
 #[test]

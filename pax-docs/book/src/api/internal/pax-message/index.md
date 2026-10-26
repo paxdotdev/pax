@@ -1773,6 +1773,7 @@ Events and data packets sent from the chassis back into the Pax runtime.
 ##### `Wheel`([`WheelInterruptArgs`](../../../api/internal/pax-message/index.md#wheelinterruptargs))
 ##### `MouseDown`([`MouseDownInterruptArgs`](../../../api/internal/pax-message/index.md#mousedowninterruptargs))
 ##### `MouseUp`([`MouseUpInterruptArgs`](../../../api/internal/pax-message/index.md#mouseupinterruptargs))
+##### `MouseCancel`([`MouseUpInterruptArgs`](../../../api/internal/pax-message/index.md#mouseupinterruptargs))
 ##### `ContextMenu`([`ContextMenuInterruptArgs`](../../../api/internal/pax-message/index.md#contextmenuinterruptargs))
 ##### `Image`([`ImageLoadInterruptArgs`](../../../api/internal/pax-message/index.md#imageloadinterruptargs))
 ##### `AddedLayer`([`AddedLayerArgs`](../../../api/internal/pax-message/index.md#addedlayerargs))

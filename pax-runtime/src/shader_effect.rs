@@ -89,18 +89,22 @@ impl ExpandedNode {
             &children,
         );
         if replay {
-            fn dirty(node: &Rc<ExpandedNode>, context: &RuntimeContext) {
+            fn collect_replay(node: &Rc<ExpandedNode>, ids: &mut Vec<u32>) {
                 if node.is_render_source() {
                     return;
                 }
-                context.mark_canvas_node_dirty(node.id);
+                ids.push(node.id.to_u32());
                 for child in node.children.get().iter() {
-                    dirty(child, context);
+                    collect_replay(child, ids);
                 }
             }
+            let mut ids = Vec::new();
             for child in self.children.get().iter() {
-                dirty(child, context);
+                collect_replay(child, &mut ids);
             }
+            // Capture replays unchanged drawing state. Invalidating geometry here
+            // would make cold-surface preparation reject its own atomic fallback.
+            context.mark_canvas_nodes_on_layer_dirty_by_id(layer, &ids);
         }
         for child in self.children.get().iter().rev() {
             child.recurse_render(context, renderer);

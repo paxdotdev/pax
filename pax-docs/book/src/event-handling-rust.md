@@ -101,6 +101,7 @@ starting points:
 | `@mouse_move` | `Event<MouseMove>` | Pointer position through `event.mouse` |
 | `@touch_start`, `@touch_move`, `@touch_end`, `@touch_cancel` | `Event<TouchStart>`, `Event<TouchMove>`, `Event<TouchEnd>`, `Event<TouchCancel>` | `event.touches`, including identifiers and positions |
 | `@key_down`, `@key_up` | `Event<KeyDown>`, `Event<KeyUp>` | `event.keyboard.key`, `.modifiers`, `.is_repeat` |
+| `@mouse_cancel` | `Event<MouseCancel>` | Last mouse position and cancelled button; clear drag state |
 | `@textbox_input`, `@textbox_change` | `Event<TextboxInput>`, `Event<TextboxChange>` | `event.text` |
 | `@checkbox_change` | `Event<CheckboxChange>` | `event.checked` |
 | `@slider_change` | `Event<SliderChange>` | `event.value` |
@@ -512,9 +513,13 @@ components with keyboard handlers may receive the same key. If a shortcut
 belongs to one active view or mode, check that application state in the
 handler before acting on it.
 
-On web, the chassis forwards these global keyboard events only while the
-document body is the active element. When a Textbox or another native DOM
-element has focus, its keyboard input stays with that control.
+On web, the chassis forwards these global keyboard events while the Pax mount
+has focus. When a Textbox or another native DOM element has focus, text input
+stays with that control. Escape key-down and key-up also reach mounted Pax
+handlers from native controls inside that mount, so a modal can dismiss while
+its textbox is focused. Escape is not forwarded during IME composition.
+Check whether the modal is open before handling Escape; `prevent_default()`
+suppresses the browser default for a handled dismissal.
 
 On Apple targets, the Pax canvas receives keys as the native first responder.
 A standalone app initially focuses its canvas. An embedded mount preserves the
@@ -584,6 +589,58 @@ subtracting only the element's `x` and `y` misses rotation, scale, and moving
 scroll content. Read more about [Layout](layout-responsiveness.md) and
 [Scrolling](scrolling-viewports.md).
 
+### Wheel input
+
+`@wheel` receives `Event<Wheel>` on web and macOS, including over content in a
+native Scroller. Its `x` and `y` are window-space coordinates; `delta_x` and
+`delta_y` are positive in the direction that scrolls right/down through a
+document. Delta magnitude depends on the input device and platform. Call
+`event.prevent_default()` when a custom control consumes the wheel so its
+ancestor Scroller does not also move. For example:
+
+```rust
+pub fn adjust(&mut self, _: &NodeContext, event: Event<Wheel>) {
+    event.prevent_default();
+    self.value.set((self.value.get() + event.delta_y * 0.002).clamp(0., 1.));
+}
+```
+
+Bind this with `@wheel=self.adjust`. Native scrollers retain their platform
+behavior for unconsumed input and report actual movement through `@scroll`;
+outside a Scroller, wheel input also supplies the shared `@scroll` delta stream.
+Wheel input is separate from mouse-drag capture and follows the current hit node.
+
+### Mouse sequences and capture
+
+On web and in the shared Apple input bridge, a mouse press captures its topmost
+hit node for that button. Subsequent `@mouse_move` and `@mouse_up` events route
+to that original node, with ordinary template-parent bubbling, even over a
+sibling or outside the node's bounds. Hover (`@mouse_over`/`@mouse_out`) still
+tracks the physical pointer; do not end an unbounded drag on mouse-out.
+Capture ends on release or cancellation. If its target unmounts, the remaining
+sequence is discarded rather than retargeted to another control.
+
+A mouse `@click` requires a matching mouse-down and mouse-up over the same
+hit node. Releasing a drag over another control does not activate that control.
+The chassis click notification is consumed once; a standalone injected Click
+without a preceding press/release does not activate rendered content. Native
+Button activation continues to use `@button_click`.
+
+On macOS, native Textboxes forward the press before AppKit's selection tracking
+loop and the release afterward, retaining native text focus. A completed click
+also reaches `@click` on the textbox and its template ancestors; text-selection
+drags and releases outside the control do not activate. AppKit owns intermediate
+selection movement, so these native text controls do not stream `@mouse_move`.
+An interrupted tracking loop releases capture with `@mouse_cancel`.
+
+Use `@mouse_cancel` with `Event<MouseCancel>` to clear drag state just as in
+`@mouse_up`. The web chassis emits cancellation on window focus loss, mount
+disposal, or detecting that a release was missed outside the browser. It never
+synthesizes a click for cancellation. Apple bridges accept cancellation, but
+native hosts do not currently emit the equivalent focus-loss notification.
+Capture keeps routing delivered coordinates; it does not lock the cursor or
+provide unlimited relative movement beyond screen edges.
+
 ### Touch sequences and capture
 
 For a custom touch interaction, use `@touch_start`, `@touch_move`,
@@ -595,8 +652,8 @@ The primary touch captures the topmost hit node at `TouchStart`. While that
 capture remains valid, subsequent move, end, and cancel events target it even
 when the finger leaves its bounds; the usual template-parent delivery still
 applies. This is useful for keeping a drag attached to its original control.
-It does not establish equivalent mouse capture or a general multi-touch
-gesture recognizer.
+This is independent of per-button mouse capture and does not provide a general
+multi-touch gesture recognizer.
 
 Clear pressed or dragging state in both end and cancel handlers. `TouchEnd`
 finishes a normally released sequence. `TouchCancel` handles an interrupted

@@ -588,6 +588,67 @@ explicitly pass `--force`. After ejection, the Pax file is editable source:
 changes to the original SVG do not automatically update it. To inspect the
 generated template without writing files, use `--stdout`.
 
+## A discrete display inside a scene
+
+The [LED Oscilloscope example](https://github.com/paxdotdev/pax/tree/main/examples/led-oscilloscope)
+separates a small logical display from its appearance. Rust samples three waves
+onto integer cells, then overwrites occupied cells with a bold bitmap marquee
+whose strokes are three LEDs thick. Its 15×21-cell letters are centered in a
+29-row display, with four clear rows above and below. Spaces advance two-thirds
+as far as letters; the cached text columns support this variable spacing without
+laying out the message on every frame.
+Pax draws the resulting round lamps as a few paths grouped by color. This keeps
+the template tree small while preserving the individual bulbs and black gaps.
+Inactive lamp geometry is cached until the cabinet resizes.
+
+```pax
+<LedOscilloscope width=100% height=420px message="DREAM IT. BUILD IT."/>
+```
+
+Import `led_oscilloscope::LedOscilloscope` from the example package to reuse it;
+its README describes responsive sizing, supported glyphs, and control behavior.
+The cabinet fills both assigned dimensions without an outer margin or width
+cap. Use `height=100%` in a viewport, or give it the height of an embedded panel.
+Each CMY wave has independent amplitude and frequency knobs; RATE controls
+animation speed. SATURATION defaults to zero (white) and blends text and drawings
+to a rainbow. Mouse drags retain the pressed knob across other controls and outside
+the cabinet. Clicking the LED panel opens the editor; Escape dismisses it without
+applying changes, including while its web textbox has focus.
+The foreground shader uses source-message columns, so each column retains its
+hue as it scrolls, including when the message wraps. This uses one shader pass
+and changing uniforms rather than creating additional paths for every color.
+Click or tap the display to open its fading message editor. The native textbox
+uppercases supported ASCII and drops unsupported characters; OK applies the
+message. A Draw tab accepts a signature-like message with a thick round brush.
+It keeps a smooth preview while editing, then samples the strokes into an
+LED mask on OK. A horizontal Scroller and a bound position slider provide
+room for a longer message; the canvas grows toward the right as it fills,
+and unused space after the last mark is omitted from playback. Leaving the
+pad or scrolling lifts the pen, and Clear resets the drawing;
+text and drawing drafts are retained independently. Both modes use the same
+foreground composition and scrolling. The editor uses [enter and exit transitions](animation-motion.md#enter-and-exit-transitions)
+and [native controls](accessibility-native-controls.md#a-small-editable-form).
+Narrow and portrait containers move the controls below the display; wide or
+short landscape containers keep them beside it. The visible column count fits
+the available area without stretching the circular lamps. An example-owned `LedGlow` shader
+adds a soft colored halo and faint stationary grain underneath the original
+bulbs. It filters only the lit paths in two passes, keeping its capture size
+stable as the cells change so textures and pipelines can be reused. With
+foreground coloring, there are three filter passes per effect tile plus captures. This
+treatment requires WGPU and enables the opt-in `shaders` feature; see
+[shader containers](compositing-effects.md#experimental-shader-containers).
+Waveform and text cells have no partial coverage; the smooth outline and halo
+of a round bulb are independent of that discrete content.
+It animates while visible and does not yet follow the system reduced-motion
+preference. See [motion choices](animation-motion.md#paths-interaction-and-motion-choices).
+
+<pax-example
+  path="led-oscilloscope"
+  title="LED Oscilloscope"
+  height="520"
+  files="src/lib.pax,src/lib.rs,src/foreground.rs,src/led_glow.rs,src/display.rs,src/font.rs,src/knob.pax,src/knob.rs,src/geometry.rs">
+</pax-example>
+
 ## Lighting and materials
 
 Vector materials can respond to authored lights on the GPU renderer. A

@@ -1088,6 +1088,7 @@ struct PaxViewMacos: View {
                     return withUnsafePointer(to: &buffer) { PaxCartridgeRuntime.shared.interrupt(engine, $0) }
                 }
             }
+            NativeInterruptDispatcher.shared.wheelInterrupt = keyboardInterrupt
             NativeInterruptDispatcher.shared.convertWindowPointToPax = { [weak self] point, window in
                 guard let self else {
                     return nil
@@ -2360,25 +2361,10 @@ struct PaxViewMacos: View {
             dispatchPointerInterrupt("Click", event: event)
         }
 
-        override func scrollWheel(with event: NSEvent){
-            let deltaX = event.scrollingDeltaX
-            let deltaY = -event.scrollingDeltaY
-            let point = convert(event.locationInWindow, from: nil)
-            let x = point.x;
-            let y = point.y;
-            let json = String(format: "{\"Scroll\": {\"x\": %f, \"y\": %f, \"delta_x\": %f, \"delta_y\": %f} }", x, y, deltaX, deltaY);
-            let buffer = try! FlexBufferBuilder.fromJSON(json)
-
-            //Send `Scroll` interrupt
-            buffer.data.withUnsafeBytes({ptr in
-                var ffi_container = InterruptBuffer( data_ptr: ptr.baseAddress!, length: UInt64(ptr.count) )
-                guard let engineContainer = PaxEngineContainer.paxEngineContainer else {
-                    return
-                }
-                withUnsafePointer(to: &ffi_container) {ffi_container_ptr in
-                    PaxCartridgeRuntime.shared.interrupt(engineContainer, ffi_container_ptr)
-                }
-            })
+        override func scrollWheel(with event: NSEvent) {
+            if !PaxWheelInput.forward(event, from: self) {
+                super.scrollWheel(with: event)
+            }
         }
 
     }

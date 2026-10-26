@@ -49,6 +49,12 @@ factory that calls your implementation through the import path in
 `#[primitive(...)]`; adding a node does not require an enum entry in
 `pax-std`.
 
+For a primitive in a reusable library, use its public package-qualified path
+(for example, `my_widgets::glow::GlowInstance`) in `#[primitive(...)]`.
+The factory is generated in the consuming application, so `crate::` there
+refers to that application. If the library also hosts its own runnable root,
+`extern crate self as my_widgets;` lets the same path resolve internally.
+
 There are two Rust types to understand:
 
 - The `#[pax]` type declares the properties visible to authors.
