@@ -1,0 +1,15 @@
+{
+  "abi": 2,
+  "component": "probe_bundle::Counter",
+  "fields": [
+    {"name": "count", "kind": "u32", "import": "count", "default": 0},
+    {"name": "step", "kind": "u32", "import": "step", "default": 1},
+    {"name": "warm", "kind": "bool", "import": "warm", "default": 0},
+    {"name": "local_clicks", "kind": "u32", "import": null, "default": 0}
+  ],
+  "handlers": [
+    {"name": "mount", "kind": "mount", "opcode": 1},
+    {"name": "unmount", "kind": "unmount", "opcode": 3},
+    {"name": "increment", "kind": "event", "opcode": 2}
+  ]
+}

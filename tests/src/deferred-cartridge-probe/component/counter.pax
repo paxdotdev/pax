@@ -1,0 +1,13 @@
+<Group x=24px y=18px width={100% - 48px} height=140px>
+    <Text width=100% height=32px text={"Child sees parent: " + count} class="copy"/>
+    <Text y=36px width=100% height=28px text={"Module-local clicks: " + local_clicks} class="copy"/>
+    <Button y=82px width=220px height=44px label={"Child adds " + step} @button_click=increment/>
+</Group>
+slot()
+<Rectangle width=100% height=100% fill={warm ? rgb(242, 184, 111) : rgb(164, 212, 196)} corner_radius=16/>
+
+@settings {
+    @mount: mount
+    @unmount: unmount
+    .copy { style: { font: "Arial", font_size: 19px, fill: rgb(22, 41, 38) } }
+}

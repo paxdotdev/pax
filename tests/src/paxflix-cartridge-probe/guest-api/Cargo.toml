@@ -1,0 +1,11 @@
+[package]
+name = "pax-module-guest-api"
+version = "0.0.0"
+edition = "2021"
+publish = false
+[dependencies]
+kurbo="0.11.3"
+pax-runtime-api = { path = "../../../../pax-runtime-api" }
+pax-macro = { path = "../../../../pax-macro" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

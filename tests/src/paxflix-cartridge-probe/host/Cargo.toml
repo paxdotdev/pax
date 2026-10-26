@@ -1,0 +1,16 @@
+[package]
+name = "paxflix-module-host"
+version = "0.0.0"
+edition = "2021"
+publish = false
+[lib]
+crate-type = ["cdylib", "rlib"]
+[dependencies]
+kurbo="0.11.3"
+pax-kit = { path = "../../../../pax-kit" }
+pax-runtime-api = { path = "../../../../pax-runtime-api" }
+wasm-bindgen = "0.2.129"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+[features]
+shell = []

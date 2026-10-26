@@ -1,0 +1,28 @@
+<Group x=50% y=50% width=90% height=460px>
+    <Text width=100% height=45px text="One scene. Two WASM modules." class="title"/>
+    <Text y=52px width=100% height=32px text={"Parent count: " + count + "    ·    Step: " + step} class="body"/>
+    <Group y=105px width=100% height=44px>
+        <Button width=22% label="Reset parent" @button_click=reset/>
+        <Button x=26% anchor_x=0% width=22% label="Change step" @button_click=change_step/>
+        <Button x=52% anchor_x=0% width=22% label="Toggle child" @button_click=toggle/>
+        <Button x=78% anchor_x=0% width=22% label="Change color" @button_click=theme/>
+    </Group>
+    if ready && visible {
+        <Frame y=180px width=100% height=215px>
+            <DeferredOutlet width=100% height=215px count=bind:count step={step} warm={warm}>
+                <Text y=160px x=24px width=90% height=30px text="This slot belongs to the parent." class="body"/>
+            </DeferredOutlet>
+        </Frame>
+    }
+    if !ready {
+        <Text y=220px width=100% height=60px text="The whole child component is absent. Load it with the control above." class="body"/>
+    }
+</Group>
+<Rectangle width=100% height=100% fill={rgb(241, 244, 240)}/>
+
+@settings {
+    @mount: mount
+    .title { style: { font: "Arial", font_size: 30px, fill: rgb(22, 41, 38) } }
+    .body { style: { font: "Arial", font_size: 17px, fill: rgb(40, 60, 55) } }
+}
+

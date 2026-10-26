@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PAX-1034 · Deferred component probe</title>
+<style>
+  html,body { margin:0; height:100%; background:#f1f4f0; font:14px Arial,sans-serif; color:#162926; }
+  header { height:76px; box-sizing:border-box; display:flex; align-items:center; gap:12px; padding:16px 5%; border-bottom:1px solid #ccd6ce; }
+  button,select { padding:10px 14px; border:1px solid #9cac9f; border-radius:6px; color:inherit; background:white; }
+  header button { cursor:pointer; } #status { margin-left:auto; font-size:13px; }
+  #app { position:absolute; inset:76px 0 0; }
+  @media(max-width:600px) { header { padding:10px; gap:6px; } #status { max-width:120px; } }
+</style>
+<header>
+  <strong>PAX-1034</strong>
+  <button id="load" disabled>Load whole component</button>
+  <select id="bridge"><option value="wasm">Direct WASM imports</option><option value="js">JS property bridge</option></select>
+  <span id="status">Starting base scene…</span>
+</header>
+<div id="app"></div>
+<script src="pax-interface-web.js"></script>
+<script type="module" src="probe.js"></script>
+</html>
+
