@@ -6,8 +6,10 @@
         direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal} gutter={self.compact ? 32px : 6%}
         sizes={self.compact ? [] : [Some(28%), None]}>
         <Group width=100% height={self.compact ? (self.logo_width * 463.95 / 920.72)px : 300px}>
-            <LogoHome x=0px y=0px width={(self.logo_width)px} height={(self.logo_width * 463.95 / 920.72)px} anchor_x=0px anchor_y=0px
-                home_bounds=bind:self.logo_anchor scroll_y={self.scroll_y} layout_role=LayoutRole::Breakout>
+            // Match the headline's visible cap height, including its centered line-box inset.
+            <LogoHome x=0px y={self.compact ? 0px : (56 + self.font_px * 0.28)px} width={(self.logo_width)px}
+                height={(self.logo_width * 463.95 / 920.72)px} anchor_x=0px anchor_y=0px home_bounds=bind:self.logo_anchor
+                scroll_y={self.scroll_y} layout_role=LayoutRole::Breakout>
                 <Group width=920.72px height=463.95px anchor_x=0px anchor_y=0px scale={(self.logo_width / 920.72 * 100)%}>
                     <AnimatedPaxLogo width=920.72px height=463.95px background_mode=LogoBackgroundMode::Dark fill={SiteTheme::ink()}
                         letter_fill={SiteTheme::paper()} progress=bind:self.logo_progress click_to_replay=true/>
@@ -32,11 +34,22 @@
                     <Rectangle class="site_button_outline" width=100% height=100%/>
                 </Link>
             </Stacker>
-            <Stacker width=100% autosize=true gutter=4px>
-                <Text class="hero_command" width=100% text="cargo install pax-cli" selectable=true/>
-                <Text class="hero_command" width=100% text="pax-cli create my-app" selectable=true/>
-                <Text class="hero_command" width=100% text="cd my-app && pax-cli run" selectable=true/>
-            </Stacker>
+            <Group width=100% autosize=true autosize_x=false autosize_y=true>
+                <Stacker width=100% autosize=true padding_x=18px padding_y=16px>
+                    <Text class="hero_command" width=100% selectable=true markdown=false text="cargo install pax-cli
+pax-cli create my-app
+cd my-app && pax-cli run"/>
+                </Stacker>
+                <Rectangle width=100% height=100% layout_role=LayoutRole::Breakout corner_radius=12 fill={
+                    paint: {SiteTheme::surface()}
+                    material: {Material::unlit()}
+                }
+                    stroke={
+                        paint: {SiteTheme::rule()}
+                        width: 1px
+                        material: {Material::unlit()}
+                    }/>
+            </Group>
         </Stacker>
     </Stacker>
     <Rectangle x=50% y={100% - 1px} width={self.compact ? (100% - 48px) : 88%} height=1px anchor_x=50% fill={SiteTheme::rule()}/>
@@ -58,8 +71,8 @@
     .hero_command {
         style: TextStyle {
             font: "monospace"
-            font_size: 12px
-            fill: {SiteTheme::muted()}
+            font_size: 14.95px
+            fill: {SiteTheme::paper()}
             align_horizontal: TextAlignHorizontal::Left
             align_multiline: TextAlignHorizontal::Left
         }

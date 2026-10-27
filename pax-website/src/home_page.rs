@@ -103,6 +103,12 @@ impl HomePage {
             include_str!("calculator_preview.rs"),
         ));
         resource_sources.extend(section_sources(
+            "src/calculator_page.pax",
+            include_str!("calculator_page.pax"),
+            "src/route_pages.rs",
+            include_str!("route_pages.rs"),
+        ));
+        resource_sources.extend(section_sources(
             "calculator/src/lib.pax",
             include_str!("../../examples/calculator/src/lib.pax"),
             "calculator/src/lib.rs",

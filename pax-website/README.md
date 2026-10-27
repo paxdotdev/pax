@@ -90,7 +90,7 @@ a five-second ceiling prevents a persistently slow frame rate from suppressing
 the logo indefinitely. There is no fixed delay added to every page load.
 
 The website enables `package.metadata.pax.web.yield_mount`, so ordinary homepage
-and `/paxflix/` URLs use yielded startup without query flags. Use
+and standalone demo URLs use yielded startup without query flags. Use
 `?pax_mount_yield=0` only to compare the synchronous path. The plain URL waits for
 the initial viewport's native font and layout measurements, then eagerly mounts
 and progressively presents the remainder. Text can appear before artwork;
@@ -155,7 +155,7 @@ as `/pax-favicon.ico`, independently of the legacy macOS app icon.
 
 ## Website and blog boundary
 
-The website declares `/blog`, `/ai`, `/ai.md`, and `/paxflix` as `server_owned_prefixes`.
+The website declares `/blog`, `/ai`, `/ai.md`, `/paxflix`, and `/calculator` as `server_owned_prefixes`.
 Navigating to these paths loads a server document instead of a Pax client route.
 The `/blog/*` Router placeholder must not be restored. `build.rs` generates
 `public/ai/index.html` from `public/ai.md` only when its contents change.
@@ -206,6 +206,32 @@ uses ordinary in-app navigation. Each new demo session starts with fresh state.
 
 The captures use `NativeImage` and live in `assets/paxflix/`; their README records their native origin
 and regeneration commands. Device switching is not implemented in this version.
+
+## Calculator showcase
+
+The footer keeps its getting-started copy alongside a three-device fanout: a live,
+upright phone in front, with a smaller tilted macOS-style window on the left and
+a tablet on the right. The window uses `DeviceFrame kind="window"`, with a dark
+title bar and traffic-light controls. Its narrow capture fills the content area
+without the calculator's wide-window background gutters.
+The desktop phone mounts and updates with the page, keeping its session while
+scrolling without an application-level visibility gate. The wings use
+`NativeImage`, not additional calculator instances.
+
+At the footer's single-column breakpoint (section width below 1000px), the fanout
+becomes one tappable phone capture. A fresh compact homepage mounts no calculator.
+Resizing across that breakpoint removes or creates the live phone session. The
+fixed-aspect stage scales to its assigned column without stretching the devices.
+
+The compact preview, captured wings, and full-screen action open `/calculator/`.
+Like `/paxflix/`, this is a generated document entry with server-owned navigation:
+one live example, no homepage tree, and safe-area-aware full-screen layout with a
+Back to Pax link. Each new demo session starts with fresh calculator state.
+The footer's View Source includes both the showcase and full-screen wrapper;
+application logic remains in the canonical `examples/calculator` Cargo dependency.
+Capture provenance and refresh commands live in `assets/calculator/README.md`.
+
+## Typography
 
 The website, calculator controls, and `ExampleHost` UI use bundled
 Manrope. Source code and terminal commands use a system monospace; the calculator

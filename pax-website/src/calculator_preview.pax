@@ -1,12 +1,56 @@
 <Group width=100% height={(self.content_height)px}>
-    <Group x=50% anchor_x=50% width=390px height=844px scale={(self.phone_scale)%} layout_role=LayoutRole::Breakout>
-        <DeviceFrame width=100% height=100% kind="phone" edge_to_edge=true>
-            <Calculator width=100% height=100% embedded=true safe_top=48 safe_bottom=24 disable_keyboard=true paused=false/>
-        </DeviceFrame>
-    </Group>
+    <Link x=50% y={(self.devices_height + 24)px} anchor_x=50% width=248px height=44px url="/calculator/" target=Target::Current>
+        <Text width=100% height=100% text={self.compact ? "TRY THE CALCULATOR  ↗" : "OPEN CALCULATOR FULL SCREEN  ↗"}
+            selectable=false style={
+                font: {
+                    family: "Manrope"
+                    url: "/assets/fonts/Manrope.ttf"
+                }
+                font_size: 12px
+                fill: {SiteTheme::paper()}
+                align_horizontal: TextAlignHorizontal::Center
+                align_vertical: TextAlignVertical::Center
+            }/>
+        <Rectangle width=100% height=100% fill={SiteTheme::surface()} stroke={
+            paint: {SiteTheme::rule()}
+            width: 1px
+        }/>
+    </Link>
+    if self.layout_ready {
+        if self.compact {
+            <Group x={(self.stage_x)px} anchor=0% width=390px height=844px scale={(self.stage_scale)%} layout_role=LayoutRole::Breakout>
+                <Link width=100% height=100% url="/calculator/" target=Target::Current>
+                    <DeviceFrame width=100% height=100% kind="phone" edge_to_edge=true>
+                        <NativeImage width=100% height=100% url="assets/calculator/phone.jpg" fit=ImageFit::Paint/>
+                    </DeviceFrame>
+                </Link>
+            </Group>
+        } else {
+            <Group x={(self.stage_x)px} anchor=0% width=880px height=900px scale={(self.stage_scale)%} layout_role=LayoutRole::Breakout>
+                <Group x=440px y=450px anchor=50% width=390px height=844px>
+                    <DeviceFrame width=100% height=100% kind="phone" edge_to_edge=true>
+                        <Calculator width=100% height=100% embedded=true safe_top=48 safe_bottom=24 disable_keyboard=true paused=false/>
+                    </DeviceFrame>
+                </Group>
+                <Group x=225px y=425px anchor=50% width=560px height=792px scale=62% rotate=-9deg>
+                    <Link width=100% height=100% url="/calculator/" target=Target::Current>
+                        <DeviceFrame width=100% height=100% kind="window">
+                            <NativeImage width=100% height=100% url="assets/calculator/macos.jpg" fit=ImageFit::Paint/>
+                        </DeviceFrame>
+                    </Link>
+                </Group>
+                <Group x=675px y=430px anchor=50% width=850px height=1226px scale=36% rotate=8deg>
+                    <Link width=100% height=100% url="/calculator/" target=Target::Current>
+                        <DeviceFrame width=100% height=100% kind="tablet" edge_to_edge=true>
+                            <NativeImage width=100% height=100% url="assets/calculator/tablet.jpg" fit=ImageFit::Paint/>
+                        </DeviceFrame>
+                    </Link>
+                </Group>
+            </Group>
+        }
+    }
 </Group>
 
 @settings {
-    @mount: layout
-    @pre_render: layout
+    @mount: mount
 }

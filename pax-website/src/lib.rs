@@ -42,7 +42,7 @@ pub use nav_logo::{LogoAnchor, LogoHome, NavLogo};
 pub use paxflix_showcase::PaxflixShowcase;
 pub use resource_section::ResourceSection;
 pub use rotating_headline::RotatingHeadline;
-pub use route_pages::{NotFoundPage, PaxflixPage};
+pub use route_pages::{CalculatorPage, NotFoundPage, PaxflixPage};
 pub use runtime_section::RuntimeSection;
 pub use shared_definition_demo::{RelationshipPreview, SharedDefinitionDemo};
 pub use site_shell::SiteShell;

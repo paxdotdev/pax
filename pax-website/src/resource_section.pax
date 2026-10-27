@@ -5,7 +5,7 @@
     <Stacker id=footer_content x=50% y=80px width={self.compact ? (100% - 48px) : 88%} autosize=true gutter=56px>
         <Stacker width=100% autosize=true autosize_x=false autosize_y=true gutter=32px
             direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal}
-            sizes={self.compact ? [] : [None, Some(390px)]}>
+            sizes={self.compact ? [] : [Some(40%), None]}>
             <Stacker width=100% autosize=true gutter=24px>
                 <Text class="editorial_kicker" width=100% text="PAX IS READY FOR BUILDERS"/>
                 <Text class="editorial_title" width=100% text="Your next interface starts here."/>
@@ -25,7 +25,7 @@
                     <Rectangle class="site_button_signal" width=100% height=100%/>
                 </Link>
             </Stacker>
-            <CalculatorPreview width=100% height={(self.phone_height)px} content_height=bind:self.phone_height/>
+            <CalculatorPreview width=100% height={(self.preview_height)px} compact={self.compact} content_height=bind:self.preview_height/>
         </Stacker>
         <Stacker width=100% autosize=true autosize_x=false autosize_y=true gutter={self.compact ? 32px : 6%}
             direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal}>

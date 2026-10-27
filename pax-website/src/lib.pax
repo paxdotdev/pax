@@ -4,8 +4,7 @@
         description: "Pax is an open-source GUI framework pairing a declarative UI language with Rust application logic. Build for macOS, iOS, iPadOS, and the web."
         index: true
     }>
-        <SiteShell has_hero=true logo_anchor={self.logo_anchor} scroll_y={self.page_scroll_y}
-            hide_nav={self.hero_source_open}>
+        <SiteShell has_hero=true logo_anchor={self.logo_anchor} scroll_y={self.page_scroll_y} hide_nav={self.hero_source_open}>
             <HomePage logo_anchor=bind:self.logo_anchor scroll_y=bind:self.page_scroll_y hero_source_open=bind:self.hero_source_open/>
         </SiteShell>
     </Route>
@@ -15,6 +14,13 @@
         index: false
     }>
         <PaxflixPage />
+    </Route>
+    <Route path="/calculator" metadata=RouteMetadata {
+        title: "Calculator — A live Pax example"
+        description: "Try a scientific graphing calculator built with Pax."
+        index: false
+    }>
+        <CalculatorPage />
     </Route>
     <Route default=true metadata=RouteMetadata {
         title: "Page not found — Pax"

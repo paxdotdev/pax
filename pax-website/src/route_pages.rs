@@ -1,6 +1,7 @@
 #![allow(unused_imports)]
 
 use crate::SiteTheme;
+use calculator::Calculator;
 use pax_kit::*;
 use paxflix::Paxflix;
 
@@ -13,6 +14,16 @@ pub struct NotFoundPage {}
 #[pax]
 #[file("paxflix_page.pax")]
 pub struct PaxflixPage {
+    pub safe_top: Property<f64>,
+    pub safe_bottom: Property<f64>,
+    pub safe_left: Property<f64>,
+    pub safe_right: Property<f64>,
+}
+
+/// A dedicated calculator session, without the homepage's other live examples.
+#[pax]
+#[file("calculator_page.pax")]
+pub struct CalculatorPage {
     pub safe_top: Property<f64>,
     pub safe_bottom: Property<f64>,
     pub safe_left: Property<f64>,

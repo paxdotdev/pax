@@ -11,7 +11,7 @@ pub struct ResourceSection {
     pub compact: Property<bool>,
     pub content_height: Property<f64>,
     pub _height_bound: Property<bool>,
-    pub phone_height: Property<f64>,
+    pub preview_height: Property<f64>,
 }
 
 impl ResourceSection {

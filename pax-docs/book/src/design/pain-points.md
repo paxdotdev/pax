@@ -1244,3 +1244,37 @@ does not guarantee compositor-synchronized motion. Removed the moving-overlay
 prototype: the hero logo now stays in the native scroller, and a separate,
 finished nav logo only fades at visibility thresholds. No claim of a general
 scroll-linked-transform fix or measured root-cause profile is made.
+
+## 2026-10-20 — Reused preview origin rendered text without GPU artwork after rebase
+
+After rebasing the website onto `a2e2189f7`, a fresh debug web build served at
+`http://127.0.0.1:56470/` showed native text but left canvas backing sizes at
+300×150. Ordinary browser reload and `?pax_mount_yield=0` did not recover the
+artwork; the homepage also logged five reactive-drain budget warnings. Expected
+the rebuilt preview to render normally. An isolated upstream website snapshot
+with the same dependency lockfile rendered correctly on port 56471, and the
+unchanged rebased build rendered correctly at `http://localhost:56470/`,
+including the hero, nav, source drawer, and Paxflix route. This points to stale
+origin-scoped browser state/assets, not a confirmed engine or merge defect.
+Workaround: use a fresh preview origin after substantial runtime changes.
+Browser screenshots and CLI captures were taken during this chat; CLI captures
+are under `/tmp/pax-rebase-20261020/`. No renderer workaround was introduced.
+
+## 2026-10-21 — Yielded startup replaced an authored scroller position with zero
+
+Opening the website's `/calculator/` route with yielded mounting showed an empty
+graph at the far edge of its plane; `?pax_mount_yield=0` centered it correctly.
+Expected the same authored starting position in both modes. A browser frame
+between `ScrollerCreate` and the first full `ScrollerUpdate` reported the DOM's
+temporary zero offsets back into bound application state. The web host now waits
+for the initial layout/position update before sampling that scroller, including
+on the iOS-specific path. `scroller-initial-position.test.mjs` covers the split
+creation/update sequence; no calculator-specific startup override is needed.
+
+## 2026-10-22 — Escaped newlines remain literal in template string attributes
+
+While styling the website's hero terminal, `Text text="first\nsecond"` rendered
+the literal backslash and `n` instead of a line break. The string grammar accepts
+escapes, but `PaxDeserializer` passes the inner source text through unchanged.
+Actual newlines inside the quoted attribute produce the intended selectable
+multiline text. Used that authoring form here; no language behavior changed.

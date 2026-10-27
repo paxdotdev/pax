@@ -257,7 +257,12 @@ cleanup proceeds.
 
 Native patches can reach the browser between calls so hidden text can load fonts
 and return measurements. Text responses retain their request-generation checks.
-Viewport and native scroll state also continue updating. Responsive layout should
+Viewport and initialized native scroll state also continue updating. A newly
+created scroller begins reporting browser scroll feedback only after its initial
+layout and authored scroll position have been applied. A yield between creation
+and that update must not replace a nonzero starting position with the DOM's
+temporary `(0, 0)` default. After initialization, normal browser scrolling remains
+authoritative. Responsive layout should
 derive from reactive bounds rather than copy them in `@pre_render`: startup
 feedback does not rerun application lifecycle handlers. Application input is
 queued with its existing recipients' mount lifetimes; removed or remounted
