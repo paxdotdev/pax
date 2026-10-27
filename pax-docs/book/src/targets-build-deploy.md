@@ -303,6 +303,9 @@ and forward development features optionally. Build-time compiler dependencies
 are permitted; runtime editing/replacement code is not part of the production
 application.
 
+The release feature check applies to both `runnable!` declarations and the legacy
+`#[main]` shorthand; switching entrypoint syntax does not bypass it.
+
 For a direct native Cargo build without development capabilities:
 
 ```sh

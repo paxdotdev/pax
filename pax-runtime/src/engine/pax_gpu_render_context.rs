@@ -1069,7 +1069,7 @@ impl PaxGpuRenderer {
             #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
             let mut present_us = 0u128;
             let mut resource_stats = ResourceChurnStats::default();
-            let mut command_buffers = Vec::new();
+            let mut command_buffers = pax_gpu::render_backend::CommandBatch::default();
             let mut submitter_index = None;
             let mut cleanup_indices = Vec::new();
             let mut present_indices = Vec::new();

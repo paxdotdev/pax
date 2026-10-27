@@ -15,6 +15,65 @@ struct MetalLayer(*mut AnyObject);
 
 #[test]
 #[ignore = "requires a macOS Metal device"]
+fn attachment_retirement_source_resize_capture_eviction_and_shutdown() {
+    let layer = MetalLayer::new();
+    let mut backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 32, 32, [1., 1.]),
+        )
+    })
+    .unwrap();
+    let device = backend.device.clone();
+    let context = backend.shared_context();
+    let scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
+    let key = capture::CaptureKey::Alpha(1);
+    // Different feather domains replace the source stencil and capture scratch
+    // attachments while earlier clear/copy commands remain unsubmitted.
+    for margin in [2., 12., 0., 8.] {
+        assert!(backend.begin_source_domain(margin));
+        backend.capture_is_cached(key, 0);
+        backend.begin_capture();
+        backend.end_capture_rect(key, 0, (0, 0, 16, 16));
+        backend.end_source_domain();
+    }
+    backend.retain_captures(&HashSet::new());
+    let batch = backend.take_pending_command_buffers();
+    assert!(!batch.is_empty());
+    // Shutdown must not destroy the detached batch's retired attachments early.
+    drop(backend);
+    context.submit_command_buffers(batch);
+    device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+    assert!(pollster::block_on(scope.pop()).is_none());
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn attachment_retirement_resize_discards_unsubmitted_source_work() {
+    let layer = MetalLayer::new();
+    let mut backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 32, 32, [1., 1.]),
+        )
+    })
+    .unwrap();
+    let device = backend.device.clone();
+    let scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
+    assert!(backend.begin_source_domain(4.));
+    backend.end_source_domain();
+    backend.resize_surface(64, 48);
+    assert!(backend.take_pending_command_buffers().is_empty());
+    assert!(backend.begin_source_domain(8.));
+    backend.end_source_domain();
+    backend.submit_pending_commands();
+    drop(backend);
+    device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+    assert!(pollster::block_on(scope.pop()).is_none());
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
 fn order_metadata_preserves_geometry_and_opacity_captures_but_reorders_pixels() {
     use pax_runtime_api::OpacityScope;
     let layer = MetalLayer::new();
@@ -2010,7 +2069,7 @@ fn retained_shared_surfaces_keep_transform_pages_independent() {
         renderers.push(renderer);
     }
     for frame_id in 0..3 {
-        let mut commands = Vec::new();
+        let mut commands = CommandBatch::default();
         for (surface, renderer) in renderers.iter_mut().enumerate() {
             for group in 0..2 {
                 renderer.begin_node(group, group as i32, 0);
@@ -2031,7 +2090,7 @@ fn retained_shared_surfaces_keep_transform_pages_independent() {
             }
             renderer.request_screenshot_capture(frame_id);
             renderer.flush_deferred();
-            commands.extend(renderer.take_pending_command_buffers());
+            commands.append(&mut renderer.take_pending_command_buffers());
             let stats = renderer.take_resource_churn_stats();
             if surface == 1 && frame_id == 0 {
                 assert_eq!(stats.vector_resource_creates, 0);
@@ -2143,8 +2202,8 @@ fn retained_mask_source_clip_pages_pixels() {
 #[ignore = "requires a macOS Metal device"]
 fn shader_effect_pixels_clip_cache_and_tile_halo() {
     use pax_runtime_api::{
-        ShaderEffect, ShaderInput, ShaderParameter, ShaderParameterType, ShaderPass, ShaderProgram,
-        ShaderValue,
+        OpacityScope, ShaderEffect, ShaderInput, ShaderParameter, ShaderParameterType, ShaderPass,
+        ShaderProgram, ShaderValue,
     };
     static PROGRAM: ShaderProgram = ShaderProgram { label: "test displacement", passes: &[ShaderPass {
         label: "translate.wgsl", source: "fn effect(p: vec2<f32>) -> vec4<f32> { return sample_input0(p - vec2<f32>(parameters.shift,0.0)); }",
@@ -2169,8 +2228,8 @@ fn shader_effect_pixels_clip_cache_and_tile_halo() {
             renderer.end_node(9);
             let effect = ShaderEffect {
                 program: &PROGRAM,
-                parameters: vec![vec![ShaderValue::Float(if frame == 0 { 0. } else { 16. })]],
-                outset: 20.,
+                parameters: vec![vec![ShaderValue::Float(if frame == 0 { 0. } else { 24. })]],
+                outset: 28.,
             };
             renderer.begin_shader_effect(
                 1,
@@ -2183,8 +2242,15 @@ fn shader_effect_pixels_clip_cache_and_tile_halo() {
             );
             if frame == 0 {
                 renderer.begin_node(2, 0, 0);
+                renderer.set_node_opacity_scopes(
+                    2,
+                    &[OpacityScope {
+                        node_id: 2,
+                        opacity: 0.5,
+                    }],
+                );
                 renderer.fill_path(
-                    rect(-8., 8., 8., 16.),
+                    rect(-16., 8., 8., 16.),
                     Fill::Solid(Color::rgba(1., 0., 0., 1.)),
                 );
                 renderer.end_node(2);
@@ -2202,10 +2268,15 @@ fn shader_effect_pixels_clip_cache_and_tile_halo() {
                 if frame == 0 {
                     [0, 0, 0, 0]
                 } else {
-                    [255, 0, 0, 255]
+                    [128, 0, 0, 128]
                 },
             );
             assert_pixel(&result, 0, (16. * dpr) as usize, [0, 0, 0, 0]);
+            assert_eq!(
+                renderer.effect_source_domain_entries(),
+                1,
+                "cached sources, including uniform-only effect changes, need no capture clear"
+            );
         }
         let stats = renderer.take_resource_churn_stats();
         assert_eq!(stats.effect_source_renders, 1);
@@ -2214,6 +2285,80 @@ fn shader_effect_pixels_clip_cache_and_tile_halo() {
         assert_eq!(stats.effect_texture_allocations, 1);
         assert_eq!(stats.effect_passes, 2);
         assert_eq!(stats.effect_cache_hits, 1);
+    }
+}
+
+#[cfg(feature = "shaders")]
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn shader_effect_off_tile_and_cached_sources_skip_capture_setup() {
+    use pax_runtime_api::{ShaderEffect, ShaderInput, ShaderPass, ShaderProgram};
+    static PROGRAM: ShaderProgram = ShaderProgram {
+        label: "off-tile identity",
+        passes: &[ShaderPass {
+            label: "off-tile-identity.wgsl",
+            source: "fn effect(p: vec2<f32>) -> vec4<f32> { return sample_input0(p); }",
+            parameters: &[],
+            inputs: [ShaderInput::Subtree; 2],
+            downsample: 1,
+        }],
+    };
+    for dpr in [1., 2.] {
+        let layer = MetalLayer::new();
+        let backend = pollster::block_on(unsafe {
+            RenderBackend::to_core_animation_layer(
+                layer.0.cast(),
+                RenderConfig::new(true, (64. * dpr) as u32, (32. * dpr) as u32, [dpr, dpr]),
+            )
+        })
+        .unwrap();
+        let device = backend.device.clone();
+        let mut renderer = WgpuRenderer::new(backend);
+        let effect = ShaderEffect {
+            program: &PROGRAM,
+            parameters: vec![vec![]],
+            outset: 4.,
+        };
+        renderer.set_viewport(64., 32., [dpr, dpr]);
+        let mut previous_offset = None;
+        for (frame, (offset, entries)) in
+            [(500., 0), (500., 0), (0., 1), (0., 1), (500., 1), (0., 2)]
+                .into_iter()
+                .enumerate()
+        {
+            let transform = Transform2D::translation(offset, 0.);
+            renderer.begin_shader_effect(1, 1, &effect, transform, (16., 16.), &[], &[2]);
+            renderer.begin_shader_effect(2, 2, &effect, transform, (16., 16.), &[], &[3]);
+            if previous_offset != Some(offset) {
+                renderer.begin_node(3, 3, 0);
+                renderer.fill_path(
+                    rect(offset, 0., 16., 16.),
+                    Fill::Solid(Color::rgba(1., 0., 0., 1.)),
+                );
+                renderer.end_node(3);
+            }
+            previous_offset = Some(offset);
+            renderer.end_shader_effect();
+            renderer.end_shader_effect();
+            renderer.request_screenshot_capture(frame as u32);
+            renderer.flush();
+            device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+            let pixels = renderer.take_screenshot_capture(frame as u32).unwrap();
+            assert_pixel(
+                &pixels,
+                (8. * dpr) as usize,
+                (8. * dpr) as usize,
+                if offset == 0. {
+                    [255, 0, 0, 255]
+                } else {
+                    [0, 0, 0, 0]
+                },
+            );
+            assert_eq!(renderer.effect_source_domain_entries(), entries);
+            if offset != 0. {
+                assert!(!renderer.alpha_source_has_working_storage());
+            }
+        }
     }
 }
 
@@ -2958,5 +3103,172 @@ fn startup_alpha_source_empty_and_first_capture_pixels() {
             },
         );
         assert_pixel(&frame, 16, 2, [0, 0, 0, 0]);
+    }
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn empty_alpha_sources_skip_working_storage_and_reenter_padded_domain() {
+    for scale in [1.0, 2.0] {
+        let layer = MetalLayer::new();
+        let backend = pollster::block_on(unsafe {
+            RenderBackend::to_core_animation_layer(
+                layer.0.cast(),
+                RenderConfig::new(
+                    true,
+                    (64.0 * scale) as u32,
+                    (32.0 * scale) as u32,
+                    [scale; 2],
+                ),
+            )
+        })
+        .unwrap();
+        let device = backend.device.clone();
+        let scope = device.push_error_scope(wgpu::ErrorFilter::Validation);
+        let mut renderer = WgpuRenderer::new(backend);
+        renderer.set_viewport(64.0, 32.0, [scale; 2]);
+        for (frame_id, x) in [-80.0, -80.0, 20.0, 20.0, -80.0, -8.0, -80.0]
+            .into_iter()
+            .enumerate()
+        {
+            renderer.begin_node(1, 0, 0);
+            renderer.save();
+            renderer.begin_alpha_source(Transform2D::translation(x, 0.0), 4.0);
+            renderer.begin_node(2, 0, 0);
+            renderer.save();
+            renderer.clip(rect(-1.0, 0.0, 8.0, 32.0));
+            renderer.fill_path(
+                rect(0.0, 4.0, 6.0, 24.0),
+                Fill::Solid(Color::rgba(1.0, 1.0, 1.0, 1.0)),
+            );
+            renderer.restore();
+            renderer.end_node(2);
+            renderer.end_alpha_source();
+            renderer.fill_path(
+                rect(0.0, 0.0, 64.0, 32.0),
+                Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),
+            );
+            renderer.restore();
+            renderer.end_node(1);
+            renderer.request_screenshot_capture(frame_id as u32);
+            renderer.flush();
+            device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+            let frame = renderer.take_screenshot_capture(frame_id as u32).unwrap();
+            let stats = renderer.take_resource_churn_stats();
+            if x == -80.0 {
+                assert_eq!(renderer.alpha_source_resource_counts().2, 0);
+                assert!(!renderer.alpha_source_has_working_storage());
+                assert_eq!(stats.alpha_source_renders, 0);
+                assert!(frame.rgba.chunks_exact(4).all(|p| p == [0, 0, 0, 0]));
+            } else {
+                assert!(renderer.alpha_source_has_working_storage());
+                let pixel_x = if x < 0.0 { 0 } else { (23.0 * scale) as usize };
+                let alpha =
+                    frame.rgba[((16.0 * scale) as usize * frame.width as usize + pixel_x) * 4 + 3];
+                assert!(
+                    alpha > 5,
+                    "source at {x} must contribute at DPR {scale}: {alpha}"
+                );
+                if frame_id == 3 {
+                    assert_eq!(stats.alpha_source_renders, 0);
+                    assert!(stats.alpha_source_cache_hits > 0);
+                }
+            }
+        }
+        assert!(pollster::block_on(scope.pop()).is_none());
+    }
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn empty_alpha_source_at_surface_limit_fails_closed_without_capture() {
+    let layer = MetalLayer::new();
+    let mut backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 32, 32, [1.0; 2]),
+        )
+    })
+    .unwrap();
+    // Model a surface at the device limit without allocating a maximum-size texture.
+    backend.max_surface_dimension = 32;
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    renderer.begin_node(1, 0, 0);
+    renderer.save();
+    renderer.begin_alpha_source(Transform2D::identity(), 0.0);
+    renderer.end_alpha_source();
+    renderer.fill_path(
+        rect(0.0, 0.0, 32.0, 32.0),
+        Fill::Solid(Color::rgba(1.0, 1.0, 1.0, 1.0)),
+    );
+    renderer.restore();
+    renderer.end_node(1);
+    renderer.request_screenshot_capture(0);
+    renderer.flush();
+    device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+    let frame = renderer.take_screenshot_capture(0).unwrap();
+    assert!(frame.rgba.chunks_exact(4).all(|p| p == [0, 0, 0, 0]));
+    assert!(!renderer.alpha_source_has_working_storage());
+}
+
+#[test]
+#[ignore = "requires a macOS Metal device"]
+fn empty_parent_alpha_masks_remain_transparent_to_nested_sources() {
+    let layer = MetalLayer::new();
+    let backend = pollster::block_on(unsafe {
+        RenderBackend::to_core_animation_layer(
+            layer.0.cast(),
+            RenderConfig::new(true, 32, 32, [1.0; 2]),
+        )
+    })
+    .unwrap();
+    let device = backend.device.clone();
+    let mut renderer = WgpuRenderer::new(backend);
+    renderer.set_viewport(32.0, 32.0, [1.0; 2]);
+    for (frame_id, visible) in [false, true, false, true].into_iter().enumerate() {
+        renderer.begin_node(1, 0, 0);
+        renderer.save();
+        renderer.begin_alpha_source(Transform2D::identity(), 0.0);
+        if visible {
+            renderer.begin_node(2, 0, 0);
+            renderer.fill_path(
+                rect(0.0, 0.0, 32.0, 32.0),
+                Fill::Solid(Color::rgba(1.0, 1.0, 1.0, 1.0)),
+            );
+            renderer.end_node(2);
+        }
+        renderer.end_alpha_source();
+        renderer.end_node(1);
+        renderer.begin_node(10, 1, 0);
+        renderer.save();
+        renderer.begin_alpha_source(Transform2D::identity(), 0.0);
+        renderer.begin_node(11, 0, 0);
+        renderer.fill_path(
+            rect(8.0, 8.0, 16.0, 16.0),
+            Fill::Solid(Color::rgba(1.0, 1.0, 1.0, 1.0)),
+        );
+        renderer.end_node(11);
+        renderer.end_alpha_source();
+        renderer.fill_path(
+            rect(0.0, 0.0, 32.0, 32.0),
+            Fill::Solid(Color::rgba(1.0, 0.0, 0.0, 1.0)),
+        );
+        renderer.restore();
+        renderer.end_node(10);
+        renderer.begin_node(1, 0, 0);
+        renderer.restore();
+        renderer.end_node(1);
+        renderer.request_screenshot_capture(frame_id as u32);
+        renderer.flush();
+        device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
+        let frame = renderer.take_screenshot_capture(frame_id as u32).unwrap();
+        assert_pixel(
+            &frame,
+            16,
+            16,
+            if visible { [255, 0, 0, 255] } else { [0; 4] },
+        );
+        assert_pixel(&frame, 2, 2, [0; 4]);
     }
 }

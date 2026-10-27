@@ -387,6 +387,17 @@ fn drive(mut request: Request, session: &mut Session) -> Result<String> {
     let legacy = runnables
         .get(&request.site)
         .is_some_and(|item| !matches!(item, syn::Item::Macro(_)));
+    // The source-driven path emits its own cartridge instead of going through
+    // render_generated_cartridge; preserve the same release feature boundary.
+    if (request.runnable || legacy)
+        && crate::is_root_crate()
+        && cfg!(feature = "designtime")
+        && crate::env_flag_explicitly_disabled("PAX_BUILD_DESIGNTIME")
+    {
+        return Err(eyre!(
+            "Pax release builds cannot include the `pax-engine/designtime` feature. Remove the transitive designtime feature activation or build this app in debug mode."
+        ));
+    }
     if runnables.len() > 1
         && runnables
             .values()

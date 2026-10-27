@@ -22,7 +22,18 @@ pub(super) struct EffectNode {
     pub(super) clip_stack: Vec<ClipReference>,
 }
 
+struct EffectDomain {
+    globals: crate::render_backend::data::GpuGlobals,
+    margin: f32,
+    active: bool,
+}
+
 impl WgpuRenderer<'_> {
+    #[cfg(test)]
+    pub(crate) fn effect_source_domain_entries(&self) -> u64 {
+        self.render_backend.source_domain_entries
+    }
+
     /// Start a GPU-only filter boundary. A true return requests an initial source replay.
     /// Available with the opt-in `shaders` Cargo feature.
     pub fn begin_shader_effect(
@@ -147,18 +158,25 @@ impl WgpuRenderer<'_> {
         // Reserve a complete coarse texel beyond filter support, then align each capture to
         // a shared physical grid. Adjacent tiles must not independently stretch a coarse pass.
         let margin = self.effect_margin();
-        assert!(
-            self.render_backend.source_domain_fits(margin),
-            "shader effect sampling support exceeds GPU texture limits"
-        );
-        assert!(self.render_backend.begin_source_domain(margin));
-        self.ensure_vector_resources_for_immediate_scene();
+        let (globals, _) = self
+            .render_backend
+            .source_domain_geometry(margin)
+            .expect("shader effect sampling support exceeds GPU texture limits");
+        // Culling and cache signatures use the same padded coordinates as capture, but
+        // do not allocate/clear attachments. A cache miss activates the domain lazily.
+        let mut domain = EffectDomain {
+            globals,
+            margin,
+            active: false,
+        };
         let mut visited = HashSet::new();
         let ids: Vec<_> = self.effect_captures.keys().copied().collect();
         for id in ids {
-            self.render_effect(id, &mut visited, &mut active);
+            self.render_effect(id, &mut visited, &mut active, &mut domain);
         }
-        self.render_backend.end_source_domain();
+        if domain.active {
+            self.render_backend.end_source_domain();
+        }
         active
     }
 
@@ -167,6 +185,7 @@ impl WgpuRenderer<'_> {
         id: u32,
         visited: &mut HashSet<u32>,
         active: &mut HashSet<CaptureKey>,
+        domain: &mut EffectDomain,
     ) {
         if !visited.insert(id) {
             return;
@@ -174,7 +193,7 @@ impl WgpuRenderer<'_> {
         let children = self.effect_captures[&id].children.clone();
         for child in &children {
             if self.effect_captures.contains_key(child) {
-                self.render_effect(*child, visited, active);
+                self.render_effect(*child, visited, active, domain);
             }
         }
         let capture = &self.effect_captures[&id];
@@ -206,7 +225,14 @@ impl WgpuRenderer<'_> {
             node.bounds = bounds;
             node.visible = false;
         }
-        let viewport = self.viewport_bounds();
+        let globals = domain.globals;
+        let viewport = Box2D::new(
+            point(globals.origin[0], globals.origin[1]),
+            point(
+                globals.origin[0] + globals.resolution[0],
+                globals.origin[1] + globals.resolution[1],
+            ),
+        );
         if !boxes_intersect(&bounds, &viewport) {
             return;
         }
@@ -217,7 +243,7 @@ impl WgpuRenderer<'_> {
             .map(|p| p.downsample)
             .max()
             .unwrap() as f32;
-        let dpr = self.render_backend.globals.dpr;
+        let dpr = globals.dpr;
         let align = |low: f32, high: f32, vlow: f32, vhigh: f32, origin: f32, density: f32| {
             let step = divisor / density;
             let origin = (origin * density).floor() / density;
@@ -259,7 +285,7 @@ impl WgpuRenderer<'_> {
             max_y,
         };
         let mut hash = DefaultHasher::new();
-        bytemuck::bytes_of(&self.render_backend.globals).hash(&mut hash);
+        bytemuck::bytes_of(&globals).hash(&mut hash);
         for v in [bounds.min_x, bounds.min_y, bounds.max_x, bounds.max_y] {
             v.to_bits().hash(&mut hash);
         }
@@ -275,9 +301,14 @@ impl WgpuRenderer<'_> {
         let source_signature = hash.finish();
         let key = CaptureKey::EffectSource(id);
         active.insert(key);
-        let plan = self.opacity_plan_at_depth(&nodes, 0);
+        let plan = self.opacity_plan_in_domain(&nodes, 0, &globals);
         collect_opacity_group_keys(&plan, active);
         if !self.render_backend.capture_is_cached(key, source_signature) {
+            if !domain.active {
+                assert!(self.render_backend.begin_source_domain(domain.margin));
+                domain.active = true;
+                self.ensure_vector_resources_for_immediate_scene();
+            }
             self.render_backend.begin_capture();
             self.draw_opacity_plan(&plan);
             let origin = self.render_backend.globals.origin;
@@ -300,6 +331,7 @@ impl WgpuRenderer<'_> {
             &effect,
             transform,
             signature,
+            &globals,
             &mut self.resource_churn_stats,
         );
         self.effect_captures.get_mut(&id).unwrap().signature = signature;

@@ -123,6 +123,75 @@ mod hardware {
 
     #[test]
     #[ignore = "requires a macOS Metal device"]
+    fn mesh_noop_preparation_does_not_allocate_encoders() {
+        let (device, queue) = device();
+        let rasterizer = MeshRasterizer::new(&device);
+        let layout = sampling_layout(&device);
+        let input = MeshInput {
+            rows: fixture(),
+            projected_axes: [[64.0, 0.0], [0.0, 64.0]],
+            domain: [10.0, 20.0, 1.0, 1.0],
+        };
+        let prepare = |page: &mut Option<Rc<PaintPage>>, inputs: &[MeshInput]| {
+            let mut encoder = None;
+            let mut stats = RasterStats::default();
+            let result = rasterizer.prepare_page(
+                &device,
+                &queue,
+                &mut encoder,
+                &layout,
+                page,
+                inputs,
+                [1.0; 2],
+                &mut stats,
+            );
+            let allocated = encoder.is_some();
+            assert_eq!(allocated, stats.raster_passes > 0);
+            if let Some(encoder) = encoder {
+                queue.submit([encoder.finish()]);
+            }
+            (result, allocated)
+        };
+        let mut page = None;
+        assert_eq!(prepare(&mut page, &[]), (Ok(()), false));
+        assert_eq!(prepare(&mut page, &[input.clone()]), (Ok(()), true));
+        let pixels = read(&device, &queue, &page.as_ref().unwrap().texture);
+        // Exceed the observed browser encoder-pool limit without relying on GC.
+        for _ in 0..2000 {
+            assert_eq!(prepare(&mut page, &[input.clone()]), (Ok(()), false));
+            let mut shared = None;
+            assert_eq!(prepare(&mut shared, &[input.clone()]), (Ok(()), false));
+            assert!(Rc::ptr_eq(page.as_ref().unwrap(), shared.as_ref().unwrap()));
+            assert_eq!(prepare(&mut shared, &[]), (Ok(()), false));
+            assert!(shared.is_none());
+        }
+        let mut invalid = input.clone();
+        invalid.rows.clear();
+        let (result, allocated) = prepare(&mut page, &[input.clone(), invalid]);
+        assert!(result.is_err());
+        assert!(!allocated, "validate all terms before recording any work");
+        assert_eq!(
+            read(&device, &queue, &page.as_ref().unwrap().texture),
+            pixels
+        );
+
+        let mut changed = input;
+        changed.rows[1][1].0[2] = 0.2;
+        assert_eq!(prepare(&mut page, &[changed.clone()]), (Ok(()), true));
+        assert_ne!(
+            read(&device, &queue, &page.as_ref().unwrap().texture),
+            pixels
+        );
+        changed.domain[0] += 0.1;
+        assert_eq!(prepare(&mut page, &[changed.clone()]), (Ok(()), true));
+        changed.projected_axes[0][0] = 128.0;
+        assert_eq!(prepare(&mut page, &[changed]), (Ok(()), true));
+        assert_eq!(prepare(&mut page, &[]), (Ok(()), false));
+        assert!(page.is_none());
+    }
+
+    #[test]
+    #[ignore = "requires a macOS Metal device"]
     fn shared_mesh_pipeline_keeps_tile_pages_and_animation_private() {
         let (device, queue) = device();
         let resources = Rc::new(MeshPipelineResources::new(&device));
@@ -137,7 +206,7 @@ mod hardware {
         };
         let prepare =
             |rasterizer: &MeshRasterizer, page: &mut Option<Rc<PaintPage>>, input: &MeshInput| {
-                let mut encoder = device.create_command_encoder(&Default::default());
+                let mut encoder = None;
                 let mut stats = RasterStats::default();
                 rasterizer
                     .prepare_page(
@@ -151,7 +220,10 @@ mod hardware {
                         &mut stats,
                     )
                     .unwrap();
-                queue.submit([encoder.finish()]);
+                assert_eq!(encoder.is_some(), stats.raster_passes > 0);
+                if let Some(encoder) = encoder {
+                    queue.submit([encoder.finish()]);
+                }
                 stats
             };
         let (mut page_a, mut page_b) = (None, None);
@@ -201,7 +273,7 @@ mod hardware {
         let mut b = None;
         let prepare = |page: &mut Option<Rc<PaintPage>>, inputs: &[MeshInput]| {
             let mut stats = RasterStats::default();
-            let mut encoder = device.create_command_encoder(&Default::default());
+            let mut encoder = None;
             rasterizer
                 .prepare_page(
                     &device,
@@ -214,7 +286,10 @@ mod hardware {
                     &mut stats,
                 )
                 .unwrap();
-            queue.submit([encoder.finish()]);
+            assert_eq!(encoder.is_some(), stats.raster_passes > 0);
+            if let Some(encoder) = encoder {
+                queue.submit([encoder.finish()]);
+            }
             stats
         };
         assert_eq!(prepare(&mut a, &[input.clone()]).texture_allocations, 1);
@@ -298,7 +373,7 @@ mod hardware {
         resolution: [u32; 2],
         stats: &mut RasterStats,
     ) {
-        let mut encoder = device.create_command_encoder(&Default::default());
+        let mut encoder = None;
         rasterizer
             .rasterize(
                 device,
@@ -311,7 +386,9 @@ mod hardware {
                 stats,
             )
             .unwrap();
-        queue.submit([encoder.finish()]);
+        if let Some(encoder) = encoder {
+            queue.submit([encoder.finish()]);
+        }
     }
 
     /// Independent high-density CPU triangle raster, including row-major replacement at folds.
@@ -416,8 +493,7 @@ mod hardware {
                             let mut complete = Vec::new();
                             for frame in 0..12 {
                                 let start = std::time::Instant::now();
-                                let mut encoder =
-                                    device.create_command_encoder(&Default::default());
+                                let mut encoder = None;
                                 for (consumer, slot) in slots.iter_mut().enumerate() {
                                     let mut rows: Vec<Vec<Control>> = (0..size)
                                         .map(|y| {
@@ -465,7 +541,9 @@ mod hardware {
                                         .unwrap();
                                 }
                                 cpu.push(start.elapsed().as_secs_f64() * 1000.0);
-                                queue.submit([encoder.finish()]);
+                                if let Some(encoder) = encoder {
+                                    queue.submit([encoder.finish()]);
+                                }
                                 device.poll(wgpu::PollType::wait_indefinitely()).unwrap();
                                 complete.push(start.elapsed().as_secs_f64() * 1000.0);
                             }

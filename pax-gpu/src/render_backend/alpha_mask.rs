@@ -1,10 +1,10 @@
 //! Cached, surface-local alpha masks. Paint is rasterized once per changed
 //! source, feathered in two passes, then multiplied with the enclosing mask.
-use super::{data::GpuGlobals, write_staged_buffer};
+use super::{data::GpuGlobals, ordered_uploads::OrderedUploads, write_staged_buffer};
 use bytemuck::{Pod, Zeroable};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
-use wgpu::util::{DeviceExt, StagingBelt};
+use wgpu::util::DeviceExt;
 
 pub(crate) const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::R8Unorm;
 
@@ -290,6 +290,7 @@ pub(crate) struct MaskResource {
 pub(crate) struct AlphaMasks {
     resources: Rc<AlphaMaskResources>,
     masks: HashMap<u32, MaskResource>,
+    empty: HashSet<u32>,
 }
 
 // All pipelines target single-sampled R8Unorm, independent of the output surface.
@@ -298,6 +299,8 @@ pub(crate) struct AlphaMaskResources {
     pub layout: wgpu::BindGroupLayout,
     pub white_bind_group: wgpu::BindGroup,
     white: wgpu::TextureView,
+    transparent_bind_group: wgpu::BindGroup,
+    transparent: wgpu::TextureView,
     sampler: wgpu::Sampler,
     paint_layout: wgpu::BindGroupLayout,
     filter_layout: wgpu::BindGroupLayout,
@@ -490,6 +493,16 @@ impl AlphaMaskResources {
         let white = white_texture.create_view(&Default::default());
         let white_bind_group =
             sample_group(device, &layout, &white, &sampler, [0.0, 0.0, 1.0, 1.0]);
+        // WebGPU's zero initialization makes this a constant transparent source.
+        // It is shared across empty masks, rather than rasterized per tile/mask.
+        let transparent = texture(device, [1, 1]).create_view(&Default::default());
+        let transparent_bind_group = sample_group(
+            device,
+            &layout,
+            &transparent,
+            &sampler,
+            [0.0, 0.0, 1.0, 1.0],
+        );
         let paint_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Alpha mask paint layout"),
             entries: &[
@@ -557,6 +570,8 @@ impl AlphaMaskResources {
             layout,
             white_bind_group,
             white,
+            transparent_bind_group,
+            transparent,
             sampler,
             paint_layout,
             filter_layout,
@@ -587,16 +602,28 @@ impl AlphaMasks {
         Self {
             resources,
             masks: HashMap::new(),
+            empty: HashSet::new(),
         }
     }
 
+    pub(crate) fn set_empty(&mut self, id: u32) {
+        self.masks.remove(&id);
+        self.empty.insert(id);
+    }
+
     pub fn bind_group(&self, id: Option<u32>) -> &wgpu::BindGroup {
+        if id.is_some_and(|id| self.empty.contains(&id)) {
+            return &self.resources.transparent_bind_group;
+        }
         id.and_then(|id| self.masks.get(&id))
             .map(|m| &m.bind_group)
             .unwrap_or(&self.resources.white_bind_group)
     }
 
     pub fn signature(&self, id: Option<u32>) -> u64 {
+        if id.is_some_and(|id| self.empty.contains(&id)) {
+            return u64::MAX;
+        }
         id.and_then(|id| self.masks.get(&id))
             .and_then(|m| m.signature)
             .unwrap_or(0)
@@ -612,13 +639,14 @@ impl AlphaMasks {
 
     pub fn retain(&mut self, active: &HashSet<u32>) {
         self.masks.retain(|id, _| active.contains(id));
+        self.empty.retain(|id| active.contains(id));
     }
 
     pub fn render(
         &mut self,
         device: &wgpu::Device,
-        encoder: &mut wgpu::CommandEncoder,
-        staging_belt: &mut StagingBelt,
+        encoder: &mut Option<wgpu::CommandEncoder>,
+        staging_belt: &mut OrderedUploads,
         id: u32,
         signature: u64,
         draws: &[Draw],
@@ -629,6 +657,7 @@ impl AlphaMasks {
         capture: Option<(&wgpu::TextureView, [f32; 4])>,
         mesh_paints: &wgpu::BindGroup,
     ) -> bool {
+        self.empty.remove(&id);
         let domain = [
             globals.origin[0],
             globals.origin[1],
@@ -722,6 +751,17 @@ impl AlphaMasks {
             terms.push(Paint::default());
         }
         let buffers = &target.buffers;
+        // Allocate only when recording work, never for the signature-cache fast path.
+        // In browsers, unused encoders can retain native resources until JS GC runs.
+        let encoder = encoder.get_or_insert_with(|| {
+            device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some(if capture.is_some() {
+                    "Captured alpha"
+                } else {
+                    "Alpha mask encoder"
+                }),
+            })
+        });
         // Copies belong to this command stream, not Queue::write_buffer's
         // pre-submit upload batch. A later version can safely reuse the same
         // destination even when both versions are submitted together.
@@ -855,7 +895,16 @@ impl AlphaMasks {
             start = end;
         }
         let parent_resource = parent.and_then(|id| self.masks.get(&id));
-        let parent = parent_resource.map_or(&self.resources.white, |m| &m.result);
+        let parent = parent_resource.map_or_else(
+            || {
+                if parent.is_some_and(|id| self.empty.contains(&id)) {
+                    &self.resources.transparent
+                } else {
+                    &self.resources.white
+                }
+            },
+            |m| &m.result,
+        );
         let parent_domain = parent_resource.map_or(domain, |m| m.domain);
         let parent_mapping = [
             domain[2] / parent_domain[2],
@@ -1013,7 +1062,7 @@ mod tests {
         queue: wgpu::Queue,
         masks: AlphaMasks,
         empty_mesh_page: crate::render_backend::mesh_paint::PaintPage,
-        belt: StagingBelt,
+        belt: OrderedUploads,
         commands: Vec<wgpu::CommandBuffer>,
     }
 
@@ -1030,7 +1079,7 @@ mod tests {
             let empty_mesh_page =
                 crate::render_backend::mesh_paint::PaintPage::new(&device, &mesh_layout, [1, 1, 1]);
             let masks = AlphaMasks::new(&device, &queue, sampling_layout(&device), &mesh_layout);
-            let belt = StagingBelt::new(device.clone(), 4096);
+            let belt = OrderedUploads::queued(device.clone(), queue.clone(), 4096);
             Self {
                 device,
                 queue,
@@ -1075,7 +1124,7 @@ mod tests {
             parent: Option<u32>,
             globals: GpuGlobals,
         ) -> bool {
-            let mut encoder = self.device.create_command_encoder(&Default::default());
+            let mut encoder = None;
             let changed = self.masks.render(
                 &self.device,
                 &mut encoder,
@@ -1090,7 +1139,8 @@ mod tests {
                 None,
                 &self.empty_mesh_page.bind_group,
             );
-            if changed {
+            assert_eq!(changed, encoder.is_some());
+            if let Some(encoder) = encoder {
                 self.belt.finish();
                 self.commands.push(encoder.finish());
             }
@@ -1129,7 +1179,7 @@ mod tests {
 
         fn submit(&mut self) {
             self.queue.submit(std::mem::take(&mut self.commands));
-            self.belt.recall();
+            self.belt.after_submit();
         }
 
         fn read(&self, buffer: &wgpu::Buffer) -> Vec<u8> {
@@ -1151,6 +1201,59 @@ mod tests {
 
     #[test]
     #[ignore = "requires a native GPU adapter"]
+    fn cached_vector_and_captured_alpha_do_not_allocate_encoders() {
+        let mut rig = GpuRig::new();
+        let source = texture(&rig.device, [64, 64]).create_view(&Default::default());
+        let globals = GpuGlobals {
+            resolution: [64.0; 2],
+            dpr: [1.0; 2],
+            ..Default::default()
+        };
+        for captured in [false, true] {
+            let id = u32::from(captured);
+            let render = |rig: &mut GpuRig, signature, size, globals| {
+                let mut encoder = None;
+                let changed = rig.masks.render(
+                    &rig.device,
+                    &mut encoder,
+                    &mut rig.belt,
+                    id,
+                    signature,
+                    &[square(0.0, 32.0, 1.0)],
+                    size,
+                    globals,
+                    0.0,
+                    None,
+                    captured.then_some((&source, [0.0, 0.0, 1.0, 1.0])),
+                    &rig.empty_mesh_page.bind_group,
+                );
+                assert_eq!(changed, encoder.is_some());
+                if let Some(encoder) = encoder {
+                    rig.belt.finish();
+                    rig.commands.push(encoder.finish());
+                    rig.submit();
+                }
+                changed
+            };
+            assert!(render(&mut rig, 7, [64, 64], globals));
+            for _ in 0..2000 {
+                assert!(!render(&mut rig, 7, [64, 64], globals));
+            }
+            assert!(render(&mut rig, 8, [64, 64], globals));
+            let moved = GpuGlobals {
+                origin: [8.0, 0.0],
+                ..globals
+            };
+            assert!(render(&mut rig, 8, [64, 64], moved));
+            assert!(!render(&mut rig, 8, [64, 64], moved));
+            assert!(render(&mut rig, 8, [128, 64], moved));
+            rig.masks.invalidate();
+            assert!(render(&mut rig, 8, [128, 64], moved));
+        }
+    }
+
+    #[test]
+    #[ignore = "requires a native GPU adapter"]
     fn shared_mask_pipelines_keep_tile_pixels_and_invalidation_private() {
         let mut a = GpuRig::new();
         let mut b = GpuRig {
@@ -1162,7 +1265,7 @@ mod tests {
                 &crate::render_backend::mesh_paint::sampling_layout(&a.device),
                 [1, 1, 1],
             ),
-            belt: StagingBelt::new(a.device.clone(), 4096),
+            belt: OrderedUploads::queued(a.device.clone(), a.queue.clone(), 4096),
             commands: Vec::new(),
         };
         assert!(Rc::ptr_eq(&a.masks.resources, &b.masks.resources));
@@ -1282,7 +1385,7 @@ mod tests {
         rig.draw(1, 2, &[square(32.0, 64.0, 1.0)], [64, 64], 0.0, None);
         rig.commands.clear();
         rig.masks.invalidate();
-        rig.belt = StagingBelt::new(rig.device.clone(), 4096);
+        rig.belt = OrderedUploads::queued(rig.device.clone(), rig.queue.clone(), 4096);
         assert!(rig.draw(1, 2, &[square(32.0, 64.0, 1.0)], [64, 64], 0.0, None));
         let recovered = rig.capture(1);
         rig.submit();
@@ -1464,13 +1567,13 @@ mod tests {
         let empty_mesh_page =
             crate::render_backend::mesh_paint::PaintPage::new(&device, &mesh_layout, [1, 1, 1]);
         let mut masks = AlphaMasks::new(&device, &queue, sampling_layout(&device), &mesh_layout);
-        let mut belt = StagingBelt::new(device.clone(), 4096);
+        let mut belt = OrderedUploads::queued(device.clone(), queue.clone(), 4096);
         let globals = GpuGlobals {
             resolution: [64.0, 64.0],
             dpr: [1.0, 1.0],
             ..Default::default()
         };
-        let mut encoder = device.create_command_encoder(&Default::default());
+        let mut encoder = None;
         masks.render(
             &device,
             &mut encoder,
@@ -1532,8 +1635,8 @@ mod tests {
             &empty_mesh_page.bind_group,
         );
         belt.finish();
-        queue.submit([encoder.finish()]);
-        belt.recall();
+        queue.submit([encoder.unwrap().finish()]);
+        belt.after_submit();
         let row = 32 * 256;
         let overlap = read_mask(&device, &queue, &masks, 1);
         assert!((overlap[row + 8] as i32 - 128).abs() <= 2);

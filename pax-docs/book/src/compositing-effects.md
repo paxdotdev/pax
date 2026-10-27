@@ -319,6 +319,12 @@ alpha source hides all content. Alpha masking modulates individual canvas
 draws; it does not flatten the content into an isolated group before applying
 transparency.
 
+On WGPU, a source whose drawing bounds miss a tile's padded capture domain
+uses a shared transparent mask without allocating full-size capture surfaces.
+This does not suspend the source component or its reactive updates. Moving it
+back into the domain restores its coverage, and nearby off-tile geometry is
+still captured when its feathered edge can contribute.
+
 Alpha masks can reveal canvas content inside a Scroller, including a nested
 Scroller with intervening Frames or Masks. The source and content use the
 owning Scroller's content coordinates, so their authored offsets stay aligned
@@ -768,6 +774,20 @@ On first display or when a scrolled-away surface is recreated, the renderer
 replays the complete filtered subtree from settled scene state. This does not
 advance the application clock or require an animation or geometry change to
 produce the first frame; stationary filters work too.
+
+Effect bounds are checked against each tile's padded sampling domain before
+setting up capture attachments. Off-tile effects do not allocate or clear those
+attachments, and a cached source needs no capture setup even when shader
+parameters change. This is a rendering optimization, not deferred component
+mounting; reactive updates and the sampling support of nearby effects remain
+active.
+
+Recapturing an unchanged subtree for a new scroll tile is rendering work, not
+a scene edit. It redraws the required canvas descendants without invalidating
+their settled layout or geometry, including through nested shader containers.
+The tile can then finish preparation and submission without waiting for an
+unrelated application change. Actual content and layout changes still follow
+the normal reactive update path.
 
 For an inexpensive exit, stop both source animation and shader `phase`, then
 fade a stationary ancestor Group. WGPU can reuse the assembled pixels across

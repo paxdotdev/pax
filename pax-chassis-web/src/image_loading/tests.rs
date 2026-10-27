@@ -121,8 +121,26 @@ fn fixture(paths: &[&'static str]) -> (PaxEngine, Vec<Rc<ExpandedNode>>, Recordi
             .then(|| Rc::new(RefCell::new(PaxAny::Builtin(Default::default()))))
     })));
     root_args.component_template = Some(RefCell::new(children));
+    #[cfg(not(feature = "designtime"))]
     let mut engine = PaxEngine::new_empty(
         (320.0, 240.0),
+        Platform::Web,
+        OS::Mac,
+        Box::new(|| 0),
+        Default::default(),
+    );
+    #[cfg(feature = "designtime")]
+    let mut engine = PaxEngine::new_empty_with_designtime(
+        (320.0, 240.0),
+        Rc::new(RefCell::new(
+            pax_designtime::DesigntimeManager::new_offline(pax_manifest::PaxManifest {
+                components: Default::default(),
+                main_component_type_id: Default::default(),
+                type_table: Default::default(),
+                assets_dirs: Vec::new(),
+                engine_import_path: "pax_engine".into(),
+            }),
+        )),
         Platform::Web,
         OS::Mac,
         Box::new(|| 0),

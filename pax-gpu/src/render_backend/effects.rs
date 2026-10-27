@@ -243,6 +243,7 @@ impl RenderBackend<'_> {
         effect: &ShaderEffect,
         transform: Transform2D,
         signature: u64,
+        source_globals: &data::GpuGlobals,
         stats: &mut crate::ResourceChurnStats,
     ) {
         let parameters = effect
@@ -252,7 +253,7 @@ impl RenderBackend<'_> {
             .retained_surfaces
             .as_ref()
             .unwrap()
-            .effect_source(capture::CaptureKey::EffectSource(id), &self.globals);
+            .effect_source(capture::CaptureKey::EffectSource(id), source_globals);
         let inverse = transform
             .inverse()
             .expect("shader effect requires an invertible transform");

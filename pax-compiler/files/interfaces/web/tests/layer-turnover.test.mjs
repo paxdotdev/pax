@@ -7,6 +7,7 @@ import {surfaceRequire} from './surface-test-loader.mjs';
 
 class Element {
     dataset = {}; style = {}; children = []; parentElement;
+    hasAttribute(name) { return name.slice(5).replace(/-([a-z])/g, (_, c) => c.toUpperCase()) in this.dataset; }
     appendChild(child) {
         child.parentElement?.removeChild(child);
         child.parentElement = this;
@@ -154,6 +155,24 @@ test('priority-only plan changes update the canvas without replacing its lease',
     layer.syncCanvasLayout();
     assert.equal(canvas.dataset.replayPriority, '0');
     assert.equal(canvas.dataset.surfaceGeneration, generation);
+});
+
+test('a reused WebGPU canvas stays hidden before lease acquisition; retained tiles stay visible', () => {
+    const h = harness(1), layer = h.layers[1];
+    layer.setCanvasPlan(plan(surface('old')));
+    layer.syncCanvasLayout();
+    const canvas = h.map.get('old');
+    canvas.dataset.paxSurfaceOwners = '0';
+    canvas.style.visibility = ''; // former submission / object-manager style reset
+    layer.setCanvasPlan(plan(surface('new')));
+    layer.syncCanvasLayout();
+    assert.equal(h.map.get('new'), canvas);
+    assert.equal(canvas.style.visibility, 'hidden', 'do not wait for async GPU initialization to hide old pixels');
+    canvas.dataset.paxSurfaceOwners = '1';
+    canvas.style.visibility = ''; // first submission by the current lease
+    layer.setCanvasPlan(plan(surface('new', 2)));
+    layer.syncCanvasLayout();
+    assert.equal(canvas.style.visibility, '', 'priority/layout updates must not hide valid same-owner coverage');
 });
 
 test('content-origin recenter preserves painted coverage without a new lease or content revision', () => {

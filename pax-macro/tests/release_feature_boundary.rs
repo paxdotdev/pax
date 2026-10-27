@@ -30,8 +30,7 @@ impl Drop for FixtureDir {
     }
 }
 
-#[test]
-fn designtime_macro_feature_is_rejected_when_release_environment_disables_it() {
+fn assert_release_feature_rejected(source: &str) {
     let fixture = FixtureDir::new();
     let macro_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let workspace_dir = macro_dir.parent().unwrap();
@@ -45,22 +44,14 @@ edition = "2021"
 
 [dependencies]
 pax-macro = {{ path = {:?}, features = ["designtime"] }}
+pax-kit = {{ path = {:?}, default-features = false, features = ["designtime"] }}
 "#,
-            macro_dir
+            macro_dir,
+            workspace_dir.join("pax-kit")
         ),
     )
     .unwrap();
-    fs::write(
-        fixture.path().join("src/lib.rs"),
-        r#"use pax_macro::pax;
-
-#[pax]
-#[main]
-#[inlined(<Group />)]
-pub struct App {}
-"#,
-    )
-    .unwrap();
+    fs::write(fixture.path().join("src/lib.rs"), source).unwrap();
 
     let output = Command::new(std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into()))
         .arg("check")
@@ -70,6 +61,8 @@ pub struct App {}
         .env("CARGO_TARGET_DIR", workspace_dir.join("target"))
         .env("PAX_BUILD_TARGET", "web")
         .env("PAX_BUILD_DESIGNTIME", "0")
+        .env("PAX_BUILD_CARTRIDGE", "true")
+        .env("PAX_CARTRIDGE_MANIFEST_DIR", fixture.path())
         .env("PAX_DIR", fixture.path().join(".pax"))
         .output()
         .unwrap();
@@ -79,5 +72,34 @@ pub struct App {}
     assert!(
         stderr.contains("Pax release builds cannot include the `pax-engine/designtime` feature"),
         "expected release feature boundary error, got:\n{stderr}"
+    );
+}
+
+#[test]
+fn designtime_macro_feature_is_rejected_when_release_environment_disables_it() {
+    assert_release_feature_rejected(
+        r#"use pax_kit::*;
+use pax_macro::pax;
+
+#[pax]
+#[main]
+#[inlined(<Group />)]
+pub struct App {}
+"#,
+    );
+}
+
+#[test]
+fn designtime_runnable_is_rejected_when_release_environment_disables_it() {
+    assert_release_feature_rejected(
+        r#"use pax_kit::*;
+use pax_macro::{pax, runnable};
+
+#[pax]
+#[inlined(<Group />)]
+pub struct App {}
+
+runnable! { root: App }
+"#,
     );
 }

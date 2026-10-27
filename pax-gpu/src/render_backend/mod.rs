@@ -1,4 +1,4 @@
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(target_arch = "wasm32", test))]
 mod browser_canvas;
 
 /// Emit opt-in browser surface lifecycle diagnostics. First submission is
@@ -53,19 +53,23 @@ use std::sync::{Arc, Mutex};
 
 use lyon::lyon_tessellation::VertexBuffers;
 use wgpu::{
-    util::{DeviceExt, StagingBelt},
-    BindGroup, BindGroupLayout, BufferUsages, CommandBuffer, CompositeAlphaMode, Device,
-    IndexFormat, PresentMode, RenderPipeline, SurfaceConfiguration, SurfaceTexture, Texture,
-    TextureFormat, TextureFormatFeatureFlags, TextureUsages, TextureView,
+    util::DeviceExt, BindGroup, BindGroupLayout, BufferUsages, CommandBuffer, CompositeAlphaMode,
+    Device, IndexFormat, PresentMode, RenderPipeline, SurfaceConfiguration, SurfaceTexture,
+    Texture, TextureFormat, TextureFormatFeatureFlags, TextureUsages, TextureView,
 };
 
 pub(crate) mod alpha_mask;
+mod attachments;
+pub use attachments::CommandBatch;
+use attachments::{Attachment, AttachmentUses};
 pub mod data;
 mod gpu_resources;
 pub(crate) mod mesh_paint;
+mod ordered_uploads;
 pub mod stencil;
 mod texture;
 mod transform_pages;
+use ordered_uploads::OrderedUploads;
 use transform_pages::{transform_runs, TransformPages, TransformRun, TRANSFORMS_PER_PAGE};
 
 #[cfg(all(test, target_os = "macos"))]
@@ -291,11 +295,8 @@ impl GpuContext {
         resources
     }
 
-    pub(crate) fn submit_command_buffers<I>(&self, command_buffers: I)
-    where
-        I: IntoIterator<Item = CommandBuffer>,
-    {
-        self.queue.submit(command_buffers);
+    pub(crate) fn submit_command_buffers(&self, command_buffers: CommandBatch) {
+        command_buffers.submit(&self.queue);
     }
 }
 
@@ -407,19 +408,12 @@ fn write_u16_buffer_padded(queue: &wgpu::Queue, buffer: &wgpu::Buffer, data: &[u
 }
 
 fn write_staged_buffer(
-    staging_belt: &mut StagingBelt,
+    staging_belt: &mut OrderedUploads,
     encoder: &mut wgpu::CommandEncoder,
     buffer: &wgpu::Buffer,
     bytes: &[u8],
 ) {
-    if bytes.is_empty() {
-        return;
-    }
-
-    let size = wgpu::BufferSize::new(bytes.len() as wgpu::BufferAddress)
-        .expect("staged buffer writes must be non-empty");
-    let mut view = staging_belt.write_buffer(encoder, buffer, 0, size);
-    view.copy_from_slice(bytes);
+    staging_belt.write(encoder, buffer, bytes);
 }
 
 fn physical_scissor_rect(
@@ -472,8 +466,7 @@ pub struct RenderBackend<'w> {
     //gpu pipeline references
     device: wgpu::Device,
     queue: wgpu::Queue,
-    staging_belt: StagingBelt,
-    surface: wgpu::Surface<'w>,
+    staging_belt: OrderedUploads,
     surface_config: SurfaceConfiguration,
     max_surface_dimension: u32,
     pipeline: Rc<RenderPipeline>,
@@ -502,8 +495,10 @@ pub struct RenderBackend<'w> {
     stencil_renderer: StencilRenderer,
     source_stencil: Option<StencilRenderer>,
     source_domain: Option<(GpuGlobals, u32, u32)>,
+    #[cfg(test)]
+    pub(crate) source_domain_entries: u64,
     pub(crate) alpha_masks: alpha_mask::AlphaMasks,
-    multisampled_target: Option<MultisampledTarget>,
+    multisampled_target: Option<Attachment>,
     sample_count: u32,
     clear_color: wgpu::Color,
     active_frame: Option<ActiveFrame>,
@@ -514,11 +509,14 @@ pub struct RenderBackend<'w> {
     pending_clear: bool,
     pending_command_buffers: Vec<CommandBuffer>,
     retained_encoder: Option<wgpu::CommandEncoder>,
+    // Declared after commands/encoder so abandonment drops commands before leases.
+    attachment_uses: AttachmentUses,
     staging_belt_pending_recall: bool,
     needs_device_poll: bool,
     pending_capture_ids: Vec<u32>,
     completed_captures: Arc<Mutex<HashMap<u32, CapturedFrame>>>,
-    // Drop this last, after every surface/frame handle has released the canvas.
+    // Drop the surface after its commands/frames, and the canvas lease last.
+    surface: wgpu::Surface<'w>,
     #[cfg(target_arch = "wasm32")]
     browser_canvas: Option<browser_canvas::BrowserCanvasLease>,
     #[cfg(target_arch = "wasm32")]
@@ -530,22 +528,17 @@ struct ActiveFrame {
     surface: SurfaceTexture,
 }
 
-struct MultisampledTarget {
-    _texture: Texture,
-    view: TextureView,
-}
-
 struct CaptureTarget {
     texture: Texture,
     view: TextureView,
-    multisampled_target: Option<MultisampledTarget>,
+    multisampled_target: Option<Attachment>,
     initialized: bool,
 }
 
 impl CaptureTarget {
     fn color_attachment_views(&self) -> (&TextureView, Option<&TextureView>) {
         if let Some(multisampled_target) = &self.multisampled_target {
-            (&multisampled_target.view, Some(&self.view))
+            (multisampled_target.view(), Some(&self.view))
         } else {
             (&self.view, None)
         }
@@ -994,7 +987,8 @@ impl<'w> RenderBackend<'w> {
         let adapter = &context.adapter;
         let device = context.device.clone();
         let queue = context.queue.clone();
-        let staging_belt = StagingBelt::new(device.clone(), STAGING_BELT_CHUNK_SIZE);
+        let staging_belt =
+            OrderedUploads::new(device.clone(), queue.clone(), STAGING_BELT_CHUNK_SIZE);
         let max_surface_dimension = context.max_surface_dimension;
 
         let surface_caps = surface.get_capabilities(&adapter);
@@ -1221,6 +1215,7 @@ impl<'w> RenderBackend<'w> {
             &device,
             context.texture_pipeline_resources(surface_config.format, sample_count),
         );
+        let attachment_uses = AttachmentUses::default();
         let stencil_renderer = StencilRenderer::with_pipeline_resources(
             &device,
             initial_width,
@@ -1229,6 +1224,7 @@ impl<'w> RenderBackend<'w> {
             &globals_buffer,
             &clip_transforms_buffer,
             context.stencil_pipeline_resources(surface_config.format, sample_count),
+            Some(attachment_uses.clone()),
         );
 
         let initial_width = initial_width;
@@ -1249,6 +1245,8 @@ impl<'w> RenderBackend<'w> {
             stencil_renderer,
             source_stencil: None,
             source_domain: None,
+            #[cfg(test)]
+            source_domain_entries: 0,
             surface,
             #[cfg(target_arch = "wasm32")]
             browser_canvas: None,
@@ -1286,6 +1284,7 @@ impl<'w> RenderBackend<'w> {
             pending_clear: false,
             pending_command_buffers: Vec::new(),
             retained_encoder: None,
+            attachment_uses,
             staging_belt_pending_recall: false,
             needs_device_poll: false,
             pending_capture_ids: Vec::new(),
@@ -1439,12 +1438,17 @@ impl<'w> RenderBackend<'w> {
         self.pending_clear = true;
         self.pending_command_buffers.clear();
         self.retained_encoder = None;
+        self.attachment_uses.discard();
         // Resize abandons encoded uploads. Forget their mask signatures and
         // staging allocations instead of recalling work that was never submitted.
         // Dropped WGPU handles remain alive for any older in-flight commands.
         self.alpha_masks.invalidate();
         self.reset_captures();
-        self.staging_belt = StagingBelt::new(self.device.clone(), STAGING_BELT_CHUNK_SIZE);
+        self.staging_belt = OrderedUploads::new(
+            self.device.clone(),
+            self.queue.clone(),
+            STAGING_BELT_CHUNK_SIZE,
+        );
         self.staging_belt_pending_recall = false;
         self.needs_device_poll = false;
         self.surface_config.width = width;
@@ -1461,10 +1465,7 @@ impl<'w> RenderBackend<'w> {
                 &self.surface_config,
                 self.sample_count,
             );
-            Some(MultisampledTarget {
-                _texture: texture,
-                view,
-            })
+            Some(Attachment::new(texture, view, &self.attachment_uses))
         } else {
             None
         };
@@ -1511,9 +1512,10 @@ impl<'w> RenderBackend<'w> {
         self.needs_device_poll = true;
     }
 
-    pub(crate) fn take_pending_command_buffers(&mut self) -> Vec<CommandBuffer> {
+    pub(crate) fn take_pending_command_buffers(&mut self) -> CommandBatch {
         self.finish_retained_encoding();
-        std::mem::take(&mut self.pending_command_buffers)
+        self.attachment_uses
+            .take(std::mem::take(&mut self.pending_command_buffers))
     }
 
     pub(crate) fn has_pending_submission_cleanup(&self) -> bool {
@@ -1522,7 +1524,7 @@ impl<'w> RenderBackend<'w> {
 
     pub(crate) fn complete_submitted_work(&mut self) {
         if self.staging_belt_pending_recall {
-            self.staging_belt.recall();
+            self.staging_belt.after_submit();
             self.staging_belt_pending_recall = false;
         }
         if self.needs_device_poll {
@@ -1531,7 +1533,7 @@ impl<'w> RenderBackend<'w> {
         }
     }
 
-    pub(crate) fn submit_command_buffers(&self, command_buffers: Vec<CommandBuffer>) {
+    pub(crate) fn submit_command_buffers(&self, command_buffers: CommandBatch) {
         self.context.submit_command_buffers(command_buffers);
     }
 
@@ -1573,7 +1575,7 @@ impl<'w> RenderBackend<'w> {
         inputs: &[mesh_paint::MeshInput],
         stats: &mut crate::ResourceChurnStats,
     ) {
-        let mut encoder = self.device.create_command_encoder(&Default::default());
+        let mut encoder = None;
         let mut mesh_stats = mesh_paint::RasterStats::default();
         if let Err(error) = self.mesh_rasterizer.prepare_page(
             &self.device,
@@ -1601,7 +1603,7 @@ impl<'w> RenderBackend<'w> {
         stats.mesh_raster_passes += mesh_stats.raster_passes;
         stats.mesh_cache_hits += mesh_stats.cache_hits;
         stats.mesh_topology_allocations += mesh_stats.topology_allocations;
-        if mesh_stats.raster_passes > 0 {
+        if let Some(encoder) = encoder {
             self.enqueue_command_buffer(encoder.finish());
         }
     }
@@ -1966,20 +1968,13 @@ impl<'w> RenderBackend<'w> {
     }
 
     pub(crate) fn source_domain_fits(&self, margin: f32) -> bool {
-        [self.surface_config.width, self.surface_config.height]
-            .into_iter()
-            .zip(self.globals.dpr)
-            .all(|(size, dpr)| {
-                let extent = size as f64 + 2.0 * ((margin * dpr).ceil() as f64 + 1.0);
-                dpr.is_finite()
-                    && dpr > 0.0
-                    && extent.is_finite()
-                    && extent <= self.max_surface_dimension as f64
-            })
+        self.source_domain_geometry(margin).is_some()
     }
 
-    pub(crate) fn begin_source_domain(&mut self, margin: f32) -> bool {
-        assert!(self.source_domain.is_none());
+    pub(crate) fn source_domain_geometry(
+        &self,
+        margin: f32,
+    ) -> Option<(data::GpuGlobals, [u32; 2])> {
         let dpr = self.globals.dpr;
         let gutter = [
             (margin * dpr[0]).ceil() + 1.0,
@@ -1989,15 +1984,41 @@ impl<'w> RenderBackend<'w> {
             self.surface_config.width as f64 + 2.0 * gutter[0] as f64,
             self.surface_config.height as f64 + 2.0 * gutter[1] as f64,
         ];
-        if extent
-            .iter()
-            .any(|v| !v.is_finite() || *v > self.max_surface_dimension as f64)
+        if dpr.iter().any(|v| !v.is_finite() || *v <= 0.0)
+            || extent
+                .iter()
+                .any(|v| !v.is_finite() || *v < 1.0 || *v > self.max_surface_dimension as f64)
         {
-            log::error!("alpha-source feather domain exceeds GPU texture limits");
-            return false;
+            return None;
         }
         let width = extent[0] as u32;
         let height = extent[1] as u32;
+        let mut globals = self.globals;
+        globals.origin = [-gutter[0] / dpr[0], -gutter[1] / dpr[1]];
+        globals.resolution = [width as f32 / dpr[0], height as f32 / dpr[1]];
+        Some((globals, [width, height]))
+    }
+
+    pub(crate) fn source_domain_bounds(&self, margin: f32) -> Option<ScissorRect> {
+        self.source_domain_geometry(margin)
+            .map(|(globals, _)| ScissorRect {
+                min_x: globals.origin[0],
+                min_y: globals.origin[1],
+                max_x: globals.origin[0] + globals.resolution[0],
+                max_y: globals.origin[1] + globals.resolution[1],
+            })
+    }
+
+    pub(crate) fn begin_source_domain(&mut self, margin: f32) -> bool {
+        assert!(self.source_domain.is_none());
+        let Some((globals, [width, height])) = self.source_domain_geometry(margin) else {
+            log::error!("alpha-source feather domain exceeds GPU texture limits");
+            return false;
+        };
+        #[cfg(test)]
+        {
+            self.source_domain_entries += 1;
+        }
         let mut stencil = self.source_stencil.take().unwrap_or_else(|| {
             StencilRenderer::with_shared_transforms(
                 &self.device,
@@ -2020,8 +2041,7 @@ impl<'w> RenderBackend<'w> {
         ));
         self.surface_config.width = width;
         self.surface_config.height = height;
-        self.globals.origin = [-gutter[0] / dpr[0], -gutter[1] / dpr[1]];
-        self.globals.resolution = [width as f32 / dpr[0], height as f32 / dpr[1]];
+        self.globals = globals;
         self.stage_capture_globals();
         true
     }
@@ -2067,12 +2087,8 @@ impl<'w> RenderBackend<'w> {
             .as_ref()
             .unwrap()
             .texture_view(key, [self.surface_config.width, self.surface_config.height]);
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Captured alpha"),
-            });
-        if self.alpha_masks.render(
+        let mut encoder = None;
+        self.alpha_masks.render(
             &self.device,
             &mut encoder,
             &mut self.staging_belt,
@@ -2085,7 +2101,8 @@ impl<'w> RenderBackend<'w> {
             parent,
             Some((&view, crop)),
             &self.empty_mesh_page.bind_group,
-        ) {
+        );
+        if let Some(encoder) = encoder {
             self.enqueue_staged_command_buffer(encoder);
         }
     }
@@ -2105,12 +2122,8 @@ impl<'w> RenderBackend<'w> {
         if let Some(page) = page {
             self.alpha_mesh_pages.insert(id, page);
         }
-        let mut encoder = self
-            .device
-            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                label: Some("Alpha mask encoder"),
-            });
-        let rendered = self.alpha_masks.render(
+        let mut encoder = None;
+        self.alpha_masks.render(
             &self.device,
             &mut encoder,
             &mut self.staging_belt,
@@ -2129,7 +2142,7 @@ impl<'w> RenderBackend<'w> {
                 .get(&id)
                 .map_or(&self.empty_mesh_page.bind_group, |page| &page.bind_group),
         );
-        if rendered {
+        if let Some(encoder) = encoder {
             self.enqueue_staged_command_buffer(encoder);
         }
     }
@@ -3004,7 +3017,8 @@ impl<'w> RenderBackend<'w> {
         if let Some(screen_surface) = self.active_frame.take() {
             screen_surface.surface.present();
             #[cfg(target_arch = "wasm32")]
-            if let Some(lease) = &self.browser_canvas {
+            if let Some(lease) = &mut self.browser_canvas {
+                lease.present();
                 record_browser_surface_event(&lease.canvas, "first-submit");
                 if std::mem::take(&mut self.image_trace_pending) {
                     record_browser_surface_event(&lease.canvas, "image-content-submit");
@@ -3059,7 +3073,7 @@ impl<'w> RenderBackend<'w> {
             .expect("active frame should exist after acquisition")
             .view;
         if let Some(multisampled_target) = &self.multisampled_target {
-            (&multisampled_target.view, Some(surface_view))
+            (multisampled_target.view(), Some(surface_view))
         } else {
             (surface_view, None)
         }
@@ -3077,7 +3091,7 @@ impl<'w> RenderBackend<'w> {
             .view
             .clone();
         if let Some(multisampled_target) = &self.multisampled_target {
-            (multisampled_target.view.clone(), Some(surface_view))
+            (multisampled_target.view().clone(), Some(surface_view))
         } else {
             (surface_view, None)
         }
@@ -3121,10 +3135,7 @@ impl<'w> RenderBackend<'w> {
                 &self.surface_config,
                 self.sample_count,
             );
-            Some(MultisampledTarget {
-                _texture: texture,
-                view,
-            })
+            Some(Attachment::new(texture, view, &self.attachment_uses))
         } else {
             None
         };
@@ -3171,6 +3182,17 @@ impl<'w> RenderBackend<'w> {
             return;
         }
 
+        let source_texture = if self.surface_supports_copy_src() {
+            let Some(active_frame) = self.active_frame.as_ref() else {
+                return;
+            };
+            &active_frame.surface.texture
+        } else {
+            let Some(capture_target) = self.capture_target.as_ref() else {
+                return;
+            };
+            &capture_target.texture
+        };
         let width = self.surface_config.width.max(1);
         let height = self.surface_config.height.max(1);
         let surface_format = self.surface_config.format;
@@ -3190,17 +3212,6 @@ impl<'w> RenderBackend<'w> {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("Surface Screenshot Encoder"),
             });
-        let source_texture = if self.surface_supports_copy_src() {
-            let Some(active_frame) = self.active_frame.as_ref() else {
-                return;
-            };
-            &active_frame.surface.texture
-        } else {
-            let Some(capture_target) = self.capture_target.as_ref() else {
-                return;
-            };
-            &capture_target.texture
-        };
         encoder.copy_texture_to_buffer(
             wgpu::TexelCopyTextureInfo {
                 texture: source_texture,

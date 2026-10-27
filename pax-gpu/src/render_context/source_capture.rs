@@ -169,26 +169,62 @@ impl WgpuRenderer<'_> {
                 gutter = gutter.max(required);
             } else {
                 log::error!("alpha source {owner} exceeds GPU texture limits; hiding its content");
-                self.render_backend.render_alpha_mask(
-                    *owner,
-                    0,
-                    &[],
-                    0.0,
-                    None,
-                    &[],
-                    &mut self.resource_churn_stats,
-                );
+                self.render_backend.alpha_masks.set_empty(*owner);
                 visited.insert(*owner);
             }
         }
-        if visited.len() == self.source_captures.len() {
+        // Classify before entering the source domain: even its stencil is a
+        // tile-sized allocation. Include the complete shared feather/effect gutter.
+        let Some(domain) = self.render_backend.source_domain_bounds(gutter) else {
+            // Even the minimum guard texel can exceed the limit on a maximum-size tile.
+            // Fail closed, just as for an oversized feather domain above.
+            for owner in active_masks {
+                if self.source_captures.contains_key(owner) {
+                    self.render_backend.alpha_masks.set_empty(*owner);
+                }
+            }
+            return active;
+        };
+        let domain = Box2D {
+            min: point(domain.min_x, domain.min_y),
+            max: point(domain.max_x, domain.max_y),
+        };
+        let mut source_bounds = HashMap::new();
+        for owner in active_masks {
+            let Some(source) = self.source_captures.get(owner) else {
+                continue;
+            };
+            if visited.contains(owner) {
+                continue;
+            }
+            let bounds = source
+                .nodes
+                .iter()
+                .filter_map(|id| self.scene.get(id))
+                .map(|node| node.bounds())
+                .filter(|bounds| boxes_intersect(bounds, &domain))
+                .reduce(|a, b| a.union(&b));
+            if let Some(bounds) = bounds {
+                source_bounds.insert(*owner, bounds);
+            } else {
+                self.render_backend.alpha_masks.set_empty(*owner);
+                visited.insert(*owner);
+            }
+        }
+        if source_bounds.is_empty() {
             return active;
         }
         assert!(self.render_backend.begin_source_domain(gutter));
         self.ensure_vector_resources_for_immediate_scene();
         let mut visiting = HashSet::new();
         for owner in active_masks {
-            self.render_alpha_source(*owner, &mut visited, &mut visiting, &mut active);
+            self.render_alpha_source(
+                *owner,
+                &source_bounds,
+                &mut visited,
+                &mut visiting,
+                &mut active,
+            );
         }
         self.render_backend.end_source_domain();
         active
@@ -197,6 +233,7 @@ impl WgpuRenderer<'_> {
     fn render_alpha_source(
         &mut self,
         owner: u32,
+        source_bounds: &HashMap<u32, Box2D>,
         visited: &mut HashSet<u32>,
         visiting: &mut HashSet<u32>,
         active: &mut HashSet<CaptureKey>,
@@ -206,7 +243,7 @@ impl WgpuRenderer<'_> {
         }
         assert!(visiting.insert(owner), "alpha-source dependency cycle");
         for dependency in self.source_dependencies(owner) {
-            self.render_alpha_source(dependency, visited, visiting, active);
+            self.render_alpha_source(dependency, source_bounds, visited, visiting, active);
         }
         visiting.remove(&owner);
         let source = &self.source_captures[&owner];
@@ -240,25 +277,13 @@ impl WgpuRenderer<'_> {
             self.render_backend.begin_capture();
             self.draw_opacity_plan(&plan);
             let domain = self.viewport_bounds();
-            let bounds = nodes
-                .iter()
-                .map(|id| self.scene[id].bounds())
-                .filter(|bounds| boxes_intersect(bounds, &domain))
-                .reduce(|a, b| a.union(&b));
-            let bounds = bounds.map_or(
-                ScissorRect {
-                    min_x: domain.min.x,
-                    min_y: domain.min.y,
-                    max_x: domain.min.x + 1.0 / self.render_backend.globals.dpr[0],
-                    max_y: domain.min.y + 1.0 / self.render_backend.globals.dpr[1],
-                },
-                |bounds| ScissorRect {
-                    min_x: (bounds.min.x - 1.0).max(domain.min.x),
-                    min_y: (bounds.min.y - 1.0).max(domain.min.y),
-                    max_x: (bounds.max.x + 1.0).min(domain.max.x),
-                    max_y: (bounds.max.y + 1.0).min(domain.max.y),
-                },
-            );
+            let bounds = source_bounds[&owner];
+            let bounds = ScissorRect {
+                min_x: (bounds.min.x - 1.0).max(domain.min.x),
+                min_y: (bounds.min.y - 1.0).max(domain.min.y),
+                max_x: (bounds.max.x + 1.0).min(domain.max.x),
+                max_y: (bounds.max.y + 1.0).min(domain.max.y),
+            };
             self.render_backend
                 .end_capture(key, content_signature, bounds);
             self.resource_churn_stats.alpha_source_renders += 1;
@@ -278,6 +303,10 @@ impl WgpuRenderer<'_> {
 
 #[cfg(test)]
 impl WgpuRenderer<'_> {
+    pub(crate) fn alpha_source_has_working_storage(&self) -> bool {
+        self.render_backend.alpha_source_has_working_storage()
+    }
+
     pub(crate) fn alpha_source_resource_counts(&self) -> (usize, usize, usize) {
         (
             self.source_captures.len(),

@@ -186,6 +186,12 @@ export class Layer {
                     // A pooled element may return to the same logical tile after its
                     // backing store was cleared. DOM identity alone is not a lease.
                     canvas.dataset.surfaceGeneration = String(++nextSurfaceGeneration);
+                    // Object-manager reuse can reset inline styles. Reassert the
+                    // WebGPU presentation gate before publishing a new assignment,
+                    // including the interval before its async lease is acquired.
+                    if (canvas.hasAttribute("data-pax-surface-owners")) {
+                        canvas.style.visibility = "hidden";
+                    }
                     delete canvas.dataset.surfaceRetiredId;
                     delete canvas.dataset.surfaceRetiredRevision;
                     canvas.style.position = "absolute";

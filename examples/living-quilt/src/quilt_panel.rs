@@ -26,10 +26,13 @@ impl QuiltPanel {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pax_kit::properties::PropertyGraph;
     use std::{cell::Cell, rc::Rc};
 
     #[test]
     fn motion_updates_leave_shape_bindings_clean_and_settle_without_writes() {
+        let graph = PropertyGraph::new(|| {});
+        let _entered = graph.enter();
         let mut panel = Panel::new(1, 12, 0, false);
         panel.direction = 1;
         let component = QuiltPanel {
@@ -61,6 +64,7 @@ mod tests {
         );
         for now in [0, 100, 200, 400, 580] {
             component.advance(now);
+            graph.import();
             shape_binding.get();
             motion_binding.get();
         }
@@ -69,6 +73,7 @@ mod tests {
         assert_eq!(component.x.get(), 0.0);
         for now in [600, 1000, 2000] {
             component.advance(now);
+            graph.import();
             motion_binding.get();
         }
         assert_eq!(motion_reads.get(), 5);

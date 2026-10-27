@@ -180,6 +180,21 @@ one surface does not overwrite another's pixels. Creating a new scroll tile
 therefore reuses that setup, but still requires its own backing storage and
 rendering work before its content is ready.
 
+The GPU backend explicitly releases retired multisampled color and stencil
+attachments when a surface is resized, evicted, or shut down. Attachments still
+used by encoded commands remain valid until those commands are submitted or
+discarded; submitted GPU work does not require a CPU completion wait. Reusable
+tiles and capture targets keep their attachments. This policy is shared by
+native GPU and WebGPU builds and avoids relying on browser garbage collection
+to reclaim retired attachment storage. It is not a cap on total application or
+browser memory, nor does it change pixel density, antialiasing, or warm regions.
+
+Low-level renderer integrations receive a `CommandBatch` from
+`take_pending_command_buffers()`, rather than a raw command-buffer vector.
+Combine batches with `CommandBatch::append`, submit through the renderer, and
+perform the existing submission cleanup. The batch carries the attachment
+leases with the commands, including when several surfaces share a submission.
+
 The amount of work is therefore related to the dependencies and surfaces
 affected by a change. A single property write can still have a broad effect:
 resizing a container, removing an overlapping element, or changing a clip
@@ -374,6 +389,28 @@ surface is sized separately.
 CLI web builds enable WebAssembly SIMD and optimize the software rasterizer
 for speed; see [web build profiles](developer-workflow.md#web-build-profiles)
 for browser requirements and custom compiler flags.
+
+The WebGPU renderer stages ordered buffer updates in pooled, unmapped upload
+buffers. Copies stay ordered with their draws, including when several draws
+use different versions of one destination buffer in a single submission.
+This avoids a Safari validation failure with repeated copies from mapped
+staging buffers; it does not provide recovery from graphics-device loss.
+Native GPU builds retain their mapped staging-belt upload path.
+
+Recycled WebGPU canvases stay hidden until their new surface owner submits its
+first frame. This prevents old pixels from a previous tile appearing during
+asynchronous initialization, including on browsers that retain a displayed image
+after canvas reset. Already-presented tiles keep their coverage while updating;
+this gate adds no GPU wait or extra clear pass, and does not change tile budgets
+or the Vello CPU rendering path.
+
+Mesh-paint preparation and alpha-mask rendering allocate a command encoder
+only when they record GPU work. Empty mesh inputs and unchanged cached mesh
+or mask content do not allocate one. This matters on browsers where dropping
+an unused encoder can leave native command resources waiting for JavaScript
+garbage collection. Changed content still follows the normal ordered
+submission path; this does not change rendering quality or tile budgets.
+
 
 The Apple-native chassis use Pax's GPU rendering integration alongside native
 views. Running a web build in Safari on an iPhone is a different target path

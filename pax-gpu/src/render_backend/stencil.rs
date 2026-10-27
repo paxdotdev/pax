@@ -1,3 +1,4 @@
+use super::attachments::{Attachment, AttachmentUses};
 use super::data::GpuTransform;
 use super::transform_pages::{self, TransformPages, TRANSFORMS_PER_PAGE};
 use bytemuck::{Pod, Zeroable};
@@ -62,6 +63,8 @@ pub struct StencilRenderer {
     color_decrement_pipeline: Rc<RenderPipeline>,
     stencil_texture: wgpu::Texture,
     stencil_view: wgpu::TextureView,
+    attachment: Option<Attachment>,
+    attachment_uses: Option<AttachmentUses>,
     stencil_layer: u32,
     stencil_geometry_stack: Vec<StencilStackEntry>,
     cached_geometry: HashMap<u64, CachedStencilGeometry>,
@@ -111,10 +114,11 @@ impl StencilRenderer {
             globals,
             clip_transforms,
             resources,
+            None,
         )
     }
 
-    pub(crate) fn with_pipeline_resources(
+    pub(super) fn with_pipeline_resources(
         device: &Device,
         width: u32,
         height: u32,
@@ -122,6 +126,7 @@ impl StencilRenderer {
         globals: &wgpu::Buffer,
         clip_transforms: &wgpu::Buffer,
         resources: StencilPipelineResources,
+        attachment_uses: Option<AttachmentUses>,
     ) -> Self {
         let transforms = Rc::new(RefCell::new(TransformPages::from_buffer(
             device,
@@ -136,6 +141,7 @@ impl StencilRenderer {
             globals,
             resources,
             transforms,
+            attachment_uses,
         )
     }
 
@@ -158,6 +164,7 @@ impl StencilRenderer {
             globals,
             resources,
             Rc::clone(&source.transforms),
+            source.attachment_uses.clone(),
         )
     }
 
@@ -169,6 +176,7 @@ impl StencilRenderer {
         globals: &wgpu::Buffer,
         resources: StencilPipelineResources,
         transforms: Rc<RefCell<TransformPages>>,
+        attachment_uses: Option<AttachmentUses>,
     ) -> Self {
         let stencil_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             layout: resources.stencil_bind_group_layout.as_ref(),
@@ -180,6 +188,9 @@ impl StencilRenderer {
         });
         let (stencil_texture, stencil_view) =
             Self::create_stencil_texture(device, width, height, sample_count);
+        let attachment = attachment_uses
+            .as_ref()
+            .map(|uses| Attachment::new(stencil_texture.clone(), stencil_view.clone(), uses));
 
         Self {
             stencil_pipeline: resources.stencil_pipeline,
@@ -188,6 +199,8 @@ impl StencilRenderer {
             color_decrement_pipeline: resources.color_decrement_pipeline,
             stencil_texture,
             stencil_view,
+            attachment,
+            attachment_uses,
             width,
             height,
             sample_count,
@@ -391,6 +404,13 @@ impl StencilRenderer {
 
         (self.stencil_texture, self.stencil_view) =
             Self::create_stencil_texture(device, width, height, self.sample_count);
+        self.attachment = self.attachment_uses.as_ref().map(|uses| {
+            Attachment::new(
+                self.stencil_texture.clone(),
+                self.stencil_view.clone(),
+                uses,
+            )
+        });
         self.width = width;
         self.height = height;
     }
@@ -472,7 +492,7 @@ impl StencilRenderer {
                 label: Some("Stencil Sync Pass"),
                 color_attachments: &[None],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.stencil_view,
+                    view: self.attachment_view(),
                     depth_ops: None,
                     stencil_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Load,
@@ -639,11 +659,19 @@ impl StencilRenderer {
     }
 
     pub fn get_stencil(&self) -> (&wgpu::TextureView, u32) {
-        (&self.stencil_view, self.stencil_layer)
+        (self.attachment_view(), self.stencil_layer)
     }
 
     pub(crate) fn stencil_view_clone(&self) -> wgpu::TextureView {
-        self.stencil_view.clone()
+        self.attachment_view().clone()
+    }
+
+    fn attachment_view(&self) -> &wgpu::TextureView {
+        // The backend supplies a batch lifetime. Standalone low-level users keep
+        // wgpu's normal handle lifetime because they own their own submission API.
+        self.attachment
+            .as_ref()
+            .map_or(&self.stencil_view, Attachment::view)
     }
 
     pub fn clear(&mut self, device: &Device, queue: &Queue) {
@@ -660,7 +688,7 @@ impl StencilRenderer {
                 label: Some("Stencil Clear Pass"),
                 color_attachments: &[None],
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.stencil_view,
+                    view: self.attachment_view(),
                     depth_ops: None,
                     stencil_ops: Some(wgpu::Operations {
                         load: wgpu::LoadOp::Clear(0),

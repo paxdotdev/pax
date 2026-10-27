@@ -274,11 +274,20 @@ fn normalized_point(ctx: &NodeContext, x: f64, y: f64) -> (f64, f64) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pax_kit::properties::{register_millis, register_time};
+    use pax_kit::properties::{drain_effects, register_millis, register_time, PropertyGraph};
     use std::{cell::Cell, rc::Rc};
+
+    fn advance_clock(graph: &PropertyGraph, millis: &LocalProperty<u64>, now: u64) {
+        // Simulate the engine's publication import and owner-thread effect pass.
+        graph.import();
+        millis.set(now);
+        drain_effects(100);
+    }
 
     #[test]
     fn ring_repeat_changes_only_at_birth_and_removal() {
+        let graph = PropertyGraph::new(|| {});
+        let _entered = graph.enter();
         let example = Example::default();
         let source = Variable::new_from_typed_property(example.ripples.clone());
         let source_reads = Rc::new(Cell::new(0));
@@ -294,10 +303,12 @@ mod tests {
         for id in 0..MAX_LIVE_RIPPLES {
             example.push_ripple(Ripple::new(id, 50.0, 50.0, 1000.0, 600.0, id as u64 * 50));
         }
+        graph.import();
         binding.get();
         assert_eq!(example.ripples.read(Vec::len), MAX_LIVE_RIPPLES);
         for now in [400, 600, 800, 1000] {
             example.advance_scene(now, 1000.0, 600.0);
+            graph.import();
             binding.get();
         }
         assert_eq!(
@@ -311,6 +322,7 @@ mod tests {
             .ripple_hits
             .set((0..MAX_LIVE_RIPPLES as u32).collect());
         example.advance_scene(1250, 1000.0, 600.0);
+        graph.import();
         binding.get();
         assert_eq!(
             example
@@ -324,6 +336,7 @@ mod tests {
         );
         assert_eq!(source_reads.get(), 2);
         example.advance_scene(1600, 1000.0, 600.0);
+        graph.import();
         binding.get();
         assert!(example.ripples.read(Vec::is_empty));
         assert!(example.ripple_hits.read(Vec::is_empty));
@@ -414,14 +427,16 @@ mod tests {
 
     #[test]
     fn canvas_click_resets_idle_deadlines_without_replaying_logo() {
-        let frames = Property::new(0_u64);
-        let millis = Property::new(0_u64);
+        let graph = PropertyGraph::new(|| {});
+        let _entered = graph.enter();
+        let frames = LocalProperty::new(0_u64);
+        let millis = LocalProperty::new(0_u64);
         register_time(&frames);
         register_millis(&millis);
         let example = populated_example();
         example.next_auto_ring_ms.set(600);
         example.advance_idle(0, 1000.0, 600.0);
-        millis.set(500);
+        advance_clock(&graph, &millis, 500);
         example.advance_idle(500, 1000.0, 600.0);
         assert!(example
             .tiles
@@ -432,7 +447,7 @@ mod tests {
         assert!((3500..=5500).contains(&example.next_auto_ring_ms.get()));
         assert_eq!(example.logo_progress.get(), 1.0);
         let next_id = example.next_animation_id.get();
-        millis.set(600);
+        advance_clock(&graph, &millis, 600);
         example.advance_idle(600, 1000.0, 600.0);
         assert_eq!(example.next_animation_id.get(), next_id);
         assert_eq!(example.ripples.read(Vec::len), 1);
@@ -440,8 +455,10 @@ mod tests {
 
     #[test]
     fn logo_replay_restarts_mid_animation_even_when_ring_capacity_is_full() {
-        let frames = Property::new(0_u64);
-        let millis = Property::new(0_u64);
+        let graph = PropertyGraph::new(|| {});
+        let _entered = graph.enter();
+        let frames = LocalProperty::new(0_u64);
+        let millis = LocalProperty::new(0_u64);
         register_time(&frames);
         register_millis(&millis);
         let example = populated_example();
@@ -450,7 +467,7 @@ mod tests {
         }
         assert_eq!(example.logo_progress.get(), 1.0);
         for now in [0, 150, 400, 700] {
-            millis.set(now);
+            advance_clock(&graph, &millis, now);
             // The card handler replays first; bubbling then attempts a ring.
             assert!(example.logo_progress.get() > 0.0);
             example.play_logo();
@@ -459,33 +476,37 @@ mod tests {
             assert_eq!(example.logo_progress.get(), 0.0);
             assert_eq!(example.ripples.read(Vec::len), MAX_LIVE_RIPPLES);
         }
-        millis.set(2140);
+        advance_clock(&graph, &millis, 2140);
         assert_eq!(example.logo_progress.get(), 1.0);
     }
 
     #[test]
     fn ring_emission_does_not_restart_an_in_progress_logo_replay() {
-        let frames = Property::new(0_u64);
-        let millis = Property::new(0_u64);
+        let graph = PropertyGraph::new(|| {});
+        let _entered = graph.enter();
+        let frames = LocalProperty::new(0_u64);
+        let millis = LocalProperty::new(0_u64);
         register_time(&frames);
         register_millis(&millis);
         let example = populated_example();
         example.play_logo();
         for now in [100, 200, 300] {
-            millis.set(now);
+            advance_clock(&graph, &millis, now);
             let progress = example.logo_progress.get();
             assert!(progress > 0.0 && progress < 1.0);
             assert!(example.try_emit_ripple(0.1, 0.8, 1000.0, 600.0, now));
             assert_eq!(example.logo_progress.get(), progress);
         }
-        millis.set(1440);
+        advance_clock(&graph, &millis, 1440);
         assert_eq!(example.logo_progress.get(), 1.0);
     }
 
     #[test]
     fn automatic_ring_moves_light_without_replaying_logo_and_resamples_delay() {
-        let frames = Property::new(0_u64);
-        let millis = Property::new(0_u64);
+        let graph = PropertyGraph::new(|| {});
+        let _entered = graph.enter();
+        let frames = LocalProperty::new(0_u64);
+        let millis = LocalProperty::new(0_u64);
         register_time(&frames);
         register_millis(&millis);
         let example = populated_example();
@@ -493,11 +514,11 @@ mod tests {
         let due = example.next_auto_ring_ms.get();
         assert!((3000..=5000).contains(&due));
         example.advance_idle(0, 1000.0, 600.0);
-        millis.set(due - 1);
+        advance_clock(&graph, &millis, due - 1);
         example.advance_idle(due - 1, 1000.0, 600.0);
         assert!(example.ripples.read(Vec::is_empty));
         let idle_panel_id = example.next_animation_id.get() - 1;
-        millis.set(due);
+        advance_clock(&graph, &millis, due);
         example.advance_idle(due, 1000.0, 600.0);
         let ring = example.ripples.get().remove(0);
         assert_eq!(ring.id, idle_panel_id + 1);
@@ -506,14 +527,14 @@ mod tests {
         assert!(!example.idle_active.get());
         assert_eq!(example.logo_progress.get(), 1.0);
         assert!((due + 3000..=due + 5000).contains(&example.next_auto_ring_ms.get()));
-        millis.set(due + 420);
+        advance_clock(&graph, &millis, due + 420);
         assert!((example.light_x.get() - ring.x).abs() < 1e-12);
         assert!((example.light_y.get() - ring.y).abs() < 1e-12);
         for offset in (420..=2000).step_by(20) {
-            millis.set(due + offset);
+            advance_clock(&graph, &millis, due + offset);
             example.advance_scene(due + offset, 1000.0, 600.0);
         }
-        millis.set(due + 2000);
+        advance_clock(&graph, &millis, due + 2000);
         example.advance_idle(due + 2000, 1000.0, 600.0);
         assert!(example.idle_active.get());
         assert_eq!(example.next_idle_tile_ms.get(), due + 2500);
@@ -521,8 +542,10 @@ mod tests {
 
     #[test]
     fn idle_does_not_queue_catch_up_work_or_animate_zero_sized_scenes() {
-        let frames = Property::new(0_u64);
-        let millis = Property::new(0_u64);
+        let graph = PropertyGraph::new(|| {});
+        let _entered = graph.enter();
+        let frames = LocalProperty::new(0_u64);
+        let millis = LocalProperty::new(0_u64);
         register_time(&frames);
         register_millis(&millis);
         let example = populated_example();
@@ -537,7 +560,7 @@ mod tests {
             "only one tile batch after a long pause"
         );
         assert_eq!(example.next_idle_tile_ms.get(), 10500);
-        millis.set(100000);
+        advance_clock(&graph, &millis, 100000);
         example.advance_idle(100000, 1000.0, 600.0);
         assert_eq!(
             example.ripples.read(Vec::len),
@@ -550,8 +573,10 @@ mod tests {
 
     #[test]
     fn unattended_cycles_remain_bounded_with_unique_panel_keys() {
-        let frames = Property::new(0_u64);
-        let millis = Property::new(0_u64);
+        let graph = PropertyGraph::new(|| {});
+        let _entered = graph.enter();
+        let frames = LocalProperty::new(0_u64);
+        let millis = LocalProperty::new(0_u64);
         register_time(&frames);
         register_millis(&millis);
         let example = populated_example();
@@ -559,7 +584,7 @@ mod tests {
         let mut last_start = 0;
         let mut emitted = 0;
         for now in (0..60000).step_by(20) {
-            millis.set(now);
+            advance_clock(&graph, &millis, now);
             example.advance_scene(now, 390.0, 844.0);
             example.advance_idle(now, 390.0, 844.0);
             example.ripples.read(|rings| {
@@ -590,14 +615,16 @@ mod tests {
 
     #[test]
     fn full_ring_cap_ignores_clicks_until_normal_removal() {
-        let frames = Property::new(0_u64);
-        let millis = Property::new(0_u64);
+        let graph = PropertyGraph::new(|| {});
+        let _entered = graph.enter();
+        let frames = LocalProperty::new(0_u64);
+        let millis = LocalProperty::new(0_u64);
         register_time(&frames);
         register_millis(&millis);
         let example = populated_example();
         for i in 0..MAX_LIVE_RIPPLES {
             let now = i as u64 * 50;
-            millis.set(now);
+            advance_clock(&graph, &millis, now);
             assert!(example.try_emit_ripple(0.7, 0.4, 1000.0, 600.0, now));
         }
         let before = example.ripples.get().to_pax_value();
@@ -618,13 +645,13 @@ mod tests {
             assert_eq!(example.next_auto_ring_ms.get(), idle_deadline);
             assert_eq!(example.next_animation_id.get(), 6);
         }
-        millis.set(1000);
+        advance_clock(&graph, &millis, 1000);
         assert_eq!((example.light_x.get(), example.light_y.get()), (0.7, 0.4));
         // Pointer movement remains independent of ring admission.
         example.follow_mouse_light(0.9, 0.1);
         assert_eq!((example.light_x.get(), example.light_y.get()), (0.9, 0.1));
 
-        millis.set(WAVE_MS as u64);
+        advance_clock(&graph, &millis, WAVE_MS as u64);
         example.advance_scene(WAVE_MS as u64, 1000.0, 600.0);
         assert_eq!(
             example
@@ -645,15 +672,17 @@ mod tests {
 
     #[test]
     fn sustained_clicks_stay_capped_and_all_accepted_work_settles() {
-        let frames = Property::new(0_u64);
-        let millis = Property::new(0_u64);
+        let graph = PropertyGraph::new(|| {});
+        let _entered = graph.enter();
+        let frames = LocalProperty::new(0_u64);
+        let millis = LocalProperty::new(0_u64);
         register_time(&frames);
         register_millis(&millis);
         let example = populated_example();
         let mut accepted = 0;
         let mut rejected = 0;
         for now in (0..6000_u64).step_by(20) {
-            millis.set(now);
+            advance_clock(&graph, &millis, now);
             example.advance_scene(now, 1000.0, 600.0);
             if now % 60 == 0 {
                 let phase = now as f64 / 6000.0;
@@ -676,7 +705,7 @@ mod tests {
         assert!(rejected > 0);
         assert_eq!(example.next_animation_id.get(), accepted + 1);
         for now in (6000..8000_u64).step_by(20) {
-            millis.set(now);
+            advance_clock(&graph, &millis, now);
             example.advance_scene(now, 1000.0, 600.0);
         }
         assert!(example.ripples.read(Vec::is_empty));
@@ -695,8 +724,10 @@ mod tests {
 
     #[test]
     fn mouse_light_takes_over_without_the_click_tween_writing_back() {
-        let frames = Property::new(0_u64);
-        let millis = Property::new(0_u64);
+        let graph = PropertyGraph::new(|| {});
+        let _entered = graph.enter();
+        let frames = LocalProperty::new(0_u64);
+        let millis = LocalProperty::new(0_u64);
         register_time(&frames);
         register_millis(&millis);
         let example = Example {
@@ -714,13 +745,13 @@ mod tests {
             Duration::Milliseconds(420.into()),
             EasingCurve::OutQuad,
         );
-        millis.set(84);
+        advance_clock(&graph, &millis, 84);
         assert!((0.25..0.5).contains(&example.light_x.get()));
         assert!((0.5..0.75).contains(&example.light_y.get()));
 
         example.follow_mouse_light(0.9, 0.1);
         for now in [84, 100, 210, 420, 840] {
-            millis.set(now);
+            advance_clock(&graph, &millis, now);
             assert_eq!((example.light_x.get(), example.light_y.get()), (0.9, 0.1));
         }
     }

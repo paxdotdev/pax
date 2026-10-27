@@ -46,10 +46,26 @@ impl WgpuRenderer<'_> {
     }
 
     pub(super) fn opacity_plan_at_depth(&self, nodes: &[u32], depth: usize) -> Vec<OpacityPlan> {
+        self.opacity_plan_in_domain(nodes, depth, &self.render_backend.globals)
+    }
+
+    pub(super) fn opacity_plan_in_domain(
+        &self,
+        nodes: &[u32],
+        depth: usize,
+        globals: &crate::render_backend::data::GpuGlobals,
+    ) -> Vec<OpacityPlan> {
+        let viewport = Box2D::new(
+            point(globals.origin[0], globals.origin[1]),
+            point(
+                globals.origin[0] + globals.resolution[0],
+                globals.origin[1] + globals.resolution[1],
+            ),
+        );
         let visible: Vec<_> = nodes
             .iter()
             .copied()
-            .filter(|id| self.scene[id].intersects_bounds(&self.viewport_bounds()))
+            .filter(|id| self.scene[id].intersects_bounds(&viewport))
             .collect();
         let nodes = visible.as_slice();
         let mut plan = Vec::new();
@@ -72,11 +88,11 @@ impl WgpuRenderer<'_> {
             }
             let run = &nodes[start..end];
             if let Some(scope) = scope {
-                let children = self.opacity_plan_at_depth(run, depth + 1);
+                let children = self.opacity_plan_in_domain(run, depth + 1, globals);
                 let mut hash = DefaultHasher::new();
                 // Lighting, resolution, and clip transforms change cached pixels. The boundary's
                 // own alpha intentionally does not: it is applied only when sampling the cache.
-                bytemuck::bytes_of(&self.render_backend.globals).hash(&mut hash);
+                bytemuck::bytes_of(globals).hash(&mut hash);
                 for id in run {
                     self.hash_opacity_content(*id, &mut hash);
                     if let Some(scopes) = self.opacity_scopes.get(id) {
@@ -91,7 +107,6 @@ impl WgpuRenderer<'_> {
                     .map(|id| self.scene[id].bounds())
                     .reduce(|a, b| a.union(&b))
                     .unwrap();
-                let viewport = self.viewport_bounds();
                 // Include edge antialiasing, but never allocate outside this physical tile.
                 let bounds = ScissorRect {
                     min_x: (bounds.min.x - 1.0).max(viewport.min.x),

@@ -58,6 +58,47 @@ test('blocked and exhausted work stop; a completion does not create a new frame'
     }
 });
 
+test('completion during a blocked service survives its result and is consumed once',()=>{
+    const tasks=[]; let calls=0;
+    const pump=new CooperativeRenderScheduler(()=>{
+        calls++;
+        if(calls===1) return {pending:false,blocked:true};
+        if(calls===2) {
+            // A synchronous initializer finishes while an older unit reports
+            // blockage. Its wake must not be overwritten by that result.
+            assert.equal(pump.request(),'coalesced');
+            return {pending:false,blocked:true};
+        }
+        return {pending:false};
+    },()=>true,job=>tasks.push(job));
+    pump.beginFrame();
+    assert.equal(tasks.length,0);
+    assert.equal(pump.request(),'queued'); // Async completion after the first service.
+    tasks.shift()();
+    assert.equal(tasks.length,1);
+    tasks.shift()();
+    assert.equal(calls,3);
+    assert.equal(tasks.length,0);
+});
+
+test('a settled frame resumes blocked completion work without another completion',()=>{
+    const tasks=[]; let settled=false, submissions=0;
+    const pump=new CooperativeRenderScheduler(()=>{
+        if(!settled) return {pending:false,blocked:true};
+        submissions++;
+        return {pending:false};
+    },()=>true,job=>tasks.push(job));
+    pump.beginFrame();
+    pump.request();
+    tasks.shift()();
+    assert.equal(submissions,0);
+    assert.equal(tasks.length,0,'blocked work must not spin');
+    settled=true;
+    pump.beginFrame();
+    assert.equal(submissions,1);
+    assert.equal(tasks.length,0);
+});
+
 test('suspension, replacement and disposal reject queued continuations',()=>{
     const tasks=[]; let allowed=true,calls=0;
     const pump=new CooperativeRenderScheduler(()=>{calls++;return {pending:true};},()=>allowed,job=>tasks.push(job));

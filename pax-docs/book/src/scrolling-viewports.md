@@ -702,9 +702,11 @@ and tile-position changes are reconciled together; a pooled canvas checked out
 again starts a new surface generation, even at the same logical tile address.
 Browser canvas pooling also waits for every GPU surface and asynchronous initializer
 to release the element before clearing or reassigning it. Released WebGPU canvases
-are explicitly unconfigured before reuse so a previous row's presentation cannot
-carry over into an animated entrance; shrinking the backing store alone is not
-sufficient. This does not reset the shared GPU device or its image cache.
+are explicitly unconfigured and shrunk only after ownership ends. They stay hidden
+through reassignment until their new owner submits cleared/drawn content; neither
+resizing nor unconfiguring alone reliably removes the browser's previous displayed
+image. Old pixels never count as the new row's coverage. This does not reset the
+shared GPU device or its image cache.
 Rebinding a logical layer
 to a different scroller host uses a fresh assignment; an old row's retained pixels
 must never be exposed in the new host. Reuse is governed by ownership, not a delay.

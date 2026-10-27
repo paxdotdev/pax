@@ -219,6 +219,10 @@ codegen-units = 1
 led-oscilloscope = { path = "examples/led-oscilloscope", default-features = false }
 shader-studio = { path = "examples/fixtures/shader-studio", default-features = false }
 pax-kit = { path = "pax-kit", features = ["host", "designtime"] }
+# Workspace tests also select the web chassis directly, outside pax-engine's
+# optional web dependency. Match the runtime's unified designtime feature here
+# without changing the defaults of any published crate or application.
+pax-chassis-web = { path = "pax-chassis-web", features = ["designtime"] }
 adaptive-cards = { path = "examples/fixtures/adaptive-cards", default-features = false }
 architecture-diagram = { path = "examples/fixtures/architecture-diagram", default-features = false }
 async-workbench = { path = "examples/fixtures/async-workbench", default-features = false }

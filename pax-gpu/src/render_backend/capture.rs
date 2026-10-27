@@ -251,10 +251,7 @@ impl RenderBackend<'_> {
                         &self.surface_config,
                         self.sample_count,
                     );
-                    MultisampledTarget {
-                        _texture: texture,
-                        view,
-                    }
+                    Attachment::new(texture, view, &self.attachment_uses)
                 });
                 CaptureTarget {
                     texture,
@@ -465,6 +462,14 @@ impl RenderBackend<'_> {
 
 #[cfg(test)]
 impl RenderBackend<'_> {
+    pub(crate) fn alpha_source_has_working_storage(&self) -> bool {
+        self.source_stencil.is_some()
+            || self
+                .retained_surfaces
+                .as_ref()
+                .is_some_and(|s| !s.scratch.is_empty())
+    }
+
     pub(crate) fn alpha_capture_count(&self) -> usize {
         self.retained_surfaces.as_ref().map_or(0, |s| {
             s.groups

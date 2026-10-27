@@ -251,7 +251,7 @@ impl MeshRasterizer {
         &self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        encoder: &mut wgpu::CommandEncoder,
+        encoder: &mut Option<wgpu::CommandEncoder>,
         layout: &wgpu::BindGroupLayout,
         page: &mut Option<Rc<PaintPage>>,
         inputs: &[MeshInput],
@@ -434,7 +434,7 @@ impl MeshRasterizer {
         &self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        encoder: &mut wgpu::CommandEncoder,
+        encoder: &mut Option<wgpu::CommandEncoder>,
         slot: &mut Option<MeshTexture>,
         rows: &[Vec<Control>],
         bounds: [f32; 4],
@@ -450,7 +450,7 @@ impl MeshRasterizer {
         &self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        encoder: &mut wgpu::CommandEncoder,
+        encoder: &mut Option<wgpu::CommandEncoder>,
         slot: &mut Option<MeshTexture>,
         rows: &[Vec<Control>],
         bounds: [f32; 4],
@@ -578,6 +578,13 @@ impl MeshRasterizer {
             })
         });
         {
+            // Cache hits and invalid inputs must not allocate an encoder. On WebGPU,
+            // dropping an unused encoder can leave native resources waiting for JS GC.
+            let encoder = encoder.get_or_insert_with(|| {
+                device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("Mesh paint encoder"),
+                })
+            });
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("Retained mesh paint raster"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {

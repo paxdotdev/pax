@@ -445,6 +445,19 @@ Each CLI release carries its own snapshot. For contributors, `examples/<name>` a
 runs that synchronization after version updates and before packaging.
 
 
+## Test the Pax repository
+
+From a monorepo checkout on macOS with the native build prerequisites installed,
+run `cargo test --workspace`. No extra feature flags are required: the root
+package's development dependencies align the web chassis with the designtime
+runtime used by the examples. This test configuration does not change published
+crate defaults or enable hot reload in release applications.
+
+For changes to the web chassis, also run `cargo test -p pax-chassis-web --lib`
+and `cargo test -p pax-chassis-web --lib --features designtime` to cover both
+feature configurations. Workspace feature unification alone cannot exercise
+both configurations in one invocation.
+
 ## Read more
 
 - [Getting Started](getting-started.md) — installation and the first run.

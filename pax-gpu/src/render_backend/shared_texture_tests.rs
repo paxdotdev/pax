@@ -131,12 +131,15 @@ fn shared_context_resources_survive_surface_resize_and_remain_device_local() {
     let attachment = a
         .multisampled_target
         .as_ref()
-        .map(|target| target._texture.clone());
+        .map(|target| target.texture().clone());
     a.resize_surface(64, 48);
     assert_eq!(a.surface_size(), (64, 48));
     assert_eq!(b.surface_size(), (32, 32));
     if let Some(attachment) = attachment {
-        assert_ne!(attachment, a.multisampled_target.as_ref().unwrap()._texture);
+        assert_ne!(
+            &attachment,
+            a.multisampled_target.as_ref().unwrap().texture()
+        );
     }
     assert_eq!(&neutral, a.alpha_masks.bind_group(None));
     assert!(Rc::ptr_eq(&empty, &a.empty_mesh_page));

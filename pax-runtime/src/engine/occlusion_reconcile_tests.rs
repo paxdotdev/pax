@@ -118,6 +118,7 @@ fn mount(children: Vec<Rc<dyn InstanceNode>>) -> (Rc<RuntimeContext>, Rc<Expande
         route_location: Property::new(crate::RouteLocation::root()),
         browser_allows_scroller_vector_layers: Property::new(true),
         browser_allows_nested_scroller_vector_layers: Property::new(true),
+        renderer_is_gpu: true,
         platform: Platform::Unknown,
         os: OS::Unknown,
         target: TargetInfo::new(Platform::Unknown, OS::Unknown),
@@ -153,7 +154,10 @@ fn clear(ctx: &RuntimeContext) {
 
 #[test]
 fn collapsing_native_surface_clears_old_mask_and_expansion_restores_it() {
-    let (ctx, root) = mount(vec![probe(Kind::Canvas, vec![]), probe(Kind::Native, vec![])]);
+    let (ctx, root) = mount(vec![
+        probe(Kind::Canvas, vec![]),
+        probe(Kind::Native, vec![]),
+    ]);
     let native = root.children.get()[0].children.get()[1].clone();
     assert_ne!(native.native_mask_hash.get(), 0);
     for (scale, expected_entries) in [(0.0, 0), (1.0, 1), (0.0, 0), (1.0, 1)] {
@@ -173,7 +177,10 @@ fn collapsing_native_surface_clears_old_mask_and_expansion_restores_it() {
             .into_iter()
             .filter_map(|message| match message {
                 pax_message::NativeMessage::NativeMaskUpdate(patch)
-                    if patch.id == native.id.to_u32() => Some(patch),
+                    if patch.id == native.id.to_u32() =>
+                {
+                    Some(patch)
+                }
                 _ => None,
             })
             .collect();
@@ -183,9 +190,10 @@ fn collapsing_native_surface_clears_old_mask_and_expansion_restores_it() {
             "each scale transition updates the existing mask"
         );
         assert_eq!(masks[0].entries.len(), expected_entries);
-        assert!(masks[0].entries.iter().all(|entry| {
-            !entry.path.contains("NaN") && !entry.path.contains("inf")
-        }));
+        assert!(masks[0]
+            .entries
+            .iter()
+            .all(|entry| { !entry.path.contains("NaN") && !entry.path.contains("inf") }));
         assert_full_rebuild_matches(&root, &ctx);
         clear(&ctx);
     }

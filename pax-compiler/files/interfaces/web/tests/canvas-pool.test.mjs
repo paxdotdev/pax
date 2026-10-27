@@ -59,6 +59,7 @@ test('only the final surface owner clears the canvas and asynchronously wakes a 
     const old = h.pool.checkout();
     old.setAttribute('data-pax-surface-owners', '2');
     h.pool.release(old);
+    assert.equal(old.style.visibility, 'hidden', 'retire displayed pixels even while a lease is live');
     old.releaseOwner(1);
     assert.equal(h.pool.checkout(), null);
     assert.equal(old.gpuContext.configured, true, 'a live surface keeps its configured context');
@@ -73,6 +74,7 @@ test('only the final surface owner clears the canvas and asynchronously wakes a 
     await Promise.resolve();
     assert.equal(h.wakes(), 1);
     assert.equal(h.pool.checkout(), old);
+    assert.equal(old.style.visibility, 'hidden', 'checkout must wait for the new owner to submit');
 });
 
 test('an already-unowned WebGPU canvas is unconfigured before immediate reuse', () => {
@@ -106,6 +108,7 @@ test('releasing a CPU or unused canvas does not request a WebGPU context', () =>
     const canvas = pool.checkout();
     pool.release(canvas);
     assert.deepEqual(canvas.contextRequests, []);
+    assert.equal(canvas.style.visibility, undefined, 'Piet does not use the WebGPU submission gate');
     assert.equal(canvas.width, 1);
     assert.equal(canvas.height, 1);
     assert.equal(pool.checkout(), canvas);

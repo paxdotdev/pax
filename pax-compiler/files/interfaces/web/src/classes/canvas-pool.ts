@@ -125,6 +125,12 @@ export function canvasSurfaceIsOwned(canvas: HTMLCanvasElement): boolean {
 }
 
 export function releaseCanvasBacking(canvas: HTMLCanvasElement) {
+    if (canvas.hasAttribute("data-pax-surface-owners")) {
+        // Safari can keep presenting the previous image even after unconfigure
+        // and resize. Keep a retired WebGPU element hidden through reassignment;
+        // its next BrowserCanvasLease reveals it after the first submission.
+        canvas.style.visibility = "hidden";
+    }
     if (!canvasSurfaceIsOwned(canvas)) {
         // Dropping wgpu's web surface leaves the browser context configured.
         // Retire it before this element can display another row; resizing alone

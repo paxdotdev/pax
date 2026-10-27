@@ -38,6 +38,20 @@ struct RecordingRenderer {
 }
 
 impl RenderContext for RecordingRenderer {
+    #[cfg(feature = "shaders")]
+    fn begin_shader_effect(
+        &mut self,
+        _: usize,
+        _: u32,
+        _: i32,
+        _: &pax_runtime_api::ShaderEffect,
+        _: Affine,
+        _: (f64, f64),
+        _: &[pax_runtime_api::OpacityScope],
+        _: &[u32],
+    ) -> bool {
+        true
+    }
     fn prepares_surface_content(&self) -> bool {
         self.cold_preparation
     }
@@ -389,6 +403,166 @@ fn batched_cold_capture_shares_ancestor_traversal_and_preserves_pending_nodes() 
     assert!(!engine.record_surface_nodes(&mut renderer, 0, &ids));
     assert!(!renderer.recording);
     assert_eq!(renderer.clip_depths[&0], 0);
+}
+
+#[cfg(feature = "shaders")]
+#[test]
+fn cold_shader_capture_preserves_settlement_and_submits_after_surface_completion() {
+    use crate::conditional::{ConditionalInstance, ConditionalProperties};
+    use crate::repeat::{RepeatInstance, RepeatProperties};
+    use crate::InstanceNode;
+    use pax_runtime_api::{
+        pax_value::ToFromPaxAny, ShaderEffect, ShaderInput, ShaderPass, ShaderProgram, ToPaxValue,
+    };
+
+    struct ShaderProbe(crate::BaseInstance);
+    impl InstanceNode for ShaderProbe {
+        fn instantiate(args: crate::InstantiationArgs) -> Rc<Self> {
+            Rc::new(Self(crate::BaseInstance::new(
+                args,
+                crate::InstanceFlags {
+                    layer: crate::api::Layer::Canvas,
+                    invisible_to_slot: false,
+                    invisible_to_raycasting: false,
+                    is_component: false,
+                    is_slot: false,
+                },
+            )))
+        }
+        fn base(&self) -> &crate::BaseInstance {
+            &self.0
+        }
+        fn resolve_debug(
+            &self,
+            f: &mut std::fmt::Formatter,
+            _: Option<&ExpandedNode>,
+        ) -> std::fmt::Result {
+            f.write_str("ShaderProbe")
+        }
+        fn shader_effect(&self, _: &ExpandedNode) -> Option<ShaderEffect> {
+            static PROGRAM: ShaderProgram = ShaderProgram {
+                label: "identity capture probe",
+                passes: &[ShaderPass {
+                    label: "identity",
+                    source: "fn effect(p: vec2<f32>) -> vec4<f32> { return sample_input0(p); }",
+                    parameters: &[],
+                    inputs: [ShaderInput::Subtree; 2],
+                    downsample: 1,
+                }],
+            };
+            Some(ShaderEffect {
+                program: &PROGRAM,
+                parameters: vec![vec![]],
+                outset: 0.0,
+            })
+        }
+    }
+
+    for nested in [false, true] {
+        let mut engine = engine();
+        let _graph = engine.runtime_context.property_graph.enter();
+        // Control flow and components have no drawing to consume a geometry
+        // invalidation. These mirror the website's stalled shader subtree.
+        let mut repeat = render_probe_args();
+        repeat.children = Some(RefCell::new(vec![RenderProbe::instantiate(
+            render_probe_args(),
+        )]));
+        repeat.prototypical_properties = crate::PropertiesInit::Factory(Box::new(|_, existing| {
+            existing.is_none().then(|| {
+                Rc::new(RefCell::new(
+                    RepeatProperties {
+                        source_expression: Property::new(vec![1isize].to_pax_value()),
+                        ..Default::default()
+                    }
+                    .to_pax_any(),
+                ))
+            })
+        }));
+        let mut conditional = render_probe_args();
+        conditional.children = Some(RefCell::new(vec![RepeatInstance::instantiate(repeat)]));
+        conditional.prototypical_properties =
+            crate::PropertiesInit::Factory(Box::new(|_, existing| {
+                existing.is_none().then(|| {
+                    Rc::new(RefCell::new(
+                        ConditionalProperties {
+                            boolean_expression: Property::new(true),
+                            conditional_branches: vec![],
+                        }
+                        .to_pax_any(),
+                    ))
+                })
+            }));
+        let mut group = render_probe_args();
+        group.component_template = Some(RefCell::new(vec![ConditionalInstance::instantiate(
+            conditional,
+        )]));
+        let mut child: Rc<dyn InstanceNode> = ComponentInstance::instantiate(group);
+        if nested {
+            let mut args = render_probe_args();
+            args.children = Some(RefCell::new(vec![child]));
+            child = ShaderProbe::instantiate(args);
+        }
+        let mut effect = render_probe_args();
+        effect.children = Some(RefCell::new(vec![child]));
+        let mut clip = render_probe_args();
+        clip.children = Some(RefCell::new(vec![ShaderProbe::instantiate(effect)]));
+        let mut root_args = render_probe_args();
+        root_args.component_template = Some(RefCell::new(vec![RenderProbe::instantiate(clip)]));
+        let root = ExpandedNode::initialize_root(
+            ComponentInstance::instantiate(root_args),
+            &engine.runtime_context,
+        );
+        engine.root_expanded_node = Some(root);
+        engine.tick();
+        let mut renderer = RecordingRenderer::default();
+        engine.render(&mut renderer);
+        engine.runtime_context.prepare_scene_geometry();
+        engine.runtime_context.drain_node_effects();
+        engine.runtime_context.take_occlusion_dirty();
+        engine.runtime_context.prepare_scene_geometry();
+        engine
+            .runtime_context
+            .dirty_canvases
+            .borrow_mut()
+            .fill(false);
+        engine.runtime_context.take_canvas_node_orders();
+        assert!(engine.runtime_context.can_present_settled_surfaces());
+        let preparations = engine.runtime_context.scene_geometry_stats().preparations;
+
+        renderer.cold_preparation = true;
+        renderer.cold_records = Some(HashSet::new());
+        renderer.cached = true;
+        renderer.jobs = vec![replay_job(0)];
+        renderer.presented.clear();
+        let report = engine.present_surfaces(
+            &mut renderer,
+            &mut surface_work::SurfaceWorkBudget::new(4.0),
+            || 0.0,
+            1,
+            &Default::default(),
+            true,
+        );
+        assert_eq!(
+            report.submitted, 1,
+            "nested={nested}, blocker={:?}, deferred={}",
+            report.blocker, report.deferred,
+        );
+        assert_eq!(
+            report.fallbacks, 1,
+            "shader captures use the complete-tile fallback",
+        );
+        assert!(engine.runtime_context.can_present_settled_surfaces());
+        assert_eq!(
+            engine.runtime_context.scene_geometry_stats().preparations,
+            preparations,
+        );
+        assert!(renderer.jobs.is_empty());
+        assert!(
+            !renderer.capture_ids.is_empty(),
+            "clean descendants must still be recaptured",
+        );
+        assert_eq!(renderer.presented, [0]);
+    }
 }
 
 #[test]

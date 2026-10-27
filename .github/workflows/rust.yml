@@ -146,6 +146,11 @@ jobs:
     - name: Run tests
       run: cargo test --verbose --workspace --exclude pax-chassis-macos --exclude pax-chassis-common --exclude pax-chassis-ios
 
+    - name: Test web chassis feature configurations
+      run: |
+        cargo test -p pax-chassis-web --lib
+        cargo test -p pax-chassis-web --lib --features designtime
+
     - name: Test opt-in shader effects
       run: cargo test -p pax-runtime-api -p pax-runtime -p pax-gpu -p pax-std --features shaders --lib
 

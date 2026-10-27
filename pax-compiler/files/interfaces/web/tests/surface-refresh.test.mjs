@@ -482,6 +482,7 @@ test('a recycled canvas at the same tile address receives a fresh renderer', () 
 test('surface generation survives steady layout and changes on each canvas assignment', () => {
     class Element {
         dataset = {}; style = {}; parentElement; children = [];
+        hasAttribute(name) { return this.getAttribute(name) !== null; }
         appendChild(child) { child.parentElement = this; this.children.push(child); }
         removeChild(child) {
             this.children = this.children.filter(c => c !== child);

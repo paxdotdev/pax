@@ -2168,11 +2168,13 @@ impl<'w> WgpuRenderer<'w> {
         }
     }
 
-    pub fn take_pending_command_buffers(&mut self) -> Vec<wgpu::CommandBuffer> {
+    /// Detach encoded work together with the attachment leases needed to submit it.
+    pub fn take_pending_command_buffers(&mut self) -> crate::render_backend::CommandBatch {
         self.render_backend.take_pending_command_buffers()
     }
 
-    pub fn submit_command_buffers(&self, command_buffers: Vec<wgpu::CommandBuffer>) {
+    /// Submit a batch from this GPU context, then release its retired attachments.
+    pub fn submit_command_buffers(&self, command_buffers: crate::render_backend::CommandBatch) {
         self.render_backend.submit_command_buffers(command_buffers);
     }
 
