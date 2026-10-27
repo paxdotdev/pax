@@ -84,6 +84,12 @@ def extract_tokens(grammar: str) -> dict[str, list[str]]:
     )
 
     return {
+        "directives": sorted({
+            literal
+            for rule in ("settings_block_declaration", "timeline_block_declaration", "gradient_inline_value")
+            for literal in extract_rule_literals(grammar, rule)
+            if IDENT_RE.match(literal)
+        }),
         "keywords": keywords,
         "boolean_literals": sorted(boolean_literals),
         "option_literals": sorted(option_literals),
@@ -236,6 +242,7 @@ def render_highlighter(
 // Output: {output_label}
 (function () {{
     const PAX_GRAMMAR_TOKENS = {{
+        directives: {js(tokens["directives"])},
         keywords: {js(tokens["keywords"])},
         booleanLiterals: {js(tokens["boolean_literals"])},
         optionLiterals: {js(tokens["option_literals"])},
@@ -244,6 +251,7 @@ def render_highlighter(
         units: {js(tokens["units"])}
     }};
 
+    const DIRECTIVES = new Set(PAX_GRAMMAR_TOKENS.directives);
     const KEYWORDS = new Set(PAX_GRAMMAR_TOKENS.keywords);
     const LITERALS = new Set(
         PAX_GRAMMAR_TOKENS.booleanLiterals
@@ -352,12 +360,15 @@ def render_highlighter(
         return {{ html: span("number", match[0]), index: index + match[0].length }};
     }}
 
-    function readAtDirective(source, index) {{
+    function readAtSymbol(source, index) {{
         const ident = readIdentifier(source, index + 1);
         if (!ident) {{
             return null;
         }}
-        let html = span("meta", source.slice(index, ident.end));
+        const following = source.slice(nextNonWhitespace(source, ident.end));
+        const binding = /^(?:=(?!=)|:(?!:))/.test(following);
+        const kind = DIRECTIVES.has(ident.text) || binding ? "meta" : "built_in";
+        let html = span(kind, source.slice(index, ident.end));
         let cursor = ident.end;
         if (ident.text === "timeline") {{
             const name = readIdentifier(source, nextNonWhitespace(source, cursor));
@@ -509,7 +520,7 @@ def render_highlighter(
                 continue;
             }}
             if (source[cursor] === "@") {{
-                const directive = readAtDirective(source, cursor);
+                const directive = readAtSymbol(source, cursor);
                 if (directive) {{
                     html += directive.html;
                     cursor = directive.index;
@@ -536,7 +547,7 @@ def render_highlighter(
             return {{ html: escapeHtml(ch), index: index + 1 }};
         }}
         if (ch === "@") {{
-            const directive = readAtDirective(source, index);
+            const directive = readAtSymbol(source, index);
             if (directive) {{
                 return directive;
             }}

@@ -84,7 +84,7 @@ impl InstanceNode for ComponentInstance {
         let new_env = {
             let mut properties_scope = borrow_mut!(expanded_node.properties_scope);
             properties_scope.insert(
-                "$suspended".to_string(),
+                "@suspended".to_string(),
                 Variable::new_from_typed_property(expanded_node.suspended.clone()),
             );
             expanded_node.stack.push(properties_scope.clone())
@@ -142,7 +142,7 @@ impl InstanceNode for ComponentInstance {
 }
 
 #[derive(Debug, Clone, Default)]
-/// Built-in `$scroll_position` value synthesized for components inside scrollers.
+/// Built-in `@scroll_position` value synthesized for components inside scrollers.
 pub struct ScrollPosition {
     pub x: f64,
     pub y: f64,
@@ -171,7 +171,7 @@ impl ToPaxValue for ScrollPosition {
 }
 
 impl ScrollPosition {
-    /// Create a stack frame containing `$scroll_position` when scroll properties are present.
+    /// Create a stack frame containing `@scroll_position` when scroll properties are present.
     pub fn create_builtin_if_exists(
         property_scope: Ref<HashMap<String, Variable>>,
     ) -> Option<HashMap<String, Variable>> {
@@ -197,7 +197,7 @@ impl ScrollPosition {
         );
 
         let scroll_position_var = Variable::new_from_typed_property(scroll_position);
-        let stack_frame = vec![("$scroll_position".to_string(), scroll_position_var)]
+        let stack_frame = vec![("@scroll_position".to_string(), scroll_position_var)]
             .into_iter()
             .collect();
         Some(stack_frame)

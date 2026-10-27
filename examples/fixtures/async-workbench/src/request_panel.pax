@@ -38,7 +38,7 @@ if self.task_status == "Task: Running" {
     #task_text { y: 486px }
     #progress_track { y: 564px }
     #stream_text { y: 588px }
-    if $viewport.width < 520 {
+    if @viewport.width < 520 {
         .action { width: 100% }
         #fail_request { x: 0px y: 146px }
         #replace_request { y: 202px }

@@ -370,7 +370,7 @@ or newer. Cargo's usual flag precedence applies: if you supply `RUSTFLAGS`,
 `CARGO_ENCODED_RUSTFLAGS`, or target-specific `rustflags`, include
 `-Ctarget-feature=+simd128` to retain this acceleration. An explicit
 `RUSTFLAGS='-Ctarget-feature=-simd128'` builds the slower scalar renderer for
-browsers without SIMD; renderer selection and `$cpu`/`$gpu` work the same way.
+browsers without SIMD; renderer selection and `@cpu`/`@gpu` work the same way.
 
 To measure target compilation and web packaging, use an already-built CLI and
 a fresh target directory without deleting your development cache:

@@ -3,8 +3,8 @@ if !export_mode {
         <Group anchor=0% width=100% height=100%>
             if panel.visible {
                 <Inspector anchor=[100%, 0%] x={100% - 16px} y={(header_height + 18)px}
-                    width={(Math::min(400, $viewport.width - 32))px}
-                    height={(Math::min(680, $viewport.height - header_height - 36))px}
+                    width={(Math::min(400, @viewport.width - 32))px}
+                    height={(Math::min(680, @viewport.height - header_height - 36))px}
                     panel={panel} selected=bind:selected retired=bind:retired_panels/>
             }
         </Group>
@@ -19,7 +19,7 @@ if !export_mode {
     <Text anchor=0% x=114px y=17px width=200px height=32px text="Architecture" selectable=false
         style={font: {family: "Arial", weight: 600}, font_size: 24px, fill: rgb(36, 48, 52)}/>
     if !export_mode {
-        if $viewport.width >= 660 {
+        if @viewport.width >= 660 {
             <Group anchor=[100%, 0%] x={100% - 12px} y=14px width=298px height=36px>
                 <Button class="toolbar_button" x=0px width=42px label="−" @button_click=self.zoom_out/>
                 <Button class="toolbar_button" x=48px width=42px label="+" @button_click=self.zoom_in/>
@@ -36,17 +36,17 @@ if !export_mode {
         }
     } else {
         <Button class="toolbar_button" anchor=[100%, 0%] x={100% - 12px}
-            y={$viewport.width >= 660 ? 14px : 64px} height={$viewport.width >= 660 ? 36px : 44px}
+            y={@viewport.width >= 660 ? 14px : 64px} height={@viewport.width >= 660 ? 36px : 44px}
             width=144px label="Exit sheet view" @button_click=self.exit_sheet/>
     }
     <Rectangle anchor=0% width=100% height={(header_height)px} fill=rgb(248, 249, 245)/>
 </Group>
 
 <Scroller anchor=0% y={(header_height)px} width=100% height={100% - (header_height)px}
-    scroll_width={(Math::max($viewport.width, 3120 * sheet_scale))px}
-    scroll_height={(Math::max($viewport.height - header_height, 2160 * sheet_scale))px}
+    scroll_width={(Math::max(@viewport.width, 3120 * sheet_scale))px}
+    scroll_height={(Math::max(@viewport.height - header_height, 2160 * sheet_scale))px}
     scroll_pos_x=bind:scroll_x scroll_pos_y=bind:scroll_y>
-    <Group id=sheet anchor=0% x={(Math::max(0, ($viewport.width - 3120 * sheet_scale) / 2))px}
+    <Group id=sheet anchor=0% x={(Math::max(0, (@viewport.width - 3120 * sheet_scale) / 2))px}
         y={export_mode ? 0px : 6px} width=3120px height=2160px scale={(sheet_scale * 100)%}>
 
         for part in parts {

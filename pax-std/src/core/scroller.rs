@@ -28,7 +28,7 @@ use_RefCell!();
         corner_radius={self.corner_radius}
         snap_positions_x={self.snap_positions_x}
         snap_positions_y={self.snap_positions_y}
-        _clip_content={!$suspended}
+        _clip_content={!@suspended}
     >
         for i in 0..self._projected_children_count {
             slot(i)

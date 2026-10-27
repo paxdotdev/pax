@@ -24,7 +24,7 @@
                 "/assets/fonts/Manrope.ttf",
                 FontStyle::Normal,
                 FontWeight::ExtraBold)
-            font_size: {$viewport.width < 760 ? 34px : 48px}
+            font_size: {@viewport.width < 760 ? 34px : 48px}
             fill: {SiteTheme::paper()}
             align_vertical: TextAlignVertical::Top
             align_horizontal: TextAlignHorizontal::Left
@@ -38,7 +38,7 @@
                 "/assets/fonts/Manrope.ttf",
                 FontStyle::Normal,
                 FontWeight::Normal)
-            font_size: {$viewport.width < 760 ? 19px : 23px}
+            font_size: {@viewport.width < 760 ? 19px : 23px}
             fill: {SiteTheme::paper()}
             align_vertical: TextAlignVertical::Top
             align_horizontal: TextAlignHorizontal::Left
@@ -52,7 +52,7 @@
                 "/assets/fonts/Manrope.ttf",
                 FontStyle::Normal,
                 FontWeight::Normal)
-            font_size: {$viewport.width < 760 ? 16px : 18px}
+            font_size: {@viewport.width < 760 ? 16px : 18px}
             fill: {SiteTheme::muted()}
             align_vertical: TextAlignVertical::Top
             align_horizontal: TextAlignHorizontal::Left
@@ -80,7 +80,7 @@
                 "/assets/fonts/Manrope.ttf",
                 FontStyle::Normal,
                 FontWeight::Bold)
-            font_size: {$viewport.width < 760 ? 22px : 26px}
+            font_size: {@viewport.width < 760 ? 22px : 26px}
             fill: {SiteTheme::paper()}
             align_vertical: TextAlignVertical::Top
             align_horizontal: TextAlignHorizontal::Left
@@ -118,7 +118,7 @@
     .editorial_code {
         style: TextStyle {
             font: "monospace"
-            font_size: {$viewport.width < 760 ? 15px : 18px}
+            font_size: {@viewport.width < 760 ? 15px : 18px}
             fill: {SiteTheme::signal()}
             align_vertical: TextAlignVertical::Top
             align_horizontal: TextAlignHorizontal::Left

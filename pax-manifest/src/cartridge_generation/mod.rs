@@ -14,11 +14,11 @@ use crate::{
 pub const TRANSITION_PHASE_IDLE: u64 = 0;
 pub const TRANSITION_PHASE_ENTER: u64 = 1;
 pub const TRANSITION_PHASE_EXIT: u64 = 2;
-pub const TRANSITION_PLAYHEAD_SYMBOL: &str = "$transition_playhead";
-pub const TRANSITION_PLAYHEAD_MILLIS_SYMBOL: &str = "$transition_playhead_millis";
-pub const TRANSITION_PHASE_SYMBOL: &str = "$transition_phase";
-pub const TRANSITION_GENERATION_SYMBOL: &str = "$transition_generation";
-pub const TRANSITION_TAKEOVER_SYMBOL: &str = "$transition_takeover";
+pub const TRANSITION_PLAYHEAD_SYMBOL: &str = "@transition_playhead";
+pub const TRANSITION_PLAYHEAD_MILLIS_SYMBOL: &str = "@transition_playhead_millis";
+pub const TRANSITION_PHASE_SYMBOL: &str = "@transition_phase";
+pub const TRANSITION_GENERATION_SYMBOL: &str = "@transition_generation";
+pub const TRANSITION_TAKEOVER_SYMBOL: &str = "@transition_takeover";
 pub const DEFAULT_OUT_TRANSITION_TIMEOUT_MS: u64 = 5_000;
 
 #[derive(Clone, Default, Debug)]

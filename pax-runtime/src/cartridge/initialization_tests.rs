@@ -1106,7 +1106,7 @@ fn imported_provider_scope_and_inline_base_remain_reactive() {
                 LiteralBlockDefinition::new(vec![setting("value", expression("theme"))]),
             )].into(),
         });
-    let plan = plan(vec![setting("value", expression("$base + 1"))], None, None);
+    let plan = plan(vec![setting("value", expression("@base + 1"))], None, None);
     let node = child(
         &root,
         &engine.runtime_context,
@@ -1158,7 +1158,7 @@ fn imported_settings_rebind_once_and_preserve_live_selector_layout_and_state() {
     let ctx = &engine.runtime_context;
     let classes = LocalProperty::new(String::new());
     let receiver = plan(
-        vec![setting("value", expression("$base + 1"))],
+        vec![setting("value", expression("@base + 1"))],
         Some(expression("classes")),
         Some(vec![SettingsBlockElement::SelectorBlock(
             pax_manifest::Token::new_without_location(".wide".into()),
@@ -1343,7 +1343,7 @@ fn unchanged_import_discovery_does_not_copy_settings_or_rebind() {
     *import.sidecar_children.borrow_mut() = vec![provider.clone()];
     root.children.set(vec![import.clone()]);
     root.sync_imported_settings(ctx);
-    let receiver_plan = plan(vec![setting("value", expression("$base + 1"))], None, None);
+    let receiver_plan = plan(vec![setting("value", expression("@base + 1"))], None, None);
     let node = child(&root, ctx, template(&receiver_plan), HashMap::new());
     root.children.set(vec![import, node.clone()]);
     assert_eq!(values(&node).0, 9.0);
@@ -1379,7 +1379,7 @@ fn unchanged_import_discovery_does_not_copy_settings_or_rebind() {
     assert_eq!(values(&node).0, 14.0);
     assert_eq!(provider.settings_layer_materializations.get(), copies);
 
-    let reloaded = plan(vec![setting("value", expression("$base + 2"))], None, None);
+    let reloaded = plan(vec![setting("value", expression("@base + 2"))], None, None);
     node.recreate_with_new_data(template(&reloaded), ctx);
     root.sync_imported_settings(ctx);
     assert_eq!(values(&node).0, 15.0);

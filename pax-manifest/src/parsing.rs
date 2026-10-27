@@ -2096,11 +2096,11 @@ mod tests {
         width: 100%
     }
 
-    if $ios && $landscape {
+    if @ios && @landscape {
         .card {
             width: 50%
         }
-    } else if $macos {
+    } else if @macos {
         .card {
             width: 75%
         }

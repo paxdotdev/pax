@@ -283,7 +283,7 @@ fn paint_brush(paint: &Paint, bounds: Rect, opacity: f64) -> PaintType {
         }
         Paint::MeshGradient(mesh) => {
             static WARNING: std::sync::Once = std::sync::Once::new();
-            WARNING.call_once(|| log::warn!("CPU rendering uses a flat average for mesh paints; use $gpu / $cpu to author an alternate paint"));
+            WARNING.call_once(|| log::warn!("CPU rendering uses a flat average for mesh paints; use @gpu / @cpu to author an alternate paint"));
             if mesh.validate().is_err() {
                 return transparent();
             }

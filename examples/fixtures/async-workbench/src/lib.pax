@@ -1,5 +1,5 @@
 <Scroller id=workbench_scroller width=100% height=100% >
-    <Group id=workbench_body x=50% anchor_x=50% width={(Math::min(1120, $viewport.width - 40))px}>
+    <Group id=workbench_body x=50% anchor_x=50% width={(Math::min(1120, @viewport.width - 40))px}>
         <Text x=0px y=36px width=100% height=44px text="Async Workbench" style={font_size: 32px, fill: rgb(244, 241, 231)} />
         <Text x=0px y=88px width=100% height=28px text={self.backend} style={font_size: 14px, fill: rgb(126, 208, 204)} />
         <Textbox id=cartridge_input x=0px y=120px width=100% height=34px text=bind:note placeholder="Cartridge-owned input · test focus and text entry" />
@@ -30,7 +30,7 @@
 </Scroller>
 @settings {
     @mount: on_mount
-    #workbench_scroller { scroll_height: {(Math::max(1100, $viewport.height))px} }
+    #workbench_scroller { scroll_height: {(Math::max(1100, @viewport.height))px} }
     #workbench_body { height: 1080px }
     #interact { x: 0px y: 170px width: 180px }
     #panel_toggle { x: 200px y: 170px width: 240px }
@@ -40,14 +40,14 @@
     #burst_values { x: {(50% + 6px)} y: 24px width: {(50% - 30px)} }
     #request_panel { y: 94px }
     #footer { y: 1034px }
-    if $viewport.width < 900 {
+    if @viewport.width < 900 {
         #request_area { width: 100% }
         #history_area { x: 0px y: 1022px width: 100% }
         #footer { y: 1814px }
         #workbench_body { height: 1900px }
-        #workbench_scroller { scroll_height: {(Math::max(1920, $viewport.height))px} }
+        #workbench_scroller { scroll_height: {(Math::max(1920, @viewport.height))px} }
     }
-    if $viewport.width < 520 {
+    if @viewport.width < 520 {
         #interact { width: 100% }
         #panel_toggle { x: 0px y: 224px width: 100% }
         #request_area { y: 292px height: 1100px }
@@ -58,6 +58,6 @@
         #history_area { y: 1412px }
         #footer { y: 2204px }
         #workbench_body { height: 2290px }
-        #workbench_scroller { scroll_height: {(Math::max(2310, $viewport.height))px} }
+        #workbench_scroller { scroll_height: {(Math::max(2310, @viewport.height))px} }
     }
 }

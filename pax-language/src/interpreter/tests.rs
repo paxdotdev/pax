@@ -531,18 +531,18 @@ fn collected_primary_dependencies_keep_first_occurrence_order() {
 }
 
 #[test]
-fn test_collect_builtin_dollar_dependency() {
-    let expr = "$base + 12px";
-    let expected = vec!["$base".to_string()];
+fn test_collect_builtin_at_dependency() {
+    let expr = "@base + 12px";
+    let expected = vec!["@base".to_string()];
     let result = PaxExpression::collect_dependencies(&parse_pax_expression(expr).unwrap());
     assert_eq!(expected, result);
 }
 
 #[test]
-fn test_builtin_dollar_struct_access() {
+fn test_builtin_at_struct_access() {
     let mut idr = HashMap::new();
     idr.insert(
-        "$gyro".to_string(),
+        "@gyro".to_string(),
         PaxValue::Object(
             vec![
                 ("x".to_string(), PaxValue::Numeric(Numeric::F64(1.0))),
@@ -554,7 +554,7 @@ fn test_builtin_dollar_struct_access() {
         ),
     );
 
-    let result = compute_paxel("$gyro.y", Rc::new(idr)).unwrap();
+    let result = compute_paxel("@gyro.y", Rc::new(idr)).unwrap();
     assert_eq!(PaxValue::Numeric(Numeric::F64(2.5)), result);
 }
 

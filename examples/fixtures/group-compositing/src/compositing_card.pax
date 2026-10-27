@@ -43,11 +43,11 @@
     self {
         opacity: {
             0%: 0, OutQuad,
-            100%: {$base},
+            100%: {@base},
         }
         y: {
-            0%: {$base + 30px}, OutQuad,
-            100%: {$base},
+            0%: {@base + 30px}, OutQuad,
+            100%: {@base},
         }
     }
 }
@@ -55,12 +55,12 @@
     duration: 800ms,
     self {
         opacity: {
-            0%: {$base}, InQuad,
+            0%: {@base}, InQuad,
             100%: 0,
         }
         y: {
-            0%: {$base}, InQuad,
-            100%: {$base + 18px},
+            0%: {@base}, InQuad,
+            100%: {@base + 18px},
         }
     }
 }

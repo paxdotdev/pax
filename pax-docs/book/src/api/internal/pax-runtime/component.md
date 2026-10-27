@@ -21,7 +21,7 @@ Type: `Vec`<`Rc`<`RefCell`<[`Timeline`](../../../api/pax-runtime-api/animation.m
 ---
 
 ### `ScrollPosition`
-Built-in `$scroll_position` value synthesized for components inside scrollers.
+Built-in `@scroll_position` value synthesized for components inside scrollers.
 
 #### Properties
 ##### `x`
@@ -34,4 +34,4 @@ Type: `f64`
 ##### `create_builtin_if_exists`
 <pre><code class="api-signature language-rust ignore">pub fn create_builtin_if_exists(property_scope: Ref&lt;&#39;_, HashMap&lt;String, <a href="../../../api/pax-runtime-api/variables.md#variable">Variable</a>&gt;&gt;) -&gt; Option&lt;HashMap&lt;String, <a href="../../../api/pax-runtime-api/variables.md#variable">Variable</a>&gt;&gt;</code></pre>
 
-Create a stack frame containing `$scroll_position` when scroll properties are present.
+Create a stack frame containing `@scroll_position` when scroll properties are present.

@@ -38,10 +38,10 @@
 @timeline arrive {
     interruption: Takeover,
     duration: 320ms,
-    self { x: { 0%: {$base + 440px}, OutQuad, 100%: {$base}, }, },
+    self { x: { 0%: {@base + 440px}, OutQuad, 100%: {@base}, }, },
 }
 @timeline depart {
     interruption: Takeover,
     duration: 240ms,
-    self { x: { 0%: {$base}, OutQuad, 100%: {$base + 440px}, }, },
+    self { x: { 0%: {@base}, OutQuad, 100%: {@base + 440px}, }, },
 }

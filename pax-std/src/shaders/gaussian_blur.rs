@@ -8,7 +8,7 @@ use pax_runtime::api::{
 ///
 /// WGPU captures vectors and renderer-backed images. Native descendants are
 /// unsupported in GPU captures; native overlap masks retain original coverage.
-/// Vello CPU renders the children without blur. Use `$gpu` / `$cpu` for an alternate appearance.
+/// Vello CPU renders the children without blur. Use `@gpu` / `@cpu` for an alternate appearance.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[primitive("pax_std::shaders::gaussian_blur::GaussianBlurInstance")]

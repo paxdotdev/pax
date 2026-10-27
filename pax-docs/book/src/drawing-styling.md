@@ -353,7 +353,7 @@ are not supported yet.
 
 The full mesh field requires **WGPU**. Vello CPU reports a bounded diagnostic
 and uses the premultiplied average of the control point colors as a flat paint.
-Use `$gpu` / `$cpu` to supply an alternate gradient or subtree. Native text
+Use `@gpu` / `@cpu` to supply an alternate gradient or subtree. Native text
 controls do not support mesh text paint. Debug and baked
 release cartridges accept the same values and syntax. Invalid static grids
 are rejected during compilation; invalid dynamic grids paint nothing with a

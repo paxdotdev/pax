@@ -83,13 +83,13 @@ pub struct Route {
                 duration: {self.duration},
                 opacity: {
                     0: 0, Linear,
-                    100%: {$base},
+                    100%: {@base},
                 },
             }
             @out=@timeline {
                 duration: {self.duration},
                 opacity: {
-                    0: {$base}, Linear,
+                    0: {@base}, Linear,
                     100%: 0,
                 },
             }
@@ -138,23 +138,23 @@ pub struct RouteModal {
             @in=@timeline {
                 duration: {self.duration},
                 x: {
-                    0: {self.edge == RouteCardEdge::Leading ? $base - 100% : self.edge == RouteCardEdge::Trailing ? $base + 100% : $base}, OutQuad,
-                    100%: {$base},
+                    0: {self.edge == RouteCardEdge::Leading ? @base - 100% : self.edge == RouteCardEdge::Trailing ? @base + 100% : @base}, OutQuad,
+                    100%: {@base},
                 },
                 y: {
-                    0: {self.edge == RouteCardEdge::Top ? $base - 100% : self.edge == RouteCardEdge::Bottom ? $base + 100% : $base}, OutQuad,
-                    100%: {$base},
+                    0: {self.edge == RouteCardEdge::Top ? @base - 100% : self.edge == RouteCardEdge::Bottom ? @base + 100% : @base}, OutQuad,
+                    100%: {@base},
                 },
             }
             @out=@timeline {
                 duration: {self.duration},
                 x: {
-                    0: {$base}, OutQuad,
-                    100%: {self.edge == RouteCardEdge::Leading ? $base - 100% : self.edge == RouteCardEdge::Trailing ? $base + 100% : $base},
+                    0: {@base}, OutQuad,
+                    100%: {self.edge == RouteCardEdge::Leading ? @base - 100% : self.edge == RouteCardEdge::Trailing ? @base + 100% : @base},
                 },
                 y: {
-                    0: {$base}, OutQuad,
-                    100%: {self.edge == RouteCardEdge::Top ? $base - 100% : self.edge == RouteCardEdge::Bottom ? $base + 100% : $base},
+                    0: {@base}, OutQuad,
+                    100%: {self.edge == RouteCardEdge::Top ? @base - 100% : self.edge == RouteCardEdge::Bottom ? @base + 100% : @base},
                 },
             }
         >
@@ -171,13 +171,13 @@ pub struct RouteModal {
                 duration: {self.duration},
                 opacity: {
                     0: 0, Linear,
-                    100%: {$base},
+                    100%: {@base},
                 },
             }
             @out=@timeline {
                 duration: {self.duration},
                 opacity: {
-                    0: {$base}, Linear,
+                    0: {@base}, Linear,
                     100%: 0,
                 },
             }

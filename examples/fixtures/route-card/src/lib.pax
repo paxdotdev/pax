@@ -158,15 +158,15 @@
                 @in=@timeline {
                     duration: 280ms,
                     y: {
-                        0: {$base + 90%}, OutQuad,
-                        100%: {$base},
+                        0: {@base + 90%}, OutQuad,
+                        100%: {@base},
                     },
                 }
                 @out=@timeline {
                     duration: 280ms,
                     y: {
-                        0: {$base}, InQuad,
-                        100%: {$base + 90%},
+                        0: {@base}, InQuad,
+                        100%: {@base + 90%},
                     },
                 }
             >

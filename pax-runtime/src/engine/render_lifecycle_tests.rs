@@ -179,7 +179,7 @@ fn settled_replay_preserves_clock_and_defers_atomic_overruns_and_misses() {
         .runtime_context
         .globals()
         .stack_frame()
-        .resolve_symbol("$frames")
+        .resolve_symbol("@frames")
         .unwrap()
         .get_as_pax_value();
     let now = std::cell::Cell::new(0.0);
@@ -207,7 +207,7 @@ fn settled_replay_preserves_clock_and_defers_atomic_overruns_and_misses() {
             .runtime_context
             .globals()
             .stack_frame()
-            .resolve_symbol("$frames")
+            .resolve_symbol("@frames")
             .unwrap()
             .get_as_pax_value()
     );

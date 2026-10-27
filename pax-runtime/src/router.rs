@@ -19,9 +19,9 @@ use crate::{
 };
 
 /// Internal stack symbol carrying the router input location for nested scopes.
-pub const INTERNAL_ROUTE_LOCATION_SYMBOL: &str = "$route_location";
+pub const INTERNAL_ROUTE_LOCATION_SYMBOL: &str = "@route_location";
 /// Internal stack symbol carrying the current route match object.
-pub const INTERNAL_ROUTE_MATCH_SYMBOL: &str = "$route_match";
+pub const INTERNAL_ROUTE_MATCH_SYMBOL: &str = "@route_match";
 const ROUTE_SYMBOL: &str = "route";
 
 /// Structured application location shared across platforms.

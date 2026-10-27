@@ -230,7 +230,7 @@ a 24-pixel margin on each side in a narrow one:
         fill: rgb(246, 241, 230)
         corner_radius: 12
     }
-    if $viewport.width < 600 {
+    if @viewport.width < 600 {
         .panel {
             width: {100% - 48px}
         }
@@ -244,7 +244,7 @@ overrides the earlier `.panel` width while the viewport is under 600 pixels;
 the earlier width applies again when the condition becomes false.
 
 Use `else if` and `else` for additional branches. Conditions can also use
-component state or built-in globals such as `$ios`, `$macos`, and `$landscape`.
+component state or built-in globals such as `@ios`, `@macos`, and `@landscape`.
 The viewport describes the application window; percentages in the assigned
 width still resolve against the element's parent. See
 [Layout and Responsiveness](layout-responsiveness.md) for choosing responsive
@@ -334,7 +334,7 @@ builds and does not change when mount handlers run. See
 and compatibility paths.
 
 See [Drawing and Styling](drawing-styling.md) for visual design
-choices and [PAXEL's `$base`](data-binding-expressions.md#base) for building on
+choices and [PAXEL's `@base`](data-binding-expressions.md#base) for building on
 an earlier property value.
 
 Add a transition to ease changes to the effective imported settings:

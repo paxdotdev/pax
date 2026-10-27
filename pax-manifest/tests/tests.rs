@@ -194,12 +194,35 @@ mod tests {
         let res = utils::parse_value(
             "CornerRadii { top_left: 12 top_right: 8 bottom_right: 4 bottom_left: 2 }",
         );
-        if let Ok(Some(ValueDefinition::LiteralValue(PaxValue::Object(fields)))) = res {
-            assert_eq!(fields.len(), 4);
-            assert_eq!(fields[0].0, "top_left");
-        } else {
+        let Ok(Some(ValueDefinition::Block(block))) = res else {
             panic!("unexpected result: {:?}", res);
-        }
+        };
+        assert_eq!(
+            block
+                .explicit_type_pascal_identifier
+                .as_ref()
+                .map(|token| token.token_value.as_str()),
+            Some("CornerRadii")
+        );
+        let fields: Vec<_> = block
+            .elements
+            .iter()
+            .map(|element| match element {
+                SettingElement::Setting(token, ValueDefinition::LiteralValue(value)) => {
+                    (token.token_value.as_str(), value.clone())
+                }
+                other => panic!("expected a literal field, got {other:?}"),
+            })
+            .collect();
+        assert_eq!(
+            fields,
+            vec![
+                ("top_left", PaxValue::Numeric(Numeric::I64(12))),
+                ("top_right", PaxValue::Numeric(Numeric::I64(8))),
+                ("bottom_right", PaxValue::Numeric(Numeric::I64(4))),
+                ("bottom_left", PaxValue::Numeric(Numeric::I64(2))),
+            ]
+        );
     }
 
     #[test]
@@ -1325,10 +1348,14 @@ mod tests {
     fn test_default_route_metadata_cannot_be_indexable() {
         let component_type_id = TypeId::build_singleton("Example", Some("Example"));
         let text_type_id = TypeId::build_singleton("Text", Some("Text"));
+        let route_type_id = TypeId::build_singleton("Route", Some("Route"));
         let mut template_map = HashMap::new();
         template_map.insert("Text".to_string(), text_type_id);
+        template_map.insert("Route".to_string(), route_type_id.clone());
+        let mut route_branch_descriptors = HashMap::new();
+        route_branch_descriptors.insert(route_type_id, default_route_branch_descriptor());
 
-        assemble_component_definition(
+        assemble_component_definition_with_route_branches(
             ParsingContext::default(),
             r#"
                 <Router>
@@ -1346,6 +1373,7 @@ mod tests {
             "#,
             false,
             template_map,
+            route_branch_descriptors,
             "crate",
             component_type_id,
             "example.pax",
@@ -1358,10 +1386,14 @@ mod tests {
     fn test_route_metadata_rejects_duplicate_fields() {
         let component_type_id = TypeId::build_singleton("Example", Some("Example"));
         let text_type_id = TypeId::build_singleton("Text", Some("Text"));
+        let route_type_id = TypeId::build_singleton("Route", Some("Route"));
         let mut template_map = HashMap::new();
         template_map.insert("Text".to_string(), text_type_id);
+        template_map.insert("Route".to_string(), route_type_id.clone());
+        let mut route_branch_descriptors = HashMap::new();
+        route_branch_descriptors.insert(route_type_id, default_route_branch_descriptor());
 
-        assemble_component_definition(
+        assemble_component_definition_with_route_branches(
             ParsingContext::default(),
             r#"
                 <Router>
@@ -1380,6 +1412,7 @@ mod tests {
             "#,
             false,
             template_map,
+            route_branch_descriptors,
             "crate",
             component_type_id,
             "example.pax",

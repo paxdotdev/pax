@@ -57,8 +57,8 @@
     self {
         opacity: {
             0ms: 0, InOutQuad,
-            320ms: {$base},
-            100%: {$base},
+            320ms: {@base},
+            100%: {@base},
         }
     }
     #panel {
@@ -116,7 +116,7 @@
     duration: 220ms,
     self {
         opacity: {
-            0%: {$base}, InOutQuad,
+            0%: {@base}, InOutQuad,
             100%: 0,
         }
     }

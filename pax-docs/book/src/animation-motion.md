@@ -76,7 +76,7 @@ give the first and last keyframes matching values, as above. Frame loops
 include both frame zero and the final frame.
 
 Without an explicit `playhead`, ordinary timelines sample the application's
-`$frames` or `$millis` clock. Inserting an element later does not give that
+`@frames` or `@millis` clock. Inserting an element later does not give that
 ordinary timeline a fresh local clock. Use an [enter transition](#structural-transitions)
 for motion that should start when the element appears, or supply a playhead
 you control.
@@ -176,8 +176,8 @@ In `src/lib.pax`:
     loop: false,
     #marker {
         x: {
-            0%: {$base}, OutQuad,
-            100%: {$base + 200px},
+            0%: {@base}, OutQuad,
+            100%: {@base + 200px},
         },
         rotate: {
             0%: -12deg, OutQuad,
@@ -218,7 +218,7 @@ rather than an implicit Rust method named after it.
 
 ## Relative values and property ownership
 
-`$base` means the value underneath this setting or timeline layer. In the
+`@base` means the value underneath this setting or timeline layer. In the
 playback example, `#marker { x: 24px }` supplies the base position, so the
 track moves from 24px to 224px. Changing that base moves the whole animation
 without repeating the layout value in every keyframe.
@@ -433,16 +433,16 @@ In `src/note_card.pax`:
 @timeline enter {
     duration: 300ms,
     self {
-        opacity: { 0%: 0, OutQuad, 100%: {$base}, },
-        y: { 0%: {$base + 16px}, OutQuad, 100%: {$base}, },
+        opacity: { 0%: 0, OutQuad, 100%: {@base}, },
+        y: { 0%: {@base + 16px}, OutQuad, 100%: {@base}, },
     },
 }
 
 @timeline exit {
     duration: 220ms,
     self {
-        opacity: { 0%: {$base}, InQuad, 100%: 0, },
-        y: { 0%: {$base}, InQuad, 100%: {$base - 12px}, },
+        opacity: { 0%: {@base}, InQuad, 100%: 0, },
+        y: { 0%: {@base}, InQuad, 100%: {@base - 12px}, },
     },
 }
 ```
@@ -487,7 +487,7 @@ Set `interruption: Restart` in the destination timeline when it should
 start from its authored first value instead. The option belongs beside
 `duration` in either a named or inline lifecycle timeline. It affects
 direct enter/exit reversals on the **same mounted instance**, without
-changing `$base` or ordinary timeline playback.
+changing `@base` or ordinary timeline playback.
 
 Conditional and route branches can reuse retained instances during a
 reversal. In repeated lists, stable keys make that identity explicit:

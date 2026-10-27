@@ -60,7 +60,7 @@ value definition.
 <pre><code class="api-signature language-rust ignore">pub fn build_component_property&lt;T&gt;(name: &amp;str, value_definition: &amp;<a href="../../../api/internal/pax-manifest/index.md#valuedefinition">ValueDefinition</a>, stack: &amp;Rc&lt;<a href="../../../api/internal/pax-runtime/properties.md#runtimepropertiesstackframe">RuntimePropertiesStackFrame</a>&gt;, timeline_stack: Rc&lt;<a href="../../../api/internal/pax-runtime/properties.md#runtimepropertiesstackframe">RuntimePropertiesStackFrame</a>&gt;, build_block: fn()) -&gt; LocalProperty&lt;T&gt; where T: CoercionRules + <a href="../../../api/pax-runtime-api/properties.md#propertyvalue">PropertyValue</a> + <a href="../../../api/pax-runtime-api/pax_value.md#topaxvalue">ToPaxValue</a></code></pre>
 
 Builds a typed component property from a single value definition. Callers
-that apply layered settings should bind `$base` before calling this helper.
+that apply layered settings should bind `@base` before calling this helper.
 
 ---
 
@@ -75,7 +75,7 @@ Creates common properties from a flattened property map.
 <pre><code class="api-signature language-rust ignore">pub fn create_new_common_properties_from_columns(property_columns: &amp;RuntimeResolvedPropertyColumns, stack_frame: &amp;Rc&lt;<a href="../../../api/internal/pax-runtime/properties.md#runtimepropertiesstackframe">RuntimePropertiesStackFrame</a>&gt;) -&gt; Rc&lt;RefCell&lt;<a href="../../../api/pax-runtime-api/layout.md#commonproperties">CommonProperties</a>&gt;&gt;</code></pre>
 
 Creates common properties from resolved columns, preserving layer order so
-`$base` can reference each prior layer.
+`@base` can reference each prior layer.
 
 ---
 
@@ -90,7 +90,7 @@ that do not participate in selector/import precedence layering.
 ### `stack_with_base`
 <pre><code class="api-signature language-rust ignore">pub fn stack_with_base&lt;T&gt;(stack: &amp;Rc&lt;<a href="../../../api/internal/pax-runtime/properties.md#runtimepropertiesstackframe">RuntimePropertiesStackFrame</a>&gt;, base_property: LocalProperty&lt;T&gt;) -&gt; Rc&lt;<a href="../../../api/internal/pax-runtime/properties.md#runtimepropertiesstackframe">RuntimePropertiesStackFrame</a>&gt; where T: <a href="../../../api/pax-runtime-api/properties.md#propertyvalue">PropertyValue</a> + <a href="../../../api/pax-runtime-api/pax_value.md#topaxvalue">ToPaxValue</a></code></pre>
 
-Returns a stack frame with `$base` bound to the supplied previous-layer
+Returns a stack frame with `@base` bound to the supplied previous-layer
 property value.
 
 ---
@@ -98,7 +98,7 @@ property value.
 ### `stack_with_optional_base`
 <pre><code class="api-signature language-rust ignore">pub fn stack_with_optional_base&lt;T&gt;(stack: &amp;Rc&lt;<a href="../../../api/internal/pax-runtime/properties.md#runtimepropertiesstackframe">RuntimePropertiesStackFrame</a>&gt;, base_property: LocalProperty&lt;Option&lt;T&gt;&gt;) -&gt; Rc&lt;<a href="../../../api/internal/pax-runtime/properties.md#runtimepropertiesstackframe">RuntimePropertiesStackFrame</a>&gt; where T: <a href="../../../api/pax-runtime-api/properties.md#propertyvalue">PropertyValue</a> + <a href="../../../api/pax-runtime-api/pax_value.md#topaxvalue">ToPaxValue</a></code></pre>
 
-Returns a stack frame with `$base` bound to an optional previous common
+Returns a stack frame with `@base` bound to an optional previous common
 property value, exposing `T::default()` when the previous layer is `None`.
 
 ---
@@ -114,7 +114,7 @@ Applies a flattened common-property map to an existing expanded node.
 <pre><code class="api-signature language-rust ignore">pub fn update_existing_common_properties_from_columns(expanded_node: &amp;Rc&lt;ExpandedNode&gt;, property_columns: &amp;RuntimeResolvedPropertyColumns, stack_frame: &amp;Rc&lt;<a href="../../../api/internal/pax-runtime/properties.md#runtimepropertiesstackframe">RuntimePropertiesStackFrame</a>&gt;)</code></pre>
 
 Applies resolved common-property columns to an existing expanded node,
-preserving layer order so `$base` can reference each prior layer.
+preserving layer order so `@base` can reference each prior layer.
 
 ## Constants
 ### `BASE_SYMBOL`

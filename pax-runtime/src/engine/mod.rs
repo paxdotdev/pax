@@ -132,111 +132,111 @@ impl Globals {
 
         let global_scope = vec![
             (
-                "$gpu".to_string(),
+                "@gpu".to_string(),
                 Variable::new_from_typed_property(LocalProperty::new(self.renderer_is_gpu)),
             ),
             (
-                "$cpu".to_string(),
+                "@cpu".to_string(),
                 Variable::new_from_typed_property(LocalProperty::new(!self.renderer_is_gpu)),
             ),
-            ("$target".to_string(), target_var),
-            ("$viewport".to_string(), viewport_var),
+            ("@target".to_string(), target_var),
+            ("@viewport".to_string(), viewport_var),
             (
-                "$web".to_string(),
+                "@web".to_string(),
                 Variable::new_from_typed_property(LocalProperty::new(target.web)),
             ),
             (
-                "$native".to_string(),
+                "@native".to_string(),
                 Variable::new_from_typed_property(LocalProperty::new(target.native)),
             ),
             (
-                "$ios".to_string(),
+                "@ios".to_string(),
                 Variable::new_from_typed_property(LocalProperty::new(target.ios)),
             ),
             (
-                "$iphone".to_string(),
+                "@iphone".to_string(),
                 Variable::new_from_typed_property(LocalProperty::new(target.iphone)),
             ),
             (
-                "$ipad".to_string(),
+                "@ipad".to_string(),
                 Variable::new_from_typed_property(LocalProperty::new(target.ipad)),
             ),
             (
-                "$macos".to_string(),
+                "@macos".to_string(),
                 Variable::new_from_typed_property(LocalProperty::new(target.macos)),
             ),
             (
-                "$android".to_string(),
+                "@android".to_string(),
                 Variable::new_from_typed_property(LocalProperty::new(target.android)),
             ),
             (
-                "$windows".to_string(),
+                "@windows".to_string(),
                 Variable::new_from_typed_property(LocalProperty::new(target.windows)),
             ),
             (
-                "$linux".to_string(),
+                "@linux".to_string(),
                 Variable::new_from_typed_property(LocalProperty::new(target.linux)),
             ),
             (
-                "$mobile".to_string(),
+                "@mobile".to_string(),
                 Variable::new_from_typed_property(LocalProperty::new(target.mobile)),
             ),
             (
-                "$desktop".to_string(),
+                "@desktop".to_string(),
                 Variable::new_from_typed_property(LocalProperty::new(target.desktop)),
             ),
             (
-                "$major".to_string(),
+                "@major".to_string(),
                 Variable::new_from_typed_property(viewport_number_property(
                     &viewport,
-                    "$major",
+                    "@major",
                     |viewport| viewport.major,
                 )),
             ),
             (
-                "$minor".to_string(),
+                "@minor".to_string(),
                 Variable::new_from_typed_property(viewport_number_property(
                     &viewport,
-                    "$minor",
+                    "@minor",
                     |viewport| viewport.minor,
                 )),
             ),
             (
-                "$aspect".to_string(),
+                "@aspect".to_string(),
                 Variable::new_from_typed_property(viewport_number_property(
                     &viewport,
-                    "$aspect",
+                    "@aspect",
                     |viewport| viewport.aspect,
                 )),
             ),
             (
-                "$landscape".to_string(),
+                "@landscape".to_string(),
                 Variable::new_from_typed_property(viewport_bool_property(
                     &viewport,
-                    "$landscape",
+                    "@landscape",
                     |viewport| viewport.landscape,
                 )),
             ),
             (
-                "$portrait".to_string(),
+                "@portrait".to_string(),
                 Variable::new_from_typed_property(viewport_bool_property(
                     &viewport,
-                    "$portrait",
+                    "@portrait",
                     |viewport| viewport.portrait,
                 )),
             ),
             (
-                "$square".to_string(),
+                "@square".to_string(),
                 Variable::new_from_typed_property(viewport_bool_property(
                     &viewport,
-                    "$square",
+                    "@square",
                     |viewport| viewport.square,
                 )),
             ),
-            ("$gyro".to_string(), gyro_var),
-            ("$accel".to_string(), accel_var),
-            ("$frames".to_string(), elapsed_frames_var),
-            ("$millis".to_string(), elapsed_millis_var),
+            ("@gyro".to_string(), gyro_var),
+            ("@accel".to_string(), accel_var),
+            ("@frames".to_string(), elapsed_frames_var),
+            ("@millis".to_string(), elapsed_millis_var),
             (
                 INTERNAL_ROUTE_LOCATION_SYMBOL.to_string(),
                 route_location_var,
@@ -1446,7 +1446,7 @@ mod tests {
         assert_eq!(
             globals
                 .stack_frame()
-                .resolve_symbol("$gyro")
+                .resolve_symbol("@gyro")
                 .unwrap()
                 .get_as_pax_value(),
             PaxValue::Object(
@@ -1462,7 +1462,7 @@ mod tests {
         assert_eq!(
             globals
                 .stack_frame()
-                .resolve_symbol("$accel")
+                .resolve_symbol("@accel")
                 .unwrap()
                 .get_as_pax_value(),
             PaxValue::Object(
@@ -1547,15 +1547,15 @@ mod tests {
         let stack = globals.stack_frame();
 
         assert_eq!(
-            stack.resolve_symbol("$frames").unwrap().get_as_pax_value(),
+            stack.resolve_symbol("@frames").unwrap().get_as_pax_value(),
             PaxValue::Numeric(0.into())
         );
         assert_eq!(
-            stack.resolve_symbol("$millis").unwrap().get_as_pax_value(),
+            stack.resolve_symbol("@millis").unwrap().get_as_pax_value(),
             PaxValue::Numeric(123.into())
         );
-        let old_frames_symbol = format!("{}{}", "$frames", "_elapsed");
-        let old_millis_symbol = format!("{}{}", "$elapsed", "_millis");
+        let old_frames_symbol = format!("{}{}", "@frames", "_elapsed");
+        let old_millis_symbol = format!("{}{}", "@elapsed", "_millis");
         assert!(stack.resolve_symbol(&old_frames_symbol).is_none());
         assert!(stack.resolve_symbol(&old_millis_symbol).is_none());
     }
@@ -1573,24 +1573,24 @@ mod tests {
         let stack = globals.stack_frame();
 
         assert_eq!(
-            stack.resolve_symbol("$ios").unwrap().get_as_pax_value(),
+            stack.resolve_symbol("@ios").unwrap().get_as_pax_value(),
             PaxValue::Bool(true)
         );
         assert_eq!(
-            stack.resolve_symbol("$ipad").unwrap().get_as_pax_value(),
+            stack.resolve_symbol("@ipad").unwrap().get_as_pax_value(),
             PaxValue::Bool(true)
         );
         assert_eq!(
-            stack.resolve_symbol("$iphone").unwrap().get_as_pax_value(),
+            stack.resolve_symbol("@iphone").unwrap().get_as_pax_value(),
             PaxValue::Bool(false)
         );
         assert_eq!(
-            stack.resolve_symbol("$native").unwrap().get_as_pax_value(),
+            stack.resolve_symbol("@native").unwrap().get_as_pax_value(),
             PaxValue::Bool(true)
         );
         assert_eq!(
             object_field(
-                stack.resolve_symbol("$target").unwrap().get_as_pax_value(),
+                stack.resolve_symbol("@target").unwrap().get_as_pax_value(),
                 "ipad"
             ),
             PaxValue::Bool(true)
@@ -1612,15 +1612,15 @@ mod tests {
                 .edit_globals(|globals| globals.renderer_is_gpu = gpu);
             let stack = engine.runtime_context.globals().stack_frame();
             assert_eq!(
-                stack.resolve_symbol("$gpu").unwrap().get_as_pax_value(),
+                stack.resolve_symbol("@gpu").unwrap().get_as_pax_value(),
                 PaxValue::Bool(gpu)
             );
             assert_eq!(
-                stack.resolve_symbol("$cpu").unwrap().get_as_pax_value(),
+                stack.resolve_symbol("@cpu").unwrap().get_as_pax_value(),
                 PaxValue::Bool(!gpu)
             );
             assert_eq!(
-                stack.resolve_symbol("$web").unwrap().get_as_pax_value(),
+                stack.resolve_symbol("@web").unwrap().get_as_pax_value(),
                 PaxValue::Bool(true)
             );
         }
@@ -1640,19 +1640,19 @@ mod tests {
 
         assert_eq!(
             stack
-                .resolve_symbol("$landscape")
+                .resolve_symbol("@landscape")
                 .unwrap()
                 .get_as_pax_value(),
             PaxValue::Bool(true)
         );
         assert_eq!(
-            stack.resolve_symbol("$major").unwrap().get_as_pax_value(),
+            stack.resolve_symbol("@major").unwrap().get_as_pax_value(),
             PaxValue::Numeric(320.0.into())
         );
         assert_eq!(
             object_field(
                 stack
-                    .resolve_symbol("$viewport")
+                    .resolve_symbol("@viewport")
                     .unwrap()
                     .get_as_pax_value(),
                 "minor"
@@ -1666,13 +1666,13 @@ mod tests {
 
         assert_eq!(
             stack
-                .resolve_symbol("$portrait")
+                .resolve_symbol("@portrait")
                 .unwrap()
                 .get_as_pax_value(),
             PaxValue::Bool(true)
         );
         assert_eq!(
-            stack.resolve_symbol("$minor").unwrap().get_as_pax_value(),
+            stack.resolve_symbol("@minor").unwrap().get_as_pax_value(),
             PaxValue::Numeric(240.0.into())
         );
     }

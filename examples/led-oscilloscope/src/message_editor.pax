@@ -45,9 +45,9 @@
 }
 @timeline appear {
     duration: 180ms,
-    self { opacity: { 0%: 0, OutQuad, 100%: {$base}, }, },
+    self { opacity: { 0%: 0, OutQuad, 100%: {@base}, }, },
 }
 @timeline disappear {
     duration: 160ms,
-    self { opacity: { 0%: {$base}, InQuad, 100%: 0, }, },
+    self { opacity: { 0%: {@base}, InQuad, 100%: 0, }, },
 }

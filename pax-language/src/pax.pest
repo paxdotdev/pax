@@ -320,7 +320,7 @@ xo_object = { identifier? ~ "{" ~ xo_object_settings_key_value_pair* ~ "}" }
 
 xo_object_settings_key_value_pair = { settings_key ~ expression_body  ~ silent_comma? }
 
-xo_symbol = { "$"? ~ identifier ~ (("." ~ identifier) | ("[" ~ expression_body ~ "]") )* }
+xo_symbol = { "@"? ~ identifier ~ (("." ~ identifier) | ("[" ~ expression_body ~ "]") )* }
 xo_tuple = { "(" ~ expression_body ~ ("," ~ expression_body)* ~ ")"}
 xo_list = { "[" ~ (expression_body ~ ("," ~ expression_body)*)? ~ silent_comma? ~ "]" }
 

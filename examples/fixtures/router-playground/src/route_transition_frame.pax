@@ -6,16 +6,16 @@
     @in=@timeline {
         duration: 36,
         rotate: {
-            0: {$base - 3.5deg}, Hold,
-            6: {$base - 3.5deg}, OutQuad,
-            36: {$base},
+            0: {@base - 3.5deg}, Hold,
+            6: {@base - 3.5deg}, OutQuad,
+            36: {@base},
         },
     }
     @out=@timeline {
         duration: 9,
         rotate: {
-            0: {$base}, OutQuad,
-            9: {$base - 1deg},
+            0: {@base}, OutQuad,
+            9: {@base - 1deg},
         },
     }
 >
@@ -32,13 +32,13 @@
     self {
         opacity: {
             0: 0, InQuad,
-            27: {$base},
-            100%: {$base},
+            27: {@base},
+            100%: {@base},
         },
         y: {
-            0: {$base - 100px}, InQuad,
-            27: {$base},
-            100%: {$base},
+            0: {@base - 100px}, InQuad,
+            27: {@base},
+            100%: {@base},
         },
     }
 }
@@ -47,12 +47,12 @@
     duration: 9,
     self {
         opacity: {
-            0: {$base}, OutQuad,
+            0: {@base}, OutQuad,
             100%: 0,
         },
         y: {
-            0: {$base}, OutQuad,
-            100%: {$base - 18px},
+            0: {@base}, OutQuad,
+            100%: {@base - 18px},
         },
     }
 }

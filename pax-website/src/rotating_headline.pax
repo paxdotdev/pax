@@ -21,7 +21,7 @@
                         <Mask width=100% height=100% alpha=true>
                             // One continuous field across the word; bleed for the round stroke caps.
                             <Group x=-8px y=-8px anchor_x=0% anchor_y=0% width={100% + 16px} height={100% + 16px}>
-                                if $gpu {
+                                if @gpu {
                                     <Rectangle width=100% height=100% fill={
                                         paint: @gradient {
                                             mesh: { rows: {self.mesh_rows} }
@@ -54,7 +54,7 @@
                         if self.word_index >= 2 {
                             // Filter the moving paint first, then clip it with the original letter coverage.
                             <Mask width={(self.run_width * self.font_px)px} height=100% alpha=true>
-                                if $gpu {
+                                if @gpu {
                                     <Impressionist width=100% height=100%
                                         mode={self.word_index == 2 ? ImpressionistMode::Signac : ImpressionistMode::Gauguin}
                                         size={self.font_px * (self.word_index == 2 ? 0.50 : 0.08)} seed=17 phase={self.pigment_phase}>

@@ -678,8 +678,8 @@ fn recurse_pratt_parse(
                 Ok(exp)
             }
             Rule::xo_symbol => {
-                let builtins_prefix = if primary.as_str().starts_with("$") {
-                    "$"
+                let builtins_prefix = if primary.as_str().starts_with('@') {
+                    "@"
                 } else {
                     ""
                 }

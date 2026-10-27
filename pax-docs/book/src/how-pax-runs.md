@@ -120,7 +120,7 @@ shared definitions and their provider scopes, then applies a sparse `SettingsPat
 Omitted properties keep their existing bindings; removed definitions receive an
 explicit reset. An empty Patch avoids rebuilding the node's scope and listeners
 or invalidating its layout and drawing. This compares binding definitions, not
-current values, so conditions, `$base`, and reactive provider updates remain live.
+current values, so conditions, `@base`, and reactive provider updates remain live.
 Full template reloads, custom initialization, store-provider alias changes, and
 local-scope timelines retain their existing full binding or recreation paths.
 Dynamically assembled timeline-selector definitions are conservatively rebound.
@@ -352,7 +352,7 @@ selection rejects startup if initialization fails. The `cpu` Cargo feature
 on `pax-kit` also selects CPU by default for web builds; a query override takes
 precedence. The former `piet` feature and Piet adapter have been removed.
 
-`$gpu` and `$cpu` identify this session's selected renderer. There is no live
+`@gpu` and `@cpu` identify this session's selected renderer. There is no live
 backend switch after mount; later device loss does not automatically remount
 the application on CPU. Check renderer logs when diagnosing startup failures.
 CPU scroller tiles use a 2048-pixel backing-dimension budget; the root viewport

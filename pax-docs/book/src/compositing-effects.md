@@ -630,7 +630,7 @@ masks. Effects with GPU implementations have these software defaults:
   point colors. This preserves visibility, not the mesh's shape or color field.
 
 Shader bypass and mesh approximation each log a bounded diagnostic. Use
-`if $gpu { ... } else { ... }`, `if $cpu { ... }`, or a property expression to
+`if @gpu { ... } else { ... }`, `if @cpu { ... }`, or a property expression to
 choose a deliberate alternative. These are backend checks, not per-effect
 capability queries. The website's handwriting keeps its animated alpha source
 on CPU and supplies a linear gradient in place of the GPU mesh. Native text

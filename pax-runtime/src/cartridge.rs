@@ -47,7 +47,7 @@ mod typed_binding_tests;
 
 /// PAXEL symbol bound while resolving a property layer to the value from the
 /// preceding layer in that same property's precedence stack.
-pub const BASE_SYMBOL: &str = "$base";
+pub const BASE_SYMBOL: &str = "@base";
 
 struct ResolvedRuntimeSettings {
     columns: RuntimeResolvedPropertyColumns,
@@ -2855,10 +2855,10 @@ fn collect_value_definition_dependencies(
             if let Some(playhead) = &track.playhead {
                 collect_value_definition_dependencies(playhead, stack, dependents);
             } else {
-                if let Some(property) = stack.resolve_symbol_as_erased_property("$frames") {
+                if let Some(property) = stack.resolve_symbol_as_erased_property("@frames") {
                     dependents.push(property);
                 }
-                if let Some(property) = stack.resolve_symbol_as_erased_property("$millis") {
+                if let Some(property) = stack.resolve_symbol_as_erased_property("@millis") {
                     dependents.push(property);
                 }
             }
@@ -3375,8 +3375,8 @@ fn sample_timeline_playhead(
         .and_then(|value| timeline_playhead_value_to_position(value, scale.unit))
         .or_else(|| {
             let symbol = match scale.unit {
-                TimelineClockUnit::Frames => "$frames",
-                TimelineClockUnit::Millis => "$millis",
+                TimelineClockUnit::Frames => "@frames",
+                TimelineClockUnit::Millis => "@millis",
             };
             stack
                 .resolve_symbol_as_variable(symbol)
@@ -3552,10 +3552,10 @@ pub fn build_timeline_property<T: CoercionRules + PropertyValue>(
     if let Some(playhead) = &track.playhead {
         collect_value_definition_dependencies(playhead, &stack, &mut dependents);
     } else {
-        if let Some(property) = stack.resolve_symbol_as_erased_property("$frames") {
+        if let Some(property) = stack.resolve_symbol_as_erased_property("@frames") {
             dependents.push(property);
         }
-        if let Some(property) = stack.resolve_symbol_as_erased_property("$millis") {
+        if let Some(property) = stack.resolve_symbol_as_erased_property("@millis") {
             dependents.push(property);
         }
     }
@@ -3752,7 +3752,7 @@ pub fn build_transition_property<T: CoercionRules + PropertyValue>(
     )
 }
 
-/// Returns a stack frame with `$base` bound to the supplied previous-layer
+/// Returns a stack frame with `@base` bound to the supplied previous-layer
 /// property value.
 pub fn stack_with_base<T>(
     stack: &Rc<RuntimePropertiesStackFrame>,
@@ -3767,7 +3767,7 @@ where
     )]))
 }
 
-/// Returns a stack frame with `$base` bound to an optional previous common
+/// Returns a stack frame with `@base` bound to an optional previous common
 /// property value, exposing `T::default()` when the previous layer is `None`.
 pub fn stack_with_optional_base<T>(
     stack: &Rc<RuntimePropertiesStackFrame>,
@@ -3830,7 +3830,7 @@ fn transition_with_base_starting_value(transition: &TransitionDefinition) -> Tra
 }
 
 /// Builds a typed component property from a single value definition. Callers
-/// that apply layered settings should bind `$base` before calling this helper.
+/// that apply layered settings should bind `@base` before calling this helper.
 pub fn build_component_property<T>(
     name: &str,
     value_definition: &ValueDefinition,
@@ -4041,11 +4041,11 @@ mod timeline_tests {
     ) -> Rc<RuntimePropertiesStackFrame> {
         let scope: HashMap<String, Variable> = vec![
             (
-                "$frames".to_string(),
+                "@frames".to_string(),
                 Variable::new_from_typed_property(elapsed_frames.clone()),
             ),
             (
-                "$millis".to_string(),
+                "@millis".to_string(),
                 Variable::new_from_typed_property(elapsed_millis.clone()),
             ),
         ]
@@ -4304,12 +4304,12 @@ mod timeline_tests {
             elements: vec![
                 TimelineTrackElement::Keyframe(TimelineKeyframe {
                     marker: TimelineMarker::Frame(0),
-                    value: expression("$base + 4deg"),
+                    value: expression("@base + 4deg"),
                     easing: Some(Token::new_without_location("Linear".to_string())),
                 }),
                 TimelineTrackElement::Keyframe(TimelineKeyframe {
                     marker: TimelineMarker::Frame(10),
-                    value: expression("$base"),
+                    value: expression("@base"),
                     easing: None,
                 }),
             ],
@@ -4338,7 +4338,7 @@ mod timeline_tests {
         let playhead = LocalProperty::new(0.0_f64);
         let scope: HashMap<String, Variable> = vec![
             (
-                "$frames".to_string(),
+                "@frames".to_string(),
                 Variable::new_from_typed_property(elapsed_frames.clone()),
             ),
             (
@@ -4974,7 +4974,7 @@ mod base_symbol_tests {
 
         let property: LocalProperty<f64> = build_component_property(
             "opacity",
-            &expression("$base + 0.25"),
+            &expression("@base + 0.25"),
             &stack,
             stack.clone(),
             |_, _| unreachable!("literal blocks are not used by this test"),
@@ -4988,7 +4988,7 @@ mod base_symbol_tests {
         let stack = empty_stack();
         let columns = columns_for(
             "x",
-            vec![entry(size_literal(10.0)), entry(expression("$base + 5px"))],
+            vec![entry(size_literal(10.0)), entry(expression("@base + 5px"))],
         );
 
         let common = create_new_common_properties_from_columns(&columns, &stack);
@@ -5008,7 +5008,7 @@ mod base_symbol_tests {
             "x",
             vec![
                 entry(expression("offset")),
-                entry(expression("$base + 5px")),
+                entry(expression("@base + 5px")),
             ],
         );
 
@@ -5079,14 +5079,14 @@ mod base_symbol_tests {
     fn settings_condition_preserves_previous_layer_until_active() {
         let landscape = LocalProperty::new(false);
         let stack = RuntimePropertiesStackFrame::new(HashMap::from([(
-            "$landscape".to_string(),
+            "@landscape".to_string(),
             Variable::new_from_typed_property(landscape.clone()),
         )]));
         let columns = columns_for(
             "width",
             vec![
                 entry(size_literal(100.0)),
-                conditional_entry(size_literal(50.0), "$landscape"),
+                conditional_entry(size_literal(50.0), "@landscape"),
             ],
         );
 
@@ -5101,19 +5101,19 @@ mod base_symbol_tests {
     fn base_symbol_supplies_timeline_starting_values() {
         let elapsed_frames = LocalProperty::new(0_u64);
         let stack = RuntimePropertiesStackFrame::new(HashMap::from([(
-            "$frames".to_string(),
+            "@frames".to_string(),
             Variable::new_from_typed_property(elapsed_frames.clone()),
         )]));
         let track = TimelineTrackDefinition {
             elements: vec![
                 TimelineTrackElement::Keyframe(TimelineKeyframe {
                     marker: TimelineMarker::Frame(0),
-                    value: expression("$base - 10px"),
+                    value: expression("@base - 10px"),
                     easing: Some(Token::new_without_location("Linear".to_string())),
                 }),
                 TimelineTrackElement::Keyframe(TimelineKeyframe {
                     marker: TimelineMarker::Frame(10),
-                    value: expression("$base"),
+                    value: expression("@base"),
                     easing: None,
                 }),
             ],
@@ -5162,12 +5162,12 @@ mod base_symbol_tests {
             elements: vec![
                 TimelineTrackElement::Keyframe(TimelineKeyframe {
                     marker: TimelineMarker::Frame(0),
-                    value: expression("$base - 100px"),
+                    value: expression("@base - 100px"),
                     easing: Some(Token::new_without_location("InQuad".to_string())),
                 }),
                 TimelineTrackElement::Keyframe(TimelineKeyframe {
                     marker: TimelineMarker::Frame(10),
-                    value: expression("$base"),
+                    value: expression("@base"),
                     easing: None,
                 }),
             ],
@@ -5221,7 +5221,7 @@ mod base_symbol_tests {
                 }),
                 TimelineTrackElement::Keyframe(TimelineKeyframe {
                     marker: TimelineMarker::Frame(10),
-                    value: expression("$base"),
+                    value: expression("@base"),
                     easing: None,
                 }),
             ],
@@ -5285,7 +5285,7 @@ mod base_symbol_tests {
         let stack = empty_stack();
         let defined = BTreeMap::from([
             ("scale".to_string(), percent_literal(20.0)),
-            ("scale_y".to_string(), expression("$base + 5")),
+            ("scale_y".to_string(), expression("@base + 5")),
         ]);
         let columns = property_columns_from_defined_properties(&defined);
 
@@ -5297,7 +5297,7 @@ mod base_symbol_tests {
 }
 
 /// Applies resolved common-property columns to an existing expanded node,
-/// preserving layer order so `$base` can reference each prior layer.
+/// preserving layer order so `@base` can reference each prior layer.
 pub fn update_existing_common_properties_from_columns(
     expanded_node: &Rc<ExpandedNode>,
     property_columns: &RuntimeResolvedPropertyColumns,
@@ -5371,7 +5371,7 @@ fn create_id_property(
 }
 
 /// Creates common properties from resolved columns, preserving layer order so
-/// `$base` can reference each prior layer.
+/// `@base` can reference each prior layer.
 pub fn create_new_common_properties_from_columns(
     property_columns: &RuntimeResolvedPropertyColumns,
     stack_frame: &Rc<RuntimePropertiesStackFrame>,

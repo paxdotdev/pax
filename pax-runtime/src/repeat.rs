@@ -33,9 +33,9 @@ fn update_repeat_bindings(
     }
 }
 
-const INTERNAL_REPEAT_INDEX_SYMBOL: &str = "$repeat_index";
-const INTERNAL_REPEAT_ELEMENT_SYMBOL: &str = "$repeat_element";
-const INTERNAL_REPEAT_KEY_SYMBOL: &str = "$repeat_key";
+const INTERNAL_REPEAT_INDEX_SYMBOL: &str = "@repeat_index";
+const INTERNAL_REPEAT_ELEMENT_SYMBOL: &str = "@repeat_element";
+const INTERNAL_REPEAT_KEY_SYMBOL: &str = "@repeat_key";
 
 /// A special "control-flow" primitive associated with the `for` statement.
 /// Repeat allows for nodes to be rendered dynamically per data specified in `source_expression`.
@@ -777,7 +777,7 @@ mod tests {
                         iterator_i_symbol: LocalProperty::new(Some("i".into())),
                         iterator_elem_symbol: LocalProperty::new(Some("item".into())),
                         repeat_key_expression: Some(ExpressionInfo::new(
-                            parse_pax_expression("$frames").unwrap(),
+                            parse_pax_expression("@frames").unwrap(),
                         )),
                     }
                     .to_pax_any(),

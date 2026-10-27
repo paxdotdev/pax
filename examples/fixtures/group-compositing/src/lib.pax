@@ -1,4 +1,4 @@
-<Group anchor=0% y={$target.ios ? 60px : 0px} width=100% height={100% - ($target.ios ? 60px : 0px)}>
+<Group anchor=0% y={@target.ios ? 60px : 0px} width=100% height={100% - (@target.ios ? 60px : 0px)}>
     <Text class="heading" anchor=0% x=20px y=12px width={100% - 40px} height=28px text={"Group opacity / " + (alpha * 100) + "%"}/>
     <Button anchor=0% x=20px y=50px width=106px height=34px label="+25%" @button_click=self.step_alpha/>
     <Button anchor=0% x=134px y=50px width=100px height=34px label="Move 30px" @button_click=self.move_card/>
@@ -33,7 +33,7 @@
         PathElement::Close
     ]}/>
     if show_card {
-        <CompositingCard id=card anchor=0% x=36px y={moved ? 374px : 344px} width={$viewport.width < 520 ? (100% - 72px) : 420px} height=260px
+        <CompositingCard id=card anchor=0% x=36px y={moved ? 374px : 344px} width={@viewport.width < 520 ? (100% - 72px) : 420px} height=260px
             opacity={alpha} show_image={show_image} pixels={pixels} note=bind:note alternate_theme={alternate_theme}
             mounts=bind:mounts unmounts=bind:unmounts/>
     }

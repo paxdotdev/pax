@@ -292,39 +292,50 @@ when a derived value needs to be shared beyond one template.
 
 ## Built-in globals
 
-Built-in values use a `$` prefix. They describe the running app and its
-environment:
+Built-in values use an `@` prefix. They describe the running app and its
+environment. The same sigil marks Pax language features such as `@settings`,
+`@click`, and `@gradient`; their position determines their meaning. Rust helpers
+keep ordinary `Type::function(...)` calls, including custom helpers and built-in
+functions such as `Math::max`.
+
+When migrating older templates, change contextual references such as `$viewport`,
+`$gpu`, and `$base` to `@viewport`, `@gpu`, and `@base`. The `$` expression prefix
+is no longer accepted. Keep expression braces in attributes—for example,
+`width={@viewport.width}`—and leave helper calls and literal display text unchanged.
+Update Rust code that constructs PAXEL expressions or resolves contextual symbols
+by name as well. Rebuild the app, including release cartridges, after migrating
+its sources.
 
 | Value | What it provides |
 | --- | --- |
-| `$viewport` | Scene width and height in logical pixels; `major`, `minor`, `aspect`, `landscape`, `portrait`, and `square`. |
-| `$target` | Boolean platform and operating-system facts, such as `web`, `native`, `macos`, `ios`, `iphone`, and `ipad`. |
-| `$gpu`, `$cpu` | Complementary booleans identifying the renderer selected before app mount. |
-| `$frames`, `$millis` | Runtime frame count and elapsed time in milliseconds. |
-| `$gyro`, `$accel` | Device orientation and acceleration readings, where supplied by the target and permitted by the user. |
+| `@viewport` | Scene width and height in logical pixels; `major`, `minor`, `aspect`, `landscape`, `portrait`, and `square`. |
+| `@target` | Boolean platform and operating-system facts, such as `web`, `native`, `macos`, `ios`, `iphone`, and `ipad`. |
+| `@gpu`, `@cpu` | Complementary booleans identifying the renderer selected before app mount. |
+| `@frames`, `@millis` | Runtime frame count and elapsed time in milliseconds. |
+| `@gyro`, `@accel` | Device orientation and acceleration readings, where supplied by the target and permitted by the user. |
 
 Viewport orientation and shape fields also have short aliases, including
-`$landscape`, `$portrait`, `$square`, `$major`, `$minor`, and `$aspect`:
+`@landscape`, `@portrait`, `@square`, `@major`, `@minor`, and `@aspect`:
 
 ```pax
-<Group width={$landscape ? 50% : 100%} />
-<Rectangle width={($viewport.width / 2)px} />
+<Group width={@landscape ? 50% : 100%} />
+<Rectangle width={(@viewport.width / 2)px} />
 ```
 
 The viewport dimensions are numbers. Attach a unit when using them to produce
 a size. A parent-relative percentage is often more useful for nested content.
 
-Each `$target` field likewise has an alias: `$web` means `$target.web`, for
+Each `@target` field likewise has an alias: `@web` means `@target.web`, for
 example. Platform and operating-system facts can overlap: an app in a browser
-on macOS can have both `$web` and `$macos` set. The remaining fields are
+on macOS can have both `@web` and `@macos` set. The remaining fields are
 `android`, `windows`, `linux`, `mobile`, and `desktop`. These describe runtime
 facts, including browser hosts; they do not extend the supported build targets
 beyond web, macOS, iOS, and iPadOS.
 
-Use `$gpu` and `$cpu` to customize an appearance for the selected renderer:
+Use `@gpu` and `@cpu` to customize an appearance for the selected renderer:
 
 ```pax
-if $gpu {
+if @gpu {
     <GaussianBlur width=100% height=100% radius=8.0>
         <Ellipse width=120px height=120px fill=CYAN />
     </GaussianBlur>
@@ -334,7 +345,7 @@ if $gpu {
 ```
 
 `GaussianBlur` requires the `shaders` Cargo feature. The booleans also work in
-property expressions and `@settings` conditionals, such as `if $cpu { ... }`.
+property expressions and `@settings` conditionals, such as `if @cpu { ... }`.
 They stay fixed for the mounted session, in debug and baked release builds.
 They describe the selected backend, not individual effect support or whether
 WebGPU is hardware accelerated. Native Apple apps currently select GPU;
@@ -351,13 +362,13 @@ button handler. This is a web integration call, separate from PAXEL. See
 [Accessibility and Native Controls](accessibility-native-controls.md) for input behavior and
 [Animation and Motion](animation-motion.md) for using clocks.
 
-## `$base`
+## `@base`
 
-`$base` refers to the earlier value of the same property while Pax resolves
+`@base` refers to the earlier value of the same property while Pax resolves
 its settings. It lets a later assignment build on what an earlier one supplied:
 
 ```pax
-<Rectangle class="card" width={$base + 24px} height=80px />
+<Rectangle class="card" width={@base + 24px} height=80px />
 
 @settings {
     .card {
@@ -370,7 +381,7 @@ The class supplies a width of 240 pixels. The inline expression adds 24, so
 this rectangle is 264 pixels wide. If the class width changes, the inline
 formula continues to build on it.
 
-`$base` is contextual to the property being resolved. It does not read a parent
+`@base` is contextual to the property being resolved. It does not read a parent
 element's property or the previous animation frame. See
 [Templates](template-language.md#imported-settings) for ordinary settings
 layers and [Animation and Motion](animation-motion.md) for timeline-relative
@@ -417,7 +428,7 @@ points, alpha, linear defaults, and current radial/backend limits.
 ### Timeline-relative values
 
 See [Relative values and property ownership](animation-motion.md#relative-values-and-property-ownership)
-for using `$base` in timeline keyframes, setting a base layout value, and
+for using `@base` in timeline keyframes, setting a base layout value, and
 understanding when an inline assignment overrides an ordinary timeline track.
 
 ## Evaluating expressions from Rust

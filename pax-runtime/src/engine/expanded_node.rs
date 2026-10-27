@@ -1241,7 +1241,7 @@ impl ExpandedNode {
         let previous = self.stores.has_providers().then(|| {
             borrow!(self.properties_scope)
                 .iter()
-                .filter(|(name, _)| !name.starts_with('$'))
+                .filter(|(name, _)| !name.starts_with('@'))
                 .map(|(name, value)| (name.clone(), value.get_untyped_property().get_id()))
                 .collect::<HashMap<_, _>>()
         });
@@ -1257,7 +1257,7 @@ impl ExpandedNode {
             // provider and its consumers if a template edit changes an alias.
             let current: HashMap<_, _> = borrow!(self.properties_scope)
                 .iter()
-                .filter(|(name, _)| !name.starts_with('$'))
+                .filter(|(name, _)| !name.starts_with('@'))
                 .map(|(name, value)| (name.clone(), value.get_untyped_property().get_id()))
                 .collect();
             if current != previous {

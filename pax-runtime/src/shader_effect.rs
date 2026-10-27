@@ -48,7 +48,7 @@ impl ExpandedNode {
         );
         if !renderer.is_gpu() {
             static WARNING: std::sync::Once = std::sync::Once::new();
-            WARNING.call_once(|| log::warn!("CPU rendering preserves shader children without applying the effect; use $gpu / $cpu for an authored fallback"));
+            WARNING.call_once(|| log::warn!("CPU rendering preserves shader children without applying the effect; use @gpu / @cpu for an authored fallback"));
             return false;
         }
         let layer = self.occlusion.get().render_layer_id;

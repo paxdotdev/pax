@@ -168,7 +168,7 @@ fn typed_base_candidate_keeps_reactive_settings_selection() {
     )]));
     let base = LocalProperty::new(10.0_f64);
     let stack_with_base = stack_with_base(&stack, base.clone());
-    let candidate = build::<f64>(&expression("$base"), &stack_with_base);
+    let candidate = build::<f64>(&expression("@base"), &stack_with_base);
     let ValueDefinition::Expression(condition_expr) = expression("enabled") else {
         unreachable!()
     };

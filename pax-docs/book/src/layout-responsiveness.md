@@ -307,7 +307,7 @@ Use the `Notes` and `NoteCard` declarations from Components, including the
     }
     .advance { y: 248px }
 
-    if $viewport.width < 720 {
+    if @viewport.width < 720 {
         .board { height: 472px }
         .cards {
             height: 336px
@@ -336,7 +336,7 @@ vertically. Use a correctly sized Scroller when the content needs more space;
 
 ### Viewport or component bounds?
 
-`$viewport.width` and `$viewport.height` describe the mounted app's viewport
+`@viewport.width` and `@viewport.height` describe the mounted app's viewport
 in logical pixels. In an embedded app, that is the embed's viewport, not the
 entire surrounding page. Orientation helpers describe that same area.
 They are useful for screen-level composition; see the complete
@@ -456,7 +456,7 @@ or a two-item list in `[x, y]` order:
 
 Axis-specific properties remain available. In the same settings layer, a
 longhand such as `scale_y` takes precedence over the corresponding shorthand
-axis. A longhand expression using `$base` sees that axis's shorthand value.
+axis. A longhand expression using `@base` sees that axis's shorthand value.
 The wider settings precedence rules belong to
 [Templates](template-language.md#multiple-and-reactive-classes).
 

@@ -13,16 +13,16 @@
             @in=@timeline {
                 duration: 48,
                 rotate: {
-                    0: {$base - 11deg}, OutQuad,
-                    27: {$base},
-                    100%: {$base},
+                    0: {@base - 11deg}, OutQuad,
+                    27: {@base},
+                    100%: {@base},
                 },
             }
             @out=@timeline {
                 duration: 9,
                 rotate: {
-                    0: {$base}, OutQuad,
-                    9: {$base + 2deg},
+                    0: {@base}, OutQuad,
+                    9: {@base + 2deg},
                 },
             }
         >
@@ -43,17 +43,17 @@
             @in=@timeline {
                 duration: 48,
                 rotate: {
-                    0: {$base + 4.5deg}, Hold,
-                    6: {$base + 4.5deg}, OutQuad,
-                    33: {$base},
-                    100%: {$base},
+                    0: {@base + 4.5deg}, Hold,
+                    6: {@base + 4.5deg}, OutQuad,
+                    33: {@base},
+                    100%: {@base},
                 },
             }
             @out=@timeline {
                 duration: 9,
                 rotate: {
-                    0: {$base}, OutQuad,
-                    9: {$base - 2deg},
+                    0: {@base}, OutQuad,
+                    9: {@base - 2deg},
                 },
             }
         />
@@ -67,17 +67,17 @@
                 @in=@timeline {
                     duration: 48,
                     rotate: {
-                        0: {$base - 9deg}, Hold,
-                        12: {$base - 9deg}, OutQuad,
-                        42: {$base},
-                        100%: {$base},
+                        0: {@base - 9deg}, Hold,
+                        12: {@base - 9deg}, OutQuad,
+                        42: {@base},
+                        100%: {@base},
                     },
                 }
                 @out=@timeline {
                     duration: 9,
                     rotate: {
-                        0: {$base}, OutQuad,
-                        9: {$base + 1.5deg},
+                        0: {@base}, OutQuad,
+                        9: {@base + 1.5deg},
                     },
                 }
             >
@@ -121,17 +121,17 @@
                 @in=@timeline {
                     duration: 48,
                     rotate: {
-                        0: {$base + 3deg}, Hold,
-                        12: {$base + 3deg}, OutQuad,
-                        42: {$base},
-                        100%: {$base},
+                        0: {@base + 3deg}, Hold,
+                        12: {@base + 3deg}, OutQuad,
+                        42: {@base},
+                        100%: {@base},
                     },
                 }
                 @out=@timeline {
                     duration: 9,
                     rotate: {
-                        0: {$base}, OutQuad,
-                        9: {$base - 1.5deg},
+                        0: {@base}, OutQuad,
+                        9: {@base - 1.5deg},
                     },
                 }
             >
@@ -171,16 +171,16 @@
             @in=@timeline {
                 duration: 48,
                 rotate: {
-                    0: {$base + 6.5deg}, Hold,
-                    18: {$base + 6.5deg}, OutQuad,
-                    48: {$base},
+                    0: {@base + 6.5deg}, Hold,
+                    18: {@base + 6.5deg}, OutQuad,
+                    48: {@base},
                 },
             }
             @out=@timeline {
                 duration: 9,
                 rotate: {
-                    0: {$base}, OutQuad,
-                    9: {$base - 1deg},
+                    0: {@base}, OutQuad,
+                    9: {@base - 1deg},
                 },
             }
         />
@@ -270,21 +270,21 @@
     self {
         opacity: {
             0: 0, InQuad,
-            12: {$base},
-            100%: {$base},
+            12: {@base},
+            100%: {@base},
         },
     }
 
     .route_stage_0 {
         opacity: {
             0: 0, InQuad,
-            18: {$base},
-            100%: {$base},
+            18: {@base},
+            100%: {@base},
         },
         y: {
-            0: {$base - 100px}, InQuad,
-            18: {$base},
-            100%: {$base},
+            0: {@base - 100px}, InQuad,
+            18: {@base},
+            100%: {@base},
         },
     }
 
@@ -292,14 +292,14 @@
         opacity: {
             0: 0, Hold,
             6: 0, InQuad,
-            27: {$base},
-            100%: {$base},
+            27: {@base},
+            100%: {@base},
         },
         y: {
-            0: {$base - 100px}, Hold,
-            6: {$base - 100px}, InQuad,
-            27: {$base},
-            100%: {$base},
+            0: {@base - 100px}, Hold,
+            6: {@base - 100px}, InQuad,
+            27: {@base},
+            100%: {@base},
         },
     }
 
@@ -307,14 +307,14 @@
         opacity: {
             0: 0, Hold,
             12: 0, InQuad,
-            36: {$base},
-            100%: {$base},
+            36: {@base},
+            100%: {@base},
         },
         y: {
-            0: {$base - 100px}, Hold,
-            12: {$base - 100px}, InQuad,
-            36: {$base},
-            100%: {$base},
+            0: {@base - 100px}, Hold,
+            12: {@base - 100px}, InQuad,
+            36: {@base},
+            100%: {@base},
         },
     }
 
@@ -322,12 +322,12 @@
         opacity: {
             0: 0, Hold,
             18: 0, InQuad,
-            48: {$base},
+            48: {@base},
         },
         y: {
-            0: {$base - 100px}, Hold,
-            18: {$base - 100px}, InQuad,
-            48: {$base},
+            0: {@base - 100px}, Hold,
+            18: {@base - 100px}, InQuad,
+            48: {@base},
         },
     }
 }
@@ -336,12 +336,12 @@
     duration: 9,
     self {
         opacity: {
-            0: {$base}, OutQuad,
+            0: {@base}, OutQuad,
             100%: 0,
         },
         y: {
-            0: {$base}, OutQuad,
-            100%: {$base - 18px},
+            0: {@base}, OutQuad,
+            100%: {@base - 18px},
         },
     }
 }

@@ -1,5 +1,5 @@
 <Group width=100% height=100%>
-    <Group x=50% anchor_x=50% width={(Math::min(720, $viewport.width - 32))px} height=100%>
+    <Group x=50% anchor_x=50% width={(Math::min(720, @viewport.width - 32))px} height=100%>
         <Text id=title x=50% y=24px anchor=[50%, 0%] width=100% height=40px
             text="Transition Grid" selectable=false />
         <Text id=subtitle x=50% y=80px anchor=[50%, 0%] width=100% height=20px
