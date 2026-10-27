@@ -10,6 +10,8 @@ description = "Core shared runtime and rendering engine for Pax"
 
 
 [dependencies]
+vello_cpu = { version = "=0.3.0", default-features = false, features = ["std", "u8_pipeline"] }
+vello_common = { version = "=0.3.0", default-features = false, features = ["std"] }
 cfg-if = "1.0.0"
 kurbo = "0.11.1"
 lazy_static = "1.4.0"
@@ -20,8 +22,6 @@ pax-manifest = {version="0.39.1", path = "../pax-manifest"}
 pax-language = {version="0.39.1", path = "../pax-language", default-features = false}
 pax-designtime = {version="0.39.1", path = "../pax-designtime", optional = true}
 pax-runtime-api = {version="0.39.1", path = "../pax-runtime-api"}
-piet = "0.7.0"
-piet-common = "0.7.0"
 pax-gpu = {path = "../pax-gpu", version = "0.39.1"}
 serde = {version="1.0.196", features=["derive"]}
 serde_json = { version = "1.0.114", optional = true }

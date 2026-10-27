@@ -18,7 +18,7 @@ pax-host = { path = "../pax-host", version = "0.39.1", optional = true }
 shaders = ["pax-engine/shaders", "pax-std/shaders"]
 host = ["dep:pax-host", "pax-host/native"]
 gpu = ["pax-engine/gpu"]
-piet = ["pax-engine/piet"]
+cpu = ["pax-engine/cpu"]
 designtime = ["pax-engine/designtime", "pax-std/designtime", "pax-host?/designtime"]
 web = ["pax-engine/web"]
 ios = ["pax-engine/ios"]

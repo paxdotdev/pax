@@ -56,183 +56,163 @@ fn report_density_fallback(
     }
 }
 
-pub(crate) fn get_render_context(
+/// Renderer selected and initialized before application state or templates mount.
+/// Prepare outside an `ApplicationInstance` enter guard: WebGPU initialization awaits JavaScript.
+pub struct PreparedWebRenderer {
+    pub(crate) policy: WebSurfacePolicy,
+    pub(crate) installed: InstalledSurfaces,
+    pub(crate) renderer: Box<dyn RenderContext>,
+}
+
+/// Select WebGPU or Vello CPU for this session. Automatic selection falls back
+/// when adapter/device initialization fails. `?pax_renderer=cpu|gpu|auto` can
+/// override selection for testing; an explicitly requested GPU must initialize.
+pub async fn prepare_renderer() -> Result<PreparedWebRenderer, JsValue> {
+    use pax_gpu::render_backend::{RenderBackend, RenderConfig};
+    let window = web_sys::window().ok_or_else(|| JsValue::from_str("missing browser window"))?;
+    let document = window
+        .document()
+        .ok_or_else(|| JsValue::from_str("missing browser document"))?;
+    let params = web_sys::UrlSearchParams::new_with_str(&window.location().search()?)?;
+    let requested = params.get("pax_renderer").unwrap_or_else(|| "auto".into());
+    let mut browser = BrowserSurfacePolicy::detect(&window);
+    match requested.as_str() {
+        "auto" => {
+            if cfg!(feature = "cpu") {
+                browser.select_cpu(true);
+            }
+        }
+        "cpu" => browser.select_cpu(true),
+        "gpu" => browser.select_cpu(false),
+        _ => return Err(JsValue::from_str("pax_renderer must be auto, cpu, or gpu")),
+    }
+    let probe = document
+        .create_element("canvas")?
+        .dyn_into::<HtmlCanvasElement>()?;
+    let mut shared = None;
+    let mut limit = 2048;
+    if !browser.use_cpu_fallback() {
+        match RenderBackend::to_canvas_with_context(
+            probe.clone(),
+            RenderConfig::new(false, 1, 1, [1.0, 1.0]).with_browser_premultiplied_alpha(true),
+            None,
+        )
+        .await
+        {
+            Ok((backend, context)) => {
+                limit = backend.max_surface_dimension();
+                shared = Some(context);
+            }
+            Err(error) if requested == "gpu" => {
+                return Err(JsValue::from_str(&format!(
+                    "WebGPU initialization failed: {error}"
+                )))
+            }
+            Err(error) => {
+                log::warn!("WebGPU initialization failed; selecting Vello CPU: {error}");
+                browser.select_cpu(true);
+            }
+        }
+    }
+    let policy = WebSurfacePolicy::new(browser);
+    policy.observe_backend_limit(limit);
+    let installed = std::rc::Rc::new(std::cell::RefCell::new(Default::default()));
+    let renderer: Box<dyn RenderContext> = if browser.use_cpu_fallback() {
+        // A failed GPU probe may already own its canvas context. Verify CPU
+        // presentation on a fresh canvas, never on that consumed target.
+        let canvas = document
+            .create_element("canvas")?
+            .dyn_into::<HtmlCanvasElement>()?;
+        canvas
+            .get_context("2d")?
+            .ok_or_else(|| JsValue::from_str("Canvas2D pixel presentation unavailable"))?;
+        log::info!("render backend: using Vello CPU browser renderer");
+        Box::new(get_cpu_render_context(
+            window,
+            policy.clone(),
+            installed.clone(),
+        ))
+    } else {
+        log::info!("render backend: using WebGPU browser renderer");
+        Box::new(get_gpu_render_context(
+            window,
+            policy.clone(),
+            installed.clone(),
+            shared,
+        ))
+    };
+    Ok(PreparedWebRenderer {
+        policy,
+        installed,
+        renderer,
+    })
+}
+
+struct WebCpuSurface {
+    canvas: HtmlCanvasElement,
+    context: web_sys::CanvasRenderingContext2d,
+}
+
+impl WebCpuSurface {
+    fn new(canvas: HtmlCanvasElement) -> Self {
+        let context = canvas
+            .get_context("2d")
+            .expect("create CPU presentation context")
+            .expect("Canvas2D pixel presentation unavailable")
+            .dyn_into::<web_sys::CanvasRenderingContext2d>()
+            .expect("Canvas2D context");
+        Self { canvas, context }
+    }
+}
+
+impl pax_runtime::vello_render_context::CpuSurface for WebCpuSurface {
+    fn configure(&mut self, size: (u32, u32)) {
+        if self.canvas.width() != size.0 {
+            self.canvas.set_width(size.0);
+        }
+        if self.canvas.height() != size.1 {
+            self.canvas.set_height(size.1);
+        }
+    }
+
+    fn present(&mut self, rgba: &[u8], width: u32, height: u32, origin: (u32, u32)) {
+        let image = web_sys::ImageData::new_with_u8_clamped_array_and_sh(
+            wasm_bindgen::Clamped(rgba),
+            width,
+            height,
+        )
+        .expect("CPU framebuffer dimensions");
+        self.context
+            .put_image_data(&image, f64::from(origin.0), f64::from(origin.1))
+            .expect("present CPU framebuffer");
+        trace_surface(&self.canvas, "first-submit");
+    }
+}
+
+fn get_cpu_render_context(
     window: Window,
     policy: WebSurfacePolicy,
     installed: InstalledSurfaces,
-) -> Box<dyn RenderContext> {
-    let surface_policy = policy.browser;
-    if cfg!(feature = "piet") || surface_policy.use_piet_fallback() {
-        log::info!("render backend: using Piet/Canvas2D browser renderer");
-        Box::new(get_piet_render_context(window, surface_policy, installed))
-    } else {
-        log::info!("render backend: using WebGPU browser renderer");
-        Box::new(get_gpu_render_context(window, policy, installed))
-    }
-}
-
-type PaintBlendFn = Box<
-    dyn FnMut(
-        &mut piet_web::WebRenderContext,
-        &piet::kurbo::BezPath,
-        &[(pax_runtime::api::Paint, f64)],
-        f64,
-        piet::kurbo::Rect,
-    ),
->;
-
-// Canvas-to-canvas drawing avoids CPU readback and preserves live native hosts.
-struct WebPietSurface {
-    canvas: HtmlCanvasElement,
-    context: web_sys::CanvasRenderingContext2d,
-    renderer: piet_web::WebRenderContext<'static>,
-    paint_blend: PaintBlendFn,
-    window: Window,
-    origin: (f32, f32),
-    dpr: [f32; 2],
-}
-
-impl WebPietSurface {
-    fn new(
-        canvas: HtmlCanvasElement,
-        window: Window,
-        origin: (f32, f32),
-        size: (u32, u32),
-        dpr: [f32; 2],
-    ) -> Self {
-        let context = canvas
-            .get_context("2d")
-            .unwrap()
-            .unwrap()
-            .dyn_into::<web_sys::CanvasRenderingContext2d>()
-            .unwrap();
-        configure_piet_canvas_context(
-            &context, &canvas, origin.0, origin.1, size.0, size.1, dpr, true,
-        );
-        let renderer = piet_web::WebRenderContext::new(context.clone(), window.clone());
-        let paint_blend = paint_blend_callback(&context, &canvas, &window);
-        Self {
-            canvas,
-            context,
-            renderer,
-            paint_blend,
-            window,
-            origin,
-            dpr,
-        }
-    }
-}
-
-impl pax_runtime::piet_render_context::PietSurface for WebPietSurface {
-    type Context = piet_web::WebRenderContext<'static>;
-
-    fn context(&mut self) -> &mut Self::Context {
-        &mut self.renderer
-    }
-
-    fn did_submit(&mut self) {
-        trace_surface(&self.canvas, "first-submit");
-    }
-
-    fn clear(&mut self) {
-        clear_piet_canvas_context(&self.context, &self.canvas);
-    }
-
-    fn configure(&mut self, origin: (f32, f32), size: (u32, u32), dpr: [f32; 2]) {
-        self.origin = origin;
-        self.dpr = dpr;
-        configure_piet_canvas_context(
-            &self.context,
-            &self.canvas,
-            origin.0,
-            origin.1,
-            size.0,
-            size.1,
-            dpr,
-            false,
-        );
-    }
-
-    fn create_group(&self) -> Self {
-        let canvas = self
-            .window
-            .document()
-            .unwrap()
-            .create_element("canvas")
-            .unwrap()
-            .dyn_into::<HtmlCanvasElement>()
-            .unwrap();
-        Self::new(
-            canvas,
-            self.window.clone(),
-            self.origin,
-            (self.canvas.width(), self.canvas.height()),
-            self.dpr,
-        )
-    }
-
-    fn composite(&mut self, source: &Self, opacity: f64) {
-        self.context.save();
-        let _ = self.context.set_transform(1.0, 0.0, 0.0, 1.0, 0.0, 0.0);
-        self.context.set_global_alpha(opacity);
-        self.context
-            .draw_image_with_html_canvas_element(&source.canvas, 0.0, 0.0)
-            .expect("compose Piet group surface");
-        self.context.restore();
-    }
-
-    fn draw_blend(
-        &mut self,
-        path: &piet::kurbo::BezPath,
-        terms: &[(pax_runtime::api::Paint, f64)],
-        opacity: f64,
-        paint_bounds: piet::kurbo::Rect,
-    ) {
-        (self.paint_blend)(&mut self.renderer, path, terms, opacity, paint_bounds);
-    }
-
-    fn draw_image(&mut self, image: &piet_web::WebImage, rect: piet::kurbo::Rect, opacity: f64) {
-        let previous = self.context.global_alpha();
-        self.context.set_global_alpha(opacity);
-        piet::RenderContext::draw_image(
-            &mut self.renderer,
-            image,
-            rect,
-            piet::InterpolationMode::Bilinear,
-        );
-        self.context.set_global_alpha(previous);
-    }
-}
-
-fn get_piet_render_context(
-    window: Window,
-    surface_policy: BrowserSurfacePolicy,
-    installed: InstalledSurfaces,
 ) -> impl RenderContext {
-    use pax_runtime::piet_render_context::{PietLayerRenderer, PietLayerTarget, PietRenderer};
+    use pax_runtime::vello_render_context::{CpuLayerRenderer, CpuLayerTarget, CpuRenderer};
 
-    PietRenderer::new(move |layer| {
+    CpuRenderer::new(move |layer| {
         let document = window.document().unwrap();
+        let policy = policy.clone();
         let targets = query_layer_canvas_targets(
             &installed,
             &document,
             layer,
-            surface_policy.effective_max_surface_dimension(layer, u32::MAX),
-            surface_policy.defer_transient_root_host_surfaces(layer),
+            policy.max_surface_dimension(layer),
+            policy.browser.defer_transient_root_host_surfaces(layer),
         );
         let layout = layer_surface_layout_from_targets(targets.iter());
         let renderers = targets
             .into_iter()
             .map(|target| {
                 let entry = layer_surface_entry_from_target(&target);
-                let surface = WebPietSurface::new(
-                    target.canvas.clone(),
-                    window.clone(),
-                    (target.origin_x, target.origin_y),
-                    (target.surface.surface_width, target.surface.surface_height),
-                    target.surface.dpr,
-                );
-                PietLayerRenderer::new(
+                let surface = WebCpuSurface::new(target.canvas.clone());
+                CpuLayerRenderer::new(
                     target.key.clone(),
                     target.host_signature.clone(),
                     surface,
@@ -248,151 +228,16 @@ fn get_piet_render_context(
                     &installed,
                     &document,
                     layer,
-                    surface_policy.effective_max_surface_dimension(layer, u32::MAX),
-                    surface_policy.defer_transient_root_host_surfaces(layer),
+                    policy.max_surface_dimension(layer),
+                    policy.browser.defer_transient_root_host_surfaces(layer),
                 )
             }
         });
 
         (
-            PietLayerTarget::new(renderers, layout.active),
+            CpuLayerTarget::new(renderers, layout.active),
             layout_provider,
         )
-    })
-}
-
-// One scratch canvas per surface, allocated only while a paint is transitioning.
-// Add premultiplied endpoint colors on transparent black, then clip and composite
-// the resulting paint once. Native elements and group boundaries are not involved.
-fn paint_blend_callback(
-    target: &web_sys::CanvasRenderingContext2d,
-    canvas: &HtmlCanvasElement,
-    window: &Window,
-) -> PaintBlendFn {
-    use pax_runtime::piet_render_context::fill_to_piet_brush;
-    use piet::{
-        kurbo::{Affine, Rect, Shape},
-        IntoBrush, RenderContext,
-    };
-    let target = target.clone();
-    let canvas = canvas.clone();
-    let window = window.clone();
-    let mut scratch: Option<(HtmlCanvasElement, web_sys::CanvasRenderingContext2d)> = None;
-    Box::new(move |renderer, path, terms, opacity, paint_bounds| {
-        let rect = path.bounding_box();
-        let matrix = target.get_transform().expect("canvas transform");
-        let transform = Affine::new([
-            matrix.a(),
-            matrix.b(),
-            matrix.c(),
-            matrix.d(),
-            matrix.e(),
-            matrix.f(),
-        ]);
-        if transform.determinant().abs() < f64::EPSILON {
-            return;
-        }
-        let bounds = transform
-            .transform_rect_bbox(rect)
-            .inflate(1.0, 1.0)
-            .intersect(Rect::new(
-                0.0,
-                0.0,
-                canvas.width() as f64,
-                canvas.height() as f64,
-            ))
-            .expand();
-        if bounds.width() <= 0.0 || bounds.height() <= 0.0 {
-            return;
-        }
-        let (scratch_canvas, context) = scratch.get_or_insert_with(|| {
-            let canvas: HtmlCanvasElement = window
-                .document()
-                .unwrap()
-                .create_element("canvas")
-                .unwrap()
-                .dyn_into()
-                .unwrap();
-            let context = canvas
-                .get_context("2d")
-                .unwrap()
-                .unwrap()
-                .dyn_into()
-                .unwrap();
-            (canvas, context)
-        });
-        let width = bounds.width() as u32;
-        let height = bounds.height() as u32;
-        // Grow geometrically within the surface's existing allocation limit.
-        if scratch_canvas.width() < width || scratch_canvas.width() > canvas.width() {
-            scratch_canvas.set_width(width.next_power_of_two().min(canvas.width()));
-        }
-        if scratch_canvas.height() < height || scratch_canvas.height() > canvas.height() {
-            scratch_canvas.set_height(height.next_power_of_two().min(canvas.height()));
-        }
-        context.reset_transform().unwrap();
-        context.clear_rect(
-            0.0,
-            0.0,
-            scratch_canvas.width() as f64,
-            scratch_canvas.height() as f64,
-        );
-        context
-            .set_transform(
-                matrix.a(),
-                matrix.b(),
-                matrix.c(),
-                matrix.d(),
-                matrix.e() - bounds.x0,
-                matrix.f() - bounds.y0,
-            )
-            .unwrap();
-        context.set_global_composite_operation("lighter").unwrap();
-        let mut painter = piet_web::WebRenderContext::new(context.clone(), window.clone());
-        // Resolve brushes against the original bounds, but extend their painted
-        // area past the path edge: antialiasing belongs to the final clip only.
-        let inverse = transform.inverse().as_coeffs();
-        let inset =
-            2.0 * (inverse[0].abs() + inverse[1].abs() + inverse[2].abs() + inverse[3].abs());
-        fn accumulate(
-            painter: &mut piet_web::WebRenderContext,
-            context: &web_sys::CanvasRenderingContext2d,
-            rect: Rect,
-            coverage: Rect,
-            inset: f64,
-            terms: &[(pax_runtime::api::Paint, f64)],
-            weight: f64,
-        ) {
-            for (fill, inner_weight) in terms {
-                let weight = weight * inner_weight;
-                if let pax_runtime::api::Paint::Blend(terms) = fill {
-                    accumulate(painter, context, rect, coverage, inset, terms, weight);
-                } else if let Some(brush) = fill_to_piet_brush(fill, rect) {
-                    context.set_global_alpha(weight.clamp(0.0, 1.0));
-                    let brush = brush.make_brush(painter, || rect).into_owned();
-                    painter.fill(coverage.inflate(inset, inset), &brush);
-                }
-            }
-        }
-        accumulate(&mut painter, context, paint_bounds, rect, inset, terms, 1.0);
-        renderer.save().unwrap();
-        renderer.clip(path.clone());
-        target.reset_transform().unwrap();
-        target.set_global_alpha(target.global_alpha() * opacity.clamp(0.0, 1.0));
-        target
-            .draw_image_with_html_canvas_element_and_sw_and_sh_and_dx_and_dy_and_dw_and_dh(
-                scratch_canvas,
-                0.0,
-                0.0,
-                width as f64,
-                height as f64,
-                bounds.x0,
-                bounds.y0,
-                width as f64,
-                height as f64,
-            )
-            .unwrap();
-        renderer.restore().unwrap();
     })
 }
 
@@ -400,18 +245,18 @@ fn get_gpu_render_context(
     window: Window,
     policy: WebSurfacePolicy,
     installed: InstalledSurfaces,
+    shared: Option<pax_gpu::render_backend::SharedGpuContext>,
 ) -> impl RenderContext {
     let surface_policy = policy.browser;
     use pax_gpu::{
-        render_backend::{RenderBackend, RenderConfig, SharedGpuContext},
+        render_backend::{RenderBackend, RenderConfig},
         Transform2D, WgpuRenderer,
     };
     use pax_runtime::pax_gpu_render_context::{LayerRenderer, LayerTarget, PaxGpuRenderer};
     // Every browser canvas in this chassis can use the same WebGPU device.
     // Keep it across cold-row eviction; pixel textures still have weak cache ownership.
     // The async mutex prevents concurrent first rows from each creating a device.
-    let browser_context =
-        std::rc::Rc::new(futures_util::lock::Mutex::new(None::<SharedGpuContext>));
+    let browser_context = std::rc::Rc::new(futures_util::lock::Mutex::new(shared));
     let priority_document = window.document().unwrap();
     let priority_installed = installed.clone();
     PaxGpuRenderer::new(move |layer, request| {
@@ -706,35 +551,6 @@ fn layer_surface_entry_from_target(target: &LayerCanvasTarget) -> LayerSurfaceEn
             dpr: target.surface.dpr,
         },
     }
-}
-
-fn configure_piet_canvas_context(
-    context: &web_sys::CanvasRenderingContext2d,
-    canvas: &HtmlCanvasElement,
-    origin_x: f32,
-    origin_y: f32,
-    surface_width: u32,
-    surface_height: u32,
-    dpr: [f32; 2],
-    resize_surface: bool,
-) {
-    if resize_surface || canvas.width() != surface_width || canvas.height() != surface_height {
-        canvas.set_width(surface_width);
-        canvas.set_height(surface_height);
-    }
-    let _ = context.set_transform(1.0, 0.0, 0.0, 1.0, 0.0, 0.0);
-    let _ = context.scale(dpr[0] as f64, dpr[1] as f64);
-    let _ = context.translate(-(origin_x as f64), -(origin_y as f64));
-}
-
-fn clear_piet_canvas_context(
-    context: &web_sys::CanvasRenderingContext2d,
-    canvas: &HtmlCanvasElement,
-) {
-    let _ = context.save();
-    let _ = context.set_transform(1.0, 0.0, 0.0, 1.0, 0.0, 0.0);
-    context.clear_rect(0.0, 0.0, canvas.width() as f64, canvas.height() as f64);
-    let _ = context.restore();
 }
 
 thread_local! {

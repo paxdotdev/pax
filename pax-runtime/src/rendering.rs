@@ -11,7 +11,6 @@ use pax_manifest::{
 use pax_message::NativeInterrupt;
 use pax_runtime_api::pax_value::PaxAny;
 use pax_runtime_api::{borrow, use_RefCell, Variable};
-use piet::{Color, StrokeStyle};
 
 use crate::api::{Layer, Scroll, Window};
 
@@ -836,11 +835,4 @@ impl BaseInstance {
     pub fn transition_config(&self) -> &ComponentTransitionConfig {
         &self.transition_config
     }
-}
-
-/// Resolved stroke style used by canvas drawing primitives.
-pub struct StrokeInstance {
-    pub color: Color,
-    pub width: f64,
-    pub style: StrokeStyle,
 }

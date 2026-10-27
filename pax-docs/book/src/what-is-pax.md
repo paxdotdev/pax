@@ -106,7 +106,7 @@ and Windows; Apple targets require a suitable macOS and Xcode environment.
 
 A shared interface model also does not mean that every platform follows an
 identical rendering path. Web builds select WebGPU where browser policy and
-support permit it, with a Piet/CPU renderer where that path is required. Apple
+support permit it, with a Vello CPU renderer where that path is required. Apple
 targets use their native chassis. Backend-specific capabilities must therefore
 state their target and fallback behavior rather than presenting one backend as
 universal.

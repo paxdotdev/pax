@@ -133,8 +133,9 @@ its subpaths, and to Handwriter's complete generated path.
 
 Native Text and controls retain their single-paint interfaces and existing
 solid-color limitations. They do not acquire appearance stacks or materials.
-Piet supports the vector layers and linear/radial gradient paints but does not apply lighting
-materials or alpha masks. WGPU web is the end-to-end validation target.
+Vello CPU supports vector layers, linear/radial gradient paints and alpha masks.
+Lighting materials use their unlit base paint. See
+[CPU effect fallbacks](compositing-effects.md#cpu-effect-fallbacks) for authored alternatives.
 
 ### Migrating existing drawing code
 
@@ -224,7 +225,7 @@ Points are `[x, y]` pairs in the shape's local coordinate space. Here the
 gradient runs from the top-left to the bottom-right. Percent coordinates
 follow the shape's bounds as it resizes. For linear gradients, use at least two
 stops in ascending order. Percentage stops resolve along the gradient axis;
-pixel stops use its local logical-pixel length on WGPU and Piet. WGPU uses
+pixel stops use its local logical-pixel length on WGPU and Vello CPU. WGPU uses
 at most eight stops.
 
 Omitting the `linear` block gives a left-to-right gradient, from `[0%, 0%]`
@@ -275,8 +276,8 @@ The 0% stop is at the focus; the 100% stop lies on the outer circle. Moving the
 focus creates directional highlights. A focus outside the outer circle creates
 a cone of paint, with transparent pixels outside that cone. Rotation, reflection,
 shear, and nonuniform scaling transform the whole gradient with its shape.
-GPU color fills and painted alpha masks share the same radial sampler; the Piet
-browser fallback resolves the same local geometry through a fixed radial brush.
+GPU color fills and painted alpha masks share the same radial sampler; Vello CPU
+resolves the same local geometry through its two-circle radial gradient.
 
 Radial stops accept percentages or logical pixels measured against the radius:
 with `radius: 90`, a stop at `45px` equals `50%`. Use ascending stops within
@@ -350,8 +351,10 @@ interpolation. At folds, later patches in row order replace earlier ones
 without accumulating alpha. Explicit Bézier handles and irregular row lengths
 are not supported yet.
 
-Mesh paint currently requires **WGPU**. Piet emits a diagnostic and paints no
-mesh; native text controls do not support mesh text paint. Debug and baked
+The full mesh field requires **WGPU**. Vello CPU reports a bounded diagnostic
+and uses the premultiplied average of the control point colors as a flat paint.
+Use `$gpu` / `$cpu` to supply an alternate gradient or subtree. Native text
+controls do not support mesh text paint. Debug and baked
 release cartridges accept the same values and syntax. Invalid static grids
 are rejected during compilation; invalid dynamic grids paint nothing with a
 deduplicated diagnostic. GPU storage is bounded to 64 MiB per paint page and
@@ -719,7 +722,7 @@ still use the runtime's normal scene invalidation.
 
 This feature is backend-dependent. GPU/WGPU rendering supports the material
 response, with a current limit of eight active direct lights in each canvas
-layer's lighting set, shared across its LightFrames. The Piet fallback draws
+layer's lighting set, shared across its LightFrames. The Vello CPU fallback draws
 the ordinary fills and strokes without
 that response. Native Text, native controls, and bitmap Images are not lit
 vector materials. Texture maps, cast shadows, and a 3D camera are not part

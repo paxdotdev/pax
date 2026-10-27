@@ -328,12 +328,6 @@ impl Color {
         Self::hsla(h, s, l, a)
     }
 
-    // Converts to the Piet color type used by canvas renderers.
-    pub fn to_piet_color(&self) -> piet::Color {
-        let rgba = self.to_rgba_0_1();
-        piet::Color::rgba(rgba[0], rgba[1], rgba[2], rgba[3])
-    }
-
     /// Constructs a color from normalized RGBA channels in the `[0.0, 1.0]` range.
     pub fn from_rgba_0_1(rgba_0_1: [f64; 4]) -> Self {
         Self::rgba(

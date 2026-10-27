@@ -299,6 +299,7 @@ environment:
 | --- | --- |
 | `$viewport` | Scene width and height in logical pixels; `major`, `minor`, `aspect`, `landscape`, `portrait`, and `square`. |
 | `$target` | Boolean platform and operating-system facts, such as `web`, `native`, `macos`, `ios`, `iphone`, and `ipad`. |
+| `$gpu`, `$cpu` | Complementary booleans identifying the renderer selected before app mount. |
 | `$frames`, `$millis` | Runtime frame count and elapsed time in milliseconds. |
 | `$gyro`, `$accel` | Device orientation and acceleration readings, where supplied by the target and permitted by the user. |
 
@@ -319,6 +320,27 @@ on macOS can have both `$web` and `$macos` set. The remaining fields are
 `android`, `windows`, `linux`, `mobile`, and `desktop`. These describe runtime
 facts, including browser hosts; they do not extend the supported build targets
 beyond web, macOS, iOS, and iPadOS.
+
+Use `$gpu` and `$cpu` to customize an appearance for the selected renderer:
+
+```pax
+if $gpu {
+    <GaussianBlur width=100% height=100% radius=8.0>
+        <Ellipse width=120px height=120px fill=CYAN />
+    </GaussianBlur>
+} else {
+    <Ellipse width=120px height=120px fill=CYAN opacity=65% />
+}
+```
+
+`GaussianBlur` requires the `shaders` Cargo feature. The booleans also work in
+property expressions and `@settings` conditionals, such as `if $cpu { ... }`.
+They stay fixed for the mounted session, in debug and baked release builds.
+They describe the selected backend, not individual effect support or whether
+WebGPU is hardware accelerated. Native Apple apps currently select GPU;
+web apps can select either backend. See
+[Rendering backends](how-pax-runs.md#rendering-backends) for selection and
+[CPU effect fallbacks](compositing-effects.md#cpu-effect-fallbacks) for defaults.
 
 The sensor values expose `x`, `y`, and `z`. Orientation is in degrees and
 acceleration is in meters per second squared; web acceleration includes gravity

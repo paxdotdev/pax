@@ -25,6 +25,7 @@ pub(crate) fn runtime_context_with_target(
         browser_allows_nested_scroller_vector_layers: LocalProperty::new(true),
         platform,
         os,
+        renderer_is_gpu: true,
         target: TargetInfo::new(platform, os),
         get_elapsed_millis: Rc::new(|| 0),
         #[cfg(feature = "designtime")]

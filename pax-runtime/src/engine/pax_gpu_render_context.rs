@@ -1691,6 +1691,10 @@ impl PaxGpuRenderer {
 }
 
 impl RenderContext for PaxGpuRenderer {
+    fn is_gpu(&self) -> bool {
+        true
+    }
+
     fn set_surface_ready_callback(&mut self, callback: Option<Rc<dyn Fn()>>) {
         *self.surface_ready_callback.borrow_mut() = callback;
     }

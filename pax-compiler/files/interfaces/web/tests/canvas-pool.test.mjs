@@ -101,7 +101,7 @@ test('the deferred availability notification cannot unconfigure a newly assigned
     assert.equal(h.wakes(), 1);
 });
 
-test('releasing a Piet or unused canvas does not request a WebGPU context', () => {
+test('releasing a CPU or unused canvas does not request a WebGPU context', () => {
     const {pool} = harness(1);
     const canvas = pool.checkout();
     pool.release(canvas);

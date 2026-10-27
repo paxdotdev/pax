@@ -19,7 +19,7 @@ use crate::common::{begin_bounded_canvas_node, patch_if_needed};
 /// `Image` draws into the node bounds and participates in the same canvas
 /// rendering path as vectors. Use `NativeImage` when a platform-native image
 /// element is preferable.
-/// On WGPU and browser Piet, common opacity fades the composed canvas subtree;
+/// On WGPU and Vello CPU, common opacity fades the composed canvas subtree;
 /// source pixel alpha remains part of the content. Native surfaces fade separately.
 /// On web, concurrent URL requests with the same source string share one decode
 /// per chassis; completion schedules every still-mounted waiting image to redraw.

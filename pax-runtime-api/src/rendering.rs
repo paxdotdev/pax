@@ -37,8 +37,15 @@ impl crate::Interpolatable for OpacityScope {}
 
 /// The drawing contract shared by Pax runtime backends.
 pub trait RenderContext {
+    /// Whether this session uses Pax's GPU renderer. This identifies the backend,
+    /// not individual effect support or the presence of hardware acceleration.
+    fn is_gpu(&self) -> bool {
+        false
+    }
+
     /// Begin an experimental GPU-only subtree effect. Returns whether source draws need replay.
-    /// The default rejects programmable effects rather than silently changing their appearance.
+    /// GPU adapters must implement this hook. The runtime bypasses it on CPU,
+    /// preserving ordinary children and reporting a bounded diagnostic.
     /// Available with the opt-in `shaders` Cargo feature.
     #[cfg(feature = "shaders")]
     fn begin_shader_effect(

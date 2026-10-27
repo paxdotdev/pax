@@ -234,6 +234,10 @@ ready, the terminal prints a local URL beginning with `http://127.0.0.1:`. Open
 that URL in your browser. Use the address from your current run, since the port
 can change between sessions.
 
+Use a browser with WebAssembly SIMD support, such as Safari 16.4 or newer.
+See [web build profiles](developer-workflow.md#web-build-profiles) for the
+scalar build option and custom compiler flags.
+
 Your first-run checkpoint is the animated Pax logo. Drag the slider to choose
 an animation position; click **Replay** or the logo to play it again. The button
 at the top switches between light and dark backgrounds.

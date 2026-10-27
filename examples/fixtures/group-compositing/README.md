@@ -58,13 +58,13 @@ motion: oversized Fill artwork must stay within its crop at all tested display
 scales. Fractional clips use stencil coverage; pixel-aligned rectangles retain
 the scissor fast path.
 
-Piet/Canvas2D also composes the overlap probe before fading. Its debug and baked
-release checks cover reversed and completed exits, input preservation, zero
-opacity/restoration, delayed artwork, theme changes and scrolling beneath the
-card. Piet reuses scratch canvases but replays dirty content. To force that path
-in a separate copy of this fixture, add `features = ["piet"]` to its `pax-kit`
-dependency and run the same web build command. Ordinary browser selection still
-chooses the renderer automatically. The physical Molino seam fix above was
+Vello CPU composes overlapping shapes before fading and keeps browser-native
+text and controls in their existing hosts. Force it with `?pax_renderer=cpu`;
+use `?pax_renderer=gpu` for the GPU comparison. The former `piet` Cargo feature
+has been removed. Software rendering replays dirty content using reusable
+raster buffers; it does not retain composed group pixels across frames.
+
+The physical Molino seam fix above was
 checked on native WGPU, not browser WebKit.
 
 ## Physical-device CPU profiling

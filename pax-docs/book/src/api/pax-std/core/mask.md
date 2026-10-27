@@ -43,8 +43,9 @@ Source nodes are not presented or hit-tested. Native leaves, including
 Handwriter's selectable text equivalent, do not create native surfaces; keep
 meaningful accessible text outside the mask. User mount side effects still run.
 
-Current boundary: WGPU canvas rendering, verified on web. Native controls and
-the legacy Piet renderer do not support alpha masks. Images, text, native
+Canvas alpha masking is supported on WGPU and Vello CPU. CPU captures,
+including the feather halo, are limited to 4096 pixels per dimension; larger
+or nonfinite captures hide content with a diagnostic. Images, text, native
 elements, and source-side Scrollers are not captured; use vector leaves and
 same-surface containers. Alpha masks modulate canvas draw alpha,
 not an isolated offscreen group, and do not change hit testing. Keep interactive

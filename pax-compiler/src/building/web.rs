@@ -182,6 +182,22 @@ fn apply_release_size_profile(cmd: &mut Command, preserve_wasm_names: bool) {
     }
 }
 
+fn configure_web_rasterization(cmd: &mut Command) {
+    // wasm-pack supplies --target, so these flags affect Wasm, never host build
+    // scripts. Cargo merges existing build.rustflags; explicit target flags or
+    // RUSTFLAGS retain their normal precedence over this default.
+    cmd.arg("--config")
+        .arg("build.rustflags=[\"-Ctarget-feature=+simd128\"]");
+    // Software rasterization needs vectorization and loop optimization even in
+    // development. Keep the rest of the release cartridge optimized for size.
+    for profile in ["dev", "release"] {
+        for package in ["pax-runtime", "vello_cpu", "vello_common", "fearless_simd"] {
+            cmd.arg("--config")
+                .arg(format!("profile.{profile}.package.{package}.opt-level=3"));
+        }
+    }
+}
+
 fn wasm_opt_binary_name() -> &'static str {
     if cfg!(windows) {
         "wasm-opt.exe"
@@ -265,6 +281,7 @@ fn optimize_web_wasm(
         .arg("-o")
         .arg(&optimized_path)
         .arg("-Oz")
+        .arg("--enable-simd")
         .arg("--enable-bulk-memory")
         .arg("--enable-nontrapping-float-to-int")
         .stdout(std::process::Stdio::inherit())
@@ -410,6 +427,7 @@ pub(crate) fn compile_web_cartridge(
     // wasm-pack forwards trailing Cargo switches verbatim. Put its own profile
     // flags first so --dev/--profiling never reach `cargo build` as Cargo flags.
     cmd.arg(format!("--features={}", web_cargo_features(&cartridge_ctx)));
+    configure_web_rasterization(&mut cmd);
     configure_pax_build_env(&mut cmd, "web", ctx.should_run_designtime);
     #[cfg(unix)]
     unsafe {

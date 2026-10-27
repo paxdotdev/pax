@@ -317,18 +317,22 @@ a direct Path source, and a nested scrolling ring to exercise this boundary.
 Source-side vector clipping is supported; a Scroller inside the source subtree
 still cannot supply a cross-surface capture.
 
-The current alpha path requires the GPU renderer. Native text and controls
-are not supported as content inside an alpha mask, and Piet does not support
-alpha masking. Images, text, and native elements are not supported alpha sources. For a mixed native/rendered composition, keep
+Alpha masks, including feathering, work on WGPU and Vello CPU. Native text and
+controls are not supported as content inside an alpha mask. Images, text, and
+native elements are not supported alpha sources. For a mixed native/rendered composition, keep
 the default geometry mask; for a soft visual reveal, use supported vector
 source paint and keep interactive hit targets separate. Alpha coverage does
 not change hit testing.
 
-Paint, layer opacity, and stroke-reveal changes reuse retained geometry. A
+On WGPU, paint, layer opacity, and stroke-reveal changes reuse retained geometry. A
 changing reveal redraws the source texture with GPU draw-range parameters; it
 does not trim and tessellate a new outline on the CPU. Unchanged captures reuse
 their pixels. Removing a source retires its retained draws, mask textures, and
-capture resources.
+capture resources. Vello CPU replays dirty vector captures and reuses raster
+storage across tiles. Its feathered capture, including the three-sigma halo,
+must fit within 4096 pixels in each dimension; an oversized or nonfinite
+capture hides masked content and reports a bounded diagnostic.
+This limit is evaluated against the complete tile, including during a partial repaint.
 
 ## Opacity through a subtree
 
@@ -337,7 +341,7 @@ A vector element assembles its fill and stroke layers before applying its
 opacity; see [Paint layers](drawing-styling.md#paint-layers).
 
 `opacity` accepts a normalized value such as `0.5`, or a percentage such as
-`50%`. On WGPU and the browser's Piet/Canvas2D renderer, it fades the composed
+`50%`. On WGPU and Vello CPU, it fades the composed
 canvas content in a subtree. There is
 no separate isolation setting. For example, these overlapping rectangles
 form one silhouette with uniform 50% opacity:
@@ -372,19 +376,24 @@ below remain approximate. The focused `examples/fixtures/group-compositing` fixt
 has matching overlap probes on web WGPU, native macOS, iPhone/iPad simulators
 and a physical iPad. Its interrupted exit preserves edited native text on
 web, macOS and that iPad. These checks do not establish full accessibility
-coverage or performance for larger applications. Piet's browser fixture also
-matches the overlap reference and preserves native input during reversal.
+coverage or performance for larger applications. Those historical platform
+checks predate the Vello CPU migration; CPU coverage is established separately
+by software pixel tests and browser checks.
 There is no author-selectable legacy mode.
 
 WGPU retains visible group content across opacity changes. Source image,
 paint, transform, clip and lighting changes invalidate that content; outer
 translation and native mask updates still perform work. Group surfaces add
 memory and composition passes, so caching is not a guarantee of faster frames.
-Piet replays dirty canvas content and reuses temporary canvases for composition;
-it does not retain composed group pixels between dirty frames. Fully opaque
-scopes bypass the temporary canvas, and fully transparent scopes skip painting.
-Each simultaneously nested translucent scope can require another tile-sized
-canvas. The browser still owns live native text and controls.
+Vello CPU compares replayed drawing commands with the last presented frame.
+Unchanged tiles need no rasterization or upload. Changed tiles recompose the
+affected rectangle, including its backdrop, opacity groups, clips and masks;
+pixels elsewhere stay on the browser canvas. Tile reassignment or resizing
+requires a complete repaint. It reuses framebuffer storage across sequential
+tiles and does not retain composed group pixels separately. Fully opaque scopes bypass
+isolation and fully transparent scopes skip painting. Nested alpha sources
+require additional temporary raster storage. The browser still owns live
+native text and controls.
 
 Opacity does not unmount a component, disable a control, or manage keyboard
 focus. Keep those state and interaction decisions explicit. Likewise, a
@@ -585,13 +594,13 @@ lists the scope's properties.
 Light-reactive vector materials and LightFrame are taught in
 [Drawing](drawing-styling.md#lighting-and-materials). Their GPU lighting
 changes the drawn material; it does not automatically blur or refract all
-the native content behind it. Piet renders those materials unlit.
+the native content behind it. Vello CPU renders those materials unlit.
 
 In **Materials**, scroll through the collection of imagined elements. Scrolling
 moves a light across surfaces with matte, glossy, metallic, emissive, and custom
 materials. Compare how their highlights respond, then open the Rust source to
 see the material parameters and scroll-driven light position. The lighting
-requires the WGPU renderer; Piet shows the unlit fills and strokes.
+requires the WGPU renderer; Vello CPU shows the unlit fills and strokes.
 
 <pax-example
   path="materials"
@@ -606,6 +615,26 @@ and portable backdrop materials are not part of the current public toolkit.
 You can also build depth with offset shapes, gradients, transparency, and
 motion. Keep authored shadows and glows distinct from a sampled backdrop
 effect when explaining what an example demonstrates.
+
+## CPU effect fallbacks
+
+Vello CPU supports ordinary vector fills and strokes, linear/radial gradients,
+paint crossfades, images, geometric clips, subtree opacity, and painted alpha
+masks. Effects with GPU implementations have these software defaults:
+
+- Lighting and material response use each layer's ordinary base paint, unlit.
+- Shader containers render their children without the shader. Clips, masks,
+  layout, and ordinary subtree opacity still apply. An effect that generates
+  all of its visible content needs an authored CPU alternative.
+- Mesh paints use one flat color: the premultiplied average of their control
+  point colors. This preserves visibility, not the mesh's shape or color field.
+
+Shader bypass and mesh approximation each log a bounded diagnostic. Use
+`if $gpu { ... } else { ... }`, `if $cpu { ... }`, or a property expression to
+choose a deliberate alternative. These are backend checks, not per-effect
+capability queries. The website's handwriting keeps its animated alpha source
+on CPU and supplies a linear gradient in place of the GPU mesh. Native text
+and controls keep their existing composition boundaries.
 
 ## Check the finished composition
 
@@ -684,8 +713,8 @@ This experimental slice captures vectors and renderer-backed `Image` nodes.
 Native `Text`, `NativeImage`, controls, native materials, descendant Scrollers,
 and `unclippable` descendants cannot be captured; unsupported content produces
 a diagnostic. A shader container may live **inside** a Scroller. Effects inside
-detached mask sources are also unsupported. Use the WGPU backend; the legacy
-Piet backend does not implement this API. The first target is web WebGPU, with
+detached mask sources are also unsupported. WGPU executes the shader; Vello CPU preserves the ordinary child content
+without applying the filter, as described below. The first target is web WebGPU, with
 Metal pixel tests covering the shared renderer.
 
 Clips and opacity inside a shader container become part of its source image.

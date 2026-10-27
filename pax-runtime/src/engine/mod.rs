@@ -29,7 +29,7 @@ pub mod surface_work;
 pub mod startup;
 // TODO move these to not be in engine - make separate crates?
 pub mod pax_gpu_render_context;
-pub mod piet_render_context;
+pub mod vello_render_context;
 mod recorded_drawing;
 #[cfg(test)]
 mod render_lifecycle_tests;
@@ -109,6 +109,8 @@ pub struct Globals {
     pub platform: Platform,
     pub os: OS,
     pub target: TargetInfo,
+    /// Selected renderer, fixed before mounting the root component.
+    pub renderer_is_gpu: bool,
     #[cfg(feature = "designtime")]
     pub designtime: Rc<RefCell<DesigntimeManager>>,
     pub get_elapsed_millis: Rc<dyn Fn() -> u128>,
@@ -129,6 +131,14 @@ impl Globals {
         let route_location_var = Variable::new_from_typed_property(self.route_location.clone());
 
         let global_scope = vec![
+            (
+                "$gpu".to_string(),
+                Variable::new_from_typed_property(LocalProperty::new(self.renderer_is_gpu)),
+            ),
+            (
+                "$cpu".to_string(),
+                Variable::new_from_typed_property(LocalProperty::new(!self.renderer_is_gpu)),
+            ),
             ("$target".to_string(), target_var),
             ("$viewport".to_string(), viewport_var),
             (
@@ -369,6 +379,7 @@ impl PaxEngine {
             browser_allows_nested_scroller_vector_layers: LocalProperty::new(true),
             platform,
             os,
+            renderer_is_gpu: true,
             target: TargetInfo::new(platform, os),
             get_elapsed_millis: Rc::from(get_elapsed_millis),
         }
@@ -403,6 +414,7 @@ impl PaxEngine {
             browser_allows_nested_scroller_vector_layers: LocalProperty::new(true),
             platform,
             os,
+            renderer_is_gpu: true,
             target: TargetInfo::new(platform, os),
             designtime: designtime.clone(),
             get_elapsed_millis: Rc::from(get_elapsed_millis),
@@ -1583,6 +1595,35 @@ mod tests {
             ),
             PaxValue::Bool(true)
         );
+    }
+
+    #[test]
+    fn renderer_globals_are_complementary_and_independent_of_target() {
+        let engine = crate::test_support::empty_engine(
+            (320.0, 240.0),
+            Platform::Web,
+            OS::Mac,
+            Box::new(|| 0),
+            layer_tiling::ScrollerTilingPolicy::default(),
+        );
+        for gpu in [true, false] {
+            engine
+                .runtime_context
+                .edit_globals(|globals| globals.renderer_is_gpu = gpu);
+            let stack = engine.runtime_context.globals().stack_frame();
+            assert_eq!(
+                stack.resolve_symbol("$gpu").unwrap().get_as_pax_value(),
+                PaxValue::Bool(gpu)
+            );
+            assert_eq!(
+                stack.resolve_symbol("$cpu").unwrap().get_as_pax_value(),
+                PaxValue::Bool(!gpu)
+            );
+            assert_eq!(
+                stack.resolve_symbol("$web").unwrap().get_as_pax_value(),
+                PaxValue::Bool(true)
+            );
+        }
     }
 
     #[test]

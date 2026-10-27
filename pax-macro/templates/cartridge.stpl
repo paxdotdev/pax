@@ -14,6 +14,8 @@
         let entry = __pax_select_entry(&requested_entry).map_err(|error| JsValue::from_str(&error))?;
         <% } %>
         std::panic::set_hook(Box::new(<%= engine_import_path %>::pax_chassis_web::console_error_panic_hook::hook));
+        <%= engine_import_path %>::pax_chassis_web::init_console_logging();
+        let prepared_renderer = <%= engine_import_path %>::pax_chassis_web::web_render_contexts::prepare_renderer().await?;
         let application = <%= engine_import_path %>::api::application::ApplicationInstance::prepare(
             <%= engine_import_path %>::pax_chassis_web::application_target(),
             <%= engine_import_path %>::pax_chassis_web::web_init_options(&host)?,
@@ -23,20 +25,18 @@
             .map_err(|error| JsValue::from_str(&error.to_string()))?;
         let root = std::rc::Rc::new(std::cell::RefCell::new(<%= engine_import_path %>::api::pax_value::ToFromPaxAny::to_pax_any(root)));
         application.retain_root(root.clone());
-        // setup logging
-        <%= engine_import_path %>::pax_chassis_web::init_console_logging();
 
         <% if build_config.designtime { %>
         let chassis = {
             let userland_manifest = <% if catalog { %>init_manifest_for(entry)<% } else { %>init_manifest()<% } %>;
             let userland_definition_to_instance_traverser = init_definition_to_instance_traverser(userland_manifest);
-            <%= engine_import_path %>::pax_chassis_web::PaxChassisWeb::new_designtime(userland_definition_to_instance_traverser, root, yield_mount)
+            <%= engine_import_path %>::pax_chassis_web::PaxChassisWeb::new_designtime(userland_definition_to_instance_traverser, root, yield_mount, prepared_renderer)
         };
         <% } else { %>
         let chassis = {
             let manifest = <% if catalog { %>init_manifest_for(entry)<% } else { %>init_manifest()<% } %>;
             let definition_to_instance_traverser = init_definition_to_instance_traverser(manifest);
-            <%= engine_import_path %>::pax_chassis_web::PaxChassisWeb::new(definition_to_instance_traverser, root, yield_mount)
+            <%= engine_import_path %>::pax_chassis_web::PaxChassisWeb::new(definition_to_instance_traverser, root, yield_mount, prepared_renderer)
         };
         <% } %>
         // Ambient graph selection must never survive a JavaScript await.

@@ -301,15 +301,15 @@ colors retain the renderer's existing RGB encoding rather than switching to HSL
 or linear-light interpolation. Existing gradient limits still apply: the GPU
 uses at most eight stops per endpoint.
 [Radial gradients](drawing-styling.md#radial-gradients) resolve the same focal
-geometry in GPU color fills, painted masks, and the Piet browser fallback.
+geometry in GPU color fills, painted masks, and the Vello CPU browser fallback.
 
 An interrupted crossfade starts with the visible mixture. Repeated toggles
 between a fixed set of themes combine repeated endpoints, so their paint cost
 stays bounded by that set. Continually introducing distinct gradients before
 motion completes retains those visible endpoints; sampling cost grows with
 their count until a transition finishes. WebGPU mixes them in the paint shader.
-The Piet browser fallback accumulates them in a reusable canvas limited to the
-current surface, then clips and draws the resulting paint once.
+Vello CPU adds the weighted paints in an isolated raster layer, then applies
+shape coverage and opacity once.
 
 `examples/paxflix` demonstrates the 400 ms policy on every visual component's
 `CinemaTheme` import. Open the profile menu and toggle Dark/Light mode; text,

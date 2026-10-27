@@ -213,7 +213,7 @@ The release web build, all four diagram tests and formatting checks passed.
 Source-derived geometry was inspected; browser verification of this pass was blocked by the
 browser tool's localhost access policy.
 
-Native Apple targets, the Piet backend and physical touch input have not been
+Native Apple targets, the CPU backend and physical touch input have not been
 exercised.
 The animation article and logo component documentation describe the shared
 `click_to_replay` flag; the diagram's layout change adds no engine API.

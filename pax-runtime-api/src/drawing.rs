@@ -941,7 +941,8 @@ impl Interpolatable for MeshPoint {
 /// Smooth mesh paint with 2–8 equally sized rows, each containing 2–8 anchors.
 /// Automatic shared Bézier controls interpolate the anchors and their premultiplied
 /// encoded-sRGB colors. Outside the covered mesh the paint is transparent. Folded
-/// patches replace earlier patches in row-major order. Supported by the WGPU renderer.
+/// patches replace earlier patches in row-major order. WGPU renders the mesh field;
+/// Vello CPU uses a flat premultiplied average of the control-point colors.
 /// Animate positions/colors to morph; whole [`Paint`] transitions remain crossfades.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Hash)]
 #[serde(crate = "crate::serde")]
@@ -1261,44 +1262,6 @@ impl Paint {
         }
 
         integrated_alpha.clamp(0.0, 1.0)
-    }
-
-    // Converts a Pax point into Piet's unit-gradient coordinate system.
-    pub fn to_unit_point((x, y): (Size, Size), (width, height): (f64, f64)) -> UnitPoint {
-        let normalized_x = match x {
-            Size::Pixels(val) => val.to_float() / width,
-            Size::Percent(val) => val.to_float() / 100.0,
-            Size::Combined(pix, per) => (pix.to_float() / width) + (per.to_float() / 100.0),
-        };
-
-        let normalized_y = match y {
-            Size::Pixels(val) => val.to_float() / height,
-            Size::Percent(val) => val.to_float() / 100.0,
-            Size::Combined(pix, per) => (pix.to_float() / width) + (per.to_float() / 100.0),
-        };
-        UnitPoint::new(normalized_x, normalized_y)
-    }
-
-    // Converts Pax gradient stops into Piet's gradient-stop representation.
-    pub fn to_piet_gradient_stops(stops: Vec<GradientStop>) -> Vec<piet::GradientStop> {
-        let mut ret = Vec::new();
-        for gradient_stop in stops {
-            match gradient_stop.position {
-                Size::Pixels(_) => {
-                    panic!("Gradient stops must be specified in percentages");
-                }
-                Size::Percent(p) => {
-                    ret.push(piet::GradientStop {
-                        pos: (p.to_float() / 100.0) as f32,
-                        color: gradient_stop.color.to_piet_color(),
-                    });
-                }
-                Size::Combined(_, _) => {
-                    panic!("Gradient stops must be specified in percentages");
-                }
-            }
-        }
-        ret
     }
 
     #[allow(non_snake_case)]

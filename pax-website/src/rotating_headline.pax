@@ -21,12 +21,22 @@
                         <Mask width=100% height=100% alpha=true>
                             // One continuous field across the word; bleed for the round stroke caps.
                             <Group x=-8px y=-8px anchor_x=0% anchor_y=0% width={100% + 16px} height={100% + 16px}>
-                                <Rectangle width=100% height=100% fill={
-                                    paint: @gradient {
-                                        mesh: { rows: {self.mesh_rows} }
-                                    }
-                                    material: {Material::unlit()}
-                                }/>
+                                if $gpu {
+                                    <Rectangle width=100% height=100% fill={
+                                        paint: @gradient {
+                                            mesh: { rows: {self.mesh_rows} }
+                                        }
+                                        material: {Material::unlit()}
+                                    }/>
+                                } else {
+                                    <Rectangle width=100% height=100% fill={paint: @gradient {
+                                        linear: {start: [0%, 100%] end: [100%, 0%]}
+                                        0%: rgb(255, 112, 173)
+                                        38%: rgb(255, 192, 95)
+                                        68%: rgb(117, 225, 198)
+                                        100%: rgb(142, 160, 255)
+                                    } material: {Material::unlit()}}/>
+                                }
                             </Group>
                             <Handwriter width=100% height=100% text="creative" font=HandwriterFont::EMSLeague smoothing=PathSmoothing::Strong
                                 draw_end={self.writing_progress} stroke={
@@ -44,46 +54,56 @@
                         if self.word_index >= 2 {
                             // Filter the moving paint first, then clip it with the original letter coverage.
                             <Mask width={(self.run_width * self.font_px)px} height=100% alpha=true>
-                                <Impressionist width=100% height=100%
-                                    mode={self.word_index == 2 ? ImpressionistMode::Signac : ImpressionistMode::Gauguin}
-                                    size={self.font_px * (self.word_index == 2 ? 0.50 : 0.08)} seed=17 phase={self.pigment_phase}>
-                                    if self.word_index == 2 {
-                                        // Move the radial paint inside fixed geometry to keep capture bounds stable.
-                                        for i in 0..6 {
-                                            <Rectangle width=100% height=100% fill={paint: @gradient {
-                                                radial: {
-                                                    start: {[(RotatingHeadline::pigment_x(self.pigment_phase, i) * 100.0)%, (RotatingHeadline::pigment_y(self.pigment_phase, i) / 1.5 * 100.0)%]}
-                                                    end: {[(RotatingHeadline::pigment_x(self.pigment_phase, i) * 100.0)%, (RotatingHeadline::pigment_y(self.pigment_phase, i) / 1.5 * 100.0)%]}
-                                                    radius: {self.font_px * 0.9}
-                                                }
-                                                0%: {RotatingHeadline::pigment_color(i, 1.0)}
-                                                35%: {RotatingHeadline::pigment_color(i, 0.95)}
-                                                100%: {RotatingHeadline::pigment_color(i, 0.0)}
-                                            } material: {Material::unlit()}}/>
-                                        }
-                                        <Rectangle width=100% height=100% fill={paint: {SiteTheme::paper()} material: {Material::unlit()}}/>
-                                    } else {
-                                        // Fixed diagonal strips; light travels through their gradients without resizing the capture.
-                                        for i in 0..18 {
-                                            <Rectangle x=50% y={(self.font_px * RotatingHeadline::star_y(i))px}
-                                                anchor_x=50% anchor_y=50% width=100%
-                                                height={(self.font_px * (0.055 + (i %% 3) * 0.023))px} rotate=-12deg
-                                                fill={paint: @gradient {
-                                                    linear: {
-                                                        start: {[(100.0 * (RotatingHeadline::star_phase(self.pigment_phase, i) * (1.0 + RotatingHeadline::star_tail(i)) - RotatingHeadline::star_tail(i)))%, 50%]}
-                                                        end: {[(100.0 * RotatingHeadline::star_phase(self.pigment_phase, i) * (1.0 + RotatingHeadline::star_tail(i)))%, 50%]}
+                                if $gpu {
+                                    <Impressionist width=100% height=100%
+                                        mode={self.word_index == 2 ? ImpressionistMode::Signac : ImpressionistMode::Gauguin}
+                                        size={self.font_px * (self.word_index == 2 ? 0.50 : 0.08)} seed=17 phase={self.pigment_phase}>
+                                        if self.word_index == 2 {
+                                            // Move the radial paint inside fixed geometry to keep capture bounds stable.
+                                            for i in 0..6 {
+                                                <Rectangle width=100% height=100% fill={paint: @gradient {
+                                                    radial: {
+                                                        start: {[(RotatingHeadline::pigment_x(self.pigment_phase, i) * 100.0)%, (RotatingHeadline::pigment_y(self.pigment_phase, i) / 1.5 * 100.0)%]}
+                                                        end: {[(RotatingHeadline::pigment_x(self.pigment_phase, i) * 100.0)%, (RotatingHeadline::pigment_y(self.pigment_phase, i) / 1.5 * 100.0)%]}
+                                                        radius: {self.font_px * 0.9}
                                                     }
-                                                    0%: rgba(255, 255, 255, 0)
-                                                    25%: rgba(255, 255, 255, 35)
-                                                    65%: rgba(255, 255, 255, 128)
-                                                    82%: rgba(255, 255, 255, 230)
-                                                    94%: WHITE
-                                                    100%: rgba(255, 255, 255, 0)
+                                                    0%: {RotatingHeadline::pigment_color(i, 1.0)}
+                                                    35%: {RotatingHeadline::pigment_color(i, 0.95)}
+                                                    100%: {RotatingHeadline::pigment_color(i, 0.0)}
                                                 } material: {Material::unlit()}}/>
+                                            }
+                                            <Rectangle width=100% height=100% fill={paint: {SiteTheme::paper()} material: {Material::unlit()}}/>
+                                        } else {
+                                            // Fixed diagonal strips; light travels through their gradients without resizing the capture.
+                                            for i in 0..18 {
+                                                <Rectangle x=50% y={(self.font_px * RotatingHeadline::star_y(i))px}
+                                                    anchor_x=50% anchor_y=50% width=100%
+                                                    height={(self.font_px * (0.055 + (i %% 3) * 0.023))px} rotate=-12deg
+                                                    fill={paint: @gradient {
+                                                        linear: {
+                                                            start: {[(100.0 * (RotatingHeadline::star_phase(self.pigment_phase, i) * (1.0 + RotatingHeadline::star_tail(i)) - RotatingHeadline::star_tail(i)))%, 50%]}
+                                                            end: {[(100.0 * RotatingHeadline::star_phase(self.pigment_phase, i) * (1.0 + RotatingHeadline::star_tail(i)))%, 50%]}
+                                                        }
+                                                        0%: rgba(255, 255, 255, 0)
+                                                        25%: rgba(255, 255, 255, 35)
+                                                        65%: rgba(255, 255, 255, 128)
+                                                        82%: rgba(255, 255, 255, 230)
+                                                        94%: WHITE
+                                                        100%: rgba(255, 255, 255, 0)
+                                                    } material: {Material::unlit()}}/>
+                                            }
+                                            <Rectangle width=100% height=100% fill={paint: rgba(255, 255, 255, 84) material: {Material::unlit()}}/>
                                         }
-                                        <Rectangle width=100% height=100% fill={paint: rgba(255, 255, 255, 84) material: {Material::unlit()}}/>
-                                    }
-                                </Impressionist>
+                                    </Impressionist>
+                                } else {
+                                    // Colorful ink keeps the letter mask and motion on software rendering.
+                                    <Rectangle width=100% height=100% fill={paint: @gradient {
+                                        linear: {start: [0%, 100%] end: [100%, 0%]}
+                                        0%: {RotatingHeadline::pigment_color(0, 1.0)}
+                                        50%: {RotatingHeadline::pigment_color(2, 1.0)}
+                                        100%: {RotatingHeadline::pigment_color(4, 1.0)}
+                                    } material: {Material::unlit()}}/>
+                                }
                                 <Group width=100% height=100%>
                                     for cluster in self.clusters key cluster.byte_start {
                                         <HeroLetter x={(cluster.x * self.font_px)px} y={(self.baseline * self.font_px)px}

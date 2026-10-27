@@ -254,6 +254,7 @@ mod tests {
             browser_allows_nested_scroller_vector_layers: LocalProperty::new(true),
             platform: Platform::Unknown,
             os: OS::Unknown,
+            renderer_is_gpu: true,
             target: TargetInfo::new(Platform::Unknown, OS::Unknown),
             #[cfg(feature = "designtime")]
             designtime: crate::test_support::designtime(),

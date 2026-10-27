@@ -13,7 +13,7 @@
 - [engine::surface_work](engine/surface_work.md)
 - [engine::startup](engine/startup.md)
 - [engine::pax_gpu_render_context](engine/pax_gpu_render_context.md)
-- [engine::piet_render_context](engine/piet_render_context.md)
+- [engine::vello_render_context](engine/vello_render_context.md)
 
 ## Structs
 ### `Globals`
@@ -52,6 +52,11 @@ Type: [`OS`](../../../api/pax-runtime-api/platform.md#os)
 
 ##### `target`
 Type: [`TargetInfo`](../../../api/pax-runtime-api/platform.md#targetinfo)
+
+##### `renderer_is_gpu`
+Type: `bool`
+
+Selected renderer, fixed before mounting the root component.
 
 ##### `get_elapsed_millis`
 Type: `Rc`<`dyn` `Fn`() -> `u128`>

@@ -168,8 +168,10 @@ accessibility work, including reading order, tab order, annotation, and audit
 work, remains ongoing.
 
 Rendering remains target-aware: Apple builds use Metal-backed rendering, while
-web builds select WebGPU where supported and fall back to CPU rendering where
-necessary.
+web builds select WebGPU where supported and fall back to Vello CPU where
+necessary. Use `$gpu` and `$cpu` in templates to author alternate effects.
+Default web builds require WebAssembly SIMD; see the
+[web build profiles](pax-docs/book/src/developer-workflow.md#web-build-profiles).
 
 ## Prioritizing performance
 

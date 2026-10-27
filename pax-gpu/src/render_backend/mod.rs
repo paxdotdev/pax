@@ -175,7 +175,7 @@ impl GpuContext {
                 trace: wgpu::Trace::Off,
             })
             .await
-            .expect("couldn't find device");
+            .map_err(|error| anyhow!("couldn't create GPU device: {error}"))?;
         let max_surface_dimension = device.limits().max_texture_dimension_2d.max(1);
         log::info!(
             "render backend: max surface dimension {}",

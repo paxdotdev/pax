@@ -8,7 +8,7 @@ use pax_runtime::{
     PropertiesInit, PropertiesScopeInit,
 };
 use pax_std::media::image::{Image, ImageInstance, ImageSource};
-use piet::kurbo::{Affine, BezPath, Rect};
+use kurbo::{Affine, BezPath, Rect};
 use std::{cell::RefCell, collections::HashMap, rc::Rc};
 
 // Model retained node recording while exercising the real Image primitive and

@@ -621,6 +621,12 @@ Serve production apps over HTTPS. WebGPU requires a secure context; loopback
 development URLs have special treatment. Backend availability still depends
 on the browser and device. See [MDN's WebGPU reference](https://developer.mozilla.org/en-US/docs/Web/API/WebGPU_API).
 
+Automatic renderer selection falls back to Vello CPU when WebGPU initialization
+fails. Default CLI builds require WebAssembly SIMD, including Safari 16.4 or
+newer. See [web build profiles](developer-workflow.md#web-build-profiles) for
+compiler-flag overrides, and [renderer selection](how-pax-runs.md#rendering-backends)
+for the CPU/GPU testing controls.
+
 Return `.wasm` with `Content-Type: application/wasm`, and JavaScript/CSS with
 their appropriate types. The Wasm MIME type enables streaming compilation.
 [MDN documents this requirement](https://developer.mozilla.org/en-US/docs/WebAssembly/Reference/JavaScript_interface/instantiateStreaming_static).

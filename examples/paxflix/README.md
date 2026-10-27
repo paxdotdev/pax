@@ -139,14 +139,14 @@ Each import opts into `SettingsTransition::Ease(300ms, TransitionCurve::InOutQua
 The toggle is the PAX-1001 testbed: its thumb position, text colors, surfaces, outlines, and the
 artwork's transparent gradients transition together. A subtle hero highlight
 crossfades an offset cool radial gradient into a concentric warm one; their
-210/260 radii are local logical pixels on both GPU and Piet. A second toggle during the
+210/260 radii are local logical pixels on both GPU and Vello CPU. A second toggle during the
 fade continues from the visible mixture. New cards or a newly opened panel use
 the current theme immediately. The explicit menu/detail entrance and exit
 timelines retain ownership of their animated properties. Gradient crossfading
 is a paint operation and does not change the group-opacity limits below.
 
 Ordinary opacity now composes each canvas portion of the detail subtree before
-fading it, on WGPU and browser Piet. Native text/controls and separate Scroller
+fading it, on WGPU and browser Vello CPU. Native text/controls and separate Scroller
 surfaces still fade independently, so the mixed-content result remains an
 approximation. The historical measurements below predate this group-compositing
 change. See [subtree opacity](../../pax-docs/book/src/compositing-effects.md#opacity-through-a-subtree)
@@ -605,7 +605,7 @@ Canonical scrolling/profiling guidance and the internal API references are
 updated, and the documentation book builds. There are no template, manifest, or
 release-baked format changes. The internal GPU factory now accepts a `LayerCreationRequest`; chassis integrations
 must filter surviving identities and create additions with the supplied context.
-The Piet fallback retains its existing tile-set rebuild behavior.
+The Vello CPU fallback retains its existing tile-set rebuild behavior.
 
 ### September 27 physical Molino scrolling capture after incremental creation
 

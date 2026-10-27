@@ -261,7 +261,7 @@ For more detail during development, add `?pax_log=info` to the app's local URL
 and reload it. If the URL already has a query, add `&pax_log=info` instead.
 The supported levels are `error`, `warn`, `info`, `debug`, and `trace`.
 
-At `info`, renderer diagnostics identify WebGPU or Piet and related graphics
+At `info`, renderer diagnostics identify WebGPU or Vello CPU and related graphics
 configuration. The same messages are available in the browser console.
 Verbose output can be noisy, and captured logs are bounded recent history;
 collect the relevant messages while reproducing the problem.
@@ -358,6 +358,19 @@ controlled by the separate bundled-example registry below.
 Development profiles live at the workspace root: runtime dependencies use
 optimization level 1, while each example's own code and build dependencies use
 level 0. The CLI restores these profiles when exporting a standalone project.
+
+### Web build profiles
+
+Web builds enable WebAssembly SIMD by default. The CLI compiles `pax-runtime`,
+`vello_cpu`, `vello_common`, and `fearless_simd` at optimization level 3 in both
+debug and release builds so software rasterization retains its SIMD and loop
+optimizations. The rest of a release cartridge remains optimized for size.
+This requires a browser with WebAssembly SIMD support, including Safari 16.4
+or newer. Cargo's usual flag precedence applies: if you supply `RUSTFLAGS`,
+`CARGO_ENCODED_RUSTFLAGS`, or target-specific `rustflags`, include
+`-Ctarget-feature=+simd128` to retain this acceleration. An explicit
+`RUSTFLAGS='-Ctarget-feature=-simd128'` builds the slower scalar renderer for
+browsers without SIMD; renderer selection and `$cpu`/`$gpu` work the same way.
 
 To measure target compilation and web packaging, use an already-built CLI and
 a fresh target directory without deleting your development cache:

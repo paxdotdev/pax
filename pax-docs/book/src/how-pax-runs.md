@@ -171,7 +171,7 @@ multiple transform pages is split while preserving paint order. Memory and
 rendering cost still grow with the scene, and ordinary visibility culling does
 not unmount nodes or release their retained identities. Removing nodes makes
 their slots available for reuse. This behavior is shared by debug and release
-GPU builds; it does not change the Piet renderer.
+GPU builds; it does not change the Vello CPU renderer.
 
 The amount of work is therefore related to the dependencies and surfaces
 affected by a change. A single property write can still have a broad effect:
@@ -339,16 +339,27 @@ text and image rendering. The detailed boundaries belong in
 
 ### Rendering backends
 
-On the web, Pax currently selects its WebGPU renderer where browser support
-and policy allow. It uses a **Piet/CPU browser renderer** when WebGPU is
-unavailable, when the current iOS Safari detection policy selects that path,
-or when built explicitly with the Piet backend. Piet draws through browser
-canvases; native browser elements remain native on either path.
+On the web, Pax selects WebGPU when browser policy permits and initialization
+succeeds. **Vello CPU** is the portable software fallback when WebGPU is absent,
+adapter/device initialization fails, or the conservative iOS Safari policy
+selects CPU. Selection finishes before application initialization and template
+mounting. CPU rasterizes into reusable pixel buffers; Canvas2D presents the
+finished pixels. Native browser text and controls remain native on either path.
 
-Backend selection is not a guarantee of recovery from every graphics-device
-initialization failure. When diagnosing a browser-specific problem, check the
-selected renderer and startup errors rather than assuming that another path
-was selected successfully.
+Use `?pax_renderer=cpu` to exercise software rendering, `?pax_renderer=gpu` to
+require WebGPU, or `?pax_renderer=auto` for normal selection. Explicit GPU
+selection rejects startup if initialization fails. The `cpu` Cargo feature
+on `pax-kit` also selects CPU by default for web builds; a query override takes
+precedence. The former `piet` feature and Piet adapter have been removed.
+
+`$gpu` and `$cpu` identify this session's selected renderer. There is no live
+backend switch after mount; later device loss does not automatically remount
+the application on CPU. Check renderer logs when diagnosing startup failures.
+CPU scroller tiles use a 2048-pixel backing-dimension budget; the root viewport
+surface is sized separately.
+CLI web builds enable WebAssembly SIMD and optimize the software rasterizer
+for speed; see [web build profiles](developer-workflow.md#web-build-profiles)
+for browser requirements and custom compiler flags.
 
 The Apple-native chassis use Pax's GPU rendering integration alongside native
 views. Running a web build in Safari on an iPhone is a different target path

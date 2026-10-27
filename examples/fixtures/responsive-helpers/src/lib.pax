@@ -20,7 +20,7 @@
                 y=86px
                 width={100% - 64px}
                 height=28px
-                text="Target, viewport, orientation, motion, and time values"
+                text={"Target, viewport, motion, and time • " + ($gpu ? "GPU renderer" : "CPU renderer")}
             />
 
             <Text class="section_label" x=32px y=154px width={100% - 64px} height=24px text="Target object and aliases" />

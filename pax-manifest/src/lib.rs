@@ -2455,5 +2455,4 @@ pub const IMPORTS_BUILTINS: &[&str] = &[
     "pax_runtime::SlotInstance",
     "pax_runtime::properties::RuntimePropertiesStackFrame",
     "pax_runtime::repeat::RepeatInstance",
-    "piet_common::RenderContext",
 ];

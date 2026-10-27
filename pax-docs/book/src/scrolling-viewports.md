@@ -77,7 +77,7 @@ For example, a 1,000-unit-wide Scroller inside `scale=50%` appears 500 CSS pixel
 wide. On a 2× display it needs about 1,000 backing pixels, not 2,000. A backing
 density below one per local unit can therefore still match the screen. Becoming
 scrollable or tiled does not opt content into lower-resolution rendering.
-The sizing contract is shared by WebGPU and the Piet/Canvas2D fallback. Native
+The sizing contract is shared by WebGPU and the Vello CPU fallback. Native
 text retains the browser's own rasterization.
 
 The full affine transform determines density: rotated orthogonal axes retain
@@ -610,6 +610,12 @@ later frames, in travel order. This avoids deliberately splitting visible tile
 updates across frames; it does not guarantee a frame rate or prevent a fast
 gesture from outrunning the prepared region.
 
+Web renderers aim for tiles roughly one viewport long along each scrollable
+axis, subject to pixel rounding, backing limits, and the canvas budget. Vello
+CPU preserves matching warm canvases when the tile set changes, compares their
+replayed commands, and uploads only damaged regions. A replaced canvas or a
+changed tile origin, size, or pixel density requires a complete repaint.
+
 On native iOS, iPadOS, and macOS, surface sizing uses the current screen's
 pixel density. Shrinking `scroll_width` or `scroll_height` (for example, when
 zooming out on a graph) keeps the content tiled until a single surface fits
@@ -645,7 +651,7 @@ paint values are snapshots, not live property handles. The cache is bounded and
 shared across tiles in the same runtime. A first visit, an evicted program, or
 changed content still requires ordinary component rendering. This does not
 virtualize component state or eliminate image decoding/upload and GPU setup.
-The Piet fallback retains its existing component-replay path.
+The Vello CPU fallback retains its existing component-replay path.
 
 On WebGPU, ready surfaces can also replay those records **before** the next
 application tick, including a coalesced wake-up after async surface completion.
@@ -661,7 +667,7 @@ initial 4ms allowance and at least one eligible job allowed to progress. An
 individual upload/encode is not preemptible and can overrun the allowance. This
 is a bounded pre-tick opportunity, **not** a frame-time limit on ordinary content
 rendering, surface initialization, or all visible repair work. Native chassis do
-not yet invoke this shared Rust path; Piet remains on normal rendering.
+not yet invoke this shared Rust path; Vello CPU remains on normal rendering.
 
 Tile replay does not replace a simultaneous content change. When a card animates
 across a tile boundary, its opacity, transform, and artwork updates must reach
@@ -752,7 +758,7 @@ limits. A narrow embedded shelf therefore does not prepare a long row of
 offscreen posters merely because one large tile intersects the viewport. This
 changes preparation granularity, not raster density. The grid uses the host's
 viewport, not its changing ancestor clip; resizing or changing projected density
-can still require new cells. Native and Piet retain their prior sizing policy.
+can still require new cells. Native and Vello CPU retain their prior sizing policy.
 
 Coverage uses transformed presentation bounds, so scaling an embedded app
 does not mix local dimensions with screen-space distances. Affine projection
@@ -821,7 +827,7 @@ until the next pass while eligible siblings can continue; this does not relax
 the settled-scene checks or submit incomplete tiles.
 The browser coalesces preparation after rendering and asynchronous completion;
 preparation never advances the application clock. This first-draw policy is
-currently enabled for WebGPU, not Piet or native chassis; the implementation and
+currently enabled for WebGPU, not Vello CPU or native chassis; the implementation and
 opt-in are in the shared Rust runtime.
 If an addition fails, survivors remain usable; another attempt waits for a layout
 change. New tiles still incur surface allocation and first-draw costs. Sibling
@@ -832,7 +838,7 @@ remain tile-local. WebGPU canvases within one mounted app share a device and its
 pipeline/immutable-image caches across logical layers, including when rows go cold
 and return. This avoids repeating device and pipeline initialization during scrolling.
 Native GPU sharing remains within each logical layer. These behaviors apply in debug
-and release, not the Piet fallback or native image controls. Separate apps or GPU
+and release, not the Vello CPU fallback or native image controls. Separate apps or GPU
 contexts do not share textures.
 
 For browser diagnosis, add `?pax_surface_trace=1` to a debug or release URL.
@@ -860,7 +866,7 @@ submission (`image-content-submit`). The snapshot includes cumulative image
 counts and bounded waiting/recorded-not-submitted state. Submission is a CPU-side
 presentation event, not proof of GPU completion or a capture of every displayed
 pixel; these diagnostics do not establish completeness of arbitrary application
-content. Image GPU events apply to WGPU, not the Piet fallback.
+content. Image GPU events apply to WGPU, not the Vello CPU fallback.
 Tracing is opt-in and sends no data anywhere. Profile component mounting and
 image decoding separately; graphics admission cannot remove those costs. The isolated
 `examples/fixtures/surface-scheduling` fixture has no external images.
@@ -906,10 +912,10 @@ Removed surfaces are released. Native logical-layer contexts are released when
 their last tile and pending creation release them; the browser retains its shared
 device/pipeline context until the mounted app is disposed. Unused image textures
 are still released when their last binding disappears. The retention region does
-not grow. These
-optimizations apply in debug and release builds; the Piet fallback still rebuilds
-its layer on tile-set changes. They do not defer component or image initialization
-in application code.
+not grow. These GPU optimizations apply in debug and release builds. Vello CPU
+also preserves matching canvases and their replay history when its tile set
+changes, but does not use the GPU drawing-program or texture caches. Neither
+backend defers component or image initialization in application code.
 
 Start with realistic collection sizes and measure first paint as well as
 scrolling. For a large data set, consider application-level paging or loading

@@ -136,7 +136,7 @@ export class CanvasPool {
     }
 }
 
-// Shared with the WebGPU backend's BrowserCanvasLease. Piet has no async owner.
+// Shared with the WebGPU backend's BrowserCanvasLease. CPU has no async owner.
 export function canvasSurfaceIsOwned(canvas: HTMLCanvasElement): boolean {
     return Number(canvas.getAttribute("data-pax-surface-owners") ?? "0") > 0;
 }
@@ -147,7 +147,7 @@ export function releaseCanvasBacking(canvas: HTMLCanvasElement) {
         // Retire it before this element can display another row; resizing alone
         // can leave the previous presentation visible during an animated entry.
         // Only leased WebGPU canvases have this marker. Do not acquire a GPU
-        // context on an unused canvas or a canvas belonging to the Piet fallback.
+        // context on an unused canvas or a canvas belonging to the CPU fallback.
         if (canvas.hasAttribute("data-pax-surface-owners")) {
             const context = canvas.getContext("webgpu");
             if (context && "unconfigure" in context && typeof context.unconfigure === "function") {

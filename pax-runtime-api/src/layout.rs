@@ -242,7 +242,7 @@ pub struct CommonProperties {
     pub rotate: LocalProperty<Option<Rotation>>,
     /// Full composed transform.
     pub transform: LocalProperty<Option<Transform2D>>,
-    /// Opacity of this node's subtree. WGPU and browser Piet compose each canvas
+    /// Opacity of this node's subtree. WGPU and Vello CPU compose each canvas
     /// portion before fading it; live native surfaces currently fade separately.
     pub opacity: LocalProperty<Option<Opacity>>,
     /// Controls whether this node participates in parent layout measurement and flow.

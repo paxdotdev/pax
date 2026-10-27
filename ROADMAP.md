@@ -10,7 +10,7 @@ So much of the value of using Pax comes from being able to create visually as we
 Currently Pax supports only one-way reactive bindings, from parent to child component.  To send data back the other direction requires using a channel mechanism and/or static data.  While this is viable, it is inelegant, and particularly for the common cases where you want to double-bind a single piece of state, this is something we should support out-of-the-box.  Syntactically this might look like `<Foo bind:some_child_property=some_self_property />` (two-way) instead of `<Foo some_child_property=some_self_property />` (default, one-way), where the Pax runtime will treat those two properties as pointers to the same singleton, thus a change in one is a change to the other.
 
 ### GPU rendering
-Pax now uses WGPU with tessellated and cached vector geometry on native GPU targets and in browsers with WebGPU. Browsers without WebGPU, including the current iOS Safari/WebKit policy, use the Piet/CPU renderer. Future rendering work should continue improving retained geometry, resource reuse, and graceful cross-backend degradation without expanding the public renderer-selection surface.
+Pax now uses WGPU with tessellated and cached vector geometry on native GPU targets and in browsers with WebGPU. Browsers without WebGPU, including the current iOS Safari/WebKit policy, use the Vello CPU renderer. Future rendering work should continue improving retained geometry, resource reuse, and graceful cross-backend degradation with simple CPU/GPU authoring checks.
 
 ### TypeScript bindings
 Write Pax with TypeScript instead of Rust

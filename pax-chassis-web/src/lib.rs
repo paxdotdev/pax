@@ -42,7 +42,7 @@ mod surface_metrics;
 mod surface_scheduling;
 pub mod web_render_contexts;
 
-use crate::browser_surface_policy::{BrowserSurfacePolicy, WebSurfacePolicy};
+use crate::browser_surface_policy::WebSurfacePolicy;
 use pax_runtime::PaxEngine;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -399,9 +399,10 @@ impl PaxChassisWeb {
         userland_definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
         root: Rc<RefCell<pax_runtime::api::pax_value::PaxAny>>,
         yield_mount: bool,
+        prepared: web_render_contexts::PreparedWebRenderer,
     ) -> Self {
         let (width, height, os_info, surface_policy, installed_surfaces, get_time, renderer) =
-            Self::init_common();
+            Self::init_common(prepared);
         let query_string = window()
             .unwrap()
             .location()
@@ -422,6 +423,9 @@ impl PaxChassisWeb {
             surface_policy.browser.scroller_tiling_policy(),
         );
 
+        engine
+            .runtime_context
+            .edit_globals(|globals| globals.renderer_is_gpu = renderer.is_gpu());
         if yield_mount {
             engine.enable_resumable_startup();
         }
@@ -461,8 +465,10 @@ impl PaxChassisWeb {
         definition_to_instance_traverser: Box<dyn DefinitionToInstanceTraverser>,
         root: Rc<RefCell<pax_runtime::api::pax_value::PaxAny>>,
         yield_mount: bool,
+        prepared: web_render_contexts::PreparedWebRenderer,
     ) -> Self {
-        let (width, height, os_info, surface_policy, installed_surfaces, get_time, renderer) = Self::init_common();
+        let (width, height, os_info, surface_policy, installed_surfaces, get_time, renderer) =
+            Self::init_common(prepared);
 
         let main_component_instance = definition_to_instance_traverser
             .get_main_component_with_properties(USERLAND_COMPONENT_ROOT, root);
@@ -474,6 +480,9 @@ impl PaxChassisWeb {
             surface_policy.browser.scroller_tiling_policy(),
         );
 
+        engine
+            .runtime_context
+            .edit_globals(|globals| globals.renderer_is_gpu = renderer.is_gpu());
         if yield_mount {
             engine.enable_resumable_startup();
         }
@@ -498,7 +507,7 @@ impl PaxChassisWeb {
         }
     }
 
-    fn init_common() -> (
+    fn init_common(prepared: web_render_contexts::PreparedWebRenderer) -> (
         f64,
         f64,
         OS,
@@ -517,16 +526,12 @@ impl PaxChassisWeb {
 
         let width = window.inner_width().unwrap().as_f64().unwrap();
         let height = window.inner_height().unwrap().as_f64().unwrap();
-        let surface_policy = WebSurfacePolicy::new(BrowserSurfacePolicy::detect(&window));
-        let installed_surfaces = Rc::new(std::cell::RefCell::new(
-            installed_surfaces::InstalledSurfacePlan::default(),
-        ));
+        let web_render_contexts::PreparedWebRenderer {
+            policy: surface_policy,
+            installed: installed_surfaces,
+            renderer,
+        } = prepared;
         let start = Instant::now();
-        let renderer = web_render_contexts::get_render_context(
-            window,
-            surface_policy.clone(),
-            installed_surfaces.clone(),
-        );
         let get_time = Box::new(move || start.elapsed().as_millis());
         (
             width,

@@ -189,7 +189,7 @@ impl InstanceNode for TextInstance {
         _context: &Rc<RuntimeContext>,
         _rc: &mut dyn RenderContext,
     ) {
-        //no-op -- only native rendering for Text (unless/until we support rasterizing text, which Piet should be able to handle!)
+        // Text is presented by the chassis native text system.
 
         #[cfg(feature = "designtime")]
         if DEBUG_TEXT_GREEN_BACKGROUND {

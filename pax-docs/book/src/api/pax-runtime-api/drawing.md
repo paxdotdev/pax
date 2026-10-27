@@ -146,7 +146,8 @@ Additive emissive intensity.
 Smooth mesh paint with 2–8 equally sized rows, each containing 2–8 anchors.
 Automatic shared Bézier controls interpolate the anchors and their premultiplied
 encoded-sRGB colors. Outside the covered mesh the paint is transparent. Folded
-patches replace earlier patches in row-major order. Supported by the WGPU renderer.
+patches replace earlier patches in row-major order. WGPU renders the mesh field;
+Vello CPU uses a flat premultiplied average of the control-point colors.
 Animate positions/colors to morph; whole [`Paint`] transitions remain crossfades.
 
 #### Properties

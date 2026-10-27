@@ -32,7 +32,6 @@ pub use pax_message::serde;
 pub use pax_message::*;
 pub use pax_value::numeric::Numeric;
 pub use pax_value::{CoercionRules, ImplToFromPaxAny, PaxValue, ToPaxValue};
-use piet::UnitPoint;
 use properties::{PropertyValue, UntypedProperty};
 use serde::{Deserialize, Serialize};
 

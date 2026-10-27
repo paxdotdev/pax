@@ -170,21 +170,6 @@ Type: `Option`<[`TemplateNodeSelectorInfo`](../../../api/internal/pax-manifest/s
 
 Capture the reusable portions of a `BaseInstance`.
 
----
-
-### `StrokeInstance`
-Resolved stroke style used by canvas drawing primitives.
-
-#### Properties
-##### `color`
-Type: [`Color`](../../../api/pax-runtime-api/color.md#color)
-
-##### `width`
-Type: `f64`
-
-##### `style`
-Type: `StrokeStyle`
-
 ## Enums
 ### `CommonPropertiesInit`
 Structured initialization for node-local common properties.

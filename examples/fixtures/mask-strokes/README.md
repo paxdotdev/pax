@@ -57,7 +57,7 @@ On September 27, 2026, root-level WGPU web debug and baked release runs both
 rendered the component source and direct Path correctly at desktop and 390px
 width. Debug pause/resume, removal/remount, and source-template hot reload were
 verified. No native Handwriter text duplicate appeared in the accessibility
-tree. No Apple-native target or Piet alpha-mask support is claimed.
+tree. Those historical checks predate Vello CPU; no Apple-native application check is claimed.
 
 On base `0b5c68be1`, wrapping the fixture in a Scroller made both masks blank,
 even with the old source initialization. Paint was incorrectly positioned
@@ -82,9 +82,9 @@ baked release at desktop and 390px widths. Stack reversal, removal/restoration,
 nested paint animation, opacity comparisons, template hot reload, and the
 existing component/Scroller masks were exercised. A temporary vector-only
 mount of `LayerStudies` with `pax-kit/piet` also rendered linear/radial strokes,
-a solid/gradient paint mixture, and the two opacity cases in Canvas2D. Do not
-mount the alpha-mask portions when checking Piet: that backend explicitly
-rejects alpha masks.
+a solid/gradient paint mixture, and the two opacity cases in Canvas2D. That
+historical backend has since been retired; `?pax_renderer=cpu` now selects
+Vello CPU and can run the complete alpha-mask fixture.
 
 The integrated core suites passed 640 tests, Metal pixel/resource suites passed
 16, and clock-driven rendering passed 5. API/source-bundle tests and the book
@@ -101,8 +101,9 @@ WGPU alpha sources now record ordinary vector draws in a detached retained
 scene and reuse the capture infrastructure from group opacity. Primitive and
 group opacity, gradients, materials, internal Frame/Mask clips, and stroke draw
 ranges share the visible renderer. Source RGB is discarded after composition.
-Geometry masks retain their existing coverage semantics; Piet alpha masks,
-native sources, images, and source-side Scrollers remain unsupported.
+Geometry masks retain their existing coverage semantics. Vello CPU now supports
+alpha masks and feathering through replayed vector captures. Native sources,
+images, and source-side Scrollers remain unsupported.
 
 The regression suites compare source alpha with visible transformed gradient
 strokes, distinguish 50% group opacity from 75% overlapping per-shape opacity,

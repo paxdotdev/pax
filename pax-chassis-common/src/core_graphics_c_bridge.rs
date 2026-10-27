@@ -11,8 +11,6 @@ use std::mem::{transmute, ManuallyDrop};
 use std::pin::Pin;
 use std::rc::Rc;
 
-#[cfg(not(any(target_os = "ios", target_os = "macos")))]
-use core_graphics::context::CGContext;
 use flexbuffers::DeserializationError;
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 use pax_gpu::render_backend::{RenderBackend, RenderConfig, SharedGpuContext};
@@ -31,14 +29,6 @@ use pax_runtime::engine::layer_tiling::{scroller_canvas_plan_with_policy, Scroll
 #[cfg(any(target_os = "ios", target_os = "macos"))]
 use pax_runtime::pax_gpu_render_context::{LayerRenderer, LayerTarget, PaxGpuRenderer};
 use pax_runtime::PaxEngine;
-#[cfg(not(any(target_os = "ios", target_os = "macos")))]
-use piet::kurbo;
-#[cfg(not(any(target_os = "ios", target_os = "macos")))]
-use piet::kurbo::Shape;
-#[cfg(not(any(target_os = "ios", target_os = "macos")))]
-use piet::{InterpolationMode, LineCap, RenderContext as PietRenderContext, StrokeStyle};
-#[cfg(not(any(target_os = "ios", target_os = "macos")))]
-use piet_coregraphics::CoreGraphicsContext;
 #[cfg(feature = "designtime")]
 use serde::Deserialize;
 use serde::Serialize;
@@ -76,165 +66,6 @@ fn node_is_in_scroller_subtree(node: &Rc<pax_runtime::ExpandedNode>) -> bool {
         current = candidate.template_parent.upgrade();
     }
     false
-}
-
-#[cfg(not(any(target_os = "ios", target_os = "macos")))]
-struct ImgData<'a> {
-    img: <CoreGraphicsContext<'a> as PietRenderContext>::Image,
-    size: (usize, usize),
-}
-
-#[cfg(not(any(target_os = "ios", target_os = "macos")))]
-struct AppleRenderContext<'a> {
-    backend: CoreGraphicsContext<'a>,
-    image_map: HashMap<String, ImgData<'a>>,
-}
-
-#[cfg(not(any(target_os = "ios", target_os = "macos")))]
-impl<'a> AppleRenderContext<'a> {
-    fn new(backend: CoreGraphicsContext<'a>) -> Self {
-        Self {
-            backend,
-            image_map: HashMap::new(),
-        }
-    }
-}
-
-#[cfg(not(any(target_os = "ios", target_os = "macos")))]
-impl<'a> RenderContext for AppleRenderContext<'a> {
-    fn fill_with_opacity(
-        &mut self,
-        _layer: usize,
-        path: kurbo::BezPath,
-        brush: &pax_runtime::api::Paint,
-        opacity: f64,
-    ) {
-        self.backend.fill(
-            path.clone(),
-            &fill_to_piet_brush(&brush.with_alpha_factor(opacity), path.bounding_box()),
-        );
-    }
-
-    fn stroke_with_opacity(
-        &mut self,
-        _layer: usize,
-        path: kurbo::BezPath,
-        stroke: &pax_runtime::api::ResolvedStroke,
-        opacity: f64,
-    ) {
-        let width = stroke.width.clone().expect_pixels().to_float();
-        let brush = fill_to_piet_brush(
-            &stroke.paint.with_alpha_factor(opacity),
-            path.bounding_box(),
-        );
-        self.backend.stroke_styled(
-            path.clone(),
-            &brush,
-            width,
-            &stroke_to_piet_style(stroke.cap.clone()),
-        );
-    }
-
-    fn save(&mut self, _layer: usize) {
-        let _ = self.backend.save();
-    }
-
-    fn restore(&mut self, _layer: usize) {
-        let _ = self.backend.restore();
-    }
-
-    fn clip(&mut self, _layer: usize, path: kurbo::BezPath) {
-        self.backend.clip(path);
-    }
-
-    fn load_image(&mut self, path: &str, buf: &[u8], width: usize, height: usize) {
-        let img = self
-            .backend
-            .make_image(width, height, buf, piet::ImageFormat::RgbaSeparate)
-            .expect("image creation successful");
-        self.image_map.insert(
-            path.to_owned(),
-            ImgData {
-                img,
-                size: (width, height),
-            },
-        );
-    }
-
-    fn draw_image(&mut self, _layer: usize, image_path: &str, rect: kurbo::Rect) {
-        let Some(data) = self.image_map.get(image_path) else {
-            return;
-        };
-        self.backend
-            .draw_image(&data.img, rect, InterpolationMode::Bilinear);
-    }
-
-    fn get_image_size(&mut self, image_path: &str) -> Option<(usize, usize)> {
-        self.image_map.get(image_path).map(|img| img.size)
-    }
-
-    fn image_loaded(&self, image_path: &str) -> bool {
-        self.image_map.contains_key(image_path)
-    }
-
-    fn transform(&mut self, _layer: usize, affine: kurbo::Affine) {
-        self.backend.transform(affine);
-    }
-
-    fn layers(&self) -> usize {
-        1
-    }
-
-    fn resize_layers_to(&mut self, _layer_count: usize, _dirty_canvases: Rc<RefCell<Vec<bool>>>) {}
-
-    fn clear(&mut self, _layer: usize) {}
-
-    fn flush(&mut self, _layer: usize, _dirty_canvases: Rc<RefCell<Vec<bool>>>) {}
-
-    fn resize(&mut self, _width: usize, _height: usize) {}
-
-    fn refresh_layers(&mut self, _layers: &[usize]) {}
-}
-
-#[cfg(not(any(target_os = "ios", target_os = "macos")))]
-fn fill_to_piet_brush(fill: &pax_runtime::api::Paint, rect: kurbo::Rect) -> piet::PaintBrush {
-    use piet::{LinearGradient, RadialGradient};
-
-    match fill {
-        pax_runtime::api::Paint::Solid(color) => color.to_piet_color().into(),
-        pax_runtime::api::Paint::LinearGradient(linear) => {
-            let linear_gradient = LinearGradient::new(
-                pax_runtime::api::Paint::to_unit_point(linear.start, (rect.width(), rect.height())),
-                pax_runtime::api::Paint::to_unit_point(linear.end, (rect.width(), rect.height())),
-                pax_runtime::api::Paint::to_piet_gradient_stops(linear.stops.clone()),
-            );
-            linear_gradient.into()
-        }
-        pax_runtime::api::Paint::RadialGradient(radial) => {
-            let origin =
-                pax_runtime::api::Paint::to_unit_point(radial.start, (rect.width(), rect.height()));
-            let center =
-                pax_runtime::api::Paint::to_unit_point(radial.end, (rect.width(), rect.height()));
-            let radial_gradient = RadialGradient::new(
-                radial.radius,
-                pax_runtime::api::Paint::to_piet_gradient_stops(radial.stops.clone()),
-            )
-            .with_center(center)
-            .with_origin(origin);
-            radial_gradient.into()
-        }
-    }
-}
-
-#[cfg(not(any(target_os = "ios", target_os = "macos")))]
-fn stroke_to_piet_style(cap: pax_runtime::api::StrokeCap) -> StrokeStyle {
-    let mut style = StrokeStyle::new();
-    style.set_line_cap(match cap {
-        pax_runtime::api::StrokeCap::Butt => LineCap::Butt,
-        pax_runtime::api::StrokeCap::Round => LineCap::Round,
-        pax_runtime::api::StrokeCap::Square => LineCap::Square,
-    });
-    style
 }
 
 #[cfg(any(target_os = "ios", target_os = "macos"))]
@@ -1505,15 +1336,6 @@ pub extern "C" fn pax_tick(
 
     engine.set_viewport_size((width as f64, height as f64));
     let messages = engine.tick();
-
-    #[cfg(not(any(target_os = "ios", target_os = "macos")))]
-    {
-        let will_cast_cgContext = _render_target as *mut CGContext;
-        let ctx = unsafe { &mut *will_cast_cgContext };
-        let mut render_context =
-            AppleRenderContext::new(CoreGraphicsContext::new_y_up(ctx, height as f64, None));
-        engine.render(&mut render_context as &mut dyn RenderContext);
-    }
 
     let queue_container = serialize_message_queue(messages);
     engine_container._engine = Box::into_raw(engine);

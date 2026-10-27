@@ -90,7 +90,7 @@ Full composed transform.
 ##### `opacity`
 Type: `LocalProperty`<`Option`<[`Opacity`](../../api/pax-runtime-api/color.md#opacity)>>
 
-Opacity of this node's subtree. WGPU and browser Piet compose each canvas
+Opacity of this node's subtree. WGPU and Vello CPU compose each canvas
 portion before fading it; live native surfaces currently fade separately.
 
 ##### `layout_role`

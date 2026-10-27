@@ -8,6 +8,8 @@ Experimental painterly filter with deterministic marks anchored to the container
 
 Requires WGPU and captures vectors and renderer-backed images. Native descendants
 are unsupported. Source colors update independently of the procedural brush motion.
+Vello CPU renders the children without this effect; use `$gpu` / `$cpu`
+to provide an alternate appearance.
 
 #### Properties
 ##### `mode`

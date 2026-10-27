@@ -18,11 +18,9 @@ crate-type = ["rlib"]
 default = ["console_error_panic_hook", "gpu"]
 designtime = ["dep:pax-designtime", "dep:serde_json", "pax-runtime/designtime"]
 gpu = []
-piet = []
+cpu = []
 
 [dependencies]
-piet = "0.7.0"
-piet-web = "0.7.0"
 pax-gpu = {path = "../pax-gpu", version = "0.39.1"}
 pax-runtime = { path = "../pax-runtime", version="0.39.1"}
 pax-message = {path = "../pax-message", version="0.39.1"}
@@ -42,6 +40,7 @@ miniz_oxide = "0.8"
 web-time = "1.1.0"
 
 [dev-dependencies]
+kurbo = "0.11.1"
 # Local integration tests need pax-std, which depends back on this chassis via
 # pax-engine. Omit the version so Cargo excludes this development-only cycle
 # from the registry package; workspace tests still exercise the dependency.
@@ -58,6 +57,7 @@ features = [
     "Navigator",
     "console",
     "CanvasRenderingContext2d",
+    "ImageData",
     "DomMatrix",
     "Window",
     "Document",
@@ -68,6 +68,7 @@ features = [
     "Response",
     "ResponseType",
     "Location",
+    "UrlSearchParams",
     
     # WebGPU features
     "Gpu",
