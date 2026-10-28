@@ -3,8 +3,8 @@
 use crate::*;
 use pax_engine::api::LocalProperty;
 use pax_engine::api::{
-    cursor::CursorStyle, Click, Duration, EasingCurve, Event, MouseDown, MouseMove, MouseOut,
-    MouseOver, MouseUp,
+    cursor::CursorStyle, ButtonClick, Click, Color, Duration, EasingCurve, Event, MouseDown,
+    MouseMove, MouseOut, MouseOver, MouseUp,
 };
 use pax_engine::*;
 use pax_runtime::api::NodeContext;
@@ -15,21 +15,48 @@ const MIN_DRAWER_WIDTH_PX: f64 = 280.0;
 const RESIZE_MIN_DELTA_PX: f64 = 2.0;
 const DRAWER_EASE_MS: u64 = 250;
 
-// Keep the chrome neutral; reserve CMY and lifted RGB for source semantics.
-const CODE_FOREGROUND: &str = "#f5f5f5";
-const CODE_COMMENT: &str = "#929292";
-const CODE_PUNCTUATION: &str = "#b8b8b8";
-const CODE_TYPE: &str = "#00ffff";
-const CODE_NUMBER: &str = "#ff00ff";
-const CODE_STRING: &str = "#ffff00";
-const CODE_PROPERTY: &str = "#ff8080";
-const CODE_FUNCTION: &str = "#80ff80";
-const CODE_KEYWORD: &str = "#8c9eff";
+// Canonical Solarized sRGB values: https://ethanschoonover.com/solarized/.
+// Only the neutral roles invert; syntax accents stay the same in both modes.
+const CODE_TYPE: &str = "#b58900";
+const CODE_NUMBER: &str = "#2aa198";
+const CODE_STRING: &str = "#2aa198";
+const CODE_PROPERTY: &str = "#268bd2";
+const CODE_FUNCTION: &str = "#268bd2";
+const CODE_KEYWORD: &str = "#859900";
+
+#[derive(Clone, Copy)]
+struct SourcePalette {
+    background: &'static str,
+    foreground: &'static str,
+    comment: &'static str,
+}
+
+impl SourcePalette {
+    fn for_light_mode(light: bool) -> Self {
+        if light {
+            Self {
+                background: "#fdf6e3", // base3
+                foreground: "#657b83", // base00
+                comment: "#93a1a1",    // base1
+            }
+        } else {
+            Self {
+                background: "#002b36", // base03
+                foreground: "#839496", // base0
+                comment: "#586e75",    // base01
+            }
+        }
+    }
+}
 
 /// A display wrapper for documentation/demo examples.
 ///
 /// `ExampleHost` renders every projected child with `slot()` and offers an
 /// optional source drawer driven by an explicit `sources` manifest.
+/// The code pane offers Solarized Dark (default) and Light through a moon/sun switch.
+/// Theme state is local to the host unless `source_light_mode` is explicitly bound.
+/// Set `inline_source_viewer=false` to present a separately mounted
+/// [`ExampleSourceViewer`], binding its open, selection, and theme properties.
 #[pax]
 #[engine_import_path("pax_engine")]
 #[file("reference/example_host.pax")]
@@ -43,13 +70,13 @@ pub struct ExampleHost {
     pub selected_source: Property<usize>,
     /// Whether the source drawer is visible.
     pub drawer_open: Property<bool>,
-
-    // Private selected source after clamping/fallback.
-    pub _active_source: Property<ExampleSource>,
-    // Private syntax-highlighted source markup for every source.
-    pub _source_markups: Property<Vec<String>>,
-    // Private syntax-highlighted source markup for the code pane.
-    pub _active_source_markup: Property<String>,
+    /// Use Solarized Light instead of Dark inside the code pane only.
+    /// The moon/sun switch edits this value; use `bind:` to share it deliberately.
+    pub source_light_mode: Property<bool>,
+    /// Present the source viewer beside the preview (default true).
+    /// When false, View Source still toggles `drawer_open`, but the caller must
+    /// mount an `ExampleSourceViewer` elsewhere, such as above a page Scroller.
+    pub inline_source_viewer: Property<bool>,
     // Private source-panel width in pixels, remembered while the drawer closes.
     pub _drawer_width_px: Property<f64>,
     // Private animated source drawer progress, from closed 0.0 to open 1.0.
@@ -69,9 +96,8 @@ impl Default for ExampleHost {
             sources: Property::new(vec![]),
             selected_source: Property::new(0),
             drawer_open: Property::new(false),
-            _active_source: Property::new(fallback_source()),
-            _source_markups: Property::new(vec![highlighted_code_markup(&fallback_source())]),
-            _active_source_markup: Property::new(highlighted_code_markup(&fallback_source())),
+            source_light_mode: Property::new(false),
+            inline_source_viewer: Property::new(true),
             _drawer_width_px: Property::new(DESKTOP_DRAWER_WIDTH_PX),
             _drawer_progress: Property::new(0.0),
             _drawer_target_open: Property::new(false),
@@ -89,39 +115,6 @@ impl ExampleHost {
         self._drawer_progress
             .set(if drawer_open { 1.0 } else { 0.0 });
         self.clamp_drawer_to_host(ctx.bounds_self.get().0);
-
-        let sources = self.sources.local();
-        let selected_source = self.selected_source.local();
-        let deps = [sources.untyped(), selected_source.untyped()];
-        self._active_source.replace_with(LocalProperty::computed(
-            move || active_source(&sources.get(), selected_source.get()),
-            &deps,
-        ));
-
-        let sources_for_markup = self.sources.local();
-        let deps = [sources_for_markup.untyped()];
-        self._source_markups.replace_with(LocalProperty::computed(
-            move || source_markups(&sources_for_markup.get()),
-            &deps,
-        ));
-
-        let source_markups = self._source_markups.local();
-        let selected_source = self.selected_source.local();
-        let deps = [source_markups.untyped(), selected_source.untyped()];
-        self._active_source_markup
-            .replace_with(LocalProperty::computed(
-                move || {
-                    let source_markups = source_markups.get();
-                    if source_markups.is_empty() {
-                        return highlighted_code_markup(&fallback_source());
-                    }
-                    source_markups
-                        .get(selected_source.get().min(source_markups.len() - 1))
-                        .cloned()
-                        .unwrap_or_else(|| highlighted_code_markup(&fallback_source()))
-                },
-                &deps,
-            ));
     }
 
     /// Keeps the animated drawer progress synchronized with external state writes.
@@ -144,7 +137,8 @@ impl ExampleHost {
 
     /// Starts dragging the source divider when pressed near the handle.
     pub fn on_resize_mouse_down(&mut self, ctx: &NodeContext, event: Event<MouseDown>) {
-        if !self.drawer_open.get() {
+        if !self.drawer_open.get() || !self.inline_source_viewer.get() || self._compact_drawer.get()
+        {
             return;
         }
 
@@ -158,7 +152,8 @@ impl ExampleHost {
 
     /// Starts dragging from the explicit source divider hit target.
     pub fn on_split_mouse_down(&mut self, ctx: &NodeContext, _event: Event<MouseDown>) {
-        if !self.drawer_open.get() {
+        if !self.drawer_open.get() || !self.inline_source_viewer.get() || self._compact_drawer.get()
+        {
             return;
         }
         self._is_resizing_drawer.set(true);
@@ -218,6 +213,83 @@ impl ExampleHost {
         };
         self._compact_drawer.set_if_neq(compact_drawer);
         self._drawer_width_px.set_if_neq(next_width);
+    }
+}
+
+/// Reusable source panel with fixed black/white chrome and a Solarized code pane.
+///
+/// It fills the bounds supplied by its caller, not the global viewport. For a
+/// full-screen presentation, mount it above (outside) the page Scroller and bind
+/// `open`, `selected_source`, and `source_light_mode` to the owning state. The
+/// caller controls mounting; the close control sets `open=false`.
+#[pax]
+#[engine_import_path("pax_engine")]
+#[file("reference/example_source_viewer.pax")]
+#[has_helpers]
+pub struct ExampleSourceViewer {
+    /// Wrapping title beside the controls; its measured height positions the source tabs.
+    pub title: Property<String>,
+    /// Source files offered by this viewer.
+    pub sources: Property<Vec<ExampleSource>>,
+    /// Selected source index; bind to preserve it across viewer remounts.
+    pub selected_source: Property<usize>,
+    /// Close control writes false; the caller decides how to dismiss the viewer.
+    pub open: Property<bool>,
+    /// False selects Solarized Dark; true selects Solarized Light. Chrome stays black/white.
+    pub source_light_mode: Property<bool>,
+    pub _title_height: Property<f64>,
+    pub _active_source_markup: Property<String>,
+}
+
+impl ExampleSourceViewer {
+    pub fn on_mount(&mut self, _ctx: &NodeContext) {
+        let sources = self.sources.local();
+        let light = self.source_light_mode.local();
+        let selected = self.selected_source.local();
+        let deps = [sources.untyped(), light.untyped(), selected.untyped()];
+        self._active_source_markup
+            .replace_with(LocalProperty::computed(
+                // Hidden tabs can contain large generated geometry files. Do
+                // not highlight those merely to open or recolor this panel.
+                move || selected_source_markup(&sources.get(), selected.get(), light.get()),
+                &deps,
+            ));
+    }
+
+    pub fn measure_title(&mut self, ctx: &NodeContext) {
+        let Some(node) = ctx.expanded_node.upgrade() else {
+            return;
+        };
+        let measured =
+            pax_runtime::node_interface::NodeInterface::from(node).measured_size_property();
+        let deps = [measured.untyped()];
+        // Use intrinsic text measurement, not provisional parent bounds, so
+        // wrapping and late font loads reflow the panel without a size cycle.
+        self._title_height.replace_with(LocalProperty::computed(
+            move || measured.get().map_or(0.0, |(_, height)| height.ceil()),
+            &deps,
+        ));
+    }
+
+    pub fn close(&mut self, _ctx: &NodeContext, _event: Event<ButtonClick>) {
+        self.open.set(false);
+    }
+
+    pub fn toggle_theme(&mut self, _ctx: &NodeContext, _event: Event<ButtonClick>) {
+        self.source_light_mode.set(!self.source_light_mode.get());
+    }
+}
+
+#[helpers]
+impl ExampleSourceViewer {
+    /// Code-pane background for a Solarized mode.
+    pub fn source_background(light: bool) -> Color {
+        Color::from_hex(&SourcePalette::for_light_mode(light).background[1..])
+    }
+
+    /// Code-pane body text for a Solarized mode.
+    pub fn source_foreground(light: bool) -> Color {
+        Color::from_hex(&SourcePalette::for_light_mode(light).foreground[1..])
     }
 }
 
@@ -285,73 +357,113 @@ mod tests {
                     (CODE_FUNCTION, "update"),
                     (CODE_FUNCTION, "log"),
                     (CODE_PROPERTY, "value"),
-                    (CODE_COMMENT, "// note"),
                 ],
             ),
         ];
         for (language, code, tokens) in cases {
-            let markup = highlighted_code_markup(&ExampleSource {
+            let source = ExampleSource {
                 label: "test".into(),
                 language: language.into(),
                 code: code.into(),
-            });
-            for (color, token) in tokens {
-                assert!(markup.contains(&format!("<span style=\"color:{color}\">{token}</span>")));
+            };
+            for light in [false, true] {
+                let markup = highlighted_code_markup(&source, light);
+                for (color, token) in &tokens {
+                    assert!(
+                        markup.contains(&format!("<span style=\"color:{color}\">{token}</span>"))
+                    );
+                }
+                if language == "rust" {
+                    let comment = SourcePalette::for_light_mode(light).comment;
+                    assert!(
+                        markup.contains(&format!("<span style=\"color:{comment}\">// note</span>"))
+                    );
+                }
             }
         }
     }
 
     #[test]
     fn highlighted_source_preserves_escaping_and_plain_identifiers() {
-        let mut markup = String::new();
-        highlight_line(
-            "value == other && path::call(\"<é & >\")",
-            "rust",
-            &mut markup,
-        );
-        assert!(markup.starts_with("value "));
-        assert!(markup.contains(" path<span"));
-        assert!(markup.contains("&lt;é &amp; &gt;"));
-        assert!(!markup.contains(CODE_PROPERTY));
+        for light in [false, true] {
+            let mut markup = String::new();
+            highlight_line(
+                "value == other && path::call(\"<é & >\")",
+                "rust",
+                SourcePalette::for_light_mode(light),
+                &mut markup,
+            );
+            assert!(markup.starts_with("value "));
+            assert!(markup.contains(" path<span"));
+            assert!(markup.contains("&lt;é &amp; &gt;"));
+            assert!(!markup.contains(&format!("color:{CODE_PROPERTY}\">value</span>")));
+        }
     }
 
     #[test]
-    fn all_source_colors_contrast_with_the_code_surface() {
-        fn luminance(hex: &str) -> f64 {
-            let value = u32::from_str_radix(&hex[1..], 16).unwrap();
-            [16, 8, 0]
-                .into_iter()
-                .zip([0.2126, 0.7152, 0.0722])
-                .map(|(shift, weight)| {
-                    let channel = ((value >> shift) & 255) as f64 / 255.0;
-                    weight
-                        * if channel <= 0.04045 {
-                            channel / 12.92
-                        } else {
-                            ((channel + 0.055) / 1.055).powf(2.4)
-                        }
-                })
-                .sum()
-        }
-        // Match example_host_code_bg in the template, including muted comments.
-        let background = luminance("#111111");
-        for color in [
-            CODE_FOREGROUND,
-            CODE_COMMENT,
-            CODE_PUNCTUATION,
-            CODE_TYPE,
-            CODE_NUMBER,
-            CODE_STRING,
-            CODE_PROPERTY,
-            CODE_FUNCTION,
-            CODE_KEYWORD,
-        ] {
-            let contrast = (luminance(color) + 0.05) / (background + 0.05);
-            assert!(
-                contrast >= 4.5,
-                "{color} has insufficient contrast: {contrast}"
+    fn solarized_roles_use_canonical_values_without_brightening() {
+        // Solarized intentionally uses selective contrast, including muted
+        // comments; it is not the previous all-tokens-4.5:1 high-contrast palette.
+        let dark = SourcePalette::for_light_mode(false);
+        let light = SourcePalette::for_light_mode(true);
+        assert_eq!(dark.background, "#002b36");
+        assert_eq!(light.background, "#fdf6e3");
+        assert_eq!((dark.foreground, dark.comment), ("#839496", "#586e75"));
+        assert_eq!((light.foreground, light.comment), ("#657b83", "#93a1a1"));
+        assert_eq!(
+            (CODE_TYPE, CODE_STRING, CODE_KEYWORD, CODE_FUNCTION),
+            ("#b58900", "#2aa198", "#859900", "#268bd2")
+        );
+        for mode in [false, true] {
+            let palette = SourcePalette::for_light_mode(mode);
+            assert_eq!(
+                ExampleSourceViewer::source_background(mode),
+                Color::from_hex(&palette.background[1..])
+            );
+            assert_eq!(
+                ExampleSourceViewer::source_foreground(mode),
+                Color::from_hex(&palette.foreground[1..])
             );
         }
+    }
+
+    #[test]
+    fn empty_and_multiple_source_manifests_follow_the_selected_theme() {
+        let sources = vec![
+            fallback_source(),
+            ExampleSource {
+                label: "hello.rs".into(),
+                language: "rust".into(),
+                code: "let x = 1; // hello".into(),
+            },
+        ];
+        for mode in [false, true] {
+            let foreground = SourcePalette::for_light_mode(mode).foreground;
+            for manifest in [&[][..], sources.as_slice()] {
+                for selected in [0, 1, usize::MAX] {
+                    let markup = selected_source_markup(manifest, selected, mode);
+                    assert!(markup.contains(&format!("color:{foreground};")));
+                    let expected = manifest
+                        .get(selected.min(manifest.len().saturating_sub(1)))
+                        .cloned()
+                        .unwrap_or_else(fallback_source);
+                    assert_eq!(markup, highlighted_code_markup(&expected, mode));
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn theme_state_defaults_dark_and_does_not_leak_between_hosts_or_change_tabs() {
+        let first = ExampleHost::default();
+        let sibling = ExampleHost::default();
+        assert!(!first.source_light_mode.get());
+        first.selected_source.set(3);
+        first.source_light_mode.set(true);
+        assert!(!sibling.source_light_mode.get());
+        assert_eq!(first.selected_source.get(), 3);
+        first.source_light_mode.set(false);
+        assert_eq!(first.selected_source.get(), 3);
     }
 }
 
@@ -379,7 +491,7 @@ mod tests {
                 FontStyle::Normal,
                 FontWeight::Medium)
             font_size: 11px
-            fill: {self.index == self.selected ? BLACK : rgb(184, 184, 184)}
+            fill: {self.index == self.selected ? BLACK : WHITE}
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Center
             align_multiline: TextAlignHorizontal::Center
@@ -404,7 +516,7 @@ mod tests {
         ]
     }
     .example_host_tab_idle {
-        fill: rgb(40, 40, 40)
+        fill: rgb(38, 38, 38)
         elements: [
             PathElement::Point(0%, 100%),
             PathElement::Line,
@@ -438,16 +550,6 @@ impl ExampleHostSourceTab {
     }
 }
 
-fn active_source(sources: &[ExampleSource], selected: usize) -> ExampleSource {
-    if sources.is_empty() {
-        return fallback_source();
-    }
-    sources
-        .get(selected.min(sources.len() - 1))
-        .cloned()
-        .unwrap_or_else(fallback_source)
-}
-
 fn fallback_source() -> ExampleSource {
     ExampleSource {
         label: "No source".to_string(),
@@ -456,32 +558,34 @@ fn fallback_source() -> ExampleSource {
     }
 }
 
-fn source_markups(sources: &[ExampleSource]) -> Vec<String> {
-    if sources.is_empty() {
-        return vec![highlighted_code_markup(&fallback_source())];
+fn selected_source_markup(sources: &[ExampleSource], selected: usize, light: bool) -> String {
+    let source = sources.get(selected.min(sources.len().saturating_sub(1)));
+    match source {
+        Some(source) => highlighted_code_markup(source, light),
+        None => highlighted_code_markup(&fallback_source(), light),
     }
-    sources.iter().map(highlighted_code_markup).collect()
 }
 
-fn highlighted_code_markup(source: &ExampleSource) -> String {
+fn highlighted_code_markup(source: &ExampleSource, light: bool) -> String {
+    let palette = SourcePalette::for_light_mode(light);
     let mut out = format!(
-        "<pre data-pax-code-markup=\"example-host\" style=\"margin:0; white-space:pre; line-height:18px; color:{CODE_FOREGROUND};\">",
+        "<pre data-pax-code-markup=\"example-host\" style=\"margin:0; white-space:pre; line-height:18px; color:{};\">", palette.foreground,
     );
     for line in source.code.lines() {
-        highlight_line(line, source.language.as_str(), &mut out);
+        highlight_line(line, source.language.as_str(), palette, &mut out);
         out.push('\n');
     }
     out.push_str("</pre>");
     out
 }
 
-fn highlight_line(line: &str, language: &str, out: &mut String) {
+fn highlight_line(line: &str, language: &str, palette: SourcePalette, out: &mut String) {
     let bytes = line.as_bytes();
     let mut index = 0;
     while index < bytes.len() {
         let rest = &line[index..];
         if rest.starts_with("//") {
-            push_span(out, CODE_COMMENT, rest);
+            push_span(out, palette.comment, rest);
             return;
         }
 
@@ -527,7 +631,7 @@ fn highlight_line(line: &str, language: &str, out: &mut String) {
             continue;
         }
         if "{}[]()<>=+-*/.,:;!&|?%@".contains(ch) {
-            push_span(out, CODE_PUNCTUATION, &rest[..ch.len_utf8()]);
+            push_span(out, palette.foreground, &rest[..ch.len_utf8()]);
             index += ch.len_utf8();
             continue;
         }

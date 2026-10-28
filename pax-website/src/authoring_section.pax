@@ -5,11 +5,12 @@
     <Stacker id=authoring_content x=50% y=80px width={self.compact ? (100% - 48px) : 88%} autosize=true gutter=40px>
         <Stacker width={self.compact ? 100% : 82%} autosize=true gutter=24px>
             <Text class="editorial_kicker" width=100% text="WHY A LANGUAGE? / COMMON GROUND"/>
-            <Text class="editorial_title" width=100% text="A shared definition. A place to agree."/>
+            <Text class="editorial_title" width=100% text="A playground for your mind.
+And artificial minds."/>
             <Text class="editorial_lead" width=100%
-                text="An interface shouldn't live only in a prompt, a picture, or someone's head. Pax gives it an explicit definition that you and your coding agent can read, discuss, and revise together."/>
+                text="Give an idea a form you can think with. Pax lets you express an interface in a compact, declarative language—something you and a coding agent can read, reshape, and bring to life together."/>
             <Text class="editorial_body" width=100%
-                text="Structure, layout, style, and motion live in a dedicated, entirely declarative language. Expressions describe relationships between values. Rust owns application state, logic, and side effects."/>
+                text="Structure, layout, style, motion, and relationships between values are expressed directly, in one declarative layer. Describe how the pieces fit together; let the runtime keep them connected. Rust owns application state, logic, and side effects."/>
         </Stacker>
         <SharedDefinitionDemo width=100% height={self.compact ? 680px : 360px} compact={self.compact}/>
         <Stacker width=100% autosize=true autosize_x=false autosize_y=true gutter=32px
@@ -22,9 +23,9 @@
             </Stacker>
             <Stacker width=100% autosize=true gutter=12px>
                 <Text class="editorial_kicker" width=100% text="02 / CLOSE THE LOOP"/>
-                <Text class="editorial_subtitle" width=100% text="See it. Question it. Refine it."/>
+                <Text class="editorial_subtitle" width=100% text="Try an idea. See what happens."/>
                 <Text class="editorial_body" width=100%
-                    text="Run the interface, inspect the scene, and try an interaction. Revise the same source as your understanding grows. Pax's hot reload and developer tools put that feedback loop within reach of people and coding agents alike."/>
+                    text="Run the interface, inspect the scene, and try an interaction. Revise the same definition as your idea takes shape. Pax's hot reload and developer tools make that feedback loop available to people and coding agents alike."/>
             </Stacker>
         </Stacker>
         <Stacker width={self.compact ? 100% : 82%} autosize=true gutter=14px>
@@ -34,7 +35,7 @@
             <Text class="editorial_kicker" width=100% text="WHERE THIS COULD LEAD"/>
             <Text class="editorial_subtitle" width=100% text="A shared scratchpad for visual thinking."/>
             <Text class="editorial_body" width=100%
-                text="We see a language for interfaces becoming a medium for people and machines to think together: express an idea, see it take shape, and refine it in a shared visual space. That's a direction we're exploring, built on the declarative foundation available today."/>
+                text="We believe the right language can be a creative meeting place for people and machines: expressive enough to explore an idea, structured enough to inspect and revise it. We're building toward a shared visual scratchpad, grounded in the declarative language and runtime you can use today."/>
         </Stacker>
         <Link width=100% height=28px url="https://docs.pax.dev/template-language/" target=Target::New>
             <Text class="editorial_link" width=100% text="EXPLORE THE LANGUAGE →"/>

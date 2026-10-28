@@ -284,6 +284,10 @@ Dropdown uses a select, and Checkbox and Slider use input elements. The
 Apple chassis uses UIKit and AppKit controls, with custom styling and some
 composed implementations.
 
+Web buttons occupy their authored rectangle without an extra inline-text
+baseline offset. Their label alignment is controlled by `TextStyle`, including
+when a compact or custom-styled control uses an unusually small label font.
+
 The broader accessibility model is still incomplete. Public authoring APIs
 do not yet provide a general contract for accessible names, descriptions,
 roles, label associations, or a reading order independent of visual layout.

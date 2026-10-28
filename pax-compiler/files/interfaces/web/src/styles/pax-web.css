@@ -101,6 +101,9 @@
 }
 
 .pax-mount .button-styles {
+    /* The leaf transform positions the button; inline baseline alignment must
+       not add a font-dependent offset inside that authored rectangle. */
+    display: block;
     margin: 0;
     padding: 0;    
     --hover-color: blue;

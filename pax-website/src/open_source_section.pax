@@ -1,0 +1,31 @@
+<Group width=100% height=100%>
+    <ImportSettings>
+        <SiteTheme />
+    </ImportSettings>
+    <Stacker id=open_source_content x=50% y=80px width={self.compact ? (100% - 48px) : 88%} autosize=true gutter=40px>
+        <Text class="editorial_kicker" width=100% text="FREE AND OPEN SOURCE"/>
+        <Stacker width=100% autosize=true autosize_x=false autosize_y=true gutter=48px
+            direction={self.compact ? StackerDirection::Vertical : StackerDirection::Horizontal}
+            sizes={self.compact ? [] : [Some(52%), None]}>
+            <Acrostic width=100% height={(self.artwork_height)px}/>
+            <Stacker width=100% autosize=true gutter=24px>
+                <Text class="editorial_title" width=100% text="More room for human expression."/>
+                <Text class="editorial_lead" width=100%
+                    text="Pax's language, framework, and developer tools are all free and open source. The tools you see here are the tools you get."/>
+                <Text class="editorial_body" width=100%
+                    text="We're building Pax to bring software creation closer to an artistic medium: something personal, expressive, and open to experimentation. We want more people to be able to turn their imagination into software—and more of humanity to have a hand in shaping the digital world."/>
+                <Text class="editorial_lead" width=100% text="Use it. Study it. Change it. Make it yours."/>
+                <Text class="editorial_note" width=100% text="The framework and developer tools are MIT / Apache-2.0 licensed."/>
+                <Link width=100% height=32px url="https://github.com/paxdotdev/pax" target=Target::New>
+                    <Text class="editorial_link" width=100% text="EXPLORE THE SOURCE →"/>
+                </Link>
+            </Stacker>
+        </Stacker>
+    </Stacker>
+    <Rectangle class="site_ink" width=100% height=100%/>
+</Group>
+
+@settings {
+    @mount: mount
+    @pre_render: tick
+}

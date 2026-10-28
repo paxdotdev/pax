@@ -1,0 +1,27 @@
+slot()
+
+@settings {
+    @mount: mount
+    @unmount: unmount
+    @in: enter
+    @out: exit
+}
+
+@timeline enter {
+    duration: 350ms,
+    self {
+        y: {
+            0%: {@base + 100%}, OutQuad,
+            100%: {@base},
+        }
+    }
+}
+@timeline exit {
+    duration: 300ms,
+    self {
+        y: {
+            0%: {@base}, InQuad,
+            100%: {@base + 100%},
+        }
+    }
+}

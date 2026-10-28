@@ -1,0 +1,134 @@
+<Group width=100% height=100%>
+    <Button class="viewer_close" x={100% - 24px} y=24px width=34px height=34px label="×" @button_click=self.close/>
+    <Group x={100% - 82px} y=24px width=104px height=34px anchor_x=100%>
+        <Path x=0px y=9px width=16px height=16px fill=WHITE elements=[
+            PathElement::Point(65%, 5%),
+            PathElement::Cubic(5%, 0%, -10%, 80%),
+            PathElement::Point(48%, 98%),
+            PathElement::Cubic(80%, 108%, 105%, 80%),
+            PathElement::Point(100%, 55%),
+            PathElement::Cubic(58%, 86%, 28%, 39%),
+            PathElement::Point(65%, 5%),
+            PathElement::Close
+        ]/>
+        <Ellipse x={self.source_light_mode ? 55px : 30px} y=7px width=20px height=20px fill=WHITE/>
+        <Button class="viewer_switch" x=26px y=3px width=52px height=28px
+            label={self.source_light_mode ? "Solarized Light; switch to Dark" : "Solarized Dark; switch to Light"}
+            @button_click=self.toggle_theme/>
+        <Group x=88px y=9px width=16px height=16px>
+            <Ellipse x=50% y=50% width=7px height=7px fill=TRANSPARENT stroke={
+                paint: WHITE
+                width: 1.5px
+            }/>
+            <Path width=100% height=100% stroke={
+                paint: WHITE
+                width: 1.5px
+                cap: StrokeCap::Round
+            } elements=[
+                PathElement::Point(50%, 0%),
+                PathElement::Line,
+                PathElement::Point(50%, 15%),
+                PathElement::Point(50%, 85%),
+                PathElement::Line,
+                PathElement::Point(50%, 100%),
+                PathElement::Point(0%, 50%),
+                PathElement::Line,
+                PathElement::Point(15%, 50%),
+                PathElement::Point(85%, 50%),
+                PathElement::Line,
+                PathElement::Point(100%, 50%),
+                PathElement::Point(15%, 15%),
+                PathElement::Line,
+                PathElement::Point(25%, 25%),
+                PathElement::Point(75%, 75%),
+                PathElement::Line,
+                PathElement::Point(85%, 85%),
+                PathElement::Point(15%, 85%),
+                PathElement::Line,
+                PathElement::Point(25%, 75%),
+                PathElement::Point(75%, 25%),
+                PathElement::Line,
+                PathElement::Point(85%, 15%)
+            ]/>
+        </Group>
+    </Group>
+    <Text class="viewer_title" x=24px y=24px width={100% - 234px} text={self.title} selectable=false wrap=true
+        @mount=self.measure_title/>
+    <Scroller x=24px y={(Math::max(34, self._title_height) + 40)px} width={100% - 48px} height=30px
+        scroll_width={(Math::len(self.sources) * 160)px} scroll_height=30px>
+        <Group width={(Math::len(self.sources) * 160)px} height=30px>
+            for (source, i) in self.sources {
+                <ExampleHostSourceTab x={(i * 160)px} y=0px width=160px height=30px source={source} index={i} selected=bind:self.selected_source/>
+            }
+        </Group>
+    </Scroller>
+    <Group x=24px y={(Math::max(34, self._title_height) + 70)px} width={100% - 48px}
+        height={100% - (Math::max(34, self._title_height) + 94)px}>
+        <Scroller width=100% height=100% autosize=true autosize_x=true autosize_y=true>
+            <Text class="viewer_code" x=14px y=14px text={self._active_source_markup} markdown=true wrap=false selectable=true/>
+        </Scroller>
+        <Rectangle fill={ExampleSourceViewer::source_background(self.source_light_mode)} corner_radius=[0, 0, 12, 12] width=100%
+            height=100%/>
+    </Group>
+    <EventBlocker width=100% height=100% background=BLACK/>
+</Group>
+
+@settings {
+    @mount: on_mount
+    .viewer_close {
+        color: BLACK
+        hover_color: rgb(38, 38, 38)
+        corner_radius: 7
+        outline: {
+            paint: WHITE
+            width: 1px
+        }
+        style: {
+            font: "monospace"
+            font_size: 20px
+            fill: WHITE
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+        }
+    }
+    .viewer_switch {
+        color: rgb(40, 40, 40)
+        hover_color: rgb(56, 56, 56)
+        corner_radius: 14
+        outline: {
+            paint: rgb(160, 160, 160)
+            width: 1px
+        }
+        // Retain the native button's accessible name and keyboard focus.
+        // The drawn thumb communicates the state without relying on color alone.
+        style: {
+            font: "monospace"
+            font_size: 1px
+            fill: TRANSPARENT
+        }
+    }
+    .viewer_title {
+        style: {
+            font: {
+                family: "Manrope"
+                url: "/assets/fonts/Manrope.ttf"
+                weight: 600
+            }
+            font_size: 21px
+            fill: WHITE
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+    .viewer_code {
+        style: {
+            font: "monospace"
+            font_size: 13px
+            fill: {ExampleSourceViewer::source_foreground(self.source_light_mode)}
+            align_vertical: TextAlignVertical::Top
+            align_horizontal: TextAlignHorizontal::Left
+            align_multiline: TextAlignHorizontal::Left
+        }
+    }
+}

@@ -1,4 +1,4 @@
-//! Pre-traced hero lettering. Ordinary builds need no font parser or shaper.
+//! Pre-traced website lettering. Ordinary builds need no font parser or shaper.
 use crate::HeroCluster;
 use pax_kit::{PathElement, Size};
 
@@ -61,6 +61,28 @@ impl Command {
 }
 
 include!("hero_outlines_data.rs");
+
+struct BakedGlyph {
+    letter: char,
+    advance: f64,
+    commands: &'static [Command],
+}
+
+include!("acrostic_outlines_data.rs");
+
+pub fn acrostic_glyphs() -> (f64, Vec<(char, f64, Vec<PathElement>)>) {
+    let glyphs = ACROSTIC_GLYPHS
+        .iter()
+        .map(|glyph| {
+            let mut elements = Vec::new();
+            for command in glyph.commands {
+                command.append(&mut elements);
+            }
+            (glyph.letter, glyph.advance, elements)
+        })
+        .collect();
+    (RUNS[0].cap_height, glyphs)
+}
 
 pub fn hero_runs() -> [HeroRun; 3] {
     let outlines: Vec<Vec<PathElement>> = OUTLINES

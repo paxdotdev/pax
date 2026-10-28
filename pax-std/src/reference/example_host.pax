@@ -5,52 +5,31 @@
             <Rectangle fill=TRANSPARENT width=100% height=100% @mouse_move=self.on_resize_mouse_move @mouse_up=self.on_resize_mouse_up/>
         </Group>
     }
-    if self.drawer_open || self._drawer_progress > 0.001 {
-        <Group class="example_host_split_target" x={100% - (self._drawer_width_px * self._drawer_progress)px} y=0px width=18px
-            height=100% anchor_x=50% anchor_y=0%>
-            <Rectangle class="example_host_split_handle" x=50% y=0px width=4px height=100% anchor_x=50% @mouse_down=self.on_split_mouse_down
+    if self.inline_source_viewer && !self._compact_drawer && (self.drawer_open || self._drawer_progress > 0.001) {
+        <Group x={100% - (self._drawer_width_px * self._drawer_progress)px} y=0px width=18px height=100% anchor_x=50% anchor_y=0%>
+            <Rectangle fill=WHITE corner_radius=2 x=50% y=0px width=4px height=100% anchor_x=50% @mouse_down=self.on_split_mouse_down
                 @mouse_over=self.on_resize_mouse_over @mouse_out=self.on_resize_mouse_out/>
             <Rectangle fill=TRANSPARENT width=100% height=100% @mouse_down=self.on_split_mouse_down @mouse_over=self.on_resize_mouse_over
                 @mouse_out=self.on_resize_mouse_out/>
         </Group>
     }
-    if !self.drawer_open && self._drawer_progress <= 0.001 {
-        <Group class="example_host_toggle" x={100% - 24px} y=24px width=112px height=34px @click=self.toggle_drawer>
+    if !self.drawer_open && (!self.inline_source_viewer || self._drawer_progress <= 0.001) {
+        <Group x={100% - 24px} y=24px width=112px height=34px @click=self.toggle_drawer>
             <Text class="example_host_button_label" x=50% y=50% width={100% - 18px} height=18px text="View Source" selectable=false/>
-            <Rectangle class="example_host_button_bg" width=100% height=100%/>
+            <Rectangle fill=BLACK stroke={
+                paint: WHITE
+                width: 3px
+            } corner_radius=9 width=100% height=100%/>
         </Group>
     }
-    if self.drawer_open || self._drawer_progress > 0.001 {
-        <Group class="example_host_drawer" x={100% - (self._drawer_width_px * self._drawer_progress)px} y=0px
-            width={(self._drawer_width_px)px} height=100% anchor_x=0% anchor_y=0%>
-            <Group class="example_host_drawer_close" x={100% - 24px} y=24px width=34px height=34px>
-                <Text class="example_host_button_label" x=50% y=50% width={100% - 10px} height=18px text="x" selectable=false
-                    @click=self.toggle_drawer/>
-                <Rectangle class="example_host_button_bg" width=100% height=100% @click=self.toggle_drawer/>
-            </Group>
-            <Text class="example_host_drawer_title" x=24px y=24px width={100% - 92px} height=28px text={self.title} selectable=false
-                clip=true/>
-            <Text class="example_host_drawer_meta" x=24px y=58px width={100% - 48px} height=18px text={self._active_source.label}
-                selectable=false wrap=false clip=true/>
-            <Scroller x=24px y=95px width={100% - 48px} height=30px scroll_width={(Math::len(self.sources) * 160)px} scroll_height=30px>
-                <Group width={(Math::len(self.sources) * 160)px} height=30px>
-                    for (source, i) in self.sources {
-                        <ExampleHostSourceTab x={(i * 160)px} y=0px width=160px height=30px source={source} index={i} selected=bind:selected_source/>
-                    }
-                </Group>
-            </Scroller>
-            <Group x=24px y=124px width={100% - 48px} height={100% - 148px}>
-                <Scroller width=100% height=100% autosize=true autosize_x=true autosize_y=true>
-                    <Text class="example_host_code_text" x=14px y=14px text={self._active_source_markup} markdown=true wrap=false selectable=true/>
-                </Scroller>
-                <Rectangle class="example_host_code_bg" width=100% height=100%/>
-            </Group>
-            <Rectangle class="example_host_drawer_bg" width=100% height=100%/>
-        </Group>
+    if self.inline_source_viewer && (self.drawer_open || self._drawer_progress > 0.001) {
+        <ExampleSourceViewer x={100% - (self._drawer_width_px * self._drawer_progress)px} y=0px width={(self._drawer_width_px)px} height=100%
+            anchor_x=0% anchor_y=0% title={self.title} sources={self.sources} selected_source=bind:self.selected_source
+            open=bind:self.drawer_open source_light_mode=bind:self.source_light_mode/>
     }
-    if !(self._compact_drawer && (self.drawer_open || self._drawer_progress > 0.001)) {
-        <Group class="example_host_preview" x=0px y=0px width={100% - (self._drawer_width_px * self._drawer_progress)px} height=100%
-            anchor_x=0% anchor_y=0%>
+    if !(self.inline_source_viewer && self._compact_drawer && (self.drawer_open || self._drawer_progress > 0.001)) {
+        <Group x=0px y=0px width={self.inline_source_viewer ? (100% - (self._drawer_width_px * self._drawer_progress)px) : 100%}
+            height=100% anchor_x=0% anchor_y=0%>
             slot()
         </Group>
     }
@@ -59,30 +38,6 @@
 @settings {
     @mount: on_mount
     @pre_render: on_pre_render
-    .example_host_drawer_bg {
-        fill: rgb(24, 24, 24)
-        stroke: {
-            paint: rgb(64, 64, 64)
-            width: 1px
-        }
-        corner_radius: 0.0
-    }
-    .example_host_split_handle {
-        fill: WHITE
-        corner_radius: 2.0
-    }
-    .example_host_code_bg {
-        fill: rgb(17, 17, 17)
-        corner_radius: [0.0, 0.0, 12.0, 12.0]
-    }
-    .example_host_button_bg {
-        fill: BLACK
-        stroke: {
-            paint: WHITE
-            width: 3px
-        }
-        corner_radius: 9.0
-    }
     .example_host_button_label {
         style: {
             font: {
@@ -95,48 +50,6 @@
             align_vertical: TextAlignVertical::Center
             align_horizontal: TextAlignHorizontal::Center
             align_multiline: TextAlignHorizontal::Center
-            underline: false
-        }
-    }
-    .example_host_drawer_title {
-        style: {
-            font: {
-                family: "Manrope"
-                url: "/assets/fonts/Manrope.ttf"
-                weight: 600
-            }
-            font_size: 21px
-            fill: WHITE
-            align_vertical: TextAlignVertical::Center
-            align_horizontal: TextAlignHorizontal::Left
-            align_multiline: TextAlignHorizontal::Left
-            underline: false
-        }
-    }
-    .example_host_drawer_meta {
-        style: {
-            font: {
-                family: "Manrope"
-                url: "/assets/fonts/Manrope.ttf"
-                weight: 500
-            }
-            font_size: 11px
-            fill: rgb(184, 184, 184)
-            align_vertical: TextAlignVertical::Center
-            align_horizontal: TextAlignHorizontal::Left
-            align_multiline: TextAlignHorizontal::Left
-            underline: false
-        }
-    }
-    .example_host_code_text {
-        style: {
-            font: "monospace"
-            font_size: 13px
-            fill: rgb(245, 245, 245)
-            align_vertical: TextAlignVertical::Top
-            align_horizontal: TextAlignHorizontal::Left
-            align_multiline: TextAlignHorizontal::Left
-            underline: false
         }
     }
 }

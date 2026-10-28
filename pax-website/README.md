@@ -241,20 +241,41 @@ requests for these families. Manrope is also bundled in `pax-std/assets/fonts/`
 for standalone ExampleHost and demo use; the identical website asset merges into
 one output file. Keep these copies and their license aligned.
 
-The shared `ExampleHost` drawer uses dark grayscale surfaces, white active tabs,
-and CMY plus lightened RGB syntax colors. Its 160px source tabs stay single-line
-and scroll horizontally; very long labels clip within the tab, with the selected
-path also shown above the strip.
+The shared `ExampleHost` drawer offers canonical Solarized Dark and Light through
+a moon/sun pill switch beside the close control. Solarized applies only to the
+code pane; the surrounding chrome stays black and white. Dark is the default; the choice
+belongs to each mounted host and survives closing/reopening its drawer, without
+browser persistence. Syntax accent colors stay consistent across modes.
+The title shares a top-aligned row with the controls and wraps to its measured
+height; the source tabs follow below it. Filenames appear only in the tabs.
+The 160px source tabs stay single-line and scroll horizontally; very long labels
+clip within the tab.
+
+Below 600 logical pixels, HomePage mounts the shared `ExampleSourceViewer`
+above the page Scroller at full viewport size, rather than inheriting a section's
+height. `MobileSourceSheet` uses lifecycle timelines to slide it up from the
+bottom in 350ms and back down in 300ms. Its opaque background moves with the
+panel; a separate transparent input blocker leaves the page visible underneath.
+The page and its scroll position remain mounted. Fixed navigation stays hidden
+and the input blocker stays mounted through the retained exit, not just until
+the open flag changes. Each section explicitly
+binds its open, source-index, and theme state to both presentations, so resizing
+or closing/reopening does not reset the selection or palette.
+Only the selected file is syntax-highlighted; opening the viewer does not
+prepare every hidden tab's source. This remains local UI state, not a URL or
+browser-history entry.
 
 Content and visual design history are archived in
 [PAX-869](https://linear.app/paxdev/issue/PAX-869).
 
 ## Shared-definition section
 
-`AuthoringSection` sits between creative freedom and the feature gallery. It
-introduces the declarative UI definition as a shared, inspectable contract for
-people and coding agents, while keeping the visual-scratchpad vision explicitly
-aspirational. Its copy and layout are a working placeholder for editorial review.
+`AuthoringSection` sits between creative freedom and the feature gallery. Its
+“A playground for your mind. And artificial minds.” headline introduces an
+expressive, compact UI definition as a shared, inspectable contract for people
+and coding agents. Compactness refers to directly declaring UI relationships,
+not a measured token-efficiency claim. The visual-scratchpad vision remains
+explicitly aspirational. Copy and layout remain open to editorial review.
 
 `SharedDefinitionDemo` pairs the actual `relationship_preview.pax` source
 (embedded with `include_str!`) with a live instance of that component. The 25%
@@ -310,6 +331,36 @@ period described above. The word's clipping Frame has
 `layout_role=LayoutRole::Breakout`: animated descendant bounds cannot change
 the ancestor Stacker's measured height. The fixed three-line signboard and its
 normal Text nodes determine the paragraph's position.
+
+## Free and open source / kinetic acrostic
+
+`OpenSourceSection` follows the feature gallery and precedes the final CTA.
+It connects the freely available language/framework/tooling with the project's
+creative mission; license information lives here rather than repeating in the
+footer. The maturity and accessibility qualifications remain in the footer.
+The section and its lettering are inspectable through their own ExampleHost.
+
+`Acrostic` uses four retained cyclic tapes containing MAKE, PLAY, OPEN, FREE,
+and CODE. A deterministic solver chooses matching letter occurrences for each
+row's direction, then aligns the word vertically at one of five horizontal
+columns. Rows ease independently over at most 2.3 seconds; the aligned word
+brightens to warm white during a 3.2-second reading hold and dims before travel.
+The field has six visible cells per row and 80 retained individual Path letters,
+including clipped wrap overscan. Letter geometry does not change during playback.
+
+The graphic pauses its clock offscreen, and its native Pause type button freezes
+the exact current pose. A plain-text vocabulary accompanies the decorative
+outlines; this is not selectable vector text or a complete accessibility audit.
+System reduced-motion integration remains tracked separately in PAX-1048.
+The grayscale, unlit paints work on GPU and CPU without shader-only illumination.
+Desktop places the field beside the mission copy; narrow layouts stack it above.
+
+The uppercase alphabet uses the same Manrope 800 font and offline extraction as
+the hero. The commands below also regenerate/check `src/acrostic_outlines_data.rs`;
+commit that generated source when changing the alphabet. The tape and word list
+are website-local constants in `src/acrostic.rs`, not a general text-rendering API.
+
+## Offline outline extraction
 
 The private offline extractor in `tools/trace-hero` uses HarfRust + Skrifa to
 shape each complete phrase before splitting it into clusters. It is a standalone

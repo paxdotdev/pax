@@ -311,6 +311,60 @@ hosts keep independent selections. They do not need a local store for this
 direct parent/child connection. Callers can deliberately bind multiple hosts
 to the same selection property when synchronized selection is wanted.
 
+ExampleHost's source drawer has a moon/sun pill switch beside the close control.
+The title is top-aligned beside those controls and wraps as needed; the tabs and
+code pane follow its measured height. Filenames are shown in the tabs, without
+a duplicate subheading.
+It switches only the code pane between Solarized Dark (the default) and
+Solarized Light; the surrounding chrome stays black and white. Set
+`source_light_mode=true` on a host to start in Light mode, or use
+`source_light_mode=bind:theme_light` when several hosts should deliberately share
+a parent's Boolean property. Otherwise each host keeps its own choice while
+mounted, including closing and reopening the drawer; the choice is not saved
+across page reloads. The palettes use the
+[canonical Solarized colors](https://ethanschoonover.com/solarized/), including
+their deliberately subdued comments, rather than a high-contrast variant.
+Only the selected source file is syntax-highlighted. Switching tabs or palettes
+prepares that file on demand instead of highlighting every hidden tab on open.
+
+The inline drawer fills its host, which may be a short section inside a
+Scroller rather than the whole screen. To present source full-screen, mount
+`ExampleSourceViewer` at the page root, above and outside the Scroller. Set the
+section host's `inline_source_viewer=false`, and bind both presentations to the
+same open, selected-source, and theme state:
+
+```pax
+<Group width=100% height=100%>
+    if self.source_open {
+        <ExampleSourceViewer width=100% height=100% title="My example"
+            sources={self.sources} open=bind:self.source_open
+            selected_source=bind:self.source_index source_light_mode=bind:self.source_light/>
+    }
+    <Scroller width=100% height=100% autosize=true>
+        <ExampleHost width=100% height=400px title="My example" sources={self.sources}
+            inline_source_viewer=false drawer_open=bind:self.source_open
+            selected_source=bind:self.source_index source_light_mode=bind:self.source_light>
+            <Text width=100% height=40px text="Your example goes here."/>
+        </ExampleHost>
+    </Scroller>
+</Group>
+```
+
+The owning component declares `sources: Property<Vec<ExampleSource>>`,
+`source_open: Property<bool>`, `source_index: Property<usize>`, and
+`source_light: Property<bool>`. The viewer's opaque native backdrop absorbs
+pointer input over the page; this is explicit composition, not a portal or a
+general keyboard-focus-trapping modal. Keep any fixed navigation below the
+viewer or hide it while source is open. Bindings preserve theme and selection
+when a responsive layout moves between inline and full-screen presentations.
+To animate a full-screen viewer, wrap it in an ordinary component with
+[`@in` and `@out` timelines](animation-motion.md#structural-transitions).
+Move the viewer and its opaque backdrop together. If the underlying page must
+remain non-interactive while the sheet is moving, place a transparent
+`EventBlocker` behind the sheet and retain it through actual unmount, including
+the exit interval. Routing is only needed if opening source should also change
+the application location or browser history.
+
 State used only inside one card can stay on that card. State shared by several
 cards usually belongs in their common owner. For an action such as “advance
 this note,” a named event can let the owner decide how state should change;

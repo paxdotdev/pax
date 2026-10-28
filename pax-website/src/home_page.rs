@@ -9,22 +9,71 @@ pub struct HomePage {
     pub logo_anchor: Property<LogoAnchor>,
     pub scroll_y: Property<f64>,
     pub hero_source_open: Property<bool>,
+    pub source_overlay_open: Property<bool>,
+    pub source_sheets_mounted: Property<usize>,
+    pub compact_sources: Property<bool>,
+    pub hero_source_selected: Property<usize>,
+    pub hero_source_light: Property<bool>,
+    pub runtime_source_open: Property<bool>,
+    pub runtime_source_selected: Property<usize>,
+    pub runtime_source_light: Property<bool>,
+    pub framework_source_open: Property<bool>,
+    pub framework_source_selected: Property<usize>,
+    pub framework_source_light: Property<bool>,
+    pub authoring_source_open: Property<bool>,
+    pub authoring_source_selected: Property<usize>,
+    pub authoring_source_light: Property<bool>,
+    pub gallery_source_open: Property<bool>,
+    pub gallery_source_selected: Property<usize>,
+    pub gallery_source_light: Property<bool>,
+    pub open_source_source_open: Property<bool>,
+    pub open_source_source_selected: Property<usize>,
+    pub open_source_source_light: Property<bool>,
+    pub resource_source_open: Property<bool>,
+    pub resource_source_selected: Property<usize>,
+    pub resource_source_light: Property<bool>,
     pub hero_height: Property<f64>,
     pub framework_height: Property<f64>,
     pub authoring_height: Property<f64>,
     pub runtime_height: Property<f64>,
     pub gallery_height: Property<f64>,
+    pub open_source_height: Property<f64>,
     pub resource_height: Property<f64>,
     pub hero_sources: Property<Vec<ExampleSource>>,
     pub authoring_sources: Property<Vec<ExampleSource>>,
     pub framework_sources: Property<Vec<ExampleSource>>,
     pub runtime_sources: Property<Vec<ExampleSource>>,
     pub feature_gallery_sources: Property<Vec<ExampleSource>>,
+    pub open_source_sources: Property<Vec<ExampleSource>>,
     pub resource_sources: Property<Vec<ExampleSource>>,
 }
 
 impl HomePage {
-    pub fn handle_mount(&mut self, _ctx: &NodeContext) {
+    pub fn handle_mount(&mut self, ctx: &NodeContext) {
+        let bounds = ctx.bounds_self.clone();
+        let compact = self.compact_sources.local();
+        let overlay_open = self.source_overlay_open.local();
+        let mounted = self.source_sheets_mounted.local();
+        let open = [
+            self.hero_source_open.local(),
+            self.runtime_source_open.local(),
+            self.framework_source_open.local(),
+            self.authoring_source_open.local(),
+            self.gallery_source_open.local(),
+            self.open_source_source_open.local(),
+            self.resource_source_open.local(),
+        ];
+        let mut deps = vec![bounds.untyped(), mounted.untyped()];
+        deps.extend(open.iter().map(|value| value.untyped()));
+        let update = move || {
+            let is_compact = bounds.get().0 < 600.0;
+            compact.set_if_neq(is_compact);
+            overlay_open.set_if_neq(
+                mounted.get() > 0 || (is_compact && open.iter().any(|value| value.get())),
+            );
+        };
+        update();
+        ctx.subscribe(&deps, update);
         let mut hero_sources = section_sources(
             "src/hero_section.pax",
             include_str!("hero_section.pax"),
@@ -90,6 +139,42 @@ impl HomePage {
             include_str!("../../pax-std/src/drawing/pax_logo/animated_pax_logo_post.rs"),
         ));
         self.hero_sources.set(hero_sources);
+        let mut open_source_sources = section_sources(
+            "src/open_source_section.pax",
+            include_str!("open_source_section.pax"),
+            "src/open_source_section.rs",
+            include_str!("open_source_section.rs"),
+        );
+        open_source_sources.extend(section_sources(
+            "src/acrostic.pax",
+            include_str!("acrostic.pax"),
+            "src/acrostic.rs",
+            include_str!("acrostic.rs"),
+        ));
+        for (label, language, code) in [
+            (
+                "src/acrostic_row.pax",
+                "pax",
+                include_str!("acrostic_row.pax"),
+            ),
+            (
+                "src/hero_outlines.rs",
+                "rust",
+                include_str!("hero_outlines.rs"),
+            ),
+            (
+                "src/acrostic_outlines_data.rs",
+                "rust",
+                include_str!("acrostic_outlines_data.rs"),
+            ),
+        ] {
+            open_source_sources.push(ExampleSource {
+                label: label.into(),
+                language: language.into(),
+                code: code.into(),
+            });
+        }
+        self.open_source_sources.set(open_source_sources);
         let mut resource_sources = section_sources(
             "src/resource_section.pax",
             include_str!("resource_section.pax"),

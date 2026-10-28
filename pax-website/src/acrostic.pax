@@ -1,0 +1,35 @@
+<Group width=100% height=100% @viewport_proximity_change=self.visibility>
+    <Frame width=100% height={(self.row_height * 4)px}>
+        if self.ready {
+            for row in 0..4 {
+                <AcrosticRow y={(row * self.row_height)px} width=100% height={(self.row_height)px} glyphs={self.glyphs} phase={self.phases[row]}
+                    selected={self.selected[row]} light={self.light} cell_px={self.cell_px} font_px={self.font_px}
+                    cap_height={self.cap_height}/>
+            }
+        }
+    </Frame>
+    <Text x=0px y={100% - 24px} anchor_y=0px width={100% - 96px} height=24px text="MAKE / PLAY / OPEN / FREE / CODE" wrap=false
+        clip=true style={
+            font: "monospace"
+            font_size: 11px
+            fill: {SiteTheme::muted()}
+            align_vertical: TextAlignVertical::Center
+        }/>
+    <Button x=100% y=100% width=88px height=28px label={self.playing ? "Pause type" : "Play type"} @button_click=self.toggle
+        corner_radius=4 outline={
+            paint: {SiteTheme::rule()}
+            width: 1px
+        } color={SiteTheme::surface()}
+        hover_color={SiteTheme::raised()} style={
+            font: "Manrope"
+            font_size: 11px
+            fill: {SiteTheme::paper()}
+            align_vertical: TextAlignVertical::Center
+            align_horizontal: TextAlignHorizontal::Center
+        }/>
+</Group>
+
+@settings {
+    @mount: mount
+    @pre_render: tick
+}

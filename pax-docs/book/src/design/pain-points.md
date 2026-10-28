@@ -1278,3 +1278,51 @@ the literal backslash and `n` instead of a line break. The string grammar accept
 escapes, but `PaxDeserializer` passes the inner source text through unchanged.
 Actual newlines inside the quoted attribute produce the intended selectable
 multiline text. Used that authoring form here; no language behavior changed.
+
+## 2026-10-27 — Website iteration exhausted disk through accumulated compiler caches
+
+An incremental `pax-cli run --path pax-website --target web --libdev` failed
+writing `full.rmeta` with `No space left on device`, rather than producing the
+expected preview. This worktree's website target directory occupied about 27 GB,
+including 9.7 GB in the WebAssembly debug incremental cache across several build
+configurations. With no website build running, removed only that regenerable
+`pax-website/target/wasm32-unknown-unknown/debug/incremental` directory and retried;
+source, dependencies' compiled outputs, and other worktrees were left intact.
+
+## 2026-10-27 — Inline web button baseline shifts compact controls
+
+Building a 52×28px theme pill with a 1px transparent native label placed the
+button at y=39.5 although its native leaf transform requested y=27. The default
+inline-block baseline added 12.5px, and Pax's authored clipping cut off the
+displaced track. Setting `.button-styles` to `display: block` keeps the native
+button in its authored rectangle; label alignment remains a TextStyle concern.
+
+## 2026-10-27 — Section-local source drawers are not viewport overlays
+
+At 390×844, opening the hero source drawer removed its measured preview and
+left a 580px-tall viewer with an empty area below it. `height=100%` referred to
+the section, not the viewport; Breakout does not escape a Scroller. Extracted
+`ExampleSourceViewer` and mounted the mobile presentation above the page
+Scroller, with explicit open/selection/theme bindings and a native backdrop.
+
+## 2026-10-27 — Reactive-drain warning during source-viewer viewport resize
+
+During web QA, resizing the open source viewer from 390×844 to 1280×900
+preserved theme/selection and rendered the desktop split correctly, but dev
+logs reported one `reactive drain hit 100000 evaluations in one tick; deferring
+remaining work` warning, following two tile-window-escape resize warnings.
+Mouse/keyboard controls remained responsive. The responsible reactive chain
+has not been isolated; no runtime workaround was added for this observation.
+
+## 2026-10-28 — Enter timelines can precede initial native text presentation
+
+Opening the mobile source sheet after a page reload at 390×844 shows a brief
+intermediate frame with the sliding surface and controls, before its title,
+tabs, and code text appear. Expected a fully composed sheet throughout entry.
+The web native pool creates Text leaves hidden and releases them through
+`InitialTextPresentation` / `finishTextFrame`, independently of the component's
+350ms `@in` clock. Captures in `/tmp/pax-sheet-open-02.png` and `03.png` show the
+handoff. Moving the opaque backdrop with the sheet removes the previous
+full-page blank interval; highlighting only the selected source avoids eager
+work for hidden tabs. No arbitrary delay or bypass of text readiness was added.
+Coordinating lifecycle entry with native presentation readiness remains open.
