@@ -230,6 +230,14 @@ after an observation is still a scroll command, including during a gesture. This
 distinction applies independently to each axis and to nested scrollers as well as
 the page scroller; it avoids stale position echoes interrupting native momentum.
 
+Initial offsets can be supplied through bindings or set during the component's
+mount handler. On web, each native scroller applies its initial viewport, content
+extent, and both offsets before reporting its position back to Pax. Incremental
+startup can yield between creating and configuring the host without replacing an
+authored offset with the browser's default zero. This also applies to offscreen
+scrollers and newly mounted replacements; no timer or repeated recentering is
+needed. Once configured, normal native clamping and user-scroll feedback apply.
+
 The example's 480-pixel destination comes from its known dimensions. For a
 responsive document, derive destinations from current layout and content,
 and keep them within the available travel. Content shrinkage and viewport

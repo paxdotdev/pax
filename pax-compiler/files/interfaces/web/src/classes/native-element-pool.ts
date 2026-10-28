@@ -302,6 +302,9 @@ export class NativeElementPool {
                 this.scrollerMeasurementStates.delete(id);
                 return;
             }
+            // Resumable startup can yield after Create but before the first Update.
+            // The DOM's default zero is not yet an observation of authored state.
+            if (state.awaitingInitialConfiguration) return;
             if (!state.active && state.stableFrames >= 2 && !isIOSWebKitBrowser()) {
                 return;
             }
@@ -2567,7 +2570,7 @@ export class NativeElementPool {
 
     private shouldDelegateToPageScroll(
         leaf: HTMLElement,
-        patch: ScrollerUpdatePatch,
+        patch: ScrollerUpdate,
         state: ScrollerMeasurementState,
     ) {
         if (!this.allowPageScroll || !supportsPageScrollDelegation()) {
@@ -2621,6 +2624,8 @@ export class NativeElementPool {
         measurement: ScrollerMeasurement,
         state?: ScrollerMeasurementState,
     ) {
+        // Page-scroll delegation can also emit synchronously during configuration.
+        if (state?.awaitingInitialConfiguration) return;
         if (
             state != null
             && Math.abs(state.lastSentScrollX - measurement.scrollX) <= 0.1
@@ -2657,11 +2662,13 @@ export class NativeElementPool {
         state.stableFrames = 0;
     }
 
-    private queueScrollerUpdate(patch: ScrollerUpdatePatch) {
+    private queueScrollerUpdate(patch: ScrollerUpdate) {
         if (patch.id == null) {
             return;
         }
         let queued = this.pendingScrollerUpdates.get(patch.id) ?? { id: patch.id };
+        if (patch.parentFrame !== undefined) queued.parentFrame = patch.parentFrame;
+        if (patch.zIndex != null) queued.zIndex = patch.zIndex;
         if (patch.sizeX != null) {
             queued.sizeX = patch.sizeX;
         }
@@ -2853,6 +2860,7 @@ export class NativeElementPool {
                 vectorIslandEnabled,
             });
             this.scrollerMeasurementStates.set(patch.id, {
+                awaitingInitialConfiguration: true,
                 active: true,
                 stableFrames: 0,
                 isRootScroller: patch.parentFrame == null,
@@ -2877,13 +2885,23 @@ export class NativeElementPool {
         }
     }
 
-    scrollerUpdate(patch: ScrollerUpdatePatch){
+    scrollerUpdate(patch: ScrollerUpdate){
         let leaf = this.nodesLookup.get(patch.id!);
-        // Ordering sometimes result in updates being sent after deletes.
-        // could fix this ordering, but simply "skipping" this works for now.
+        // Preserve updates that precede their native host's creation.
         if (leaf == undefined) {
             this.queueScrollerUpdate(patch);
             return;
+        }
+        const state = this.scrollerMeasurementStates.get(patch.id!);
+        if (state?.awaitingInitialConfiguration) {
+            this.queueScrollerUpdate(patch);
+            const initial = this.pendingScrollerUpdates.get(patch.id!)!;
+            // Presence, not positivity: an explicitly zero-sized pane is valid.
+            // Copy queued values rather than retaining a pooled patch object.
+            if (initial.sizeX == null || initial.sizeY == null
+                || initial.sizeInnerPaneX == null || initial.sizeInnerPaneY == null
+                || initial.scrollX == null || initial.scrollY == null) return;
+            patch = initial;
         }
         let scrollerInner = this.getScrollerInnerPane(leaf);
         let snapHost = this.getScrollerSnapHost(leaf);
@@ -2924,7 +2942,6 @@ export class NativeElementPool {
             this.surfacePlanPending = true;
         }
 
-        let state = this.scrollerMeasurementStates.get(patch.id!);
         const shouldClip = patch.clipContent ?? state?.clipContent ?? true;
         if (state && (patch.contentOriginX != null || patch.contentOriginY != null)) {
             const previousX = state.contentOriginX ?? 0;
@@ -3091,6 +3108,13 @@ export class NativeElementPool {
         }
         if (patch.opacity != null) {
             setLeafLocalOpacity(leaf, patch.opacity);
+        }
+        if (state?.awaitingInitialConfiguration) {
+            // Release only after sizing, overflow/delegation and both position
+            // commands have been applied. The next sample may report clamping.
+            state.awaitingInitialConfiguration = false;
+            this.pendingScrollerUpdates.delete(patch.id!);
+            this.activateScrollerMeasurement(patch.id!);
         }
     }
 
@@ -4673,6 +4697,7 @@ type ScrollerMeasurement = {
 };
 
 type ScrollerMeasurementState = {
+    awaitingInitialConfiguration: boolean;
     contentOriginX?: number;
     contentOriginY?: number;
     active: boolean;
@@ -4702,28 +4727,8 @@ type ScrollerMeasurementState = {
     snapPointsY?: number[];
 };
 
-type PendingScrollerUpdate = {
-    contentOriginX?: number;
-    contentOriginY?: number;
-    id: number;
-    sizeX?: number;
-    sizeY?: number;
-    clipContent?: boolean;
-    borderRadius?: number;
-    sizeInnerPaneX?: number;
-    sizeInnerPaneY?: number;
-    snapPointsX?: number[];
-    snapPointsY?: number[];
-    transform?: number[];
-    opacity?: number;
-    scrollX?: number;
-    scrollY?: number;
-    presentationScrollX?: number;
-    presentationScrollY?: number;
-    contentLayerId?: number;
-    presentedBounds?: number[];
-    presentedClipBounds?: number[];
-};
+type ScrollerUpdate = Omit<ScrollerUpdatePatch, 'fromPatch' | 'cleanUp'>;
+type PendingScrollerUpdate = ScrollerUpdate & {id: number};
 
 type ScrollerDomHosts = {
     id: number;
