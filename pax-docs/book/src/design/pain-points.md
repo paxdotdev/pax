@@ -1376,3 +1376,7 @@ Coordinating lifecycle entry with native presentation readiness remains open.
   expects 0 at line 1288 but receives 5588616461809109485. Reproduce with
   `cargo test -p pax-runtime --test viewport_proximity -- --test-threads=1`.
   Remaining tests in that binary: 20 passed, 1 ignored.
+
+- 2026-10-28 (PAX-1051): Regenerating Rust API references with `cargo run -p pax-docs --bin gen_api_docs` also builds the native SDK because the generator enables `host` for pax-kit. In the workspace sandbox, generation stopped at pax-host with Swift module/manifest cache writes denied (`target/debug/build/pax-host-*/out/xcodebuild.log`: `~/.cache/clang/ModuleCache` and `~/Library/Caches/org.swift.swiftpm`). Expected documentation generation to complete; workaround is running the generator with approved access to Xcode caches.
+
+- 2026-10-28 (PAX-1051): Adding the typed `math::spatial::Vector3` exposed an API-doc link-resolution limitation: `gen_api_docs` keys type links by unqualified name, so generated lighting signatures now show `Vector3` without the former link to `drawing::Vector3`. Expected each resolved Rust type to retain its own link; reproduce by running the generator with both public types present. Evidence: generated drawing/lighting diffs and `LinkResolver::insert` in `pax-docs/src/bin/gen_api_docs.rs`. The generated text stays accurate; use the module-specific API sections to distinguish the types.

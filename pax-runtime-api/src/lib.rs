@@ -39,6 +39,7 @@ use properties::{PropertyValue, UntypedProperty};
 use serde::{Deserialize, Serialize};
 
 pub mod animation;
+pub mod camera;
 pub mod color;
 pub mod constants;
 pub mod cursor;

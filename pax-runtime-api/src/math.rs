@@ -3,10 +3,12 @@ use std::ops::Mul;
 use kurbo::Affine;
 
 mod point;
+pub mod spatial;
 mod transform;
 mod vector;
 
 pub use point::Point2;
+pub use spatial::{Plane3, Point3, Transform3, Vector3};
 pub use transform::Transform2;
 pub use transform::TransformParts;
 pub use vector::Vector2;

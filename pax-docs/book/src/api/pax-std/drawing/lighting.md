@@ -62,7 +62,7 @@ Type: `Property`<[`LightShape`](../../../api/pax-runtime-api/drawing.md#lightsha
 Positional or directional light shape.
 
 ##### `direction`
-Type: `Property`<[`Vector3`](../../../api/pax-runtime-api/drawing.md#vector3)>
+Type: `Property`<`Vector3`>
 
 Direction for directional lights.
 

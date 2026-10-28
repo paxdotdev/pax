@@ -325,12 +325,12 @@ Type: [`LightShape`](../../api/pax-runtime-api/drawing.md#lightshape)
 Positional or directional light shape.
 
 ##### `position`
-Type: [`Vector3`](../../api/pax-runtime-api/drawing.md#vector3)
+Type: `Vector3`
 
 Position in logical canvas pixels for point lights.
 
 ##### `direction`
-Type: [`Vector3`](../../api/pax-runtime-api/drawing.md#vector3)
+Type: `Vector3`
 
 Direction in scene space for directional lights.
 

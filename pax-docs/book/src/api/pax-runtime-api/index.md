@@ -13,6 +13,7 @@ provide the browsing ontology used by the generated API docs.
 - [application_shutdown](application_shutdown.md)
 - [application](application.md)
 - [animation](animation.md)
+- [camera](camera.md)
 - [color](color.md)
 - [cursor](cursor.md)
 - [drawing](drawing.md)

@@ -435,6 +435,46 @@ still update autosized containers before the ancestor becomes visible again.
 [Events](event-handling-rust.md#events-and-coordinates) explains converting
 input positions through transformed geometry.
 
+### Spatial math for engine integrations
+
+Rust integrations can use `pax_runtime_api::math::Transform3`, `Point3`, and
+`Plane3`, together with `pax_runtime_api::camera`, to project geometry and
+intersect a pointer ray with a transformed plane. These are low-level math
+utilities: template transforms, rendering, and native-control placement still
+use the existing 2D pipeline. Adding a spatial matrix in application code does
+not yet rotate a Pax element in 3D.
+
+`Transform3::from(transform_2d)` preserves the existing affine coefficients
+and leaves z unchanged. Matrices default to identity and compose as
+`parent * child`. Coordinates use logical pixels, x right, y down, and positive
+z toward the default viewer. Positive z-rotation matches the existing `rotate`.
+
+An orthographic camera with an identity view preserves window x/y:
+
+```rust
+use pax_runtime_api::{
+    camera::{Camera, CameraProjection},
+    math::{Point3, Transform3},
+};
+
+let projection = CameraProjection::orthographic((800., 600.), 1000., -1000.).unwrap();
+let camera: Camera = Camera::new(Transform3::identity(), projection).unwrap();
+let screen = camera.project(Point3::new(120., 80., 0.)).unwrap();
+// screen.position is (120, 80); screen.depth is 0.5.
+```
+
+The depth range above is chosen by this example. Camera projection reports
+normalized depth from 0 (front) to 1 (back). Perspective cameras look along -z
+and use positive near/far distances. Projection and picking share a matrix and
+its inverse; invalid transforms, points outside the depth range, and edge-on
+plane intersections return `None`. Plane picking returns local coordinates;
+the caller still checks logical bounds, clips, and visibility.
+
+See the [camera API](api/pax-runtime-api/camera.md) and
+[spatial math API](api/pax-runtime-api/math/spatial.md) for the checked constructors and
+coplanarity rules. These utilities run on native and WebAssembly targets;
+they do not establish 3D rendering support on either target.
+
 ## Multi-Axis Common Properties
 
 The `anchor`, `scale`, and `skew` shorthands accept a scalar for both axes
