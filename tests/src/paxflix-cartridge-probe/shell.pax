@@ -1,8 +1,0 @@
-if ready {
-    <DeferredPaxflix width=100% height=100% embedded=true/>
-}
-if !ready {
-    <Text x=50% y=50% width=80% height=80px text="Paxflix is ready to load." style={font: "Arial", font_size: 24px, fill: rgb(232, 203, 180)}/>
-    <Rectangle width=100% height=100% fill={rgb(20, 20, 20)}/>
-}
-@settings { @mount: mount }

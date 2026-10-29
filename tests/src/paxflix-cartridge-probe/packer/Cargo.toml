@@ -1,8 +1,0 @@
-[package]
-name = "paxflix-module-packer"
-version = "0.0.0"
-edition = "2021"
-publish = false
-[dependencies]
-pax-manifest = { path = "../../../../pax-manifest", features = ["json"] }
-serde_json = "1"
